@@ -122,16 +122,25 @@ export function createSceneAnimationController(documentInput, options = {}) {
   let disposed = false
   let frames = 0
   let failures = 0
+  const completedOnceBindings = new Set()
   return Object.freeze({
     tick(elapsedMs) {
       if (disposed || !Number.isFinite(elapsedMs) || elapsedMs < 0) return 0
       let applied = 0
       for (const binding of compiled.bindings) {
+        if (binding.playback === 'once' && completedOnceBindings.has(binding.id)) continue
         const progress = ease(binding.easing, playbackProgress(binding, elapsedMs))
         const value = binding.from + (binding.to - binding.from) * progress
         try {
-          options.apply(binding, value, elapsedMs, progress)
+          if (options.apply(binding, value, elapsedMs, progress) === false) {
+            failures += 1
+            continue
+          }
           applied += 1
+          if (binding.playback === 'once' && progress >= 1 && !completedOnceBindings.has(binding.id)) {
+            completedOnceBindings.add(binding.id)
+            options.onComplete?.(binding, value, elapsedMs)
+          }
         } catch {
           failures += 1
         }
@@ -149,9 +158,15 @@ export function createSceneAnimationController(documentInput, options = {}) {
           playback,
         })),
         disposed,
+        completed: completedOnceBindings.size,
         failures,
         frames,
       }
+    },
+    restart() {
+      if (disposed) return false
+      completedOnceBindings.clear()
+      return true
     },
     dispose() {
       if (disposed) return false

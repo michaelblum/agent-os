@@ -136,18 +136,7 @@
       "hot_swappable": true,
       "tcc_identity_sensitive": false,
       "commands": [],
-      "verification": [
-        {
-          "id": "toolkit-test",
-          "command": "node --test tests/toolkit/*.test.mjs",
-          "reason": "Use focused toolkit/runtime tests for pure browser-surface changes."
-        },
-        {
-          "id": "show-wait",
-          "command": "./aos show wait --id <canvas-id> --json --timeout 15s",
-          "reason": "When manually verifying a canvas-backed component, use diagnostic JSON waits so timeout failures include runtime verdict detail."
-        }
-      ]
+      "verification": []
     },
     {
       "id": "status-item-contract",

@@ -10,7 +10,9 @@ import {
   deriveOrthoCamera,
   resolveThreeRenderMetrics,
 } from '../../scene/index.js'
+import { createSceneAnimationInteractionState } from './scene-animation-interaction-state.js'
 import { createDesktopWorldSceneInteractionThree } from './scene-interaction-three.js'
+import { createScenePlaybackClock } from './scene-playback-clock.js'
 
 const MAX_RESOURCES = 32
 const MAX_SIGNALS_PER_SECOND = 30
@@ -36,6 +38,16 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
   let devtoolsProbe = null
   let gpuTimer = null
   let lastRenderAt = null
+  let interactionGeometryObserver = null
+  let nextPlayGeneration = 0
+
+  const notifyInteractionGeometry = (key, generation) => {
+    try {
+      interactionGeometryObserver?.(key, generation)
+    } catch {
+      devtoolsProbe?.recordEvent({ kind: 'interaction.geometry.failed', code: 'INPUT_REGION_SYNC_FAILED' })
+    }
+  }
 
   const updateSegment = (nextSegment) => {
     const projection = deriveOrthoCamera(nextSegment)
@@ -88,11 +100,13 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     const validation = registry.validateDocument(document)
     if (!validation.ok) throw new TypeError('Scene document requires an unavailable or invalid implementation.')
     const projection = createGenericThreeSceneProjection({ THREE, document })
+    const interactionState = createSceneAnimationInteractionState(document)
     let animations
     let signals
     try {
       animations = createSceneAnimationController(document, {
         apply: (binding, value, elapsedMs, progress) => projection.applyAnimation(binding, value, elapsedMs, progress),
+        onComplete: (binding, value) => interactionState.complete(binding, value),
       })
       signals = createSceneSignalController(document, {
         apply: (binding, value, input, at) => projection.applySignal(binding, value, input, at),
@@ -112,7 +126,10 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       projection,
       signals,
       animations,
+      interactionState,
       interactionVisuals: null,
+      playGeneration: null,
+      playClock: createScenePlaybackClock(),
       suspended: false,
       signalWindowAt: 0,
       signalWindowCount: 0,
@@ -191,11 +208,23 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       mounted.signals.publish(operation.signalId, operation.value, Number(operation.at) || Date.now())
     } else if (operation.op === 'play') {
       const mounted = resources.get(key)
-      if (mounted) mounted.playStartedAt = performance.now()
+      if (mounted) {
+        const now = performance.now()
+        mounted.animations.restart()
+        mounted.interactionState.reset(mounted.document)
+        mounted.interactionState.takeDirty()
+        mounted.playGeneration = ++nextPlayGeneration
+        mounted.playClock.restart(now)
+        if (mounted.suspended || hidden || contextLost) mounted.playClock.suspend(now)
+      }
     } else if (operation.op === 'suspend' || operation.op === 'resume') {
       const mounted = resources.get(key)
       if (mounted) {
+        const now = performance.now()
+        const wasSuspended = mounted.suspended
         mounted.suspended = operation.op === 'suspend'
+        if (!wasSuspended && mounted.suspended) mounted.playClock.suspend(now)
+        if (wasSuspended && !mounted.suspended && !hidden && !contextLost) mounted.playClock.resume(now)
         mounted.projection[operation.op]()
         mounted.interactionVisuals?.[operation.op]()
       }
@@ -222,6 +251,8 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       revision: mounted.document.revision + 1,
       objects,
     })
+    mounted.interactionState.setObjectPosition(objectId, position)
+    mounted.interactionState.takeDirty()
     return mounted.document.revision
   }
 
@@ -298,8 +329,11 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     if (!hidden && !contextLost) {
       for (const mounted of resources.values()) {
         if (mounted.suspended) continue
-        const elapsed = at - (mounted.playStartedAt ?? at)
+        const elapsed = mounted.playClock.elapsed(at)
         mounted.animations.tick(elapsed)
+        if (mounted.interactionState.takeDirty()) {
+          notifyInteractionGeometry(mounted.key, mounted.playGeneration)
+        }
         mounted.interactionVisuals?.tick(at)
       }
       const renderStartedAt = trackPerformance ? performance.now() : 0
@@ -340,9 +374,23 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     frame = hostWindow.requestAnimationFrame(render)
   }
 
-  const onVisibility = () => { hidden = document.hidden }
+  const suspendPlaybackClocks = (at = performance.now()) => {
+    for (const mounted of resources.values()) mounted.playClock.suspend(at)
+  }
+  const resumePlaybackClocks = (at = performance.now()) => {
+    for (const mounted of resources.values()) {
+      if (!mounted.suspended) mounted.playClock.resume(at)
+    }
+  }
+  const onVisibility = () => {
+    const nextHidden = document.hidden
+    if (nextHidden && !hidden) suspendPlaybackClocks()
+    if (!nextHidden && hidden && !contextLost) resumePlaybackClocks()
+    hidden = nextHidden
+  }
   const onContextLost = (event) => {
     event.preventDefault()
+    if (!contextLost) suspendPlaybackClocks()
     contextLost = true
     gpuTimer?.dispose()
     gpuTimer = null
@@ -350,6 +398,7 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
   }
   const onContextRestored = () => {
     contextLost = false
+    if (!hidden) resumePlaybackClocks()
     resize()
     devtoolsProbe?.recordEvent({ kind: 'context.restored' })
   }
@@ -369,6 +418,14 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       return mounted ? Object.freeze({ document: mounted.document, suspended: mounted.suspended }) : null
     },
     document(key) { return resources.get(key)?.document ?? null },
+    animationGeneration(key) { return resources.get(key)?.playGeneration ?? null },
+    hasInteractionAnimation(key) {
+      return resources.get(key)?.interactionState.hasSpatialAnimation() === true
+    },
+    interactionDocument(key) { return resources.get(key)?.interactionState.document() ?? null },
+    nextAnimationGeneration(key) {
+      return resources.has(key) ? nextPlayGeneration + 1 : null
+    },
     devtoolsSnapshot() {
       const mountedResources = []
       const nodes = []
@@ -431,6 +488,10 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       lastRenderAt = null
       return true
     },
+    setInteractionGeometryObserver(observer) {
+      interactionGeometryObserver = typeof observer === 'function' ? observer : null
+      return true
+    },
     updateSegment,
     snapshot() {
       return {
@@ -456,6 +517,7 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       for (const key of [...resources.keys()]) release(key)
       gpuTimer?.dispose()
       gpuTimer = null
+      interactionGeometryObserver = null
       renderer.dispose()
       renderer.forceContextLoss()
       return true

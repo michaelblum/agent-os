@@ -3,6 +3,7 @@ import {
   validateSceneInteractionDocument,
 } from '../../scene/index.js'
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
+import { createSceneAnimationRegionTransitionRuntime } from './scene-animation-region-transition.js'
 import { createDesktopWorldSceneRadialMenuRuntime } from './scene-radial-menu-runtime.js'
 
 const MAX_LEASES = 32
@@ -103,7 +104,9 @@ export function createDesktopWorldSceneInteractionRuntime({
         ownerId: entry.owner,
         resourceId: entry.resource,
       },
-      document: () => leases.get(entry.key) === entry ? outlet.document(entry.key) : entry.document,
+      document: () => leases.get(entry.key) === entry
+        ? outlet.interactionDocument?.(entry.key) ?? outlet.document(entry.key)
+        : entry.document,
       interactions: entry.interactions,
       topology,
       now,
@@ -144,7 +147,17 @@ export function createDesktopWorldSceneInteractionRuntime({
     return indexed
   }
 
-  function createEntry({ key, owner, resource, document, interactions, regionGeneration = null }) {
+  function createEntry({
+    key,
+    owner,
+    resource,
+    document,
+    interactions,
+    regionGeneration = null,
+    animationGeneration = null,
+    animationQuiesced = false,
+    animationReady = false,
+  }) {
     const entry = {
       key,
       owner,
@@ -161,6 +174,9 @@ export function createDesktopWorldSceneInteractionRuntime({
       generation: 0,
       regionSync: Promise.resolve(),
       regionSyncErrorCode: null,
+      animationGeneration,
+      animationQuiesced,
+      animationReady,
       sequence: leases.get(key)?.sequence ?? 0,
     }
     entry.controller = createController(entry)
@@ -198,6 +214,46 @@ export function createDesktopWorldSceneInteractionRuntime({
     await Promise.allSettled([...unique.values()].map((payload) => updateRegion(inactiveRegionPayload(payload))))
     return cleanupRetiredRegions([...unique.keys()])
   }
+
+  function retiredRegionIdsForEntry(entry) {
+    return [...retiredRegions].flatMap(([id, payload]) => (
+      payload?.metadata?.scene_owner === entry.owner
+      && payload?.metadata?.scene_resource === entry.resource
+        ? [id]
+        : []
+    ))
+  }
+
+  async function requireRetiredRegionsClean(entry) {
+    const ids = retiredRegionIdsForEntry(entry)
+    if (ids.length === 0) return true
+    const clean = await cleanupRetiredRegions(ids)
+    if (!clean || retiredRegionIdsForEntry(entry).length > 0) {
+      throw new Error('DesktopWorld animated input-region cleanup is still pending.')
+    }
+    return true
+  }
+
+  async function retireEntryRegions(entry, includeIndexed = false) {
+    await requireRetiredRegionsClean(entry)
+    const regions = new Map()
+    const ids = includeIndexed
+      ? new Set([...entry.regionIds.keys(), ...entry.registeredIds])
+      : entry.registeredIds
+    for (const id of ids) {
+      const payload = entry.regionIds.get(id)?.payload
+      if (payload) regions.set(id, payload)
+    }
+    const clean = await retireAndRemoveRegions(regions)
+    entry.registeredIds.clear()
+    if (!clean || retiredRegionIdsForEntry(entry).length > 0) {
+      throw new Error('DesktopWorld animated input-region cleanup failed.')
+    }
+    return true
+  }
+
+  const retireRegisteredRegions = (entry) => retireEntryRegions(entry)
+  const retireIndexedRegions = (entry) => retireEntryRegions(entry, true)
 
   async function removeRegions(entry) {
     entry.generation += 1
@@ -290,7 +346,14 @@ export function createDesktopWorldSceneInteractionRuntime({
     return true
   }
 
-  async function prepareReplacement({ key, owner, resource, document, interactions = undefined }) {
+  async function prepareReplacement({
+    key,
+    owner,
+    resource,
+    document,
+    interactions = undefined,
+    animationGeneration = null,
+  }) {
     if (preparations.has(key)) throw new TypeError('DesktopWorld scene interaction replacement is already pending.')
     const previous = leases.get(key) ?? null
     const resolved = interactions === undefined ? previous?.interactions ?? null : interactions
@@ -308,6 +371,7 @@ export function createDesktopWorldSceneInteractionRuntime({
       document,
       interactions: validated,
       regionGeneration: `r${++nextRegionGeneration}`,
+      animationGeneration,
     }) : null
     const preparation = {
       key,
@@ -498,6 +562,18 @@ export function createDesktopWorldSceneInteractionRuntime({
     return radialMenus.close(key, reason) || gesture
   }
 
+  const animationRegions = createSceneAnimationRegionTransitionRuntime({
+    entryFor: (key) => leases.get(key) ?? null,
+    outlet,
+    closeRadialMenu: (key, reason) => radialMenus.close(key, reason),
+    settleRadialMenu: (key) => radialMenus.settle(key, { requireClean: true }),
+    retireRegisteredRegions,
+    retireIndexedRegions,
+    syncRegions,
+    prepareReplacement,
+    releaseEntry: release,
+  })
+
   async function suspend(key) {
     const entry = leases.get(key)
     if (!entry) return false
@@ -509,7 +585,7 @@ export function createDesktopWorldSceneInteractionRuntime({
     }
     await entry.regionSync
     await radialMenus.settle(key, { requireClean: true })
-    await removeRegions(entry)
+    if (!entry.animationQuiesced) await removeRegions(entry)
     return true
   }
 
@@ -518,6 +594,10 @@ export function createDesktopWorldSceneInteractionRuntime({
     if (!entry || !entry.suspended) return false
     await entry.regionSync
     entry.suspended = false
+    if (entry.animationQuiesced) {
+      if (entry.animationReady) return animationRegions.settle(key, entry.animationGeneration)
+      return true
+    }
     await syncRegions(entry)
     return true
   }
@@ -528,7 +608,7 @@ export function createDesktopWorldSceneInteractionRuntime({
       radialMenus.close(entry.key, 'topology_changed')
       await entry.regionSync
       await radialMenus.settle(entry.key, { requireClean: true })
-      await syncRegions(entry, true)
+      if (!entry.animationQuiesced) await syncRegions(entry, true)
     }
   }
 
@@ -541,7 +621,7 @@ export function createDesktopWorldSceneInteractionRuntime({
     radialMenus.close(key, reason)
     await entry.regionSync
     await radialMenus.settle(key, { requireClean: true })
-    await removeRegions(entry)
+    if (!entry.animationQuiesced) await removeRegions(entry)
     leases.delete(key)
     return true
   }
@@ -554,7 +634,9 @@ export function createDesktopWorldSceneInteractionRuntime({
     if (stagedRegionIds.has(regionId) || retiredRegions.has(regionId)) return true
     for (const entry of leases.values()) {
       const affordanceId = entry.regionIds.get(regionId)?.affordanceId
-      if (affordanceId && !entry.suspended) return entry.controller.handle(affordanceId, message)
+      if (affordanceId && !entry.suspended && !entry.animationQuiesced) {
+        return entry.controller.handle(affordanceId, message)
+      }
     }
     return false
   }
@@ -572,6 +654,9 @@ export function createDesktopWorldSceneInteractionRuntime({
         resource: entry.resource,
         regions: [...entry.regionIds.keys()],
         registered: entry.registeredIds.size,
+        animationGeneration: entry.animationGeneration,
+        animationQuiesced: entry.animationQuiesced,
+        animationReady: entry.animationReady,
         regionSyncErrorCode: entry.regionSyncErrorCode,
         suspended: entry.suspended,
         controller: entry.controller.snapshot(),
@@ -695,6 +780,9 @@ export function createDesktopWorldSceneInteractionRuntime({
     reconcile,
     refresh,
     cancel,
+    quiesceAnimation: animationRegions.quiesce,
+    restoreAnimation: animationRegions.restore,
+    settleAnimationGeometry: animationRegions.settle,
     suspend,
     resume,
     topologyChanged,

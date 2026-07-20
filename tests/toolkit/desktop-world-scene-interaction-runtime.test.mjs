@@ -52,8 +52,13 @@ function harness({
   const calls = []
   const responses = []
   const events = []
+  const regionUpdates = []
+  let interactionDocument = document
+  let animationGeneration = 1
   const outlet = {
     document: () => document,
+    interactionDocument: () => interactionDocument,
+    animationGeneration: () => animationGeneration,
     applyInteractionResponse(_key, event) {
       responses.push(event)
       return applyResponse(event)
@@ -64,13 +69,26 @@ function harness({
     isPrimary: () => primary,
     topology: () => ({ displays: [{ displayId: 1, index: 0, bounds: [0, 0, 1000, 800] }] }),
     registerRegion: async (payload) => { calls.push(['register', payload.id]); await register(payload) },
-    updateRegion: async (payload) => { calls.push(['update', payload.id]); await update(payload) },
+    updateRegion: async (payload) => {
+      calls.push(['update', payload.id])
+      regionUpdates.push(structuredClone(payload))
+      await update(payload)
+    },
     removeRegion: async (id) => { calls.push(['remove', id]); await remove(id) },
     scheduleFrame(callback) { callback() },
     scheduleTimer,
     emitEvent(event) { events.push(event) },
   })
-  return { calls, events, outlet, responses, runtime }
+  return {
+    calls,
+    events,
+    outlet,
+    regionUpdates,
+    responses,
+    runtime,
+    setAnimationGeneration(value) { animationGeneration = value },
+    setInteractionDocument(value) { interactionDocument = value },
+  }
 }
 
 function routed(regionId, type, x, y, sequenceValue) {
@@ -240,6 +258,209 @@ test('translated hit-region refresh retries once without duplicating the gesture
     ['update', regionId],
     ['update', regionId],
   ])
+})
+
+test('completed spatial animation settles a fresh native-region generation at the terminal pose', async () => {
+  const fixture = harness()
+  const key = 'example.consumer::companion/main'
+  const oldRegionId = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const moved = structuredClone(document)
+  moved.objects[1].transform.position = [500, 400, 0]
+  moved.objects[1].transform.scale = [2, 2, 2]
+  await fixture.runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions })
+
+  assert.equal(await fixture.runtime.quiesceAnimation(key, 1), true)
+  fixture.setInteractionDocument(moved)
+  assert.equal(await fixture.runtime.settleAnimationGeometry(key, 1), true)
+
+  const terminalRegionId = fixture.runtime.snapshot(key).leases[0].regions[0]
+  assert.notEqual(terminalRegionId, oldRegionId)
+  assert.match(terminalRegionId, /:generation:r\d+$/u)
+  assert.deepEqual(fixture.regionUpdates.at(-1).frame, [420, 340, 160, 120])
+  assert.deepEqual(fixture.runtime.devtoolsSnapshot().hitRegions[0].frame, [420, 340, 160, 120])
+  fixture.runtime.handleInput(routed(terminalRegionId, 'left_mouse_down', 500, 400, 1))
+  fixture.runtime.handleInput(routed(terminalRegionId, 'left_mouse_dragged', 520, 420, 2))
+  assert.deepEqual(fixture.responses.map(({ frame }) => frame.phase), ['start', 'update'])
+})
+
+test('terminal animation regions remain staged together when one activation fails', async () => {
+  let releaseActivation
+  let markActivationStarted
+  let candidateUpdates = 0
+  const activationStarted = new Promise((resolve) => { markActivationStarted = resolve })
+  const activationGate = new Promise((resolve) => { releaseActivation = resolve })
+  const fixture = harness({
+    update: async (payload) => {
+      if (!payload.id.includes(':generation:') || payload.enabled !== true) return
+      candidateUpdates += 1
+      if (candidateUpdates === 1) {
+        markActivationStarted()
+        await activationGate
+      }
+      if (candidateUpdates === 2) throw new Error('fixture second activation failure')
+    },
+  })
+  const key = 'example.consumer::companion/main'
+  const twoObjectDocument = structuredClone(document)
+  twoObjectDocument.objects.push({
+    id: 'badge',
+    parentId: 'root',
+    kind: 'mesh',
+    transform: { position: [200, 260, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+    visible: true,
+    geometryId: null,
+    materialId: null,
+    components: [],
+  })
+  const twoObjectInteractions = structuredClone(interactions)
+  twoObjectInteractions.affordances.push({
+    ...twoObjectInteractions.affordances[0],
+    id: 'badge-hit',
+    objectId: 'badge',
+  })
+  twoObjectInteractions.interactions.push({
+    ...twoObjectInteractions.interactions[0],
+    id: 'drag-badge',
+    affordanceId: 'badge-hit',
+  })
+  const moved = structuredClone(twoObjectDocument)
+  moved.objects[1].transform.position = [500, 400, 0]
+  moved.objects[2].transform.position = [620, 440, 0]
+  fixture.setInteractionDocument(twoObjectDocument)
+  await fixture.runtime.mount({
+    key,
+    owner: 'example.consumer',
+    resource: 'companion/main',
+    document: twoObjectDocument,
+    interactions: twoObjectInteractions,
+  })
+  await fixture.runtime.quiesceAnimation(key, 1)
+  fixture.setInteractionDocument(moved)
+  const settling = fixture.runtime.settleAnimationGeometry(key, 1)
+  await activationStarted
+  const candidateRegionId = fixture.runtime.snapshot(key).leases[0].regions[0]
+
+  fixture.runtime.handleInput(routed(candidateRegionId, 'left_mouse_down', 500, 400, 1))
+  assert.deepEqual(fixture.responses, [])
+  releaseActivation()
+
+  await assert.rejects(settling, /animated input-region settlement failed/u)
+  assert.equal(candidateUpdates, 2)
+  assert.deepEqual(fixture.runtime.snapshot(key).leases, [])
+  assert.deepEqual(fixture.responses, [])
+})
+
+test('terminal preparation failure releases the quiesced interaction lease', async () => {
+  const fixture = harness({
+    register: async (payload) => {
+      if (payload.id.includes(':generation:')) throw new Error('fixture candidate registration failure')
+    },
+  })
+  const key = 'example.consumer::companion/main'
+  const moved = structuredClone(document)
+  moved.objects[1].transform.position = [500, 400, 0]
+  await fixture.runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions })
+  await fixture.runtime.quiesceAnimation(key, 1)
+  fixture.setInteractionDocument(moved)
+
+  await assert.rejects(
+    fixture.runtime.settleAnimationGeometry(key, 1),
+    /fixture candidate registration failure/u,
+  )
+
+  assert.deepEqual(fixture.runtime.snapshot(key).leases, [])
+  assert.deepEqual(fixture.runtime.devtoolsSnapshot().hitRegions, [])
+})
+
+test('retired-region cleanup blocks new animation generations without allocation growth', async () => {
+  let allowCleanup = false
+  const fixture = harness({
+    remove: async () => {
+      if (!allowCleanup) throw new Error('fixture cleanup failure')
+    },
+    scheduleTimer: () => ({ unref() {} }),
+  })
+  const key = 'example.consumer::companion/main'
+  await fixture.runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions })
+
+  await assert.rejects(fixture.runtime.quiesceAnimation(key, 1), /cleanup failed/u)
+  await assert.rejects(fixture.runtime.quiesceAnimation(key, 2), /cleanup is still pending/u)
+  await assert.rejects(fixture.runtime.quiesceAnimation(key, 3), /cleanup is still pending/u)
+  assert.equal(fixture.calls.filter(([kind]) => kind === 'register').length, 1)
+  assert.equal(fixture.runtime.snapshot(key).leases[0].registered, 0)
+  assert.equal(fixture.runtime.snapshot(key).leases[0].animationQuiesced, true)
+
+  allowCleanup = true
+  fixture.setAnimationGeneration(4)
+  const moved = structuredClone(document)
+  moved.objects[1].transform.position = [500, 400, 0]
+  fixture.setInteractionDocument(moved)
+  assert.equal(await fixture.runtime.quiesceAnimation(key, 4), true)
+  assert.equal(await fixture.runtime.settleAnimationGeometry(key, 4), true)
+  assert.equal(fixture.calls.filter(([kind]) => kind === 'register').length, 2)
+  assert.equal(fixture.runtime.snapshot(key).leases[0].registered, 1)
+})
+
+test('stale animation generations cannot settle input regions for a newer play', async () => {
+  const fixture = harness()
+  const key = 'example.consumer::companion/main'
+  const moved = structuredClone(document)
+  moved.objects[1].transform.position = [500, 400, 0]
+  await fixture.runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions })
+  await fixture.runtime.quiesceAnimation(key, 1)
+  fixture.setInteractionDocument(moved)
+  fixture.setAnimationGeneration(2)
+
+  assert.equal(await fixture.runtime.settleAnimationGeometry(key, 1), false)
+  assert.equal(fixture.runtime.snapshot(key).leases[0].registered, 0)
+  assert.equal(fixture.runtime.snapshot(key).leases[0].animationReady, false)
+
+  await fixture.runtime.quiesceAnimation(key, 2)
+  assert.equal(await fixture.runtime.settleAnimationGeometry(key, 2), true)
+  assert.deepEqual(fixture.runtime.devtoolsSnapshot().hitRegions[0].frame, [460, 370, 80, 60])
+})
+
+test('terminal animation geometry settles after a suspended resource resumes', async () => {
+  const fixture = harness()
+  const key = 'example.consumer::companion/main'
+  const moved = structuredClone(document)
+  moved.objects[1].transform.position = [500, 400, 0]
+  await fixture.runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions })
+  await fixture.runtime.quiesceAnimation(key, 1)
+  fixture.setInteractionDocument(moved)
+  await fixture.runtime.suspend(key)
+
+  assert.equal(await fixture.runtime.settleAnimationGeometry(key, 1), false)
+  assert.equal(fixture.runtime.snapshot(key).leases[0].animationReady, true)
+  assert.equal(fixture.runtime.snapshot(key).leases[0].registered, 0)
+
+  assert.equal(await fixture.runtime.resume(key), true)
+  assert.equal(fixture.runtime.snapshot(key).leases[0].suspended, false)
+  assert.equal(fixture.runtime.snapshot(key).leases[0].animationQuiesced, false)
+  assert.deepEqual(fixture.runtime.devtoolsSnapshot().hitRegions[0].frame, [460, 370, 80, 60])
+})
+
+test('repeated animation settlement retains exactly one interaction generation', async () => {
+  const fixture = harness()
+  const key = 'example.consumer::companion/main'
+  await fixture.runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions })
+
+  for (let generation = 1; generation <= 100; generation += 1) {
+    const moved = structuredClone(document)
+    moved.objects[1].transform.position = [100 + generation, 200 + generation, 0]
+    fixture.setAnimationGeneration(generation)
+    fixture.setInteractionDocument(moved)
+    assert.equal(await fixture.runtime.quiesceAnimation(key, generation), true)
+    assert.equal(await fixture.runtime.settleAnimationGeometry(key, generation), true)
+  }
+
+  const snapshot = fixture.runtime.snapshot(key)
+  assert.equal(snapshot.leases.length, 1)
+  assert.equal(snapshot.leases[0].registered, 1)
+  assert.equal(snapshot.leases[0].animationQuiesced, false)
+  assert.equal(fixture.runtime.devtoolsSnapshot().hitRegions.length, 1)
+  assert.equal(fixture.calls.filter(([kind]) => kind === 'register').length, 101)
+  assert.equal(fixture.calls.filter(([kind]) => kind === 'remove').length, 100)
 })
 
 test('accepted aim-and-commit release refreshes the destination hit region', async () => {

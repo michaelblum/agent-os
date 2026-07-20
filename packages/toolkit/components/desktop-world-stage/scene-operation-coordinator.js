@@ -96,11 +96,46 @@ export function createDesktopWorldSceneOperationCoordinator({ outlet, interactio
     }
   }
 
+  async function play(message, key) {
+    const generation = outlet.hasInteractionAnimation?.(key)
+      ? outlet.nextAnimationGeneration?.(key) ?? null
+      : null
+    let quiesced = false
+    if (Number.isInteger(generation)) {
+      quiesced = await interactions.quiesceAnimation(key, generation)
+    }
+
+    let applied
+    try {
+      applied = outlet.apply(message)
+    } catch (error) {
+      if (!quiesced) throw error
+      try {
+        await interactions.restoreAnimation(key, generation)
+      } catch (restoreError) {
+        throw new AggregateError([error, restoreError], 'DesktopWorld scene play and interaction restoration both failed.')
+      }
+      throw error
+    }
+    if (!applied && quiesced) {
+      try {
+        await interactions.restoreAnimation(key, generation)
+      } catch (restoreError) {
+        throw new AggregateError(
+          [new Error('DesktopWorld scene play was not applied.'), restoreError],
+          'DesktopWorld scene play rejection and interaction restoration both failed.',
+        )
+      }
+    }
+    return { applied, op: 'play' }
+  }
+
   async function apply(message) {
     const payload = message?.payload ?? {}
     const key = payload.lease_key
     const op = operationName(message)
     if (op === 'mount' || op === 'transact') return replace(message, op)
+    if (op === 'play') return play(message, key)
 
     const previousOutlet = outlet.configuration(key)
     const previous = {

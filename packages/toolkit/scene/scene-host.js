@@ -361,7 +361,7 @@ function createSceneHost(options = {}, hooks = {}) {
           bindings: [], disposed: false, failures: 0, publications: 0,
         },
         animations: animationController?.snapshot() ?? {
-          bindings: [], disposed: false, failures: 0, frames: 0,
+          bindings: [], completed: 0, disposed: false, failures: 0, frames: 0,
         },
         lifecycle: projection?.lifecycle?.snapshot?.() ?? null,
       }

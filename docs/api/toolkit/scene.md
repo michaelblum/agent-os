@@ -333,6 +333,34 @@ allocates no event object per binding per tick; the host or consumer owns the
 clock. This is a numeric binding primitive, not a general timeline or
 consumer-code evaluator.
 
+`restart()` explicitly starts a new completion generation for the controller.
+The optional `onComplete` callback fires at most once for each successfully
+applied one-shot binding in that generation; callback failures are counted and
+are not retried on every frame. A completed one-shot stops applying until the
+next explicit `restart()`, so a later interaction can own the resulting
+property without the animation overwriting it on every render tick.
+
+When a DesktopWorld resource combines native affordances with one-shot bindings
+that affect 2D hit geometry (`position.x/y`, `rotation.z`, or `scale.x/y`),
+`play` quiesces its active regions before visual motion starts. The outlet
+retains a separate terminal interaction projection while leaving the authored
+scene document and revision unchanged. After every relevant one-shot binding
+reaches its terminal value, the stage operation queue prepares a fresh
+generation of inactive native regions, commits the interaction aggregate, and
+activates the complete generation as one settlement barrier. A stale play
+generation cannot settle a newer scene; failed activation releases the
+interaction lease rather than exposing partial input. This path performs no
+per-frame native IPC and emits no additional public scene event.
+
+Operation suspension, document visibility, and WebGL context loss pause the
+playback clock. Resumption continues from the prior elapsed time rather than
+jumping to wall-clock progress.
+
+Looping and ping-pong spatial bindings continue to animate visually, but V1
+does not move native hit regions per frame. Interactive moving loops must use a
+stable nonanimated collider ancestor or wait for a future daemon-side atomic
+batch transport.
+
 `createLocalSceneViewportHost()` and `createDesktopWorldSceneHost()` own the
 same document, lease, registry, transaction, animation, signal, inspection,
 suspension, context-recovery, and disposal policy. Consumers provide a trusted

@@ -69,8 +69,10 @@ function harness({
   deferAffordance = null,
   deferRegistrationNumber = null,
   failAffordance = null,
+  rejectPlay = false,
   remove = async () => {},
   scheduleTimer = undefined,
+  spatialAnimation = false,
 } = {}) {
   const resources = new Map()
   const regions = new Map()
@@ -90,8 +92,18 @@ function harness({
     apply(message) {
       const key = message.payload.lease_key
       const op = message.payload.operation?.op ?? 'release'
+      calls.push(['outlet', op])
       if (op === 'release' || op === 'remove' || op === 'close') resources.delete(key)
-      else if (op === 'mount') resources.set(key, { document: message.payload.operation.document, suspended: false })
+      else if (op === 'mount') resources.set(key, {
+        document: message.payload.operation.document,
+        playGeneration: 0,
+        suspended: false,
+      })
+      else if (op === 'play') {
+        if (rejectPlay) throw new Error('fixture play failure')
+        const mounted = resources.get(key)
+        if (mounted) mounted.playGeneration += 1
+      }
       else if (op === 'suspend' || op === 'resume') resources.get(key).suspended = op === 'suspend'
       return true
     },
@@ -101,6 +113,13 @@ function harness({
     },
     configuration(key) { return resources.get(key) ?? null },
     document(key) { return resources.get(key)?.document ?? null },
+    animationGeneration(key) { return resources.get(key)?.playGeneration ?? null },
+    hasInteractionAnimation() { return spatialAnimation },
+    interactionDocument(key) { return resources.get(key)?.document ?? null },
+    nextAnimationGeneration(key) {
+      const mounted = resources.get(key)
+      return mounted ? mounted.playGeneration + 1 : null
+    },
     prepareReplacement(message) {
       const key = message.payload.lease_key
       const previous = resources.get(key) ?? null
@@ -115,7 +134,11 @@ function harness({
         },
         commit() {
           this.assertCurrent()
-          resources.set(key, { document, suspended: false })
+          resources.set(key, {
+            document,
+            playGeneration: previous?.playGeneration ?? 0,
+            suspended: false,
+          })
           pending = false
           return true
         },
@@ -221,6 +244,59 @@ function mount(key, document, interactions) {
     },
   }
 }
+
+function play(key) {
+  return {
+    type: 'desktop_world_stage.scene.operation',
+    payload: {
+      lease_key: key,
+      operation: { op: 'play', animationId: 'entrance' },
+    },
+  }
+}
+
+test('spatial play quiesces native input before visual animation starts', async () => {
+  const key = 'example.consumer::companion/main'
+  const fixture = harness({ spatialAnimation: true })
+  await fixture.coordinator.apply(mount(key, scene('animated-scene', 'body'), interaction('body')))
+  const regionId = regionIdFor(fixture.regions, 'body-hit')
+
+  assert.deepEqual(await fixture.coordinator.apply(play(key)), { applied: true, op: 'play' })
+
+  const removalIndex = fixture.calls.findIndex(([kind, id]) => kind === 'remove' && id === regionId)
+  const playIndex = fixture.calls.findIndex(([kind, op]) => kind === 'outlet' && op === 'play')
+  assert.ok(removalIndex >= 0 && removalIndex < playIndex)
+  assert.equal(fixture.regions.has(regionId), false)
+  assert.equal(fixture.interactions.snapshot(key).leases[0].animationGeneration, 1)
+  assert.equal(fixture.interactions.snapshot(key).leases[0].animationQuiesced, true)
+})
+
+test('nonspatial play leaves native input active', async () => {
+  const key = 'example.consumer::companion/main'
+  const fixture = harness()
+  await fixture.coordinator.apply(mount(key, scene('material-scene', 'body'), interaction('body')))
+  const regionId = regionIdFor(fixture.regions, 'body-hit')
+
+  assert.deepEqual(await fixture.coordinator.apply(play(key)), { applied: true, op: 'play' })
+
+  assert.equal(fixture.calls.some(([kind, id]) => kind === 'remove' && id === regionId), false)
+  assert.equal(fixture.regions.has(regionId), true)
+  assert.equal(fixture.interactions.handleInput(pointerDown(regionId)), true)
+})
+
+test('failed spatial play restores the authored native input region', async () => {
+  const key = 'example.consumer::companion/main'
+  const fixture = harness({ rejectPlay: true, spatialAnimation: true })
+  await fixture.coordinator.apply(mount(key, scene('animated-scene', 'body'), interaction('body')))
+  const regionId = regionIdFor(fixture.regions, 'body-hit')
+
+  await assert.rejects(fixture.coordinator.apply(play(key)), /fixture play failure/u)
+
+  assert.equal(fixture.regions.has(regionId), true)
+  assert.equal(fixture.interactions.snapshot(key).leases[0].animationGeneration, null)
+  assert.equal(fixture.interactions.snapshot(key).leases[0].animationQuiesced, false)
+  assert.equal(fixture.interactions.handleInput(pointerDown(regionId)), true)
+})
 
 test('failed interaction registration restores the prior scene document and regions', async () => {
   const key = 'example.consumer::companion/main'

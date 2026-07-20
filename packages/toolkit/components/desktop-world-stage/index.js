@@ -97,6 +97,27 @@ sceneInteractions = createDesktopWorldSceneInteractionRuntime({
     })
   },
 })
+sceneOutlet.setInteractionGeometryObserver((key, generation) => {
+  void enqueueSceneWork(async () => {
+    try {
+      const settled = await sceneInteractions.settleAnimationGeometry(key, generation)
+      if (settled) {
+        devtoolsProbe.recordEvent({
+          kind: 'interaction.animation_geometry.settled',
+          resourceId: sceneInteractions.configuration(key)?.resource ?? null,
+        })
+      }
+    } catch {
+      const code = 'INPUT_REGION_SYNC_FAILED'
+      lastSceneError = { at: Date.now(), code }
+      devtoolsProbe.recordEvent({
+        code,
+        kind: 'interaction.animation_geometry.failed',
+        resourceId: sceneInteractions.configuration(key)?.resource ?? null,
+      })
+    }
+  })
+})
 const sceneOperations = createDesktopWorldSceneOperationCoordinator({
   outlet: sceneOutlet,
   interactions: sceneInteractions,

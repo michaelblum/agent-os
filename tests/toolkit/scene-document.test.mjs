@@ -312,6 +312,80 @@ test('scene animation bindings use an explicit deterministic elapsed clock', () 
   assert.equal(compileSceneAnimationBindings(document).ok, false)
 })
 
+test('one-shot animation bindings complete once and restart explicitly', () => {
+  const document = sceneDocument()
+  document.objects[1].components.push({
+    id: 'animation/entrance',
+    implementation: SCENE_ANIMATION_BINDING_IMPLEMENTATION_ID,
+    parameters: {
+      target: 'position.x',
+      from: 10,
+      to: 90,
+      durationMs: 400,
+      delayMs: 0,
+      playback: 'once',
+      easing: 'linear',
+    },
+    enabled: true,
+  })
+  const values = []
+  const completed = []
+  let renderedValue = null
+  const controller = createSceneAnimationController(document, {
+    apply: (_binding, value) => {
+      values.push(value)
+      renderedValue = value
+    },
+    onComplete: (binding, value, elapsedMs) => completed.push([binding.id, value, elapsedMs]),
+  })
+
+  assert.equal(controller.tick(200), 1)
+  assert.equal(controller.tick(400), 1)
+  renderedValue = 160
+  assert.equal(controller.tick(800), 0)
+  assert.equal(renderedValue, 160)
+  assert.deepEqual(values, [50, 90])
+  assert.deepEqual(completed, [['body/alpha/animation/entrance', 90, 400]])
+  assert.equal(controller.snapshot().completed, 1)
+
+  assert.equal(controller.restart(), true)
+  assert.equal(controller.snapshot().completed, 0)
+  assert.equal(controller.tick(400), 1)
+  assert.equal(completed.length, 2)
+})
+
+test('one-shot completion callback failures are counted without repeating the callback', () => {
+  const document = sceneDocument()
+  document.objects[1].components.push({
+    id: 'animation/entrance',
+    implementation: SCENE_ANIMATION_BINDING_IMPLEMENTATION_ID,
+    parameters: {
+      target: 'position.x',
+      from: 10,
+      to: 90,
+      durationMs: 400,
+      delayMs: 0,
+      playback: 'once',
+      easing: 'linear',
+    },
+    enabled: true,
+  })
+  let completions = 0
+  const controller = createSceneAnimationController(document, {
+    apply: () => true,
+    onComplete: () => {
+      completions += 1
+      throw new Error('fixture completion failure')
+    },
+  })
+
+  assert.equal(controller.tick(400), 1)
+  assert.equal(controller.tick(800), 0)
+  assert.equal(completions, 1)
+  assert.equal(controller.snapshot().completed, 1)
+  assert.equal(controller.snapshot().failures, 1)
+})
+
 test('scene leases preserve stage, owner, resource, and scope identity', () => {
   assert.deepEqual(createSceneLease({
     stageId: 'desktop-world/main',
