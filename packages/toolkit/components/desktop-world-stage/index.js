@@ -11,7 +11,12 @@ import {
   projectSceneEventTopology,
 } from './topology.js'
 import { createDesktopWorldDevToolsStageProbe } from '../../scene/desktop-world-devtools.js'
-import { registerInputRegion, removeInputRegion, updateInputRegion } from '../../runtime/input-region.js'
+import {
+  registerInputKeyLease,
+  registerInputRegion,
+  removeInputRegion,
+  updateInputRegion,
+} from '../../runtime/input-region.js'
 import { applyVisualObjectControllerUpdate } from '../../workbench/visual-object-controller.js'
 import {
   createVisualObjectResourceLifecycleEvidence,
@@ -28,6 +33,7 @@ import {
 const root = document.getElementById('desktop-world-stage-root')
 const sceneCanvas = document.getElementById('desktop-world-stage-scene')
 const canvasId = window.__aosSurfaceCanvasId || window.__aosCanvasId || 'aos-desktop-world-stage'
+const escapeKeyLeaseId = `${canvasId}:desktop-world:escape`
 const surface = new DesktopWorldSurface2D({ canvasId })
 const state = createDesktopWorldStageState()
 const sceneOutlet = createDesktopWorldSceneOutlet({ canvas: sceneCanvas })
@@ -249,6 +255,7 @@ declareManifest({
     'desktop_world_stage.devtools.configure',
     'desktop_world_stage.devtools.request',
     'input_region.event',
+    'key_down',
     'lifecycle',
   ],
   emits: [
@@ -260,6 +267,7 @@ declareManifest({
     'input_region.register',
     'input_region.update',
     'input_region.remove',
+    'input_key_lease.register',
     'lifecycle.complete',
   ],
   surface: 'desktop-world',
@@ -320,6 +328,10 @@ wireBridge((message) => {
     sceneOperations.handleInput(message)
     return
   }
+  if (message?.input_schema_version === 2 && message?.event_kind === 'key' && message?.type === 'key_down') {
+    sceneOperations.handleInput(message)
+    return
+  }
   if (message?.type?.startsWith('desktop_world_stage.scene.')) {
     void enqueueSceneWork(() => applySceneMessage(message))
     return
@@ -338,10 +350,15 @@ surface.start({
     void enqueueSceneWork(() => sceneInteractions.topologyChanged())
     render()
   },
-}).then(() => {
+}).then(async () => {
+  await registerInputKeyLease({ id: escapeKeyLeaseId, key: 'Escape' })
   render()
   installVisualObjectLiveProof()
   emitReady()
+}).catch(() => {
+  const code = 'INPUT_KEY_LEASE_FAILED'
+  lastSceneError = { at: Date.now(), code }
+  devtoolsProbe.recordEvent({ code, kind: 'input.key_lease.failed', resourceId: null })
 })
 
 window.addEventListener('pagehide', () => {

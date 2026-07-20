@@ -176,6 +176,7 @@ class UnifiedDaemon {
     private var isShuttingDown = false
     private let inputRegionLock = NSLock()
     private var inputRegions = AOSInputRegionRegistry()
+    private var inputKeyLeases = AOSInputKeyLeaseRegistry()
     private let nativeCursorSuppressionLock = NSLock()
     private let nativeCursorSuppressionReconciler = AOSNativeCursorSuppressionReconciler()
 
@@ -338,6 +339,9 @@ class UnifiedDaemon {
                     return
                 case "input_region.remove":
                     self.handleInputRegionRemove(callerID: canvasID, payload: inner ?? [:])
+                    return
+                case "input_key_lease.register":
+                    self.handleInputKeyLeaseRegister(caller: target, payload: inner ?? [:])
                     return
                 case "gate.submit":
                     self.handleGateSubmit(callerID: canvasID, payload: inner ?? [:])
@@ -2185,6 +2189,37 @@ class UnifiedDaemon {
             publishInputRegionStateEvent(action: "removed", region: removed)
         }
         dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok")
+    }
+
+    private func handleInputKeyLeaseRegister(
+        caller: CanvasLifecycleGeneration,
+        payload: [String: Any]
+    ) {
+        let requestID = payload["request_id"] as? String
+        guard let id = (payload["id"] as? String).flatMap({ $0.isEmpty || $0.count > 256 ? nil : $0 }) else {
+            dispatchCanvasResponse(to: caller.canvasID, requestID: requestID,
+                status: "error", code: "INVALID_ID", message: "input_key_lease.register requires a bounded id")
+            return
+        }
+        guard payload["key"] as? String == "Escape" else {
+            dispatchCanvasResponse(to: caller.canvasID, requestID: requestID,
+                status: "error", code: "UNSUPPORTED_KEY", message: "input key leases support exact Escape only")
+            return
+        }
+
+        inputRegionLock.lock()
+        let registered = inputKeyLeases.register(AOSInputKeyLeaseRecord(
+            id: id,
+            ownerCanvasGeneration: caller,
+            logicalKey: "Escape"
+        ))
+        inputRegionLock.unlock()
+        guard registered else {
+            dispatchCanvasResponse(to: caller.canvasID, requestID: requestID,
+                status: "error", code: "LEASE_OWNED", message: "input key lease id is owned by another canvas generation")
+            return
+        }
+        dispatchCanvasResponse(to: caller.canvasID, requestID: requestID, status: "ok")
     }
 
     private func isValidGateContinuationID(_ id: String) -> Bool {
@@ -4247,7 +4282,7 @@ class UnifiedDaemon {
     }
 
     private func shouldConsumeGenericAOSInputEvent(event: String, data: [String: Any]) -> Bool {
-        if let escapeConsumed = routeInputRegionEscapeCancellation(event: event, data: data) {
+        if let escapeConsumed = routeInputEscapeCancellation(event: event, data: data) {
             return escapeConsumed
         }
         if let regionConsumed = routeInputRegionEvent(event: event, data: data) {
@@ -4267,11 +4302,11 @@ class UnifiedDaemon {
         return decision.shouldConsume
     }
 
-    private func routeInputRegionEscapeCancellation(event: String, data: [String: Any]) -> Bool? {
+    private func routeInputEscapeCancellation(event: String, data: [String: Any]) -> Bool? {
         guard event == "key_down",
-              AOSCanonicalInputEvent(canonicalData: data) != nil,
+              let canonicalEvent = AOSCanonicalInputEvent(canonicalData: data),
               let key = data["key"] as? [String: Any],
-              key["logical"] as? String == "Escape" else { return nil }
+              (key["physical_key_code"] as? Int) == 53 else { return nil }
         let sourceSequence = inputEventSourceSequenceString(data)
         inputRegionLock.lock()
         let decision = inputRegions.cancelActiveCapture(
@@ -4279,18 +4314,37 @@ class UnifiedDaemon {
             sourceSequence: sourceSequence,
             gestureID: sourceSequence.map { "escape:\($0)" }
         )
+        let keyTargets = decision == nil
+            ? inputKeyLeases.targets(logicalKey: "Escape")
+            : []
         inputRegionLock.unlock()
-        guard let decision else { return nil }
-        switch decision {
-        case .failOpen:
-            return false
-        case .deliver(let delivery):
+        if let decision {
+            switch decision {
+            case .failOpen:
+                return false
+            case .deliver(let delivery):
+                canvasManager.postMessageAsync(
+                    to: delivery.ownerCanvasGeneration,
+                    payload: delivery.payload
+                )
+                return true
+            }
+        }
+        let deliveries = keyTargets.compactMap { lease -> AOSInputKeyLeaseDelivery? in
+            return AOSInputKeyLeaseDelivery(
+                event: canonicalEvent,
+                canonicalData: data,
+                lease: lease,
+                sourceSequence: sourceSequence
+            )
+        }
+        for delivery in deliveries {
             canvasManager.postMessageAsync(
                 to: delivery.ownerCanvasGeneration,
                 payload: delivery.payload
             )
-            return true
         }
+        return deliveries.first?.consume
     }
 
     private func currentFrontToBackWindowNumbers() -> [Int] {
@@ -4470,6 +4524,9 @@ class UnifiedDaemon {
     private func removeInputRegionsOwned(by ownerCanvasID: String, includeSuspendRetained: Bool) {
         inputRegionLock.lock()
         let removed = inputRegions.removeOwned(by: ownerCanvasID, includeSuspendRetained: includeSuspendRetained)
+        if includeSuspendRetained {
+            _ = inputKeyLeases.removeOwned(by: ownerCanvasID)
+        }
         let cursorSuppressionActive = inputRegions.nativeCursorSuppressionActive()
         inputRegionLock.unlock()
         reconcileNativeCursorSuppression(active: cursorSuppressionActive)

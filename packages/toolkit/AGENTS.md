@@ -47,6 +47,9 @@ One-shot spatial animation temporarily quiesces affected native interaction
 regions and settles the terminal pose through a fresh staged generation. Keep
 the authored scene revision stable and do not synchronize native hit geometry
 per frame.
+DesktopWorld registers one owner-lifecycle Escape key lease before declaring
+the stage ready. Stock radial menus consume that exact redacted event; item hit
+regions remain pointer-only, and Escape continues through to macOS.
 
 DesktopWorld DevTools are AOS-owned toolkit views over a daemon-owned session.
 Consumers may host the public inspector view, but one revisioned AOS host lease

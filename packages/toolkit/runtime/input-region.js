@@ -1,4 +1,4 @@
-// input-region.js — canvas-side helpers for daemon-owned input regions.
+// input-region.js — canvas-side helpers for daemon-owned input regions and key leases.
 
 import { emit, wireBridge } from './bridge.js'
 
@@ -47,6 +47,10 @@ export function updateInputRegion(region) {
 
 export function removeInputRegion(id) {
   return request('input_region.remove', { id })
+}
+
+export function registerInputKeyLease(lease) {
+  return request('input_key_lease.register', lease)
 }
 
 export function inputRegionContainsRect(rect = {}) {
