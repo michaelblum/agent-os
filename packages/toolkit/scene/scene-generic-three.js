@@ -127,9 +127,9 @@ function applyTransform(object, transform = {}) {
   object.visible = transform.visible !== false
 }
 
-function setTarget(root, objectId, target, value) {
+function setTarget(objects, objectId, target, value) {
   const path = String(target).split('.')
-  const object = root.getObjectByName?.(objectId)
+  const object = objects.get(objectId)
   if (!object || path.length === 0) return false
   let cursor = object
   for (let index = 0; index < path.length - 1; index += 1) {
@@ -189,8 +189,8 @@ export function createGenericThreeSceneProjection({ THREE, document }) {
       )
       return true
     },
-    applyAnimation(binding, value) { return setTarget(root, binding.objectId, binding.target, value) },
-    applySignal(binding, value) { return setTarget(root, binding.objectId, binding.target, value) },
+    applyAnimation(binding, value) { return setTarget(objects, binding.objectId, binding.target, value) },
+    applySignal(binding, value) { return setTarget(objects, binding.objectId, binding.target, value) },
     suspend() { root.visible = false },
     resume() { root.visible = true },
     dispose() {

@@ -80,3 +80,20 @@ test('generic Three projection builds and disposes a bounded object tree', () =>
   assert.equal(mesh.geometry.disposed, true)
   assert.equal(mesh.material.disposed, true)
 })
+
+test('animation and signals target the declared object when its id matches the scene document id', () => {
+  const input = document()
+  input.id = 'main'
+  const projection = createGenericThreeSceneProjection({ THREE, document: input })
+  const wrapper = projection.object
+  const mesh = wrapper.children[0]
+
+  assert.equal(projection.applyAnimation({ objectId: 'main', target: 'position.x' }, 42), true)
+  assert.equal(projection.applySignal({ objectId: 'main', target: 'scale.x' }, 1.5), true)
+  assert.equal(wrapper.position.x, 0)
+  assert.equal(wrapper.scale.x, 0)
+  assert.equal(mesh.position.x, 42)
+  assert.equal(mesh.scale.x, 1.5)
+
+  projection.dispose()
+})
