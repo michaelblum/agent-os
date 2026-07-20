@@ -196,6 +196,13 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('dev-gh-helper')?.patterns?.includes('tests/aos-dev-gh-contract.test.mjs'));
   assert.equal(rules.has('aos-agent-runner'), false);
   assert.equal(rules.get('toolkit-components')?.hot_swappable, true);
+  assert.deepEqual(rules.get('toolkit-components')?.verification, []);
+  assert.equal(
+    manifest.rules
+      .flatMap((rule) => [...(rule.commands ?? []), ...(rule.verification ?? [])])
+      .some((step) => step.command === 'node --test tests/toolkit/*.test.mjs'),
+    false,
+  );
   assert.equal(rules.get('schemas')?.commands?.[0]?.command, 'node --test tests/schemas/*.test.mjs');
   assert.deepEqual(
     rules.get('dev-workflow-manifest')?.commands?.map((step) => step.command),

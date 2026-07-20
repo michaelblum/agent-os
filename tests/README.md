@@ -176,18 +176,23 @@ Examples:
 - `./aos runtime status --json`
 - `./aos show create ...`
 
-## No `./aos` Rebuild Needed
+## Static Package Loops
 
-Stay in the local package or Node loop when the work does not depend on a fresh
-`./aos` binary.
+Stay in a focused local package or Node loop when work must not execute the repo
+binary. Choose the nearest family below or the proof-registry command returned
+by `node scripts/aos-dev-workflow.mjs recommend`.
 
 Examples:
 
 - `node --test tests/renderer/*.test.mjs`
-- `node --test tests/toolkit/*.test.mjs`
 - `node --test tests/bundled-whisper-stt.test.mjs`
 - `cd packages/gateway && npm test`
 - `cd packages/host && npm test`
+
+Do not treat `node --test tests/toolkit/*.test.mjs` as static proof. That broad
+glob includes Work Record public-CLI cases that execute the existing `./aos`
+artifact. It is therefore incompatible with static-only scene work and with
+ADR 0023's post-build or exit-`137` stop boundaries.
 
 ## DesktopWorld Scene Engine And DevTools
 
