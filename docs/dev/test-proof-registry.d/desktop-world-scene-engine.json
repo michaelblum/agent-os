@@ -43,6 +43,22 @@
       "status": "active"
     },
     {
+      "id": "desktop-world-stage-lifecycle-contract",
+      "path_patterns": [
+        "tests/toolkit/desktop-world-stage-lifecycle.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit-scene",
+      "harness_level": "model_unit",
+      "proof_kind": "desktop_world_stage_lifecycle_contract",
+      "contract": "The persistent DesktopWorld stage acknowledges supported suspend and resume requests through the canonical lifecycle completion handshake.",
+      "worth": "This prevents every stage resume from waiting for the daemon timeout before windows become visible, without requiring a live canvas or daemon.",
+      "command": "node --test tests/toolkit/desktop-world-stage-lifecycle.test.mjs",
+      "replaces": [],
+      "guard": "pure lifecycle message dispatch only; no AOS binary, daemon socket, GUI, TCC, WebGL, or live DesktopWorld",
+      "status": "active"
+    },
+    {
       "id": "desktop-world-scene-event-contract",
       "path_patterns": [
         "tests/daemon-scene-lease-registry.sh",

@@ -32,6 +32,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-status-item.mjs", "register"],
       "cwd": "repo",
+      "stdio": "inherit",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT",

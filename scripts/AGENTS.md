@@ -51,6 +51,9 @@ commands, runtime helpers, wiki tools, and command adapters.
   registration result must be emitted before buffered initial events. Validate
   the complete daemon `status_item` event envelope, then expose only canonical
   `{event, data}` NDJSON to public consumers.
+  The long-lived `status-item register --follow` external route must inherit
+  stdio so registration and events stream before lease termination and signals
+  reach the owner process; captured external dispatch is invalid for this form.
   `lib/status-item-output-writer.mjs` owns bounded stdout backpressure for that
   follow stream and pauses its source socket until buffered output drains.
 - `lib/pending-annotations-model.mjs` owns the pending annotation durable
