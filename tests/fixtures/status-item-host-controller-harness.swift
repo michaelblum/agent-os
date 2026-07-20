@@ -56,6 +56,8 @@ private final class FakeStatusItemHost: AOSStatusItemHosting {
     var hostedEventSink: (([String: Any]) -> Bool)?
 
     var installOutcomes: [Bool] = []
+    var invalidateAnchorAfterInstall = false
+    private var anchorAvailable = true
     private(set) var installCalls: [(revision: Int, generation: Int)] = []
     private(set) var clearCalls: [(owner: String, itemID: String, generation: Int)] = []
     private(set) var teardownCount = 0
@@ -68,7 +70,10 @@ private final class FakeStatusItemHost: AOSStatusItemHosting {
         hostedDescriptor = descriptor
         hostedGeneration = generation
         let succeeds = installOutcomes.isEmpty ? true : installOutcomes.removeFirst()
-        return succeeds ? anchor(owner: descriptor.owner, itemID: descriptor.itemID) : nil
+        guard succeeds else { return nil }
+        let installedAnchor = anchor(owner: descriptor.owner, itemID: descriptor.itemID)
+        if invalidateAnchorAfterInstall { anchorAvailable = false }
+        return installedAnchor
     }
 
     func clearHostedDescriptor(owner: String, itemID: String, generation: Int) -> Bool {
@@ -140,7 +145,8 @@ private final class FakeStatusItemHost: AOSStatusItemHosting {
     }
 
     func statusItemAnchorPayload(owner: String, itemID: String) -> [String: Any]? {
-        guard let descriptor = hostedDescriptor,
+        guard anchorAvailable,
+              let descriptor = hostedDescriptor,
               descriptor.owner == owner,
               descriptor.itemID == itemID else { return nil }
         return anchor(owner: owner, itemID: itemID)
@@ -248,6 +254,18 @@ private func testLeaseBusyRegistration() {
     expect(responseCode(busy) == "STATUS_ITEM_LEASE_BUSY", "contending registration did not fail busy")
     expect(manager.installCalls.count == 1, "busy registration touched the native host")
     expect(recorder.terminations.isEmpty, "busy registration terminated the active owner")
+}
+
+private func testReadyUsesCommittedInstallationAnchor() {
+    let (manager, recorder, controller) = makeController()
+    let owner = UUID(uuidString: "88888888-8888-8888-8888-888888888888")!
+    manager.invalidateAnchorAfterInstall = true
+
+    let registered = register(controller, owner: owner)
+    expect(responseCode(registered) == nil, "committed-anchor registration failed")
+    expect(registered.response["anchor"] is [String: Any], "registration discarded its committed anchor")
+    expect(recorder.emittedEvents.count == 1, "registration did not emit readiness")
+    expect(recorder.emittedEvents.first?.event == "ready", "registration emitted the wrong initial event")
 }
 
 private func testExactRevisionCAS() {
@@ -366,6 +384,7 @@ private func testConnectionCloseClearsOnlyExactOwner() {
 private struct StatusItemHostControllerHarness {
     static func main() {
         testLeaseBusyRegistration()
+        testReadyUsesCommittedInstallationAnchor()
         testExactRevisionCAS()
         testFailedInstallAndRestoreTerminatesOwner()
         testRejectedInvokeEventFailsAndCleansLease()

@@ -423,7 +423,7 @@ test('documented register-follow, update, inspect, dry-run, and invoke use truth
     if (request.action === 'register') {
       leaseSocket = socket
       socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: { owner: descriptor.owner, item_id: descriptor.item_id, generation: 7, descriptor_revision: 3, anchor } })}\n`)
-      socket.write(`${JSON.stringify({ event: 'ready', data: { ...event, type: 'ready', sequence: 1, action_id: undefined, menu_item_id: undefined, origin_x: undefined, origin_y: undefined, modifiers: undefined } })}\n`)
+      socket.write(`${JSON.stringify({ v: 1, service: 'status_item', event: 'ready', ts: 1, ref: request.ref, data: { ...event, type: 'ready', sequence: 1, action_id: undefined, menu_item_id: undefined, origin_x: undefined, origin_y: undefined, modifiers: undefined } })}\n`)
     } else if (request.action === 'update') {
       updateSocket = socket
       assert.notEqual(socket, leaseSocket)
@@ -437,7 +437,7 @@ test('documented register-follow, update, inspect, dry-run, and invoke use truth
       activeRevision = updatedDescriptor.revision
       socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: { owner: descriptor.owner, item_id: descriptor.item_id, generation: 7, previous_descriptor_revision: 3, descriptor_revision: activeRevision, updated: true, anchor } })}\n`)
       socket.end()
-      leaseSocket.write(`${JSON.stringify({ event: 'menu_selection', data: { ...event, descriptor_revision: activeRevision, sequence: 2 } })}\n`)
+      leaseSocket.write(`${JSON.stringify({ v: 1, service: 'status_item', event: 'menu_selection', ts: 2, data: { ...event, descriptor_revision: activeRevision, sequence: 2 } })}\n`)
     } else if (request.action === 'inspect') {
       socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: { state: { owner: descriptor.owner, item_id: descriptor.item_id, generation: 7, descriptor_revision: activeRevision, anchor } } })}\n`)
       socket.end()
@@ -470,6 +470,7 @@ test('documented register-follow, update, inspect, dry-run, and invoke use truth
     assert.equal(registrationLines[0].registered.descriptor_revision, 3)
     assert.equal(registrationLines[1].event, 'ready')
     assert.equal(registrationLines[1].data.sequence, 1)
+    assert.deepEqual(Object.keys(registrationLines[1]).sort(), ['data', 'event'])
 
     const updatedLeaseEvent = waitForOutput(register, (value) => value.includes('"descriptor_revision":4'))
     const update = await runCLI([
@@ -511,7 +512,10 @@ test('register bounds events that arrive before the registration result', async 
   const server = await listenFake(stateRoot, (socket, request) => {
     for (let sequence = 1; sequence <= 33; sequence += 1) {
       socket.write(`${JSON.stringify({
+        v: 1,
+        service: 'status_item',
         event: 'ready',
+        ts: sequence,
         data: { ...event, type: 'ready', sequence, action_id: undefined, menu_item_id: undefined, origin_x: undefined, origin_y: undefined, modifiers: undefined },
       })}\n`)
     }

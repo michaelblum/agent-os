@@ -116,7 +116,10 @@ final class AOSStatusItemHostController {
                 guard descriptor.signature == current.signature else {
                     return AOSStatusItemHostCommandResult(failure("STATUS_ITEM_REVISION_CONFLICT", "status item descriptor revision already names different content"))
                 }
-                return AOSStatusItemHostCommandResult(registrationResponse(current, updated: false))
+                guard let anchor = manager.statusItemAnchorPayload(owner: current.ownerID, itemID: current.itemID) else {
+                    return AOSStatusItemHostCommandResult(failure("STATUS_ITEM_ANCHOR_UNAVAILABLE", "native status item anchor is unavailable"))
+                }
+                return AOSStatusItemHostCommandResult(registrationResponse(current, updated: false, anchor: anchor))
             }
             return AOSStatusItemHostCommandResult(failure("STATUS_ITEM_UPDATE_REQUIRED", "advance a live lease with status-item update"))
         }
@@ -124,7 +127,7 @@ final class AOSStatusItemHostController {
         let previousDescriptor = manager.hostedDescriptor
         let previousGeneration = manager.hostedGeneration
         let generation = lease?.generation ?? nextGeneration
-        guard manager.installHostedDescriptor(descriptor, generation: generation) != nil else {
+        guard let installedAnchor = manager.installHostedDescriptor(descriptor, generation: generation) else {
             if let previousDescriptor {
                 _ = manager.installHostedDescriptor(previousDescriptor, generation: previousGeneration)
             } else {
@@ -145,9 +148,11 @@ final class AOSStatusItemHostController {
             sequence: lease?.sequence ?? 0
         )
         lease = current
-        let afterResponse: (() -> Void)? = isNewLease ? { [weak self] in self?.emitReady(current) } : nil
+        let afterResponse: (() -> Void)? = isNewLease ? { [weak self] in
+            self?.emitReady(current, anchor: installedAnchor)
+        } : nil
         return AOSStatusItemHostCommandResult(
-            registrationResponse(current, updated: true),
+            registrationResponse(current, updated: true, anchor: installedAnchor),
             afterResponse: afterResponse
         )
     }
@@ -223,7 +228,7 @@ final class AOSStatusItemHostController {
         ])
     }
 
-    private func registrationResponse(_ current: AOSStatusItemLease, updated: Bool) -> [String: Any] {
+    private func registrationResponse(_ current: AOSStatusItemLease, updated: Bool, anchor: [String: Any]) -> [String: Any] {
         [
             "status": "ok",
             "schema_version": aosStatusItemDescriptorSchema,
@@ -232,7 +237,7 @@ final class AOSStatusItemHostController {
             "generation": current.generation,
             "descriptor_revision": current.revision,
             "updated": updated,
-            "anchor": manager.statusItemAnchorPayload(owner: current.ownerID, itemID: current.itemID) ?? NSNull(),
+            "anchor": anchor,
             "lease": ["status": "active", "cleanup": "connection_scoped"],
         ]
     }
@@ -304,9 +309,8 @@ final class AOSStatusItemHostController {
         }
     }
 
-    private func emitReady(_ current: AOSStatusItemLease) {
+    private func emitReady(_ current: AOSStatusItemLease, anchor: [String: Any]) {
         runOnMainSync {
-            guard let anchor = self.manager.statusItemAnchorPayload(owner: current.ownerID, itemID: current.itemID) else { return }
             _ = self.receiveHostedEvent([
                 "type": "ready",
                 "owner": current.ownerID,
