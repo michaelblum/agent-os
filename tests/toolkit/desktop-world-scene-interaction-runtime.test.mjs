@@ -52,6 +52,7 @@ function harness({
   const calls = []
   const responses = []
   const events = []
+  const regionRegistrations = []
   const regionUpdates = []
   let interactionDocument = document
   let animationGeneration = 1
@@ -68,7 +69,11 @@ function harness({
     outlet,
     isPrimary: () => primary,
     topology: () => ({ displays: [{ displayId: 1, index: 0, bounds: [0, 0, 1000, 800] }] }),
-    registerRegion: async (payload) => { calls.push(['register', payload.id]); await register(payload) },
+    registerRegion: async (payload) => {
+      calls.push(['register', payload.id])
+      regionRegistrations.push(structuredClone(payload))
+      await register(payload)
+    },
     updateRegion: async (payload) => {
       calls.push(['update', payload.id])
       regionUpdates.push(structuredClone(payload))
@@ -83,6 +88,7 @@ function harness({
     calls,
     events,
     outlet,
+    regionRegistrations,
     regionUpdates,
     responses,
     runtime,
@@ -550,7 +556,7 @@ test('tap-open radial menu coexists with aim-and-commit drag and cleans temporar
 })
 
 test('Escape dismisses an open radial menu and removes every temporary item region', async () => {
-  const { calls, events, runtime } = harness()
+  const { calls, events, regionRegistrations, runtime } = harness()
   const key = 'example.consumer::companion/main'
   const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
   const menuInteractions = structuredClone(interactions)
@@ -572,6 +578,12 @@ test('Escape dismisses an open radial menu and removes every temporary item regi
   await new Promise((resolve) => setImmediate(resolve))
 
   assert.equal(runtime.snapshot(key).radialMenus.length, 1)
+  assert.deepEqual(
+    regionRegistrations
+      .filter((payload) => payload.id.includes(':menu:'))
+      .map((payload) => payload.metadata.cancel_key),
+    ['Escape', 'Escape'],
+  )
   assert.equal(runtime.handleInput(escapeKey(3)), true)
   await runtime.dispose()
 

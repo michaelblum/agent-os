@@ -221,6 +221,93 @@ if case .deliver(let delivery)? = escaped {
 assert(escapeRegistry.activeCaptureSnapshot() == nil, "Escape cancellation must clear active capture atomically")
 assert(escapeRegistry.cancelActiveCapture(reason: .escape) == nil, "repeated Escape cancellation must be idempotent")
 
+let keyRegistry = AOSInputRegionRegistry()
+let radialPrimary = AOSInputRegionRecord(
+    id: "radial-primary",
+    ownerCanvasGeneration: stageGeneration,
+    nativeFrame: baseFrame,
+    priority: 20,
+    consumePolicy: "captured",
+    metadata: ["cancel_key": "Escape"]
+)
+let radialDuplicate = AOSInputRegionRecord(
+    id: "radial-duplicate",
+    ownerCanvasGeneration: stageGeneration,
+    nativeFrame: baseFrame,
+    priority: 10,
+    consumePolicy: "captured",
+    metadata: ["cancel_key": "Escape"]
+)
+let secondGeneration = CanvasLifecycleGeneration(canvasID: "stage-two", value: 7)
+let radialSecondOwner = AOSInputRegionRecord(
+    id: "radial-second-owner",
+    ownerCanvasGeneration: secondGeneration,
+    nativeFrame: CGRect(x: 200, y: 300, width: 40, height: 40),
+    priority: 5,
+    consumePolicy: "captured",
+    metadata: ["cancel_key": "Escape"]
+)
+let disabledKeyRegion = AOSInputRegionRecord(
+    id: "radial-disabled",
+    ownerCanvasGeneration: CanvasLifecycleGeneration(canvasID: "stage-disabled", value: 3),
+    nativeFrame: baseFrame,
+    metadata: ["cancel_key": "Escape"],
+    enabled: false
+)
+keyRegistry.register(radialDuplicate)
+keyRegistry.register(radialPrimary)
+keyRegistry.register(radialSecondOwner)
+keyRegistry.register(disabledKeyRegion)
+let keyTargets = keyRegistry.keyCancellationTargets(logicalKey: "Escape")
+assert(Set(keyTargets.map(\.id)) == Set(["radial-primary", "radial-second-owner"]), "Escape targets must deduplicate by owner generation and retain priority")
+assert(keyRegistry.keyCancellationTargets(logicalKey: "Enter").isEmpty, "input regions must never subscribe to unrelated keys")
+
+let canonicalEscapeData: [String: Any] = [
+    "input_schema_version": 2,
+    "event_kind": "key",
+    "type": "key_down",
+    "sequence": ["source": "daemon", "value": 12],
+    "key": [
+        "physical_key_code": 53,
+        "logical": "Escape",
+        "repeat": false,
+        "is_printable": false,
+    ],
+]
+let canonicalEscape = AOSCanonicalInputEvent(canonicalData: canonicalEscapeData)
+let keyDelivery = AOSInputRegionKeyDelivery(
+    event: canonicalEscape,
+    canonicalData: canonicalEscapeData,
+    region: radialPrimary,
+    desktopWorld: CGPoint(x: 50, y: 60),
+    sourceSequence: "daemon:12"
+)
+if let keyDelivery {
+    let routed = keyDelivery.payload["routed_input"] as? [String: Any]
+    let routedKey = routed?["key"] as? [String: Any]
+    assert(routed?["event_kind"] as? String == "key", "opt-in Escape must retain canonical key kind")
+    assert(routedKey?["logical"] as? String == "Escape", "opt-in Escape must retain only the logical cancel key")
+    assert(routedKey?["is_printable"] as? Bool == false, "opt-in Escape must remain non-printable")
+    assert(routed?["region_id"] as? String == "radial-primary", "opt-in Escape must retain its exact region")
+    assert(routed?["modifiers"] == nil, "opt-in Escape delivery must not expose unrelated key facts")
+} else {
+    assert(false, "an enabled opt-in region should receive canonical Escape")
+}
+var printableEscapeData = canonicalEscapeData
+printableEscapeData["key"] = [
+    "physical_key_code": 53,
+    "logical": "Escape",
+    "repeat": false,
+    "is_printable": true,
+]
+assert(AOSInputRegionKeyDelivery(
+    event: AOSCanonicalInputEvent(canonicalData: printableEscapeData),
+    canonicalData: printableEscapeData,
+    region: radialPrimary,
+    desktopWorld: point,
+    sourceSequence: "daemon:13"
+) == nil, "printable key payloads must fail closed")
+
 let cursorReconciler = AOSNativeCursorSuppressionReconciler()
 let firstCursorSuppression = cursorReconciler.reconcile(active: true)
 assert(firstCursorSuppression.hideNativeCursor == true, "first cursor suppression should hide the process cursor once")

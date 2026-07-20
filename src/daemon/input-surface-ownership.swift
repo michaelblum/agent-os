@@ -260,6 +260,64 @@ struct AOSInputRegionDelivery {
     }
 }
 
+struct AOSInputRegionKeyDelivery {
+    let ownerCanvasGeneration: CanvasLifecycleGeneration
+    let regionID: String
+    private let routedInput: [String: Any]
+
+    init?(
+        event: AOSCanonicalInputEvent?,
+        canonicalData: [String: Any],
+        region: AOSInputRegionRecord,
+        desktopWorld: CGPoint,
+        sourceSequence: String?
+    ) {
+        guard let event,
+              case .key(let descriptor, let physicalKeyCode) = event,
+              descriptor.type == "key_down",
+              desktopWorld.x.isFinite,
+              desktopWorld.y.isFinite,
+              region.enabled,
+              region.consumePolicy != "never",
+              let key = canonicalData["key"] as? [String: Any],
+              let physical = key["physical_key_code"] as? Int,
+              Int64(physical) == physicalKeyCode,
+              let logical = key["logical"] as? String,
+              logical == "Escape",
+              region.metadata["cancel_key"] == logical,
+              let repeated = key["repeat"] as? Bool,
+              let printable = key["is_printable"] as? Bool,
+              printable == false else { return nil }
+        let sequence = (sourceSequence?.isEmpty == false ? sourceSequence : nil) ?? descriptor.type
+        self.ownerCanvasGeneration = region.ownerCanvasGeneration
+        self.regionID = region.id
+        self.routedInput = [
+            "routed_schema_version": 1,
+            "event_kind": AOSInputEventKind.key.rawValue,
+            "type": descriptor.type,
+            "delivery_role": AOSInputRegionDeliveryRole.owned.rawValue,
+            "sequence": ["source": "daemon", "value": sequence],
+            "gesture_id": "key-cancel:\(sequence):\(region.id)",
+            "desktop_world": ["x": Double(desktopWorld.x), "y": Double(desktopWorld.y)],
+            "coordinate_authority": AOSInputCoordinateAuthority.daemon.rawValue,
+            "source_origin": AOSInputSourceOrigin.daemon.rawValue,
+            "source_event": descriptor.type,
+            "region_id": region.id,
+            "owner_canvas_id": region.ownerCanvasID,
+            "key": [
+                "physical_key_code": physical,
+                "logical": logical,
+                "repeat": repeated,
+                "is_printable": printable,
+            ],
+        ]
+    }
+
+    var payload: [String: Any] {
+        ["type": "input_region.event", "routed_input": routedInput]
+    }
+}
+
 enum AOSInputRegionDeliveryDecision {
     case deliver(AOSInputRegionDelivery)
     case failOpen
@@ -347,6 +405,17 @@ final class AOSInputRegionRegistry {
             snapshot["consume_policy"] = region.consumePolicy
         }
         return snapshot
+    }
+
+    func keyCancellationTargets(logicalKey: String) -> [AOSInputRegionRecord] {
+        guard logicalKey == "Escape" else { return [] }
+        var owners = Set<CanvasLifecycleGeneration>()
+        return allRegions.filter { region in
+            guard region.enabled,
+                  region.consumePolicy != "never",
+                  region.metadata["cancel_key"] == logicalKey else { return false }
+            return owners.insert(region.ownerCanvasGeneration).inserted
+        }
     }
 
     func clearCapture() {

@@ -4269,7 +4269,7 @@ class UnifiedDaemon {
 
     private func routeInputRegionEscapeCancellation(event: String, data: [String: Any]) -> Bool? {
         guard event == "key_down",
-              AOSCanonicalInputEvent(canonicalData: data) != nil,
+              let canonicalEvent = AOSCanonicalInputEvent(canonicalData: data),
               let key = data["key"] as? [String: Any],
               key["logical"] as? String == "Escape" else { return nil }
         let sourceSequence = inputEventSourceSequenceString(data)
@@ -4279,18 +4279,39 @@ class UnifiedDaemon {
             sourceSequence: sourceSequence,
             gestureID: sourceSequence.map { "escape:\($0)" }
         )
+        let keyTargets = decision == nil
+            ? inputRegions.keyCancellationTargets(logicalKey: "Escape")
+            : []
         inputRegionLock.unlock()
-        guard let decision else { return nil }
-        switch decision {
-        case .failOpen:
-            return false
-        case .deliver(let delivery):
+        if let decision {
+            switch decision {
+            case .failOpen:
+                return false
+            case .deliver(let delivery):
+                canvasManager.postMessageAsync(
+                    to: delivery.ownerCanvasGeneration,
+                    payload: delivery.payload
+                )
+                return true
+            }
+        }
+        let deliveries = keyTargets.compactMap { region -> AOSInputRegionKeyDelivery? in
+            let center = CGPoint(x: region.nativeFrame.midX, y: region.nativeFrame.midY)
+            return AOSInputRegionKeyDelivery(
+                event: canonicalEvent,
+                canonicalData: data,
+                region: region,
+                desktopWorld: inputRegionNativeToDesktopWorldPoint(center),
+                sourceSequence: sourceSequence
+            )
+        }
+        for delivery in deliveries {
             canvasManager.postMessageAsync(
                 to: delivery.ownerCanvasGeneration,
                 payload: delivery.payload
             )
-            return true
         }
+        return deliveries.isEmpty ? nil : true
     }
 
     private func currentFrontToBackWindowNumbers() -> [Int] {

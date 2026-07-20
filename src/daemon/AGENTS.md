@@ -41,6 +41,8 @@ Allowed daemon-side surface work:
   `src/shared/input-event.swift`, and incomplete routed input must resolve to
   the tested fail-open decision without leaving capture state active; successful
   delivery keeps typed destination and diagnostic metadata until final serialization;
+  transient regions may opt into canonical non-printable Escape cancellation,
+  deduplicated by owner generation, but no other key or text may reach them;
 - lifecycle parentage, cascade cleanup, ownership checks, and recovery;
 - platform events that toolkit and external consumers can subscribe to.
 

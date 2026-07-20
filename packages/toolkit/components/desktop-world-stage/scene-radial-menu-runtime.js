@@ -31,6 +31,7 @@ function regionPayload(session, item, stageCanvasId) {
       scene_resource: session.resource,
       scene_radial_menu: session.response.menuId,
       scene_radial_item: item.id,
+      cancel_key: 'Escape',
     },
   }
 }
