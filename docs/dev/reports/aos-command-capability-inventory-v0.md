@@ -18,13 +18,13 @@ current command tree before public CLI and self-hosting boundary changes.
 
 ## Summary
 
-- Command paths: 63
-- Concrete forms: 225
-- Consumer-discoverable forms: 216
+- Command paths: 65
+- Concrete forms: 227
+- Consumer-discoverable forms: 218
 - Internal/transitional command paths: 1
-- Mutating or conditionally mutating forms: 124
+- Mutating or conditionally mutating forms: 126
 - Forms with unspecified mutability metadata: 0
-- Forms with JSON output path: 220
+- Forms with JSON output path: 222
 - Forms with dry-run support: 37
 
 ## Capability Group Counts
@@ -43,7 +43,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | Diagnostics/debug | 6 |
 | Operator input | 7 |
 | Operator messaging | 10 |
-| Overlay/display | 35 |
+| Overlay/display | 37 |
 | Pointer and keyboard | 9 |
 | Runtime/service | 16 |
 | Saved workspace | 6 |
@@ -100,7 +100,9 @@ current command tree before public CLI and self-hosting boundary changes.
 | `skills companion` | 2 | Browser companion | yes | read-only | --json | `manifests/commands/source/aos/38-skills.json` | `node scripts/aos-skills.mjs companion` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene` | 1 | Overlay/display | yes | mutates | default | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene cartridge validate` | 1 | Overlay/display | yes | read-only | --json | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs cartridge validate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `scene cartridge scaffold` | 1 | Overlay/display | yes | mutates | --json | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs cartridge scaffold` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene extension validate` | 1 | Overlay/display | yes | read-only | --json | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs extension validate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `scene extension scaffold` | 1 | Overlay/display | yes | mutates | --json | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs extension scaffold` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene extension install` | 1 | Overlay/display | yes | mutates | --json | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs extension install` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene extension list` | 1 | Overlay/display | yes | read-only | --json | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs extension list` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene list` | 1 | Overlay/display | yes | read-only | --json | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs list` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
@@ -331,7 +333,9 @@ current command tree before public CLI and self-hosting boundary changes.
 | `skills companion install` | `skills-companion-install` | Browser companion | yes | read-only | --json | yes | `manifests/commands/source/aos/38-skills.json` | `node scripts/aos-skills.mjs companion install` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene` | `scene-follow` | Overlay/display | yes | mutates | default | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene cartridge validate` | `scene-cartridge-validate` | Overlay/display | yes | read-only | --json | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs cartridge validate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `scene cartridge scaffold` | `scene-cartridge-scaffold` | Overlay/display | yes | mutates | --json | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs cartridge scaffold` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene extension validate` | `scene-extension-validate` | Overlay/display | yes | read-only | --json | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs extension validate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `scene extension scaffold` | `scene-extension-scaffold` | Overlay/display | yes | mutates | --json | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs extension scaffold` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene extension install` | `scene-extension-install` | Overlay/display | yes | mutates | --json | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs extension install` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene extension list` | `scene-extension-list` | Overlay/display | yes | read-only | --json | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs extension list` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene list` | `scene-list` | Overlay/display | yes | read-only | --json | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs list` | `docs/api/aos.md, docs/api/aos-capabilities.md` |

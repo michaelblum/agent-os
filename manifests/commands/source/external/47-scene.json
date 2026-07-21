@@ -21,6 +21,13 @@
     "cwd": "repo",
     "stdio": "inherit"
   }, {
+    "path": ["scene", "cartridge", "scaffold"],
+    "summary": "Create a deterministic data-only DesktopWorld scene cartridge",
+    "executable": "/usr/bin/env",
+    "argv_prefix": ["node", "scripts/aos-scene.mjs", "cartridge", "scaffold"],
+    "cwd": "repo",
+    "stdio": "inherit"
+  }, {
     "path": ["scene", "extension", "validate"],
     "summary": "Validate a trusted DesktopWorld projection extension",
     "executable": "/usr/bin/env",
@@ -32,6 +39,13 @@
       "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
       "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
     }
+  }, {
+    "path": ["scene", "extension", "scaffold"],
+    "summary": "Create a deterministic trusted DesktopWorld projection extension",
+    "executable": "/usr/bin/env",
+    "argv_prefix": ["node", "scripts/aos-scene.mjs", "extension", "scaffold"],
+    "cwd": "repo",
+    "stdio": "inherit"
   }, {
     "path": ["scene", "extension", "install"],
     "summary": "Install a reviewed immutable DesktopWorld projection extension",

@@ -1,0 +1,20 @@
+{
+  "budgets": {
+    "maxDrawCalls": 2,
+    "maxObjects": 4,
+    "maxResources": 4,
+    "maxTextureBytes": 0,
+    "maxTriangles": 80,
+    "maxWorkingBytes": 65536
+  },
+  "contract": "aos.scene.extension.v1",
+  "digest": "aa744e703dcd4d7e69cdf180c55a3e0472cfcadf3c450cc83140f51000441d36",
+  "id": "basic-three",
+  "implementationIds": [
+    "example.consumer.basic-three"
+  ],
+  "ownerId": "example.consumer",
+  "sceneAbi": "aos.scene.projection.v1",
+  "schemaVersion": 1,
+  "threeRevision": "183"
+}

@@ -12358,6 +12358,76 @@
     {
       "path" : [
         "scene",
+        "cartridge",
+        "scaffold"
+      ],
+      "summary" : "Create a deterministic data-only DesktopWorld scene cartridge",
+      "forms" : [
+        {
+          "id" : "scene-cartridge-scaffold",
+          "usage" : "aos scene cartridge scaffold <path> --id <resource-id> --template <template> --json",
+          "args" : [
+            {
+              "id" : "path",
+              "kind" : "positional",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "New local scene cartridge directory"
+            },
+            {
+              "id" : "id",
+              "kind" : "flag",
+              "token" : "--id",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "Canonical owner-scoped scene resource identifier"
+            },
+            {
+              "id" : "template",
+              "kind" : "flag",
+              "token" : "--template",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "Spinning-object, conventional-drag, aim-and-commit, or radial-menu template"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "value_type" : "bool",
+              "required" : true,
+              "summary" : "Emit bounded file digests and artifact metadata"
+            }
+          ],
+          "stdin" : {
+            "supported" : false,
+            "content_type" : null,
+            "used_when" : "never"
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "examples" : [
+            "aos scene cartridge scaffold ./companion-scene --id example/companion --template aim-and-commit --json"
+          ]
+        }
+      ]
+    },
+    {
+      "path" : [
+        "scene",
         "extension",
         "validate"
       ],
@@ -12405,6 +12475,84 @@
           },
           "examples" : [
             "aos scene extension validate ./dist/companion-renderer --json"
+          ]
+        }
+      ]
+    },
+    {
+      "path" : [
+        "scene",
+        "extension",
+        "scaffold"
+      ],
+      "summary" : "Create a deterministic trusted DesktopWorld projection extension",
+      "forms" : [
+        {
+          "id" : "scene-extension-scaffold",
+          "usage" : "aos scene extension scaffold <path> --owner <owner-id> --id <extension-id> --template basic-three --json",
+          "args" : [
+            {
+              "id" : "path",
+              "kind" : "positional",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "New local scene extension directory"
+            },
+            {
+              "id" : "owner",
+              "kind" : "flag",
+              "token" : "--owner",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "Canonical extension owner identifier"
+            },
+            {
+              "id" : "id",
+              "kind" : "flag",
+              "token" : "--id",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "Canonical extension identifier"
+            },
+            {
+              "id" : "template",
+              "kind" : "flag",
+              "token" : "--template",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "Basic-three trusted extension template"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "value_type" : "bool",
+              "required" : true,
+              "summary" : "Emit bounded file digests and artifact metadata"
+            }
+          ],
+          "stdin" : {
+            "supported" : false,
+            "content_type" : null,
+            "used_when" : "never"
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "examples" : [
+            "aos scene extension scaffold ./companion-renderer --owner example.consumer --id companion-renderer --template basic-three --json"
           ]
         }
       ]

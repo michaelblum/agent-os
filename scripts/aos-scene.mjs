@@ -54,24 +54,66 @@ function parseFollowArgs(args) {
 }
 
 function parseCartridgeArgs(args) {
-  if (args[0] !== 'cartridge' || args[1] !== 'validate') {
-    fail('UNKNOWN_SUBCOMMAND', 'scene cartridge requires the validate subcommand')
+  if (args[0] !== 'cartridge' || !['validate', 'scaffold'].includes(args[1])) {
+    fail('UNKNOWN_SUBCOMMAND', 'scene cartridge requires validate or scaffold')
   }
+  const action = args[1]
   const tail = args.slice(2)
+  if (action === 'scaffold') {
+    return { action, ...parseScaffoldArgs(tail, 'cartridge', ['--id', '--template']) }
+  }
   const json = tail.includes('--json')
   const positional = tail.filter((arg) => arg !== '--json')
   if (positional.some((arg) => arg.startsWith('--'))) fail('UNKNOWN_FLAG', 'Unknown scene cartridge flag')
   if (positional.length !== 1) fail('MISSING_ARG', 'scene cartridge validate requires one directory path')
-  return { directory: positional[0], json }
+  return { action, directory: positional[0], json }
+}
+
+function parseScaffoldArgs(args, kind, requiredFlags) {
+  const allowed = new Set(['--json', ...requiredFlags])
+  const values = new Map()
+  const positional = []
+  for (let index = 0; index < args.length; index += 1) {
+    const token = args[index]
+    if (!token.startsWith('--')) {
+      positional.push(token)
+      continue
+    }
+    if (!allowed.has(token)) fail('UNKNOWN_FLAG', `Unknown scene ${kind} scaffold flag`)
+    if (values.has(token)) fail('DUPLICATE_FLAG', `${token} may be supplied once`)
+    if (token === '--json') {
+      values.set(token, true)
+      continue
+    }
+    const value = args[index + 1]
+    if (!value || value.startsWith('--')) fail('MISSING_ARG', `${token} requires a value`)
+    values.set(token, value)
+    index += 1
+  }
+  if (positional.length !== 1) fail('MISSING_ARG', `scene ${kind} scaffold requires one destination path`)
+  if (!values.has('--json')) fail('MISSING_ARG', `scene ${kind} scaffold requires --json`)
+  for (const flag of requiredFlags) {
+    if (!values.has(flag)) fail('MISSING_ARG', `scene ${kind} scaffold requires ${flag}`)
+  }
+  return {
+    directory: positional[0],
+    id: values.get('--id'),
+    json: true,
+    ownerId: values.get('--owner'),
+    template: values.get('--template'),
+  }
 }
 
 function parseExtensionArgs(args) {
   if (args[0] !== 'extension') fail('UNKNOWN_SUBCOMMAND', 'scene extension command is invalid')
   const action = args[1]
-  if (!['validate', 'install', 'list'].includes(action)) {
-    fail('UNKNOWN_SUBCOMMAND', 'scene extension requires validate, install, or list')
+  if (!['validate', 'install', 'list', 'scaffold'].includes(action)) {
+    fail('UNKNOWN_SUBCOMMAND', 'scene extension requires validate, install, list, or scaffold')
   }
   const tail = args.slice(2)
+  if (action === 'scaffold') {
+    return { action, ...parseScaffoldArgs(tail, 'extension', ['--owner', '--id', '--template']) }
+  }
   if (tail.filter((arg) => arg === '--json').length > 1) fail('DUPLICATE_FLAG', '--json may be supplied once')
   if (!tail.includes('--json')) fail('MISSING_ARG', `scene extension ${action} requires --json`)
   const positional = []
@@ -283,8 +325,14 @@ function validateFollowOperation(operation) {
   return { op: operation.op, events: [...new Set(events)] }
 }
 
-async function runCartridgeValidate(args) {
+async function runCartridgeCommand(args) {
   const options = parseCartridgeArgs(args)
+  if (options.action === 'scaffold') {
+    const { scaffoldSceneCartridge } = await import('./lib/aos-scene-scaffold.mjs')
+    const result = await scaffoldSceneCartridge(options.directory, options)
+    process.stdout.write(`${JSON.stringify(result)}\n`)
+    return
+  }
   const loaded = await loadSceneCartridge(options.directory)
   if (options.json) {
     process.stdout.write(`${JSON.stringify(loaded.summary)}\n`)
@@ -295,6 +343,12 @@ async function runCartridgeValidate(args) {
 
 async function runExtensionCommand(args) {
   const options = parseExtensionArgs(args)
+  if (options.action === 'scaffold') {
+    const { scaffoldSceneExtension } = await import('./lib/aos-scene-scaffold.mjs')
+    const result = await scaffoldSceneExtension(options.directory, options)
+    process.stdout.write(`${JSON.stringify(result)}\n`)
+    return
+  }
   const {
     installSceneExtension,
     listSceneExtensions,
@@ -504,7 +558,7 @@ async function runSceneFollow(args) {
 
 async function main() {
   const args = process.argv.slice(2)
-  if (args[0] === 'cartridge') return runCartridgeValidate(args)
+  if (args[0] === 'cartridge') return runCartridgeCommand(args)
   if (args[0] === 'extension') return runExtensionCommand(args)
   const tool = parseToolArgs(args)
   if (tool) return runToolCommand(tool)
