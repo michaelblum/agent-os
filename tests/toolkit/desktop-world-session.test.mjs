@@ -127,6 +127,9 @@ function fakeTransportFactory(options = {}) {
       },
       async subscribe(eventName, listener) {
         transport.operations.push({ op: 'subscribe', events: [eventName] })
+        if (options.subscribe) {
+          return options.subscribe({ eventName, listener, transport, transports })
+        }
         subscriptions.set(eventName, listener)
         return async () => {
           transport.operations.push({ op: 'unsubscribe', events: [eventName] })
@@ -216,6 +219,54 @@ test('scene session restores committed mount, suspension, and subscriptions once
   fixture.transports[1].emit('gesture', gesture(1))
   assert.deepEqual(received, [1])
   await session.close()
+})
+
+test('scene session preserves a subscription across its one recovery attempt', async () => {
+  let failed = false
+  const fixture = fakeTransportFactory({
+    async subscribe({ eventName, listener, transport }) {
+      if (!failed) {
+        failed = true
+        throw Object.assign(new Error('subscription acknowledgement lost'), {
+          code: 'SCENE_TRANSPORT_CLOSED',
+        })
+      }
+      transport.subscriptions.set(eventName, listener)
+      return async () => {
+        transport.operations.push({ op: 'unsubscribe', events: [eventName] })
+        transport.subscriptions.delete(eventName)
+      }
+    },
+  })
+  const session = createDesktopWorldSceneSession({ ...identity, connect: fixture.connect })
+  const received = []
+  const unsubscribe = await session.subscribe('gesture', (event) => received.push(event.sequence))
+
+  assert.equal(session.snapshot().status, 'ready')
+  assert.equal(session.snapshot().recoveryAttempts, 1)
+  assert.equal(fixture.transports.length, 2)
+  assert.deepEqual(fixture.transports[1].operations.map((entry) => entry.op), ['subscribe'])
+  fixture.transports[1].emit('gesture', gesture(1))
+  assert.deepEqual(received, [1])
+
+  await unsubscribe()
+  assert.deepEqual(fixture.transports[1].operations.map((entry) => entry.op), ['subscribe', 'unsubscribe'])
+  assert.deepEqual(session.snapshot().subscriptions, [])
+  await session.close()
+})
+
+test('scene session faults when a subscription violates a terminal transport bound', async () => {
+  const fixture = fakeTransportFactory({
+    async subscribe() {
+      throw Object.assign(new Error('event stream flooded'), { code: 'AOS_EVENT_RATE_LIMIT' })
+    },
+  })
+  const session = createDesktopWorldSceneSession({ ...identity, connect: fixture.connect })
+
+  await assert.rejects(session.subscribe('gesture', () => {}), { code: 'SCENE_SESSION_FAULTED' })
+  assert.equal(session.snapshot().status, 'faulted')
+  assert.equal(session.snapshot().lastErrorCode, 'AOS_EVENT_RATE_LIMIT')
+  assert.deepEqual(session.snapshot().subscriptions, [])
 })
 
 test('scene session remounts canonical state but never replays an uncertain operation', async () => {

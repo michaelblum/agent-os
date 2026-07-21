@@ -472,11 +472,18 @@ export function createDesktopWorldSceneSession(input = {}) {
         try {
           if (first) await attachSubscription(eventName)
         } catch (error) {
-          eventListeners.delete(listener)
-          if (eventListeners.size === 0) listeners.delete(eventName)
           if (recoverable(error)) {
-            await recover(error)
+            try {
+              await recover(error)
+            } catch (recoveryError) {
+              eventListeners.delete(listener)
+              if (eventListeners.size === 0) listeners.delete(eventName)
+              throw recoveryError
+            }
           } else {
+            eventListeners.delete(listener)
+            if (eventListeners.size === 0) listeners.delete(eventName)
+            if (terminal(error)) throw await markFault(error)
             throw error
           }
         }
@@ -494,6 +501,7 @@ export function createDesktopWorldSceneSession(input = {}) {
             try { await unsubscribe() }
             catch (error) {
               if (recoverable(error)) await recover(error)
+              else if (terminal(error)) throw await markFault(error)
               else throw error
             }
           }

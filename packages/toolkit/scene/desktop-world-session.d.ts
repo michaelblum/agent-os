@@ -81,6 +81,24 @@ export interface DesktopWorldSceneFollowTransport {
   close(): unknown | Promise<unknown>;
 }
 
+export interface DesktopWorldSceneSessionIdentity {
+  stageId: 'desktop-world/main';
+  ownerId: string;
+  resourceId: string;
+  generation: number;
+}
+
+export type SceneFollowTransportFactory = (
+  identity: Readonly<DesktopWorldSceneSessionIdentity>,
+) => DesktopWorldSceneFollowTransport | Promise<DesktopWorldSceneFollowTransport>;
+
+export interface DesktopWorldSceneSessionOptions {
+  stageId?: 'desktop-world/main';
+  ownerId: string;
+  resourceId: string;
+  connect: SceneFollowTransportFactory;
+}
+
 export interface DesktopWorldSceneSession {
   open(): Promise<DesktopWorldSceneSessionSnapshot>;
   mount(input: {
@@ -103,14 +121,6 @@ export interface DesktopWorldSceneSession {
   snapshot(): DesktopWorldSceneSessionSnapshot;
 }
 
-export function createDesktopWorldSceneSession(options: {
-  stageId?: 'desktop-world/main';
-  ownerId: string;
-  resourceId: string;
-  connect(identity: Readonly<{
-    stageId: 'desktop-world/main';
-    ownerId: string;
-    resourceId: string;
-    generation: number;
-  }>): DesktopWorldSceneFollowTransport | Promise<DesktopWorldSceneFollowTransport>;
-}): Readonly<DesktopWorldSceneSession>;
+export function createDesktopWorldSceneSession(
+  options: DesktopWorldSceneSessionOptions,
+): Readonly<DesktopWorldSceneSession>;
