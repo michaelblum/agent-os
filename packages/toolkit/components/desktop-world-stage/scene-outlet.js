@@ -21,6 +21,22 @@ export function sceneResourceCanRun(resourceSuspended, stageHidden, contextLost)
   return !resourceSuspended && !stageHidden && !contextLost
 }
 
+export function reconcileSceneStageRunState(resources, previous, next, at = performance.now()) {
+  const wasRunnable = !previous.hidden && !previous.contextLost
+  const isRunnable = !next.hidden && !next.contextLost
+  if (wasRunnable === isRunnable) return false
+  for (const mounted of resources.values()) {
+    if (!isRunnable) {
+      mounted.playClock.suspend(at)
+      mounted.interactionVisuals?.suspend(at)
+    } else if (sceneResourceCanRun(mounted.suspended, next.hidden, next.contextLost)) {
+      mounted.playClock.resume(at)
+      mounted.interactionVisuals?.resume(at)
+    }
+  }
+  return true
+}
+
 export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = window } = {}) {
   if (!canvas) throw new TypeError('DesktopWorld scene outlet requires a canvas.')
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, canvas, powerPreference: 'low-power' })
@@ -344,6 +360,7 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
         if (mounted.suspended) continue
         const elapsed = mounted.playClock.elapsed(at)
         mounted.animations.tick(elapsed)
+        mounted.projection.tick?.(elapsed)
         if (mounted.interactionState.takeDirty()) {
           notifyInteractionGeometry(mounted.key, mounted.playGeneration)
         }
@@ -387,37 +404,34 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     frame = hostWindow.requestAnimationFrame(render)
   }
 
-  const suspendPlaybackClocks = (at = performance.now()) => {
-    for (const mounted of resources.values()) {
-      mounted.playClock.suspend(at)
-      mounted.interactionVisuals?.suspend(at)
-    }
-  }
-  const resumePlaybackClocks = (at = performance.now()) => {
-    for (const mounted of resources.values()) {
-      if (sceneResourceCanRun(mounted.suspended, hidden, contextLost)) {
-        mounted.playClock.resume(at)
-        mounted.interactionVisuals?.resume(at)
-      }
-    }
-  }
   const onVisibility = () => {
     const nextHidden = document.hidden
-    if (nextHidden && !hidden) suspendPlaybackClocks()
-    if (!nextHidden && hidden && !contextLost) resumePlaybackClocks()
+    reconcileSceneStageRunState(
+      resources,
+      { hidden, contextLost },
+      { hidden: nextHidden, contextLost },
+    )
     hidden = nextHidden
   }
   const onContextLost = (event) => {
     event.preventDefault()
-    if (!contextLost) suspendPlaybackClocks()
+    reconcileSceneStageRunState(
+      resources,
+      { hidden, contextLost },
+      { hidden, contextLost: true },
+    )
     contextLost = true
     gpuTimer?.dispose()
     gpuTimer = null
     devtoolsProbe?.recordEvent({ kind: 'context.lost', code: 'WEBGL_CONTEXT_LOST' })
   }
   const onContextRestored = () => {
+    reconcileSceneStageRunState(
+      resources,
+      { hidden, contextLost },
+      { hidden, contextLost: false },
+    )
     contextLost = false
-    if (!hidden) resumePlaybackClocks()
     resize()
     devtoolsProbe?.recordEvent({ kind: 'context.restored' })
   }
