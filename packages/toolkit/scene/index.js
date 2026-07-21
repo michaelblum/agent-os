@@ -104,11 +104,13 @@ export {
 } from './scene-interaction-visual.js'
 export {
   DESKTOP_WORLD_DEVTOOLS_LIMITS,
+  DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS,
   DESKTOP_WORLD_DEVTOOLS_SNAPSHOT_CONTRACT_ID,
   DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID,
   buildDesktopWorldMinimapLayout,
   createDesktopWorldGpuTimer,
   createDesktopWorldDevToolsStageProbe,
+  evaluateDesktopWorldPerformanceAcceptance,
   normalizeDesktopWorldDevToolsSnapshot,
   normalizeDesktopWorldDevToolsStageSnapshot,
 } from './desktop-world-devtools.js'
@@ -117,9 +119,23 @@ export {
   DESKTOP_WORLD_SCENE_REPLAY_LIMITS,
   createDesktopWorldSceneClient,
   listDesktopWorldResources,
+  normalizeDesktopWorldSceneEvent,
   replayDesktopWorldSceneEvents,
   selectDesktopWorldResourceSnapshot,
 } from './desktop-world-client.js'
+
+export {
+  DESKTOP_WORLD_SCENE_SESSION_CONTRACT_ID,
+  DESKTOP_WORLD_SCENE_SESSION_EVENT_NAMES,
+  DESKTOP_WORLD_SCENE_SESSION_RECOVERABLE_CODES,
+  DESKTOP_WORLD_SCENE_SESSION_TERMINAL_CODES,
+  createDesktopWorldSceneSession,
+} from './desktop-world-session.js'
+
+export {
+  DESKTOP_WORLD_SCENE_RESULT_ERROR_CODES,
+  normalizeDesktopWorldSceneResultErrorCode,
+} from './scene-result-codes.js'
 
 export { applySceneTransaction } from './scene-transaction.js'
 
@@ -133,6 +149,21 @@ export {
   SCENE_IMPLEMENTATION_KINDS,
   createSceneImplementationRegistry,
 } from './scene-registry.js'
+
+export {
+  SCENE_EXTENSION_BUDGET_LIMITS,
+  SCENE_EXTENSION_CONTRACT_ID,
+  SCENE_EXTENSION_REGISTRY_LIMIT,
+  SCENE_EXTENSION_SCENE_ABI,
+  SCENE_EXTENSION_SCHEMA_VERSION,
+  SCENE_EXTENSION_THREE_REVISION,
+  createTrustedSceneExtensionRegistry,
+  inspectSceneExtensionProjectionResources,
+  serializeSceneExtensionDigestMaterial,
+  validateSceneExtensionManifest,
+  validateSceneExtensionReference,
+  validateSceneExtensionProjection,
+} from './scene-extension.js'
 
 export {
   GENERIC_SCENE_IMPLEMENTATIONS,

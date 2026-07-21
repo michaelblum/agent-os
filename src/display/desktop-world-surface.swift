@@ -100,6 +100,12 @@ struct DesktopWorldSurfaceSegment: Codable, Equatable {
     }
 }
 
+struct DesktopWorldSceneBarrierTopology: Equatable {
+    let canvasGeneration: UInt64
+    let generation: UInt64
+    let segments: [DesktopWorldSurfaceSegment]
+}
+
 /// Orders segments by (dwBounds.y asc, dwBounds.x asc, displayID asc).
 /// Total order; always yields a unique first segment when at least one
 /// segment exists.
@@ -203,13 +209,14 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     var onMessage: ((Any) -> Void)? {
         didSet {
             for segment in segments {
-                segment.messageHandler.onMessage = onMessage
+                installMessageHandler(for: segment)
             }
         }
     }
     private var ttlTimer: DispatchSourceTimer?
     private var ttlDeadline: Date?
     private let aosSchemeHandler: WKURLSchemeHandler?
+    private let sceneExtensionSchemeHandler: WKURLSchemeHandler?
     private let lifecycleCoordinator: CanvasLifecycleCoordinator
     private var htmlContent: String?
     private var urlString: String?
@@ -220,18 +227,21 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     private var retirementFinalized = false
     private(set) var segments: [Segment] = []
     private(set) var lastDelta: TopologyDelta?
+    private(set) var topologyGeneration: UInt64 = 0
 
     init(
         id: String,
         interactive: Bool,
         windowLevel: String? = nil,
         aosSchemeHandler: WKURLSchemeHandler? = nil,
+        sceneExtensionSchemeHandler: WKURLSchemeHandler? = nil,
         lifecycleCoordinator: CanvasLifecycleCoordinator
     ) {
         self.id = id
         self.isInteractive = interactive
         self.windowLevel = normalizeCanvasWindowLevel(windowLevel)
         self.aosSchemeHandler = aosSchemeHandler
+        self.sceneExtensionSchemeHandler = sceneExtensionSchemeHandler
         self.lifecycleCoordinator = lifecycleCoordinator
         _ = rebuildSegments()
     }
@@ -457,6 +467,15 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         segments.map(segmentMetadata)
     }
 
+    func sceneBarrierTopology() -> DesktopWorldSceneBarrierTopology {
+        precondition(lifecycleGeneration > 0, "DesktopWorld scene topology requires an active canvas generation")
+        return DesktopWorldSceneBarrierTopology(
+            canvasGeneration: lifecycleGeneration,
+            generation: topologyGeneration,
+            segments: segmentMetadata()
+        )
+    }
+
     private func applyOrderedSegments(_ ordered: [DesktopWorldSurfaceSegment]) -> Bool {
         var byDisplay = Dictionary(uniqueKeysWithValues: segments.map { ($0.displayID, $0) })
         var nextSegments: [Segment] = []
@@ -502,6 +521,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         segments = nextSegments
         let settled = segmentMetadata()
         let hasChanges = !added.isEmpty || !removed.isEmpty || !changed.isEmpty
+        if hasChanges { topologyGeneration &+= 1 }
         lastDelta = hasChanges
             ? TopologyDelta(added: added, removed: removed, changed: changed, settled: settled)
             : nil
@@ -530,9 +550,11 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         if let handler = aosSchemeHandler {
             config.setURLSchemeHandler(handler, forURLScheme: "aos")
         }
+        if let handler = sceneExtensionSchemeHandler {
+            config.setURLSchemeHandler(handler, forURLScheme: "aos-scene-extension")
+        }
         let controller = WKUserContentController()
         let messageHandler = CanvasMessageHandler()
-        messageHandler.onMessage = onMessage
         controller.add(messageHandler, name: "headsup")
         controller.addUserScript(WKUserScript(
             source: aosCanvasBootstrapScript("window.__aosSegmentDisplayId = \(meta.displayID); window.__aosSurfaceCanvasId = \(jsStringLiteral(id));"),
@@ -566,8 +588,36 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             messageHandler: messageHandler,
             nativeRetirementID: "\(id):segment:\(meta.displayID):\(UUID().uuidString)"
         )
+        installMessageHandler(for: segment)
         loadCurrentContent(into: webView)
         return segment
+    }
+
+    private func installMessageHandler(for segment: Segment) {
+        segment.messageHandler.onMessage = { [weak self, weak segment] message in
+            guard let self, let segment else { return }
+            guard var envelope = message as? [String: Any],
+                  let type = envelope["type"] as? String else {
+                self.onMessage?(message)
+                return
+            }
+            if type == "desktop_world_stage.scene.result"
+                || type == "desktop_world_stage.scene.fault"
+                || type == "desktop_world_stage.scene.event"
+                || type == "ready"
+                || type == "lifecycle.ready" {
+                guard self.segments.contains(where: { $0 === segment }) else { return }
+                var payload = envelope["payload"] as? [String: Any] ?? [:]
+                payload["segment_display_id"] = Int(segment.displayID)
+                payload["segment_index"] = segment.index
+                payload["topology_generation"] = self.topologyGeneration
+                payload["canvas_generation"] = self.lifecycleGeneration
+                envelope["payload"] = payload
+                self.onMessage?(envelope)
+                return
+            }
+            self.onMessage?(message)
+        }
     }
 
     private func loadCurrentContent(into webView: WKWebView) {

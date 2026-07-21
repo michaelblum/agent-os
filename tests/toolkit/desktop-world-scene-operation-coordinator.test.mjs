@@ -65,11 +65,13 @@ function interaction(objectId) {
 function harness({
   applyThenRejectAffordance = null,
   applyThenRejectUpdateAffordance = null,
+  deferThenResolveUpdateAffordance = null,
   deferThenRejectUpdateAffordance = null,
   deferAffordance = null,
   deferRegistrationNumber = null,
   failAffordance = null,
   rejectPlay = false,
+  rejectResume = false,
   remove = async () => {},
   scheduleTimer = undefined,
   spatialAnimation = false,
@@ -78,16 +80,19 @@ function harness({
   const regions = new Map()
   const calls = []
   const dispatchedScenes = []
+  const emittedEvents = []
   const removalAttempts = new Map()
   let registrationCount = 0
   let releaseRegistration = null
   let markRegistrationStarted = null
   let markUpdateStarted = null
   let rejectDeferredUpdate = null
+  let releaseDeferredUpdate = null
   const registrationStarted = new Promise((resolve) => { markRegistrationStarted = resolve })
   const deferredRegistration = new Promise((resolve) => { releaseRegistration = resolve })
   const updateStarted = new Promise((resolve) => { markUpdateStarted = resolve })
   const deferredUpdate = new Promise((resolve, reject) => { rejectDeferredUpdate = reject })
+  const deferredUpdateSuccess = new Promise((resolve) => { releaseDeferredUpdate = resolve })
   const outlet = {
     apply(message) {
       const key = message.payload.lease_key
@@ -96,6 +101,7 @@ function harness({
       if (op === 'release' || op === 'remove' || op === 'close') resources.delete(key)
       else if (op === 'mount') resources.set(key, {
         document: message.payload.operation.document,
+        extension: message.payload.operation.extension ?? null,
         playGeneration: 0,
         suspended: false,
       })
@@ -104,7 +110,10 @@ function harness({
         const mounted = resources.get(key)
         if (mounted) mounted.playGeneration += 1
       }
-      else if (op === 'suspend' || op === 'resume') resources.get(key).suspended = op === 'suspend'
+      else if (op === 'suspend' || op === 'resume') {
+        if (op === 'resume' && rejectResume) throw new Error('fixture resume failure')
+        resources.get(key).suspended = op === 'suspend'
+      }
       return true
     },
     applyInteractionResponse(key) {
@@ -120,6 +129,12 @@ function harness({
       const mounted = resources.get(key)
       return mounted ? mounted.playGeneration + 1 : null
     },
+    releaseAll() {
+      resources.clear()
+      return true
+    },
+    resume() { calls.push(['outlet-stage', 'resume']); return true },
+    suspend() { calls.push(['outlet-stage', 'suspend']); return true },
     prepareReplacement(message) {
       const key = message.payload.lease_key
       const previous = resources.get(key) ?? null
@@ -136,6 +151,7 @@ function harness({
           this.assertCurrent()
           resources.set(key, {
             document,
+            extension: message.payload.operation.extension ?? previous?.extension ?? null,
             playGeneration: previous?.playGeneration ?? 0,
             suspended: false,
           })
@@ -152,6 +168,7 @@ function harness({
   }
   const interactions = createDesktopWorldSceneInteractionRuntime({
     outlet,
+    emitEvent: (event) => emittedEvents.push(event),
     registerRegion: async (payload) => {
       registrationCount += 1
       calls.push(['register', payload.metadata.scene_affordance, payload.id])
@@ -183,17 +200,48 @@ function harness({
       await remove({ attempt, id, payload: regions.get(id) ?? null })
       regions.delete(id)
     },
+    replaceRegionGeneration: async ({ activate, retire }) => {
+      const next = new Map(regions)
+      for (const payload of activate) {
+        calls.push(['replace-activate', payload.metadata.scene_affordance, payload.id])
+        next.set(payload.id, payload)
+        if (payload.metadata.scene_affordance === deferThenRejectUpdateAffordance) {
+          markUpdateStarted()
+          await deferredUpdate
+        }
+        if (payload.metadata.scene_affordance === deferThenResolveUpdateAffordance) {
+          markUpdateStarted()
+          await deferredUpdateSuccess
+        }
+        if (payload.metadata.scene_affordance === applyThenRejectUpdateAffordance) {
+          regions.clear()
+          for (const [id, entry] of next) regions.set(id, entry)
+          throw new Error('activation acknowledgement unavailable')
+        }
+      }
+      for (const id of retire) {
+        const attempt = (removalAttempts.get(id) ?? 0) + 1
+        removalAttempts.set(id, attempt)
+        calls.push(['replace-retire', id])
+        await remove({ attempt, id, payload: regions.get(id) ?? null })
+        next.delete(id)
+      }
+      regions.clear()
+      for (const [id, entry] of next) regions.set(id, entry)
+    },
     scheduleFrame(callback) { callback() },
     ...(scheduleTimer ? { scheduleTimer } : {}),
   })
   return {
     calls,
     dispatchedScenes,
+    emittedEvents,
     interactions,
     outlet,
     regions,
     registrationStarted,
     rejectDeferredUpdate,
+    releaseDeferredUpdate,
     releaseRegistration,
     updateStarted,
     coordinator: createDesktopWorldSceneOperationCoordinator({ outlet, interactions }),
@@ -233,17 +281,112 @@ function pointerDrag(regionId, sequenceValue = 2) {
   })
 }
 
-function mount(key, document, interactions) {
+function mount(key, document, interactions, extension = null) {
   return {
     type: 'desktop_world_stage.scene.operation',
     payload: {
       lease_key: key,
       owner: 'example.consumer',
       resource: 'companion/main',
-      operation: { op: 'mount', document, ...(interactions === undefined ? {} : { interactions }) },
+      operation: {
+        op: 'mount',
+        document,
+        ...(interactions === undefined ? {} : { interactions }),
+        ...(extension ? { extension } : {}),
+      },
     },
   }
 }
+
+function suspendOrResume(key, op) {
+  return {
+    type: 'desktop_world_stage.scene.operation',
+    payload: { lease_key: key, operation: { op } },
+  }
+}
+
+test('failed resume recovery remounts the exact trusted projection extension', async () => {
+  const key = 'example.consumer::companion/main'
+  const extension = {
+    ownerId: 'example.consumer',
+    id: 'companion-renderer',
+    digest: 'a'.repeat(64),
+    sceneAbi: 'aos.scene.projection.v1',
+    threeRevision: '183',
+  }
+  const fixture = harness({ rejectResume: true })
+  await fixture.coordinator.apply(mount(
+    key,
+    scene('extension-scene', 'body'),
+    interaction('body'),
+    extension,
+  ))
+  await fixture.coordinator.apply(suspendOrResume(key, 'suspend'))
+
+  await assert.rejects(
+    fixture.coordinator.apply(suspendOrResume(key, 'resume')),
+    /fixture resume failure/u,
+  )
+
+  assert.deepEqual(fixture.outlet.configuration(key).extension, extension)
+  assert.equal(fixture.outlet.document(key).id, 'extension-scene')
+})
+
+test('stage fault retirement closes visual and input ownership as one aggregate', async () => {
+  const key = 'example.consumer::companion/main'
+  const fixture = harness()
+  await fixture.coordinator.apply(mount(key, scene('faulted-scene', 'body'), interaction('body')))
+
+  assert.equal(await fixture.coordinator.failClosed('SCENE_EXTENSION_TICK_FAILED'), true)
+  assert.equal(fixture.outlet.document(key), null)
+  assert.equal(fixture.interactions.configuration(key), null)
+  assert.deepEqual([...fixture.regions.keys()], [])
+  await assert.rejects(
+    fixture.coordinator.apply(mount(key, scene('late-scene', 'body'), interaction('body'))),
+    /coordinator is closed/u,
+  )
+})
+
+test('stage retirement rolls back an uncommitted visual and input candidate', async () => {
+  const key = 'example.consumer::companion/main'
+  const fixture = harness()
+  await fixture.coordinator.apply(mount(key, scene('old-scene', 'old-body'), interaction('old-body')))
+  await fixture.coordinator.prepare(
+    'pending-at-disposal',
+    mount(key, scene('candidate-scene', 'candidate-body'), interaction('candidate-body')),
+  )
+
+  await fixture.coordinator.failClosed('stage_disposed')
+
+  assert.equal(fixture.outlet.document(key), null)
+  assert.equal(fixture.interactions.configuration(key), null)
+  assert.deepEqual([...fixture.regions.keys()], [])
+})
+
+test('stage suspension keeps mounts inert until visual and input state resume together', async () => {
+  const firstKey = 'example.consumer::companion/main'
+  const secondKey = 'example.consumer::tool/main'
+  const fixture = harness()
+  await fixture.coordinator.apply(mount(firstKey, scene('first-scene', 'first-body'), interaction('first-body')))
+  const firstRegion = regionIdFor(fixture.regions, 'first-body-hit')
+  assert.ok(fixture.regions.size > 0)
+
+  await fixture.coordinator.suspend()
+  assert.equal(fixture.regions.size, 0)
+  const dispatchesAtSuspend = fixture.dispatchedScenes.length
+  assert.equal(fixture.coordinator.handleInput(pointerDown(firstRegion)), true)
+  assert.equal(fixture.dispatchedScenes.length, dispatchesAtSuspend)
+  await fixture.coordinator.apply(mount(secondKey, scene('second-scene', 'second-body'), interaction('second-body')))
+  assert.equal(fixture.regions.size, 0)
+
+  await fixture.coordinator.resume()
+  assert.equal(regionIdFor(fixture.regions, 'first-body-hit') !== null, true)
+  assert.equal(regionIdFor(fixture.regions, 'second-body-hit') !== null, true)
+  assert.deepEqual(
+    fixture.calls.filter(([kind]) => kind === 'outlet-stage'),
+    [['outlet-stage', 'suspend'], ['outlet-stage', 'resume']],
+  )
+})
 
 function play(key) {
   return {
@@ -398,6 +541,65 @@ test('reused affordance IDs keep candidate native regions isolated until the agg
   assert.equal(fixture.dispatchedScenes.at(-1), 'next-scene')
 })
 
+test('atomic native generation replacement keeps old input live and replays candidate input after commit', async () => {
+  const key = 'example.consumer::companion/main'
+  const fixture = harness({ deferThenResolveUpdateAffordance: 'next-body-hit' })
+  await fixture.coordinator.apply(mount(key, scene('old-scene', 'old-body'), interaction('old-body')))
+  const oldRegion = regionIdFor(fixture.regions, 'old-body-hit')
+
+  const replacing = fixture.coordinator.apply(mount(
+    key,
+    scene('next-scene', 'next-body', [500, 200, 0]),
+    interaction('next-body'),
+  ))
+  await fixture.updateStarted
+  const candidateRegion = regionIdFor(fixture.regions, 'next-body-hit')
+
+  assert.equal(fixture.regions.get(oldRegion).enabled, true)
+  assert.equal(fixture.regions.get(candidateRegion).enabled, false)
+  assert.equal(fixture.coordinator.handleInput(pointerDown(oldRegion)), true)
+  assert.equal(fixture.coordinator.handleInput(pointerDrag(oldRegion)), true)
+  assert.equal(fixture.dispatchedScenes.at(-1), 'old-scene')
+  const beforeCandidate = fixture.dispatchedScenes.length
+  assert.equal(fixture.coordinator.handleInput(pointerDown(candidateRegion)), true)
+  assert.equal(fixture.coordinator.handleInput(pointerDrag(candidateRegion, 3)), true)
+  assert.equal(fixture.dispatchedScenes.length, beforeCandidate)
+
+  fixture.releaseDeferredUpdate()
+  await replacing
+
+  assert.equal(fixture.regions.has(oldRegion), false)
+  assert.equal(fixture.regions.get(candidateRegion).enabled, true)
+  assert.equal(fixture.dispatchedScenes.at(-1), 'next-scene')
+})
+
+test('failed candidate input replay retires both visual and interaction state', async () => {
+  const key = 'example.consumer::companion/main'
+  const fixture = harness({ deferThenResolveUpdateAffordance: 'next-body-hit' })
+  await fixture.coordinator.apply(mount(key, scene('old-scene', 'old-body'), interaction('old-body')))
+
+  const replacing = fixture.coordinator.apply(mount(
+    key,
+    scene('next-scene', 'next-body', [500, 200, 0]),
+    interaction('next-body'),
+  ))
+  await fixture.updateStarted
+  const candidateRegion = regionIdFor(fixture.regions, 'next-body-hit')
+  assert.equal(fixture.coordinator.handleInput(pointerDown(candidateRegion)), true)
+  assert.equal(fixture.coordinator.handleInput(pointerDrag(candidateRegion)), true)
+  const malformed = pointerDrag(candidateRegion, 3)
+  assert.equal(fixture.coordinator.handleInput(malformed), true)
+  delete malformed.routed_input
+
+  fixture.releaseDeferredUpdate()
+  await assert.rejects(replacing, /input-region settlement failed/u)
+
+  assert.equal(fixture.outlet.document(key), null)
+  assert.equal(fixture.interactions.configuration(key), null)
+  assert.deepEqual([...fixture.regions.keys()], [])
+  assert.deepEqual(fixture.emittedEvents, [])
+})
+
 test('applied-then-rejected candidate registration is journaled before transport acknowledgement', async () => {
   const key = 'example.consumer::companion/main'
   const fixture = harness({ applyThenRejectAffordance: 'next-body-hit' })
@@ -421,7 +623,7 @@ test('applied-then-rejected candidate activation fails closed without retaining 
 
   await assert.rejects(
     fixture.coordinator.apply(mount(key, scene('next-scene', 'next-body'), interaction('next-body'))),
-    /input-region settlement failed/u,
+    /activation acknowledgement unavailable/u,
   )
 
   assert.equal(fixture.outlet.document(key), null)
@@ -446,14 +648,14 @@ test('candidate generation remains staged until every region activation settles'
   const firstCandidate = regionIdFor(fixture.regions, 'next-a-hit')
   const secondCandidate = regionIdFor(fixture.regions, 'next-b-hit')
 
-  assert.equal(fixture.regions.get(firstCandidate).enabled, true)
-  assert.equal(fixture.regions.get(secondCandidate).enabled, true)
+  assert.equal(fixture.regions.get(firstCandidate).enabled, false)
+  assert.equal(fixture.regions.get(secondCandidate).enabled, false)
   const dispatchedBeforeCandidate = fixture.dispatchedScenes.length
   assert.equal(fixture.coordinator.handleInput(pointerDown(firstCandidate)), true)
   assert.equal(fixture.coordinator.handleInput(pointerDrag(firstCandidate)), true)
   assert.equal(fixture.dispatchedScenes.length, dispatchedBeforeCandidate)
 
-  const rejection = assert.rejects(replacing, /input-region settlement failed/u)
+  const rejection = assert.rejects(replacing, /second activation acknowledgement unavailable/u)
   fixture.rejectDeferredUpdate(new Error('second activation acknowledgement unavailable'))
   await rejection
 
@@ -483,7 +685,7 @@ test('failed retired-region settlement rejects and retries cleanup from a fail-c
 
   await assert.rejects(
     fixture.coordinator.apply(mount(key, scene('next-scene', 'next-body'), interaction('next-body'))),
-    /input-region settlement failed/u,
+    /retired region unavailable/u,
   )
 
   assert.equal(fixture.outlet.document(key), null)
@@ -495,4 +697,79 @@ test('failed retired-region settlement rejects and retries cleanup from a fail-c
   blockOldRemoval = false
   await scheduledCleanup.shift()()
   assert.deepEqual([...fixture.regions.keys()], [])
+})
+
+test('two-phase replacement keeps the old aggregate authoritative until commit', async () => {
+  const key = 'example.consumer::companion/main'
+  const fixture = harness()
+  await fixture.coordinator.apply(mount(key, scene('old-scene', 'old-body'), interaction('old-body')))
+  const oldRegion = regionIdFor(fixture.regions, 'old-body-hit')
+
+  const prepared = await fixture.coordinator.prepare(
+    'replacement-one',
+    mount(key, scene('next-scene', 'next-body'), interaction('next-body')),
+  )
+  const candidateRegion = regionIdFor(fixture.regions, 'next-body-hit')
+  assert.equal(typeof prepared.candidateFingerprint, 'string')
+  assert.equal(fixture.outlet.document(key).id, 'old-scene')
+  assert.equal(fixture.coordinator.handleInput(pointerDown(candidateRegion)), true)
+  assert.equal(fixture.dispatchedScenes.includes('next-scene'), false)
+  assert.equal(fixture.coordinator.handleInput(pointerDown(oldRegion)), true)
+  assert.equal(fixture.coordinator.handleInput(pointerDrag(oldRegion)), true)
+  assert.equal(fixture.dispatchedScenes.at(-1), 'old-scene')
+
+  const committed = await fixture.coordinator.commit('replacement-one')
+  assert.equal(committed.candidateFingerprint, prepared.candidateFingerprint)
+  assert.equal(fixture.outlet.document(key).id, 'next-scene')
+  assert.equal(fixture.interactions.configuration(key).interactions.affordances[0].id, 'next-body-hit')
+})
+
+test('candidate prepared while suspended registers input only after stage resume', async () => {
+  const key = 'example.consumer::companion/main'
+  const fixture = harness()
+  await fixture.coordinator.suspend()
+  await fixture.coordinator.prepare(
+    'suspended-prepare',
+    mount(key, scene('next-scene', 'next-body'), interaction('next-body')),
+  )
+  assert.equal(fixture.regions.size, 0)
+
+  await fixture.coordinator.resume()
+  await fixture.coordinator.commit('suspended-prepare')
+
+  assert.notEqual(regionIdFor(fixture.regions, 'next-body-hit'), null)
+})
+
+test('candidate committed during suspension remains inert until stage resume', async () => {
+  const key = 'example.consumer::companion/main'
+  const fixture = harness()
+  await fixture.coordinator.prepare(
+    'suspended-commit',
+    mount(key, scene('next-scene', 'next-body'), interaction('next-body')),
+  )
+  assert.notEqual(regionIdFor(fixture.regions, 'next-body-hit'), null)
+
+  await fixture.coordinator.suspend()
+  await fixture.coordinator.commit('suspended-commit')
+  assert.equal(fixture.regions.size, 0)
+
+  await fixture.coordinator.resume()
+  assert.notEqual(regionIdFor(fixture.regions, 'next-body-hit'), null)
+})
+
+test('two-phase abort removes the candidate and preserves the old aggregate', async () => {
+  const key = 'example.consumer::companion/main'
+  const fixture = harness()
+  await fixture.coordinator.apply(mount(key, scene('old-scene', 'old-body'), interaction('old-body')))
+  const oldRegion = regionIdFor(fixture.regions, 'old-body-hit')
+  await fixture.coordinator.prepare(
+    'replacement-abort',
+    mount(key, scene('next-scene', 'next-body'), interaction('next-body')),
+  )
+
+  await fixture.coordinator.abort('replacement-abort')
+
+  assert.equal(fixture.outlet.document(key).id, 'old-scene')
+  assert.equal(fixture.interactions.configuration(key).interactions.affordances[0].id, 'old-body-hit')
+  assert.deepEqual([...fixture.regions.keys()], [oldRegion])
 })

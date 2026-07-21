@@ -1,151 +1,224 @@
 ---
 name: aos-desktop-world-authoring
-description: Author, validate, mount, inspect, profile, and replay data-only AOS DesktopWorld scene cartridges. Trigger when an agent needs a 3D desktop scene, drag or aim-and-commit gestures, radial menus, scene telemetry, or detachable engine DevTools.
+description: Author, validate, run, inspect, profile, and replay AOS DesktopWorld scenes through data-only cartridges or reviewed trusted extensions. Trigger for multi-display 3D scenes, gestures, radial menus, scene telemetry, extension review, or detachable engine DevTools.
 ---
 
 # AOS DesktopWorld Authoring
 
-Use the product-neutral scene engine. A cartridge supplies declarative data;
-AOS owns the persistent multi-display stage, hit regions, gesture lifecycles,
-rendering, telemetry, and DevTools.
+Use AOS as the product-neutral desktop scene engine. Consumers own their model,
+visual behavior, and product semantics. AOS owns the global multi-display
+stage, render lifecycle, gesture mechanics, telemetry, and DevTools.
 
-## Start
+## Choose The Boundary
 
-1. Read `docs/api/toolkit/scene.md`.
-2. Inspect `./aos help scene --json` before relying on arguments.
-3. Start from one neutral cartridge under `packages/toolkit/scene/examples/`.
-4. Validate before opening a daemon connection:
+1. Use a **data-only cartridge** when registered AOS implementations can render
+   the scene. This is the default and least privileged route.
+2. Use a **reviewed trusted extension** when custom Three.js geometry, shaders,
+   effects, or per-frame behavior are required. Treat it as same-realm
+   executable code. Validate, review, digest-pin, and explicitly install it.
+3. Use **isolated standalone WebGL** when executable content is not trusted to
+   share the AOS renderer realm. Do not disguise untrusted code as an extension.
 
-```bash
-./aos scene cartridge validate ./my-cartridge --json
-```
+Read the focused contracts before editing:
 
-## Cartridge Rules
+- `docs/api/toolkit/scene-authoring.md`
+- `docs/api/toolkit/scene-runtime.md`
+- `docs/api/toolkit/scene-extensions.md`
+- `docs/api/toolkit/scene-devtools.md`
 
-- Keep `cartridge.json`, `scene.json`, `animations.json`, and
-  `interactions.json` data-only.
-- Declare exact implementation IDs, resource budgets, canonical asset paths,
-  and SHA-256 digests.
-- Use local raster or binary glTF assets only.
-- Never add scripts, functions, symlinks, remote runtime URLs, product prompts,
-  audio, or unbounded values.
+## Scaffold A Cartridge
 
-## Mount And Update
-
-Hold one owner/resource lease and send strict NDJSON:
+Start in a new local workspace and scaffold one deterministic template:
 
 ```bash
-printf '%s\n' \
-  '{"op":"mount","document":{...}}' \
-  '{"op":"subscribe","events":["gesture"]}' \
-  '{"op":"inspect"}' \
-  '{"op":"close"}' \
-  | ./aos scene --stage desktop-world/main \
-      --owner example.consumer --resource companion/main --follow
+mkdir -p ./scene-work
+aos scene cartridge scaffold ./scene-work/companion \
+  --id companion/main --template aim-and-commit --json
+aos scene cartridge validate ./scene-work/companion --json
 ```
 
-Use revisioned `transact` operations for structural changes and bounded
-`signal` operations for frame-adjacent numeric state. Use `play`, `suspend`,
-and `resume` instead of remounting an unchanged resource.
+Available templates are `spinning-object`, `conventional-drag`,
+`aim-and-commit`, and `radial-menu`. Scaffolding never overwrites, installs,
+mounts, authorizes, or executes content. Keep these files data-only:
 
-## Gestures
+```text
+cartridge.json
+scene.json
+animations.json
+interactions.json
+assets/
+```
 
-- Conventional movement: bind `drag` to `translate`.
-- Aim-and-commit: bind `drag` to `aim_commit`. The object stays fixed while
-  the stock arrow follows the pointer; release starts the declared line or
-  wormhole route, while Escape cancels at the unchanged origin.
-- Drop resolution: bind `drag` to `drop`.
-- Radial menu: use the stock `radial` recognizer and bounded item/style data.
-- Treat phases as `start`, `update`, `end`, and `cancel`. Do not infer product
-  meaning from the recognizer itself.
+Declare exact implementation IDs, finite budgets, canonical relative asset
+paths, and SHA-256 digests. Do not add scripts, functions, links, traversal,
+remote runtime URLs, product prompts, audio, or unbounded values.
 
-## Inspect And Profile
+## Use The Typed Session
+
+Use `createDesktopWorldSceneSession()` from
+`@agent-os/toolkit/scene/runtime`. Inject the product adapter's public
+`SceneFollowTransportFactory`; the toolkit never opens a private socket,
+discovers a runtime path, or starts a daemon.
+
+The session exposes `open`, `mount`, `transact`, `signal`, `play`, `suspend`,
+`resume`, `inspect`, `subscribe`, `remove`, `close`, and `snapshot`. It
+serializes operations, commits state only after the authoritative all-display
+result, ignores prior-generation events, and closes idempotently.
+
+Run the complete fake-transport workflow against the scaffold:
 
 ```bash
-./aos scene list --json
-./aos scene inspect --resource companion/main --json
-./aos scene perf --resource companion/main --json
-./aos scene monitor --resource companion/main --follow --json
+node packages/toolkit/scene/examples/session-lifecycle.mjs \
+  --cartridge ./scene-work/companion
 ```
 
-Snapshots are content-free engine facts. Monitoring is connection-scoped and
-stops when the process exits.
+That example mounts, subscribes, transacts, signals, plays, inspects, replays,
+forces one disconnect, remounts canonical state once, rejects a stale event,
+does not replay the uncertain operation, and releases the lease.
 
-Open the AOS-owned inspector anywhere on the desktop:
+Recovery is intentionally narrow. One recoverable transport or stage loss may
+reconnect and restore the last committed document, subscriptions, and
+suspension state. Transient signals, animation plays, and uncertain in-flight
+operations are never replayed. A second failure is terminal. Read the exact
+code sets from `DESKTOP_WORLD_SCENE_SESSION_RECOVERABLE_CODES` and
+`DESKTOP_WORLD_SCENE_SESSION_TERMINAL_CODES`; do not maintain another list.
+
+## Work In One Desktop Plane
+
+Ordinary authors use one global DesktopWorld coordinate plane. AOS segments it
+across physical displays, derives the per-display cameras, settles all segment
+results, and emits one authoritative result. A resource may straddle displays
+or animate between them without display-local reconciliation in consumer code.
+
+Only advanced native-input and anchor operations expose explicit display or
+native geometry. Never infer native coordinates from DesktopWorld-local bounds.
+
+## Choose Gesture Semantics
+
+- Bind `drag` to `translate` for conventional object movement.
+- Bind `drag` to `aim_commit` to keep the object fixed while the stock arrow
+  follows the pointer and commit a route on release.
+- Bind `drag` to `drop` for destination resolution without product semantics.
+- Bind a stock `radial` recognizer for a bounded radial menu.
+
+The recognizer lifecycle is `start`, `update`, `end`, and `cancel`. Escape,
+pointer loss, topology change, and owner loss cancel through AOS. Cartridges
+provide bounded IDs and visual data; consumers map resulting events to product
+actions.
+
+## Scaffold And Review An Extension
+
+Create a neutral trusted extension only when a cartridge is insufficient:
 
 ```bash
-./aos scene devtools open --resource companion/main --json
-./aos scene devtools status --json
-./aos scene devtools update --session <session-id> --expected-revision <n> \
-  --tab performance --recording on --json
-./aos scene devtools transfer --session <session-id> --expected-revision <n> \
-  --host-kind external --host-id <canvas-id> --json
-./aos scene devtools close --session <session-id> --json
+aos scene extension scaffold ./scene-work/renderer \
+  --owner example.consumer --id companion-renderer \
+  --template basic-three --json
+aos scene extension validate ./scene-work/renderer --json
 ```
 
-A consumer may transfer the same session into an existing AOS canvas through
-the CLI or typed toolkit SDK. The daemon suspends the old host before activating
-the new one; consumers must not fork the telemetry model or create a second
-interactive host.
+Review `extension.json` and `projection.js`. Confirm exact owner, extension ID,
+implementation IDs, scene ABI, pinned Three.js revision, resource budgets,
+signal handling, animation handling, context-loss behavior, and idempotent GPU
+disposal. The neutral reference is
+`packages/toolkit/scene/extension-examples/basic-three/`.
 
-## Status-Item Anchor
-
-When a cartridge needs menu-bar emergence or docking geometry, use the anchor
-observed from the AOS-hosted native status item. The consumer does not supply or
-bind anchor coordinates in its descriptor.
-
-Register and inspect the native item through the status-item host contract:
+Install only the independently reviewed digest:
 
 ```bash
-./aos status-item validate --descriptor ./status-item.json --json
-./aos status-item register --descriptor ./status-item.json --json --follow
-./aos status-item update --descriptor ./status-item-v4.json \
-  --owner io.example.app --item companion \
-  --generation 1 --current-revision 3 --json
-./aos status-item inspect --owner io.example.app --item companion \
-  --generation 1 --descriptor-revision 4 --json
+validation_json="$(aos scene extension validate ./scene-work/renderer --json)"
+reviewed_digest="$(node -e 'const value=JSON.parse(process.argv[1]);process.stdout.write(value.digest)' "$validation_json")"
+aos scene extension install ./scene-work/renderer \
+  --expected-digest "$reviewed_digest" --json
+aos scene extension list --json
 ```
 
-Keep register-follow alive. Its registration result precedes `ready`; take the
-exact generation/revision from that first result. A separate update may install
-a strictly newer descriptor only by matching owner/item/generation/current
-revision. Use the returned revision and inspected `bounds` and `anchor` facts as
-machine-readable evidence. The anchor is derived from the actual `NSStatusItem`
-button and includes current display frame, visible frame, and bounded topology
-facts. Coordinates may be recorded as evidence, but action identity is
-owner/item/action plus generation/revision.
+Validation compiles but does not execute the projection body. Installation is
+the explicit executable-authority boundary. Never install a digest that was
+not the exact independently reviewed artifact.
 
-This slice does not project a cartridge into the menu bar. The dependent visual
-slice will host a generic data-only status visual inside the real status-item
-button and bridge that definition plus this anchor to DesktopWorld for
-emergence/docking. A rich AOS-owned status palette/popover is a separate
-dependent slice.
+## Inspect, Profile, And Monitor
 
-## Replay
-
-Test gesture logic without live TCC input:
+Use content-free machine-readable facts:
 
 ```bash
-./aos scene replay \
-  --events packages/toolkit/scene/fixtures/aim-commit.ndjson \
-  --json
+aos scene list --json
+aos scene inspect --resource companion/main --json
+aos scene perf --resource companion/main --json
+aos scene monitor --resource companion/main --follow --json
 ```
 
-Replay requires monotonic sequences and complete gesture lifecycles. Use it
-for deterministic regression fixtures, not as a claim of live visual parity.
+Monitoring is connection-scoped. Stop it by terminating its owning client.
+Snapshots exclude scene parameters, product text, prompts, audio, and desktop
+content.
 
-## Stop And Clean Up
+## Open And Transfer DevTools
 
-- Send `close` for a normal lease shutdown.
-- Process disconnect releases its resource and native hit regions.
-- Close every DevTools session you opened.
-- Stop when a requested implementation is not registered, a budget is
-  exceeded, or the task requires product semantics that belong in a consumer.
+Open the AOS-owned detachable inspector and retain its revision:
+
+```bash
+opened="$(aos scene devtools open --resource companion/main --json)"
+session_id="$(node -e 'const value=JSON.parse(process.argv[1]);process.stdout.write(value.session.session.id)' "$opened")"
+revision="$(node -e 'const value=JSON.parse(process.argv[1]);process.stdout.write(String(value.session.session.revision))' "$opened")"
+updated="$(aos scene devtools update --session "$session_id" \
+  --expected-revision "$revision" --tab performance --recording on --json)"
+revision="$(node -e 'const value=JSON.parse(process.argv[1]);process.stdout.write(String(value.session.session.revision))' "$updated")"
+aos scene devtools status --session "$session_id" --json
+```
+
+Transfer the sole interactive host only to an existing AOS canvas:
+
+```bash
+aos scene devtools transfer --session "$session_id" \
+  --expected-revision "$revision" --host-kind external \
+  --host-id example/inspector-host --json
+```
+
+The daemon suspends the prior host before activating the next one. Never fork
+the telemetry model or create a second interactive host.
+
+## Replay Without Live Input
+
+Replay the deterministic gesture fixture without TCC or stage mutation:
+
+```bash
+aos scene replay \
+  --events packages/toolkit/scene/fixtures/aim-commit.ndjson --json
+```
+
+Replay requires monotonic sequences and complete gesture lifecycles. It proves
+event-model behavior, not live visual parity.
+
+## Recover Or Stop
+
+1. Read `session.snapshot()` after any operation failure.
+2. Let the typed session spend its one recovery attempt. Do not add a second
+   consumer retry loop.
+3. If the session becomes `faulted`, close it and surface its redacted failure.
+4. Recreate the session only after product policy revalidates ownership and the
+   canonical document.
+5. Stop immediately for implementation mismatch, budget rejection, malformed
+   transport data, or an extension digest change.
+
+Close everything explicitly:
+
+```bash
+aos scene devtools close --session "$session_id" --json
+rm -rf -- ./scene-work
+```
+
+Always call `session.close()` in consumer cleanup. Closing a DevTools view does
+not close its daemon-owned session, and deleting a scaffold does not release a
+mounted scene lease.
 
 ## References
 
 - `docs/api/toolkit/scene.md`
+- `docs/api/toolkit/scene-authoring.md`
+- `docs/api/toolkit/scene-runtime.md`
+- `docs/api/toolkit/scene-extensions.md`
+- `docs/api/toolkit/scene-devtools.md`
 - `docs/api/aos.md`
+- `packages/toolkit/scene/examples/session-lifecycle.mjs`
 - `shared/schemas/scene-event-v1.schema.json`
 - `shared/schemas/desktop-world-devtools-stage-v1.schema.json`
-- `packages/toolkit/scene/examples/`

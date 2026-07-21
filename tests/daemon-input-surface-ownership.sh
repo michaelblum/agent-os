@@ -150,6 +150,98 @@ assert(registry.removeOwned(by: "stage", includeSuspendRetained: false).isEmpty,
 assert(registry.snapshot().map(\.id) == ["retained"], "retained region should remain visible")
 assert(registry.removeOwned(by: "stage", includeSuspendRetained: true).map(\.id) == ["retained"], "owner removal should remove retained regions")
 
+let generationRegistry = AOSInputRegionRegistry()
+let oldGenerationRegion = AOSInputRegionRecord(
+    id: "body:generation:1",
+    ownerCanvasGeneration: stageGeneration,
+    nativeFrame: baseFrame,
+    consumePolicy: "captured"
+)
+let stagedGenerationRegion = AOSInputRegionRecord(
+    id: "body:generation:2",
+    ownerCanvasGeneration: stageGeneration,
+    nativeFrame: CGRect(x: 300, y: 200, width: 80, height: 60),
+    consumePolicy: "never",
+    enabled: false
+)
+let activeGenerationRegion = AOSInputRegionRecord(
+    id: stagedGenerationRegion.id,
+    ownerCanvasGeneration: stageGeneration,
+    nativeFrame: stagedGenerationRegion.nativeFrame,
+    consumePolicy: "captured",
+    enabled: true
+)
+generationRegistry.register(oldGenerationRegion)
+generationRegistry.register(stagedGenerationRegion)
+let replacement = generationRegistry.replaceGeneration(
+    activate: [activeGenerationRegion],
+    retire: [oldGenerationRegion.id],
+    owner: stageGeneration
+)
+assert(replacement?.idempotent == false, "first exact-generation replacement should mutate once")
+assert(replacement?.retired.map(\.id) == [oldGenerationRegion.id], "replacement should report the retired generation")
+assert(generationRegistry.snapshot().map(\.id) == [activeGenerationRegion.id], "replacement must expose only the active generation")
+assert(generationRegistry.snapshot().first?.enabled == true, "replacement must atomically activate the staged region")
+let repeatedReplacement = generationRegistry.replaceGeneration(
+    activate: [activeGenerationRegion],
+    retire: [oldGenerationRegion.id],
+    owner: stageGeneration
+)
+assert(repeatedReplacement?.idempotent == true, "byte-equivalent generation replay should be idempotent")
+let staleRetireReplay = generationRegistry.replaceGeneration(
+    activate: [activeGenerationRegion],
+    retire: ["missing-generation"],
+    owner: stageGeneration
+)
+assert(staleRetireReplay?.idempotent == true, "an exact active generation with already-absent retirees should replay idempotently")
+assert(generationRegistry.snapshot().map(\.id) == [activeGenerationRegion.id], "idempotent replacement must not mutate the registry")
+
+let capturedIdempotentRegistry = AOSInputRegionRegistry()
+capturedIdempotentRegistry.register(activeGenerationRegion)
+_ = capturedIdempotentRegistry.route(
+    event: descriptor("left_mouse_down"),
+    point: CGPoint(x: 310, y: 210)
+)
+let capturedReplay = capturedIdempotentRegistry.replaceGeneration(
+    activate: [activeGenerationRegion],
+    retire: [oldGenerationRegion.id],
+    owner: stageGeneration
+)
+assert(capturedReplay?.idempotent == true, "byte-equivalent generation replay must remain idempotent during pointer capture")
+assert(capturedIdempotentRegistry.activeCaptureSnapshot()?["region_id"] as? String == activeGenerationRegion.id, "idempotent replay must preserve active pointer capture")
+
+let capturedGenerationRegistry = AOSInputRegionRegistry()
+capturedGenerationRegistry.register(oldGenerationRegion)
+capturedGenerationRegistry.register(stagedGenerationRegion)
+_ = capturedGenerationRegistry.route(event: descriptor("left_mouse_down"), point: point)
+assert(capturedGenerationRegistry.replaceGeneration(
+    activate: [activeGenerationRegion],
+    retire: [oldGenerationRegion.id],
+    owner: stageGeneration
+) == nil, "active pointer capture must block generation replacement")
+assert(Set(capturedGenerationRegistry.snapshot().map(\.id)) == Set([oldGenerationRegion.id, stagedGenerationRegion.id]), "blocked replacement must preserve both staged and active records")
+
+let candidateCaptureRegistry = AOSInputRegionRegistry()
+candidateCaptureRegistry.register(oldGenerationRegion)
+candidateCaptureRegistry.register(activeGenerationRegion)
+_ = candidateCaptureRegistry.route(
+    event: descriptor("left_mouse_down"),
+    point: CGPoint(x: 310, y: 210)
+)
+let changedCapturedCandidate = AOSInputRegionRecord(
+    id: activeGenerationRegion.id,
+    ownerCanvasGeneration: stageGeneration,
+    nativeFrame: CGRect(x: 320, y: 220, width: 80, height: 60),
+    consumePolicy: "captured",
+    enabled: true
+)
+assert(candidateCaptureRegistry.replaceGeneration(
+    activate: [changedCapturedCandidate],
+    retire: [oldGenerationRegion.id],
+    owner: stageGeneration
+) == nil, "a captured candidate ID collision must block in-place generation replacement")
+assert(candidateCaptureRegistry.snapshot().first(where: { $0.id == activeGenerationRegion.id })?.nativeFrame == activeGenerationRegion.nativeFrame, "blocked candidate collision must preserve the captured region")
+
 let failOpenRegistry = AOSInputRegionRegistry()
 failOpenRegistry.register(highRegion)
 let canonicalDown = AOSCanonicalInputEvent(type: "left_mouse_down", x: 25, y: 25)!

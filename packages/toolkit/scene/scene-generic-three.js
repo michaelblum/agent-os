@@ -1,4 +1,5 @@
 import { createSceneImplementationRegistry } from './scene-registry.js'
+import { inspectSceneExtensionProjectionResources } from './scene-extension.js'
 import {
   createRadialAuraThreeEffect,
   validateRadialAuraParameters,
@@ -274,6 +275,7 @@ export function createGenericThreeSceneProjection({ THREE, document }) {
     const target = objects.get(descriptor.parameters?.targetObjectId) ?? root
     attachEffect(descriptor, target)
   }
+  const resourceMetrics = inspectSceneExtensionProjectionResources(root)
   return {
     object: root,
     activate() {},
@@ -293,6 +295,7 @@ export function createGenericThreeSceneProjection({ THREE, document }) {
     },
     applyAnimation(binding, value) { return setTarget(objects, binding.objectId, binding.target, value) },
     applySignal(binding, value) { return setTarget(objects, binding.objectId, binding.target, value) },
+    resourceMetrics() { return resourceMetrics },
     tick(elapsedMs) {
       if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return 0
       let updated = 0

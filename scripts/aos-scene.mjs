@@ -11,6 +11,7 @@ import {
   replayDesktopWorldSceneEvents,
   selectDesktopWorldResourceSnapshot,
 } from '../packages/toolkit/scene/desktop-world-client.js'
+import { validateSceneExtensionReference } from '../packages/toolkit/scene/scene-extension.js'
 
 const MAX_INPUT_LINE_BYTES = 2 * 1024 * 1024
 const MAX_OUTPUT_LINE_BYTES = 64 * 1024
@@ -53,15 +54,93 @@ function parseFollowArgs(args) {
 }
 
 function parseCartridgeArgs(args) {
-  if (args[0] !== 'cartridge' || args[1] !== 'validate') {
-    fail('UNKNOWN_SUBCOMMAND', 'scene cartridge requires the validate subcommand')
+  if (args[0] !== 'cartridge' || !['validate', 'scaffold'].includes(args[1])) {
+    fail('UNKNOWN_SUBCOMMAND', 'scene cartridge requires validate or scaffold')
   }
+  const action = args[1]
   const tail = args.slice(2)
+  if (action === 'scaffold') {
+    return { action, ...parseScaffoldArgs(tail, 'cartridge', ['--id', '--template']) }
+  }
   const json = tail.includes('--json')
   const positional = tail.filter((arg) => arg !== '--json')
   if (positional.some((arg) => arg.startsWith('--'))) fail('UNKNOWN_FLAG', 'Unknown scene cartridge flag')
   if (positional.length !== 1) fail('MISSING_ARG', 'scene cartridge validate requires one directory path')
-  return { directory: positional[0], json }
+  return { action, directory: positional[0], json }
+}
+
+function parseScaffoldArgs(args, kind, requiredFlags) {
+  const allowed = new Set(['--json', ...requiredFlags])
+  const values = new Map()
+  const positional = []
+  for (let index = 0; index < args.length; index += 1) {
+    const token = args[index]
+    if (!token.startsWith('--')) {
+      positional.push(token)
+      continue
+    }
+    if (!allowed.has(token)) fail('UNKNOWN_FLAG', `Unknown scene ${kind} scaffold flag`)
+    if (values.has(token)) fail('DUPLICATE_FLAG', `${token} may be supplied once`)
+    if (token === '--json') {
+      values.set(token, true)
+      continue
+    }
+    const value = args[index + 1]
+    if (!value || value.startsWith('--')) fail('MISSING_ARG', `${token} requires a value`)
+    values.set(token, value)
+    index += 1
+  }
+  if (positional.length !== 1) fail('MISSING_ARG', `scene ${kind} scaffold requires one destination path`)
+  if (!values.has('--json')) fail('MISSING_ARG', `scene ${kind} scaffold requires --json`)
+  for (const flag of requiredFlags) {
+    if (!values.has(flag)) fail('MISSING_ARG', `scene ${kind} scaffold requires ${flag}`)
+  }
+  return {
+    directory: positional[0],
+    id: values.get('--id'),
+    json: true,
+    ownerId: values.get('--owner'),
+    template: values.get('--template'),
+  }
+}
+
+function parseExtensionArgs(args) {
+  if (args[0] !== 'extension') fail('UNKNOWN_SUBCOMMAND', 'scene extension command is invalid')
+  const action = args[1]
+  if (!['validate', 'install', 'list', 'scaffold'].includes(action)) {
+    fail('UNKNOWN_SUBCOMMAND', 'scene extension requires validate, install, list, or scaffold')
+  }
+  const tail = args.slice(2)
+  if (action === 'scaffold') {
+    return { action, ...parseScaffoldArgs(tail, 'extension', ['--owner', '--id', '--template']) }
+  }
+  if (tail.filter((arg) => arg === '--json').length > 1) fail('DUPLICATE_FLAG', '--json may be supplied once')
+  if (!tail.includes('--json')) fail('MISSING_ARG', `scene extension ${action} requires --json`)
+  const positional = []
+  let expectedDigest = null
+  for (let index = 0; index < tail.length; index += 1) {
+    const token = tail[index]
+    if (token === '--json') continue
+    if (token === '--expected-digest') {
+      if (action !== 'install') fail('UNKNOWN_FLAG', 'Unknown scene extension flag')
+      if (expectedDigest !== null) fail('DUPLICATE_FLAG', '--expected-digest may be supplied once')
+      const value = tail[index + 1]
+      if (!value || value.startsWith('--')) fail('MISSING_ARG', '--expected-digest requires a value')
+      if (!/^[a-f0-9]{64}$/u.test(value)) fail('INVALID_DIGEST', '--expected-digest must be a lowercase SHA-256 digest')
+      expectedDigest = value
+      index += 1
+      continue
+    }
+    if (token.startsWith('--')) fail('UNKNOWN_FLAG', 'Unknown scene extension flag')
+    positional.push(token)
+  }
+  if (action === 'list') {
+    if (positional.length > 0) fail('UNKNOWN_ARG', 'scene extension list accepts no directory')
+    return { action, json: true }
+  }
+  if (positional.length !== 1) fail('MISSING_ARG', `scene extension ${action} requires one directory path`)
+  if (action === 'install' && expectedDigest === null) fail('MISSING_ARG', 'scene extension install requires --expected-digest')
+  return { action, directory: positional[0], expectedDigest, json: true }
 }
 
 function validateResource(value) {
@@ -216,6 +295,21 @@ function validateFollowOperation(operation) {
   if (!operation || typeof operation !== 'object' || Array.isArray(operation) || !ALLOWED_OPERATIONS.has(operation.op)) {
     fail('INVALID_SCENE_OPERATION', 'scene operation is not supported')
   }
+  if (Object.hasOwn(operation, 'extension')) {
+    if (operation.op !== 'mount') fail('SCENE_EXTENSION_REFERENCE_INVALID', 'scene extensions may be supplied only by mount')
+    const validation = validateSceneExtensionReference(operation.extension)
+    if (!validation.ok) fail('SCENE_EXTENSION_REFERENCE_INVALID', 'scene extension reference is invalid')
+    return {
+      ...operation,
+      extension: {
+        ownerId: operation.extension.ownerId,
+        id: operation.extension.id,
+        digest: operation.extension.digest,
+        sceneAbi: operation.extension.sceneAbi,
+        threeRevision: operation.extension.threeRevision,
+      },
+    }
+  }
   if (operation.op !== 'subscribe' && operation.op !== 'unsubscribe') return operation
   const keys = Object.keys(operation)
   if (keys.some((key) => key !== 'op' && key !== 'events')) {
@@ -231,14 +325,42 @@ function validateFollowOperation(operation) {
   return { op: operation.op, events: [...new Set(events)] }
 }
 
-async function runCartridgeValidate(args) {
+async function runCartridgeCommand(args) {
   const options = parseCartridgeArgs(args)
+  if (options.action === 'scaffold') {
+    const { scaffoldSceneCartridge } = await import('./lib/aos-scene-scaffold.mjs')
+    const result = await scaffoldSceneCartridge(options.directory, options)
+    process.stdout.write(`${JSON.stringify(result)}\n`)
+    return
+  }
   const loaded = await loadSceneCartridge(options.directory)
   if (options.json) {
     process.stdout.write(`${JSON.stringify(loaded.summary)}\n`)
   } else {
     process.stdout.write(`valid=true id=${loaded.summary.id} revision=${loaded.summary.revision} digest=${loaded.summary.digest}\n`)
   }
+}
+
+async function runExtensionCommand(args) {
+  const options = parseExtensionArgs(args)
+  if (options.action === 'scaffold') {
+    const { scaffoldSceneExtension } = await import('./lib/aos-scene-scaffold.mjs')
+    const result = await scaffoldSceneExtension(options.directory, options)
+    process.stdout.write(`${JSON.stringify(result)}\n`)
+    return
+  }
+  const {
+    installSceneExtension,
+    listSceneExtensions,
+    validateSceneExtensionDirectory,
+  } = await import('./lib/aos-scene-extension.mjs')
+  let result
+  if (options.action === 'validate') result = await validateSceneExtensionDirectory(options.directory)
+  else if (options.action === 'install') {
+    result = await installSceneExtension(options.directory, { expectedDigest: options.expectedDigest })
+  }
+  else result = await listSceneExtensions()
+  process.stdout.write(`${JSON.stringify(result)}\n`)
 }
 
 function writeToolResult(value, json, label = 'status') {
@@ -408,32 +530,36 @@ async function runSceneFollow(args) {
   socket.once('close', () => { if (!closed) void cleanup(1) })
 
   const input = readline.createInterface({ input: process.stdin, crlfDelay: Infinity })
-  for await (const line of input) {
-    if (Buffer.byteLength(line) > MAX_INPUT_LINE_BYTES) fail('SCENE_OPERATION_TOO_LARGE', 'scene operation exceeded the line limit')
-    let operation
-    try { operation = JSON.parse(line) } catch { fail('INVALID_SCENE_OPERATION', 'scene operation must be JSON') }
-    operation = validateFollowOperation(operation)
-    socket.write(`${JSON.stringify({
-      v: 1,
-      service: 'scene',
-      action: 'follow',
-      data: { ...identity, operation },
-      ref,
-    })}\n`)
-    if (operation.op === 'close') {
-      await Promise.race([
-        closeAcknowledgement,
-        new Promise((resolve) => setTimeout(resolve, 2000)),
-      ])
-      break
+  try {
+    for await (const line of input) {
+      if (Buffer.byteLength(line) > MAX_INPUT_LINE_BYTES) fail('SCENE_OPERATION_TOO_LARGE', 'scene operation exceeded the line limit')
+      let operation
+      try { operation = JSON.parse(line) } catch { fail('INVALID_SCENE_OPERATION', 'scene operation must be JSON') }
+      operation = validateFollowOperation(operation)
+      socket.write(`${JSON.stringify({
+        v: 1,
+        service: 'scene',
+        action: 'follow',
+        data: { ...identity, operation },
+        ref,
+      })}\n`)
+      if (operation.op === 'close') {
+        await Promise.race([
+          closeAcknowledgement,
+          new Promise((resolve) => setTimeout(resolve, 2000)),
+        ])
+        break
+      }
     }
+  } finally {
+    if (!closed) await cleanup(0)
   }
-  if (!closed) await cleanup(0)
 }
 
 async function main() {
   const args = process.argv.slice(2)
-  if (args[0] === 'cartridge') return runCartridgeValidate(args)
+  if (args[0] === 'cartridge') return runCartridgeCommand(args)
+  if (args[0] === 'extension') return runExtensionCommand(args)
   const tool = parseToolArgs(args)
   if (tool) return runToolCommand(tool)
   return runSceneFollow(args)

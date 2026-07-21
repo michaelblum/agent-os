@@ -9,7 +9,7 @@ Use this index when you are building an AOS canvas surface, composing reusable t
 | Boundary | Scoped reference | Use it for |
 | --- | --- | --- |
 | Runtime primitives | [toolkit/runtime.md](./toolkit/runtime.md) | runtime bridge, canvas lifecycle helpers, subscriptions, `createResourceScope`, DesktopWorld surface runtime, input regions/events |
-| Scene authoring | [toolkit/scene.md](./toolkit/scene.md) | external package facade, DesktopWorld Three adapter, bounded renderer lifecycle, visual-object descriptors and form bindings |
+| Scene engine | [toolkit/scene.md](./toolkit/scene.md) | overview plus focused [authoring](./toolkit/scene-authoring.md), [runtime](./toolkit/scene-runtime.md), [extensions](./toolkit/scene-extensions.md), and [DevTools](./toolkit/scene-devtools.md) entry points |
 | Status-item contract | [toolkit/status-item.md](./toolkit/status-item.md) | descriptor/update validation, observed native anchor/event normalization, and public TypeScript types |
 | Controls | [toolkit/controls.md](./toolkit/controls.md) | plain DOM control factories, stock control CSS classes, timer bar, number-field enhancement |
 | Panel/window policy | [toolkit/panel-window.md](./toolkit/panel-window.md) | `mountChrome`, `createPanelWindowController`, drag/resize/maximize/minimize/restore, placement, `createStageAffordance`, split panes, tabs, single layout |
@@ -61,7 +61,7 @@ Before adding a WebView, daemon policy, app-private hit testing, or a new Deskto
 - `mountChrome`: [panel chrome](./toolkit/panel-window.md#mountchromecontainer-options).
 - controls: [controls API](./toolkit/controls.md#factories) and [form harness](./toolkit/panel-window.md#createformcontainer-fields-options).
 - DesktopWorld stage/surface runtime: [runtime DesktopWorld surface runtime](./toolkit/runtime.md#desktopworld-surface-runtime) and [components DesktopWorld stage](./toolkit/components.md#stock-components-snapshot).
-- external Three scene authoring: [scene API](./toolkit/scene.md).
+- external Three scene authoring: [scene overview](./toolkit/scene.md), [authoring](./toolkit/scene-authoring.md), [runtime](./toolkit/scene-runtime.md), [extensions](./toolkit/scene-extensions.md), and [DevTools](./toolkit/scene-devtools.md).
 - native status-item descriptors and observed anchors: [status-item API](./toolkit/status-item.md).
 - input regions/events: [runtime input regions and events](./toolkit/runtime.md#input-regions-and-events).
 - workbench contracts: [workbench API](./toolkit/workbench.md#workbench-contracts).

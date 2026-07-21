@@ -13,6 +13,7 @@ affordances, deterministic gesture arbitration, bounded stock interaction
 visuals and typed scene events, bounded DesktopWorld DevTools snapshots, a
 host-neutral inspector view, and a transport-injected agent SDK, numeric
 signal and elapsed-clock animation bindings,
+the transport-injected high-level DesktopWorld session,
 dependency-injected local/DesktopWorld hosts, the standalone Three adapter,
 the bounded generic Three implementation registry/projector,
 bounded renderer lifecycle, canvas lifecycle projections, and visual-object
@@ -31,20 +32,27 @@ stage internals.
   remain in the consuming product.
 - The daemon-backed stage projects object transforms in global DesktopWorld
   coordinates through one orthographic camera per physical display segment.
-  Every segment applies the same declarative operation, while only the primary
-  segment reports its result to avoid duplicate transport acknowledgements.
+  Every segment applies the same declarative operation and reports an
+  origin-attributed internal result. The daemon accepts results only from the
+  exact current canvas and topology generation, settles the all-segment
+  barrier, and emits one public result to avoid duplicate transport
+  acknowledgements.
 
 ## Local Contracts
 
 - Export named, dependency-injected primitives only. Do not bundle Three.js or
   expose private toolkit indexes through this facade.
-- Keep `index.js`, `index.d.ts`, `package.json` exports, tests, and
-  `docs/api/toolkit/scene.md` synchronized.
+- Keep `index.js`, `index.d.ts`, focused `authoring`, `runtime`, `extensions`,
+  and `devtools` entry points, package exports, tests, and the corresponding
+  split guides under `docs/api/toolkit/` synchronized.
 - Renderer disposal applies only to resources the consumer explicitly gives
   the lifecycle; shared resource ownership remains with the consumer.
-- Scene documents never carry implementation code. Only trusted registry
-  entries and projection factories may execute, and failed preparation must
-  leave the active document and projection unchanged.
+- Scene documents and cartridges never carry implementation code. Only AOS
+  built-ins or separately installed, owner-authorized, digest-pinned trusted
+  projection extensions may execute. Product geometry, shader, effect, and
+  animation vocabulary remains in the consumer extension; it must not be
+  translated into AOS stock-effect parameters. Failed preparation must leave
+  the active document and projection unchanged.
 - Scene cartridges use the canonical `cartridge.json`, `scene.json`,
   `animations.json`, `interactions.json`, and `assets/` layout. Payload files
   and local assets are digest-bound, budgets are explicit, and the filesystem
@@ -92,14 +100,32 @@ stage internals.
   Node socket APIs, discover runtime paths, auto-start daemons, or create a
   second snapshot model. One-shot reads use headless DevTools sessions and
   close them in `finally`; monitor state is connection-scoped.
+- `createDesktopWorldSceneSession()` is the ordinary consumer lifecycle owner.
+  It serializes operations, commits only authoritative all-segment results,
+  ignores old connection generations, and may reconnect exactly once. Recovery
+  remounts committed state and subscriptions but never replays transient
+  signals, animation plays, or an uncertain operation. Consumers must not add
+  a competing recovery loop.
 - Only the primary DesktopWorld segment registers native hit regions or emits
   typed gesture events. Every segment applies the same visual response, and a
   failed region activation must restore the previous scene or fail closed with
   no active resource.
+- Candidate input-region generations remain inactive until the daemon can
+  atomically activate every candidate and retire the complete prior generation.
+  Input delivery continues through the old generation until that switch; an
+  ambiguous switch fails closed rather than exposing mixed ownership.
+- The stage resumes only after every physical display segment reports ready for
+  the exact canvas and topology generation. A topology change or segment fault
+  retires that complete stage generation and its scene leases; consumers recover
+  by remounting canonical state, never by preserving a partially healthy scene.
+- Resource admission is cumulative across every projection in one display
+  segment. Runtime extension audits are sampled on a bounded cadence and reuse
+  cached metrics between audits; do not add a per-frame scene-tree allocation
+  pass.
 
 ## Verification
 
-- `node --test tests/toolkit/desktop-world-client.test.mjs tests/toolkit/desktop-world-devtools-compat.test.mjs tests/toolkit/desktop-world-devtools-model.test.mjs tests/toolkit/desktop-world-devtools-view.test.mjs tests/toolkit/desktop-world-surface-three.test.mjs tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs tests/toolkit/desktop-world-scene-interaction-three.test.mjs tests/toolkit/desktop-world-scene-operation-coordinator.test.mjs tests/toolkit/scene-cartridge.test.mjs tests/toolkit/scene-document.test.mjs tests/toolkit/scene-historical-fast-travel-reference.test.mjs tests/toolkit/scene-host.test.mjs tests/toolkit/scene-interaction.test.mjs tests/toolkit/scene-interaction-visual.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/three-render-lifecycle.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs tests/scene-cartridge-cli.test.mjs tests/scene-agent-tooling-cli.test.mjs`
+- `node --test tests/toolkit/desktop-world-client.test.mjs tests/toolkit/desktop-world-session.test.mjs tests/toolkit/desktop-world-devtools-compat.test.mjs tests/toolkit/desktop-world-devtools-model.test.mjs tests/toolkit/desktop-world-devtools-view.test.mjs tests/toolkit/desktop-world-surface-three.test.mjs tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs tests/toolkit/desktop-world-scene-interaction-three.test.mjs tests/toolkit/desktop-world-scene-operation-coordinator.test.mjs tests/toolkit/scene-cartridge.test.mjs tests/toolkit/scene-document.test.mjs tests/toolkit/scene-historical-fast-travel-reference.test.mjs tests/toolkit/scene-host.test.mjs tests/toolkit/scene-interaction.test.mjs tests/toolkit/scene-interaction-visual.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/three-render-lifecycle.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs tests/scene-cartridge-cli.test.mjs tests/scene-extension-cli.test.mjs tests/scene-scaffold-cli.test.mjs tests/scene-agent-tooling-cli.test.mjs tests/scene-agent-authoring-acceptance.test.mjs`
 - `bash tests/daemon-desktop-world-devtools-session.sh`
 
 ## Child DOX Index

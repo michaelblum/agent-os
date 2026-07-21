@@ -9,6 +9,26 @@
       "import": "./scene/index.js",
       "default": "./scene/index.js"
     },
+    "./scene/authoring": {
+      "types": "./scene/authoring.d.ts",
+      "import": "./scene/authoring.js",
+      "default": "./scene/authoring.js"
+    },
+    "./scene/runtime": {
+      "types": "./scene/runtime.d.ts",
+      "import": "./scene/runtime.js",
+      "default": "./scene/runtime.js"
+    },
+    "./scene/extensions": {
+      "types": "./scene/extensions.d.ts",
+      "import": "./scene/extensions.js",
+      "default": "./scene/extensions.js"
+    },
+    "./scene/devtools": {
+      "types": "./scene/devtools.d.ts",
+      "import": "./scene/devtools.js",
+      "default": "./scene/devtools.js"
+    },
     "./status-item": {
       "types": "./status-item/index.d.ts",
       "import": "./status-item/index.js",

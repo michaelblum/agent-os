@@ -605,6 +605,7 @@ class CanvasManager {
     private let lifecycleCompletions = CanvasLifecycleCompletionTracker()
     private var anchorTimer: DispatchSourceTimer?
     var aosSchemeHandler: WKURLSchemeHandler?
+    var sceneExtensionSchemeHandler: WKURLSchemeHandler?
     var onCanvasCountChanged: (() -> Void)?
     var onEvent: ((CanvasLifecycleGeneration, Any) -> Void)?
     var onMenuItems: ((String, [[String: Any]]) -> Void)?  // (canvasID, items)
@@ -1411,7 +1412,12 @@ class CanvasManager {
         }
         onCanvasSurfaceEvent?(
             "canvas_topology_settled",
-            topologySettledPayload(canvasID: surface.id, segments: delta.settled)
+            topologySettledPayload(
+                canvasID: surface.id,
+                segments: delta.settled,
+                canvasGeneration: surface.lifecycleGeneration,
+                topologyGeneration: surface.topologyGeneration
+            )
         )
     }
 
@@ -1426,8 +1432,13 @@ class CanvasManager {
         ]
     }
 
-    func topologySettledPayload(canvasID: String, segments: [DesktopWorldSurfaceSegment]) -> [String: Any] {
-        [
+    func topologySettledPayload(
+        canvasID: String,
+        segments: [DesktopWorldSurfaceSegment],
+        canvasGeneration: UInt64? = nil,
+        topologyGeneration: UInt64? = nil
+    ) -> [String: Any] {
+        var payload: [String: Any] = [
             "canvas_id": canvasID,
             "segments": segments.map { segment in
                 [
@@ -1438,10 +1449,67 @@ class CanvasManager {
                 ] as [String: Any]
             },
         ]
+        if let canvasGeneration { payload["canvas_generation"] = canvasGeneration }
+        if let topologyGeneration { payload["topology_generation"] = topologyGeneration }
+        return payload
     }
 
     /// Expose a canvas for external callers (daemon layer) that need to set parent.
     func canvas(forID id: String) -> CanvasLike? { canvases[id] }
+
+    func desktopWorldSceneBarrierTopology(canvasID: String) -> DesktopWorldSceneBarrierTopology? {
+        let read = { [weak self] in
+            (self?.canvases[canvasID] as? DesktopWorldSurfaceCanvas)?.sceneBarrierTopology()
+        }
+        return Thread.isMainThread ? read() : DispatchQueue.main.sync(execute: read)
+    }
+
+    /// Delivers only to the exact stage and topology generation captured by a
+    /// scene barrier. A same-ID replacement or topology rebuild is never used
+    /// as an implicit target.
+    @discardableResult
+    func postMessageToDesktopWorldSceneStage(
+        _ topology: DesktopWorldSceneBarrierTopology,
+        canvasID: String,
+        payload: Any
+    ) -> Bool {
+        let post = { [weak self] () -> Bool in
+            guard let self,
+                  let surface = self.canvases[canvasID] as? DesktopWorldSurfaceCanvas,
+                  surface.lifecycleGeneration == topology.canvasGeneration,
+                  surface.topologyGeneration == topology.generation,
+                  surface.sceneBarrierTopology() == topology else { return false }
+            return self.postMessage(
+                for: CanvasLifecycleGeneration(canvasID: canvasID, value: topology.canvasGeneration),
+                payload: payload
+            ).status == "success"
+        }
+        return Thread.isMainThread ? post() : DispatchQueue.main.sync(execute: post)
+    }
+
+    func retireDesktopWorldSceneStageAsync(
+        canvasID: String,
+        canvasGeneration: UInt64,
+        topologyGeneration: UInt64,
+        completion: ((AOSDesktopWorldSceneStageRetirementOutcome) -> Void)? = nil
+    ) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else {
+                completion?(.failed)
+                return
+            }
+            guard let surface = self.canvases[canvasID] as? DesktopWorldSurfaceCanvas else {
+                completion?(.alreadyAbsent)
+                return
+            }
+            guard surface.lifecycleGeneration == canvasGeneration,
+                  surface.topologyGeneration == topologyGeneration else {
+                completion?(.superseded)
+                return
+            }
+            completion?(self.retireCanvas(id: canvasID) == nil ? .failed : .retired)
+        }
+    }
 
     func windowNumbers(forID id: String) -> [Int] {
         canvases[id]?.windowNumbers ?? []
@@ -1761,6 +1829,7 @@ class CanvasManager {
                 interactive: interactive,
                 windowLevel: windowLevel,
                 aosSchemeHandler: aosSchemeHandler,
+                sceneExtensionSchemeHandler: sceneExtensionSchemeHandler,
                 lifecycleCoordinator: lifecycleCoordinator
             )
             surface.trackTarget = .union

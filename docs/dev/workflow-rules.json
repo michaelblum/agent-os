@@ -178,6 +178,81 @@
       "verification": []
     },
     {
+      "id": "desktop-world-scene-engine",
+      "summary": "DesktopWorld scene contracts, authoring tools, runtime session, extensions, or agent route changed.",
+      "patterns": [
+        "packages/toolkit/scene/**",
+        "packages/toolkit/components/desktop-world-stage/**",
+        "src/daemon/desktop-world-scene-*.swift",
+        "src/daemon/scene-lease-registry.swift",
+        "src/daemon/unified.swift",
+        "src/display/desktop-world-surface.swift",
+        "scripts/aos-scene.mjs",
+        "scripts/lib/aos-scene-*.mjs",
+        "manifests/commands/source/aos/39-scene.json",
+        "manifests/commands/source/external/47-scene.json",
+        "docs/api/toolkit/scene*.md",
+        "tests/scene-*.test.mjs",
+        "tests/desktop-world-scene-result-coordinator.test.mjs",
+        "tests/daemon-desktop-world-devtools-contract.test.mjs",
+        "tests/toolkit/desktop-world-scene-*.test.mjs",
+        "tests/toolkit/desktop-world-session.test.mjs",
+        "tests/toolkit/scene-*.test.mjs"
+      ],
+      "classes": [
+        "toolkit",
+        "command_contract",
+        "scene_engine"
+      ],
+      "actions": [
+        "focused_test",
+        "help_contract"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "scene-daemon-contract",
+          "command": "node --test tests/desktop-world-scene-result-coordinator.test.mjs tests/daemon-desktop-world-devtools-contract.test.mjs tests/scene-follow-cli.test.mjs",
+          "reason": "Verify the daemon scene lifecycle aggregate, all-segment barrier ownership, DevTools delegation, and bounded follow transport."
+        },
+        {
+          "id": "scene-core-contract",
+          "command": "node --test tests/toolkit/desktop-world-client.test.mjs tests/toolkit/scene-cartridge.test.mjs tests/toolkit/scene-document.test.mjs tests/toolkit/scene-generic-three.test.mjs tests/toolkit/scene-host.test.mjs tests/toolkit/scene-public-contract.test.mjs",
+          "reason": "Verify the canonical document, cartridge, transaction, host, generic projection, client, and focused package boundaries."
+        },
+        {
+          "id": "scene-interaction-contract",
+          "command": "node --test tests/toolkit/scene-interaction.test.mjs tests/toolkit/scene-radial-menu.test.mjs tests/toolkit/scene-interaction-visual.test.mjs tests/toolkit/scene-historical-fast-travel-reference.test.mjs tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs tests/toolkit/desktop-world-scene-interaction-three.test.mjs tests/toolkit/desktop-world-scene-operation-coordinator.test.mjs tests/toolkit/desktop-world-scene-outlet.test.mjs",
+          "reason": "Verify gesture arbitration, native-region atomicity, generic responses, fixed-clock visuals, historical references, and bounded Three lifecycle."
+        },
+        {
+          "id": "scene-devtools-contract",
+          "command": "node --test tests/toolkit/desktop-world-devtools-model.test.mjs tests/toolkit/desktop-world-devtools-view.test.mjs tests/toolkit/desktop-world-devtools-compat.test.mjs",
+          "reason": "Verify host-neutral DevTools state, views, compatibility projections, bounded telemetry, and disabled instrumentation cost."
+        },
+        {
+          "id": "scene-agent-authoring-contract",
+          "command": "node --test tests/toolkit/desktop-world-session.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs tests/scene-scaffold-cli.test.mjs tests/scene-agent-authoring-acceptance.test.mjs",
+          "reason": "Verify the high-level session, focused exports, deterministic scaffolds, split guides, and empty-directory agent route."
+        },
+        {
+          "id": "scene-extension-contract",
+          "command": "node --test tests/toolkit/scene-extension.test.mjs tests/toolkit/desktop-world-scene-extension-loader.test.mjs tests/toolkit/desktop-world-scene-extension-operation.test.mjs tests/toolkit/desktop-world-scene-extension-projection.test.mjs tests/scene-extension-cli.test.mjs tests/scene-extension-native-store.test.mjs",
+          "reason": "Verify reviewed extension identity, validation, loading, operation, projection, immutable storage, and disposal."
+        },
+        {
+          "id": "scene-command-help-contract",
+          "command": "bash tests/help-contract.sh",
+          "reason": "Keep scene source manifests, generated help, examples, and dispatch metadata aligned."
+        }
+      ],
+      "verification": [],
+      "notes": [
+        "These checks are static or fake-transport only; do not build or execute the repo AOS binary for this route."
+      ]
+    },
+    {
       "id": "experience-runtime-contract",
       "summary": "Experience manifest normalization or runtime-context contracts changed.",
       "patterns": [

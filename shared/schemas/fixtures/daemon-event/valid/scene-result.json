@@ -10,10 +10,35 @@
     "status": "ok",
     "snapshot": {
       "contextLost": false,
+      "faultCode": null,
+      "faulted": false,
       "hidden": false,
       "resources": 1,
+      "interactionVisuals": 0,
+      "backingPixels": 1048576,
+      "renderLoopActive": true,
       "renderer": "three",
-      "maxResources": 32
+      "maxResources": 32,
+      "maxResourceMetrics": {
+        "maxDrawCalls": 2048,
+        "maxObjects": 1024,
+        "maxResources": 1024,
+        "maxTextureBytes": 268435456,
+        "maxTriangles": 2000000,
+        "maxWorkingBytes": 268435456
+      },
+      "resourceMetrics": {
+        "drawCalls": 8,
+        "geometryBytes": 4096,
+        "objects": 12,
+        "resources": 16,
+        "textureBytes": 8192,
+        "triangles": 2048,
+        "workingBytes": 12288
+      },
+      "displayId": 7,
+      "projection": "desktop-world-orthographic",
+      "stageSuspended": false
     }
   }
 }

@@ -11,13 +11,21 @@ delivery, voice/communication routing, and cleanup.
 Scene transport owns only connection-scoped owner/resource leases and delivery
 to the singleton toolkit DesktopWorld stage. Declarative validation and render
 policy remain in the scene toolkit; disconnect always releases owned scenes.
-`scene-lease-registry.swift` is the single atomic owner for scene lease
-admission, typed subscriptions, stage result/event routing, and disconnect
-cleanup. Do not recreate parallel scene ownership or subscription maps in the
-connection handler.
+`desktop-world-scene-controller.swift` is the single atomic owner for scene
+lease admission, typed subscriptions, readiness, result/event routing, and
+disconnect cleanup. `desktop-world-scene-transport-controller.swift` owns the
+canvas I/O, extension admission, barrier timing, and bounded stage readiness
+wait around that state aggregate. `UnifiedDaemon` only delegates transport
+events and emits response envelopes. Do not recreate parallel scene ownership,
+subscription maps, or transport orchestration in the connection handler.
 The singleton full-display stage must be created hidden and resume only after
-its ready manifest follows transparent renderer initialization. Readiness
-failure leaves the stage hidden.
+every physical display segment in the exact current canvas and topology
+generation reports ready following transparent renderer initialization.
+Readiness failure leaves the stage hidden. The scene result coordinator owns
+all-segment prepare/commit barriers and emits one public result only after the
+exact generation settles. Topology changes, segment faults, and failed cleanup
+retire the complete affected stage generation, invalidate its leases, and leave
+no partially healthy projection behind.
 `desktop-world-devtools-session.swift` owns revisioned inspector state,
 exclusive canvas host leases, bounded canonical stage snapshots, and recording
 admission. Host transfer reserves, suspends, activates, and commits in that
@@ -36,6 +44,10 @@ Allowed daemon-side surface work:
 - cheap canvas lifecycle and visibility operations;
 - native frame and display-topology mutation;
 - generic input/hit-region registration and consumption decisions;
+- atomic owner-generation input-region replacement: validate every candidate
+  and retired ID before mutation, keep the old generation routable until the
+  complete replacement commits under one registry lock, and fail closed when
+  capture or ownership prevents the switch;
 - exact `input_region.event` delivery through canonical routed-v1 payloads;
   raw and routed serializers must share the input descriptor in
   `src/shared/input-event.swift`, and incomplete routed input must resolve to

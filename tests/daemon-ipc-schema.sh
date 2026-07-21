@@ -35,6 +35,14 @@ descriptor = {
     ],
 }
 
+scene_extension = {
+    "ownerId": "io.example.app",
+    "id": "companion-renderer",
+    "digest": "a" * 64,
+    "sceneAbi": "aos.scene.projection.v1",
+    "threeRevision": "183",
+}
+
 good_requests = [
     {"v":1,"service":"system","action":"ping","data":{}},
     {"v":1,"service":"see","action":"observe","data":{"depth":1,"scope":"cursor"}},
@@ -50,6 +58,9 @@ good_requests = [
     {"v":1,"service":"status_item","action":"inspect","data":{"owner":"io.example.app","item_id":"companion","generation":7,"descriptor_revision":3}},
     {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"companion","action_id":"summon","generation":7,"descriptor_revision":3}},
     {"v":1,"service":"status_item","action":"invoke_dry_run","data":{"owner":"io.example.app","item_id":"companion","action_id":"summon","generation":7,"descriptor_revision":3}},
+    {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"companion/main","operation":{"op":"mount","extension":scene_extension}}},
+    {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"companion/main","operation":{"op":"subscribe","events":["gesture"]}}},
+    {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"companion/main","operation":{"op":"unsubscribe","events":["gesture"]}}},
 ]
 validator = jsonschema.Draft202012Validator(req_schema, registry=registry)
 for r in good_requests:
@@ -75,6 +86,7 @@ bad_requests = [
     {"v":1,"service":"status_item","action":"update","data":{"owner":"io.example.app","item_id":"companion","generation":7,"descriptor":{**descriptor,"revision":4}}},  # missing current revision
     {"v":1,"service":"status_item","action":"inspect","data":{"owner":"io.example.app","item_id":"companion","generation":7,"descriptor_revision":3,"extra":True}},  # strict action data
     {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"companion","action_id":"summon..now","generation":7,"descriptor_revision":3}},  # invalid action id
+    {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"companion/main","operation":{"op":"signal","extension":scene_extension}}},  # extensions are mount-only
 ]
 for r in bad_requests:
     errors = list(validator.iter_errors(r))

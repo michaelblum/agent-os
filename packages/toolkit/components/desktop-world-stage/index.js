@@ -2,7 +2,11 @@ import { emit, wireBridge } from '../../runtime/bridge.js'
 import { DesktopWorldSurface2D } from '../../runtime/desktop-world-surface-2d.js'
 import { declareManifest, emitLifecycleComplete, emitReady } from '../../runtime/manifest.js'
 import { createVisualObjectDescriptor } from '../../workbench/visual-object-contract.js'
-import { handleDesktopWorldStageLifecycle } from './lifecycle.js'
+import { createTrustedSceneExtensionRegistry } from '../../scene/scene-extension.js'
+import { normalizeDesktopWorldSceneResultErrorCode } from '../../scene/scene-result-codes.js'
+import { createDesktopWorldStageDisposer, handleDesktopWorldStageLifecycle } from './lifecycle.js'
+import { createDesktopWorldSceneExtensionLoader } from './scene-extension-loader.js'
+import { applyDesktopWorldSceneOperation } from './scene-extension-operation.js'
 import { createDesktopWorldSceneOutlet } from './scene-outlet.js'
 import { createDesktopWorldSceneInteractionRuntime } from './scene-interaction-runtime.js'
 import { createDesktopWorldSceneOperationCoordinator } from './scene-operation-coordinator.js'
@@ -15,6 +19,7 @@ import {
   registerInputKeyLease,
   registerInputRegion,
   removeInputRegion,
+  replaceInputRegionGeneration,
   updateInputRegion,
 } from '../../runtime/input-region.js'
 import { applyVisualObjectControllerUpdate } from '../../workbench/visual-object-controller.js'
@@ -36,9 +41,16 @@ const canvasId = window.__aosSurfaceCanvasId || window.__aosCanvasId || 'aos-des
 const escapeKeyLeaseId = `${canvasId}:desktop-world:escape`
 const surface = new DesktopWorldSurface2D({ canvasId })
 const state = createDesktopWorldStageState()
-const sceneOutlet = createDesktopWorldSceneOutlet({ canvas: sceneCanvas })
+const sceneExtensionRegistry = createTrustedSceneExtensionRegistry()
+const sceneExtensionLoader = createDesktopWorldSceneExtensionLoader({ registry: sceneExtensionRegistry })
+const sceneOutlet = createDesktopWorldSceneOutlet({
+  canvas: sceneCanvas,
+  extensionRegistry: sceneExtensionRegistry,
+})
 let sceneInteractions = null
+let sceneOperations = null
 let lastSceneError = null
+let stageLifecycleState = 'active'
 
 function sceneTopologySnapshot() {
   return projectSceneEventTopology(surface.topology)
@@ -84,6 +96,27 @@ const devtoolsProbe = createDesktopWorldDevToolsStageProbe({
   },
 })
 sceneOutlet.setDevToolsProbe(devtoolsProbe)
+sceneOutlet.setFaultObserver((fault) => {
+  const code = normalizeDesktopWorldSceneResultErrorCode(fault.code, 'SCENE_SEGMENT_FAILED')
+  if (stageLifecycleState === 'active') stageLifecycleState = 'faulted'
+  lastSceneError = { at: Date.now(), code }
+  void enqueueSceneWork(async () => {
+    try {
+      await sceneOperations?.failClosed(code)
+    } catch {
+      lastSceneError = { at: Date.now(), code: 'SCENE_STAGE_RETIRE_FAILED' }
+    }
+    emit('desktop_world_stage.scene.fault', {
+      code,
+      lease_key: fault.leaseKey,
+      owner: fault.owner,
+      resource: fault.resource,
+      segment_display_id: window.__aosSegmentDisplayId ?? null,
+      segment_index: surface.segment?.index ?? null,
+      snapshot: sceneOutlet.snapshot(),
+    })
+  }).catch(() => {})
+})
 
 sceneInteractions = createDesktopWorldSceneInteractionRuntime({
   stageCanvasId: canvasId,
@@ -91,6 +124,7 @@ sceneInteractions = createDesktopWorldSceneInteractionRuntime({
   registerRegion: registerInputRegion,
   updateRegion: updateInputRegion,
   removeRegion: removeInputRegion,
+  replaceRegionGeneration: replaceInputRegionGeneration,
   isPrimary: () => surface.isPrimary,
   topology: sceneTopologySnapshot,
   scheduleFrame: (callback) => window.requestAnimationFrame(() => callback()),
@@ -124,11 +158,18 @@ sceneOutlet.setInteractionGeometryObserver((key, generation) => {
     }
   })
 })
-const sceneOperations = createDesktopWorldSceneOperationCoordinator({
+sceneOperations = createDesktopWorldSceneOperationCoordinator({
   outlet: sceneOutlet,
   interactions: sceneInteractions,
 })
 let sceneOperationQueue = Promise.resolve()
+const disposeStage = createDesktopWorldStageDisposer({
+  devtools: devtoolsProbe,
+  interactions: sceneInteractions,
+  operations: sceneOperations,
+  outlet: sceneOutlet,
+  surface,
+})
 
 function render() {
   if (!root) return
@@ -262,11 +303,13 @@ declareManifest({
     'ready',
     'canvas_object.registry',
     'desktop_world_stage.scene.event',
+    'desktop_world_stage.scene.fault',
     'desktop_world_stage.scene.result',
     'desktop_world_stage.devtools.snapshot',
     'input_region.register',
     'input_region.update',
     'input_region.remove',
+    'input_region.replace_generation',
     'input_key_lease.register',
     'lifecycle.complete',
   ],
@@ -276,35 +319,55 @@ declareManifest({
 async function applySceneMessage(message) {
   const payload = message.payload ?? {}
   const key = payload.lease_key
+  const operationId = typeof payload.operation_id === 'string' ? payload.operation_id : null
+  const barrierPhase = typeof payload.barrier_phase === 'string' ? payload.barrier_phase : null
   const op = payload.operation?.op ?? (message.type === 'desktop_world_stage.scene.release' ? 'release' : 'unknown')
   try {
-    const { applied } = await sceneOperations.apply(message)
+    if (stageLifecycleState !== 'active') {
+      const error = new Error('DesktopWorld scene stage is closing or disposed.')
+      error.code = 'SCENE_STAGE_DISPOSED'
+      throw error
+    }
+    const { applied, candidateFingerprint = null } = await applyDesktopWorldSceneOperation({
+      extensionLoader: sceneExtensionLoader,
+      message,
+      operations: sceneOperations,
+    })
     window.__desktopWorldSceneOutlet = sceneOutlet.snapshot()
     window.__desktopWorldSceneInteractions = sceneInteractions.snapshot()
-    if (surface.isPrimary) {
-      emit('desktop_world_stage.scene.result', {
-        lease_key: key,
-        operation: op,
-        resource: payload.resource ?? null,
-        status: applied ? 'ok' : 'ignored',
-        snapshot: sceneOutlet.snapshot(),
-      })
-    }
+    emit('desktop_world_stage.scene.result', {
+      lease_key: key,
+      operation_id: operationId,
+      barrier_phase: barrierPhase,
+      candidate_fingerprint: candidateFingerprint,
+      segment_display_id: window.__aosSegmentDisplayId ?? null,
+      segment_index: surface.segment?.index ?? null,
+      operation: op,
+      resource: payload.resource ?? null,
+      status: applied ? 'ok' : 'ignored',
+      snapshot: sceneOutlet.snapshot(),
+    })
     devtoolsProbe.recordEvent({ kind: `scene.${op}`, resourceId: payload.resource ?? null })
     lastSceneError = null
   } catch (error) {
-    const code = error instanceof RangeError ? 'SCENE_BUDGET_EXCEEDED' : 'SCENE_PROJECTION_FAILED'
+    const code = normalizeDesktopWorldSceneResultErrorCode(
+      error?.code,
+      error instanceof RangeError ? 'SCENE_BUDGET_EXCEEDED' : 'SCENE_PROJECTION_FAILED',
+    )
     lastSceneError = { at: Date.now(), code }
     devtoolsProbe.recordEvent({ code, kind: `scene.${op}.failed`, resourceId: payload.resource ?? null })
-    if (surface.isPrimary) {
-      emit('desktop_world_stage.scene.result', {
-        lease_key: key,
-        operation: op,
-        resource: payload.resource ?? null,
-        status: 'error',
-        code,
-      })
-    }
+    emit('desktop_world_stage.scene.result', {
+      lease_key: key,
+      operation_id: operationId,
+      barrier_phase: barrierPhase,
+      candidate_fingerprint: null,
+      segment_display_id: window.__aosSegmentDisplayId ?? null,
+      segment_index: surface.segment?.index ?? null,
+      operation: op,
+      resource: payload.resource ?? null,
+      status: 'error',
+      code,
+    })
   }
 }
 
@@ -314,7 +377,13 @@ function enqueueSceneWork(work) {
 }
 
 wireBridge((message) => {
-  if (handleDesktopWorldStageLifecycle(message, emitLifecycleComplete)) return
+  if (message?.type === 'lifecycle' && ['resume', 'suspend'].includes(message.action)) {
+    void enqueueSceneWork(() => handleDesktopWorldStageLifecycle(message, emitLifecycleComplete, sceneOperations))
+      .catch((error) => {
+        lastSceneError = { at: Date.now(), code: error?.code ?? 'SCENE_LIFECYCLE_FAILED' }
+      })
+    return
+  }
   if (message?.type === 'desktop_world_stage.devtools.configure') {
     devtoolsProbe.configure(message.payload)
     if (message.payload?.enabled === true) devtoolsProbe.emitSnapshot('configured')
@@ -325,11 +394,11 @@ wireBridge((message) => {
     return
   }
   if (message?.type === 'input_region.event') {
-    sceneOperations.handleInput(message)
+    if (stageLifecycleState === 'active') sceneOperations.handleInput(message)
     return
   }
   if (message?.input_schema_version === 2 && message?.event_kind === 'key' && message?.type === 'key_down') {
-    sceneOperations.handleInput(message)
+    if (stageLifecycleState === 'active') sceneOperations.handleInput(message)
     return
   }
   if (message?.type?.startsWith('desktop_world_stage.scene.')) {
@@ -345,10 +414,12 @@ surface.start({
     render()
   },
   onTopologyChange: ({ segment }) => {
-    sceneOutlet.updateSegment(segment)
-    devtoolsProbe.recordEvent({ kind: 'topology.changed' })
-    void enqueueSceneWork(() => sceneInteractions.topologyChanged())
-    render()
+    void enqueueSceneWork(async () => {
+      sceneOutlet.updateSegment(segment)
+      devtoolsProbe.recordEvent({ kind: 'topology.changed' })
+      await sceneInteractions.topologyChanged()
+      render()
+    }).catch(() => {})
   },
 }).then(async () => {
   await registerInputKeyLease({ id: escapeKeyLeaseId, key: 'Escape' })
@@ -362,9 +433,15 @@ surface.start({
 })
 
 window.addEventListener('pagehide', () => {
-  devtoolsProbe.dispose()
-  sceneInteractions.cancelAll('stage_disposed')
-  void sceneInteractions.dispose()
+  if (['closing', 'disposed'].includes(stageLifecycleState)) return
+  stageLifecycleState = 'closing'
+  void enqueueSceneWork(async () => {
+    try {
+      await disposeStage()
+    } finally {
+      stageLifecycleState = 'disposed'
+    }
+  }).catch(() => {})
 }, { once: true })
 
 render()

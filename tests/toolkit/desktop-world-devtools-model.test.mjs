@@ -2,14 +2,148 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DESKTOP_WORLD_DEVTOOLS_LIMITS,
+  DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS,
   DESKTOP_WORLD_DEVTOOLS_SNAPSHOT_CONTRACT_ID,
   DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID,
   buildDesktopWorldMinimapLayout,
   createDesktopWorldGpuTimer,
   createDesktopWorldDevToolsStageProbe,
+  evaluateDesktopWorldPerformanceAcceptance,
   normalizeDesktopWorldDevToolsSnapshot,
   normalizeDesktopWorldDevToolsStageSnapshot,
 } from '../../packages/toolkit/scene/desktop-world-devtools.js';
+
+test('DesktopWorld acceptance thresholds are hardware-independent and bounded', () => {
+  assert.deepEqual(DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS, {
+    prewarmedTransitionStartMs: 250,
+    projectionReadyMs: 750,
+    inputToVisualP95Ms: 50,
+    minInputToVisualSamples: 20,
+    targetFps: 60,
+    minFrameSamples: 120,
+    p95FrameBudgetMultiplier: 1.1,
+    maxSteadyFrameMs: 100,
+    maxBackingPixelsPerSegment: 2_097_152,
+    maxCrossDisplayGapFrames: 2,
+    stabilityCycles: 100,
+    maxWarmCycleRssGrowthBytes: 16 * 1024 * 1024,
+  });
+});
+
+function performanceAcceptanceInput(overrides = {}) {
+  return {
+    prewarmedTransitionStartMs: 120,
+    projectionReadyMs: 480,
+    inputToVisualSamplesMs: Array.from(
+      { length: DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS.minInputToVisualSamples },
+      () => 42,
+    ),
+    frameSamplesMs: Array.from(
+      { length: DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS.minFrameSamples },
+      () => 18,
+    ),
+    backingPixelsPerSegment: [1_440_000, 2_073_600],
+    crossDisplayGapFrames: 1,
+    warmCycleCount: 100,
+    warmCycleRssDeltaBytes: 8 * 1024 * 1024,
+    resourceDeltas: { geometries: 0, materials: 0, programs: 0, textures: 0 },
+    ...overrides,
+  };
+}
+
+test('DesktopWorld performance acceptance evaluates current public thresholds', () => {
+  const result = evaluateDesktopWorldPerformanceAcceptance(performanceAcceptanceInput());
+
+  assert.equal(result.valid, true);
+  assert.equal(result.ok, true);
+  assert.equal(result.observed.inputToVisualP95Ms, 42);
+  assert.equal(result.observed.frameP95Ms, 18);
+  assert.equal(result.observed.maxBackingPixelsPerSegment, 2_073_600);
+  assert.ok(result.checks.every((check) => check.ok));
+  assert.equal(Object.isFrozen(result), true);
+  assert.equal(Object.isFrozen(result.observed), true);
+  assert.equal(Object.isFrozen(result.checks), true);
+});
+
+test('DesktopWorld performance acceptance reports every failed bounded invariant', () => {
+  const result = evaluateDesktopWorldPerformanceAcceptance(performanceAcceptanceInput({
+    prewarmedTransitionStartMs: 251,
+    projectionReadyMs: 751,
+    inputToVisualSamplesMs: Array.from(
+      { length: DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS.minInputToVisualSamples },
+      () => 51,
+    ),
+    frameSamplesMs: Array.from(
+      { length: DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS.minFrameSamples },
+      () => 101,
+    ),
+    backingPixelsPerSegment: [2_097_153],
+    crossDisplayGapFrames: 3,
+    warmCycleCount: 100,
+    warmCycleRssDeltaBytes: 16 * 1024 * 1024 + 1,
+    resourceDeltas: { geometries: 1, materials: 1, programs: 1, textures: 1 },
+  }));
+
+  assert.equal(result.valid, true);
+  assert.equal(result.ok, false);
+  assert.deepEqual(
+    result.checks.filter((check) => !check.ok).map((check) => check.id),
+    [
+      'prewarmed_transition_start',
+      'projection_ready',
+      'input_to_visual_p95',
+      'frame_p95',
+      'frame_max',
+      'backing_pixels_per_segment',
+      'cross_display_gap',
+      'warm_cycle_rss_growth',
+      'resource_geometries_growth',
+      'resource_materials_growth',
+      'resource_programs_growth',
+      'resource_textures_growth',
+    ],
+  );
+});
+
+test('DesktopWorld performance acceptance fails closed on malformed or unbounded input', () => {
+  const sparseInputSamples = Array.from(
+    { length: DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS.minInputToVisualSamples },
+    () => 12,
+  );
+  delete sparseInputSamples[7];
+  const nonFiniteFrameSamples = Array.from(
+    { length: DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS.minFrameSamples },
+    () => 16,
+  );
+  nonFiniteFrameSamples[11] = Number.NaN;
+  const malformed = [
+    null,
+    performanceAcceptanceInput({ inputToVisualSamplesMs: [] }),
+    performanceAcceptanceInput({ inputToVisualSamplesMs: [12] }),
+    performanceAcceptanceInput({ frameSamplesMs: [16] }),
+    performanceAcceptanceInput({ inputToVisualSamplesMs: sparseInputSamples }),
+    performanceAcceptanceInput({ frameSamplesMs: nonFiniteFrameSamples }),
+    performanceAcceptanceInput({ backingPixelsPerSegment: [1.5] }),
+    performanceAcceptanceInput({ warmCycleCount: 99 }),
+    performanceAcceptanceInput({ resourceDeltas: { geometries: 0, materials: 0, programs: 0 } }),
+    performanceAcceptanceInput({ transcript: 'must not be accepted' }),
+    performanceAcceptanceInput({
+      frameSamplesMs: Array.from(
+        { length: DESKTOP_WORLD_DEVTOOLS_LIMITS.performanceSamples + 1 },
+        () => 16,
+      ),
+    }),
+  ];
+
+  for (const input of malformed) {
+    assert.deepEqual(evaluateDesktopWorldPerformanceAcceptance(input), {
+      ok: false,
+      valid: false,
+      observed: null,
+      checks: [{ id: 'input_valid', observed: null, limit: null, operator: 'valid', ok: false }],
+    });
+  }
+});
 
 function stageSnapshot(overrides = {}) {
   return {
@@ -201,6 +335,9 @@ test('DesktopWorld DevTools probe throttles idle samples and records bounded tel
   probe.sampleFrame({ frameMs: 18, renderMs: 6, backingPixels: 2073600 });
   assert.equal(probe.state().sampleCount, 2);
   assert.equal(emitted.at(-1).performance.backingPixels, 2073600);
+  assert.equal(emitted.at(-1).performance.targetFps, 60);
+  assert.ok(emitted.at(-1).performance.budgetMs > 16);
+  assert.equal(emitted.at(-1).performance.maxFrameMs, 18);
 
   probe.configure({ enabled: true, recording: true });
   clock = 601;

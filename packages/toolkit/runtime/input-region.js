@@ -49,6 +49,10 @@ export function removeInputRegion(id) {
   return request('input_region.remove', { id })
 }
 
+export function replaceInputRegionGeneration({ activate = [], retire = [] } = {}) {
+  return request('input_region.replace_generation', { activate, retire })
+}
+
 export function registerInputKeyLease(lease) {
   return request('input_key_lease.register', lease)
 }

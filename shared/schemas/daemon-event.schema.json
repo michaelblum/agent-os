@@ -472,19 +472,93 @@
         "operation": { "enum": ["mount", "transact", "signal", "play", "suspend", "resume", "inspect", "remove", "close", "release", "unknown"] },
         "resource": { "type": ["string", "null"], "maxLength": 128 },
         "status": { "enum": ["ok", "ignored", "error"] },
-        "code": { "enum": ["SCENE_BUDGET_EXCEEDED", "SCENE_PROJECTION_FAILED"] },
+        "code": {
+          "enum": [
+            "SCENE_BUDGET_EXCEEDED",
+            "SCENE_EXTENSION_CONTEXT_LOST_FAILED",
+            "SCENE_EXTENSION_CONTEXT_RESTORED_FAILED",
+            "SCENE_EXTENSION_DISPOSE_FAILED",
+            "SCENE_EXTENSION_IDENTITY_MISMATCH",
+            "SCENE_EXTENSION_IMPORT_FAILED",
+            "SCENE_EXTENSION_IMPORT_TIMEOUT",
+            "SCENE_EXTENSION_INTERACTION_FAILED",
+            "SCENE_EXTENSION_LOADER_CAPACITY",
+            "SCENE_EXTENSION_LOADER_INVALID",
+            "SCENE_EXTENSION_MODULE_INVALID",
+            "SCENE_EXTENSION_OWNER_MISMATCH",
+            "SCENE_EXTENSION_REFERENCE_INVALID",
+            "SCENE_EXTENSION_REGISTRATION_FAILED",
+            "SCENE_EXTENSION_REGISTRY_FAILED",
+            "SCENE_EXTENSION_REGISTRY_LIMIT",
+            "SCENE_EXTENSION_RESUME_FAILED",
+            "SCENE_EXTENSION_SIGNAL_FAILED",
+            "SCENE_EXTENSION_SUSPEND_FAILED",
+            "SCENE_EXTENSION_TICK_FAILED",
+            "SCENE_EXTENSION_URL_INVALID",
+            "SCENE_OWNER_DISCONNECTED",
+            "SCENE_PROJECTION_FAILED",
+            "SCENE_RENDER_FAILED",
+            "SCENE_SEGMENT_DIVERGED",
+            "SCENE_SEGMENT_FAILED",
+            "SCENE_SEGMENT_RESOURCE_ACCOUNTING_FAILED",
+            "SCENE_SEGMENT_RESOURCE_BUDGET_EXCEEDED",
+            "SCENE_SEGMENT_TIMEOUT",
+            "SCENE_STAGE_DISPOSED",
+            "SCENE_STAGE_REMOVED",
+            "SCENE_STAGE_RETIRED",
+            "SCENE_STAGE_RETIRE_FAILED",
+            "SCENE_TOPOLOGY_CHANGED"
+          ]
+        },
         "snapshot": {
           "type": "object",
           "required": ["contextLost", "hidden", "resources", "renderer", "maxResources"],
           "additionalProperties": false,
           "properties": {
             "contextLost": { "type": "boolean" },
+            "faultCode": {
+              "type": ["string", "null"],
+              "pattern": "^SCENE_[A-Z0-9_]+$",
+              "maxLength": 64
+            },
+            "faulted": { "type": "boolean" },
             "hidden": { "type": "boolean" },
             "resources": { "type": "integer", "minimum": 0, "maximum": 32 },
+            "interactionVisuals": { "type": "integer", "minimum": 0, "maximum": 32 },
+            "backingPixels": { "type": "integer", "minimum": 0, "maximum": 2097152 },
+            "renderLoopActive": { "type": "boolean" },
             "renderer": { "const": "three" },
             "maxResources": { "const": 32 },
+            "maxResourceMetrics": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["maxDrawCalls", "maxObjects", "maxResources", "maxTextureBytes", "maxTriangles", "maxWorkingBytes"],
+              "properties": {
+                "maxDrawCalls": { "type": "integer", "minimum": 1 },
+                "maxObjects": { "type": "integer", "minimum": 1 },
+                "maxResources": { "type": "integer", "minimum": 1 },
+                "maxTextureBytes": { "type": "integer", "minimum": 1 },
+                "maxTriangles": { "type": "integer", "minimum": 1 },
+                "maxWorkingBytes": { "type": "integer", "minimum": 1 }
+              }
+            },
+            "resourceMetrics": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["drawCalls", "geometryBytes", "objects", "resources", "textureBytes", "triangles", "workingBytes"],
+              "properties": {
+                "drawCalls": { "type": "integer", "minimum": 0 },
+                "geometryBytes": { "type": "integer", "minimum": 0 },
+                "objects": { "type": "integer", "minimum": 0 },
+                "resources": { "type": "integer", "minimum": 0 },
+                "textureBytes": { "type": "integer", "minimum": 0 },
+                "triangles": { "type": "integer", "minimum": 0 },
+                "workingBytes": { "type": "integer", "minimum": 0 }
+              }
+            },
             "displayId": { "type": ["integer", "string", "null"] },
-            "projection": { "const": "desktop-world-orthographic" }
+            "projection": { "const": "desktop-world-orthographic" },
+            "stageSuspended": { "type": "boolean" }
           }
         }
       }

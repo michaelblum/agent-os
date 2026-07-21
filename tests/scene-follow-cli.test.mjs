@@ -55,6 +55,59 @@ test('scene follow forwards bounded operations and preserves owner identity', as
   await rm(root, { recursive: true, force: true })
 })
 
+test('scene follow preserves only an exact mount-scoped extension reference', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-follow-extension-'))
+  const state = path.join(root, 'repo')
+  await mkdir(state, { recursive: true })
+  const socketPath = path.join(state, 'sock')
+  const received = []
+  const server = net.createServer((socket) => {
+    let buffer = ''
+    socket.on('data', (chunk) => {
+      buffer += chunk
+      const newline = buffer.indexOf('\n')
+      if (newline < 0) return
+      const request = JSON.parse(buffer.slice(0, newline))
+      received.push(request.data.operation)
+      socket.write(`${JSON.stringify({ v: 1, status: 'ok', operation: 'mount', ref: request.ref })}\n`)
+    })
+  })
+  await new Promise((resolve, reject) => server.listen(socketPath, resolve).once('error', reject))
+  const child = spawn(process.execPath, [
+    'scripts/aos-scene.mjs', '--stage', 'desktop-world/main', '--owner', 'io.ch-osctrl.sigil',
+    '--resource', 'companion/main', '--follow',
+  ], { cwd: path.resolve(import.meta.dirname, '..'), env: { ...process.env, AOS_STATE_ROOT: root, AOS_RUNTIME_MODE: 'repo' }, stdio: ['pipe', 'pipe', 'pipe'] })
+  const output = await collect(child)
+  const extension = {
+    ownerId: 'io.ch-osctrl.sigil',
+    id: 'companion-renderer',
+    digest: 'a'.repeat(64),
+    sceneAbi: 'aos.scene.projection.v1',
+    threeRevision: '183',
+  }
+  child.stdin.end(`${JSON.stringify({ op: 'mount', document: {}, extension })}\n`)
+  const result = await output.exit
+  assert.equal(result.code, 0, output.stderr())
+  assert.deepEqual(received, [{ op: 'mount', document: {}, extension }])
+
+  for (const operation of [
+    { op: 'transact', extension },
+    { op: 'mount', extension: { ...extension, sourcePath: '/private/extension.mjs' } },
+  ]) {
+    const rejected = spawn(process.execPath, [
+      'scripts/aos-scene.mjs', '--stage', 'desktop-world/main', '--owner', 'io.ch-osctrl.sigil',
+      '--resource', 'companion/main', '--follow',
+    ], { cwd: path.resolve(import.meta.dirname, '..'), env: { ...process.env, AOS_STATE_ROOT: root, AOS_RUNTIME_MODE: 'repo' }, stdio: ['pipe', 'pipe', 'pipe'] })
+    const rejection = await collect(rejected)
+    rejected.stdin.end(`${JSON.stringify(operation)}\n`)
+    const exit = await rejection.exit
+    assert.equal(exit.code, 1)
+    assert.match(rejection.stderr(), /SCENE_EXTENSION_REFERENCE_INVALID/u)
+  }
+  await new Promise((resolve) => server.close(resolve))
+  await rm(root, { recursive: true, force: true })
+})
+
 test('scene follow rejects invalid stage before opening a socket', async () => {
   const child = spawn(process.execPath, ['scripts/aos-scene.mjs', '--stage', 'other', '--owner', 'example.consumer', '--resource', 'main', '--follow'], { cwd: path.resolve(import.meta.dirname, '..'), stdio: ['ignore', 'pipe', 'pipe'] })
   const output = await collect(child)
@@ -99,22 +152,24 @@ test('scene follow rejects malformed, unterminated, and terminated oversized dae
 })
 
 test('scene-follow keeps the full-display stage hidden until its manifest is ready', async () => {
-  const source = await readFile(new URL('../src/daemon/unified.swift', import.meta.url), 'utf8')
-  const start = source.indexOf('private func ensureSceneStage() -> Bool')
-  const end = source.indexOf('\n    private func handleSceneFollow(', start)
-  assert.notEqual(start, -1, 'ensureSceneStage is missing')
-  assert.notEqual(end, -1, 'handleSceneFollow boundary is missing')
+  const source = await readFile(new URL('../src/daemon/desktop-world-scene-transport-controller.swift', import.meta.url), 'utf8')
+  const start = source.indexOf('func ensureStage() -> DesktopWorldSceneBarrierTopology?')
+  const end = source.indexOf('\n    func follow(', start)
+  assert.notEqual(start, -1, 'ensureStage is missing')
+  assert.notEqual(end, -1, 'follow boundary is missing')
   const body = source.slice(start, end)
   const create = body.indexOf('CanvasRequest(action: "create"')
   const hidden = body.indexOf('request.suspended = true')
-  const manifest = body.indexOf('manifest["name"] as? String == "desktop-world-stage"')
-  const resume = body.indexOf('CanvasRequest(\n                        action: "resume"')
+  const configure = body.indexOf('scene.configureInitial(descriptor)')
+  const ready = body.indexOf('scene.isReady(descriptor)')
+  const resume = body.indexOf('action: "resume"', ready)
 
   assert.ok(create >= 0, 'scene stage create request is missing')
   assert.ok(hidden > create, 'scene stage must be born hidden')
-  assert.ok(manifest > hidden, 'scene stage readiness must follow hidden creation')
-  assert.ok(resume > manifest, 'scene stage must resume only after manifest readiness')
+  assert.ok(configure > hidden, 'scene stage readiness must bind the exact hidden topology')
+  assert.ok(ready > configure, 'scene stage must require every configured segment')
+  assert.ok(resume > ready, 'scene stage must resume only after exact-generation readiness')
   assert.match(body, /request\.surface = "desktop-world"/u)
   assert.doesNotMatch(body, /request\.track = "union"/u)
-  assert.match(body, /return resumed/u)
+  assert.match(body, /return resumed \? topology : nil/u)
 })

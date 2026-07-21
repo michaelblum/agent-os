@@ -172,6 +172,33 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('shared/schemas/aos-external-command-manifest-v0.schema.json'));
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('tests/aos-dev-gh-help-parity.test.mjs'));
   assert.deepEqual(
+    rules.get('desktop-world-scene-engine')?.commands?.slice(0, 4).map((step) => step.id),
+    [
+      'scene-daemon-contract',
+      'scene-core-contract',
+      'scene-interaction-contract',
+      'scene-devtools-contract',
+    ],
+  );
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-world-scene-*.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('packages/toolkit/components/desktop-world-stage/**'));
+  assert.match(
+    rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-daemon-contract')?.command ?? '',
+    /tests\/desktop-world-scene-result-coordinator\.test\.mjs/u,
+  );
+  assert.match(
+    rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-interaction-contract')?.command ?? '',
+    /tests\/toolkit\/desktop-world-scene-interaction-runtime\.test\.mjs/u,
+  );
+  assert.match(
+    rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-core-contract')?.command ?? '',
+    /tests\/toolkit\/scene-host\.test\.mjs/u,
+  );
+  assert.match(
+    rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-devtools-contract')?.command ?? '',
+    /tests\/toolkit\/desktop-world-devtools-model\.test\.mjs/u,
+  );
+  assert.deepEqual(
     rules.get('command-surface-implementations')?.commands?.map((step) => step.command),
     [
       'bash tests/external-command-dispatch.sh',

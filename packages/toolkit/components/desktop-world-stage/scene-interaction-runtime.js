@@ -7,6 +7,7 @@ import { createSceneAnimationRegionTransitionRuntime } from './scene-animation-r
 import { createDesktopWorldSceneRadialMenuRuntime } from './scene-radial-menu-runtime.js'
 
 const MAX_LEASES = 32
+const MAX_BUFFERED_GENERATION_INPUTS = 64
 
 function boundedId(value) {
   return String(value ?? '').replace(/[^a-zA-Z0-9._/-]/gu, '_').slice(0, 128)
@@ -55,6 +56,7 @@ export function createDesktopWorldSceneInteractionRuntime({
   registerRegion,
   updateRegion,
   removeRegion,
+  replaceRegionGeneration,
   emitEvent = () => {},
   isPrimary = () => true,
   topology = () => null,
@@ -64,7 +66,12 @@ export function createDesktopWorldSceneInteractionRuntime({
   cancelTimer,
 } = {}) {
   if (!outlet) throw new TypeError('DesktopWorld scene interaction runtime requires a scene outlet.')
-  for (const [name, value] of Object.entries({ registerRegion, updateRegion, removeRegion })) {
+  for (const [name, value] of Object.entries({
+    registerRegion,
+    updateRegion,
+    removeRegion,
+    replaceRegionGeneration,
+  })) {
     if (typeof value !== 'function') throw new TypeError(`DesktopWorld scene interaction runtime requires ${name}.`)
   }
   const leases = new Map()
@@ -76,11 +83,28 @@ export function createDesktopWorldSceneInteractionRuntime({
   let retiredCleanupScheduled = false
   let retiredCleanupTimer = null
   let runtimeDisposed = false
+  let stageSuspended = false
+  let inputAdmissionClosed = false
 
-  function publishEntryEvent(entry, event) {
+  const entryBlocked = (entry) => entry.suspended || stageSuspended || entry.disposed
+
+  function emitEntryEvent(entry, event) {
     if (!isPrimary()) return
     entry.sequence += 1
     emitEvent({ lease_key: entry.key, event_type: event.type, event: { ...event, sequence: entry.sequence } })
+  }
+
+  function publishEntryEvent(entry, event) {
+    const preparation = preparations.get(entry.key)
+    if (preparation?.candidate === entry && preparation.state === 'replaying') {
+      if (preparation.bufferedEvents.length < MAX_BUFFERED_GENERATION_INPUTS) {
+        preparation.bufferedEvents.push(event)
+      } else {
+        preparation.inputOverflow = true
+      }
+      return
+    }
+    emitEntryEvent(entry, event)
   }
 
   const radialMenus = createDesktopWorldSceneRadialMenuRuntime({
@@ -276,12 +300,12 @@ export function createDesktopWorldSceneInteractionRuntime({
     const next = indexRegions(entry)
     entry.generation += 1
     const generation = entry.generation
-    if (!isPrimary() || entry.suspended || entry.disposed) return
+    if (!isPrimary() || entryBlocked(entry)) return
 
     const priorRegistered = new Set(entry.registeredIds)
     const registered = new Set()
     for (const [id, { payload }] of next) {
-      if (entry.disposed || entry.suspended || generation !== entry.generation) break
+      if (entryBlocked(entry) || generation !== entry.generation) break
       const update = preferUpdate && priorRegistered.has(id)
       try {
         await (update ? updateRegion(payload) : registerRegion(payload))
@@ -289,13 +313,13 @@ export function createDesktopWorldSceneInteractionRuntime({
         if (!update || !String(error?.message ?? '').includes('NOT_FOUND')) throw error
         await registerRegion(payload)
       }
-      if (entry.disposed || entry.suspended || generation !== entry.generation) {
+      if (entryBlocked(entry) || generation !== entry.generation) {
         await removeRegion(id)
         break
       }
       registered.add(id)
     }
-    if (entry.disposed || entry.suspended || generation !== entry.generation) return
+    if (entryBlocked(entry) || generation !== entry.generation) return
     for (const id of priorRegistered) {
       if (!next.has(id)) await removeRegion(id)
     }
@@ -306,7 +330,7 @@ export function createDesktopWorldSceneInteractionRuntime({
     const defer = scheduleTimer ?? ((callback, delay) => setTimeout(callback, delay))
     entry.regionSync = entry.regionSync.then(async () => {
       for (let attempt = 0; attempt < 2; attempt += 1) {
-        if (entry.disposed || entry.suspended || leases.get(entry.key) !== entry) return
+        if (entryBlocked(entry) || leases.get(entry.key) !== entry) return
         try {
           await syncRegions(entry, true)
           entry.regionSyncErrorCode = null
@@ -346,6 +370,19 @@ export function createDesktopWorldSceneInteractionRuntime({
     return true
   }
 
+  async function registerPreparedCandidateRegions(preparation) {
+    const candidate = preparation.candidate
+    if (!candidate || !isPrimary() || stageSuspended) return true
+    for (const [id, { payload }] of candidate.regionIds) {
+      if (candidate.registeredIds.has(id)) continue
+      stagedRegionIds.set(id, preparation)
+      preparation.addedIds.add(id)
+      await registerRegion(inactiveRegionPayload(payload))
+      candidate.registeredIds.add(id)
+    }
+    return true
+  }
+
   async function prepareReplacement({
     key,
     owner,
@@ -378,21 +415,18 @@ export function createDesktopWorldSceneInteractionRuntime({
       previous,
       candidate,
       addedIds: new Set(),
+      activationAttempted: false,
+      bufferedEvents: [],
+      bufferedInputs: [],
+      inputOverflow: false,
       state: 'prepared',
     }
     preparations.set(key, preparation)
 
     try {
       if (candidate) {
-        const next = indexRegions(candidate)
-        if (isPrimary() && !candidate.suspended) {
-          for (const [id, { payload }] of next) {
-            stagedRegionIds.set(id, preparation)
-            preparation.addedIds.add(id)
-            await registerRegion(inactiveRegionPayload(payload))
-            candidate.registeredIds.add(id)
-          }
-        }
+        indexRegions(candidate)
+        await registerPreparedCandidateRegions(preparation)
       }
     } catch (error) {
       try {
@@ -413,26 +447,56 @@ export function createDesktopWorldSceneInteractionRuntime({
         }
         return true
       },
-      commit(commitOutlet) {
+      activationAttempted() {
+        return preparation.activationAttempted
+      },
+      async activate() {
         this.assertCurrent()
+        preparation.state = 'activating'
+        preparation.activationAttempted = true
+        if (isPrimary()) {
+          await registerPreparedCandidateRegions(preparation)
+          if (stageSuspended) {
+            const retire = [
+              ...(candidate?.registeredIds ?? []),
+              ...(previous?.registeredIds ?? []),
+            ]
+            if (retire.length > 0) await replaceRegionGeneration({ activate: [], retire })
+            for (const id of candidate?.registeredIds ?? []) {
+              if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
+            }
+            candidate?.registeredIds.clear()
+            previous?.registeredIds.clear()
+            preparation.addedIds.clear()
+            preparation.bufferedInputs.length = 0
+            preparation.state = 'activated'
+            return true
+          }
+          const activate = [...(candidate?.registeredIds ?? [])]
+            .map((id) => candidate?.regionIds.get(id)?.payload)
+            .filter(Boolean)
+          const retire = [...(previous?.registeredIds ?? [])]
+          await replaceRegionGeneration({ activate, retire })
+        }
+        preparation.state = 'activated'
+        return true
+      },
+      commit(commitOutlet) {
+        if (preparation.state !== 'activated' || preparations.get(key) !== preparation) {
+          throw new TypeError('DesktopWorld scene interaction replacement is not activated.')
+        }
+        commitOutlet()
         previous?.controller.dispose('resource_changed')
         radialMenus.close(key, 'resource_changed')
-        commitOutlet()
         if (previous) {
           previous.disposed = true
           previous.generation += 1
+          previous.registeredIds.clear()
         }
         if (candidate) leases.set(key, candidate)
         else leases.delete(key)
         for (const id of candidate?.registeredIds ?? []) retiredRegions.delete(id)
-        preparations.delete(key)
         preparation.state = 'committed'
-        for (const id of previous?.registeredIds ?? []) {
-          if (!candidate?.registeredIds.has(id)) {
-            const payload = previous?.regionIds.get(id)?.payload
-            if (payload) retiredRegions.set(id, payload)
-          }
-        }
         return true
       },
       async rollback() {
@@ -440,54 +504,56 @@ export function createDesktopWorldSceneInteractionRuntime({
       },
       async settle() {
         if (preparation.state !== 'committed') return false
-        for (const id of candidate?.registeredIds ?? []) {
-          const payload = candidate?.regionIds.get(id)?.payload
-          if (!payload) continue
-          try {
-            await updateRegion(payload)
-          } catch {
-            if (candidate) candidate.regionSyncErrorCode = 'INPUT_REGION_ACTIVATION_FAILED'
-            return false
-          }
-        }
-        let pending = [...(previous?.registeredIds ?? [])].filter((id) => !candidate?.registeredIds.has(id))
-        for (let attempt = 0; attempt < 2 && pending.length > 0; attempt += 1) {
-          const results = await Promise.allSettled(pending.map((id) => removeRegion(id)))
-          pending = pending.filter((id, index) => {
-            if (results[index].status === 'fulfilled') {
-              previous?.registeredIds.delete(id)
-              retiredRegions.delete(id)
-              return false
-            }
-            return true
-          })
-        }
         try {
           await radialMenus.settle(key, { requireClean: true })
         } catch {
           if (candidate) candidate.regionSyncErrorCode = 'INPUT_REGION_CLEANUP_FAILED'
           return false
         }
-        if (pending.length > 0) {
-          if (candidate) candidate.regionSyncErrorCode = 'INPUT_REGION_CLEANUP_FAILED'
+        if (preparation.inputOverflow) {
+          if (candidate) candidate.regionSyncErrorCode = 'INPUT_REGION_ACTIVATION_FAILED'
           return false
         }
+        preparation.state = 'replaying'
+        for (const message of preparation.bufferedInputs.splice(0)) {
+          if (!dispatchInput(message)) {
+            if (candidate) candidate.regionSyncErrorCode = 'INPUT_REGION_ACTIVATION_FAILED'
+            return false
+          }
+        }
+        if (preparation.inputOverflow) {
+          if (candidate) candidate.regionSyncErrorCode = 'INPUT_REGION_ACTIVATION_FAILED'
+          return false
+        }
+        preparation.state = 'publishing'
+        const events = preparation.bufferedEvents.splice(0)
         for (const id of candidate?.registeredIds ?? []) {
           if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
         }
+        preparations.delete(key)
         preparation.state = 'settled'
+        let deliveryFailed = false
+        for (const event of events) {
+          try { emitEntryEvent(candidate, event) } catch { deliveryFailed = true }
+        }
+        if (deliveryFailed && candidate) candidate.regionSyncErrorCode = 'SCENE_EVENT_DELIVERY_FAILED'
         return true
       },
       async failClosed() {
-        if (preparation.state !== 'committed') return false
+        if (['rolled_back', 'settled', 'failed_closed'].includes(preparation.state)) return false
         preparation.state = 'failing_closed'
         candidate?.controller.dispose('resource_removed')
+        previous?.controller.dispose('resource_removed')
         radialMenus.close(key, 'resource_removed')
         if (candidate) {
           candidate.disposed = true
           candidate.generation += 1
         }
-        if (leases.get(key) === candidate) leases.delete(key)
+        if (previous) {
+          previous.disposed = true
+          previous.generation += 1
+        }
+        if (leases.get(key) === candidate || leases.get(key) === previous) leases.delete(key)
         const entries = new Map()
         for (const id of previous?.registeredIds ?? []) {
           const payload = previous?.regionIds.get(id)?.payload ?? retiredRegions.get(id)
@@ -502,6 +568,9 @@ export function createDesktopWorldSceneInteractionRuntime({
         for (const id of candidate?.registeredIds ?? []) {
           if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
         }
+        preparations.delete(key)
+        preparation.bufferedInputs.length = 0
+        preparation.bufferedEvents.length = 0
         preparation.state = 'failed_closed'
         return true
       },
@@ -594,6 +663,7 @@ export function createDesktopWorldSceneInteractionRuntime({
     if (!entry || !entry.suspended) return false
     await entry.regionSync
     entry.suspended = false
+    if (stageSuspended) return true
     if (entry.animationQuiesced) {
       if (entry.animationReady) return animationRegions.settle(key, entry.animationGeneration)
       return true
@@ -612,6 +682,43 @@ export function createDesktopWorldSceneInteractionRuntime({
     }
   }
 
+  async function suspendStage() {
+    if (stageSuspended) return true
+    stageSuspended = true
+    const failures = []
+    for (const entry of leases.values()) {
+      entry.generation += 1
+      entry.controller.cancel('stage_suspended')
+      radialMenus.close(entry.key, 'stage_suspended')
+      try {
+        await entry.regionSync
+        await radialMenus.settle(entry.key, { requireClean: true })
+        if (!entry.animationQuiesced) await removeRegions(entry)
+      } catch (error) {
+        failures.push(error)
+      }
+    }
+    if (failures.length > 0) throw new AggregateError(failures, 'DesktopWorld stage input suspension failed.')
+    return true
+  }
+
+  async function resumeStage() {
+    if (!stageSuspended) return true
+    inputAdmissionClosed = true
+    stageSuspended = false
+    const failures = []
+    for (const entry of leases.values()) {
+      if (entry.suspended || entry.animationQuiesced) continue
+      try { await syncRegions(entry) } catch (error) { failures.push(error) }
+    }
+    if (failures.length > 0) {
+      stageSuspended = true
+      throw new AggregateError(failures, 'DesktopWorld stage input resume failed.')
+    }
+    inputAdmissionClosed = false
+    return true
+  }
+
   async function release(key, reason = 'resource_removed') {
     const entry = leases.get(key)
     if (!entry) return false
@@ -626,19 +733,33 @@ export function createDesktopWorldSceneInteractionRuntime({
     return true
   }
 
-  function handleInput(message) {
+  function dispatchInput(message, normalizedInput = normalizeCanvasInputMessage(message)) {
+    if (inputAdmissionClosed || stageSuspended || runtimeDisposed) return Boolean(normalizedInput?.regionId)
     if (radialMenus.handleInput(message)) return true
-    const input = normalizeCanvasInputMessage(message)
-    const regionId = input?.regionId
+    const regionId = normalizedInput?.regionId
     if (!regionId) return false
-    if (stagedRegionIds.has(regionId) || retiredRegions.has(regionId)) return true
+    if (retiredRegions.has(regionId)) return true
     for (const entry of leases.values()) {
       const affordanceId = entry.regionIds.get(regionId)?.affordanceId
-      if (affordanceId && !entry.suspended && !entry.animationQuiesced) {
-        return entry.controller.handle(affordanceId, message)
-      }
+      if (!affordanceId) continue
+      if (entryBlocked(entry) || entry.animationQuiesced) return true
+      return entry.controller.handle(affordanceId, message)
     }
     return false
+  }
+
+  function handleInput(message) {
+    const input = normalizeCanvasInputMessage(message)
+    const regionId = input?.regionId
+    const staged = regionId ? stagedRegionIds.get(regionId) : null
+    if (staged) {
+      if (['activating', 'activated', 'committed', 'replaying', 'publishing'].includes(staged.state)) {
+        if (staged.bufferedInputs.length < MAX_BUFFERED_GENERATION_INPUTS) staged.bufferedInputs.push(message)
+        else staged.inputOverflow = true
+      }
+      return true
+    }
+    return dispatchInput(message, input)
   }
 
   function cancelAll(reason = 'stage_disposed') {
@@ -662,6 +783,7 @@ export function createDesktopWorldSceneInteractionRuntime({
         controller: entry.controller.snapshot(),
       })),
       maxLeases: MAX_LEASES,
+      stageSuspended,
       radialMenus: radialMenus.snapshot(key),
     }
   }
@@ -785,6 +907,8 @@ export function createDesktopWorldSceneInteractionRuntime({
     settleAnimationGeometry: animationRegions.settle,
     suspend,
     resume,
+    suspendStage,
+    resumeStage,
     topologyChanged,
     release,
     handleInput,

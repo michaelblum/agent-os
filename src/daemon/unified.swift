@@ -8,6 +8,11 @@ private let inputSafetyLogCanvasID = "__log__"
 private let inputSafetyLogConsoleURL = "aos://toolkit/components/log-console/index.html"
 private var aosNativeCursorSuppressionSignalActive: Int32 = 0
 
+private struct AOSInputRegionAdmissionFailure: Error {
+    let code: String
+    let message: String
+}
+
 private func aosSetNativeCursorSuppressionSignalActive(_ active: Bool) {
     aosNativeCursorSuppressionSignalActive = active ? 1 : 0
 }
@@ -122,6 +127,8 @@ class UnifiedDaemon {
         }
     )
     private var contentServer: ContentServer?
+    private lazy var sceneExtensionStore = AOSSceneExtensionStore()
+    private lazy var sceneExtensionSchemeHandler = AOSSceneExtensionSchemeHandler(store: sceneExtensionStore)
     let coordination = CoordinationBus()
 
     // Socket server
@@ -129,11 +136,31 @@ class UnifiedDaemon {
     private var daemonLockFD: Int32 = -1
     private var subscriberLock = NSLock()
     private var subscribers: [UUID: SubscriberConnection] = [:]
-    private let sceneLeases = AOSSceneLeaseRegistry()
+    private var sceneStageCanvasID: String { AOSDesktopWorldSceneTransportController.stageCanvasID }
+    private lazy var desktopWorldSceneTransport = AOSDesktopWorldSceneTransportController(
+        canvasManager: canvasManager,
+        extensionStore: sceneExtensionStore,
+        resolveContentURL: { [weak self] value in self?.resolveContentURL(value) ?? value },
+        clearReadyManifest: { [weak self] in
+            guard let self else { return }
+            self.canvasSubscriptionLock.lock()
+            self.canvasReadyManifests.removeValue(forKey: self.sceneStageCanvasID)
+            self.canvasSubscriptionLock.unlock()
+        },
+        emit: { [weak self] route, event, data in
+            self?.emitConnectionEvent(
+                service: "scene",
+                to: route.connectionID,
+                event: event,
+                data: data,
+                ref: route.ref
+            ) ?? false
+        }
+    )
     private lazy var desktopWorldDevTools = AOSDesktopWorldDevToolsController(
         canvasManager: canvasManager,
         sceneStageCanvasID: sceneStageCanvasID,
-        ensureSceneStage: { [weak self] in self?.ensureSceneStage() ?? false },
+        ensureSceneStage: { [weak self] in self?.desktopWorldSceneTransport.ensureStage() != nil },
         hasSceneMonitor: { [weak self] in self?.hasDesktopWorldSceneMonitor() ?? false },
         resolveContentURL: { [weak self] value in self?.resolveContentURL(value) ?? value }
     )
@@ -337,6 +364,9 @@ class UnifiedDaemon {
                         updateOnly: true
                     )
                     return
+                case "input_region.replace_generation":
+                    self.handleInputRegionReplaceGeneration(caller: target, payload: inner ?? [:])
+                    return
                 case "input_region.remove":
                     self.handleInputRegionRemove(callerID: canvasID, payload: inner ?? [:])
                     return
@@ -347,7 +377,7 @@ class UnifiedDaemon {
                     self.handleGateSubmit(callerID: canvasID, payload: inner ?? [:])
                     return
                 case "lifecycle.ready":
-                    self.recordCanvasReadyManifest(canvasID: canvasID, payload: inner)
+                    self.recordCanvasReadyManifest(target: target, payload: inner)
                     return
                 case "position.get":
                     self.handlePositionGet(callerID: canvasID, payload: inner ?? [:])
@@ -356,10 +386,13 @@ class UnifiedDaemon {
                     self.handlePositionSet(callerID: canvasID, payload: inner ?? [:])
                     return
                 case "desktop_world_stage.scene.result":
-                    self.handleSceneStageResult(inner ?? [:])
+                    self.desktopWorldSceneTransport.handleResult(target: target, payload: inner ?? [:])
+                    return
+                case "desktop_world_stage.scene.fault":
+                    self.desktopWorldSceneTransport.handleFault(target: target, payload: inner ?? [:])
                     return
                 case "desktop_world_stage.scene.event":
-                    self.handleSceneStageEvent(inner ?? [:])
+                    self.desktopWorldSceneTransport.handleEvent(target: target, payload: inner ?? [:])
                     return
                 case "desktop_world_stage.devtools.snapshot":
                     if canvasID == self.sceneStageCanvasID {
@@ -425,7 +458,7 @@ class UnifiedDaemon {
                     return
                 default:
                     if type == "ready" {
-                        self.recordCanvasReadyManifest(canvasID: canvasID, payload: inner)
+                        self.recordCanvasReadyManifest(target: target, payload: inner)
                     }
                     break
                 }
@@ -441,6 +474,9 @@ class UnifiedDaemon {
             if action == "removed" {
                 self.removeInputRegionsOwned(by: canvasInfo.id, includeSuspendRetained: true)
                 self.desktopWorldDevTools.detachHost(id: canvasInfo.id)
+                if canvasInfo.id == self.sceneStageCanvasID {
+                    self.desktopWorldSceneTransport.stageRemoved()
+                }
             } else if canvasInfo.suspended == true {
                 self.removeInputRegionsOwned(by: canvasInfo.id, includeSuspendRetained: false)
             }
@@ -503,6 +539,10 @@ class UnifiedDaemon {
         }
 
         canvasManager.onCanvasSurfaceEvent = { [weak self] event, data in
+            if event == "canvas_topology_settled",
+               data["canvas_id"] as? String == self?.sceneStageCanvasID {
+                self?.desktopWorldSceneTransport.topologySettled(data)
+            }
             self?.publishCanvasSurfaceEvent(event: event, data: data)
         }
 
@@ -568,6 +608,7 @@ class UnifiedDaemon {
         let schemeHandler = AosSchemeHandler()
         schemeHandler.portProvider = { [weak self] in self?.contentServer?.assignedPort ?? 0 }
         canvasManager.aosSchemeHandler = schemeHandler
+        canvasManager.sceneExtensionSchemeHandler = sceneExtensionSchemeHandler
 
         // Start wiki FSEvents watcher and wire change bus
         WikiChangeBus.shared.daemon = self
@@ -1713,8 +1754,22 @@ class UnifiedDaemon {
         return (parsedFrame, nil, nil)
     }
 
-    private func recordCanvasReadyManifest(canvasID: String, payload: [String: Any]?) {
+    private func recordCanvasReadyManifest(
+        target: CanvasLifecycleGeneration,
+        payload: [String: Any]?
+    ) {
         guard let payload = payload else { return }
+        let canvasID = target.canvasID
+        if canvasID == sceneStageCanvasID {
+            guard let publicManifest = desktopWorldSceneTransport.recordReady(
+                target: target,
+                payload: payload
+            ) else { return }
+            canvasSubscriptionLock.lock()
+            canvasReadyManifests[canvasID] = publicManifest
+            canvasSubscriptionLock.unlock()
+            return
+        }
         canvasSubscriptionLock.lock()
         canvasReadyManifests[canvasID] = payload
         canvasSubscriptionLock.unlock()
@@ -2092,59 +2147,19 @@ class UnifiedDaemon {
     ) {
         let callerID = caller.canvasID
         let requestID = payload["request_id"] as? String
-        guard let id = (payload["id"] as? String).flatMap({ $0.isEmpty ? nil : $0 }) else {
+        let region: AOSInputRegionRecord
+        do {
+            region = try admittedInputRegion(caller: caller, payload: payload)
+        } catch let failure as AOSInputRegionAdmissionFailure {
             dispatchCanvasResponse(to: callerID, requestID: requestID,
-                status: "error", code: "MISSING_ID", message: "input_region.register requires id")
+                status: "error", code: failure.code, message: failure.message)
+            return
+        } catch {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "INVALID_INPUT_REGION", message: "input region admission failed")
             return
         }
-        let ownerCanvasID = (payload["owner_canvas_id"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? callerID
-        guard canvasMutationPermitted(callerID: callerID, targetID: ownerCanvasID) else {
-            dispatchCanvasResponse(to: callerID, requestID: requestID,
-                status: "error", code: "FORBIDDEN", message: "caller \(callerID) may not own region \(id) for \(ownerCanvasID)")
-            return
-        }
-        guard let ownerTarget = ownerCanvasID == callerID
-            ? caller
-            : canvasManager.deliveryTarget(forCanvasID: ownerCanvasID) else {
-            dispatchCanvasResponse(to: callerID, requestID: requestID,
-                status: "error", code: "NOT_FOUND", message: "owner canvas \(ownerCanvasID) not found")
-            return
-        }
-        guard let frame = inputRegionFrame(from: payload) else {
-            dispatchCanvasResponse(to: callerID, requestID: requestID,
-                status: "error", code: "INVALID_FRAME", message: "input region frame must be [x,y,w,h]")
-            return
-        }
-
-        let coordinateSpace = normalizedInputRegionCoordinateSpace(payload["coordinate_space"] as? String)
-        guard let nativeFrame = nativeInputRegionFrame(frame, coordinateSpace: coordinateSpace) else {
-            dispatchCanvasResponse(to: callerID, requestID: requestID,
-                status: "error", code: "INVALID_COORDINATE_SPACE", message: "coordinate_space must be native or desktop_world")
-            return
-        }
-        let metadata = (payload["metadata"] as? [String: Any])?.compactMapValues { value -> String? in
-            if let string = value as? String { return string }
-            if let number = value as? NSNumber { return number.stringValue }
-            if let bool = value as? Bool { return bool ? "true" : "false" }
-            return nil
-        } ?? [:]
-        let priority = (payload["priority"] as? NSNumber)?.intValue ?? 0
-        let consumePolicy = normalizedInputRegionConsumePolicy(payload["consume_policy"] as? String)
-        let semanticLabel = payload["semantic_label"] as? String ?? payload["label"] as? String ?? id
-        let removeOnOwnerSuspend = (payload["remove_on_owner_suspend"] as? Bool) ?? true
-        let enabled = (payload["enabled"] as? Bool) ?? true
-        let region = AOSInputRegionRecord(
-            id: id,
-            ownerCanvasGeneration: ownerTarget,
-            nativeFrame: nativeFrame,
-            coordinateSpace: coordinateSpace,
-            semanticLabel: semanticLabel,
-            priority: priority,
-            consumePolicy: consumePolicy,
-            metadata: metadata,
-            removeOnOwnerSuspend: removeOnOwnerSuspend,
-            enabled: enabled
-        )
+        let id = region.id
 
         inputRegionLock.lock()
         let existed = inputRegions.snapshot().contains { $0.id == id }
@@ -2162,6 +2177,140 @@ class UnifiedDaemon {
         let action = existed ? "updated" : "registered"
         publishInputRegionStateEvent(action: action, region: region)
         dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok", extra: ["region": inputRegionPayload(region)])
+    }
+
+    private func admittedInputRegion(
+        caller: CanvasLifecycleGeneration,
+        payload: [String: Any],
+        requireCallerOwnership: Bool = false
+    ) throws -> AOSInputRegionRecord {
+        let callerID = caller.canvasID
+        guard let id = (payload["id"] as? String).flatMap({
+            $0.isEmpty || $0.utf8.count > 512 ? nil : $0
+        }) else {
+            throw AOSInputRegionAdmissionFailure(code: "MISSING_ID", message: "input region requires a bounded id")
+        }
+        let ownerCanvasID = (payload["owner_canvas_id"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? callerID
+        guard !requireCallerOwnership || ownerCanvasID == callerID else {
+            throw AOSInputRegionAdmissionFailure(code: "FORBIDDEN", message: "atomic input region replacement requires caller ownership")
+        }
+        guard canvasMutationPermitted(callerID: callerID, targetID: ownerCanvasID) else {
+            throw AOSInputRegionAdmissionFailure(code: "FORBIDDEN", message: "caller may not own the input region")
+        }
+        guard let ownerTarget = ownerCanvasID == callerID
+            ? caller
+            : canvasManager.deliveryTarget(forCanvasID: ownerCanvasID) else {
+            throw AOSInputRegionAdmissionFailure(code: "NOT_FOUND", message: "input region owner canvas was not found")
+        }
+        guard let frame = inputRegionFrame(from: payload),
+              frame.origin.x.isFinite,
+              frame.origin.y.isFinite else {
+            throw AOSInputRegionAdmissionFailure(code: "INVALID_FRAME", message: "input region frame must be finite [x,y,w,h]")
+        }
+        let coordinateSpace = normalizedInputRegionCoordinateSpace(payload["coordinate_space"] as? String)
+        guard let nativeFrame = nativeInputRegionFrame(frame, coordinateSpace: coordinateSpace),
+              nativeFrame.origin.x.isFinite,
+              nativeFrame.origin.y.isFinite,
+              nativeFrame.width.isFinite,
+              nativeFrame.height.isFinite else {
+            throw AOSInputRegionAdmissionFailure(code: "INVALID_COORDINATE_SPACE", message: "input region coordinate space is invalid")
+        }
+        let rawMetadata = payload["metadata"] as? [String: Any] ?? [:]
+        guard rawMetadata.count <= 16 else {
+            throw AOSInputRegionAdmissionFailure(code: "INVALID_METADATA", message: "input region metadata exceeds its entry limit")
+        }
+        var metadata: [String: String] = [:]
+        for (key, value) in rawMetadata {
+            guard !key.isEmpty, key.utf8.count <= 128 else {
+                throw AOSInputRegionAdmissionFailure(code: "INVALID_METADATA", message: "input region metadata key is invalid")
+            }
+            let encoded: String?
+            if let string = value as? String { encoded = string }
+            else if let bool = value as? Bool { encoded = bool ? "true" : "false" }
+            else if let number = value as? NSNumber { encoded = number.stringValue }
+            else { encoded = nil }
+            guard let encoded, encoded.utf8.count <= 256 else {
+                throw AOSInputRegionAdmissionFailure(code: "INVALID_METADATA", message: "input region metadata value is invalid")
+            }
+            metadata[key] = encoded
+        }
+        let priority = (payload["priority"] as? NSNumber)?.intValue ?? 0
+        guard (-10_000...10_000).contains(priority) else {
+            throw AOSInputRegionAdmissionFailure(code: "INVALID_PRIORITY", message: "input region priority is out of range")
+        }
+        let semanticLabel = payload["semantic_label"] as? String ?? payload["label"] as? String ?? id
+        guard !semanticLabel.isEmpty, semanticLabel.utf8.count <= 256 else {
+            throw AOSInputRegionAdmissionFailure(code: "INVALID_LABEL", message: "input region label is invalid")
+        }
+        return AOSInputRegionRecord(
+            id: id,
+            ownerCanvasGeneration: ownerTarget,
+            nativeFrame: nativeFrame,
+            coordinateSpace: coordinateSpace,
+            semanticLabel: semanticLabel,
+            priority: priority,
+            consumePolicy: normalizedInputRegionConsumePolicy(payload["consume_policy"] as? String),
+            metadata: metadata,
+            removeOnOwnerSuspend: (payload["remove_on_owner_suspend"] as? Bool) ?? true,
+            enabled: (payload["enabled"] as? Bool) ?? true
+        )
+    }
+
+    private func handleInputRegionReplaceGeneration(
+        caller: CanvasLifecycleGeneration,
+        payload: [String: Any]
+    ) {
+        let callerID = caller.canvasID
+        let requestID = payload["request_id"] as? String
+        guard let activationPayloads = payload["activate"] as? [[String: Any]],
+              let retiredIDs = payload["retire"] as? [String],
+              !activationPayloads.isEmpty || !retiredIDs.isEmpty,
+              activationPayloads.count <= 128,
+              retiredIDs.count <= 128,
+              activationPayloads.count + retiredIDs.count <= 256,
+              retiredIDs.allSatisfy({ !$0.isEmpty && $0.utf8.count <= 512 }) else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "INVALID_INPUT_REGION_GENERATION", message: "input region generation payload is invalid")
+            return
+        }
+        let candidates: [AOSInputRegionRecord]
+        do {
+            candidates = try activationPayloads.map {
+                try admittedInputRegion(caller: caller, payload: $0, requireCallerOwnership: true)
+            }
+        } catch let failure as AOSInputRegionAdmissionFailure {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: failure.code, message: failure.message)
+            return
+        } catch {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "INVALID_INPUT_REGION_GENERATION", message: "input region generation admission failed")
+            return
+        }
+
+        inputRegionLock.lock()
+        let replacement = inputRegions.replaceGeneration(
+            activate: candidates,
+            retire: retiredIDs,
+            owner: caller
+        )
+        let cursorSuppressionActive = inputRegions.nativeCursorSuppressionActive()
+        inputRegionLock.unlock()
+        guard let replacement else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "INPUT_REGION_GENERATION_CONFLICT", message: "input region generation could not be replaced atomically")
+            return
+        }
+        reconcileNativeCursorSuppression(active: cursorSuppressionActive)
+        if !replacement.idempotent {
+            for region in replacement.retired { publishInputRegionStateEvent(action: "removed", region: region) }
+            for region in replacement.activated { publishInputRegionStateEvent(action: "updated", region: region) }
+        }
+        dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok", extra: [
+            "activated": replacement.activated.count,
+            "idempotent": replacement.idempotent,
+            "retired": replacement.retired.count,
+        ])
     }
 
     private func handleInputRegionRemove(callerID: String, payload: [String: Any]) {
@@ -2588,7 +2737,7 @@ class UnifiedDaemon {
             voiceTransport.connectionClosed(connectionID)
             annotationSelection.connectionClosed(connectionID)
             statusItemHostController.connectionClosed(connectionID)
-            cleanupSceneLeases(connectionID)
+            desktopWorldSceneTransport.cleanupConnection(connectionID)
             subscriberLock.lock()
             let hadSceneMonitor = subscribers[connectionID]?.sceneMonitorResource != nil
             if let conn = subscribers[connectionID] {
@@ -2688,81 +2837,6 @@ class UnifiedDaemon {
         return CGPoint(x: px, y: py)
     }
 
-    private let sceneStageCanvasID = "aos-desktop-world-stage"
-
-    private func sceneLeaseKey(owner: String, resource: String) -> String {
-        return "\(owner)::\(resource)"
-    }
-
-    private func validSceneIdentifier(_ value: String, allowSlash: Bool) -> Bool {
-        let scalars = Array(value.unicodeScalars)
-        guard !scalars.isEmpty, scalars.count <= 128 else { return false }
-        func alphaNumeric(_ scalar: UnicodeScalar) -> Bool {
-            return (scalar.value >= 97 && scalar.value <= 122)
-                || (scalar.value >= 48 && scalar.value <= 57)
-        }
-        guard let first = scalars.first, alphaNumeric(first) else { return false }
-        guard scalars.allSatisfy({ scalar in
-            alphaNumeric(scalar)
-                || scalar == "."
-                || scalar == "_"
-                || scalar == "-"
-                || (allowSlash && scalar == "/")
-        }) else { return false }
-        return !allowSlash || !value.split(separator: "/", omittingEmptySubsequences: false).contains(where: {
-            $0.isEmpty || $0 == "." || $0 == ".."
-        })
-    }
-
-    private func cleanupSceneLeases(_ connectionID: UUID) {
-        for key in sceneLeases.releaseAll(connectionID: connectionID) {
-            canvasManager.postMessageToCurrentCanvasAsync(canvasID: sceneStageCanvasID, payload: [
-                "type": "desktop_world_stage.scene.release",
-                "payload": ["lease_key": key, "reason": "owner_disconnected"],
-            ])
-        }
-    }
-
-    private func handleSceneStageResult(_ payload: [String: Any]) {
-        guard let key = payload["lease_key"] as? String else { return }
-        guard let route = sceneLeases.routeResult(key: key) else { return }
-        var eventData = payload
-        eventData.removeValue(forKey: "lease_key")
-        guard let bytes = envelopeBytes(
-                service: "scene",
-                event: "result",
-                data: eventData,
-                ref: route.ref
-              ) else { return }
-        subscriberLock.lock()
-        let writer = subscribers[route.connectionID]?.outbound
-        subscriberLock.unlock()
-        writer?.enqueue(bytes)
-    }
-
-    private func handleSceneStageEvent(_ payload: [String: Any]) {
-        guard let key = payload["lease_key"] as? String,
-              let eventType = payload["event_type"] as? String,
-              let event = payload["event"] as? [String: Any] else { return }
-        guard let canonicalEvent = aosCanonicalSceneEvent(event),
-              let route = sceneLeases.routeEvent(key: key, event: eventType),
-              eventType == "gesture",
-              canonicalEvent["type"] as? String == eventType,
-              let ownerID = canonicalEvent["ownerId"] as? String,
-              let resourceID = canonicalEvent["resourceId"] as? String,
-              sceneLeaseKey(owner: ownerID, resource: resourceID) == key,
-              let bytes = envelopeBytes(
-                service: "scene",
-                event: eventType,
-                data: canonicalEvent,
-                ref: route.ref
-              ) else { return }
-        subscriberLock.lock()
-        let writer = subscribers[route.connectionID]?.outbound
-        subscriberLock.unlock()
-        writer?.enqueue(bytes)
-    }
-
     private func hasDesktopWorldSceneMonitor() -> Bool {
         subscriberLock.lock()
         defer { subscriberLock.unlock() }
@@ -2810,7 +2884,7 @@ class UnifiedDaemon {
         envelopeRef: String?
     ) {
         guard let resource = json["resource"] as? String,
-              validSceneIdentifier(resource, allowSlash: true) else {
+              desktopWorldSceneTransport.validResourceIdentifier(resource) else {
             sendResponseJSON(to: outbound, ["error": "Invalid DesktopWorld resource", "code": "INVALID_SCENE_RESOURCE"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }
@@ -2853,139 +2927,6 @@ class UnifiedDaemon {
             envelopeActive: envelopeActive,
             envelopeRef: envelopeRef
         )
-    }
-
-    private func ensureSceneStage() -> Bool {
-        let semaphore = DispatchSemaphore(value: 0)
-        var available = false
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { semaphore.signal(); return }
-            if self.canvasManager.hasCanvas(self.sceneStageCanvasID) {
-                available = true
-                semaphore.signal()
-                return
-            }
-            var request = CanvasRequest(action: "create", id: self.sceneStageCanvasID)
-            request.url = self.resolveContentURL("aos://toolkit/components/desktop-world-stage/index.html")
-            request.surface = "desktop-world"
-            request.interactive = false
-            request.scope = "global"
-            request.cascade = false
-            // DesktopWorld windows span every display. Keep them hidden until
-            // the toolkit manifest follows transparent renderer initialization.
-            request.suspended = true
-            available = self.canvasManager.handle(request).status == "success"
-            semaphore.signal()
-        }
-        semaphore.wait()
-        guard available else { return false }
-        let deadline = Date().addingTimeInterval(5)
-        while Date() < deadline {
-            if let manifest = readyManifest(for: sceneStageCanvasID),
-               manifest["name"] as? String == "desktop-world-stage" {
-                let resumeSemaphore = DispatchSemaphore(value: 0)
-                var resumed = false
-                DispatchQueue.main.async { [weak self] in
-                    guard let self else { resumeSemaphore.signal(); return }
-                    resumed = self.canvasManager.handle(CanvasRequest(
-                        action: "resume",
-                        id: self.sceneStageCanvasID
-                    )).status == "success"
-                    resumeSemaphore.signal()
-                }
-                resumeSemaphore.wait()
-                return resumed
-            }
-            usleep(20_000)
-        }
-        return false
-    }
-
-    private func handleSceneFollow(
-        json: [String: Any],
-        connectionID: UUID,
-        outbound: AOSConnectionOutboundWriter,
-        envelopeActive: Bool,
-        envelopeRef: String?
-    ) {
-        guard json["stage"] as? String == "desktop-world/main",
-              let owner = json["owner"] as? String,
-              let resource = json["resource"] as? String,
-              let operation = json["operation"] as? [String: Any],
-              let op = operation["op"] as? String else {
-            sendResponseJSON(to: outbound, ["error": "Invalid scene request", "code": "INVALID_SCENE_OPERATION"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            return
-        }
-        guard validSceneIdentifier(owner, allowSlash: false),
-              validSceneIdentifier(resource, allowSlash: true) else {
-            sendResponseJSON(to: outbound, ["error": "Invalid scene owner or resource", "code": "INVALID_SCENE_IDENTITY"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            return
-        }
-        let allowed = Set(["mount", "transact", "signal", "play", "suspend", "resume", "inspect", "remove", "close", "subscribe", "unsubscribe"])
-        guard allowed.contains(op) else {
-            sendResponseJSON(to: outbound, ["error": "Unsupported scene operation", "code": "INVALID_SCENE_OPERATION"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            return
-        }
-        let supportedSceneEvents = Set(["gesture"])
-        let requestedSceneEvents = operation["events"] as? [String] ?? []
-        if op == "subscribe" || op == "unsubscribe" {
-            guard Set(operation.keys).isSubset(of: Set(["op", "events"])),
-                  requestedSceneEvents.count <= 8,
-                  requestedSceneEvents.allSatisfy({ supportedSceneEvents.contains($0) }),
-                  op != "subscribe" || !requestedSceneEvents.isEmpty else {
-                sendResponseJSON(to: outbound, ["error": "Invalid scene event subscription", "code": "INVALID_SCENE_SUBSCRIPTION"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-                return
-            }
-        }
-        let key = sceneLeaseKey(owner: owner, resource: resource)
-        let acquisition = sceneLeases.acquire(
-            key: key,
-            connectionID: connectionID,
-            ref: envelopeRef
-        )
-        guard case .acquired(let isNewLease) = acquisition else {
-            sendResponseJSON(to: outbound, ["error": "Scene resource already has an active lease", "code": "SCENE_LEASE_BUSY"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            return
-        }
-        if op == "subscribe" || op == "unsubscribe" {
-            let requested = Set(requestedSceneEvents)
-            let events = sceneLeases.updateSubscriptions(
-                key: key,
-                connectionID: connectionID,
-                adding: op == "subscribe" ? requested : [],
-                removing: op == "unsubscribe" ? requested : [],
-                removeAll: op == "unsubscribe" && requested.isEmpty
-            ) ?? []
-            sendResponseJSON(to: outbound, [
-                "status": "ok",
-                "operation": op,
-                "resource": resource,
-                "events": events.sorted(),
-            ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            return
-        }
-        guard ensureSceneStage() else {
-            if isNewLease { _ = sceneLeases.release(key: key, connectionID: connectionID) }
-            sendResponseJSON(to: outbound, ["error": "DesktopWorld scene stage is unavailable", "code": "SCENE_STAGE_UNAVAILABLE"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            return
-        }
-        canvasManager.postMessageToCurrentCanvasAsync(canvasID: sceneStageCanvasID, payload: [
-            "type": "desktop_world_stage.scene.operation",
-            "payload": [
-                "lease_key": key,
-                "owner": owner,
-                "resource": resource,
-                "operation": operation,
-            ],
-        ])
-        if op == "close" {
-            _ = sceneLeases.release(key: key, connectionID: connectionID)
-        }
-        sendResponseJSON(to: outbound, [
-            "status": "ok",
-            "operation": op,
-            "resource": resource,
-        ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
     }
 
     /// Map v1 envelope (service, action) to the legacy flat action string
@@ -3184,10 +3125,14 @@ class UnifiedDaemon {
             if wantsSnapshot { sendSubscriberSnapshots(to: outbound, events: events) }
 
         case "scene-follow":
-            handleSceneFollow(
+            let response = desktopWorldSceneTransport.follow(
                 json: json,
                 connectionID: connectionID,
-                outbound: outbound,
+                ref: envelopeRef
+            )
+            sendResponseJSON(
+                to: outbound,
+                response.payload,
                 envelopeActive: envelopeActive,
                 envelopeRef: envelopeRef
             )

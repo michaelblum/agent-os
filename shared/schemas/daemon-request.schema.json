@@ -165,9 +165,30 @@
         "operation": {
           "type": "object",
           "required": ["op"],
-          "properties": { "op": { "enum": ["mount", "transact", "signal", "play", "suspend", "resume", "inspect", "remove", "close"] } },
+          "properties": {
+            "op": { "enum": ["mount", "transact", "signal", "play", "suspend", "resume", "inspect", "remove", "close", "subscribe", "unsubscribe"] },
+            "extension": { "$ref": "#/$defs/SceneExtensionReference" }
+          },
+          "allOf": [
+            {
+              "if": { "required": ["extension"] },
+              "then": { "properties": { "op": { "const": "mount" } } }
+            }
+          ],
           "additionalProperties": true
         }
+      },
+      "additionalProperties": false
+    },
+    "SceneExtensionReference": {
+      "type": "object",
+      "required": ["ownerId", "id", "digest", "sceneAbi", "threeRevision"],
+      "properties": {
+        "ownerId": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9._-]{0,126}[a-z0-9])?$" },
+        "id": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9._-]{0,126}[a-z0-9])?$" },
+        "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "sceneAbi": { "const": "aos.scene.projection.v1" },
+        "threeRevision": { "const": "183" }
       },
       "additionalProperties": false
     },

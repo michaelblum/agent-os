@@ -122,10 +122,12 @@ test('external command manifest executable targets exist', async () => {
   for (const command of manifest.commands) {
     const [first] = command.argv_prefix;
     const repoTargets = command.executable === '/usr/bin/env'
-      ? command.argv_prefix.slice(1).filter((arg) => arg.startsWith('scripts/') || arg.startsWith('packages/'))
-      : command.argv_prefix.filter((arg) => arg.startsWith('scripts/') || arg.startsWith('packages/'));
+      ? command.argv_prefix.slice(1)
+      : command.argv_prefix;
 
-    for (const target of repoTargets) {
+    for (const target of repoTargets
+      .map((arg) => arg.startsWith('$AOS_REPO_ROOT/') ? arg.slice('$AOS_REPO_ROOT/'.length) : arg)
+      .filter((arg) => arg.startsWith('scripts/') || arg.startsWith('packages/'))) {
       assert.equal(existsSync(path.join(repoRoot, target)), true, `${command.path.join(' ')} script missing: ${target}`);
     }
     if (command.executable === '/bin/bash' && first?.startsWith('scripts/')) {
@@ -141,7 +143,12 @@ test('external help passthrough routes stay script-owned', async () => {
   for (const command of passthroughRoutes) {
     assert.notEqual(command.executable, '$AOS_PATH', `${command.path.join(' ')} help passthrough must not route to Swift`);
     assert.ok(
-      (command.argv_prefix || []).some((arg) => arg.startsWith('scripts/') || arg.startsWith('packages/')),
+      (command.argv_prefix || []).some((arg) => (
+        arg.startsWith('scripts/')
+        || arg.startsWith('packages/')
+        || arg.startsWith('$AOS_REPO_ROOT/scripts/')
+        || arg.startsWith('$AOS_REPO_ROOT/packages/')
+      )),
       `${command.path.join(' ')} help passthrough must name an external script target`,
     );
   }

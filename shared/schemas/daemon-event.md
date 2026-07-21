@@ -89,6 +89,15 @@ their topology before normal boot side effects run.
 
 Canvases register input regions by posting `input_region.register`,
 `input_region.update`, and `input_region.remove` through the canvas bridge.
+An owner may replace a complete input generation with
+`input_region.replace_generation` and bounded
+`{activate:[region...], retire:[id...]}` data. Every candidate and retired ID
+must belong to the exact current owner generation. Candidates remain inactive
+until the daemon validates the complete request and atomically activates the
+candidate set while retiring the prior set under one registry mutation. An
+actively captured retired region blocks the replacement. Replaying the exact
+already-active candidate generation is idempotent; ambiguous ownership or
+partial replacement fails closed.
 The payload is `{id, frame:[x,y,w,h], coordinate_space?, owner_canvas_id?,
 semantic_label?, priority?, consume_policy?, metadata?,
 remove_on_owner_suspend?, enabled?}`. `coordinate_space` is `native` or
@@ -106,6 +115,14 @@ and delivery role. If the daemon cannot construct that canonical routed payload,
 it does not post or consume the region event.
 Canvases can subscribe to `input_region` with `snapshot:true` to receive
 `input_region.snapshot` plus live register/update/remove notifications.
+
+For DesktopWorld scene operations, every physical display segment emits an
+internal result carrying its display ID/index plus exact canvas and topology
+generation. The daemon emits one public scene result only after the complete
+current segment set passes its prepare/commit barrier. A topology change,
+segment fault, disconnect during replacement, or failed cleanup retires the
+complete affected stage generation and invalidates its scene leases rather than
+leaving a partial projection active.
 
 `canvas_geometry.change` is `origin`, `size`, or `frame`. `phase` is `start`,
 `update`, `settled`, or `cancelled`; pointer-frequency drag and resize movement

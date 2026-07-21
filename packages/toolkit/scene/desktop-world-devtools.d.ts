@@ -57,8 +57,11 @@ export interface DesktopWorldDevToolsStageSnapshot {
     enabled: boolean;
     recording: boolean;
     sampleCount: number;
+    targetFps: number | null;
+    budgetMs: number | null;
     currentFps: number | null;
     p95FrameMs: number | null;
+    maxFrameMs: number | null;
     avgFrameMs: number | null;
     avgRenderMs: number | null;
     avgUpdateMs: number | null;
@@ -105,9 +108,87 @@ export const DESKTOP_WORLD_DEVTOOLS_LIMITS: Readonly<{
   resources: 32;
   string: 256;
 }>;
+export const DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS: Readonly<{
+  prewarmedTransitionStartMs: 250;
+  projectionReadyMs: 750;
+  inputToVisualP95Ms: 50;
+  minInputToVisualSamples: 20;
+  targetFps: 60;
+  minFrameSamples: 120;
+  p95FrameBudgetMultiplier: 1.1;
+  maxSteadyFrameMs: 100;
+  maxBackingPixelsPerSegment: 2097152;
+  maxCrossDisplayGapFrames: 2;
+  stabilityCycles: 100;
+  maxWarmCycleRssGrowthBytes: 16777216;
+}>;
+
+export type DesktopWorldPerformanceAcceptanceCheckId =
+  | 'input_valid'
+  | 'prewarmed_transition_start'
+  | 'projection_ready'
+  | 'input_to_visual_p95'
+  | 'frame_p95'
+  | 'frame_max'
+  | 'backing_pixels_per_segment'
+  | 'cross_display_gap'
+  | 'stability_cycles'
+  | 'warm_cycle_rss_growth'
+  | 'resource_geometries_growth'
+  | 'resource_materials_growth'
+  | 'resource_programs_growth'
+  | 'resource_textures_growth';
+
+export interface DesktopWorldPerformanceAcceptanceInput {
+  prewarmedTransitionStartMs: number;
+  projectionReadyMs: number;
+  inputToVisualSamplesMs: readonly number[];
+  frameSamplesMs: readonly number[];
+  backingPixelsPerSegment: readonly number[];
+  crossDisplayGapFrames: number;
+  warmCycleCount: number;
+  warmCycleRssDeltaBytes: number;
+  resourceDeltas: Readonly<{
+    geometries: number;
+    materials: number;
+    programs: number;
+    textures: number;
+  }>;
+}
+
+export interface DesktopWorldPerformanceAcceptanceCheck {
+  id: DesktopWorldPerformanceAcceptanceCheckId;
+  observed: number | null;
+  limit: number | null;
+  operator: 'eq' | 'gte' | 'lte' | 'valid';
+  ok: boolean;
+}
+
+export interface DesktopWorldPerformanceAcceptanceObserved {
+  prewarmedTransitionStartMs: number;
+  projectionReadyMs: number;
+  inputToVisualSampleCount: number;
+  inputToVisualP95Ms: number;
+  frameSampleCount: number;
+  frameP95Ms: number;
+  maxFrameMs: number;
+  maxBackingPixelsPerSegment: number;
+  crossDisplayGapFrames: number;
+  warmCycleCount: number;
+  warmCycleRssDeltaBytes: number;
+  resourceDeltas: DesktopWorldPerformanceAcceptanceInput['resourceDeltas'];
+}
+
+export type DesktopWorldPerformanceAcceptanceResult = Readonly<{
+  ok: boolean;
+  valid: boolean;
+  observed: Readonly<DesktopWorldPerformanceAcceptanceObserved> | null;
+  checks: ReadonlyArray<Readonly<DesktopWorldPerformanceAcceptanceCheck>>;
+}>;
 
 export function normalizeDesktopWorldDevToolsStageSnapshot(input: unknown): DesktopWorldDevToolsStageSnapshot;
 export function normalizeDesktopWorldDevToolsSnapshot(input: unknown): DesktopWorldDevToolsSnapshot;
+export function evaluateDesktopWorldPerformanceAcceptance(input: unknown): DesktopWorldPerformanceAcceptanceResult;
 export function createDesktopWorldGpuTimer(context: WebGLRenderingContext | WebGL2RenderingContext | null | undefined): Readonly<{
   begin(): boolean;
   dispose(): boolean;

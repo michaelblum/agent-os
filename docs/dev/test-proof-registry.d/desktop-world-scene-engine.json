@@ -80,6 +80,43 @@
       "status": "active"
     },
     {
+      "id": "desktop-world-scene-extension-contract",
+      "path_patterns": [
+        "tests/scene-extension-cli.test.mjs",
+        "tests/scene-extension-native-store.test.mjs",
+        "tests/toolkit/desktop-world-scene-extension-loader.test.mjs",
+        "tests/toolkit/desktop-world-scene-extension-operation.test.mjs",
+        "tests/toolkit/desktop-world-scene-extension-projection.test.mjs",
+        "tests/toolkit/scene-extension.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit-scene",
+      "harness_level": "model_unit",
+      "proof_kind": "trusted_scene_projection_extension_contract",
+      "contract": "Exact-digest operator authorization, compile-only factory-body validation, immutable native storage, host-generated module wrapping, bounded projection execution, and deterministic disposal remain one trusted extension boundary.",
+      "worth": "This prevents executable scene artifacts from bypassing reviewed identity, owner, ABI, resource-budget, and lifecycle checks without executing the AOS binary or candidate code during validation.",
+      "command": "node --test tests/scene-extension-cli.test.mjs tests/scene-extension-native-store.test.mjs tests/toolkit/scene-extension.test.mjs tests/toolkit/desktop-world-scene-extension-loader.test.mjs tests/toolkit/desktop-world-scene-extension-operation.test.mjs tests/toolkit/desktop-world-scene-extension-projection.test.mjs",
+      "replaces": [],
+      "guard": "temporary owner-only filesystem fixtures, bounded child compilation, Swift typecheck stubs, and pure Three object graphs only; no AOS binary, daemon, GUI, TCC, signing, or candidate execution",
+      "status": "active"
+    },
+    {
+      "id": "desktop-world-cross-display-activation-contract",
+      "path_patterns": [
+        "tests/desktop-world-scene-result-coordinator.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "scene-transport",
+      "harness_level": "model_unit",
+      "proof_kind": "desktop_world_cross_display_activation_contract",
+      "contract": "Every display segment prepares the same candidate revision before activation, acknowledges the exact prepared fingerprint, and aborts, releases, or retires the stage on divergence, timeout, topology change, or cleanup failure.",
+      "worth": "This prevents mixed scene generations, stale input routing, and successful acknowledgements from one display hiding another display's failed replacement.",
+      "command": "node --test tests/desktop-world-scene-result-coordinator.test.mjs tests/toolkit/desktop-world-scene-operation-coordinator.test.mjs tests/toolkit/desktop-world-scene-extension-operation.test.mjs",
+      "replaces": [],
+      "guard": "disposable Swift coordinator executable plus pure staged scene/input runtimes; no AOS binary, daemon, GUI, TCC, WebGL, or live displays",
+      "status": "active"
+    },
+    {
       "id": "desktop-world-devtools-contract",
       "path_patterns": [
         "tests/daemon-desktop-world-devtools-contract.test.mjs",
@@ -102,21 +139,25 @@
     {
       "id": "desktop-world-agent-tooling-contract",
       "path_patterns": [
+        "tests/scene-agent-authoring-acceptance.test.mjs",
         "tests/scene-agent-tooling-cli.test.mjs",
+        "tests/scene-scaffold-cli.test.mjs",
         "tests/schemas/desktop-world-scene-tooling.test.mjs",
-        "tests/toolkit/desktop-world-client.test.mjs"
+        "tests/toolkit/desktop-world-client.test.mjs",
+        "tests/toolkit/desktop-world-session.test.mjs"
       ],
       "fixture_patterns": [
+        "packages/toolkit/scene/examples/session-lifecycle.mjs",
         "packages/toolkit/scene/fixtures/*.ndjson"
       ],
       "owner": "desktop-world-agent-tooling",
       "harness_level": "model_unit",
       "proof_kind": "desktop_world_agent_tooling_contract",
-      "contract": "Transport-injected SDK methods, bounded headless inspection, connection-scoped monitoring, deterministic replay, schemas, and public CLI forms share the canonical DesktopWorld snapshot model.",
-      "worth": "This proves agents can author and debug DesktopWorld scenes through familiar machine-readable tools without private sockets, live TCC input, product content, or competing telemetry.",
-      "command": "node --test tests/toolkit/desktop-world-client.test.mjs tests/schemas/desktop-world-scene-tooling.test.mjs tests/scene-agent-tooling-cli.test.mjs",
+      "contract": "Transport-injected SDK methods, the serialized recover-once session, deterministic create-new scaffolds, bounded headless inspection, connection-scoped monitoring, deterministic replay, schemas, and public CLI forms share the canonical DesktopWorld model.",
+      "worth": "This proves an agent can start from an empty directory, create valid scene artifacts, run the public lifecycle through a fake transport, recover once without replaying uncertainty, and debug through machine-readable tools without private sockets, live TCC input, product content, or competing telemetry.",
+      "command": "node --test tests/toolkit/desktop-world-client.test.mjs tests/toolkit/desktop-world-session.test.mjs tests/schemas/desktop-world-scene-tooling.test.mjs tests/scene-agent-tooling-cli.test.mjs tests/scene-scaffold-cli.test.mjs tests/scene-agent-authoring-acceptance.test.mjs",
       "replaces": [],
-      "guard": "pure SDK/schema tests plus a temporary fake Unix socket; no AOS binary, real daemon, GUI, TCC, WebGL, or live DesktopWorld",
+      "guard": "pure SDK/schema tests, temporary owner-only artifacts, fake transports, and a temporary fake Unix socket; no AOS binary, real daemon, GUI, TCC, WebGL, or live DesktopWorld",
       "status": "active"
     }
   ]
