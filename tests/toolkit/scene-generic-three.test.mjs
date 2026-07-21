@@ -15,7 +15,7 @@ class Vector {
   setScalar(value) { this.set(value, value, value) }
 }
 class Node {
-  constructor() { allocations += 1; this.children = []; this.position = new Vector(); this.rotation = new Vector(); this.scale = new Vector(); this.visible = true }
+  constructor() { allocations += 1; this.isObject3D = true; this.children = []; this.position = new Vector(); this.rotation = new Vector(); this.scale = new Vector(); this.visible = true }
   add(...children) { this.children.push(...children) }
   clear() { this.children = [] }
   traverse(callback) { callback(this); for (const child of this.children) { if (child.traverse) child.traverse(callback); else callback(child) } }
@@ -31,7 +31,7 @@ class BufferGeometry extends Disposable {
 }
 class BufferAttribute { constructor(array, itemSize) { allocations += 1; this.array = array; this.itemSize = itemSize } }
 class EdgesGeometry extends Disposable { constructor(source, thresholdAngle) { super(); this.source = source; this.thresholdAngle = thresholdAngle } }
-class DataTexture extends Disposable { constructor(data, width, height) { super(); this.data = data; this.width = width; this.height = height } }
+class DataTexture extends Disposable { constructor(data, width, height) { super(); this.isTexture = true; this.data = data; this.width = width; this.height = height } }
 
 const THREE = {
   AdditiveBlending: 2,
@@ -138,6 +138,7 @@ test('generic registry validates implementation parameter bounds', () => {
 test('generic Three projection builds and disposes a bounded object tree', () => {
   const projection = createGenericThreeSceneProjection({ THREE, document: document() })
   assert.equal(projection.object.children.length, 1)
+  assert.ok(projection.resourceMetrics().objects >= 2)
   const mesh = projection.object.children[0]
   assert.equal(projection.applySignal({ objectId: 'main', target: 'scale.x' }, 1.5), true)
   assert.equal(mesh.scale.x, 1.5)

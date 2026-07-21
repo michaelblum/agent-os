@@ -116,7 +116,8 @@ function renderInteractions(snapshot) {
 function renderPerformance(snapshot) {
   const p = snapshot.stage.performance
   const metrics = [
-    ['FPS', metric(p.currentFps)], ['P95 frame', `${metric(p.p95FrameMs)} ms`],
+    ['FPS', metric(p.currentFps)], ['Frame budget', `${metric(p.budgetMs)} ms`],
+    ['P95 frame', `${metric(p.p95FrameMs)} ms`], ['Max frame', `${metric(p.maxFrameMs)} ms`],
     ['Avg frame', `${metric(p.avgFrameMs)} ms`], ['Render', `${metric(p.avgRenderMs)} ms`],
     ['Update', `${metric(p.avgUpdateMs)} ms`], ['GPU', `${metric(p.avgGpuMs)} ms`],
     ['Draw calls', metric(p.drawCalls, 0)], ['Triangles', metric(p.triangles, 0)],

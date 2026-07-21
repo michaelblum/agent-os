@@ -104,11 +104,13 @@ export {
 } from './scene-interaction-visual.js'
 export {
   DESKTOP_WORLD_DEVTOOLS_LIMITS,
+  DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS,
   DESKTOP_WORLD_DEVTOOLS_SNAPSHOT_CONTRACT_ID,
   DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID,
   buildDesktopWorldMinimapLayout,
   createDesktopWorldGpuTimer,
   createDesktopWorldDevToolsStageProbe,
+  evaluateDesktopWorldPerformanceAcceptance,
   normalizeDesktopWorldDevToolsSnapshot,
   normalizeDesktopWorldDevToolsStageSnapshot,
 } from './desktop-world-devtools.js'
@@ -133,6 +135,21 @@ export {
   SCENE_IMPLEMENTATION_KINDS,
   createSceneImplementationRegistry,
 } from './scene-registry.js'
+
+export {
+  SCENE_EXTENSION_BUDGET_LIMITS,
+  SCENE_EXTENSION_CONTRACT_ID,
+  SCENE_EXTENSION_REGISTRY_LIMIT,
+  SCENE_EXTENSION_SCENE_ABI,
+  SCENE_EXTENSION_SCHEMA_VERSION,
+  SCENE_EXTENSION_THREE_REVISION,
+  createTrustedSceneExtensionRegistry,
+  inspectSceneExtensionProjectionResources,
+  serializeSceneExtensionDigestMaterial,
+  validateSceneExtensionManifest,
+  validateSceneExtensionReference,
+  validateSceneExtensionProjection,
+} from './scene-extension.js'
 
 export {
   GENERIC_SCENE_IMPLEMENTATIONS,

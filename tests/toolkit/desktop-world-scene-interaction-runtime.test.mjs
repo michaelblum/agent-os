@@ -47,6 +47,7 @@ function harness({
   remove = async () => {},
   update = async () => {},
   applyResponse = (event) => ({ ...event.response, applied: true, revision: 1 }),
+  onEmit = null,
   scheduleTimer = (callback, delay) => setTimeout(callback, delay),
 } = {}) {
   const calls = []
@@ -75,9 +76,21 @@ function harness({
       await update(payload)
     },
     removeRegion: async (id) => { calls.push(['remove', id]); await remove(id) },
+    replaceRegionGeneration: async ({ activate, retire }) => {
+      for (const payload of activate) await update(payload)
+      for (const id of retire) await remove(id)
+      for (const payload of activate) {
+        calls.push(['update', payload.id])
+        regionUpdates.push(structuredClone(payload))
+      }
+      for (const id of retire) calls.push(['remove', id])
+    },
     scheduleFrame(callback) { callback() },
     scheduleTimer,
-    emitEvent(event) { events.push(event) },
+    emitEvent(event) {
+      events.push(event)
+      onEmit?.(event)
+    },
   })
   return {
     calls,
@@ -89,6 +102,12 @@ function harness({
     setAnimationGeneration(value) { animationGeneration = value },
     setInteractionDocument(value) { interactionDocument = value },
   }
+}
+
+function deferred() {
+  let resolve
+  const promise = new Promise((accept) => { resolve = accept })
+  return { promise, resolve }
 }
 
 function routed(regionId, type, x, y, sequenceValue) {
@@ -166,6 +185,67 @@ test('secondary segments build the same region index without mutating daemon reg
   assert.equal(runtime.handleInput(routed(regionId, 'left_mouse_up', 120, 220, 3)), true)
   assert.equal(responses.length, 3)
   assert.deepEqual(events, [])
+})
+
+test('stage resume keeps input admission closed until every region is restored', async () => {
+  const secondRegistration = deferred()
+  let resumeMode = false
+  let resumeRegistrations = 0
+  const fixture = harness({
+    async register() {
+      if (!resumeMode) return
+      resumeRegistrations += 1
+      if (resumeRegistrations === 2) await secondRegistration.promise
+    },
+  })
+  const firstKey = 'example.consumer::companion/first'
+  const secondKey = 'example.consumer::companion/second'
+  const firstRegion = sceneAffordanceRegionId('example.consumer', 'companion/first', 'body-hit')
+  await fixture.runtime.mount({ key: firstKey, owner: 'example.consumer', resource: 'companion/first', document, interactions })
+  await fixture.runtime.mount({ key: secondKey, owner: 'example.consumer', resource: 'companion/second', document, interactions })
+  await fixture.runtime.suspendStage()
+
+  resumeMode = true
+  const resuming = fixture.runtime.resumeStage()
+  while (resumeRegistrations < 2) await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(fixture.runtime.handleInput(routed(firstRegion, 'left_mouse_down', 100, 200, 1)), true)
+  assert.equal(fixture.responses.length, 0)
+  assert.equal(fixture.events.length, 0)
+
+  secondRegistration.resolve()
+  await resuming
+  fixture.runtime.handleInput(routed(firstRegion, 'left_mouse_down', 100, 200, 2))
+  fixture.runtime.handleInput(routed(firstRegion, 'left_mouse_up', 110, 210, 3))
+  assert.deepEqual(fixture.events.map(({ event }) => event.gesture.phase), ['start', 'update', 'end'])
+})
+
+test('buffered event delivery failure is diagnostic and never rolls back committed input', async () => {
+  let deliveryAttempts = 0
+  const fixture = harness({
+    onEmit() {
+      deliveryAttempts += 1
+      if (deliveryAttempts === 1) throw new Error('transport unavailable')
+    },
+  })
+  const key = 'example.consumer::companion/main'
+  await fixture.runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions })
+  const replacement = await fixture.runtime.prepareReplacement({
+    key,
+    owner: 'example.consumer',
+    resource: 'companion/main',
+    document: { ...document, revision: 2 },
+    interactions,
+  })
+  await replacement.activate()
+  const candidateRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit', 'r1')
+  fixture.runtime.handleInput(routed(candidateRegion, 'left_mouse_down', 100, 200, 1))
+  fixture.runtime.handleInput(routed(candidateRegion, 'left_mouse_dragged', 120, 220, 2))
+  fixture.runtime.handleInput(routed(candidateRegion, 'left_mouse_up', 120, 220, 3))
+  replacement.commit(() => {})
+
+  assert.equal(await replacement.settle(), true)
+  assert.equal(deliveryAttempts, 3)
+  assert.equal(fixture.runtime.snapshot(key).leases[0].regionSyncErrorCode, 'SCENE_EVENT_DELIVERY_FAILED')
 })
 
 test('interaction leases remove and restore regions across suspension and topology changes', async () => {
@@ -344,7 +424,7 @@ test('terminal animation regions remain staged together when one activation fail
   assert.deepEqual(fixture.responses, [])
   releaseActivation()
 
-  await assert.rejects(settling, /animated input-region settlement failed/u)
+  await assert.rejects(settling, /fixture second activation failure/u)
   assert.equal(candidateUpdates, 2)
   assert.deepEqual(fixture.runtime.snapshot(key).leases, [])
   assert.deepEqual(fixture.responses, [])

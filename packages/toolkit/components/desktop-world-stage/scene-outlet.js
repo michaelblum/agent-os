@@ -5,31 +5,67 @@ import {
   createDesktopWorldGpuTimer,
   createSceneAnimationController,
   createSceneSignalController,
-  createGenericSceneImplementationRegistry,
-  createGenericThreeSceneProjection,
   deriveOrthoCamera,
   resolveThreeRenderMetrics,
 } from '../../scene/index.js'
 import { createSceneAnimationInteractionState } from './scene-animation-interaction-state.js'
+import { createDesktopWorldSceneProjection } from './scene-extension-projection.js'
 import { createDesktopWorldSceneInteractionThree } from './scene-interaction-three.js'
 import { createScenePlaybackClock } from './scene-playback-clock.js'
+import {
+  DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS,
+  createSceneSegmentResourceBudget,
+} from './scene-resource-budget.js'
 
 const MAX_RESOURCES = 32
 const MAX_SIGNALS_PER_SECOND = 30
+const EXTENSION_IDENTITY_KEYS = Object.freeze(['digest', 'id', 'ownerId', 'sceneAbi', 'threeRevision'])
+
+export const DESKTOP_WORLD_SCENE_RENDER_LIMITS = Object.freeze({
+  maxDevicePixelRatio: 2,
+  maxBackingDimension: 4096,
+  maxBackingPixels: 2_097_152,
+})
+
+function sceneOutletError(code, message) {
+  const error = new Error(message)
+  error.code = code
+  return error
+}
+
+function sceneOutletAggregateError(code, errors, message) {
+  const failure = new AggregateError(errors, message)
+  failure.code = code
+  return failure
+}
+
+function sameExtensionReference(left, right) {
+  if (left === null || right === null) return left === right
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false
+  return EXTENSION_IDENTITY_KEYS.every((key) => left[key] === right[key])
+}
 
 export function sceneResourceCanRun(resourceSuspended, stageHidden, contextLost) {
   return !resourceSuspended && !stageHidden && !contextLost
 }
 
+export function sceneStageShouldRender(resources, stageHidden, contextLost, stageSuspended = false, faulted = false) {
+  if (stageHidden || contextLost || stageSuspended || faulted) return false
+  for (const mounted of resources.values()) {
+    if (!mounted.suspended) return true
+  }
+  return false
+}
+
 export function reconcileSceneStageRunState(resources, previous, next, at = performance.now()) {
-  const wasRunnable = !previous.hidden && !previous.contextLost
-  const isRunnable = !next.hidden && !next.contextLost
+  const wasRunnable = !previous.hidden && !previous.contextLost && !previous.suspended && !previous.faulted
+  const isRunnable = !next.hidden && !next.contextLost && !next.suspended && !next.faulted
   if (wasRunnable === isRunnable) return false
   for (const mounted of resources.values()) {
     if (!isRunnable) {
       mounted.playClock.suspend(at)
       mounted.interactionVisuals?.suspend(at)
-    } else if (sceneResourceCanRun(mounted.suspended, next.hidden, next.contextLost)) {
+    } else if (sceneResourceCanRun(mounted.suspended, next.hidden || next.suspended, next.contextLost || next.faulted)) {
       mounted.playClock.resume(at)
       mounted.interactionVisuals?.resume(at)
     }
@@ -37,7 +73,11 @@ export function reconcileSceneStageRunState(resources, previous, next, at = perf
   return true
 }
 
-export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = window } = {}) {
+export function createDesktopWorldSceneOutlet({
+  canvas,
+  extensionRegistry,
+  window: hostWindow = window,
+} = {}) {
   if (!canvas) throw new TypeError('DesktopWorld scene outlet requires a canvas.')
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, canvas, powerPreference: 'low-power' })
   renderer.setClearColor(0x000000, 0)
@@ -48,14 +88,20 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
   const keyLight = new THREE.DirectionalLight(0xd8ccff, 3)
   keyLight.position.set(3, 4, 5)
   scene.add(keyLight)
-  const registry = createGenericSceneImplementationRegistry()
   const resources = new Map()
-  let frame = 0
+  const cleanupFailures = new Map()
+  const pendingResourceKeys = new Set()
+  const segmentBudget = createSceneSegmentResourceBudget()
+  let frame = null
   let disposed = false
-  let hidden = false
+  let disposeResult = null
+  let hidden = document.hidden === true
   let contextLost = false
+  let stageSuspended = false
+  let stageFault = null
   let segment = null
   let devtoolsProbe = null
+  let faultObserver = null
   let gpuTimer = null
   let lastRenderAt = null
   let interactionGeometryObserver = null
@@ -88,6 +134,7 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       width: canvas.clientWidth || hostWindow.innerWidth,
       height: canvas.clientHeight || hostWindow.innerHeight,
       devicePixelRatio: hostWindow.devicePixelRatio,
+      ...DESKTOP_WORLD_SCENE_RENDER_LIMITS,
     })
     if (!metrics) return false
     renderer.setPixelRatio(metrics.effectiveDevicePixelRatio)
@@ -98,30 +145,141 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     return true
   }
 
+  const recordResourceFailure = (mounted, code) => {
+    devtoolsProbe?.recordEvent({ kind: 'scene.resource.failed', code, resourceId: mounted.resource })
+  }
+
   const disposeMounted = (mounted, { preserveInteractionOrigins = false } = {}) => {
-    scene.remove(mounted.projection.object)
-    mounted.animations.dispose()
-    mounted.signals.dispose()
-    mounted.interactionVisuals?.dispose()
-    mounted.projection.dispose()
+    const cleanup = mounted.cleanup ??= {
+      animations: false,
+      interactionVisuals: false,
+      projection: false,
+      removed: false,
+      signals: false,
+    }
+    const operations = [
+      ['removed', () => scene.remove(mounted.projection.object)],
+      ['animations', () => mounted.animations.dispose()],
+      ['signals', () => mounted.signals.dispose()],
+      ['interactionVisuals', () => mounted.interactionVisuals?.dispose()],
+      ['projection', () => mounted.projection.dispose()],
+    ]
+    let failed = false
+    for (const [name, operation] of operations) {
+      if (cleanup[name]) continue
+      try {
+        operation()
+        cleanup[name] = true
+      } catch {
+        failed = true
+      }
+    }
     if (!preserveInteractionOrigins) mounted.interactionOrigins.clear()
+    if (failed) recordResourceFailure(mounted, 'SCENE_EXTENSION_DISPOSE_FAILED')
+    return !failed
+  }
+
+  const trackCleanup = (mounted, clean) => {
+    const pending = cleanupFailures.get(mounted.key) ?? new Set()
+    if (clean) pending.delete(mounted)
+    else pending.add(mounted)
+    if (pending.size > 0) cleanupFailures.set(mounted.key, pending)
+    else cleanupFailures.delete(mounted.key)
+    return clean
+  }
+
+  const retireMounted = (mounted, options) => trackCleanup(mounted, disposeMounted(mounted, options))
+
+  const retryCleanup = (key = null) => {
+    let clean = true
+    const entries = key === null
+      ? [...cleanupFailures.entries()]
+      : [[key, cleanupFailures.get(key) ?? new Set()]]
+    for (const [entryKey, pending] of entries) {
+      for (const mounted of [...pending]) {
+        if (disposeMounted(mounted)) pending.delete(mounted)
+        else clean = false
+      }
+      if (pending.size === 0) cleanupFailures.delete(entryKey)
+    }
+    return clean
+  }
+
+  function faultSceneSegment(code, mounted = null) {
+    if (disposed || stageFault) return false
+    const now = performance.now()
+    const fault = Object.freeze({
+      code,
+      leaseKey: mounted?.key ?? null,
+      owner: mounted?.owner ?? null,
+      resource: mounted?.resource ?? null,
+    })
+    reconcileSceneStageRunState(
+      resources,
+      { hidden, contextLost, suspended: stageSuspended, faulted: false },
+      { hidden, contextLost, suspended: stageSuspended, faulted: true },
+      now,
+    )
+    stageFault = fault
+    lastRenderAt = null
+    cancelRender()
+    try { gpuTimer?.dispose() } catch {}
+    gpuTimer = null
+    devtoolsProbe?.recordEvent({ kind: 'scene.segment.failed', code, resourceId: fault.resource })
+    try { faultObserver?.(fault) } catch {}
+    return true
   }
 
   const release = (key) => {
     const mounted = resources.get(key)
-    if (!mounted) return false
-    disposeMounted(mounted)
-    resources.delete(key)
+    const hadPendingCleanup = cleanupFailures.has(key)
+    if (!mounted && !hadPendingCleanup) return false
+    if (mounted) {
+      resources.delete(key)
+      segmentBudget.unaccount(mounted)
+      retireMounted(mounted)
+    }
+    const clean = retryCleanup(key)
+    reconcileRenderLoop()
+    if (!clean) {
+      faultSceneSegment('SCENE_EXTENSION_DISPOSE_FAILED', mounted)
+      throw sceneOutletError('SCENE_EXTENSION_DISPOSE_FAILED', 'DesktopWorld scene resource cleanup failed.')
+    }
     return true
   }
 
-  const prepareMounted = (key, documentInput, identity = {}, previous = resources.get(key)) => {
+  const prepareMounted = (
+    key,
+    documentInput,
+    identity = {},
+    previous = resources.get(key),
+    extensionReference = previous?.extensionReference ?? null,
+  ) => {
     const document = canonicalizeSceneDocument(documentInput)
-    const validation = registry.validateDocument(document)
-    if (!validation.ok) throw new TypeError('Scene document requires an unavailable or invalid implementation.')
-    const projection = createGenericThreeSceneProjection({ THREE, document })
+    const effectiveExtensionBudgets = extensionReference
+      ? segmentBudget.remaining()
+      : null
+    let preparedProjection
+    try {
+      preparedProjection = createDesktopWorldSceneProjection({
+        budgets: effectiveExtensionBudgets,
+        THREE,
+        document,
+        expectedOwner: identity.owner ?? previous?.owner ?? '',
+        extensionReference,
+        extensionRegistry,
+      })
+    } catch (error) {
+      if (error?.code === 'SCENE_EXTENSION_DISPOSE_FAILED') {
+        faultSceneSegment('SCENE_EXTENSION_DISPOSE_FAILED')
+      }
+      throw error
+    }
+    const projection = preparedProjection.projection
     const interactionState = createSceneAnimationInteractionState(document)
     let animations
+    let resourceMetrics
+    let resourceMetricsSource
     let signals
     try {
       animations = createSceneAnimationController(document, {
@@ -131,10 +289,27 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       signals = createSceneSignalController(document, {
         apply: (binding, value, input, at) => projection.applySignal(binding, value, input, at),
       })
+      const measured = segmentBudget.measure(projection)
+      resourceMetrics = measured.metrics
+      resourceMetricsSource = measured.source
     } catch (error) {
-      animations?.dispose()
-      signals?.dispose()
-      projection.dispose()
+      const cleanupFailures = []
+      for (const cleanup of [
+        () => animations?.dispose(),
+        () => signals?.dispose(),
+        () => projection.dispose(),
+      ]) {
+        try { cleanup() } catch (cleanupError) { cleanupFailures.push(cleanupError) }
+      }
+      if (cleanupFailures.length > 0) {
+        devtoolsProbe?.recordEvent({ kind: 'scene.resource.failed', code: 'SCENE_EXTENSION_DISPOSE_FAILED' })
+        faultSceneSegment('SCENE_EXTENSION_DISPOSE_FAILED')
+        throw sceneOutletAggregateError(
+          'SCENE_EXTENSION_DISPOSE_FAILED',
+          [error, ...cleanupFailures],
+          'Scene projection admission and cleanup failed.',
+        )
+      }
       throw error
     }
     projection.object.position.copy(previous?.projection.object.position ?? new THREE.Vector3())
@@ -142,6 +317,15 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       key,
       owner: identity.owner ?? previous?.owner ?? '',
       resource: identity.resource ?? previous?.resource ?? key,
+      extensionReference: preparedProjection.extension
+        ? Object.freeze({
+          digest: preparedProjection.extension.digest,
+          id: preparedProjection.extension.id,
+          ownerId: preparedProjection.extension.ownerId,
+          sceneAbi: preparedProjection.extension.sceneAbi,
+          threeRevision: preparedProjection.extension.threeRevision,
+        })
+        : null,
       document,
       projection,
       signals,
@@ -150,10 +334,14 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       interactionVisuals: null,
       playGeneration: null,
       playClock: createScenePlaybackClock(),
-      suspended: false,
+      suspended: previous?.suspended ?? false,
+      stageSuspendedApplied: false,
       signalWindowAt: 0,
       signalWindowCount: 0,
       interactionOrigins: previous?.interactionOrigins ?? new Map(),
+      metricsAccounted: false,
+      resourceMetrics,
+      resourceMetricsSource,
     }
   }
 
@@ -161,6 +349,7 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     const payload = message?.payload ?? {}
     const key = payload.lease_key
     const operation = payload.operation ?? {}
+    if (disposed) throw sceneOutletError('SCENE_STAGE_DISPOSED', 'DesktopWorld scene stage is disposed.')
     if (message?.type !== 'desktop_world_stage.scene.operation' || typeof key !== 'string') {
       throw new TypeError('Scene replacement requires a scene operation and lease key.')
     }
@@ -168,7 +357,9 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       throw new TypeError('Only scene mount and transact operations can be prepared.')
     }
     const previous = resources.get(key) ?? null
-    if (!previous && resources.size >= MAX_RESOURCES) throw new RangeError('DesktopWorld scene resource budget exceeded.')
+    if (!previous && resources.size + pendingResourceKeys.size >= MAX_RESOURCES) {
+      throw new RangeError('DesktopWorld scene resource budget exceeded.')
+    }
     let document = operation.document
     if (operation.op === 'transact') {
       if (!previous) throw new TypeError('Scene resource is not mounted.')
@@ -176,8 +367,37 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       if (!result.ok) throw new TypeError(result.code)
       document = result.document
     }
-    const candidate = prepareMounted(key, document, payload, previous)
+    const requestedExtension = operation.op === 'mount'
+      ? (Object.hasOwn(operation, 'extension') ? operation.extension : null)
+      : previous?.extensionReference ?? null
+    if (operation.op === 'transact' && Object.hasOwn(operation, 'extension')) {
+      if (!sameExtensionReference(requestedExtension, previous?.extensionReference ?? null)) {
+        throw new TypeError('Scene projection extensions may change only through a full mount.')
+      }
+    }
+    const candidate = prepareMounted(key, document, payload, previous, requestedExtension)
+    let resourceReservation = null
+    try {
+      // The active projection and candidate coexist until commit. Admission is
+      // against the real transient allocation, not the eventual replacement.
+      resourceReservation = segmentBudget.reserve(candidate)
+      if (!previous) pendingResourceKeys.add(key)
+    } catch (error) {
+      if (!retireMounted(candidate, { preserveInteractionOrigins: true })) {
+        faultSceneSegment('SCENE_EXTENSION_DISPOSE_FAILED', candidate)
+        throw new AggregateError([error], 'Scene replacement admission and cleanup failed.')
+      }
+      throw error
+    }
     let state = 'prepared'
+
+    const releaseReservation = () => {
+      if (resourceReservation !== null) {
+        segmentBudget.releaseReservation(resourceReservation)
+        resourceReservation = null
+      }
+      if (!previous) pendingResourceKeys.delete(key)
+    }
 
     return Object.freeze({
       document: candidate.document,
@@ -188,18 +408,47 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       },
       commit() {
         this.assertCurrent()
+        candidate.projection.activate?.()
+        if (candidate.suspended || stageSuspended) {
+          if (candidate.projection.suspend() === false) {
+            throw sceneOutletError(
+              'SCENE_EXTENSION_SUSPEND_FAILED',
+              'Scene projection rejected its initial suspended state.',
+            )
+          }
+        }
+        candidate.stageSuspendedApplied = stageSuspended
+        const measured = segmentBudget.measure(candidate.projection)
+        candidate.resourceMetrics = measured.metrics
+        candidate.resourceMetricsSource = measured.source
+        segmentBudget.updateReservation(resourceReservation, candidate)
         scene.add(candidate.projection.object)
-        if (previous) disposeMounted(previous, { preserveInteractionOrigins: true })
+        if (previous && !retireMounted(previous, { preserveInteractionOrigins: true })) {
+          const candidateClean = retireMounted(candidate, { preserveInteractionOrigins: true })
+          releaseReservation()
+          state = 'failed_closed'
+          faultSceneSegment('SCENE_EXTENSION_DISPOSE_FAILED', previous)
+          const failure = sceneOutletError('SCENE_EXTENSION_DISPOSE_FAILED', 'Scene replacement cleanup failed.')
+          if (!candidateClean) throw new AggregateError([failure], 'Scene replacement cleanup failed closed.')
+          throw failure
+        }
+        segmentBudget.commit(candidate, previous, resourceReservation)
+        resourceReservation = null
+        if (!previous) pendingResourceKeys.delete(key)
         resources.set(key, candidate)
         state = 'committed'
+        reconcileRenderLoop()
         return true
       },
       rollback() {
         if (state !== 'prepared') return false
-        candidate.animations.dispose()
-        candidate.signals.dispose()
-        candidate.interactionVisuals?.dispose()
-        candidate.projection.dispose()
+        if (!retireMounted(candidate, { preserveInteractionOrigins: true })) {
+          releaseReservation()
+          state = 'rollback_failed'
+          faultSceneSegment('SCENE_EXTENSION_DISPOSE_FAILED', candidate)
+          throw sceneOutletError('SCENE_EXTENSION_DISPOSE_FAILED', 'Scene replacement rollback cleanup failed.')
+        }
+        releaseReservation()
         state = 'rolled_back'
         return true
       },
@@ -209,9 +458,13 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
   const apply = (message) => {
     const payload = message?.payload ?? {}
     const key = payload.lease_key
+    if (disposed) throw sceneOutletError('SCENE_STAGE_DISPOSED', 'DesktopWorld scene stage is disposed.')
     if (message?.type === 'desktop_world_stage.scene.release') return release(key)
     if (message?.type !== 'desktop_world_stage.scene.operation' || typeof key !== 'string') return false
     const operation = payload.operation ?? {}
+    if (stageFault && !['close', 'inspect', 'remove'].includes(operation.op)) {
+      throw sceneOutletError(stageFault.code, 'DesktopWorld scene segment is faulted.')
+    }
     if (operation.op === 'mount') {
       prepareReplacement(message).commit()
     } else if (operation.op === 'transact') {
@@ -225,7 +478,13 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
         mounted.signalWindowCount = 0
       }
       if (++mounted.signalWindowCount > MAX_SIGNALS_PER_SECOND) return true
-      mounted.signals.publish(operation.signalId, operation.value, Number(operation.at) || Date.now())
+      try {
+        mounted.signals.publish(operation.signalId, operation.value, Number(operation.at) || Date.now())
+      } catch (error) {
+        recordResourceFailure(mounted, 'SCENE_EXTENSION_SIGNAL_FAILED')
+        release(key)
+        throw error
+      }
     } else if (operation.op === 'play') {
       const mounted = resources.get(key)
       if (mounted) {
@@ -235,7 +494,7 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
         mounted.interactionState.takeDirty()
         mounted.playGeneration = ++nextPlayGeneration
         mounted.playClock.restart(now)
-        if (!sceneResourceCanRun(mounted.suspended, hidden, contextLost)) {
+        if (!sceneResourceCanRun(mounted.suspended, hidden || stageSuspended, contextLost || Boolean(stageFault))) {
           mounted.playClock.suspend(now)
         }
       }
@@ -246,20 +505,32 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
         const wasSuspended = mounted.suspended
         mounted.suspended = operation.op === 'suspend'
         if (!wasSuspended && mounted.suspended) mounted.playClock.suspend(now)
-        if (wasSuspended && sceneResourceCanRun(mounted.suspended, hidden, contextLost)) {
+        const canRun = sceneResourceCanRun(
+          mounted.suspended,
+          hidden || stageSuspended,
+          contextLost || Boolean(stageFault),
+        )
+        if (wasSuspended && canRun) {
           mounted.playClock.resume(now)
         }
-        mounted.projection[operation.op]()
-        if (
-          operation.op === 'suspend'
-          || sceneResourceCanRun(mounted.suspended, hidden, contextLost)
-        ) {
-          mounted.interactionVisuals?.[operation.op](now)
+        try {
+          if (operation.op === 'suspend' || canRun) mounted.projection[operation.op]()
+          if (
+            operation.op === 'suspend'
+            || canRun
+          ) {
+            mounted.interactionVisuals?.[operation.op](now)
+          }
+        } catch (error) {
+          recordResourceFailure(mounted, `SCENE_EXTENSION_${operation.op.toUpperCase()}_FAILED`)
+          release(key)
+          throw error
         }
       }
     } else if (operation.op === 'remove' || operation.op === 'close') {
       release(key)
     } else if (operation.op !== 'inspect') return false
+    reconcileRenderLoop()
     return true
   }
 
@@ -292,9 +563,9 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     return mounted.interactionVisuals
   }
 
-  const applyInteractionResponse = (key, { frame, interaction, response, topology } = {}) => {
+  const applyInteractionResponseUnsafe = (key, { frame, interaction, response, topology } = {}) => {
     const mounted = resources.get(key)
-    if (!mounted || !response?.kind || !frame?.interactionId) return null
+    if (!mounted || stageSuspended || stageFault || hidden || contextLost || !response?.kind || !frame?.interactionId) return null
     if (response.kind === 'aim_commit') {
       const interactionVisuals = ensureInteractionVisuals(mounted)
       if (frame.phase !== 'end') {
@@ -350,97 +621,213 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     return { ...response, applied: false, revision: mounted.document.revision }
   }
 
+  const applyInteractionResponse = (key, input) => {
+    try {
+      return applyInteractionResponseUnsafe(key, input)
+    } catch (error) {
+      const mounted = resources.get(key)
+      if (mounted) {
+        recordResourceFailure(mounted, 'SCENE_EXTENSION_INTERACTION_FAILED')
+        faultSceneSegment('SCENE_EXTENSION_INTERACTION_FAILED', mounted)
+      }
+      throw error
+    }
+  }
+
+  const scheduleRender = () => {
+    if (
+      frame !== null
+      || disposed
+      || !sceneStageShouldRender(resources, hidden, contextLost, stageSuspended, Boolean(stageFault))
+    ) return false
+    frame = hostWindow.requestAnimationFrame(render)
+    return true
+  }
+
+  const cancelRender = () => {
+    if (frame === null) return false
+    hostWindow.cancelAnimationFrame(frame)
+    frame = null
+    return true
+  }
+
+  const reconcileRenderLoop = () => (
+    sceneStageShouldRender(resources, hidden, contextLost, stageSuspended, Boolean(stageFault))
+      ? scheduleRender()
+      : cancelRender()
+  )
+
   const render = (at) => {
     if (disposed) return
+    frame = null
     const trackPerformance = devtoolsProbe?.isEnabled() === true
     const trackGpu = devtoolsProbe?.isRecording() === true
     const updateStartedAt = trackPerformance ? performance.now() : 0
-    if (!hidden && !contextLost) {
-      for (const mounted of resources.values()) {
-        if (mounted.suspended) continue
-        const elapsed = mounted.playClock.elapsed(at)
-        mounted.animations.tick(elapsed)
-        mounted.projection.tick?.(elapsed)
-        if (mounted.interactionState.takeDirty()) {
-          notifyInteractionGeometry(mounted.key, mounted.playGeneration)
+    try {
+      if (!hidden && !contextLost && !stageSuspended && !stageFault) {
+        for (const mounted of resources.values()) {
+          if (mounted.suspended) continue
+          try {
+            const elapsed = mounted.playClock.elapsed(at)
+            mounted.animations.tick(elapsed)
+            mounted.projection.tick?.(elapsed)
+            segmentBudget.refresh(mounted)
+            if (mounted.interactionState.takeDirty()) {
+              notifyInteractionGeometry(mounted.key, mounted.playGeneration)
+            }
+            mounted.interactionVisuals?.tick(at)
+          } catch (error) {
+            const code = typeof error?.code === 'string' && error.code.startsWith('SCENE_SEGMENT_RESOURCE_')
+              ? error.code
+              : 'SCENE_EXTENSION_TICK_FAILED'
+            recordResourceFailure(mounted, code)
+            faultSceneSegment(code, mounted)
+            break
+          }
         }
-        mounted.interactionVisuals?.tick(at)
+        if (stageFault) return
+        const renderStartedAt = trackPerformance ? performance.now() : 0
+        if (trackGpu && !gpuTimer) gpuTimer = createDesktopWorldGpuTimer(renderer.getContext())
+        if (!trackGpu && gpuTimer) {
+          gpuTimer.dispose()
+          gpuTimer = null
+        }
+        gpuTimer?.begin()
+        renderer.render(scene, camera)
+        const gpuMs = gpuTimer?.end() ?? null
+        if (trackPerformance) {
+          const renderEndedAt = performance.now()
+          const info = renderer.info
+          devtoolsProbe.sampleFrame({
+            backingPixels: renderer.domElement.width * renderer.domElement.height,
+            drawCalls: info.render.calls,
+            frameMs: lastRenderAt === null ? null : Math.max(0, at - lastRenderAt),
+            geometries: info.memory.geometries,
+            gpuMs,
+            programs: info.programs?.length ?? null,
+            renderEndedAt,
+            renderMs: Math.max(0, renderEndedAt - renderStartedAt),
+            textures: info.memory.textures,
+            triangles: info.render.triangles,
+            updateMs: Math.max(0, renderStartedAt - updateStartedAt),
+          })
+          lastRenderAt = at
+        }
+      } else if (lastRenderAt !== null) {
+        lastRenderAt = null
       }
-      const renderStartedAt = trackPerformance ? performance.now() : 0
-      if (trackGpu && !gpuTimer) gpuTimer = createDesktopWorldGpuTimer(renderer.getContext())
-      if (!trackGpu && gpuTimer) {
+      if ((hidden || contextLost) && gpuTimer) {
         gpuTimer.dispose()
         gpuTimer = null
       }
-      gpuTimer?.begin()
-      renderer.render(scene, camera)
-      const gpuMs = gpuTimer?.end() ?? null
-      if (trackPerformance) {
-        const renderEndedAt = performance.now()
-        const info = renderer.info
-        devtoolsProbe.sampleFrame({
-          backingPixels: renderer.domElement.width * renderer.domElement.height,
-          drawCalls: info.render.calls,
-          frameMs: lastRenderAt === null ? null : Math.max(0, at - lastRenderAt),
-          geometries: info.memory.geometries,
-          gpuMs,
-          programs: info.programs?.length ?? null,
-          renderEndedAt,
-          renderMs: Math.max(0, renderEndedAt - renderStartedAt),
-          textures: info.memory.textures,
-          triangles: info.render.triangles,
-          updateMs: Math.max(0, renderStartedAt - updateStartedAt),
-        })
-        lastRenderAt = at
+      if (!trackPerformance && lastRenderAt !== null) lastRenderAt = null
+    } catch {
+      faultSceneSegment('SCENE_RENDER_FAILED')
+    } finally {
+      if (!stageFault) scheduleRender()
+    }
+  }
+
+  const setStageSuspended = (nextSuspended) => {
+    if (disposed) return false
+    if (nextSuspended === stageSuspended) return true
+    if (!nextSuspended && stageFault) return false
+    const now = performance.now()
+    if (nextSuspended) {
+      reconcileSceneStageRunState(
+        resources,
+        { hidden, contextLost, suspended: false, faulted: false },
+        { hidden, contextLost, suspended: true, faulted: false },
+        now,
+      )
+      stageSuspended = true
+    }
+    for (const mounted of resources.values()) {
+      if (mounted.suspended) continue
+      try {
+        const action = nextSuspended ? 'suspend' : 'resume'
+        if (mounted.projection[action]() === false) {
+          throw new Error(`Scene projection rejected stage ${action}.`)
+        }
+        mounted.stageSuspendedApplied = nextSuspended
+      } catch {
+        recordResourceFailure(mounted, `SCENE_EXTENSION_${nextSuspended ? 'SUSPEND' : 'RESUME'}_FAILED`)
+        faultSceneSegment(`SCENE_EXTENSION_${nextSuspended ? 'SUSPEND' : 'RESUME'}_FAILED`, mounted)
+        return false
       }
-    } else if (lastRenderAt !== null) {
-      lastRenderAt = null
     }
-    if ((hidden || contextLost) && gpuTimer) {
-      gpuTimer.dispose()
-      gpuTimer = null
+    if (!nextSuspended) {
+      stageSuspended = false
+      reconcileSceneStageRunState(
+        resources,
+        { hidden, contextLost, suspended: true, faulted: false },
+        { hidden, contextLost, suspended: false, faulted: false },
+        now,
+      )
     }
-    if (!trackPerformance && lastRenderAt !== null) lastRenderAt = null
-    frame = hostWindow.requestAnimationFrame(render)
+    reconcileRenderLoop()
+    return true
+  }
+
+  const releaseAll = () => {
+    const failures = []
+    const keys = new Set([...resources.keys(), ...cleanupFailures.keys()])
+    for (const key of keys) {
+      try { release(key) } catch (error) { failures.push(error) }
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(failures, 'DesktopWorld scene aggregate retirement failed.')
+    }
+    return true
   }
 
   const onVisibility = () => {
     const nextHidden = document.hidden
     reconcileSceneStageRunState(
       resources,
-      { hidden, contextLost },
-      { hidden: nextHidden, contextLost },
+      { hidden, contextLost, suspended: stageSuspended, faulted: Boolean(stageFault) },
+      { hidden: nextHidden, contextLost, suspended: stageSuspended, faulted: Boolean(stageFault) },
     )
     hidden = nextHidden
+    reconcileRenderLoop()
   }
   const onContextLost = (event) => {
     event.preventDefault()
     reconcileSceneStageRunState(
       resources,
-      { hidden, contextLost },
-      { hidden, contextLost: true },
+      { hidden, contextLost, suspended: stageSuspended, faulted: Boolean(stageFault) },
+      { hidden, contextLost: true, suspended: stageSuspended, faulted: Boolean(stageFault) },
     )
     contextLost = true
+    for (const mounted of resources.values()) {
+      try { mounted.projection.contextLost?.() } catch {
+        recordResourceFailure(mounted, 'SCENE_EXTENSION_CONTEXT_LOST_FAILED')
+        faultSceneSegment('SCENE_EXTENSION_CONTEXT_LOST_FAILED', mounted)
+        break
+      }
+    }
     gpuTimer?.dispose()
     gpuTimer = null
     devtoolsProbe?.recordEvent({ kind: 'context.lost', code: 'WEBGL_CONTEXT_LOST' })
+    reconcileRenderLoop()
   }
   const onContextRestored = () => {
     reconcileSceneStageRunState(
       resources,
-      { hidden, contextLost },
-      { hidden, contextLost: false },
+      { hidden, contextLost, suspended: stageSuspended, faulted: Boolean(stageFault) },
+      { hidden, contextLost: false, suspended: stageSuspended, faulted: Boolean(stageFault) },
     )
     contextLost = false
     resize()
     devtoolsProbe?.recordEvent({ kind: 'context.restored' })
+    reconcileRenderLoop()
   }
   hostWindow.addEventListener('resize', resize)
   document.addEventListener('visibilitychange', onVisibility)
   canvas.addEventListener('webglcontextlost', onContextLost)
   canvas.addEventListener('webglcontextrestored', onContextRestored)
   resize()
-  frame = hostWindow.requestAnimationFrame(render)
+  reconcileRenderLoop()
 
   return Object.freeze({
     apply,
@@ -448,7 +835,11 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     prepareReplacement,
     configuration(key) {
       const mounted = resources.get(key)
-      return mounted ? Object.freeze({ document: mounted.document, suspended: mounted.suspended }) : null
+      return mounted ? Object.freeze({
+        document: mounted.document,
+        extension: mounted.extensionReference,
+        suspended: mounted.suspended,
+      }) : null
     },
     document(key) { return resources.get(key)?.document ?? null },
     animationGeneration(key) { return resources.get(key)?.playGeneration ?? null },
@@ -479,7 +870,7 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
             parentId: object.parentId,
             position: mounted.projection.objectPosition(object.id) ?? object.transform.position,
             resourceId: mounted.resource,
-            visible: object.visible !== false && !mounted.suspended,
+            visible: object.visible !== false && !mounted.suspended && !stageSuspended && !stageFault,
           })
         }
         const visualSnapshot = mounted.interactionVisuals?.snapshot()
@@ -502,10 +893,17 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
           },
           animationCount: mounted.animations.snapshot().bindings.length,
           descriptorCount: mounted.document.resources.length,
+          extension: mounted.extensionReference
+            ? {
+              digest: mounted.extensionReference.digest,
+              id: mounted.extensionReference.id,
+              ownerId: mounted.extensionReference.ownerId,
+            }
+            : null,
           id: mounted.resource,
           implementations: [...implementationIds],
           interactionCount: 0,
-          lifecycle: mounted.suspended ? 'suspended' : 'active',
+          lifecycle: stageFault ? 'faulted' : (mounted.suspended || stageSuspended ? 'suspended' : 'active'),
           objectCount: mounted.document.objects.length,
           owner: mounted.owner,
           revision: mounted.document.revision,
@@ -521,39 +919,60 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       lastRenderAt = null
       return true
     },
+    setFaultObserver(observer) {
+      faultObserver = typeof observer === 'function' ? observer : null
+      return true
+    },
     setInteractionGeometryObserver(observer) {
       interactionGeometryObserver = typeof observer === 'function' ? observer : null
       return true
     },
+    releaseAll,
     updateSegment,
+    suspend() { return setStageSuspended(true) },
+    resume() { return setStageSuspended(false) },
     snapshot() {
       return {
         contextLost,
         displayId: segment?.display_id ?? null,
+        faultCode: stageFault?.code ?? null,
+        faulted: stageFault !== null,
         hidden,
         maxResources: MAX_RESOURCES,
+        maxResourceMetrics: { ...DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS },
         projection: 'desktop-world-orthographic',
         renderer: 'three',
+        resourceMetrics: segmentBudget.snapshot(),
         resources: resources.size,
         interactionVisuals: [...resources.values()].filter((entry) => entry.interactionVisuals && !entry.suspended).length,
         backingPixels: renderer.domElement.width * renderer.domElement.height,
+        renderLoopActive: frame !== null,
+        stageSuspended,
       }
     },
     dispose() {
-      if (disposed) return false
+      if (disposed) return disposeResult
       disposed = true
-      hostWindow.cancelAnimationFrame(frame)
+      let clean = true
+      cancelRender()
       hostWindow.removeEventListener('resize', resize)
       document.removeEventListener('visibilitychange', onVisibility)
       canvas.removeEventListener('webglcontextlost', onContextLost)
       canvas.removeEventListener('webglcontextrestored', onContextRestored)
-      for (const key of [...resources.keys()]) release(key)
-      gpuTimer?.dispose()
+      for (const mounted of resources.values()) {
+        segmentBudget.unaccount(mounted)
+        if (!retireMounted(mounted)) clean = false
+      }
+      resources.clear()
+      if (!retryCleanup()) clean = false
+      try { gpuTimer?.dispose() } catch { clean = false }
       gpuTimer = null
       interactionGeometryObserver = null
-      renderer.dispose()
-      renderer.forceContextLoss()
-      return true
+      faultObserver = null
+      try { renderer.dispose() } catch { clean = false }
+      try { renderer.forceContextLoss() } catch { clean = false }
+      disposeResult = clean
+      return disposeResult
     },
   })
 }

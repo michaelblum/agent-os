@@ -2845,6 +2845,45 @@
       "stdio": "inherit"
     },
     {
+      "path": ["scene", "extension", "validate"],
+      "summary": "Validate a trusted DesktopWorld projection extension",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-scene.mjs", "extension", "validate"],
+      "cwd": "repo",
+      "stdio": "inherit",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["scene", "extension", "install"],
+      "summary": "Install a reviewed immutable DesktopWorld projection extension",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-scene.mjs", "extension", "install"],
+      "cwd": "repo",
+      "stdio": "inherit",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["scene", "extension", "list"],
+      "summary": "List installed immutable DesktopWorld projection extensions",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-scene.mjs", "extension", "list"],
+      "cwd": "repo",
+      "stdio": "inherit",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["scene", "list"],
       "summary": "List bounded DesktopWorld scene resources",
       "executable": "/usr/bin/env",

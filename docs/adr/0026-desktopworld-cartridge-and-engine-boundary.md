@@ -1,6 +1,6 @@
 # ADR 0026: DesktopWorld Cartridge And Engine Boundary
 
-- Status: Accepted
+- Status: Partially superseded by ADR 0029
 - Date: 2026-07-18
 
 ## Context
@@ -43,6 +43,10 @@ executable boundary.
 Cartridge resolution produces the existing `aos.scene.document.v1` and its
 bounded animation and interaction descriptors. It does not create a second
 renderer, stage, transport, persistence system, or product policy layer.
+
+ADR 0029 supersedes only the claim that AOS-owned registries are the sole
+executable boundary. Cartridges remain data-only; reviewed consumer projection
+extensions are installed and authorized through a separate trust contract.
 
 The generic gesture lifecycle is independent from its response. Conventional
 translation and aim-and-commit both begin with a drag recognizer; the former

@@ -97,6 +97,7 @@ export function createSceneAnimationRegionTransitionRuntime({
         interactions: previous.interactions,
         animationGeneration: generation,
       })
+      await replacement.activate()
       replacement.commit(() => {})
       committed = true
       const settled = await replacement.settle()
@@ -104,7 +105,7 @@ export function createSceneAnimationRegionTransitionRuntime({
       return true
     } catch (error) {
       try {
-        if (committed) await replacement?.failClosed()
+        if (committed || replacement?.activationAttempted()) await replacement?.failClosed()
         else if (replacement) await replacement.rollback()
         else await releaseEntry(key, 'resource_removed')
       } catch (cleanupError) {

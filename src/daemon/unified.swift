@@ -8,6 +8,11 @@ private let inputSafetyLogCanvasID = "__log__"
 private let inputSafetyLogConsoleURL = "aos://toolkit/components/log-console/index.html"
 private var aosNativeCursorSuppressionSignalActive: Int32 = 0
 
+private struct AOSInputRegionAdmissionFailure: Error {
+    let code: String
+    let message: String
+}
+
 private func aosSetNativeCursorSuppressionSignalActive(_ active: Bool) {
     aosNativeCursorSuppressionSignalActive = active ? 1 : 0
 }
@@ -122,6 +127,8 @@ class UnifiedDaemon {
         }
     )
     private var contentServer: ContentServer?
+    private lazy var sceneExtensionStore = AOSSceneExtensionStore()
+    private lazy var sceneExtensionSchemeHandler = AOSSceneExtensionSchemeHandler(store: sceneExtensionStore)
     let coordination = CoordinationBus()
 
     // Socket server
@@ -130,10 +137,15 @@ class UnifiedDaemon {
     private var subscriberLock = NSLock()
     private var subscribers: [UUID: SubscriberConnection] = [:]
     private let sceneLeases = AOSSceneLeaseRegistry()
+    private let sceneResults = AOSDesktopWorldSceneResultCoordinator()
+    private let sceneStageReadiness = AOSDesktopWorldSceneStageReadiness()
+    private let sceneStageLifecycleLock = NSLock()
+    private var sceneOperationTokens: [String: AOSSceneLeaseToken] = [:]
+    private var sceneStageRetiringIdentity: AOSDesktopWorldSceneStageIdentity?
     private lazy var desktopWorldDevTools = AOSDesktopWorldDevToolsController(
         canvasManager: canvasManager,
         sceneStageCanvasID: sceneStageCanvasID,
-        ensureSceneStage: { [weak self] in self?.ensureSceneStage() ?? false },
+        ensureSceneStage: { [weak self] in self?.ensureSceneStage() != nil },
         hasSceneMonitor: { [weak self] in self?.hasDesktopWorldSceneMonitor() ?? false },
         resolveContentURL: { [weak self] value in self?.resolveContentURL(value) ?? value }
     )
@@ -337,6 +349,9 @@ class UnifiedDaemon {
                         updateOnly: true
                     )
                     return
+                case "input_region.replace_generation":
+                    self.handleInputRegionReplaceGeneration(caller: target, payload: inner ?? [:])
+                    return
                 case "input_region.remove":
                     self.handleInputRegionRemove(callerID: canvasID, payload: inner ?? [:])
                     return
@@ -347,7 +362,7 @@ class UnifiedDaemon {
                     self.handleGateSubmit(callerID: canvasID, payload: inner ?? [:])
                     return
                 case "lifecycle.ready":
-                    self.recordCanvasReadyManifest(canvasID: canvasID, payload: inner)
+                    self.recordCanvasReadyManifest(target: target, payload: inner)
                     return
                 case "position.get":
                     self.handlePositionGet(callerID: canvasID, payload: inner ?? [:])
@@ -356,10 +371,13 @@ class UnifiedDaemon {
                     self.handlePositionSet(callerID: canvasID, payload: inner ?? [:])
                     return
                 case "desktop_world_stage.scene.result":
-                    self.handleSceneStageResult(inner ?? [:])
+                    self.handleSceneStageResult(target: target, payload: inner ?? [:])
+                    return
+                case "desktop_world_stage.scene.fault":
+                    self.handleSceneStageFault(target: target, payload: inner ?? [:])
                     return
                 case "desktop_world_stage.scene.event":
-                    self.handleSceneStageEvent(inner ?? [:])
+                    self.handleSceneStageEvent(target: target, payload: inner ?? [:])
                     return
                 case "desktop_world_stage.devtools.snapshot":
                     if canvasID == self.sceneStageCanvasID {
@@ -425,7 +443,7 @@ class UnifiedDaemon {
                     return
                 default:
                     if type == "ready" {
-                        self.recordCanvasReadyManifest(canvasID: canvasID, payload: inner)
+                        self.recordCanvasReadyManifest(target: target, payload: inner)
                     }
                     break
                 }
@@ -441,6 +459,19 @@ class UnifiedDaemon {
             if action == "removed" {
                 self.removeInputRegionsOwned(by: canvasInfo.id, includeSuspendRetained: true)
                 self.desktopWorldDevTools.detachHost(id: canvasInfo.id)
+                if canvasInfo.id == self.sceneStageCanvasID {
+                    self.sceneStageLifecycleLock.lock()
+                    let identity = self.sceneStageReadiness.currentIdentity()
+                    let alreadyRetiring = identity.map({ self.sceneStageRetiringIdentity == $0 }) ?? false
+                    self.sceneStageLifecycleLock.unlock()
+                    if !alreadyRetiring {
+                        if let identity {
+                            self.invalidateSceneStage(identity: identity, code: "SCENE_STAGE_REMOVED")
+                        } else {
+                            self.invalidateSceneLeaseOwnership(code: "SCENE_STAGE_REMOVED")
+                        }
+                    }
+                }
             } else if canvasInfo.suspended == true {
                 self.removeInputRegionsOwned(by: canvasInfo.id, includeSuspendRetained: false)
             }
@@ -503,6 +534,10 @@ class UnifiedDaemon {
         }
 
         canvasManager.onCanvasSurfaceEvent = { [weak self] event, data in
+            if event == "canvas_topology_settled",
+               data["canvas_id"] as? String == self?.sceneStageCanvasID {
+                self?.handleSceneStageTopologySettled(data)
+            }
             self?.publishCanvasSurfaceEvent(event: event, data: data)
         }
 
@@ -568,6 +603,7 @@ class UnifiedDaemon {
         let schemeHandler = AosSchemeHandler()
         schemeHandler.portProvider = { [weak self] in self?.contentServer?.assignedPort ?? 0 }
         canvasManager.aosSchemeHandler = schemeHandler
+        canvasManager.sceneExtensionSchemeHandler = sceneExtensionSchemeHandler
 
         // Start wiki FSEvents watcher and wire change bus
         WikiChangeBus.shared.daemon = self
@@ -1713,11 +1749,80 @@ class UnifiedDaemon {
         return (parsedFrame, nil, nil)
     }
 
-    private func recordCanvasReadyManifest(canvasID: String, payload: [String: Any]?) {
+    private func recordCanvasReadyManifest(
+        target: CanvasLifecycleGeneration,
+        payload: [String: Any]?
+    ) {
         guard let payload = payload else { return }
+        let canvasID = target.canvasID
+        if canvasID == sceneStageCanvasID {
+            guard let canvasGeneration = (payload["canvas_generation"] as? NSNumber)?.uint64Value,
+                  canvasGeneration == target.value,
+                  let topologyGeneration = (payload["topology_generation"] as? NSNumber)?.uint64Value,
+                  let displayIDValue = (payload["segment_display_id"] as? NSNumber)?.uint64Value,
+                  displayIDValue <= UInt64(UInt32.max),
+                  let segmentIndex = (payload["segment_index"] as? NSNumber)?.intValue,
+                  let topology = canvasManager.desktopWorldSceneBarrierTopology(canvasID: canvasID),
+                  topology.canvasGeneration == canvasGeneration,
+                  topology.generation == topologyGeneration else { return }
+            let identity = sceneStageIdentity(topology)
+            var publicManifest = payload
+            publicManifest.removeValue(forKey: "canvas_generation")
+            publicManifest.removeValue(forKey: "topology_generation")
+            publicManifest.removeValue(forKey: "segment_display_id")
+            publicManifest.removeValue(forKey: "segment_index")
+            sceneStageLifecycleLock.lock()
+            let configured = configureCurrentSceneStageReadinessLocked(topology)
+            let complete = configured && sceneStageReadiness.record(
+                identity: identity,
+                displayID: UInt32(displayIDValue),
+                index: segmentIndex,
+                manifest: publicManifest
+            )
+            sceneStageLifecycleLock.unlock()
+            guard complete else { return }
+            canvasSubscriptionLock.lock()
+            canvasReadyManifests[canvasID] = publicManifest
+            canvasSubscriptionLock.unlock()
+            return
+        }
         canvasSubscriptionLock.lock()
         canvasReadyManifests[canvasID] = payload
         canvasSubscriptionLock.unlock()
+    }
+
+    private func sceneStageIdentity(
+        _ topology: DesktopWorldSceneBarrierTopology
+    ) -> AOSDesktopWorldSceneStageIdentity {
+        AOSDesktopWorldSceneStageIdentity(
+            canvasGeneration: topology.canvasGeneration,
+            topologyGeneration: topology.generation
+        )
+    }
+
+    private func sceneStageSegments(
+        _ topology: DesktopWorldSceneBarrierTopology
+    ) -> [AOSDesktopWorldSceneStageSegment] {
+        topology.segments.map {
+            AOSDesktopWorldSceneStageSegment(displayID: $0.displayID, index: $0.index)
+        }
+    }
+
+    /// Called only while sceneStageLifecycleLock is held. Ordinary readiness
+    /// paths may populate one identity but may never replace it; topology
+    /// settlement is the sole transition owner.
+    private func configureCurrentSceneStageReadinessLocked(
+        _ topology: DesktopWorldSceneBarrierTopology
+    ) -> Bool {
+        let identity = sceneStageIdentity(topology)
+        guard sceneStageRetiringIdentity == nil,
+              sceneStageReadiness.currentIdentity().map({ $0 == identity }) ?? true else {
+            return false
+        }
+        return sceneStageReadiness.configure(
+            identity: identity,
+            segments: sceneStageSegments(topology)
+        )
     }
 
     private func readyManifest(for canvasID: String) -> [String: Any]? {
@@ -2092,59 +2197,19 @@ class UnifiedDaemon {
     ) {
         let callerID = caller.canvasID
         let requestID = payload["request_id"] as? String
-        guard let id = (payload["id"] as? String).flatMap({ $0.isEmpty ? nil : $0 }) else {
+        let region: AOSInputRegionRecord
+        do {
+            region = try admittedInputRegion(caller: caller, payload: payload)
+        } catch let failure as AOSInputRegionAdmissionFailure {
             dispatchCanvasResponse(to: callerID, requestID: requestID,
-                status: "error", code: "MISSING_ID", message: "input_region.register requires id")
+                status: "error", code: failure.code, message: failure.message)
+            return
+        } catch {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "INVALID_INPUT_REGION", message: "input region admission failed")
             return
         }
-        let ownerCanvasID = (payload["owner_canvas_id"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? callerID
-        guard canvasMutationPermitted(callerID: callerID, targetID: ownerCanvasID) else {
-            dispatchCanvasResponse(to: callerID, requestID: requestID,
-                status: "error", code: "FORBIDDEN", message: "caller \(callerID) may not own region \(id) for \(ownerCanvasID)")
-            return
-        }
-        guard let ownerTarget = ownerCanvasID == callerID
-            ? caller
-            : canvasManager.deliveryTarget(forCanvasID: ownerCanvasID) else {
-            dispatchCanvasResponse(to: callerID, requestID: requestID,
-                status: "error", code: "NOT_FOUND", message: "owner canvas \(ownerCanvasID) not found")
-            return
-        }
-        guard let frame = inputRegionFrame(from: payload) else {
-            dispatchCanvasResponse(to: callerID, requestID: requestID,
-                status: "error", code: "INVALID_FRAME", message: "input region frame must be [x,y,w,h]")
-            return
-        }
-
-        let coordinateSpace = normalizedInputRegionCoordinateSpace(payload["coordinate_space"] as? String)
-        guard let nativeFrame = nativeInputRegionFrame(frame, coordinateSpace: coordinateSpace) else {
-            dispatchCanvasResponse(to: callerID, requestID: requestID,
-                status: "error", code: "INVALID_COORDINATE_SPACE", message: "coordinate_space must be native or desktop_world")
-            return
-        }
-        let metadata = (payload["metadata"] as? [String: Any])?.compactMapValues { value -> String? in
-            if let string = value as? String { return string }
-            if let number = value as? NSNumber { return number.stringValue }
-            if let bool = value as? Bool { return bool ? "true" : "false" }
-            return nil
-        } ?? [:]
-        let priority = (payload["priority"] as? NSNumber)?.intValue ?? 0
-        let consumePolicy = normalizedInputRegionConsumePolicy(payload["consume_policy"] as? String)
-        let semanticLabel = payload["semantic_label"] as? String ?? payload["label"] as? String ?? id
-        let removeOnOwnerSuspend = (payload["remove_on_owner_suspend"] as? Bool) ?? true
-        let enabled = (payload["enabled"] as? Bool) ?? true
-        let region = AOSInputRegionRecord(
-            id: id,
-            ownerCanvasGeneration: ownerTarget,
-            nativeFrame: nativeFrame,
-            coordinateSpace: coordinateSpace,
-            semanticLabel: semanticLabel,
-            priority: priority,
-            consumePolicy: consumePolicy,
-            metadata: metadata,
-            removeOnOwnerSuspend: removeOnOwnerSuspend,
-            enabled: enabled
-        )
+        let id = region.id
 
         inputRegionLock.lock()
         let existed = inputRegions.snapshot().contains { $0.id == id }
@@ -2162,6 +2227,140 @@ class UnifiedDaemon {
         let action = existed ? "updated" : "registered"
         publishInputRegionStateEvent(action: action, region: region)
         dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok", extra: ["region": inputRegionPayload(region)])
+    }
+
+    private func admittedInputRegion(
+        caller: CanvasLifecycleGeneration,
+        payload: [String: Any],
+        requireCallerOwnership: Bool = false
+    ) throws -> AOSInputRegionRecord {
+        let callerID = caller.canvasID
+        guard let id = (payload["id"] as? String).flatMap({
+            $0.isEmpty || $0.utf8.count > 512 ? nil : $0
+        }) else {
+            throw AOSInputRegionAdmissionFailure(code: "MISSING_ID", message: "input region requires a bounded id")
+        }
+        let ownerCanvasID = (payload["owner_canvas_id"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? callerID
+        guard !requireCallerOwnership || ownerCanvasID == callerID else {
+            throw AOSInputRegionAdmissionFailure(code: "FORBIDDEN", message: "atomic input region replacement requires caller ownership")
+        }
+        guard canvasMutationPermitted(callerID: callerID, targetID: ownerCanvasID) else {
+            throw AOSInputRegionAdmissionFailure(code: "FORBIDDEN", message: "caller may not own the input region")
+        }
+        guard let ownerTarget = ownerCanvasID == callerID
+            ? caller
+            : canvasManager.deliveryTarget(forCanvasID: ownerCanvasID) else {
+            throw AOSInputRegionAdmissionFailure(code: "NOT_FOUND", message: "input region owner canvas was not found")
+        }
+        guard let frame = inputRegionFrame(from: payload),
+              frame.origin.x.isFinite,
+              frame.origin.y.isFinite else {
+            throw AOSInputRegionAdmissionFailure(code: "INVALID_FRAME", message: "input region frame must be finite [x,y,w,h]")
+        }
+        let coordinateSpace = normalizedInputRegionCoordinateSpace(payload["coordinate_space"] as? String)
+        guard let nativeFrame = nativeInputRegionFrame(frame, coordinateSpace: coordinateSpace),
+              nativeFrame.origin.x.isFinite,
+              nativeFrame.origin.y.isFinite,
+              nativeFrame.width.isFinite,
+              nativeFrame.height.isFinite else {
+            throw AOSInputRegionAdmissionFailure(code: "INVALID_COORDINATE_SPACE", message: "input region coordinate space is invalid")
+        }
+        let rawMetadata = payload["metadata"] as? [String: Any] ?? [:]
+        guard rawMetadata.count <= 16 else {
+            throw AOSInputRegionAdmissionFailure(code: "INVALID_METADATA", message: "input region metadata exceeds its entry limit")
+        }
+        var metadata: [String: String] = [:]
+        for (key, value) in rawMetadata {
+            guard !key.isEmpty, key.utf8.count <= 128 else {
+                throw AOSInputRegionAdmissionFailure(code: "INVALID_METADATA", message: "input region metadata key is invalid")
+            }
+            let encoded: String?
+            if let string = value as? String { encoded = string }
+            else if let bool = value as? Bool { encoded = bool ? "true" : "false" }
+            else if let number = value as? NSNumber { encoded = number.stringValue }
+            else { encoded = nil }
+            guard let encoded, encoded.utf8.count <= 256 else {
+                throw AOSInputRegionAdmissionFailure(code: "INVALID_METADATA", message: "input region metadata value is invalid")
+            }
+            metadata[key] = encoded
+        }
+        let priority = (payload["priority"] as? NSNumber)?.intValue ?? 0
+        guard (-10_000...10_000).contains(priority) else {
+            throw AOSInputRegionAdmissionFailure(code: "INVALID_PRIORITY", message: "input region priority is out of range")
+        }
+        let semanticLabel = payload["semantic_label"] as? String ?? payload["label"] as? String ?? id
+        guard !semanticLabel.isEmpty, semanticLabel.utf8.count <= 256 else {
+            throw AOSInputRegionAdmissionFailure(code: "INVALID_LABEL", message: "input region label is invalid")
+        }
+        return AOSInputRegionRecord(
+            id: id,
+            ownerCanvasGeneration: ownerTarget,
+            nativeFrame: nativeFrame,
+            coordinateSpace: coordinateSpace,
+            semanticLabel: semanticLabel,
+            priority: priority,
+            consumePolicy: normalizedInputRegionConsumePolicy(payload["consume_policy"] as? String),
+            metadata: metadata,
+            removeOnOwnerSuspend: (payload["remove_on_owner_suspend"] as? Bool) ?? true,
+            enabled: (payload["enabled"] as? Bool) ?? true
+        )
+    }
+
+    private func handleInputRegionReplaceGeneration(
+        caller: CanvasLifecycleGeneration,
+        payload: [String: Any]
+    ) {
+        let callerID = caller.canvasID
+        let requestID = payload["request_id"] as? String
+        guard let activationPayloads = payload["activate"] as? [[String: Any]],
+              let retiredIDs = payload["retire"] as? [String],
+              !activationPayloads.isEmpty || !retiredIDs.isEmpty,
+              activationPayloads.count <= 128,
+              retiredIDs.count <= 128,
+              activationPayloads.count + retiredIDs.count <= 256,
+              retiredIDs.allSatisfy({ !$0.isEmpty && $0.utf8.count <= 512 }) else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "INVALID_INPUT_REGION_GENERATION", message: "input region generation payload is invalid")
+            return
+        }
+        let candidates: [AOSInputRegionRecord]
+        do {
+            candidates = try activationPayloads.map {
+                try admittedInputRegion(caller: caller, payload: $0, requireCallerOwnership: true)
+            }
+        } catch let failure as AOSInputRegionAdmissionFailure {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: failure.code, message: failure.message)
+            return
+        } catch {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "INVALID_INPUT_REGION_GENERATION", message: "input region generation admission failed")
+            return
+        }
+
+        inputRegionLock.lock()
+        let replacement = inputRegions.replaceGeneration(
+            activate: candidates,
+            retire: retiredIDs,
+            owner: caller
+        )
+        let cursorSuppressionActive = inputRegions.nativeCursorSuppressionActive()
+        inputRegionLock.unlock()
+        guard let replacement else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "INPUT_REGION_GENERATION_CONFLICT", message: "input region generation could not be replaced atomically")
+            return
+        }
+        reconcileNativeCursorSuppression(active: cursorSuppressionActive)
+        if !replacement.idempotent {
+            for region in replacement.retired { publishInputRegionStateEvent(action: "removed", region: region) }
+            for region in replacement.activated { publishInputRegionStateEvent(action: "updated", region: region) }
+        }
+        dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok", extra: [
+            "activated": replacement.activated.count,
+            "idempotent": replacement.idempotent,
+            "retired": replacement.retired.count,
+        ])
     }
 
     private func handleInputRegionRemove(callerID: String, payload: [String: Any]) {
@@ -2715,19 +2914,98 @@ class UnifiedDaemon {
     }
 
     private func cleanupSceneLeases(_ connectionID: UUID) {
-        for key in sceneLeases.releaseAll(connectionID: connectionID) {
-            canvasManager.postMessageToCurrentCanvasAsync(canvasID: sceneStageCanvasID, payload: [
-                "type": "desktop_world_stage.scene.release",
-                "payload": ["lease_key": key, "reason": "owner_disconnected"],
-            ])
+        let topology = canvasManager.desktopWorldSceneBarrierTopology(canvasID: sceneStageCanvasID)
+        var barrierActions: [AOSDesktopWorldSceneBarrierAction] = []
+        var retirementIdentity: AOSDesktopWorldSceneStageIdentity?
+        var invalidateWithoutStage = false
+        sceneStageLifecycleLock.lock()
+        let tokens = sceneLeases.beginDisconnect(connectionID: connectionID)
+        for token in tokens {
+            let key = token.key
+            let actions = sceneResults.ownerDisconnected(leaseKey: key)
+            if !actions.isEmpty || sceneResults.hasPending(leaseKey: key) {
+                barrierActions.append(contentsOf: actions)
+                continue
+            }
+            guard let parts = sceneLeaseIdentity(from: key) else {
+                invalidateWithoutStage = true
+                break
+            }
+            guard let topology else {
+                if let currentIdentity = sceneStageReadiness.currentIdentity() {
+                    retirementIdentity = currentIdentity
+                } else {
+                    invalidateWithoutStage = true
+                }
+                break
+            }
+            let identity = sceneStageIdentity(topology)
+            guard sceneStageReadiness.isReady(for: identity) else {
+                retirementIdentity = sceneStageReadiness.currentIdentity() ?? identity
+                break
+            }
+            let operationID = UUID().uuidString.lowercased()
+            guard let action = sceneResults.begin(
+                operationID: operationID,
+                leaseKey: key,
+                owner: parts.owner,
+                operation: "close",
+                operationPayload: ["op": "close"],
+                resource: parts.resource,
+                canvasGeneration: topology.canvasGeneration,
+                topologyGeneration: topology.generation,
+                segments: topology.segments.map { (displayID: $0.displayID, index: $0.index) }
+            ), sceneLeases.beginOperation(token, allowingClosing: true) else {
+                _ = sceneResults.cancel(operationID: operationID)
+                retirementIdentity = identity
+                break
+            }
+            sceneOperationTokens[operationID] = token
+            barrierActions.append(action)
         }
+        sceneStageLifecycleLock.unlock()
+
+        if invalidateWithoutStage {
+            invalidateSceneLeaseOwnership(code: "SCENE_OWNER_DISCONNECTED")
+            return
+        }
+        if let retirementIdentity {
+            invalidateSceneStage(identity: retirementIdentity, code: "SCENE_OWNER_DISCONNECTED")
+            return
+        }
+        dispatchSceneBarrierActions(barrierActions)
     }
 
-    private func handleSceneStageResult(_ payload: [String: Any]) {
+    private func completeSceneStageResult(
+        _ completion: AOSDesktopWorldSceneResultCompletion,
+        operationID: String
+    ) {
+        let payload = completion.payload
         guard let key = payload["lease_key"] as? String else { return }
-        guard let route = sceneLeases.routeResult(key: key) else { return }
+        let releaseLease = payload["operation"] as? String == "close"
+            || payload["release_lease"] as? Bool == true
+        sceneStageLifecycleLock.lock()
+        guard let token = sceneOperationTokens.removeValue(forKey: operationID),
+              token.key == key else {
+            sceneStageLifecycleLock.unlock()
+            return
+        }
+        let route = sceneLeases.completeOperation(
+            token,
+            releaseLease: releaseLease
+        )
+        sceneStageLifecycleLock.unlock()
+        guard let route else { return }
+        deliverSceneStageResult(payload, route: route)
+    }
+
+    private func deliverSceneStageResult(
+        _ payload: [String: Any],
+        route: AOSSceneLeaseRoute
+    ) {
         var eventData = payload
         eventData.removeValue(forKey: "lease_key")
+        eventData.removeValue(forKey: "release_lease")
         guard let bytes = envelopeBytes(
                 service: "scene",
                 event: "result",
@@ -2740,27 +3018,326 @@ class UnifiedDaemon {
         writer?.enqueue(bytes)
     }
 
-    private func handleSceneStageEvent(_ payload: [String: Any]) {
+    private func sceneResource(from leaseKey: String) -> String {
+        leaseKey.split(separator: "::", maxSplits: 1, omittingEmptySubsequences: false).last.map(String.init) ?? leaseKey
+    }
+
+    private func sceneLeaseIdentity(from leaseKey: String) -> (owner: String, resource: String)? {
+        let parts = leaseKey.split(separator: "::", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else { return nil }
+        return (String(parts[0]), String(parts[1]))
+    }
+
+    private func invalidateSceneLeaseOwnership(code: String) {
+        sceneStageLifecycleLock.lock()
+        let invalidated = sceneLeases.invalidateAll()
+        sceneResults.cancelAll()
+        sceneOperationTokens.removeAll(keepingCapacity: false)
+        sceneStageLifecycleLock.unlock()
+        for invalidation in invalidated {
+            deliverSceneStageResult([
+                "lease_key": invalidation.key,
+                "operation": "release",
+                "resource": sceneResource(from: invalidation.key),
+                "status": "error",
+                "code": code,
+            ], route: invalidation.route)
+        }
+    }
+
+    private func invalidateSceneStage(
+        identity: AOSDesktopWorldSceneStageIdentity,
+        code: String,
+        primaryCompletion: AOSDesktopWorldSceneResultCompletion? = nil,
+        primaryOperationID: String? = nil
+    ) {
+        sceneStageLifecycleLock.lock()
+        guard sceneStageReadiness.invalidateIfCurrent(identity) else {
+            sceneStageLifecycleLock.unlock()
+            if let primaryCompletion, let primaryOperationID {
+                completeSceneStageResult(primaryCompletion, operationID: primaryOperationID)
+            }
+            return
+        }
+        let invalidated = sceneLeases.invalidateAll()
+        sceneResults.cancelAll()
+        sceneOperationTokens.removeAll(keepingCapacity: false)
+        sceneStageRetiringIdentity = identity
+        sceneStageLifecycleLock.unlock()
+
+        finishSceneStageInvalidation(
+            identity: identity,
+            code: code,
+            invalidated: invalidated,
+            primaryCompletion: primaryCompletion
+        )
+    }
+
+    private func finishSceneStageInvalidation(
+        identity: AOSDesktopWorldSceneStageIdentity,
+        code: String,
+        invalidated: [AOSSceneLeaseInvalidation],
+        primaryCompletion: AOSDesktopWorldSceneResultCompletion? = nil
+    ) {
+        canvasSubscriptionLock.lock()
+        canvasReadyManifests.removeValue(forKey: sceneStageCanvasID)
+        canvasSubscriptionLock.unlock()
+        canvasManager.retireDesktopWorldSceneStageAsync(
+            canvasID: sceneStageCanvasID,
+            canvasGeneration: identity.canvasGeneration,
+            topologyGeneration: identity.topologyGeneration
+        ) { [weak self] retired in
+            guard retired, let self else { return }
+            self.sceneStageLifecycleLock.lock()
+            if self.sceneStageRetiringIdentity == identity {
+                self.sceneStageReadiness.clear()
+                self.sceneStageRetiringIdentity = nil
+            }
+            self.sceneStageLifecycleLock.unlock()
+        }
+
+        let primaryKey = primaryCompletion?.payload["lease_key"] as? String
+        for invalidation in invalidated {
+            let payload: [String: Any]
+            if invalidation.key == primaryKey, let primaryCompletion {
+                payload = primaryCompletion.payload
+            } else {
+                payload = [
+                    "lease_key": invalidation.key,
+                    "operation": "release",
+                    "resource": sceneResource(from: invalidation.key),
+                    "status": "error",
+                    "code": code,
+                ]
+            }
+            deliverSceneStageResult(payload, route: invalidation.route)
+        }
+    }
+
+    private func handleSceneStageTopologySettled(_ payload: [String: Any]) {
+        guard let canvasGeneration = (payload["canvas_generation"] as? NSNumber)?.uint64Value,
+              canvasGeneration > 0,
+              let topologyGeneration = (payload["topology_generation"] as? NSNumber)?.uint64Value,
+              let topology = canvasManager.desktopWorldSceneBarrierTopology(canvasID: sceneStageCanvasID),
+              topology.canvasGeneration == canvasGeneration,
+              topology.generation == topologyGeneration else { return }
+        let identity = sceneStageIdentity(topology)
+        var invalidated: [AOSSceneLeaseInvalidation] = []
+        var shouldRetire = false
+        sceneStageLifecycleLock.lock()
+        let lockedPrevious = sceneStageReadiness.currentIdentity()
+        guard sceneStageReadiness.configure(
+            identity: identity,
+            segments: sceneStageSegments(topology)
+        ) else {
+            sceneStageLifecycleLock.unlock()
+            return
+        }
+        if let lockedPrevious, lockedPrevious != identity {
+            guard sceneStageReadiness.invalidateIfCurrent(identity) else {
+                sceneStageLifecycleLock.unlock()
+                return
+            }
+            invalidated = sceneLeases.invalidateAll()
+            sceneResults.cancelAll()
+            sceneOperationTokens.removeAll(keepingCapacity: false)
+            sceneStageRetiringIdentity = identity
+            shouldRetire = true
+        }
+        sceneStageLifecycleLock.unlock()
+        guard shouldRetire else { return }
+        finishSceneStageInvalidation(
+            identity: identity,
+            code: "SCENE_TOPOLOGY_CHANGED",
+            invalidated: invalidated
+        )
+    }
+
+    private func dispatchSceneBarrierActions(
+        _ actions: [AOSDesktopWorldSceneBarrierAction],
+        operationID: String? = nil
+    ) {
+        for action in actions {
+            switch action {
+            case .broadcast(let broadcast):
+                let message: [String: Any] = [
+                    "type": "desktop_world_stage.scene.operation",
+                    "payload": [
+                        "lease_key": broadcast.leaseKey,
+                        "operation_id": broadcast.operationID,
+                        "barrier_phase": broadcast.phase.rawValue,
+                        "owner": broadcast.owner,
+                        "resource": broadcast.resource,
+                        "operation": broadcast.operation,
+                    ],
+                ]
+                guard postSceneBarrierBroadcast(broadcast, message: message) else {
+                    let expired = sceneResults.expire(
+                        operationID: broadcast.operationID,
+                        phase: broadcast.phase,
+                        topologyGeneration: nil
+                    )
+                    dispatchSceneBarrierActions(expired, operationID: broadcast.operationID)
+                    continue
+                }
+                DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 3.0) { [weak self] in
+                    guard let self else { return }
+                    let current = self.canvasManager.desktopWorldSceneBarrierTopology(canvasID: self.sceneStageCanvasID)
+                    let currentGeneration = current?.canvasGeneration == broadcast.canvasGeneration
+                        ? current?.generation
+                        : nil
+                    let expired = self.sceneResults.expire(
+                        operationID: broadcast.operationID,
+                        phase: broadcast.phase,
+                        topologyGeneration: currentGeneration
+                    )
+                    self.dispatchSceneBarrierActions(expired, operationID: broadcast.operationID)
+                }
+            case .complete(let completion):
+                guard let operationID else { continue }
+                completeSceneStageResult(completion, operationID: operationID)
+            case .retire(let retirement):
+                invalidateSceneStage(
+                    identity: AOSDesktopWorldSceneStageIdentity(
+                        canvasGeneration: retirement.canvasGeneration,
+                        topologyGeneration: retirement.topologyGeneration
+                    ),
+                    code: retirement.completion.payload["code"] as? String ?? "SCENE_STAGE_RETIRED",
+                    primaryCompletion: retirement.completion,
+                    primaryOperationID: operationID
+                )
+            }
+        }
+    }
+
+    private func postSceneBarrierBroadcast(
+        _ broadcast: AOSDesktopWorldSceneBarrierBroadcast,
+        message: [String: Any]
+    ) -> Bool {
+        var delivered = false
+        let post = { [weak self] in
+            guard let self else { return }
+            let identity = AOSDesktopWorldSceneStageIdentity(
+                canvasGeneration: broadcast.canvasGeneration,
+                topologyGeneration: broadcast.topologyGeneration
+            )
+            self.sceneStageLifecycleLock.lock()
+            defer { self.sceneStageLifecycleLock.unlock() }
+            guard self.sceneStageRetiringIdentity != identity,
+                  self.sceneStageReadiness.isReady(for: identity),
+                  self.sceneOperationTokens[broadcast.operationID]?.key == broadcast.leaseKey,
+                  let topology = self.canvasManager.desktopWorldSceneBarrierTopology(
+                    canvasID: self.sceneStageCanvasID
+                  ),
+                  topology.canvasGeneration == broadcast.canvasGeneration,
+                  topology.generation == broadcast.topologyGeneration else { return }
+            delivered = self.canvasManager.postMessageToDesktopWorldSceneStage(
+                topology,
+                canvasID: self.sceneStageCanvasID,
+                payload: message
+            )
+        }
+        if Thread.isMainThread {
+            post()
+        } else {
+            DispatchQueue.main.sync(execute: post)
+        }
+        return delivered
+    }
+
+    private func authenticatedSceneStageTopology(
+        target: CanvasLifecycleGeneration,
+        payload: [String: Any]
+    ) -> DesktopWorldSceneBarrierTopology? {
+        guard target.canvasID == sceneStageCanvasID,
+              let canvasGeneration = (payload["canvas_generation"] as? NSNumber)?.uint64Value,
+              canvasGeneration == target.value,
+              let topologyGeneration = (payload["topology_generation"] as? NSNumber)?.uint64Value,
+              let displayIDValue = (payload["segment_display_id"] as? NSNumber)?.uint64Value,
+              displayIDValue <= UInt64(UInt32.max),
+              let segmentIndex = (payload["segment_index"] as? NSNumber)?.intValue,
+              let topology = canvasManager.desktopWorldSceneBarrierTopology(canvasID: sceneStageCanvasID),
+              topology.canvasGeneration == canvasGeneration,
+              topology.generation == topologyGeneration,
+              topology.segments.contains(where: {
+                  $0.displayID == UInt32(displayIDValue) && $0.index == segmentIndex
+              }) else { return nil }
+        return topology
+    }
+
+    private func handleSceneStageResult(
+        target: CanvasLifecycleGeneration,
+        payload: [String: Any]
+    ) {
+        guard let topology = authenticatedSceneStageTopology(target: target, payload: payload) else { return }
+        let identity = sceneStageIdentity(topology)
+        sceneStageLifecycleLock.lock()
+        let actions = sceneStageReadiness.isCurrent(identity) ? sceneResults.accept(payload) : []
+        sceneStageLifecycleLock.unlock()
+        guard let operationID = payload["operation_id"] as? String else { return }
+        dispatchSceneBarrierActions(actions, operationID: operationID)
+    }
+
+    private func handleSceneStageFault(
+        target: CanvasLifecycleGeneration,
+        payload: [String: Any]
+    ) {
+        guard let topology = authenticatedSceneStageTopology(target: target, payload: payload) else { return }
+        let code = canonicalSceneStageFailureCode(
+            payload["code"],
+            fallback: "SCENE_SEGMENT_FAILED"
+        )
+        invalidateSceneStage(
+            identity: sceneStageIdentity(topology),
+            code: code
+        )
+    }
+
+    private func handleSceneStageEvent(
+        target: CanvasLifecycleGeneration,
+        payload: [String: Any]
+    ) {
+        guard let topology = authenticatedSceneStageTopology(target: target, payload: payload) else { return }
         guard let key = payload["lease_key"] as? String,
               let eventType = payload["event_type"] as? String,
               let event = payload["event"] as? [String: Any] else { return }
         guard let canonicalEvent = aosCanonicalSceneEvent(event),
-              let route = sceneLeases.routeEvent(key: key, event: eventType),
               eventType == "gesture",
               canonicalEvent["type"] as? String == eventType,
               let ownerID = canonicalEvent["ownerId"] as? String,
               let resourceID = canonicalEvent["resourceId"] as? String,
-              sceneLeaseKey(owner: ownerID, resource: resourceID) == key,
+              sceneLeaseKey(owner: ownerID, resource: resourceID) == key else { return }
+        let identity = sceneStageIdentity(topology)
+        sceneStageLifecycleLock.lock()
+        guard sceneStageRetiringIdentity != identity,
+              sceneStageReadiness.isReady(for: identity),
+              let route = sceneLeases.routeEvent(key: key, event: eventType),
               let bytes = envelopeBytes(
-                service: "scene",
-                event: eventType,
-                data: canonicalEvent,
-                ref: route.ref
-              ) else { return }
+                  service: "scene",
+                  event: eventType,
+                  data: canonicalEvent,
+                  ref: route.ref
+              ) else {
+            sceneStageLifecycleLock.unlock()
+            return
+        }
         subscriberLock.lock()
         let writer = subscribers[route.connectionID]?.outbound
         subscriberLock.unlock()
         writer?.enqueue(bytes)
+        sceneStageLifecycleLock.unlock()
+    }
+
+    private func canonicalSceneStageFailureCode(_ value: Any?, fallback: String) -> String {
+        guard let code = value as? String,
+              code.count >= 2,
+              code.count <= 64,
+              code.unicodeScalars.allSatisfy({ scalar in
+                  (scalar.value >= 65 && scalar.value <= 90)
+                      || (scalar.value >= 48 && scalar.value <= 57)
+                      || scalar == "_"
+              }) else { return fallback }
+        return code
     }
 
     private func hasDesktopWorldSceneMonitor() -> Bool {
@@ -2855,50 +3432,67 @@ class UnifiedDaemon {
         )
     }
 
-    private func ensureSceneStage() -> Bool {
+    private func ensureSceneStage() -> DesktopWorldSceneBarrierTopology? {
         let semaphore = DispatchSemaphore(value: 0)
-        var available = false
+        var topology: DesktopWorldSceneBarrierTopology?
         DispatchQueue.main.async { [weak self] in
             guard let self else { semaphore.signal(); return }
-            if self.canvasManager.hasCanvas(self.sceneStageCanvasID) {
-                available = true
-                semaphore.signal()
-                return
+            if !self.canvasManager.hasCanvas(self.sceneStageCanvasID) {
+                var request = CanvasRequest(action: "create", id: self.sceneStageCanvasID)
+                request.url = self.resolveContentURL("aos://toolkit/components/desktop-world-stage/index.html")
+                request.surface = "desktop-world"
+                request.interactive = false
+                request.scope = "global"
+                request.cascade = false
+                // DesktopWorld windows span every display. Keep them hidden until
+                // every segment reports the toolkit manifest.
+                request.suspended = true
+                guard self.canvasManager.handle(request).status == "success" else {
+                    semaphore.signal()
+                    return
+                }
             }
-            var request = CanvasRequest(action: "create", id: self.sceneStageCanvasID)
-            request.url = self.resolveContentURL("aos://toolkit/components/desktop-world-stage/index.html")
-            request.surface = "desktop-world"
-            request.interactive = false
-            request.scope = "global"
-            request.cascade = false
-            // DesktopWorld windows span every display. Keep them hidden until
-            // the toolkit manifest follows transparent renderer initialization.
-            request.suspended = true
-            available = self.canvasManager.handle(request).status == "success"
+            topology = self.canvasManager.desktopWorldSceneBarrierTopology(canvasID: self.sceneStageCanvasID)
             semaphore.signal()
         }
         semaphore.wait()
-        guard available else { return false }
+        guard let topology else { return nil }
+        let identity = sceneStageIdentity(topology)
+        sceneStageLifecycleLock.lock()
+        let configured = configureCurrentSceneStageReadinessLocked(topology)
+        sceneStageLifecycleLock.unlock()
+        guard configured else { return nil }
         let deadline = Date().addingTimeInterval(5)
         while Date() < deadline {
-            if let manifest = readyManifest(for: sceneStageCanvasID),
-               manifest["name"] as? String == "desktop-world-stage" {
+            guard let current = canvasManager.desktopWorldSceneBarrierTopology(canvasID: sceneStageCanvasID),
+                  current.canvasGeneration == topology.canvasGeneration,
+                  current.generation == topology.generation,
+                  current.segments == topology.segments else { return nil }
+            sceneStageLifecycleLock.lock()
+            let ready = sceneStageReadiness.isReady(for: identity)
+            sceneStageLifecycleLock.unlock()
+            if ready {
                 let resumeSemaphore = DispatchSemaphore(value: 0)
                 var resumed = false
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { resumeSemaphore.signal(); return }
-                    resumed = self.canvasManager.handle(CanvasRequest(
-                        action: "resume",
-                        id: self.sceneStageCanvasID
-                    )).status == "success"
+                    if let candidate = self.canvasManager.desktopWorldSceneBarrierTopology(canvasID: self.sceneStageCanvasID),
+                       candidate.canvasGeneration == topology.canvasGeneration,
+                       candidate.generation == topology.generation,
+                       candidate.segments == topology.segments {
+                        resumed = self.canvasManager.handle(CanvasRequest(
+                            action: "resume",
+                            id: self.sceneStageCanvasID
+                        )).status == "success"
+                    }
                     resumeSemaphore.signal()
                 }
                 resumeSemaphore.wait()
-                return resumed
+                return resumed ? topology : nil
             }
             usleep(20_000)
         }
-        return false
+        return nil
     }
 
     private func handleSceneFollow(
@@ -2926,6 +3520,19 @@ class UnifiedDaemon {
             sendResponseJSON(to: outbound, ["error": "Unsupported scene operation", "code": "INVALID_SCENE_OPERATION"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }
+        let acceptedOperation: [String: Any]
+        do {
+            acceptedOperation = try sceneExtensionStore.admitSceneOperation(
+                operation,
+                expectedOwnerID: owner
+            )
+        } catch let failure as AOSSceneExtensionStoreFailure {
+            sendResponseJSON(to: outbound, ["error": "Scene extension is unavailable", "code": failure.code], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            return
+        } catch {
+            sendResponseJSON(to: outbound, ["error": "Scene extension is unavailable", "code": "SCENE_EXTENSION_STORE_INVALID"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            return
+        }
         let supportedSceneEvents = Set(["gesture"])
         let requestedSceneEvents = operation["events"] as? [String] ?? []
         if op == "subscribe" || op == "unsubscribe" {
@@ -2938,24 +3545,36 @@ class UnifiedDaemon {
             }
         }
         let key = sceneLeaseKey(owner: owner, resource: resource)
-        let acquisition = sceneLeases.acquire(
-            key: key,
-            connectionID: connectionID,
-            ref: envelopeRef
-        )
-        guard case .acquired(let isNewLease) = acquisition else {
-            sendResponseJSON(to: outbound, ["error": "Scene resource already has an active lease", "code": "SCENE_LEASE_BUSY"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            return
-        }
         if op == "subscribe" || op == "unsubscribe" {
-            let requested = Set(requestedSceneEvents)
-            let events = sceneLeases.updateSubscriptions(
+            sceneStageLifecycleLock.lock()
+            guard sceneStageRetiringIdentity == nil else {
+                sceneStageLifecycleLock.unlock()
+                sendResponseJSON(to: outbound, ["error": "DesktopWorld scene stage is retiring", "code": "SCENE_STAGE_UNAVAILABLE"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                return
+            }
+            let acquisition = sceneLeases.acquire(
                 key: key,
                 connectionID: connectionID,
+                ref: envelopeRef
+            )
+            guard case .acquired(let token, let isNewLease) = acquisition else {
+                sceneStageLifecycleLock.unlock()
+                sendResponseJSON(to: outbound, ["error": "Scene resource already has an active lease", "code": "SCENE_LEASE_BUSY"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                return
+            }
+            let requested = Set(requestedSceneEvents)
+            let events = sceneLeases.updateSubscriptions(
+                token: token,
                 adding: op == "subscribe" ? requested : [],
                 removing: op == "unsubscribe" ? requested : [],
                 removeAll: op == "unsubscribe" && requested.isEmpty
-            ) ?? []
+            )
+            if events == nil, isNewLease { _ = sceneLeases.release(token) }
+            sceneStageLifecycleLock.unlock()
+            guard let events else {
+                sendResponseJSON(to: outbound, ["error": "Scene lease changed during subscription", "code": "SCENE_LEASE_BUSY"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                return
+            }
             sendResponseJSON(to: outbound, [
                 "status": "ok",
                 "operation": op,
@@ -2964,23 +3583,64 @@ class UnifiedDaemon {
             ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }
-        guard ensureSceneStage() else {
-            if isNewLease { _ = sceneLeases.release(key: key, connectionID: connectionID) }
+        guard let topology = ensureSceneStage() else {
             sendResponseJSON(to: outbound, ["error": "DesktopWorld scene stage is unavailable", "code": "SCENE_STAGE_UNAVAILABLE"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }
-        canvasManager.postMessageToCurrentCanvasAsync(canvasID: sceneStageCanvasID, payload: [
-            "type": "desktop_world_stage.scene.operation",
-            "payload": [
-                "lease_key": key,
-                "owner": owner,
-                "resource": resource,
-                "operation": operation,
-            ],
-        ])
-        if op == "close" {
-            _ = sceneLeases.release(key: key, connectionID: connectionID)
+        guard let currentTopology = canvasManager.desktopWorldSceneBarrierTopology(canvasID: sceneStageCanvasID),
+              currentTopology.canvasGeneration == topology.canvasGeneration,
+              currentTopology.generation == topology.generation,
+              currentTopology.segments == topology.segments else {
+            sendResponseJSON(to: outbound, ["error": "DesktopWorld scene segments are unavailable", "code": "SCENE_STAGE_UNAVAILABLE"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            return
         }
+        let identity = sceneStageIdentity(topology)
+        let operationID = UUID().uuidString.lowercased()
+        let expectedSegments = topology.segments.map { (displayID: $0.displayID, index: $0.index) }
+        sceneStageLifecycleLock.lock()
+        guard sceneStageReadiness.isReady(for: identity) else {
+            sceneStageLifecycleLock.unlock()
+            sendResponseJSON(to: outbound, ["error": "DesktopWorld scene generation is no longer ready", "code": "SCENE_STAGE_UNAVAILABLE"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            return
+        }
+        let acquisition = sceneLeases.acquire(
+            key: key,
+            connectionID: connectionID,
+            ref: envelopeRef
+        )
+        guard case .acquired(let token, let isNewLease) = acquisition else {
+            sceneStageLifecycleLock.unlock()
+            sendResponseJSON(to: outbound, ["error": "Scene resource already has an active lease", "code": "SCENE_LEASE_BUSY"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            return
+        }
+        let initialAction = sceneResults.begin(
+            operationID: operationID,
+            leaseKey: key,
+            owner: owner,
+            operation: op,
+            operationPayload: acceptedOperation,
+            resource: resource,
+            canvasGeneration: topology.canvasGeneration,
+            topologyGeneration: topology.generation,
+            segments: expectedSegments
+        )
+        let operationAdmitted = initialAction != nil && sceneLeases.beginOperation(token)
+        if !operationAdmitted {
+            _ = sceneResults.cancel(operationID: operationID)
+            if isNewLease { _ = sceneLeases.release(token) }
+        } else {
+            sceneOperationTokens[operationID] = token
+        }
+        sceneStageLifecycleLock.unlock()
+        guard operationAdmitted, let initialAction else {
+            let pending = sceneResults.hasPending(leaseKey: key)
+            sendResponseJSON(to: outbound, [
+                "error": pending ? "DesktopWorld scene operation is still pending" : "DesktopWorld scene result barrier is unavailable",
+                "code": pending ? "SCENE_OPERATION_PENDING" : "SCENE_STAGE_UNAVAILABLE",
+            ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            return
+        }
+        dispatchSceneBarrierActions([initialAction])
         sendResponseJSON(to: outbound, [
             "status": "ok",
             "operation": op,

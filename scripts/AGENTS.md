@@ -131,6 +131,11 @@ commands, runtime helpers, wiki tools, and command adapters.
   parent-loss handling, canonical daemon-response envelope validation and data
   unwrapping, and cleanup of only a daemon it started. It must not replace the
   canonical stage snapshot or carry product content.
+- `lib/aos-scene-extension.mjs` owns trusted scene-extension validation and the
+  immutable owner-only installation store. Its module inspector must compile
+  the exact native-host ES-module wrapper in a bounded child without linking or
+  evaluation, and must confirm child termination after graceful or escalated
+  shutdown.
 - `aos-shortcut.mjs` owns explicit Apple Shortcut execution through
   `/usr/bin/shortcuts`. It passes one exact shortcut name as an argv item,
   never invokes a shell, bounds time and output, and never returns captured

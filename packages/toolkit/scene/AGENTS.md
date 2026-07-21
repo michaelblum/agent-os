@@ -31,8 +31,11 @@ stage internals.
   remain in the consuming product.
 - The daemon-backed stage projects object transforms in global DesktopWorld
   coordinates through one orthographic camera per physical display segment.
-  Every segment applies the same declarative operation, while only the primary
-  segment reports its result to avoid duplicate transport acknowledgements.
+  Every segment applies the same declarative operation and reports an
+  origin-attributed internal result. The daemon accepts results only from the
+  exact current canvas and topology generation, settles the all-segment
+  barrier, and emits one public result to avoid duplicate transport
+  acknowledgements.
 
 ## Local Contracts
 
@@ -42,9 +45,12 @@ stage internals.
   `docs/api/toolkit/scene.md` synchronized.
 - Renderer disposal applies only to resources the consumer explicitly gives
   the lifecycle; shared resource ownership remains with the consumer.
-- Scene documents never carry implementation code. Only trusted registry
-  entries and projection factories may execute, and failed preparation must
-  leave the active document and projection unchanged.
+- Scene documents and cartridges never carry implementation code. Only AOS
+  built-ins or separately installed, owner-authorized, digest-pinned trusted
+  projection extensions may execute. Product geometry, shader, effect, and
+  animation vocabulary remains in the consumer extension; it must not be
+  translated into AOS stock-effect parameters. Failed preparation must leave
+  the active document and projection unchanged.
 - Scene cartridges use the canonical `cartridge.json`, `scene.json`,
   `animations.json`, `interactions.json`, and `assets/` layout. Payload files
   and local assets are digest-bound, budgets are explicit, and the filesystem
@@ -96,6 +102,18 @@ stage internals.
   typed gesture events. Every segment applies the same visual response, and a
   failed region activation must restore the previous scene or fail closed with
   no active resource.
+- Candidate input-region generations remain inactive until the daemon can
+  atomically activate every candidate and retire the complete prior generation.
+  Input delivery continues through the old generation until that switch; an
+  ambiguous switch fails closed rather than exposing mixed ownership.
+- The stage resumes only after every physical display segment reports ready for
+  the exact canvas and topology generation. A topology change or segment fault
+  retires that complete stage generation and its scene leases; consumers recover
+  by remounting canonical state, never by preserving a partially healthy scene.
+- Resource admission is cumulative across every projection in one display
+  segment. Runtime extension audits are sampled on a bounded cadence and reuse
+  cached metrics between audits; do not add a per-frame scene-tree allocation
+  pass.
 
 ## Verification
 

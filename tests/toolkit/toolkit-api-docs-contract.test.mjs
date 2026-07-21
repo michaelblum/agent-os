@@ -67,6 +67,7 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
 
   assert.match(docs['docs/api/toolkit/scene.md'], /@agent-os\/toolkit\/scene/);
   assert.match(docs['docs/api/toolkit/scene.md'], /createThreeRenderLifecycle/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /evaluateDesktopWorldPerformanceAcceptance/);
   assert.match(docs['docs/api/toolkit/scene.md'], /DesktopWorldSurfaceThree/);
   assert.match(docs['docs/api/toolkit/scene.md'], /createVisualObjectDescriptor/);
   assert.match(docs['docs/api/toolkit/scene.md'], /bindVisualObjectForm/);
@@ -79,7 +80,7 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
   assert.match(docs['docs/api/toolkit/scene.md'], /aos\.scene\.inspection\.v1/);
   assert.match(docs['docs/api/toolkit/scene.md'], /validateSceneTransaction/);
   assert.match(docs['docs/api/toolkit/scene.md'], /global DesktopWorld coordinate plane/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /primary segment emits the single authoritative/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /authoritative public result after the all-segment barrier settles/);
   assert.match(docs['docs/api/toolkit/scene.md'], /grants no AOS command execution/);
   assert.match(docs['docs/api/toolkit/scene.md'], /SceneAffordanceDescriptor/);
   assert.match(docs['docs/api/toolkit/scene.md'], /createSceneInteractionController/);

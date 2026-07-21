@@ -364,6 +364,12 @@ enum AOSInputRegionDeliveryDecision {
     case failOpen
 }
 
+struct AOSInputRegionGenerationReplacement {
+    let activated: [AOSInputRegionRecord]
+    let retired: [AOSInputRegionRecord]
+    let idempotent: Bool
+}
+
 func aosInputRegionDeliveryDecision(
     event: AOSCanonicalInputEvent?,
     route: AOSInputRegionRoute,
@@ -397,6 +403,54 @@ final class AOSInputRegionRegistry {
 
     func register(_ region: AOSInputRegionRecord) {
         regions[region.id] = region
+    }
+
+    /// Atomically activates one owner generation and retires its prior region
+    /// IDs. Validation completes against the unchanged registry before the
+    /// first mutation. A repeated, byte-equivalent activation is idempotent.
+    func replaceGeneration(
+        activate candidates: [AOSInputRegionRecord],
+        retire retiredIDs: [String],
+        owner: CanvasLifecycleGeneration
+    ) -> AOSInputRegionGenerationReplacement? {
+        guard (!candidates.isEmpty || !retiredIDs.isEmpty),
+              candidates.count <= 128,
+              retiredIDs.count <= 128,
+              candidates.count + retiredIDs.count <= 256 else { return nil }
+        let candidateIDs = Set(candidates.map(\.id))
+        let retiredSet = Set(retiredIDs)
+        guard candidateIDs.count == candidates.count,
+              retiredSet.count == retiredIDs.count,
+              candidateIDs.isDisjoint(with: retiredSet),
+              candidates.allSatisfy({ $0.ownerCanvasGeneration == owner }) else { return nil }
+
+        let candidateExisting = candidates.compactMap { regions[$0.id] }
+        guard candidateExisting.allSatisfy({ $0.ownerCanvasGeneration == owner }) else { return nil }
+        let retiredExisting = retiredIDs.compactMap { regions[$0] }
+        guard retiredExisting.allSatisfy({ $0.ownerCanvasGeneration == owner }) else { return nil }
+
+        let idempotent = candidateExisting.count == candidates.count
+            && zip(candidates, candidateExisting).allSatisfy { candidate, existing in candidate == existing }
+            && retiredExisting.isEmpty
+        if idempotent {
+            return AOSInputRegionGenerationReplacement(
+                activated: candidates.sorted(by: sortRegions),
+                retired: [],
+                idempotent: true
+            )
+        }
+        guard captureRegionID.map({
+                  !retiredSet.contains($0) && !candidateIDs.contains($0)
+              }) ?? true,
+              retiredExisting.count == retiredIDs.count else { return nil }
+
+        for id in retiredIDs { _ = remove(id: id) }
+        for candidate in candidates { regions[candidate.id] = candidate }
+        return AOSInputRegionGenerationReplacement(
+            activated: candidates.sorted(by: sortRegions),
+            retired: retiredExisting.sorted(by: sortRegions),
+            idempotent: false
+        )
     }
 
     func remove(id: String) -> AOSInputRegionRecord? {

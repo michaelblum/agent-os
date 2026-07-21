@@ -12358,6 +12358,169 @@
     {
       "path" : [
         "scene",
+        "extension",
+        "validate"
+      ],
+      "summary" : "Validate one trusted DesktopWorld projection extension",
+      "forms" : [
+        {
+          "id" : "scene-extension-validate",
+          "usage" : "aos scene extension validate <path> --json",
+          "args" : [
+            {
+              "id" : "path",
+              "kind" : "positional",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "Local scene extension directory"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "value_type" : "bool",
+              "required" : true,
+              "summary" : "Emit a redacted machine-readable validation summary"
+            }
+          ],
+          "stdin" : {
+            "supported" : false,
+            "content_type" : null,
+            "used_when" : "never"
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "examples" : [
+            "aos scene extension validate ./dist/companion-renderer --json"
+          ]
+        }
+      ]
+    },
+    {
+      "path" : [
+        "scene",
+        "extension",
+        "install"
+      ],
+      "summary" : "Install one reviewed immutable DesktopWorld projection extension",
+      "forms" : [
+        {
+          "id" : "scene-extension-install",
+          "usage" : "aos scene extension install <path> --expected-digest <sha256> --json",
+          "args" : [
+            {
+              "id" : "path",
+              "kind" : "positional",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "Validated local scene extension directory"
+            },
+            {
+              "id" : "expected_digest",
+              "kind" : "flag",
+              "token" : "--expected-digest",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "Exact reviewed artifact SHA-256"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "value_type" : "bool",
+              "required" : true,
+              "summary" : "Emit a redacted machine-readable installation summary"
+            }
+          ],
+          "stdin" : {
+            "supported" : false,
+            "content_type" : null,
+            "used_when" : "never"
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "examples" : [
+            "aos scene extension install ./dist/companion-renderer --expected-digest <reviewed-sha256> --json"
+          ]
+        }
+      ]
+    },
+    {
+      "path" : [
+        "scene",
+        "extension",
+        "list"
+      ],
+      "summary" : "List installed immutable DesktopWorld projection extensions",
+      "forms" : [
+        {
+          "id" : "scene-extension-list",
+          "usage" : "aos scene extension list --json",
+          "args" : [
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "value_type" : "bool",
+              "required" : true,
+              "summary" : "Emit bounded machine-readable extension metadata"
+            }
+          ],
+          "stdin" : {
+            "supported" : false,
+            "content_type" : null,
+            "used_when" : "never"
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "examples" : [
+            "aos scene extension list --json"
+          ]
+        }
+      ]
+    },
+    {
+      "path" : [
+        "scene",
         "list"
       ],
       "summary" : "List bounded DesktopWorld scene resources",

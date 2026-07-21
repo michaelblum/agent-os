@@ -14,8 +14,9 @@ aos scene --stage desktop-world/main --owner <consumer-id> --resource <resource-
 It reads strict NDJSON operations from stdin: `mount`, `transact`, `signal`,
 `play`, `suspend`, `resume`, `inspect`, `subscribe`, `unsubscribe`, `remove`,
 and `close`. Leases are scoped to the client connection and removed on
-disconnect. Documents contain only registered declarative implementation IDs;
-implementation code never crosses the transport.
+disconnect. Documents contain only registered declarative implementation IDs.
+A mount may name one already-installed, owner-matched trusted extension by its
+exact digest; executable bytes never cross the scene transport.
 
 Subscribe to typed gesture events without opening another socket or process:
 
@@ -38,12 +39,50 @@ Data-only cartridges can be validated without starting the daemon:
 aos scene cartridge validate ./my-cartridge --json
 ```
 
+Reviewed projection extensions use a separate explicit lifecycle:
+
+```bash
+aos scene extension validate ./dist/companion-renderer --json
+aos scene extension install ./dist/companion-renderer \
+  --expected-digest <reviewed-sha256> --json
+aos scene extension list --json
+```
+
+An extension directory contains exactly `extension.json` and `projection.js`.
+The JavaScript file is the body of `createProjection(context)`: it may define
+local helpers and must synchronously return the projection object. Projection
+activation, updates, lifecycle hooks, and disposal are synchronous; Promise-like
+results fail admission or the active operation. Authors target ES2022 syntax and
+avoid proposal-stage or engine-specific extensions. A bounded child process
+uses V8's ES-module parser to compile the exact host-generated wrapper without
+linking or evaluating it. This is a preliminary installation check, not a claim
+that V8 and WebKit accept identical syntax. The stage performs a fresh WebKit
+module import before registry admission or scene preparation. That import is the
+authoritative runtime compatibility gate, and rejection leaves the active scene
+unchanged. Wrapper evaluation freezes the factory export but does not invoke the
+consumer factory body. The exact
+reviewed digest is mandatory at installation, and source roots/files must be
+owned by the current user and not group- or world-writable.
+Because WebKit dynamic imports are not cancelable, a logically timed-out import
+continues to consume one slot in the fixed unresolved-import capacity until the
+underlying promise settles. Timeout handling therefore cannot accumulate
+unbounded physical imports.
+Its artifact digest binds the canonical owner, implementation IDs, ABI, Three
+revision, budgets, and factory-body SHA-256. Installation atomically adds an
+AOS-generated `authorization.json` record to the mode-scoped owner-only store;
+only the explicit install command grants that executable authority. Mounts carry
+only the exact `{ownerId,id,digest,sceneAbi,threeRevision}` reference.
+The command manifest classifies installation as a state mutation so an agent
+host can require its normal explicit operator approval.
+
 The daemon-backed outlet interprets scene object positions and scales in the
 global DesktopWorld coordinate plane. It uses one orthographic camera per
 physical display segment, so a resource appears at its declared desktop point
 without being independently centered on every display. All segments apply the
-same bounded operation; the primary segment emits the single authoritative
-result event. The outlet uses the same animation and signal controllers as the
+same bounded operation and report origin-attributed internal results. The daemon
+accepts only the exact current canvas/topology generation and emits one
+authoritative public result after the all-segment barrier settles. The outlet
+uses the same animation and signal controllers as the
 public host API, preserving once/loop/ping-pong playback, easing, clamping, and
 time-based signal smoothing.
 
@@ -71,6 +110,7 @@ import {
   createSceneLease,
   createSceneSignalController,
   createThreeRenderLifecycle,
+  createTrustedSceneExtensionRegistry,
   createVisualObjectDescriptor,
   buildDesktopWorldMinimapLayout,
   bindVisualObjectForm,
@@ -78,6 +118,9 @@ import {
   validateSceneInteractionDocument,
   normalizeDesktopWorldDevToolsSnapshot,
   replayDesktopWorldSceneEvents,
+  serializeSceneExtensionDigestMaterial,
+  validateSceneExtensionManifest,
+  validateSceneExtensionReference,
 } from '@agent-os/toolkit/scene'
 ```
 
@@ -147,23 +190,70 @@ registry includes:
   primitive and accepts a threshold angle from 0 through 180 degrees;
 - `aos.scene.geometry.segments`, which renders at most 64 explicit finite line
   segments with coordinates clamped to the validated scene-space range; and
-- `aos.scene.effect.radial-aura`, which renders two local radial sprites and at
-  most 24 deterministic wobble elements with bounded colors, reach, intensity,
-  pulse, radius, scale, speed, amplitude, and opacity.
+- deprecated reduced-mode `aos.scene.effect.radial-aura`, retained temporarily
+  for compatibility while rich consumers move their visual vocabulary into
+  trusted projection extensions.
 
-The radial effect advances through the mounted scene projection's `tick()`
-method on the existing stage playback clock. It creates no renderer or frame
-loop, allocates no per-frame GPU resources, pauses with stage/resource
+The compatibility radial effect advances through the mounted scene projection's
+`tick()` method on the existing stage playback clock. It creates no renderer or
+frame loop, allocates no per-frame GPU resources, pauses with stage/resource
 suspension and context loss, and disposes shared geometry, materials, and
-textures with the projection. A direct projection rejects more than 1,024
+textures with the projection. It is not an extension point and must not acquire
+consumer concepts or new behavior. A direct projection rejects more than 1,024
 objects, 256 resources, or 32 aggregate effect descriptors before allocating
 Three resources, and retains per-implementation count and coordinate caps even
 when registry validation is bypassed.
 
-These are rendering mechanics, not product vocabulary. A consumer may compile
-a nested shape, connector set, core, or ambient field into these descriptors;
-the corresponding product concepts and persisted definitions remain outside
-AOS.
+Primitive geometry and materials are rendering mechanics, not product
+vocabulary. Rich consumer geometry, shaders, effects, and animation logic belong
+in an owner-authorized projection extension rather than being compiled into an
+expanding stock-effect parameter set.
+
+### Trusted Projection Extensions
+
+`aos.scene.extension.v1` is the executable boundary for reviewed first-party
+consumer renderers. `createTrustedSceneExtensionRegistry()` resolves factories
+by owner, ID, artifact digest, scene ABI, and Three revision. A factory receives
+only AOS's pinned Three namespace, the canonical scene document, and lowered
+budgets. It returns one Object3D subtree and the bounded signal, animation,
+tick, suspend, resume, context-loss, and disposal lifecycle. Extension-local
+asset loading is not part of V1; procedural geometry and data already present
+in the validated scene document are the supported inputs.
+
+AOS continues to own the renderer, camera, frame loop, multi-display stage,
+transactions, input, inspection, and observable render-tree budgets. The extension owns its model,
+materials, shaders, effects, and per-frame visual implementation. The module is
+fully privileged, trusted same-realm code and therefore requires explicit
+operator installation; the context object is an API boundary, not a sandbox.
+The same-UID account is in the trust base. Arbitrary extension heap allocations
+and use of realm globals are trusted behavior rather than sandbox-enforced
+budgets. Extensions are not Starter Library
+content and cannot be installed by a cartridge or scene mount.
+
+At creation, the host lowers each declared extension limit to the currently
+unallocated segment headroom. Scene replacement is deliberately budgeted for
+the transient overlap of old and candidate projections; a replacement that
+would exceed the hard segment ceiling while double-buffered is rejected before
+commit. Concurrent candidates reserve measured allocation headroom and new
+logical resource slots during preparation. Commit activates the candidate and
+forces a complete render-tree audit before publishing it. Lifecycle boundaries
+also force a complete audit; sampled 30-tick audits remain the steady-state
+path. Failed disposal remains retryable until the hook succeeds. Lifecycle,
+topology, replacement, and teardown operations are serialized, and stage input
+admission remains closed during resume until every native region is restored.
+Buffered candidate input is replayed before staging protection is released, and
+any replay or cleanup failure retires the complete visual/input aggregate. Once
+the aggregate is committed, an outbound event-delivery failure is reported as
+a diagnostic transport fault and does not roll back already authoritative
+visual or input state.
+
+Numeric bindings remain engine-owned without imposing product vocabulary. For
+example, a consumer can bind `pointer.distance` to
+`geometry.stellation` or a looping clock to `core.pulse`; AOS validates,
+clamps, smooths, and schedules the numeric value, then passes the target and
+value to the owner extension's `applySignal()` or `applyAnimation()` method.
+Only that extension defines what those target names mean or how its geometry,
+uniforms, and shaders respond.
 
 ### Affordances And Gestures
 
@@ -172,8 +262,11 @@ AOS.
 passive DesktopWorld canvas and owns pointer capture, DesktopWorld/native
 coordinates, display topology, arbitration, Escape cancellation, update
 coalescing, and cleanup. Only the primary display segment mutates daemon region
-state or emits events; every segment applies the same response so one logical
-scene remains visually continuous across displays.
+state or emits product gesture events; every segment applies the same visual
+response and reports its internal operation result so one logical scene remains
+visually continuous across displays. Candidate region generations are
+registered inactive, then switched atomically with retirement of the prior
+generation. The old generation remains routable until that barrier commits.
 
 Affordance rectangles resolve through the object's complete parent transform
 chain into an axis-aligned DesktopWorld hit frame. Conventional translation
@@ -457,6 +550,22 @@ the consumer unless they are accepted into this product-neutral registry.
 Use `resolveThreeRenderMetrics()` when a consumer needs the same pure sizing
 policy without lifecycle ownership. Product code may lower the limits but
 should not raise them without its own memory and canvas acceptance evidence.
+
+The DesktopWorld outlet lowers the shared lifecycle ceiling to 2,097,152
+backing pixels per physical-display segment and owns no RAF while every
+resource is suspended, the segment is hidden, or WebGL is context-lost.
+`DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS` provides the independent
+engine acceptance targets used by native and fixture harnesses: 250 ms to begin
+a prewarmed transition, 750 ms to projection-ready, 50 ms input-to-visual P95,
+60 Hz frame P95 within 1.1 times budget, no steady frame above 100 ms, no more
+than a two-frame cross-display gap, and no more than 16 MiB warmed RSS growth
+over 100 lifecycle cycles. Historical product renderers are appearance and
+interaction references, not performance baselines. Pass bounded harness facts
+to `evaluateDesktopWorldPerformanceAcceptance()` to obtain the canonical
+content-free check result. Acceptance requires dense finite arrays with at
+least 20 input-to-visual samples and 120 frame samples, plus the complete 100
+warmed-cycle leak proof; sparse, shorter, malformed, or unbounded observations
+fail closed.
 
 ```js
 const lifecycle = createThreeRenderLifecycle({

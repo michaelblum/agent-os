@@ -4,10 +4,18 @@ import test from 'node:test'
 
 import { createSceneAnimationInteractionState } from '../../packages/toolkit/components/desktop-world-stage/scene-animation-interaction-state.js'
 import {
+  DESKTOP_WORLD_SCENE_RENDER_LIMITS,
   reconcileSceneStageRunState,
   sceneResourceCanRun,
+  sceneStageShouldRender,
 } from '../../packages/toolkit/components/desktop-world-stage/scene-outlet.js'
 import { createScenePlaybackClock } from '../../packages/toolkit/components/desktop-world-stage/scene-playback-clock.js'
+import {
+  DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS,
+  createSceneSegmentResourceBudget,
+  evaluateSceneSegmentResourceBudget,
+  remainingSceneSegmentResourceBudgets,
+} from '../../packages/toolkit/components/desktop-world-stage/scene-resource-budget.js'
 import {
   compileSceneAnimationBindings,
   createSceneInteractionVisualController,
@@ -185,6 +193,164 @@ test('resource resume cannot reactivate a route while the stage remains suspende
   assert.equal(visuals.snapshot().route.active, true)
 })
 
+test('DesktopWorld render loop runs only while at least one visible resource is active', () => {
+  assert.deepEqual(DESKTOP_WORLD_SCENE_RENDER_LIMITS, {
+    maxDevicePixelRatio: 2,
+    maxBackingDimension: 4096,
+    maxBackingPixels: 2_097_152,
+  })
+  const resources = new Map()
+  assert.equal(sceneStageShouldRender(resources, false, false), false)
+  resources.set('parked', { suspended: true })
+  assert.equal(sceneStageShouldRender(resources, false, false), false)
+  resources.set('active', { suspended: false })
+  assert.equal(sceneStageShouldRender(resources, false, false), true)
+  assert.equal(sceneStageShouldRender(resources, true, false), false)
+  assert.equal(sceneStageShouldRender(resources, false, true), false)
+  assert.equal(sceneStageShouldRender(resources, false, false, true), false)
+  assert.equal(sceneStageShouldRender(resources, false, false, false, true), false)
+})
+
+test('DesktopWorld segment resource budgets aggregate every mounted projection', () => {
+  const half = {
+    drawCalls: DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS.maxDrawCalls / 2,
+    geometryBytes: 1024,
+    objects: DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS.maxObjects / 2,
+    resources: DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS.maxResources / 2,
+    textureBytes: DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS.maxTextureBytes / 2,
+    triangles: DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS.maxTriangles / 2,
+    workingBytes: DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS.maxWorkingBytes / 2,
+  }
+  const admitted = evaluateSceneSegmentResourceBudget([half, half])
+  assert.equal(admitted.ok, true)
+  assert.equal(admitted.metrics.objects, DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS.maxObjects)
+  const rejected = evaluateSceneSegmentResourceBudget([half, half, { ...half, drawCalls: 1 }])
+  assert.equal(rejected.ok, false)
+  assert.deepEqual(rejected.violations.map((entry) => entry.metric).sort(), [
+    'drawCalls',
+    'objects',
+    'resources',
+    'textureBytes',
+    'triangles',
+    'workingBytes',
+  ])
+  assert.throws(
+    () => evaluateSceneSegmentResourceBudget([{ ...half, triangles: Number.POSITIVE_INFINITY }]),
+    /non-negative safe integer/u,
+  )
+})
+
+test('DesktopWorld extension admission receives only unallocated segment headroom', () => {
+  const used = {
+    drawCalls: 48,
+    geometryBytes: 1024,
+    objects: 12,
+    resources: 10,
+    textureBytes: 2 * 1024 * 1024,
+    triangles: 50_000,
+    workingBytes: 4 * 1024 * 1024,
+  }
+  const requested = {
+    maxDrawCalls: 64,
+    maxObjects: 64,
+    maxResources: 64,
+    maxTextureBytes: 8 * 1024 * 1024,
+    maxTriangles: 100_000,
+    maxWorkingBytes: 16 * 1024 * 1024,
+  }
+  const limits = {
+    maxDrawCalls: 100,
+    maxObjects: 60,
+    maxResources: 70,
+    maxTextureBytes: 6 * 1024 * 1024,
+    maxTriangles: 120_000,
+    maxWorkingBytes: 12 * 1024 * 1024,
+  }
+
+  assert.deepEqual(remainingSceneSegmentResourceBudgets(used, requested, limits), {
+    maxDrawCalls: 52,
+    maxObjects: 48,
+    maxResources: 60,
+    maxTextureBytes: 4 * 1024 * 1024,
+    maxTriangles: 70_000,
+    maxWorkingBytes: 8 * 1024 * 1024,
+  })
+})
+
+test('DesktopWorld replacement admission budgets the old and candidate projections concurrently', () => {
+  const limits = {
+    maxDrawCalls: 4,
+    maxObjects: 4,
+    maxResources: 4,
+    maxTextureBytes: 400,
+    maxTriangles: 400,
+    maxWorkingBytes: 400,
+  }
+  const budget = createSceneSegmentResourceBudget(limits)
+  const mounted = {
+    metricsAccounted: false,
+    resourceMetrics: {
+      drawCalls: 3,
+      geometryBytes: 100,
+      objects: 3,
+      resources: 3,
+      textureBytes: 100,
+      triangles: 100,
+      workingBytes: 200,
+    },
+  }
+  const candidate = {
+    metricsAccounted: false,
+    resourceMetrics: {
+      drawCalls: 2,
+      geometryBytes: 50,
+      objects: 2,
+      resources: 2,
+      textureBytes: 50,
+      triangles: 50,
+      workingBytes: 100,
+    },
+  }
+  budget.assertCandidate(mounted)
+  budget.commit(mounted)
+
+  assert.throws(() => budget.assertCandidate(candidate), /segment resource budget exceeded/u)
+  assert.deepEqual(budget.snapshot(), mounted.resourceMetrics)
+})
+
+test('DesktopWorld candidate reservations prevent concurrent resource overbooking', () => {
+  const limits = {
+    maxDrawCalls: 4,
+    maxObjects: 4,
+    maxResources: 4,
+    maxTextureBytes: 400,
+    maxTriangles: 400,
+    maxWorkingBytes: 400,
+  }
+  const budget = createSceneSegmentResourceBudget(limits)
+  const candidate = (value) => ({
+    metricsAccounted: false,
+    resourceMetrics: {
+      drawCalls: value,
+      geometryBytes: value,
+      objects: value,
+      resources: value,
+      textureBytes: value,
+      triangles: value,
+      workingBytes: value,
+    },
+  })
+  const first = candidate(3)
+  const second = candidate(2)
+  const reservation = budget.reserve(first)
+
+  assert.throws(() => budget.reserve(second), /segment resource budget exceeded/u)
+  assert.equal(budget.releaseReservation(reservation), true)
+  const secondReservation = budget.reserve(second)
+  budget.commit(second, null, secondReservation)
+  assert.deepEqual(budget.snapshot(), second.resourceMetrics)
+})
+
 test('stage visibility and context transitions resume only runnable resources', () => {
   const visibilityClock = createScenePlaybackClock()
   visibilityClock.restart(0)
@@ -284,6 +450,23 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /createSceneSignalController\(document/u)
   assert.match(outlet, /mounted\.animations\.tick\(elapsed\)/u)
   assert.match(outlet, /mounted\.projection\.tick\?\.\(elapsed\)/u)
+  assert.match(outlet, /finally \{[\s\S]*if \(!stageFault\) scheduleRender\(\)/u)
+  assert.match(outlet, /sceneStageShouldRender\(resources, hidden, contextLost, stageSuspended, Boolean\(stageFault\)\)/u)
+  assert.match(outlet, /renderLoopActive: frame !== null/u)
+  assert.match(outlet, /faultSceneSegment\(code, mounted\)/u)
+  assert.match(outlet, /setFaultObserver\(observer\)/u)
+  assert.match(outlet, /SCENE_EXTENSION_CONTEXT_LOST_FAILED/u)
+  assert.match(outlet, /SCENE_EXTENSION_INTERACTION_FAILED/u)
+  assert.match(outlet, /candidate\.projection\.activate\?\.\(\)/u)
+  assert.match(outlet, /error\?\.code === 'SCENE_EXTENSION_DISPOSE_FAILED'[\s\S]*faultSceneSegment\('SCENE_EXTENSION_DISPOSE_FAILED'\)/u)
+  assert.match(outlet, /cleanupFailures\.length > 0[\s\S]*faultSceneSegment\('SCENE_EXTENSION_DISPOSE_FAILED'\)/u)
+  assert.match(outlet, /candidate\.suspended \|\| stageSuspended/u)
+  assert.match(outlet, /candidate\.stageSuspendedApplied = stageSuspended/u)
+  assert.match(outlet, /segmentBudget\.reserve\(candidate\)/u)
+  assert.match(outlet, /segmentBudget\.updateReservation\(resourceReservation, candidate\)/u)
+  assert.match(outlet, /segmentBudget\.commit\(candidate, previous, resourceReservation\)/u)
+  assert.match(outlet, /resources\.delete\(key\)[\s\S]*segmentBudget\.unaccount\(mounted\)[\s\S]*retireMounted\(mounted\)/u)
+  assert.match(outlet, /operation\.op === 'mount'[\s\S]*Object\.hasOwn\(operation, 'extension'\) \? operation\.extension : null/u)
   assert.match(outlet, /mounted\.playClock\.elapsed\(at\)/u)
   assert.doesNotMatch(outlet, /playStartedAt/u)
   assert.match(outlet, /onComplete: \(binding, value\) => interactionState\.complete\(binding, value\)/u)
@@ -293,7 +476,7 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /mounted\.interactionVisuals\?\.tick\(at\)/u)
   assert.match(outlet, /mounted\.interactionVisuals\?\.suspend\(at\)/u)
   assert.match(outlet, /mounted\.interactionVisuals\?\.resume\(at\)/u)
-  assert.match(outlet, /sceneResourceCanRun\(mounted\.suspended, hidden, contextLost\)/u)
+  assert.match(outlet, /sceneResourceCanRun\([\s\S]*mounted\.suspended,[\s\S]*hidden \|\| stageSuspended,[\s\S]*contextLost \|\| Boolean\(stageFault\)/u)
   assert.match(outlet, /reconcileSceneStageRunState/u)
   assert.match(outlet, /createDesktopWorldSceneInteractionThree/u)
   assert.match(outlet, /ensureInteractionVisuals/u)
@@ -304,8 +487,12 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /mounted\.signals\.publish\(operation\.signalId/u)
   assert.doesNotMatch(outlet, /elapsed % duration/u)
   assert.match(outlet, /MAX_RESOURCES = 32/u)
+  assert.match(outlet, /resources\.size \+ pendingResourceKeys\.size >= MAX_RESOURCES/u)
+  assert.match(outlet, /if \(!previous\) pendingResourceKeys\.add\(key\)/u)
+  assert.match(outlet, /if \(!previous\) pendingResourceKeys\.delete\(key\)/u)
   assert.match(outlet, /MAX_SIGNALS_PER_SECOND = 30/u)
   assert.match(outlet, /resolveThreeRenderMetrics/u)
+  assert.match(outlet, /\.\.\.DESKTOP_WORLD_SCENE_RENDER_LIMITS/u)
   assert.match(outlet, /effectiveDevicePixelRatio/u)
   assert.match(outlet, /backingPixels/u)
   assert.match(outlet, /devtoolsProbe\?\.isEnabled\(\) === true/u)
@@ -319,8 +506,13 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /forceContextLoss/u)
   assert.doesNotMatch(outlet, /https?:\/\//u)
   assert.match(stage, /desktop_world_stage\.scene\.operation/u)
-  assert.match(stage, /if \(surface\.isPrimary\)/u)
   assert.equal((stage.match(/emit\('desktop_world_stage\.scene\.result'/gu) ?? []).length, 2)
+  assert.match(stage, /emit\('desktop_world_stage\.scene\.fault'/u)
+  assert.match(stage, /await sceneOperations\?\.failClosed\(fault\.code\)/u)
+  assert.match(stage, /message\?\.type === 'lifecycle'[\s\S]*enqueueSceneWork\(\(\) => handleDesktopWorldStageLifecycle/u)
+  assert.equal((stage.match(/stageLifecycleState === 'active'\) sceneOperations\.handleInput\(message\)/gu) ?? []).length, 2)
+  assert.match(stage, /stageLifecycleState = 'closing'[\s\S]*enqueueSceneWork\(async \(\) => \{[\s\S]*await disposeStage\(\)/u)
+  assert.match(stage, /replaceRegionGeneration: replaceInputRegionGeneration/u)
   assert.match(stage, /sceneOutlet\.updateSegment\(segment\)/u)
   assert.match(stage, /enqueueSceneWork\(async \(\) => \{[\s\S]*settleAnimationGeometry\(key, generation\)/u)
   assert.doesNotMatch(stage, /animationGeometryChanged/u)

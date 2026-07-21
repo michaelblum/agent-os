@@ -17,10 +17,34 @@ export const DESKTOP_WORLD_DEVTOOLS_LIMITS = Object.freeze({
   string: 256,
 })
 
+export const DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS = Object.freeze({
+  prewarmedTransitionStartMs: 250,
+  projectionReadyMs: 750,
+  inputToVisualP95Ms: 50,
+  minInputToVisualSamples: 20,
+  targetFps: 60,
+  minFrameSamples: 120,
+  p95FrameBudgetMultiplier: 1.1,
+  maxSteadyFrameMs: 100,
+  maxBackingPixelsPerSegment: 2_097_152,
+  maxCrossDisplayGapFrames: 2,
+  stabilityCycles: 100,
+  maxWarmCycleRssGrowthBytes: 16 * 1024 * 1024,
+})
+
 const TABS = Object.freeze(['world', 'resources', 'interactions', 'performance', 'events'])
 const HOST_KINDS = Object.freeze(['compatibility', 'external', 'panel'])
 const HOST_STATES = Object.freeze(['activating', 'active', 'suspended'])
 const GPU_TIMER_QUERY_BUDGET = 4
+const PERFORMANCE_ACCEPTANCE_INPUT_LIMITS = Object.freeze({
+  durationMs: 1_000_000,
+  resourceDelta: 100_000,
+  rssDeltaBytes: 1024 * 1024 * 1024 * 1024,
+  samples: DESKTOP_WORLD_DEVTOOLS_LIMITS.performanceSamples,
+  segments: 16,
+  warmCycles: 10_000,
+})
+const PERFORMANCE_RESOURCE_KEYS = Object.freeze(['geometries', 'materials', 'programs', 'textures'])
 
 function boundedString(value, fallback = '', limit = DESKTOP_WORLD_DEVTOOLS_LIMITS.string) {
   return typeof value === 'string' ? value.slice(0, limit) : fallback
@@ -186,8 +210,11 @@ function normalizePerformance(value = {}) {
     enabled: value.enabled === true,
     recording: value.recording === true,
     sampleCount: boundedInteger(value.sampleCount, 0, 0, DESKTOP_WORLD_DEVTOOLS_LIMITS.performanceSamples),
+    targetFps: metric('targetFps', 1, 1000),
+    budgetMs: metric('budgetMs'),
     currentFps: metric('currentFps', 0, 1000),
     p95FrameMs: metric('p95FrameMs'),
+    maxFrameMs: metric('maxFrameMs'),
     avgFrameMs: metric('avgFrameMs'),
     avgRenderMs: metric('avgRenderMs'),
     avgUpdateMs: metric('avgUpdateMs'),
@@ -214,6 +241,132 @@ function normalizeEvent(value = {}, index = 0) {
 
 function boundedNormalized(values, limit, normalize) {
   return Object.freeze((Array.isArray(values) ? values : []).slice(0, limit).map(normalize).filter(Boolean))
+}
+
+function exactObject(value, keys) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const actual = Object.keys(value).sort()
+  const expected = [...keys].sort()
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index])
+}
+
+function boundedFiniteNumber(value, { integer = false, min = 0, max }) {
+  return typeof value === 'number'
+    && Number.isFinite(value)
+    && value >= min
+    && value <= max
+    && (!integer || Number.isInteger(value))
+}
+
+function boundedNumberSamples(value, minimum, limit, max) {
+  if (!Array.isArray(value) || value.length < minimum || value.length > limit) return false
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.hasOwn(value, index)) return false
+    if (!boundedFiniteNumber(value[index], { min: 0, max })) return false
+  }
+  return true
+}
+
+function percentile95(samples) {
+  const ordered = [...samples].sort((left, right) => left - right)
+  return ordered[Math.max(0, Math.ceil(ordered.length * 0.95) - 1)]
+}
+
+function performanceAcceptanceInputIsValid(input) {
+  const keys = [
+    'backingPixelsPerSegment',
+    'crossDisplayGapFrames',
+    'frameSamplesMs',
+    'inputToVisualSamplesMs',
+    'prewarmedTransitionStartMs',
+    'projectionReadyMs',
+    'resourceDeltas',
+    'warmCycleCount',
+    'warmCycleRssDeltaBytes',
+  ]
+  if (!exactObject(input, keys)) return false
+  const thresholds = DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS
+  if (!boundedFiniteNumber(input.prewarmedTransitionStartMs, { max: PERFORMANCE_ACCEPTANCE_INPUT_LIMITS.durationMs })) return false
+  if (!boundedFiniteNumber(input.projectionReadyMs, { max: PERFORMANCE_ACCEPTANCE_INPUT_LIMITS.durationMs })) return false
+  if (!boundedNumberSamples(input.inputToVisualSamplesMs, thresholds.minInputToVisualSamples, PERFORMANCE_ACCEPTANCE_INPUT_LIMITS.samples, PERFORMANCE_ACCEPTANCE_INPUT_LIMITS.durationMs)) return false
+  if (!boundedNumberSamples(input.frameSamplesMs, thresholds.minFrameSamples, PERFORMANCE_ACCEPTANCE_INPUT_LIMITS.samples, PERFORMANCE_ACCEPTANCE_INPUT_LIMITS.durationMs)) return false
+  if (!boundedNumberSamples(input.backingPixelsPerSegment, 1, PERFORMANCE_ACCEPTANCE_INPUT_LIMITS.segments, Number.MAX_SAFE_INTEGER)) return false
+  if (!input.backingPixelsPerSegment.every(Number.isSafeInteger)) return false
+  if (!boundedFiniteNumber(input.crossDisplayGapFrames, { integer: true, max: PERFORMANCE_ACCEPTANCE_INPUT_LIMITS.samples })) return false
+  if (!boundedFiniteNumber(input.warmCycleCount, {
+    integer: true,
+    min: thresholds.stabilityCycles,
+    max: PERFORMANCE_ACCEPTANCE_INPUT_LIMITS.warmCycles,
+  })) return false
+  if (!boundedFiniteNumber(input.warmCycleRssDeltaBytes, {
+    integer: true,
+    min: -PERFORMANCE_ACCEPTANCE_INPUT_LIMITS.rssDeltaBytes,
+    max: PERFORMANCE_ACCEPTANCE_INPUT_LIMITS.rssDeltaBytes,
+  })) return false
+  if (!exactObject(input.resourceDeltas, PERFORMANCE_RESOURCE_KEYS)) return false
+  return PERFORMANCE_RESOURCE_KEYS.every((key) => boundedFiniteNumber(input.resourceDeltas[key], {
+    integer: true,
+    min: -PERFORMANCE_ACCEPTANCE_INPUT_LIMITS.resourceDelta,
+    max: PERFORMANCE_ACCEPTANCE_INPUT_LIMITS.resourceDelta,
+  }))
+}
+
+function performanceCheck(id, observed, limit, operator, ok) {
+  return Object.freeze({ id, observed, limit, operator, ok })
+}
+
+export function evaluateDesktopWorldPerformanceAcceptance(input) {
+  if (!performanceAcceptanceInputIsValid(input)) {
+    return Object.freeze({
+      ok: false,
+      valid: false,
+      observed: null,
+      checks: Object.freeze([performanceCheck('input_valid', null, null, 'valid', false)]),
+    })
+  }
+
+  const thresholds = DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS
+  const inputToVisualP95Ms = percentile95(input.inputToVisualSamplesMs)
+  const frameP95Ms = percentile95(input.frameSamplesMs)
+  const maxFrameMs = Math.max(...input.frameSamplesMs)
+  const maxBackingPixelsPerSegment = Math.max(...input.backingPixelsPerSegment)
+  const frameP95LimitMs = (1000 / thresholds.targetFps) * thresholds.p95FrameBudgetMultiplier
+  const resourceDeltas = Object.freeze(Object.fromEntries(
+    PERFORMANCE_RESOURCE_KEYS.map((key) => [key, input.resourceDeltas[key]]),
+  ))
+  const observed = Object.freeze({
+    prewarmedTransitionStartMs: input.prewarmedTransitionStartMs,
+    projectionReadyMs: input.projectionReadyMs,
+    inputToVisualSampleCount: input.inputToVisualSamplesMs.length,
+    inputToVisualP95Ms,
+    frameSampleCount: input.frameSamplesMs.length,
+    frameP95Ms,
+    maxFrameMs,
+    maxBackingPixelsPerSegment,
+    crossDisplayGapFrames: input.crossDisplayGapFrames,
+    warmCycleCount: input.warmCycleCount,
+    warmCycleRssDeltaBytes: input.warmCycleRssDeltaBytes,
+    resourceDeltas,
+  })
+  const checks = Object.freeze([
+    performanceCheck('input_valid', 1, 1, 'eq', true),
+    performanceCheck('prewarmed_transition_start', observed.prewarmedTransitionStartMs, thresholds.prewarmedTransitionStartMs, 'lte', observed.prewarmedTransitionStartMs <= thresholds.prewarmedTransitionStartMs),
+    performanceCheck('projection_ready', observed.projectionReadyMs, thresholds.projectionReadyMs, 'lte', observed.projectionReadyMs <= thresholds.projectionReadyMs),
+    performanceCheck('input_to_visual_p95', observed.inputToVisualP95Ms, thresholds.inputToVisualP95Ms, 'lte', observed.inputToVisualP95Ms <= thresholds.inputToVisualP95Ms),
+    performanceCheck('frame_p95', observed.frameP95Ms, frameP95LimitMs, 'lte', observed.frameP95Ms <= frameP95LimitMs),
+    performanceCheck('frame_max', observed.maxFrameMs, thresholds.maxSteadyFrameMs, 'lte', observed.maxFrameMs <= thresholds.maxSteadyFrameMs),
+    performanceCheck('backing_pixels_per_segment', observed.maxBackingPixelsPerSegment, thresholds.maxBackingPixelsPerSegment, 'lte', observed.maxBackingPixelsPerSegment <= thresholds.maxBackingPixelsPerSegment),
+    performanceCheck('cross_display_gap', observed.crossDisplayGapFrames, thresholds.maxCrossDisplayGapFrames, 'lte', observed.crossDisplayGapFrames <= thresholds.maxCrossDisplayGapFrames),
+    performanceCheck('stability_cycles', observed.warmCycleCount, thresholds.stabilityCycles, 'gte', observed.warmCycleCount >= thresholds.stabilityCycles),
+    performanceCheck('warm_cycle_rss_growth', observed.warmCycleRssDeltaBytes, thresholds.maxWarmCycleRssGrowthBytes, 'lte', observed.warmCycleRssDeltaBytes <= thresholds.maxWarmCycleRssGrowthBytes),
+    ...PERFORMANCE_RESOURCE_KEYS.map((key) => performanceCheck(`resource_${key}_growth`, observed.resourceDeltas[key], 0, 'lte', observed.resourceDeltas[key] <= 0)),
+  ])
+  return Object.freeze({
+    ok: checks.every((check) => check.ok),
+    valid: true,
+    observed,
+    checks,
+  })
 }
 
 export function createDesktopWorldGpuTimer(context) {
@@ -471,8 +624,11 @@ export function createDesktopWorldDevToolsStageProbe({
       enabled,
       recording,
       sampleCount: samples.length,
+      targetFps: summary.targetFps,
+      budgetMs: summary.budgetMs,
       currentFps: summary.currentFps,
       p95FrameMs: summary.p95FrameMs,
+      maxFrameMs: summary.maxFrameMs,
       avgFrameMs: summary.avgFrameMs,
       avgRenderMs: summary.avgRenderMs,
       avgUpdateMs: summary.avgUpdateMs,
