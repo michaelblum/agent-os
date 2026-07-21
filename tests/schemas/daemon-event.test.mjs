@@ -209,4 +209,16 @@ test('scene result errors are derived from the runtime emitter contract', async 
   ), 'utf8');
   assert.match(stage, /normalizeDesktopWorldSceneResultErrorCode\(fault\.code/u);
   assert.match(stage, /normalizeDesktopWorldSceneResultErrorCode\(\s*error\?\.code/u);
+
+  const coordinator = await fs.readFile(path.join(
+    repoRoot,
+    'src/daemon/desktop-world-scene-result-coordinator.swift',
+  ), 'utf8');
+  const nativeBlock = coordinator.match(
+    /let aosDesktopWorldSceneResultErrorCodes: Set<String> = \[([\s\S]*?)\n\]/u,
+  );
+  assert.ok(nativeBlock, 'expected native scene-result error allowlist');
+  const nativeCodes = [...nativeBlock[1].matchAll(/"(SCENE_[A-Z0-9_]+)"/gu)]
+    .map((match) => match[1]);
+  assert.deepEqual(nativeCodes, DESKTOP_WORLD_SCENE_RESULT_ERROR_CODES);
 });

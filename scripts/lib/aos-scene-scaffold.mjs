@@ -200,7 +200,9 @@ async function createArtifact(destination, files, validate) {
     await chmod(location.target, OWNER_ONLY_DIRECTORY_MODE)
 
     const manifestName = files.has('cartridge.json') ? 'cartridge.json' : 'extension.json'
-    // The atomic mkdir owns the destination; publishing the manifest last keeps partial trees invalid.
+    // The exclusive mkdir owns the destination. The canonical manifest is the
+    // activation barrier, so readers cannot accept the prevalidated payload
+    // while publication is still in progress.
     const orderedNames = [...files.keys()].sort().filter((name) => name !== manifestName)
     orderedNames.push(manifestName)
     for (const name of orderedNames) {
@@ -217,7 +219,7 @@ async function createArtifact(destination, files, validate) {
     return validation
   } catch (error) {
     if (error instanceof SceneScaffoldError) throw error
-    fail('SCENE_SCAFFOLD_WRITE_FAILED', 'Scene scaffold could not be created atomically.')
+    fail('SCENE_SCAFFOLD_WRITE_FAILED', 'Scene scaffold could not be activated safely.')
   } finally {
     if (targetActive) await rm(location.target, { recursive: true, force: true }).catch(() => {})
     if (stagingActive) await rm(staging, { recursive: true, force: true }).catch(() => {})

@@ -1,5 +1,49 @@
 import Foundation
 
+let aosDesktopWorldSceneResultErrorCodes: Set<String> = [
+    "SCENE_BUDGET_EXCEEDED",
+    "SCENE_EXTENSION_CONTEXT_LOST_FAILED",
+    "SCENE_EXTENSION_CONTEXT_RESTORED_FAILED",
+    "SCENE_EXTENSION_DISPOSE_FAILED",
+    "SCENE_EXTENSION_IDENTITY_MISMATCH",
+    "SCENE_EXTENSION_IMPORT_FAILED",
+    "SCENE_EXTENSION_IMPORT_TIMEOUT",
+    "SCENE_EXTENSION_INTERACTION_FAILED",
+    "SCENE_EXTENSION_LOADER_CAPACITY",
+    "SCENE_EXTENSION_LOADER_INVALID",
+    "SCENE_EXTENSION_MODULE_INVALID",
+    "SCENE_EXTENSION_OWNER_MISMATCH",
+    "SCENE_EXTENSION_REFERENCE_INVALID",
+    "SCENE_EXTENSION_REGISTRATION_FAILED",
+    "SCENE_EXTENSION_REGISTRY_FAILED",
+    "SCENE_EXTENSION_REGISTRY_LIMIT",
+    "SCENE_EXTENSION_RESUME_FAILED",
+    "SCENE_EXTENSION_SIGNAL_FAILED",
+    "SCENE_EXTENSION_SUSPEND_FAILED",
+    "SCENE_EXTENSION_TICK_FAILED",
+    "SCENE_EXTENSION_URL_INVALID",
+    "SCENE_OWNER_DISCONNECTED",
+    "SCENE_PROJECTION_FAILED",
+    "SCENE_RENDER_FAILED",
+    "SCENE_SEGMENT_DIVERGED",
+    "SCENE_SEGMENT_FAILED",
+    "SCENE_SEGMENT_RESOURCE_ACCOUNTING_FAILED",
+    "SCENE_SEGMENT_RESOURCE_BUDGET_EXCEEDED",
+    "SCENE_SEGMENT_TIMEOUT",
+    "SCENE_STAGE_DISPOSED",
+    "SCENE_STAGE_REMOVED",
+    "SCENE_STAGE_RETIRED",
+    "SCENE_STAGE_RETIRE_FAILED",
+    "SCENE_TOPOLOGY_CHANGED",
+]
+
+func aosCanonicalDesktopWorldSceneResultErrorCode(_ value: Any?, fallback: String) -> String {
+    precondition(aosDesktopWorldSceneResultErrorCodes.contains(fallback))
+    guard let code = value as? String,
+          aosDesktopWorldSceneResultErrorCodes.contains(code) else { return fallback }
+    return code
+}
+
 enum AOSDesktopWorldSceneBarrierPhase: String {
     case apply
     case prepare
@@ -147,7 +191,10 @@ final class AOSDesktopWorldSceneResultCoordinator {
             return handlePhaseFailure(
                 operationID,
                 operation,
-                code: canonicalCode(payload["code"], fallback: "SCENE_SEGMENT_FAILED")
+                code: aosCanonicalDesktopWorldSceneResultErrorCode(
+                    payload["code"],
+                    fallback: "SCENE_SEGMENT_FAILED"
+                )
             )
         }
         guard operation.results.count == operation.expected.count else { return [] }
@@ -388,15 +435,4 @@ final class AOSDesktopWorldSceneResultCoordinator {
         return UInt64(raw)
     }
 
-    private func canonicalCode(_ value: Any?, fallback: String) -> String {
-        guard let code = value as? String,
-              code.count >= 2,
-              code.count <= 64,
-              code.unicodeScalars.allSatisfy({ scalar in
-                  (scalar.value >= 65 && scalar.value <= 90)
-                      || (scalar.value >= 48 && scalar.value <= 57)
-                      || scalar == "_"
-              }) else { return fallback }
-        return code
-    }
 }

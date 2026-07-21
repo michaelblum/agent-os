@@ -182,3 +182,17 @@ test('authoring skill contains exact routes without placeholders or private tran
   assert.doesNotMatch(skill, /AOS_STATE_ROOT|net\.connect|\/sock\b/u)
   assert.doesNotMatch(skill, /roadmap|future status-item|dependent visual slice/iu)
 })
+
+test('scene scaffold guides describe the manifest-last activation boundary', async () => {
+  const guides = await Promise.all([
+    readFile(path.join(repoRoot, 'docs/api/toolkit/scene-authoring.md'), 'utf8'),
+    readFile(path.join(repoRoot, 'docs/api/toolkit/scene-extensions.md'), 'utf8'),
+  ])
+  for (const guide of guides) {
+    assert.match(guide, /exclusive atomic\s+directory creation/u)
+    assert.match(guide, /publishes[\s\S]{0,80}last as the activation barrier/u)
+    assert.match(guide, /without that manifest as inactive/u)
+    assert.match(guide, /Existing\s+paths are never\s+overwritten/u)
+    assert.doesNotMatch(guide, /validates before one rename/u)
+  }
+})

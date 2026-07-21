@@ -152,16 +152,16 @@ test('scene follow rejects malformed, unterminated, and terminated oversized dae
 })
 
 test('scene-follow keeps the full-display stage hidden until its manifest is ready', async () => {
-  const source = await readFile(new URL('../src/daemon/unified.swift', import.meta.url), 'utf8')
-  const start = source.indexOf('private func ensureSceneStage() -> DesktopWorldSceneBarrierTopology?')
-  const end = source.indexOf('\n    private func handleSceneFollow(', start)
-  assert.notEqual(start, -1, 'ensureSceneStage is missing')
-  assert.notEqual(end, -1, 'handleSceneFollow boundary is missing')
+  const source = await readFile(new URL('../src/daemon/desktop-world-scene-transport-controller.swift', import.meta.url), 'utf8')
+  const start = source.indexOf('func ensureStage() -> DesktopWorldSceneBarrierTopology?')
+  const end = source.indexOf('\n    func follow(', start)
+  assert.notEqual(start, -1, 'ensureStage is missing')
+  assert.notEqual(end, -1, 'follow boundary is missing')
   const body = source.slice(start, end)
   const create = body.indexOf('CanvasRequest(action: "create"')
   const hidden = body.indexOf('request.suspended = true')
-  const configure = body.indexOf('desktopWorldScene.configureInitial(descriptor)')
-  const ready = body.indexOf('desktopWorldScene.isReady(descriptor)')
+  const configure = body.indexOf('scene.configureInitial(descriptor)')
+  const ready = body.indexOf('scene.isReady(descriptor)')
   const resume = body.indexOf('action: "resume"', ready)
 
   assert.ok(create >= 0, 'scene stage create request is missing')

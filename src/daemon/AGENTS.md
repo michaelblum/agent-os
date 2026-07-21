@@ -11,10 +11,13 @@ delivery, voice/communication routing, and cleanup.
 Scene transport owns only connection-scoped owner/resource leases and delivery
 to the singleton toolkit DesktopWorld stage. Declarative validation and render
 policy remain in the scene toolkit; disconnect always releases owned scenes.
-`scene-lease-registry.swift` is the single atomic owner for scene lease
-admission, typed subscriptions, stage result/event routing, and disconnect
-cleanup. Do not recreate parallel scene ownership or subscription maps in the
-connection handler.
+`desktop-world-scene-controller.swift` is the single atomic owner for scene
+lease admission, typed subscriptions, readiness, result/event routing, and
+disconnect cleanup. `desktop-world-scene-transport-controller.swift` owns the
+canvas I/O, extension admission, barrier timing, and bounded stage readiness
+wait around that state aggregate. `UnifiedDaemon` only delegates transport
+events and emits response envelopes. Do not recreate parallel scene ownership,
+subscription maps, or transport orchestration in the connection handler.
 The singleton full-display stage must be created hidden and resume only after
 every physical display segment in the exact current canvas and topology
 generation reports ready following transparent renderer initialization.

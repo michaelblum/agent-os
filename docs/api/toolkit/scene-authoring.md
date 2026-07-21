@@ -16,9 +16,13 @@ aos scene cartridge validate ./scene-work/companion --json
 
 Available templates are `spinning-object`, `conventional-drag`,
 `aim-and-commit`, and `radial-menu`. Scaffolding requires a new destination,
-uses owner-only staging, validates before one rename, and never installs,
-mounts, authorizes, or executes the result. Output contains relative filenames,
-byte counts, and digests rather than local paths or source text.
+uses owner-only staging, and validates before publication. It reserves the
+destination with an exclusive atomic directory creation, copies only validated
+payload bytes, and publishes `cartridge.json` last as the activation barrier.
+Readers must treat a destination without that manifest as inactive. Existing
+paths are never overwritten. Scaffolding never installs, mounts, authorizes, or
+executes the result. Output contains relative filenames, byte counts, and
+digests rather than local paths or source text.
 
 ## Cartridge Layout
 

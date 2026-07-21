@@ -311,6 +311,29 @@ test('scene session recovers once when the native stage is removed', async () =>
   await session.close()
 })
 
+test('scene session reconnects and remounts when the native stage is disposed', async () => {
+  let disposed = false
+  const fixture = fakeTransportFactory({
+    async send({ operation }) {
+      if (operation.op === 'inspect' && !disposed) {
+        disposed = true
+        throw Object.assign(new Error('stage disposed'), { code: 'SCENE_STAGE_DISPOSED' })
+      }
+      return { operation: operation.op, resource: identity.resourceId, status: 'ok' }
+    },
+  })
+  const session = createDesktopWorldSceneSession({ ...identity, connect: fixture.connect })
+  await session.mount({ document: scene(), interactions: interactions() })
+
+  await assert.rejects(session.inspect(), { code: 'SCENE_OPERATION_UNCERTAIN' })
+  assert.equal(fixture.transports.length, 2)
+  assert.equal(session.snapshot().status, 'ready')
+  assert.equal(session.snapshot().recoveryAttempts, 1)
+  assert.equal(session.snapshot().lastErrorCode, 'SCENE_STAGE_DISPOSED')
+  assert.deepEqual(fixture.transports[1].operations.map((entry) => entry.op), ['mount'])
+  await session.close()
+})
+
 test('scene session fails terminally after its single recovery budget is spent', async () => {
   const fixture = fakeTransportFactory()
   const session = createDesktopWorldSceneSession({ ...identity, connect: fixture.connect })

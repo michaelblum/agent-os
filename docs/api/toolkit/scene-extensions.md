@@ -14,9 +14,13 @@ aos scene extension scaffold ./scene-work/renderer \
 aos scene extension validate ./scene-work/renderer --json
 ```
 
-Scaffolding is deterministic, create-new, owner-only, and atomic after static
-validation. It does not install, authorize, mount, import, or execute the
-extension. Output omits local paths and source text.
+Scaffolding is deterministic, create-new, and owner-only. It statically
+validates in staging, reserves the destination with an exclusive atomic
+directory creation, copies only validated bytes, and publishes
+`extension.json` last as the activation barrier. Readers must treat a
+destination without that manifest as inactive. Existing paths are never
+overwritten. Scaffolding does not install, authorize, mount, import, or execute
+the extension. Output omits local paths and source text.
 
 The neutral runnable artifact is under
 `packages/toolkit/scene/extension-examples/basic-three/`. Its projection owns
