@@ -2926,7 +2926,8 @@ class UnifiedDaemon {
     }
 
     private func invalidateSceneLeaseOwnership(code: String) {
-        finishSceneStageInvalidation(desktopWorldScene.invalidateOwnership(code: code))
+        guard let invalidation = desktopWorldScene.invalidateOwnership(code: code) else { return }
+        finishSceneStageInvalidation(invalidation)
     }
 
     private func invalidateSceneStage(
@@ -2947,20 +2948,33 @@ class UnifiedDaemon {
     private func finishSceneStageInvalidation(
         _ plan: AOSDesktopWorldSceneInvalidationPlan
     ) {
-        if let identity = plan.identityToRetire {
+        switch plan {
+        case .deliver(let deliveries):
+            deliverSceneStageInvalidation(deliveries)
+        case .retire(let request):
             canvasSubscriptionLock.lock()
             canvasReadyManifests.removeValue(forKey: sceneStageCanvasID)
             canvasSubscriptionLock.unlock()
             canvasManager.retireDesktopWorldSceneStageAsync(
                 canvasID: sceneStageCanvasID,
-                canvasGeneration: identity.canvasGeneration,
-                topologyGeneration: identity.topologyGeneration
-            ) { [weak self] retired in
-                guard retired, let self else { return }
-                self.desktopWorldScene.finishRetirement(identity)
+                canvasGeneration: request.identity.canvasGeneration,
+                topologyGeneration: request.identity.topologyGeneration
+            ) { [weak self] outcome in
+                guard let self else { return }
+                switch self.desktopWorldScene.settleRetirement(request, outcome: outcome) {
+                case .stale:
+                    return
+                case .recoverable(let deliveries), .terminal(let deliveries):
+                    self.deliverSceneStageInvalidation(deliveries)
+                }
             }
         }
-        for delivery in plan.deliveries {
+    }
+
+    private func deliverSceneStageInvalidation(
+        _ deliveries: [AOSDesktopWorldSceneDelivery]
+    ) {
+        for delivery in deliveries {
             deliverSceneStageResult(delivery.payload, route: delivery.route)
         }
     }

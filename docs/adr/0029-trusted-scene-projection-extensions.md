@@ -62,11 +62,14 @@ executable code.
 
 `projection.js` is the body of `createProjection(context)`, not an ECMAScript
 module. It may declare local helpers and must return the projection object.
-Extension authors target the conservative ES2022 language baseline and avoid
-proposal-stage or engine-specific syntax. A memory- and time-bounded child
-process uses V8's ES-module parser to compile the body inside the exact
-host-generated wrapper without linking or evaluating it. That is a preliminary,
-non-executing installation check, not proof of parser parity with WebKit. Before
+Extension authors target the conservative ES2022 function-body baseline and
+avoid module-only, proposal-stage, or engine-specific syntax. A memory- and
+time-bounded child process parses the source as one strict function body, then
+parses the host wrapper as an ES module, without linking or evaluating either.
+The stored wrapper passes the body as an inert string to the Function
+constructor, so consumer bytes cannot terminate the function and introduce
+module-scope code. This is a preliminary, non-executing installation check, not
+proof of parser parity with WebKit. Before
 registry admission or projection preparation, the DesktopWorld stage imports a
 fresh generation of the exact wrapper through WebKit. This runtime import is the
 authoritative syntax/link compatibility gate; failure leaves the active scene

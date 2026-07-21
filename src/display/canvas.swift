@@ -1491,23 +1491,23 @@ class CanvasManager {
         canvasID: String,
         canvasGeneration: UInt64,
         topologyGeneration: UInt64,
-        completion: ((Bool) -> Void)? = nil
+        completion: ((AOSDesktopWorldSceneStageRetirementOutcome) -> Void)? = nil
     ) {
         DispatchQueue.main.async { [weak self] in
             guard let self else {
-                completion?(false)
+                completion?(.failed)
                 return
             }
             guard let surface = self.canvases[canvasID] as? DesktopWorldSurfaceCanvas else {
-                completion?(true)
+                completion?(.alreadyAbsent)
                 return
             }
             guard surface.lifecycleGeneration == canvasGeneration,
                   surface.topologyGeneration == topologyGeneration else {
-                completion?(false)
+                completion?(.superseded)
                 return
             }
-            completion?(self.retireCanvas(id: canvasID) != nil)
+            completion?(self.retireCanvas(id: canvasID) == nil ? .failed : .retired)
         }
     }
 

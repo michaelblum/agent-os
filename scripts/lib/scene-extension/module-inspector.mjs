@@ -18,10 +18,17 @@ function respond(value) {
 
 function compile(source) {
   try {
-    // Construction parses the exact ES-module source. It never links or evaluates it.
-    new SourceTextModule(source, {
+    const strictBody = '"use strict";\n' + source
+    // Function construction parses one body without executing it, so source
+    // cannot close over into module scope. The module parse preserves WebKit's
+    // strict ES-module syntax gate.
+    new Function('context', strictBody)
+    new SourceTextModule(
+      'const createProjection = Function("context", ' + JSON.stringify(strictBody)
+        + '); export default createProjection;', {
       identifier: 'aos-scene-extension:///validation/module.js',
-    })
+      },
+    )
     respond({ ok: true })
   } catch {
     respond({ ok: false })
@@ -67,7 +74,8 @@ function sortedJson(value) {
 }
 
 export function serializeSceneExtensionWrapperModule(manifest, bodySource) {
-  return Buffer.from(`function createProjection(context) {\n${bodySource}\n}\nconst manifest = ${sortedJson(manifest)};\nObject.freeze(manifest.implementationIds);\nObject.freeze(manifest.budgets);\nObject.freeze(manifest);\nexport default Object.freeze({ manifest, createProjection });\n`)
+  const strictBody = `"use strict";\n${bodySource}`
+  return Buffer.from(`const createProjection = Function("context", ${JSON.stringify(strictBody)});\nconst manifest = ${sortedJson(manifest)};\nObject.freeze(manifest.implementationIds);\nObject.freeze(manifest.budgets);\nObject.freeze(manifest);\nexport default Object.freeze({ manifest, createProjection });\n`)
 }
 
 class FactoryBodyCompiler {
@@ -183,7 +191,7 @@ class FactoryBodyCompiler {
   }
 }
 
-export async function validateSceneExtensionFactoryBody(bytes, manifest, compiler, aggregate = null) {
+export async function validateSceneExtensionFactoryBody(bytes, _manifest, compiler, aggregate = null) {
   const source = decodeUtf8(bytes)
   if (source.includes('\0')) {
     fail('SCENE_EXTENSION_BODY_ENCODING', 'Scene extension factory body cannot contain NUL bytes.')
@@ -194,8 +202,7 @@ export async function validateSceneExtensionFactoryBody(bytes, manifest, compile
   if (timeoutMs <= 1 && aggregate && Date.now() >= aggregate.deadline) {
     fail('SCENE_EXTENSION_LIST_BUDGET', 'Scene extension listing reached its validation budget.')
   }
-  const wrapper = serializeSceneExtensionWrapperModule(manifest, source)
-  const result = await compiler.compile(wrapper, timeoutMs)
+  const result = await compiler.compile(Buffer.from(source), timeoutMs)
   if (!result?.ok) fail('SCENE_EXTENSION_BODY_SYNTAX', 'Scene extension factory body syntax is invalid.')
 }
 

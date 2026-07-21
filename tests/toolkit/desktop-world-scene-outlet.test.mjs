@@ -10,6 +10,7 @@ import {
   sceneStageShouldRender,
 } from '../../packages/toolkit/components/desktop-world-stage/scene-outlet.js'
 import { createScenePlaybackClock } from '../../packages/toolkit/components/desktop-world-stage/scene-playback-clock.js'
+import { createSceneOutletDevToolsSnapshot } from '../../packages/toolkit/components/desktop-world-stage/scene-outlet-devtools.js'
 import {
   DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS,
   createSceneSegmentResourceBudget,
@@ -23,6 +24,8 @@ import {
 } from '../../packages/toolkit/scene/index.js'
 
 const outletURL = new URL('../../packages/toolkit/components/desktop-world-stage/scene-outlet.js', import.meta.url)
+const mountedResourceURL = new URL('../../packages/toolkit/components/desktop-world-stage/scene-mounted-resource.js', import.meta.url)
+const devtoolsSnapshotURL = new URL('../../packages/toolkit/components/desktop-world-stage/scene-outlet-devtools.js', import.meta.url)
 const stageURL = new URL('../../packages/toolkit/components/desktop-world-stage/index.js', import.meta.url)
 const threeURL = new URL('../../packages/toolkit/vendor/three/three.module.min.js', import.meta.url)
 const threeCoreURL = new URL('../../packages/toolkit/vendor/three/three.core.min.js', import.meta.url)
@@ -431,9 +434,61 @@ test('stage visibility and context transitions resume only runnable resources', 
   assert.equal(resourceClock.snapshot().paused, true)
 })
 
+test('scene outlet DevTools projection is deterministic, bounded, and read-only', () => {
+  const mounted = (resource, position, options = {}) => ({
+    resource,
+    owner: 'example.consumer',
+    suspended: options.suspended === true,
+    extensionReference: options.extensionReference ?? null,
+    document: {
+      id: resource,
+      revision: options.revision ?? 1,
+      resources: [
+        { id: `${resource}/material`, kind: 'material', implementation: 'example.material' },
+        { id: `${resource}/geometry`, kind: 'geometry', implementation: 'example.geometry' },
+      ],
+      objects: [{
+        id: `${resource}/body`,
+        parentId: null,
+        kind: 'mesh',
+        geometryId: `${resource}/geometry`,
+        materialId: `${resource}/material`,
+        transform: { position: [0, 0, 0] },
+        visible: true,
+        components: [],
+      }],
+    },
+    projection: { objectPosition: () => position },
+    animations: { snapshot: () => ({ bindings: [{}] }) },
+    signals: { snapshot: () => ({ bindings: [{}, {}] }) },
+    interactionVisuals: options.route
+      ? { snapshot: () => ({ route: options.route }) }
+      : null,
+  })
+  const second = mounted('zeta/main', [9, 8, 0], {
+    route: { active: true, destination: [30, 40], kind: 'aim_commit', objectId: 'body', origin: [9, 8], progress: 0.5 },
+  })
+  const first = mounted('alpha/main', [1, 2, 0], { suspended: true })
+  const sourcePosition = [...first.document.objects[0].transform.position]
+
+  const snapshot = createSceneOutletDevToolsSnapshot(new Map([
+    ['zeta', second],
+    ['alpha', first],
+  ]))
+
+  assert.deepEqual(snapshot.resources.map((entry) => entry.id), ['alpha/main', 'zeta/main'])
+  assert.deepEqual(snapshot.nodes.map((entry) => entry.resourceId), ['alpha/main', 'zeta/main'])
+  assert.deepEqual(snapshot.nodes[1].position, [9, 8, 0])
+  assert.equal(snapshot.resources[0].lifecycle, 'suspended')
+  assert.deepEqual(snapshot.routes.map((entry) => entry.resourceId), ['zeta/main'])
+  assert.deepEqual(first.document.objects[0].transform.position, sourcePosition)
+})
+
 test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop', async () => {
-  const [outlet, stage, three, threeCore] = await Promise.all([
+  const [outlet, mountedResource, devtoolsSnapshot, stage, three, threeCore] = await Promise.all([
     readFile(outletURL, 'utf8'),
+    readFile(mountedResourceURL, 'utf8'),
+    readFile(devtoolsSnapshotURL, 'utf8'),
     readFile(stageURL, 'utf8'),
     stat(threeURL),
     stat(threeCoreURL),
@@ -446,8 +501,9 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.doesNotMatch(outlet, /new THREE\.PerspectiveCamera/u)
   assert.match(outlet, /deriveOrthoCamera\(nextSegment\)/u)
   assert.match(outlet, /projection: 'desktop-world-orthographic'/u)
-  assert.match(outlet, /createSceneAnimationController\(document/u)
-  assert.match(outlet, /createSceneSignalController\(document/u)
+  assert.match(outlet, /createDesktopWorldSceneMountedResource/u)
+  assert.match(mountedResource, /createSceneAnimationController\(document/u)
+  assert.match(mountedResource, /createSceneSignalController\(document/u)
   assert.match(outlet, /mounted\.animations\.tick\(elapsed\)/u)
   assert.match(outlet, /mounted\.projection\.tick\?\.\(elapsed\)/u)
   assert.match(outlet, /finally \{[\s\S]*if \(!stageFault\) scheduleRender\(\)/u)
@@ -461,7 +517,7 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /SCENE_EXTENSION_INTERACTION_FAILED/u)
   assert.match(outlet, /candidate\.projection\.activate\?\.\(\)/u)
   assert.match(outlet, /error\?\.code === 'SCENE_EXTENSION_DISPOSE_FAILED'[\s\S]*faultSceneSegment\('SCENE_EXTENSION_DISPOSE_FAILED'\)/u)
-  assert.match(outlet, /cleanupFailures\.length > 0[\s\S]*faultSceneSegment\('SCENE_EXTENSION_DISPOSE_FAILED'\)/u)
+  assert.match(mountedResource, /failures\.length > 0[\s\S]*SCENE_EXTENSION_DISPOSE_FAILED/u)
   assert.match(outlet, /candidate\.suspended \|\| stageSuspended/u)
   assert.match(outlet, /candidate\.stageSuspendedApplied = stageSuspended/u)
   assert.match(outlet, /segmentBudget\.reserve\(candidate\)/u)
@@ -471,7 +527,7 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /operation\.op === 'mount'[\s\S]*Object\.hasOwn\(operation, 'extension'\) \? operation\.extension : null/u)
   assert.match(outlet, /mounted\.playClock\.elapsed\(at\)/u)
   assert.doesNotMatch(outlet, /playStartedAt/u)
-  assert.match(outlet, /onComplete: \(binding, value\) => interactionState\.complete\(binding, value\)/u)
+  assert.match(mountedResource, /onComplete: \(binding, value\) => interactionState\.complete\(binding, value\)/u)
   assert.match(outlet, /notifyInteractionGeometry\(mounted\.key, mounted\.playGeneration\)/u)
   assert.match(outlet, /mounted\.playGeneration = \+\+nextPlayGeneration/u)
   assert.match(outlet, /resources\.has\(key\) \? nextPlayGeneration \+ 1 : null/u)
@@ -482,7 +538,7 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /reconcileSceneStageRunState/u)
   assert.match(outlet, /createDesktopWorldSceneInteractionThree/u)
   assert.match(outlet, /ensureInteractionVisuals/u)
-  assert.match(outlet, /interactionVisuals: null/u)
+  assert.match(mountedResource, /interactionVisuals: null/u)
   const aimBranch = outlet.slice(outlet.indexOf("if (response.kind === 'aim_commit')"), outlet.indexOf("if (response.kind === 'translate')"))
   assert.ok(aimBranch.indexOf('const revision = commitObjectPosition') < aimBranch.indexOf('const visual = interactionVisuals.apply'))
   assert.match(aimBranch, /revision === null[\s\S]*interactionVisuals\.cancel\(\)/u)
@@ -502,6 +558,9 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /gpuTimer\?\.dispose\(\)/u)
   assert.match(outlet, /renderer\.info/u)
   assert.match(outlet, /devtoolsSnapshot\(\)/u)
+  assert.match(outlet, /createSceneOutletDevToolsSnapshot\(resources/u)
+  assert.match(devtoolsSnapshot, /mountedResources\.push/u)
+  assert.ok(outlet.split('\n').length < 900, 'scene outlet must remain below its decomposition ratchet')
   assert.match(stage, /desktop_world_stage\.devtools\.configure/u)
   assert.match(stage, /desktop_world_stage\.devtools\.snapshot/u)
   assert.match(outlet, /webglcontextlost/u)
@@ -510,7 +569,7 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(stage, /desktop_world_stage\.scene\.operation/u)
   assert.equal((stage.match(/emit\('desktop_world_stage\.scene\.result'/gu) ?? []).length, 2)
   assert.match(stage, /emit\('desktop_world_stage\.scene\.fault'/u)
-  assert.match(stage, /await sceneOperations\?\.failClosed\(fault\.code\)/u)
+  assert.match(stage, /await sceneOperations\?\.failClosed\(code\)/u)
   assert.match(stage, /message\?\.type === 'lifecycle'[\s\S]*enqueueSceneWork\(\(\) => handleDesktopWorldStageLifecycle/u)
   assert.equal((stage.match(/stageLifecycleState === 'active'\) sceneOperations\.handleInput\(message\)/gu) ?? []).length, 2)
   assert.match(stage, /stageLifecycleState = 'closing'[\s\S]*enqueueSceneWork\(async \(\) => \{[\s\S]*await disposeStage\(\)/u)

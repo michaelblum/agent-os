@@ -336,6 +336,26 @@ test('scene session faults instead of reconnecting after terminal transport comp
   assert.equal(fixture.transports.length, 1)
 })
 
+test('scene session treats native retirement failure as terminal without reconnecting', async () => {
+  const fixture = fakeTransportFactory({
+    async send({ operation }) {
+      if (operation.op === 'inspect') {
+        throw Object.assign(new Error('native stage retirement failed'), {
+          code: 'SCENE_STAGE_RETIRE_FAILED',
+        })
+      }
+      return { operation: operation.op, resource: identity.resourceId, status: 'ok' }
+    },
+  })
+  const session = createDesktopWorldSceneSession({ ...identity, connect: fixture.connect })
+  await session.mount({ document: scene(), interactions: interactions() })
+
+  await assert.rejects(session.inspect(), { code: 'SCENE_SESSION_FAULTED' })
+  assert.equal(session.snapshot().status, 'faulted')
+  assert.equal(session.snapshot().lastErrorCode, 'SCENE_STAGE_RETIRE_FAILED')
+  assert.equal(fixture.transports.length, 1)
+})
+
 test('scene session faults on malformed transport results and non-monotonic events', async () => {
   const invalidResult = fakeTransportFactory({
     async send({ operation }) {

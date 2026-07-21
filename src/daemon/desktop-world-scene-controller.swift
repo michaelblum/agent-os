@@ -10,9 +10,27 @@ struct AOSDesktopWorldSceneDelivery {
     let route: AOSSceneLeaseRoute
 }
 
-struct AOSDesktopWorldSceneInvalidationPlan {
-    let identityToRetire: AOSDesktopWorldSceneStageIdentity?
-    let deliveries: [AOSDesktopWorldSceneDelivery]
+enum AOSDesktopWorldSceneStageRetirementOutcome {
+    case retired
+    case alreadyAbsent
+    case superseded
+    case failed
+}
+
+struct AOSDesktopWorldSceneRetirementRequest: Equatable {
+    let token: UInt64
+    let identity: AOSDesktopWorldSceneStageIdentity
+}
+
+enum AOSDesktopWorldSceneInvalidationPlan {
+    case deliver([AOSDesktopWorldSceneDelivery])
+    case retire(AOSDesktopWorldSceneRetirementRequest)
+}
+
+enum AOSDesktopWorldSceneRetirementResolution {
+    case stale
+    case recoverable([AOSDesktopWorldSceneDelivery])
+    case terminal([AOSDesktopWorldSceneDelivery])
 }
 
 struct AOSDesktopWorldSceneDisconnectPlan {
@@ -42,7 +60,12 @@ final class AOSDesktopWorldSceneController {
     private let results = AOSDesktopWorldSceneResultCoordinator()
     private let readiness = AOSDesktopWorldSceneStageReadiness()
     private var operationTokens: [String: AOSSceneLeaseToken] = [:]
-    private var retiringIdentity: AOSDesktopWorldSceneStageIdentity?
+    private var blockedIdentity: AOSDesktopWorldSceneStageIdentity?
+    private var nextRetirementToken: UInt64 = 0
+    private var retirement: (
+        request: AOSDesktopWorldSceneRetirementRequest,
+        deliveries: [AOSDesktopWorldSceneDelivery]
+    )?
 
     func key(owner: String, resource: String) -> String {
         "\(owner)::\(resource)"
@@ -50,11 +73,13 @@ final class AOSDesktopWorldSceneController {
 
     func configureInitial(_ topology: AOSDesktopWorldSceneTopologyDescriptor) -> Bool {
         withLock {
-            guard retiringIdentity == nil,
-                  readiness.currentIdentity().map({ $0 == topology.identity }) ?? true else {
+            guard topologyIdentityAllowedLocked(topology.identity),
+                  readiness.currentIdentity().map({ $0 == topology.identity }) ?? true,
+                  readiness.configure(identity: topology.identity, segments: topology.segments) else {
                 return false
             }
-            return readiness.configure(identity: topology.identity, segments: topology.segments)
+            clearBlockedIdentityForSuccessorLocked(topology.identity)
+            return true
         }
     }
 
@@ -65,11 +90,12 @@ final class AOSDesktopWorldSceneController {
         manifest: [String: Any]
     ) -> Bool {
         withLock {
-            guard retiringIdentity == nil,
+            guard topologyIdentityAllowedLocked(topology.identity),
                   readiness.currentIdentity().map({ $0 == topology.identity }) ?? true,
                   readiness.configure(identity: topology.identity, segments: topology.segments) else {
                 return false
             }
+            clearBlockedIdentityForSuccessorLocked(topology.identity)
             return readiness.record(
                 identity: topology.identity,
                 displayID: displayID,
@@ -81,7 +107,7 @@ final class AOSDesktopWorldSceneController {
 
     func isReady(_ topology: AOSDesktopWorldSceneTopologyDescriptor) -> Bool {
         withLock {
-            retiringIdentity != topology.identity && readiness.isReady(for: topology.identity)
+            retirement == nil && readiness.isReady(for: topology.identity)
         }
     }
 
@@ -90,11 +116,17 @@ final class AOSDesktopWorldSceneController {
         code: String
     ) -> AOSDesktopWorldSceneInvalidationPlan? {
         withLock {
-            guard retiringIdentity == nil else { return nil }
+            guard topologyIdentityAllowedLocked(topology.identity) else { return nil }
+            if retirement != nil {
+                guard readiness.configure(identity: topology.identity, segments: topology.segments) else { return nil }
+                clearBlockedIdentityForSuccessorLocked(topology.identity)
+                return nil
+            }
             let previous = readiness.currentIdentity()
             guard readiness.configure(identity: topology.identity, segments: topology.segments) else {
                 return nil
             }
+            clearBlockedIdentityForSuccessorLocked(topology.identity)
             guard let previous, previous != topology.identity,
                   readiness.invalidateIfCurrent(topology.identity) else { return nil }
             return invalidateLocked(identityToRetire: topology.identity, code: code)
@@ -106,12 +138,12 @@ final class AOSDesktopWorldSceneController {
             guard let identity = readiness.currentIdentity() else {
                 return invalidateOwnershipLocked(code: code)
             }
-            guard retiringIdentity != identity else { return nil }
+            guard retirement?.request.identity != identity else { return nil }
             return invalidateStageLocked(identity: identity, code: code)
         }
     }
 
-    func invalidateOwnership(code: String) -> AOSDesktopWorldSceneInvalidationPlan {
+    func invalidateOwnership(code: String) -> AOSDesktopWorldSceneInvalidationPlan? {
         withLock { invalidateOwnershipLocked(code: code) }
     }
 
@@ -127,10 +159,7 @@ final class AOSDesktopWorldSceneController {
                       let delivery = completeLocked(primaryCompletion, operationID: primaryOperationID) else {
                     return nil
                 }
-                return AOSDesktopWorldSceneInvalidationPlan(
-                    identityToRetire: nil,
-                    deliveries: [delivery]
-                )
+                return planDeliveriesLocked([delivery])
             }
             return invalidateLocked(
                 identityToRetire: identity,
@@ -140,11 +169,27 @@ final class AOSDesktopWorldSceneController {
         }
     }
 
-    func finishRetirement(_ identity: AOSDesktopWorldSceneStageIdentity) {
+    func settleRetirement(
+        _ request: AOSDesktopWorldSceneRetirementRequest,
+        outcome: AOSDesktopWorldSceneStageRetirementOutcome
+    ) -> AOSDesktopWorldSceneRetirementResolution {
         withLock {
-            guard retiringIdentity == identity else { return }
-            readiness.clear()
-            retiringIdentity = nil
+            guard let pending = retirement, pending.request == request else { return .stale }
+            retirement = nil
+            if readiness.currentIdentity() == request.identity { readiness.clear() }
+            switch outcome {
+            case .retired, .alreadyAbsent, .superseded:
+                return .recoverable(pending.deliveries)
+            case .failed:
+                blockedIdentity = request.identity
+                let deliveries = pending.deliveries.map { delivery in
+                    var payload = delivery.payload
+                    payload["status"] = "error"
+                    payload["code"] = "SCENE_STAGE_RETIRE_FAILED"
+                    return AOSDesktopWorldSceneDelivery(payload: payload, route: delivery.route)
+                }
+                return .terminal(deliveries)
+            }
         }
     }
 
@@ -250,7 +295,7 @@ final class AOSDesktopWorldSceneController {
         withLock {
             guard topology.identity.canvasGeneration == broadcast.canvasGeneration
                 && topology.identity.topologyGeneration == broadcast.topologyGeneration
-                && retiringIdentity != topology.identity
+                && retirement == nil
                 && readiness.isReady(for: topology.identity)
                 && operationTokens[broadcast.operationID]?.key == broadcast.leaseKey else { return false }
             return post()
@@ -264,7 +309,7 @@ final class AOSDesktopWorldSceneController {
         deliver: (AOSSceneLeaseRoute) -> Void
     ) {
         withLock {
-            guard retiringIdentity != identity,
+            guard retirement == nil,
                   readiness.isReady(for: identity),
                   let route = leases.routeEvent(key: key, event: event) else { return }
             deliver(route)
@@ -280,7 +325,7 @@ final class AOSDesktopWorldSceneController {
         removeAll: Bool
     ) -> AOSDesktopWorldSceneSubscriptionOutcome {
         withLock {
-            guard retiringIdentity == nil else { return .stageUnavailable }
+            guard retirement == nil else { return .stageUnavailable }
             let acquisition = leases.acquire(key: key, connectionID: connectionID, ref: ref)
             guard case .acquired(let token, let isNewLease) = acquisition else { return .busy }
             let events = leases.updateSubscriptions(
@@ -306,7 +351,7 @@ final class AOSDesktopWorldSceneController {
         ref: String?
     ) -> AOSDesktopWorldSceneOperationAdmission {
         withLock {
-            guard retiringIdentity != topology.identity,
+            guard retirement == nil,
                   readiness.isReady(for: topology.identity) else { return .stageUnavailable }
             let acquisition = leases.acquire(key: key, connectionID: connectionID, ref: ref)
             guard case .acquired(let token, let isNewLease) = acquisition else { return .leaseBusy }
@@ -350,14 +395,14 @@ final class AOSDesktopWorldSceneController {
     private func invalidateStageLocked(
         identity: AOSDesktopWorldSceneStageIdentity,
         code: String
-    ) -> AOSDesktopWorldSceneInvalidationPlan {
+    ) -> AOSDesktopWorldSceneInvalidationPlan? {
         if readiness.invalidateIfCurrent(identity) {
             return invalidateLocked(identityToRetire: identity, code: code)
         }
         return invalidateOwnershipLocked(code: code)
     }
 
-    private func invalidateOwnershipLocked(code: String) -> AOSDesktopWorldSceneInvalidationPlan {
+    private func invalidateOwnershipLocked(code: String) -> AOSDesktopWorldSceneInvalidationPlan? {
         invalidateLocked(identityToRetire: nil, code: code)
     }
 
@@ -365,11 +410,10 @@ final class AOSDesktopWorldSceneController {
         identityToRetire: AOSDesktopWorldSceneStageIdentity?,
         code: String,
         primaryCompletion: AOSDesktopWorldSceneResultCompletion? = nil
-    ) -> AOSDesktopWorldSceneInvalidationPlan {
+    ) -> AOSDesktopWorldSceneInvalidationPlan? {
         let invalidated = leases.invalidateAll()
         results.cancelAll()
         operationTokens.removeAll(keepingCapacity: false)
-        if let identityToRetire { retiringIdentity = identityToRetire }
         let primaryKey = primaryCompletion?.payload["lease_key"] as? String
         let deliveries = invalidated.map { invalidation -> AOSDesktopWorldSceneDelivery in
             let payload: [String: Any]
@@ -386,10 +430,37 @@ final class AOSDesktopWorldSceneController {
             }
             return AOSDesktopWorldSceneDelivery(payload: payload, route: invalidation.route)
         }
-        return AOSDesktopWorldSceneInvalidationPlan(
-            identityToRetire: identityToRetire,
-            deliveries: deliveries
-        )
+        if let identityToRetire {
+            nextRetirementToken &+= 1
+            let request = AOSDesktopWorldSceneRetirementRequest(
+                token: nextRetirementToken,
+                identity: identityToRetire
+            )
+            let retained = retirement?.deliveries ?? []
+            retirement = (request: request, deliveries: retained + deliveries)
+            return .retire(request)
+        }
+        return planDeliveriesLocked(deliveries)
+    }
+
+    private func planDeliveriesLocked(
+        _ deliveries: [AOSDesktopWorldSceneDelivery]
+    ) -> AOSDesktopWorldSceneInvalidationPlan? {
+        guard !deliveries.isEmpty else { return nil }
+        if var pending = retirement {
+            pending.deliveries.append(contentsOf: deliveries)
+            retirement = pending
+            return nil
+        }
+        return .deliver(deliveries)
+    }
+
+    private func topologyIdentityAllowedLocked(_ identity: AOSDesktopWorldSceneStageIdentity) -> Bool {
+        blockedIdentity != identity && retirement?.request.identity != identity
+    }
+
+    private func clearBlockedIdentityForSuccessorLocked(_ identity: AOSDesktopWorldSceneStageIdentity) {
+        if blockedIdentity != nil, blockedIdentity != identity { blockedIdentity = nil }
     }
 
     private func resource(from leaseKey: String) -> String {

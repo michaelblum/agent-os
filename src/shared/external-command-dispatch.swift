@@ -60,10 +60,10 @@ func runExternalCommandIfMatched(args: [String]) -> Bool {
     if args.contains("--help") || args.contains("-h") {
         return false
     }
-    guard let repoRoot = aosCurrentRepoRoot() else {
+    guard let aosRepoRoot = aosCurrentRepoRoot() else {
         return false
     }
-    let manifestPath = (repoRoot as NSString).appendingPathComponent(externalCommandManifestRelativePath)
+    let manifestPath = (aosRepoRoot as NSString).appendingPathComponent(externalCommandManifestRelativePath)
     guard FileManager.default.fileExists(atPath: manifestPath),
           let data = try? Data(contentsOf: URL(fileURLWithPath: manifestPath)) else {
         return false
@@ -86,11 +86,21 @@ func runExternalCommandIfMatched(args: [String]) -> Bool {
 
     let repoOverride = rawOptionValue(args, "--repo")
     let commandRepoRoot = resolveExternalRepoRoot(repoOverride)
-    let executable = resolveExternalExecutable(command.executable, repoRoot: commandRepoRoot)
+    let executable = resolveExternalExecutable(
+        command.executable,
+        repoRoot: commandRepoRoot,
+        aosRepoRoot: aosRepoRoot
+    )
     let childArgs = Array(args.dropFirst(command.path.count))
-    let argv = command.argvPrefix.map { resolveExternalArg($0, repoRoot: commandRepoRoot) } + childArgs
-    let cwd = command.cwd == "repo" ? commandRepoRoot : command.cwd.map { resolveExternalArg($0, repoRoot: commandRepoRoot) }
-    let environment = command.env.map { resolveExternalEnvironment($0, repoRoot: commandRepoRoot) }
+    let argv = command.argvPrefix.map {
+        resolveExternalArg($0, repoRoot: commandRepoRoot, aosRepoRoot: aosRepoRoot)
+    } + childArgs
+    let cwd = command.cwd == "repo"
+        ? commandRepoRoot
+        : command.cwd.map { resolveExternalArg($0, repoRoot: commandRepoRoot, aosRepoRoot: aosRepoRoot) }
+    let environment = command.env.map {
+        resolveExternalEnvironment($0, repoRoot: commandRepoRoot, aosRepoRoot: aosRepoRoot)
+    }
     if command.stdio == .inherit {
         exit(runExternalProcessInheritingStdio(executable, arguments: argv, cwd: cwd, environment: environment))
     }
@@ -163,16 +173,22 @@ private func resolveExternalRepoRoot(_ requested: String?) -> String {
     return NSString(string: start).standardizingPath
 }
 
-private func resolveExternalExecutable(_ value: String, repoRoot: String) -> String {
+private func resolveExternalExecutable(_ value: String, repoRoot: String, aosRepoRoot: String) -> String {
     if value.hasPrefix("/") {
         return value
     }
-    return resolveExternalArg(value, repoRoot: repoRoot)
+    return resolveExternalArg(value, repoRoot: repoRoot, aosRepoRoot: aosRepoRoot)
 }
 
-private func resolveExternalArg(_ value: String, repoRoot: String) -> String {
+private func resolveExternalArg(_ value: String, repoRoot: String, aosRepoRoot: String) -> String {
     if value.hasPrefix("/") {
         return value
+    }
+    if value.hasPrefix("$AOS_REPO_ROOT/") {
+        return (aosRepoRoot as NSString).appendingPathComponent(String(value.dropFirst("$AOS_REPO_ROOT/".count)))
+    }
+    if value == "$AOS_REPO_ROOT" {
+        return aosRepoRoot
     }
     if value.hasPrefix("$REPO_ROOT/") {
         return (repoRoot as NSString).appendingPathComponent(String(value.dropFirst("$REPO_ROOT/".count)))
@@ -201,10 +217,14 @@ private func resolveExternalArg(_ value: String, repoRoot: String) -> String {
     return value
 }
 
-private func resolveExternalEnvironment(_ env: [String: String], repoRoot: String) -> [String: String] {
+private func resolveExternalEnvironment(
+    _ env: [String: String],
+    repoRoot: String,
+    aosRepoRoot: String
+) -> [String: String] {
     var resolved: [String: String] = [:]
     for (key, value) in env {
-        resolved[key] = resolveExternalArg(value, repoRoot: repoRoot)
+        resolved[key] = resolveExternalArg(value, repoRoot: repoRoot, aosRepoRoot: aosRepoRoot)
     }
     return resolved
 }

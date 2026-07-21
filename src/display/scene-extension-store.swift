@@ -62,10 +62,16 @@ struct AOSSceneExtensionArtifact {
         guard let bodySource = String(data: body, encoding: .utf8) else {
             throw AOSSceneExtensionStoreFailure(code: "SCENE_EXTENSION_BODY_ENCODING")
         }
-        let source = """
-        function createProjection(context) {
-        \(bodySource)
+        let strictBody = "\"use strict\";\n\(bodySource)"
+        let bodyLiteralData = try JSONSerialization.data(
+            withJSONObject: strictBody,
+            options: [.fragmentsAllowed]
+        )
+        guard let bodyLiteral = String(data: bodyLiteralData, encoding: .utf8) else {
+            throw AOSSceneExtensionStoreFailure(code: "SCENE_EXTENSION_BODY_ENCODING")
         }
+        let source = """
+        const createProjection = Function("context", \(bodyLiteral));
         const manifest = \(manifestJSON);
         Object.freeze(manifest.implementationIds);
         Object.freeze(manifest.budgets);

@@ -232,11 +232,18 @@ test('DesktopWorld native orchestration pins lease refs and serializes topology 
   assert.match(canvas, /surface\.topologyGeneration == topology\.generation/u)
   assert.match(canvas, /surface\.sceneBarrierTopology\(\) == topology/u)
   assert.match(daemon, /private func handleSceneStageTopologySettled\(_ payload: \[String: Any\]\)/u)
-  assert.match(controller, /guard retiringIdentity == nil/u)
+  assert.match(controller, /private var retirement:/u)
+  assert.match(controller, /func settleRetirement/u)
   assert.match(controller, /readiness\.currentIdentity\(\)\.map\(\{ \$0 == topology\.identity \}\) \?\? true/u)
   assert.match(controller, /readiness\.invalidateIfCurrent\(identity\)[\s\S]{0,800}invalidateLocked/u)
-  assert.match(controller, /retiringIdentity = identityToRetire/u)
-  assert.match(controller, /readiness\.clear\(\)[\s\S]{0,120}retiringIdentity = nil/u)
+  assert.match(controller, /AOSDesktopWorldSceneRetirementRequest/u)
+  assert.match(controller, /guard let pending = retirement, pending\.request == request else \{ return \.stale \}/u)
+  assert.match(
+    daemon,
+    /retireDesktopWorldSceneStageAsync\([\s\S]{0,600}settleRetirement\(request, outcome: outcome\)[\s\S]{0,300}deliverSceneStageInvalidation/u,
+    'client invalidation must be released only after the exact native retirement callback settles',
+  )
+  assert.match(canvas, /completion\?\(\.superseded\)/u)
   assert.match(
     daemon,
     /if canvasInfo\.id == self\.sceneStageCanvasID \{[\s\S]{0,300}desktopWorldScene\.stageRemoved\(code: "SCENE_STAGE_REMOVED"\)/u,
@@ -353,13 +360,16 @@ let next = AOSDesktopWorldSceneTopologyDescriptor(
     identity: AOSDesktopWorldSceneStageIdentity(canvasGeneration: 3, topologyGeneration: 5),
     segments: segments
 )
-guard let invalidation = controller.topologySettled(next, code: "SCENE_TOPOLOGY_CHANGED") else {
+guard case .retire(let replacementRetirement)? = controller.topologySettled(next, code: "SCENE_TOPOLOGY_CHANGED") else {
     preconditionFailure("topology replacement did not retire")
 }
-precondition(invalidation.identityToRetire == next.identity)
-precondition(invalidation.deliveries.count == 1)
-precondition(invalidation.deliveries[0].payload["code"] as? String == "SCENE_TOPOLOGY_CHANGED")
-controller.finishRetirement(next.identity)
+precondition(replacementRetirement.identity == next.identity)
+guard case .recoverable(let replacementDeliveries) = controller.settleRetirement(
+    replacementRetirement,
+    outcome: .retired
+) else { preconditionFailure("topology replacement did not settle") }
+precondition(replacementDeliveries.count == 1)
+precondition(replacementDeliveries[0].payload["code"] as? String == "SCENE_TOPOLOGY_CHANGED")
 
 let atomic = AOSDesktopWorldSceneController()
 let atomicTopology = readyController(atomic)
@@ -420,9 +430,9 @@ let acceptedBeforeInvalidation = broadcastAccepted
 let retired = invalidationPlan
 stateLock.unlock()
 precondition(acceptedBeforeInvalidation)
-precondition(retired?.deliveries.count == 1)
-precondition(retired?.deliveries[0].route.ref == "atomic-ref")
-precondition(retired?.deliveries[0].payload["code"] as? String == "SCENE_STAGE_REMOVED")
+guard case .retire(let atomicRetirement)? = retired else {
+    preconditionFailure("atomic retirement request missing")
+}
 var postInvalidationEvent = false
 atomic.withEventRoute(identity: atomicTopology.identity, key: atomicKey, event: "gesture") { _ in
     postInvalidationEvent = true
@@ -437,7 +447,132 @@ precondition(atomic.complete(
     operationID: atomicBroadcast.operationID
 ) == nil)
 precondition(atomic.stageRemoved(code: "SCENE_STAGE_REMOVED") == nil)
-atomic.finishRetirement(atomicTopology.identity)
+guard case .recoverable(let atomicDeliveries) = atomic.settleRetirement(
+    atomicRetirement,
+    outcome: .retired
+) else { preconditionFailure("atomic retirement did not settle") }
+precondition(atomicDeliveries.count == 1)
+precondition(atomicDeliveries[0].route.ref == "atomic-ref")
+precondition(atomicDeliveries[0].payload["code"] as? String == "SCENE_STAGE_REMOVED")
+
+let superseding = AOSDesktopWorldSceneController()
+let supersededTopology = readyController(superseding)
+let supersedingConnection = UUID()
+let supersedingKey = superseding.key(owner: "superseding", resource: "main")
+guard case .accepted = superseding.updateSubscriptions(
+    key: supersedingKey,
+    connectionID: supersedingConnection,
+    ref: "superseding-ref",
+    adding: Set(["gesture"]),
+    removing: [],
+    removeAll: false
+) else { preconditionFailure("superseding subscription rejected") }
+guard case .retire(let supersededRetirement)? = superseding.invalidateStage(
+    identity: supersededTopology.identity,
+    code: "SCENE_STAGE_REMOVED"
+) else { preconditionFailure("superseded retirement missing") }
+let successorTopology = AOSDesktopWorldSceneTopologyDescriptor(
+    identity: AOSDesktopWorldSceneStageIdentity(canvasGeneration: 3, topologyGeneration: 6),
+    segments: segments
+)
+precondition(superseding.topologySettled(successorTopology, code: "SCENE_TOPOLOGY_CHANGED") == nil)
+precondition(superseding.recordReady(
+    topology: successorTopology,
+    displayID: 7,
+    index: 0,
+    manifest: manifest
+) == false)
+precondition(superseding.recordReady(
+    topology: successorTopology,
+    displayID: 9,
+    index: 1,
+    manifest: manifest
+))
+precondition(superseding.isReady(successorTopology) == false)
+guard case .stageUnavailable = superseding.admitOperation(
+    topology: successorTopology,
+    key: supersedingKey,
+    owner: "superseding",
+    resource: "main",
+    operationName: "play",
+    operation: ["op": "play"],
+    connectionID: supersedingConnection,
+    ref: "blocked-ref"
+) else { preconditionFailure("successor admitted before retirement settled") }
+guard case .recoverable(let supersededDeliveries) = superseding.settleRetirement(
+    supersededRetirement,
+    outcome: .superseded
+) else { preconditionFailure("superseded retirement did not settle") }
+precondition(supersededDeliveries.count == 1)
+precondition(superseding.isReady(successorTopology))
+guard case .accepted = superseding.admitOperation(
+    topology: successorTopology,
+    key: supersedingKey,
+    owner: "superseding",
+    resource: "main",
+    operationName: "play",
+    operation: ["op": "play"],
+    connectionID: UUID(),
+    ref: "successor-ref"
+) else { preconditionFailure("successor not admitted after retirement settled") }
+
+let tokenized = AOSDesktopWorldSceneController()
+let firstTokenTopology = readyController(tokenized)
+guard case .retire(let firstRetirement)? = tokenized.invalidateStage(
+    identity: firstTokenTopology.identity,
+    code: "SCENE_STAGE_REMOVED"
+) else { preconditionFailure("first retirement token missing") }
+let secondTokenTopology = AOSDesktopWorldSceneTopologyDescriptor(
+    identity: AOSDesktopWorldSceneStageIdentity(canvasGeneration: 3, topologyGeneration: 7),
+    segments: segments
+)
+precondition(tokenized.topologySettled(secondTokenTopology, code: "SCENE_TOPOLOGY_CHANGED") == nil)
+precondition(tokenized.recordReady(topology: secondTokenTopology, displayID: 7, index: 0, manifest: manifest) == false)
+precondition(tokenized.recordReady(topology: secondTokenTopology, displayID: 9, index: 1, manifest: manifest))
+guard case .retire(let secondRetirement)? = tokenized.stageRemoved(code: "SCENE_STAGE_REMOVED") else {
+    preconditionFailure("second retirement token missing")
+}
+guard case .stale = tokenized.settleRetirement(firstRetirement, outcome: .superseded) else {
+    preconditionFailure("stale retirement callback was accepted")
+}
+guard case .recoverable = tokenized.settleRetirement(secondRetirement, outcome: .alreadyAbsent) else {
+    preconditionFailure("latest retirement token did not settle")
+}
+
+let failedRetirement = AOSDesktopWorldSceneController()
+let failedTopology = readyController(failedRetirement)
+let failedConnection = UUID()
+let failedKey = failedRetirement.key(owner: "failed", resource: "main")
+guard case .accepted = failedRetirement.updateSubscriptions(
+    key: failedKey,
+    connectionID: failedConnection,
+    ref: "failed-ref",
+    adding: Set(["gesture"]),
+    removing: [],
+    removeAll: false
+) else { preconditionFailure("failed-retirement subscription rejected") }
+guard case .retire(let failureRequest)? = failedRetirement.invalidateStage(
+    identity: failedTopology.identity,
+    code: "SCENE_STAGE_REMOVED"
+) else { preconditionFailure("failed retirement request missing") }
+guard case .terminal(let failureDeliveries) = failedRetirement.settleRetirement(
+    failureRequest,
+    outcome: .failed
+) else { preconditionFailure("failed retirement did not become terminal") }
+precondition(failureDeliveries.count == 1)
+precondition(failureDeliveries[0].payload["code"] as? String == "SCENE_STAGE_RETIRE_FAILED")
+precondition(failedRetirement.configureInitial(failedTopology) == false)
+let invalidRecoveryTopology = AOSDesktopWorldSceneTopologyDescriptor(
+    identity: AOSDesktopWorldSceneStageIdentity(canvasGeneration: 4, topologyGeneration: 1),
+    segments: []
+)
+precondition(failedRetirement.configureInitial(invalidRecoveryTopology) == false)
+precondition(failedRetirement.configureInitial(failedTopology) == false)
+let recoveredTopology = AOSDesktopWorldSceneTopologyDescriptor(
+    identity: AOSDesktopWorldSceneStageIdentity(canvasGeneration: 4, topologyGeneration: 1),
+    segments: segments
+)
+precondition(failedRetirement.configureInitial(recoveredTopology))
 
 let disconnected = AOSDesktopWorldSceneController()
 let disconnectedTopology = readyController(disconnected)

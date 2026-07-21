@@ -129,3 +129,33 @@ test('scene scaffolds reject overwrite, traversal, linked parents, unsafe identi
     await rm(temp, { recursive: true, force: true })
   }
 })
+
+test('scene scaffold destination admission is atomic across concurrent creators', async () => {
+  const temp = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-scaffold-race-'))
+  const destination = path.join(temp, 'shared')
+  const args = [
+    'cartridge', 'scaffold', destination,
+    '--id', 'example/spinner', '--template', 'spinning-object', '--json',
+  ]
+  try {
+    const results = await Promise.all([run(args), run(args)])
+    const succeeded = results.filter((result) => result.code === 0)
+    const rejected = results.filter((result) => result.code === 1)
+    assert.equal(succeeded.length, 1)
+    assert.equal(rejected.length, 1)
+    assert.match(rejected[0].stderr, /SCENE_SCAFFOLD_EXISTS/u)
+
+    const validation = await run(['cartridge', 'validate', destination, '--json'])
+    assert.equal(validation.code, 0, validation.stderr)
+    assert.equal(
+      JSON.parse(validation.stdout).digest,
+      JSON.parse(succeeded[0].stdout).digest,
+    )
+    assert.deepEqual(
+      (await readdir(temp)).filter((name) => name.startsWith('.aos-scene-scaffold-')),
+      [],
+    )
+  } finally {
+    await rm(temp, { recursive: true, force: true })
+  }
+})

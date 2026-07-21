@@ -51,10 +51,12 @@ Procedural geometry and data already admitted by the document are supported.
 
 ## Review And Installation
 
-Validation compiles the exact generated ES-module wrapper with V8 without
-linking or evaluating it. The DesktopWorld host performs a fresh WebKit module
-import before registry admission; that is the authoritative runtime syntax
-gate. A failed import leaves the active scene unchanged.
+Validation parses the source as one strict function body and parses the exact
+generated ES-module wrapper with V8 without linking or evaluating either. The
+wrapper carries the body as an inert string, preventing consumer source from
+escaping into module scope. The DesktopWorld host performs a fresh WebKit
+module import before registry admission; that is the authoritative runtime
+syntax gate. A failed import leaves the active scene unchanged.
 
 After independent review, install exactly the validated digest:
 

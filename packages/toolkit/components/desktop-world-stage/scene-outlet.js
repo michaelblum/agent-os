@@ -3,15 +3,16 @@ import {
   applySceneTransaction,
   canonicalizeSceneDocument,
   createDesktopWorldGpuTimer,
-  createSceneAnimationController,
-  createSceneSignalController,
   deriveOrthoCamera,
   resolveThreeRenderMetrics,
 } from '../../scene/index.js'
-import { createSceneAnimationInteractionState } from './scene-animation-interaction-state.js'
-import { createDesktopWorldSceneProjection } from './scene-extension-projection.js'
 import { createDesktopWorldSceneInteractionThree } from './scene-interaction-three.js'
-import { createScenePlaybackClock } from './scene-playback-clock.js'
+import {
+  createDesktopWorldSceneMountedResource,
+  disposeDesktopWorldSceneMountedResource,
+  sameSceneExtensionReference,
+} from './scene-mounted-resource.js'
+import { createSceneOutletDevToolsSnapshot } from './scene-outlet-devtools.js'
 import {
   DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS,
   createSceneSegmentResourceBudget,
@@ -19,7 +20,6 @@ import {
 
 const MAX_RESOURCES = 32
 const MAX_SIGNALS_PER_SECOND = 30
-const EXTENSION_IDENTITY_KEYS = Object.freeze(['digest', 'id', 'ownerId', 'sceneAbi', 'threeRevision'])
 
 export const DESKTOP_WORLD_SCENE_RENDER_LIMITS = Object.freeze({
   maxDevicePixelRatio: 2,
@@ -31,18 +31,6 @@ function sceneOutletError(code, message) {
   const error = new Error(message)
   error.code = code
   return error
-}
-
-function sceneOutletAggregateError(code, errors, message) {
-  const failure = new AggregateError(errors, message)
-  failure.code = code
-  return failure
-}
-
-function sameExtensionReference(left, right) {
-  if (left === null || right === null) return left === right
-  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false
-  return EXTENSION_IDENTITY_KEYS.every((key) => left[key] === right[key])
 }
 
 export function sceneResourceCanRun(resourceSuspended, stageHidden, contextLost) {
@@ -150,33 +138,11 @@ export function createDesktopWorldSceneOutlet({
   }
 
   const disposeMounted = (mounted, { preserveInteractionOrigins = false } = {}) => {
-    const cleanup = mounted.cleanup ??= {
-      animations: false,
-      interactionVisuals: false,
-      projection: false,
-      removed: false,
-      signals: false,
-    }
-    const operations = [
-      ['removed', () => scene.remove(mounted.projection.object)],
-      ['animations', () => mounted.animations.dispose()],
-      ['signals', () => mounted.signals.dispose()],
-      ['interactionVisuals', () => mounted.interactionVisuals?.dispose()],
-      ['projection', () => mounted.projection.dispose()],
-    ]
-    let failed = false
-    for (const [name, operation] of operations) {
-      if (cleanup[name]) continue
-      try {
-        operation()
-        cleanup[name] = true
-      } catch {
-        failed = true
-      }
-    }
-    if (!preserveInteractionOrigins) mounted.interactionOrigins.clear()
-    if (failed) recordResourceFailure(mounted, 'SCENE_EXTENSION_DISPOSE_FAILED')
-    return !failed
+    return disposeDesktopWorldSceneMountedResource(mounted, {
+      onFailure: recordResourceFailure,
+      preserveInteractionOrigins,
+      scene,
+    })
   }
 
   const trackCleanup = (mounted, clean) => {
@@ -255,93 +221,24 @@ export function createDesktopWorldSceneOutlet({
     previous = resources.get(key),
     extensionReference = previous?.extensionReference ?? null,
   ) => {
-    const document = canonicalizeSceneDocument(documentInput)
-    const effectiveExtensionBudgets = extensionReference
-      ? segmentBudget.remaining()
-      : null
-    let preparedProjection
     try {
-      preparedProjection = createDesktopWorldSceneProjection({
-        budgets: effectiveExtensionBudgets,
-        THREE,
-        document,
-        expectedOwner: identity.owner ?? previous?.owner ?? '',
+      return createDesktopWorldSceneMountedResource({
+        documentInput,
         extensionReference,
         extensionRegistry,
+        identity,
+        key,
+        onCleanupFailure: (code) => {
+          devtoolsProbe?.recordEvent({ kind: 'scene.resource.failed', code })
+        },
+        previous,
+        segmentBudget,
       })
     } catch (error) {
       if (error?.code === 'SCENE_EXTENSION_DISPOSE_FAILED') {
         faultSceneSegment('SCENE_EXTENSION_DISPOSE_FAILED')
       }
       throw error
-    }
-    const projection = preparedProjection.projection
-    const interactionState = createSceneAnimationInteractionState(document)
-    let animations
-    let resourceMetrics
-    let resourceMetricsSource
-    let signals
-    try {
-      animations = createSceneAnimationController(document, {
-        apply: (binding, value, elapsedMs, progress) => projection.applyAnimation(binding, value, elapsedMs, progress),
-        onComplete: (binding, value) => interactionState.complete(binding, value),
-      })
-      signals = createSceneSignalController(document, {
-        apply: (binding, value, input, at) => projection.applySignal(binding, value, input, at),
-      })
-      const measured = segmentBudget.measure(projection)
-      resourceMetrics = measured.metrics
-      resourceMetricsSource = measured.source
-    } catch (error) {
-      const cleanupFailures = []
-      for (const cleanup of [
-        () => animations?.dispose(),
-        () => signals?.dispose(),
-        () => projection.dispose(),
-      ]) {
-        try { cleanup() } catch (cleanupError) { cleanupFailures.push(cleanupError) }
-      }
-      if (cleanupFailures.length > 0) {
-        devtoolsProbe?.recordEvent({ kind: 'scene.resource.failed', code: 'SCENE_EXTENSION_DISPOSE_FAILED' })
-        faultSceneSegment('SCENE_EXTENSION_DISPOSE_FAILED')
-        throw sceneOutletAggregateError(
-          'SCENE_EXTENSION_DISPOSE_FAILED',
-          [error, ...cleanupFailures],
-          'Scene projection admission and cleanup failed.',
-        )
-      }
-      throw error
-    }
-    projection.object.position.copy(previous?.projection.object.position ?? new THREE.Vector3())
-    return {
-      key,
-      owner: identity.owner ?? previous?.owner ?? '',
-      resource: identity.resource ?? previous?.resource ?? key,
-      extensionReference: preparedProjection.extension
-        ? Object.freeze({
-          digest: preparedProjection.extension.digest,
-          id: preparedProjection.extension.id,
-          ownerId: preparedProjection.extension.ownerId,
-          sceneAbi: preparedProjection.extension.sceneAbi,
-          threeRevision: preparedProjection.extension.threeRevision,
-        })
-        : null,
-      document,
-      projection,
-      signals,
-      animations,
-      interactionState,
-      interactionVisuals: null,
-      playGeneration: null,
-      playClock: createScenePlaybackClock(),
-      suspended: previous?.suspended ?? false,
-      stageSuspendedApplied: false,
-      signalWindowAt: 0,
-      signalWindowCount: 0,
-      interactionOrigins: previous?.interactionOrigins ?? new Map(),
-      metricsAccounted: false,
-      resourceMetrics,
-      resourceMetricsSource,
     }
   }
 
@@ -371,7 +268,7 @@ export function createDesktopWorldSceneOutlet({
       ? (Object.hasOwn(operation, 'extension') ? operation.extension : null)
       : previous?.extensionReference ?? null
     if (operation.op === 'transact' && Object.hasOwn(operation, 'extension')) {
-      if (!sameExtensionReference(requestedExtension, previous?.extensionReference ?? null)) {
+      if (!sameSceneExtensionReference(requestedExtension, previous?.extensionReference ?? null)) {
         throw new TypeError('Scene projection extensions may change only through a full mount.')
       }
     }
@@ -860,68 +757,7 @@ export function createDesktopWorldSceneOutlet({
       return resources.has(key) ? nextPlayGeneration + 1 : null
     },
     devtoolsSnapshot() {
-      const mountedResources = []
-      const nodes = []
-      const routes = []
-      for (const mounted of resources.values()) {
-        const implementationIds = new Set()
-        const resourceById = new Map(mounted.document.resources.map((entry) => [entry.id, entry]))
-        for (const descriptor of mounted.document.resources) implementationIds.add(descriptor.implementation)
-        for (const object of mounted.document.objects) {
-          for (const component of object.components ?? []) implementationIds.add(component.implementation)
-          const geometry = object.geometryId ? resourceById.get(object.geometryId) : null
-          const material = object.materialId ? resourceById.get(object.materialId) : null
-          const implementation = geometry?.implementation ?? material?.implementation ?? null
-          nodes.push({
-            id: object.id,
-            implementation,
-            kind: object.kind,
-            parentId: object.parentId,
-            position: mounted.projection.objectPosition(object.id) ?? object.transform.position,
-            resourceId: mounted.resource,
-            visible: object.visible !== false && !mounted.suspended && !stageSuspended && !stageFault,
-          })
-        }
-        const visualSnapshot = mounted.interactionVisuals?.snapshot()
-        if (visualSnapshot?.route?.objectId) {
-          routes.push({
-            active: visualSnapshot.route.active,
-            destination: visualSnapshot.route.destination,
-            kind: visualSnapshot.route.kind,
-            origin: visualSnapshot.route.origin,
-            progress: visualSnapshot.route.progress,
-            resourceId: mounted.resource,
-          })
-        }
-        mountedResources.push({
-          allocations: {
-            geometries: mounted.document.resources.filter((entry) => entry.kind === 'geometry').length,
-            materials: mounted.document.resources.filter((entry) => entry.kind === 'material').length,
-            programs: 0,
-            textures: mounted.document.resources.filter((entry) => entry.kind === 'texture').length,
-          },
-          animationCount: mounted.animations.snapshot().bindings.length,
-          descriptorCount: mounted.document.resources.length,
-          extension: mounted.extensionReference
-            ? {
-              digest: mounted.extensionReference.digest,
-              id: mounted.extensionReference.id,
-              ownerId: mounted.extensionReference.ownerId,
-            }
-            : null,
-          id: mounted.resource,
-          implementations: [...implementationIds],
-          interactionCount: 0,
-          lifecycle: stageFault ? 'faulted' : (mounted.suspended || stageSuspended ? 'suspended' : 'active'),
-          objectCount: mounted.document.objects.length,
-          owner: mounted.owner,
-          revision: mounted.document.revision,
-          sceneId: mounted.document.id,
-          signalCount: mounted.signals.snapshot().bindings.length,
-          suspended: mounted.suspended,
-        })
-      }
-      return { nodes, resources: mountedResources, routes }
+      return createSceneOutletDevToolsSnapshot(resources, { stageFault, stageSuspended })
     },
     setDevToolsProbe(probe) {
       devtoolsProbe = probe ?? null

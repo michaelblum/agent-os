@@ -1,5 +1,6 @@
 export * from './desktop-world-client.js';
 export * from './desktop-world-session.js';
+export * from './scene-result-codes.js';
 export * from './scene-interaction-visual.js';
 export {
   DesktopWorldSurface3D,

@@ -3,6 +3,7 @@ import { DesktopWorldSurface2D } from '../../runtime/desktop-world-surface-2d.js
 import { declareManifest, emitLifecycleComplete, emitReady } from '../../runtime/manifest.js'
 import { createVisualObjectDescriptor } from '../../workbench/visual-object-contract.js'
 import { createTrustedSceneExtensionRegistry } from '../../scene/scene-extension.js'
+import { normalizeDesktopWorldSceneResultErrorCode } from '../../scene/scene-result-codes.js'
 import { createDesktopWorldStageDisposer, handleDesktopWorldStageLifecycle } from './lifecycle.js'
 import { createDesktopWorldSceneExtensionLoader } from './scene-extension-loader.js'
 import { applyDesktopWorldSceneOperation } from './scene-extension-operation.js'
@@ -96,16 +97,17 @@ const devtoolsProbe = createDesktopWorldDevToolsStageProbe({
 })
 sceneOutlet.setDevToolsProbe(devtoolsProbe)
 sceneOutlet.setFaultObserver((fault) => {
+  const code = normalizeDesktopWorldSceneResultErrorCode(fault.code, 'SCENE_SEGMENT_FAILED')
   if (stageLifecycleState === 'active') stageLifecycleState = 'faulted'
-  lastSceneError = { at: Date.now(), code: fault.code }
+  lastSceneError = { at: Date.now(), code }
   void enqueueSceneWork(async () => {
     try {
-      await sceneOperations?.failClosed(fault.code)
+      await sceneOperations?.failClosed(code)
     } catch {
-      lastSceneError = { at: Date.now(), code: 'SCENE_STAGE_RETIREMENT_FAILED' }
+      lastSceneError = { at: Date.now(), code: 'SCENE_STAGE_RETIRE_FAILED' }
     }
     emit('desktop_world_stage.scene.fault', {
-      code: fault.code,
+      code,
       lease_key: fault.leaseKey,
       owner: fault.owner,
       resource: fault.resource,
@@ -348,14 +350,10 @@ async function applySceneMessage(message) {
     devtoolsProbe.recordEvent({ kind: `scene.${op}`, resourceId: payload.resource ?? null })
     lastSceneError = null
   } catch (error) {
-    const code = typeof error?.code === 'string'
-      && (
-        error.code.startsWith('SCENE_EXTENSION_')
-        || error.code.startsWith('SCENE_SEGMENT_RESOURCE_')
-        || error.code.startsWith('SCENE_STAGE_')
-      )
-      ? error.code
-      : error instanceof RangeError ? 'SCENE_BUDGET_EXCEEDED' : 'SCENE_PROJECTION_FAILED'
+    const code = normalizeDesktopWorldSceneResultErrorCode(
+      error?.code,
+      error instanceof RangeError ? 'SCENE_BUDGET_EXCEEDED' : 'SCENE_PROJECTION_FAILED',
+    )
     lastSceneError = { at: Date.now(), code }
     devtoolsProbe.recordEvent({ code, kind: `scene.${op}.failed`, resourceId: payload.resource ?? null })
     emit('desktop_world_stage.scene.result', {

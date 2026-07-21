@@ -5,7 +5,7 @@
     "path": ["scene"],
     "summary": "Stream bounded declarative scenes to DesktopWorld.",
     "executable": "/usr/bin/env",
-    "argv_prefix": ["node", "scripts/aos-scene.mjs"],
+    "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs"],
     "cwd": "repo",
     "stdio": "inherit",
     "env": {
@@ -17,21 +17,21 @@
     "path": ["scene", "cartridge", "validate"],
     "summary": "Validate a data-only DesktopWorld scene cartridge",
     "executable": "/usr/bin/env",
-    "argv_prefix": ["node", "scripts/aos-scene.mjs", "cartridge", "validate"],
+    "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs", "cartridge", "validate"],
     "cwd": "repo",
     "stdio": "inherit"
   }, {
     "path": ["scene", "cartridge", "scaffold"],
     "summary": "Create a deterministic data-only DesktopWorld scene cartridge",
     "executable": "/usr/bin/env",
-    "argv_prefix": ["node", "scripts/aos-scene.mjs", "cartridge", "scaffold"],
+    "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs", "cartridge", "scaffold"],
     "cwd": "repo",
     "stdio": "inherit"
   }, {
     "path": ["scene", "extension", "validate"],
     "summary": "Validate a trusted DesktopWorld projection extension",
     "executable": "/usr/bin/env",
-    "argv_prefix": ["node", "scripts/aos-scene.mjs", "extension", "validate"],
+    "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs", "extension", "validate"],
     "cwd": "repo",
     "stdio": "inherit",
     "env": {
@@ -43,14 +43,14 @@
     "path": ["scene", "extension", "scaffold"],
     "summary": "Create a deterministic trusted DesktopWorld projection extension",
     "executable": "/usr/bin/env",
-    "argv_prefix": ["node", "scripts/aos-scene.mjs", "extension", "scaffold"],
+    "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs", "extension", "scaffold"],
     "cwd": "repo",
     "stdio": "inherit"
   }, {
     "path": ["scene", "extension", "install"],
     "summary": "Install a reviewed immutable DesktopWorld projection extension",
     "executable": "/usr/bin/env",
-    "argv_prefix": ["node", "scripts/aos-scene.mjs", "extension", "install"],
+    "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs", "extension", "install"],
     "cwd": "repo",
     "stdio": "inherit",
     "env": {
@@ -62,7 +62,7 @@
     "path": ["scene", "extension", "list"],
     "summary": "List installed immutable DesktopWorld projection extensions",
     "executable": "/usr/bin/env",
-    "argv_prefix": ["node", "scripts/aos-scene.mjs", "extension", "list"],
+    "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs", "extension", "list"],
     "cwd": "repo",
     "stdio": "inherit",
     "env": {
@@ -74,61 +74,61 @@
     "path": ["scene", "list"],
     "summary": "List bounded DesktopWorld scene resources",
     "executable": "/usr/bin/env",
-    "argv_prefix": ["node", "scripts/aos-scene.mjs", "list"],
+    "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs", "list"],
     "cwd": "repo", "stdio": "inherit"
   }, {
     "path": ["scene", "inspect"],
     "summary": "Inspect one DesktopWorld scene resource",
     "executable": "/usr/bin/env",
-    "argv_prefix": ["node", "scripts/aos-scene.mjs", "inspect"],
+    "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs", "inspect"],
     "cwd": "repo", "stdio": "inherit"
   }, {
     "path": ["scene", "monitor"],
     "summary": "Follow bounded DesktopWorld snapshots",
     "executable": "/usr/bin/env",
-    "argv_prefix": ["node", "scripts/aos-scene.mjs", "monitor"],
+    "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs", "monitor"],
     "cwd": "repo", "stdio": "inherit"
   }, {
     "path": ["scene", "perf"],
     "summary": "Read DesktopWorld render performance",
     "executable": "/usr/bin/env",
-    "argv_prefix": ["node", "scripts/aos-scene.mjs", "perf"],
+    "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs", "perf"],
     "cwd": "repo", "stdio": "inherit"
   }, {
     "path": ["scene", "replay"],
     "summary": "Replay a deterministic scene event fixture",
     "executable": "/usr/bin/env",
-    "argv_prefix": ["node", "scripts/aos-scene.mjs", "replay"],
+    "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs", "replay"],
     "cwd": "repo", "stdio": "inherit"
   }, {
     "path": ["scene", "devtools", "open"],
     "summary": "Open an AOS-owned DesktopWorld inspector",
     "executable": "/usr/bin/env",
-    "argv_prefix": ["node", "scripts/aos-scene.mjs", "devtools", "open"],
+    "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs", "devtools", "open"],
     "cwd": "repo", "stdio": "inherit"
   }, {
     "path": ["scene", "devtools", "status"],
     "summary": "Read DesktopWorld inspector sessions",
     "executable": "/usr/bin/env",
-    "argv_prefix": ["node", "scripts/aos-scene.mjs", "devtools", "status"],
+    "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs", "devtools", "status"],
     "cwd": "repo", "stdio": "inherit"
   }, {
     "path": ["scene", "devtools", "update"],
     "summary": "Update a revisioned DesktopWorld inspector session",
     "executable": "/usr/bin/env",
-    "argv_prefix": ["node", "scripts/aos-scene.mjs", "devtools", "update"],
+    "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs", "devtools", "update"],
     "cwd": "repo", "stdio": "inherit"
   }, {
     "path": ["scene", "devtools", "transfer"],
     "summary": "Transfer a DesktopWorld inspector host lease",
     "executable": "/usr/bin/env",
-    "argv_prefix": ["node", "scripts/aos-scene.mjs", "devtools", "transfer"],
+    "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs", "devtools", "transfer"],
     "cwd": "repo", "stdio": "inherit"
   }, {
     "path": ["scene", "devtools", "close"],
     "summary": "Close a DesktopWorld inspector session",
     "executable": "/usr/bin/env",
-    "argv_prefix": ["node", "scripts/aos-scene.mjs", "devtools", "close"],
+    "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs", "devtools", "close"],
     "cwd": "repo", "stdio": "inherit"
   }]
 }

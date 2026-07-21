@@ -12,6 +12,7 @@ const EXPECTED_EXPORTS = [
   'DEFAULT_SCENE_HOST_BUDGETS',
   'DEFAULT_THREE_RENDER_LIMITS',
   'DESKTOP_WORLD_SCENE_REPLAY_LIMITS',
+  'DESKTOP_WORLD_SCENE_RESULT_ERROR_CODES',
   'DESKTOP_WORLD_SCENE_SESSION_CONTRACT_ID',
   'DESKTOP_WORLD_SCENE_SESSION_EVENT_NAMES',
   'DESKTOP_WORLD_SCENE_SESSION_RECOVERABLE_CODES',
@@ -101,6 +102,7 @@ const EXPECTED_EXPORTS = [
   'normalizeDesktopWorldDevToolsSnapshot',
   'normalizeDesktopWorldDevToolsStageSnapshot',
   'normalizeDesktopWorldSceneEvent',
+  'normalizeDesktopWorldSceneResultErrorCode',
   'normalizeSceneRadialMenuParameters',
   'resolveSceneCartridge',
   'resolveSceneAffordanceFrame',
@@ -178,6 +180,7 @@ test('focused scene entry points expose their owned contract families', () => {
   assert.equal(Object.hasOwn(authoringToolkit, 'createDesktopWorldSceneSession'), false)
 
   assert.equal(typeof runtimeToolkit.createDesktopWorldSceneSession, 'function')
+  assert.equal(typeof runtimeToolkit.normalizeDesktopWorldSceneResultErrorCode, 'function')
   assert.equal(typeof runtimeToolkit.createLocalSceneViewportHost, 'function')
   assert.equal(Object.hasOwn(runtimeToolkit, 'validateSceneExtensionManifest'), false)
 

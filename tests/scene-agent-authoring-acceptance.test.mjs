@@ -1,16 +1,20 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 
 const repoRoot = path.resolve(import.meta.dirname, '..')
 
-async function runNode(args) {
-  const child = spawn(process.execPath, args, {
-    cwd: repoRoot,
-    env: { ...process.env, AOS_STATE_ROOT: path.join(os.tmpdir(), 'must-not-connect') },
+async function runProcess(executable, args, { cwd = repoRoot, env = {} } = {}) {
+  const child = spawn(executable, args, {
+    cwd,
+    env: {
+      ...process.env,
+      AOS_STATE_ROOT: path.join(os.tmpdir(), 'must-not-connect'),
+      ...env,
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   let stdout = ''
@@ -21,6 +25,10 @@ async function runNode(args) {
     child.once('exit', (code, signal) => resolve({ code, signal }))
   })
   return { ...result, stderr, stdout }
+}
+
+async function runNode(args) {
+  return runProcess(process.execPath, args)
 }
 
 function assertOk(result, label) {
@@ -77,6 +85,81 @@ test('documented agent route works from an empty directory without live AOS', as
     await rm(parent, { recursive: true, force: true })
   }
   await assert.rejects(access(parent))
+})
+
+test('public scene scaffold dispatch preserves an empty consumer workspace as cwd', async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-public-dispatch-'))
+  const workspace = path.join(parent, 'workspace')
+  const dispatcher = path.join(parent, 'aos-scene-dispatch-test')
+  const main = path.join(parent, 'main.swift')
+  await mkdir(workspace, { mode: 0o700 })
+  await writeFile(main, `
+import Darwin
+import Foundation
+
+struct ProcessOutput {
+    let exitCode: Int32
+    let stdout: String
+    let stderr: String
+}
+
+enum AOSRuntimeMode: String { case repo }
+
+func aosCurrentRepoRoot() -> String? {
+    ProcessInfo.processInfo.environment["TEST_AOS_REPO_ROOT"]
+}
+func aosCurrentRuntimeMode() -> AOSRuntimeMode { .repo }
+func aosStateRoot() -> String { "/private/tmp/aos-scene-public-dispatch-state" }
+func aosCurrentSessionKey() -> String { "scene-public-dispatch" }
+func aosCurrentSessionHarness() -> String { "node-test" }
+func aosInvocationDisplayName() -> String { "aos" }
+func exitError(_ message: String, code: String) -> Never {
+    FileHandle.standardError.write(Data("\\(code): \\(message)\\n".utf8))
+    exit(1)
+}
+
+if !runExternalCommandIfMatched(args: Array(CommandLine.arguments.dropFirst())) {
+    exit(64)
+}
+`)
+
+  try {
+    const compiled = await runProcess('/usr/bin/swiftc', [
+      path.join(repoRoot, 'src/shared/external-command-dispatch.swift'),
+      main,
+      '-o', dispatcher,
+    ], {
+      env: {
+        CLANG_MODULE_CACHE_PATH: path.join(parent, 'clang-module-cache'),
+        SWIFT_MODULECACHE_PATH: path.join(parent, 'swift-module-cache'),
+      },
+    })
+    assert.equal(compiled.code, 0, compiled.stderr)
+
+    const cartridge = await runProcess(dispatcher, [
+      'scene', 'cartridge', 'scaffold', './companion',
+      '--id', 'companion/main', '--template', 'aim-and-commit', '--json',
+    ], {
+      cwd: workspace,
+      env: { TEST_AOS_REPO_ROOT: repoRoot },
+    })
+    assertOk(cartridge, 'public cartridge scaffold')
+    await access(path.join(workspace, 'companion', 'cartridge.json'))
+
+    const extension = await runProcess(dispatcher, [
+      'scene', 'extension', 'scaffold', './renderer',
+      '--owner', 'example.consumer', '--id', 'companion-renderer',
+      '--template', 'basic-three', '--json',
+    ], {
+      cwd: workspace,
+      env: { TEST_AOS_REPO_ROOT: repoRoot },
+    })
+    assertOk(extension, 'public extension scaffold')
+    await access(path.join(workspace, 'renderer', 'extension.json'))
+    await assert.rejects(access(path.join(workspace, 'scripts', 'aos-scene.mjs')))
+  } finally {
+    await rm(parent, { recursive: true, force: true })
+  }
 })
 
 test('authoring skill contains exact routes without placeholders or private transport instructions', async () => {

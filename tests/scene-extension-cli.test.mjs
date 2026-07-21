@@ -449,8 +449,10 @@ test('scene extension validation compiles a factory body without executing it', 
     ['static import declaration', "import fs from 'node:fs'\nreturn fs", 'SCENE_EXTENSION_BODY_SYNTAX'],
     ['export declaration', 'export default null\n', 'SCENE_EXTENSION_BODY_SYNTAX'],
     ['invalid syntax', 'if ( {\n', 'SCENE_EXTENSION_BODY_SYNTAX'],
+    ['module-scope brace escape', '}\nglobalThis.sceneExtensionEscaped = true\nfunction reopened(context) {\n', 'SCENE_EXTENSION_BODY_SYNTAX'],
     ['sloppy-only with statement', 'with ({ value: null }) { return value }\n', 'SCENE_EXTENSION_BODY_SYNTAX'],
     ['top-level await', 'await new Promise(() => {})\n', 'SCENE_EXTENSION_BODY_SYNTAX'],
+    ['import meta', 'return import.meta.url\n', 'SCENE_EXTENSION_BODY_SYNTAX'],
   ]
   for (const [name, source, code] of cases) {
     await t.test(name, async () => {
@@ -470,7 +472,7 @@ test('scene extension validation compiles a factory body without executing it', 
   await t.test('trusted runtime syntax is accepted without execution or custom token scanning', async () => {
     const temp = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-extension-inert-import-'))
     try {
-      const source = `const pattern = /import()/\nconst load = () => import('./trusted-runtime.mjs')\nconst moduleUrl = import.meta.url\nconst endpoint = 'https://example.invalid/runtime'\n//# sourceURL=projection.js\nthrow new Error(String(pattern) + load + moduleUrl + endpoint)\n`
+      const source = `const pattern = /import()/\nconst endpoint = 'https://example.invalid/runtime'\n//# sourceURL=projection.js\nreturn { pattern, endpoint }\n`
       const fixture = await writeExtension(temp, { bodyBytes: Buffer.from(source) })
       const result = await run(['extension', 'validate', fixture.root, '--json'], { stateRoot: path.join(temp, 'state') })
       assert.equal(result.code, 0, result.stderr)

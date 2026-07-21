@@ -174,7 +174,7 @@ test('native extension store revalidates artifact identity and generates a local
         fixture.bodyBytes.toString('utf8'),
       ).toString('utf8'),
     )
-    assert.match(output.wrapper, /function createProjection\(context\) \{\s*return null/u)
+    assert.match(output.wrapper, /const createProjection = Function\("context",/u)
     assert.match(output.wrapper, /export default Object\.freeze/u)
     assert.doesNotMatch(output.wrapper, /\bimport\s/u)
     assert.doesNotMatch(output.wrapper, new RegExp(root.replaceAll('/', '\\/'), 'u'))

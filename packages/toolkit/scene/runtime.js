@@ -33,6 +33,10 @@ export {
   createDesktopWorldSceneSession,
 } from './desktop-world-session.js'
 export {
+  DESKTOP_WORLD_SCENE_RESULT_ERROR_CODES,
+  normalizeDesktopWorldSceneResultErrorCode,
+} from './scene-result-codes.js'
+export {
   DEFAULT_SCENE_HOST_BUDGETS,
   SCENE_INSPECTION_CONTRACT_ID,
   createDesktopWorldSceneHost,

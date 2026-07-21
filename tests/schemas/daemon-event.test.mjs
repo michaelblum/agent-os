@@ -5,6 +5,8 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { DESKTOP_WORLD_SCENE_RESULT_ERROR_CODES } from '../../packages/toolkit/scene/scene-result-codes.js';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const schemaPath = path.join(repoRoot, 'shared/schemas/daemon-event.schema.json');
@@ -192,4 +194,19 @@ test('scene event vocabulary is strict across results and subscribed gestures', 
   const schema = JSON.parse(await fs.readFile(schemaPath, 'utf8'));
   const rule = schema.allOf.find((item) => item.if?.properties?.service?.const === 'scene' && !item.if?.properties?.event);
   assert.deepEqual(rule.then.properties.event.enum, ['result', 'gesture', 'monitor']);
+});
+
+test('scene result errors are derived from the runtime emitter contract', async () => {
+  const schema = JSON.parse(await fs.readFile(schemaPath, 'utf8'));
+  assert.deepEqual(
+    schema.$defs.SceneResultData.properties.code.enum,
+    DESKTOP_WORLD_SCENE_RESULT_ERROR_CODES,
+  );
+
+  const stage = await fs.readFile(path.join(
+    repoRoot,
+    'packages/toolkit/components/desktop-world-stage/index.js',
+  ), 'utf8');
+  assert.match(stage, /normalizeDesktopWorldSceneResultErrorCode\(fault\.code/u);
+  assert.match(stage, /normalizeDesktopWorldSceneResultErrorCode\(\s*error\?\.code/u);
 });

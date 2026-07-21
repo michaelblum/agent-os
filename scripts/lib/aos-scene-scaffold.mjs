@@ -2,12 +2,12 @@ import { createHash, randomUUID } from 'node:crypto'
 import { constants as fsConstants } from 'node:fs'
 import {
   chmod,
+  copyFile,
   lstat,
   mkdir,
   open,
   readFile,
   realpath,
-  rename,
   rm,
 } from 'node:fs/promises'
 import path from 'node:path'
@@ -179,23 +179,47 @@ async function createArtifact(destination, files, validate) {
   const location = await inspectDestination(destination)
   const staging = path.join(location.parent, `${STAGING_PREFIX}${randomUUID()}`)
   let stagingActive = true
+  let targetActive = false
   try {
     await mkdir(staging, { mode: OWNER_ONLY_DIRECTORY_MODE })
     await chmod(staging, OWNER_ONLY_DIRECTORY_MODE)
     for (const [name, bytes] of [...files.entries()].sort(([left], [right]) => left.localeCompare(right))) {
       await writeOwnerOnlyFile(path.join(staging, name), bytes)
     }
-    const validation = await validate(staging)
-    if (await lstat(location.target).catch(() => null)) {
-      fail('SCENE_SCAFFOLD_EXISTS', 'Scene scaffold destination already exists.')
+    await validate(staging)
+
+    try {
+      await mkdir(location.target, { mode: OWNER_ONLY_DIRECTORY_MODE })
+    } catch (error) {
+      if (error?.code === 'EEXIST') {
+        fail('SCENE_SCAFFOLD_EXISTS', 'Scene scaffold destination already exists.')
+      }
+      throw error
     }
-    await rename(staging, location.target)
-    stagingActive = false
+    targetActive = true
+    await chmod(location.target, OWNER_ONLY_DIRECTORY_MODE)
+
+    const manifestName = files.has('cartridge.json') ? 'cartridge.json' : 'extension.json'
+    // The atomic mkdir owns the destination; publishing the manifest last keeps partial trees invalid.
+    const orderedNames = [...files.keys()].sort().filter((name) => name !== manifestName)
+    orderedNames.push(manifestName)
+    for (const name of orderedNames) {
+      await copyFile(
+        path.join(staging, name),
+        path.join(location.target, name),
+        fsConstants.COPYFILE_EXCL,
+      )
+      await chmod(path.join(location.target, name), OWNER_ONLY_FILE_MODE)
+    }
+
+    const validation = await validate(location.target)
+    targetActive = false
     return validation
   } catch (error) {
     if (error instanceof SceneScaffoldError) throw error
     fail('SCENE_SCAFFOLD_WRITE_FAILED', 'Scene scaffold could not be created atomically.')
   } finally {
+    if (targetActive) await rm(location.target, { recursive: true, force: true }).catch(() => {})
     if (stagingActive) await rm(staging, { recursive: true, force: true }).catch(() => {})
   }
 }
