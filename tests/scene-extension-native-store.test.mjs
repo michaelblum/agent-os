@@ -20,7 +20,10 @@ const repoRoot = path.resolve(import.meta.dirname, '..')
 const storeSource = path.join(repoRoot, 'src/display/scene-extension-store.swift')
 const handlerSource = path.join(repoRoot, 'src/display/scene-extension-scheme-handler.swift')
 const taskStateSource = path.join(repoRoot, 'src/display/scene-extension-scheme-task-state.swift')
-const unifiedSource = path.join(repoRoot, 'src/daemon/unified.swift')
+const transportControllerSource = path.join(
+  repoRoot,
+  'src/daemon/desktop-world-scene-transport-controller.swift',
+)
 const budgets = {
   maxDrawCalls: 64,
   maxObjects: 128,
@@ -379,7 +382,7 @@ test('native extension handler and store typecheck together without the AOS bina
   }
 })
 
-test('daemon admission passes the validated scene lease owner into the native store', async () => {
-  const source = await readFile(unifiedSource, 'utf8')
-  assert.match(source, /sceneExtensionStore\.admitSceneOperation\(\s*operation,\s*expectedOwnerID: owner\s*\)/u)
+test('scene transport admission passes the validated lease owner into the native store', async () => {
+  const source = await readFile(transportControllerSource, 'utf8')
+  assert.match(source, /extensionStore\.admitSceneOperation\(operation, expectedOwnerID: owner\)/u)
 })
