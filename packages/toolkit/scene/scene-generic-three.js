@@ -1,7 +1,13 @@
 import { createSceneImplementationRegistry } from './scene-registry.js'
+import {
+  createRadialAuraThreeEffect,
+  validateRadialAuraParameters,
+} from './scene-radial-aura-three.js'
 
 export const GENERIC_SCENE_IMPLEMENTATIONS = Object.freeze({
   primitiveGeometry: 'aos.scene.geometry.primitive',
+  edgesGeometry: 'aos.scene.geometry.edges',
+  segmentGeometry: 'aos.scene.geometry.segments',
   nestedShellGeometry: 'aos.scene.geometry.nested-shell',
   surfaceMaterial: 'aos.scene.material.surface',
   lineMaterial: 'aos.scene.material.line',
@@ -18,10 +24,15 @@ export const GENERIC_SCENE_IMPLEMENTATIONS = Object.freeze({
   lineTravel: 'aos.scene.effect.line-travel',
   tunnel: 'aos.scene.effect.tunnel',
   radialBurst: 'aos.scene.effect.radial-burst',
+  radialAura: 'aos.scene.effect.radial-aura',
 })
 
 const EFFECT_IDS = new Set(Object.values(GENERIC_SCENE_IMPLEMENTATIONS).filter((id) => id.includes('.effect.')))
 const PRIMITIVES = new Set(['box', 'sphere', 'tetrahedron', 'octahedron', 'icosahedron', 'torus', 'torus-knot'])
+const MAX_SEGMENTS = 64
+const MAX_PROJECTION_OBJECTS = 1024
+const MAX_PROJECTION_RESOURCES = 256
+const MAX_PROJECTION_EFFECTS = 32
 
 function finite(value, fallback = 0, min = -1e6, max = 1e6) {
   return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback
@@ -41,23 +52,51 @@ function validateBoundedCount(parameters) {
     : 'count_out_of_bounds'
 }
 
+function validateEdges(parameters) {
+  const primitive = validatePrimitive(parameters)
+  if (primitive !== true) return primitive
+  return parameters.thresholdAngle === undefined
+    || (Number.isFinite(parameters.thresholdAngle) && parameters.thresholdAngle >= 0 && parameters.thresholdAngle <= 180)
+    ? true
+    : 'threshold_angle_out_of_bounds'
+}
+
+function validateSegments(parameters) {
+  if (!Array.isArray(parameters?.segments) || parameters.segments.length < 1 || parameters.segments.length > MAX_SEGMENTS) {
+    return 'segment_count_out_of_bounds'
+  }
+  return parameters.segments.every((segment) => (
+    Array.isArray(segment)
+    && segment.length === 6
+    && segment.every((value) => Number.isFinite(value) && Math.abs(value) <= 1e4)
+  )) ? true : 'segment_coordinates_invalid'
+}
+
 export function createGenericSceneImplementationRegistry() {
   const registry = createSceneImplementationRegistry()
   registry.register({ id: GENERIC_SCENE_IMPLEMENTATIONS.primitiveGeometry, kind: 'geometry', create: () => null, validateParameters: validatePrimitive })
+  registry.register({ id: GENERIC_SCENE_IMPLEMENTATIONS.edgesGeometry, kind: 'geometry', create: () => null, validateParameters: validateEdges })
+  registry.register({ id: GENERIC_SCENE_IMPLEMENTATIONS.segmentGeometry, kind: 'geometry', create: () => null, validateParameters: validateSegments })
   registry.register({ id: GENERIC_SCENE_IMPLEMENTATIONS.nestedShellGeometry, kind: 'geometry', create: () => null, validateParameters: (parameters) => Number.isInteger(parameters?.shells) && parameters.shells >= 1 && parameters.shells <= 16 ? true : 'shell_count_out_of_bounds' })
   for (const id of [GENERIC_SCENE_IMPLEMENTATIONS.surfaceMaterial, GENERIC_SCENE_IMPLEMENTATIONS.lineMaterial, GENERIC_SCENE_IMPLEMENTATIONS.pointMaterial]) {
     registry.register({ id, kind: 'material', create: () => null })
   }
   registry.register({ id: GENERIC_SCENE_IMPLEMENTATIONS.transform, kind: 'component', create: () => null })
-  for (const id of EFFECT_IDS) registry.register({ id, kind: 'effect', create: () => null, validateParameters: validateBoundedCount })
+  for (const id of EFFECT_IDS) {
+    registry.register({
+      id,
+      kind: 'effect',
+      create: () => null,
+      validateParameters: id === GENERIC_SCENE_IMPLEMENTATIONS.radialAura
+        ? validateRadialAuraParameters
+        : validateBoundedCount,
+    })
+  }
   return registry
 }
 
-function geometryFor(THREE, descriptor) {
-  const p = descriptor.parameters ?? {}
-  if (descriptor.implementation === GENERIC_SCENE_IMPLEMENTATIONS.nestedShellGeometry) {
-    return new THREE.BoxGeometry(finite(p.size, 1, 0.01, 100), finite(p.size, 1, 0.01, 100), finite(p.size, 1, 0.01, 100), 1, 1, 1)
-  }
+function primitiveGeometryFor(THREE, parameters = {}) {
+  const p = parameters
   const radius = finite(p.radius, 1, 0.01, 100)
   const detail = Math.round(finite(p.detail, 1, 0, 5))
   switch (p.primitive) {
@@ -72,6 +111,33 @@ function geometryFor(THREE, descriptor) {
       return new THREE.BoxGeometry(size, size, size)
     }
   }
+}
+
+function geometryFor(THREE, descriptor) {
+  const p = descriptor.parameters ?? {}
+  if (descriptor.implementation === GENERIC_SCENE_IMPLEMENTATIONS.nestedShellGeometry) {
+    return new THREE.BoxGeometry(finite(p.size, 1, 0.01, 100), finite(p.size, 1, 0.01, 100), finite(p.size, 1, 0.01, 100), 1, 1, 1)
+  }
+  if (descriptor.implementation === GENERIC_SCENE_IMPLEMENTATIONS.edgesGeometry) {
+    const source = primitiveGeometryFor(THREE, p)
+    const edges = new THREE.EdgesGeometry(source, finite(p.thresholdAngle, 1, 0, 180))
+    source.dispose()
+    return edges
+  }
+  if (descriptor.implementation === GENERIC_SCENE_IMPLEMENTATIONS.segmentGeometry) {
+    const segments = Array.isArray(p.segments) ? p.segments.slice(0, MAX_SEGMENTS) : []
+    const positions = new Float32Array(segments.length * 6)
+    for (let index = 0; index < segments.length; index += 1) {
+      const segment = Array.isArray(segments[index]) ? segments[index] : []
+      for (let coordinate = 0; coordinate < 6; coordinate += 1) {
+        positions[index * 6 + coordinate] = finite(segment[coordinate], 0, -1e4, 1e4)
+      }
+    }
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    return geometry
+  }
+  return primitiveGeometryFor(THREE, p)
 }
 
 function materialFor(THREE, descriptor) {
@@ -142,12 +208,48 @@ function setTarget(objects, objectId, target, value) {
   return true
 }
 
+function assertProjectionBudgets(document) {
+  if (!Array.isArray(document.objects) || !Array.isArray(document.resources)) {
+    throw new TypeError('Generic Three projections require object and resource arrays.')
+  }
+  if (document.objects.length > MAX_PROJECTION_OBJECTS) {
+    throw new RangeError('Generic Three projection object budget exceeded.')
+  }
+  if (document.resources.length > MAX_PROJECTION_RESOURCES) {
+    throw new RangeError('Generic Three projection resource budget exceeded.')
+  }
+  let effects = 0
+  for (const resource of document.resources) {
+    if (resource?.kind === 'effect' && ++effects > MAX_PROJECTION_EFFECTS) {
+      throw new RangeError('Generic Three projection effect budget exceeded.')
+    }
+  }
+  for (const object of document.objects) {
+    for (const component of object?.components ?? []) {
+      if (EFFECT_IDS.has(component?.implementation) && component.enabled !== false && ++effects > MAX_PROJECTION_EFFECTS) {
+        throw new RangeError('Generic Three projection effect budget exceeded.')
+      }
+    }
+  }
+}
+
 export function createGenericThreeSceneProjection({ THREE, document }) {
   if (!THREE?.Group || !document) throw new TypeError('Generic Three projection requires Three.js and a scene document.')
+  assertProjectionBudgets(document)
   const root = new THREE.Group()
   root.name = document.id
   const resources = new Map(document.resources.map((resource) => [resource.id, resource]))
   const objects = new Map()
+  const effects = []
+  const attachEffect = (descriptor, target) => {
+    if (descriptor.implementation === GENERIC_SCENE_IMPLEMENTATIONS.radialAura) {
+      const effect = createRadialAuraThreeEffect({ THREE, descriptor })
+      target.add(effect.object)
+      effects.push(effect)
+      return
+    }
+    target.add(effectObject(THREE, descriptor))
+  }
   for (const descriptor of document.objects) {
     const geometry = descriptor.geometryId ? geometryFor(THREE, resources.get(descriptor.geometryId)) : null
     const material = descriptor.materialId ? materialFor(THREE, resources.get(descriptor.materialId)) : null
@@ -159,7 +261,7 @@ export function createGenericThreeSceneProjection({ THREE, document }) {
     object.name = descriptor.id
     applyTransform(object, { ...descriptor.transform, visible: descriptor.visible })
     for (const component of descriptor.components ?? []) {
-      if (EFFECT_IDS.has(component.implementation) && component.enabled !== false) object.add(effectObject(THREE, component))
+      if (EFFECT_IDS.has(component.implementation) && component.enabled !== false) attachEffect(component, object)
     }
     objects.set(descriptor.id, object)
   }
@@ -170,7 +272,7 @@ export function createGenericThreeSceneProjection({ THREE, document }) {
   }
   for (const descriptor of document.resources.filter((resource) => resource.kind === 'effect')) {
     const target = objects.get(descriptor.parameters?.targetObjectId) ?? root
-    target.add(effectObject(THREE, descriptor))
+    attachEffect(descriptor, target)
   }
   return {
     object: root,
@@ -191,14 +293,25 @@ export function createGenericThreeSceneProjection({ THREE, document }) {
     },
     applyAnimation(binding, value) { return setTarget(objects, binding.objectId, binding.target, value) },
     applySignal(binding, value) { return setTarget(objects, binding.objectId, binding.target, value) },
+    tick(elapsedMs) {
+      if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return 0
+      let updated = 0
+      for (const effect of effects) if (effect.tick(elapsedMs)) updated += 1
+      return updated
+    },
     suspend() { root.visible = false },
     resume() { root.visible = true },
     dispose() {
+      for (const effect of effects) effect.dispose()
+      const geometries = new Set()
+      const materials = new Set()
       root.traverse?.((object) => {
-        object.geometry?.dispose?.()
-        const materials = Array.isArray(object.material) ? object.material : [object.material]
-        for (const material of materials) material?.dispose?.()
+        if (object.geometry?.dispose) geometries.add(object.geometry)
+        const objectMaterials = Array.isArray(object.material) ? object.material : [object.material]
+        for (const material of objectMaterials) if (material?.dispose) materials.add(material)
       })
+      for (const geometry of geometries) geometry.dispose()
+      for (const material of materials) material.dispose()
       root.clear?.()
     },
   }

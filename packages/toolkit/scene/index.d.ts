@@ -39,6 +39,7 @@ export function createGenericThreeSceneProjection(input: {
   activate(): void;
   applyAnimation(binding: { target: string }, value: number): boolean;
   applySignal(binding: { target: string }, value: number): boolean;
+  tick(elapsedMs: number): number;
   suspend(): void;
   resume(): void;
   dispose(): void;

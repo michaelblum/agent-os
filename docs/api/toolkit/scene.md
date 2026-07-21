@@ -136,6 +136,35 @@ transaction never mutates the supplied document.
 stage, owner, resource, and ResourceScope IDs. The contract does not create a
 daemon lease or shared renderer by itself.
 
+### Stock Generic Three Implementations
+
+`createGenericSceneImplementationRegistry()` exposes bounded, product-neutral
+implementations for the daemon outlet and dependency-injected local hosts.
+Alongside primitive geometry and surface, line, and point materials, the stock
+registry includes:
+
+- `aos.scene.geometry.edges`, which derives clean feature edges from a declared
+  primitive and accepts a threshold angle from 0 through 180 degrees;
+- `aos.scene.geometry.segments`, which renders at most 64 explicit finite line
+  segments with coordinates clamped to the validated scene-space range; and
+- `aos.scene.effect.radial-aura`, which renders two local radial sprites and at
+  most 24 deterministic wobble elements with bounded colors, reach, intensity,
+  pulse, radius, scale, speed, amplitude, and opacity.
+
+The radial effect advances through the mounted scene projection's `tick()`
+method on the existing stage playback clock. It creates no renderer or frame
+loop, allocates no per-frame GPU resources, pauses with stage/resource
+suspension and context loss, and disposes shared geometry, materials, and
+textures with the projection. A direct projection rejects more than 1,024
+objects, 256 resources, or 32 aggregate effect descriptors before allocating
+Three resources, and retains per-implementation count and coordinate caps even
+when registry validation is bypassed.
+
+These are rendering mechanics, not product vocabulary. A consumer may compile
+a nested shape, connector set, core, or ambient field into these descriptors;
+the corresponding product concepts and persisted definitions remain outside
+AOS.
+
 ### Affordances And Gestures
 
 `aos.scene.cartridge.interactions.v1` declares object-relative rectangular

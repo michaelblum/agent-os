@@ -4,6 +4,7 @@ import test from 'node:test'
 
 import { createSceneAnimationInteractionState } from '../../packages/toolkit/components/desktop-world-stage/scene-animation-interaction-state.js'
 import {
+  reconcileSceneStageRunState,
   sceneResourceCanRun,
 } from '../../packages/toolkit/components/desktop-world-stage/scene-outlet.js'
 import { createScenePlaybackClock } from '../../packages/toolkit/components/desktop-world-stage/scene-playback-clock.js'
@@ -184,6 +185,86 @@ test('resource resume cannot reactivate a route while the stage remains suspende
   assert.equal(visuals.snapshot().route.active, true)
 })
 
+test('stage visibility and context transitions resume only runnable resources', () => {
+  const visibilityClock = createScenePlaybackClock()
+  visibilityClock.restart(0)
+  const visibilityResources = new Map([['visible', {
+    suspended: false,
+    playClock: visibilityClock,
+    interactionVisuals: null,
+  }]])
+  reconcileSceneStageRunState(
+    visibilityResources,
+    { hidden: false, contextLost: false },
+    { hidden: true, contextLost: false },
+    10,
+  )
+  reconcileSceneStageRunState(
+    visibilityResources,
+    { hidden: true, contextLost: false },
+    { hidden: false, contextLost: false },
+    100,
+  )
+  assert.equal(visibilityClock.elapsed(110), 20)
+
+  const activeClock = createScenePlaybackClock()
+  const resourceClock = createScenePlaybackClock()
+  activeClock.restart(0)
+  resourceClock.restart(0)
+  const calls = []
+  const resources = new Map([
+    ['active', {
+      suspended: false,
+      playClock: activeClock,
+      interactionVisuals: {
+        suspend: (at) => calls.push(`active:suspend:${at}`),
+        resume: (at) => calls.push(`active:resume:${at}`),
+      },
+    }],
+    ['resource-suspended', {
+      suspended: true,
+      playClock: resourceClock,
+      interactionVisuals: {
+        suspend: (at) => calls.push(`resource:suspend:${at}`),
+        resume: (at) => calls.push(`resource:resume:${at}`),
+      },
+    }],
+  ])
+
+  assert.equal(reconcileSceneStageRunState(
+    resources,
+    { hidden: false, contextLost: false },
+    { hidden: true, contextLost: false },
+    10,
+  ), true)
+  assert.equal(reconcileSceneStageRunState(
+    resources,
+    { hidden: true, contextLost: false },
+    { hidden: true, contextLost: true },
+    20,
+  ), false)
+  assert.equal(reconcileSceneStageRunState(
+    resources,
+    { hidden: true, contextLost: true },
+    { hidden: false, contextLost: true },
+    50,
+  ), false)
+  assert.equal(reconcileSceneStageRunState(
+    resources,
+    { hidden: false, contextLost: true },
+    { hidden: false, contextLost: false },
+    100,
+  ), true)
+
+  assert.deepEqual(calls, [
+    'active:suspend:10',
+    'resource:suspend:10',
+    'active:resume:100',
+  ])
+  assert.equal(activeClock.elapsed(110), 20)
+  assert.equal(resourceClock.snapshot().paused, true)
+})
+
 test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop', async () => {
   const [outlet, stage, three, threeCore] = await Promise.all([
     readFile(outletURL, 'utf8'),
@@ -202,6 +283,7 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /createSceneAnimationController\(document/u)
   assert.match(outlet, /createSceneSignalController\(document/u)
   assert.match(outlet, /mounted\.animations\.tick\(elapsed\)/u)
+  assert.match(outlet, /mounted\.projection\.tick\?\.\(elapsed\)/u)
   assert.match(outlet, /mounted\.playClock\.elapsed\(at\)/u)
   assert.doesNotMatch(outlet, /playStartedAt/u)
   assert.match(outlet, /onComplete: \(binding, value\) => interactionState\.complete\(binding, value\)/u)
@@ -212,6 +294,7 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /mounted\.interactionVisuals\?\.suspend\(at\)/u)
   assert.match(outlet, /mounted\.interactionVisuals\?\.resume\(at\)/u)
   assert.match(outlet, /sceneResourceCanRun\(mounted\.suspended, hidden, contextLost\)/u)
+  assert.match(outlet, /reconcileSceneStageRunState/u)
   assert.match(outlet, /createDesktopWorldSceneInteractionThree/u)
   assert.match(outlet, /ensureInteractionVisuals/u)
   assert.match(outlet, /interactionVisuals: null/u)
