@@ -7,6 +7,7 @@ export * from './scene-extension.js';
 export * from './desktop-world-devtools.js';
 export * from './desktop-world-devtools-view.js';
 export * from './desktop-world-client.js';
+export * from './desktop-world-session.js';
 
 export interface ThreeRenderLimits {
   maxDevicePixelRatio: number;

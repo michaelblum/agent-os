@@ -232,7 +232,7 @@ function replayTopology(value) {
   })) })
 }
 
-function normalizeReplayEvent(value) {
+export function normalizeDesktopWorldSceneEvent(value) {
   const topLevel = ['contract', 'schemaVersion', 'type', 'sequence', 'stageId', 'ownerId', 'resourceId', 'affordanceId', 'interactionId', 'gesture', 'coordinates', 'topology', 'response', 'at']
   if (!hasExactKeys(value, topLevel) || value.contract !== 'aos.scene.event.v1' || value.schemaVersion !== 1
       || value.type !== 'gesture' || !Number.isInteger(value.sequence) || value.sequence < 1
@@ -269,7 +269,7 @@ export function replayDesktopWorldSceneEvents(values, { onEvent = () => {} } = {
   let completed = 0
   let canceled = 0
   for (const raw of values) {
-    const event = normalizeReplayEvent(raw)
+    const event = normalizeDesktopWorldSceneEvent(raw)
     const lease = `${event.ownerId}::${event.resourceId}`
     const previousSequence = sequences.get(lease) ?? 0
     if (event.sequence <= previousSequence) fail('SCENE_REPLAY_SEQUENCE_INVALID', 'Scene replay sequence is not monotonic.')

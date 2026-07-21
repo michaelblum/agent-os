@@ -119,9 +119,18 @@ export {
   DESKTOP_WORLD_SCENE_REPLAY_LIMITS,
   createDesktopWorldSceneClient,
   listDesktopWorldResources,
+  normalizeDesktopWorldSceneEvent,
   replayDesktopWorldSceneEvents,
   selectDesktopWorldResourceSnapshot,
 } from './desktop-world-client.js'
+
+export {
+  DESKTOP_WORLD_SCENE_SESSION_CONTRACT_ID,
+  DESKTOP_WORLD_SCENE_SESSION_EVENT_NAMES,
+  DESKTOP_WORLD_SCENE_SESSION_RECOVERABLE_CODES,
+  DESKTOP_WORLD_SCENE_SESSION_TERMINAL_CODES,
+  createDesktopWorldSceneSession,
+} from './desktop-world-session.js'
 
 export { applySceneTransaction } from './scene-transaction.js'
 

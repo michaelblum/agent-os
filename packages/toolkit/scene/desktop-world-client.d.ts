@@ -127,6 +127,8 @@ export function selectDesktopWorldResourceSnapshot(
 
 export function listDesktopWorldResources(input: unknown): Readonly<DesktopWorldSceneResourceList>;
 
+export function normalizeDesktopWorldSceneEvent(input: unknown): SceneEventEnvelope;
+
 export function replayDesktopWorldSceneEvents(
   events: readonly unknown[],
   options?: { onEvent?: (event: SceneEventEnvelope) => void },
