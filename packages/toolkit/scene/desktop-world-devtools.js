@@ -540,9 +540,11 @@ export function normalizeDesktopWorldDevToolsSnapshot(input = {}) {
   return Object.freeze({
     contract: DESKTOP_WORLD_DEVTOOLS_SNAPSHOT_CONTRACT_ID,
     schemaVersion: 1,
+    stageSnapshotRevision: boundedInteger(input.stageSnapshotRevision, 0),
     session: Object.freeze({
       id: boundedString(session.id),
       revision: boundedInteger(session.revision, 0),
+      stageSnapshotReady: session.stageSnapshotReady === true,
       activeTab: TABS.includes(session.activeTab) ? session.activeTab : 'world',
       selectedResource: session.selectedResource == null ? null : boundedString(session.selectedResource),
       filters: Object.freeze({
@@ -660,9 +662,9 @@ export function createDesktopWorldDevToolsStageProbe({
     })
   }
 
-  function emitSnapshot(reason = 'snapshot', at = now()) {
+  function emitSnapshot(reason = 'snapshot', at = now(), metadata = {}) {
     if (!enabled || disposed) return false
-    emit(snapshot(reason))
+    emit(snapshot(reason), metadata)
     lastEmitAt = at
     return true
   }

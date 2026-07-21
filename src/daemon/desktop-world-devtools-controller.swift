@@ -26,7 +26,10 @@ final class AOSDesktopWorldDevToolsController {
     @discardableResult
     func handleStageSnapshot(_ payload: [String: Any]) -> Bool {
         guard let snapshot = payload["snapshot"] as? [String: Any],
-              sessions.recordStageSnapshot(snapshot) else { return false }
+              sessions.recordStageSnapshot(
+                snapshot,
+                requestID: payload["request_id"] as? String
+              ) else { return false }
         publishSnapshots()
         return true
     }
@@ -41,7 +44,7 @@ final class AOSDesktopWorldDevToolsController {
         }
     }
 
-    func configureStage() -> Bool {
+    func configureStage(requestID: String? = nil) -> Bool {
         let configuration = sessions.instrumentationConfiguration()
         let enabled = configuration.enabled || hasSceneMonitor()
         var stageExists = mutateCanvas { [weak self] in
@@ -58,9 +61,11 @@ final class AOSDesktopWorldDevToolsController {
             "payload": ["enabled": enabled, "recording": configuration.recording],
         ])
         if enabled {
+            var requestPayload: [String: Any] = [:]
+            if let requestID { requestPayload["request_id"] = requestID }
             canvasManager.postMessageToCurrentCanvasAsync(canvasID: sceneStageCanvasID, payload: [
                 "type": "desktop_world_stage.devtools.request",
-                "payload": [:],
+                "payload": requestPayload,
             ])
         }
         return true
@@ -144,13 +149,18 @@ final class AOSDesktopWorldDevToolsController {
         }
 
         if action == "scene-devtools-open" {
-            let created = sessions.create(selectedResource: payload["resource"] as? String)
+            let headless = payload["headless"] as? Bool == true
+            let stageRequestID = headless ? UUID().uuidString.lowercased() : nil
+            let created = sessions.create(
+                selectedResource: payload["resource"] as? String,
+                stageRequestID: stageRequestID
+            )
             guard case .success(let state) = created else { return mutationResponse(created) }
-            guard configureStage() else {
+            guard configureStage(requestID: stageRequestID) else {
                 _ = sessions.close(sessionID: state.id)
                 return ["error": "DesktopWorld scene stage is unavailable", "code": "SCENE_STAGE_UNAVAILABLE"]
             }
-            if payload["headless"] as? Bool == true {
+            if headless {
                 guard !payload.keys.contains("host") else {
                     _ = sessions.close(sessionID: state.id)
                     _ = configureStage()

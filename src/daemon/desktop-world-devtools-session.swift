@@ -97,6 +97,8 @@ struct AOSDesktopWorldDevToolsUpdateRequest {
 
 struct AOSDesktopWorldDevToolsSessionState: Equatable {
     let id: String
+    let stageRequestID: String?
+    var stageRequestCompletedRevision: Int?
     var revision: Int
     var selectedResource: String?
     var activeTab: AOSDesktopWorldDevToolsTab
@@ -388,15 +390,22 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
     private var pendingBySession: [String: PendingTransfer] = [:]
     private var pendingByToken: [UUID: PendingTransfer] = [:]
     private var stageSnapshot: [String: Any] = AOSDesktopWorldDevToolsSessionRegistry.unavailableStageSnapshot()
+    private var stageSnapshotRevision = 0
 
-    func create(selectedResource: String? = nil) -> AOSDesktopWorldDevToolsMutationResult {
+    func create(
+        selectedResource: String? = nil,
+        stageRequestID: String? = nil
+    ) -> AOSDesktopWorldDevToolsMutationResult {
         lock.lock()
         defer { lock.unlock() }
         guard sessions.count < maximumSessions else { return .capacity }
-        guard selectedResource == nil || Self.validIdentifier(selectedResource!) else { return .invalid }
+        guard selectedResource == nil || Self.validIdentifier(selectedResource!),
+              stageRequestID == nil || Self.validToken(stageRequestID!, limit: 128) else { return .invalid }
         let id = "devtools-\(UUID().uuidString.lowercased())"
         let state = AOSDesktopWorldDevToolsSessionState(
             id: id,
+            stageRequestID: stageRequestID,
+            stageRequestCompletedRevision: nil,
             revision: 1,
             selectedResource: selectedResource,
             activeTab: .world,
@@ -520,8 +529,9 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
         return .success(state)
     }
 
-    func recordStageSnapshot(_ raw: [String: Any]) -> Bool {
-        guard JSONSerialization.isValidJSONObject(raw),
+    func recordStageSnapshot(_ raw: [String: Any], requestID: String? = nil) -> Bool {
+        guard requestID == nil || Self.validToken(requestID!, limit: 128),
+              JSONSerialization.isValidJSONObject(raw),
               let input = try? JSONSerialization.data(withJSONObject: raw),
               input.count <= 512 * 1_024,
               let decoded = try? JSONDecoder().decode(AOSDesktopWorldDevToolsStageSnapshot.self, from: input),
@@ -530,6 +540,17 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
               let canonical = try? JSONSerialization.jsonObject(with: canonicalData) as? [String: Any] else { return false }
         lock.lock()
         stageSnapshot = canonical
+        stageSnapshotRevision += 1
+        if let requestID {
+            let matchingSessionIDs = sessions.compactMap { sessionID, state in
+                state.stageRequestID == requestID ? sessionID : nil
+            }
+            for sessionID in matchingSessionIDs {
+                guard var state = sessions[sessionID] else { continue }
+                state.stageRequestCompletedRevision = stageSnapshotRevision
+                sessions[sessionID] = state
+            }
+        }
         lock.unlock()
         return true
     }
@@ -538,14 +559,22 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
         lock.lock()
         defer { lock.unlock() }
         guard let state = sessions[sessionID] else { return nil }
-        return Self.snapshotDictionary(state: state, stage: stageSnapshot)
+        return Self.snapshotDictionary(
+            state: state,
+            stage: stageSnapshot,
+            stageSnapshotRevision: stageSnapshotRevision
+        )
     }
 
     func snapshots() -> [[String: Any]] {
         lock.lock()
         defer { lock.unlock() }
         return sessions.values.sorted(by: { $0.id < $1.id }).map {
-            Self.snapshotDictionary(state: $0, stage: stageSnapshot)
+            Self.snapshotDictionary(
+                state: $0,
+                stage: stageSnapshot,
+                stageSnapshotRevision: stageSnapshotRevision
+            )
         }
     }
 
@@ -562,7 +591,11 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
         defer { lock.unlock() }
         return sessions.values.compactMap { state in
             guard let host = state.host else { return nil }
-            return (host, Self.snapshotDictionary(state: state, stage: stageSnapshot))
+            return (host, Self.snapshotDictionary(
+                state: state,
+                stage: stageSnapshot,
+                stageSnapshotRevision: stageSnapshotRevision
+            ))
         }
     }
 
@@ -615,7 +648,8 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
 
     private static func snapshotDictionary(
         state: AOSDesktopWorldDevToolsSessionState,
-        stage: [String: Any]
+        stage: [String: Any],
+        stageSnapshotRevision: Int
     ) -> [String: Any] {
         var session: [String: Any] = [
             "id": state.id,
@@ -628,6 +662,7 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
                 "errorsOnly": state.filters.errorsOnly,
             ],
             "recording": state.recording,
+            "stageSnapshotReady": state.stageRequestID == nil || state.stageRequestCompletedRevision != nil,
         ]
         if let host = state.host {
             session["host"] = ["kind": host.kind.rawValue, "id": host.id, "state": "active"]
@@ -637,6 +672,7 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
         return [
             "contract": aosDesktopWorldDevToolsSnapshotContract,
             "schemaVersion": 1,
+            "stageSnapshotRevision": stageSnapshotRevision,
             "session": session,
             "stage": stage,
         ]

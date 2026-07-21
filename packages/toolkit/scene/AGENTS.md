@@ -98,8 +98,9 @@ stage internals.
   second DesktopWorld sampler or competing session model.
 - Agent SDK methods inject request/subscription transport. They must not import
   Node socket APIs, discover runtime paths, auto-start daemons, or create a
-  second snapshot model. One-shot reads use headless DevTools sessions and
-  close them in `finally`; monitor state is connection-scoped.
+  second snapshot model. One-shot reads use headless DevTools sessions, require
+  a daemon-received stage snapshot correlated to that session's explicit
+  refresh request, and close in `finally`; monitor state is connection-scoped.
 - `createDesktopWorldSceneSession()` is the ordinary consumer lifecycle owner.
   It serializes operations, commits only authoritative all-segment results,
   ignores old connection generations, and may reconnect exactly once. Recovery

@@ -340,7 +340,12 @@ export function createDesktopWorldSceneClient({ request, subscribe } = {}) {
         const snapshot = status?.session
         const currentRevision = snapshot?.session?.revision
         if (Number.isInteger(currentRevision)) revision = currentRevision
-        if (snapshot?.stage?.status === 'available') return project(snapshot)
+        if (typeof snapshot?.session?.stageSnapshotReady !== 'boolean') {
+          fail('INVALID_DEVTOOLS_STAGE_FRESHNESS', 'DesktopWorld DevTools stage freshness state is invalid.')
+        }
+        if (snapshot.session.stageSnapshotReady && snapshot?.stage?.status === 'available') {
+          return project(snapshot)
+        }
         if (attempt + 1 < HEADLESS_SNAPSHOT_ATTEMPTS) await delay()
       }
       fail('SCENE_SNAPSHOT_TIMEOUT', 'DesktopWorld scene snapshot did not become available.')

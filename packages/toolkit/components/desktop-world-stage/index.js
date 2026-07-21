@@ -61,8 +61,8 @@ function devtoolsTopologySnapshot() {
 }
 
 const devtoolsProbe = createDesktopWorldDevToolsStageProbe({
-  emit: (snapshot) => {
-    if (surface.isPrimary) emit('desktop_world_stage.devtools.snapshot', { snapshot })
+  emit: (snapshot, metadata = {}) => {
+    if (surface.isPrimary) emit('desktop_world_stage.devtools.snapshot', { snapshot, ...metadata })
   },
   getStageFacts: () => {
     const outlet = sceneOutlet.devtoolsSnapshot()
@@ -390,7 +390,11 @@ wireBridge((message) => {
     return
   }
   if (message?.type === 'desktop_world_stage.devtools.request') {
-    devtoolsProbe.emitSnapshot('requested')
+    const requestId = typeof message.payload?.request_id === 'string'
+      && /^[a-z0-9][a-z0-9._-]{0,127}$/u.test(message.payload.request_id)
+      ? message.payload.request_id
+      : null
+    devtoolsProbe.emitSnapshot('requested', undefined, requestId == null ? {} : { request_id: requestId })
     return
   }
   if (message?.type === 'input_region.event') {

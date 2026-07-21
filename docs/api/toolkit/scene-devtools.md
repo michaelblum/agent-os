@@ -17,7 +17,10 @@ aos scene replay \
 
 `createDesktopWorldSceneClient()` provides matching dependency-injected APIs.
 The package never discovers a socket, starts a daemon, or owns a panel.
-One-shot reads use bounded headless sessions and close them in `finally`.
+One-shot reads use bounded headless sessions, wait for a daemon-received stage
+snapshot correlated to their own explicit refresh request, and close in
+`finally`. Concurrent inspectors and stage-local sequence resets cannot make a
+cached snapshot appear fresh.
 
 Replay requires monotonic owner/resource sequences and complete gesture
 lifecycles. It reports counts, resource IDs, and final numeric positions only.
