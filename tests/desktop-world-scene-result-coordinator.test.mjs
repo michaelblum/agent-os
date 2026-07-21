@@ -410,6 +410,7 @@ guard case .accepted = eventAtomic.updateSubscriptions(
 let eventEnteredEnqueue = DispatchSemaphore(value: 0)
 let releaseEventEnqueue = DispatchSemaphore(value: 0)
 let eventRouteFinished = DispatchSemaphore(value: 0)
+let eventInvalidationStarted = DispatchSemaphore(value: 0)
 let eventInvalidationFinished = DispatchSemaphore(value: 0)
 let eventStateLock = NSLock()
 var eventRouteOutcome: AOSDesktopWorldSceneEventRouteOutcome?
@@ -431,6 +432,7 @@ DispatchQueue.global().async {
 }
 precondition(eventEnteredEnqueue.wait(timeout: .now() + 1) == .success)
 DispatchQueue.global().async {
+    eventInvalidationStarted.signal()
     let plan = eventAtomic.invalidateStage(
         identity: eventAtomicTopology.identity,
         code: "SCENE_STAGE_REMOVED"
@@ -440,6 +442,7 @@ DispatchQueue.global().async {
     eventStateLock.unlock()
     eventInvalidationFinished.signal()
 }
+precondition(eventInvalidationStarted.wait(timeout: .now() + 1) == .success)
 precondition(eventInvalidationFinished.wait(timeout: .now() + 0.05) == .timedOut)
 releaseEventEnqueue.signal()
 precondition(eventRouteFinished.wait(timeout: .now() + 1) == .success)

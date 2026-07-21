@@ -188,6 +188,7 @@ precondition((unsubscribedDiagnostics.snapshot()["by_outcome"] as? [String: Int]
 let firstClockEntered = DispatchSemaphore(value: 0)
 let releaseFirstClock = DispatchSemaphore(value: 0)
 let firstRecordFinished = DispatchSemaphore(value: 0)
+let secondRecordStarted = DispatchSemaphore(value: 0)
 let secondRecordFinished = DispatchSemaphore(value: 0)
 let clockLock = NSLock()
 var clockCalls = 0
@@ -208,9 +209,11 @@ DispatchQueue.global().async {
 }
 precondition(firstClockEntered.wait(timeout: .now() + 1) == .success)
 DispatchQueue.global().async {
+    secondRecordStarted.signal()
     orderedDiagnostics.record(.invalidEvent)
     secondRecordFinished.signal()
 }
+precondition(secondRecordStarted.wait(timeout: .now() + 1) == .success)
 precondition(secondRecordFinished.wait(timeout: .now() + 0.05) == .timedOut)
 releaseFirstClock.signal()
 precondition(firstRecordFinished.wait(timeout: .now() + 1) == .success)
