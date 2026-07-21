@@ -53,13 +53,16 @@ test('Three interaction adapter uses the stage clock and keeps aim preview stati
 
 test('route projection spans both axes and restores object scale at completion', () => {
   const { body, projection, scene } = harness()
-  const visuals = createDesktopWorldSceneInteractionThree({ THREE, scene, projection })
+  let renderAt = 100
+  const visuals = createDesktopWorldSceneInteractionThree({ THREE, scene, projection, now: () => renderAt })
   visuals.apply(aim('end', 100, [300, 400, 0], 'wormhole'))
-  visuals.tick(550)
+  renderAt = 550
+  visuals.tick(renderAt)
   assert.ok(body.position.x > 100 && body.position.x < 300)
   assert.ok(body.position.y > 200 && body.position.y < 400)
   assert.ok(body.scale.x < 1)
-  visuals.tick(1000)
+  renderAt = 1000
+  visuals.tick(renderAt)
   assert.deepEqual(body.position.toArray(), [300, 400, 0])
   assert.deepEqual(body.scale.toArray(), [1, 1, 1])
   assert.equal(visuals.snapshot().route.active, false)
@@ -69,25 +72,30 @@ test('nested objects animate in parent space while route visuals remain in world
   const { body, projection, scene } = harness()
   projection.object.position.set(100, 200, 0)
   body.position.set(10, 20, 0)
-  const visuals = createDesktopWorldSceneInteractionThree({ THREE, scene, projection })
+  let renderAt = 0
+  const visuals = createDesktopWorldSceneInteractionThree({ THREE, scene, projection, now: () => renderAt })
   const event = aim('end', 0, [200, 200, 0])
   event.response.origin = { x: 110, y: 220 }
   event.response.pointer = { x: 300, y: 400 }
   event.response.angle = Math.atan2(180, 190)
   event.response.distance = Math.hypot(190, 180)
   visuals.apply(event)
-  visuals.tick(110)
+  renderAt = 110
+  visuals.tick(renderAt)
   assert.deepEqual(body.position.toArray(), [105, 110, 0])
   assert.deepEqual(visuals.snapshot().route.position, [205, 310, 0])
-  visuals.tick(220)
+  renderAt = 220
+  visuals.tick(renderAt)
   assert.deepEqual(body.position.toArray(), [200, 200, 0])
 })
 
 test('canceling an active route restores the committed destination and object scale', () => {
   const { body, projection, scene } = harness()
-  const visuals = createDesktopWorldSceneInteractionThree({ THREE, scene, projection })
+  let renderAt = 0
+  const visuals = createDesktopWorldSceneInteractionThree({ THREE, scene, projection, now: () => renderAt })
   visuals.apply(aim('end', 0, [300, 400, 0], 'wormhole'))
-  visuals.tick(450)
+  renderAt = 450
+  visuals.tick(renderAt)
   assert.ok(body.scale.x < 1)
   assert.equal(visuals.cancel(), true)
   assert.deepEqual(body.position.toArray(), [300, 400, 0])
@@ -96,9 +104,11 @@ test('canceling an active route restores the committed destination and object sc
 
 test('a completed route cannot overwrite a later unrelated object move', () => {
   const { body, projection, scene } = harness()
-  const visuals = createDesktopWorldSceneInteractionThree({ THREE, scene, projection })
+  let renderAt = 0
+  const visuals = createDesktopWorldSceneInteractionThree({ THREE, scene, projection, now: () => renderAt })
   visuals.apply(aim('end', 0, [300, 400, 0]))
-  visuals.tick(220)
+  renderAt = 220
+  visuals.tick(renderAt)
   body.position.set(40, 50, 0)
   visuals.apply(aim('start', 300, [500, 500, 0]))
   assert.deepEqual(body.position.toArray(), [40, 50, 0])
@@ -155,13 +165,23 @@ test('historical aim rendering uses the route vector for glow, dashes, head, and
 
 test('100 preview and route cycles do not allocate additional GPU resources', () => {
   const { projection, scene } = harness()
-  const visuals = createDesktopWorldSceneInteractionThree({ THREE, scene, projection })
+  let renderAt = 0
+  const visuals = createDesktopWorldSceneInteractionThree({
+    THREE,
+    scene,
+    projection,
+    now: () => renderAt,
+  })
   const allocations = visuals.snapshot().allocations
   for (let index = 0; index < 100; index += 1) {
+    renderAt = index * 300
     visuals.apply(aim('start', index * 300))
+    renderAt += 10
     visuals.apply(aim('update', index * 300 + 10, [200, 300, 0]))
+    renderAt += 10
     visuals.apply(aim('end', index * 300 + 20, [200, 300, 0]))
-    visuals.tick(index * 300 + 240)
+    renderAt = index * 300 + 240
+    visuals.tick(renderAt)
   }
   assert.deepEqual(visuals.snapshot().allocations, allocations)
   assert.equal(visuals.snapshot().route.active, false)
@@ -178,4 +198,27 @@ test('suspension hides the shared group and disposal is idempotent', () => {
   assert.equal(visuals.dispose(), true)
   assert.equal(scene.getObjectByName('aos.scene.interaction.visuals'), undefined)
   assert.equal(visuals.dispose(), false)
+})
+
+test('suspension excludes hidden time from an active route', () => {
+  const { projection, scene } = harness()
+  let renderAt = 0
+  const visuals = createDesktopWorldSceneInteractionThree({
+    THREE,
+    scene,
+    projection,
+    now: () => renderAt,
+  })
+  visuals.apply(aim('end', 0, [300, 400, 0]))
+  renderAt = 10
+  visuals.tick(renderAt)
+  const before = visuals.snapshot().route.progress
+
+  visuals.suspend(renderAt)
+  renderAt = 5_010
+  visuals.resume(renderAt)
+  visuals.tick(renderAt)
+
+  assert.equal(visuals.snapshot().route.progress, before)
+  assert.equal(visuals.snapshot().route.active, true)
 })

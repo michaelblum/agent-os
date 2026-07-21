@@ -17,6 +17,10 @@ import { createScenePlaybackClock } from './scene-playback-clock.js'
 const MAX_RESOURCES = 32
 const MAX_SIGNALS_PER_SECOND = 30
 
+export function sceneResourceCanRun(resourceSuspended, stageHidden, contextLost) {
+  return !resourceSuspended && !stageHidden && !contextLost
+}
+
 export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = window } = {}) {
   if (!canvas) throw new TypeError('DesktopWorld scene outlet requires a canvas.')
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, canvas, powerPreference: 'low-power' })
@@ -215,7 +219,9 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
         mounted.interactionState.takeDirty()
         mounted.playGeneration = ++nextPlayGeneration
         mounted.playClock.restart(now)
-        if (mounted.suspended || hidden || contextLost) mounted.playClock.suspend(now)
+        if (!sceneResourceCanRun(mounted.suspended, hidden, contextLost)) {
+          mounted.playClock.suspend(now)
+        }
       }
     } else if (operation.op === 'suspend' || operation.op === 'resume') {
       const mounted = resources.get(key)
@@ -224,9 +230,16 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
         const wasSuspended = mounted.suspended
         mounted.suspended = operation.op === 'suspend'
         if (!wasSuspended && mounted.suspended) mounted.playClock.suspend(now)
-        if (wasSuspended && !mounted.suspended && !hidden && !contextLost) mounted.playClock.resume(now)
+        if (wasSuspended && sceneResourceCanRun(mounted.suspended, hidden, contextLost)) {
+          mounted.playClock.resume(now)
+        }
         mounted.projection[operation.op]()
-        mounted.interactionVisuals?.[operation.op]()
+        if (
+          operation.op === 'suspend'
+          || sceneResourceCanRun(mounted.suspended, hidden, contextLost)
+        ) {
+          mounted.interactionVisuals?.[operation.op](now)
+        }
       }
     } else if (operation.op === 'remove' || operation.op === 'close') {
       release(key)
@@ -375,11 +388,17 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
   }
 
   const suspendPlaybackClocks = (at = performance.now()) => {
-    for (const mounted of resources.values()) mounted.playClock.suspend(at)
+    for (const mounted of resources.values()) {
+      mounted.playClock.suspend(at)
+      mounted.interactionVisuals?.suspend(at)
+    }
   }
   const resumePlaybackClocks = (at = performance.now()) => {
     for (const mounted of resources.values()) {
-      if (!mounted.suspended) mounted.playClock.resume(at)
+      if (sceneResourceCanRun(mounted.suspended, hidden, contextLost)) {
+        mounted.playClock.resume(at)
+        mounted.interactionVisuals?.resume(at)
+      }
     }
   }
   const onVisibility = () => {

@@ -348,6 +348,7 @@ export function createSceneInteractionVisualController({ now = () => performance
 
   function apply(event = {}) {
     if (disposed || suspended || !event.frame || !event.response) return REJECTED_VISUAL_RESULT
+    const at = now()
     const recognizer = event.interaction?.recognizer
     if (recognizer?.implementation === 'aos.scene.gesture.radial') {
       if (event.frame.phase === 'start' || !radialStyle) radialStyle = resolveSceneRadialVisualStyle(recognizer.parameters)
@@ -360,19 +361,19 @@ export function createSceneInteractionVisualController({ now = () => performance
         finishRoute()
       }
       updateArrow(event, style)
-      if (event.frame.phase === 'end') beginRoute(event, style, event.frame.timing?.t ?? now())
+      if (event.frame.phase === 'end') beginRoute(event, style, at)
       if (event.frame.phase === 'cancel' && model.route.active) finishRoute()
-      publish(event.frame.timing?.t)
+      publish(at)
       if (event.frame.phase === 'end' || event.frame.phase === 'cancel') aimStyle = null
       return event.frame.phase === 'end' ? STARTED_ROUTE_RESULT : ACCEPTED_VISUAL_RESULT
     }
     if (event.response.kind === 'radial_menu') {
       updatePersistentRadial(event)
-      publish(event.frame.timing?.t)
+      publish(at)
       return ACCEPTED_VISUAL_RESULT
     }
     if (recognizer?.implementation === 'aos.scene.gesture.radial') {
-      publish(event.frame.timing?.t)
+      publish(at)
       if (event.frame.phase === 'end' || event.frame.phase === 'cancel') radialStyle = null
       return ACCEPTED_VISUAL_RESULT
     }
