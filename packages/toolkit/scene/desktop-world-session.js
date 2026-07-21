@@ -143,7 +143,7 @@ function normalizeMountInput(input, resourceId) {
     ? undefined
     : cloneFiniteJson(input.interactions)
   if (interactions !== undefined) {
-    const validation = validateSceneInteractionDocument(interactions)
+    const validation = validateSceneInteractionDocument(interactions, { scene: document })
     if (!validation.ok) {
       throw sceneSessionError(
         'INVALID_SCENE_INTERACTIONS',

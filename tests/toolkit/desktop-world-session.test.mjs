@@ -47,6 +47,36 @@ function interactions() {
   }
 }
 
+function interactiveScene() {
+  return {
+    ...scene(),
+    objects: [
+      ...scene().objects,
+      {
+        id: 'body', parentId: 'root', kind: 'group',
+        transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+        visible: true, geometryId: null, materialId: null, components: [],
+      },
+    ],
+  }
+}
+
+function interactiveInteractions() {
+  return {
+    contract: 'aos.scene.cartridge.interactions.v1',
+    schemaVersion: 1,
+    affordances: [{
+      id: 'body', objectId: 'body', geometry: { kind: 'rect', width: 100, height: 100, offset: [0, 0] },
+      enabled: true, priority: 100, consumePolicy: 'captured', metadata: {},
+    }],
+    interactions: [{
+      id: 'move-body', affordanceId: 'body',
+      recognizer: { implementation: 'aos.scene.gesture.drag', parameters: { button: 0, threshold: 4 } },
+      response: { implementation: 'aos.scene.response.translate', parameters: { coordinates: 'world' } },
+    }],
+  }
+}
+
 function transaction(expectedRevision = 1) {
   return {
     contract: 'aos.scene.transaction.v1',
@@ -160,6 +190,14 @@ test('scene session serializes operations and commits only acknowledged structur
   assert.equal(session.snapshot().mounted, false)
   assert.equal((await session.close()).status, 'closed')
   assert.equal((await session.close()).status, 'closed')
+})
+
+test('scene session validates non-empty interactions against the mounted document', async () => {
+  const fixture = fakeTransportFactory()
+  const session = createDesktopWorldSceneSession({ ...identity, connect: fixture.connect })
+  await session.mount({ document: interactiveScene(), interactions: interactiveInteractions() })
+  assert.equal(session.snapshot().committedRevision, 1)
+  await session.close()
 })
 
 test('scene session restores committed mount, suspension, and subscriptions once', async () => {
