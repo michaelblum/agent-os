@@ -12,8 +12,8 @@ final class AOSDesktopWorldSceneEventRouteDiagnostics {
     }
 
     func record(_ outcome: AOSDesktopWorldSceneEventRouteOutcome) {
-        let failureAt = outcome == .delivered ? nil : now()
         lock.lock()
+        let failureAt = outcome == .enqueued ? nil : now()
         counts[outcome] = min(
             counts[outcome, default: 0] + 1,
             Self.maximumCount
@@ -35,14 +35,14 @@ final class AOSDesktopWorldSceneEventRouteDiagnostics {
             byOutcome[outcome.rawValue] = currentCounts[outcome] ?? 0
         }
         let total = byOutcome.values.reduce(0, +)
-        let delivered = byOutcome[AOSDesktopWorldSceneEventRouteOutcome.delivered.rawValue] ?? 0
+        let enqueued = byOutcome[AOSDesktopWorldSceneEventRouteOutcome.enqueued.rawValue] ?? 0
         let lastFailureValue: Any = currentLastFailure.map {
             ["at": $0.at, "code": $0.outcome.rawValue] as [String: Any]
         } ?? NSNull()
         return [
             "contract": "aos.desktop-world.scene-event-routing.v1",
             "total": total,
-            "failures": total - delivered,
+            "failures": total - enqueued,
             "by_outcome": byOutcome,
             "last_failure": lastFailureValue,
         ]

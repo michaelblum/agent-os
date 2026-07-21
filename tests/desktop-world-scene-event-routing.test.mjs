@@ -173,7 +173,7 @@ precondition(Set(snapshot.keys) == Set(["contract", "total", "failures", "by_out
 precondition(snapshot["contract"] as? String == "aos.desktop-world.scene-event-routing.v1")
 precondition(snapshot["total"] as? Int == 4)
 precondition(snapshot["failures"] as? Int == 3)
-precondition(counts?["delivered"] == 1)
+precondition(counts?["enqueued"] == 1)
 precondition(counts?["identity_mismatch"] == 1)
 precondition(counts?["invalid_event"] == 1)
 precondition(counts?["stale_topology"] == 1)
@@ -181,9 +181,43 @@ let lastFailure = snapshot["last_failure"] as? [String: Any]
 precondition(Set(lastFailure?.keys.map { $0 } ?? []) == Set(["at", "code"]))
 precondition(lastFailure?["code"] as? String == "stale_topology")
 precondition(lastFailure?["at"] as? Double == 1234)
-precondition((failingDiagnostics.snapshot()["by_outcome"] as? [String: Int])?["delivery_failed"] == 1)
+precondition((failingDiagnostics.snapshot()["by_outcome"] as? [String: Int])?["enqueue_failed"] == 1)
 precondition((stageDiagnostics.snapshot()["by_outcome"] as? [String: Int])?["stage_unavailable"] == 1)
 precondition((unsubscribedDiagnostics.snapshot()["by_outcome"] as? [String: Int])?["unsubscribed"] == 1)
+
+let firstClockEntered = DispatchSemaphore(value: 0)
+let releaseFirstClock = DispatchSemaphore(value: 0)
+let firstRecordFinished = DispatchSemaphore(value: 0)
+let secondRecordFinished = DispatchSemaphore(value: 0)
+let clockLock = NSLock()
+var clockCalls = 0
+let orderedDiagnostics = AOSDesktopWorldSceneEventRouteDiagnostics(now: {
+    clockLock.lock()
+    clockCalls += 1
+    let call = clockCalls
+    clockLock.unlock()
+    if call == 1 {
+        firstClockEntered.signal()
+        releaseFirstClock.wait()
+    }
+    return Double(call)
+})
+DispatchQueue.global().async {
+    orderedDiagnostics.record(.identityMismatch)
+    firstRecordFinished.signal()
+}
+precondition(firstClockEntered.wait(timeout: .now() + 1) == .success)
+DispatchQueue.global().async {
+    orderedDiagnostics.record(.invalidEvent)
+    secondRecordFinished.signal()
+}
+precondition(secondRecordFinished.wait(timeout: .now() + 0.05) == .timedOut)
+releaseFirstClock.signal()
+precondition(firstRecordFinished.wait(timeout: .now() + 1) == .success)
+precondition(secondRecordFinished.wait(timeout: .now() + 1) == .success)
+let orderedFailure = orderedDiagnostics.snapshot()["last_failure"] as? [String: Any]
+precondition(orderedFailure?["code"] as? String == "invalid_event")
+precondition(orderedFailure?["at"] as? Double == 2)
 print("PASS desktop world scene event routing")
 `)
     execFileSync('swiftc', [

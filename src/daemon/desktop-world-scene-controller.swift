@@ -1,8 +1,8 @@
 import Foundation
 
 enum AOSDesktopWorldSceneEventRouteOutcome: String, CaseIterable {
-    case delivered
-    case deliveryFailed = "delivery_failed"
+    case enqueued
+    case enqueueFailed = "enqueue_failed"
     case identityMismatch = "identity_mismatch"
     case invalidEvent = "invalid_event"
     case stageUnavailable = "stage_unavailable"
@@ -316,13 +316,13 @@ final class AOSDesktopWorldSceneController {
         identity: AOSDesktopWorldSceneStageIdentity,
         key: String,
         event: String,
-        deliver: (AOSSceneLeaseRoute) -> Bool
+        enqueue: (AOSSceneLeaseRoute) -> Bool
     ) -> AOSDesktopWorldSceneEventRouteOutcome {
         withLock {
             guard retirement == nil,
                   readiness.isReady(for: identity) else { return .stageUnavailable }
             guard let route = leases.routeEvent(key: key, event: event) else { return .unsubscribed }
-            return deliver(route) ? .delivered : .deliveryFailed
+            return enqueue(route) ? .enqueued : .enqueueFailed
         }
     }
 

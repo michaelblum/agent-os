@@ -341,7 +341,7 @@ let routedOutcome = controller.withEventRoute(identity: identity, key: key, even
     return true
 }
 precondition(routed)
-precondition(routedOutcome == .delivered)
+precondition(routedOutcome == .enqueued)
 
 let operation: [String: Any] = ["op": "mount", "document": ["revision": 1]]
 guard case .accepted(let initial) = controller.admitOperation(
@@ -394,6 +394,68 @@ guard case .accepted = atomic.updateSubscriptions(
     removing: [],
     removeAll: false
 ) else { preconditionFailure("atomic subscription rejected") }
+
+let eventAtomic = AOSDesktopWorldSceneController()
+let eventAtomicTopology = readyController(eventAtomic)
+let eventAtomicConnection = UUID()
+let eventAtomicKey = eventAtomic.key(owner: "event-atomic", resource: "main")
+guard case .accepted = eventAtomic.updateSubscriptions(
+    key: eventAtomicKey,
+    connectionID: eventAtomicConnection,
+    ref: "event-atomic-ref",
+    adding: Set(["gesture"]),
+    removing: [],
+    removeAll: false
+) else { preconditionFailure("event atomic subscription rejected") }
+let eventEnteredEnqueue = DispatchSemaphore(value: 0)
+let releaseEventEnqueue = DispatchSemaphore(value: 0)
+let eventRouteFinished = DispatchSemaphore(value: 0)
+let eventInvalidationFinished = DispatchSemaphore(value: 0)
+let eventStateLock = NSLock()
+var eventRouteOutcome: AOSDesktopWorldSceneEventRouteOutcome?
+var eventInvalidationPlan: AOSDesktopWorldSceneInvalidationPlan?
+DispatchQueue.global().async {
+    let outcome = eventAtomic.withEventRoute(
+        identity: eventAtomicTopology.identity,
+        key: eventAtomicKey,
+        event: "gesture"
+    ) { _ in
+        eventEnteredEnqueue.signal()
+        releaseEventEnqueue.wait()
+        return true
+    }
+    eventStateLock.lock()
+    eventRouteOutcome = outcome
+    eventStateLock.unlock()
+    eventRouteFinished.signal()
+}
+precondition(eventEnteredEnqueue.wait(timeout: .now() + 1) == .success)
+DispatchQueue.global().async {
+    let plan = eventAtomic.invalidateStage(
+        identity: eventAtomicTopology.identity,
+        code: "SCENE_STAGE_REMOVED"
+    )
+    eventStateLock.lock()
+    eventInvalidationPlan = plan
+    eventStateLock.unlock()
+    eventInvalidationFinished.signal()
+}
+precondition(eventInvalidationFinished.wait(timeout: .now() + 0.05) == .timedOut)
+releaseEventEnqueue.signal()
+precondition(eventRouteFinished.wait(timeout: .now() + 1) == .success)
+precondition(eventInvalidationFinished.wait(timeout: .now() + 1) == .success)
+eventStateLock.lock()
+let eventOutcomeBeforeInvalidation = eventRouteOutcome
+let eventRetirement = eventInvalidationPlan
+eventStateLock.unlock()
+precondition(eventOutcomeBeforeInvalidation == .enqueued)
+guard case .retire(let eventAtomicRetirement)? = eventRetirement else {
+    preconditionFailure("event atomic retirement request missing")
+}
+guard case .recoverable = eventAtomic.settleRetirement(
+    eventAtomicRetirement,
+    outcome: .retired
+) else { preconditionFailure("event atomic retirement did not settle") }
 guard case .accepted(let atomicAction) = atomic.admitOperation(
     topology: atomicTopology,
     key: atomicKey,

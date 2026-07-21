@@ -173,9 +173,11 @@ compatibility policy.
 
 For DesktopWorld gesture delivery, `daemon-snapshot` includes the bounded
 `runtime_resources.desktop_world_scene_event_routing` readback. It reports
-counts for delivered, rejected, unsubscribed, stale-topology, and outbound
-delivery outcomes plus only the most recent failure code and timestamp. It
-never includes scene documents, gesture coordinates, labels, or product data.
+counts for outbound-queue admission, invalid events, identity mismatches,
+missing subscriptions, stale topology, unavailable stages, and queue-admission
+failure, plus only the most recent failure code and timestamp. Queue admission
+does not claim that the asynchronous client write completed. The readback never
+includes scene documents, gesture coordinates, labels, or product data.
 Capture a troubleshooting snapshot without changing AOS state by using the
 standard Unix `tee` utility:
 
