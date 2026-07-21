@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 private let aosSceneCancellationReasons = Set([
     "escape",
@@ -16,7 +17,8 @@ private func aosSceneExactKeys(_ value: [String: Any], _ keys: Set<String>) -> B
 }
 
 private func aosSceneFiniteNumber(_ value: Any?) -> Double? {
-    guard !(value is Bool), let number = value as? NSNumber else { return nil }
+    guard let number = value as? NSNumber,
+          CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
     let result = number.doubleValue
     return result.isFinite ? result : nil
 }

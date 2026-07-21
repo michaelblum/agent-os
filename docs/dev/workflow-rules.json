@@ -184,6 +184,7 @@
         "packages/toolkit/scene/**",
         "packages/toolkit/components/desktop-world-stage/**",
         "src/daemon/desktop-world-scene-*.swift",
+        "src/daemon/scene-event.swift",
         "src/daemon/scene-lease-registry.swift",
         "src/daemon/unified.swift",
         "src/display/desktop-world-surface.swift",
@@ -193,6 +194,7 @@
         "manifests/commands/source/external/47-scene.json",
         "docs/api/toolkit/scene*.md",
         "tests/scene-*.test.mjs",
+        "tests/desktop-world-scene-event-routing.test.mjs",
         "tests/desktop-world-scene-result-coordinator.test.mjs",
         "tests/daemon-desktop-world-devtools-contract.test.mjs",
         "tests/toolkit/desktop-world-scene-*.test.mjs",
@@ -213,8 +215,8 @@
       "commands": [
         {
           "id": "scene-daemon-contract",
-          "command": "node --test tests/desktop-world-scene-result-coordinator.test.mjs tests/daemon-desktop-world-devtools-contract.test.mjs tests/scene-follow-cli.test.mjs",
-          "reason": "Verify the daemon scene lifecycle aggregate, all-segment barrier ownership, DevTools delegation, and bounded follow transport."
+          "command": "node --test tests/desktop-world-scene-event-routing.test.mjs tests/desktop-world-scene-result-coordinator.test.mjs tests/daemon-desktop-world-devtools-contract.test.mjs tests/scene-follow-cli.test.mjs",
+          "reason": "Verify canonical event routing diagnostics, the daemon scene lifecycle aggregate, all-segment barrier ownership, DevTools delegation, and bounded follow transport."
         },
         {
           "id": "scene-core-contract",

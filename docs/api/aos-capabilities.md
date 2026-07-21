@@ -171,6 +171,23 @@ deliberately a recipe-sized composition over existing surfaces, not a new
 with source manifests, routes, docs, tests, generated artifacts, and a clear
 compatibility policy.
 
+For DesktopWorld gesture delivery, `daemon-snapshot` includes the bounded
+`runtime_resources.desktop_world_scene_event_routing` readback. It reports
+counts for delivered, rejected, unsubscribed, stale-topology, and outbound
+delivery outcomes plus only the most recent failure code and timestamp. It
+never includes scene documents, gesture coordinates, labels, or product data.
+Capture a troubleshooting snapshot without changing AOS state by using the
+standard Unix `tee` utility:
+
+```bash
+./aos daemon-snapshot | tee /tmp/aos-daemon-snapshot.json
+```
+
+Use `service logs --tail N` for the bounded daemon log and the scene
+`inspect`, `monitor`, `perf`, `replay`, and DevTools surfaces for scene-specific
+state. Keep `log` for the operator-visible DesktopWorld log panel; it is not a
+passive daemon logging command.
+
 ## Dashboard And Readback Boundary
 
 The current AOS dashboard answer is a composed readback flow, not a visual

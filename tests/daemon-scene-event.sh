@@ -40,6 +40,16 @@ let valid: [String: Any] = [
 ]
 
 require(aosCanonicalSceneEvent(valid) != nil, "valid scene event was rejected")
+let encodedValid = try JSONSerialization.data(withJSONObject: valid)
+let decodedValid = try JSONSerialization.jsonObject(with: encodedValid) as! [String: Any]
+require(aosCanonicalSceneEvent(decodedValid) != nil, "JSON numeric zero and one were misclassified as booleans")
+var booleanCoordinate = valid
+booleanCoordinate["coordinates"] = [
+    "origin": ["x": true, "y": 200.0], "previous": ["x": 110.0, "y": 210.0],
+    "current": ["x": 120.0, "y": 220.0], "desktopWorld": ["x": 120.0, "y": 220.0],
+    "native": NSNull(), "delta": ["x": 10.0, "y": 10.0], "totalDelta": ["x": 20.0, "y": 20.0],
+]
+require(aosCanonicalSceneEvent(booleanCoordinate) == nil, "boolean coordinate was accepted as numeric")
 var radial = valid
 radial["gesture"] = ["id": "gesture-menu", "kind": "tap", "phase": "end", "pointerSessionId": "capture-menu", "cancellationReason": NSNull()]
 radial["response"] = [
