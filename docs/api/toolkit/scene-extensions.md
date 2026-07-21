@@ -38,7 +38,7 @@ projection.js
 `projection.js` is the body of `createProjection(context)`. It may define local
 helpers and must synchronously return one projection with an Object3D subtree
 and `applySignal`, `applyAnimation`, `tick`, `suspend`, `resume`,
-`contextLost`, and `dispose` methods. Promise-like hook results fail admission
+`contextLost`, `contextRestored`, and `dispose` methods. Promise-like hook results fail admission
 or the active operation.
 
 The manifest binds owner, extension ID, sorted implementation IDs, scene ABI,

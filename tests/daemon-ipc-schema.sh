@@ -59,6 +59,8 @@ good_requests = [
     {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"companion","action_id":"summon","generation":7,"descriptor_revision":3}},
     {"v":1,"service":"status_item","action":"invoke_dry_run","data":{"owner":"io.example.app","item_id":"companion","action_id":"summon","generation":7,"descriptor_revision":3}},
     {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"companion/main","operation":{"op":"mount","extension":scene_extension}}},
+    {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"companion/main","operation":{"op":"subscribe","events":["gesture"]}}},
+    {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"companion/main","operation":{"op":"unsubscribe","events":["gesture"]}}},
 ]
 validator = jsonschema.Draft202012Validator(req_schema, registry=registry)
 for r in good_requests:

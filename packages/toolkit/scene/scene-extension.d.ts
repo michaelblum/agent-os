@@ -73,6 +73,7 @@ export interface SceneExtensionProjection {
   suspend(): void;
   resume(): void;
   contextLost(): void;
+  contextRestored(): void;
   dispose(): void;
 }
 

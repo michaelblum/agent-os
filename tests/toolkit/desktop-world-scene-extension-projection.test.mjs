@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import * as THREE from '../../packages/toolkit/vendor/three/three.module.min.js'
 
@@ -109,6 +110,7 @@ function factory(overrides = {}) {
         suspend() {},
         resume() {},
         contextLost() {},
+        contextRestored() {},
         dispose() {},
       }
     },
@@ -132,6 +134,30 @@ test('DesktopWorld selects an exact owner-matched extension projection', () => {
   assert.deepEqual(result.projection.objectPosition('companion/main'), [90, 40, 2])
 })
 
+test('neutral extension restores visibility after context loss without waking a suspended projection', async () => {
+  const body = await readFile(new URL(
+    '../../packages/toolkit/scene/extension-examples/basic-three/projection.js',
+    import.meta.url,
+  ), 'utf8')
+  const createProjection = Function('context', body)
+  const projection = createProjection({
+    THREE,
+    document: { id: 'example/main' },
+  })
+
+  projection.contextLost()
+  assert.equal(projection.object.visible, false)
+  projection.contextRestored()
+  assert.equal(projection.object.visible, true)
+  projection.suspend()
+  projection.contextLost()
+  projection.contextRestored()
+  assert.equal(projection.object.visible, false)
+  projection.resume()
+  assert.equal(projection.object.visible, true)
+  projection.dispose()
+})
+
 test('DesktopWorld lowers extension allocation budgets to remaining segment headroom', () => {
   let received = null
   const extension = factory()
@@ -145,6 +171,7 @@ test('DesktopWorld lowers extension allocation budgets to remaining segment head
       suspend() {},
       resume() {},
       contextLost() {},
+      contextRestored() {},
       dispose() {},
     }
   }
@@ -255,6 +282,7 @@ test('generic numeric bindings drive consumer-owned runtime scalar targets', () 
     suspend() {},
     resume() {},
     contextLost() {},
+    contextRestored() {},
     dispose() {},
   })
   const registry = createTrustedSceneExtensionRegistry({ factories: [extension] })

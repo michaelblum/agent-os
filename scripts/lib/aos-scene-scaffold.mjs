@@ -84,6 +84,9 @@ return Object.freeze({
   contextLost() {
     root.visible = false
   },
+  contextRestored() {
+    if (!disposed && !suspended) root.visible = true
+  },
   dispose() {
     if (disposed) return
     disposed = true

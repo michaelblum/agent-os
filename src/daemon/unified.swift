@@ -136,12 +136,7 @@ class UnifiedDaemon {
     private var daemonLockFD: Int32 = -1
     private var subscriberLock = NSLock()
     private var subscribers: [UUID: SubscriberConnection] = [:]
-    private let sceneLeases = AOSSceneLeaseRegistry()
-    private let sceneResults = AOSDesktopWorldSceneResultCoordinator()
-    private let sceneStageReadiness = AOSDesktopWorldSceneStageReadiness()
-    private let sceneStageLifecycleLock = NSLock()
-    private var sceneOperationTokens: [String: AOSSceneLeaseToken] = [:]
-    private var sceneStageRetiringIdentity: AOSDesktopWorldSceneStageIdentity?
+    private let desktopWorldScene = AOSDesktopWorldSceneController()
     private lazy var desktopWorldDevTools = AOSDesktopWorldDevToolsController(
         canvasManager: canvasManager,
         sceneStageCanvasID: sceneStageCanvasID,
@@ -460,16 +455,8 @@ class UnifiedDaemon {
                 self.removeInputRegionsOwned(by: canvasInfo.id, includeSuspendRetained: true)
                 self.desktopWorldDevTools.detachHost(id: canvasInfo.id)
                 if canvasInfo.id == self.sceneStageCanvasID {
-                    self.sceneStageLifecycleLock.lock()
-                    let identity = self.sceneStageReadiness.currentIdentity()
-                    let alreadyRetiring = identity.map({ self.sceneStageRetiringIdentity == $0 }) ?? false
-                    self.sceneStageLifecycleLock.unlock()
-                    if !alreadyRetiring {
-                        if let identity {
-                            self.invalidateSceneStage(identity: identity, code: "SCENE_STAGE_REMOVED")
-                        } else {
-                            self.invalidateSceneLeaseOwnership(code: "SCENE_STAGE_REMOVED")
-                        }
+                    if let invalidation = self.desktopWorldScene.stageRemoved(code: "SCENE_STAGE_REMOVED") {
+                        self.finishSceneStageInvalidation(invalidation)
                     }
                 }
             } else if canvasInfo.suspended == true {
@@ -1765,21 +1752,18 @@ class UnifiedDaemon {
                   let topology = canvasManager.desktopWorldSceneBarrierTopology(canvasID: canvasID),
                   topology.canvasGeneration == canvasGeneration,
                   topology.generation == topologyGeneration else { return }
-            let identity = sceneStageIdentity(topology)
+            let descriptor = sceneStageTopology(topology)
             var publicManifest = payload
             publicManifest.removeValue(forKey: "canvas_generation")
             publicManifest.removeValue(forKey: "topology_generation")
             publicManifest.removeValue(forKey: "segment_display_id")
             publicManifest.removeValue(forKey: "segment_index")
-            sceneStageLifecycleLock.lock()
-            let configured = configureCurrentSceneStageReadinessLocked(topology)
-            let complete = configured && sceneStageReadiness.record(
-                identity: identity,
+            let complete = desktopWorldScene.recordReady(
+                topology: descriptor,
                 displayID: UInt32(displayIDValue),
                 index: segmentIndex,
                 manifest: publicManifest
             )
-            sceneStageLifecycleLock.unlock()
             guard complete else { return }
             canvasSubscriptionLock.lock()
             canvasReadyManifests[canvasID] = publicManifest
@@ -1808,19 +1792,11 @@ class UnifiedDaemon {
         }
     }
 
-    /// Called only while sceneStageLifecycleLock is held. Ordinary readiness
-    /// paths may populate one identity but may never replace it; topology
-    /// settlement is the sole transition owner.
-    private func configureCurrentSceneStageReadinessLocked(
+    private func sceneStageTopology(
         _ topology: DesktopWorldSceneBarrierTopology
-    ) -> Bool {
-        let identity = sceneStageIdentity(topology)
-        guard sceneStageRetiringIdentity == nil,
-              sceneStageReadiness.currentIdentity().map({ $0 == identity }) ?? true else {
-            return false
-        }
-        return sceneStageReadiness.configure(
-            identity: identity,
+    ) -> AOSDesktopWorldSceneTopologyDescriptor {
+        AOSDesktopWorldSceneTopologyDescriptor(
+            identity: sceneStageIdentity(topology),
             segments: sceneStageSegments(topology)
         )
     }
@@ -2889,10 +2865,6 @@ class UnifiedDaemon {
 
     private let sceneStageCanvasID = "aos-desktop-world-stage"
 
-    private func sceneLeaseKey(owner: String, resource: String) -> String {
-        return "\(owner)::\(resource)"
-    }
-
     private func validSceneIdentifier(_ value: String, allowSlash: Bool) -> Bool {
         let scalars = Array(value.unicodeScalars)
         guard !scalars.isEmpty, scalars.count <= 128 else { return false }
@@ -2915,88 +2887,23 @@ class UnifiedDaemon {
 
     private func cleanupSceneLeases(_ connectionID: UUID) {
         let topology = canvasManager.desktopWorldSceneBarrierTopology(canvasID: sceneStageCanvasID)
-        var barrierActions: [AOSDesktopWorldSceneBarrierAction] = []
-        var retirementIdentity: AOSDesktopWorldSceneStageIdentity?
-        var invalidateWithoutStage = false
-        sceneStageLifecycleLock.lock()
-        let tokens = sceneLeases.beginDisconnect(connectionID: connectionID)
-        for token in tokens {
-            let key = token.key
-            let actions = sceneResults.ownerDisconnected(leaseKey: key)
-            if !actions.isEmpty || sceneResults.hasPending(leaseKey: key) {
-                barrierActions.append(contentsOf: actions)
-                continue
-            }
-            guard let parts = sceneLeaseIdentity(from: key) else {
-                invalidateWithoutStage = true
-                break
-            }
-            guard let topology else {
-                if let currentIdentity = sceneStageReadiness.currentIdentity() {
-                    retirementIdentity = currentIdentity
-                } else {
-                    invalidateWithoutStage = true
-                }
-                break
-            }
-            let identity = sceneStageIdentity(topology)
-            guard sceneStageReadiness.isReady(for: identity) else {
-                retirementIdentity = sceneStageReadiness.currentIdentity() ?? identity
-                break
-            }
-            let operationID = UUID().uuidString.lowercased()
-            guard let action = sceneResults.begin(
-                operationID: operationID,
-                leaseKey: key,
-                owner: parts.owner,
-                operation: "close",
-                operationPayload: ["op": "close"],
-                resource: parts.resource,
-                canvasGeneration: topology.canvasGeneration,
-                topologyGeneration: topology.generation,
-                segments: topology.segments.map { (displayID: $0.displayID, index: $0.index) }
-            ), sceneLeases.beginOperation(token, allowingClosing: true) else {
-                _ = sceneResults.cancel(operationID: operationID)
-                retirementIdentity = identity
-                break
-            }
-            sceneOperationTokens[operationID] = token
-            barrierActions.append(action)
-        }
-        sceneStageLifecycleLock.unlock()
-
-        if invalidateWithoutStage {
-            invalidateSceneLeaseOwnership(code: "SCENE_OWNER_DISCONNECTED")
+        let plan = desktopWorldScene.beginDisconnect(
+            connectionID: connectionID,
+            topology: topology.map(sceneStageTopology)
+        )
+        if let invalidation = plan.invalidation {
+            finishSceneStageInvalidation(invalidation)
             return
         }
-        if let retirementIdentity {
-            invalidateSceneStage(identity: retirementIdentity, code: "SCENE_OWNER_DISCONNECTED")
-            return
-        }
-        dispatchSceneBarrierActions(barrierActions)
+        dispatchSceneBarrierActions(plan.barrierActions)
     }
 
     private func completeSceneStageResult(
         _ completion: AOSDesktopWorldSceneResultCompletion,
         operationID: String
     ) {
-        let payload = completion.payload
-        guard let key = payload["lease_key"] as? String else { return }
-        let releaseLease = payload["operation"] as? String == "close"
-            || payload["release_lease"] as? Bool == true
-        sceneStageLifecycleLock.lock()
-        guard let token = sceneOperationTokens.removeValue(forKey: operationID),
-              token.key == key else {
-            sceneStageLifecycleLock.unlock()
-            return
-        }
-        let route = sceneLeases.completeOperation(
-            token,
-            releaseLease: releaseLease
-        )
-        sceneStageLifecycleLock.unlock()
-        guard let route else { return }
-        deliverSceneStageResult(payload, route: route)
+        guard let delivery = desktopWorldScene.complete(completion, operationID: operationID) else { return }
+        deliverSceneStageResult(delivery.payload, route: delivery.route)
     }
 
     private func deliverSceneStageResult(
@@ -3018,31 +2925,8 @@ class UnifiedDaemon {
         writer?.enqueue(bytes)
     }
 
-    private func sceneResource(from leaseKey: String) -> String {
-        leaseKey.split(separator: "::", maxSplits: 1, omittingEmptySubsequences: false).last.map(String.init) ?? leaseKey
-    }
-
-    private func sceneLeaseIdentity(from leaseKey: String) -> (owner: String, resource: String)? {
-        let parts = leaseKey.split(separator: "::", maxSplits: 1, omittingEmptySubsequences: false)
-        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else { return nil }
-        return (String(parts[0]), String(parts[1]))
-    }
-
     private func invalidateSceneLeaseOwnership(code: String) {
-        sceneStageLifecycleLock.lock()
-        let invalidated = sceneLeases.invalidateAll()
-        sceneResults.cancelAll()
-        sceneOperationTokens.removeAll(keepingCapacity: false)
-        sceneStageLifecycleLock.unlock()
-        for invalidation in invalidated {
-            deliverSceneStageResult([
-                "lease_key": invalidation.key,
-                "operation": "release",
-                "resource": sceneResource(from: invalidation.key),
-                "status": "error",
-                "code": code,
-            ], route: invalidation.route)
-        }
+        finishSceneStageInvalidation(desktopWorldScene.invalidateOwnership(code: code))
     }
 
     private func invalidateSceneStage(
@@ -3051,66 +2935,33 @@ class UnifiedDaemon {
         primaryCompletion: AOSDesktopWorldSceneResultCompletion? = nil,
         primaryOperationID: String? = nil
     ) {
-        sceneStageLifecycleLock.lock()
-        guard sceneStageReadiness.invalidateIfCurrent(identity) else {
-            sceneStageLifecycleLock.unlock()
-            if let primaryCompletion, let primaryOperationID {
-                completeSceneStageResult(primaryCompletion, operationID: primaryOperationID)
-            }
-            return
-        }
-        let invalidated = sceneLeases.invalidateAll()
-        sceneResults.cancelAll()
-        sceneOperationTokens.removeAll(keepingCapacity: false)
-        sceneStageRetiringIdentity = identity
-        sceneStageLifecycleLock.unlock()
-
-        finishSceneStageInvalidation(
+        guard let invalidation = desktopWorldScene.invalidateStage(
             identity: identity,
             code: code,
-            invalidated: invalidated,
-            primaryCompletion: primaryCompletion
-        )
+            primaryCompletion: primaryCompletion,
+            primaryOperationID: primaryOperationID
+        ) else { return }
+        finishSceneStageInvalidation(invalidation)
     }
 
     private func finishSceneStageInvalidation(
-        identity: AOSDesktopWorldSceneStageIdentity,
-        code: String,
-        invalidated: [AOSSceneLeaseInvalidation],
-        primaryCompletion: AOSDesktopWorldSceneResultCompletion? = nil
+        _ plan: AOSDesktopWorldSceneInvalidationPlan
     ) {
-        canvasSubscriptionLock.lock()
-        canvasReadyManifests.removeValue(forKey: sceneStageCanvasID)
-        canvasSubscriptionLock.unlock()
-        canvasManager.retireDesktopWorldSceneStageAsync(
-            canvasID: sceneStageCanvasID,
-            canvasGeneration: identity.canvasGeneration,
-            topologyGeneration: identity.topologyGeneration
-        ) { [weak self] retired in
-            guard retired, let self else { return }
-            self.sceneStageLifecycleLock.lock()
-            if self.sceneStageRetiringIdentity == identity {
-                self.sceneStageReadiness.clear()
-                self.sceneStageRetiringIdentity = nil
+        if let identity = plan.identityToRetire {
+            canvasSubscriptionLock.lock()
+            canvasReadyManifests.removeValue(forKey: sceneStageCanvasID)
+            canvasSubscriptionLock.unlock()
+            canvasManager.retireDesktopWorldSceneStageAsync(
+                canvasID: sceneStageCanvasID,
+                canvasGeneration: identity.canvasGeneration,
+                topologyGeneration: identity.topologyGeneration
+            ) { [weak self] retired in
+                guard retired, let self else { return }
+                self.desktopWorldScene.finishRetirement(identity)
             }
-            self.sceneStageLifecycleLock.unlock()
         }
-
-        let primaryKey = primaryCompletion?.payload["lease_key"] as? String
-        for invalidation in invalidated {
-            let payload: [String: Any]
-            if invalidation.key == primaryKey, let primaryCompletion {
-                payload = primaryCompletion.payload
-            } else {
-                payload = [
-                    "lease_key": invalidation.key,
-                    "operation": "release",
-                    "resource": sceneResource(from: invalidation.key),
-                    "status": "error",
-                    "code": code,
-                ]
-            }
-            deliverSceneStageResult(payload, route: invalidation.route)
+        for delivery in plan.deliveries {
+            deliverSceneStageResult(delivery.payload, route: delivery.route)
         }
     }
 
@@ -3121,36 +2972,11 @@ class UnifiedDaemon {
               let topology = canvasManager.desktopWorldSceneBarrierTopology(canvasID: sceneStageCanvasID),
               topology.canvasGeneration == canvasGeneration,
               topology.generation == topologyGeneration else { return }
-        let identity = sceneStageIdentity(topology)
-        var invalidated: [AOSSceneLeaseInvalidation] = []
-        var shouldRetire = false
-        sceneStageLifecycleLock.lock()
-        let lockedPrevious = sceneStageReadiness.currentIdentity()
-        guard sceneStageReadiness.configure(
-            identity: identity,
-            segments: sceneStageSegments(topology)
-        ) else {
-            sceneStageLifecycleLock.unlock()
-            return
-        }
-        if let lockedPrevious, lockedPrevious != identity {
-            guard sceneStageReadiness.invalidateIfCurrent(identity) else {
-                sceneStageLifecycleLock.unlock()
-                return
-            }
-            invalidated = sceneLeases.invalidateAll()
-            sceneResults.cancelAll()
-            sceneOperationTokens.removeAll(keepingCapacity: false)
-            sceneStageRetiringIdentity = identity
-            shouldRetire = true
-        }
-        sceneStageLifecycleLock.unlock()
-        guard shouldRetire else { return }
-        finishSceneStageInvalidation(
-            identity: identity,
-            code: "SCENE_TOPOLOGY_CHANGED",
-            invalidated: invalidated
-        )
+        guard let invalidation = desktopWorldScene.topologySettled(
+            sceneStageTopology(topology),
+            code: "SCENE_TOPOLOGY_CHANGED"
+        ) else { return }
+        finishSceneStageInvalidation(invalidation)
     }
 
     private func dispatchSceneBarrierActions(
@@ -3172,7 +2998,7 @@ class UnifiedDaemon {
                     ],
                 ]
                 guard postSceneBarrierBroadcast(broadcast, message: message) else {
-                    let expired = sceneResults.expire(
+                    let expired = desktopWorldScene.expire(
                         operationID: broadcast.operationID,
                         phase: broadcast.phase,
                         topologyGeneration: nil
@@ -3186,7 +3012,7 @@ class UnifiedDaemon {
                     let currentGeneration = current?.canvasGeneration == broadcast.canvasGeneration
                         ? current?.generation
                         : nil
-                    let expired = self.sceneResults.expire(
+                    let expired = self.desktopWorldScene.expire(
                         operationID: broadcast.operationID,
                         phase: broadcast.phase,
                         topologyGeneration: currentGeneration
@@ -3217,25 +3043,21 @@ class UnifiedDaemon {
         var delivered = false
         let post = { [weak self] in
             guard let self else { return }
-            let identity = AOSDesktopWorldSceneStageIdentity(
-                canvasGeneration: broadcast.canvasGeneration,
-                topologyGeneration: broadcast.topologyGeneration
-            )
-            self.sceneStageLifecycleLock.lock()
-            defer { self.sceneStageLifecycleLock.unlock() }
-            guard self.sceneStageRetiringIdentity != identity,
-                  self.sceneStageReadiness.isReady(for: identity),
-                  self.sceneOperationTokens[broadcast.operationID]?.key == broadcast.leaseKey,
-                  let topology = self.canvasManager.desktopWorldSceneBarrierTopology(
+            guard let topology = self.canvasManager.desktopWorldSceneBarrierTopology(
                     canvasID: self.sceneStageCanvasID
                   ),
                   topology.canvasGeneration == broadcast.canvasGeneration,
                   topology.generation == broadcast.topologyGeneration else { return }
-            delivered = self.canvasManager.postMessageToDesktopWorldSceneStage(
-                topology,
-                canvasID: self.sceneStageCanvasID,
-                payload: message
-            )
+            delivered = self.desktopWorldScene.withAuthorizedBroadcast(
+                broadcast,
+                topology: self.sceneStageTopology(topology)
+            ) {
+                self.canvasManager.postMessageToDesktopWorldSceneStage(
+                    topology,
+                    canvasID: self.sceneStageCanvasID,
+                    payload: message
+                )
+            }
         }
         if Thread.isMainThread {
             post()
@@ -3271,9 +3093,7 @@ class UnifiedDaemon {
     ) {
         guard let topology = authenticatedSceneStageTopology(target: target, payload: payload) else { return }
         let identity = sceneStageIdentity(topology)
-        sceneStageLifecycleLock.lock()
-        let actions = sceneStageReadiness.isCurrent(identity) ? sceneResults.accept(payload) : []
-        sceneStageLifecycleLock.unlock()
+        let actions = desktopWorldScene.acceptResult(identity: identity, payload: payload)
         guard let operationID = payload["operation_id"] as? String else { return }
         dispatchSceneBarrierActions(actions, operationID: operationID)
     }
@@ -3306,26 +3126,20 @@ class UnifiedDaemon {
               canonicalEvent["type"] as? String == eventType,
               let ownerID = canonicalEvent["ownerId"] as? String,
               let resourceID = canonicalEvent["resourceId"] as? String,
-              sceneLeaseKey(owner: ownerID, resource: resourceID) == key else { return }
+              desktopWorldScene.key(owner: ownerID, resource: resourceID) == key else { return }
         let identity = sceneStageIdentity(topology)
-        sceneStageLifecycleLock.lock()
-        guard sceneStageRetiringIdentity != identity,
-              sceneStageReadiness.isReady(for: identity),
-              let route = sceneLeases.routeEvent(key: key, event: eventType),
-              let bytes = envelopeBytes(
-                  service: "scene",
-                  event: eventType,
-                  data: canonicalEvent,
-                  ref: route.ref
-              ) else {
-            sceneStageLifecycleLock.unlock()
-            return
+        desktopWorldScene.withEventRoute(identity: identity, key: key, event: eventType) { route in
+            guard let bytes = envelopeBytes(
+                service: "scene",
+                event: eventType,
+                data: canonicalEvent,
+                ref: route.ref
+            ) else { return }
+            subscriberLock.lock()
+            let writer = subscribers[route.connectionID]?.outbound
+            subscriberLock.unlock()
+            writer?.enqueue(bytes)
         }
-        subscriberLock.lock()
-        let writer = subscribers[route.connectionID]?.outbound
-        subscriberLock.unlock()
-        writer?.enqueue(bytes)
-        sceneStageLifecycleLock.unlock()
     }
 
     private func canonicalSceneStageFailureCode(_ value: Any?, fallback: String) -> String {
@@ -3457,21 +3271,15 @@ class UnifiedDaemon {
         }
         semaphore.wait()
         guard let topology else { return nil }
-        let identity = sceneStageIdentity(topology)
-        sceneStageLifecycleLock.lock()
-        let configured = configureCurrentSceneStageReadinessLocked(topology)
-        sceneStageLifecycleLock.unlock()
-        guard configured else { return nil }
+        let descriptor = sceneStageTopology(topology)
+        guard desktopWorldScene.configureInitial(descriptor) else { return nil }
         let deadline = Date().addingTimeInterval(5)
         while Date() < deadline {
             guard let current = canvasManager.desktopWorldSceneBarrierTopology(canvasID: sceneStageCanvasID),
                   current.canvasGeneration == topology.canvasGeneration,
                   current.generation == topology.generation,
                   current.segments == topology.segments else { return nil }
-            sceneStageLifecycleLock.lock()
-            let ready = sceneStageReadiness.isReady(for: identity)
-            sceneStageLifecycleLock.unlock()
-            if ready {
+            if desktopWorldScene.isReady(descriptor) {
                 let resumeSemaphore = DispatchSemaphore(value: 0)
                 var resumed = false
                 DispatchQueue.main.async { [weak self] in
@@ -3544,44 +3352,33 @@ class UnifiedDaemon {
                 return
             }
         }
-        let key = sceneLeaseKey(owner: owner, resource: resource)
+        let key = desktopWorldScene.key(owner: owner, resource: resource)
         if op == "subscribe" || op == "unsubscribe" {
-            sceneStageLifecycleLock.lock()
-            guard sceneStageRetiringIdentity == nil else {
-                sceneStageLifecycleLock.unlock()
-                sendResponseJSON(to: outbound, ["error": "DesktopWorld scene stage is retiring", "code": "SCENE_STAGE_UNAVAILABLE"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-                return
-            }
-            let acquisition = sceneLeases.acquire(
+            let requested = Set(requestedSceneEvents)
+            let outcome = desktopWorldScene.updateSubscriptions(
                 key: key,
                 connectionID: connectionID,
-                ref: envelopeRef
-            )
-            guard case .acquired(let token, let isNewLease) = acquisition else {
-                sceneStageLifecycleLock.unlock()
-                sendResponseJSON(to: outbound, ["error": "Scene resource already has an active lease", "code": "SCENE_LEASE_BUSY"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-                return
-            }
-            let requested = Set(requestedSceneEvents)
-            let events = sceneLeases.updateSubscriptions(
-                token: token,
+                ref: envelopeRef,
                 adding: op == "subscribe" ? requested : [],
                 removing: op == "unsubscribe" ? requested : [],
                 removeAll: op == "unsubscribe" && requested.isEmpty
             )
-            if events == nil, isNewLease { _ = sceneLeases.release(token) }
-            sceneStageLifecycleLock.unlock()
-            guard let events else {
-                sendResponseJSON(to: outbound, ["error": "Scene lease changed during subscription", "code": "SCENE_LEASE_BUSY"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            switch outcome {
+            case .stageUnavailable:
+                sendResponseJSON(to: outbound, ["error": "DesktopWorld scene stage is retiring", "code": "SCENE_STAGE_UNAVAILABLE"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                return
+            case .busy:
+                sendResponseJSON(to: outbound, ["error": "Scene resource already has an active lease", "code": "SCENE_LEASE_BUSY"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                return
+            case .accepted(let events):
+                sendResponseJSON(to: outbound, [
+                    "status": "ok",
+                    "operation": op,
+                    "resource": resource,
+                    "events": events.sorted(),
+                ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
-            sendResponseJSON(to: outbound, [
-                "status": "ok",
-                "operation": op,
-                "resource": resource,
-                "events": events.sorted(),
-            ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            return
         }
         guard let topology = ensureSceneStage() else {
             sendResponseJSON(to: outbound, ["error": "DesktopWorld scene stage is unavailable", "code": "SCENE_STAGE_UNAVAILABLE"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
@@ -3594,58 +3391,39 @@ class UnifiedDaemon {
             sendResponseJSON(to: outbound, ["error": "DesktopWorld scene segments are unavailable", "code": "SCENE_STAGE_UNAVAILABLE"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }
-        let identity = sceneStageIdentity(topology)
-        let operationID = UUID().uuidString.lowercased()
-        let expectedSegments = topology.segments.map { (displayID: $0.displayID, index: $0.index) }
-        sceneStageLifecycleLock.lock()
-        guard sceneStageReadiness.isReady(for: identity) else {
-            sceneStageLifecycleLock.unlock()
-            sendResponseJSON(to: outbound, ["error": "DesktopWorld scene generation is no longer ready", "code": "SCENE_STAGE_UNAVAILABLE"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            return
-        }
-        let acquisition = sceneLeases.acquire(
+        let descriptor = sceneStageTopology(topology)
+        let admission = desktopWorldScene.admitOperation(
+            topology: descriptor,
             key: key,
+            owner: owner,
+            resource: resource,
+            operationName: op,
+            operation: acceptedOperation,
             connectionID: connectionID,
             ref: envelopeRef
         )
-        guard case .acquired(let token, let isNewLease) = acquisition else {
-            sceneStageLifecycleLock.unlock()
+        switch admission {
+        case .stageUnavailable:
+            sendResponseJSON(to: outbound, ["error": "DesktopWorld scene generation is no longer ready", "code": "SCENE_STAGE_UNAVAILABLE"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            return
+        case .leaseBusy:
             sendResponseJSON(to: outbound, ["error": "Scene resource already has an active lease", "code": "SCENE_LEASE_BUSY"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
-        }
-        let initialAction = sceneResults.begin(
-            operationID: operationID,
-            leaseKey: key,
-            owner: owner,
-            operation: op,
-            operationPayload: acceptedOperation,
-            resource: resource,
-            canvasGeneration: topology.canvasGeneration,
-            topologyGeneration: topology.generation,
-            segments: expectedSegments
-        )
-        let operationAdmitted = initialAction != nil && sceneLeases.beginOperation(token)
-        if !operationAdmitted {
-            _ = sceneResults.cancel(operationID: operationID)
-            if isNewLease { _ = sceneLeases.release(token) }
-        } else {
-            sceneOperationTokens[operationID] = token
-        }
-        sceneStageLifecycleLock.unlock()
-        guard operationAdmitted, let initialAction else {
-            let pending = sceneResults.hasPending(leaseKey: key)
+        case .operationPending:
             sendResponseJSON(to: outbound, [
-                "error": pending ? "DesktopWorld scene operation is still pending" : "DesktopWorld scene result barrier is unavailable",
-                "code": pending ? "SCENE_OPERATION_PENDING" : "SCENE_STAGE_UNAVAILABLE",
+                "error": "DesktopWorld scene operation is still pending",
+                "code": "SCENE_OPERATION_PENDING",
+            ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            return
+        case .accepted(let initialAction):
+            dispatchSceneBarrierActions([initialAction])
+            sendResponseJSON(to: outbound, [
+                "status": "ok",
+                "operation": op,
+                "resource": resource,
             ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }
-        dispatchSceneBarrierActions([initialAction])
-        sendResponseJSON(to: outbound, [
-            "status": "ok",
-            "operation": op,
-            "resource": resource,
-        ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
     }
 
     /// Map v1 envelope (service, action) to the legacy flat action string

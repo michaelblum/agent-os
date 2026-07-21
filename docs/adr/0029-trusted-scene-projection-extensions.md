@@ -93,7 +93,7 @@ AOS supplies:
 
 The extension synchronously returns one bounded Object3D subtree plus
 synchronous `applySignal`, `applyAnimation`, `tick`, `suspend`, `resume`,
-`contextLost`, and `dispose` operations. Optional activation is synchronous as
+`contextLost`, `contextRestored`, and `dispose` operations. Optional activation is synchronous as
 well. Promise-like factory, lifecycle, update, or disposal results are rejected.
 AOS owns the renderer, camera, RAF, multi-display replication,
 interaction routing, scene transactions, context recovery, inspection, and

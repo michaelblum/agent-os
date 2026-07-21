@@ -50,6 +50,7 @@ const PROJECTION_METHODS = Object.freeze([
   'suspend',
   'resume',
   'contextLost',
+  'contextRestored',
   'dispose',
 ])
 const DIGEST_BUDGET_KEYS = Object.freeze([
@@ -537,6 +538,7 @@ export function createTrustedSceneExtensionRegistry(input = {}) {
               applyAnimation: (...args) => callSynchronousProjectionHook(projection, 'applyAnimation', args),
               applySignal: (...args) => callSynchronousProjectionHook(projection, 'applySignal', args),
               contextLost: (...args) => callLifecycleHook('contextLost', args),
+              contextRestored: (...args) => callLifecycleHook('contextRestored', args),
               dispose: disposeProjection,
               resourceMetrics: () => currentMetrics,
               resume: (...args) => callLifecycleHook('resume', args),

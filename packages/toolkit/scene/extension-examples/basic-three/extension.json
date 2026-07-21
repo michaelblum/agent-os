@@ -8,7 +8,7 @@
     "maxWorkingBytes": 65536
   },
   "contract": "aos.scene.extension.v1",
-  "digest": "aa744e703dcd4d7e69cdf180c55a3e0472cfcadf3c450cc83140f51000441d36",
+  "digest": "7eeca12362c69bf9ad7a272e4acffbd6137de4b725d6eb741365e1fde96f9f6e",
   "id": "basic-three",
   "implementationIds": [
     "example.consumer.basic-three"

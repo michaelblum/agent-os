@@ -812,6 +812,15 @@ export function createDesktopWorldSceneOutlet({
     reconcileRenderLoop()
   }
   const onContextRestored = () => {
+    for (const mounted of resources.values()) {
+      try {
+        mounted.projection.contextRestored?.()
+      } catch {
+        recordResourceFailure(mounted, 'SCENE_EXTENSION_CONTEXT_RESTORED_FAILED')
+        faultSceneSegment('SCENE_EXTENSION_CONTEXT_RESTORED_FAILED', mounted)
+        return
+      }
+    }
     reconcileSceneStageRunState(
       resources,
       { hidden, contextLost, suspended: stageSuspended, faulted: Boolean(stageFault) },

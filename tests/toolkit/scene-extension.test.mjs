@@ -92,6 +92,7 @@ function projection(overrides = {}) {
     suspend() {},
     resume() {},
     contextLost() {},
+    contextRestored() {},
     dispose() {},
     ...overrides,
   }
@@ -171,7 +172,7 @@ test('scene extension digest material binds manifest authority and factory-body 
 
 test('projection validation requires one object subtree and the complete lifecycle ABI', () => {
   assert.deepEqual(validateSceneExtensionProjection(projection()), { ok: true, errors: [] })
-  const invalid = projection({ object: null, applySignal: null, contextLost: undefined })
+  const invalid = projection({ object: null, applySignal: null, contextRestored: undefined })
   const codes = errorCodes(validateSceneExtensionProjection(invalid))
   assert.equal(codes.has('invalid_projection_object'), true)
   assert.equal(codes.has('missing_projection_method'), true)
@@ -195,6 +196,7 @@ test('factory and projection hooks reject Promise-like results from the synchron
     'applyAnimation',
     'applySignal',
     'contextLost',
+    'contextRestored',
     'dispose',
     'resume',
     'suspend',

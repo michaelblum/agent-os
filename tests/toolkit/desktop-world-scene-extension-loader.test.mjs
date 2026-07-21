@@ -65,6 +65,7 @@ function projection() {
     suspend() {},
     resume() {},
     contextLost() {},
+    contextRestored() {},
     dispose() {},
   }
 }

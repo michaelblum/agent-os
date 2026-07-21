@@ -23,6 +23,7 @@ function extensionProjectionAdapter(projection, releaseExtension) {
     applyAnimation: (...args) => projection.applyAnimation.apply(projection, args),
     applySignal: (...args) => projection.applySignal.apply(projection, args),
     contextLost: (...args) => projection.contextLost.apply(projection, args),
+    contextRestored: (...args) => projection.contextRestored.apply(projection, args),
     dispose(...args) {
       if (disposed) return
       const result = projection.dispose.apply(projection, args)

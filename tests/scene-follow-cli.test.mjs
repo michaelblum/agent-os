@@ -160,8 +160,8 @@ test('scene-follow keeps the full-display stage hidden until its manifest is rea
   const body = source.slice(start, end)
   const create = body.indexOf('CanvasRequest(action: "create"')
   const hidden = body.indexOf('request.suspended = true')
-  const configure = body.indexOf('configureCurrentSceneStageReadinessLocked(topology)')
-  const ready = body.indexOf('sceneStageReadiness.isReady(for: identity)')
+  const configure = body.indexOf('desktopWorldScene.configureInitial(descriptor)')
+  const ready = body.indexOf('desktopWorldScene.isReady(descriptor)')
   const resume = body.indexOf('action: "resume"', ready)
 
   assert.ok(create >= 0, 'scene stage create request is missing')

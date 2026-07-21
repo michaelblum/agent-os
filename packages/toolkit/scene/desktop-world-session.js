@@ -22,6 +22,7 @@ export const DESKTOP_WORLD_SCENE_SESSION_RECOVERABLE_CODES = Object.freeze([
   'SCENE_SEGMENT_DIVERGED',
   'SCENE_SEGMENT_FAILED',
   'SCENE_SEGMENT_TIMEOUT',
+  'SCENE_STAGE_REMOVED',
   'SCENE_STAGE_RETIRED',
   'SCENE_STAGE_UNAVAILABLE',
   'SCENE_TOPOLOGY_CHANGED',
@@ -286,8 +287,7 @@ export function createDesktopWorldSceneSession(input = {}) {
       void enqueue(async () => {
         if (candidate !== transport || candidateGeneration !== generation) return
         if (status === 'closing' || status === 'closed') return
-        transport = null
-        transportUnsubscribers.clear()
+        if (terminal(reason)) throw await markFault(reason)
         await recover(reason)
       }).catch(() => {})
     }

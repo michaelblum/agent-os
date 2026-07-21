@@ -180,10 +180,11 @@ precondition(completion(direct.accept(result("play", "apply", 9, 1, "ok", finger
   }
 })
 
-test('DesktopWorld stage results are origin-attributed and daemon-coordinated', async () => {
-  const [stage, daemon, surface] = await Promise.all([
+test('DesktopWorld stage results are origin-attributed and controller-coordinated', async () => {
+  const [stage, daemon, controller, surface] = await Promise.all([
     readFile(path.join(repoRoot, 'packages/toolkit/components/desktop-world-stage/index.js'), 'utf8'),
     readFile(path.join(repoRoot, 'src/daemon/unified.swift'), 'utf8'),
+    readFile(path.join(repoRoot, 'src/daemon/desktop-world-scene-controller.swift'), 'utf8'),
     readFile(path.join(repoRoot, 'src/display/desktop-world-surface.swift'), 'utf8'),
   ])
   assert.match(stage, /barrier_phase: barrierPhase/u)
@@ -196,6 +197,8 @@ test('DesktopWorld stage results are origin-attributed and daemon-coordinated', 
   assert.match(daemon, /handleSceneStageResult\(target: target, payload: inner \?\? \[:\]\)/u)
   assert.match(daemon, /authenticatedSceneStageTopology\(target: target, payload: payload\)/u)
   assert.match(daemon, /canvasGeneration == target\.value/u)
+  assert.match(daemon, /desktopWorldScene\.acceptResult\(identity: identity, payload: payload\)/u)
+  assert.match(controller, /return results\.accept\(payload\)/u)
   assert.match(daemon, /barrier_phase": broadcast\.phase\.rawValue/u)
   assert.match(daemon, /postMessageToDesktopWorldSceneStage/u)
   assert.doesNotMatch(daemon, /postMessageToCurrentCanvasAsync\(canvasID: sceneStageCanvasID, payload: \[/u)
@@ -203,8 +206,9 @@ test('DesktopWorld stage results are origin-attributed and daemon-coordinated', 
 })
 
 test('DesktopWorld native orchestration pins lease refs and serializes topology retirement', async () => {
-  const [daemon, leases, canvas] = await Promise.all([
+  const [daemon, controller, leases, canvas] = await Promise.all([
     readFile(path.join(repoRoot, 'src/daemon/unified.swift'), 'utf8'),
+    readFile(path.join(repoRoot, 'src/daemon/desktop-world-scene-controller.swift'), 'utf8'),
     readFile(path.join(repoRoot, 'src/daemon/scene-lease-registry.swift'), 'utf8'),
     readFile(path.join(repoRoot, 'src/display/canvas.swift'), 'utf8'),
   ])
@@ -212,31 +216,333 @@ test('DesktopWorld native orchestration pins lease refs and serializes topology 
   assert.match(leases, /struct AOSSceneLeaseToken: Equatable/u)
   assert.match(leases, /guard operationTokens\[token\.key\] == token else \{ return nil \}/u)
   assert.match(leases, /closing\.insert\(key\)/u)
-  assert.match(daemon, /sceneOperationTokens\[operationID\] = token/u)
-  assert.match(daemon, /completeOperation\(\s*token,\s*releaseLease:/u)
-  assert.match(daemon, /operation: "close",\s*operationPayload: \["op": "close"\]/u)
+  assert.match(controller, /operationTokens\[operationID\] = token/u)
+  assert.match(controller, /completeOperation\(token, releaseLease: releaseLease\)/u)
+  assert.match(controller, /operation: "close",\s*operationPayload: \["op": "close"\]/u)
+  assert.match(
+    daemon,
+    /desktopWorldScene\.withAuthorizedBroadcast\([\s\S]{0,500}postMessageToDesktopWorldSceneStage/u,
+    'native posting must execute inside the controller-owned authorization barrier',
+  )
+  assert.doesNotMatch(controller, /func canBroadcast/u)
   assert.doesNotMatch(daemon, /"desktop_world_stage\.scene\.release"/u)
+  assert.doesNotMatch(daemon, /AOSSceneLeaseRegistry|AOSDesktopWorldSceneResultCoordinator|AOSDesktopWorldSceneStageReadiness/u)
 
   assert.match(canvas, /surface\.lifecycleGeneration == topology\.canvasGeneration/u)
   assert.match(canvas, /surface\.topologyGeneration == topology\.generation/u)
   assert.match(canvas, /surface\.sceneBarrierTopology\(\) == topology/u)
   assert.match(daemon, /private func handleSceneStageTopologySettled\(_ payload: \[String: Any\]\)/u)
-  assert.equal((daemon.match(/sceneStageReadiness\.configure\(/gu) ?? []).length, 2, 'only the guarded initial path and topology transition may configure readiness')
-  assert.match(daemon, /sceneStageReadiness\.currentIdentity\(\)\.map\(\{ \$0 == identity \}\) \?\? true/u)
-  assert.match(daemon, /sceneStageLifecycleLock\.lock\(\)[\s\S]{0,1200}sceneStageReadiness\.configure/u)
-  assert.match(daemon, /sceneStageReadiness\.invalidateIfCurrent\(identity\)[\s\S]{0,400}sceneLeases\.invalidateAll\(\)/u)
-  assert.match(daemon, /sceneStageRetiringIdentity = identity/u)
-  assert.match(daemon, /sceneStageReadiness\.clear\(\)[\s\S]{0,120}sceneStageRetiringIdentity = nil/u)
+  assert.match(controller, /guard retiringIdentity == nil/u)
+  assert.match(controller, /readiness\.currentIdentity\(\)\.map\(\{ \$0 == topology\.identity \}\) \?\? true/u)
+  assert.match(controller, /readiness\.invalidateIfCurrent\(identity\)[\s\S]{0,800}invalidateLocked/u)
+  assert.match(controller, /retiringIdentity = identityToRetire/u)
+  assert.match(controller, /readiness\.clear\(\)[\s\S]{0,120}retiringIdentity = nil/u)
   assert.match(
     daemon,
-    /if canvasInfo\.id == self\.sceneStageCanvasID \{[\s\S]{0,500}self\.invalidateSceneStage\(identity: identity, code: "SCENE_STAGE_REMOVED"\)/u,
+    /if canvasInfo\.id == self\.sceneStageCanvasID \{[\s\S]{0,300}desktopWorldScene\.stageRemoved\(code: "SCENE_STAGE_REMOVED"\)/u,
     'removing the native stage must retire the exact scene generation and its leases',
   )
   assert.match(
     daemon,
-    /private func handleSceneStageEvent\([\s\S]{0,1200}sceneStageLifecycleLock\.lock\(\)[\s\S]{0,500}sceneStageReadiness\.isReady\(for: identity\)[\s\S]{0,700}writer\?\.enqueue\(bytes\)[\s\S]{0,80}sceneStageLifecycleLock\.unlock\(\)/u,
+    /private func handleSceneStageEvent\([\s\S]{0,1300}desktopWorldScene\.withEventRoute\([\s\S]{0,700}writer\?\.enqueue\(bytes\)/u,
     'gesture routing and outbound admission must remain linearized with stage invalidation',
   )
+})
+
+test('DesktopWorld scene controller owns readiness, leases, barriers, subscriptions, and retirement', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-controller-'))
+  const main = path.join(root, 'main.swift')
+  const executable = path.join(root, 'scene-controller-proof')
+  try {
+    await writeFile(main, `
+import Foundation
+
+func broadcast(_ actions: [AOSDesktopWorldSceneBarrierAction]) -> AOSDesktopWorldSceneBarrierBroadcast? {
+    for action in actions { if case .broadcast(let value) = action { return value } }
+    return nil
+}
+
+func completion(_ actions: [AOSDesktopWorldSceneBarrierAction]) -> AOSDesktopWorldSceneResultCompletion? {
+    for action in actions { if case .complete(let value) = action { return value } }
+    return nil
+}
+
+func result(_ operationID: String, _ phase: String, _ displayID: Int, _ index: Int, _ fingerprint: String?) -> [String: Any] {
+    var payload: [String: Any] = [
+        "operation_id": operationID,
+        "barrier_phase": phase,
+        "segment_display_id": displayID,
+        "segment_index": index,
+        "canvas_generation": 3,
+        "topology_generation": 4,
+        "status": "ok",
+    ]
+    if let fingerprint { payload["candidate_fingerprint"] = fingerprint }
+    return payload
+}
+
+func readyController(_ controller: AOSDesktopWorldSceneController) -> AOSDesktopWorldSceneTopologyDescriptor {
+    let topology = AOSDesktopWorldSceneTopologyDescriptor(
+        identity: AOSDesktopWorldSceneStageIdentity(canvasGeneration: 3, topologyGeneration: 4),
+        segments: [
+            AOSDesktopWorldSceneStageSegment(displayID: 7, index: 0),
+            AOSDesktopWorldSceneStageSegment(displayID: 9, index: 1),
+        ]
+    )
+    let manifest: [String: Any] = ["name": "desktop-world-stage"]
+    precondition(controller.configureInitial(topology))
+    precondition(controller.recordReady(topology: topology, displayID: 7, index: 0, manifest: manifest) == false)
+    precondition(controller.recordReady(topology: topology, displayID: 9, index: 1, manifest: manifest))
+    return topology
+}
+
+let controller = AOSDesktopWorldSceneController()
+let identity = AOSDesktopWorldSceneStageIdentity(canvasGeneration: 3, topologyGeneration: 4)
+let segments = [
+    AOSDesktopWorldSceneStageSegment(displayID: 7, index: 0),
+    AOSDesktopWorldSceneStageSegment(displayID: 9, index: 1),
+]
+let topology = AOSDesktopWorldSceneTopologyDescriptor(identity: identity, segments: segments)
+let manifest: [String: Any] = ["name": "desktop-world-stage"]
+precondition(controller.configureInitial(topology))
+precondition(controller.recordReady(topology: topology, displayID: 7, index: 0, manifest: manifest) == false)
+precondition(controller.recordReady(topology: topology, displayID: 9, index: 1, manifest: manifest))
+
+let connection = UUID()
+let key = controller.key(owner: "owner", resource: "main")
+guard case .accepted(let events) = controller.updateSubscriptions(
+    key: key,
+    connectionID: connection,
+    ref: "ref-1",
+    adding: Set(["gesture"]),
+    removing: [],
+    removeAll: false
+) else { preconditionFailure("subscription rejected") }
+precondition(events == Set(["gesture"]))
+var routed = false
+controller.withEventRoute(identity: identity, key: key, event: "gesture") { route in
+    routed = route.connectionID == connection && route.ref == "ref-1"
+}
+precondition(routed)
+
+let operation: [String: Any] = ["op": "mount", "document": ["revision": 1]]
+guard case .accepted(let initial) = controller.admitOperation(
+    topology: topology,
+    key: key,
+    owner: "owner",
+    resource: "main",
+    operationName: "mount",
+    operation: operation,
+    connectionID: connection,
+    ref: "ref-2"
+) else { preconditionFailure("operation rejected") }
+guard case .broadcast(let first) = initial else { preconditionFailure("missing prepare") }
+precondition(first.phase == .prepare)
+precondition(controller.acceptResult(identity: identity, payload: result(first.operationID, "prepare", 7, 0, "digest")).isEmpty)
+let commitActions = controller.acceptResult(identity: identity, payload: result(first.operationID, "prepare", 9, 1, "digest"))
+precondition(broadcast(commitActions)?.phase == .commit)
+precondition(controller.acceptResult(identity: identity, payload: result(first.operationID, "commit", 7, 0, "digest")).isEmpty)
+let completed = controller.acceptResult(identity: identity, payload: result(first.operationID, "commit", 9, 1, "digest"))
+guard let final = completion(completed), let delivery = controller.complete(final, operationID: first.operationID) else {
+    preconditionFailure("operation did not settle")
+}
+precondition(delivery.route.connectionID == connection)
+precondition(delivery.route.ref == "ref-2")
+
+let next = AOSDesktopWorldSceneTopologyDescriptor(
+    identity: AOSDesktopWorldSceneStageIdentity(canvasGeneration: 3, topologyGeneration: 5),
+    segments: segments
+)
+guard let invalidation = controller.topologySettled(next, code: "SCENE_TOPOLOGY_CHANGED") else {
+    preconditionFailure("topology replacement did not retire")
+}
+precondition(invalidation.identityToRetire == next.identity)
+precondition(invalidation.deliveries.count == 1)
+precondition(invalidation.deliveries[0].payload["code"] as? String == "SCENE_TOPOLOGY_CHANGED")
+controller.finishRetirement(next.identity)
+
+let atomic = AOSDesktopWorldSceneController()
+let atomicTopology = readyController(atomic)
+let atomicConnection = UUID()
+let atomicKey = atomic.key(owner: "atomic", resource: "main")
+guard case .accepted = atomic.updateSubscriptions(
+    key: atomicKey,
+    connectionID: atomicConnection,
+    ref: "atomic-ref",
+    adding: Set(["gesture"]),
+    removing: [],
+    removeAll: false
+) else { preconditionFailure("atomic subscription rejected") }
+guard case .accepted(let atomicAction) = atomic.admitOperation(
+    topology: atomicTopology,
+    key: atomicKey,
+    owner: "atomic",
+    resource: "main",
+    operationName: "play",
+    operation: ["op": "play"],
+    connectionID: atomicConnection,
+    ref: "atomic-ref"
+), case .broadcast(let atomicBroadcast) = atomicAction else {
+    preconditionFailure("atomic operation rejected")
+}
+let enteredPost = DispatchSemaphore(value: 0)
+let releasePost = DispatchSemaphore(value: 0)
+let broadcastFinished = DispatchSemaphore(value: 0)
+let invalidationFinished = DispatchSemaphore(value: 0)
+let stateLock = NSLock()
+var broadcastAccepted = false
+var invalidationPlan: AOSDesktopWorldSceneInvalidationPlan?
+DispatchQueue.global().async {
+    let accepted = atomic.withAuthorizedBroadcast(atomicBroadcast, topology: atomicTopology) {
+        enteredPost.signal()
+        releasePost.wait()
+        return true
+    }
+    stateLock.lock()
+    broadcastAccepted = accepted
+    stateLock.unlock()
+    broadcastFinished.signal()
+}
+precondition(enteredPost.wait(timeout: .now() + 1) == .success)
+DispatchQueue.global().async {
+    let plan = atomic.invalidateStage(identity: atomicTopology.identity, code: "SCENE_STAGE_REMOVED")
+    stateLock.lock()
+    invalidationPlan = plan
+    stateLock.unlock()
+    invalidationFinished.signal()
+}
+precondition(invalidationFinished.wait(timeout: .now() + 0.05) == .timedOut)
+releasePost.signal()
+precondition(broadcastFinished.wait(timeout: .now() + 1) == .success)
+precondition(invalidationFinished.wait(timeout: .now() + 1) == .success)
+stateLock.lock()
+let acceptedBeforeInvalidation = broadcastAccepted
+let retired = invalidationPlan
+stateLock.unlock()
+precondition(acceptedBeforeInvalidation)
+precondition(retired?.deliveries.count == 1)
+precondition(retired?.deliveries[0].route.ref == "atomic-ref")
+precondition(retired?.deliveries[0].payload["code"] as? String == "SCENE_STAGE_REMOVED")
+var postInvalidationEvent = false
+atomic.withEventRoute(identity: atomicTopology.identity, key: atomicKey, event: "gesture") { _ in
+    postInvalidationEvent = true
+}
+precondition(postInvalidationEvent == false)
+precondition(atomic.acceptResult(
+    identity: atomicTopology.identity,
+    payload: result(atomicBroadcast.operationID, "apply", 7, 0, nil)
+).isEmpty)
+precondition(atomic.complete(
+    AOSDesktopWorldSceneResultCompletion(payload: ["lease_key": atomicKey, "operation": "play"]),
+    operationID: atomicBroadcast.operationID
+) == nil)
+precondition(atomic.stageRemoved(code: "SCENE_STAGE_REMOVED") == nil)
+atomic.finishRetirement(atomicTopology.identity)
+
+let disconnected = AOSDesktopWorldSceneController()
+let disconnectedTopology = readyController(disconnected)
+let disconnectedConnection = UUID()
+let disconnectedKey = disconnected.key(owner: "disconnect", resource: "main")
+guard case .accepted = disconnected.updateSubscriptions(
+    key: disconnectedKey,
+    connectionID: disconnectedConnection,
+    ref: "disconnect-ref",
+    adding: Set(["gesture"]),
+    removing: [],
+    removeAll: false
+) else { preconditionFailure("disconnect subscription rejected") }
+let disconnectPlan = disconnected.beginDisconnect(
+    connectionID: disconnectedConnection,
+    topology: disconnectedTopology
+)
+precondition(disconnectPlan.invalidation == nil)
+guard let close = broadcast(disconnectPlan.barrierActions) else {
+    preconditionFailure("disconnect close barrier missing")
+}
+precondition(close.phase == .apply)
+precondition(disconnected.acceptResult(
+    identity: disconnectedTopology.identity,
+    payload: result(close.operationID, "apply", 7, 0, nil)
+).isEmpty)
+let closeActions = disconnected.acceptResult(
+    identity: disconnectedTopology.identity,
+    payload: result(close.operationID, "apply", 9, 1, nil)
+)
+guard let closeCompletion = completion(closeActions),
+      let closeDelivery = disconnected.complete(closeCompletion, operationID: close.operationID) else {
+    preconditionFailure("disconnect close did not settle")
+}
+precondition(closeDelivery.route.ref == "disconnect-ref")
+precondition(closeDelivery.payload["status"] as? String == "ok")
+var disconnectedEvent = false
+disconnected.withEventRoute(
+    identity: disconnectedTopology.identity,
+    key: disconnectedKey,
+    event: "gesture"
+) { _ in disconnectedEvent = true }
+precondition(disconnectedEvent == false)
+let duplicateDisconnect = disconnected.beginDisconnect(
+    connectionID: disconnectedConnection,
+    topology: disconnectedTopology
+)
+precondition(duplicateDisconnect.barrierActions.isEmpty)
+precondition(duplicateDisconnect.invalidation == nil)
+
+let expired = AOSDesktopWorldSceneController()
+let expiredTopology = readyController(expired)
+let expiredConnection = UUID()
+let expiredKey = expired.key(owner: "expired", resource: "main")
+guard case .accepted(let expiringAction) = expired.admitOperation(
+    topology: expiredTopology,
+    key: expiredKey,
+    owner: "expired",
+    resource: "main",
+    operationName: "play",
+    operation: ["op": "play"],
+    connectionID: expiredConnection,
+    ref: "expired-ref"
+), case .broadcast(let expiring) = expiringAction else {
+    preconditionFailure("expiring operation rejected")
+}
+guard let release = broadcast(expired.expire(
+    operationID: expiring.operationID,
+    phase: .apply,
+    topologyGeneration: expiredTopology.identity.topologyGeneration
+)) else { preconditionFailure("expiry release barrier missing") }
+precondition(release.phase == .release)
+precondition(expired.acceptResult(
+    identity: expiredTopology.identity,
+    payload: result(release.operationID, "release", 7, 0, nil)
+).isEmpty)
+let expiredActions = expired.acceptResult(
+    identity: expiredTopology.identity,
+    payload: result(release.operationID, "release", 9, 1, nil)
+)
+guard let expiredCompletion = completion(expiredActions),
+      let expiredDelivery = expired.complete(expiredCompletion, operationID: release.operationID) else {
+    preconditionFailure("expired operation did not settle")
+}
+precondition(expiredDelivery.route.ref == "expired-ref")
+precondition(expiredDelivery.payload["code"] as? String == "SCENE_SEGMENT_TIMEOUT")
+precondition(expired.acceptResult(
+    identity: expiredTopology.identity,
+    payload: result(release.operationID, "release", 9, 1, nil)
+).isEmpty)
+precondition(expired.complete(expiredCompletion, operationID: release.operationID) == nil)
+`)
+    execFileSync('swiftc', [
+      '-module-cache-path', path.join(root, 'module-cache'),
+      path.join(repoRoot, 'src/daemon/scene-lease-registry.swift'),
+      path.join(repoRoot, 'src/daemon/desktop-world-scene-result-coordinator.swift'),
+      path.join(repoRoot, 'src/daemon/desktop-world-scene-stage-readiness.swift'),
+      path.join(repoRoot, 'src/daemon/desktop-world-scene-controller.swift'),
+      main,
+      '-o', executable,
+    ], { cwd: repoRoot, stdio: 'pipe' })
+    execFileSync(executable, [], { cwd: repoRoot, stdio: 'pipe' })
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
 })
 
 test('DesktopWorld stage readiness requires every exact-generation segment', async () => {

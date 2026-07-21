@@ -290,6 +290,27 @@ test('scene session remounts canonical state but never replays an uncertain oper
   await session.close()
 })
 
+test('scene session recovers once when the native stage is removed', async () => {
+  let removed = false
+  const fixture = fakeTransportFactory({
+    async send({ operation }) {
+      if (operation.op === 'inspect' && !removed) {
+        removed = true
+        throw Object.assign(new Error('stage removed'), { code: 'SCENE_STAGE_REMOVED' })
+      }
+      return { operation: operation.op, resource: identity.resourceId, status: 'ok' }
+    },
+  })
+  const session = createDesktopWorldSceneSession({ ...identity, connect: fixture.connect })
+  await session.mount({ document: scene(), interactions: interactions() })
+
+  await assert.rejects(session.inspect(), { code: 'SCENE_OPERATION_UNCERTAIN' })
+  assert.equal(session.snapshot().status, 'ready')
+  assert.equal(session.snapshot().recoveryAttempts, 1)
+  assert.deepEqual(fixture.transports[1].operations.map((entry) => entry.op), ['mount'])
+  await session.close()
+})
+
 test('scene session fails terminally after its single recovery budget is spent', async () => {
   const fixture = fakeTransportFactory()
   const session = createDesktopWorldSceneSession({ ...identity, connect: fixture.connect })
@@ -299,6 +320,20 @@ test('scene session fails terminally after its single recovery budget is spent',
   fixture.transports[1].disconnect()
   await waitFor(() => session.snapshot().status === 'faulted', 'second disconnect did not fault')
   await assert.rejects(session.inspect(), { code: 'SCENE_SESSION_FAULTED' })
+})
+
+test('scene session faults instead of reconnecting after terminal transport completion', async () => {
+  const fixture = fakeTransportFactory()
+  const session = createDesktopWorldSceneSession({ ...identity, connect: fixture.connect })
+  await session.mount({ document: scene(), interactions: interactions() })
+
+  fixture.transports[0].disconnect(
+    Object.assign(new Error('event stream flooded'), { code: 'AOS_EVENT_RATE_LIMIT' }),
+  )
+  await waitFor(() => session.snapshot().status === 'faulted', 'terminal completion did not fault')
+
+  assert.equal(session.snapshot().lastErrorCode, 'AOS_EVENT_RATE_LIMIT')
+  assert.equal(fixture.transports.length, 1)
 })
 
 test('scene session faults on malformed transport results and non-monotonic events', async () => {
