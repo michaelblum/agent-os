@@ -8,12 +8,12 @@ import {
   selectDesktopWorldResourceSnapshot,
 } from '../../packages/toolkit/scene/desktop-world-client.js'
 
-function stage() {
+function stage({ position = [10, 20, 0], sequence = 4 } = {}) {
   return {
-    contract: 'aos.desktop-world.devtools.stage.v1', sequence: 4, status: 'available',
+    contract: 'aos.desktop-world.devtools.stage.v1', sequence, status: 'available',
     world: {
       displays: [{ id: 'main', index: 0, bounds: [0, 0, 1440, 900] }],
-      nodes: [{ id: 'body', resourceId: 'companion/main', position: [10, 20, 0] }, { id: 'other', resourceId: 'demo/item', position: [30, 40, 0] }],
+      nodes: [{ id: 'body', resourceId: 'companion/main', position }, { id: 'other', resourceId: 'demo/item', position: [30, 40, 0] }],
       hitRegions: [], affordances: [], gestures: [], routes: [],
     },
     resources: [
@@ -24,15 +24,21 @@ function stage() {
   }
 }
 
-function devtoolsSnapshot() {
+function devtoolsSnapshot({
+  stageSnapshotReady = true,
+  stageSnapshotRevision = 1,
+  stageValue = stage(),
+} = {}) {
   return {
     contract: 'aos.desktop-world.devtools.snapshot.v1',
     schemaVersion: 1,
+    stageSnapshotRevision,
     session: {
       id: 'devtools-1', revision: 1, activeTab: 'world', selectedResource: null,
+      stageSnapshotReady,
       filters: { query: '', eventKinds: [], errorsOnly: false }, recording: false, host: null,
     },
-    stage: stage(),
+    stage: stageValue,
   }
 }
 
@@ -110,11 +116,18 @@ test('deterministic replay accepts strict persistent radial-menu lifecycles', ()
 test('transport-injected client emits familiar scene actions without owning a socket', async () => {
   const requests = []
   const subscriptions = []
+  let stageSnapshotRevision = 0
   const client = createDesktopWorldSceneClient({
     request(value) {
       requests.push(value)
-      if (value.action === 'devtools_open') return { session: { session: { id: 'devtools-1', revision: 1 } } }
-      if (value.action === 'devtools_status') return { session: devtoolsSnapshot() }
+      if (value.action === 'devtools_open' && value.data.headless === true) {
+        return { session: devtoolsSnapshot({ stageSnapshotReady: false, stageSnapshotRevision }) }
+      }
+      if (value.action === 'devtools_open') return { session: devtoolsSnapshot({ stageSnapshotRevision }) }
+      if (value.action === 'devtools_status') {
+        stageSnapshotRevision += 1
+        return { session: devtoolsSnapshot({ stageSnapshotRevision }) }
+      }
       return value
     },
     subscribe(value) { subscriptions.push(value); return value },
@@ -135,4 +148,79 @@ test('transport-injected client emits familiar scene actions without owning a so
   ])
   assert.equal(subscriptions[0].action, 'devtools_monitor')
   assert.equal(subscriptions[0].data.resource, 'companion/main')
+})
+
+test('headless inspection waits for its correlated refresh independent of other receipts and stage-local sequence', async () => {
+  let statusCalls = 0
+  const stale = devtoolsSnapshot({
+    stageSnapshotReady: false,
+    stageSnapshotRevision: 13,
+    stageValue: stage({ position: [10, 20, 0], sequence: 99 }),
+  })
+  const fresh = devtoolsSnapshot({
+    stageSnapshotReady: true,
+    stageSnapshotRevision: 14,
+    stageValue: stage({ position: [900, 600, 0], sequence: 1 }),
+  })
+  const client = createDesktopWorldSceneClient({
+    request(value) {
+      if (value.action === 'devtools_open') {
+        return { session: stale }
+      }
+      if (value.action === 'devtools_status') {
+        statusCalls += 1
+        return { session: statusCalls === 1 ? stale : fresh }
+      }
+      if (value.action === 'devtools_close') return { status: 'ok' }
+      throw new Error(`Unexpected action: ${value.action}`)
+    },
+  })
+
+  const inspected = await client.inspect('companion/main')
+  assert.equal(statusCalls, 2)
+  assert.equal(inspected.sequence, 1)
+  assert.deepEqual(inspected.world.nodes[0].position, [900, 600, 0])
+})
+
+test('headless inspection rejects malformed correlated freshness and still closes its session', async () => {
+  const actions = []
+  const client = createDesktopWorldSceneClient({
+    request(value) {
+      actions.push(value.action)
+      if (value.action === 'devtools_open') return { session: devtoolsSnapshot({ stageSnapshotReady: false }) }
+      if (value.action === 'devtools_status') {
+        const snapshot = devtoolsSnapshot()
+        return { session: { ...snapshot, session: { ...snapshot.session, stageSnapshotReady: null } } }
+      }
+      if (value.action === 'devtools_close') return { status: 'ok' }
+      throw new Error(`Unexpected action: ${value.action}`)
+    },
+  })
+
+  await assert.rejects(client.list(), { code: 'INVALID_DEVTOOLS_STAGE_FRESHNESS' })
+  assert.deepEqual(actions, ['devtools_open', 'devtools_status', 'devtools_close'])
+})
+
+test('headless inspection times out and closes when its correlated refresh never arrives', async () => {
+  let statusCalls = 0
+  let closeCalls = 0
+  const pending = devtoolsSnapshot({ stageSnapshotReady: false })
+  const client = createDesktopWorldSceneClient({
+    request(value) {
+      if (value.action === 'devtools_open') return { session: pending }
+      if (value.action === 'devtools_status') {
+        statusCalls += 1
+        return { session: pending }
+      }
+      if (value.action === 'devtools_close') {
+        closeCalls += 1
+        return { status: 'ok' }
+      }
+      throw new Error(`Unexpected action: ${value.action}`)
+    },
+  })
+
+  await assert.rejects(client.list(), { code: 'SCENE_SNAPSHOT_TIMEOUT' })
+  assert.equal(statusCalls, 20)
+  assert.equal(closeCalls, 1)
 })

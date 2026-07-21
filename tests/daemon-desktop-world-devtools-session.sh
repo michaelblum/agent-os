@@ -90,6 +90,22 @@ let restored = created(patchRegistry.update(
 require(restored.selectedResource == "companion/main", "set patch did not restore selected resource")
 _ = patchRegistry.close(sessionID: patchBase.id)
 
+let freshnessRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let freshnessRequest = "freshness-request-1"
+let freshnessSession = created(freshnessRegistry.create(stageRequestID: freshnessRequest))
+let pendingFreshness = freshnessRegistry.snapshot(sessionID: freshnessSession.id)!
+let pendingFreshnessSession = pendingFreshness["session"] as! [String: Any]
+require(pendingFreshnessSession["stageSnapshotReady"] as? Bool == false, "headless session started fresh")
+require(freshnessRegistry.recordStageSnapshot(stageSnapshot(), requestID: "unrelated-request"), "unrelated stage receipt failed")
+let unrelatedFreshness = freshnessRegistry.snapshot(sessionID: freshnessSession.id)!
+let unrelatedFreshnessSession = unrelatedFreshness["session"] as! [String: Any]
+require(unrelatedFreshnessSession["stageSnapshotReady"] as? Bool == false, "unrelated receipt satisfied headless freshness")
+require(freshnessRegistry.recordStageSnapshot(stageSnapshot(), requestID: freshnessRequest), "correlated stage receipt failed")
+let completedFreshness = freshnessRegistry.snapshot(sessionID: freshnessSession.id)!
+let completedFreshnessSession = completedFreshness["session"] as! [String: Any]
+require(completedFreshnessSession["stageSnapshotReady"] as? Bool == true, "correlated receipt did not satisfy freshness")
+_ = freshnessRegistry.close(sessionID: freshnessSession.id)
+
 let first = created(registry.create(selectedResource: "companion/main"))
 require(registry.instrumentationConfiguration().enabled, "created session did not enable instrumentation")
 require(!registry.instrumentationConfiguration().recording, "recording enabled unexpectedly")
@@ -156,6 +172,9 @@ var leaked = stageSnapshot()
 leaked["transcript"] = "secret"
 require(registry.recordStageSnapshot(leaked), "valid stage snapshot with unknown renderer field was rejected")
 let canonical = registry.snapshot(sessionID: first.id)!
+require(canonical["stageSnapshotRevision"] as? Int == 1, "session snapshot lost the stage receipt revision")
+let canonicalSession = canonical["session"] as! [String: Any]
+require(canonicalSession["stageSnapshotReady"] as? Bool == true, "interactive session reported pending freshness")
 let stage = canonical["stage"] as! [String: Any]
 require(stage["transcript"] == nil, "unknown renderer content crossed the daemon boundary")
 let canonicalWorld = stage["world"] as! [String: Any]
@@ -167,6 +186,10 @@ let selectedStage = registry.stageSnapshot(resourceID: "companion/main")!
 let selectedResources = selectedStage["resources"] as! [[String: Any]]
 require(selectedResources.count == 1 && selectedResources[0]["id"] as? String == "companion/main", "resource snapshot was not filtered")
 require(registry.stageSnapshot(resourceID: "missing/resource") == nil, "missing resource snapshot did not fail closed")
+
+require(registry.recordStageSnapshot(stageSnapshot()), "repeated stage sequence was rejected")
+let repeatedSnapshot = registry.snapshot(sessionID: first.id)!
+require(repeatedSnapshot["stageSnapshotRevision"] as? Int == 2, "daemon receipt revision depended on stage-local sequence")
 
 var oversized = stageSnapshot()
 var world = oversized["world"] as! [String: Any]

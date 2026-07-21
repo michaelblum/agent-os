@@ -82,6 +82,7 @@ export interface DesktopWorldDevToolsStageSnapshot {
 export interface DesktopWorldDevToolsSnapshot {
   contract: typeof DESKTOP_WORLD_DEVTOOLS_SNAPSHOT_CONTRACT_ID;
   schemaVersion: 1;
+  stageSnapshotRevision: number;
   session: Readonly<DesktopWorldDevToolsSession>;
   stage: DesktopWorldDevToolsStageSnapshot;
 }
@@ -89,6 +90,7 @@ export interface DesktopWorldDevToolsSnapshot {
 export interface DesktopWorldDevToolsSession {
   id: string;
   revision: number;
+  stageSnapshotReady: boolean;
   activeTab: DesktopWorldDevToolsTab;
   selectedResource: string | null;
   filters: Readonly<{ query: string; eventKinds: readonly string[]; errorsOnly: boolean }>;
@@ -214,7 +216,10 @@ export function buildDesktopWorldMinimapLayout(
 }>;
 export function createDesktopWorldDevToolsStageProbe(options?: {
   now?: () => number;
-  emit?: (snapshot: DesktopWorldDevToolsStageSnapshot) => void;
+  emit?: (
+    snapshot: DesktopWorldDevToolsStageSnapshot,
+    metadata: Readonly<Record<string, unknown>>,
+  ) => void;
   getStageFacts?: () => Readonly<{
     status?: DesktopWorldDevToolsStageSnapshot['status'];
     world?: Partial<DesktopWorldDevToolsStageSnapshot['world']>;
@@ -225,7 +230,7 @@ export function createDesktopWorldDevToolsStageProbe(options?: {
 }): Readonly<{
   configure(value?: { enabled?: boolean; recording?: boolean }): boolean;
   dispose(): boolean;
-  emitSnapshot(reason?: string, at?: number): boolean;
+  emitSnapshot(reason?: string, at?: number, metadata?: Readonly<Record<string, unknown>>): boolean;
   isEnabled(): boolean;
   isRecording(): boolean;
   recordEvent(value?: Partial<DesktopWorldDevToolsEvent>): boolean;

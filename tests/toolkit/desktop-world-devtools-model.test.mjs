@@ -215,9 +215,11 @@ test('DesktopWorld DevTools keeps older display facts readable without inventing
 test('DesktopWorld DevTools session normalization validates host and filters', () => {
   const snapshot = normalizeDesktopWorldDevToolsSnapshot({
     contract: DESKTOP_WORLD_DEVTOOLS_SNAPSHOT_CONTRACT_ID,
+    stageSnapshotRevision: 7,
     session: {
       id: 'session',
       revision: 3,
+      stageSnapshotReady: true,
       activeTab: 'performance',
       selectedResource: 'resource',
       filters: { query: 'route', eventKinds: ['gesture', 'gesture'], errorsOnly: true },
@@ -228,6 +230,8 @@ test('DesktopWorld DevTools session normalization validates host and filters', (
   });
 
   assert.equal(snapshot.session.activeTab, 'performance');
+  assert.equal(snapshot.stageSnapshotRevision, 7);
+  assert.equal(snapshot.session.stageSnapshotReady, true);
   assert.deepEqual(snapshot.session.filters.eventKinds, ['gesture']);
   assert.deepEqual(snapshot.session.host, { kind: 'panel', id: 'canvas', state: 'active' });
 });
@@ -321,7 +325,7 @@ test('DesktopWorld DevTools probe throttles idle samples and records bounded tel
   const probe = createDesktopWorldDevToolsStageProbe({
     now: () => clock,
     getStageFacts: () => stageSnapshot(),
-    emit: (snapshot) => emitted.push(snapshot),
+    emit: (snapshot, metadata) => emitted.push({ metadata, snapshot }),
   });
 
   probe.configure({ enabled: true });
@@ -334,10 +338,13 @@ test('DesktopWorld DevTools probe throttles idle samples and records bounded tel
   clock = 600;
   probe.sampleFrame({ frameMs: 18, renderMs: 6, backingPixels: 2073600 });
   assert.equal(probe.state().sampleCount, 2);
-  assert.equal(emitted.at(-1).performance.backingPixels, 2073600);
-  assert.equal(emitted.at(-1).performance.targetFps, 60);
-  assert.ok(emitted.at(-1).performance.budgetMs > 16);
-  assert.equal(emitted.at(-1).performance.maxFrameMs, 18);
+  assert.equal(emitted.at(-1).snapshot.performance.backingPixels, 2073600);
+  assert.equal(emitted.at(-1).snapshot.performance.targetFps, 60);
+  assert.ok(emitted.at(-1).snapshot.performance.budgetMs > 16);
+  assert.equal(emitted.at(-1).snapshot.performance.maxFrameMs, 18);
+
+  probe.emitSnapshot('requested', undefined, { request_id: 'request-1' });
+  assert.deepEqual(emitted.at(-1).metadata, { request_id: 'request-1' });
 
   probe.configure({ enabled: true, recording: true });
   clock = 601;

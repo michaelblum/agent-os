@@ -24,8 +24,10 @@ function stage() {
 function snapshot() {
   return {
     contract: 'aos.desktop-world.devtools.snapshot.v1', schemaVersion: 1,
+    stageSnapshotRevision: 1,
     session: {
       id: 'devtools-test', revision: 1, activeTab: 'world', selectedResource: 'companion/main',
+      stageSnapshotReady: true,
       filters: { query: '', eventKinds: [], errorsOnly: false }, recording: false, host: null,
     },
     stage: stage(),
