@@ -79,11 +79,23 @@ test('installable browser and saved-workspace skills preserve split contracts', 
   assert.match(desktop, /close\/minimize\/maximize\/restore/);
 
   const scene = await readFile(path.join(repoRoot, 'skills', 'aos-desktop-world-authoring', 'SKILL.md'), 'utf8');
-  assert.match(scene, /Aim-and-commit/);
+  assert.match(scene, /aim-and-commit/i);
+  assert.match(scene, /data-only cartridge/);
+  assert.match(scene, /reviewed trusted extension/);
+  assert.match(scene, /isolated standalone WebGL/);
+  assert.match(scene, /scene cartridge scaffold/);
+  assert.match(scene, /scene extension scaffold/);
+  assert.match(scene, /createDesktopWorldSceneSession/);
+  assert.match(scene, /one global DesktopWorld coordinate plane/);
+  assert.match(scene, /session-lifecycle\.mjs/);
   assert.match(scene, /scene devtools open/);
   assert.match(scene, /scene devtools update/);
   assert.match(scene, /scene devtools transfer/);
   assert.match(scene, /scene replay/);
+  assert.doesNotMatch(scene, /\{\.\.\.\}/);
+  assert.doesNotMatch(scene, /<[a-z][a-z0-9_-]*>/i);
+  assert.doesNotMatch(scene, /AOS_STATE_ROOT|net\.connect|\/sock\b/);
+  assert.doesNotMatch(scene, /roadmap|future status-item|dependent visual slice/i);
 
   const verification = await readFile(path.join(repoRoot, 'skills', 'aos-verification', 'SKILL.md'), 'utf8');
   assert.match(verification, /act-recapture-verify/);

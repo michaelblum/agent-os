@@ -19,6 +19,10 @@ function lineCount(doc) {
 const scopedFiles = [
   'docs/api/toolkit/runtime.md',
   'docs/api/toolkit/scene.md',
+  'docs/api/toolkit/scene-authoring.md',
+  'docs/api/toolkit/scene-runtime.md',
+  'docs/api/toolkit/scene-extensions.md',
+  'docs/api/toolkit/scene-devtools.md',
   'docs/api/toolkit/controls.md',
   'docs/api/toolkit/panel-window.md',
   'docs/api/toolkit/workbench.md',
@@ -66,26 +70,39 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
   assert.match(docs['docs/api/toolkit/runtime.md'], /subscribe\(events, options\?\)/);
 
   assert.match(docs['docs/api/toolkit/scene.md'], /@agent-os\/toolkit\/scene/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /createThreeRenderLifecycle/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /evaluateDesktopWorldPerformanceAcceptance/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /DesktopWorldSurfaceThree/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /createVisualObjectDescriptor/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /bindVisualObjectForm/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /scene-authoring\.md/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /scene-runtime\.md/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /scene-extensions\.md/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /scene-devtools\.md/);
   assert.match(docs['docs/api/toolkit/scene.md'], /aos\.scene\.document\.v1/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /createLocalSceneViewportHost/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /createDesktopWorldSceneHost/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /aos\.scene\.signal\.bind/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /aos\.scene\.animation\.bind/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /allocates no event object per binding per tick/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /aos\.scene\.inspection\.v1/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /validateSceneTransaction/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /global DesktopWorld coordinate plane/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /authoritative public result after the all-segment barrier settles/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /global DesktopWorld coordinate\s+plane/);
   assert.match(docs['docs/api/toolkit/scene.md'], /grants no AOS command execution/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /SceneAffordanceDescriptor/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /createSceneInteractionController/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /start, end, and cancel\s+are never dropped/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /never carry product text, audio, prompts/);
+
+  assert.match(docs['docs/api/toolkit/scene-authoring.md'], /validateSceneTransaction/);
+  assert.match(docs['docs/api/toolkit/scene-authoring.md'], /SceneAffordanceDescriptor/);
+  assert.match(docs['docs/api/toolkit/scene-authoring.md'], /createSceneGestureArena/);
+  assert.match(docs['docs/api/toolkit/scene-authoring.md'], /Start, end,\s+and cancel are never dropped/);
+  assert.match(docs['docs/api/toolkit/scene-authoring.md'], /never carry\s+product text, audio, prompts/);
+
+  assert.match(docs['docs/api/toolkit/scene-runtime.md'], /createDesktopWorldSceneSession/);
+  assert.match(docs['docs/api/toolkit/scene-runtime.md'], /createThreeRenderLifecycle/);
+  assert.match(docs['docs/api/toolkit/scene-runtime.md'], /evaluateDesktopWorldPerformanceAcceptance/);
+  assert.match(docs['docs/api/toolkit/scene-runtime.md'], /DesktopWorldSurfaceThree/);
+  assert.match(docs['docs/api/toolkit/scene-runtime.md'], /createLocalSceneViewportHost/);
+  assert.match(docs['docs/api/toolkit/scene-runtime.md'], /createDesktopWorldSceneHost/);
+  assert.match(docs['docs/api/toolkit/scene-runtime.md'], /aos\.scene\.signal\.bind/);
+  assert.match(docs['docs/api/toolkit/scene-runtime.md'], /aos\.scene\.animation\.bind/);
+  assert.match(docs['docs/api/toolkit/scene-runtime.md'], /allocates no event object per binding per tick/);
+  assert.match(docs['docs/api/toolkit/scene-runtime.md'], /aos\.scene\.inspection\.v1/);
+  assert.match(docs['docs/api/toolkit/scene-runtime.md'], /authoritative public result after the all-segment\s+barrier settles/);
+  assert.match(docs['docs/api/toolkit/scene-runtime.md'], /DESKTOP_WORLD_SCENE_SESSION_RECOVERABLE_CODES/);
+  assert.match(docs['docs/api/toolkit/scene-runtime.md'], /DESKTOP_WORLD_SCENE_SESSION_TERMINAL_CODES/);
+
+  assert.match(docs['docs/api/toolkit/scene-extensions.md'], /aos\.scene\.extension\.v1/);
+  assert.match(docs['docs/api/toolkit/scene-extensions.md'], /serializeSceneExtensionDigestMaterial/);
+  assert.match(docs['docs/api/toolkit/scene-devtools.md'], /createDesktopWorldDevToolsStageProbe/);
+  assert.match(docs['docs/api/toolkit/scene-devtools.md'], /createDesktopWorldDevToolsView/);
+  assert.match(docs['docs/api/toolkit/scene-devtools.md'], /buildDesktopWorldMinimapLayout/);
 
   assert.match(docs['docs/api/toolkit/controls.md'], /createButton/);
   assert.match(docs['docs/api/toolkit/controls.md'], /createButtonGroup/);

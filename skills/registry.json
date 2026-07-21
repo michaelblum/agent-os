@@ -131,7 +131,7 @@
     {
       "name": "aos-desktop-world-authoring",
       "path": "skills/aos-desktop-world-authoring",
-      "description": "Author, validate, mount, inspect, profile, and replay data-only AOS DesktopWorld scene cartridges. Trigger when an agent needs a 3D desktop scene, drag or aim-and-commit gestures, radial menus, scene telemetry, or detachable engine DevTools.",
+      "description": "Author, validate, run, inspect, profile, and replay AOS DesktopWorld scenes through data-only cartridges or reviewed trusted extensions. Trigger for multi-display 3D scenes, gestures, radial menus, scene telemetry, extension review, or detachable engine DevTools.",
       "status": "installable",
       "installable": true,
       "invocation": "enabled",
@@ -144,13 +144,21 @@
       "ownership": "AOS-owned installable DesktopWorld scene-authoring and engine-inspection skill.",
       "references": [
         "docs/api/toolkit/scene.md",
+        "docs/api/toolkit/scene-authoring.md",
+        "docs/api/toolkit/scene-runtime.md",
+        "docs/api/toolkit/scene-extensions.md",
+        "docs/api/toolkit/scene-devtools.md",
         "docs/api/aos.md",
+        "packages/toolkit/scene/examples/session-lifecycle.mjs",
         "shared/schemas/scene-event-v1.schema.json",
         "shared/schemas/desktop-world-devtools-stage-v1.schema.json"
       ],
       "claims_durable_behavior": true,
       "backing": [
         "docs/api/toolkit/scene.md",
+        "docs/api/toolkit/scene-runtime.md",
+        "docs/api/toolkit/scene-extensions.md",
+        "packages/toolkit/scene/examples/session-lifecycle.mjs",
         "docs/api/aos.md",
         "manifests/commands/source/aos/39-scene.json"
       ]

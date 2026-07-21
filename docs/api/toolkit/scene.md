@@ -1,663 +1,85 @@
 # Toolkit Scene API
 
-`@agent-os/toolkit/scene` is the narrow package boundary for external scene
-authors. It exposes product-neutral DesktopWorld, Three renderer lifecycle,
-canvas projection, and visual-object editing primitives without exposing the
-broader toolkit implementation tree.
+`@agent-os/toolkit/scene` is the compatibility facade for AOS DesktopWorld
+scene work. New consumers should use the focused entry point that matches the
+task:
 
-The public streaming transport is:
+| Task | Package | Guide |
+|---|---|---|
+| Data-only scenes and interactions | `@agent-os/toolkit/scene/authoring` | [Authoring](./scene-authoring.md) |
+| Session, hosts, signals, animation, and rendering | `@agent-os/toolkit/scene/runtime` | [Runtime](./scene-runtime.md) |
+| Reviewed trusted projection code | `@agent-os/toolkit/scene/extensions` | [Extensions](./scene-extensions.md) |
+| Inspection, profiling, monitoring, and replay | `@agent-os/toolkit/scene/devtools` | [DevTools](./scene-devtools.md) |
+
+The broad `@agent-os/toolkit/scene` export remains stable for existing
+consumers. Direct imports from toolkit internals are not public contracts.
+
+## Choose The Boundary
+
+Use a data-only cartridge when registered geometry, materials, numeric
+bindings, and stock interactions are sufficient. Use a trusted extension only
+for reviewed first-party geometry, materials, shaders, effects, or animation
+code that cannot be represented by the cartridge contract. Use isolated
+standalone WebGL when executable content is untrusted, preview-only, or should
+not receive AOS scene authority.
+
+A cartridge never grants code execution. A trusted extension is same-realm
+privileged code and requires explicit digest review and installation. A
+standalone WebGL surface is not a DesktopWorld cartridge or extension.
+
+## Ownership
+
+AOS owns the persistent renderer, frame clock, global DesktopWorld coordinate
+plane, display segmentation, cameras, topology generations, all-display
+settlement, input regions, gestures, telemetry, and disposal. Ordinary authors
+position objects once in the global plane; they do not build one scene or
+camera per display. Advanced anchoring and native-input APIs expose display
+facts only where those facts are required.
+
+Consumers own product state, names, prompts, semantic actions, visual recipes,
+and approval policy. Importing the toolkit grants no AOS command execution,
+daemon socket access, native input, TCC permission, or product identity.
+
+## Public Commands
+
+The command manifest is the argument authority. These authoring commands do
+not start the daemon:
 
 ```bash
-aos scene --stage desktop-world/main --owner <consumer-id> --resource <resource-id> --follow
+aos scene cartridge scaffold ./companion-scene \
+  --id example/companion --template aim-and-commit --json
+aos scene cartridge validate ./companion-scene --json
+
+aos scene extension scaffold ./companion-renderer \
+  --owner example.consumer --id companion-renderer \
+  --template basic-three --json
+aos scene extension validate ./companion-renderer --json
 ```
 
-It reads strict NDJSON operations from stdin: `mount`, `transact`, `signal`,
+The public connection-scoped runtime transport remains:
+
+```bash
+aos scene --stage desktop-world/main \
+  --owner example.consumer --resource example/companion --follow
+```
+
+It accepts strict NDJSON operations named `mount`, `transact`, `signal`,
 `play`, `suspend`, `resume`, `inspect`, `subscribe`, `unsubscribe`, `remove`,
-and `close`. Leases are scoped to the client connection and removed on
-disconnect. Documents contain only registered declarative implementation IDs.
-A mount may name one already-installed, owner-matched trusted extension by its
-exact digest; executable bytes never cross the scene transport.
-
-Subscribe to typed gesture events without opening another socket or process:
-
-```jsonl
-{"op":"subscribe","events":["gesture"]}
-{"op":"inspect"}
-{"op":"unsubscribe","events":["gesture"]}
-{"op":"close"}
-```
-
-`subscribe` requires one or more supported event names. `unsubscribe` removes
-the named events; an empty event list removes every subscription for that
-lease. Unsolicited events use `aos.scene.event.v1`, preserve owner/resource and
-pointer-session identity, and never carry product text, audio, prompts, or
-scene document content.
-
-Data-only cartridges can be validated without starting the daemon:
-
-```bash
-aos scene cartridge validate ./my-cartridge --json
-```
-
-Reviewed projection extensions use a separate explicit lifecycle:
-
-```bash
-aos scene extension validate ./dist/companion-renderer --json
-aos scene extension install ./dist/companion-renderer \
-  --expected-digest <reviewed-sha256> --json
-aos scene extension list --json
-```
-
-An extension directory contains exactly `extension.json` and `projection.js`.
-The JavaScript file is the body of `createProjection(context)`: it may define
-local helpers and must synchronously return the projection object. Projection
-activation, updates, lifecycle hooks, and disposal are synchronous; Promise-like
-results fail admission or the active operation. Authors target ES2022 syntax and
-avoid proposal-stage or engine-specific extensions. A bounded child process
-uses V8's ES-module parser to compile the exact host-generated wrapper without
-linking or evaluating it. This is a preliminary installation check, not a claim
-that V8 and WebKit accept identical syntax. The stage performs a fresh WebKit
-module import before registry admission or scene preparation. That import is the
-authoritative runtime compatibility gate, and rejection leaves the active scene
-unchanged. Wrapper evaluation freezes the factory export but does not invoke the
-consumer factory body. The exact
-reviewed digest is mandatory at installation, and source roots/files must be
-owned by the current user and not group- or world-writable.
-Because WebKit dynamic imports are not cancelable, a logically timed-out import
-continues to consume one slot in the fixed unresolved-import capacity until the
-underlying promise settles. Timeout handling therefore cannot accumulate
-unbounded physical imports.
-Its artifact digest binds the canonical owner, implementation IDs, ABI, Three
-revision, budgets, and factory-body SHA-256. Installation atomically adds an
-AOS-generated `authorization.json` record to the mode-scoped owner-only store;
-only the explicit install command grants that executable authority. Mounts carry
-only the exact `{ownerId,id,digest,sceneAbi,threeRevision}` reference.
-The command manifest classifies installation as a state mutation so an agent
-host can require its normal explicit operator approval.
-
-The daemon-backed outlet interprets scene object positions and scales in the
-global DesktopWorld coordinate plane. It uses one orthographic camera per
-physical display segment, so a resource appears at its declared desktop point
-without being independently centered on every display. All segments apply the
-same bounded operation and report origin-attributed internal results. The daemon
-accepts only the exact current canvas/topology generation and emits one
-authoritative public result after the all-segment barrier settles. The outlet
-uses the same animation and signal controllers as the
-public host API, preserving once/loop/ping-pong playback, easing, clamping, and
-time-based signal smoothing.
-
-The package does not depend on or bundle Three.js. Consumers own their Three.js
-version and pass renderer-, scene-, camera-, and resource-like objects into the
-dependency-injected helpers.
-
-## Package Import
-
-```js
-import {
-  DesktopWorldSurfaceThree,
-  applySceneTransaction,
-  canonicalizeSceneDocument,
-  createDesktopWorldSceneHost,
-  createDesktopWorldSceneClient,
-  createDesktopWorldDevToolsStageProbe,
-  createDesktopWorldDevToolsView,
-  createDesktopWorldGpuTimer,
-  createSceneAnimationController,
-  createSceneInteractionController,
-  createSceneInteractionVisualController,
-  createLocalSceneViewportHost,
-  createSceneImplementationRegistry,
-  createSceneLease,
-  createSceneSignalController,
-  createThreeRenderLifecycle,
-  createTrustedSceneExtensionRegistry,
-  createVisualObjectDescriptor,
-  buildDesktopWorldMinimapLayout,
-  bindVisualObjectForm,
-  validateSceneTransaction,
-  validateSceneInteractionDocument,
-  normalizeDesktopWorldDevToolsSnapshot,
-  replayDesktopWorldSceneEvents,
-  serializeSceneExtensionDigestMaterial,
-  validateSceneExtensionManifest,
-  validateSceneExtensionReference,
-} from '@agent-os/toolkit/scene'
-```
-
-The package export includes `scene/index.d.ts` for TypeScript consumers. Direct
-imports into `runtime/` or `workbench/` are not part of this external package
-contract.
-
-## Declarative Scene Contracts
-
-### Scene Cartridges
-
-`aos.scene.cartridge.v1` packages a scene as a familiar, declarative runtime
-unit:
-
-```text
-cartridge.json
-scene.json
-animations.json
-interactions.json
-assets/
-```
-
-`cartridge.json` binds the other three JSON files and every local asset by
-SHA-256. It also declares the exact trusted implementation IDs and resource
-budgets. Paths are canonical and relative to the cartridge root. Raster images
-and binary glTF are the only V1 asset media types. Runtime URLs, executable
-source fields, functions, links, special files, traversal, undeclared files,
-unknown implementations, and values above engine limits fail validation.
-
-`validateSceneCartridgeManifest()` validates the manifest alone.
-`validateSceneCartridge()` validates the complete in-memory package against a
-trusted scene implementation registry. `resolveSceneCartridge()` returns the
-canonical existing `aos.scene.document.v1` plus its animation and interaction
-descriptors; it does not create a second renderer or transport.
-
-The repository includes neutral cartridges under
-`packages/toolkit/scene/examples/` for a spinning object, conventional drag,
-aim-and-commit, and a radial menu. Interaction descriptors are data contracts;
-only AOS-owned registered recognizers and responses may execute them.
-
-`aos.scene.document.v1` describes a bounded object/resource graph without
-consumer JavaScript. `canonicalizeSceneDocument()` validates exact fields,
-hierarchy, resource references, finite JSON parameters, per-resource asset
-limits, and a 256 MiB aggregate asset limit before returning key-sorted data.
-`sceneDocumentRequiredImplementations()` reports the registered geometry,
-material, effect, and component implementations needed to render it.
-
-`aos.scene.transaction.v1` carries owner/resource-scoped, revision-checked
-operations. `validateSceneTransaction()` validates the envelope and bounded
-operations. `applySceneTransaction()` additionally verifies the active lease,
-matches the current revision, applies the operations to an isolated candidate,
-validates its complete graph, and returns revision `n + 1`. A rejected
-transaction never mutates the supplied document.
-
-`createSceneLease()` produces an `aos.scene.lease.v1` identity containing the
-stage, owner, resource, and ResourceScope IDs. The contract does not create a
-daemon lease or shared renderer by itself.
-
-### Stock Generic Three Implementations
-
-`createGenericSceneImplementationRegistry()` exposes bounded, product-neutral
-implementations for the daemon outlet and dependency-injected local hosts.
-Alongside primitive geometry and surface, line, and point materials, the stock
-registry includes:
-
-- `aos.scene.geometry.edges`, which derives clean feature edges from a declared
-  primitive and accepts a threshold angle from 0 through 180 degrees;
-- `aos.scene.geometry.segments`, which renders at most 64 explicit finite line
-  segments with coordinates clamped to the validated scene-space range; and
-- deprecated reduced-mode `aos.scene.effect.radial-aura`, retained temporarily
-  for compatibility while rich consumers move their visual vocabulary into
-  trusted projection extensions.
-
-The compatibility radial effect advances through the mounted scene projection's
-`tick()` method on the existing stage playback clock. It creates no renderer or
-frame loop, allocates no per-frame GPU resources, pauses with stage/resource
-suspension and context loss, and disposes shared geometry, materials, and
-textures with the projection. It is not an extension point and must not acquire
-consumer concepts or new behavior. A direct projection rejects more than 1,024
-objects, 256 resources, or 32 aggregate effect descriptors before allocating
-Three resources, and retains per-implementation count and coordinate caps even
-when registry validation is bypassed.
-
-Primitive geometry and materials are rendering mechanics, not product
-vocabulary. Rich consumer geometry, shaders, effects, and animation logic belong
-in an owner-authorized projection extension rather than being compiled into an
-expanding stock-effect parameter set.
-
-### Trusted Projection Extensions
-
-`aos.scene.extension.v1` is the executable boundary for reviewed first-party
-consumer renderers. `createTrustedSceneExtensionRegistry()` resolves factories
-by owner, ID, artifact digest, scene ABI, and Three revision. A factory receives
-only AOS's pinned Three namespace, the canonical scene document, and lowered
-budgets. It returns one Object3D subtree and the bounded signal, animation,
-tick, suspend, resume, context-loss, and disposal lifecycle. Extension-local
-asset loading is not part of V1; procedural geometry and data already present
-in the validated scene document are the supported inputs.
-
-AOS continues to own the renderer, camera, frame loop, multi-display stage,
-transactions, input, inspection, and observable render-tree budgets. The extension owns its model,
-materials, shaders, effects, and per-frame visual implementation. The module is
-fully privileged, trusted same-realm code and therefore requires explicit
-operator installation; the context object is an API boundary, not a sandbox.
-The same-UID account is in the trust base. Arbitrary extension heap allocations
-and use of realm globals are trusted behavior rather than sandbox-enforced
-budgets. Extensions are not Starter Library
-content and cannot be installed by a cartridge or scene mount.
-
-At creation, the host lowers each declared extension limit to the currently
-unallocated segment headroom. Scene replacement is deliberately budgeted for
-the transient overlap of old and candidate projections; a replacement that
-would exceed the hard segment ceiling while double-buffered is rejected before
-commit. Concurrent candidates reserve measured allocation headroom and new
-logical resource slots during preparation. Commit activates the candidate and
-forces a complete render-tree audit before publishing it. Lifecycle boundaries
-also force a complete audit; sampled 30-tick audits remain the steady-state
-path. Failed disposal remains retryable until the hook succeeds. Lifecycle,
-topology, replacement, and teardown operations are serialized, and stage input
-admission remains closed during resume until every native region is restored.
-Buffered candidate input is replayed before staging protection is released, and
-any replay or cleanup failure retires the complete visual/input aggregate. Once
-the aggregate is committed, an outbound event-delivery failure is reported as
-a diagnostic transport fault and does not roll back already authoritative
-visual or input state.
-
-Numeric bindings remain engine-owned without imposing product vocabulary. For
-example, a consumer can bind `pointer.distance` to
-`geometry.stellation` or a looping clock to `core.pulse`; AOS validates,
-clamps, smooths, and schedules the numeric value, then passes the target and
-value to the owner extension's `applySignal()` or `applyAnimation()` method.
-Only that extension defines what those target names mean or how its geometry,
-uniforms, and shaders respond.
-
-### Affordances And Gestures
-
-`aos.scene.cartridge.interactions.v1` declares object-relative rectangular
-`SceneAffordanceDescriptor` regions. AOS registers those regions against the
-passive DesktopWorld canvas and owns pointer capture, DesktopWorld/native
-coordinates, display topology, arbitration, Escape cancellation, update
-coalescing, and cleanup. Only the primary display segment mutates daemon region
-state or emits product gesture events; every segment applies the same visual
-response and reports its internal operation result so one logical scene remains
-visually continuous across displays. Candidate region generations are
-registered inactive, then switched atomically with retirement of the prior
-generation. The old generation remains routable until that barrier commits.
-
-Affordance rectangles resolve through the object's complete parent transform
-chain into an axis-aligned DesktopWorld hit frame. Conventional translation
-converts DesktopWorld pointer deltas back into the object's parent space and
-refreshes the native hit region after commit.
-
-`createSceneGestureArena()` arbitrates tap, drag, long-press, and radial
-recognizers by bounded explicit priority and stable ID order. Drag phases are
-always `start`, `update`, `end`, or `cancel`; the recognizer does not imply that
-an object moves. `translate`, `aim_commit`, `drop`, and `signal_graph` are
-separate declarative responses. Aim-and-commit keeps its object fixed and emits
-the route vector for an engine renderer to consume.
-
-Bind `tap` to `aos.scene.response.radial-menu` when a menu must remain open
-after the trigger click while the same affordance also supports drag. The
-response creates one owner/resource-scoped menu lease, clamps its declared arc
-or circle to the containing display, registers bounded item hit regions, and
-emits complete `focus -> select` or `cancel` gesture lifecycles. Escape,
-suspension, topology changes, disconnect, and resource removal tear down the
-lease and every temporary region. Item events contain canonical IDs and numeric
-selection only; commands and product semantics remain in the cartridge owner.
-
-`createSceneInteractionController()` binds the generic arena to one
-owner/resource lease and emits schema-validated `SceneEventEnvelope` values.
-Movement updates are coalesced to render cadence, while start, end, and cancel
-are never dropped. Long-press uses a timer only while an undecided pointer
-session exists; an idle scene creates no timer or additional frame loop.
-
-`createSceneInteractionVisualController()` is the pure, deterministic visual
-state machine for aim-and-commit routes and stock radial menus. It owns no
-scheduler or renderer. A host supplies its existing clock through `tick()` and
-projects the returned bounded models. `start` and `update` expose a full-stage
-arrow while the target object remains fixed; `end` starts a line or wormhole
-route; `cancel` removes the preview without changing the scene document.
-The route uses global `origin`/`pointer` coordinates, while the committed
-`position` remains parent-local so nested objects project and persist correctly.
-
-Aim responses may declare bounded arrow and wormhole styles, duration, and one
-of `linear`, `smoothstep`, `ease_in_out_cubic`, or `ease_out_quart` easing.
-The stock arrow vocabulary includes a distance-scaled two-wing head, animated
-dash pattern, glow shaft, pointer reticle, origin ring, origin inset, and a
-bounded optional trail pool. These are finite data-only cartridge values; the
-trusted AOS renderer remains the only implementation boundary.
-Radial recognizers may declare up to 32 ID/color/disabled item descriptors and
-a bounded stock style. Item zero is centered at the top, placement clamps to
-the containing display, and `selection_index` / `selection_active` expose only
-numeric selection state through a declarative signal graph. Product labels,
-commands, and action semantics stay in the cartridge owner. Persistent
-tap-open menus use the same preallocated stock meshes and may declare bounded
-start angle and spread values for edge-aware arcs.
-
-The daemon DesktopWorld outlet adapts this controller to a preallocated Three
-pool: glow and dash geometry, arrowhead and reticle geometry, optional arrow
-trails, a 64-sample route path, two wormhole rings, one flash, and 32 radial
-item meshes. It shares the outlet's existing render loop,
-coalesces pointer updates at that cadence, and disposes every pooled GPU
-resource with the mounted scene. The same global route appears continuously
-across display segments because each segment projects the same DesktopWorld
-coordinates through its own clipped orthographic camera.
-
-## DesktopWorld DevTools
-
-`createDesktopWorldDevToolsStageProbe()` projects the existing DesktopWorld
-render loop into `aos.desktop-world.devtools.stage.v1`. It reports bounded
-display, node, hit-region, affordance, gesture, route, resource, interaction,
-performance, event, counter, and last-error facts. Unknown fields are removed
-at the daemon boundary; text, prompts, audio, scene parameters, and desktop
-content are not part of the snapshot.
-
-Each display reports DesktopWorld-local `bounds` and, when the surface host
-provides it, native global `nativeBounds`. Consumers that translate scene
-geometry to native input coordinates must require `nativeBounds`; treating
-DesktopWorld-local bounds as native geometry is invalid on offset or stacked
-display topologies. Older snapshots without `nativeBounds` remain readable,
-but compatibility projections do not fabricate native display geometry.
-
-The probe owns no scheduler. When disabled, `sampleFrame()` and event recording
-perform no stage read and retain no samples. When enabled but not recording,
-frame samples are throttled to 500 ms and snapshots to 2 Hz. Recording samples
-through the existing stage frame and remains capped at 240 performance samples
-and 256 events. `createDesktopWorldGpuTimer()` uses the platform timer-query
-extension when available, reuses a four-query pool, and reports unavailable
-GPU timing as `null`; the stage creates it only while recording and disposes it
-on stop, context loss, or teardown.
-
-`normalizeDesktopWorldDevToolsSnapshot()` validates the revisioned daemon
-envelope. `buildDesktopWorldMinimapLayout()` maps the canonical multi-display
-world, nodes, and hit regions into a bounded viewport. The host-neutral
-`createDesktopWorldDevToolsView()` renders World, Resources, Interactions,
-Performance, and Events tabs without creating a timer or animation frame.
-
-The daemon owns `DesktopWorldDevToolsSession` state and one interactive host
-lease. A detached AOS panel and an external consumer host use the same view and
-snapshot. Host transfer suspends the prior view before activating the next;
-consumers do not own the telemetry implementation. The focused historical
-Render Performance, Spatial Telemetry, and Surface Inspector panels consume
-compatibility projections of this same snapshot.
-
-`createDesktopWorldSceneClient()` is the host-neutral typed facade for resource
-listing, inspection, performance, monitoring, deterministic replay, and
-revisioned DevTools session operations. A consumer injects `request` and
-`subscribe`; the package never discovers a socket, starts a daemon, or owns a
-panel. One-shot observations create a bounded headless session, poll the
-canonical stage snapshot, and close in `finally`.
-
-The matching commands are:
-
-```bash
-aos scene list --json
-aos scene inspect --resource companion/main --json
-aos scene monitor --resource companion/main --follow --json
-aos scene perf --resource companion/main --json
-aos scene replay --events packages/toolkit/scene/fixtures/aim-commit.ndjson --json
-aos scene devtools open --resource companion/main --json
-aos scene devtools status --json
-aos scene devtools update --session <session-id> --expected-revision <n> --tab performance --recording on --json
-aos scene devtools transfer --session <session-id> --expected-revision <n> --host-kind external --host-id <canvas-id> --json
-aos scene devtools close --session <session-id> --json
-```
-
-`update` and `transfer` use optimistic session revisions. A transfer target is
-an existing AOS canvas host; the daemon suspends the previous host before
-activating the target, so detached and consumer-aligned views never become two
-interactive inspectors. Filters and recording remain daemon-owned session
-state, and recording is opt-in.
-
-The deterministic replay helper enforces monotonic owner/resource sequences,
-complete start/update/end-or-cancel gesture lifecycles, and fixed event/resource
-budgets. Its summary contains counts, resource IDs, and final committed numeric
-positions only. It does not render, mutate a stage, or require live TCC input.
-
-For conventional dragging, bind a `drag` recognizer to `translate`. For
-aim-and-commit, bind the same generic recognizer to `aim_commit`; the object
-remains fixed during start/update, Escape produces `cancel`, and release starts
-the declared line or wormhole route. For a radial menu, use the stock `radial`
-recognizer plus bounded item/style descriptors. To combine a click-open menu
-and drag behavior on one object, bind `tap` to `radial-menu` and bind `drag` to
-`translate` or `aim_commit`; movement arbitration leaves only one winner. The
-neutral cartridges under `packages/toolkit/scene/examples/` are the canonical
-starting points.
-
-### Agent Tooling Errors
-
-| Code | Meaning |
-|---|---|
-| `INVALID_SCENE_RESOURCE` | Resource ID is noncanonical or over its bound. |
-| `SCENE_RESOURCE_NOT_FOUND` | A canonical snapshot does not contain the requested resource. |
-| `SCENE_SNAPSHOT_TIMEOUT` | The headless session did not receive an available stage snapshot in time. |
-| `SCENE_DAEMON_TIMEOUT` | A bounded daemon request did not settle. |
-| `SCENE_DAEMON_LINE_TOO_LARGE` | One daemon NDJSON frame exceeded 768 KiB. |
-| `SCENE_REPLAY_LIMIT_EXCEEDED` | Replay exceeded 10,000 events or 128 resources. |
-| `INVALID_SCENE_REPLAY_EVENT` | A replay frame did not match `aos.scene.event.v1`. |
-| `SCENE_REPLAY_SEQUENCE_INVALID` | Sequence did not increase for one owner/resource. |
-| `SCENE_REPLAY_LIFECYCLE_INVALID` | A gesture phase did not follow a valid active lease. |
-| `SCENE_REPLAY_INCOMPLETE` | Replay ended with an active gesture. |
-| `DEVTOOLS_SESSION_NOT_FOUND` | The requested revisioned session no longer exists. |
-| `DEVTOOLS_REVISION_CONFLICT` | A mutating session request used a stale revision. |
-| `DEVTOOLS_HOST_BUSY` | Another session owns the requested interactive host. |
-
-`scene.monitor` event envelopes carry exactly `{resource, snapshot}`. Snapshot
-shape is `desktop-world-devtools-stage-v1.schema.json`; replay summary shape is
-`scene-replay-v1.schema.json`. Daemon event vocabulary is source-controlled and
-tested in `daemon-event.schema.json`; command help is generated from the source
-manifests.
-
-## Implementations, Animation, Signals, And Hosts
-
-`createSceneImplementationRegistry()` is the trusted-code boundary. Scene
-documents carry implementation IDs only; a host resolves those IDs to locally
-registered geometry, material, texture, shader, effect, and component
-factories. Missing or kind-mismatched implementations fail before projection
-work begins.
-
-The built-in `aos.scene.signal.bind` component maps one finite numeric signal
-to one relative projection target. Bindings support bounded input/output
-ranges, clamping, and time-based smoothing. `compileSceneSignalBindings()`
-validates them, while `createSceneSignalController()` applies values through a
-caller callback. The signal contract accepts no text, audio buffers, prompts,
-functions, or arbitrary property paths.
-
-The built-in `aos.scene.animation.bind` component maps an explicit elapsed
-clock to one finite numeric projection target. It supports bounded delay and
-duration, linear or ease-in-out interpolation, and once, loop, or ping-pong
-playback. `createSceneAnimationController()` performs no scheduling and
-allocates no event object per binding per tick; the host or consumer owns the
-clock. This is a numeric binding primitive, not a general timeline or
-consumer-code evaluator.
-
-`restart()` explicitly starts a new completion generation for the controller.
-The optional `onComplete` callback fires at most once for each successfully
-applied one-shot binding in that generation; callback failures are counted and
-are not retried on every frame. A completed one-shot stops applying until the
-next explicit `restart()`, so a later interaction can own the resulting
-property without the animation overwriting it on every render tick.
-
-When a DesktopWorld resource combines native affordances with one-shot bindings
-that affect 2D hit geometry (`position.x/y`, `rotation.z`, or `scale.x/y`),
-`play` quiesces its active regions before visual motion starts. The outlet
-retains a separate terminal interaction projection while leaving the authored
-scene document and revision unchanged. After every relevant one-shot binding
-reaches its terminal value, the stage operation queue prepares a fresh
-generation of inactive native regions, commits the interaction aggregate, and
-activates the complete generation as one settlement barrier. A stale play
-generation cannot settle a newer scene; failed activation releases the
-interaction lease rather than exposing partial input. This path performs no
-per-frame native IPC and emits no additional public scene event.
-
-Operation suspension, document visibility, and WebGL context loss pause the
-playback clock. Resumption continues from the prior elapsed time rather than
-jumping to wall-clock progress.
-
-Looping and ping-pong spatial bindings continue to animate visually, but V1
-does not move native hit regions per frame. Interactive moving loops must use a
-stable nonanimated collider ancestor or wait for a future daemon-side atomic
-batch transport.
-
-`createLocalSceneViewportHost()` and `createDesktopWorldSceneHost()` own the
-same document, lease, registry, transaction, animation, signal, inspection,
-suspension, context-recovery, and disposal policy. Consumers provide a trusted
-`prepareProjection()` function that returns their Three scene, renderer,
-camera, bounded lifecycle, and deterministic disposal. Candidate projections
-activate before the previous projection is disposed; failed preparation leaves
-the active revision and projection unchanged.
-
-```js
-const registry = createSceneImplementationRegistry({
-  entries: [boxGeometry, physicalMaterial],
-})
-const lease = createSceneLease({
-  stageId: 'desktop-world/main',
-  ownerId: 'io.example.product',
-  resourceId: 'companion/main',
-  scopeId: 'connection/42',
-})
-const host = createLocalSceneViewportHost({
-  document,
-  lease,
-  registry,
-  prepareProjection: ({ document, registry, reportContextLost }) => (
-    buildProductProjection({ document, registry, reportContextLost })
-  ),
-})
-await host.mount()
-await host.transact(transaction)
-host.publishSignal('audio.rms', 0.45)
-host.tick(500)
-host.suspend()
-host.resume()
-await host.dispose()
-```
-
-`host.inspect()` returns `aos.scene.inspection.v1`: object/resource identities,
-implementation health, signal binding identities, lifecycle metrics, and
-metadata keys without parameter values or metadata content. Default host
-budgets cap documents at 1,024 objects, 256 resources, 1,024 numeric signal
-bindings, and 1,024 numeric animation bindings. Projection callback failures
-are contained and exposed only as redacted counters. The underlying Three
-lifecycle retains its stricter canvas limits.
-
-The DesktopWorld host wraps `DesktopWorldSurfaceThree` and mounts the same
-prepared projection used by a local viewport. The public `scene-follow`
-transport mounts generic registered implementations into the daemon-backed
-singleton outlet. Product-specific projection implementations remain local to
-the consumer unless they are accepted into this product-neutral registry.
-
-## Three Renderer Lifecycle
-
-`createThreeRenderLifecycle(options)` owns generic renderer mechanics:
-
-- element resize observation plus window-resize fallback;
-- effective device-pixel ratio capped at `2` by default;
-- backing dimensions capped at `4096` and total backing pixels capped at
-  `4,194,304` by default;
-- invalid or zero measurements skipped without mutating the renderer;
-- requestAnimationFrame suspension while hidden, explicitly suspended, or
-  WebGL context-lost;
-- context-loss prevention and restoration callbacks;
-- idempotent listener, observer, frame, scene-resource, renderer, and context
-  disposal.
-
-Use `resolveThreeRenderMetrics()` when a consumer needs the same pure sizing
-policy without lifecycle ownership. Product code may lower the limits but
-should not raise them without its own memory and canvas acceptance evidence.
-
-The DesktopWorld outlet lowers the shared lifecycle ceiling to 2,097,152
-backing pixels per physical-display segment and owns no RAF while every
-resource is suspended, the segment is hidden, or WebGL is context-lost.
-`DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS` provides the independent
-engine acceptance targets used by native and fixture harnesses: 250 ms to begin
-a prewarmed transition, 750 ms to projection-ready, 50 ms input-to-visual P95,
-60 Hz frame P95 within 1.1 times budget, no steady frame above 100 ms, no more
-than a two-frame cross-display gap, and no more than 16 MiB warmed RSS growth
-over 100 lifecycle cycles. Historical product renderers are appearance and
-interaction references, not performance baselines. Pass bounded harness facts
-to `evaluateDesktopWorldPerformanceAcceptance()` to obtain the canonical
-content-free check result. Acceptance requires dense finite arrays with at
-least 20 input-to-visual samples and 120 frame samples, plus the complete 100
-warmed-cycle leak proof; sparse, shorter, malformed, or unbounded observations
-fail closed.
-
-```js
-const lifecycle = createThreeRenderLifecycle({
-  renderer,
-  scene,
-  camera,
-  container,
-  onFrame: ({ deltaMs }) => {
-    animateScene(deltaMs)
-    renderer.render(scene, camera)
-  },
-  onContextLost: () => showFallback(),
-  onContextRestored: () => hideFallback(),
-})
-
-lifecycle.start()
-// lifecycle.suspend() while a product-owned stage is inactive
-// lifecycle.resume() when it becomes visible again
-lifecycle.dispose()
-```
-
-Only resources reachable from the supplied `scene` and entries explicitly
-listed in `additionalDisposables` are disposed. Do not pass shared textures,
-materials, controls, or render targets unless this lifecycle owns them.
-
-## DesktopWorld Three Adapter
-
-`DesktopWorldSurfaceThree` (alias `DesktopWorldSurface3D`) extends the generic
-DesktopWorld surface adapter with segment-aware orthographic and perspective
-camera refresh, viewport refresh, primary-surface state publication, and
-secondary-surface state latency measurements. `deriveOrthoCamera()` is the pure
-segment-to-frustum projection.
-
-The adapter and renderer lifecycle compose without sharing product policy:
-
-```js
-const surface = new DesktopWorldSurfaceThree({ canvasId })
-await surface.start({ onState: applySharedState })
-surface.mountScene({ scene, camera, renderer, manageViewport: false })
-
-const lifecycle = createThreeRenderLifecycle({
-  renderer,
-  scene,
-  camera,
-  container,
-  updateCamera: () => surface.refreshCamera(),
-  onFrame: () => renderer.render(scene, camera),
-})
-lifecycle.start()
-```
-
-`manageViewport: false` makes the bounded lifecycle the sole resize owner. The
-adapter's default remains `true` for existing standalone DesktopWorld consumers.
-
-Use the adapter only when the surface runs on an AOS DesktopWorld canvas.
-Product-owned editors can use the renderer lifecycle directly.
-
-## Canvas Lifecycle Projection
-
-The scene package exports the complete neutral projection helpers from
-`runtime/canvas-lifecycle.js`:
-
-- `canvasLifecycleCanvasID()` and `mergeCanvasLifecycleCanvas()`;
-- `canvasGeometryCanvasID()`, `normalizeCanvasGeometry()`, and
-  `mergeCanvasGeometryCanvas()`.
-
-These helpers normalize daemon lifecycle and geometry events. They do not
-create, mutate, suspend, or remove canvases.
-
-## Visual Objects And Forms
-
-Scene editors use `createVisualObjectDescriptor()` and the validation helpers
-to describe canonical editable state. `applyVisualObjectControllerUpdate()`
-performs the state mutation and dispatches injected route and renderer-sync
-handlers. `bindVisualObjectForm()` maps a compatible form's field-change events
-to those descriptors.
-
-Projection-only descriptors cannot mutate canonical state. Routed editable
-descriptors require a state path, route, coercion policy, renderer-sync labels,
-group key, and object identities. State remains plain JSON; Three resources are
-never stored in descriptors or serialized scene state.
-
-The resource-lifecycle evidence helpers describe rebuilds, retained resources,
-disposal balance, renderer synchronization, and JSON serializability. They are
-proof contracts, not a resource manager.
-
-## Ownership Boundary
-
-This API owns the generic declarative scene schema, host policy, renderer
-lifecycle, numeric signal mapping, transactions, inspection, and binding
-mechanics. External products own persona, representation selection, definition
-schema, materials and effect recipes, semantic state mapping, editor layout,
-persistence, authority, and approval policy.
-Importing this package grants no AOS command execution, daemon socket access,
-native input, TCC permission, or product identity.
+and `close`. Product adapters should inject that public transport into
+`createDesktopWorldSceneSession()` rather than reimplementing recovery or
+opening the private daemon socket.
+
+## Stable Contracts
+
+- `aos.scene.document.v1` is the bounded object and resource graph.
+- `aos.scene.transaction.v1` is the optimistic structural mutation envelope.
+- `aos.scene.cartridge.v1` digest-binds scene, animation, interaction, and
+  local asset data.
+- `aos.scene.event.v1` carries typed product-neutral gesture events.
+- `aos.scene.extension.v1` binds reviewed projection code to owner, ABI, Three
+  revision, implementation IDs, and budgets.
+- `aos.desktop-world.devtools.stage.v1` is the content-free engine snapshot.
+
+Command help is generated from
+`manifests/commands/source/aos/39-scene.json`. Event and snapshot schemas are
+generated and validated with the rest of the AOS public contracts.
