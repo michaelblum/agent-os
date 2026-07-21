@@ -3,8 +3,15 @@ import { readFile, stat } from 'node:fs/promises'
 import test from 'node:test'
 
 import { createSceneAnimationInteractionState } from '../../packages/toolkit/components/desktop-world-stage/scene-animation-interaction-state.js'
+import {
+  sceneResourceCanRun,
+} from '../../packages/toolkit/components/desktop-world-stage/scene-outlet.js'
 import { createScenePlaybackClock } from '../../packages/toolkit/components/desktop-world-stage/scene-playback-clock.js'
-import { compileSceneAnimationBindings, resolveSceneAffordanceFrame } from '../../packages/toolkit/scene/index.js'
+import {
+  compileSceneAnimationBindings,
+  createSceneInteractionVisualController,
+  resolveSceneAffordanceFrame,
+} from '../../packages/toolkit/scene/index.js'
 
 const outletURL = new URL('../../packages/toolkit/components/desktop-world-stage/scene-outlet.js', import.meta.url)
 const stageURL = new URL('../../packages/toolkit/components/desktop-world-stage/index.js', import.meta.url)
@@ -128,6 +135,55 @@ test('scene playback clock excludes operation, visibility, and context suspensio
   assert.equal(clock.elapsed(5_100), 100)
 })
 
+test('resource resume cannot reactivate a route while the stage remains suspended', () => {
+  let at = 0
+  const visuals = createSceneInteractionVisualController({ now: () => at })
+  const event = {
+    frame: {
+      phase: 'end',
+      origin: { x: 100, y: 200 },
+      current: { x: 300, y: 200 },
+      timing: { t: 9_000_000 },
+    },
+    interaction: {
+      recognizer: { implementation: 'aos.scene.gesture.drag', parameters: { threshold: 4 } },
+      response: { implementation: 'aos.scene.response.aim-commit', parameters: { route: 'line' } },
+    },
+    response: {
+      kind: 'aim_commit',
+      objectId: 'body',
+      origin: { x: 100, y: 200 },
+      pointer: { x: 300, y: 200 },
+      position: [300, 200, 0],
+      angle: 0,
+      distance: 200,
+      route: 'line',
+    },
+  }
+  visuals.apply(event)
+  at = 10
+  visuals.tick(at)
+  const before = visuals.snapshot().route.progress
+
+  assert.equal(sceneResourceCanRun(true, false, false), false)
+  at = 20
+  visuals.tick(at)
+  const suspended = visuals.snapshot().route.progress
+  visuals.suspend(at)
+  assert.equal(sceneResourceCanRun(false, true, false), false)
+  at = 1_000
+  visuals.tick(at)
+  assert.ok(suspended > before)
+  assert.equal(visuals.snapshot().route.progress, suspended)
+
+  assert.equal(sceneResourceCanRun(false, false, false), true)
+  at = 5_010
+  visuals.resume(at)
+  visuals.tick(at)
+  assert.equal(visuals.snapshot().route.progress, suspended)
+  assert.equal(visuals.snapshot().route.active, true)
+})
+
 test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop', async () => {
   const [outlet, stage, three, threeCore] = await Promise.all([
     readFile(outletURL, 'utf8'),
@@ -155,6 +211,7 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /mounted\.interactionVisuals\?\.tick\(at\)/u)
   assert.match(outlet, /mounted\.interactionVisuals\?\.suspend\(at\)/u)
   assert.match(outlet, /mounted\.interactionVisuals\?\.resume\(at\)/u)
+  assert.match(outlet, /sceneResourceCanRun\(mounted\.suspended, hidden, contextLost\)/u)
   assert.match(outlet, /createDesktopWorldSceneInteractionThree/u)
   assert.match(outlet, /ensureInteractionVisuals/u)
   assert.match(outlet, /interactionVisuals: null/u)
