@@ -76,7 +76,6 @@ test('scene scaffold commands create deterministic, digest-valid artifacts witho
     await rm(temp, { recursive: true, force: true })
   }
 })
-
 test('scene scaffolds reject overwrite, traversal, linked parents, unsafe identity, and partial output', async () => {
   const temp = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-scaffold-attacks-'))
   try {
@@ -130,4 +129,3 @@ test('scene scaffolds reject overwrite, traversal, linked parents, unsafe identi
     await rm(temp, { recursive: true, force: true })
   }
 })
-

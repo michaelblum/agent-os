@@ -128,4 +128,3 @@ Only resources reachable from an owned scene and explicitly supplied
 disposables are released. Do not hand a lifecycle shared textures, materials,
 controls, or render targets it does not own. Always close the scene session in
 `finally` when the consumer no longer owns the resource.
-

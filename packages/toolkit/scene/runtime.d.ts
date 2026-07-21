@@ -60,4 +60,3 @@ export type {
   ThreeRenderLimits,
   ThreeRenderMetrics,
 } from './index.js';
-

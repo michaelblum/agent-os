@@ -80,4 +80,3 @@ another sampler.
 Stop `scene monitor` by terminating its owning client process. Close every
 DevTools session explicitly. Closing a view without closing its daemon session
 does not transfer session ownership.
-

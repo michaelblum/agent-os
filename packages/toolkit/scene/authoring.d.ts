@@ -56,4 +56,3 @@ export type {
   SceneValidationError,
   SceneValidationResult,
 } from './index.js';
-

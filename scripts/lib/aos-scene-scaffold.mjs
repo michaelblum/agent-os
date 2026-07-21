@@ -289,7 +289,6 @@ export async function scaffoldSceneCartridge(destination, { id, template } = {})
     files: fileSummary(files),
   })
 }
-
 export async function scaffoldSceneExtension(destination, { ownerId, id, template } = {}) {
   validateExtensionSegment(ownerId, 'owner')
   validateExtensionSegment(id, 'ID')
@@ -306,4 +305,3 @@ export async function scaffoldSceneExtension(destination, { ownerId, id, templat
     files: fileSummary(files),
   })
 }
-

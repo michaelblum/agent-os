@@ -12,4 +12,3 @@ export {
   validateSceneExtensionProjection,
   validateSceneExtensionReference,
 } from './scene-extension.js'
-

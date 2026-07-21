@@ -48,4 +48,3 @@ export {
   SCENE_IMPLEMENTATION_KINDS,
   createSceneImplementationRegistry,
 } from './scene-registry.js'
-

@@ -59,4 +59,3 @@ export {
   resolveSceneAimVisualStyle,
   resolveSceneRadialVisualStyle,
 } from './scene-interaction-visual.js'
-

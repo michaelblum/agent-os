@@ -118,4 +118,3 @@ trusted extension, not an expanding stock parameter vocabulary.
 Delete local scaffold output with the caller's normal workspace cleanup. A
 cartridge has no runtime lease until mounted through a session. Runtime cleanup
 is covered by the [Scene Runtime](./scene-runtime.md) guide.
-

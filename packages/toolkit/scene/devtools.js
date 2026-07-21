@@ -19,4 +19,3 @@ export {
   replayDesktopWorldSceneEvents,
   selectDesktopWorldResourceSnapshot,
 } from './desktop-world-client.js'
-
