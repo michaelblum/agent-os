@@ -1,5 +1,15 @@
 import Foundation
 
+enum AOSDesktopWorldSceneEventRouteOutcome: String, CaseIterable {
+    case enqueued
+    case enqueueFailed = "enqueue_failed"
+    case identityMismatch = "identity_mismatch"
+    case invalidEvent = "invalid_event"
+    case stageUnavailable = "stage_unavailable"
+    case staleTopology = "stale_topology"
+    case unsubscribed
+}
+
 struct AOSDesktopWorldSceneTopologyDescriptor {
     let identity: AOSDesktopWorldSceneStageIdentity
     let segments: [AOSDesktopWorldSceneStageSegment]
@@ -306,13 +316,13 @@ final class AOSDesktopWorldSceneController {
         identity: AOSDesktopWorldSceneStageIdentity,
         key: String,
         event: String,
-        deliver: (AOSSceneLeaseRoute) -> Void
-    ) {
+        enqueue: (AOSSceneLeaseRoute) -> Bool
+    ) -> AOSDesktopWorldSceneEventRouteOutcome {
         withLock {
             guard retirement == nil,
-                  readiness.isReady(for: identity),
-                  let route = leases.routeEvent(key: key, event: event) else { return }
-            deliver(route)
+                  readiness.isReady(for: identity) else { return .stageUnavailable }
+            guard let route = leases.routeEvent(key: key, event: event) else { return .unsubscribed }
+            return enqueue(route) ? .enqueued : .enqueueFailed
         }
     }
 

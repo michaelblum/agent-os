@@ -129,6 +129,7 @@ class UnifiedDaemon {
     private var contentServer: ContentServer?
     private lazy var sceneExtensionStore = AOSSceneExtensionStore()
     private lazy var sceneExtensionSchemeHandler = AOSSceneExtensionSchemeHandler(store: sceneExtensionStore)
+    private let desktopWorldSceneEventRouting = AOSDesktopWorldSceneEventRouteDiagnostics()
     let coordination = CoordinationBus()
 
     // Socket server
@@ -140,6 +141,7 @@ class UnifiedDaemon {
     private lazy var desktopWorldSceneTransport = AOSDesktopWorldSceneTransportController(
         canvasManager: canvasManager,
         extensionStore: sceneExtensionStore,
+        eventDiagnostics: desktopWorldSceneEventRouting,
         resolveContentURL: { [weak self] value in self?.resolveContentURL(value) ?? value },
         clearReadyManifest: { [weak self] in
             guard let self else { return }
@@ -3614,6 +3616,7 @@ class UnifiedDaemon {
                         "count": inputRegionSnapshot.count,
                         "active_capture": activeInputCapture,
                     ],
+                    "desktop_world_scene_event_routing": desktopWorldSceneEventRouting.snapshot(),
                     "surface_transport_probe": surfaceTransportProbeSnapshot(
                         inputEventSubscriberCount: inputEventSubscriberCount
                     ),

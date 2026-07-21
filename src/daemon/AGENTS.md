@@ -18,6 +18,9 @@ canvas I/O, extension admission, barrier timing, and bounded stage readiness
 wait around that state aggregate. `UnifiedDaemon` only delegates transport
 events and emits response envelopes. Do not recreate parallel scene ownership,
 subscription maps, or transport orchestration in the connection handler.
+DesktopWorld event-routing failures remain reason-coded and observable through
+bounded daemon diagnostics; never log scene payloads, gesture coordinates,
+labels, or product data to diagnose delivery.
 The singleton full-display stage must be created hidden and resume only after
 every physical display segment in the exact current canvas and topology
 generation reports ready following transparent renderer initialization.

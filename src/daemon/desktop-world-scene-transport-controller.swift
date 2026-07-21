@@ -16,11 +16,13 @@ final class AOSDesktopWorldSceneTransportController {
     private let resolveContentURL: (String) -> String
     private let clearReadyManifest: () -> Void
     private let emit: (AOSSceneLeaseRoute, String, [String: Any]) -> Bool
+    private let eventRouter: AOSDesktopWorldSceneEventRouter
 
     init(
         canvasManager: CanvasManager,
         scene: AOSDesktopWorldSceneController = AOSDesktopWorldSceneController(),
         extensionStore: AOSSceneExtensionStore,
+        eventDiagnostics: AOSDesktopWorldSceneEventRouteDiagnostics = AOSDesktopWorldSceneEventRouteDiagnostics(),
         resolveContentURL: @escaping (String) -> String,
         clearReadyManifest: @escaping () -> Void,
         emit: @escaping (AOSSceneLeaseRoute, String, [String: Any]) -> Bool
@@ -31,6 +33,11 @@ final class AOSDesktopWorldSceneTransportController {
         self.resolveContentURL = resolveContentURL
         self.clearReadyManifest = clearReadyManifest
         self.emit = emit
+        self.eventRouter = AOSDesktopWorldSceneEventRouter(
+            scene: scene,
+            diagnostics: eventDiagnostics,
+            emit: emit
+        )
     }
 
     func recordReady(
@@ -119,19 +126,11 @@ final class AOSDesktopWorldSceneTransportController {
     }
 
     func handleEvent(target: CanvasLifecycleGeneration, payload: [String: Any]) {
-        guard let topology = authenticatedTopology(target: target, payload: payload),
-              let key = payload["lease_key"] as? String,
-              let eventType = payload["event_type"] as? String,
-              let event = payload["event"] as? [String: Any],
-              let canonicalEvent = aosCanonicalSceneEvent(event),
-              eventType == "gesture",
-              canonicalEvent["type"] as? String == eventType,
-              let ownerID = canonicalEvent["ownerId"] as? String,
-              let resourceID = canonicalEvent["resourceId"] as? String,
-              scene.key(owner: ownerID, resource: resourceID) == key else { return }
-        scene.withEventRoute(identity: stageIdentity(topology), key: key, event: eventType) { route in
-            _ = emit(route, eventType, canonicalEvent)
+        guard let topology = authenticatedTopology(target: target, payload: payload) else {
+            eventRouter.record(.staleTopology)
+            return
         }
+        eventRouter.handle(identity: stageIdentity(topology), payload: payload)
     }
 
     func ensureStage() -> DesktopWorldSceneBarrierTopology? {

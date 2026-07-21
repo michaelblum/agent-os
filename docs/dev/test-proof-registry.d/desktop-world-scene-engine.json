@@ -61,6 +61,7 @@
     {
       "id": "desktop-world-scene-event-contract",
       "path_patterns": [
+        "tests/desktop-world-scene-event-routing.test.mjs",
         "tests/daemon-scene-lease-registry.sh",
         "tests/daemon-scene-event.sh",
         "tests/schemas/scene-event-v1.test.mjs"
@@ -74,7 +75,7 @@
       "proof_kind": "scene_event_subscription_contract",
       "contract": "Scene leases atomically own subscriptions and route strict bounded gesture events only to the current owner connection.",
       "worth": "This prevents cross-owner event leakage, stale subscription delivery, and product payloads in the public scene stream.",
-      "command": "bash tests/daemon-scene-lease-registry.sh && bash tests/daemon-scene-event.sh && node --test tests/schemas/scene-event-v1.test.mjs tests/schemas/daemon-event.test.mjs",
+      "command": "bash tests/daemon-scene-lease-registry.sh && bash tests/daemon-scene-event.sh && node --test tests/desktop-world-scene-event-routing.test.mjs tests/schemas/scene-event-v1.test.mjs tests/schemas/daemon-event.test.mjs",
       "replaces": [],
       "guard": "disposable Swift model plus JSON-schema fixtures only; no AOS binary, daemon socket, GUI, TCC, or GPU",
       "status": "active"
