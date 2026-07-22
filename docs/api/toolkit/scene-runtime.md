@@ -105,8 +105,8 @@ one-shot remains complete until an explicit restart.
 `createThreeRenderLifecycle()` owns resize observation, DPR and backing-pixel
 limits, visibility and context-loss suspension, the caller-supplied render
 callback, and idempotent disposal. Default DPR is capped at 2, backing
-dimensions at 4096, and backing pixels at 4,194,304. DesktopWorld lowers its
-per-display-segment pixel ceiling to 2,097,152.
+dimensions at 4096, and backing pixels at 4,194,304. DesktopWorld uses the same
+per-display-segment pixel ceiling while retaining its independent segment budget.
 
 `DesktopWorldSurfaceThree` (alias `DesktopWorldSurface3D`) adds segment-aware
 camera and viewport refresh. `deriveOrthoCamera()` is the pure segment-to-frustum

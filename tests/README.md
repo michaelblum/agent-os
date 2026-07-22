@@ -232,6 +232,7 @@ Deterministic radial and runtime contract:
 
 ```bash
 node --test \
+  tests/toolkit/scene-radial-menu-authoring.test.mjs \
   tests/toolkit/runtime-radial-gesture.test.mjs \
   tests/toolkit/runtime-radial-menu-config.test.mjs \
   tests/toolkit/runtime-radial-item-transition.test.mjs \

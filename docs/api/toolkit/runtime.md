@@ -431,54 +431,17 @@ mixing transition state into static geometry tuning data. Use
 `resolveRadialItemActivationTransition(item)` before attaching the result to a
 menu activation request.
 
-### 3D Radial Menu Config
+### 3D Radial Menu Compatibility Exports
 
-`packages/toolkit/runtime/radial-menu/default-3d.json` is the V0 data contract
-for a renderer-neutral 3D radial menu expression. The JSON keeps ordinary menu
-fundamentals (`id`, labels, actions, disabled/hidden/current/checked state,
-typeahead text, shortcut labels, children or submenu refs, semantic roles, and
-target-surface/action payload descriptors) separate from the optional 3D
-expression layer (`geometry`, model refs, item hover transforms, activation
-transitions, materials, and effect/module refs).
+The runtime entry point continues to export the renderer-neutral 3D definition
+resolver and activation-transition helpers for compatibility. New authors
+should import them from `@agent-os/toolkit/scene/radial-menu`, which also owns
+the strict bridge into DesktopWorld interaction parameters.
 
-`packages/toolkit/runtime/radial-menu-config.js` provides the data-only
-resolver. It can clone and merge plain JSON, resolve an `extends` definition
-from an allowlisted map, merge items by stable `id`, validate required V0
-fields, and produce both `items` for renderers and `logical_items` for DOM/AX,
-keyboard, test, or future menu-stack projections. Arrays replace by default;
-menu items are the V0 keyed-merge exception. The resolver intentionally imports
-no Three.js, DOM, app actions, Zag, or dynamic module code.
-
-The `logical_items` output is the stable lower menu projection. DOM, AX,
-semantic child canvases, tests, and ordinary stack-menu projections should
-consume that projection instead of walking 3D geometry or consumer item modules.
-The 3D expression remains layered data on each resolved item for a renderer or
-app-owned adapter to consume.
-
-Radial geometry supports fixed and trigger-vector placement. With
-`geometry.orientation: "trigger-vector"`, the menu locks its item angles from
-the pointer vector that first crosses into the radial gesture. It does not track
-later cursor movement; returning inside the dead zone re-arms the vector so the
-next outward crossing can choose a new placement. Trigger-vector placement
-reserves that crossing vector as an egress lane: item array order fans out on
-the left and right flanks with no item centered directly on the drag vector.
-For odd item counts, the leading flank receives the extra item. Put higher
-priority or easy-switch items near the middle of the array when they should sit
-adjacent to the lane.
-
-Hover defaults cascade from toolkit menu defaults to app/menu overrides and
-then item overrides under `three.item.hover`. The default hover transform uses
-exponential progress with `factor: 0.22`, scale `1 -> 1.08`, and y-axis spin.
-Apps can override those values in their own JSON manifests; a consumer can set item hover scale
-to `1 -> 2` for every item and changes the cog and annotation reticle to
-z-axis wheel spin. Flat glyphs that must keep their face toward the viewer can
-set `three.item.facing: "camera"` so the renderer suppresses radial-angle yaw
-while preserving screen-plane Z spin.
-
-Zag is intentionally outside the 3D radial render path. It remains appropriate
-for ordinary DOM/AX/2D menu projections of the resolved logical menu model, but
-it does not own radial pointer geometry, drag-to-handoff state, or per-frame
-3D animation.
+Use [Radial Menu Authoring](./radial-menu-authoring.md) for logical projection,
+trigger-vector geometry, hover inheritance, trusted 3D rendering, workbench
+editing, and acceptance. That guide is the canonical authoring route; this
+runtime page does not define a second radial-menu model.
 
 ### `wireBridge(handler)`
 

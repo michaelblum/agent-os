@@ -145,18 +145,20 @@
         "tests/scene-scaffold-cli.test.mjs",
         "tests/schemas/desktop-world-scene-tooling.test.mjs",
         "tests/toolkit/desktop-world-client.test.mjs",
-        "tests/toolkit/desktop-world-session.test.mjs"
+        "tests/toolkit/desktop-world-session.test.mjs",
+        "tests/toolkit/scene-radial-menu-authoring.test.mjs"
       ],
       "fixture_patterns": [
+        "packages/toolkit/scene/examples/radial-menu-authoring.mjs",
         "packages/toolkit/scene/examples/session-lifecycle.mjs",
         "packages/toolkit/scene/fixtures/*.ndjson"
       ],
       "owner": "desktop-world-agent-tooling",
       "harness_level": "model_unit",
       "proof_kind": "desktop_world_agent_tooling_contract",
-      "contract": "Transport-injected SDK methods, the serialized recover-once session, deterministic create-new scaffolds, bounded headless inspection, connection-scoped monitoring, deterministic replay, schemas, and public CLI forms share the canonical DesktopWorld model.",
-      "worth": "This proves an agent can start from an empty directory, create valid scene artifacts, run the public lifecycle through a fake transport, recover once without replaying uncertainty, and debug through machine-readable tools without private sockets, live TCC input, product content, or competing telemetry.",
-      "command": "node --test tests/toolkit/desktop-world-client.test.mjs tests/toolkit/desktop-world-session.test.mjs tests/schemas/desktop-world-scene-tooling.test.mjs tests/scene-agent-tooling-cli.test.mjs tests/scene-scaffold-cli.test.mjs tests/scene-agent-authoring-acceptance.test.mjs",
+      "contract": "Transport-injected SDK methods, the serialized recover-once session, deterministic create-new scaffolds, bounded radial-menu projections, headless inspection, connection-scoped monitoring, deterministic replay, schemas, and public CLI forms share the canonical DesktopWorld model.",
+      "worth": "This proves an agent can start from an empty directory, create valid scene artifacts, compile a product-neutral radial menu without leaking actions or visuals into runtime parameters, run the public lifecycle through a fake transport, recover once without replaying uncertainty, and debug through machine-readable tools without private sockets, live TCC input, product content, or competing telemetry.",
+      "command": "node --test tests/toolkit/desktop-world-client.test.mjs tests/toolkit/desktop-world-session.test.mjs tests/toolkit/scene-radial-menu-authoring.test.mjs tests/schemas/desktop-world-scene-tooling.test.mjs tests/scene-agent-tooling-cli.test.mjs tests/scene-scaffold-cli.test.mjs tests/scene-agent-authoring-acceptance.test.mjs",
       "replaces": [],
       "guard": "pure SDK/schema tests, temporary owner-only artifacts, fake transports, and a temporary fake Unix socket; no AOS binary, real daemon, GUI, TCC, WebGL, or live DesktopWorld",
       "status": "active"

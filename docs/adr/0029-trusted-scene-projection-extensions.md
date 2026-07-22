@@ -163,7 +163,7 @@ not performance baselines. DesktopWorld performance acceptance uses the public
 `DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS`: a prewarmed transition starts
 within 250 ms and is projection-ready within 750 ms; input-to-visual P95 is at
 most 50 ms; 60 Hz frame P95 remains within 1.1 times the frame budget and no
-steady frame exceeds 100 ms. Each display segment is capped at 2,097,152
+steady frame exceeds 100 ms. Each display segment is capped at 4,194,304
 backing pixels. Cross-display projection may not disappear for more than two
 frames. After 100 warmed summon/travel/park cycles, RSS growth is at most 16
 MiB and resource counts return to baseline. P95 evidence requires at least 20

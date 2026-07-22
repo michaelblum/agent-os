@@ -44,6 +44,12 @@ export {
   validateSceneRadialMenuParameters,
   withSceneRadialSelection,
 } from './scene-radial-menu.js'
+export {
+  SCENE_RADIAL_MENU_AUTHORING_CONTRACT_ID,
+  SCENE_RADIAL_MENU_AUTHORING_LIMITS,
+  compileSceneRadialMenuDefinition,
+  validateSceneRadialMenuAuthoringDefinition,
+} from './scene-radial-menu-authoring.js'
 export { applySceneTransaction } from './scene-transaction.js'
 export {
   SCENE_IMPLEMENTATION_KINDS,

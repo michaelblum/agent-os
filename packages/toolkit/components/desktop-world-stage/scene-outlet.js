@@ -3,6 +3,7 @@ import {
   applySceneTransaction,
   canonicalizeSceneDocument,
   createDesktopWorldGpuTimer,
+  DEFAULT_THREE_RENDER_LIMITS,
   deriveOrthoCamera,
   resolveThreeRenderMetrics,
 } from '../../scene/index.js'
@@ -24,7 +25,7 @@ const MAX_SIGNALS_PER_SECOND = 30
 export const DESKTOP_WORLD_SCENE_RENDER_LIMITS = Object.freeze({
   maxDevicePixelRatio: 2,
   maxBackingDimension: 4096,
-  maxBackingPixels: 2_097_152,
+  maxBackingPixels: DEFAULT_THREE_RENDER_LIMITS.maxBackingPixels,
 })
 
 function sceneOutletError(code, message) {

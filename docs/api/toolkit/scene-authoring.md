@@ -111,6 +111,11 @@ Candidate region generations remain inactive until every new region is ready
 and every old region can retire. Input stays on the prior generation until the
 barrier commits; ambiguous replacement fails closed.
 
+For logical actions, semantic labels, custom 3D item art, hover behavior, and
+activation transitions, compile one renderer-neutral definition through
+`@agent-os/toolkit/scene/radial-menu`. The canonical route is documented in
+[Radial Menu Authoring](./radial-menu-authoring.md).
+
 ## Stock Implementations
 
 `createSceneImplementationRegistry()` is the trusted implementation boundary.

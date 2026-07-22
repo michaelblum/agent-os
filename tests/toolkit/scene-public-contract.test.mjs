@@ -7,6 +7,7 @@ import * as authoringToolkit from '../../packages/toolkit/scene/authoring.js'
 import * as devtoolsToolkit from '../../packages/toolkit/scene/devtools.js'
 import * as extensionToolkit from '../../packages/toolkit/scene/extensions.js'
 import * as runtimeToolkit from '../../packages/toolkit/scene/runtime.js'
+import * as radialMenuToolkit from '../../packages/toolkit/scene/radial-menu.js'
 
 const EXPECTED_EXPORTS = [
   'DEFAULT_SCENE_HOST_BUDGETS',
@@ -167,6 +168,11 @@ test('scene package facade exposes only the reviewed scene-authoring contract', 
       import: './scene/devtools.js',
       default: './scene/devtools.js',
     },
+    './scene/radial-menu': {
+      types: './scene/radial-menu.d.ts',
+      import: './scene/radial-menu.js',
+      default: './scene/radial-menu.js',
+    },
     './status-item': {
       types: './status-item/index.d.ts',
       import: './status-item/index.js',
@@ -178,6 +184,7 @@ test('scene package facade exposes only the reviewed scene-authoring contract', 
 test('focused scene entry points expose their owned contract families', () => {
   assert.equal(typeof authoringToolkit.validateSceneCartridge, 'function')
   assert.equal(typeof authoringToolkit.createSceneGestureArena, 'function')
+  assert.equal(typeof authoringToolkit.compileSceneRadialMenuDefinition, 'function')
   assert.equal(Object.hasOwn(authoringToolkit, 'createDesktopWorldSceneSession'), false)
 
   assert.equal(typeof runtimeToolkit.createDesktopWorldSceneSession, 'function')
@@ -192,6 +199,11 @@ test('focused scene entry points expose their owned contract families', () => {
   assert.equal(typeof devtoolsToolkit.createDesktopWorldDevToolsView, 'function')
   assert.equal(typeof devtoolsToolkit.replayDesktopWorldSceneEvents, 'function')
   assert.equal(Object.hasOwn(devtoolsToolkit, 'createLocalSceneViewportHost'), false)
+
+  assert.equal(typeof radialMenuToolkit.resolveRadialMenuConfig, 'function')
+  assert.equal(typeof radialMenuToolkit.resolveRadialItemActivationTransition, 'function')
+  assert.equal(typeof radialMenuToolkit.compileSceneRadialMenuDefinition, 'function')
+  assert.equal(typeof radialMenuToolkit.resolveSceneRadialMenuLayout, 'function')
 })
 
 test('scene facade drives descriptor, form, and renderer synchronization without product policy', () => {

@@ -8,6 +8,18 @@
   "preferred_initial_item": null,
   "close_on_select": true,
   "typeahead": true,
+  "scene": {
+    "radius": 108,
+    "spreadDegrees": 88,
+    "startAngle": -90,
+    "closeOnSelect": true,
+    "style": {
+      "activeColor": "#ffffff",
+      "fillColor": "#201b2f",
+      "itemRadius": 20,
+      "opacity": 0.94
+    }
+  },
   "defaults": {
     "item": {
       "role": "menuitem",
