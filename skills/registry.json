@@ -129,6 +129,33 @@
       ]
     },
     {
+      "name": "aos-toolkit-authoring",
+      "path": "skills/aos-toolkit-authoring",
+      "description": "Choose and compose AOS toolkit controls, panels, workbenches, components, DesktopWorld scenes, radial menus, and trusted visual extensions. Trigger when an agent must decide which AOS toolkit layer owns a reusable UI or visual behavior before implementing it.",
+      "status": "installable",
+      "installable": true,
+      "invocation": "enabled",
+      "target_support": [
+        "agents",
+        "claude",
+        "codex",
+        "path"
+      ],
+      "ownership": "AOS-owned installable toolkit boundary-selection and authoring skill.",
+      "references": [
+        "docs/api/toolkit.md",
+        "docs/guides/aos-surface-interaction-decision-tree.md",
+        "docs/api/toolkit/scene.md",
+        "docs/api/toolkit/radial-menu-authoring.md"
+      ],
+      "claims_durable_behavior": true,
+      "backing": [
+        "docs/api/toolkit.md",
+        "docs/guides/aos-surface-interaction-decision-tree.md",
+        "packages/toolkit/AGENTS.md"
+      ]
+    },
+    {
       "name": "aos-desktop-world-authoring",
       "path": "skills/aos-desktop-world-authoring",
       "description": "Author, validate, run, inspect, profile, and replay AOS DesktopWorld scenes through data-only cartridges or reviewed trusted extensions. Trigger for multi-display 3D scenes, gestures, radial menus, scene telemetry, extension review, or detachable engine DevTools.",
@@ -161,6 +188,37 @@
         "packages/toolkit/scene/examples/session-lifecycle.mjs",
         "docs/api/aos.md",
         "manifests/commands/source/aos/39-scene.json"
+      ]
+    },
+    {
+      "name": "aos-radial-menu-authoring",
+      "path": "skills/aos-radial-menu-authoring",
+      "description": "Author logical, semantic, 2D, and 3D AOS radial menus and radial items with bounded gestures, dismissal, hover visuals, transitions, effects, actions, inspection, and tests. Trigger for radial menus, 3D menu items, hover animation, radial item art, or radial-menu workbenches.",
+      "status": "installable",
+      "installable": true,
+      "invocation": "enabled",
+      "target_support": [
+        "agents",
+        "claude",
+        "codex",
+        "path"
+      ],
+      "ownership": "AOS-owned installable radial-menu and radial-item authoring skill.",
+      "references": [
+        "docs/api/toolkit/radial-menu-authoring.md",
+        "docs/api/toolkit/scene-authoring.md",
+        "docs/api/toolkit/scene-extensions.md",
+        "docs/api/toolkit/workbench.md",
+        "shared/schemas/radial-menu-3d.schema.json",
+        "packages/toolkit/scene/examples/radial-menu-authoring.mjs"
+      ],
+      "claims_durable_behavior": true,
+      "backing": [
+        "docs/api/toolkit/radial-menu-authoring.md",
+        "packages/toolkit/scene/radial-menu.js",
+        "packages/toolkit/scene/scene-radial-menu-authoring.js",
+        "shared/schemas/radial-menu-3d.schema.json",
+        "tests/toolkit/scene-radial-menu-authoring.test.mjs"
       ]
     },
     {

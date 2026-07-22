@@ -1,6 +1,17 @@
 export * from './scene-interaction.js';
 export * from './scene-radial-menu.js';
 export {
+  SCENE_RADIAL_MENU_AUTHORING_CONTRACT_ID,
+  SCENE_RADIAL_MENU_AUTHORING_LIMITS,
+  compileSceneRadialMenuDefinition,
+  validateSceneRadialMenuAuthoringDefinition,
+} from './radial-menu.js';
+export type {
+  CompiledSceneRadialMenuDefinition,
+  RadialMenu3DDefinition,
+  SceneRadialMenuAuthoringError,
+} from './radial-menu.js';
+export {
   SCENE_DOCUMENT_CONTRACT_ID,
   SCENE_DOCUMENT_LIMITS,
   SCENE_LEASE_CONTRACT_ID,

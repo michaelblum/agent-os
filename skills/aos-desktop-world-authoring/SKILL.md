@@ -25,6 +25,7 @@ Read the focused contracts before editing:
 - `docs/api/toolkit/scene-runtime.md`
 - `docs/api/toolkit/scene-extensions.md`
 - `docs/api/toolkit/scene-devtools.md`
+- `docs/api/toolkit/radial-menu-authoring.md`
 
 ## Scaffold A Cartridge
 
@@ -102,6 +103,10 @@ native geometry. Never infer native coordinates from DesktopWorld-local bounds.
 - Bind a stock `radial` recognizer for a bounded radial menu. Give every item a
   canonical `id` and a short `label`; AOS uses the label for native semantic
   identity while events expose only the item ID.
+
+Use `aos-radial-menu-authoring` when the menu needs logical action projection,
+custom 3D item art, hover behavior, activation transitions, or workbench
+editing. Do not invent a second radial descriptor inside the scene cartridge.
 
 The recognizer lifecycle is `start`, `update`, `end`, and `cancel`. Escape,
 pointer loss, topology change, and owner loss cancel through AOS. Cartridges
@@ -220,6 +225,7 @@ mounted scene lease.
 - `docs/api/toolkit/scene-runtime.md`
 - `docs/api/toolkit/scene-extensions.md`
 - `docs/api/toolkit/scene-devtools.md`
+- `docs/api/toolkit/radial-menu-authoring.md`
 - `docs/api/aos.md`
 - `packages/toolkit/scene/examples/session-lifecycle.mjs`
 - `shared/schemas/scene-event-v1.schema.json`

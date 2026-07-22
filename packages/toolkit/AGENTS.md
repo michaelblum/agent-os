@@ -26,7 +26,8 @@ Layer intent:
 - `status-item/`: product-neutral native status-item descriptor,
   compare-and-swap update, event, and validation helpers.
 - `scene/`: narrow external package facade over reviewed Three lifecycle,
-  DesktopWorld, canvas lifecycle, and visual-object contracts.
+  DesktopWorld, radial-menu authoring, canvas lifecycle, and visual-object
+  contracts.
 
 Toolkit policy must stay generic. If a behavior only makes sense for a
 specific external product, it belongs in that product repository. If toolkit
@@ -71,6 +72,7 @@ Consumer-facing toolkit contracts are indexed at `docs/api/toolkit.md`. Prefer
 the scoped API file for the layer you are changing:
 `docs/api/toolkit/runtime.md`, `docs/api/toolkit/panel-window.md`,
 `docs/api/toolkit/workbench.md`, `docs/api/toolkit/scene.md`,
+`docs/api/toolkit/radial-menu-authoring.md`,
 `docs/api/toolkit/status-item.md`,
 `docs/api/toolkit/components.md`, or
 `docs/api/toolkit/content-host.md`.

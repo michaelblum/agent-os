@@ -183,6 +183,56 @@ test('authoring skill contains exact routes without placeholders or private tran
   assert.doesNotMatch(skill, /roadmap|future status-item|dependent visual slice/iu)
 })
 
+test('toolkit and radial-menu skills route agents through one executable authoring contract', async () => {
+  const [toolkitSkill, radialSkill] = await Promise.all([
+    readFile(path.join(repoRoot, 'skills/aos-toolkit-authoring/SKILL.md'), 'utf8'),
+    readFile(path.join(repoRoot, 'skills/aos-radial-menu-authoring/SKILL.md'), 'utf8'),
+  ])
+
+  for (const phrase of [
+    '@agent-os/toolkit/scene/radial-menu',
+    'docs/guides/aos-surface-interaction-decision-tree.md',
+    'Consumers own names, product actions',
+  ]) assert.match(toolkitSkill, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'u'))
+
+  for (const command of [
+    'node packages/toolkit/scene/examples/radial-menu-authoring.mjs --json',
+    'aos scene cartridge scaffold ./scene-work/radial',
+    'aos scene cartridge validate ./scene-work/radial --json',
+    'aos scene extension scaffold ./scene-work/radial-renderer',
+    'aos scene extension validate ./scene-work/radial-renderer --json',
+    'aos scene inspect --resource example/radial --json',
+  ]) assert.match(radialSkill, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'u'))
+
+  for (const skill of [toolkitSkill, radialSkill]) {
+    assert.doesNotMatch(skill, /\{\.\.\.\}/u)
+    assert.doesNotMatch(skill, /AOS_STATE_ROOT|net\.connect|\/sock\b/u)
+  }
+
+  const example = assertOk(await runNode([
+    'packages/toolkit/scene/examples/radial-menu-authoring.mjs', '--json',
+  ]), 'radial-menu authoring example')
+  assert.deepEqual(example, {
+    status: 'ok',
+    contract: 'aos.scene.radial-menu-authoring.v1',
+    menuId: 'example.radial.main',
+    runtimeItemIds: ['inspect', 'move', 'details'],
+    logicalActions: [
+      { id: 'inspect', action: 'inspect' },
+      { id: 'move', action: 'move' },
+      { id: 'details', action: 'details' },
+    ],
+    visualKinds: [
+      { id: 'inspect', kind: 'procedural' },
+      { id: 'move', kind: 'procedural' },
+      { id: 'details', kind: 'procedural' },
+    ],
+    gestureOrientation: 'fixed',
+    runtimePayloadContainsActions: false,
+    runtimePayloadContainsVisuals: false,
+  })
+})
+
 test('scene scaffold guides describe the manifest-last activation boundary', async () => {
   const guides = await Promise.all([
     readFile(path.join(repoRoot, 'docs/api/toolkit/scene-authoring.md'), 'utf8'),

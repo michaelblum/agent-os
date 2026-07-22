@@ -101,6 +101,9 @@ placement. Product art appears only after the full input generation activates.
 If retirement is temporarily unavailable, the art remains visible but cannot
 dispatch until AOS confirms cleanup.
 
+Use [Radial Menu Authoring](./radial-menu-authoring.md) for the canonical split
+between logical items, strict scene parameters, and consumer-owned 3D visuals.
+
 At creation, extension limits are lowered to unallocated segment headroom.
 Replacement accounts for old and candidate projections concurrently. Commit
 activates and audits the candidate before publishing it. Sampled audits remain

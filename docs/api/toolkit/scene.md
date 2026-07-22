@@ -9,6 +9,7 @@ task:
 | Data-only scenes and interactions | `@agent-os/toolkit/scene/authoring` | [Authoring](./scene-authoring.md) |
 | Session, hosts, signals, animation, and rendering | `@agent-os/toolkit/scene/runtime` | [Runtime](./scene-runtime.md) |
 | Reviewed trusted projection code | `@agent-os/toolkit/scene/extensions` | [Extensions](./scene-extensions.md) |
+| Logical, semantic, and 3D radial menus | `@agent-os/toolkit/scene/radial-menu` | [Radial menus](./radial-menu-authoring.md) |
 | Inspection, profiling, monitoring, and replay | `@agent-os/toolkit/scene/devtools` | [DevTools](./scene-devtools.md) |
 
 The broad `@agent-os/toolkit/scene` export remains stable for existing
@@ -76,6 +77,8 @@ opening the private daemon socket.
 - `aos.scene.cartridge.v1` digest-binds scene, animation, interaction, and
   local asset data.
 - `aos.scene.event.v1` carries typed product-neutral gesture events.
+- `aos.scene.radial-menu-authoring.v1` separates runtime, logical-action, and
+  visual radial-menu projections.
 - `aos.scene.extension.v1` binds reviewed projection code to owner, ABI, Three
   revision, implementation IDs, and budgets.
 - `aos.desktop-world.devtools.stage.v1` is the content-free engine snapshot.

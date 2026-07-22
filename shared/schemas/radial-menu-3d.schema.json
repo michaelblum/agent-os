@@ -19,8 +19,10 @@
     "typeahead": { "type": "boolean" },
     "defaults": { "$ref": "#/$defs/object" },
     "geometry": { "$ref": "#/$defs/object" },
+    "scene": { "$ref": "#/$defs/sceneProjection" },
     "items": {
       "type": "array",
+      "maxItems": 32,
       "items": { "$ref": "#/$defs/menuItem" }
     }
   },
@@ -29,6 +31,26 @@
     "object": {
       "type": "object",
       "additionalProperties": true
+    },
+    "sceneProjection": {
+      "type": "object",
+      "properties": {
+        "closeOnSelect": { "type": "boolean" },
+        "radius": { "type": "number", "minimum": 1, "maximum": 2048 },
+        "spreadDegrees": { "type": "number", "exclusiveMinimum": 0, "maximum": 360 },
+        "startAngle": { "type": "number", "minimum": -3600, "maximum": 3600 },
+        "style": {
+          "type": "object",
+          "properties": {
+            "activeColor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$" },
+            "fillColor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$" },
+            "itemRadius": { "type": "number", "minimum": 2, "maximum": 128 },
+            "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     },
     "menuItem": {
       "type": "object",
@@ -49,6 +71,7 @@
         "action_payload": {},
         "children": {
           "type": "array",
+          "maxItems": 32,
           "items": { "$ref": "#/$defs/menuItem" }
         },
         "submenu_ref": { "type": "string" },
