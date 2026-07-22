@@ -57,6 +57,8 @@ test('radial-menu semantic labels are bounded and remain outside normalized even
     assert.ok(validateSceneRadialMenuParameters(invalid)
       .some((entry) => entry.code === 'invalid_radial_item_label'))
   }
+  invalid.items[0].label = `valid${String.fromCodePoint(0xe0101)}label`
+  assert.equal(validateSceneRadialMenuParameters(invalid).length, 0)
   const layout = resolveSceneRadialMenuLayout({ ...parameters, origin: { x: 100, y: 100 } })
   assert.equal('label' in layout.items[0], false)
 })
