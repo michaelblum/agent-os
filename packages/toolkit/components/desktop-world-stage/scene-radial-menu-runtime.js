@@ -5,6 +5,7 @@ import {
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
 
 const MAX_ACTIVE_MENUS = 32
+const MAX_BUFFERED_GENERATION_INPUTS = 64
 
 function boundedId(value) {
   return String(value ?? '').replace(/[^a-zA-Z0-9._/-]/gu, '_').slice(0, 128)
@@ -115,6 +116,7 @@ export function createDesktopWorldSceneRadialMenuRuntime({
   const active = new Map()
   const retired = new Set()
   const regionIndex = new Map()
+  const guardedRegionIndex = new Map()
   const queues = new Map()
   let generation = 0
 
@@ -132,7 +134,10 @@ export function createDesktopWorldSceneRadialMenuRuntime({
     if (!isPrimary()) {
       session.regionIds.clear()
       session.regionPayloads.clear()
-      ids.forEach((id) => regionIndex.delete(id))
+      ids.forEach((id) => {
+        regionIndex.delete(id)
+        guardedRegionIndex.delete(id)
+      })
       return
     }
     let pending = ids
@@ -149,6 +154,7 @@ export function createDesktopWorldSceneRadialMenuRuntime({
           session.regionIds.delete(id)
           session.regionPayloads.delete(id)
           regionIndex.delete(id)
+          guardedRegionIndex.delete(id)
         }
         else {
           retry.push(id)
@@ -161,9 +167,48 @@ export function createDesktopWorldSceneRadialMenuRuntime({
   }
 
   function clearRegions(session) {
-    for (const id of session.regionIds) regionIndex.delete(id)
+    for (const id of session.regionIds) {
+      regionIndex.delete(id)
+      guardedRegionIndex.delete(id)
+    }
     session.regionIds.clear()
     session.regionPayloads.clear()
+    session.dispatchGuard = null
+  }
+
+  function releaseDispatchGuard(session, guard = session.dispatchGuard) {
+    if (!guard) return
+    for (const [id, candidate] of guardedRegionIndex) {
+      if (candidate === guard) guardedRegionIndex.delete(id)
+    }
+    if (session.dispatchGuard === guard) session.dispatchGuard = null
+  }
+
+  function stageDispatchGuard(session, entries) {
+    const guard = {
+      bufferedInputs: [],
+      inputOverflow: false,
+      session,
+      state: 'activating',
+    }
+    session.dispatchGuard = guard
+    for (const entry of entries) guardedRegionIndex.set(entry.payload.id, guard)
+    return guard
+  }
+
+  function retainRetirementGuard(session) {
+    if (session.regionIds.size === 0 && !session.dispatchGuard) return
+    const guard = session.dispatchGuard ?? {
+      bufferedInputs: [],
+      inputOverflow: false,
+      session,
+      state: 'retiring',
+    }
+    guard.state = 'retiring'
+    guard.bufferedInputs.length = 0
+    guard.inputOverflow = false
+    session.dispatchGuard = guard
+    for (const id of session.regionIds) guardedRegionIndex.set(id, guard)
   }
 
   function finalizeClose(session) {
@@ -187,6 +232,7 @@ export function createDesktopWorldSceneRadialMenuRuntime({
     session.visualApplied = false
     session.finalized = true
     session.errorCode = null
+    releaseDispatchGuard(session)
     retired.delete(session)
   }
 
@@ -253,6 +299,7 @@ export function createDesktopWorldSceneRadialMenuRuntime({
     session.closed = true
     session.dispatchable = false
     session.closeRequest = { emitEvent, input, reason }
+    retainRetirementGuard(session)
     for (const id of session.regionIds) regionIndex.delete(id)
     enqueue(key, async () => {
       try {
@@ -287,6 +334,7 @@ export function createDesktopWorldSceneRadialMenuRuntime({
       finalized: false,
       now,
       visualApplied: false,
+      dispatchGuard: null,
     }
     active.set(key, session)
     enqueue(key, async () => {
@@ -312,7 +360,9 @@ export function createDesktopWorldSceneRadialMenuRuntime({
           await retireAndFinalize(session)
           return
         }
+        let dispatchGuard = null
         if (isPrimary()) {
+          dispatchGuard = stageDispatchGuard(session, entries)
           await replaceRegionGeneration({
             activate: entries.map(({ payload }) => payload),
             retire: [],
@@ -321,6 +371,9 @@ export function createDesktopWorldSceneRadialMenuRuntime({
         if (session.closed || active.get(key) !== session) {
           await retireAndFinalize(session)
           return
+        }
+        if (dispatchGuard?.inputOverflow) {
+          throw new RangeError('DesktopWorld radial-menu activation input buffer exceeded.')
         }
         session.visualApplied = true
         const applied = outlet.applyInteractionResponse(key, {
@@ -331,9 +384,18 @@ export function createDesktopWorldSceneRadialMenuRuntime({
           topology: topology(),
         })
         if (applied?.applied !== true) throw new Error('DesktopWorld radial-menu visual activation failed.')
-        session.dispatchable = true
         for (const entry of entries) {
           regionIndex.set(entry.payload.id, { session, item: entry.item, outside: entry.outside })
+        }
+        session.dispatchable = true
+        const bufferedInputs = dispatchGuard ? [...dispatchGuard.bufferedInputs] : []
+        if (dispatchGuard) {
+          dispatchGuard.state = 'committed'
+          releaseDispatchGuard(session, dispatchGuard)
+        }
+        for (const bufferedInput of bufferedInputs) {
+          if (session.closed || active.get(key) !== session) break
+          handleInput(bufferedInput)
         }
       } catch {
         session.errorCode = 'RADIAL_MENU_REGION_ACTIVATION_FAILED'
@@ -380,6 +442,17 @@ export function createDesktopWorldSceneRadialMenuRuntime({
     if (!input) return false
     if (input.eventKind === 'key' && input.type === 'key_down' && input.key?.logical === 'Escape') {
       return [...active.keys()].map((key) => close(key, 'escape', { input })).some(Boolean)
+    }
+    const guarded = input.regionId ? guardedRegionIndex.get(input.regionId) : null
+    if (guarded) {
+      if (guarded.state === 'activating') {
+        if (guarded.bufferedInputs.length < MAX_BUFFERED_GENERATION_INPUTS) {
+          guarded.bufferedInputs.push(message)
+        } else {
+          guarded.inputOverflow = true
+        }
+      }
+      return true
     }
     const indexed = regionIndex.get(input.regionId)
     if (!indexed) return false

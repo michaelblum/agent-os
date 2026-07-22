@@ -673,7 +673,7 @@ test('radial-menu regions remain inactive until one atomic generation replacemen
     .every((payload) => payload.enabled === true && payload.consume_policy === 'captured'))
   assert.equal(activated.find((payload) => payload.metadata.scene_radial_outside === 'true')?.consume_policy, 'never')
   assert.deepEqual(runtime.snapshot(key).radialMenus, [])
-  assert.equal(runtime.handleInput(routed(activated[0].id, 'left_mouse_down', 100, 100, 3)), false)
+  assert.equal(runtime.handleInput(routed(activated[0].id, 'left_mouse_down', 100, 100, 3)), true)
   assert.equal(events.some(({ event }) => event.response.action === 'focus'), false)
   assert.equal(responses.some(({ frame, response }) => frame.phase === 'end' && response.action === 'open'), false)
 
@@ -690,6 +690,109 @@ test('radial-menu regions remain inactive until one atomic generation replacemen
     frame[0] + frame[2] / 2,
     frame[1] + frame[3] / 2,
   ]))
+  await runtime.dispose()
+})
+
+test('radial-menu activation buffers input delivered before native replacement acknowledgement', async () => {
+  let runtime
+  let handledDuringAcknowledgement = []
+  let observedDuringAcknowledgement = []
+  const result = harness({
+    replace: async ({ activate }) => {
+      const item = activate.find((payload) => (
+        payload.id.includes(':menu:') && payload.metadata?.scene_radial_outside !== 'true'
+      ))
+      if (!item) return
+      const [left, top, width, height] = item.frame
+      handledDuringAcknowledgement = [
+        runtime.handleInput(routed(item.id, 'left_mouse_down', left + width / 2, top + height / 2, 3)),
+        runtime.handleInput(routed(item.id, 'left_mouse_up', left + width / 2, top + height / 2, 4)),
+      ]
+      observedDuringAcknowledgement = result.events
+        .filter(({ event }) => ['focus', 'select'].includes(event.response.action))
+    },
+  })
+  runtime = result.runtime
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: {
+        closeOnSelect: false,
+        items: [{ id: 'inspect' }],
+        menuId: 'companion-menu',
+      },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.deepEqual(handledDuringAcknowledgement, [true, true])
+  assert.deepEqual(observedDuringAcknowledgement, [])
+  assert.deepEqual(result.events
+    .filter(({ event }) => ['focus', 'select'].includes(event.response.action))
+    .map(({ event }) => event.response.action), ['focus', 'select'])
+  assert.equal(runtime.snapshot(key).radialMenus.length, 1)
+  await runtime.dispose()
+})
+
+test('radial-menu activation fails closed when acknowledgement input exceeds its bound', async () => {
+  let runtime
+  let injected = false
+  const result = harness({
+    replace: async ({ activate, calls, retire }) => {
+      if (retire.length > 0) {
+        for (const id of retire) calls.push(['remove', id])
+        return
+      }
+      const item = activate.find((payload) => (
+        payload.id.includes(':menu:') && payload.metadata?.scene_radial_outside !== 'true'
+      ))
+      if (!item || injected) return
+      injected = true
+      const [left, top, width, height] = item.frame
+      for (let index = 0; index < 65; index += 1) {
+        assert.equal(runtime.handleInput(routed(
+          item.id,
+          'left_mouse_dragged',
+          left + width / 2,
+          top + height / 2,
+          3 + index,
+        )), true)
+      }
+    },
+  })
+  runtime = result.runtime
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: { items: [{ id: 'inspect' }], menuId: 'companion-menu' },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.deepEqual(runtime.snapshot(key).radialMenus, [])
+  assert.equal(result.responses.some(({ radialLayout, response }) => (
+    response.action === 'open' && radialLayout !== undefined
+  )), false)
+  assert.ok(result.calls.some(([kind, id]) => kind === 'remove' && id.includes(':menu:')))
   await runtime.dispose()
 })
 
@@ -978,8 +1081,8 @@ test('failed radial retirement keeps product art visible but removes input dispa
   await new Promise((resolve) => setImmediate(resolve))
   await new Promise((resolve) => setImmediate(resolve))
   assert.deepEqual(runtime.snapshot(key).radialMenus, [])
-  assert.equal(runtime.handleInput(routed(menuRegion.id, 'left_mouse_down', 100, 100, 4)), false)
-  assert.equal(events.some(({ event }) => event.response.action === 'select'), false)
+  assert.equal(runtime.handleInput(routed(menuRegion.id, 'left_mouse_down', 100, 100, 4)), true)
+  assert.equal(events.some(({ event }) => ['focus', 'select'].includes(event.response.action)), false)
   assert.equal(responses.at(-1).response.action, 'open')
 
   failRemoval = false
