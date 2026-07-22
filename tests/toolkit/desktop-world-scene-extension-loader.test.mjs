@@ -101,7 +101,7 @@ test('default module URLs are canonical and derived only from an exact validated
 
   await ensure(loader)
   assert.deepEqual(imported, [
-    `aos-scene-extension:///v1/io.ch-osctrl.sigil/companion-renderer/${digestA}/module.js?sceneAbi=aos.scene.projection.v1&threeRevision=183#load-generation-1`,
+    `/.aos-scene-extension/v1/io.ch-osctrl.sigil/companion-renderer/${digestA}/module.js?sceneAbi=aos.scene.projection.v1&threeRevision=183#load-generation-1`,
   ])
 
   await assert.rejects(
@@ -111,7 +111,7 @@ test('default module URLs are canonical and derived only from an exact validated
   assert.equal(imported.length, 1)
 })
 
-test('custom URL resolution receives only a frozen exact reference and cannot escape the extension scheme', async () => {
+test('custom URL resolution receives only a frozen exact reference and cannot escape the reserved same-origin route', async () => {
   const registry = createTrustedSceneExtensionRegistry()
   let resolvedReference = null
   let importCount = 0
@@ -119,7 +119,7 @@ test('custom URL resolution receives only a frozen exact reference and cannot es
     registry,
     resolveModuleURL(value) {
       resolvedReference = value
-      return `aos-scene-extension:///installed/${value.digest}/module.js`
+      return `/.aos-scene-extension/installed/${value.digest}/module.js`
     },
     async importModule() {
       importCount += 1
@@ -143,6 +143,18 @@ test('custom URL resolution receives only a frozen exact reference and cannot es
     ensure(rejected),
     (error) => error.code === 'SCENE_EXTENSION_URL_INVALID'
       && !String(error.message).includes('/Users/Michael'),
+  )
+
+  const crossOrigin = createDesktopWorldSceneExtensionLoader({
+    registry: createTrustedSceneExtensionRegistry(),
+    resolveModuleURL: () => `//other/.aos-scene-extension/installed/${digestA}/module.js`,
+    importModule: async () => {
+      throw new Error('must not import')
+    },
+  })
+  await assert.rejects(
+    ensure(crossOrigin),
+    (error) => error.code === 'SCENE_EXTENSION_URL_INVALID',
   )
 })
 
@@ -275,7 +287,7 @@ test('concurrent ensures deduplicate one import by full immutable identity', asy
     inflightCount: 1,
     loading: [{ ...reference(), state: 'loading' }],
   })
-  assert.doesNotMatch(JSON.stringify(pendingSnapshot), /aos-scene-extension:|private-extension|module\.js/u)
+  assert.doesNotMatch(JSON.stringify(pendingSnapshot), /\.aos-scene-extension|private-extension|module\.js/u)
 
   gate.resolve({ default: factory() })
   const [firstHandle, secondHandle] = await Promise.all([first, second])

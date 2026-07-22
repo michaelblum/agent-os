@@ -17,6 +17,7 @@ import { serializeSceneExtensionDigestMaterial } from '../packages/toolkit/scene
 import { serializeSceneExtensionWrapperModule } from '../scripts/lib/scene-extension/module-inspector.mjs'
 
 const repoRoot = path.resolve(import.meta.dirname, '..')
+const contentServerSource = path.join(repoRoot, 'src/content/server.swift')
 const storeSource = path.join(repoRoot, 'src/display/scene-extension-store.swift')
 const handlerSource = path.join(repoRoot, 'src/display/scene-extension-scheme-handler.swift')
 const taskStateSource = path.join(repoRoot, 'src/display/scene-extension-scheme-task-state.swift')
@@ -292,7 +293,7 @@ test('scheme handler linearizes stop and completion without blocking WebKit call
     const executable = path.join(root, 'scheme-handler-proof')
     const moduleCache = path.join(root, 'module-cache')
     await mkdir(moduleCache, { mode: 0o700 })
-    const moduleURL = `aos-scene-extension:/v1/${fixture.manifest.ownerId}/${fixture.manifest.id}/${fixture.manifest.digest}/module.js?sceneAbi=${fixture.manifest.sceneAbi}&threeRevision=${fixture.manifest.threeRevision}`
+    const moduleURL = `aos://toolkit/.aos-scene-extension/v1/${fixture.manifest.ownerId}/${fixture.manifest.id}/${fixture.manifest.digest}/module.js?sceneAbi=${fixture.manifest.sceneAbi}&threeRevision=${fixture.manifest.threeRevision}`
     await writeFile(main, `
 import Foundation
 import WebKit
@@ -382,6 +383,163 @@ dispatchMain()
       stdio: 'pipe',
     })
     const result = spawnSync(executable, [fixture.stateDirectory], { encoding: 'utf8', timeout: 10_000 })
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(result.stdout, 'ok\n')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('WebKit imports an installed extension module from the DesktopWorld origin', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-native-webkit-import-'))
+  try {
+    const fixture = await writeInstalledFixture(root)
+    const main = path.join(root, 'main.swift')
+    const executable = path.join(root, 'webkit-import-proof')
+    const moduleCache = path.join(root, 'module-cache')
+    const toolkitRoot = path.join(root, 'toolkit')
+    await mkdir(moduleCache, { mode: 0o700 })
+    await mkdir(toolkitRoot, { mode: 0o700 })
+    const moduleURL = `/.aos-scene-extension/v1/${fixture.manifest.ownerId}/${fixture.manifest.id}/${fixture.manifest.digest}/module.js?sceneAbi=${fixture.manifest.sceneAbi}&threeRevision=${fixture.manifest.threeRevision}`
+    await writeFile(path.join(toolkitRoot, 'index.html'), `
+<!doctype html><title>pending</title><script type="module">
+import(${JSON.stringify(moduleURL)}).then((module) => {
+  document.title = module.default ? "ok:default" : "error:missing-default"
+}).catch((error) => {
+  document.title = "error:" + String(error)
+})
+</script>
+`)
+    await writeFile(main, `
+import AppKit
+import Foundation
+import WebKit
+
+func aosStateDir() -> String { fatalError("explicit state directory required") }
+func wikiGraphJSONData(wikiRoot: String, includeRaw: Bool) throws -> Data { Data("{}".utf8) }
+
+struct AosConfig {
+    struct ContentConfig {
+        let port: Int
+        let roots: [String: String]
+    }
+}
+
+enum WikiChangeOperation { case created, updated, deleted }
+
+final class WikiChangeBus {
+    static let shared = WikiChangeBus()
+    func emit(path: String, op: WikiChangeOperation) {}
+}
+
+let _ = NSApplication.shared
+let store = AOSSceneExtensionStore(stateDirectory: CommandLine.arguments[1])
+let extensionHandler = AOSSceneExtensionSchemeHandler(store: store)
+let server = ContentServer(
+    config: AosConfig.ContentConfig(port: 0, roots: ["toolkit": CommandLine.arguments[2]]),
+    repoRoot: nil,
+    sceneExtensionModuleProvider: { url in
+        try extensionHandler.moduleData(for: url)
+    }
+)
+server.start()
+let serverDeadline = Date().addingTimeInterval(3)
+while server.assignedPort == 0 && Date() < serverDeadline {
+    RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.01))
+}
+guard server.assignedPort > 0 else {
+    fputs("server-unavailable\\n", stderr)
+    exit(3)
+}
+
+final class RouteProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var accepted = false
+
+    func record(_ value: Bool) {
+        lock.lock()
+        accepted = value
+        lock.unlock()
+    }
+
+    var value: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return accepted
+    }
+}
+
+let routeProbe = RouteProbe()
+let routeSemaphore = DispatchSemaphore(value: 0)
+let routeURL = URL(
+    string: "http://127.0.0.1:" + String(server.assignedPort) + CommandLine.arguments[3]
+)!
+URLSession.shared.dataTask(with: routeURL) { data, response, error in
+    let http = response as? HTTPURLResponse
+    routeProbe.record(
+        error == nil
+            && http?.statusCode == 200
+            && data?.isEmpty == false
+            && http?.value(forHTTPHeaderField: "Content-Type") == "text/javascript; charset=utf-8"
+            && http?.value(forHTTPHeaderField: "Cache-Control") == "no-store"
+            && http?.value(forHTTPHeaderField: "X-Content-Type-Options") == "nosniff"
+            && http?.value(forHTTPHeaderField: "Access-Control-Allow-Origin") == nil
+    )
+    routeSemaphore.signal()
+}.resume()
+guard routeSemaphore.wait(timeout: .now() + 3) == .success, routeProbe.value else {
+    server.stop()
+    fputs("route-invalid\\n", stderr)
+    exit(4)
+}
+
+let configuration = WKWebViewConfiguration()
+configuration.websiteDataStore = .nonPersistent()
+let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 64, height: 64), configuration: configuration)
+let pageURL = URL(string: "http://127.0.0.1:" + String(server.assignedPort) + "/toolkit/index.html")!
+webView.load(URLRequest(url: pageURL))
+let deadline = Date().addingTimeInterval(5)
+while Date() < deadline {
+    RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.01))
+    if webView.title == "ok:default" {
+        server.stop()
+        print("ok")
+        exit(0)
+    }
+    if webView.title?.hasPrefix("error:") == true {
+        server.stop()
+        fputs((webView.title ?? "error:unknown") + "\\n", stderr)
+        exit(1)
+    }
+}
+server.stop()
+fputs("timeout\\n", stderr)
+exit(2)
+`)
+    execFileSync('swiftc', [
+      contentServerSource,
+      storeSource,
+      taskStateSource,
+      handlerSource,
+      main,
+      '-framework',
+      'AppKit',
+      '-framework',
+      'WebKit',
+      '-framework',
+      'Network',
+      '-o',
+      executable,
+    ], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        CLANG_MODULE_CACHE_PATH: moduleCache,
+        SWIFT_MODULECACHE_PATH: moduleCache,
+      },
+      stdio: 'pipe',
+    })
+    const result = spawnSync(executable, [fixture.stateDirectory, toolkitRoot, moduleURL], { encoding: 'utf8', timeout: 15_000 })
     assert.equal(result.status, 0, result.stderr)
     assert.equal(result.stdout, 'ok\n')
   } finally {

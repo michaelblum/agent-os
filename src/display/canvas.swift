@@ -12,6 +12,7 @@ import WebKit
 /// if resolveContentURL() fails to rewrite the URL before it reaches WKWebView.
 class AosSchemeHandler: NSObject, WKURLSchemeHandler {
     var portProvider: () -> UInt16 = { 0 }
+    var sceneExtensionHandler: AOSSceneExtensionSchemeHandler?
     private var stopped = Set<ObjectIdentifier>()
     private let lock = NSLock()
 
@@ -24,6 +25,11 @@ class AosSchemeHandler: NSObject, WKURLSchemeHandler {
 
         guard let url = urlSchemeTask.request.url else {
             urlSchemeTask.didFailWithError(URLError(.badURL))
+            return
+        }
+
+        if let handler = sceneExtensionHandler, handler.handles(url) {
+            handler.startTask(urlSchemeTask)
             return
         }
 
@@ -69,6 +75,12 @@ class AosSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
+        if let url = urlSchemeTask.request.url,
+           let handler = sceneExtensionHandler,
+           handler.handles(url) {
+            handler.stopTask(urlSchemeTask)
+            return
+        }
         let taskID = ObjectIdentifier(urlSchemeTask as AnyObject)
         lock.lock()
         stopped.insert(taskID)
@@ -605,7 +617,6 @@ class CanvasManager {
     private let lifecycleCompletions = CanvasLifecycleCompletionTracker()
     private var anchorTimer: DispatchSourceTimer?
     var aosSchemeHandler: WKURLSchemeHandler?
-    var sceneExtensionSchemeHandler: WKURLSchemeHandler?
     var onCanvasCountChanged: (() -> Void)?
     var onEvent: ((CanvasLifecycleGeneration, Any) -> Void)?
     var onMenuItems: ((String, [[String: Any]]) -> Void)?  // (canvasID, items)
@@ -1829,7 +1840,6 @@ class CanvasManager {
                 interactive: interactive,
                 windowLevel: windowLevel,
                 aosSchemeHandler: aosSchemeHandler,
-                sceneExtensionSchemeHandler: sceneExtensionSchemeHandler,
                 lifecycleCoordinator: lifecycleCoordinator
             )
             surface.trackTarget = .union

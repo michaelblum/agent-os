@@ -11,11 +11,18 @@ class ContentServer {
     private var listener: NWListener?
     private let roots: [String: String]  // URL prefix -> absolute directory path
     private let stateDir: String?        // writable directory for POST (state persistence)
+    private let sceneExtensionModuleProvider: ((URL) throws -> Data)?
     let port: NWEndpoint.Port
     var assignedPort: UInt16 = 0
 
-    init(config: AosConfig.ContentConfig?, repoRoot: String?, stateDir: String? = nil) {
+    init(
+        config: AosConfig.ContentConfig?,
+        repoRoot: String?,
+        stateDir: String? = nil,
+        sceneExtensionModuleProvider: ((URL) throws -> Data)? = nil
+    ) {
         self.stateDir = stateDir
+        self.sceneExtensionModuleProvider = sceneExtensionModuleProvider
         let cfg = config ?? AosConfig.ContentConfig(port: 0, roots: [:])
         if cfg.port == 0 {
             self.port = .any
@@ -208,6 +215,39 @@ class ContentServer {
 
         let segments = trimmed.split(separator: "/", maxSplits: 1)
         let prefix = String(segments[0])
+
+        if prefix == ".aos-scene-extension" {
+            guard method == "GET" || method == "HEAD" else {
+                return sceneExtensionHTTPResponse(
+                    status: 405,
+                    statusText: "Method Not Allowed",
+                    body: "Method Not Allowed".data(using: .utf8)
+                )
+            }
+            guard let provider = sceneExtensionModuleProvider,
+                  let moduleURL = URL(string: "aos://toolkit\(rawPath)") else {
+                return sceneExtensionHTTPResponse(
+                    status: 404,
+                    statusText: "Not Found",
+                    body: "Not Found".data(using: .utf8)
+                )
+            }
+            do {
+                let module = try provider(moduleURL)
+                return sceneExtensionHTTPResponse(
+                    status: 200,
+                    statusText: "OK",
+                    contentType: "text/javascript; charset=utf-8",
+                    body: method == "HEAD" ? nil : module
+                )
+            } catch {
+                return sceneExtensionHTTPResponse(
+                    status: 404,
+                    statusText: "Not Found",
+                    body: "Not Found".data(using: .utf8)
+                )
+            }
+        }
 
         // _state prefix: writable state directory for persistence
         if prefix == "_state" {
@@ -410,6 +450,28 @@ class ContentServer {
 
         var response = header.data(using: .utf8)!
         if let body = body {
+            response.append(body)
+        }
+        return response
+    }
+
+    private func sceneExtensionHTTPResponse(
+        status: Int,
+        statusText: String,
+        contentType: String = "text/plain; charset=utf-8",
+        body: Data?
+    ) -> Data {
+        let bodyLen = body?.count ?? 0
+        var header = "HTTP/1.1 \(status) \(statusText)\r\n"
+        header += "Content-Type: \(contentType)\r\n"
+        header += "Content-Length: \(bodyLen)\r\n"
+        header += "Connection: close\r\n"
+        header += "Cache-Control: no-store\r\n"
+        header += "X-Content-Type-Options: nosniff\r\n"
+        header += "\r\n"
+
+        var response = header.data(using: .utf8)!
+        if let body {
             response.append(body)
         }
         return response

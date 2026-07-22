@@ -2,6 +2,8 @@ import Foundation
 import WebKit
 
 final class AOSSceneExtensionSchemeHandler: NSObject, WKURLSchemeHandler {
+    static let routePrefix = "/.aos-scene-extension/"
+
     private enum LoadOutcome {
         case failure(URLError)
         case success(url: URL, data: Data)
@@ -15,15 +17,29 @@ final class AOSSceneExtensionSchemeHandler: NSObject, WKURLSchemeHandler {
         self.store = store
     }
 
+    func handles(_ url: URL) -> Bool {
+        url.scheme == "aos"
+            && url.host == "toolkit"
+            && url.path.hasPrefix(Self.routePrefix)
+    }
+
+    func moduleData(for url: URL) throws -> Data {
+        let reference = try parsedRequest(url)
+        let artifact = try store.load(reference)
+        return try artifact.wrapperModule()
+    }
+
     private func parsedRequest(_ url: URL) throws -> AOSSceneExtensionReference {
-        guard url.scheme == "aos-scene-extension", url.host == nil || url.host == "" else {
+        guard handles(url) else {
             throw AOSSceneExtensionStoreFailure(code: "SCENE_EXTENSION_URL_INVALID")
         }
         let parts = url.path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
-        guard parts.count == 5, parts[0] == "v1" else {
+        guard parts.count == 6,
+              parts[0] == ".aos-scene-extension",
+              parts[1] == "v1" else {
             throw AOSSceneExtensionStoreFailure(code: "SCENE_EXTENSION_URL_INVALID")
         }
-        guard parts[4] == "module.js" else {
+        guard parts[5] == "module.js" else {
             throw AOSSceneExtensionStoreFailure(code: "SCENE_EXTENSION_URL_INVALID")
         }
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
@@ -46,9 +62,9 @@ final class AOSSceneExtensionSchemeHandler: NSObject, WKURLSchemeHandler {
             throw AOSSceneExtensionStoreFailure(code: "SCENE_EXTENSION_URL_INVALID")
         }
         let reference = try AOSSceneExtensionReference(dictionary: [
-            "ownerId": parts[1],
-            "id": parts[2],
-            "digest": parts[3],
+            "ownerId": parts[2],
+            "id": parts[3],
+            "digest": parts[4],
             "sceneAbi": sceneABI,
             "threeRevision": threeRevision,
         ])
@@ -92,9 +108,7 @@ final class AOSSceneExtensionSchemeHandler: NSObject, WKURLSchemeHandler {
         loadQueue.async { [weak self] in
             guard let self else { return }
             do {
-                let reference = try self.parsedRequest(url)
-                let artifact = try self.store.load(reference)
-                let data = try artifact.wrapperModule()
+                let data = try self.moduleData(for: url)
                 self.complete(
                     taskID: taskID,
                     task: urlSchemeTask,
