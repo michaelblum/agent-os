@@ -2,6 +2,11 @@ import Foundation
 import WebKit
 
 final class AOSSceneExtensionSchemeHandler: NSObject, WKURLSchemeHandler {
+    private enum LoadOutcome {
+        case failure(URLError)
+        case success(url: URL, data: Data)
+    }
+
     private let store: AOSSceneExtensionStore
     private let loadQueue = DispatchQueue(label: "io.agent-os.scene-extension-loader", qos: .userInitiated)
     private let taskState = AOSSceneExtensionSchemeTaskState()
@@ -50,13 +55,38 @@ final class AOSSceneExtensionSchemeHandler: NSObject, WKURLSchemeHandler {
         return reference
     }
 
-    func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+    private func complete(
+        taskID: ObjectIdentifier,
+        task: WKURLSchemeTask,
+        outcome: LoadOutcome
+    ) {
+        taskState.complete(taskID) {
+            switch outcome {
+            case .failure(let error):
+                task.didFailWithError(error)
+            case .success(let url, let data):
+                let response = URLResponse(
+                    url: url,
+                    mimeType: "text/javascript",
+                    expectedContentLength: data.count,
+                    textEncodingName: "utf-8"
+                )
+                task.didReceive(response)
+                task.didReceive(data)
+                task.didFinish()
+            }
+        }
+    }
+
+    func startTask(_ urlSchemeTask: WKURLSchemeTask) {
         let taskID = ObjectIdentifier(urlSchemeTask as AnyObject)
         guard taskState.start(taskID) else { return }
         guard let url = urlSchemeTask.request.url else {
-            taskState.finish(taskID) {
-                urlSchemeTask.didFailWithError(URLError(.badURL))
-            }
+            complete(
+                taskID: taskID,
+                task: urlSchemeTask,
+                outcome: .failure(URLError(.badURL))
+            )
             return
         }
         loadQueue.async { [weak self] in
@@ -65,26 +95,30 @@ final class AOSSceneExtensionSchemeHandler: NSObject, WKURLSchemeHandler {
                 let reference = try self.parsedRequest(url)
                 let artifact = try self.store.load(reference)
                 let data = try artifact.wrapperModule()
-                self.taskState.finish(taskID) {
-                    let response = URLResponse(
-                        url: url,
-                        mimeType: "text/javascript",
-                        expectedContentLength: data.count,
-                        textEncodingName: "utf-8"
-                    )
-                    urlSchemeTask.didReceive(response)
-                    urlSchemeTask.didReceive(data)
-                    urlSchemeTask.didFinish()
-                }
+                self.complete(
+                    taskID: taskID,
+                    task: urlSchemeTask,
+                    outcome: .success(url: url, data: data)
+                )
             } catch {
-                self.taskState.finish(taskID) {
-                    urlSchemeTask.didFailWithError(URLError(.noPermissionsToReadFile))
-                }
+                self.complete(
+                    taskID: taskID,
+                    task: urlSchemeTask,
+                    outcome: .failure(URLError(.noPermissionsToReadFile))
+                )
             }
         }
     }
 
-    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
+    func stopTask(_ urlSchemeTask: WKURLSchemeTask) {
         taskState.stop(ObjectIdentifier(urlSchemeTask as AnyObject))
+    }
+
+    func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+        startTask(urlSchemeTask)
+    }
+
+    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
+        stopTask(urlSchemeTask)
     }
 }

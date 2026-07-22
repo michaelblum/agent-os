@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
-import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises'
+import { execFileSync, spawn } from 'node:child_process'
+import { chmod, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
@@ -13,6 +13,46 @@ async function collect(child) {
   child.stderr.on('data', (chunk) => { stderr += chunk })
   const exit = new Promise((resolve) => child.once('exit', (code, signal) => resolve({ code, signal })))
   return { exit, stdout: () => stdout, stderr: () => stderr }
+}
+
+async function waitForFile(file, timeoutMs = 2_000) {
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    try { return await readFile(file, 'utf8') } catch (error) {
+      if (error?.code !== 'ENOENT' || Date.now() >= deadline) throw error
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+}
+
+async function waitForPIDExit(pid, timeoutMs = 2_000) {
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    try { process.kill(pid, 0) } catch (error) {
+      if (error?.code === 'ESRCH') return
+      throw error
+    }
+    if (Date.now() >= deadline) throw new Error(`process ${pid} did not exit`)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+}
+
+async function stopChild(child, timeoutMs = 1_500) {
+  if (!child || child.exitCode != null || child.signalCode != null) return
+  const closed = new Promise((resolve) => child.once('close', resolve))
+  child.kill('SIGKILL')
+  await Promise.race([
+    closed,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`process ${child.pid} did not stop`)), timeoutMs)),
+  ])
+}
+
+function processCommandContains(pid, expected) {
+  try {
+    return execFileSync('/bin/ps', ['-p', String(pid), '-o', 'command='], { encoding: 'utf8' }).includes(expected)
+  } catch {
+    return false
+  }
 }
 
 test('scene follow forwards bounded operations and preserves owner identity', async () => {
@@ -53,6 +93,115 @@ test('scene follow forwards bounded operations and preserves owner identity', as
   assert.match(output.stdout(), /"operation":"close"/u)
   await new Promise((resolve) => server.close(resolve))
   await rm(root, { recursive: true, force: true })
+})
+
+test('scene follow closes its input loop and socket on termination or owner loss', async () => {
+  for (const scenario of ['signal', 'parent_loss']) {
+    const root = await mkdtemp(path.join(os.tmpdir(), `aos-scene-follow-${scenario}-`))
+    const state = path.join(root, 'repo')
+    await mkdir(state, { recursive: true })
+    const socketPath = path.join(state, 'sock')
+    let acceptedSocket
+    let child
+    let acceptConnection
+    const connected = new Promise((resolve) => { acceptConnection = resolve })
+    const server = net.createServer({ allowHalfOpen: true }, (socket) => {
+      acceptedSocket = socket
+      acceptConnection()
+    })
+    try {
+      await new Promise((resolve, reject) => server.listen(socketPath, resolve).once('error', reject))
+      child = spawn(process.execPath, [
+        'scripts/aos-scene.mjs', '--stage', 'desktop-world/main', '--owner', 'example.consumer',
+        '--resource', 'companion/main', '--follow',
+      ], {
+        cwd: path.resolve(import.meta.dirname, '..'),
+        env: {
+          ...process.env,
+          AOS_STATE_ROOT: root,
+          AOS_RUNTIME_MODE: 'repo',
+          ...(scenario === 'parent_loss' ? { AOS_EXTERNAL_DISPATCH_PARENT_PID: '2147483647' } : {}),
+        },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      })
+      const output = await collect(child)
+      await Promise.race([
+        connected,
+        output.exit.then(({ code, signal }) => {
+          throw new Error(`scene follow exited before ${scenario} connection: code=${code} signal=${signal}`)
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`scene follow did not connect for ${scenario}`)), 2_000)),
+      ])
+      const shutdownStartedAt = Date.now()
+      if (scenario === 'signal') child.kill('SIGTERM')
+      const result = await Promise.race([
+        output.exit,
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`scene follow did not terminate after ${scenario}`)), 2_000)),
+      ])
+      assert.equal(result.code, 143, `${scenario}: ${output.stderr()}`)
+      assert.equal(result.signal, null, scenario)
+      assert.ok(Date.now() - shutdownStartedAt >= 400, `${scenario}: half-open socket was not bounded before destruction`)
+    } finally {
+      await stopChild(child)
+      acceptedSocket?.destroy()
+      await new Promise((resolve) => server.close(resolve))
+      await rm(root, { recursive: true, force: true })
+    }
+  }
+})
+
+test('scene follow preserves shutdown intent during managed daemon startup', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-follow-startup-shutdown-'))
+  const fakeAOS = path.join(root, 'fake-aos.mjs')
+  const startedPath = path.join(root, 'daemon-started')
+  let child
+  let daemonPID
+  try {
+    await writeFile(fakeAOS, `#!/usr/bin/env node
+import { writeFileSync } from 'node:fs'
+writeFileSync(process.env.AOS_FAKE_STARTED, String(process.pid))
+process.on('SIGTERM', () => process.exit(0))
+process.on('SIGINT', () => process.exit(0))
+setInterval(() => {}, 1_000)
+`)
+    await chmod(fakeAOS, 0o755)
+    child = spawn(process.execPath, [
+      'scripts/aos-scene.mjs', '--stage', 'desktop-world/main', '--owner', 'example.consumer',
+      '--resource', 'companion/main', '--follow',
+    ], {
+      cwd: path.resolve(import.meta.dirname, '..'),
+      env: {
+        ...process.env,
+        AOS_STATE_ROOT: root,
+        AOS_RUNTIME_MODE: 'repo',
+        AOS_PATH: fakeAOS,
+        AOS_ALLOW_DAEMON_AUTOSTART: '1',
+        AOS_FAKE_STARTED: startedPath,
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+    const output = await collect(child)
+    daemonPID = Number(await waitForFile(startedPath))
+    assert.ok(Number.isInteger(daemonPID) && daemonPID > 1)
+    child.kill('SIGTERM')
+    const result = await Promise.race([
+      output.exit,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('scene follow did not terminate during startup')), 3_000)),
+    ])
+    assert.equal(result.code, 143, output.stderr())
+    assert.equal(result.signal, null)
+    await waitForPIDExit(daemonPID)
+    daemonPID = null
+  } finally {
+    await stopChild(child)
+    if (Number.isInteger(daemonPID) && processCommandContains(daemonPID, fakeAOS)) {
+      try { process.kill(daemonPID, 'SIGKILL') } catch (error) {
+        if (error?.code !== 'ESRCH') throw error
+      }
+      await waitForPIDExit(daemonPID)
+    }
+    await rm(root, { recursive: true, force: true })
+  }
 })
 
 test('scene follow preserves only an exact mount-scoped extension reference', async () => {

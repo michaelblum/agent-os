@@ -1,55 +1,33 @@
 import Foundation
 
 final class AOSSceneExtensionSchemeTaskState {
-    private enum State {
-        case active
-        case stopped
-        case finished
-    }
+    private let lock = NSLock()
+    private var activeTasks: Set<ObjectIdentifier> = []
 
-    private let queue = DispatchQueue(label: "io.agent-os.scene-extension-task-state")
-    private let queueKey = DispatchSpecificKey<UInt8>()
-    private var states: [ObjectIdentifier: State] = [:]
-
-    init() {
-        queue.setSpecific(key: queueKey, value: 1)
-    }
-
-    private func serialized<T>(_ body: () -> T) -> T {
-        if DispatchQueue.getSpecific(key: queueKey) != nil {
-            return body()
-        }
-        return queue.sync(execute: body)
+    private func withLock<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
     }
 
     func start(_ taskID: ObjectIdentifier) -> Bool {
-        serialized {
-            guard states[taskID] == nil else { return false }
-            states[taskID] = .active
-            return true
-        }
-    }
-
-    func stop(_ taskID: ObjectIdentifier) {
-        serialized {
-            guard states[taskID] == .active else { return }
-            states[taskID] = .stopped
-            states.removeValue(forKey: taskID)
-        }
+        withLock { activeTasks.insert(taskID).inserted }
     }
 
     @discardableResult
-    func finish(_ taskID: ObjectIdentifier, callbacks: () -> Void) -> Bool {
-        serialized {
-            guard states[taskID] == .active else { return false }
-            states[taskID] = .finished
+    func stop(_ taskID: ObjectIdentifier) -> Bool {
+        withLock { activeTasks.remove(taskID) != nil }
+    }
+
+    func complete(_ taskID: ObjectIdentifier, callbacks: @escaping () -> Void) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self,
+                  self.withLock({ self.activeTasks.remove(taskID) != nil }) else { return }
             callbacks()
-            states.removeValue(forKey: taskID)
-            return true
         }
     }
 
     var trackedTaskCount: Int {
-        serialized { states.count }
+        withLock { activeTasks.count }
     }
 }

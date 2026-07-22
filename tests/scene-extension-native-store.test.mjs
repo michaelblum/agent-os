@@ -284,66 +284,95 @@ test('native store requires an exact owner-only authorization marker', async () 
   }
 })
 
-test('scheme task state linearizes stop with callbacks and retires terminal IDs', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-native-task-state-'))
+test('scheme handler linearizes stop and completion without blocking WebKit callbacks', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-native-scheme-handler-'))
   try {
+    const fixture = await writeInstalledFixture(root)
     const main = path.join(root, 'main.swift')
-    const executable = path.join(root, 'task-state-proof')
+    const executable = path.join(root, 'scheme-handler-proof')
     const moduleCache = path.join(root, 'module-cache')
     await mkdir(moduleCache, { mode: 0o700 })
+    const moduleURL = `aos-scene-extension:/v1/${fixture.manifest.ownerId}/${fixture.manifest.id}/${fixture.manifest.digest}/module.js?sceneAbi=${fixture.manifest.sceneAbi}&threeRevision=${fixture.manifest.threeRevision}`
     await writeFile(main, `
 import Foundation
+import WebKit
 
-final class Token {}
+func aosStateDir() -> String { fatalError("explicit state directory required") }
 
-let state = AOSSceneExtensionSchemeTaskState()
-let token = Token()
-let taskID = ObjectIdentifier(token)
-guard state.start(taskID) else { exit(1) }
+let mainQueueKey = DispatchSpecificKey<UInt8>()
 
-let callbacksEntered = DispatchSemaphore(value: 0)
-let releaseCallbacks = DispatchSemaphore(value: 0)
-let completionReturned = DispatchSemaphore(value: 0)
-let stopReturned = DispatchSemaphore(value: 0)
-DispatchQueue.global().async {
-    guard state.finish(taskID, callbacks: {
-        callbacksEntered.signal()
-        releaseCallbacks.wait()
-    }) else { exit(2) }
-    completionReturned.signal()
-}
-guard callbacksEntered.wait(timeout: .now() + 2) == .success else { exit(3) }
-DispatchQueue.global().async {
-    state.stop(taskID)
-    stopReturned.signal()
-}
-guard stopReturned.wait(timeout: .now() + 0.05) == .timedOut,
-      completionReturned.wait(timeout: .now() + 0.05) == .timedOut else { exit(4) }
-releaseCallbacks.signal()
-guard completionReturned.wait(timeout: .now() + 2) == .success,
-      stopReturned.wait(timeout: .now() + 2) == .success,
-      state.trackedTaskCount == 0 else { exit(5) }
+final class FakeSchemeTask: NSObject, WKURLSchemeTask {
+    let request: URLRequest
+    private let lock = NSLock()
+    private var recorded: [String] = []
+    private var mainQueueOnly = true
 
-var tokens: [Token] = []
-for index in 0..<1_000 {
-    let next = Token()
-    tokens.append(next)
-    let nextID = ObjectIdentifier(next)
-    guard state.start(nextID) else { exit(6) }
-    if index.isMultiple(of: 2) {
-        state.stop(nextID)
-        var callbacksRan = false
-        if state.finish(nextID, callbacks: { callbacksRan = true }) || callbacksRan {
-            exit(9)
-        }
-    } else if !state.finish(nextID, callbacks: {}) {
-        exit(7)
+    init(url: URL) {
+        request = URLRequest(url: url)
+    }
+
+    private func record(_ value: String) {
+        lock.lock()
+        recorded.append(value)
+        mainQueueOnly = mainQueueOnly && DispatchQueue.getSpecific(key: mainQueueKey) == 1
+        lock.unlock()
+    }
+
+    func didReceive(_ response: URLResponse) { record("response") }
+    func didReceive(_ data: Data) { record("data") }
+    func didFinish() { record("finish") }
+    func didFailWithError(_ error: Error) { record("failure") }
+
+    var snapshot: ([String], Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (recorded, mainQueueOnly)
     }
 }
-guard state.trackedTaskCount == 0 else { exit(8) }
-print("ok")
+
+let url = URL(string: ${JSON.stringify(moduleURL)})!
+let store = AOSSceneExtensionStore(stateDirectory: CommandLine.arguments[1])
+let handler = AOSSceneExtensionSchemeHandler(store: store)
+let stopped = FakeSchemeTask(url: url)
+let completed = FakeSchemeTask(url: url)
+DispatchQueue.main.setSpecific(key: mainQueueKey, value: 1)
+
+DispatchQueue.global().async {
+    let stopStaged = DispatchSemaphore(value: 0)
+    DispatchQueue.main.async {
+        handler.startTask(stopped)
+        handler.stopTask(stopped)
+        stopStaged.signal()
+    }
+    guard stopStaged.wait(timeout: .now() + 2) == .success else { exit(1) }
+    Thread.sleep(forTimeInterval: 0.25)
+    guard stopped.snapshot.0.isEmpty else { exit(2) }
+
+    DispatchQueue.main.async { handler.startTask(completed) }
+    let deadline = Date().addingTimeInterval(3)
+    while completed.snapshot.0.last != "finish" && Date() < deadline {
+        Thread.sleep(forTimeInterval: 0.01)
+    }
+    let result = completed.snapshot
+    guard result.0 == ["response", "data", "finish"], result.1 else {
+        fputs("events=\\(result.0.joined(separator: ",")) main=\\(result.1)\\n", stderr)
+        exit(3)
+    }
+
+    let stopCompleted = DispatchSemaphore(value: 0)
+    DispatchQueue.main.async {
+        handler.stopTask(completed)
+        stopCompleted.signal()
+    }
+    guard stopCompleted.wait(timeout: .now() + 2) == .success,
+          completed.snapshot.0 == ["response", "data", "finish"] else { exit(4) }
+    print("ok")
+    exit(0)
+}
+
+dispatchMain()
 `)
-    execFileSync('swiftc', [taskStateSource, main, '-o', executable], {
+    execFileSync('swiftc', [storeSource, taskStateSource, handlerSource, main, '-o', executable], {
       cwd: repoRoot,
       env: {
         ...process.env,
@@ -352,7 +381,7 @@ print("ok")
       },
       stdio: 'pipe',
     })
-    const result = spawnSync(executable, [], { encoding: 'utf8' })
+    const result = spawnSync(executable, [fixture.stateDirectory], { encoding: 'utf8', timeout: 10_000 })
     assert.equal(result.status, 0, result.stderr)
     assert.equal(result.stdout, 'ok\n')
   } finally {
