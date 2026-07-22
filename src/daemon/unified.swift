@@ -597,6 +597,8 @@ class UnifiedDaemon {
             fputs("wiki: migration failed: \(error) — continuing with current layout\n", stderr)
         }
 
+        let extensionHandler = sceneExtensionSchemeHandler
+
         // Start content server
         if let contentConfig = currentConfig.content, !contentConfig.roots.isEmpty {
             let repoRoot = aosCurrentRepoRoot()
@@ -604,11 +606,8 @@ class UnifiedDaemon {
                 config: contentConfig,
                 repoRoot: repoRoot,
                 stateDir: aosStateDir(),
-                sceneExtensionModuleProvider: { [weak self] url in
-                    guard let self else {
-                        throw AOSSceneExtensionStoreFailure(code: "SCENE_EXTENSION_STORE_INVALID")
-                    }
-                    return try self.sceneExtensionSchemeHandler.moduleData(for: url)
+                sceneExtensionModuleProvider: { url in
+                    return try extensionHandler.moduleData(for: url)
                 }
             )
             contentServer?.start()
@@ -619,7 +618,7 @@ class UnifiedDaemon {
         // fails to rewrite the URL (e.g. content server not yet ready).
         let schemeHandler = AosSchemeHandler()
         schemeHandler.portProvider = { [weak self] in self?.contentServer?.assignedPort ?? 0 }
-        schemeHandler.sceneExtensionHandler = sceneExtensionSchemeHandler
+        schemeHandler.sceneExtensionHandler = extensionHandler
         canvasManager.aosSchemeHandler = schemeHandler
 
         // Start wiki FSEvents watcher and wire change bus
