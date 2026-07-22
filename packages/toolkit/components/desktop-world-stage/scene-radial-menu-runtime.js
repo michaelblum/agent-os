@@ -186,8 +186,6 @@ export function createDesktopWorldSceneRadialMenuRuntime({
     session.regionIds.clear()
     session.regionPayloads.clear()
     session.dispatchGuard = null
-    session.pointerGestureId = null
-    session.pointerSessionId = null
     session.focusedRegionId = null
     session.hoverGestureId = null
     session.hoverPointerSessionId = null

@@ -778,6 +778,50 @@ test('non-closing selection and pointer cancellation restore the current hover v
   await runtime.dispose()
 })
 
+test('Escape during a pressed radial item completes both hover and press lifecycles', async () => {
+  const { events, runtime } = harness()
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: { items: [{ id: 'inspect' }], menuId: 'companion-menu' },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  const item = runtime.snapshot(key).radialMenus[0].regions[0]
+  const [left, top, width, height] = item.frame
+  const x = left + width / 2
+  const y = top + height / 2
+  runtime.handleInput(routed(item.id, 'mouse_moved', x, y, 3))
+  runtime.handleInput(routed(item.id, 'left_mouse_down', x, y, 4))
+  runtime.handleInput(escapeKey(5))
+  await new Promise((resolve) => setImmediate(resolve))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  const lifecycle = events
+    .map(({ event }) => event)
+    .filter((event) => ['focus', 'blur', 'cancel'].includes(event.response.action))
+  assert.deepEqual(lifecycle.map((event) => [event.response.action, event.gesture.phase]), [
+    ['focus', 'start'],
+    ['focus', 'start'],
+    ['blur', 'end'],
+    ['cancel', 'cancel'],
+  ])
+  assert.equal(lifecycle[0].gesture.id, lifecycle[2].gesture.id)
+  assert.equal(lifecycle[1].gesture.id, lifecycle[3].gesture.id)
+  assert.equal(replayDesktopWorldSceneEvents(events.map(({ event }) => event)).status, 'ok')
+  await runtime.dispose()
+})
+
 test('radial-menu regions remain inactive until one atomic generation replacement activates every item', async () => {
   const activation = deferred()
   const replacementStarted = deferred()
