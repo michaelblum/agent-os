@@ -17,10 +17,26 @@ const MAX_INPUT_LINE_BYTES = 2 * 1024 * 1024
 const MAX_OUTPUT_LINE_BYTES = 64 * 1024
 const MAX_STDERR_BYTES = 32 * 1024
 const MAX_REPLAY_BYTES = 16 * 1024 * 1024
+const SOCKET_CLOSE_TIMEOUT_MS = 500
 const ALLOWED_OPERATIONS = new Set(['mount', 'transact', 'signal', 'play', 'suspend', 'resume', 'inspect', 'remove', 'close', 'subscribe', 'unsubscribe'])
 const ALLOWED_SCENE_EVENTS = new Set(['gesture'])
 const DEVTOOLS_TABS = new Set(['world', 'resources', 'interactions', 'performance', 'events'])
 const DEVTOOLS_HOST_KINDS = new Set(['compatibility', 'external', 'panel'])
+
+async function closeSocketBounded(socket) {
+  if (!socket || socket.destroyed) return
+  let resolveClosed
+  const closed = new Promise((resolve) => { resolveClosed = resolve })
+  socket.once('close', resolveClosed)
+  try { socket.end() } catch { socket.destroy() }
+  let timer = null
+  const closedGracefully = await Promise.race([
+    closed.then(() => true),
+    new Promise((resolve) => { timer = setTimeout(() => resolve(false), SOCKET_CLOSE_TIMEOUT_MS) }),
+  ])
+  if (timer) clearTimeout(timer)
+  if (!closedGracefully && !socket.destroyed) socket.destroy()
+}
 
 function fail(code, message) {
   const error = new Error(message)
@@ -441,12 +457,25 @@ async function runSceneFollow(args) {
   const identity = parseFollowArgs(args)
   const ref = randomUUID()
   const startupAbort = new AbortController()
+  const inputAbort = new AbortController()
   let shutdownRequested = false
+  let terminalExitCode = null
   let cleanupActive = null
+  let cleanupPromise = null
+  const claimExitCode = (code) => {
+    if (terminalExitCode === null || (terminalExitCode === 0 && code !== 0)) {
+      terminalExitCode = code
+      process.exitCode = code
+    }
+    return terminalExitCode
+  }
   const requestShutdown = () => {
+    if (shutdownRequested) return
     shutdownRequested = true
+    claimExitCode(143)
+    startupAbort.abort()
+    inputAbort.abort()
     if (cleanupActive) void cleanupActive(143)
-    else startupAbort.abort()
   }
   process.once('SIGINT', requestShutdown)
   process.once('SIGTERM', requestShutdown)
@@ -460,8 +489,14 @@ async function runSceneFollow(args) {
     }, 250)
     : null
   parentMonitor?.unref()
+  const releaseLifecycle = () => {
+    if (parentMonitor) clearInterval(parentMonitor)
+    process.off('SIGINT', requestShutdown)
+    process.off('SIGTERM', requestShutdown)
+  }
   const connection = await connectWithAutoStart({ managed: true, signal: startupAbort.signal })
   if (shutdownRequested) {
+    releaseLifecycle()
     await stopManagedDaemon(connection?.daemon)
     return
   }
@@ -469,19 +504,17 @@ async function runSceneFollow(args) {
   if (!socket) fail('DAEMON_UNREACHABLE', 'Cannot connect to daemon')
   let outputBuffer = ''
   let stderrBytes = 0
-  let closed = false
   let closeAcknowledged
   const closeAcknowledgement = new Promise((resolve) => { closeAcknowledged = resolve })
-  const cleanup = async (code = 0) => {
-    if (closed) {
-      if (code !== 0) process.exitCode = code
-      return
-    }
-    closed = true
-    process.exitCode = code
-    if (parentMonitor) clearInterval(parentMonitor)
-    socket.end()
-    await stopManagedDaemon(connection.daemon)
+  const cleanup = (code = 0) => {
+    claimExitCode(code)
+    cleanupPromise ??= Promise.resolve().then(async () => {
+      releaseLifecycle()
+      inputAbort.abort()
+      await closeSocketBounded(socket)
+      await stopManagedDaemon(connection.daemon)
+    })
+    return cleanupPromise
   }
   cleanupActive = cleanup
   const writeError = (error) => {
@@ -527,9 +560,13 @@ async function runSceneFollow(args) {
     }
   })
   socket.once('error', () => void cleanup(1))
-  socket.once('close', () => { if (!closed) void cleanup(1) })
+  socket.once('close', () => { if (!cleanupPromise) void cleanup(1) })
 
-  const input = readline.createInterface({ input: process.stdin, crlfDelay: Infinity })
+  const input = readline.createInterface({
+    input: process.stdin,
+    crlfDelay: Infinity,
+    signal: inputAbort.signal,
+  })
   try {
     for await (const line of input) {
       if (Buffer.byteLength(line) > MAX_INPUT_LINE_BYTES) fail('SCENE_OPERATION_TOO_LARGE', 'scene operation exceeded the line limit')
@@ -552,7 +589,7 @@ async function runSceneFollow(args) {
       }
     }
   } finally {
-    if (!closed) await cleanup(0)
+    await cleanup(0)
   }
 }
 
