@@ -67,6 +67,12 @@ require(aosCanonicalSceneEvent(radial) != nil, "valid radial-menu event was reje
 var radialSelect = radial
 radialSelect["response"] = ["kind": "radial_menu", "action": "select", "menuId": "companion-menu", "itemId": "annotate", "selectionIndex": 1, "applied": true, "revision": 3]
 require(aosCanonicalSceneEvent(radialSelect) != nil, "valid radial-menu selection was rejected")
+var radialBlur = radial
+radialBlur["response"] = ["kind": "radial_menu", "action": "blur", "menuId": "companion-menu", "applied": true, "revision": 3]
+require(aosCanonicalSceneEvent(radialBlur) != nil, "valid radial-menu blur was rejected")
+var radialBlurLeak = radialBlur
+radialBlurLeak["response"] = ["kind": "radial_menu", "action": "blur", "menuId": "companion-menu", "itemId": "annotate"]
+require(aosCanonicalSceneEvent(radialBlurLeak) == nil, "radial-menu blur accepted selection fields")
 var radialCancel = radial
 radialCancel["gesture"] = ["id": "gesture-menu", "kind": "tap", "phase": "cancel", "pointerSessionId": NSNull(), "cancellationReason": "escape"]
 radialCancel["response"] = ["kind": "radial_menu", "action": "cancel", "menuId": "companion-menu", "applied": true, "revision": 3]

@@ -5,6 +5,7 @@ import {
   createDesktopWorldSceneInteractionRuntime,
   sceneAffordanceRegionId,
 } from '../../packages/toolkit/components/desktop-world-stage/scene-interaction-runtime.js'
+import { replayDesktopWorldSceneEvents } from '../../packages/toolkit/scene/desktop-world-client.js'
 import { canonicalInputRegionEvent } from '../lib/input-event-fixtures.mjs'
 
 const document = {
@@ -680,6 +681,99 @@ test('radial-menu pointer movement emits focus and blur without requiring a pres
     ['start', 'focus', 'inspect'],
     ['end', 'blur', null],
   ])
+  assert.equal(runtime.snapshot(key).radialMenus.length, 1)
+  await runtime.dispose()
+})
+
+test('radial-menu hover and press lifecycles replay without shared or orphaned gesture IDs', async () => {
+  const { events, runtime } = harness()
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: { items: [{ id: 'inspect' }], menuId: 'companion-menu' },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  const item = runtime.snapshot(key).radialMenus[0].regions[0]
+  const [left, top, width, height] = item.frame
+  const x = left + width / 2
+  const y = top + height / 2
+  runtime.handleInput(routed(item.id, 'mouse_moved', x, y, 3))
+  runtime.handleInput(routed(item.id, 'left_mouse_down', x, y, 4))
+  runtime.handleInput(routed(item.id, 'left_mouse_up', x, y, 5))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  const lifecycle = events
+    .map(({ event }) => event)
+    .filter((event) => ['focus', 'select', 'blur'].includes(event.response.action))
+  assert.deepEqual(lifecycle.map((event) => [event.response.action, event.gesture.phase]), [
+    ['focus', 'start'],
+    ['focus', 'start'],
+    ['select', 'end'],
+    ['blur', 'end'],
+  ])
+  assert.equal(lifecycle[0].gesture.id, lifecycle[3].gesture.id)
+  assert.equal(lifecycle[1].gesture.id, lifecycle[2].gesture.id)
+  assert.notEqual(lifecycle[0].gesture.id, lifecycle[1].gesture.id)
+  assert.equal(replayDesktopWorldSceneEvents(events.map(({ event }) => event)).status, 'ok')
+  await runtime.dispose()
+})
+
+test('non-closing selection and pointer cancellation restore the current hover visual', async () => {
+  const { events, responses, runtime } = harness()
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: { closeOnSelect: false, items: [{ id: 'inspect' }], menuId: 'companion-menu' },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  const item = runtime.snapshot(key).radialMenus[0].regions[0]
+  const [left, top, width, height] = item.frame
+  const x = left + width / 2
+  const y = top + height / 2
+  runtime.handleInput(routed(item.id, 'mouse_moved', x, y, 3))
+  runtime.handleInput(routed(item.id, 'left_mouse_down', x, y, 4))
+  runtime.handleInput(routed(item.id, 'left_mouse_up', x, y, 5))
+  assert.deepEqual(responses.slice(-3).map(({ response }) => response.action), ['select', 'open', 'focus'])
+  const eventsAfterSelection = events.length
+  runtime.handleInput(routed(item.id, 'mouse_moved', x, y, 6))
+  assert.equal(events.length, eventsAfterSelection)
+
+  runtime.handleInput(routed(item.id, 'left_mouse_down', x, y, 7))
+  runtime.handleInput(canonicalInputRegionEvent({
+    regionId: item.id,
+    ownerCanvasId: 'aos-desktop-world-stage',
+    type: 'left_mouse_dragged',
+    phase: 'cancel',
+    deliveryRole: 'captured',
+    x,
+    y,
+    sequenceValue: 8,
+    gestureId: 'gesture-1',
+    extra: { event_kind: 'cancel', cancel_reason: 'pointer_cancelled' },
+  }))
+  assert.deepEqual(responses.slice(-3).map(({ response }) => response.action), ['cancel', 'open', 'focus'])
   assert.equal(runtime.snapshot(key).radialMenus.length, 1)
   await runtime.dispose()
 })
