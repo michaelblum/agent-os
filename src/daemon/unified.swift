@@ -600,7 +600,17 @@ class UnifiedDaemon {
         // Start content server
         if let contentConfig = currentConfig.content, !contentConfig.roots.isEmpty {
             let repoRoot = aosCurrentRepoRoot()
-            contentServer = ContentServer(config: contentConfig, repoRoot: repoRoot, stateDir: aosStateDir())
+            contentServer = ContentServer(
+                config: contentConfig,
+                repoRoot: repoRoot,
+                stateDir: aosStateDir(),
+                sceneExtensionModuleProvider: { [weak self] url in
+                    guard let self else {
+                        throw AOSSceneExtensionStoreFailure(code: "SCENE_EXTENSION_STORE_INVALID")
+                    }
+                    return try self.sceneExtensionSchemeHandler.moduleData(for: url)
+                }
+            )
             contentServer?.start()
         }
 
@@ -609,8 +619,8 @@ class UnifiedDaemon {
         // fails to rewrite the URL (e.g. content server not yet ready).
         let schemeHandler = AosSchemeHandler()
         schemeHandler.portProvider = { [weak self] in self?.contentServer?.assignedPort ?? 0 }
+        schemeHandler.sceneExtensionHandler = sceneExtensionSchemeHandler
         canvasManager.aosSchemeHandler = schemeHandler
-        canvasManager.sceneExtensionSchemeHandler = sceneExtensionSchemeHandler
 
         // Start wiki FSEvents watcher and wire change bus
         WikiChangeBus.shared.daemon = self

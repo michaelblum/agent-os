@@ -3,7 +3,8 @@ import {
   validateSceneExtensionReference,
 } from '../../scene/scene-extension.js'
 
-const EXTENSION_SCHEME = 'aos-scene-extension:'
+const EXTENSION_PATH_PREFIX = '/.aos-scene-extension/'
+const EXTENSION_VALIDATION_ORIGIN = 'https://aos.invalid'
 const DEFAULT_IMPORT_TIMEOUT_MS = 2_000
 const IDENTITY_FIELDS = Object.freeze([
   'ownerId',
@@ -55,7 +56,7 @@ function defaultModuleURL(reference) {
   const id = encodeURIComponent(reference.id)
   const sceneAbi = encodeURIComponent(reference.sceneAbi)
   const threeRevision = encodeURIComponent(reference.threeRevision)
-  return `${EXTENSION_SCHEME}///v1/${ownerId}/${id}/${reference.digest}/module.js?sceneAbi=${sceneAbi}&threeRevision=${threeRevision}`
+  return `${EXTENSION_PATH_PREFIX}v1/${ownerId}/${id}/${reference.digest}/module.js?sceneAbi=${sceneAbi}&threeRevision=${threeRevision}`
 }
 
 function canonicalModuleURL(value) {
@@ -64,19 +65,22 @@ function canonicalModuleURL(value) {
   }
   let parsed
   try {
-    parsed = new URL(value)
+    parsed = new URL(value, EXTENSION_VALIDATION_ORIGIN)
   } catch {
     throw loaderError('SCENE_EXTENSION_URL_INVALID', 'Scene extension module URL is invalid.')
   }
   if (
-    parsed.protocol !== EXTENSION_SCHEME
+    !value.startsWith('/')
+    || value.startsWith('//')
+    || parsed.origin !== EXTENSION_VALIDATION_ORIGIN
+    || !parsed.pathname.startsWith(EXTENSION_PATH_PREFIX)
     || parsed.username
     || parsed.password
     || parsed.hash
   ) {
     throw loaderError('SCENE_EXTENSION_URL_INVALID', 'Scene extension module URL is invalid.')
   }
-  return parsed.href
+  return `${parsed.pathname}${parsed.search}`
 }
 
 function defaultImportModule(moduleURL) {
@@ -84,9 +88,9 @@ function defaultImportModule(moduleURL) {
 }
 
 function moduleURLForGeneration(moduleURL, generation) {
-  const parsed = new URL(moduleURL)
+  const parsed = new URL(moduleURL, EXTENSION_VALIDATION_ORIGIN)
   parsed.hash = `load-generation-${generation}`
-  return parsed.href
+  return `${parsed.pathname}${parsed.search}${parsed.hash}`
 }
 
 function exactDefaultFactory(moduleNamespace) {

@@ -216,7 +216,6 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     private var ttlTimer: DispatchSourceTimer?
     private var ttlDeadline: Date?
     private let aosSchemeHandler: WKURLSchemeHandler?
-    private let sceneExtensionSchemeHandler: WKURLSchemeHandler?
     private let lifecycleCoordinator: CanvasLifecycleCoordinator
     private var htmlContent: String?
     private var urlString: String?
@@ -234,14 +233,12 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         interactive: Bool,
         windowLevel: String? = nil,
         aosSchemeHandler: WKURLSchemeHandler? = nil,
-        sceneExtensionSchemeHandler: WKURLSchemeHandler? = nil,
         lifecycleCoordinator: CanvasLifecycleCoordinator
     ) {
         self.id = id
         self.isInteractive = interactive
         self.windowLevel = normalizeCanvasWindowLevel(windowLevel)
         self.aosSchemeHandler = aosSchemeHandler
-        self.sceneExtensionSchemeHandler = sceneExtensionSchemeHandler
         self.lifecycleCoordinator = lifecycleCoordinator
         _ = rebuildSegments()
     }
@@ -549,9 +546,6 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         let config = WKWebViewConfiguration()
         if let handler = aosSchemeHandler {
             config.setURLSchemeHandler(handler, forURLScheme: "aos")
-        }
-        if let handler = sceneExtensionSchemeHandler {
-            config.setURLSchemeHandler(handler, forURLScheme: "aos-scene-extension")
         }
         let controller = WKUserContentController()
         let messageHandler = CanvasMessageHandler()
