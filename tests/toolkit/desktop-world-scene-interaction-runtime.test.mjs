@@ -5,6 +5,7 @@ import {
   createDesktopWorldSceneInteractionRuntime,
   sceneAffordanceRegionId,
 } from '../../packages/toolkit/components/desktop-world-stage/scene-interaction-runtime.js'
+import { replayDesktopWorldSceneEvents } from '../../packages/toolkit/scene/desktop-world-client.js'
 import { canonicalInputRegionEvent } from '../lib/input-event-fixtures.mjs'
 
 const document = {
@@ -117,7 +118,13 @@ function routed(regionId, type, x, y, sequenceValue) {
     regionId,
     ownerCanvasId: 'aos-desktop-world-stage',
     type,
-    phase: type === 'left_mouse_down' ? 'down' : type === 'left_mouse_up' ? 'up' : 'drag',
+    phase: type === 'left_mouse_down'
+      ? 'down'
+      : type === 'left_mouse_up'
+        ? 'up'
+        : type === 'mouse_moved'
+          ? 'move'
+          : 'drag',
     deliveryRole: type === 'left_mouse_down' ? 'owned' : 'captured',
     x,
     y,
@@ -629,6 +636,245 @@ test('tap-open radial menu coexists with aim-and-commit drag and cleans temporar
   runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 250, 350, 7))
   assert.equal(events.at(-1).event.response.kind, 'aim_commit')
   assert.equal(events.at(-1).event.gesture.phase, 'end')
+})
+
+test('radial-menu pointer movement emits focus and blur without requiring a press', async () => {
+  const registered = []
+  const { events, runtime } = harness({
+    register: async (payload) => { registered.push(structuredClone(payload)) },
+  })
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: {
+        items: [{ id: 'inspect' }, { id: 'annotate' }],
+        menuId: 'companion-menu',
+      },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  const opened = runtime.snapshot(key).radialMenus[0]
+  const item = opened.regions[0]
+  const [left, top, width, height] = item.frame
+  runtime.handleInput(routed(item.id, 'mouse_moved', left + width / 2, top + height / 2, 3))
+  const backdrop = registered.find((region) => (
+    region.id.includes(':menu:') && region.metadata?.scene_radial_outside === 'true'
+  ))
+  assert.ok(backdrop)
+  runtime.handleInput(routed(backdrop.id, 'mouse_moved', 900, 700, 4))
+
+  assert.deepEqual(events.slice(-2).map(({ event }) => [
+    event.gesture.phase,
+    event.response.action,
+    event.response.itemId ?? null,
+  ]), [
+    ['start', 'focus', 'inspect'],
+    ['end', 'blur', null],
+  ])
+  assert.equal(runtime.snapshot(key).radialMenus.length, 1)
+  await runtime.dispose()
+})
+
+test('radial-menu hover and press lifecycles replay without shared or orphaned gesture IDs', async () => {
+  const { events, runtime } = harness()
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: { items: [{ id: 'inspect' }], menuId: 'companion-menu' },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  const item = runtime.snapshot(key).radialMenus[0].regions[0]
+  const [left, top, width, height] = item.frame
+  const x = left + width / 2
+  const y = top + height / 2
+  runtime.handleInput(routed(item.id, 'mouse_moved', x, y, 3))
+  runtime.handleInput(routed(item.id, 'left_mouse_down', x, y, 4))
+  runtime.handleInput(routed(item.id, 'left_mouse_up', x, y, 5))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  const lifecycle = events
+    .map(({ event }) => event)
+    .filter((event) => ['focus', 'select', 'blur'].includes(event.response.action))
+  assert.deepEqual(lifecycle.map((event) => [event.response.action, event.gesture.phase]), [
+    ['focus', 'start'],
+    ['focus', 'start'],
+    ['select', 'end'],
+    ['blur', 'end'],
+  ])
+  assert.equal(lifecycle[0].gesture.id, lifecycle[3].gesture.id)
+  assert.equal(lifecycle[1].gesture.id, lifecycle[2].gesture.id)
+  assert.notEqual(lifecycle[0].gesture.id, lifecycle[1].gesture.id)
+  assert.equal(replayDesktopWorldSceneEvents(events.map(({ event }) => event)).status, 'ok')
+  await runtime.dispose()
+})
+
+test('non-closing selection and pointer cancellation restore the current hover visual', async () => {
+  const { events, responses, runtime } = harness()
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: { closeOnSelect: false, items: [{ id: 'inspect' }], menuId: 'companion-menu' },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  const item = runtime.snapshot(key).radialMenus[0].regions[0]
+  const [left, top, width, height] = item.frame
+  const x = left + width / 2
+  const y = top + height / 2
+  runtime.handleInput(routed(item.id, 'mouse_moved', x, y, 3))
+  runtime.handleInput(routed(item.id, 'left_mouse_down', x, y, 4))
+  runtime.handleInput(routed(item.id, 'left_mouse_up', x, y, 5))
+  assert.deepEqual(responses.slice(-3).map(({ response }) => response.action), ['select', 'open', 'focus'])
+  const eventsAfterSelection = events.length
+  runtime.handleInput(routed(item.id, 'mouse_moved', x, y, 6))
+  assert.equal(events.length, eventsAfterSelection)
+
+  runtime.handleInput(routed(item.id, 'left_mouse_down', x, y, 7))
+  runtime.handleInput(canonicalInputRegionEvent({
+    regionId: item.id,
+    ownerCanvasId: 'aos-desktop-world-stage',
+    type: 'left_mouse_dragged',
+    phase: 'cancel',
+    deliveryRole: 'captured',
+    x,
+    y,
+    sequenceValue: 8,
+    gestureId: 'gesture-1',
+    extra: { event_kind: 'cancel', cancel_reason: 'pointer_cancelled' },
+  }))
+  assert.deepEqual(responses.slice(-3).map(({ response }) => response.action), ['cancel', 'open', 'focus'])
+  assert.equal(runtime.snapshot(key).radialMenus.length, 1)
+  await runtime.dispose()
+})
+
+test('daemon-routed Escape cancellation closes a pressed radial menu and completes both lifecycles', async () => {
+  const { events, runtime } = harness()
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: { items: [{ id: 'inspect' }], menuId: 'companion-menu' },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  const item = runtime.snapshot(key).radialMenus[0].regions[0]
+  const [left, top, width, height] = item.frame
+  const x = left + width / 2
+  const y = top + height / 2
+  runtime.handleInput(routed(item.id, 'mouse_moved', x, y, 3))
+  runtime.handleInput(routed(item.id, 'left_mouse_down', x, y, 4))
+  runtime.handleInput(canonicalInputRegionEvent({
+    regionId: item.id,
+    ownerCanvasId: 'aos-desktop-world-stage',
+    type: 'pointer_cancel',
+    phase: 'cancel',
+    deliveryRole: 'captured',
+    x,
+    y,
+    sequenceValue: 5,
+    gestureId: 'escape:5',
+    extra: { event_kind: 'cancel', cancel_reason: 'escape' },
+  }))
+  await new Promise((resolve) => setImmediate(resolve))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  const lifecycle = events
+    .map(({ event }) => event)
+    .filter((event) => ['focus', 'blur', 'cancel'].includes(event.response.action))
+  assert.deepEqual(lifecycle.map((event) => [event.response.action, event.gesture.phase]), [
+    ['focus', 'start'],
+    ['focus', 'start'],
+    ['blur', 'end'],
+    ['cancel', 'cancel'],
+  ])
+  assert.equal(lifecycle[0].gesture.id, lifecycle[2].gesture.id)
+  assert.equal(lifecycle[1].gesture.id, lifecycle[3].gesture.id)
+  assert.equal(runtime.snapshot(key).radialMenus.length, 0)
+  assert.equal(replayDesktopWorldSceneEvents(events.map(({ event }) => event)).status, 'ok')
+  await runtime.dispose()
+})
+
+test('every lifecycle close completes active radial hover and press gestures', async () => {
+  const cases = [
+    ['resource suspend', (runtime, key) => runtime.suspend(key)],
+    ['topology change', (runtime) => runtime.topologyChanged()],
+    ['stage suspend', (runtime) => runtime.suspendStage()],
+    ['resource release', (runtime, key) => runtime.release(key)],
+    ['stage disposal', (runtime) => runtime.dispose()],
+  ]
+  for (const [label, closeRuntime] of cases) {
+    const { events, runtime } = harness()
+    const key = 'example.consumer::companion/main'
+    const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+    const menuInteractions = structuredClone(interactions)
+    menuInteractions.interactions = [{
+      id: 'open-menu',
+      affordanceId: 'body-hit',
+      recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+      response: {
+        implementation: 'aos.scene.response.radial-menu',
+        parameters: { items: [{ id: 'inspect' }], menuId: 'companion-menu' },
+      },
+    }]
+    await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+    runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+    runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+    await new Promise((resolve) => setImmediate(resolve))
+
+    const item = runtime.snapshot(key).radialMenus[0].regions[0]
+    const [left, top, width, height] = item.frame
+    const x = left + width / 2
+    const y = top + height / 2
+    runtime.handleInput(routed(item.id, 'mouse_moved', x, y, 3))
+    runtime.handleInput(routed(item.id, 'left_mouse_down', x, y, 4))
+    await closeRuntime(runtime, key)
+
+    assert.doesNotThrow(
+      () => replayDesktopWorldSceneEvents(events.map(({ event }) => event)),
+      label,
+    )
+    if (label !== 'stage disposal') await runtime.dispose()
+  }
 })
 
 test('radial-menu regions remain inactive until one atomic generation replacement activates every item', async () => {

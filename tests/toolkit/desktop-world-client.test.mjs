@@ -105,9 +105,11 @@ test('deterministic replay accepts strict persistent radial-menu lifecycles', ()
     gesture('start', 1, open),
     gesture('end', 2, open),
     gesture('start', 3, { kind: 'radial_menu', action: 'focus', menuId: 'companion-menu', itemId: 'inspect', selectionIndex: 0 }),
-    gesture('end', 4, { kind: 'radial_menu', action: 'select', menuId: 'companion-menu', itemId: 'inspect', selectionIndex: 0 }),
+    gesture('end', 4, { kind: 'radial_menu', action: 'blur', menuId: 'companion-menu' }),
+    gesture('start', 5, { kind: 'radial_menu', action: 'focus', menuId: 'companion-menu', itemId: 'inspect', selectionIndex: 0 }),
+    gesture('end', 6, { kind: 'radial_menu', action: 'select', menuId: 'companion-menu', itemId: 'inspect', selectionIndex: 0 }),
   ])
-  assert.equal(summary.completedGestures, 2)
+  assert.equal(summary.completedGestures, 3)
   assert.throws(() => replayDesktopWorldSceneEvents([
     gesture('start', 1, { kind: 'radial_menu', action: 'cancel', menuId: 'companion-menu', items: open.items }),
   ]), { code: 'INVALID_SCENE_REPLAY_EVENT' })

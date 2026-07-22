@@ -297,6 +297,10 @@ export function createSceneInteractionVisualController({ now = () => performance
       model.radial.selectionIndex = Number.isInteger(event.response.selectionIndex) ? event.response.selectionIndex : -1
       return
     }
+    if (event.response.action === 'blur') {
+      model.radial.selectionIndex = -1
+      return
+    }
     if (event.response.action !== 'open') {
       model.radial.visible = false
       model.radial.selectionIndex = Number.isInteger(event.response.selectionIndex) ? event.response.selectionIndex : -1

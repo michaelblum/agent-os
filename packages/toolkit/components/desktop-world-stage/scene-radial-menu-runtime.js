@@ -74,15 +74,27 @@ function regionIsAlreadyAbsent(error) {
   return error?.code === 'NOT_FOUND' || String(error?.message ?? '').includes('NOT_FOUND')
 }
 
-function syntheticFrame(session, action, input, reason = null, phase = action === 'cancel' ? 'cancel' : 'end') {
+function syntheticFrame(
+  session,
+  action,
+  input,
+  reason = null,
+  phase = action === 'cancel' ? 'cancel' : 'end',
+  gestureId = null,
+  pointerSessionId = undefined,
+) {
   const current = input?.desktop_world ?? input?.desktopWorld ?? session.layout.center
   return {
     affordanceId: session.affordance.id,
     interactionId: session.interaction.id,
-    gesture_id: session.pointerGestureId ?? `${session.response.menuId}:${session.generation}:${action}`,
+    gesture_id: gestureId ?? `${session.response.menuId}:${session.generation}:${action}`,
     gesture_type: 'tap',
     phase,
-    pointer: { capture_id: input?.captureId ?? input?.capture_id ?? null },
+    pointer: {
+      capture_id: pointerSessionId === undefined
+        ? input?.captureId ?? input?.capture_id ?? null
+        : pointerSessionId,
+    },
     origin: session.response.origin,
     previous: current,
     current,
@@ -174,6 +186,9 @@ export function createDesktopWorldSceneRadialMenuRuntime({
     session.regionIds.clear()
     session.regionPayloads.clear()
     session.dispatchGuard = null
+    session.focusedRegionId = null
+    session.hoverGestureId = null
+    session.hoverPointerSessionId = null
   }
 
   function releaseDispatchGuard(session, guard = session.dispatchGuard) {
@@ -224,8 +239,15 @@ export function createDesktopWorldSceneRadialMenuRuntime({
       kind: 'radial_menu', action: 'cancel', menuId: session.response.menuId,
     })
     if (emitEvent) {
-      if (!session.pointerGestureId) emit(session, response, syntheticFrame(session, 'cancel', input, null, 'start'))
-      emit(session, response, syntheticFrame(session, 'cancel', input, reason, 'cancel'))
+      const gestureId = session.pointerGestureId ?? `${session.response.menuId}:${session.generation}:cancel`
+      if (!session.pointerGestureId) {
+        emit(session, response, syntheticFrame(
+          session, 'cancel', input, null, 'start', gestureId, session.pointerSessionId,
+        ))
+      }
+      emit(session, response, syntheticFrame(
+        session, 'cancel', input, reason, 'cancel', gestureId, session.pointerSessionId,
+      ))
     } else if (session.visualApplied) {
       outlet.applyInteractionResponse(session.key, {
         frame: syntheticFrame(session, 'cancel', input, reason),
@@ -236,6 +258,11 @@ export function createDesktopWorldSceneRadialMenuRuntime({
       })
     }
     session.visualApplied = false
+    session.pointerGestureId = null
+    session.pointerSessionId = null
+    session.focusedRegionId = null
+    session.hoverGestureId = null
+    session.hoverPointerSessionId = null
     session.finalized = true
     session.errorCode = null
     releaseDispatchGuard(session)
@@ -297,9 +324,44 @@ export function createDesktopWorldSceneRadialMenuRuntime({
     }))
   }
 
+  function applyOpenVisual(session, input) {
+    const frame = syntheticFrame(session, 'open', input)
+    outlet.applyInteractionResponse(session.key, {
+      frame,
+      interaction: session.interaction,
+      radialLayout: session.layout,
+      response: session.response,
+      topology: topology(),
+    })
+    return frame
+  }
+
+  function restoreHoverVisual(session, input) {
+    const frame = applyOpenVisual(session, input)
+    const indexed = session.focusedRegionId ? regionIndex.get(session.focusedRegionId) : null
+    if (!indexed || indexed.session !== session || indexed.outside || indexed.item?.disabled) return frame
+    outlet.applyInteractionResponse(session.key, {
+      frame: syntheticFrame(
+        session, 'focus', input, null, 'start', session.hoverGestureId, session.hoverPointerSessionId,
+      ),
+      interaction: session.interaction,
+      radialLayout: session.layout,
+      response: Object.freeze({
+        kind: 'radial_menu',
+        action: 'focus',
+        menuId: session.response.menuId,
+        itemId: indexed.item.id,
+        selectionIndex: indexed.item.index,
+      }),
+      topology: topology(),
+    })
+    return frame
+  }
+
   function close(key, reason = 'resource_changed', { emitEvent = true, input = null } = {}) {
     const session = active.get(key)
     if (!session) return false
+    blur(session, input)
     active.delete(key)
     retired.add(session)
     session.closed = true
@@ -332,6 +394,10 @@ export function createDesktopWorldSceneRadialMenuRuntime({
       regionPayloads: new Map(),
       pressedRegionId: null,
       pointerGestureId: null,
+      pointerSessionId: null,
+      focusedRegionId: null,
+      hoverGestureId: null,
+      hoverPointerSessionId: null,
       generation: ++generation,
       closed: false,
       closeRequest: null,
@@ -425,7 +491,9 @@ export function createDesktopWorldSceneRadialMenuRuntime({
       itemId: item.id,
       selectionIndex: item.index,
     })
-    const frame = syntheticFrame(session, 'select', input)
+    const frame = syntheticFrame(
+      session, 'select', input, null, 'end', session.pointerGestureId, session.pointerSessionId,
+    )
     const closes = session.response.closeOnSelect !== false
     // A closing selection is published immediately, but its visual remains
     // present until the native region generation has retired successfully.
@@ -435,14 +503,52 @@ export function createDesktopWorldSceneRadialMenuRuntime({
     else {
       session.pressedRegionId = null
       session.pointerGestureId = null
-      outlet.applyInteractionResponse(session.key, {
-        frame,
-        interaction: session.interaction,
-        radialLayout: session.layout,
-        response: session.response,
-        topology: topology(),
-      })
+      session.pointerSessionId = null
+      restoreHoverVisual(session, input)
     }
+    return true
+  }
+
+  function pressFocus(indexed, input) {
+    const { session, item } = indexed
+    if (!session.dispatchable || session.closed || item.disabled || active.get(session.key) !== session) return false
+    emit(session, Object.freeze({
+      kind: 'radial_menu', action: 'focus', menuId: session.response.menuId,
+      itemId: item.id, selectionIndex: item.index,
+    }), syntheticFrame(
+      session, 'focus', input, null, 'start', session.pointerGestureId, session.pointerSessionId,
+    ))
+    return true
+  }
+
+  function blur(session, input) {
+    if (!session.focusedRegionId || session.closed || active.get(session.key) !== session) return false
+    const gestureId = session.hoverGestureId
+    emit(session, Object.freeze({
+      kind: 'radial_menu', action: 'blur', menuId: session.response.menuId,
+    }), syntheticFrame(
+      session, 'blur', input, null, 'end', gestureId, session.hoverPointerSessionId,
+    ))
+    session.focusedRegionId = null
+    session.hoverGestureId = null
+    session.hoverPointerSessionId = null
+    return true
+  }
+
+  function hoverFocus(indexed, input) {
+    const { session, item } = indexed
+    if (!session.dispatchable || session.closed || item.disabled || active.get(session.key) !== session) return false
+    if (session.focusedRegionId === input.regionId) return true
+    blur(session, input)
+    session.focusedRegionId = input.regionId
+    session.hoverGestureId = `${session.response.menuId}:${session.generation}:hover:${item.index}`
+    session.hoverPointerSessionId = input.captureId ?? input.capture_id ?? null
+    emit(session, Object.freeze({
+      kind: 'radial_menu', action: 'focus', menuId: session.response.menuId,
+      itemId: item.id, selectionIndex: item.index,
+    }), syntheticFrame(
+      session, 'focus', input, null, 'start', session.hoverGestureId, session.hoverPointerSessionId,
+    ))
     return true
   }
 
@@ -466,40 +572,49 @@ export function createDesktopWorldSceneRadialMenuRuntime({
     const indexed = regionIndex.get(input.regionId)
     if (!indexed) return false
     if (indexed.outside) {
+      if (input.phase === 'move') {
+        blur(indexed.session, input)
+        return true
+      }
       if (input.phase === 'down') {
         return close(indexed.session.key, 'pointer_cancelled', { input })
       }
       return true
     }
+    if (input.phase === 'move') return hoverFocus(indexed, input)
     if (input.phase === 'down') {
       indexed.session.pressedRegionId = input.regionId
       indexed.session.pointerGestureId = input.gestureId ?? input.gesture_id ?? `${indexed.session.response.menuId}:${indexed.session.generation}:select`
-      emit(indexed.session, Object.freeze({
-        kind: 'radial_menu', action: 'focus', menuId: indexed.session.response.menuId,
-        itemId: indexed.item.id, selectionIndex: indexed.item.index,
-      }), syntheticFrame(indexed.session, 'focus', input, null, 'start'))
-      return true
+      indexed.session.pointerSessionId = input.captureId ?? input.capture_id ?? null
+      return pressFocus(indexed, input)
     }
     if (input.phase === 'up') {
       const accepted = indexed.session.pressedRegionId === input.regionId
       indexed.session.pressedRegionId = null
       const selected = accepted ? select(indexed, input) : true
       indexed.session.pointerGestureId = null
+      indexed.session.pointerSessionId = null
       return selected
     }
     if (input.phase === 'cancel') {
+      if (input.cancel_reason === 'escape') {
+        return close(indexed.session.key, 'escape', { input })
+      }
       if (indexed.session.pointerGestureId) emit(indexed.session, Object.freeze({
         kind: 'radial_menu', action: 'cancel', menuId: indexed.session.response.menuId,
-      }), syntheticFrame(indexed.session, 'cancel', input, input.cancel_reason ?? 'pointer_cancelled', 'cancel'))
+      }), syntheticFrame(
+        indexed.session,
+        'cancel',
+        input,
+        input.cancel_reason ?? 'pointer_cancelled',
+        'cancel',
+        indexed.session.pointerGestureId,
+        indexed.session.pointerSessionId,
+      ))
       indexed.session.pressedRegionId = null
       indexed.session.pointerGestureId = null
-      outlet.applyInteractionResponse(indexed.session.key, {
-        frame: syntheticFrame(indexed.session, 'open', input, null, 'end'),
-        interaction: indexed.session.interaction,
-        radialLayout: indexed.session.layout,
-        response: indexed.session.response,
-        topology: topology(),
-      })
+      indexed.session.pointerSessionId = null
+      restoreHoverVisual(indexed.session, input)
       return true
     }
     return true

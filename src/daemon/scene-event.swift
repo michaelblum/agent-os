@@ -157,7 +157,7 @@ private func aosSceneResponse(_ value: Any?) -> Bool {
         let required = Set(["kind", "action", "menuId"])
         guard required.isSubset(of: Set(response.keys)),
               let action = response["action"] as? String,
-              ["open", "focus", "select", "cancel"].contains(action),
+              ["open", "focus", "blur", "select", "cancel"].contains(action),
               aosSceneIdentifier(response["menuId"], allowSlash: true) != nil else { return false }
         if action == "open" {
             let allowed = required.union([
