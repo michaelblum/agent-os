@@ -211,6 +211,12 @@ export function createDesktopWorldSceneRadialMenuRuntime({
     for (const id of session.regionIds) guardedRegionIndex.set(id, guard)
   }
 
+  function requireBoundedDispatchGuard(guard) {
+    if (guard?.inputOverflow) {
+      throw new RangeError('DesktopWorld radial-menu activation input buffer exceeded.')
+    }
+  }
+
   function finalizeClose(session) {
     if (session.finalized) return
     const { emitEvent, input, reason } = session.closeRequest
@@ -372,9 +378,7 @@ export function createDesktopWorldSceneRadialMenuRuntime({
           await retireAndFinalize(session)
           return
         }
-        if (dispatchGuard?.inputOverflow) {
-          throw new RangeError('DesktopWorld radial-menu activation input buffer exceeded.')
-        }
+        requireBoundedDispatchGuard(dispatchGuard)
         session.visualApplied = true
         const applied = outlet.applyInteractionResponse(key, {
           frame,
@@ -384,6 +388,11 @@ export function createDesktopWorldSceneRadialMenuRuntime({
           topology: topology(),
         })
         if (applied?.applied !== true) throw new Error('DesktopWorld radial-menu visual activation failed.')
+        requireBoundedDispatchGuard(dispatchGuard)
+        if (session.closed || active.get(key) !== session) {
+          await retireAndFinalize(session)
+          return
+        }
         for (const entry of entries) {
           regionIndex.set(entry.payload.id, { session, item: entry.item, outside: entry.outside })
         }

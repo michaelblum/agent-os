@@ -796,6 +796,113 @@ test('radial-menu activation fails closed when acknowledgement input exceeds its
   await runtime.dispose()
 })
 
+test('radial-menu activation fails closed on reentrant visual-commit input overflow', async () => {
+  let activeItem = null
+  let injected = false
+  let runtime
+  const handledDuringVisualCommit = []
+  const result = harness({
+    applyResponse: (event) => {
+      if (event.radialLayout && activeItem && !injected) {
+        injected = true
+        const [left, top, width, height] = activeItem.frame
+        for (let index = 0; index < 65; index += 1) {
+          handledDuringVisualCommit.push(runtime.handleInput(routed(
+            activeItem.id,
+            'left_mouse_dragged',
+            left + width / 2,
+            top + height / 2,
+            3 + index,
+          )))
+        }
+      }
+      return { ...event.response, applied: true, revision: 1 }
+    },
+    replace: async ({ activate, calls, retire }) => {
+      if (retire.length > 0) {
+        for (const id of retire) calls.push(['remove', id])
+        return
+      }
+      activeItem = activate.find((payload) => (
+        payload.id.includes(':menu:') && payload.metadata?.scene_radial_outside !== 'true'
+      )) ?? null
+    },
+  })
+  runtime = result.runtime
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: { items: [{ id: 'inspect' }], menuId: 'companion-menu' },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.equal(handledDuringVisualCommit.length, 65)
+  assert.ok(handledDuringVisualCommit.every(Boolean))
+  assert.deepEqual(runtime.snapshot(key).radialMenus, [])
+  assert.equal(result.events.some(({ event }) => ['focus', 'select'].includes(event.response.action)), false)
+  assert.ok(result.calls.some(([kind, id]) => kind === 'remove' && id.includes(':menu:')))
+  assert.equal(runtime.handleInput(routed(activeItem.id, 'left_mouse_down', 100, 100, 70)), false)
+  await runtime.dispose()
+})
+
+test('radial-menu activation cannot commit after a reentrant visual close', async () => {
+  let activeItem = null
+  let closedDuringVisualCommit = false
+  let runtime
+  const result = harness({
+    applyResponse: (event) => {
+      if (event.radialLayout && !closedDuringVisualCommit) {
+        closedDuringVisualCommit = runtime.handleInput(escapeKey(3))
+      }
+      return { ...event.response, applied: true, revision: 1 }
+    },
+    replace: async ({ activate, calls, retire }) => {
+      if (retire.length > 0) {
+        for (const id of retire) calls.push(['remove', id])
+        return
+      }
+      activeItem = activate.find((payload) => (
+        payload.id.includes(':menu:') && payload.metadata?.scene_radial_outside !== 'true'
+      )) ?? null
+    },
+  })
+  runtime = result.runtime
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: { items: [{ id: 'inspect' }], menuId: 'companion-menu' },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.equal(closedDuringVisualCommit, true)
+  assert.deepEqual(runtime.snapshot(key).radialMenus, [])
+  assert.ok(result.calls.some(([kind, id]) => kind === 'remove' && id.includes(':menu:')))
+  assert.equal(runtime.handleInput(routed(activeItem.id, 'left_mouse_down', 100, 100, 4)), false)
+  await runtime.dispose()
+})
+
 test('every enabled radial-menu item dispatches selection after atomic activation', async () => {
   const { events, runtime } = harness()
   const key = 'example.consumer::companion/main'
