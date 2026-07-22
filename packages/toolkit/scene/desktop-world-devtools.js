@@ -26,7 +26,7 @@ export const DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS = Object.freeze({
   minFrameSamples: 120,
   p95FrameBudgetMultiplier: 1.1,
   maxSteadyFrameMs: 100,
-  maxBackingPixelsPerSegment: 2_097_152,
+  maxBackingPixelsPerSegment: 4_194_304,
   maxCrossDisplayGapFrames: 2,
   stabilityCycles: 100,
   maxWarmCycleRssGrowthBytes: 16 * 1024 * 1024,

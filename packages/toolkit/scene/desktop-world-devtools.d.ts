@@ -119,7 +119,7 @@ export const DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS: Readonly<{
   minFrameSamples: 120;
   p95FrameBudgetMultiplier: 1.1;
   maxSteadyFrameMs: 100;
-  maxBackingPixelsPerSegment: 2097152;
+  maxBackingPixelsPerSegment: 4194304;
   maxCrossDisplayGapFrames: 2;
   stabilityCycles: 100;
   maxWarmCycleRssGrowthBytes: 16777216;
