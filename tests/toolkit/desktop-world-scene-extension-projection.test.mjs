@@ -97,13 +97,14 @@ function projectionObject() {
   }
 }
 
-function factory(overrides = {}) {
+function factory(overrides = {}, projectionOverrides = {}) {
   const object = projectionObject()
   return {
     manifest: manifest(overrides),
     createProjection() {
       return {
         object,
+        ...projectionOverrides,
         applySignal() {},
         applyAnimation() {},
         tick() {},
@@ -132,6 +133,109 @@ test('DesktopWorld selects an exact owner-matched extension projection', () => {
   assert.deepEqual(result.projection.objectPosition('companion/main'), [0, 0, 0])
   assert.equal(result.projection.setObjectPosition('companion/main', [90, 40, 2]), true)
   assert.deepEqual(result.projection.objectPosition('companion/main'), [90, 40, 2])
+})
+
+test('DesktopWorld exposes bounded synchronous extension interaction results', () => {
+  const observed = []
+  const extension = factory({}, {
+    applyInteraction(event) {
+      observed.push(event.response.kind)
+      return { handled: true, routeStarted: true }
+    },
+  })
+  const registry = createTrustedSceneExtensionRegistry({ factories: [extension] })
+  const result = createDesktopWorldSceneProjection({
+    THREE: { REVISION: SCENE_EXTENSION_THREE_REVISION },
+    document: scene(),
+    expectedOwner: ownerId,
+    extensionReference: reference(),
+    extensionRegistry: registry,
+  })
+
+  assert.deepEqual(result.projection.applyInteraction({ response: { kind: 'aim_commit' } }), {
+    handled: true,
+    routeStarted: true,
+  })
+  assert.deepEqual(observed, ['aim_commit'])
+})
+
+test('DesktopWorld gives trusted extensions a bounded deep-frozen interaction snapshot', () => {
+  let observed = null
+  const extension = factory({}, {
+    applyInteraction(event) {
+      observed = event
+      assert.throws(() => { event.frame.current.x = 999 }, TypeError)
+      assert.throws(() => { event.topology.displays[0].bounds[0] = 999 }, TypeError)
+      return true
+    },
+  })
+  const registry = createTrustedSceneExtensionRegistry({ factories: [extension] })
+  const result = createDesktopWorldSceneProjection({
+    THREE: { REVISION: SCENE_EXTENSION_THREE_REVISION },
+    document: scene(),
+    expectedOwner: ownerId,
+    extensionReference: reference(),
+    extensionRegistry: registry,
+  })
+  const event = {
+    frame: { current: { x: 20, y: 30 } },
+    response: { kind: 'aim_commit', position: [20, 30, 0] },
+    topology: { displays: [{ displayId: 1, bounds: [0, 0, 1000, 800] }] },
+  }
+
+  assert.deepEqual(result.projection.applyInteraction(event), {
+    handled: true,
+    routeStarted: false,
+  })
+  assert.notEqual(observed, event)
+  assert.equal(Object.isFrozen(observed.frame.current), true)
+  assert.equal(Object.isFrozen(observed.topology.displays[0].bounds), true)
+  assert.deepEqual(event.frame.current, { x: 20, y: 30 })
+  assert.deepEqual(event.topology.displays[0].bounds, [0, 0, 1000, 800])
+})
+
+test('DesktopWorld clones special interaction keys as inert frozen data properties', () => {
+  let observed = null
+  const extension = factory({}, {
+    applyInteraction(event) {
+      observed = event
+      return false
+    },
+  })
+  const registry = createTrustedSceneExtensionRegistry({ factories: [extension] })
+  const result = createDesktopWorldSceneProjection({
+    THREE: { REVISION: SCENE_EXTENSION_THREE_REVISION },
+    document: scene(),
+    expectedOwner: ownerId,
+    extensionReference: reference(),
+    extensionRegistry: registry,
+  })
+  const event = { response: { kind: 'aim_commit' } }
+  Object.defineProperty(event, '__proto__', {
+    enumerable: true,
+    value: { polluted: true },
+  })
+
+  result.projection.applyInteraction(event)
+
+  assert.equal(Object.getPrototypeOf(observed), Object.prototype)
+  assert.equal(Object.hasOwn(observed, '__proto__'), true)
+  assert.equal(observed.__proto__.polluted, true)
+  assert.equal(Object.isFrozen(observed.__proto__), true)
+  assert.equal({}.polluted, undefined)
+})
+
+test('DesktopWorld rejects malformed extension interaction results', () => {
+  const extension = factory({}, { applyInteraction: () => ({ handled: true, text: 'leak' }) })
+  const registry = createTrustedSceneExtensionRegistry({ factories: [extension] })
+  const result = createDesktopWorldSceneProjection({
+    THREE: { REVISION: SCENE_EXTENSION_THREE_REVISION },
+    document: scene(),
+    expectedOwner: ownerId,
+    extensionReference: reference(),
+    extensionRegistry: registry,
+  })
+  assert.throws(() => result.projection.applyInteraction({}), /invalid fields/)
 })
 
 test('neutral extension restores visibility after context loss without waking a suspended projection', async () => {

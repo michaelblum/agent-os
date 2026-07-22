@@ -36,6 +36,16 @@ export interface NormalizedSceneRadialMenuParameters {
   }>;
 }
 
+export interface SceneRadialMenuLayout {
+  center: Readonly<ScenePoint>;
+  items: ReadonlyArray<Readonly<SceneRadialMenuItemDescriptor & {
+    center: Readonly<ScenePoint>;
+    hitRadius: number;
+    index: number;
+  }>>;
+  parameters: Readonly<NormalizedSceneRadialMenuParameters>;
+}
+
 export const SCENE_RADIAL_MENU_LIMITS: Readonly<{
   maxItems: 32;
   maxRadius: 2048;
@@ -44,10 +54,6 @@ export const SCENE_RADIAL_MENU_LIMITS: Readonly<{
 
 export function normalizeSceneRadialMenuParameters(parameters?: Partial<SceneRadialMenuParameters>): Readonly<NormalizedSceneRadialMenuParameters>;
 export function validateSceneRadialMenuParameters(parameters: unknown, path?: string): Array<{ code: string; path: string; message: string }>;
-export function resolveSceneRadialMenuLayout(response: SceneRadialMenuParameters & { origin?: ScenePoint | null }, topology?: SceneTopologySnapshot | null): Readonly<{
-  center: Readonly<ScenePoint>;
-  items: ReadonlyArray<Readonly<SceneRadialMenuItemDescriptor & { index: number; center: Readonly<ScenePoint>; hitRadius: number }>>;
-  parameters: Readonly<NormalizedSceneRadialMenuParameters>;
-}>;
+export function resolveSceneRadialMenuLayout(response: SceneRadialMenuParameters & { origin?: ScenePoint | null }, topology?: SceneTopologySnapshot | null): Readonly<SceneRadialMenuLayout>;
 export function resolveSceneRadialMenuResponse(options: { frame: SceneGestureFrame; interaction: SceneCartridgeInteraction }): Readonly<Record<string, unknown>>;
 export function withSceneRadialSelection(frame: SceneGestureFrame, interaction: SceneCartridgeInteraction): SceneGestureFrame;

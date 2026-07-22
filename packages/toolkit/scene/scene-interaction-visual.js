@@ -302,7 +302,7 @@ export function createSceneInteractionVisualController({ now = () => performance
       model.radial.selectionIndex = Number.isInteger(event.response.selectionIndex) ? event.response.selectionIndex : -1
       return
     }
-    const layout = resolveSceneRadialMenuLayout(event.response, event.topology)
+    const layout = event.radialLayout ?? resolveSceneRadialMenuLayout(event.response, event.topology)
     const style = resolveSceneRadialVisualStyle(event.response)
     copyPoint(model.radial.center, layout.center)
     model.radial.itemCount = layout.items.length

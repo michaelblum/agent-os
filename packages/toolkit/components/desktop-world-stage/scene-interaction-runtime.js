@@ -110,6 +110,7 @@ export function createDesktopWorldSceneInteractionRuntime({
   const radialMenus = createDesktopWorldSceneRadialMenuRuntime({
     stageCanvasId,
     registerRegion,
+    replaceRegionGeneration,
     removeRegion,
     outlet,
     topology,

@@ -98,6 +98,12 @@ The extension synchronously returns one bounded Object3D subtree plus
 synchronous `applySignal`, `applyAnimation`, `tick`, `suspend`, `resume`,
 `contextLost`, `contextRestored`, and `dispose` operations. Optional activation is synchronous as
 well. Promise-like factory, lifecycle, update, or disposal results are rejected.
+A projection may also implement synchronous `applyInteraction(event)` for
+consumer-owned arrow, route, radial-menu, and other visual treatment. AOS still
+owns gesture recognition, capture, native regions, placement commits, event
+publication, and cancellation. The extension may report that it handled the
+visual and, for a committed route, that its deterministic route animation has
+started; it cannot prevent or rewrite the canonical placement commit.
 AOS owns the renderer, camera, RAF, multi-display replication,
 interaction routing, scene transactions, context recovery, inspection, and
 observable render-tree accounting. Initial creation and every rendered tick
@@ -140,6 +146,17 @@ stage generation and all of its resource aggregates before the daemon publishes
 the terminal fault. Once a candidate and its buffered input have committed,
 event delivery failure is diagnostic and does not roll the scene back after
 observable state has already become authoritative.
+
+Radial-menu item regions and the non-consuming outside-dismiss backdrop are
+registered inactive and activated as one native region generation. Product art
+is not exposed until every item and dismissal region is ready. A failed
+activation remains guarded through fail-closed retirement, so a partial menu
+cannot consume input or dispatch product actions.
+The extension receives one bounded, deeply immutable interaction snapshot and
+the exact engine-resolved radial layout used for native hit regions. Retirement
+removes JavaScript dispatch authority immediately, then dismisses product art
+only after the native generation is confirmed retired; failed cleanup therefore
+cannot create an invisible input-consuming menu.
 
 Historical consumer implementations remain visual and interaction references,
 not performance baselines. DesktopWorld performance acceptance uses the public

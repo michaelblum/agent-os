@@ -194,6 +194,7 @@ test('factory and projection hooks reject Promise-like results from the synchron
   for (const method of [
     'activate',
     'applyAnimation',
+    'applyInteraction',
     'applySignal',
     'contextLost',
     'contextRestored',

@@ -45,6 +45,14 @@ and `applySignal`, `applyAnimation`, `tick`, `suspend`, `resume`,
 `contextLost`, `contextRestored`, and `dispose` methods. Promise-like hook results fail admission
 or the active operation.
 
+An optional synchronous `applyInteraction(event)` hook may render
+consumer-specific aim, route, and radial-menu visuals. Return `true` or
+`{ handled: true }` after applying a visual update. A committed route may also
+return `{ handled: true, routeStarted: true }` so AOS does not snap the object
+before the extension's route animation begins. AOS has already committed the
+canonical destination and remains responsible for recognition, native hit
+regions, cancellation, event delivery, and recovery.
+
 The manifest binds owner, extension ID, sorted implementation IDs, scene ABI,
 AOS's pinned Three revision, finite resource budgets, and the projection body
 SHA-256. `serializeSceneExtensionDigestMaterial()` is the digest authority.
@@ -83,6 +91,15 @@ AOS retains the renderer, camera, frame loop, multi-display projection,
 transactions, input, inspection, allocation reservations, context-loss
 handling, and disposal enforcement. The extension owns its model, materials,
 shaders, effects, and per-frame visual implementation.
+
+Radial menus use one atomic native-region generation for all items plus a
+non-consuming outside-dismiss backdrop. Extensions render the menu but never
+register their own hit regions or arbitrate input. The bounded, deeply frozen
+interaction event includes the engine-resolved `radialLayout`; extensions must
+render those exact centers rather than independently recomputing edge
+placement. Product art appears only after the full input generation activates.
+If retirement is temporarily unavailable, the art remains visible but cannot
+dispatch until AOS confirms cleanup.
 
 At creation, extension limits are lowered to unallocated segment headroom.
 Replacement accounts for old and candidate projections concurrently. Commit

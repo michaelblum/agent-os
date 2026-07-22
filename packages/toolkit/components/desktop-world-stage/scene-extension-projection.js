@@ -15,11 +15,97 @@ function objectNamed(root, id) {
   return match
 }
 
+function interactionResult(value) {
+  if (value === true) return Object.freeze({ handled: true, routeStarted: false })
+  if (value === false || value === null || value === undefined) {
+    return Object.freeze({ handled: false, routeStarted: false })
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new TypeError('Scene extension interaction results must be boolean or bounded result objects.')
+  }
+  const keys = Object.keys(value)
+  if (keys.some((key) => !['handled', 'routeStarted'].includes(key)) || typeof value.handled !== 'boolean') {
+    throw new TypeError('Scene extension interaction results contain invalid fields.')
+  }
+  if (value.routeStarted !== undefined && typeof value.routeStarted !== 'boolean') {
+    throw new TypeError('Scene extension routeStarted must be boolean.')
+  }
+  return Object.freeze({
+    handled: value.handled,
+    routeStarted: value.handled && value.routeStarted === true,
+  })
+}
+
+const INTERACTION_EVENT_LIMITS = Object.freeze({
+  maxArrayLength: 256,
+  maxDepth: 16,
+  maxObjectKeys: 128,
+  maxStringLength: 16_384,
+  maxValues: 4_096,
+})
+
+function immutableInteractionValue(value, state, depth = 0) {
+  state.values += 1
+  if (state.values > INTERACTION_EVENT_LIMITS.maxValues || depth > INTERACTION_EVENT_LIMITS.maxDepth) {
+    throw new TypeError('Scene extension interaction event exceeds bounded clone limits.')
+  }
+  if (value === null || typeof value === 'boolean') return value
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new TypeError('Scene extension interaction event contains a non-finite number.')
+    return value
+  }
+  if (typeof value === 'string') {
+    if (value.length > INTERACTION_EVENT_LIMITS.maxStringLength) {
+      throw new TypeError('Scene extension interaction event contains an oversized string.')
+    }
+    return value
+  }
+  if (value === undefined) return undefined
+  if (typeof value !== 'object') {
+    throw new TypeError('Scene extension interaction event contains an unsupported value.')
+  }
+  if (Array.isArray(value)) {
+    if (value.length > INTERACTION_EVENT_LIMITS.maxArrayLength) {
+      throw new TypeError('Scene extension interaction event contains an oversized array.')
+    }
+    return Object.freeze(value.map((entry) => immutableInteractionValue(entry, state, depth + 1)))
+  }
+  const prototype = Object.getPrototypeOf(value)
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new TypeError('Scene extension interaction event contains a non-record object.')
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value)
+  const entries = Object.entries(descriptors).filter(([, descriptor]) => descriptor.enumerable)
+  if (entries.length > INTERACTION_EVENT_LIMITS.maxObjectKeys) {
+    throw new TypeError('Scene extension interaction event contains an oversized record.')
+  }
+  const result = {}
+  for (const [key, descriptor] of entries) {
+    if ('get' in descriptor || 'set' in descriptor) {
+      throw new TypeError('Scene extension interaction event contains an accessor.')
+    }
+    Object.defineProperty(result, key, {
+      configurable: false,
+      enumerable: true,
+      value: immutableInteractionValue(descriptor.value, state, depth + 1),
+      writable: false,
+    })
+  }
+  return Object.freeze(result)
+}
+
+function immutableInteractionEvent(value) {
+  return immutableInteractionValue(value, { values: 0 })
+}
+
 function extensionProjectionAdapter(projection, releaseExtension) {
   let disposed = false
   return {
     object: projection.object,
     activate: (...args) => projection.activate?.apply(projection, args),
+    applyInteraction: typeof projection.applyInteraction === 'function'
+      ? (event) => interactionResult(projection.applyInteraction.call(projection, immutableInteractionEvent(event)))
+      : undefined,
     applyAnimation: (...args) => projection.applyAnimation.apply(projection, args),
     applySignal: (...args) => projection.applySignal.apply(projection, args),
     contextLost: (...args) => projection.contextLost.apply(projection, args),
