@@ -653,7 +653,10 @@ test('radial-menu pointer movement emits focus and blur without requiring a pres
     response: {
       implementation: 'aos.scene.response.radial-menu',
       parameters: {
-        items: [{ id: 'inspect' }, { id: 'annotate' }],
+        items: [
+          { id: 'inspect', label: 'Inspect scene' },
+          { id: 'annotate', label: 'Annotate desktop' },
+        ],
         menuId: 'companion-menu',
       },
     },
@@ -664,6 +667,10 @@ test('radial-menu pointer movement emits focus and blur without requiring a pres
   await new Promise((resolve) => setImmediate(resolve))
 
   const opened = runtime.snapshot(key).radialMenus[0]
+  const inspectRegion = registered.find((region) => region.metadata?.scene_radial_item === 'inspect')
+  assert.equal(inspectRegion?.semantic_label, 'Inspect scene')
+  const openEvent = events.find(({ event }) => event.response.action === 'open')
+  assert.equal('label' in openEvent.event.response.items[0], false)
   const item = opened.regions[0]
   const [left, top, width, height] = item.frame
   runtime.handleInput(routed(item.id, 'mouse_moved', left + width / 2, top + height / 2, 3))

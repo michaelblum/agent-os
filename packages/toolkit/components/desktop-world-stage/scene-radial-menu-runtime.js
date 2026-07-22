@@ -1,5 +1,6 @@
 import {
   createSceneEventEnvelope,
+  resolveSceneRadialMenuItemLabel,
   resolveSceneRadialMenuLayout,
 } from '../../scene/index.js'
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
@@ -22,7 +23,10 @@ function regionPayload(session, item, stageCanvasId) {
     owner_canvas_id: stageCanvasId,
     frame: [item.center.x - radius, item.center.y - radius, radius * 2, radius * 2],
     coordinate_space: 'desktop_world',
-    semantic_label: item.id,
+    semantic_label: resolveSceneRadialMenuItemLabel(
+      session.interaction?.response?.parameters,
+      item.id,
+    ),
     priority: Math.min(1000, Math.max(0, Number(session.affordance.priority) || 0) + 2),
     consume_policy: 'captured',
     remove_on_owner_suspend: false,

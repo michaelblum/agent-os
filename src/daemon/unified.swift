@@ -2250,7 +2250,7 @@ class UnifiedDaemon {
             throw AOSInputRegionAdmissionFailure(code: "INVALID_PRIORITY", message: "input region priority is out of range")
         }
         let semanticLabel = payload["semantic_label"] as? String ?? payload["label"] as? String ?? id
-        guard !semanticLabel.isEmpty, semanticLabel.utf8.count <= 256 else {
+        guard aosValidInputRegionSemanticLabel(semanticLabel) else {
             throw AOSInputRegionAdmissionFailure(code: "INVALID_LABEL", message: "input region label is invalid")
         }
         return AOSInputRegionRecord(

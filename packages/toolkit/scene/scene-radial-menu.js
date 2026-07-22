@@ -6,11 +6,14 @@ import {
 
 export const SCENE_RADIAL_MENU_LIMITS = Object.freeze({
   maxItems: 32,
+  maxLabelBytes: 256,
   maxRadius: 2048,
   maxItemRadius: 128,
 })
 
 const SAFE_COLOR = /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/iu
+const UNSAFE_LABEL_CHARACTER = /[\p{Cc}\p{Cf}]/u
+const UTF8_ENCODER = new TextEncoder()
 
 function error(code, path, message) {
   return { code, path, message }
@@ -30,6 +33,20 @@ function normalizeItems(value) {
     color: typeof item.color === 'string' ? item.color : '#9b7cff',
     disabled: item.disabled === true,
   })))
+}
+
+function validSemanticLabel(value) {
+  return typeof value === 'string'
+    && value.length >= 1
+    && UTF8_ENCODER.encode(value).byteLength <= SCENE_RADIAL_MENU_LIMITS.maxLabelBytes
+    && value.trim().length > 0
+    && !UNSAFE_LABEL_CHARACTER.test(value)
+}
+
+export function resolveSceneRadialMenuItemLabel(parameters, itemId) {
+  const items = Array.isArray(parameters?.items) ? parameters.items : []
+  const item = items.find((candidate) => isRecord(candidate) && candidate.id === itemId)
+  return validSemanticLabel(item?.label) ? item.label : itemId
 }
 
 export function normalizeSceneRadialMenuParameters(parameters = {}) {
@@ -65,11 +82,12 @@ export function validateSceneRadialMenuParameters(parameters, path = 'response.p
         errors.push(error('invalid_radial_item', itemPath, 'Scene radial-menu items must be declarative objects.'))
         return
       }
-      exactKeys(item, new Set(['color', 'disabled', 'id']), itemPath, errors)
+      exactKeys(item, new Set(['color', 'disabled', 'id', 'label']), itemPath, errors)
       if (!validId(item.id) || ids.has(item.id)) errors.push(error('invalid_radial_item', `${itemPath}.id`, 'Scene radial-menu item IDs must be canonical and unique.'))
       ids.add(item.id)
       if (item.color !== undefined && !SAFE_COLOR.test(item.color)) errors.push(error('invalid_color', `${itemPath}.color`, 'Scene colors must use bounded hexadecimal notation.'))
       if (item.disabled !== undefined && typeof item.disabled !== 'boolean') errors.push(error('invalid_radial_item', `${itemPath}.disabled`, 'Scene radial-menu disabled state must be boolean.'))
+      if (item.label !== undefined && !validSemanticLabel(item.label)) errors.push(error('invalid_radial_item_label', `${itemPath}.label`, 'Scene radial-menu item labels must contain printable text bounded to 256 UTF-8 bytes.'))
     })
   }
   for (const [key, min, max] of [['radius', 1, SCENE_RADIAL_MENU_LIMITS.maxRadius], ['spreadDegrees', 1, 360], ['startAngle', -3600, 3600]]) {

@@ -99,12 +99,14 @@ native geometry. Never infer native coordinates from DesktopWorld-local bounds.
 - Bind `drag` to `aim_commit` to keep the object fixed while the stock arrow
   follows the pointer and commit a route on release.
 - Bind `drag` to `drop` for destination resolution without product semantics.
-- Bind a stock `radial` recognizer for a bounded radial menu.
+- Bind a stock `radial` recognizer for a bounded radial menu. Give every item a
+  canonical `id` and a short `label`; AOS uses the label for native semantic
+  identity while events expose only the item ID.
 
 The recognizer lifecycle is `start`, `update`, `end`, and `cancel`. Escape,
 pointer loss, topology change, and owner loss cancel through AOS. Cartridges
-provide bounded IDs and visual data; consumers map resulting events to product
-actions.
+provide bounded IDs, semantic labels, and visual data; consumers map resulting
+ID-only events to product actions.
 
 ## Scaffold And Review An Extension
 

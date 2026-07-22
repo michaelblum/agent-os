@@ -1,6 +1,16 @@
 import Foundation
 import CoreGraphics
 
+func aosValidInputRegionSemanticLabel(_ value: String, maxUTF8Bytes: Int = 256) -> Bool {
+    guard !value.isEmpty,
+          value.utf8.count <= maxUTF8Bytes,
+          !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+    return value.unicodeScalars.allSatisfy { scalar in
+        scalar.properties.generalCategory != .control
+            && scalar.properties.generalCategory != .format
+    }
+}
+
 struct AOSNativeCursorSuppressionReconcileResult: Equatable {
     let hideNativeCursor: Bool
     let showNativeCursor: Bool
