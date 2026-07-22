@@ -120,6 +120,26 @@ grep -q '"code":"INVALID_ARG"' "$STATE_ROOT/listen-microphone-segment-duration-i
   exit 1
 }
 
+if ./aos listen --source microphone --segments /private/tmp/segments --ready-cue voice --follow 2>"$STATE_ROOT/listen-microphone-ready-cue-invalid.err"; then
+  echo "FAIL: segmented microphone listen accepted an unknown ready cue" >&2
+  exit 1
+fi
+grep -q '"code":"INVALID_ARG"' "$STATE_ROOT/listen-microphone-ready-cue-invalid.err" || {
+  echo "FAIL: invalid ready cue did not use INVALID_ARG" >&2
+  cat "$STATE_ROOT/listen-microphone-ready-cue-invalid.err" >&2
+  exit 1
+}
+
+if ./aos listen --source microphone --output /private/tmp/capture.wav --ready-cue chime --follow 2>"$STATE_ROOT/listen-microphone-ready-cue-target-invalid.err"; then
+  echo "FAIL: single-file microphone listen accepted a segmented ready cue" >&2
+  exit 1
+fi
+grep -q '"code":"INVALID_ARG"' "$STATE_ROOT/listen-microphone-ready-cue-target-invalid.err" || {
+  echo "FAIL: misplaced ready cue did not use INVALID_ARG" >&2
+  cat "$STATE_ROOT/listen-microphone-ready-cue-target-invalid.err" >&2
+  exit 1
+}
+
 secret="voice-parser-secret"
 if printf '%s' "$secret" | ./aos say --follow --rate invalid 2>"$STATE_ROOT/say-follow-rate-invalid.err"; then
   echo "FAIL: say follow accepted invalid rate" >&2

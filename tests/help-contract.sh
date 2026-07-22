@@ -326,6 +326,7 @@ assert "--source hotkey" in forms["listen-hotkey"]["usage"], forms["listen-hotke
 assert "--source microphone" in forms["listen-microphone"]["usage"], forms["listen-microphone"]
 assert "--segments <absolute-directory>" in forms["listen-microphone-segmented"]["usage"], forms["listen-microphone-segmented"]
 assert "--segment-duration 3s" in forms["listen-microphone-segmented"]["usage"], forms["listen-microphone-segmented"]
+assert "--ready-cue none|chime" in forms["listen-microphone-segmented"]["usage"], forms["listen-microphone-segmented"]
 assert "Control+Option+Space" in text, text
 api_doc = Path("docs/api/aos.md").read_text(encoding="utf-8")
 architecture = Path("ARCHITECTURE.md").read_text(encoding="utf-8")

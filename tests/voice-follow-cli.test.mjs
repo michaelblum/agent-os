@@ -131,6 +131,34 @@ test('microphone duration parsing rejects schema-incompatible bounds before daem
   const segmentResult = await tooShortSegment.completed;
   assert.equal(segmentResult.code, 1);
   assert.match(segmentResult.stderr, /"code":"INVALID_ARG"/);
+
+  const invalidCue = launch('scripts/aos-tell-listen.mjs', [
+    'listen',
+    '--source',
+    'microphone',
+    '--segments',
+    path.join(stateRoot, 'cue-segments'),
+    '--ready-cue',
+    'voice',
+    '--follow',
+  ], stateRoot);
+  const invalidCueResult = await invalidCue.completed;
+  assert.equal(invalidCueResult.code, 1);
+  assert.match(invalidCueResult.stderr, /"code":"INVALID_ARG"/);
+
+  const misplacedCue = launch('scripts/aos-tell-listen.mjs', [
+    'listen',
+    '--source',
+    'microphone',
+    '--output',
+    path.join(stateRoot, 'capture.wav'),
+    '--ready-cue',
+    'chime',
+    '--follow',
+  ], stateRoot);
+  const misplacedCueResult = await misplacedCue.completed;
+  assert.equal(misplacedCueResult.code, 1);
+  assert.match(misplacedCueResult.stderr, /"code":"INVALID_ARG"/);
 });
 
 const startingDaemonSource = `#!/usr/bin/env node
@@ -402,6 +430,8 @@ test('segmented microphone follow publishes path-free checkpoints and finalizes 
     segmentsDirectory,
     '--segment-duration',
     '3s',
+    '--ready-cue',
+    'chime',
     '--follow',
   ], stateRoot);
   while (!captureSocket) await new Promise((resolve) => setTimeout(resolve, 10));
@@ -411,6 +441,7 @@ test('segmented microphone follow publishes path-free checkpoints and finalizes 
   assert.deepEqual(requests.map((item) => item.action), ['microphone_segmented', 'stop']);
   assert.equal(requests[0].data.segments_directory, segmentsDirectory);
   assert.equal(requests[0].data.segment_duration_seconds, 3);
+  assert.equal(requests[0].data.ready_cue, 'chime');
   assert.ok(!result.stdout.includes(segmentsDirectory));
   assert.ok(!result.stderr.includes(segmentsDirectory));
   assert.deepEqual(result.stdout.trim().split('\n').map(JSON.parse).map((item) => item.event), [

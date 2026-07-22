@@ -353,6 +353,455 @@ struct VoiceTransportNativeTest {
             require(failure.code == "INVALID_SEGMENT_DURATION", "wrong segment duration error")
         }
 
+        let defaultReadyCue = try AOSCaptureReadyCue.parse(nil)
+        let chimeReadyCue = try AOSCaptureReadyCue.parse("chime")
+        require(defaultReadyCue == .none, "missing ready cue did not default to none")
+        require(chimeReadyCue == .chime, "chime ready cue was rejected")
+        do {
+            _ = try AOSCaptureReadyCue.parse("voice")
+            require(false, "unknown ready cue was accepted")
+        } catch let failure as AOSVoiceTransportFailure {
+            require(failure.code == "INVALID_READY_CUE", "wrong ready cue error")
+        }
+        let inputGate = AOSCaptureInputGate()
+        require(!inputGate.acceptsInput(hostTime: 100), "capture input gate started open")
+        _ = inputGate.observe(AVAudioTime(hostTime: 100))
+        require(inputGate.open(afterHostTime: 200), "host-time capture gate did not establish a boundary")
+        require(!inputGate.acceptsInput(hostTime: 199), "capture input gate accepted a cue-era buffer")
+        require(inputGate.acceptsInput(hostTime: 200), "capture input gate did not open at its timestamp boundary")
+        inputGate.close()
+        require(!inputGate.acceptsInput(hostTime: 201), "capture input gate did not close")
+        let sampleTimeGate = AOSCaptureInputGate()
+        _ = sampleTimeGate.observe(AVAudioTime(sampleTime: 100, atRate: 16_000))
+        require(sampleTimeGate.open(afterHostTime: 200), "sample-time capture gate did not establish a boundary")
+        require(
+            !sampleTimeGate.acceptsInput(AOSCaptureInputTimestamp(hostTime: nil, sampleTime: 100)),
+            "sample-time capture gate accepted a cue-era buffer"
+        )
+        require(
+            sampleTimeGate.acceptsInput(AOSCaptureInputTimestamp(hostTime: nil, sampleTime: 101)),
+            "sample-time capture gate dropped post-cue input"
+        )
+        let clocklessGate = AOSCaptureInputGate()
+        require(
+            !clocklessGate.open(afterHostTime: 200),
+            "capture gate admitted a cue without an observable input clock"
+        )
+        let noCueGate = AOSCaptureInputGate()
+        require(
+            noCueGate.open(afterHostTime: 200, requireCueExclusion: false),
+            "capture gate rejected a no-cue lease without a timestamp"
+        )
+        require(
+            noCueGate.acceptsInput(AOSCaptureInputTimestamp(hostTime: nil, sampleTime: nil)),
+            "no-cue capture gate rejected ordinary untimed input"
+        )
+        let readyCueBuffer = try aosMakeCaptureReadyCueBuffer()
+        require(readyCueBuffer.format.sampleRate == 48_000, "ready cue sample rate drifted")
+        require(readyCueBuffer.frameLength > 0, "ready cue buffer was empty")
+        let cueSamples = readyCueBuffer.floatChannelData![0]
+        var cuePeak: Float = 0
+        for index in 0..<Int(readyCueBuffer.frameLength) {
+            cuePeak = max(cuePeak, abs(cueSamples[index]))
+        }
+        require(cuePeak > 0.1 && cuePeak <= 0.18, "ready cue amplitude left its safe envelope")
+        require(abs(cueSamples[0]) < 0.001, "ready cue did not fade in")
+        require(abs(cueSamples[Int(readyCueBuffer.frameLength) - 1]) < 0.001, "ready cue did not fade out")
+
+        let preparedDisconnectTerminal = DispatchSemaphore(value: 0)
+        var preparedDisconnectEvents: [String] = []
+        let preparedDisconnectTransport = AOSVoiceTransport(
+            emit: { emittedOwner, event, _, ref in
+                require(emittedOwner == owner, "prepared capture event owner drifted")
+                require(ref == "prepared-disconnect", "prepared capture event ref drifted")
+                preparedDisconnectEvents.append(event)
+                if event == "capture_segmented_canceled" { preparedDisconnectTerminal.signal() }
+            },
+            microphoneAuthorization: authorizedMicrophone
+        )
+        let beginPreparedCapture = try preparedDisconnectTransport.prepareSegmentedCapture(
+            owner: owner,
+            directoryPath: segmentRoot.path,
+            segmentDuration: 0.5,
+            maximumDuration: 1,
+            readyCue: .chime,
+            ref: "prepared-disconnect"
+        )
+        preparedDisconnectTransport.connectionClosed(owner)
+        beginPreparedCapture()
+        require(
+            preparedDisconnectTerminal.wait(timeout: .now() + 1) == .success,
+            "connection cleanup did not cancel a prepared segmented capture"
+        )
+        require(
+            preparedDisconnectEvents == ["capture_segmented_canceled"],
+            "prepared owner disconnect emitted an unexpected lifecycle"
+        )
+        let namesAfterPreparedDisconnect = try FileManager.default.contentsOfDirectory(atPath: segmentRoot.path)
+        require(namesAfterPreparedDisconnect.isEmpty, "prepared owner disconnect left output")
+
+        let authorizationEntered = DispatchSemaphore(value: 0)
+        let releaseAuthorization = DispatchSemaphore(value: 0)
+        let authorizationStopDone = DispatchSemaphore(value: 0)
+        let authorizationStopTerminal = DispatchSemaphore(value: 0)
+        let authorizationStopLock = NSLock()
+        var authorizationStopFailure: String?
+        var authorizationStopEvents: [String] = []
+        let stoppedDuringAuthorization = try AOSSegmentedMicrophoneCaptureSession(
+            owner: owner,
+            ref: "stop-during-authorization",
+            directoryPath: segmentRoot.path,
+            segmentDuration: 0.5,
+            maximumDuration: 1,
+            readyCue: .chime,
+            playReadyCue: { _, _ in
+                throw AOSVoiceTransportFailure(code: "UNEXPECTED_CUE", message: "cue must not start after stop")
+            },
+            startInputEngine: { _ in
+                throw AOSVoiceTransportFailure(code: "UNEXPECTED_ENGINE", message: "engine must not start after stop")
+            },
+            authorizeMicrophone: {
+                authorizationEntered.signal()
+                _ = releaseAuthorization.wait(timeout: .now() + 2)
+                return .authorized
+            },
+            authorizationState: { .authorized },
+            emit: { event, _ in
+                authorizationStopLock.lock()
+                authorizationStopEvents.append(event)
+                authorizationStopLock.unlock()
+            },
+            terminal: { _ in authorizationStopTerminal.signal() }
+        )
+        DispatchQueue.global().async {
+            do {
+                try stoppedDuringAuthorization.start()
+            } catch let failure as AOSVoiceTransportFailure {
+                authorizationStopLock.lock()
+                authorizationStopFailure = failure.code
+                authorizationStopLock.unlock()
+            } catch {
+                authorizationStopLock.lock()
+                authorizationStopFailure = "UNEXPECTED"
+                authorizationStopLock.unlock()
+            }
+            authorizationStopDone.signal()
+        }
+        require(
+            authorizationEntered.wait(timeout: .now() + 1) == .success,
+            "microphone authorization did not block"
+        )
+        stoppedDuringAuthorization.finalize(reason: "signal")
+        require(
+            authorizationStopTerminal.wait(timeout: .now() + 1) == .success,
+            "stop during authorization did not terminate capture"
+        )
+        releaseAuthorization.signal()
+        require(
+            authorizationStopDone.wait(timeout: .now() + 1) == .success,
+            "stop during authorization did not release startup"
+        )
+        authorizationStopLock.lock()
+        let authorizationFailure = authorizationStopFailure
+        let authorizationLifecycle = authorizationStopEvents
+        authorizationStopLock.unlock()
+        require(
+            authorizationFailure == "CAPTURE_CANCELED",
+            "stop during authorization returned the wrong failure"
+        )
+        require(
+            authorizationLifecycle == ["capture_segmented_canceled"],
+            "stop during authorization emitted a false completion"
+        )
+
+        let cueEntered = DispatchSemaphore(value: 0)
+        let canceledStartupDone = DispatchSemaphore(value: 0)
+        let canceledStartupTerminal = DispatchSemaphore(value: 0)
+        let canceledStartupLock = NSLock()
+        var canceledStartupFailure: String?
+        var canceledStartupEvents: [String] = []
+        var canceledStartupStops = 0
+        let canceledDuringCue = try AOSSegmentedMicrophoneCaptureSession(
+            owner: owner,
+            ref: "cancel-during-cue",
+            directoryPath: segmentRoot.path,
+            segmentDuration: 0.5,
+            maximumDuration: 1,
+            readyCue: .chime,
+            playReadyCue: { _, isCanceled in
+                cueEntered.signal()
+                let deadline = Date().addingTimeInterval(2)
+                while !isCanceled(), Date() < deadline {
+                    Thread.sleep(forTimeInterval: 0.005)
+                }
+                guard isCanceled() else {
+                    throw AOSVoiceTransportFailure(code: "READY_CUE_UNAVAILABLE", message: "test cue timed out")
+                }
+                throw AOSVoiceTransportFailure(code: "CAPTURE_CANCELED", message: "capture canceled")
+            },
+            startInputEngine: { _ in },
+            inputEngineHealthy: { true },
+            stopInputEngine: {
+                canceledStartupLock.lock()
+                canceledStartupStops += 1
+                canceledStartupLock.unlock()
+            },
+            authorizationState: { .authorized },
+            emit: { event, _ in
+                canceledStartupLock.lock()
+                canceledStartupEvents.append(event)
+                canceledStartupLock.unlock()
+            },
+            terminal: { _ in canceledStartupTerminal.signal() }
+        )
+        DispatchQueue.global().async {
+            do {
+                try canceledDuringCue.start()
+            } catch let failure as AOSVoiceTransportFailure {
+                canceledStartupLock.lock()
+                canceledStartupFailure = failure.code
+                canceledStartupLock.unlock()
+            } catch {
+                canceledStartupLock.lock()
+                canceledStartupFailure = "UNEXPECTED"
+                canceledStartupLock.unlock()
+            }
+            canceledStartupDone.signal()
+        }
+        require(cueEntered.wait(timeout: .now() + 1) == .success, "blocking ready cue did not start")
+        canceledDuringCue.finalize(reason: "signal")
+        require(canceledStartupDone.wait(timeout: .now() + 1) == .success, "cue cancellation did not release startup")
+        require(canceledStartupTerminal.wait(timeout: .now() + 1) == .success, "cue cancellation did not terminate capture")
+        canceledStartupLock.lock()
+        let canceledFailure = canceledStartupFailure
+        let canceledEvents = canceledStartupEvents
+        let canceledStops = canceledStartupStops
+        canceledStartupLock.unlock()
+        require(canceledFailure == "CAPTURE_CANCELED", "cue stop returned the wrong failure")
+        require(!canceledEvents.contains("capture_segmented_started"), "cue stop emitted a false ready event")
+        require(canceledEvents == ["capture_segmented_canceled"], "cue stop emitted a false completion")
+        require(canceledStops == 1, "cue stop did not stop its input engine exactly once")
+        let namesAfterCueCancellation = try FileManager.default.contentsOfDirectory(atPath: segmentRoot.path)
+        require(namesAfterCueCancellation.isEmpty, "cue cancellation left output")
+
+        let armingEntered = DispatchSemaphore(value: 0)
+        let releaseArming = DispatchSemaphore(value: 0)
+        let armingDone = DispatchSemaphore(value: 0)
+        let armingTerminal = DispatchSemaphore(value: 0)
+        let armingLock = NSLock()
+        var armingFailure: String?
+        var armingEvents: [String] = []
+        var armingStops = 0
+        let canceledDuringArming = try AOSSegmentedMicrophoneCaptureSession(
+            owner: owner,
+            ref: "cancel-during-arming",
+            directoryPath: segmentRoot.path,
+            segmentDuration: 0.5,
+            maximumDuration: 1,
+            readyCue: .chime,
+            playReadyCue: { _, _ in
+                throw AOSVoiceTransportFailure(code: "UNEXPECTED_CUE", message: "cue must not start after cancellation")
+            },
+            startInputEngine: { _ in
+                armingEntered.signal()
+                _ = releaseArming.wait(timeout: .now() + 2)
+            },
+            inputEngineHealthy: { true },
+            stopInputEngine: {
+                armingLock.lock()
+                armingStops += 1
+                armingLock.unlock()
+            },
+            authorizationState: { .authorized },
+            emit: { event, _ in
+                armingLock.lock()
+                armingEvents.append(event)
+                armingLock.unlock()
+            },
+            terminal: { _ in armingTerminal.signal() }
+        )
+        DispatchQueue.global().async {
+            do {
+                try canceledDuringArming.start()
+            } catch let failure as AOSVoiceTransportFailure {
+                armingLock.lock()
+                armingFailure = failure.code
+                armingLock.unlock()
+            } catch {
+                armingLock.lock()
+                armingFailure = "UNEXPECTED"
+                armingLock.unlock()
+            }
+            armingDone.signal()
+        }
+        require(armingEntered.wait(timeout: .now() + 1) == .success, "input engine arming did not begin")
+        canceledDuringArming.cancel(reason: "owner_disconnect")
+        require(
+            armingTerminal.wait(timeout: .now() + .milliseconds(50)) == .timedOut,
+            "capture cleanup completed before input engine arming settled"
+        )
+        releaseArming.signal()
+        require(armingDone.wait(timeout: .now() + 1) == .success, "arming cancellation did not release startup")
+        require(armingTerminal.wait(timeout: .now() + 1) == .success, "arming cancellation did not terminate capture")
+        armingLock.lock()
+        let armingResult = armingFailure
+        let armingLifecycle = armingEvents
+        let armingStopCount = armingStops
+        armingLock.unlock()
+        require(armingResult == "CAPTURE_CANCELED", "arming cancellation returned the wrong failure")
+        require(armingLifecycle == ["capture_segmented_canceled"], "arming cancellation emitted an unexpected lifecycle")
+        require(armingStopCount == 1, "late-started input engine was not stopped exactly once")
+
+        let admissionFormat = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: 16_000,
+            channels: 1,
+            interleaved: false
+        )!
+        let admissionBuffer = AVAudioPCMBuffer(pcmFormat: admissionFormat, frameCapacity: 8)!
+        admissionBuffer.frameLength = 8
+        let admissionTerminal = DispatchSemaphore(value: 0)
+        let admissionInput = DispatchSemaphore(value: 0)
+        let admissionLock = NSLock()
+        var admissionHandler: AOSSegmentedMicrophoneCaptureSession.InputHandler?
+        var admissionOrder: [String] = []
+        let orderedAdmission = try AOSSegmentedMicrophoneCaptureSession(
+            owner: owner,
+            ref: "ordered-admission",
+            directoryPath: segmentRoot.path,
+            segmentDuration: 0.5,
+            maximumDuration: 1,
+            readyCue: .chime,
+            playReadyCue: { _, _ in
+                admissionHandler?(admissionBuffer, AVAudioTime(hostTime: 199))
+                return 200
+            },
+            startInputEngine: { handler in
+                admissionHandler = handler
+                handler(admissionBuffer, AVAudioTime(hostTime: 100))
+            },
+            inputEngineHealthy: { true },
+            stopInputEngine: {},
+            receiveInput: { _ in
+                admissionLock.lock()
+                admissionOrder.append("input")
+                admissionLock.unlock()
+                admissionInput.signal()
+            },
+            authorizationState: { .authorized },
+            emit: { event, _ in
+                guard event != "audio_frame" else { return }
+                admissionLock.lock()
+                admissionOrder.append(event)
+                admissionLock.unlock()
+            },
+            terminal: { _ in admissionTerminal.signal() }
+        )
+        try orderedAdmission.start()
+        admissionHandler?(admissionBuffer, AVAudioTime(hostTime: 201))
+        require(admissionInput.wait(timeout: .now() + 1) == .success, "post-cue input was not accepted")
+        admissionLock.lock()
+        let orderedLifecycle = admissionOrder
+        admissionLock.unlock()
+        require(
+            orderedLifecycle == ["capture_segmented_started", "input"],
+            "accepted input was not ordered after the capture-started event"
+        )
+        orderedAdmission.cancel(reason: "test_complete")
+        require(admissionTerminal.wait(timeout: .now() + 1) == .success, "ordered admission did not clean up")
+
+        let clockFailureTerminal = DispatchSemaphore(value: 0)
+        var clockFailureEvents: [String] = []
+        var clockFailureStops = 0
+        let clocklessAdmission = try AOSSegmentedMicrophoneCaptureSession(
+            owner: owner,
+            ref: "clockless-admission",
+            directoryPath: segmentRoot.path,
+            segmentDuration: 0.5,
+            maximumDuration: 1,
+            readyCue: .chime,
+            playReadyCue: { _, _ in 300 },
+            startInputEngine: { _ in },
+            inputEngineHealthy: { true },
+            stopInputEngine: { clockFailureStops += 1 },
+            authorizationState: { .authorized },
+            emit: { event, _ in clockFailureEvents.append(event) },
+            terminal: { _ in clockFailureTerminal.signal() }
+        )
+        do {
+            try clocklessAdmission.start()
+            require(false, "cue admission without an input clock was accepted")
+        } catch let failure as AOSVoiceTransportFailure {
+            require(failure.code == "CAPTURE_CLOCK_UNAVAILABLE", "clockless admission returned the wrong failure")
+        }
+        require(clockFailureTerminal.wait(timeout: .now() + 1) == .success, "clockless admission did not terminate")
+        require(clockFailureEvents == ["capture_segmented_failed"], "clockless admission emitted an unexpected lifecycle")
+        require(clockFailureStops == 1, "clockless admission did not stop its input engine")
+
+        var authorizationAfterCue = AOSMicrophoneAuthorizationState.authorized
+        var permissionLossEvents: [String] = []
+        var permissionLossStops = 0
+        let permissionLossTerminal = DispatchSemaphore(value: 0)
+        let permissionLostBeforeAdmission = try AOSSegmentedMicrophoneCaptureSession(
+            owner: owner,
+            ref: "permission-loss-before-admission",
+            directoryPath: segmentRoot.path,
+            segmentDuration: 0.5,
+            maximumDuration: 1,
+            readyCue: .chime,
+            playReadyCue: { _, _ in
+                authorizationAfterCue = .denied
+                return 300
+            },
+            startInputEngine: { _ in },
+            inputEngineHealthy: { true },
+            stopInputEngine: { permissionLossStops += 1 },
+            authorizationState: { authorizationAfterCue },
+            emit: { event, _ in permissionLossEvents.append(event) },
+            terminal: { _ in permissionLossTerminal.signal() }
+        )
+        do {
+            try permissionLostBeforeAdmission.start()
+            require(false, "permission loss before capture admission was accepted")
+        } catch let failure as AOSVoiceTransportFailure {
+            require(failure.code == "MICROPHONE_PERMISSION_LOST", "permission loss returned the wrong failure")
+        }
+        require(permissionLossTerminal.wait(timeout: .now() + 1) == .success, "permission loss did not terminate capture")
+        require(permissionLossEvents == ["capture_segmented_failed"], "permission loss emitted an unexpected lifecycle")
+        require(permissionLossStops == 1, "permission loss did not stop its input engine")
+        let namesAfterPermissionLoss = try FileManager.default.contentsOfDirectory(atPath: segmentRoot.path)
+        require(namesAfterPermissionLoss.isEmpty, "permission loss left output")
+
+        var hardwareLossEvents: [String] = []
+        var hardwareLossStops = 0
+        let hardwareLossTerminal = DispatchSemaphore(value: 0)
+        let hardwareLostBeforeAdmission = try AOSSegmentedMicrophoneCaptureSession(
+            owner: owner,
+            ref: "hardware-loss-before-admission",
+            directoryPath: segmentRoot.path,
+            segmentDuration: 0.5,
+            maximumDuration: 1,
+            readyCue: .chime,
+            playReadyCue: { _, _ in 400 },
+            startInputEngine: { _ in },
+            inputEngineHealthy: { false },
+            stopInputEngine: { hardwareLossStops += 1 },
+            authorizationState: { .authorized },
+            emit: { event, _ in hardwareLossEvents.append(event) },
+            terminal: { _ in hardwareLossTerminal.signal() }
+        )
+        do {
+            try hardwareLostBeforeAdmission.start()
+            require(false, "hardware loss before capture admission was accepted")
+        } catch let failure as AOSVoiceTransportFailure {
+            require(failure.code == "MICROPHONE_UNAVAILABLE", "hardware loss returned the wrong failure")
+        }
+        require(hardwareLossTerminal.wait(timeout: .now() + 1) == .success, "hardware loss did not terminate capture")
+        require(hardwareLossEvents == ["capture_segmented_failed"], "hardware loss emitted an unexpected lifecycle")
+        require(hardwareLossStops == 1, "hardware loss did not stop its input engine")
+        let namesAfterHardwareLoss = try FileManager.default.contentsOfDirectory(atPath: segmentRoot.path)
+        require(namesAfterHardwareLoss.isEmpty, "hardware loss left output")
+
         let preStartCancelCompleted = DispatchSemaphore(value: 0)
         let canceledBeforeStart = try AOSSegmentedMicrophoneCaptureSession(
             owner: owner,
@@ -417,6 +866,7 @@ SWIFT
 
 swiftc -parse-as-library \
     "$ROOT/src/daemon/microphone-authorization.swift" \
+    "$ROOT/src/daemon/capture-ready-cue.swift" \
     "$ROOT/src/daemon/segmented-microphone-capture.swift" \
     "$ROOT/src/daemon/audio-playback.swift" \
     "$ROOT/src/daemon/voice-transport.swift" \
