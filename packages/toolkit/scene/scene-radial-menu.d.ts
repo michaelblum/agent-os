@@ -2,6 +2,7 @@ import type { SceneCartridgeInteraction, SceneGestureFrame, ScenePoint, SceneTop
 
 export interface SceneRadialMenuItemDescriptor {
   id: string;
+  label?: string;
   color?: string;
   disabled?: boolean;
 }
@@ -23,7 +24,11 @@ export interface SceneRadialMenuParameters {
 
 export interface NormalizedSceneRadialMenuParameters {
   menuId: string;
-  items: ReadonlyArray<Readonly<Required<SceneRadialMenuItemDescriptor>>>;
+  items: ReadonlyArray<Readonly<{
+    id: string;
+    color: string;
+    disabled: boolean;
+  }>>;
   radius: number;
   startAngle: number;
   spreadDegrees: number;
@@ -48,11 +53,13 @@ export interface SceneRadialMenuLayout {
 
 export const SCENE_RADIAL_MENU_LIMITS: Readonly<{
   maxItems: 32;
+  maxLabelLength: 128;
   maxRadius: 2048;
   maxItemRadius: 128;
 }>;
 
 export function normalizeSceneRadialMenuParameters(parameters?: Partial<SceneRadialMenuParameters>): Readonly<NormalizedSceneRadialMenuParameters>;
+export function resolveSceneRadialMenuItemLabel(parameters: Partial<SceneRadialMenuParameters>, itemId: string): string;
 export function validateSceneRadialMenuParameters(parameters: unknown, path?: string): Array<{ code: string; path: string; message: string }>;
 export function resolveSceneRadialMenuLayout(response: SceneRadialMenuParameters & { origin?: ScenePoint | null }, topology?: SceneTopologySnapshot | null): Readonly<SceneRadialMenuLayout>;
 export function resolveSceneRadialMenuResponse(options: { frame: SceneGestureFrame; interaction: SceneCartridgeInteraction }): Readonly<Record<string, unknown>>;

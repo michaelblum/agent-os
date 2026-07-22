@@ -3,13 +3,14 @@ import test from 'node:test'
 
 import {
   resolveSceneRadialMenuLayout,
+  resolveSceneRadialMenuItemLabel,
   validateSceneRadialMenuParameters,
 } from '../../packages/toolkit/scene/scene-radial-menu.js'
 
 const parameters = {
   closeOnSelect: true,
   items: [
-    { id: 'first', color: '#9b7cff' },
+    { id: 'first', label: 'Inspect scene', color: '#9b7cff' },
     { id: 'second', color: '#53f5d7' },
     { id: 'third', color: '#f2f5ff' },
   ],
@@ -30,6 +31,20 @@ test('persistent radial-menu parameters reject executable-shaped and unbounded d
   assert.ok(errors.some((entry) => entry.code === 'invalid_color'))
   assert.ok(errors.some((entry) => entry.code === 'invalid_radial_geometry'))
   assert.ok(errors.some((entry) => entry.code === 'unknown_field'))
+})
+
+test('radial-menu semantic labels are bounded and remain outside normalized event items', () => {
+  assert.equal(resolveSceneRadialMenuItemLabel(parameters, 'first'), 'Inspect scene')
+  assert.equal(resolveSceneRadialMenuItemLabel(parameters, 'second'), 'second')
+  const invalid = structuredClone(parameters)
+  invalid.items[0].label = 'x'.repeat(129)
+  assert.ok(validateSceneRadialMenuParameters(invalid)
+    .some((entry) => entry.code === 'invalid_radial_item_label'))
+  invalid.items[0].label = 'unsafe\nlabel'
+  assert.ok(validateSceneRadialMenuParameters(invalid)
+    .some((entry) => entry.code === 'invalid_radial_item_label'))
+  const layout = resolveSceneRadialMenuLayout({ ...parameters, origin: { x: 100, y: 100 } })
+  assert.equal('label' in layout.items[0], false)
 })
 
 test('persistent radial-menu layout clamps an arc to its containing display deterministically', () => {

@@ -80,8 +80,9 @@ stage internals.
 - Tap-open radial menus are AOS-owned transient leases. Their item hit regions,
   pointer-move focus/blur lifecycle, press/select lifecycle, Escape
   cancellation, suspension, topology cleanup, and stock rendering stay in the
-  stage. Cartridges provide bounded item IDs and visual data only; product
-  commands and product-specific hover art remain in the consumer.
+  stage. Cartridges provide bounded item IDs, semantic labels, and visual data;
+  labels identify native hit regions but remain absent from scene events.
+  Product commands and product-specific hover art remain in the consumer.
 - Interaction visuals are deterministic models advanced by the existing host
   clock. They must not create a renderer, frame loop, unbounded history, or
   per-frame resource allocation. Cartridge values may theme registered stock

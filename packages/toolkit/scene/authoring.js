@@ -38,6 +38,7 @@ export {
 export {
   SCENE_RADIAL_MENU_LIMITS,
   normalizeSceneRadialMenuParameters,
+  resolveSceneRadialMenuItemLabel,
   resolveSceneRadialMenuLayout,
   resolveSceneRadialMenuResponse,
   validateSceneRadialMenuParameters,

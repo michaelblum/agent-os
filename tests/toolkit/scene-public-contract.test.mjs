@@ -108,6 +108,7 @@ const EXPECTED_EXPORTS = [
   'resolveSceneAffordanceFrame',
   'resolveSceneGestureResponse',
   'resolveSceneAimVisualStyle',
+  'resolveSceneRadialMenuItemLabel',
   'resolveSceneRadialMenuLayout',
   'resolveSceneRadialMenuResponse',
   'resolveSceneRadialVisualStyle',
