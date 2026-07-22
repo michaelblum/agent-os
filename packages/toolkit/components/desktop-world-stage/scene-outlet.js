@@ -460,21 +460,38 @@ export function createDesktopWorldSceneOutlet({
     return mounted.interactionVisuals
   }
 
+  const applyExtensionInteraction = (mounted, input) => {
+    if (typeof mounted.projection.applyInteraction !== 'function') {
+      return { handled: false, routeStarted: false }
+    }
+    return mounted.projection.applyInteraction(input)
+  }
+
   const applyInteractionResponseUnsafe = (key, { frame, interaction, response, topology } = {}) => {
     const mounted = resources.get(key)
     if (!mounted || stageSuspended || stageFault || hidden || contextLost || !response?.kind || !frame?.interactionId) return null
     if (response.kind === 'aim_commit') {
-      const interactionVisuals = ensureInteractionVisuals(mounted)
       if (frame.phase !== 'end') {
-        interactionVisuals.apply({ frame, interaction, response, topology })
+        const input = { frame, interaction, response, topology }
+        const extension = applyExtensionInteraction(mounted, input)
+        if (!extension.handled) ensureInteractionVisuals(mounted).apply(input)
         return { ...response, applied: false, revision: mounted.document.revision }
       }
       const revision = commitObjectPosition(mounted, response.objectId, response.position)
       if (revision === null) {
-        interactionVisuals.cancel()
+        mounted.interactionVisuals?.cancel()
         return { ...response, applied: false, revision: mounted.document.revision }
       }
-      const visual = interactionVisuals.apply({ frame, interaction, response, topology })
+      const input = {
+        frame,
+        interaction,
+        response: { ...response, applied: true, revision },
+        topology,
+      }
+      const extension = applyExtensionInteraction(mounted, input)
+      const visual = extension.handled
+        ? extension
+        : ensureInteractionVisuals(mounted).apply(input)
       if (!visual.routeStarted) mounted.projection.setObjectPosition(response.objectId, response.position)
       return { ...response, applied: true, revision }
     }
@@ -483,7 +500,9 @@ export function createDesktopWorldSceneOutlet({
     }
     if (response.kind === 'radial_menu') {
       if (response.action !== 'open' || frame.phase === 'end') {
-        ensureInteractionVisuals(mounted).apply({ frame, interaction, response, topology })
+        const input = { frame, interaction, response, topology }
+        const extension = applyExtensionInteraction(mounted, input)
+        if (!extension.handled) ensureInteractionVisuals(mounted).apply(input)
       }
       return { ...response, applied: true, revision: mounted.document.revision }
     }

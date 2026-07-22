@@ -8,14 +8,16 @@ in `docs/api/toolkit/scene.md`, accepted ADRs, schemas, manifests, and source.
 The embedded Sigil comparison point is immutable commit
 `27058618dc08c2b36d22d599109fb81f2f658b49`. It is visual and behavioral
 evidence only; active Sigil product authority remains external to AOS.
+The `<sealed-sigil-root>` prefix below identifies that commit's frozen product
+fixture root; it is deliberately not an active repository or content-root path.
 
 | Historical source | SHA-256 | Disposition |
 | --- | --- | --- |
-| `apps/sigil/renderer/live-modules/fast-travel.js` | `a6b5a8b50dff00513392221758150ca8402272f895cc161e18f3071498615774` | Retired product fixture; line/wormhole reference |
-| `apps/sigil/renderer/live-modules/interaction-overlay.js` | `07a3a5644e866f2b9bac73a7fc023aa59e19a741a0c9edc20d2a9091d3542071` | Retired product fixture; aim-arrow geometry and color reference |
-| `apps/sigil/renderer/live-modules/radial-gesture-menu.js` | `ab274d88b2019239a9f8d302c2d239ba20d4cd201d9c5634c1efdfd92e4e8ee2` | Retired product fixture; interaction composition reference |
-| `apps/sigil/renderer/live-modules/radial-gesture-runtime.js` | `2087192e25559afa1fb1a1cefa3245cd5ff7c2524d17ed2f4ed880810feafe11` | Compatibility wrapper; product semantics remain retired |
-| `apps/sigil/renderer/live-modules/radial-gesture-visuals.js` | `ca55121e4af04a04a378f7c9b2511da040ebbe59c9463703eeea4e9d3ac97d63` | Retired product fixture; visual reference |
+| `<sealed-sigil-root>/renderer/live-modules/fast-travel.js` | `a6b5a8b50dff00513392221758150ca8402272f895cc161e18f3071498615774` | Retired product fixture; line/wormhole reference |
+| `<sealed-sigil-root>/renderer/live-modules/interaction-overlay.js` | `07a3a5644e866f2b9bac73a7fc023aa59e19a741a0c9edc20d2a9091d3542071` | Retired product fixture; aim-arrow geometry and color reference |
+| `<sealed-sigil-root>/renderer/live-modules/radial-gesture-menu.js` | `ab274d88b2019239a9f8d302c2d239ba20d4cd201d9c5634c1efdfd92e4e8ee2` | Retired product fixture; interaction composition reference |
+| `<sealed-sigil-root>/renderer/live-modules/radial-gesture-runtime.js` | `2087192e25559afa1fb1a1cefa3245cd5ff7c2524d17ed2f4ed880810feafe11` | Compatibility wrapper; product semantics remain retired |
+| `<sealed-sigil-root>/renderer/live-modules/radial-gesture-visuals.js` | `ca55121e4af04a04a378f7c9b2511da040ebbe59c9463703eeea4e9d3ac97d63` | Retired product fixture; visual reference |
 | `packages/toolkit/runtime/gesture-stream.js` | `b42583dd559d886de64fbd484da72a1e128bc68740660076a45d1fdec98858e0` | Engine-core input stream candidate |
 | `packages/toolkit/panel/stage-affordance.js` | `a02575914d6f0796a29935cb3ff194bbd086e2d2d549e66f509bac74fb325262` | Engine-core affordance candidate |
 | `packages/toolkit/runtime/render-performance-sampler.js` | `69e8208d999808159ba0f3f76f9a950a98cc6241d74cd33f3bdd904cd31746fe` | Engine instrumentation candidate |

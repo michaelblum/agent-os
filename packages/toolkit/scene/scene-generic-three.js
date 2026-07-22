@@ -238,7 +238,10 @@ export function createGenericThreeSceneProjection({ THREE, document }) {
   if (!THREE?.Group || !document) throw new TypeError('Generic Three projection requires Three.js and a scene document.')
   assertProjectionBudgets(document)
   const root = new THREE.Group()
-  root.name = document.id
+  // The projection wrapper is not a declared scene object. Keeping its name
+  // distinct prevents interaction lookups from resolving the wrapper when the
+  // document root uses the document ID.
+  root.name = `${document.id}:projection`
   const resources = new Map(document.resources.map((resource) => [resource.id, resource]))
   const objects = new Map()
   const effects = []

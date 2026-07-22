@@ -4,6 +4,13 @@ import type {
   SceneSignalBinding,
   SceneValidationResult,
 } from './index.js';
+import type { SceneInteractionVisualEvent } from './scene-interaction-visual.js';
+
+export type SceneExtensionReadonly<T> =
+  T extends (...args: never[]) => unknown ? never
+    : T extends readonly (infer Item)[] ? readonly SceneExtensionReadonly<Item>[]
+      : T extends object ? { readonly [Key in keyof T]: SceneExtensionReadonly<T[Key]> }
+        : T;
 
 export interface SceneExtensionBudgets {
   maxDrawCalls: number;
@@ -67,6 +74,13 @@ export interface SceneExtensionProjectionResourceMetrics {
 export interface SceneExtensionProjection {
   object: SceneExtensionObject3D;
   activate?(): void;
+  /**
+   * Optional product-owned visual response hook. Gesture recognition,
+   * placement commits, hit regions, and event publication remain engine-owned.
+   */
+  applyInteraction?(event: SceneExtensionReadonly<SceneInteractionVisualEvent>):
+    | boolean
+    | Readonly<{ handled: boolean; routeStarted?: boolean }>;
   applySignal(binding: Readonly<SceneSignalBinding>, value: number): void;
   applyAnimation(binding: Readonly<SceneAnimationBinding>, value: number): void;
   tick(elapsedMs: number): void;

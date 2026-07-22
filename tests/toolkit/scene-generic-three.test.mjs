@@ -155,6 +155,8 @@ test('animation and signals target the declared object when its id matches the s
   const input = document()
   input.id = 'main'
   const projection = createGenericThreeSceneProjection({ THREE, document: input })
+  assert.equal(projection.object.name, 'main:projection')
+  assert.equal(projection.object.getObjectByName('main')?.name, 'main')
   const wrapper = projection.object
   const mesh = wrapper.children[0]
 

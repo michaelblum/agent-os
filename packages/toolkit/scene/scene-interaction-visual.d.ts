@@ -1,5 +1,6 @@
 import type { SceneCartridgeInteraction } from './index.js';
 import type { SceneGestureFrame, SceneGestureResponse, SceneTopologySnapshot } from './scene-interaction.js';
+import type { SceneRadialMenuLayout } from './scene-radial-menu.js';
 
 export interface SceneAimArrowVisualStyle {
   accentColor: string;
@@ -67,6 +68,7 @@ export interface SceneInteractionVisualEvent {
   frame: SceneGestureFrame;
   response: SceneGestureResponse;
   interaction?: SceneCartridgeInteraction;
+  radialLayout?: Readonly<SceneRadialMenuLayout>;
   topology?: SceneTopologySnapshot | null;
 }
 

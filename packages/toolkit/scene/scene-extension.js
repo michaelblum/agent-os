@@ -535,6 +535,9 @@ export function createTrustedSceneExtensionRegistry(input = {}) {
               activate: typeof projection.activate === 'function'
                 ? (...args) => callLifecycleHook('activate', args)
                 : undefined,
+              applyInteraction: typeof projection.applyInteraction === 'function'
+                ? (...args) => callSynchronousProjectionHook(projection, 'applyInteraction', args)
+                : undefined,
               applyAnimation: (...args) => callSynchronousProjectionHook(projection, 'applyAnimation', args),
               applySignal: (...args) => callSynchronousProjectionHook(projection, 'applySignal', args),
               contextLost: (...args) => callLifecycleHook('contextLost', args),
