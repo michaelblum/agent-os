@@ -822,6 +822,49 @@ test('Escape during a pressed radial item completes both hover and press lifecyc
   await runtime.dispose()
 })
 
+test('every lifecycle close completes active radial hover and press gestures', async () => {
+  const cases = [
+    ['resource suspend', (runtime, key) => runtime.suspend(key)],
+    ['topology change', (runtime) => runtime.topologyChanged()],
+    ['stage suspend', (runtime) => runtime.suspendStage()],
+    ['resource release', (runtime, key) => runtime.release(key)],
+    ['stage disposal', (runtime) => runtime.dispose()],
+  ]
+  for (const [label, closeRuntime] of cases) {
+    const { events, runtime } = harness()
+    const key = 'example.consumer::companion/main'
+    const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+    const menuInteractions = structuredClone(interactions)
+    menuInteractions.interactions = [{
+      id: 'open-menu',
+      affordanceId: 'body-hit',
+      recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+      response: {
+        implementation: 'aos.scene.response.radial-menu',
+        parameters: { items: [{ id: 'inspect' }], menuId: 'companion-menu' },
+      },
+    }]
+    await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+    runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+    runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+    await new Promise((resolve) => setImmediate(resolve))
+
+    const item = runtime.snapshot(key).radialMenus[0].regions[0]
+    const [left, top, width, height] = item.frame
+    const x = left + width / 2
+    const y = top + height / 2
+    runtime.handleInput(routed(item.id, 'mouse_moved', x, y, 3))
+    runtime.handleInput(routed(item.id, 'left_mouse_down', x, y, 4))
+    await closeRuntime(runtime, key)
+
+    assert.doesNotThrow(
+      () => replayDesktopWorldSceneEvents(events.map(({ event }) => event)),
+      label,
+    )
+    if (label !== 'stage disposal') await runtime.dispose()
+  }
+})
+
 test('radial-menu regions remain inactive until one atomic generation replacement activates every item', async () => {
   const activation = deferred()
   const replacementStarted = deferred()
