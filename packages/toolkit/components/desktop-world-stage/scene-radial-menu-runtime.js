@@ -597,6 +597,9 @@ export function createDesktopWorldSceneRadialMenuRuntime({
       return selected
     }
     if (input.phase === 'cancel') {
+      if (input.cancel_reason === 'escape') {
+        return close(indexed.session.key, 'escape', { input })
+      }
       if (indexed.session.pointerGestureId) emit(indexed.session, Object.freeze({
         kind: 'radial_menu', action: 'cancel', menuId: indexed.session.response.menuId,
       }), syntheticFrame(

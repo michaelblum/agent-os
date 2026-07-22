@@ -778,7 +778,7 @@ test('non-closing selection and pointer cancellation restore the current hover v
   await runtime.dispose()
 })
 
-test('Escape during a pressed radial item completes both hover and press lifecycles', async () => {
+test('daemon-routed Escape cancellation closes a pressed radial menu and completes both lifecycles', async () => {
   const { events, runtime } = harness()
   const key = 'example.consumer::companion/main'
   const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
@@ -803,7 +803,18 @@ test('Escape during a pressed radial item completes both hover and press lifecyc
   const y = top + height / 2
   runtime.handleInput(routed(item.id, 'mouse_moved', x, y, 3))
   runtime.handleInput(routed(item.id, 'left_mouse_down', x, y, 4))
-  runtime.handleInput(escapeKey(5))
+  runtime.handleInput(canonicalInputRegionEvent({
+    regionId: item.id,
+    ownerCanvasId: 'aos-desktop-world-stage',
+    type: 'pointer_cancel',
+    phase: 'cancel',
+    deliveryRole: 'captured',
+    x,
+    y,
+    sequenceValue: 5,
+    gestureId: 'escape:5',
+    extra: { event_kind: 'cancel', cancel_reason: 'escape' },
+  }))
   await new Promise((resolve) => setImmediate(resolve))
   await new Promise((resolve) => setImmediate(resolve))
 
@@ -818,6 +829,7 @@ test('Escape during a pressed radial item completes both hover and press lifecyc
   ])
   assert.equal(lifecycle[0].gesture.id, lifecycle[2].gesture.id)
   assert.equal(lifecycle[1].gesture.id, lifecycle[3].gesture.id)
+  assert.equal(runtime.snapshot(key).radialMenus.length, 0)
   assert.equal(replayDesktopWorldSceneEvents(events.map(({ event }) => event)).status, 'ok')
   await runtime.dispose()
 })
