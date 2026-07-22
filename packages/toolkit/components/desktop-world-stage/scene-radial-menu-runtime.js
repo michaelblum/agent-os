@@ -79,7 +79,7 @@ function syntheticFrame(session, action, input, reason = null, phase = action ==
   return {
     affordanceId: session.affordance.id,
     interactionId: session.interaction.id,
-    gesture_id: session.pointerGestureId ?? `${session.response.menuId}:${session.generation}:${action}`,
+    gesture_id: session.pointerGestureId ?? session.hoverGestureId ?? `${session.response.menuId}:${session.generation}:${action}`,
     gesture_type: 'tap',
     phase,
     pointer: { capture_id: input?.captureId ?? input?.capture_id ?? null },
@@ -174,6 +174,8 @@ export function createDesktopWorldSceneRadialMenuRuntime({
     session.regionIds.clear()
     session.regionPayloads.clear()
     session.dispatchGuard = null
+    session.focusedRegionId = null
+    session.hoverGestureId = null
   }
 
   function releaseDispatchGuard(session, guard = session.dispatchGuard) {
@@ -236,6 +238,8 @@ export function createDesktopWorldSceneRadialMenuRuntime({
       })
     }
     session.visualApplied = false
+    session.focusedRegionId = null
+    session.hoverGestureId = null
     session.finalized = true
     session.errorCode = null
     releaseDispatchGuard(session)
@@ -300,6 +304,7 @@ export function createDesktopWorldSceneRadialMenuRuntime({
   function close(key, reason = 'resource_changed', { emitEvent = true, input = null } = {}) {
     const session = active.get(key)
     if (!session) return false
+    blur(session, input)
     active.delete(key)
     retired.add(session)
     session.closed = true
@@ -332,6 +337,8 @@ export function createDesktopWorldSceneRadialMenuRuntime({
       regionPayloads: new Map(),
       pressedRegionId: null,
       pointerGestureId: null,
+      focusedRegionId: null,
+      hoverGestureId: null,
       generation: ++generation,
       closed: false,
       closeRequest: null,
@@ -446,6 +453,40 @@ export function createDesktopWorldSceneRadialMenuRuntime({
     return true
   }
 
+  function pressFocus(indexed, input) {
+    const { session, item } = indexed
+    if (!session.dispatchable || session.closed || item.disabled || active.get(session.key) !== session) return false
+    emit(session, Object.freeze({
+      kind: 'radial_menu', action: 'focus', menuId: session.response.menuId,
+      itemId: item.id, selectionIndex: item.index,
+    }), syntheticFrame(session, 'focus', input, null, 'start'))
+    return true
+  }
+
+  function blur(session, input) {
+    if (!session.focusedRegionId || session.closed || active.get(session.key) !== session) return false
+    emit(session, Object.freeze({
+      kind: 'radial_menu', action: 'blur', menuId: session.response.menuId,
+    }), syntheticFrame(session, 'blur', input, null, 'end'))
+    session.focusedRegionId = null
+    session.hoverGestureId = null
+    return true
+  }
+
+  function hoverFocus(indexed, input) {
+    const { session, item } = indexed
+    if (!session.dispatchable || session.closed || item.disabled || active.get(session.key) !== session) return false
+    if (session.focusedRegionId === input.regionId) return true
+    blur(session, input)
+    session.focusedRegionId = input.regionId
+    session.hoverGestureId = `${session.response.menuId}:${session.generation}:hover:${item.index}`
+    emit(session, Object.freeze({
+      kind: 'radial_menu', action: 'focus', menuId: session.response.menuId,
+      itemId: item.id, selectionIndex: item.index,
+    }), syntheticFrame(session, 'focus', input, null, 'start'))
+    return true
+  }
+
   function handleInput(message) {
     const input = normalizeCanvasInputMessage(message)
     if (!input) return false
@@ -466,19 +507,20 @@ export function createDesktopWorldSceneRadialMenuRuntime({
     const indexed = regionIndex.get(input.regionId)
     if (!indexed) return false
     if (indexed.outside) {
+      if (input.phase === 'move') {
+        blur(indexed.session, input)
+        return true
+      }
       if (input.phase === 'down') {
         return close(indexed.session.key, 'pointer_cancelled', { input })
       }
       return true
     }
+    if (input.phase === 'move') return hoverFocus(indexed, input)
     if (input.phase === 'down') {
       indexed.session.pressedRegionId = input.regionId
       indexed.session.pointerGestureId = input.gestureId ?? input.gesture_id ?? `${indexed.session.response.menuId}:${indexed.session.generation}:select`
-      emit(indexed.session, Object.freeze({
-        kind: 'radial_menu', action: 'focus', menuId: indexed.session.response.menuId,
-        itemId: indexed.item.id, selectionIndex: indexed.item.index,
-      }), syntheticFrame(indexed.session, 'focus', input, null, 'start'))
-      return true
+      return pressFocus(indexed, input)
     }
     if (input.phase === 'up') {
       const accepted = indexed.session.pressedRegionId === input.regionId

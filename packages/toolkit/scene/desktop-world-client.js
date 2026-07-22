@@ -145,7 +145,7 @@ function replayApplied(value) {
 
 function replayRadialMenuResponse(value, applied) {
   const commonOptional = ['applied', 'revision']
-  if (!['open', 'focus', 'select', 'cancel'].includes(value.action) || !descriptorId(value.menuId)) {
+  if (!['open', 'focus', 'blur', 'select', 'cancel'].includes(value.action) || !descriptorId(value.menuId)) {
     fail('INVALID_SCENE_REPLAY_EVENT', 'Scene replay radial-menu response is invalid.')
   }
   if (value.action === 'open') {

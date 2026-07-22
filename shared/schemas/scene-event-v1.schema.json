@@ -274,7 +274,7 @@
           "additionalProperties": false,
           "properties": {
             "kind": { "const": "radial_menu" },
-            "action": { "enum": ["open", "focus", "select", "cancel"] },
+            "action": { "enum": ["open", "focus", "blur", "select", "cancel"] },
             "menuId": { "$ref": "#/$defs/DescriptorId" },
             "origin": { "$ref": "#/$defs/NullablePoint" },
             "items": { "type": "array", "minItems": 1, "maxItems": 32, "items": { "$ref": "#/$defs/RadialMenuItem" } },
@@ -310,7 +310,7 @@
               }
             },
             {
-              "properties": { "action": { "const": "cancel" } },
+              "properties": { "action": { "enum": ["blur", "cancel"] } },
               "not": {
                 "anyOf": [
                   { "required": ["origin"] },

@@ -29,8 +29,9 @@ responses are `translate`, `aim_commit`, `drop`, `radial_menu`, or
 
 `radial_menu` responses contain only bounded visual data and canonical item
 IDs. A tap-open menu keeps a transient AOS-owned hit-region lease after the
-trigger gesture. Item focus/selection and menu cancellation emit complete
-gesture lifecycles; no product command or label crosses this event boundary.
+trigger gesture. Pointer movement emits focus and blur updates, while item
+selection and menu cancellation retain complete gesture lifecycles. No product
+command or label crosses this event boundary.
 
 An `aim_commit` response keeps the projected object at its origin through
 `start` and `update`. It carries the bounded parent-local destination in

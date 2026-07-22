@@ -117,7 +117,13 @@ function routed(regionId, type, x, y, sequenceValue) {
     regionId,
     ownerCanvasId: 'aos-desktop-world-stage',
     type,
-    phase: type === 'left_mouse_down' ? 'down' : type === 'left_mouse_up' ? 'up' : 'drag',
+    phase: type === 'left_mouse_down'
+      ? 'down'
+      : type === 'left_mouse_up'
+        ? 'up'
+        : type === 'mouse_moved'
+          ? 'move'
+          : 'drag',
     deliveryRole: type === 'left_mouse_down' ? 'owned' : 'captured',
     x,
     y,
@@ -629,6 +635,53 @@ test('tap-open radial menu coexists with aim-and-commit drag and cleans temporar
   runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 250, 350, 7))
   assert.equal(events.at(-1).event.response.kind, 'aim_commit')
   assert.equal(events.at(-1).event.gesture.phase, 'end')
+})
+
+test('radial-menu pointer movement emits focus and blur without requiring a press', async () => {
+  const registered = []
+  const { events, runtime } = harness({
+    register: async (payload) => { registered.push(structuredClone(payload)) },
+  })
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: {
+        items: [{ id: 'inspect' }, { id: 'annotate' }],
+        menuId: 'companion-menu',
+      },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  const opened = runtime.snapshot(key).radialMenus[0]
+  const item = opened.regions[0]
+  const [left, top, width, height] = item.frame
+  runtime.handleInput(routed(item.id, 'mouse_moved', left + width / 2, top + height / 2, 3))
+  const backdrop = registered.find((region) => (
+    region.id.includes(':menu:') && region.metadata?.scene_radial_outside === 'true'
+  ))
+  assert.ok(backdrop)
+  runtime.handleInput(routed(backdrop.id, 'mouse_moved', 900, 700, 4))
+
+  assert.deepEqual(events.slice(-2).map(({ event }) => [
+    event.gesture.phase,
+    event.response.action,
+    event.response.itemId ?? null,
+  ]), [
+    ['start', 'focus', 'inspect'],
+    ['end', 'blur', null],
+  ])
+  assert.equal(runtime.snapshot(key).radialMenus.length, 1)
+  await runtime.dispose()
 })
 
 test('radial-menu regions remain inactive until one atomic generation replacement activates every item', async () => {

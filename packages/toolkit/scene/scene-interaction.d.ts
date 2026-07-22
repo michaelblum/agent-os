@@ -128,6 +128,10 @@ export interface SceneRadialMenuSelectionResponse extends SceneRadialMenuRespons
   selectionIndex: number;
 }
 
+export interface SceneRadialMenuBlurResponse extends SceneRadialMenuResponseBase {
+  action: 'blur';
+}
+
 export interface SceneRadialMenuCancelResponse extends SceneRadialMenuResponseBase {
   action: 'cancel';
 }
@@ -135,6 +139,7 @@ export interface SceneRadialMenuCancelResponse extends SceneRadialMenuResponseBa
 export type SceneRadialMenuResponse =
   | SceneRadialMenuOpenResponse
   | SceneRadialMenuSelectionResponse
+  | SceneRadialMenuBlurResponse
   | SceneRadialMenuCancelResponse;
 
 export type SceneGestureResponse =
