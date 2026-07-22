@@ -37,6 +37,10 @@ assert(aosValidInputRegionSemanticLabel("Brain"), "printable semantic label shou
 assert(!aosValidInputRegionSemanticLabel(String(repeating: "界", count: 100)), "semantic label must share the toolkit UTF-8 byte bound")
 assert(!aosValidInputRegionSemanticLabel("unsafe\u{0085}label"), "C1 controls must be rejected")
 assert(!aosValidInputRegionSemanticLabel("unsafe\u{202E}label"), "bidi controls must be rejected")
+assert(!aosValidInputRegionSemanticLabel("unsafe\u{00AD}label"), "format controls must be rejected")
+assert(!aosValidInputRegionSemanticLabel("unsafe\u{200B}label"), "zero-width format controls must be rejected")
+assert(!aosValidInputRegionSemanticLabel("unsafe\u{2060}label"), "word-joiner format controls must be rejected")
+assert(!aosValidInputRegionSemanticLabel("unsafe\u{FEFF}label"), "embedded BOM controls must be rejected")
 
 let nonInteractive = AOSInputSurfaceRecord(id: "label", nativeFrame: baseFrame, interactive: false)
 assert(frontmostHittableAOSSurface(at: point, surfaces: [nonInteractive]).shouldConsume == false, "non-interactive surface must not consume")

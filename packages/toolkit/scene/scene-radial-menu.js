@@ -12,7 +12,7 @@ export const SCENE_RADIAL_MENU_LIMITS = Object.freeze({
 })
 
 const SAFE_COLOR = /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/iu
-const UNSAFE_LABEL_CHARACTER = /[\p{Cc}\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/u
+const UNSAFE_LABEL_CHARACTER = /[\p{Cc}\p{Cf}]/u
 const UTF8_ENCODER = new TextEncoder()
 
 function error(code, path, message) {

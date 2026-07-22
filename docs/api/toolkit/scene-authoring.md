@@ -104,8 +104,8 @@ Responses are independent:
 Cartridges may supply bounded item labels for native accessibility and exact
 semantic inspection. AOS validates those labels when it creates native hit
 regions, but redacts them from scene and gesture events. Commands and action
-semantics stay in the consumer. Events never carry product text, audio,
-prompts, or scene document content.
+semantics stay in the consumer. Events never carry product text, audio, prompts,
+or scene document content.
 
 Candidate region generations remain inactive until every new region is ready
 and every old region can retire. Input stays on the prior generation until the

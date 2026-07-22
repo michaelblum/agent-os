@@ -40,6 +40,11 @@ async function artifactBytes(root) {
 test('scene scaffold commands create deterministic, digest-valid artifacts without path or source disclosure', async () => {
   const temp = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-scaffold-'))
   try {
+    const canonicalRadial = await run([
+      'cartridge', 'validate', path.join(repoRoot, 'packages/toolkit/scene/examples/radial-menu'), '--json',
+    ])
+    assert.equal(canonicalRadial.code, 0, canonicalRadial.stderr)
+
     const cartridgeA = path.join(temp, 'cartridge-a')
     const cartridgeB = path.join(temp, 'cartridge-b')
     const cartridgeArgs = ['--id', 'example/spinner', '--template', 'spinning-object', '--json']
