@@ -658,6 +658,7 @@ final class AOSVoiceTransport {
     }
 
     private let lock = NSLock()
+    private let captureStartupQueue = DispatchQueue(label: "aos.voice.capture-startup", qos: .userInitiated)
     private let emit: EventEmitter
     private let microphoneAuthorization: AOSMicrophoneAuthorizationProviding
     private var hotkey: HotkeyLease?
@@ -769,13 +770,14 @@ final class AOSVoiceTransport {
         }
     }
 
-    func startSegmentedCapture(
+    func prepareSegmentedCapture(
         owner: UUID,
         directoryPath: String,
         segmentDuration: TimeInterval,
         maximumDuration: TimeInterval,
+        readyCue: AOSCaptureReadyCue,
         ref: String?
-    ) throws {
+    ) throws -> () -> Void {
         lock.lock()
         guard capture == nil else {
             lock.unlock()
@@ -783,19 +785,19 @@ final class AOSVoiceTransport {
         }
         lock.unlock()
 
-        var authorization = microphoneAuthorization.status()
-        if authorization == .notDetermined {
-            authorization = microphoneAuthorization.request(timeout: 30).after
-        }
-        if let failure = authorization.failure {
-            throw AOSVoiceTransportFailure(code: failure.code, message: failure.message)
-        }
         let session = try AOSSegmentedMicrophoneCaptureSession(
             owner: owner,
             ref: ref,
             directoryPath: directoryPath,
             segmentDuration: segmentDuration,
             maximumDuration: maximumDuration,
+            readyCue: readyCue,
+            authorizeMicrophone: { [microphoneAuthorization] in
+                let current = microphoneAuthorization.status()
+                return current == .notDetermined
+                    ? microphoneAuthorization.request(timeout: 30).after
+                    : current
+            },
             authorizationState: { [microphoneAuthorization] in microphoneAuthorization.status() },
             emit: { [emit] event, data in emit(owner, event, data, ref) },
             terminal: { [weak self] token in self?.captureDidTerminate(token: token) }
@@ -810,11 +812,10 @@ final class AOSVoiceTransport {
         capture = session
         lock.unlock()
         outputToCancel?.cancel(reason: "barge_in")
-        do {
-            try session.start()
-        } catch {
-            captureDidTerminate(token: session.token)
-            throw error
+        return { [captureStartupQueue] in
+            captureStartupQueue.async {
+                try? session.start()
+            }
         }
     }
 

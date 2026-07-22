@@ -29,6 +29,8 @@ The broker owns the behavior that requires its stable permissioned identity:
 - 16 kHz mono PCM microphone capture;
 - create-new owner-only WAV handoff and cleanup;
 - continuous capture with atomically published, deterministic WAV checkpoints;
+- an optional bounded ready chime after microphone arming and before segmented
+  capture admission;
 - capture and playback meter calculation;
 - system speech buffers and playback;
 - bounded owner-only WAV validation and playback;
@@ -60,6 +62,19 @@ translation, and NDJSON presentation.
   non-symlinked, owner-owned `0700` parent. Input is at most 4 MiB and 120
   seconds, with mono or stereo PCM at 8 to 192 kHz.
 - Events never contain audio bytes, spoken text, or local paths.
+- When segmented capture requests the ready chime, AOS starts the input engine
+  with its capture gate closed, discards cue and settling audio, then opens the
+  gate and emits `capture_segmented_started`. Cue failure emits no start event
+  and leaves no capture output.
+- Segmented capture startup is asynchronous after its connection-scoped lease
+  is acknowledged. Only `capture_segmented_started` proves microphone
+  admission. Owner disconnect and cancellation remain observable while input
+  arming or cue playback is in progress, and terminal cleanup waits for any
+  in-flight engine arming to settle.
+- Cue exclusion uses the microphone callback's host clock when available and
+  its sample clock otherwise. A cue request fails with
+  `CAPTURE_CLOCK_UNAVAILABLE` rather than claiming readiness when neither clock
+  can establish the capture boundary.
 - There is no raw PCM socket stream and no AOS-owned transcription.
 
 ## Event Contract
@@ -75,7 +90,8 @@ stream.
 
 Existing channel/session `aos listen`, hotkey, one-shot microphone, and
 one-shot `aos say` behavior are unchanged. Segmented microphone capture is a
-separate form selected by `--segments`. `say --follow` remains a separate form
+separate form selected by `--segments`; `--ready-cue chime` is opt-in and
+defaults to no cue. `say --follow` remains a separate form
 using streamed system speech; provider-backed non-system speech remains behind
 its existing provider seam. `aos play --follow` shares the singleton output
 lease with streamed speech, so capture, barge-in, cancellation, owner loss, and

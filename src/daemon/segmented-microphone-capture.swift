@@ -304,12 +304,28 @@ final class AOSAtomicVoiceSegmentWriter {
 }
 
 final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
+    typealias InputHandler = (AVAudioPCMBuffer, AVAudioTime) -> Void
+
+    private struct FinishRequest {
+        let keepSegments: Bool
+        let event: String
+        let reason: String
+        let failureCode: String?
+    }
+
     let token = UUID()
     let owner: UUID
     let ref: String?
 
     private let maximumDuration: TimeInterval
     private let segmentDuration: TimeInterval
+    private let readyCue: AOSCaptureReadyCue
+    private let playReadyCue: (AOSCaptureReadyCue, @escaping () -> Bool) throws -> UInt64
+    private let startInputEngine: ((@escaping InputHandler) throws -> Void)?
+    private let inputEngineHealthy: (() -> Bool)?
+    private let stopInputEngine: (() -> Void)?
+    private let receiveInput: ((AVAudioPCMBuffer) -> Void)?
+    private let authorizeMicrophone: () -> AOSMicrophoneAuthorizationState
     private let authorizationState: () -> AOSMicrophoneAuthorizationState
     private let emit: (String, [String: Any]) -> Void
     private let terminal: (UUID) -> Void
@@ -317,8 +333,13 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
     private let engine = AVAudioEngine()
     private let queue = DispatchQueue(label: "aos.voice.segmented-capture")
     private let finishLock = NSLock()
+    private let inputGate = AOSCaptureInputGate()
+    private var engineArming = false
+    private var engineOwned = false
+    private var captureAdmitted = false
     private var finishRequested = false
     private var finished = false
+    private var pendingFinish: FinishRequest?
     private var converter: AVAudioConverter?
     private var meterTimer: DispatchSourceTimer?
     private var startedAt: DispatchTime?
@@ -332,6 +353,18 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
         directoryPath: String,
         segmentDuration: TimeInterval,
         maximumDuration: TimeInterval,
+        readyCue: AOSCaptureReadyCue = .none,
+        playReadyCue: @escaping (
+            AOSCaptureReadyCue,
+            @escaping () -> Bool
+        ) throws -> UInt64 = { cue, isCanceled in
+            try aosPlayCaptureReadyCue(cue, isCanceled: isCanceled)
+        },
+        startInputEngine: ((@escaping InputHandler) throws -> Void)? = nil,
+        inputEngineHealthy: (() -> Bool)? = nil,
+        stopInputEngine: (() -> Void)? = nil,
+        receiveInput: ((AVAudioPCMBuffer) -> Void)? = nil,
+        authorizeMicrophone: (() -> AOSMicrophoneAuthorizationState)? = nil,
         authorizationState: @escaping () -> AOSMicrophoneAuthorizationState,
         emit: @escaping (String, [String: Any]) -> Void,
         terminal: @escaping (UUID) -> Void
@@ -339,6 +372,13 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
         self.owner = owner
         self.ref = ref
         self.segmentDuration = segmentDuration
+        self.readyCue = readyCue
+        self.playReadyCue = playReadyCue
+        self.startInputEngine = startInputEngine
+        self.inputEngineHealthy = inputEngineHealthy
+        self.stopInputEngine = stopInputEngine
+        self.receiveInput = receiveInput
+        self.authorizeMicrophone = authorizeMicrophone ?? authorizationState
         self.authorizationState = authorizationState
         self.emit = emit
         self.terminal = terminal
@@ -351,70 +391,131 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
     }
 
     func start() throws {
-        finishLock.lock()
-        defer { finishLock.unlock() }
-        guard !finishRequested else {
-            writer.cancel()
+        guard !startupCanceled() else {
             throw AOSVoiceTransportFailure(
                 code: "CAPTURE_CANCELED",
                 message: "microphone capture was canceled before startup"
             )
         }
-        var startupError: Error?
-        aosRunOnMainSync {
-            let input = engine.inputNode
-            let inputFormat = input.outputFormat(forBus: 0)
-            guard inputFormat.channelCount > 0,
-                  inputFormat.sampleRate.isFinite,
-                  inputFormat.sampleRate > 0,
-                  let converter = AVAudioConverter(from: inputFormat, to: writer.outputFormat) else {
-                startupError = AOSVoiceTransportFailure(
-                    code: "MICROPHONE_UNAVAILABLE",
-                    message: "microphone input is unavailable"
-                )
-                return
-            }
-            self.converter = converter
-            input.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
-                guard let self, let copy = aosCopyPCMBuffer(buffer) else { return }
-                self.queue.async { self.receive(copy) }
-            }
-            tapInstalled = true
-            engine.prepare()
-            do {
-                try engine.start()
-            } catch {
-                if tapInstalled {
-                    input.removeTap(onBus: 0)
-                    tapInstalled = false
-                }
-                startupError = AOSVoiceTransportFailure(
-                    code: "MICROPHONE_UNAVAILABLE",
-                    message: "microphone input is unavailable"
-                )
-            }
-        }
-        if let startupError {
-            writer.cancel()
-            throw startupError
+        let authorization = authorizeMicrophone()
+        if let failure = authorization.failure {
+            let error = AOSVoiceTransportFailure(code: failure.code, message: failure.message)
+            throw failStartup(error)
         }
 
-        emit("capture_segmented_started", [
-            "sample_rate": Int(aosVoiceCaptureSampleRate),
-            "channels": aosVoiceCaptureChannels,
-            "max_duration_ms": Int(maximumDuration * 1000),
-            "segment_duration_ms": Int(segmentDuration * 1000),
-        ])
-        startedAt = .now()
-        let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now(), repeating: .milliseconds(100))
-        timer.setEventHandler { [weak self] in self?.emitMeterOrStop() }
-        timer.resume()
-        meterTimer = timer
+        try beginEngineArming()
+        do {
+            try startCaptureEngine()
+        } catch {
+            let resolved = completeEngineArming(started: false, startupError: error)
+                ?? AOSVoiceTransportFailure(
+                    code: "MICROPHONE_UNAVAILABLE",
+                    message: "microphone input is unavailable"
+                )
+            throw failStartup(resolved)
+        }
+        if let cancellation = completeEngineArming(started: true, startupError: nil) {
+            throw failStartup(cancellation)
+        }
+
+        let admissionBoundary: UInt64
+        do {
+            admissionBoundary = try playReadyCue(readyCue) { [weak self] in
+                self?.startupCanceled() ?? true
+            }
+        } catch let failure as AOSVoiceTransportFailure {
+            throw failStartup(failure)
+        } catch {
+            let failure = AOSVoiceTransportFailure(
+                code: "READY_CUE_UNAVAILABLE",
+                message: "microphone ready cue failed"
+            )
+            throw failStartup(failure)
+        }
+
+        do {
+            try admitCapture(afterHostTime: admissionBoundary)
+        } catch let failure as AOSVoiceTransportFailure {
+            throw failStartup(failure)
+        } catch {
+            let failure = AOSVoiceTransportFailure(
+                code: "VOICE_TRANSPORT_FAILED",
+                message: "microphone capture admission failed"
+            )
+            throw failStartup(failure)
+        }
+    }
+
+    private func beginEngineArming() throws {
+        finishLock.lock()
+        guard !finishRequested, !finished else {
+            finishLock.unlock()
+            throw AOSVoiceTransportFailure(
+                code: "CAPTURE_CANCELED",
+                message: "microphone capture was canceled before startup"
+            )
+        }
+        engineArming = true
+        finishLock.unlock()
+    }
+
+    private func completeEngineArming(
+        started: Bool,
+        startupError: Error?
+    ) -> AOSVoiceTransportFailure? {
+        finishLock.lock()
+        engineArming = false
+        if started { engineOwned = true }
+        let cancellationWon = finishRequested
+        let shouldScheduleFinish = cancellationWon && !finished
+        finishLock.unlock()
+        if shouldScheduleFinish { schedulePendingFinish() }
+        if cancellationWon {
+            return AOSVoiceTransportFailure(
+                code: "CAPTURE_CANCELED",
+                message: "microphone capture was canceled before startup"
+            )
+        }
+        if let failure = startupError as? AOSVoiceTransportFailure { return failure }
+        if startupError != nil {
+            return AOSVoiceTransportFailure(
+                code: "MICROPHONE_UNAVAILABLE",
+                message: "microphone input is unavailable"
+            )
+        }
+        return nil
+    }
+
+    private func failStartup(_ failure: AOSVoiceTransportFailure) -> AOSVoiceTransportFailure {
+        finishLock.lock()
+        if finishRequested {
+            finishLock.unlock()
+            return AOSVoiceTransportFailure(
+                code: "CAPTURE_CANCELED",
+                message: "microphone capture was canceled before startup"
+            )
+        }
+        finishRequested = true
+        pendingFinish = FinishRequest(
+            keepSegments: false,
+            event: "capture_segmented_failed",
+            reason: "failure",
+            failureCode: failure.code
+        )
+        let shouldSchedule = !engineArming
+        finishLock.unlock()
+        if shouldSchedule { schedulePendingFinish() }
+        return failure
     }
 
     func finalize(reason: String) {
-        requestFinish(keepSegments: true, event: "capture_segmented_completed", reason: reason, failureCode: nil)
+        requestFinish(
+            keepSegments: true,
+            event: "capture_segmented_completed",
+            reason: reason,
+            failureCode: nil,
+            cancelBeforeAdmission: true
+        )
     }
 
     func cancel(reason: String) {
@@ -424,7 +525,7 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
     private func receive(_ input: AVAudioPCMBuffer) {
         guard !finished else { return }
         guard authorizationState().isAuthorized else {
-            finishLocked(
+            requestFinish(
                 keepSegments: false,
                 event: "capture_segmented_failed",
                 reason: "failure",
@@ -434,7 +535,7 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
         }
         if let metrics = aosAudioFrameMetrics(input) { lastMetrics = metrics }
         guard let converter else {
-            finishLocked(
+            requestFinish(
                 keepSegments: false,
                 event: "capture_segmented_failed",
                 reason: "failure",
@@ -445,7 +546,7 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
         let ratio = writer.outputFormat.sampleRate / input.format.sampleRate
         let capacity = AVAudioFrameCount(max(1, ceil(Double(input.frameLength) * ratio) + 32))
         guard let output = AVAudioPCMBuffer(pcmFormat: writer.outputFormat, frameCapacity: capacity) else {
-            finishLocked(
+            requestFinish(
                 keepSegments: false,
                 event: "capture_segmented_failed",
                 reason: "failure",
@@ -465,7 +566,7 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
             return input
         }
         guard conversionError == nil, status != .error else {
-            finishLocked(
+            requestFinish(
                 keepSegments: false,
                 event: "capture_segmented_failed",
                 reason: "failure",
@@ -477,7 +578,7 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
         do {
             emitReady(try writer.append(output))
         } catch let failure as AOSVoiceTransportFailure {
-            finishLocked(
+            requestFinish(
                 keepSegments: false,
                 event: "capture_segmented_failed",
                 reason: "failure",
@@ -485,7 +586,7 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
             )
             return
         } catch {
-            finishLocked(
+            requestFinish(
                 keepSegments: false,
                 event: "capture_segmented_failed",
                 reason: "failure",
@@ -494,7 +595,7 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
             return
         }
         if writer.reachedMaximumDuration {
-            finishLocked(
+            requestFinish(
                 keepSegments: true,
                 event: "capture_segmented_completed",
                 reason: "max_duration",
@@ -507,7 +608,7 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
         guard !finished else { return }
         if let startedAt,
            aosVoiceCaptureDeadlineReached(startedAt: startedAt, maximumDuration: maximumDuration) {
-            finishLocked(
+            requestFinish(
                 keepSegments: true,
                 event: "capture_segmented_completed",
                 reason: "max_duration",
@@ -516,7 +617,7 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
             return
         }
         guard authorizationState().isAuthorized else {
-            finishLocked(
+            requestFinish(
                 keepSegments: false,
                 event: "capture_segmented_failed",
                 reason: "failure",
@@ -537,7 +638,8 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
         keepSegments: Bool,
         event: String,
         reason: String,
-        failureCode: String?
+        failureCode: String?,
+        cancelBeforeAdmission: Bool = false
     ) {
         finishLock.lock()
         guard !finishRequested else {
@@ -545,36 +647,182 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
             return
         }
         finishRequested = true
+        let canceledBeforeAdmission = cancelBeforeAdmission && !captureAdmitted
+        pendingFinish = FinishRequest(
+            keepSegments: canceledBeforeAdmission ? false : keepSegments,
+            event: canceledBeforeAdmission ? "capture_segmented_canceled" : event,
+            reason: reason,
+            failureCode: canceledBeforeAdmission ? nil : failureCode
+        )
+        let shouldSchedule = !engineArming
         finishLock.unlock()
-        queue.async { [weak self] in
-            self?.finishLocked(
-                keepSegments: keepSegments,
-                event: event,
-                reason: reason,
-                failureCode: failureCode
+        if shouldSchedule { schedulePendingFinish() }
+    }
+
+    private func schedulePendingFinish() {
+        queue.async { [weak self] in self?.finishPending() }
+    }
+
+    private func startupCanceled() -> Bool {
+        finishLock.lock()
+        defer { finishLock.unlock() }
+        return finishRequested || finished
+    }
+
+    private func admitCapture(afterHostTime boundary: UInt64) throws {
+        guard !startupCanceled() else {
+            throw AOSVoiceTransportFailure(
+                code: "CAPTURE_CANCELED",
+                message: "microphone capture was canceled before startup"
             )
+        }
+        guard authorizationState().isAuthorized else {
+            throw AOSVoiceTransportFailure(
+                code: "MICROPHONE_PERMISSION_LOST",
+                message: "microphone permission was lost before capture started"
+            )
+        }
+        guard captureEngineIsHealthy() else {
+            throw AOSVoiceTransportFailure(
+                code: "MICROPHONE_UNAVAILABLE",
+                message: "microphone input became unavailable before capture started"
+            )
+        }
+
+        finishLock.lock()
+        guard !finishRequested, !finished else {
+            finishLock.unlock()
+            throw AOSVoiceTransportFailure(
+                code: "CAPTURE_CANCELED",
+                message: "microphone capture was canceled before startup"
+            )
+        }
+        let admissionCompleted = DispatchSemaphore(value: 0)
+        var admissionFailure: AOSVoiceTransportFailure?
+        queue.async { [self] in
+            finishLock.lock()
+            if finishRequested || finished {
+                admissionFailure = AOSVoiceTransportFailure(
+                    code: "CAPTURE_CANCELED",
+                    message: "microphone capture was canceled before startup"
+                )
+                finishLock.unlock()
+            } else if !inputGate.open(
+                afterHostTime: boundary,
+                requireCueExclusion: readyCue == .chime
+            ) {
+                admissionFailure = AOSVoiceTransportFailure(
+                    code: "CAPTURE_CLOCK_UNAVAILABLE",
+                    message: "microphone input timing is unavailable"
+                )
+                finishLock.unlock()
+            } else {
+                captureAdmitted = true
+                finishLock.unlock()
+                emitStartedAndBeginMetering()
+            }
+            admissionCompleted.signal()
+        }
+        finishLock.unlock()
+        admissionCompleted.wait()
+        if let admissionFailure { throw admissionFailure }
+    }
+
+    private func emitStartedAndBeginMetering() {
+        startedAt = .now()
+        emit("capture_segmented_started", [
+            "sample_rate": Int(aosVoiceCaptureSampleRate),
+            "channels": aosVoiceCaptureChannels,
+            "max_duration_ms": Int(maximumDuration * 1000),
+            "segment_duration_ms": Int(segmentDuration * 1000),
+        ])
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now(), repeating: .milliseconds(100))
+        timer.setEventHandler { [weak self] in self?.emitMeterOrStop() }
+        timer.resume()
+        meterTimer = timer
+    }
+
+    private func startCaptureEngine() throws {
+        let handler: InputHandler = { [weak self] buffer, time in
+            self?.enqueueInput(buffer, at: time)
+        }
+        if let startInputEngine {
+            try startInputEngine(handler)
+            return
+        }
+        var startupError: Error?
+        aosRunOnMainSync {
+            let input = engine.inputNode
+            let inputFormat = input.outputFormat(forBus: 0)
+            guard inputFormat.channelCount > 0,
+                  inputFormat.sampleRate.isFinite,
+                  inputFormat.sampleRate > 0,
+                  let converter = AVAudioConverter(from: inputFormat, to: writer.outputFormat) else {
+                startupError = AOSVoiceTransportFailure(
+                    code: "MICROPHONE_UNAVAILABLE",
+                    message: "microphone input is unavailable"
+                )
+                return
+            }
+            self.converter = converter
+            input.installTap(onBus: 0, bufferSize: 1024, format: inputFormat, block: handler)
+            tapInstalled = true
+            engine.prepare()
+            do {
+                try engine.start()
+            } catch {
+                if tapInstalled {
+                    input.removeTap(onBus: 0)
+                    tapInstalled = false
+                }
+                startupError = AOSVoiceTransportFailure(
+                    code: "MICROPHONE_UNAVAILABLE",
+                    message: "microphone input is unavailable"
+                )
+            }
+        }
+        if let startupError { throw startupError }
+    }
+
+    private func enqueueInput(_ input: AVAudioPCMBuffer, at time: AVAudioTime) {
+        let timestamp = inputGate.observe(time)
+        guard let copy = aosCopyPCMBuffer(input) else { return }
+        queue.async { [weak self] in
+            guard let self, self.inputGate.acceptsInput(timestamp) else { return }
+            if let receiveInput = self.receiveInput {
+                receiveInput(copy)
+            } else {
+                self.receive(copy)
+            }
         }
     }
 
-    private func finishLocked(
-        keepSegments: Bool,
-        event: String,
-        reason: String,
-        failureCode: String?
-    ) {
+    private func captureEngineIsHealthy() -> Bool {
+        if let inputEngineHealthy { return inputEngineHealthy() }
+        var healthy = false
+        aosRunOnMainSync {
+            healthy = engine.isRunning
+                && engine.inputNode.outputFormat(forBus: 0).channelCount > 0
+        }
+        return healthy
+    }
+
+    private func finishPending() {
         finishLock.lock()
-        guard !finished else {
+        guard !finished, let request = pendingFinish else {
             finishLock.unlock()
             return
         }
         finished = true
         finishRequested = true
+        pendingFinish = nil
         finishLock.unlock()
         meterTimer?.cancel()
         meterTimer = nil
         stopEngine()
 
-        if !keepSegments {
+        if !request.keepSegments {
             writer.cancel()
         } else {
             do {
@@ -592,17 +840,17 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
             }
         }
 
-        if let failureCode {
-            emit(event, ["code": failureCode])
-        } else if keepSegments {
-            emit(event, [
-                "reason": reason,
+        if let failureCode = request.failureCode {
+            emit(request.event, ["code": failureCode])
+        } else if request.keepSegments {
+            emit(request.event, [
+                "reason": request.reason,
                 "duration_ms": writer.durationMilliseconds,
                 "bytes": writer.totalBytes,
                 "segments": writer.completedSegmentCount,
             ])
         } else {
-            emit(event, ["reason": reason])
+            emit(request.event, ["reason": request.reason])
         }
         terminal(token)
     }
@@ -618,6 +866,16 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
     }
 
     private func stopEngine() {
+        inputGate.close()
+        finishLock.lock()
+        let shouldStop = engineOwned
+        engineOwned = false
+        finishLock.unlock()
+        guard shouldStop else { return }
+        if let stopInputEngine {
+            stopInputEngine()
+            return
+        }
         aosRunOnMainSync {
             if tapInstalled {
                 engine.inputNode.removeTap(onBus: 0)

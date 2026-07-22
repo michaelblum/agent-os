@@ -295,6 +295,15 @@
               "value_type": "duration"
             },
             {
+              "default_value": "none",
+              "id": "ready-cue",
+              "kind": "flag",
+              "required": false,
+              "summary": "Audible cue after microphone arming and before capture admission: none or chime",
+              "token": "--ready-cue",
+              "value_type": "string"
+            },
+            {
               "default_value": "120s",
               "id": "max-duration",
               "kind": "flag",
@@ -313,7 +322,7 @@
             }
           ],
           "examples": [
-            "aos listen --source microphone --segments /private/tmp/aos-voice/segments --segment-duration 3s --follow --max-duration 120s"
+            "aos listen --source microphone --segments /private/tmp/aos-voice/segments --segment-duration 3s --ready-cue chime --follow --max-duration 120s"
           ],
           "execution": {
             "auto_starts_daemon": true,
@@ -331,7 +340,7 @@
             "streaming": true,
             "supports_json_flag": false
           },
-          "usage": "aos listen --source microphone --segments <absolute-directory> --follow [--segment-duration 3s] [--max-duration 120s]"
+          "usage": "aos listen --source microphone --segments <absolute-directory> --follow [--segment-duration 3s] [--ready-cue none|chime] [--max-duration 120s]"
         },
         {
           "args": [

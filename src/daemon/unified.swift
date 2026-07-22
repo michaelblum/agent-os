@@ -3355,15 +3355,22 @@ class UnifiedDaemon {
                 ?? aosVoiceSegmentDefaultDuration
             let maximumDuration = (json["max_duration_seconds"] as? NSNumber)?.doubleValue
                 ?? aosVoiceCaptureMaximumDuration
+            if let value = json["ready_cue"], !(value is String) {
+                sendVoiceTransportError(to: outbound, message: "ready cue must be a string", code: "INVALID_READY_CUE", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                return
+            }
             do {
-                try voiceTransport.startSegmentedCapture(
+                let readyCue = try AOSCaptureReadyCue.parse(json["ready_cue"] as? String)
+                let beginCapture = try voiceTransport.prepareSegmentedCapture(
                     owner: connectionID,
                     directoryPath: directoryPath,
                     segmentDuration: segmentDuration,
                     maximumDuration: maximumDuration,
+                    readyCue: readyCue,
                     ref: envelopeRef
                 )
                 sendResponseJSON(to: outbound, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                beginCapture()
             } catch let failure as AOSVoiceTransportFailure {
                 sendVoiceTransportError(to: outbound, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             } catch {

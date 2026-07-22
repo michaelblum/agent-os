@@ -44,6 +44,9 @@ const SAFE_DAEMON_ERRORS = new Map([
   ['SEGMENT_DIRECTORY_NOT_EMPTY', 'voice segment directory must be empty'],
   ['INVALID_SEGMENT_DURATION', 'voice segment duration is invalid'],
   ['SEGMENT_CREATE_FAILED', 'voice segment could not be created'],
+  ['INVALID_READY_CUE', 'microphone ready cue is invalid'],
+  ['READY_CUE_UNAVAILABLE', 'microphone ready cue is unavailable'],
+  ['CAPTURE_CLOCK_UNAVAILABLE', 'microphone input timing is unavailable'],
   ['INVALID_SPEECH_TEXT', 'speech input is invalid'],
   ['INVALID_SPEECH_RATE', 'speech rate is invalid'],
   ['INVALID_VOICE_ID', 'voice identifier is malformed'],
@@ -116,6 +119,14 @@ function parseSegmentDuration(value) {
     fail('listen --segment-duration must be between 500ms and 5s', 'INVALID_ARG');
   }
   return seconds;
+}
+
+function parseReadyCue(value) {
+  if (value === undefined) return undefined;
+  if (value !== 'none' && value !== 'chime') {
+    fail('listen --ready-cue must be none or chime', 'INVALID_ARG');
+  }
+  return value;
 }
 
 function request(service, action, data, ref) {
@@ -294,7 +305,7 @@ function followVoice(options) {
 export async function listenVoice(args) {
   assertOnlyFlags(
     args,
-    new Set(['--source', '--shortcut', '--output', '--segments', '--segment-duration', '--max-duration']),
+    new Set(['--source', '--shortcut', '--output', '--segments', '--segment-duration', '--max-duration', '--ready-cue']),
     new Set(['--follow']),
   );
   if (!args.includes('--follow')) fail('voice listen sources require --follow', 'MISSING_ARG');
@@ -305,6 +316,7 @@ export async function listenVoice(args) {
       || args.includes('--segments')
       || args.includes('--segment-duration')
       || args.includes('--max-duration')
+      || args.includes('--ready-cue')
     ) fail('hotkey listen does not accept microphone flags', 'INVALID_ARG');
     const shortcut = valueAfter(args, '--shortcut') ?? 'Control+Option+Space';
     await followVoice({
@@ -328,6 +340,9 @@ export async function listenVoice(args) {
     if (output && args.includes('--segment-duration')) {
       fail('listen --segment-duration requires --segments', 'INVALID_ARG');
     }
+    if (output && args.includes('--ready-cue')) {
+      fail('listen --ready-cue requires --segments', 'INVALID_ARG');
+    }
     if (segmentsDirectory) {
       await followVoice({
         service: 'listen',
@@ -336,6 +351,7 @@ export async function listenVoice(args) {
           segments_directory: segmentsDirectory,
           segment_duration_seconds: parseSegmentDuration(valueAfter(args, '--segment-duration')),
           max_duration_seconds: parseDuration(valueAfter(args, '--max-duration')),
+          ready_cue: parseReadyCue(valueAfter(args, '--ready-cue')),
         },
         stopAction: { service: 'listen', action: 'stop' },
         cancelAction: { service: 'listen', action: 'cancel' },
