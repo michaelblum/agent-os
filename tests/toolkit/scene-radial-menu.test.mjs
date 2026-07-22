@@ -37,10 +37,19 @@ test('radial-menu semantic labels are bounded and remain outside normalized even
   assert.equal(resolveSceneRadialMenuItemLabel(parameters, 'first'), 'Inspect scene')
   assert.equal(resolveSceneRadialMenuItemLabel(parameters, 'second'), 'second')
   const invalid = structuredClone(parameters)
-  invalid.items[0].label = 'x'.repeat(129)
+  invalid.items[0].label = 'x'.repeat(257)
   assert.ok(validateSceneRadialMenuParameters(invalid)
     .some((entry) => entry.code === 'invalid_radial_item_label'))
   invalid.items[0].label = 'unsafe\nlabel'
+  assert.ok(validateSceneRadialMenuParameters(invalid)
+    .some((entry) => entry.code === 'invalid_radial_item_label'))
+  invalid.items[0].label = '界'.repeat(100)
+  assert.ok(validateSceneRadialMenuParameters(invalid)
+    .some((entry) => entry.code === 'invalid_radial_item_label'))
+  invalid.items[0].label = `unsafe${String.fromCodePoint(0x85)}label`
+  assert.ok(validateSceneRadialMenuParameters(invalid)
+    .some((entry) => entry.code === 'invalid_radial_item_label'))
+  invalid.items[0].label = `unsafe${String.fromCodePoint(0x202e)}label`
   assert.ok(validateSceneRadialMenuParameters(invalid)
     .some((entry) => entry.code === 'invalid_radial_item_label'))
   const layout = resolveSceneRadialMenuLayout({ ...parameters, origin: { x: 100, y: 100 } })

@@ -6,13 +6,14 @@ import {
 
 export const SCENE_RADIAL_MENU_LIMITS = Object.freeze({
   maxItems: 32,
-  maxLabelLength: 128,
+  maxLabelBytes: 256,
   maxRadius: 2048,
   maxItemRadius: 128,
 })
 
 const SAFE_COLOR = /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/iu
-const UNSAFE_LABEL_CHARACTER = /[\u0000-\u001f\u007f]/u
+const UNSAFE_LABEL_CHARACTER = /[\p{Cc}\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/u
+const UTF8_ENCODER = new TextEncoder()
 
 function error(code, path, message) {
   return { code, path, message }
@@ -37,7 +38,7 @@ function normalizeItems(value) {
 function validSemanticLabel(value) {
   return typeof value === 'string'
     && value.length >= 1
-    && value.length <= SCENE_RADIAL_MENU_LIMITS.maxLabelLength
+    && UTF8_ENCODER.encode(value).byteLength <= SCENE_RADIAL_MENU_LIMITS.maxLabelBytes
     && value.trim().length > 0
     && !UNSAFE_LABEL_CHARACTER.test(value)
 }
@@ -86,7 +87,7 @@ export function validateSceneRadialMenuParameters(parameters, path = 'response.p
       ids.add(item.id)
       if (item.color !== undefined && !SAFE_COLOR.test(item.color)) errors.push(error('invalid_color', `${itemPath}.color`, 'Scene colors must use bounded hexadecimal notation.'))
       if (item.disabled !== undefined && typeof item.disabled !== 'boolean') errors.push(error('invalid_radial_item', `${itemPath}.disabled`, 'Scene radial-menu disabled state must be boolean.'))
-      if (item.label !== undefined && !validSemanticLabel(item.label)) errors.push(error('invalid_radial_item_label', `${itemPath}.label`, 'Scene radial-menu item labels must contain 1 to 128 printable characters.'))
+      if (item.label !== undefined && !validSemanticLabel(item.label)) errors.push(error('invalid_radial_item_label', `${itemPath}.label`, 'Scene radial-menu item labels must contain printable text bounded to 256 UTF-8 bytes.'))
     })
   }
   for (const [key, min, max] of [['radius', 1, SCENE_RADIAL_MENU_LIMITS.maxRadius], ['spreadDegrees', 1, 360], ['startAngle', -3600, 3600]]) {

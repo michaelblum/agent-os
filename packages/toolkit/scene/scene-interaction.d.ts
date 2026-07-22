@@ -111,10 +111,16 @@ export interface SceneRadialMenuResponseBase extends SceneGestureAppliedResponse
   menuId: string;
 }
 
+export interface SceneRadialMenuRuntimeItemDescriptor {
+  id: string;
+  color: string;
+  disabled: boolean;
+}
+
 export interface SceneRadialMenuOpenResponse extends SceneRadialMenuResponseBase {
   action: 'open';
   origin: ScenePoint | null;
-  items: Array<{ id: string; color: string; disabled: boolean }>;
+  items: SceneRadialMenuRuntimeItemDescriptor[];
   radius: number;
   startAngle: number;
   spreadDegrees: number;

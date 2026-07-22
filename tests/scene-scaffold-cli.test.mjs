@@ -56,6 +56,21 @@ test('scene scaffold commands create deterministic, digest-valid artifacts witho
     assert.equal(cartridgeValidation.code, 0, cartridgeValidation.stderr)
     assert.equal(JSON.parse(cartridgeValidation.stdout).digest, cartridgeSummary.digest)
 
+    const radialMenu = path.join(temp, 'radial-menu')
+    const radialCreated = await run([
+      'cartridge', 'scaffold', radialMenu,
+      '--id', 'example/radial-menu', '--template', 'radial-menu', '--json',
+    ])
+    assert.equal(radialCreated.code, 0, radialCreated.stderr)
+    const radialInteractions = JSON.parse(await readFile(path.join(radialMenu, 'interactions.json'), 'utf8'))
+    const radialItems = radialInteractions.interactions[0].response.parameters.items
+    assert.deepEqual(radialItems.map((item) => item.label), [
+      'Top action',
+      'Right action',
+      'Bottom action',
+      'Left action',
+    ])
+
     const extensionA = path.join(temp, 'extension-a')
     const extensionB = path.join(temp, 'extension-b')
     const extensionArgs = ['--owner', 'example.consumer', '--id', 'basic-three', '--template', 'basic-three', '--json']

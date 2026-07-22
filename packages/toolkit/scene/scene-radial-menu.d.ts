@@ -1,4 +1,4 @@
-import type { SceneCartridgeInteraction, SceneGestureFrame, ScenePoint, SceneTopologySnapshot } from './scene-interaction.js';
+import type { SceneCartridgeInteraction, SceneGestureFrame, ScenePoint, SceneRadialMenuRuntimeItemDescriptor, SceneTopologySnapshot } from './scene-interaction.js';
 
 export interface SceneRadialMenuItemDescriptor {
   id: string;
@@ -24,11 +24,7 @@ export interface SceneRadialMenuParameters {
 
 export interface NormalizedSceneRadialMenuParameters {
   menuId: string;
-  items: ReadonlyArray<Readonly<{
-    id: string;
-    color: string;
-    disabled: boolean;
-  }>>;
+  items: ReadonlyArray<Readonly<SceneRadialMenuRuntimeItemDescriptor>>;
   radius: number;
   startAngle: number;
   spreadDegrees: number;
@@ -43,7 +39,7 @@ export interface NormalizedSceneRadialMenuParameters {
 
 export interface SceneRadialMenuLayout {
   center: Readonly<ScenePoint>;
-  items: ReadonlyArray<Readonly<SceneRadialMenuItemDescriptor & {
+  items: ReadonlyArray<Readonly<SceneRadialMenuRuntimeItemDescriptor & {
     center: Readonly<ScenePoint>;
     hitRadius: number;
     index: number;
@@ -53,7 +49,7 @@ export interface SceneRadialMenuLayout {
 
 export const SCENE_RADIAL_MENU_LIMITS: Readonly<{
   maxItems: 32;
-  maxLabelLength: 128;
+  maxLabelBytes: 256;
   maxRadius: 2048;
   maxItemRadius: 128;
 }>;
