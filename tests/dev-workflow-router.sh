@@ -194,7 +194,7 @@ else
     fail "dev recommend semantic target selection routing drifted"
 fi
 
-if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files src/perceive/ax-semantic-target.swift tests/lib/annotation-semantic-target-traversal-tests.swift 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/perceive/ax-semantic-target.swift tests/lib/annotation-semantic-target-traversal-tests.swift 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -204,7 +204,19 @@ assert "desktop-annotation-selection" in summary["rule_ids"], data
 assert "unclassified" not in summary["rule_ids"], data
 assert summary["requires_swift_build"] is True, data
 assert summary["tcc_identity_sensitive"] is True, data
-commands = {item["command"] for item in data["next_commands"]}
+files = {item["path"]: item for item in data["files"]}
+expected_paths = {
+    "src/perceive/ax-semantic-target.swift",
+    "tests/lib/annotation-semantic-target-traversal-tests.swift",
+}
+assert expected_paths == set(files), data
+for path in expected_paths:
+    item = files[path]
+    assert "desktop-annotation-selection" in item["rules"], item
+    assert "unclassified" not in item["rules"], item
+    assert item["hot_swappable"] is False, item
+    assert item["tcc_identity_sensitive"] is True, item
+commands = {item["command"] for item in summary["commands"]}
 assert {
     "node --test tests/annotation-select-cli.test.mjs && bash tests/annotation-selection-native.sh",
     "node --test tests/schemas/aos-pending-annotation-v0.test.mjs tests/schemas/daemon-event.test.mjs tests/toolkit/pending-annotation-model.test.mjs",
@@ -214,9 +226,9 @@ proof_assets = {item["path"]: item for item in data["proof_worth"]["assets"]}
 assert proof_assets["tests/lib/annotation-semantic-target-traversal-tests.swift"]["status"] == "passed", data
 PY
 then
-    pass "dev recommend routes canonical semantic target traversal to focused annotation proofs"
+    pass "dev classify routes each canonical semantic target traversal owner to focused annotation proofs"
 else
-    fail "dev recommend canonical semantic target traversal routing drifted"
+    fail "dev classify canonical semantic target traversal routing drifted"
 fi
 
 if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files tests/lib/visual-harness.sh 2>/dev/null)" python3 - <<'PY'
@@ -436,17 +448,20 @@ import os
 data = json.loads(os.environ["OUT"])
 assert data["status"] == "success", data
 assert data["files"], data
+files = {item["path"]: item for item in data["files"]}
+annotation = files["scripts/aos-annotation-select.mjs"]
+assert "desktop-annotation-selection" in annotation["rules"], annotation
+assert annotation["hot_swappable"] is False, annotation
+assert annotation["tcc_identity_sensitive"] is True, annotation
 for item in data["files"]:
     rules = set(item["rules"])
     assert "command-surface-implementations" in rules, item
     assert "unclassified" not in rules, item
-    if "desktop-annotation-selection" in rules:
-        assert item["path"] == "scripts/aos-annotation-select.mjs", item
-        assert item["hot_swappable"] is False, item
-        assert item["tcc_identity_sensitive"] is True, item
-    else:
-        assert item["hot_swappable"] is True, item
-        assert item["tcc_identity_sensitive"] is False, item
+    if item["path"] == "scripts/aos-annotation-select.mjs":
+        continue
+    assert "desktop-annotation-selection" not in rules, item
+    assert item["hot_swappable"] is True, item
+    assert item["tcc_identity_sensitive"] is False, item
 summary = data["summary"]
 assert summary["requires_swift_build"] is False, summary
 assert summary["hot_swappable"] is False, summary
