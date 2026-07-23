@@ -40,7 +40,14 @@ class PerceptionEngine {
     private var eventTapSource: CFRunLoopSource?
     private var eventTapRetryTimer: DispatchSourceTimer?
     private var eventTapStartAttempts: Int = 0
-    private var lastEventTapErrorAt: Date?
+    private let inputTapPermissionGate = InputTapPermissionGate()
+    private let inputTapPermissionMonitorQueue = DispatchQueue(
+        label: "io.agent-os.input-tap-permission-monitor",
+        qos: .utility
+    )
+    private var inputTapPermissionMonitor: InputTapPermissionMonitor?
+    private var inputTapPermissionMonitorGeneration: UInt64 = 0
+    private var inputTapTimeoutRecovery = InputTapTimeoutRecoveryState()
     private let inputSafetyHotkeyState = InputSafetyHotkeyState()
 
     var inputTapStatus: String {
@@ -54,7 +61,7 @@ class PerceptionEngine {
     }
 
     var inputTapLastErrorAt: Date? {
-        lastEventTapErrorAt
+        inputTapPermissionGate.lastErrorAt
     }
 
     var inputTapListenAccess: Bool {
@@ -92,6 +99,7 @@ class PerceptionEngine {
     }
 
     func stop() {
+        cancelInputTapPermissionMonitor()
         cancelEventTapRetry()
         teardownEventTap()
         cursorIdleTimer?.cancel()
@@ -104,10 +112,20 @@ class PerceptionEngine {
 
     private func startEventTap() {
         if eventTap != nil { return }
+        if inputTapPermissionLossDetected() {
+            cancelEventTapRetry()
+            return
+        }
         eventTapStartAttempts += 1
 
-        guard inputTapPermissionsAvailable() else {
-            logEventTapFailure()
+        let startupPermissions = resolveInputTapPermissions()
+        publishInputTapPermissions(
+            startupPermissions,
+            observedAtUptimeNanoseconds: DispatchTime.now().uptimeNanoseconds
+        )
+        guard startupPermissions.available else {
+            logEventTapFailure(startupPermissions)
+            failOpenAfterInputTapPermissionLoss()
             return
         }
 
@@ -150,23 +168,35 @@ class PerceptionEngine {
             },
             userInfo: refcon
         ) else {
-            logEventTapFailure()
-            scheduleEventTapRetry()
+            let failurePermissions = resolveInputTapPermissions()
+            publishInputTapPermissions(
+                failurePermissions,
+                observedAtUptimeNanoseconds: DispatchTime.now().uptimeNanoseconds
+            )
+            logEventTapFailure(failurePermissions)
+            if failurePermissions.available {
+                scheduleEventTapRetry()
+            } else {
+                failOpenAfterInputTapPermissionLoss()
+            }
             return
         }
 
         cancelEventTapRetry()
+        inputTapTimeoutRecovery.installed()
         eventTap = tap
         let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         eventTapSource = runLoopSource
         CGEvent.tapEnable(tap: tap, enable: true)
+        startInputTapPermissionMonitor()
         if eventTapStartAttempts > 1 {
             fputs("PerceptionEngine: global input tap recovered on retry #\(eventTapStartAttempts - 1)\n", stderr)
         }
     }
 
     private func teardownEventTap() {
+        inputTapTimeoutRecovery.invalidate()
         if let tap = eventTap {
             CGEvent.tapEnable(tap: tap, enable: false)
             CFMachPortInvalidate(tap)
@@ -179,6 +209,10 @@ class PerceptionEngine {
     }
 
     private func scheduleEventTapRetry() {
+        if inputTapPermissionLossDetected() {
+            cancelEventTapRetry()
+            return
+        }
         if eventTapRetryTimer != nil { return }
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + .seconds(1), repeating: .seconds(2))
@@ -198,48 +232,156 @@ class PerceptionEngine {
         eventTapRetryTimer = nil
     }
 
-    private func logEventTapFailure() {
-        lastEventTapErrorAt = Date()
-        let ax = AXIsProcessTrusted()
-        if #available(macOS 10.15, *) {
-            let listen = CGPreflightListenEventAccess()
-            let post = CGPreflightPostEventAccess()
-            let next = ax && listen && post
-                ? "retrying on main run loop"
-                : "leaving tap unavailable until daemon restart"
-            fputs(
-                "Warning: CGEventTap failed — input tap unavailable (AX=\(ax) listen=\(listen) post=\(post)); \(next)\n",
-                stderr
-            )
-        } else {
-            fputs(
-                "Warning: CGEventTap failed — input tap unavailable (AX=\(ax)); \(ax ? "retrying on main run loop" : "leaving tap unavailable until daemon restart")\n",
-                stderr
-            )
-        }
+    private func logEventTapFailure(_ permissions: InputTapPermissionSnapshot) {
+        inputTapPermissionGate.recordError(at: Date())
+        let next = permissions.available
+            ? "retrying on main run loop"
+            : "leaving tap unavailable until daemon restart"
+        fputs(
+            "Warning: CGEventTap failed — input tap unavailable (AX=\(permissions.accessibility) listen=\(permissions.listen) post=\(permissions.post)); \(next)\n",
+            stderr
+        )
     }
 
-    private func inputTapPermissionsAvailable() -> Bool {
-        guard AXIsProcessTrusted() else { return false }
+    private func resolveInputTapPermissions() -> InputTapPermissionSnapshot {
+        let accessibility = AXIsProcessTrusted()
         if #available(macOS 10.15, *) {
-            return CGPreflightListenEventAccess() && CGPreflightPostEventAccess()
+            return InputTapPermissionSnapshot(
+                accessibility: accessibility,
+                listen: CGPreflightListenEventAccess(),
+                post: CGPreflightPostEventAccess()
+            )
         }
-        return true
+        return InputTapPermissionSnapshot(
+            accessibility: accessibility,
+            listen: true,
+            post: true
+        )
+    }
+
+    private func publishInputTapPermissions(
+        _ snapshot: InputTapPermissionSnapshot,
+        observedAtUptimeNanoseconds: UInt64
+    ) {
+        inputTapPermissionGate.publish(
+            snapshot,
+            observedAtUptimeNanoseconds: observedAtUptimeNanoseconds
+        )
+    }
+
+    private func inputTapPermissionLossDetected() -> Bool {
+        inputTapPermissionGate.lossDetected
+    }
+
+    private func startInputTapPermissionMonitor() {
+        guard inputTapPermissionMonitor == nil else { return }
+        inputTapPermissionMonitorGeneration &+= 1
+        let monitorGeneration = inputTapPermissionMonitorGeneration
+        let monitor = InputTapPermissionMonitor(
+            queue: inputTapPermissionMonitorQueue,
+            resolver: { [weak self] in
+                self?.resolveInputTapPermissions() ?? .unavailable
+            },
+            observer: { [weak self] snapshot, observedAt in
+                DispatchQueue.main.async { [weak self] in
+                    self?.applyInputTapPermissionObservation(
+                        snapshot,
+                        observedAtUptimeNanoseconds: observedAt,
+                        monitorGeneration: monitorGeneration
+                    )
+                }
+            }
+        )
+        inputTapPermissionMonitor = monitor
+        monitor.start()
+    }
+
+    private func cancelInputTapPermissionMonitor() {
+        inputTapPermissionMonitorGeneration &+= 1
+        inputTapPermissionMonitor?.stop()
+        inputTapPermissionMonitor = nil
+    }
+
+    private func applyInputTapPermissionObservation(
+        _ snapshot: InputTapPermissionSnapshot,
+        observedAtUptimeNanoseconds: UInt64,
+        monitorGeneration: UInt64
+    ) {
+        guard monitorGeneration == inputTapPermissionMonitorGeneration,
+              inputTapPermissionMonitor != nil,
+              !inputTapPermissionLossDetected() else { return }
+        if snapshot.available {
+            publishInputTapPermissions(
+                snapshot,
+                observedAtUptimeNanoseconds: observedAtUptimeNanoseconds
+            )
+            recoverTimedOutEventTapAfterPermissionRefresh()
+        } else {
+            failOpenAfterInputTapPermissionLoss()
+        }
     }
 
     private func failOpenAfterInputTapPermissionLoss() {
-        lastEventTapErrorAt = Date()
+        let firstDetection = inputTapPermissionGate.latchLoss(at: Date())
+        guard firstDetection else { return }
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
+            self.cancelInputTapPermissionMonitor()
             self.cancelEventTapRetry()
             self.teardownEventTap()
         }
     }
 
+    private func inputTapPermissionDisposition() -> InputTapPermissionDisposition {
+        inputTapPermissionGate.disposition(
+            at: DispatchTime.now().uptimeNanoseconds
+        )
+    }
+
+    private func requestInputTapPermissionRefresh() {
+        inputTapPermissionMonitor?.requestProbe()
+    }
+
+    private func recoverTimedOutEventTapAfterPermissionRefresh() {
+        let authorized = inputTapPermissionDisposition() == .authorized
+        guard inputTapTimeoutRecovery.consumeIfCurrent(authorized: authorized),
+              let eventTap else { return }
+        CGEvent.tapEnable(tap: eventTap, enable: true)
+    }
+
     private func handleTapEvent(_ event: CGEvent) -> Bool {
         let type = event.type
 
-        guard inputTapPermissionsAvailable() else {
+        if type == .tapDisabledByUserInput {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.cancelInputTapPermissionMonitor()
+                self.teardownEventTap()
+                self.scheduleEventTapRetry()
+            }
+            return false
+        }
+
+        if type == .tapDisabledByTimeout {
+            switch inputTapPermissionDisposition() {
+            case .authorized:
+                if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
+            case .stale:
+                inputTapTimeoutRecovery.requireRecovery()
+                requestInputTapPermissionRefresh()
+            case .lost:
+                failOpenAfterInputTapPermissionLoss()
+            }
+            return false
+        }
+
+        switch inputTapPermissionDisposition() {
+        case .authorized:
+            break
+        case .stale:
+            requestInputTapPermissionRefresh()
+            return false
+        case .lost:
             failOpenAfterInputTapPermissionLoss()
             return false
         }
@@ -250,15 +392,6 @@ class PerceptionEngine {
                 DispatchQueue.main.async { [weak self] in
                     self?.onInputSafetyHotkeyTriggered?(deadline)
                 }
-            }
-            return false
-        }
-
-        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if inputTapPermissionsAvailable() {
-                if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
-            } else {
-                failOpenAfterInputTapPermissionLoss()
             }
             return false
         }
