@@ -93,6 +93,7 @@ test('canonical parser rejects schema-invalid scalar, enum, identity, and nested
     ['routed source origin', () => { const value = clone(routed); value.source_origin = 'bridge'; return value }],
     ['routed sequence source', () => { const value = clone(routed); value.sequence.source = 'legacy'; return value }],
     ['routed point fields', () => { const value = clone(routed); value.desktop_world.legacy = 1; return value }],
+    ['routed native point fields', () => { const value = clone(routed); value.native.legacy = 1; return value }],
     ['routed button', () => { const value = clone(routed); value.button = 'primary'; return value }],
     ['routed capture id', () => { const value = clone(routed); value.capture_id = ''; return value }],
     ['routed owner id', () => { const value = clone(routed); value.owner_canvas_id = ''; return value }],
@@ -188,6 +189,7 @@ test('normalizeCanvasInputMessage preserves routed delivery metadata', () => {
     sequence: { source: 'daemon', value: 18 },
     gesture_id: 'g-18',
     desktop_world: { x: 320, y: 410 },
+    native: { x: 113, y: 410 },
     coordinate_authority: 'toolkit',
     source_origin: 'daemon',
     region_id: 'avatar',
@@ -202,6 +204,7 @@ test('normalizeCanvasInputMessage preserves routed delivery metadata', () => {
   assert.equal(normalized.type, 'left_mouse_dragged')
   assert.equal(normalized.x, 320)
   assert.equal(normalized.y, 410)
+  assert.deepEqual(normalized.native, { x: 113, y: 410 })
   assert.equal(normalized.envelopeType, 'aos_routed_input')
   assert.equal(normalized.deliveryRole, 'captured')
   assert.equal(normalized.captureId, 'cap-18')
@@ -230,6 +233,7 @@ test('normalizeCanvasInputMessage unwraps input_region.event routed payloads', (
       sequence: { source: 'daemon', value: 33 },
       gesture_id: 'g-32',
       desktop_world: { x: 44, y: 55 },
+      native: { x: -163, y: 55 },
       coordinate_authority: 'daemon',
       source_origin: 'daemon',
       source_event: 'daemon:33',
@@ -251,6 +255,7 @@ test('normalizeCanvasInputMessage unwraps input_region.event routed payloads', (
   assert.equal(normalized.regionId, 'menu-hit')
   assert.equal(normalized.ownerCanvasId, 'panel')
   assert.equal(normalized.captureId, 'daemon:32:menu-hit')
+  assert.deepEqual(normalized.native, { x: -163, y: 55 })
   assert.equal(normalized.sourceEvent, 'daemon:33')
   assert.deepEqual(normalized.inputIdentity, inputIdentity({
     sourceOrigin: 'daemon',
@@ -353,6 +358,7 @@ test('createCanvasOriginInputEvent builds stable child canvas source identity', 
   assert.equal(event.gesture_id, 'canvas:example-hit-control:example-control:9:left')
   assert.equal(event.capture_id, 'canvas:example-hit-control:example-control:9:left:capture')
   assert.deepEqual(event.desktop_world, { x: 300, y: 410 })
+  assert.deepEqual(event.native, { x: 112, y: 118 })
   assert.equal(Object.hasOwn(event, 'child_local'), false)
   assert.equal(event.coordinate_authority, 'toolkit')
 })
@@ -380,6 +386,26 @@ test('createCanvasOriginInputEvent builds canonical routed cancel events', () =>
   assert.equal(event.owner_canvas_id, 'owner-canvas')
   assert.equal(Object.hasOwn(event, 'button'), false)
   assert.equal(Object.hasOwn(event, 'buttons'), false)
+})
+
+test('createCanvasOriginInputEvent does not infer native coordinates from generic aliases', () => {
+  const event = createCanvasOriginInputEvent({
+    type: 'canvas_message',
+    id: 'example-hit-control',
+    payload: {
+      source_origin: 'canvas',
+      source_canvas_id: 'example-hit-control',
+      owner_canvas_id: 'example-control',
+      kind: 'left_mouse_down',
+      x: 112,
+      y: 118,
+    },
+  }, {
+    desktopWorld: { x: 300, y: 410 },
+  })
+
+  assert.deepEqual(event.desktop_world, { x: 300, y: 410 })
+  assert.equal(Object.hasOwn(event, 'native'), false)
 })
 
 test('createCanvasOriginInputEvent requires and preserves canonical other-button identity', () => {

@@ -62,8 +62,8 @@ function candidateClaims(interaction, session, at, ending = false) {
   return false
 }
 
-function syntheticInput(session, type, phase, current = session.current) {
-  const source = session.rawInput?.routed_input ?? session.rawInput
+function syntheticInput(session, type, phase, current = session.current, rawInput = session.latestRawInput) {
+  const source = rawInput?.routed_input ?? rawInput
   return {
     ...source,
     type,
@@ -143,8 +143,13 @@ export function createSceneGestureArena({
     session.winner = interaction
     session.stream = stream
     session.claimedAt = at
-    stream.handleCanvasInput(syntheticInput(session, 'left_mouse_down', 'down', session.origin), { now: at })
-    if (distance(session.origin, session.current) > 0) pendingMove = { current: clonePoint(session.current), at }
+    stream.handleCanvasInput(
+      syntheticInput(session, 'left_mouse_down', 'down', session.origin, session.originRawInput),
+      { now: at },
+    )
+    if (distance(session.origin, session.current) > 0) {
+      pendingMove = { current: clonePoint(session.current), at, rawInput: session.latestRawInput }
+    }
     return true
   }
 
@@ -161,7 +166,10 @@ export function createSceneGestureArena({
     pendingMove = null
     if (!pending || !session?.stream) return false
     session.current = pending.current
-    session.stream.handleCanvasInput(syntheticInput(session, 'left_mouse_dragged', 'drag', pending.current), { now: pending.at })
+    session.stream.handleCanvasInput(
+      syntheticInput(session, 'left_mouse_dragged', 'drag', pending.current, pending.rawInput),
+      { now: pending.at },
+    )
     return true
   }
 
@@ -181,7 +189,12 @@ export function createSceneGestureArena({
     resolveWinner(at, true)
     flush()
     session.current = terminalCurrent
-    if (session.stream) session.stream.handleCanvasInput(syntheticInput(session, 'left_mouse_up', 'up'), { now: at })
+    if (session.stream) {
+      session.stream.handleCanvasInput(
+        syntheticInput(session, 'left_mouse_up', 'up', session.current, session.latestRawInput),
+        { now: at },
+      )
+    }
     else cancel('recognizer_rejected', at)
     session?.stream?.destroy()
     session = null
@@ -213,7 +226,8 @@ export function createSceneGestureArena({
       session = {
         generation,
         input,
-        rawInput: message,
+        originRawInput: message,
+        latestRawInput: message,
         origin: current,
         current,
         startedAt: at,
@@ -225,10 +239,11 @@ export function createSceneGestureArena({
     }
     if (!session) return false
     if (current) session.current = current
+    session.latestRawInput = message
     if (input.phase === 'drag' || input.phase === 'move') {
       resolveWinner(at)
       if (session.winner) {
-        pendingMove = { current: clonePoint(session.current), at }
+        pendingMove = { current: clonePoint(session.current), at, rawInput: session.latestRawInput }
         requestFlush()
       }
       return true

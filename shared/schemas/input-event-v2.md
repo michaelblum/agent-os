@@ -54,6 +54,12 @@ booleans such as `fromHitTarget`.
 by the daemon with `coordinate_authority: "daemon"` or derived by toolkit with
 `coordinate_authority: "toolkit"`.
 
+Routed envelopes may also carry an explicit `native` point. Daemon input-region
+pointer and scroll delivery includes it; canvas-origin delivery includes it only
+when the producer supplied an authoritative native point. Consumers must never
+infer native coordinates from normalized `x`/`y`, which follow `desktop_world`
+when available.
+
 ## Event Kinds
 
 The schema defines four raw event kinds:

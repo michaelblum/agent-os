@@ -362,6 +362,7 @@
         "sequence": { "$ref": "#/$defs/Sequence" },
         "gesture_id": { "type": "string", "minLength": 1 },
         "desktop_world": { "$ref": "#/$defs/Point" },
+        "native": { "$ref": "#/$defs/Point" },
         "coordinate_authority": { "$ref": "#/$defs/CoordinateAuthority" },
         "source_origin": { "$ref": "#/$defs/SourceOrigin" },
         "source_canvas_id": { "type": "string", "minLength": 1 },

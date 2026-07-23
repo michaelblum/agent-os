@@ -84,8 +84,8 @@ function nativePoint(payload = {}, facts = {}) {
     const y = finiteNumber(native.y)
     if (x !== null && y !== null) return { x, y }
   }
-  const x = finiteNumber(facts.nativeX ?? facts.screenX ?? payload.native_x ?? payload.nativeX ?? payload.screen_x ?? payload.screenX ?? payload.x)
-  const y = finiteNumber(facts.nativeY ?? facts.screenY ?? payload.native_y ?? payload.nativeY ?? payload.screen_y ?? payload.screenY ?? payload.y)
+  const x = finiteNumber(facts.nativeX ?? facts.screenX ?? payload.native_x ?? payload.nativeX ?? payload.screen_x ?? payload.screenX)
+  const y = finiteNumber(facts.nativeY ?? facts.screenY ?? payload.native_y ?? payload.nativeY ?? payload.screen_y ?? payload.screenY)
   if (x === null || y === null) return null
   return { x, y }
 }
@@ -210,6 +210,7 @@ export function createCanvasOriginInputEvent(message = {}, facts = {}) {
   const button = inferButton(type, payload, facts)
   if (type.startsWith('other_') && button === null) return null
   const desktopWorld = desktopWorldPoint(payload, facts)
+  const native = nativePoint(payload, facts)
   const childLocal = childLocalPoint(payload, facts)
   const sourceSequence = pickObject(facts.sourceSequence, facts.source_sequence, payload.source_sequence, payload.sourceSequence) || {
     source: 'toolkit',
@@ -253,6 +254,7 @@ export function createCanvasOriginInputEvent(message = {}, facts = {}) {
     gesture_id: gestureId,
     ...(captureId ? { capture_id: captureId } : {}),
     desktop_world: desktopWorld,
+    ...(native ? { native } : {}),
     coordinate_authority: 'toolkit',
     source_origin: 'canvas',
     source_canvas_id: sourceCanvasId,
