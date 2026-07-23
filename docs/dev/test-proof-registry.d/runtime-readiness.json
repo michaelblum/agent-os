@@ -289,6 +289,24 @@
       "status": "active"
     },
     {
+      "id": "input-tap-permission-hotpath-proof",
+      "path_patterns": [
+        "tests/input-safety-hotkeys.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "model_unit",
+      "proof_kind": "input_tap_permission_hotpath_contract",
+      "contract": "The global input callback reads only a bounded monotonic permission gate; coalesced background TCC probes are generation-bound, apply on the lifecycle queue, recover the exact timeout-disabled tap once, and retire without stale-positive consumption.",
+      "worth": "This catches the permission-query storm and stale authorization class without launching the repo daemon, receiving real input, or touching TCC.",
+      "command": "bash tests/input-safety-hotkeys.sh",
+      "replaces": [
+        "source-only input-tap permission hot-path assertions"
+      ],
+      "guard": "compiles disposable Swift gate, timer, cancellation, and safety-hotkey models; no repo binary build, daemon, native input, or TCC operation",
+      "status": "active"
+    },
+    {
       "id": "tcc-reset-agent-user-path-manual",
       "path_patterns": [
         "tests/manual/tcc-reset-agent-user-path.sh"

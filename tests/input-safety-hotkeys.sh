@@ -160,10 +160,192 @@ failingPresenter.tick(now: now.addingTimeInterval(13))
 let classificationAfterVisualFailure = InputSafetyHotkeyState(window: 12).classify(cmdOptEscapeDown, now: now)
 assert(classificationAfterVisualFailure.passThrough, "visual feedback failure must not change passthrough classification")
 
+var permissionState = InputTapPermissionState()
+let permissionSnapshot = InputTapPermissionSnapshot(accessibility: true, listen: true, post: true)
+permissionState.publish(
+    permissionSnapshot,
+    observedAtUptimeNanoseconds: 100,
+    validForNanoseconds: 10
+)
+assert(permissionState.disposition(at: 110) == .authorized, "fresh complete permission snapshot must admit input")
+assert(permissionState.disposition(at: 111) == .stale, "expired permission snapshot must fail open without claiming loss")
+assert(!permissionState.lossDetected, "snapshot expiry must not latch permission loss")
+permissionState.publish(permissionSnapshot, observedAtUptimeNanoseconds: 200)
+assert(permissionState.disposition(at: 200) == .authorized, "a positive refresh must restore processing after expiry")
+let permissionErrorAt = Date(timeIntervalSince1970: 1_234)
+assert(permissionState.latchLoss(at: permissionErrorAt), "first permission loss must latch")
+assert(permissionState.disposition(at: 205) == .lost, "latched permission loss must fail open")
+assert(permissionState.lastErrorAt == permissionErrorAt, "permission loss must publish synchronized telemetry")
+assert(!permissionState.latchLoss(at: Date()), "permission loss teardown must schedule exactly once")
+permissionState.publish(permissionSnapshot, observedAtUptimeNanoseconds: 200)
+assert(permissionState.disposition(at: 200) == .lost, "permission loss must remain latched until daemon restart")
+
+var timeoutRecovery = InputTapTimeoutRecoveryState()
+timeoutRecovery.installed()
+let installedGeneration = timeoutRecovery.generation
+timeoutRecovery.requireRecovery()
+assert(
+    !timeoutRecovery.consumeIfCurrent(authorized: false),
+    "a negative permission probe must not re-enable a timeout-disabled tap"
+)
+assert(
+    timeoutRecovery.consumeIfCurrent(authorized: true),
+    "a positive permission probe must re-enable a timeout-disabled tap"
+)
+assert(
+    !timeoutRecovery.consumeIfCurrent(authorized: true),
+    "one timeout recovery request must re-enable at most once"
+)
+timeoutRecovery.requireRecovery()
+timeoutRecovery.invalidate()
+assert(timeoutRecovery.generation != installedGeneration, "tap retirement must advance its recovery generation")
+assert(
+    !timeoutRecovery.consumeIfCurrent(authorized: true),
+    "tap retirement must cancel pending timeout recovery"
+)
+
+var observedSnapshots: [(InputTapPermissionSnapshot, UInt64)] = []
+let monitor = InputTapPermissionMonitor(
+    queue: DispatchQueue(label: "input-tap-monitor-test"),
+    schedulesTimer: false,
+    clock: { 500 },
+    resolver: { permissionSnapshot },
+    observer: { observedSnapshots.append(($0, $1)) }
+)
+monitor.start()
+assert(monitor.isRunning, "permission monitor must report its active lifecycle")
+monitor.probeNow()
+assert(observedSnapshots.count == 1, "permission monitor must publish one injected observation")
+assert(observedSnapshots.first?.0 == permissionSnapshot, "permission monitor must publish resolver state")
+assert(observedSnapshots.first?.1 == 500, "permission monitor must publish the injected monotonic time")
+monitor.stop()
+monitor.probeNow()
+assert(observedSnapshots.count == 1, "stopped permission monitor must not resolve or publish")
+
+let resolverEntered = DispatchSemaphore(value: 0)
+let releaseResolver = DispatchSemaphore(value: 0)
+let probeFinished = DispatchSemaphore(value: 0)
+var canceledObservationCount = 0
+let delayedMonitor = InputTapPermissionMonitor(
+    queue: DispatchQueue(label: "input-tap-monitor-delay-test"),
+    schedulesTimer: false,
+    resolver: {
+        resolverEntered.signal()
+        releaseResolver.wait()
+        return permissionSnapshot
+    },
+    observer: { _, _ in canceledObservationCount += 1 }
+)
+delayedMonitor.start()
+DispatchQueue.global(qos: .utility).async {
+    delayedMonitor.probeNow()
+    probeFinished.signal()
+}
+assert(resolverEntered.wait(timeout: .now() + 2) == .success, "delayed resolver must begin")
+delayedMonitor.stop()
+releaseResolver.signal()
+assert(probeFinished.wait(timeout: .now() + 2) == .success, "canceled delayed resolver must unwind")
+assert(canceledObservationCount == 0, "canceled in-flight resolver must not publish stale authorization")
+
+let refreshResolverStarted = DispatchSemaphore(value: 0)
+let releaseRefreshResolver = DispatchSemaphore(value: 0)
+let refreshObserved = DispatchSemaphore(value: 0)
+let refreshLock = NSLock()
+var refreshResolverCount = 0
+let refreshMonitor = InputTapPermissionMonitor(
+    queue: DispatchQueue(label: "input-tap-monitor-refresh-test"),
+    schedulesTimer: false,
+    resolver: {
+        refreshLock.lock()
+        refreshResolverCount += 1
+        refreshLock.unlock()
+        refreshResolverStarted.signal()
+        releaseRefreshResolver.wait()
+        return permissionSnapshot
+    },
+    observer: { _, _ in refreshObserved.signal() }
+)
+refreshMonitor.start()
+for _ in 0..<1_000 {
+    refreshMonitor.requestProbe()
+}
+assert(
+    refreshResolverStarted.wait(timeout: .now() + 2) == .success,
+    "stale-event refresh must resolve asynchronously"
+)
+releaseRefreshResolver.signal()
+assert(refreshObserved.wait(timeout: .now() + 2) == .success, "stale-event refresh must publish")
+Thread.sleep(forTimeInterval: 0.02)
+refreshLock.lock()
+assert(refreshResolverCount == 1, "stale-event refresh requests must coalesce")
+refreshLock.unlock()
+refreshMonitor.stop()
+
+let timerObserved = DispatchSemaphore(value: 0)
+let timerLock = NSLock()
+var timerResolutionCount = 0
+var timerObservationCount = 0
+let timerMonitor = InputTapPermissionMonitor(
+    queue: DispatchQueue(label: "input-tap-monitor-timer-test"),
+    initialDelay: .milliseconds(5),
+    interval: .milliseconds(5),
+    resolver: {
+        timerLock.lock()
+        timerResolutionCount += 1
+        timerLock.unlock()
+        return permissionSnapshot
+    },
+    observer: { _, _ in
+        timerLock.lock()
+        timerObservationCount += 1
+        timerLock.unlock()
+        timerObserved.signal()
+    }
+)
+timerMonitor.start()
+assert(timerObserved.wait(timeout: .now() + 2) == .success, "scheduled monitor must publish")
+assert(timerObserved.wait(timeout: .now() + 2) == .success, "scheduled monitor must repeat")
+timerMonitor.stop()
+Thread.sleep(forTimeInterval: 0.03)
+timerLock.lock()
+let stoppedResolutionCount = timerResolutionCount
+let stoppedObservationCount = timerObservationCount
+timerLock.unlock()
+Thread.sleep(forTimeInterval: 0.03)
+timerLock.lock()
+assert(timerResolutionCount == stoppedResolutionCount, "stopped timer must not resolve again")
+assert(timerObservationCount == stoppedObservationCount, "stopped timer must not publish again")
+timerLock.unlock()
+
+let permissionGate = InputTapPermissionGate()
+permissionGate.publish(
+    permissionSnapshot,
+    observedAtUptimeNanoseconds: 1_000,
+    validForNanoseconds: 20_000
+)
+for tick in 1_000..<11_000 {
+    assert(permissionGate.disposition(at: UInt64(tick)) == .authorized, "fresh gate reads must remain available")
+}
+assert(permissionGate.disposition(at: 21_001) == .stale, "expired gate reads must remain stale rather than latched")
+assert(!permissionGate.lossDetected, "expired gate reads must not latch permission loss")
+timerLock.lock()
+assert(
+    timerResolutionCount == stoppedResolutionCount,
+    "event-path permission reads must not invoke the monitor resolver"
+)
+timerLock.unlock()
+
 print("PASS input safety hotkeys")
 SWIFT
 
-swiftc "$ROOT/src/perceive/input-safety-hotkeys.swift" "$ROOT/src/daemon/input-safety-visual-feedback.swift" "$TMP/main.swift" -o "$TMP/test-input-safety-hotkeys"
+CLANG_MODULE_CACHE_PATH="$TMP/module-cache" \
+SWIFT_MODULE_CACHE_PATH="$TMP/module-cache" \
+swiftc \
+  "$ROOT/src/perceive/input-safety-hotkeys.swift" \
+  "$ROOT/src/perceive/input-tap-permission-state.swift" \
+  "$ROOT/src/daemon/input-safety-visual-feedback.swift" \
+  "$TMP/main.swift" \
+  -o "$TMP/test-input-safety-hotkeys"
 "$TMP/test-input-safety-hotkeys"
 
 if sed -n '/private func handleTapEvent/,/private func inputSafetyHotkeyEvent/p' "$ROOT/src/perceive/daemon.swift" |
@@ -182,21 +364,37 @@ handle = re.search(r'private func handleTapEvent\(.*?private func inputSafetyHot
 if not handle:
     raise SystemExit("FAIL: could not find handleTapEvent section")
 handle_text = handle.group(0)
-for required in ("inputTapPermissionsAvailable()", "failOpenAfterInputTapPermissionLoss()", "return false"):
+for required in (
+    "inputTapPermissionDisposition()",
+    "requestInputTapPermissionRefresh()",
+    "failOpenAfterInputTapPermissionLoss()",
+    "return false",
+):
     if required not in handle_text:
         raise SystemExit("FAIL: event tap path must fail open when TCC/input permissions disappear")
-if handle_text.index("inputTapPermissionsAvailable()") > handle_text.index("onInputEvent?"):
+if handle_text.index("inputTapPermissionDisposition()") > handle_text.index("onInputEvent?"):
     raise SystemExit("FAIL: permission-loss guard must run before downstream input consumers")
+if "case .stale:" not in handle_text or "case .lost:" not in handle_text:
+    raise SystemExit("FAIL: event tap path must distinguish stale permission data from confirmed loss")
+if "inputTapTimeoutRecovery.requireRecovery()" not in handle_text:
+    raise SystemExit("FAIL: stale timeout recovery must be tracked before requesting a refresh")
+if "CGPreflight" in handle_text or "resolveInputTapPermissions()" in handle_text:
+    raise SystemExit("FAIL: the event-tap callback must not perform synchronous TCC preflight")
+tap_disabled = handle_text.index("type == .tapDisabledByTimeout")
+safety = handle_text.index("inputSafetyHotkeyState.classify")
+if tap_disabled > safety:
+    raise SystemExit("FAIL: tap-disable recovery must run before safety passthrough classification")
+if "tapDisabledByUserInput" not in handle_text or "scheduleEventTapRetry()" not in handle_text:
+    raise SystemExit("FAIL: user-disabled taps must retire and retry without claiming confirmed TCC loss")
 
 start = re.search(r'private func startEventTap\(.*?private func teardownEventTap', source, re.S)
 if not start:
     raise SystemExit("FAIL: could not find startEventTap section")
 start_text = start.group(0)
-permission_guard = re.search(r'guard inputTapPermissionsAvailable\(\) else \{(?P<body>.*?)\n        \}', start_text, re.S)
-if not permission_guard:
-    raise SystemExit("FAIL: could not find input-tap permission guard")
-if "scheduleEventTapRetry()" in permission_guard.group("body"):
-    raise SystemExit("FAIL: unavailable input permissions must not start a background event-tap retry loop")
+if "guard startupPermissions.available else" not in start_text:
+    raise SystemExit("FAIL: could not find input-tap startup permission guard")
+if "failurePermissions.available" not in start_text:
+    raise SystemExit("FAIL: tap-creation failure must recheck permission state before retry")
 
 teardown = re.search(r'private func teardownEventTap\(.*?private func scheduleEventTapRetry', source, re.S)
 if not teardown:
@@ -216,7 +414,42 @@ for required in ("cancelEventTapRetry()", "teardownEventTap()"):
 if "scheduleEventTapRetry()" in fail_open_text:
     raise SystemExit("FAIL: input permission loss must not schedule an event-tap retry loop")
 
-log_failure = re.search(r'private func logEventTapFailure\(.*?private func inputTapPermissionsAvailable', source, re.S)
+observer = re.search(r'private func startInputTapPermissionMonitor\(.*?private func cancelInputTapPermissionMonitor', source, re.S)
+if not observer:
+    raise SystemExit("FAIL: could not find input permission monitor section")
+observer_text = observer.group(0)
+for required in (
+    "DispatchQueue.main.async",
+    "applyInputTapPermissionObservation(",
+    "monitorGeneration: monitorGeneration",
+):
+    if required not in observer_text:
+        raise SystemExit("FAIL: permission observations must enter the generation-bound main lifecycle queue")
+
+apply_observation = re.search(
+    r'private func applyInputTapPermissionObservation\(.*?private func failOpenAfterInputTapPermissionLoss',
+    source,
+    re.S,
+)
+if not apply_observation:
+    raise SystemExit("FAIL: could not find permission observation application")
+apply_text = apply_observation.group(0)
+for required in (
+    "monitorGeneration == inputTapPermissionMonitorGeneration",
+    "publishInputTapPermissions(",
+    "recoverTimedOutEventTapAfterPermissionRefresh()",
+    "failOpenAfterInputTapPermissionLoss()",
+):
+    if required not in apply_text:
+        raise SystemExit("FAIL: permission observation application must serialize recovery and loss")
+if apply_text.index("publishInputTapPermissions(") > apply_text.index("recoverTimedOutEventTapAfterPermissionRefresh()"):
+    raise SystemExit("FAIL: positive permission state must commit before timeout recovery")
+
+teardown = re.search(r'private func teardownEventTap\(.*?private func scheduleEventTapRetry', source, re.S)
+if "inputTapTimeoutRecovery.invalidate()" not in teardown.group(0):
+    raise SystemExit("FAIL: event-tap teardown must invalidate pending timeout recovery")
+
+log_failure = re.search(r'private func logEventTapFailure\(.*?private func resolveInputTapPermissions', source, re.S)
 if not log_failure:
     raise SystemExit("FAIL: could not find logEventTapFailure section")
 if "leaving tap unavailable until daemon restart" not in log_failure.group(0):
