@@ -577,7 +577,7 @@ let ownedPointer = AOSInputRegionRoute(
     captureID: "daemon:1:contract-region",
     shouldConsume: true
 )
-let desktopWorld = CGPoint(x: 25, y: 25)
+let desktopWorld = CGPoint(x: 232, y: 25)
 let canonicalPointer = AOSCanonicalInputEvent(canonicalData: rawPointer)
 assert(canonicalPointer != nil, "raw pointer should hydrate the shared canonical event")
 
@@ -594,6 +594,10 @@ assert(routedPointer["routed_schema_version"] as? Int == 1, "complete routed poi
 assert(routedPointer["source_event"] as? String == "daemon:1", "typed routed pointer should use bounded string source identity")
 assert(routedPointer["coordinate_authority"] as? String == "daemon", "typed routed pointer should own coordinate authority")
 assert(routedPointer["source_origin"] as? String == "daemon", "typed routed pointer should own source origin")
+let routedPointerNative = routedPointer["native"] as? [String: Double]
+let routedPointerDesktopWorld = routedPointer["desktop_world"] as? [String: Double]
+assert(routedPointerNative?["x"] == 25 && routedPointerNative?["y"] == 25, "typed routed pointer should preserve native coordinates")
+assert(routedPointerDesktopWorld?["x"] == 232 && routedPointerDesktopWorld?["y"] == 25, "typed routed pointer should preserve distinct DesktopWorld coordinates")
 let routedPointerEnvelope = aosInputRegionEventEnvelope(routedInput: routedPointerEvent!)
 assert(Set(routedPointerEnvelope.keys) == Set(["type", "routed_input"]), "input-region envelope must contain only type and routed_input")
 assert(routedPointerEnvelope["type"] as? String == "input_region.event", "input-region envelope type must be canonical")

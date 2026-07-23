@@ -52,6 +52,9 @@ Allowed daemon-side surface work:
   complete replacement commits under one registry lock, and fail closed when
   capture or ownership prevents the switch;
 - exact `input_region.event` delivery through canonical routed-v1 payloads;
+  daemon input-region pointer and scroll delivery preserves distinct native and
+  DesktopWorld coordinates, and downstream code must not infer one coordinate
+  space from the other;
   raw and routed serializers must share the input descriptor in
   `src/shared/input-event.swift`, and incomplete routed input must resolve to
   the tested fail-open decision without leaving capture state active; successful

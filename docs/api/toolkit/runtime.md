@@ -95,7 +95,12 @@ schema version. `routed_input` is the canonical routed-v1 payload matching
 `routed_schema_version`, `delivery_role`, `region_id`, `owner_canvas_id`,
 stable `capture_id` for captured drags, `source_origin`,
 bounded string `source_event`, canonical `sequence`, `desktop_world`, and
-`coordinate_authority`. A `routed_schema_version: 1` claim must include the
+optional explicit `native`, and `coordinate_authority`. Daemon input-region
+pointer and scroll delivery includes both `desktop_world` and `native`;
+canvas-origin delivery includes `native` only when the producer supplied an
+authoritative native point. Consumers must never infer native coordinates from
+normalized `x`/`y`, which follow `desktop_world` when it is available. A
+`routed_schema_version: 1` claim must include the
 required routed fields for its `event_kind` and `delivery_role`; incomplete
 claims are errors.
 

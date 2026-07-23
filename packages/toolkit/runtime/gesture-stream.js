@@ -282,7 +282,7 @@ export function createPointerGestureStream(options = {}) {
       pointerId: input.pointerId || input.pointer_id,
       coordinateSpaces: compactObject({
         desktop_world: current,
-        native: copyPoint(input.native) || (Number.isFinite(input.x) && Number.isFinite(input.y) ? { x: input.x, y: input.y } : null),
+        native: copyPoint(input.native),
       }),
     })
   }

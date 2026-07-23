@@ -129,6 +129,7 @@ struct AOSInputRegionRoutedInput {
     private let sequenceValue: String
     private let gestureID: String
     private let desktopWorld: CGPoint
+    private let native: CGPoint?
     private let sourceEvent: String
     private let regionID: String
     private let ownerCanvasID: String
@@ -202,6 +203,7 @@ struct AOSInputRegionRoutedInput {
         self.sequenceValue = canonicalSequenceValue
         self.gestureID = canonicalGestureID
         self.desktopWorld = desktopWorld
+        self.native = event.nativePoint
         self.sourceEvent = canonicalSequenceValue
         self.regionID = route.region.id
         self.ownerCanvasID = route.region.ownerCanvasID
@@ -228,6 +230,9 @@ struct AOSInputRegionRoutedInput {
             "region_id": regionID,
             "owner_canvas_id": ownerCanvasID,
         ]
+        if let native {
+            result["native"] = ["x": Double(native.x), "y": Double(native.y)]
+        }
         if let captureID { result["capture_id"] = captureID }
         if let button { result["button"] = button }
         if let buttons { result["buttons"] = buttons }

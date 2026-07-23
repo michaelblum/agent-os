@@ -108,7 +108,9 @@ When native pointer input routes to a region, the owner canvas receives exactly
 `aos_routed_input` payload from `shared/schemas/input-event-v2` and carries
 `delivery_role`, stable `capture_id` for captured drags, `region_id`,
 `owner_canvas_id`, bounded string `source_event`, canonical `sequence`, `source_origin`,
-`desktop_world`, and `coordinate_authority`.
+`desktop_world`, optional explicit `native`, and `coordinate_authority`.
+Daemon input-region pointer and scroll delivery includes both coordinate
+spaces. Consumers must not infer native coordinates from DesktopWorld aliases.
 `input_region.event` is the bridge message type. `routed_schema_version: 1` is
 the routed payload version and must validate for the declared routed event kind
 and delivery role. If the daemon cannot construct that canonical routed payload,

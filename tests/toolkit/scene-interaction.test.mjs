@@ -56,6 +56,7 @@ function pointer(type, x, y, sequence = 1) {
     gesture_id: 'gesture-1',
     capture_id: 'capture-1',
     desktop_world: { x, y },
+    native: { x: x - 207, y },
     coordinate_authority: 'daemon',
     source_origin: 'daemon',
     source_event: type,
@@ -185,6 +186,9 @@ test('gesture arena deterministically claims drag and coalesces updates without 
   assert.deepEqual(frames.map((frame) => frame.phase), ['start', 'update', 'end'])
   assert.deepEqual(frames[1].current, { x: 140, y: 220 })
   assert.deepEqual(frames[2].total_delta, { x: 50, y: 20 })
+  assert.deepEqual(frames[0].coordinates.native, { x: -107, y: 200 })
+  assert.deepEqual(frames[1].coordinates.native, { x: -67, y: 220 })
+  assert.deepEqual(frames[2].coordinates.native, { x: -57, y: 220 })
   assert.equal(arena.snapshot().active, false)
 })
 
@@ -207,6 +211,8 @@ test('gesture release preserves its terminal pointer when the render-cadence upd
   assert.deepEqual(frames[1].current, { x: 140, y: 220 })
   assert.deepEqual(frames[2].current, { x: 150, y: 230 })
   assert.deepEqual(frames[2].total_delta, { x: 50, y: 30 })
+  assert.deepEqual(frames[1].coordinates.native, { x: -67, y: 220 })
+  assert.deepEqual(frames[2].coordinates.native, { x: -57, y: 230 })
 })
 
 test('gesture arbitration uses explicit priority while tap owns a below-threshold release', () => {

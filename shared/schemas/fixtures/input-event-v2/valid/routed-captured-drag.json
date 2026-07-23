@@ -13,6 +13,10 @@
     "x": 900,
     "y": 390
   },
+  "native": {
+    "x": 693,
+    "y": 390
+  },
   "coordinate_authority": "toolkit",
   "region_id": "example-avatar",
   "capture_id": "cap-42",

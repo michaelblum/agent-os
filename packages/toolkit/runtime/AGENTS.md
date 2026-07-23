@@ -16,6 +16,8 @@ Good runtime responsibilities:
 - schema-owned raw-v2 and routed-v1 parsing through the checked Ajv standalone
   `input-event-validator.generated.js` artifact; never interpret JSON Schema on
   the input hot path,
+  preserve explicit native and DesktopWorld coordinates independently, and
+  never manufacture native coordinates from normalized `x`/`y` aliases;
   canvas-origin input normalization, and the
   canonical `inputIdentity` source, ownership, scope, and envelope projection
   consumed by app policy; unversioned names and `input_event` wrappers are not

@@ -51,18 +51,21 @@ test('createPointerGestureStream normalizes canvas input into drag gesture frame
   stream.handleCanvasInput(routedPointer({
     type: 'left_mouse_down',
     desktop_world: { x: 10, y: 20 },
+    native: { x: -197, y: 20 },
     sequenceValue: 1,
   }), { now: 1000 })
   stream.handleCanvasInput(routedPointer({
     type: 'left_mouse_dragged',
     phase: 'drag',
     desktop_world: { x: 30, y: 25 },
+    native: { x: -177, y: 25 },
     sequenceValue: 2,
   }), { now: 1016 })
   stream.handleCanvasInput(routedPointer({
     type: 'left_mouse_up',
     phase: 'up',
     desktop_world: { x: 50, y: 20 },
+    native: { x: -157, y: 20 },
     buttons: { left: false, right: false, middle: false, other_pressed: [] },
     sequenceValue: 3,
   }), { now: 1032 })
@@ -81,10 +84,26 @@ test('createPointerGestureStream normalizes canvas input into drag gesture frame
   assert.equal(frames[0].source.source_canvas_id, 'example-hit')
   assert.deepEqual(frames[1].delta, { x: 20, y: 5 })
   assert.deepEqual(frames[2].total_delta, { x: 40, y: 0 })
+  assert.deepEqual(frames.map((frame) => frame.coordinates.native), [
+    { x: -197, y: 20 },
+    { x: -177, y: 25 },
+    { x: -157, y: 20 },
+  ])
   assert.equal(frames[2].semantic_target.target_id, 'slider:scale')
   assert.equal(Object.hasOwn(frames[2].semantic_target, 'ref'), false)
   assert.equal(frames[2].semantic_action, 'set-value')
   assert.equal(stream.snapshot().active, null)
+})
+
+test('createPointerGestureStream does not manufacture native coordinates from DesktopWorld aliases', () => {
+  const stream = createPointerGestureStream({ kind: 'drag' })
+  const frame = stream.handleCanvasInput(routedPointer({
+    type: 'left_mouse_down',
+    desktop_world: { x: 300, y: 410 },
+  }), { now: 1000 })
+
+  assert.deepEqual(frame.coordinates.desktop_world, { x: 300, y: 410 })
+  assert.equal(Object.hasOwn(frame.coordinates, 'native'), false)
 })
 
 test('createPointerGestureStream rejects unversioned canvas input', () => {
