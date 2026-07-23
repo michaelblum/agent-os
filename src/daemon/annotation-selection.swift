@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import CoreGraphics
 import Foundation
 
@@ -15,6 +16,7 @@ enum AOSAnnotationSelectionMode: String, CaseIterable {
     case rectangle
     case freehand
     case text
+    case target
 
     static func parse(_ value: String) -> AOSAnnotationSelectionMode? {
         AOSAnnotationSelectionMode(rawValue: value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
@@ -33,15 +35,10 @@ private func finitePoint(_ point: CGPoint) -> Bool {
     point.x.isFinite && point.y.isFinite
 }
 
-private func annotationCGPoint(_ screenPoint: NSPoint) -> CGPoint {
-    let mainHeight = CGDisplayBounds(CGMainDisplayID()).height
-    return CGPoint(x: screenPoint.x, y: mainHeight - screenPoint.y)
-}
-
 func aosAnnotationGeometry(mode: AOSAnnotationSelectionMode, screenPoints: [CGPoint]) -> [String: Any]? {
     let points = aosBoundAnnotationPoints(screenPoints.filter(finitePoint))
     guard !points.isEmpty else { return nil }
-    let converted = points.map(annotationCGPoint)
+    let converted = points.map(screenPointToCG)
     switch mode {
     case .point, .text:
         return [
@@ -76,6 +73,8 @@ func aosAnnotationGeometry(mode: AOSAnnotationSelectionMode, screenPoints: [CGPo
                 "height": maxY - minY,
             ],
         ]
+    case .target:
+        return nil
     }
 }
 
@@ -115,6 +114,18 @@ func aosAnnotationWindowFacts(
         ]
     }
     return nil
+}
+
+func aosAnnotationPublicWindowFacts(_ window: [String: Any]?) -> [String: Any]? {
+    guard let window,
+          let windowID = window["window_id"],
+          let title = window["title"],
+          let bounds = window["bounds"] else { return nil }
+    return [
+        "window_id": windowID,
+        "title": title,
+        "bounds": bounds,
+    ]
 }
 
 private final class AOSAnnotationTextField: NSTextField {
@@ -264,20 +275,36 @@ private final class AOSAnnotationSelectionSession {
 
     private let emit: (String, [String: Any]) -> Void
     private let terminal: (UUID) -> Void
+    private let targetResolverQueue: DispatchQueue
     private var panels: [AOSAnnotationSelectionPanel] = []
+    private var targetApplication: [String: Any]?
+    private var targetCandidates: [AOSAnnotationTargetCandidate] = []
+    private var targetCommitPending = false
+    private var targetIndex = -1
+    private var targetRefreshWorkItem: DispatchWorkItem?
+    private var targetPendingPoint: CGPoint?
+    private var targetViews: [AOSAnnotationTargetSelectionView] = []
+    private var targetWindow: [String: Any]?
     private var finished = false
     private var originalApplication: NSRunningApplication?
+    private lazy var targetResolutionWorker = AOSAnnotationTargetResolutionWorker(
+        resolverQueue: targetResolverQueue
+    ) {
+        aosResolveAnnotationTargets(at: $0)
+    }
 
     init(
         owner: UUID,
         ref: String?,
         mode: AOSAnnotationSelectionMode,
+        targetResolverQueue: DispatchQueue,
         emit: @escaping (String, [String: Any]) -> Void,
         terminal: @escaping (UUID) -> Void
     ) {
         self.owner = owner
         self.ref = ref
         self.mode = mode
+        self.targetResolverQueue = targetResolverQueue
         self.emit = emit
         self.terminal = terminal
     }
@@ -296,6 +323,13 @@ private final class AOSAnnotationSelectionSession {
                 startupError = AOSAnnotationSelectionFailure(code: "ANNOTATION_DISPLAY_UNAVAILABLE", message: "no display is available for annotation selection")
                 return
             }
+            if mode == .target, !AXIsProcessTrusted() {
+                startupError = AOSAnnotationSelectionFailure(
+                    code: "ANNOTATION_ACCESSIBILITY_UNAVAILABLE",
+                    message: "Accessibility permission is required for semantic target selection"
+                )
+                return
+            }
             originalApplication = NSWorkspace.shared.frontmostApplication
             for screen in NSScreen.screens {
                 let panel = AOSAnnotationSelectionPanel(
@@ -310,12 +344,25 @@ private final class AOSAnnotationSelectionSession {
                 panel.backgroundColor = .clear
                 panel.hasShadow = false
                 panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-                panel.contentView = AOSAnnotationSelectionView(
-                    frame: NSRect(origin: .zero, size: screen.frame.size),
-                    mode: mode,
-                    onComplete: { [weak self] points, text in self?.complete(points: points, text: text) },
-                    onCancel: { [weak self] reason in self?.cancel(reason: reason) }
-                )
+                if mode == .target {
+                    let view = AOSAnnotationTargetSelectionView(
+                        frame: NSRect(origin: .zero, size: screen.frame.size),
+                        onMove: { [weak self] point in self?.scheduleTargetRefresh(at: point) },
+                        onCycle: { [weak self] delta in self?.cycleTarget(delta) },
+                        onCommit: { [weak self] point in self?.completeTarget(at: point) },
+                        onCancel: { [weak self] reason in self?.cancel(reason: reason) }
+                    )
+                    targetViews.append(view)
+                    panel.acceptsMouseMovedEvents = true
+                    panel.contentView = view
+                } else {
+                    panel.contentView = AOSAnnotationSelectionView(
+                        frame: NSRect(origin: .zero, size: screen.frame.size),
+                        mode: mode,
+                        onComplete: { [weak self] points, text in self?.complete(points: points, text: text) },
+                        onCancel: { [weak self] reason in self?.cancel(reason: reason) }
+                    )
+                }
                 panels.append(panel)
                 panel.orderFrontRegardless()
             }
@@ -323,6 +370,9 @@ private final class AOSAnnotationSelectionSession {
             panels.first?.makeKey()
             panels.first?.makeFirstResponder(panels.first?.contentView)
             emit("selection_started", ["mode": mode.rawValue])
+            if mode == .target {
+                scheduleTargetRefresh(at: NSEvent.mouseLocation)
+            }
         }
         if let startupError { throw startupError }
     }
@@ -344,7 +394,7 @@ private final class AOSAnnotationSelectionSession {
             return
         }
         finished = true
-        let cgPoints = points.map(annotationCGPoint)
+        let cgPoints = points.map(screenPointToCG)
         let targetPoint = cgPoints[cgPoints.count / 2]
         let window = aosAnnotationWindowFacts(at: targetPoint)
         let application: [String: Any]
@@ -365,15 +415,116 @@ private final class AOSAnnotationSelectionSession {
             "mode": mode.rawValue,
             "geometry": geometry,
             "application": application,
-            "window": window ?? NSNull(),
+            "window": aosAnnotationPublicWindowFacts(window) ?? NSNull(),
             "text": text ?? NSNull(),
         ])
         terminal(token)
     }
 
+    private func applyTargetResolution(_ resolution: AOSAnnotationTargetResolution?) {
+        guard !finished else { return }
+        guard let resolution else {
+            targetCandidates = []
+            targetIndex = -1
+            targetApplication = nil
+            targetWindow = nil
+            renderTargets()
+            return
+        }
+        let previousContext = aosAnnotationTargetContextIdentity(
+            application: targetApplication,
+            window: targetWindow
+        )
+        let nextContext = aosAnnotationTargetContextIdentity(
+            application: resolution.application,
+            window: resolution.window
+        )
+        targetIndex = aosAnnotationTargetReconciledIndex(
+            previousCandidates: targetCandidates,
+            previousIndex: targetIndex,
+            previousContext: previousContext,
+            nextCandidates: resolution.candidates,
+            nextContext: nextContext
+        )
+        targetCandidates = resolution.candidates
+        targetApplication = resolution.application
+        targetWindow = resolution.window
+        renderTargets()
+    }
+
+    private func scheduleTargetRefresh(at point: CGPoint) {
+        guard !finished, !targetCommitPending else { return }
+        targetPendingPoint = point
+        guard targetRefreshWorkItem == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.targetRefreshWorkItem = nil
+            guard let point = self.targetPendingPoint else { return }
+            self.targetPendingPoint = nil
+            self.targetResolutionWorker.request(at: point) { [weak self] resolution in
+                self?.applyTargetResolution(resolution)
+            }
+        }
+        targetRefreshWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + (1.0 / 30.0), execute: work)
+    }
+
+    private func cycleTarget(_ delta: Int) {
+        guard !finished, !targetCommitPending, !targetCandidates.isEmpty else { return }
+        targetIndex = min(max(0, targetIndex + delta), targetCandidates.count - 1)
+        renderTargets()
+    }
+
+    private func renderTargets() {
+        for view in targetViews {
+            view.render(candidates: targetCandidates, selectedIndex: targetIndex)
+        }
+    }
+
+    private func completeTarget(at point: CGPoint) {
+        guard !finished, !targetCommitPending else { return }
+        targetRefreshWorkItem?.cancel()
+        targetRefreshWorkItem = nil
+        targetPendingPoint = nil
+        targetCommitPending = true
+        targetResolutionWorker.request(at: point) { [weak self] resolution in
+            guard let self, !self.finished else { return }
+            self.targetCommitPending = false
+            self.applyTargetResolution(resolution)
+            self.commitResolvedTarget()
+        }
+    }
+
+    private func commitResolvedTarget() {
+        guard !finished,
+              targetIndex >= 0,
+              targetIndex < targetCandidates.count,
+              let application = targetApplication else {
+            NSSound.beep()
+            return
+        }
+        finished = true
+        let candidate = targetCandidates[targetIndex]
+        closePanels()
+        emit("selection_completed", [
+            "selection_id": "sel-\(UUID().uuidString.lowercased())",
+            "mode": mode.rawValue,
+            "geometry": aosAnnotationTargetGeometry(candidate),
+            "application": application,
+            "window": targetWindow ?? NSNull(),
+            "text": NSNull(),
+        ])
+        terminal(token)
+    }
+
     private func closePanels() {
+        targetRefreshWorkItem?.cancel()
+        targetRefreshWorkItem = nil
+        targetPendingPoint = nil
+        if mode == .target { targetResolutionWorker.close() }
         for panel in panels { panel.orderOut(nil) }
         panels.removeAll()
+        targetViews.removeAll()
         originalApplication?.activate()
     }
 }
@@ -383,13 +534,17 @@ final class AOSAnnotationSelectionTransport {
 
     private let lock = NSLock()
     private let emit: EventEmitter
+    private let targetResolverQueue = DispatchQueue(
+        label: "io.agent-os.annotation-target-resolution",
+        qos: .userInteractive
+    )
     private var session: AOSAnnotationSelectionSession?
 
     init(emit: @escaping EventEmitter) { self.emit = emit }
 
     func start(owner: UUID, mode value: String, ref: String?) throws {
         guard let mode = AOSAnnotationSelectionMode.parse(value) else {
-            throw AOSAnnotationSelectionFailure(code: "INVALID_ANNOTATION_MODE", message: "annotation mode must be point, rectangle, freehand, or text")
+            throw AOSAnnotationSelectionFailure(code: "INVALID_ANNOTATION_MODE", message: "annotation mode must be point, rectangle, freehand, text, or target")
         }
         lock.lock()
         guard session == nil else {
@@ -400,6 +555,7 @@ final class AOSAnnotationSelectionTransport {
             owner: owner,
             ref: ref,
             mode: mode,
+            targetResolverQueue: targetResolverQueue,
             emit: { [emit] event, data in emit(owner, event, data, ref) },
             terminal: { [weak self] token in self?.didTerminate(token: token) }
         )

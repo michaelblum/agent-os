@@ -194,9 +194,12 @@ export function normalizeSourceCapture(value) {
   };
 }
 
-const DESKTOP_SELECTION_MODES = new Set(['point', 'rectangle', 'freehand', 'text']);
+const DESKTOP_SELECTION_MODES = new Set(['point', 'rectangle', 'freehand', 'text', 'target']);
 const DESKTOP_SELECTION_COORDINATE_SPACE = 'desktop_points_top_left';
 const DESKTOP_SELECTION_MAX_POINTS = 256;
+const DESKTOP_SELECTION_MAX_TARGET_ANCESTORS = 11;
+const DESKTOP_SELECTION_MAX_TARGET_ROLE_CHARACTERS = 96;
+const DESKTOP_SELECTION_MAX_TARGET_TEXT_CHARACTERS = 256;
 const DESKTOP_SELECTION_ID = /^sel-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 function finiteNumber(value, label) {
@@ -212,6 +215,29 @@ function boundedNullableString(value, label, maxBytes) {
     fail(`${label} must be null or at most ${maxBytes} UTF-8 bytes`, 'INVALID_ARG');
   }
   return value;
+}
+
+function exactObjectKeys(value, keys, label) {
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+    fail(`${label} has an unexpected shape`, 'INVALID_ARG');
+  }
+}
+
+function boundedSemanticText(value, label, maxCharacters, { nullable = false } = {}) {
+  if (nullable && (value === null || value === undefined)) return null;
+  if (typeof value !== 'string') {
+    fail(`${label} must be ${nullable ? 'null or ' : ''}a string`, 'INVALID_ARG');
+  }
+  const normalized = value
+    .replace(/[\u0000-\u001f\u007f]/gu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim();
+  if (!normalized || [...normalized].length > maxCharacters) {
+    fail(`${label} must contain 1 to ${maxCharacters} characters`, 'INVALID_ARG');
+  }
+  return normalized;
 }
 
 function normalizeDesktopBounds(value, label) {
@@ -238,6 +264,9 @@ function normalizeDesktopGeometry(value, mode) {
   }
   if (mode === 'freehand' && kind !== 'freehand') {
     fail('freehand selections require freehand geometry', 'INVALID_ARG');
+  }
+  if (mode === 'target' && kind !== 'element') {
+    fail('target selections require element geometry', 'INVALID_ARG');
   }
   if (kind === 'point') {
     return {
@@ -270,6 +299,62 @@ function normalizeDesktopGeometry(value, mode) {
       fail('desktop_selection freehand bounds must be non-negative', 'INVALID_ARG');
     }
     return { kind, coordinate_space: DESKTOP_SELECTION_COORDINATE_SPACE, points, bounds };
+  }
+  if (kind === 'element') {
+    exactObjectKeys(value, [
+      'kind',
+      'coordinate_space',
+      'x',
+      'y',
+      'width',
+      'height',
+      'role',
+      'title',
+      'label',
+      'ancestor_roles',
+    ], 'desktop_selection.geometry');
+    const bounds = normalizeDesktopBounds(value, 'desktop_selection.geometry');
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      fail('desktop_selection element dimensions must be positive', 'INVALID_ARG');
+    }
+    if (
+      !Array.isArray(value.ancestor_roles)
+      || value.ancestor_roles.length > DESKTOP_SELECTION_MAX_TARGET_ANCESTORS
+    ) {
+      fail(
+        `desktop_selection element ancestor_roles must contain at most ${DESKTOP_SELECTION_MAX_TARGET_ANCESTORS} roles`,
+        'INVALID_ARG',
+      );
+    }
+    const role = boundedSemanticText(
+      value.role,
+      'desktop_selection.geometry.role',
+      DESKTOP_SELECTION_MAX_TARGET_ROLE_CHARACTERS,
+    );
+    const ancestorRoles = value.ancestor_roles.map((ancestorRole, index) => boundedSemanticText(
+      ancestorRole,
+      `desktop_selection.geometry.ancestor_roles[${index}]`,
+      DESKTOP_SELECTION_MAX_TARGET_ROLE_CHARACTERS,
+    ));
+    return {
+      kind,
+      coordinate_space: DESKTOP_SELECTION_COORDINATE_SPACE,
+      ...bounds,
+      role,
+      title: boundedSemanticText(
+        value.title,
+        'desktop_selection.geometry.title',
+        DESKTOP_SELECTION_MAX_TARGET_TEXT_CHARACTERS,
+        { nullable: true },
+      ),
+      label: boundedSemanticText(
+        value.label,
+        'desktop_selection.geometry.label',
+        DESKTOP_SELECTION_MAX_TARGET_TEXT_CHARACTERS,
+        { nullable: true },
+      ),
+      ancestor_roles: ancestorRoles,
+    };
   }
   fail(`Unsupported desktop selection geometry: ${kind}`, 'INVALID_ARG');
 }
@@ -309,6 +394,14 @@ export function normalizeDesktopSelection(value) {
     },
     window,
   };
+}
+
+export function desktopSelectionTargetSummary(selection) {
+  const normalized = normalizeDesktopSelection(selection);
+  if (!normalized || normalized.mode !== 'target') {
+    fail('desktop selection target summary requires target mode', 'INVALID_ARG');
+  }
+  return normalized.geometry.label ?? normalized.geometry.title ?? normalized.geometry.role;
 }
 
 function recordContext(context = {}) {

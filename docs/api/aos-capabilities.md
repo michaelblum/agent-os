@@ -230,7 +230,7 @@ apps cannot safely reconstruct from the current JSON surfaces.
 | Overlay/display | Canvases, panels, stage surfaces, render/list/wait/readback | `show create/update/remove/list/audit/render/wait/get/to-front/post` |
 | Diagnostics/debug | Debug readbacks and diagnostic displays for active AOS/runtime work | `daemon-snapshot`, `service logs`, `inspect`, `introspect review`, `log` |
 | Verification/evidence | Recapture, refs diff/expect, gates, Work Records | `see refs --diff --expect`, `gate`, `work-record read/verify/status/plan-repair` |
-| Operator input | Native desktop selection, pending operator annotations, and saved-ref handoff | `see annotation select/create/list/read/consume/link-work-record/delete` |
+| Operator input | Native geometry or semantic AX target selection, pending operator annotations, and saved-ref handoff | `see annotation select/create/list/read/consume/link-work-record/delete` |
 | Skills and recipes | Installable guidance versus executable source-backed procedures | `skills list/check/install`, `skills companion ...`, `recipe list/explain/dry-run/run` |
 | Runtime/service | Daemon ownership, mode, permissions, cleanup | `service`, `runtime`, `content`, `clean`, `reset` |
 

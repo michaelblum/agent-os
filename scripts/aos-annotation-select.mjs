@@ -8,10 +8,11 @@ import {
   createPendingAnnotation,
 } from './lib/pending-annotations-lifecycle.mjs';
 import {
+  desktopSelectionTargetSummary,
   normalizeDesktopSelection,
 } from './lib/pending-annotations-model.mjs';
 
-const MODES = new Set(['point', 'rectangle', 'freehand', 'text']);
+const MODES = new Set(['point', 'rectangle', 'freehand', 'text', 'target']);
 const TERMINAL_EVENTS = new Set(['selection_completed', 'selection_canceled', 'selection_failed']);
 const FAILURE_EVENTS = new Set(['selection_failed']);
 const SAFE_ERRORS = new Map([
@@ -19,8 +20,9 @@ const SAFE_ERRORS = new Map([
   ['ANNOTATION_SELECTION_CANCELED', 'desktop annotation selection was canceled before startup'],
   ['ANNOTATION_SELECTION_NOT_OWNED', 'desktop annotation selection is not owned by this command'],
   ['ANNOTATION_DISPLAY_UNAVAILABLE', 'no desktop display is available for annotation selection'],
+  ['ANNOTATION_ACCESSIBILITY_UNAVAILABLE', 'desktop accessibility targeting is unavailable'],
   ['ANNOTATION_SELECTION_FAILED', 'desktop annotation selection failed'],
-  ['INVALID_ANNOTATION_MODE', 'annotation mode must be point, rectangle, freehand, or text'],
+  ['INVALID_ANNOTATION_MODE', 'annotation mode must be point, rectangle, freehand, text, or target'],
   ['INVALID_ANNOTATION_EVENT', 'daemon returned an invalid annotation event'],
   ['PENDING_ANNOTATION_EXISTS', 'the selected annotation already exists'],
   ['PENDING_ANNOTATION_STATE_CORRUPT', 'pending annotation storage is unavailable'],
@@ -84,11 +86,12 @@ function normalizedText(value) {
   return value;
 }
 
-function transformAnnotationEvent(payload, source) {
+function transformAnnotationEvent(payload, source, requestedMode) {
   const data = payload.data;
   if (payload.event === 'selection_started') {
     assertExactKeys(data, ['mode'], 'selection_started data');
     if (!MODES.has(data.mode)) fail('annotation mode is invalid', 'INVALID_ANNOTATION_EVENT');
+    if (data.mode !== requestedMode) fail('annotation mode does not match the request', 'INVALID_ANNOTATION_EVENT');
     return payload;
   }
   if (payload.event === 'selection_canceled') {
@@ -107,42 +110,60 @@ function transformAnnotationEvent(payload, source) {
   }
   if (payload.event !== 'selection_completed') fail('annotation event is unknown', 'INVALID_ANNOTATION_EVENT');
   assertExactKeys(data, ['application', 'geometry', 'mode', 'selection_id', 'text', 'window'], 'selection_completed data');
+  if (data.mode !== requestedMode) fail('annotation mode does not match the request', 'INVALID_ANNOTATION_EVENT');
   const text = normalizedText(data.text);
-  const desktopSelection = normalizeDesktopSelection({
-    kind: 'desktop_annotation_selection',
-    selection_id: data.selection_id,
-    mode: data.mode,
-    geometry: data.geometry,
-    application: data.application,
-    window: data.window,
-  });
+  let desktopSelection;
+  try {
+    desktopSelection = normalizeDesktopSelection({
+      kind: 'desktop_annotation_selection',
+      selection_id: data.selection_id,
+      mode: data.mode,
+      geometry: data.geometry,
+      application: data.application,
+      window: data.window,
+    });
+  } catch {
+    fail('daemon returned invalid annotation evidence', 'INVALID_ANNOTATION_EVENT');
+  }
   if ((desktopSelection.mode === 'text') !== (text !== null)) {
     fail('annotation text does not match selection mode', 'INVALID_ANNOTATION_EVENT');
   }
-  const targetSummary = `Desktop ${desktopSelection.mode} annotation`;
+  const isTarget = desktopSelection.mode === 'target';
+  const targetSummary = isTarget
+    ? desktopSelectionTargetSummary(desktopSelection)
+    : `Desktop ${desktopSelection.mode} annotation`;
   const created = createPendingAnnotation({
     source,
     comment: text,
-    target_kind: 'region',
+    target_kind: isTarget ? 'native_ax' : 'region',
     target_summary: targetSummary,
     capability: {
       status: 'fallback_only',
-      reasons: ['native_selection_without_saved_ref'],
+      reasons: [isTarget
+        ? 'native_ax_selection_without_saved_ref'
+        : 'native_selection_without_saved_ref'],
     },
     fallback_evidence: [{
-      kind: desktopSelection.geometry.kind,
-      reason: 'semantic_ref_unavailable',
+      kind: isTarget ? 'native_ax' : desktopSelection.geometry.kind,
+      reason: isTarget ? 'saved_ref_unavailable' : 'semantic_ref_unavailable',
       summary: targetSummary,
     }],
     desktop_selection: desktopSelection,
   });
+  const publicGeometry = isTarget
+    ? {
+        ...desktopSelection.geometry,
+        title: null,
+        label: null,
+      }
+    : desktopSelection.geometry;
   return {
     ...payload,
     data: {
       annotation_id: created.annotation.id,
       selection_id: desktopSelection.selection_id,
       mode: desktopSelection.mode,
-      geometry: desktopSelection.geometry,
+      geometry: publicGeometry,
       application: desktopSelection.application,
       window: desktopSelection.window,
       has_text: text !== null,
@@ -151,7 +172,9 @@ function transformAnnotationEvent(payload, source) {
 }
 
 function usage() {
-  process.stdout.write('Usage: aos see annotation select --mode <point|rectangle|freehand|text> [--source <token>] --follow\n');
+  process.stdout.write(
+    'Usage: aos see annotation select --mode <point|rectangle|freehand|text|target> [--source <token>] --follow\n',
+  );
 }
 
 async function main(args) {
@@ -162,7 +185,9 @@ async function main(args) {
   }
   if (!values.has('--follow')) fail('annotation selection requires --follow', 'MISSING_ARG');
   const mode = valueAfter(args, '--mode');
-  if (!MODES.has(mode)) fail('annotation mode must be point, rectangle, freehand, or text', 'INVALID_ANNOTATION_MODE');
+  if (!MODES.has(mode)) {
+    fail('annotation mode must be point, rectangle, freehand, text, or target', 'INVALID_ANNOTATION_MODE');
+  }
   const source = valueAfter(args, '--source') ?? 'operator_annotation';
   if (!SOURCE.test(source)) fail('annotation source is invalid', 'INVALID_ARG');
   await followDaemonLease({
@@ -181,7 +206,7 @@ async function main(args) {
     invalidEventMessage: 'daemon returned malformed annotation JSON',
     fallbackErrorCode: 'ANNOTATION_SELECTION_FAILED',
     fallbackErrorMessage: 'desktop annotation selection failed',
-    transformEvent: (payload) => transformAnnotationEvent(payload, source),
+    transformEvent: (payload) => transformAnnotationEvent(payload, source, mode),
   });
 }
 

@@ -98,6 +98,26 @@ function completedData(overrides = {}) {
   };
 }
 
+function targetCompletedData(overrides = {}) {
+  return completedData({
+    mode: 'target',
+    geometry: {
+      kind: 'element',
+      coordinate_space: 'desktop_points_top_left',
+      x: 220,
+      y: 140,
+      width: 180,
+      height: 44,
+      role: 'AXButton',
+      title: 'Private Settings',
+      label: 'Delete private workspace',
+      ancestor_roles: ['AXApplication', 'AXWindow', 'AXGroup'],
+    },
+    text: null,
+    ...overrides,
+  });
+}
+
 function ndjson(value) {
   return value.trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
 }
@@ -130,6 +150,129 @@ test('desktop annotation selection persists bounded evidence and redacts public 
   assert.equal(record.desktop_selection.selection_id, completion.selection_id);
   assert.equal(record.desktop_selection.geometry.coordinate_space, 'desktop_points_top_left');
   assert.equal(record.capability.status, 'fallback_only');
+});
+
+test('semantic target selection persists native AX evidence and redacts labels publicly', async () => {
+  const stateRoot = await fakeDaemon((request, socket) => {
+    assert.deepEqual(request.data, { mode: 'target' });
+    socket.write(response(request.ref));
+    socket.write(event('selection_started', { mode: 'target' }, request.ref));
+    socket.write(event('selection_completed', targetCompletedData(), request.ref));
+  });
+  const run = launch(['--mode', 'target', '--source', 'companion', '--follow'], stateRoot);
+  const result = await run.completed;
+
+  assert.equal(result.code, 0, result.stderr);
+  const events = ndjson(result.stdout);
+  const completion = events[1].data;
+  assert.equal(completion.mode, 'target');
+  assert.equal(completion.has_text, false);
+  assert.equal(completion.geometry.kind, 'element');
+  assert.equal(completion.geometry.role, 'AXButton');
+  assert.equal(completion.geometry.title, null);
+  assert.equal(completion.geometry.label, null);
+  assert.equal(JSON.stringify(events).includes('Private Settings'), false);
+  assert.equal(JSON.stringify(events).includes('Delete private workspace'), false);
+
+  const recordPath = path.join(
+    stateRoot,
+    'repo',
+    'pending-annotations',
+    'records',
+    `${completion.annotation_id}.json`,
+  );
+  const record = JSON.parse(await fs.readFile(recordPath, 'utf8'));
+  assert.equal(record.target.kind, 'native_ax');
+  assert.equal(record.target.summary, 'Delete private workspace');
+  assert.equal(record.comment.text, null);
+  assert.equal(record.desktop_selection.geometry.label, 'Delete private workspace');
+  assert.deepEqual(record.desktop_selection.geometry.ancestor_roles, [
+    'AXApplication',
+    'AXWindow',
+    'AXGroup',
+  ]);
+  assert.deepEqual(record.capability, {
+    status: 'fallback_only',
+    reasons: ['native_ax_selection_without_saved_ref'],
+    fallback_used: true,
+    saved_ref_available: false,
+  });
+});
+
+test('semantic target selection rejects noncanonical element geometry before persistence', async () => {
+  const stateRoot = await fakeDaemon((request, socket) => {
+    socket.write(response(request.ref));
+    socket.write(event('selection_completed', targetCompletedData({
+      geometry: {
+        ...targetCompletedData().geometry,
+        private_path: '/private/target',
+      },
+    }), request.ref));
+  });
+  const result = await launch(['--mode', 'target', '--follow'], stateRoot).completed;
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /"code":"INVALID_ANNOTATION_EVENT"/);
+  assert.equal(result.stderr.includes('/private/target'), false);
+  const records = path.join(stateRoot, 'repo', 'pending-annotations', 'records');
+  await assert.rejects(fs.readdir(records), { code: 'ENOENT' });
+});
+
+test('semantic target selection rejects daemon mode substitution before persistence', async () => {
+  const stateRoot = await fakeDaemon((request, socket) => {
+    socket.write(response(request.ref));
+    socket.write(event('selection_started', { mode: 'target' }, request.ref));
+    socket.write(event('selection_completed', completedData({
+      mode: 'rectangle',
+      geometry: {
+        kind: 'rectangle',
+        coordinate_space: 'desktop_points_top_left',
+        x: 10,
+        y: 20,
+        width: 100,
+        height: 80,
+      },
+      text: null,
+    }), request.ref));
+  });
+  const result = await launch(['--mode', 'target', '--follow'], stateRoot).completed;
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /"code":"INVALID_ANNOTATION_EVENT"/);
+  const records = path.join(stateRoot, 'repo', 'pending-annotations', 'records');
+  await assert.rejects(fs.readdir(records), { code: 'ENOENT' });
+});
+
+test('semantic target selection rejects a mismatched start event', async () => {
+  const stateRoot = await fakeDaemon((request, socket) => {
+    socket.write(response(request.ref));
+    socket.write(event('selection_started', { mode: 'rectangle' }, request.ref));
+  });
+  const result = await launch(['--mode', 'target', '--follow'], stateRoot).completed;
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /"code":"INVALID_ANNOTATION_EVENT"/);
+});
+
+test('semantic target selection maps accessibility failures without leaking daemon detail', async () => {
+  const leakedPath = '/private/accessibility-target';
+  const stateRoot = await fakeDaemon((request, socket) => {
+    socket.write(`${JSON.stringify({
+      v: 1,
+      status: 'error',
+      code: 'ANNOTATION_ACCESSIBILITY_UNAVAILABLE',
+      error: `failed to inspect ${leakedPath}`,
+      ref: request.ref,
+    })}\n`);
+  });
+  const result = await launch(['--mode', 'target', '--follow'], stateRoot).completed;
+
+  assert.equal(result.code, 1);
+  assert.match(
+    result.stderr,
+    /"code":"ANNOTATION_ACCESSIBILITY_UNAVAILABLE","error":"desktop accessibility targeting is unavailable"/,
+  );
+  assert.equal(result.stderr.includes(leakedPath), false);
 });
 
 test('desktop annotation selection rejects malformed native evidence without persistence', async () => {
@@ -193,4 +336,25 @@ test('desktop annotation selection help is passive', async () => {
   const result = await launch(['--help'], stateRoot).completed;
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /^Usage: aos see annotation select/);
+  assert.match(result.stdout, /point\|rectangle\|freehand\|text\|target/);
+});
+
+test('annotation manifest keeps geometry and target selection as separate forms', async () => {
+  const manifest = JSON.parse(await fs.readFile(
+    path.join(repoRoot, 'manifests/commands/source/aos/03-see-04-annotation.json'),
+    'utf8',
+  ));
+  const forms = manifest.commands[0].forms;
+  const geometry = forms.find((form) => form.id === 'annotation-select-follow');
+  const target = forms.find((form) => form.id === 'annotation-target-select-follow');
+  assert.ok(geometry);
+  assert.ok(target);
+  assert.deepEqual(
+    geometry.args.find((arg) => arg.id === 'mode').value_type.enum.map((item) => item.value),
+    ['point', 'rectangle', 'freehand', 'text'],
+  );
+  assert.deepEqual(
+    target.args.find((arg) => arg.id === 'mode').value_type.enum.map((item) => item.value),
+    ['target'],
+  );
 });

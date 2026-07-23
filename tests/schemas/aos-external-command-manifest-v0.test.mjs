@@ -644,6 +644,32 @@ test('tell session mode flags are boolean selectors', async () => {
   }
 });
 
+test('annotation geometry and semantic target forms share one reviewed adapter route', async () => {
+  const [registry, external] = await Promise.all([
+    loadJson(registryPath),
+    loadJson(manifestPath),
+  ]);
+  const annotation = registry.commands.find((command) => command.path.join(' ') === 'see annotation');
+  assert.ok(annotation, 'see annotation command must exist in registry');
+
+  const geometry = annotation.forms.find((form) => form.id === 'annotation-select-follow');
+  const target = annotation.forms.find((form) => form.id === 'annotation-target-select-follow');
+  assert.ok(geometry, 'geometric annotation selection form must remain available');
+  assert.ok(target, 'semantic target selection form must be explicit');
+
+  const geometryModes = geometry.args.find((arg) => arg.id === 'mode')?.value_type?.enum
+    ?.map((item) => item.value);
+  const targetModes = target.args.find((arg) => arg.id === 'mode')?.value_type?.enum
+    ?.map((item) => item.value);
+  assert.deepEqual(geometryModes, ['point', 'rectangle', 'freehand', 'text']);
+  assert.deepEqual(targetModes, ['target']);
+
+  const route = external.commands.find((command) => command.path.join(' ') === 'see annotation select');
+  assert.ok(route, 'annotation selection external route must exist');
+  assert.equal(route.executable, '/usr/bin/env');
+  assert.deepEqual(route.argv_prefix, ['node', 'scripts/aos-annotation-select.mjs']);
+});
+
 test('help registry forms expose their json flag metadata', async () => {
   const registry = await loadJson(registryPath);
   const help = registry.commands.find((command) => command.path.join(' ') === 'help');

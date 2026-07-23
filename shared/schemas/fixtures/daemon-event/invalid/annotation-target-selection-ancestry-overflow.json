@@ -1,0 +1,39 @@
+{
+  "v": 1,
+  "service": "annotation",
+  "event": "selection_completed",
+  "ts": 1784160000.125,
+  "data": {
+    "selection_id": "sel-123e4567-e89b-12d3-a456-426614174000",
+    "mode": "target",
+    "geometry": {
+      "kind": "element",
+      "coordinate_space": "desktop_points_top_left",
+      "x": 120,
+      "y": 80,
+      "width": 160,
+      "height": 44,
+      "role": "AXButton",
+      "title": null,
+      "label": null,
+      "ancestor_roles": [
+        "AX1",
+        "AX2",
+        "AX3",
+        "AX4",
+        "AX5",
+        "AX6",
+        "AX7",
+        "AX8",
+        "AX9",
+        "AX10",
+        "AX11",
+        "AX12",
+        "AX13"
+      ]
+    },
+    "application": { "pid": 42, "name": "Fixture App", "bundle_id": null },
+    "window": null,
+    "text": null
+  }
+}

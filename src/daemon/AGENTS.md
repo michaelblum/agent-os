@@ -81,8 +81,14 @@ overflow shuts down only that connection, and queued work must quiesce before
 its file descriptor is closed or reusable.
 
 `annotation-selection.swift` owns one connection-scoped native desktop
-selection lease for point, rectangle, freehand, or text geometry. It emits
-bounded product-neutral evidence and never owns pending-annotation persistence,
+selection lease for point, rectangle, freehand, text, or semantic AX target
+evidence. `annotation-target-selection.swift` owns the bounded target
+highlighting and ancestor-to-leaf drill-down UI. Accessibility permission is
+checked once at target-mode admission; pointer tracking must never probe TCC
+and must coalesce AX hit tests through one daemon-owned serial resolver with an
+overall operation deadline. Canceled sessions suppress stale results and may
+not create parallel resolver threads. These modules emit bounded
+product-neutral evidence and never own pending-annotation persistence,
 consumer routing, or project policy.
 
 Avoid daemon-side surface policy:

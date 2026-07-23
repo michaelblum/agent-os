@@ -144,9 +144,11 @@ commands, runtime helpers, wiki tools, and command adapters.
   daemon voice-output broker. Input paths stay private to the request; public
   events expose only lifecycle, format, byte-count, and meter facts.
 - `aos-annotation-select.mjs` owns the public connection-scoped desktop
-  annotation adapter. It validates native point, rectangle, freehand, or text
-  evidence, persists one pending-annotation record before completion, and
-  strips annotation text from the public follow event.
+  annotation adapter. It validates native point, rectangle, freehand, text, or
+  semantic target evidence, persists one pending-annotation record before
+  completion, and strips annotation text from the public follow event.
+  Semantic AX evidence remains `fallback_only` until another contract proves a
+  durable reacquirable saved ref.
 
 ## Local Contracts
 

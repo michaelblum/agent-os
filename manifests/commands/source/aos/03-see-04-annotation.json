@@ -71,6 +71,60 @@
           }
         },
         {
+          "id": "annotation-target-select-follow",
+          "summary": "Select one bounded semantic accessibility target and persist it as native AX evidence",
+          "usage": "aos see annotation select --mode target [--source <token>] --follow",
+          "args": [
+            {
+              "id": "mode",
+              "kind": "flag",
+              "required": true,
+              "summary": "Semantic accessibility target selection",
+              "token": "--mode",
+              "value_type": {
+                "enum": [
+                  { "value": "target", "summary": "Select one ancestor-to-leaf accessibility target" }
+                ]
+              }
+            },
+            {
+              "id": "source",
+              "kind": "flag",
+              "required": false,
+              "summary": "Bounded product-neutral annotation source token",
+              "token": "--source",
+              "value_type": "string"
+            },
+            {
+              "id": "follow",
+              "kind": "flag",
+              "required": true,
+              "summary": "Stream target-selection lifecycle and the persisted annotation id",
+              "token": "--follow",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos see annotation select --mode target --follow",
+            "aos see annotation select --mode target --source companion --follow"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": true,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": true,
+            "streaming": true,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "ndjson",
+            "error_mode": "json_stderr",
+            "streaming": true,
+            "supports_json_flag": false
+          }
+        },
+        {
           "id": "see-annotation-create",
           "summary": "Create or ingest one pending operator annotation record under the runtime-mode state root",
           "usage": "aos see annotation create (--target-kind <kind> --target-summary <text> | --from-json <path|-> | --from-capture-json <path|->) [--comment <text>] [--workspace <id>] [--snapshot <id>] [--ref <id>] [--fallback-reason <text>] [--artifact <role=path>] [--next-argv <json-array>] [--json]",

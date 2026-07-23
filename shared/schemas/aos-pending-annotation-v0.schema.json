@@ -190,6 +190,38 @@
             },
             "bounds": { "$ref": "#/$defs/desktop_bounds" }
           }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "coordinate_space",
+            "x",
+            "y",
+            "width",
+            "height",
+            "role",
+            "title",
+            "label",
+            "ancestor_roles"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "element" },
+            "coordinate_space": { "const": "desktop_points_top_left" },
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "width": { "type": "number", "exclusiveMinimum": 0 },
+            "height": { "type": "number", "exclusiveMinimum": 0 },
+            "role": { "type": "string", "minLength": 1, "maxLength": 96 },
+            "title": { "type": ["string", "null"], "minLength": 1, "maxLength": 256 },
+            "label": { "type": ["string", "null"], "minLength": 1, "maxLength": 256 },
+            "ancestor_roles": {
+              "type": "array",
+              "maxItems": 11,
+              "items": { "type": "string", "minLength": 1, "maxLength": 96 }
+            }
+          }
         }
       ]
     },
@@ -234,6 +266,29 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "properties": { "mode": { "const": "target" } },
+            "required": ["mode"]
+          },
+          "then": {
+            "properties": {
+              "geometry": {
+                "properties": { "kind": { "const": "element" } }
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "geometry": {
+                "not": {
+                  "properties": { "kind": { "const": "element" } },
+                  "required": ["kind"]
+                }
+              }
+            }
+          }
         }
       ],
       "required": ["kind", "selection_id", "mode", "geometry", "application", "window"],
@@ -241,7 +296,7 @@
       "properties": {
         "kind": { "const": "desktop_annotation_selection" },
         "selection_id": { "type": "string", "pattern": "^sel-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
-        "mode": { "enum": ["point", "rectangle", "freehand", "text"] },
+        "mode": { "enum": ["point", "rectangle", "freehand", "text", "target"] },
         "geometry": { "$ref": "#/$defs/desktop_geometry" },
         "application": {
           "type": "object",

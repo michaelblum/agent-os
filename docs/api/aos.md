@@ -396,13 +396,14 @@ Pending operator annotations live under
 `$AOS_STATE_ROOT/{repo|installed}/pending-annotations/` when the state root is
 overridden. Use `aos see annotation select --mode
 <point|rectangle|freehand|text> --follow` to collect one native desktop
-selection and persist it before completion, `aos see annotation create` to
-create or ingest one pending
+geometry selection, or `aos see annotation select --mode target --follow` to
+select one bounded semantic accessibility target, and persist it before
+completion. Use `aos see annotation create` to create or ingest one pending
 record, `aos see annotation list` for compact summaries, `aos see annotation
-read <id>` for one compact record, `aos see annotation consume <id>` to drain it
-once, `aos see annotation link-work-record <id> --work-record <ref>` to attach
-action/readback evidence, and `aos see annotation delete <id>` to make it
-non-consumable. Consuming
+read <id>` for one compact record, `aos see annotation consume <id>` to drain
+it once, `aos see annotation link-work-record <id> --work-record <ref>` to
+attach action/readback evidence, and `aos see annotation delete <id>` to make
+it non-consumable. Consuming
 a non-`pending` annotation fails closed with structured JSON, as do pending
 annotations whose capability status is `unsupported`, `ambiguous`, or
 `blocked`; stdout stays compact and heavy evidence remains path-backed. `aos
@@ -425,7 +426,11 @@ at 256 points, text at 4 KiB, and geometry uses desktop top-left logical points.
 The public completion event strips text and exposes only `has_text`; read the
 created pending record by its returned annotation id to consume the comment.
 Selection evidence is initially `fallback_only` and does not manufacture a
-semantic saved ref.
+semantic saved ref. Target mode stores strict positive element bounds, bounded
+role/title/label facts, and at most 11 ordered ancestor roles with
+`target_kind: native_ax`; it remains `fallback_only` until a consumer resolves
+a durable saved ref. The public target completion replaces title and label with
+`null`, reports `has_text: false`, and never exposes target text or local paths.
 
 Compatibility boundary: archived reports, sealed fixtures, and historical
 experience manifests may still contain config-driven status-item fields. The

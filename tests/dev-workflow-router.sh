@@ -171,6 +171,29 @@ else
     fail "dev recommend guarded proof behavior drifted"
 fi
 
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files src/daemon/annotation-target-selection.swift scripts/lib/pending-annotations-model.mjs shared/schemas/aos-pending-annotation-v0.schema.json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+assert "desktop-annotation-selection" in summary["rule_ids"], data
+assert "unclassified" not in summary["rule_ids"], data
+assert summary["requires_swift_build"] is True, data
+assert summary["tcc_identity_sensitive"] is True, data
+commands = {item["command"] for item in data["next_commands"]}
+assert {
+    "node --test tests/annotation-select-cli.test.mjs && bash tests/annotation-selection-native.sh",
+    "node --test tests/schemas/aos-pending-annotation-v0.test.mjs tests/schemas/daemon-event.test.mjs tests/toolkit/pending-annotation-model.test.mjs",
+    "bash tests/command-manifest-generation.sh",
+} <= commands, data
+PY
+then
+    pass "dev recommend routes semantic target selection to static annotation proofs"
+else
+    fail "dev recommend semantic target selection routing drifted"
+fi
+
 if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files tests/lib/visual-harness.sh 2>/dev/null)" python3 - <<'PY'
 import json
 import os

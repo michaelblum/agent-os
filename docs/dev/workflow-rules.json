@@ -178,6 +178,59 @@
       "verification": []
     },
     {
+      "id": "desktop-annotation-selection",
+      "summary": "Native desktop annotation selection, persistence projection, or semantic target contract changed.",
+      "patterns": [
+        "manifests/commands/source/aos/03-see-04-annotation.json",
+        "scripts/aos-annotation-select.mjs",
+        "scripts/lib/pending-annotations-model.mjs",
+        "shared/schemas/aos-pending-annotation-v0.*",
+        "shared/schemas/daemon-event.schema.json",
+        "shared/schemas/fixtures/daemon-event/**/annotation-*.json",
+        "src/daemon/annotation-selection.swift",
+        "src/daemon/annotation-target-selection.swift",
+        "src/perceive/ax.swift",
+        "tests/annotation-select-cli.test.mjs",
+        "tests/annotation-selection-native.sh",
+        "tests/schemas/aos-pending-annotation-v0.test.mjs",
+        "tests/schemas/daemon-event.test.mjs",
+        "tests/toolkit/pending-annotation-model.test.mjs"
+      ],
+      "classes": [
+        "desktop_annotation",
+        "command_contract",
+        "schema",
+        "swift"
+      ],
+      "actions": [
+        "focused_test",
+        "schema_test"
+      ],
+      "hot_swappable": false,
+      "tcc_identity_sensitive": true,
+      "commands": [
+        {
+          "id": "annotation-selection-adapter",
+          "command": "node --test tests/annotation-select-cli.test.mjs && bash tests/annotation-selection-native.sh",
+          "reason": "Verify strict follow-stream persistence, redaction, singleton ownership, bounded geometry, semantic drill-down, and admission-only TCC checks."
+        },
+        {
+          "id": "annotation-selection-schema",
+          "command": "node --test tests/schemas/aos-pending-annotation-v0.test.mjs tests/schemas/daemon-event.test.mjs tests/toolkit/pending-annotation-model.test.mjs",
+          "reason": "Verify target mode and element evidence remain closed, bounded, mode-matched, and path-free."
+        },
+        {
+          "id": "annotation-selection-command-manifest",
+          "command": "bash tests/command-manifest-generation.sh",
+          "reason": "Keep geometric and semantic target form identifiers explicit in generated help."
+        }
+      ],
+      "verification": [],
+      "notes": [
+        "Run these static and fake-daemon checks before the isolated repo-binary rebuild checkpoint; never use the live daemon or TCC as part of this route."
+      ]
+    },
+    {
       "id": "desktop-world-scene-engine",
       "summary": "DesktopWorld scene contracts, authoring tools, runtime session, extensions, or agent route changed.",
       "patterns": [
