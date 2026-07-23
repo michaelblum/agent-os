@@ -171,6 +171,66 @@ else
     fail "dev recommend guarded proof behavior drifted"
 fi
 
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files src/daemon/annotation-target-selection.swift scripts/lib/pending-annotations-model.mjs shared/schemas/aos-pending-annotation-v0.schema.json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+assert "desktop-annotation-selection" in summary["rule_ids"], data
+assert "unclassified" not in summary["rule_ids"], data
+assert summary["requires_swift_build"] is True, data
+assert summary["tcc_identity_sensitive"] is True, data
+commands = {item["command"] for item in data["next_commands"]}
+assert {
+    "node --test tests/annotation-select-cli.test.mjs && bash tests/annotation-selection-native.sh",
+    "node --test tests/schemas/aos-pending-annotation-v0.test.mjs tests/schemas/daemon-event.test.mjs tests/toolkit/pending-annotation-model.test.mjs",
+    "bash tests/command-manifest-generation.sh",
+} <= commands, data
+PY
+then
+    pass "dev recommend routes semantic target selection to static annotation proofs"
+else
+    fail "dev recommend semantic target selection routing drifted"
+fi
+
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/perceive/ax-semantic-target.swift tests/lib/annotation-semantic-target-traversal-tests.swift 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+assert "desktop-annotation-selection" in summary["rule_ids"], data
+assert "unclassified" not in summary["rule_ids"], data
+assert summary["requires_swift_build"] is True, data
+assert summary["tcc_identity_sensitive"] is True, data
+files = {item["path"]: item for item in data["files"]}
+expected_paths = {
+    "src/perceive/ax-semantic-target.swift",
+    "tests/lib/annotation-semantic-target-traversal-tests.swift",
+}
+assert expected_paths == set(files), data
+for path in expected_paths:
+    item = files[path]
+    assert "desktop-annotation-selection" in item["rules"], item
+    assert "unclassified" not in item["rules"], item
+    assert item["hot_swappable"] is False, item
+    assert item["tcc_identity_sensitive"] is True, item
+commands = {item["command"] for item in summary["commands"]}
+assert {
+    "node --test tests/annotation-select-cli.test.mjs && bash tests/annotation-selection-native.sh",
+    "node --test tests/schemas/aos-pending-annotation-v0.test.mjs tests/schemas/daemon-event.test.mjs tests/toolkit/pending-annotation-model.test.mjs",
+    "bash tests/command-manifest-generation.sh",
+} <= commands, data
+proof_assets = {item["path"]: item for item in data["proof_worth"]["assets"]}
+assert proof_assets["tests/lib/annotation-semantic-target-traversal-tests.swift"]["status"] == "passed", data
+PY
+then
+    pass "dev classify routes each canonical semantic target traversal owner to focused annotation proofs"
+else
+    fail "dev classify canonical semantic target traversal routing drifted"
+fi
+
 if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files tests/lib/visual-harness.sh 2>/dev/null)" python3 - <<'PY'
 import json
 import os
@@ -388,15 +448,24 @@ import os
 data = json.loads(os.environ["OUT"])
 assert data["status"] == "success", data
 assert data["files"], data
+files = {item["path"]: item for item in data["files"]}
+annotation = files["scripts/aos-annotation-select.mjs"]
+assert "desktop-annotation-selection" in annotation["rules"], annotation
+assert annotation["hot_swappable"] is False, annotation
+assert annotation["tcc_identity_sensitive"] is True, annotation
 for item in data["files"]:
     rules = set(item["rules"])
     assert "command-surface-implementations" in rules, item
     assert "unclassified" not in rules, item
+    if item["path"] == "scripts/aos-annotation-select.mjs":
+        continue
+    assert "desktop-annotation-selection" not in rules, item
     assert item["hot_swappable"] is True, item
     assert item["tcc_identity_sensitive"] is False, item
 summary = data["summary"]
 assert summary["requires_swift_build"] is False, summary
-assert summary["tcc_identity_sensitive"] is False, summary
+assert summary["hot_swappable"] is False, summary
+assert summary["tcc_identity_sensitive"] is True, summary
 PY
 then
     pass "dev classify routes every external manifest implementation target to command-surface checks"

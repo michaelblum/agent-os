@@ -172,6 +172,17 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('shared/schemas/aos-external-command-manifest-v0.schema.json'));
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('tests/aos-dev-gh-help-parity.test.mjs'));
   assert.deepEqual(
+    rules.get('desktop-annotation-selection')?.commands?.map((step) => step.id),
+    [
+      'annotation-selection-adapter',
+      'annotation-selection-schema',
+      'annotation-selection-command-manifest',
+    ],
+  );
+  assert.ok(rules.get('desktop-annotation-selection')?.patterns?.includes('src/daemon/annotation-target-selection.swift'));
+  assert.ok(rules.get('desktop-annotation-selection')?.patterns?.includes('scripts/lib/pending-annotations-model.mjs'));
+  assert.equal(rules.get('desktop-annotation-selection')?.tcc_identity_sensitive, true);
+  assert.deepEqual(
     rules.get('desktop-world-scene-engine')?.commands?.slice(0, 4).map((step) => step.id),
     [
       'scene-daemon-contract',

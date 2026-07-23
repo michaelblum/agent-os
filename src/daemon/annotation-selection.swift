@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import CoreGraphics
 import Foundation
 
@@ -15,6 +16,7 @@ enum AOSAnnotationSelectionMode: String, CaseIterable {
     case rectangle
     case freehand
     case text
+    case target
 
     static func parse(_ value: String) -> AOSAnnotationSelectionMode? {
         AOSAnnotationSelectionMode(rawValue: value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
@@ -33,15 +35,10 @@ private func finitePoint(_ point: CGPoint) -> Bool {
     point.x.isFinite && point.y.isFinite
 }
 
-private func annotationCGPoint(_ screenPoint: NSPoint) -> CGPoint {
-    let mainHeight = CGDisplayBounds(CGMainDisplayID()).height
-    return CGPoint(x: screenPoint.x, y: mainHeight - screenPoint.y)
-}
-
 func aosAnnotationGeometry(mode: AOSAnnotationSelectionMode, screenPoints: [CGPoint]) -> [String: Any]? {
     let points = aosBoundAnnotationPoints(screenPoints.filter(finitePoint))
     guard !points.isEmpty else { return nil }
-    let converted = points.map(annotationCGPoint)
+    let converted = points.map(screenPointToCG)
     switch mode {
     case .point, .text:
         return [
@@ -76,6 +73,8 @@ func aosAnnotationGeometry(mode: AOSAnnotationSelectionMode, screenPoints: [CGPo
                 "height": maxY - minY,
             ],
         ]
+    case .target:
+        return nil
     }
 }
 
@@ -115,6 +114,18 @@ func aosAnnotationWindowFacts(
         ]
     }
     return nil
+}
+
+func aosAnnotationPublicWindowFacts(_ window: [String: Any]?) -> [String: Any]? {
+    guard let window,
+          let windowID = window["window_id"],
+          let title = window["title"],
+          let bounds = window["bounds"] else { return nil }
+    return [
+        "window_id": windowID,
+        "title": title,
+        "bounds": bounds,
+    ]
 }
 
 private final class AOSAnnotationTextField: NSTextField {
@@ -251,12 +262,20 @@ private final class AOSAnnotationSelectionView: NSView {
     }
 }
 
-private final class AOSAnnotationSelectionPanel: NSPanel {
+final class AOSAnnotationSelectionPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 }
 
-private final class AOSAnnotationSelectionSession {
+protocol AOSAnnotationSelectionSession: AnyObject {
+    var token: UUID { get }
+    var owner: UUID { get }
+
+    func start() throws
+    func cancel(reason: String)
+}
+
+private final class AOSAnnotationGeometrySelectionSession: AOSAnnotationSelectionSession {
     let token = UUID()
     let owner: UUID
     let ref: String?
@@ -285,6 +304,13 @@ private final class AOSAnnotationSelectionSession {
     func start() throws {
         var startupError: AOSAnnotationSelectionFailure?
         aosRunOnMainSync {
+            guard mode != .target else {
+                startupError = AOSAnnotationSelectionFailure(
+                    code: "INVALID_ANNOTATION_MODE",
+                    message: "semantic target selection requires its dedicated session"
+                )
+                return
+            }
             guard !finished else {
                 startupError = AOSAnnotationSelectionFailure(
                     code: "ANNOTATION_SELECTION_CANCELED",
@@ -344,7 +370,7 @@ private final class AOSAnnotationSelectionSession {
             return
         }
         finished = true
-        let cgPoints = points.map(annotationCGPoint)
+        let cgPoints = points.map(screenPointToCG)
         let targetPoint = cgPoints[cgPoints.count / 2]
         let window = aosAnnotationWindowFacts(at: targetPoint)
         let application: [String: Any]
@@ -365,7 +391,7 @@ private final class AOSAnnotationSelectionSession {
             "mode": mode.rawValue,
             "geometry": geometry,
             "application": application,
-            "window": window ?? NSNull(),
+            "window": aosAnnotationPublicWindowFacts(window) ?? NSNull(),
             "text": text ?? NSNull(),
         ])
         terminal(token)
@@ -378,25 +404,51 @@ private final class AOSAnnotationSelectionSession {
     }
 }
 
+private func aosMakeAnnotationSelectionSession(
+    owner: UUID,
+    ref: String?,
+    mode: AOSAnnotationSelectionMode,
+    emit: @escaping (String, [String: Any]) -> Void,
+    terminal: @escaping (UUID) -> Void
+) -> any AOSAnnotationSelectionSession {
+    switch mode {
+    case .target:
+        return AOSAnnotationTargetSelectionSession(
+            owner: owner,
+            ref: ref,
+            emit: emit,
+            terminal: terminal
+        )
+    case .point, .rectangle, .freehand, .text:
+        return AOSAnnotationGeometrySelectionSession(
+            owner: owner,
+            ref: ref,
+            mode: mode,
+            emit: emit,
+            terminal: terminal
+        )
+    }
+}
+
 final class AOSAnnotationSelectionTransport {
     typealias EventEmitter = (UUID, String, [String: Any], String?) -> Void
 
     private let lock = NSLock()
     private let emit: EventEmitter
-    private var session: AOSAnnotationSelectionSession?
+    private var session: (any AOSAnnotationSelectionSession)?
 
     init(emit: @escaping EventEmitter) { self.emit = emit }
 
     func start(owner: UUID, mode value: String, ref: String?) throws {
         guard let mode = AOSAnnotationSelectionMode.parse(value) else {
-            throw AOSAnnotationSelectionFailure(code: "INVALID_ANNOTATION_MODE", message: "annotation mode must be point, rectangle, freehand, or text")
+            throw AOSAnnotationSelectionFailure(code: "INVALID_ANNOTATION_MODE", message: "annotation mode must be point, rectangle, freehand, text, or target")
         }
         lock.lock()
         guard session == nil else {
             lock.unlock()
             throw AOSAnnotationSelectionFailure(code: "ANNOTATION_SELECTION_BUSY", message: "an annotation selection is already active")
         }
-        let next = AOSAnnotationSelectionSession(
+        let next = aosMakeAnnotationSelectionSession(
             owner: owner,
             ref: ref,
             mode: mode,

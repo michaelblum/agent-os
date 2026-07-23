@@ -142,6 +142,52 @@ test('annotation event vocabulary is strict across desktop selection lifecycle',
   ]);
 });
 
+test('annotation completion schema accepts only strict target element geometry', async () => {
+  const target = {
+    v: 1,
+    service: 'annotation',
+    event: 'selection_completed',
+    ts: 1784160000.125,
+    ref: 'annotation-target-proof',
+    data: {
+      selection_id: 'sel-123e4567-e89b-12d3-a456-426614174000',
+      mode: 'target',
+      geometry: {
+        kind: 'element',
+        coordinate_space: 'desktop_points_top_left',
+        x: 120,
+        y: 80,
+        width: 180,
+        height: 44,
+        role: 'AXButton',
+        title: null,
+        label: 'Save changes',
+        ancestor_roles: ['AXApplication', 'AXWindow'],
+      },
+      application: {
+        pid: 42,
+        name: 'Fixture App',
+        bundle_id: 'io.example.fixture',
+      },
+      window: null,
+      text: null,
+    },
+  };
+  assert.equal(runValueJsonschema(schemaPath, target).status, 0);
+
+  const leaked = structuredClone(target);
+  leaked.data.geometry.path = '/private/target';
+  assert.notEqual(runValueJsonschema(schemaPath, leaked).status, 0);
+
+  const mismatched = structuredClone(target);
+  mismatched.data.mode = 'rectangle';
+  assert.notEqual(runValueJsonschema(schemaPath, mismatched).status, 0);
+
+  const textBearing = structuredClone(target);
+  textBearing.data.text = 'private annotation';
+  assert.notEqual(runValueJsonschema(schemaPath, textBearing).status, 0);
+});
+
 test('status-item event envelope has a strict vocabulary and typed event payload', async () => {
   const schema = JSON.parse(await fs.readFile(schemaPath, 'utf8'));
   const rule = schema.allOf.find((item) => item.if?.properties?.service?.const === 'status_item' && !item.if?.properties?.event);

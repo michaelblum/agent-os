@@ -746,7 +746,7 @@
       }
     },
     "AnnotationSelectionMode": {
-      "enum": ["point", "rectangle", "freehand", "text"]
+      "enum": ["point", "rectangle", "freehand", "text", "target"]
     },
     "AnnotationDesktopPoint": {
       "type": "object",
@@ -809,6 +809,38 @@
             },
             "bounds": { "$ref": "#/$defs/AnnotationDesktopBounds" }
           }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "coordinate_space",
+            "x",
+            "y",
+            "width",
+            "height",
+            "role",
+            "title",
+            "label",
+            "ancestor_roles"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "element" },
+            "coordinate_space": { "const": "desktop_points_top_left" },
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "width": { "type": "number", "exclusiveMinimum": 0 },
+            "height": { "type": "number", "exclusiveMinimum": 0 },
+            "role": { "type": "string", "minLength": 1, "maxLength": 96 },
+            "title": { "type": ["string", "null"], "minLength": 1, "maxLength": 256 },
+            "label": { "type": ["string", "null"], "minLength": 1, "maxLength": 256 },
+            "ancestor_roles": {
+              "type": "array",
+              "maxItems": 11,
+              "items": { "type": "string", "minLength": 1, "maxLength": 96 }
+            }
+          }
         }
       ]
     },
@@ -853,6 +885,29 @@
           },
           "then": { "properties": { "text": { "type": "string", "minLength": 1, "maxLength": 4096 } } },
           "else": { "properties": { "text": { "type": "null" } } }
+        },
+        {
+          "if": {
+            "properties": { "mode": { "const": "target" } },
+            "required": ["mode"]
+          },
+          "then": {
+            "properties": {
+              "geometry": {
+                "properties": { "kind": { "const": "element" } }
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "geometry": {
+                "not": {
+                  "properties": { "kind": { "const": "element" } },
+                  "required": ["kind"]
+                }
+              }
+            }
+          }
         }
       ],
       "required": ["selection_id", "mode", "geometry", "application", "window", "text"],

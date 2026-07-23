@@ -10,6 +10,9 @@ import {
   pendingAnnotationInputFromOperatorSelection,
 } from '../../scripts/lib/pending-annotations-surface-adapter.mjs';
 import {
+  normalizeDesktopSelection,
+} from '../../scripts/lib/pending-annotations-model.mjs';
+import {
   parseError,
   parseJSON,
   repoRoot,
@@ -301,4 +304,100 @@ test('pending annotation records reject mismatched and oversized desktop selecti
   });
   assert.equal(parseError(run(['create', '--from-json', oversizedPath, '--json'], env)).code, 'INVALID_ARG');
   await validateAllPendingRecordFiles(env);
+});
+
+test('pending annotation model normalizes bounded semantic target evidence', () => {
+  const selection = normalizeDesktopSelection({
+    kind: 'desktop_annotation_selection',
+    selection_id: 'sel-123e4567-e89b-12d3-a456-426614174000',
+    mode: 'target',
+    geometry: {
+      kind: 'element',
+      coordinate_space: 'desktop_points_top_left',
+      x: 12,
+      y: 34,
+      width: 56,
+      height: 78,
+      role: 'AXButton',
+      title: 'Save',
+      label: 'Save changes',
+      ancestor_roles: ['AXApplication', 'AXWindow', 'AXGroup'],
+    },
+    application: { pid: 42, name: 'Fixture', bundle_id: null, ignored: true },
+    window: null,
+    ignored: true,
+  });
+
+  assert.deepEqual(selection, {
+    kind: 'desktop_annotation_selection',
+    selection_id: 'sel-123e4567-e89b-12d3-a456-426614174000',
+    mode: 'target',
+    geometry: {
+      kind: 'element',
+      coordinate_space: 'desktop_points_top_left',
+      x: 12,
+      y: 34,
+      width: 56,
+      height: 78,
+      role: 'AXButton',
+      title: 'Save',
+      label: 'Save changes',
+      ancestor_roles: ['AXApplication', 'AXWindow', 'AXGroup'],
+    },
+    application: { pid: 42, name: 'Fixture', bundle_id: null },
+    window: null,
+  });
+});
+
+test('pending annotation model rejects unsafe semantic target evidence', () => {
+  const base = {
+    selection_id: 'sel-123e4567-e89b-12d3-a456-426614174000',
+    mode: 'target',
+    geometry: {
+      kind: 'element',
+      coordinate_space: 'desktop_points_top_left',
+      x: 12,
+      y: 34,
+      width: 56,
+      height: 78,
+      role: 'AXButton',
+      title: null,
+      label: null,
+      ancestor_roles: ['AXApplication', 'AXWindow'],
+    },
+    application: { pid: 42, name: null, bundle_id: null },
+    window: null,
+  };
+
+  for (const selection of [
+    { ...base, geometry: { ...base.geometry, kind: 'rectangle' } },
+    { ...base, geometry: { ...base.geometry, width: 0 } },
+    { ...base, geometry: { ...base.geometry, x: Number.NaN } },
+    {
+      ...base,
+      geometry: {
+        ...base.geometry,
+        ancestor_roles: Array.from({ length: 13 }, (_, index) => `AX${index}`),
+      },
+    },
+    {
+      ...base,
+      geometry: {
+        ...base.geometry,
+        label: 'é'.repeat(257),
+      },
+    },
+    {
+      ...base,
+      geometry: {
+        ...base.geometry,
+        undeclared: true,
+      },
+    },
+  ]) {
+    assert.throws(
+      () => normalizeDesktopSelection(selection),
+      (error) => error?.code === 'INVALID_ARG',
+    );
+  }
 });

@@ -90,6 +90,7 @@ normalizer does not invent fallback rows for missing refs.
 
 ```bash
 aos see annotation select --mode rectangle --source companion --follow
+aos see annotation select --mode target --source companion --follow
 aos see annotation create --target-kind region --target-summary "top-right button" --comment "Use this one" --json
 aos see annotation create --target-kind browser --target-summary "Save button" --workspace default --snapshot snap1 --ref r2 --json
 aos see annotation create --from-capture-json capture.json --ref r2 --json
@@ -106,7 +107,11 @@ The native select form persists one record before emitting
 in `comment.text`; `desktop_selection` contains no text or filesystem path.
 Freehand paths are limited to 256 points, and native selection starts as honest
 `fallback_only` evidence until a consumer resolves a semantic saved ref through
-the separate perception contract.
+the separate perception contract. Target mode stores bounded `element`
+geometry with the AX role, nullable title and label, and at most eleven
+ordered ancestor roles. It records `target.kind: native_ax`, but remains
+non-actionable `fallback_only` evidence because selection alone does not prove
+stable reacquisition.
 
 `create --from-json <path|->` accepts create-time annotation fields and
 normalizes missing ids, lifecycle timestamps, default recommended next

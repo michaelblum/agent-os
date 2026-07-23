@@ -80,9 +80,17 @@ has one bounded serial writer for responses and events; slow-client timeout or
 overflow shuts down only that connection, and queued work must quiesce before
 its file descriptor is closed or reusable.
 
-`annotation-selection.swift` owns one connection-scoped native desktop
-selection lease for point, rectangle, freehand, or text geometry. It emits
-bounded product-neutral evidence and never owns pending-annotation persistence,
+`annotation-selection.swift` owns connection-scoped lease admission,
+cancellation, terminal routing, and the point, rectangle, freehand, and text
+sessions. `annotation-target-selection.swift` owns the complete semantic-target
+session, including admission, highlighting, ancestor-to-leaf drill-down,
+commit, and cleanup. `perceive/ax-semantic-target.swift` owns the typed,
+deadline-bounded AX traversal behind injectable reader and clock boundaries.
+Accessibility permission is checked once at target-session admission; pointer
+tracking must never probe TCC and must coalesce AX hit tests through one
+daemon-owned serial resolver. Canceled sessions suppress stale results and may
+not create parallel resolver threads. These modules emit bounded
+product-neutral evidence and never own pending-annotation persistence,
 consumer routing, or project policy.
 
 Avoid daemon-side surface policy:

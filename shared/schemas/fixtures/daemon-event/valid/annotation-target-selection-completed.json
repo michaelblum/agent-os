@@ -1,0 +1,38 @@
+{
+  "v": 1,
+  "service": "annotation",
+  "event": "selection_completed",
+  "ts": 1784160000.125,
+  "ref": "annotation-target-proof",
+  "data": {
+    "selection_id": "sel-123e4567-e89b-12d3-a456-426614174000",
+    "mode": "target",
+    "geometry": {
+      "kind": "element",
+      "coordinate_space": "desktop_points_top_left",
+      "x": 120,
+      "y": 80,
+      "width": 160,
+      "height": 44,
+      "role": "AXButton",
+      "title": "Save",
+      "label": "Save changes",
+      "ancestor_roles": [
+        "AXApplication",
+        "AXWindow",
+        "AXGroup"
+      ]
+    },
+    "application": {
+      "pid": 42,
+      "name": "Fixture App",
+      "bundle_id": "io.example.fixture"
+    },
+    "window": {
+      "window_id": 17,
+      "title": "Fixture Window",
+      "bounds": { "x": 20, "y": 40, "width": 800, "height": 600 }
+    },
+    "text": null
+  }
+}
