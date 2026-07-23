@@ -262,12 +262,20 @@ private final class AOSAnnotationSelectionView: NSView {
     }
 }
 
-private final class AOSAnnotationSelectionPanel: NSPanel {
+final class AOSAnnotationSelectionPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 }
 
-private final class AOSAnnotationSelectionSession {
+protocol AOSAnnotationSelectionSession: AnyObject {
+    var token: UUID { get }
+    var owner: UUID { get }
+
+    func start() throws
+    func cancel(reason: String)
+}
+
+private final class AOSAnnotationGeometrySelectionSession: AOSAnnotationSelectionSession {
     let token = UUID()
     let owner: UUID
     let ref: String?
@@ -275,36 +283,20 @@ private final class AOSAnnotationSelectionSession {
 
     private let emit: (String, [String: Any]) -> Void
     private let terminal: (UUID) -> Void
-    private let targetResolverQueue: DispatchQueue
     private var panels: [AOSAnnotationSelectionPanel] = []
-    private var targetApplication: [String: Any]?
-    private var targetCandidates: [AOSAnnotationTargetCandidate] = []
-    private var targetCommitPending = false
-    private var targetIndex = -1
-    private var targetRefreshWorkItem: DispatchWorkItem?
-    private var targetPendingPoint: CGPoint?
-    private var targetViews: [AOSAnnotationTargetSelectionView] = []
-    private var targetWindow: [String: Any]?
     private var finished = false
     private var originalApplication: NSRunningApplication?
-    private lazy var targetResolutionWorker = AOSAnnotationTargetResolutionWorker(
-        resolverQueue: targetResolverQueue
-    ) {
-        aosResolveAnnotationTargets(at: $0)
-    }
 
     init(
         owner: UUID,
         ref: String?,
         mode: AOSAnnotationSelectionMode,
-        targetResolverQueue: DispatchQueue,
         emit: @escaping (String, [String: Any]) -> Void,
         terminal: @escaping (UUID) -> Void
     ) {
         self.owner = owner
         self.ref = ref
         self.mode = mode
-        self.targetResolverQueue = targetResolverQueue
         self.emit = emit
         self.terminal = terminal
     }
@@ -312,6 +304,13 @@ private final class AOSAnnotationSelectionSession {
     func start() throws {
         var startupError: AOSAnnotationSelectionFailure?
         aosRunOnMainSync {
+            guard mode != .target else {
+                startupError = AOSAnnotationSelectionFailure(
+                    code: "INVALID_ANNOTATION_MODE",
+                    message: "semantic target selection requires its dedicated session"
+                )
+                return
+            }
             guard !finished else {
                 startupError = AOSAnnotationSelectionFailure(
                     code: "ANNOTATION_SELECTION_CANCELED",
@@ -321,13 +320,6 @@ private final class AOSAnnotationSelectionSession {
             }
             guard !NSScreen.screens.isEmpty else {
                 startupError = AOSAnnotationSelectionFailure(code: "ANNOTATION_DISPLAY_UNAVAILABLE", message: "no display is available for annotation selection")
-                return
-            }
-            if mode == .target, !AXIsProcessTrusted() {
-                startupError = AOSAnnotationSelectionFailure(
-                    code: "ANNOTATION_ACCESSIBILITY_UNAVAILABLE",
-                    message: "Accessibility permission is required for semantic target selection"
-                )
                 return
             }
             originalApplication = NSWorkspace.shared.frontmostApplication
@@ -344,25 +336,12 @@ private final class AOSAnnotationSelectionSession {
                 panel.backgroundColor = .clear
                 panel.hasShadow = false
                 panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-                if mode == .target {
-                    let view = AOSAnnotationTargetSelectionView(
-                        frame: NSRect(origin: .zero, size: screen.frame.size),
-                        onMove: { [weak self] point in self?.scheduleTargetRefresh(at: point) },
-                        onCycle: { [weak self] delta in self?.cycleTarget(delta) },
-                        onCommit: { [weak self] point in self?.completeTarget(at: point) },
-                        onCancel: { [weak self] reason in self?.cancel(reason: reason) }
-                    )
-                    targetViews.append(view)
-                    panel.acceptsMouseMovedEvents = true
-                    panel.contentView = view
-                } else {
-                    panel.contentView = AOSAnnotationSelectionView(
-                        frame: NSRect(origin: .zero, size: screen.frame.size),
-                        mode: mode,
-                        onComplete: { [weak self] points, text in self?.complete(points: points, text: text) },
-                        onCancel: { [weak self] reason in self?.cancel(reason: reason) }
-                    )
-                }
+                panel.contentView = AOSAnnotationSelectionView(
+                    frame: NSRect(origin: .zero, size: screen.frame.size),
+                    mode: mode,
+                    onComplete: { [weak self] points, text in self?.complete(points: points, text: text) },
+                    onCancel: { [weak self] reason in self?.cancel(reason: reason) }
+                )
                 panels.append(panel)
                 panel.orderFrontRegardless()
             }
@@ -370,9 +349,6 @@ private final class AOSAnnotationSelectionSession {
             panels.first?.makeKey()
             panels.first?.makeFirstResponder(panels.first?.contentView)
             emit("selection_started", ["mode": mode.rawValue])
-            if mode == .target {
-                scheduleTargetRefresh(at: NSEvent.mouseLocation)
-            }
         }
         if let startupError { throw startupError }
     }
@@ -421,111 +397,36 @@ private final class AOSAnnotationSelectionSession {
         terminal(token)
     }
 
-    private func applyTargetResolution(_ resolution: AOSAnnotationTargetResolution?) {
-        guard !finished else { return }
-        guard let resolution else {
-            targetCandidates = []
-            targetIndex = -1
-            targetApplication = nil
-            targetWindow = nil
-            renderTargets()
-            return
-        }
-        let previousContext = aosAnnotationTargetContextIdentity(
-            application: targetApplication,
-            window: targetWindow
-        )
-        let nextContext = aosAnnotationTargetContextIdentity(
-            application: resolution.application,
-            window: resolution.window
-        )
-        targetIndex = aosAnnotationTargetReconciledIndex(
-            previousCandidates: targetCandidates,
-            previousIndex: targetIndex,
-            previousContext: previousContext,
-            nextCandidates: resolution.candidates,
-            nextContext: nextContext
-        )
-        targetCandidates = resolution.candidates
-        targetApplication = resolution.application
-        targetWindow = resolution.window
-        renderTargets()
-    }
-
-    private func scheduleTargetRefresh(at point: CGPoint) {
-        guard !finished, !targetCommitPending else { return }
-        targetPendingPoint = point
-        guard targetRefreshWorkItem == nil else { return }
-        let work = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.targetRefreshWorkItem = nil
-            guard let point = self.targetPendingPoint else { return }
-            self.targetPendingPoint = nil
-            self.targetResolutionWorker.request(at: point) { [weak self] resolution in
-                self?.applyTargetResolution(resolution)
-            }
-        }
-        targetRefreshWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + (1.0 / 30.0), execute: work)
-    }
-
-    private func cycleTarget(_ delta: Int) {
-        guard !finished, !targetCommitPending, !targetCandidates.isEmpty else { return }
-        targetIndex = min(max(0, targetIndex + delta), targetCandidates.count - 1)
-        renderTargets()
-    }
-
-    private func renderTargets() {
-        for view in targetViews {
-            view.render(candidates: targetCandidates, selectedIndex: targetIndex)
-        }
-    }
-
-    private func completeTarget(at point: CGPoint) {
-        guard !finished, !targetCommitPending else { return }
-        targetRefreshWorkItem?.cancel()
-        targetRefreshWorkItem = nil
-        targetPendingPoint = nil
-        targetCommitPending = true
-        targetResolutionWorker.request(at: point) { [weak self] resolution in
-            guard let self, !self.finished else { return }
-            self.targetCommitPending = false
-            self.applyTargetResolution(resolution)
-            self.commitResolvedTarget()
-        }
-    }
-
-    private func commitResolvedTarget() {
-        guard !finished,
-              targetIndex >= 0,
-              targetIndex < targetCandidates.count,
-              let application = targetApplication else {
-            NSSound.beep()
-            return
-        }
-        finished = true
-        let candidate = targetCandidates[targetIndex]
-        closePanels()
-        emit("selection_completed", [
-            "selection_id": "sel-\(UUID().uuidString.lowercased())",
-            "mode": mode.rawValue,
-            "geometry": aosAnnotationTargetGeometry(candidate),
-            "application": application,
-            "window": targetWindow ?? NSNull(),
-            "text": NSNull(),
-        ])
-        terminal(token)
-    }
-
     private func closePanels() {
-        targetRefreshWorkItem?.cancel()
-        targetRefreshWorkItem = nil
-        targetPendingPoint = nil
-        if mode == .target { targetResolutionWorker.close() }
         for panel in panels { panel.orderOut(nil) }
         panels.removeAll()
-        targetViews.removeAll()
         originalApplication?.activate()
+    }
+}
+
+private func aosMakeAnnotationSelectionSession(
+    owner: UUID,
+    ref: String?,
+    mode: AOSAnnotationSelectionMode,
+    emit: @escaping (String, [String: Any]) -> Void,
+    terminal: @escaping (UUID) -> Void
+) -> any AOSAnnotationSelectionSession {
+    switch mode {
+    case .target:
+        return AOSAnnotationTargetSelectionSession(
+            owner: owner,
+            ref: ref,
+            emit: emit,
+            terminal: terminal
+        )
+    case .point, .rectangle, .freehand, .text:
+        return AOSAnnotationGeometrySelectionSession(
+            owner: owner,
+            ref: ref,
+            mode: mode,
+            emit: emit,
+            terminal: terminal
+        )
     }
 }
 
@@ -534,11 +435,7 @@ final class AOSAnnotationSelectionTransport {
 
     private let lock = NSLock()
     private let emit: EventEmitter
-    private let targetResolverQueue = DispatchQueue(
-        label: "io.agent-os.annotation-target-resolution",
-        qos: .userInteractive
-    )
-    private var session: AOSAnnotationSelectionSession?
+    private var session: (any AOSAnnotationSelectionSession)?
 
     init(emit: @escaping EventEmitter) { self.emit = emit }
 
@@ -551,11 +448,10 @@ final class AOSAnnotationSelectionTransport {
             lock.unlock()
             throw AOSAnnotationSelectionFailure(code: "ANNOTATION_SELECTION_BUSY", message: "an annotation selection is already active")
         }
-        let next = AOSAnnotationSelectionSession(
+        let next = aosMakeAnnotationSelectionSession(
             owner: owner,
             ref: ref,
             mode: mode,
-            targetResolverQueue: targetResolverQueue,
             emit: { [emit] event, data in emit(owner, event, data, ref) },
             terminal: { [weak self] token in self?.didTerminate(token: token) }
         )

@@ -45,23 +45,6 @@ func getDisplays() -> [DisplayEntry] {
     ]
 }
 
-struct AXSemanticTargetEvidence {
-    let role: String
-    let title: String?
-    let label: String?
-    let bounds: CGRect?
-}
-
-func axSemanticTargetPathAtPoint(
-    pid: pid_t,
-    point: CGPoint,
-    maxDepth: Int,
-    messagingTimeout: Float,
-    operationTimeout: TimeInterval
-) -> [AXSemanticTargetEvidence]? {
-    nil
-}
-
 func aosRunOnMainSync(_ operation: () -> Void) {
     if Thread.isMainThread { operation() }
     else { DispatchQueue.main.sync(execute: operation) }
@@ -116,6 +99,7 @@ struct AnnotationSelectionNativeTest {
         require(freehand["bounds"] as? [String: Any] != nil, "freehand bounds are missing")
         require(aosAnnotationGeometry(mode: .point, screenPoints: [CGPoint(x: CGFloat.nan, y: 1)]) == nil, "non-finite geometry was accepted")
         require(aosAnnotationGeometry(mode: .target, screenPoints: [CGPoint(x: 1, y: 1)]) == nil, "target mode produced point geometry")
+        runAXSemanticTargetTraversalTests()
 
         let targetNodes = [
             AOSAnnotationTargetNode(role: "AXApplication", title: nil, label: nil, bounds: CGRect(x: 0, y: 0, width: 900, height: 700)),
@@ -369,32 +353,20 @@ SWIFT
 
 swiftc -parse-as-library \
     "$ROOT/src/shared/types.swift" \
+    "$ROOT/src/perceive/ax-semantic-target.swift" \
     "$ROOT/src/daemon/annotation-selection.swift" \
     "$ROOT/src/daemon/annotation-target-selection.swift" \
+    "$ROOT/tests/lib/annotation-semantic-target-traversal-tests.swift" \
     "$TMP/main.swift" \
     -o "$TMP/annotation-selection-native"
 "$TMP/annotation-selection-native"
 
-if grep -q 'AXIsProcessTrusted' "$ROOT/src/daemon/annotation-target-selection.swift"; then
-    echo "FAIL: semantic target hover must not probe TCC permission" >&2
+if grep -q 'AXIsProcessTrusted' "$ROOT/src/daemon/annotation-selection.swift"; then
+    echo "FAIL: generic annotation selection must not own target TCC admission" >&2
     exit 1
 fi
 
-if [[ "$(grep -c 'AXIsProcessTrusted' "$ROOT/src/daemon/annotation-selection.swift")" -ne 1 ]]; then
-    echo "FAIL: semantic target selection must probe Accessibility exactly once at admission" >&2
-    exit 1
-fi
-
-MINIMAL_AX_BLOCK="$(sed -n '/private func axSemanticTargetAttribute/,/MARK: - Raw Ancestor Evidence/p' "$ROOT/src/perceive/ax.swift")"
-if grep -Eq 'axValue|axActions|axBool|axSettableAttributes|kAXValueAttribute' <<<"$MINIMAL_AX_BLOCK"; then
-    echo "FAIL: semantic target hover reads sensitive AX values or mutation facts" >&2
-    exit 1
-fi
-if ! grep -q 'AXUIElementSetMessagingTimeout(element, callTimeout)' "$ROOT/src/perceive/ax.swift"; then
-    echo "FAIL: semantic target child reads are not covered by the bounded AX timeout" >&2
-    exit 1
-fi
-if ! grep -q 'ProcessInfo.processInfo.systemUptime < deadline' "$ROOT/src/perceive/ax.swift"; then
-    echo "FAIL: semantic target traversal lacks an overall operation deadline" >&2
+if [[ "$(grep -c 'AXIsProcessTrusted' "$ROOT/src/daemon/annotation-target-selection.swift")" -ne 1 ]]; then
+    echo "FAIL: target selection session must probe Accessibility exactly once at admission" >&2
     exit 1
 fi

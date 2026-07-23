@@ -399,3 +399,223 @@ final class AOSAnnotationTargetSelectionView: NSView {
         )
     }
 }
+
+final class AOSAnnotationTargetSelectionSession: AOSAnnotationSelectionSession {
+    let token = UUID()
+    let owner: UUID
+    let ref: String?
+
+    private static let resolverQueue = DispatchQueue(
+        label: "io.agent-os.annotation-target-resolution",
+        qos: .userInteractive
+    )
+
+    private let emit: (String, [String: Any]) -> Void
+    private let terminal: (UUID) -> Void
+    private var application: [String: Any]?
+    private var candidates: [AOSAnnotationTargetCandidate] = []
+    private var commitPending = false
+    private var finished = false
+    private var index = -1
+    private var originalApplication: NSRunningApplication?
+    private var panels: [AOSAnnotationSelectionPanel] = []
+    private var pendingPoint: CGPoint?
+    private var refreshWorkItem: DispatchWorkItem?
+    private var views: [AOSAnnotationTargetSelectionView] = []
+    private var window: [String: Any]?
+    private lazy var resolutionWorker = AOSAnnotationTargetResolutionWorker(
+        resolverQueue: Self.resolverQueue
+    ) {
+        aosResolveAnnotationTargets(at: $0)
+    }
+
+    init(
+        owner: UUID,
+        ref: String?,
+        emit: @escaping (String, [String: Any]) -> Void,
+        terminal: @escaping (UUID) -> Void
+    ) {
+        self.owner = owner
+        self.ref = ref
+        self.emit = emit
+        self.terminal = terminal
+    }
+
+    func start() throws {
+        var startupError: AOSAnnotationSelectionFailure?
+        aosRunOnMainSync {
+            guard !finished else {
+                startupError = AOSAnnotationSelectionFailure(
+                    code: "ANNOTATION_SELECTION_CANCELED",
+                    message: "annotation selection was canceled before startup"
+                )
+                return
+            }
+            guard !NSScreen.screens.isEmpty else {
+                startupError = AOSAnnotationSelectionFailure(
+                    code: "ANNOTATION_DISPLAY_UNAVAILABLE",
+                    message: "no display is available for annotation selection"
+                )
+                return
+            }
+            guard AXIsProcessTrusted() else {
+                startupError = AOSAnnotationSelectionFailure(
+                    code: "ANNOTATION_ACCESSIBILITY_UNAVAILABLE",
+                    message: "Accessibility permission is required for semantic target selection"
+                )
+                return
+            }
+
+            originalApplication = NSWorkspace.shared.frontmostApplication
+            for screen in NSScreen.screens {
+                let panel = AOSAnnotationSelectionPanel(
+                    contentRect: screen.frame,
+                    styleMask: [.borderless],
+                    backing: .buffered,
+                    defer: false
+                )
+                panel.setFrame(screen.frame, display: true)
+                panel.level = .screenSaver
+                panel.isOpaque = false
+                panel.backgroundColor = .clear
+                panel.hasShadow = false
+                panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+                let view = AOSAnnotationTargetSelectionView(
+                    frame: NSRect(origin: .zero, size: screen.frame.size),
+                    onMove: { [weak self] point in self?.scheduleRefresh(at: point) },
+                    onCycle: { [weak self] delta in self?.cycle(delta) },
+                    onCommit: { [weak self] point in self?.complete(at: point) },
+                    onCancel: { [weak self] reason in self?.cancel(reason: reason) }
+                )
+                views.append(view)
+                panel.acceptsMouseMovedEvents = true
+                panel.contentView = view
+                panels.append(panel)
+                panel.orderFrontRegardless()
+            }
+            NSApp.activate(ignoringOtherApps: true)
+            panels.first?.makeKey()
+            panels.first?.makeFirstResponder(panels.first?.contentView)
+            emit("selection_started", ["mode": AOSAnnotationSelectionMode.target.rawValue])
+            scheduleRefresh(at: NSEvent.mouseLocation)
+        }
+        if let startupError { throw startupError }
+    }
+
+    func cancel(reason: String) {
+        aosRunOnMainSync {
+            guard !finished else { return }
+            finished = true
+            close()
+            emit("selection_canceled", ["reason": reason])
+            terminal(token)
+        }
+    }
+
+    private func apply(_ resolution: AOSAnnotationTargetResolution?) {
+        guard !finished else { return }
+        guard let resolution else {
+            candidates = []
+            index = -1
+            application = nil
+            window = nil
+            render()
+            return
+        }
+        let previousContext = aosAnnotationTargetContextIdentity(
+            application: application,
+            window: window
+        )
+        let nextContext = aosAnnotationTargetContextIdentity(
+            application: resolution.application,
+            window: resolution.window
+        )
+        index = aosAnnotationTargetReconciledIndex(
+            previousCandidates: candidates,
+            previousIndex: index,
+            previousContext: previousContext,
+            nextCandidates: resolution.candidates,
+            nextContext: nextContext
+        )
+        candidates = resolution.candidates
+        application = resolution.application
+        window = resolution.window
+        render()
+    }
+
+    private func scheduleRefresh(at point: CGPoint) {
+        guard !finished, !commitPending else { return }
+        pendingPoint = point
+        guard refreshWorkItem == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.refreshWorkItem = nil
+            guard let point = self.pendingPoint else { return }
+            self.pendingPoint = nil
+            self.resolutionWorker.request(at: point) { [weak self] resolution in
+                self?.apply(resolution)
+            }
+        }
+        refreshWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + (1.0 / 30.0), execute: work)
+    }
+
+    private func cycle(_ delta: Int) {
+        guard !finished, !commitPending, !candidates.isEmpty else { return }
+        index = min(max(0, index + delta), candidates.count - 1)
+        render()
+    }
+
+    private func render() {
+        for view in views {
+            view.render(candidates: candidates, selectedIndex: index)
+        }
+    }
+
+    private func complete(at point: CGPoint) {
+        guard !finished, !commitPending else { return }
+        refreshWorkItem?.cancel()
+        refreshWorkItem = nil
+        pendingPoint = nil
+        commitPending = true
+        resolutionWorker.request(at: point) { [weak self] resolution in
+            guard let self, !self.finished else { return }
+            self.commitPending = false
+            self.apply(resolution)
+            self.commitResolvedTarget()
+        }
+    }
+
+    private func commitResolvedTarget() {
+        guard !finished,
+              index >= 0,
+              index < candidates.count,
+              let application else {
+            NSSound.beep()
+            return
+        }
+        finished = true
+        let candidate = candidates[index]
+        close()
+        emit("selection_completed", [
+            "selection_id": "sel-\(UUID().uuidString.lowercased())",
+            "mode": AOSAnnotationSelectionMode.target.rawValue,
+            "geometry": aosAnnotationTargetGeometry(candidate),
+            "application": application,
+            "window": window ?? NSNull(),
+            "text": NSNull(),
+        ])
+        terminal(token)
+    }
+
+    private func close() {
+        refreshWorkItem?.cancel()
+        refreshWorkItem = nil
+        pendingPoint = nil
+        resolutionWorker.close()
+        for panel in panels { panel.orderOut(nil) }
+        panels.removeAll()
+        views.removeAll()
+        originalApplication?.activate()
+    }
+}
