@@ -189,9 +189,11 @@
         "shared/schemas/fixtures/daemon-event/**/annotation-*.json",
         "src/daemon/annotation-selection.swift",
         "src/daemon/annotation-target-selection.swift",
+        "src/perceive/ax-semantic-target.swift",
         "src/perceive/ax.swift",
         "tests/annotation-select-cli.test.mjs",
         "tests/annotation-selection-native.sh",
+        "tests/lib/annotation-semantic-target-traversal-tests.swift",
         "tests/schemas/aos-pending-annotation-v0.test.mjs",
         "tests/schemas/daemon-event.test.mjs",
         "tests/toolkit/pending-annotation-model.test.mjs"
