@@ -2,6 +2,7 @@ import {
   isCanonicalSceneId,
   isSceneRecord,
 } from './scene-contract-primitives.js'
+import { normalizeSceneExtensionInteractionRouteState } from './scene-extension-route-inspection.js'
 import { validateSceneDocument } from './scene-document.js'
 
 export const SCENE_EXTENSION_CONTRACT_ID = 'aos.scene.extension.v1'
@@ -454,6 +455,17 @@ export function validateSceneExtensionProjection(projection) {
       addError(errors, 'missing_projection_method', `projection.${method}`, `Scene extension projection requires ${method}().`)
     }
   }
+  if (
+    projection.inspectInteractionRoute !== undefined
+    && typeof projection.inspectInteractionRoute !== 'function'
+  ) {
+    addError(
+      errors,
+      'invalid_projection_method',
+      'projection.inspectInteractionRoute',
+      'Scene extension projection inspectInteractionRoute must be a function when provided.',
+    )
+  }
   return { ok: errors.length === 0, errors }
 }
 
@@ -543,6 +555,11 @@ export function createTrustedSceneExtensionRegistry(input = {}) {
               contextLost: (...args) => callLifecycleHook('contextLost', args),
               contextRestored: (...args) => callLifecycleHook('contextRestored', args),
               dispose: disposeProjection,
+              inspectInteractionRoute: typeof projection.inspectInteractionRoute === 'function'
+                ? () => normalizeSceneExtensionInteractionRouteState(
+                  callSynchronousProjectionHook(projection, 'inspectInteractionRoute'),
+                )
+                : undefined,
               resourceMetrics: () => currentMetrics,
               resume: (...args) => callLifecycleHook('resume', args),
               suspend: (...args) => callLifecycleHook('suspend', args),

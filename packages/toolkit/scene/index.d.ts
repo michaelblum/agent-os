@@ -4,6 +4,7 @@ export * from './scene-interaction.js';
 export * from './scene-interaction-visual.js';
 export * from './scene-radial-menu.js';
 export * from './scene-extension.js';
+export * from './scene-extension-route-inspection.js';
 export * from './desktop-world-devtools.js';
 export * from './desktop-world-devtools-view.js';
 export * from './desktop-world-client.js';

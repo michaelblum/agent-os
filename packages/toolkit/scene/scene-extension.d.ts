@@ -5,6 +5,7 @@ import type {
   SceneValidationResult,
 } from './index.js';
 import type { SceneInteractionVisualEvent } from './scene-interaction-visual.js';
+import type { SceneExtensionInteractionRouteState } from './scene-extension-route-inspection.js';
 
 export type SceneExtensionReadonly<T> =
   T extends (...args: never[]) => unknown ? never
@@ -81,6 +82,12 @@ export interface SceneExtensionProjection {
   applyInteraction?(event: SceneExtensionReadonly<SceneInteractionVisualEvent>):
     | boolean
     | Readonly<{ handled: boolean; routeStarted?: boolean }>;
+  /**
+   * Optional bounded observability hook. It exposes only engine-defined
+   * interaction facts and is sampled only while DesktopWorld inspection is
+   * enabled.
+   */
+  inspectInteractionRoute?(): Readonly<SceneExtensionInteractionRouteState> | null;
   applySignal(binding: Readonly<SceneSignalBinding>, value: number): void;
   applyAnimation(binding: Readonly<SceneAnimationBinding>, value: number): void;
   tick(elapsedMs: number): void;

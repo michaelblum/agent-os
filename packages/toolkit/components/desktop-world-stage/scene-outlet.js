@@ -12,7 +12,10 @@ import {
   disposeDesktopWorldSceneMountedResource,
   sameSceneExtensionReference,
 } from './scene-mounted-resource.js'
-import { createSceneOutletDevToolsSnapshot } from './scene-outlet-devtools.js'
+import {
+  createSceneOutletDevToolsSnapshot,
+  emitSceneOutletRouteStartedSnapshot,
+} from './scene-outlet-devtools.js'
 import {
   DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS,
   createSceneSegmentResourceBudget,
@@ -492,6 +495,7 @@ export function createDesktopWorldSceneOutlet({
       const visual = extension.handled
         ? extension
         : ensureInteractionVisuals(mounted).apply(input)
+      emitSceneOutletRouteStartedSnapshot(devtoolsProbe, visual)
       if (!visual.routeStarted) mounted.projection.setObjectPosition(response.objectId, response.position)
       return { ...response, applied: true, revision }
     }

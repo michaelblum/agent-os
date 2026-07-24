@@ -159,6 +159,37 @@ test('DesktopWorld exposes bounded synchronous extension interaction results', (
   assert.deepEqual(observed, ['aim_commit'])
 })
 
+test('DesktopWorld exposes only normalized extension interaction inspection', () => {
+  const extension = factory({}, {
+    inspectInteractionRoute() {
+      return {
+        active: true,
+        destination: [900, 600],
+        kind: 'wormhole',
+        origin: [400, 300],
+        progress: 0.25,
+      }
+    },
+  })
+  const registry = createTrustedSceneExtensionRegistry({ factories: [extension] })
+  const result = createDesktopWorldSceneProjection({
+    THREE: { REVISION: SCENE_EXTENSION_THREE_REVISION },
+    document: scene(),
+    expectedOwner: ownerId,
+    extensionReference: reference(),
+    extensionRegistry: registry,
+  })
+
+  assert.deepEqual(result.projection.inspectInteractionRoute(), {
+    active: true,
+    destination: [900, 600],
+    kind: 'wormhole',
+    origin: [400, 300],
+    progress: 0.25,
+  })
+  assert.equal(Object.isFrozen(result.projection.inspectInteractionRoute().destination), true)
+})
+
 test('DesktopWorld gives trusted extensions a bounded deep-frozen interaction snapshot', () => {
   let observed = null
   const extension = factory({}, {

@@ -1,3 +1,11 @@
+export function emitSceneOutletRouteStartedSnapshot(probe, visualResult) {
+  if (
+    visualResult?.routeStarted !== true
+    || typeof probe?.emitSnapshot !== 'function'
+  ) return false
+  return probe.emitSnapshot() === true
+}
+
 export function createSceneOutletDevToolsSnapshot(
   resources,
   { stageFault = null, stageSuspended = false } = {},
@@ -9,6 +17,7 @@ export function createSceneOutletDevToolsSnapshot(
     .sort((left, right) => left.resource.localeCompare(right.resource))
   for (const mounted of orderedResources) {
     const implementationIds = new Set()
+    let extensionInspectionErrorCode = null
     const resourceById = new Map(mounted.document.resources.map((entry) => [entry.id, entry]))
     for (const descriptor of mounted.document.resources) implementationIds.add(descriptor.implementation)
     for (const object of mounted.document.objects) {
@@ -25,14 +34,27 @@ export function createSceneOutletDevToolsSnapshot(
         visible: object.visible !== false && !mounted.suspended && !stageSuspended && !stageFault,
       })
     }
+    let extensionRoute = null
+    if (typeof mounted.projection.inspectInteractionRoute === 'function') {
+      try {
+        extensionRoute = mounted.projection.inspectInteractionRoute()
+      } catch {
+        extensionInspectionErrorCode = 'SCENE_EXTENSION_INSPECTION_FAILED'
+      }
+    }
     const visualSnapshot = mounted.interactionVisuals?.snapshot()
-    if (visualSnapshot?.route?.objectId) {
+    const route = extensionInspectionErrorCode === null
+      ? extensionRoute ?? (
+        visualSnapshot?.route?.objectId ? visualSnapshot.route : null
+      )
+      : null
+    if (route) {
       routes.push({
-        active: visualSnapshot.route.active,
-        destination: visualSnapshot.route.destination,
-        kind: visualSnapshot.route.kind,
-        origin: visualSnapshot.route.origin,
-        progress: visualSnapshot.route.progress,
+        active: route.active,
+        destination: route.destination,
+        kind: route.kind,
+        origin: route.origin,
+        progress: route.progress,
         resourceId: mounted.resource,
       })
     }
@@ -62,6 +84,7 @@ export function createSceneOutletDevToolsSnapshot(
       sceneId: mounted.document.id,
       signalCount: mounted.signals.snapshot().bindings.length,
       suspended: mounted.suspended,
+      errorCode: stageFault?.code ?? extensionInspectionErrorCode,
     })
   }
   nodes.sort((left, right) => (

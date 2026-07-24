@@ -139,6 +139,13 @@ Validation compiles but does not execute the projection body. Installation is
 the explicit executable-authority boundary. Never install a digest that was
 not the exact independently reviewed artifact.
 
+When an extension owns a line or wormhole interaction route, implement the
+exact synchronous `inspectInteractionRoute()` hook so AOS DevTools and
+`scene monitor` can observe it. Return only `active`, `kind`, `progress`, and
+global DesktopWorld `origin`/`destination` points. AOS validates the bounded
+shape and stamps the resource identity. Do not expose product text, audio,
+source objects, object IDs, or arbitrary diagnostics through this hook.
+
 ## Inspect, Profile, And Monitor
 
 Use content-free machine-readable facts:

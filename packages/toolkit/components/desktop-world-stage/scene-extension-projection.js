@@ -118,6 +118,9 @@ function extensionProjectionAdapter(projection, releaseExtension) {
       return result
     },
     resourceMetrics: () => projection.resourceMetrics(),
+    inspectInteractionRoute: typeof projection.inspectInteractionRoute === 'function'
+      ? () => projection.inspectInteractionRoute()
+      : undefined,
     resume: (...args) => projection.resume.apply(projection, args),
     suspend: (...args) => projection.suspend.apply(projection, args),
     tick: (...args) => projection.tick.apply(projection, args),
