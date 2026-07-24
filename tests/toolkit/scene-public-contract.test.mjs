@@ -103,6 +103,7 @@ const EXPECTED_EXPORTS = [
   'normalizeDesktopWorldDevToolsStageSnapshot',
   'normalizeDesktopWorldSceneEvent',
   'normalizeDesktopWorldSceneResultErrorCode',
+  'normalizeSceneExtensionInteractionRouteState',
   'normalizeSceneRadialMenuParameters',
   'resolveSceneCartridge',
   'resolveSceneAffordanceFrame',
@@ -187,6 +188,7 @@ test('focused scene entry points expose their owned contract families', () => {
 
   assert.equal(typeof extensionToolkit.validateSceneExtensionManifest, 'function')
   assert.equal(typeof extensionToolkit.createTrustedSceneExtensionRegistry, 'function')
+  assert.equal(typeof extensionToolkit.normalizeSceneExtensionInteractionRouteState, 'function')
   assert.equal(Object.hasOwn(extensionToolkit, 'createDesktopWorldSceneSession'), false)
 
   assert.equal(typeof devtoolsToolkit.createDesktopWorldDevToolsView, 'function')

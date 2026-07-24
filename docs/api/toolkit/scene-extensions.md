@@ -53,6 +53,20 @@ before the extension's route animation begins. AOS has already committed the
 canonical destination and remains responsible for recognition, native hit
 regions, cancellation, event delivery, and recovery.
 
+An extension that owns route rendering may also implement
+`inspectInteractionRoute()`. The hook returns either `null` or one exact
+bounded route with only `active`, `kind`, `origin`, `destination`, and
+`progress`. Origin and destination are two-number points in the global
+DesktopWorld coordinate plane. AOS samples it only while inspection is enabled,
+stamps the resource identity itself, and uses the result for `scene inspect`,
+`scene monitor`, and DevTools snapshots. Product state, text, audio, scene
+source, object IDs, and arbitrary extension diagnostics are not part of this
+boundary. Invalid inspection output is omitted and reported as
+`SCENE_EXTENSION_INSPECTION_FAILED` without faulting the scene.
+When a committed route reports `routeStarted`, AOS emits one immediate
+DevTools snapshot after the extension has established this state. Periodic
+progress remains bounded by the normal DevTools sampling cadence.
+
 The manifest binds owner, extension ID, sorted implementation IDs, scene ABI,
 AOS's pinned Three revision, finite resource budgets, and the projection body
 SHA-256. `serializeSceneExtensionDigestMaterial()` is the digest authority.

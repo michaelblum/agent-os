@@ -167,6 +167,10 @@ export {
 } from './scene-extension.js'
 
 export {
+  normalizeSceneExtensionInteractionRouteState,
+} from './scene-extension-route-inspection.js'
+
+export {
   GENERIC_SCENE_IMPLEMENTATIONS,
   createGenericSceneImplementationRegistry,
   createGenericThreeSceneProjection,

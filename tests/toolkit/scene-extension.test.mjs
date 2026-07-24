@@ -10,6 +10,7 @@ import {
   SCENE_EXTENSION_THREE_REVISION,
   createTrustedSceneExtensionRegistry,
   inspectSceneExtensionProjectionResources,
+  normalizeSceneExtensionInteractionRouteState,
   serializeSceneExtensionDigestMaterial,
   validateSceneExtensionManifest,
   validateSceneExtensionReference,
@@ -172,11 +173,88 @@ test('scene extension digest material binds manifest authority and factory-body 
 
 test('projection validation requires one object subtree and the complete lifecycle ABI', () => {
   assert.deepEqual(validateSceneExtensionProjection(projection()), { ok: true, errors: [] })
-  const invalid = projection({ object: null, applySignal: null, contextRestored: undefined })
+  const invalid = projection({
+    object: null,
+    applySignal: null,
+    contextRestored: undefined,
+    inspectInteractionRoute: 'invalid',
+  })
   const codes = errorCodes(validateSceneExtensionProjection(invalid))
   assert.equal(codes.has('invalid_projection_object'), true)
   assert.equal(codes.has('missing_projection_method'), true)
+  assert.equal(codes.has('invalid_projection_method'), true)
   assert.equal(validateSceneExtensionProjection(null).ok, false)
+})
+
+test('extension interaction inspection accepts only bounded content-free route facts', () => {
+  const input = {
+    active: true,
+    destination: [900, 600],
+    kind: 'line',
+    origin: [400, 300],
+    progress: 0.5,
+  }
+  const inspection = normalizeSceneExtensionInteractionRouteState(input)
+  assert.deepEqual(inspection, input)
+  assert.notEqual(inspection, input)
+  assert.equal(Object.isFrozen(inspection), true)
+  assert.equal(Object.isFrozen(inspection.origin), true)
+  assert.deepEqual(normalizeSceneExtensionInteractionRouteState(null), null)
+  assert.throws(
+    () => normalizeSceneExtensionInteractionRouteState(undefined),
+    /must be an object/u,
+  )
+
+  const customIterableDestination = [900, 600]
+  Object.setPrototypeOf(customIterableDestination, {
+    *[Symbol.iterator]() {
+      yield 900
+      yield 600
+      yield 'product-secret'
+    },
+  })
+  assert.deepEqual(
+    normalizeSceneExtensionInteractionRouteState({
+      ...input,
+      destination: customIterableDestination,
+    }).destination,
+    [900, 600],
+  )
+
+  for (const malformed of [
+    { ...input, transcript: 'must not escape' },
+    { ...input, progress: 2 },
+    { ...input, kind: 'product-transition' },
+    { ...input, origin: [0, 0, 0] },
+    { ...input, origin: Object.assign(Array(2), { 1: 0 }) },
+    { ...input, origin: Object.assign([0, 0], { transcript: 'must not escape' }) },
+  ]) {
+    assert.throws(
+      () => normalizeSceneExtensionInteractionRouteState(malformed),
+      /Scene extension interaction/u,
+    )
+  }
+  let getterCalls = 0
+  const getter = { ...input }
+  Object.defineProperty(getter, 'active', {
+    enumerable: true,
+    get() {
+      getterCalls += 1
+      return true
+    },
+  })
+  assert.throws(
+    () => normalizeSceneExtensionInteractionRouteState(getter),
+    /invalid fields/u,
+  )
+  assert.equal(getterCalls, 0)
+  assert.throws(
+    () => normalizeSceneExtensionInteractionRouteState(Object.assign(
+      Object.create({ inherited: true }),
+      input,
+    )),
+    /invalid fields/u,
+  )
 })
 
 test('factory and projection hooks reject Promise-like results from the synchronous ABI', async (t) => {
@@ -199,6 +277,7 @@ test('factory and projection hooks reject Promise-like results from the synchron
     'contextLost',
     'contextRestored',
     'dispose',
+    'inspectInteractionRoute',
     'resume',
     'suspend',
     'tick',

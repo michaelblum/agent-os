@@ -91,6 +91,11 @@ stage internals.
   instrumentation creates no timer, RAF, stage read, or per-frame allocation.
   The daemon owns revisioned session and host-lease state; consumers may host
   the public view but never own or fork its telemetry.
+- Trusted extensions may expose only the exact synchronous
+  `inspectInteractionRoute()` contract to DesktopWorld DevTools. AOS validates
+  and stamps these engine-defined route facts. Product state, text, audio,
+  source objects, object IDs, arbitrary diagnostics, and extension-owned
+  snapshot schemas must not enter this boundary.
 - DevTools display facts use `bounds` for DesktopWorld-local geometry and
   optional `nativeBounds` for native global geometry. A consumer translating
   scene coordinates into native input must require the latter rather than

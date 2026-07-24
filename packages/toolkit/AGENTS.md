@@ -57,6 +57,10 @@ owns interaction and the stage remains the sole telemetry sampler. ADRs 0026
 and 0027 own the cartridge, engine, DevTools, and host-transfer boundaries. The
 scene package's agent client remains transport-injected; socket discovery,
 daemon startup, and public CLI process lifecycle stay outside the toolkit.
+Trusted scene extensions may contribute only the bounded engine-defined
+interaction inspection contract to DevTools. Do not expose arbitrary
+extension snapshots, product state, text, audio, or source through stage
+telemetry.
 
 Legacy cross-display transfer outlines are superseded by One-World/union-backed
 surfaces. Do not grow that path. The AOS Surface System epic should replace

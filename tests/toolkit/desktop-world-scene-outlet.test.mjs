@@ -10,7 +10,10 @@ import {
   sceneStageShouldRender,
 } from '../../packages/toolkit/components/desktop-world-stage/scene-outlet.js'
 import { createScenePlaybackClock } from '../../packages/toolkit/components/desktop-world-stage/scene-playback-clock.js'
-import { createSceneOutletDevToolsSnapshot } from '../../packages/toolkit/components/desktop-world-stage/scene-outlet-devtools.js'
+import {
+  createSceneOutletDevToolsSnapshot,
+  emitSceneOutletRouteStartedSnapshot,
+} from '../../packages/toolkit/components/desktop-world-stage/scene-outlet-devtools.js'
 import {
   DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS,
   createSceneSegmentResourceBudget,
@@ -19,6 +22,7 @@ import {
 } from '../../packages/toolkit/components/desktop-world-stage/scene-resource-budget.js'
 import {
   compileSceneAnimationBindings,
+  createDesktopWorldDevToolsStageProbe,
   createSceneInteractionVisualController,
   resolveSceneAffordanceFrame,
 } from '../../packages/toolkit/scene/index.js'
@@ -458,7 +462,15 @@ test('scene outlet DevTools projection is deterministic, bounded, and read-only'
         components: [],
       }],
     },
-    projection: { objectPosition: () => position },
+    projection: {
+      objectPosition: () => position,
+      ...(Object.hasOwn(options, 'extensionInspection')
+        ? { inspectInteractionRoute: () => options.extensionInspection }
+        : {}),
+      ...(options.extensionInspectionThrows
+        ? { inspectInteractionRoute: () => { throw new Error('invalid inspection') } }
+        : {}),
+    },
     animations: { snapshot: () => ({ bindings: [{}] }) },
     signals: { snapshot: () => ({ bindings: [{}, {}] }) },
     interactionVisuals: options.route
@@ -484,6 +496,169 @@ test('scene outlet DevTools projection is deterministic, bounded, and read-only'
   assert.deepEqual(first.document.objects[0].transform.position, sourcePosition)
 })
 
+test('scene outlet DevTools prefers bounded extension route inspection and isolates failures', () => {
+  const base = {
+    resource: 'companion/main',
+    owner: 'example.consumer',
+    suspended: false,
+    extensionReference: { id: 'renderer', ownerId: 'example.consumer', digest: 'a'.repeat(64) },
+    document: {
+      id: 'companion/main',
+      revision: 3,
+      resources: [],
+      objects: [{
+        id: 'body',
+        parentId: null,
+        kind: 'group',
+        geometryId: null,
+        materialId: null,
+        transform: { position: [400, 300, 0] },
+        visible: true,
+        components: [],
+      }],
+    },
+    animations: { snapshot: () => ({ bindings: [] }) },
+    signals: { snapshot: () => ({ bindings: [] }) },
+    interactionVisuals: null,
+  }
+  const inspected = {
+    ...base,
+    interactionVisuals: {
+      snapshot: () => ({
+        route: {
+          active: false,
+          destination: [10, 20, 0],
+          kind: 'wormhole',
+          objectId: 'body',
+          origin: [0, 0, 0],
+          progress: 1,
+        },
+      }),
+    },
+    projection: {
+      objectPosition: () => [400, 300, 0],
+      inspectInteractionRoute: () => ({
+        active: true,
+        destination: [900, 600],
+        kind: 'line',
+        origin: [400, 300],
+        progress: 0.4,
+      }),
+    },
+  }
+  const failed = {
+    ...base,
+    resource: 'failed/main',
+    document: { ...base.document, id: 'failed/main' },
+    interactionVisuals: {
+      snapshot: () => ({
+        route: {
+          active: true,
+          destination: [50, 60],
+          kind: 'line',
+          objectId: 'body',
+          origin: [10, 20],
+          progress: 0.5,
+        },
+      }),
+    },
+    projection: {
+      objectPosition: () => [0, 0, 0],
+      inspectInteractionRoute: () => { throw new TypeError('malformed inspection') },
+    },
+  }
+  const fallback = {
+    ...base,
+    resource: 'fallback/main',
+    document: { ...base.document, id: 'fallback/main' },
+    interactionVisuals: {
+      snapshot: () => ({
+        route: {
+          active: true,
+          destination: [300, 220],
+          kind: 'wormhole',
+          objectId: 'body',
+          origin: [100, 120],
+          progress: 0.2,
+        },
+      }),
+    },
+    projection: {
+      objectPosition: () => [100, 120, 0],
+      inspectInteractionRoute: () => null,
+    },
+  }
+
+  const snapshot = createSceneOutletDevToolsSnapshot(new Map([
+    ['inspected', inspected],
+    ['failed', failed],
+    ['fallback', fallback],
+  ]))
+
+  assert.deepEqual(snapshot.routes, [
+    {
+      active: true,
+      destination: [900, 600],
+      kind: 'line',
+      origin: [400, 300],
+      progress: 0.4,
+      resourceId: 'companion/main',
+    },
+    {
+      active: true,
+      destination: [300, 220],
+      kind: 'wormhole',
+      origin: [100, 120],
+      progress: 0.2,
+      resourceId: 'fallback/main',
+    },
+  ])
+  assert.equal(
+    snapshot.resources.find((entry) => entry.id === 'failed/main').errorCode,
+    'SCENE_EXTENSION_INSPECTION_FAILED',
+  )
+  assert.equal(
+    snapshot.resources.find((entry) => entry.id === 'companion/main').errorCode,
+    null,
+  )
+})
+
+test('scene outlet emits an immediate snapshot only after a route actually starts', () => {
+  const emitted = []
+  let route = null
+  const probe = createDesktopWorldDevToolsStageProbe({
+    emit: (snapshot) => emitted.push(snapshot),
+    getStageFacts: () => ({
+      status: 'available',
+      world: {
+        affordances: [],
+        displays: [],
+        gestures: [],
+        hitRegions: [],
+        nodes: [],
+        routes: route == null ? [] : [route],
+      },
+      interactions: [],
+      resources: [],
+    }),
+  })
+  probe.configure({ enabled: true })
+
+  assert.equal(emitSceneOutletRouteStartedSnapshot(probe, { routeStarted: false }), false)
+  assert.equal(emitSceneOutletRouteStartedSnapshot(null, { routeStarted: true }), false)
+  route = {
+    active: true,
+    destination: [900, 600],
+    kind: 'line',
+    origin: [400, 300],
+    progress: 0,
+    resourceId: 'companion/main',
+  }
+  assert.equal(emitSceneOutletRouteStartedSnapshot(probe, { routeStarted: true }), true)
+  assert.equal(emitted.length, 1)
+  assert.deepEqual(emitted[0].world.routes, [route])
+})
+
 test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop', async () => {
   const [outlet, mountedResource, devtoolsSnapshot, stage, three, threeCore] = await Promise.all([
     readFile(outletURL, 'utf8'),
@@ -506,6 +681,7 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(mountedResource, /createSceneSignalController\(document/u)
   assert.match(outlet, /mounted\.animations\.tick\(elapsed\)/u)
   assert.match(outlet, /mounted\.projection\.tick\?\.\(elapsed\)/u)
+  assert.match(outlet, /emitSceneOutletRouteStartedSnapshot\(devtoolsProbe, visual\)/u)
   assert.match(outlet, /finally \{[\s\S]*if \(!stageFault\) scheduleRender\(\)/u)
   assert.match(outlet, /sceneStageShouldRender\(resources, hidden, contextLost, stageSuspended, Boolean\(stageFault\)\)/u)
   assert.match(outlet, /renderLoopActive: frame !== null/u)

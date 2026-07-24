@@ -14,7 +14,14 @@ function stage() {
     world: {
       displays: [{ id: 'main', index: 0, bounds: [0, 0, 1440, 900] }],
       nodes: [{ id: 'body', resourceId: 'companion/main', position: [100, 200, 0] }],
-      hitRegions: [], affordances: [], gestures: [], routes: [],
+      hitRegions: [], affordances: [], gestures: [], routes: [{
+        active: true,
+        destination: [900, 600],
+        kind: 'line',
+        origin: [400, 300],
+        progress: 0.25,
+        resourceId: 'companion/main',
+      }],
     },
     resources: [{ id: 'companion/main', owner: 'example', sceneId: 'companion', revision: 2, allocations: { geometries: 1 } }],
     interactions: [], performance: { enabled: true, sampleCount: 2, currentFps: 60 }, events: [],
@@ -98,7 +105,16 @@ test('scene agent tooling uses headless snapshots and a bounded monitor stream',
     }
     const monitor = await run(['monitor', '--resource', 'companion/main', '--follow', '--json'], env, { stopAfter: '"event":"monitor"' })
     assert.equal(monitor.code, 0, monitor.stderr)
-    assert.equal(JSON.parse(monitor.stdout).data.snapshot.resources[0].id, 'companion/main')
+    const monitorEvent = JSON.parse(monitor.stdout)
+    assert.equal(monitorEvent.data.snapshot.resources[0].id, 'companion/main')
+    assert.deepEqual(monitorEvent.data.snapshot.world.routes, [{
+      active: true,
+      destination: [900, 600],
+      kind: 'line',
+      origin: [400, 300],
+      progress: 0.25,
+      resourceId: 'companion/main',
+    }])
     const opened = received.filter((entry) => entry.action === 'devtools_open')
     const closed = received.filter((entry) => entry.action === 'devtools_close')
     assert.ok(opened.filter((entry) => entry.data.headless === true).length >= 3)
