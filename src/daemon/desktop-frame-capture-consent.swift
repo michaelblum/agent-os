@@ -6,11 +6,18 @@ enum AOSDesktopFrameRuntimeCaptureAdmission {
     case rejected(AOSDesktopFrameCaptureFailure)
 }
 
+private let aosDesktopFramePermissionRequestQueue = DispatchQueue(
+    label: "io.agent-os.desktop-frame.permission-request",
+    qos: .userInitiated
+)
+
 final class AOSDesktopFrameCaptureConsentController {
     static let maximumPrimeWaiters = 16
     static let permissionRequestLifetime: TimeInterval = 120
     static let probeLifetime: TimeInterval = 30
     static let probeMaximumPixels = 4_096
+    static let responseLifetime: TimeInterval =
+        permissionRequestLifetime + probeLifetime + 10
 
     typealias Completion = (AOSDesktopFrameDirectCaptureSnapshot) -> Void
     typealias DeadlineScheduler = (
@@ -59,7 +66,7 @@ final class AOSDesktopFrameCaptureConsentController {
             let work = DispatchWorkItem {
                 completion(CGRequestScreenCaptureAccess())
             }
-            DispatchQueue.main.async(execute: work)
+            aosDesktopFramePermissionRequestQueue.async(execute: work)
             return AOSDesktopFrameCancellation { work.cancel() }
         },
         scheduleDeadline: @escaping DeadlineScheduler = { delay, action in
@@ -316,9 +323,16 @@ final class AOSDesktopFrameCaptureConsentController {
         lock.lock()
         guard var active = activePrime,
               active.generation == generation,
-              active.phase == .requestingPermission,
-              !active.quarantined else {
+              active.phase == .requestingPermission else {
             lock.unlock()
+            return
+        }
+        if active.quarantined {
+            lock.unlock()
+            completePrime(AOSDesktopFrameDirectCaptureSnapshot(
+                status: .failed,
+                errorCode: "DESKTOP_FRAME_PERMISSION_REQUEST_SETTLED"
+            ), generation: generation)
             return
         }
         let permissionRequest = active.permissionRequest

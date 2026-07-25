@@ -2642,7 +2642,7 @@ Consumers:
   state fails voice readiness closed. Daemon Screen Recording is not reported.
 - `aos permissions prime screen-capture --json` explicitly primes the
   daemon-owned, process-lifetime direct desktop-capture capability. It requests
-  screen-capture authorization on the AppKit main thread, then performs one
+  screen-capture authorization on a dedicated serial worker, then performs one
   bounded in-memory ScreenCaptureKit probe and discards the image. It returns
   only `capability`, `status`, `capture_persisted=false`, and a redacted
   `error_code`; permission-request and probe timeouts remain distinct.

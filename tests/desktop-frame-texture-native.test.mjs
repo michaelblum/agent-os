@@ -237,11 +237,16 @@ struct DesktopFrameProof {
         var permissionTimeoutActions: [() -> Void] = []
         var pendingPermission: ((Bool) -> Void)?
         var permissionRequestCanceled = 0
+        var deferPermission = true
         let permissionTimeoutConsent = AOSDesktopFrameCaptureConsentController(
             capturer: permissionTimeoutCapturer,
             mainDisplayID: { 42 },
             requestPermission: { completion in
-                pendingPermission = completion
+                if deferPermission {
+                    pendingPermission = completion
+                } else {
+                    completion(true)
+                }
                 return AOSDesktopFrameCancellation { permissionRequestCanceled += 1 }
             },
             scheduleDeadline: { _, action in
@@ -257,8 +262,15 @@ struct DesktopFrameProof {
         require(permissionTimeoutCode == "DESKTOP_FRAME_PERMISSION_REQUEST_TIMEOUT", "permission timeout was not phase-specific")
         require(permissionRequestCanceled == 1, "permission timeout did not cancel its request")
         require(permissionTimeoutCapturer.captureCount == 0, "permission timeout started capture")
+        deferPermission = false
         pendingPermission?(true)
         require(permissionTimeoutCapturer.captureCount == 0, "late permission started capture")
+        var permissionRetryStatus: String?
+        permissionTimeoutConsent.prime(owner: owner) {
+            permissionRetryStatus = $0.status.rawValue
+        }
+        require(permissionRetryStatus == "ready", "late permission result left prime quarantined")
+        require(permissionTimeoutCapturer.captureCount == 1, "permission retry did not probe once")
 
         let joinedCapturer = FakeCapturer()
         joinedCapturer.deferred = true
