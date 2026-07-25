@@ -370,6 +370,11 @@ for subcommand in ["check", "preflight", "setup", "reset-runtime"]:
     assert command["env"]["AOS_INVOCATION_DISPLAY_NAME"] == "$AOS_INVOCATION_DISPLAY_NAME", command
     assert command["env"]["AOS_RUNTIME_MODE"] == "$AOS_RUNTIME_MODE", command
     assert command["env"]["AOS_STATE_ROOT"] == "$AOS_STATE_ROOT", command
+command = commands[("permissions", "prime", "screen-capture")]
+assert command["executable"] == "/usr/bin/env", command
+assert command["argv_prefix"] == ["node", "scripts/aos-permissions.mjs", "prime", "screen-capture"], command
+assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
+assert command["env"]["AOS_STATE_ROOT"] == "$AOS_STATE_ROOT", command
 command = commands[("permissions",)]
 assert command["executable"] == "/usr/bin/env", command
 assert command["argv_prefix"] == ["node", "scripts/aos-permissions.mjs"], command

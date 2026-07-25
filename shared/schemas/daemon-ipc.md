@@ -192,6 +192,11 @@ the response may include:
   - `panic_trigger_count` (int) — legacy compatibility field name for safety shortcut trigger count.
 - `permissions` (object) — daemon-sourced TCC view. Always present.
   - `accessibility` (bool) — `AXIsProcessTrusted()` evaluated inside the daemon.
+  - `screen_capture_direct` (object) — content-free, process-lifetime direct
+    capture consent state. It contains `capability="screen_capture_direct"`,
+    `status=ready|permission_required|unsupported|failed`,
+    `capture_persisted=false`, and a nullable redacted `error_code`. Reading
+    this object never invokes ScreenCaptureKit or macOS permission UI.
 
 These fields are additive and intended for operator surfaces such as `status`,
 `doctor`, and startup hooks that need to distinguish a healthy current daemon
@@ -226,6 +231,11 @@ The daemon also owns internal `voice.microphone_authorization_status` and
 and exact `microphone_state`. Public readiness must fail closed when those live
 daemon fields are absent, unknown, or non-authorized, regardless of foreground
 CLI preflight.
+
+The daemon similarly owns closed `permissions.screen_capture_direct_status` and
+`permissions.screen_capture_direct_prime` actions. Status is passive. Prime is
+the only action allowed to probe ScreenCaptureKit while direct capture is
+unprimed, and returns no pixels, paths, handles, or desktop facts.
 
 The live daemon additionally emits `system`, `coordination`, and `wiki` event
 services outside the canonical event schema. Request-side namespaces differ

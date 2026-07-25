@@ -23,6 +23,14 @@ struct DaemonPermissions {
     let accessibility: Bool?
     let microphone: Bool?
     let microphoneState: String?
+    let screenCaptureDirect: DaemonScreenCaptureDirect?
+}
+
+struct DaemonScreenCaptureDirect {
+    let capability: String
+    let status: String
+    let capturePersisted: Bool
+    let errorCode: String?
 }
 
 struct DaemonHealthView {
@@ -72,6 +80,21 @@ func parseDaemonHealthView(from response: [String: Any]) -> DaemonHealthView? {
     let accessibility = perms?["accessibility"] as? Bool
     let microphone = perms?["microphone"] as? Bool
     let microphoneState = perms?["microphone_state"] as? String
+    let direct = perms?["screen_capture_direct"] as? [String: Any]
+    let screenCaptureDirect: DaemonScreenCaptureDirect?
+    if let direct,
+       let capability = direct["capability"] as? String,
+       let status = direct["status"] as? String,
+       let capturePersisted = direct["capture_persisted"] as? Bool {
+        screenCaptureDirect = DaemonScreenCaptureDirect(
+            capability: capability,
+            status: status,
+            capturePersisted: capturePersisted,
+            errorCode: direct["error_code"] as? String
+        )
+    } else {
+        screenCaptureDirect = nil
+    }
 
     return DaemonHealthView(
         inputTap: InputTapHealth(
@@ -84,7 +107,8 @@ func parseDaemonHealthView(from response: [String: Any]) -> DaemonHealthView? {
         permissions: DaemonPermissions(
             accessibility: accessibility,
             microphone: microphone,
-            microphoneState: microphoneState
+            microphoneState: microphoneState,
+            screenCaptureDirect: screenCaptureDirect
         )
     )
 }

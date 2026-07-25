@@ -271,6 +271,7 @@
         "packages/toolkit/scene/**",
         "packages/toolkit/components/desktop-world-stage/**",
         "src/daemon/desktop-world-scene-*.swift",
+        "src/daemon/desktop-frame-capture-consent.swift",
         "src/daemon/desktop-frame-capture-controller.swift",
         "src/daemon/scene-event.swift",
         "src/daemon/scene-lease-registry.swift",
@@ -289,6 +290,7 @@
         "tests/desktop-world-scene-event-routing.test.mjs",
         "tests/desktop-world-scene-result-coordinator.test.mjs",
         "tests/desktop-frame-texture-native.test.mjs",
+        "tests/aos-permissions-microphone-authority.test.mjs",
         "tests/daemon-desktop-world-devtools-contract.test.mjs",
         "tests/toolkit/desktop-world-scene-*.test.mjs",
         "tests/toolkit/desktop-world-session.test.mjs",
@@ -345,6 +347,11 @@
           "id": "scene-command-help-contract",
           "command": "bash tests/help-contract.sh",
           "reason": "Keep scene source manifests, generated help, examples, and dispatch metadata aligned."
+        },
+        {
+          "id": "desktop-frame-consent-contract",
+          "command": "node --test tests/aos-permissions-microphone-authority.test.mjs tests/desktop-frame-texture-native.test.mjs tests/toolkit/desktop-frame-texture-source.test.mjs && bash tests/daemon-ipc-schema.sh",
+          "reason": "Keep direct-capture priming explicit, passive status prompt-free, runtime admission gated, and consent failures content-free."
         }
       ],
       "verification": [],

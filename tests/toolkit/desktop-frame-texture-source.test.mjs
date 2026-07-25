@@ -274,6 +274,92 @@ test('desktop frame source releases failed decode handles without exposing paylo
   source.dispose()
 })
 
+test('desktop frame source projects missing consent as a quiet recoverable state', () => {
+  const fixture = fakeClient()
+  const source = createDesktopFrameTextureSource({
+    THREE,
+    bounds: [0, 0, 100, 100],
+    client: fixture.client,
+    displayId: 42,
+    identity,
+  })
+
+  assert.equal(source.request(), true)
+  fixture.receive({
+    code: 'DESKTOP_FRAME_CONSENT_REQUIRED',
+    kind: 'error',
+    requestId: 'request-1',
+    status: 'error',
+  })
+
+  assert.equal(source.snapshot().status, 'consent_required')
+  assert.equal(source.snapshot().errorCode, 'DESKTOP_FRAME_CONSENT_REQUIRED')
+  assert.equal(source.texture.image, null)
+  source.dispose()
+})
+
+test('desktop frame source reports lost consent while retaining the last texture', async () => {
+  const fixture = fakeClient()
+  const image = { height: 80, width: 100 }
+  const source = createDesktopFrameTextureSource({
+    THREE,
+    bounds: [0, 0, 100, 80],
+    client: fixture.client,
+    decode: async () => image,
+    displayId: 42,
+    identity,
+  })
+
+  assert.equal(source.request(), true)
+  fixture.receive({
+    kind: 'started',
+    requestId: 'request-1',
+    status: 'ok',
+  })
+  fixture.receive({
+    captureDurationMs: 4,
+    capturedAtEpochMs: 1_000,
+    epochId: '44444444-4444-4444-8444-444444444444',
+    frame: {
+      handle: 'retained-handle',
+      height: 80,
+      url: frameURL,
+      width: 100,
+    },
+    kind: 'available',
+    requestId: 'request-1',
+    status: 'ok',
+  })
+  await new Promise((resolve) => setImmediate(resolve))
+  fixture.receive({
+    committedAtEpochMs: 1_100,
+    epochId: '44444444-4444-4444-8444-444444444444',
+    kind: 'commit',
+    requestId: 'request-1',
+    status: 'ok',
+  })
+  fixture.receive({
+    epochId: '44444444-4444-4444-8444-444444444444',
+    kind: 'complete',
+    requestId: 'request-1',
+    status: 'ok',
+  })
+  assert.equal(source.texture.image, image)
+
+  assert.equal(source.request(), true)
+  fixture.receive({
+    code: 'DESKTOP_FRAME_PERMISSION_DENIED',
+    kind: 'error',
+    requestId: 'request-2',
+    status: 'error',
+  })
+
+  assert.equal(source.snapshot().status, 'consent_required')
+  assert.equal(source.snapshot().errorCode, 'DESKTOP_FRAME_PERMISSION_DENIED')
+  assert.equal(source.texture.image, image)
+  source.dispose()
+})
+
 test('desktop frame source clears its GPU allocation at the bounded lease deadline', async () => {
   const fixture = fakeClient()
   const scheduled = []
@@ -453,6 +539,34 @@ test('desktop frame request client broadcasts one exact epoch to matching displa
   unsubscribe()
   assert.equal(client.dispose(), true)
   assert.equal(client.dispose(), false)
+})
+
+test('desktop frame request client preserves the content-free consent error', () => {
+  const observed = []
+  let receive
+  const client = createDesktopFrameRequestClient({
+    emitMessage() {},
+    listen(handler) {
+      receive = handler
+      return () => {}
+    },
+  })
+  client.subscribe(identity, 42, (event) => observed.push(event))
+  const requestId = client.request(identity)
+  receive({
+    code: 'DESKTOP_FRAME_CONSENT_REQUIRED',
+    extension: reference,
+    owner: identity.owner,
+    request_id: requestId,
+    resource: identity.resource,
+    revision: identity.revision,
+    status: 'error',
+    type: 'desktop_frame.available',
+  })
+
+  assert.equal(observed.at(-1).code, 'DESKTOP_FRAME_CONSENT_REQUIRED')
+  assert.equal(observed.at(-1).kind, 'error')
+  client.dispose()
 })
 
 test('display clients adopt one admitted request and retire competing local requests', () => {

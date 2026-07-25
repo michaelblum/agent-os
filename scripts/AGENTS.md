@@ -108,6 +108,9 @@ commands, runtime helpers, wiki tools, and command adapters.
   output fail closed unless daemon health reports `microphone_state=authorized`.
   Denied recovery opens the Microphone settings pane and polls daemon health;
   it never teaches drag-add or runtime TCC reset for Microphone.
+  Direct screen-capture status is also diagnostic and passive. Only
+  `permissions prime screen-capture` may invoke the daemon-owned bounded probe;
+  its output stays content-free and it never persists the setup frame.
 - `aos-wiki-put.mjs` owns bounded conditional wiki publication. It accepts only
   canonical Markdown paths and UTF-8 stdin, serializes writers, rejects
   symlinks, commits owner-only files atomically, and exposes hashes without

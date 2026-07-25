@@ -2640,6 +2640,13 @@ Consumers:
   `microphone`. `cli_view.microphone` remains diagnostic. The daemon-side view
   includes `microphone` and `microphone_state`; absent or non-authorized daemon
   state fails voice readiness closed. Daemon Screen Recording is not reported.
+- `aos permissions prime screen-capture --json` explicitly primes the
+  daemon-owned, process-lifetime direct desktop-capture capability. It performs
+  one bounded in-memory ScreenCaptureKit probe, discards the image, and returns
+  only `capability`, `status`, `capture_persisted=false`, and a redacted
+  `error_code`. `permissions check` reports the same status passively but never
+  prompts. Until a prime succeeds, scene desktop-frame requests fail with
+  `DESKTOP_FRAME_CONSENT_REQUIRED` without invoking ScreenCaptureKit.
 - `aos permissions setup --once` requests Accessibility, Screen Recording, and
   Input Monitoring from their existing primitives, and routes Microphone
   through the managed daemon's explicit authorization request. `not_determined`

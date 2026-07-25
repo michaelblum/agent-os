@@ -8648,6 +8648,52 @@
         {
           "args" : [
             {
+              "id" : "capability",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Direct capture capability to prime",
+              "value_type" : {
+                "enum" : [
+                  {
+                    "summary" : "In-memory ScreenCaptureKit desktop frames",
+                    "value" : "screen-capture"
+                  }
+                ]
+              }
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos permissions prime screen-capture --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : true,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "permissions-prime-screen-capture",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos permissions prime screen-capture [--json]"
+        },
+        {
+          "args" : [
+            {
               "id" : "json",
               "kind" : "flag",
               "required" : false,

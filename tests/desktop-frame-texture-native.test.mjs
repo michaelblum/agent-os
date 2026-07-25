@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -8,6 +8,7 @@ import test from 'node:test'
 const repoRoot = path.resolve(import.meta.dirname, '..')
 const taskStateSource = path.join(repoRoot, 'src/display/scene-extension-scheme-task-state.swift')
 const storeSource = path.join(repoRoot, 'src/display/desktop-frame-texture.swift')
+const consentSource = path.join(repoRoot, 'src/daemon/desktop-frame-capture-consent.swift')
 const controllerSource = path.join(repoRoot, 'src/daemon/desktop-frame-capture-controller.swift')
 
 async function compileHarness(root) {
@@ -15,6 +16,7 @@ async function compileHarness(root) {
   const executable = path.join(root, 'desktop-frame-proof')
   await writeFile(main, `
 import Foundation
+import ScreenCaptureKit
 
 struct AOSSceneExtensionReference: Equatable {
     let ownerID: String
@@ -56,11 +58,13 @@ final class AOSDesktopWorldSceneTransportController {
 
 final class FakeCapturer: AOSDesktopFrameCapturing {
     var canceled = 0
+    var captureCount = 0
     var displayIDs: [UInt32] = []
     var excludedWindowIDs: [Int] = []
     var maximumPixels = 0
     var pending: ((Result<AOSDesktopFrameCaptureSetResult, Error>) -> Void)?
     var deferred = false
+    var failure: AOSDesktopFrameCaptureFailure?
 
     @discardableResult
     func capture(
@@ -69,10 +73,13 @@ final class FakeCapturer: AOSDesktopFrameCapturing {
         maximumPixelsPerDisplay: Int,
         completion: @escaping (Result<AOSDesktopFrameCaptureSetResult, Error>) -> Void
     ) -> AOSDesktopFrameCancelling {
+        captureCount += 1
         self.displayIDs = displayIDs
         excludedWindowIDs = excludingWindowIDs
         maximumPixels = maximumPixelsPerDisplay
-        if deferred {
+        if let failure {
+            completion(.failure(failure))
+        } else if deferred {
             pending = completion
         } else {
             completion(.success(result(displayIDs)))
@@ -104,9 +111,190 @@ func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     }
 }
 
+func available(_ outcome: AOSDesktopFrameCaptureOutcome) -> AOSDesktopFrameCaptureDelivery? {
+    if case .available(let delivery) = outcome { return delivery }
+    return nil
+}
+
+func rejectedCode(_ outcome: AOSDesktopFrameCaptureOutcome) -> String? {
+    if case .rejected(_, let code) = outcome { return code }
+    return nil
+}
+
 @main
 struct DesktopFrameProof {
     static func main() throws {
+        let owner = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
+        require(
+            aosDesktopFrameCaptureFailure(for: NSError(
+                domain: SCStreamErrorDomain,
+                code: SCStreamError.Code.userDeclined.rawValue
+            )) == .permissionDenied,
+            "native ScreenCaptureKit denial was not classified"
+        )
+        let passiveCapturer = FakeCapturer()
+        let passiveConsent = AOSDesktopFrameCaptureConsentController(
+            capturer: passiveCapturer,
+            mainDisplayID: { 42 },
+            scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
+        )
+        require(
+            passiveConsent.snapshot().status == .permissionRequired,
+            "passive status did not begin unprimed"
+        )
+        require(passiveCapturer.captureCount == 0, "passive status invoked ScreenCaptureKit")
+
+        let joinedCapturer = FakeCapturer()
+        joinedCapturer.deferred = true
+        var joinedDeadlines: [() -> Void] = []
+        let joinedConsent = AOSDesktopFrameCaptureConsentController(
+            capturer: joinedCapturer,
+            mainDisplayID: { 42 },
+            scheduleDeadline: { _, action in
+                joinedDeadlines.append(action)
+                return AOSDesktopFrameCancellation()
+            }
+        )
+        var joinedStatuses: [String] = []
+        for _ in 0..<AOSDesktopFrameCaptureConsentController.maximumPrimeWaiters {
+            joinedConsent.prime(owner: owner) { joinedStatuses.append($0.status.rawValue) }
+        }
+        var overflowCode: String?
+        joinedConsent.prime(owner: owner) { overflowCode = $0.errorCode }
+        require(joinedCapturer.captureCount == 1, "concurrent primes were not serialized")
+        require(overflowCode == "DESKTOP_FRAME_BUSY", "prime waiter bound was not enforced")
+        joinedCapturer.pending?(.success(joinedCapturer.result([42])))
+        require(
+            joinedStatuses == Array(repeating: "ready", count: AOSDesktopFrameCaptureConsentController.maximumPrimeWaiters),
+            "joined primes did not settle together"
+        )
+        require(joinedConsent.snapshot().dictionary["capture_persisted"] as? Bool == false, "prime claimed persisted capture")
+
+        let deniedCapturer = FakeCapturer()
+        deniedCapturer.failure = .permissionDenied
+        let retryConsent = AOSDesktopFrameCaptureConsentController(
+            capturer: deniedCapturer,
+            mainDisplayID: { 42 },
+            scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
+        )
+        var deniedStatus: String?
+        retryConsent.prime(owner: owner) { deniedStatus = $0.status.rawValue }
+        require(deniedStatus == "permission_required", "denial was not latched")
+        if case .rejected(.consentRequired) = retryConsent.claimRuntimeCapture() {
+        } else {
+            require(false, "denied prime authorized capture")
+        }
+        deniedCapturer.failure = nil
+        var retryStatus: String?
+        retryConsent.prime(owner: owner) { retryStatus = $0.status.rawValue }
+        require(retryStatus == "ready", "explicit retry did not clear denial")
+        let retryLease: UInt64
+        switch retryConsent.claimRuntimeCapture() {
+        case .admitted(let generation):
+            retryLease = generation
+        case .rejected:
+            require(false, "successful prime did not authorize runtime capture")
+            return
+        }
+        if case .rejected(.busy) = retryConsent.claimRuntimeCapture() {
+        } else {
+            require(false, "concurrent runtime capture did not report busy")
+        }
+        retryConsent.releaseRuntimeCapture(generation: retryLease)
+
+        let unsupportedCapturer = FakeCapturer()
+        unsupportedCapturer.failure = .unsupported
+        let unsupportedConsent = AOSDesktopFrameCaptureConsentController(
+            capturer: unsupportedCapturer,
+            mainDisplayID: { 42 },
+            scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
+        )
+        var unsupportedStatus: String?
+        unsupportedConsent.prime(owner: owner) { unsupportedStatus = $0.status.rawValue }
+        require(unsupportedStatus == "unsupported", "unsupported prime lost its status")
+
+        let failedCapturer = FakeCapturer()
+        failedCapturer.failure = .captureFailed
+        let failedConsent = AOSDesktopFrameCaptureConsentController(
+            capturer: failedCapturer,
+            mainDisplayID: { 42 },
+            scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
+        )
+        var failedStatus: String?
+        failedConsent.prime(owner: owner) { failedStatus = $0.status.rawValue }
+        require(failedStatus == "failed", "failed prime lost its status")
+
+        let timeoutCapturer = FakeCapturer()
+        timeoutCapturer.deferred = true
+        var timeoutActions: [() -> Void] = []
+        let timeoutConsent = AOSDesktopFrameCaptureConsentController(
+            capturer: timeoutCapturer,
+            mainDisplayID: { 42 },
+            scheduleDeadline: { _, action in
+                timeoutActions.append(action)
+                return AOSDesktopFrameCancellation()
+            }
+        )
+        var timeoutCode: String?
+        timeoutConsent.prime(owner: owner) { timeoutCode = $0.errorCode }
+        let lateTimeoutCompletion = timeoutCapturer.pending
+        timeoutActions.first?()
+        require(timeoutCode == "DESKTOP_FRAME_PRIME_TIMEOUT", "prime timeout was not bounded")
+        require(timeoutCapturer.canceled == 1, "prime timeout did not cancel capture")
+        var settlingCode: String?
+        timeoutConsent.prime(owner: owner) { settlingCode = $0.errorCode }
+        require(settlingCode == "DESKTOP_FRAME_PRIME_TIMEOUT", "timed-out prime did not remain quarantined")
+        require(timeoutCapturer.captureCount == 1, "timed-out prime admitted overlapping capture")
+        lateTimeoutCompletion?(.success(timeoutCapturer.result([42])))
+        timeoutCapturer.deferred = false
+        var postTimeoutStatus: String?
+        timeoutConsent.prime(owner: owner) { postTimeoutStatus = $0.status.rawValue }
+        require(postTimeoutStatus == "ready", "settled timeout could not be explicitly retried")
+        require(timeoutCapturer.captureCount == 2, "post-timeout retry did not issue one new capture")
+
+        let canceledCapturer = FakeCapturer()
+        canceledCapturer.deferred = true
+        let canceledConsent = AOSDesktopFrameCaptureConsentController(
+            capturer: canceledCapturer,
+            mainDisplayID: { 42 },
+            scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
+        )
+        let canceledOwner = UUID(uuidString: "22222222-2222-4222-8222-222222222222")!
+        let lateCanceledCompletion = {
+            canceledConsent.prime(owner: canceledOwner) { _ in
+                require(false, "closed connection received a prime completion")
+            }
+            return canceledCapturer.pending
+        }()
+        canceledConsent.connectionClosed(canceledOwner)
+        require(canceledCapturer.canceled == 1, "connection close did not cancel its sole prime")
+        require(
+            canceledConsent.snapshot().errorCode == "DESKTOP_FRAME_PRIME_CANCELED",
+            "connection cancellation did not remain content-free"
+        )
+        canceledConsent.prime(owner: owner) {
+            require($0.errorCode == "DESKTOP_FRAME_PRIME_CANCELED", "canceled prime admitted overlap")
+        }
+        require(canceledCapturer.captureCount == 1, "canceled prime admitted overlapping capture")
+        lateCanceledCompletion?(.success(canceledCapturer.result([42])))
+        canceledCapturer.deferred = false
+        var canceledRetryStatus: String?
+        canceledConsent.prime(owner: owner) { canceledRetryStatus = $0.status.rawValue }
+        require(canceledRetryStatus == "ready", "settled cancellation could not be retried")
+
+        let shutdownCapturer = FakeCapturer()
+        shutdownCapturer.deferred = true
+        let shutdownConsent = AOSDesktopFrameCaptureConsentController(
+            capturer: shutdownCapturer,
+            mainDisplayID: { 42 },
+            scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
+        )
+        var shutdownCode: String?
+        shutdownConsent.prime(owner: owner) { shutdownCode = $0.errorCode }
+        shutdownConsent.shutdown()
+        require(shutdownCode == "DESKTOP_FRAME_DAEMON_SHUTDOWN", "shutdown did not settle prime")
+        require(shutdownCapturer.canceled == 1, "shutdown did not cancel capture")
+
         var scheduledExpirations: [() -> Void] = []
         let store = AOSDesktopFrameStore(scheduleExpiration: { _, action in
             scheduledExpirations.append(action)
@@ -340,13 +528,56 @@ struct DesktopFrameProof {
         ]
         let canvas = CanvasManager(consumers: [consumerA, consumerB], windows: [7, 8])
         let capturer = FakeCapturer()
+        let unprimedCapturer = FakeCapturer()
+        let unprimedConsent = AOSDesktopFrameCaptureConsentController(
+            capturer: FakeCapturer(),
+            mainDisplayID: { 42 },
+            scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
+        )
         var capabilityEnabled = true
         var scheduledDeadlines: [() -> Void] = []
         var aborts: [AOSDesktopFrameCaptureAbort] = []
+        let unprimedController = AOSDesktopFrameCaptureController(
+            canvasManager: canvas,
+            store: store,
+            capturer: unprimedCapturer,
+            consent: unprimedConsent,
+            allowedCanvasID: "stage",
+            reauthorize: { capabilityEnabled && $0 == leaseIdentity },
+            scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() },
+            authorize: { _ in capabilityEnabled ? authorization : nil }
+        )
+        var unprimedCode: String?
+        var unprimedAdmitted = false
+        unprimedController.acquire(
+            callerCanvasID: "stage",
+            payload: payload,
+            admitted: { _ in
+                unprimedAdmitted = true
+                return true
+            }
+        ) {
+            unprimedCode = rejectedCode($0)
+        }
+        require(!unprimedAdmitted, "unprimed request emitted a started event")
+        require(unprimedCode == "DESKTOP_FRAME_CONSENT_REQUIRED", "unprimed request did not fail closed")
+        require(unprimedCapturer.captureCount == 0, "unprimed request invoked ScreenCaptureKit")
+
+        let primeCapturer = FakeCapturer()
+        let consent = AOSDesktopFrameCaptureConsentController(
+            capturer: primeCapturer,
+            mainDisplayID: { 42 },
+            scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
+        )
+        var primeStatus: String?
+        consent.prime(owner: owner) { primeStatus = $0.status.rawValue }
+        require(primeStatus == "ready", "explicit direct-capture prime did not settle")
+        require(primeCapturer.captureCount == 1, "explicit prime did not issue exactly one probe")
         let controller = AOSDesktopFrameCaptureController(
             canvasManager: canvas,
             store: store,
             capturer: capturer,
+            consent: consent,
             allowedCanvasID: "stage",
             reauthorize: { capabilityEnabled && $0 == leaseIdentity },
             handleAbort: { aborts.append($0) },
@@ -364,9 +595,7 @@ struct DesktopFrameProof {
             payload: payload,
             admitted: { _ in true }
         ) {
-            if case .failure(let failure as AOSDesktopFrameCaptureFailure) = $0 {
-                unauthorizedCode = failure.code
-            }
+            unauthorizedCode = rejectedCode($0)
         }
         require(unauthorizedCode == "DESKTOP_FRAME_UNAUTHORIZED", "undeclared capability admitted")
 
@@ -381,7 +610,7 @@ struct DesktopFrameProof {
                 return true
             }
         ) {
-            delivery = try? $0.get()
+            delivery = available($0)
         }
         guard let delivery else {
             require(false, "capture response missing")
@@ -475,7 +704,7 @@ struct DesktopFrameProof {
             callerCanvasID: "stage",
             payload: payload,
             admitted: { _ in true }
-        ) { revocationDelivery = try? $0.get() }
+        ) { revocationDelivery = available($0) }
         guard let revocationDelivery else {
             require(false, "revocation capture response missing")
             return
@@ -513,7 +742,7 @@ struct DesktopFrameProof {
         capabilityEnabled = true
 
         capturer.deferred = true
-        var lateResult: Result<AOSDesktopFrameCaptureDelivery, Error>?
+        var lateResult: AOSDesktopFrameCaptureOutcome?
         controller.acquire(
             callerCanvasID: "stage",
             payload: payload,
@@ -527,7 +756,7 @@ struct DesktopFrameProof {
             callerCanvasID: "stage",
             payload: payload,
             admitted: { _ in true }
-        ) { recoveryDelivery = try? $0.get() }
+        ) { recoveryDelivery = available($0) }
         require(recoveryDelivery != nil, "capture deadline wedged the capability")
         _ = controller.releaseAll(callerCanvasID: "stage")
         capturer.pending?(.success(capturer.result([42, 43])))
@@ -552,6 +781,7 @@ struct DesktopFrameProof {
     '-parse-as-library',
     taskStateSource,
     storeSource,
+    consentSource,
     controllerSource,
     main,
     '-o',
@@ -572,8 +802,11 @@ test('native desktop-frame epoch is capability-bound, generation-safe, one-shot,
   const root = await mkdtemp(path.join(os.tmpdir(), 'aos-desktop-frame-native-'))
   try {
     const executable = await compileHarness(root)
-    const result = spawnSync(executable, [], { encoding: 'utf8' })
+    const runtimeRoot = path.join(root, 'runtime')
+    await mkdir(runtimeRoot, { mode: 0o700 })
+    const result = spawnSync(executable, [], { cwd: runtimeRoot, encoding: 'utf8' })
     assert.equal(result.status, 0, result.stderr)
+    assert.deepEqual(await readdir(runtimeRoot), [], 'direct-capture proof persisted runtime files')
     assert.deepEqual(JSON.parse(result.stdout), {
       captureDurationMs: 14,
       displayCount: 2,

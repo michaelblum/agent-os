@@ -385,6 +385,14 @@ their existing isolated workflow.
 Some display tests depend on real hardware topology and OS permissions. Those
 tests should skip cleanly when the environment does not qualify.
 
+Direct desktop-capture consent is covered statically by
+`tests/desktop-frame-texture-native.test.mjs`,
+`tests/toolkit/desktop-frame-texture-source.test.mjs`, and
+`tests/aos-permissions-microphone-authority.test.mjs`. Those proofs compile an
+isolated native harness or use fake daemon transport; they must not invoke
+ScreenCaptureKit, show permission UI, create a repo binary, or depend on live
+TCC state.
+
 These tests should also run in an isolated `AOS_STATE_ROOT` and tear down their
 own temp-root daemon state so they do not leave duplicate `aos` windows behind
 if a run is interrupted.

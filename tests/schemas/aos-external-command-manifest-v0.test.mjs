@@ -733,6 +733,9 @@ test('permissions execution metadata matches daemon startup behavior', async () 
 
   assert.equal(forms.get('permissions-check')?.execution.auto_starts_daemon, false);
   assert.equal(forms.get('permissions-check')?.execution.read_only, true);
+  assert.equal(forms.get('permissions-prime-screen-capture')?.execution.auto_starts_daemon, false);
+  assert.equal(forms.get('permissions-prime-screen-capture')?.execution.interactive, true);
+  assert.equal(forms.get('permissions-prime-screen-capture')?.execution.mutates_state, true);
   assert.equal(forms.get('permissions-setup')?.execution.auto_starts_daemon, true);
   assert.equal(forms.get('permissions-setup')?.execution.mutates_state, true);
 });

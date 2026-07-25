@@ -21,6 +21,23 @@ AOS owns an opt-in `aos.scene.desktop_frame_texture` extension capability. The
 capability is part of the extension manifest and digest identity. Only the
 singleton DesktopWorld stage may request it.
 
+Direct desktop capture also has a process-lifetime consent gate distinct from
+the broad Screen Recording readiness check. A new daemon starts with
+`screen_capture_direct=permission_required`, without probing ScreenCaptureKit.
+Only the explicit operator command
+`aos permissions prime screen-capture --json` may perform a bounded in-memory
+probe. The probe captures at most 4,096 pixels from the main display, discards
+the result immediately, and creates no file, frame lease, opaque handle,
+screenshot record, or diagnostic payload.
+
+Ordinary frame requests fail with `DESKTOP_FRAME_CONSENT_REQUIRED` before
+ScreenCaptureKit is called until that explicit probe succeeds. Denial,
+permission loss, timeout, and unsupported systems remain latched as
+content-free status. Companion or scene interaction can therefore never cause
+the first macOS capture dialog. A later explicit prime may retry a settled
+denial or failure; a timed-out native operation remains quarantined until its
+late completion arrives, preventing overlapping probes.
+
 One trigger creates a bounded capture set across one validated display
 topology snapshot. AOS:
 
@@ -87,6 +104,8 @@ authorization, topology, and pixel-free public contracts.
   consumer visual recipes.
 - Desktop pixels remain transient and outside public scene and product
   transports.
+- Consent state is daemon-memory-only and resets when the daemon exits.
+- `permissions check` reports direct-capture status passively and never prompts.
 - Extension capability changes require a new reviewed digest.
 - Continuous capture, frame history, persistence, export, and untrusted
   extension access remain unsupported.

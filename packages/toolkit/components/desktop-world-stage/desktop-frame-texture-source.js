@@ -55,12 +55,21 @@ function sameIdentity(left, right) {
 
 function redactedErrorCode(error) {
   const value = String(error?.code ?? error?.message ?? '')
+  if (value.includes('CONSENT_REQUIRED')) return 'DESKTOP_FRAME_CONSENT_REQUIRED'
   if (value.includes('PERMISSION')) return 'DESKTOP_FRAME_PERMISSION_DENIED'
   if (value.includes('TIMEOUT')) return 'DESKTOP_FRAME_TIMEOUT'
   if (value.includes('DISPLAY')) return 'DESKTOP_FRAME_DISPLAY_NOT_FOUND'
   if (value.includes('UNAUTHORIZED')) return 'DESKTOP_FRAME_UNAUTHORIZED'
   if (value.includes('BUSY')) return 'DESKTOP_FRAME_BUSY'
   return 'DESKTOP_FRAME_CAPTURE_FAILED'
+}
+
+function unavailableStatus(code, hasFrame) {
+  if (code === 'DESKTOP_FRAME_CONSENT_REQUIRED'
+      || code === 'DESKTOP_FRAME_PERMISSION_DENIED') {
+    return 'consent_required'
+  }
+  return hasFrame ? 'ready' : 'failed'
 }
 
 function loadImage(url, ImageConstructor = globalThis.Image) {
@@ -528,7 +537,7 @@ export function createDesktopFrameTextureSource({
       activeRequestId = null
       pendingFrame = null
       inFlight = false
-      status = hasFrame ? 'ready' : 'failed'
+      status = unavailableStatus(errorCode, hasFrame)
       return
     }
     if (message.kind === 'commit') {
@@ -588,7 +597,7 @@ export function createDesktopFrameTextureSource({
           activeRequestId = null
           pendingFrame = null
           inFlight = false
-          status = hasFrame ? 'ready' : 'failed'
+          status = unavailableStatus(errorCode, hasFrame)
         }
       })
       .finally(() => {
@@ -609,7 +618,7 @@ export function createDesktopFrameTextureSource({
         return true
       }
       inFlight = false
-      status = hasFrame ? 'ready' : 'failed'
+      status = unavailableStatus(errorCode, hasFrame)
       errorCode = 'DESKTOP_FRAME_CAPTURE_FAILED'
       return false
     },

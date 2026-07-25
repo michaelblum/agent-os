@@ -102,6 +102,12 @@ segments. The one-shot per-display captures may have bounded temporal skew.
 only bounds, dimensions, generation, epoch, capture duration, readiness, and a
 redacted error code. The extension should render the texture only after
 `status` becomes `ready` and call `clear()` when its effect finishes.
+Before the current daemon has been explicitly primed with
+`aos permissions prime screen-capture --json`, `request()` returns normally but
+its snapshot settles at `status="consent_required"` with
+`errorCode="DESKTOP_FRAME_CONSENT_REQUIRED"`. It does not invoke
+ScreenCaptureKit or macOS permission UI. Extensions must treat that state as an
+optional-effect degradation and keep unrelated interactions available.
 
 AOS excludes DesktopWorld's own windows, caps each decoded frame at 1,048,576
 pixels, binds each opaque handle to the exact display WebView, stage generation,

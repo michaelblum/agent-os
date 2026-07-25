@@ -47,7 +47,7 @@ export interface SceneDesktopFrameTextureSnapshot {
   generation: number;
   height: number;
   readyAtMs: number | null;
-  status: 'empty' | 'loading' | 'refreshing' | 'staging' | 'presenting' | 'ready' | 'failed' | 'disposed';
+  status: 'empty' | 'loading' | 'refreshing' | 'staging' | 'presenting' | 'ready' | 'consent_required' | 'failed' | 'disposed';
   width: number;
 }
 

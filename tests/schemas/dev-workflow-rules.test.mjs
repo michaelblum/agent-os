@@ -202,6 +202,7 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
     ],
   );
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-world-scene-*.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-frame-capture-consent.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-frame-capture-controller.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/canvas.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-frame-texture.swift'));
@@ -227,6 +228,10 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.match(
     rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-extension-contract')?.command ?? '',
     /tests\/desktop-frame-texture-native\.test\.mjs/u,
+  );
+  assert.match(
+    rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'desktop-frame-consent-contract')?.command ?? '',
+    /tests\/aos-permissions-microphone-authority\.test\.mjs/u,
   );
   assert.deepEqual(
     rules.get('command-surface-implementations')?.commands?.map((step) => step.command),

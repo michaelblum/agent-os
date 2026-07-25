@@ -59,9 +59,15 @@ struct AOSDesktopFrameCaptureAbort {
     let requestID: String
 }
 
-enum AOSDesktopFrameCaptureFailure: Error {
+enum AOSDesktopFrameCaptureOutcome {
+    case available(AOSDesktopFrameCaptureDelivery)
+    case rejected(request: AOSDesktopFrameCaptureRequest?, code: String)
+}
+
+enum AOSDesktopFrameCaptureFailure: Error, Equatable {
     case busy
     case captureFailed
+    case consentRequired
     case displayNotFound
     case permissionDenied
     case unauthorized
@@ -71,6 +77,7 @@ enum AOSDesktopFrameCaptureFailure: Error {
         switch self {
         case .busy: return "DESKTOP_FRAME_BUSY"
         case .captureFailed: return "DESKTOP_FRAME_CAPTURE_FAILED"
+        case .consentRequired: return "DESKTOP_FRAME_CONSENT_REQUIRED"
         case .displayNotFound: return "DESKTOP_FRAME_DISPLAY_NOT_FOUND"
         case .permissionDenied: return "DESKTOP_FRAME_PERMISSION_DENIED"
         case .unauthorized: return "DESKTOP_FRAME_UNAUTHORIZED"
@@ -141,6 +148,18 @@ private func aosDesktopFrameEncodedJPEG(_ image: CGImage) throws -> Data {
     return data as Data
 }
 
+func aosDesktopFrameCaptureFailure(for error: Error) -> AOSDesktopFrameCaptureFailure {
+    let native = error as NSError
+    if native.domain == SCStreamErrorDomain,
+       native.code == SCStreamError.Code.userDeclined.rawValue {
+        return .permissionDenied
+    }
+    if !CGPreflightScreenCaptureAccess() {
+        return .permissionDenied
+    }
+    return .captureFailed
+}
+
 private actor AOSDesktopFrameCaptureActor {
     func capture(
         displayIDs: [UInt32],
@@ -163,7 +182,7 @@ private actor AOSDesktopFrameCaptureActor {
                 onScreenWindowsOnly: true
             )
         } catch {
-            throw AOSDesktopFrameCaptureFailure.captureFailed
+            throw aosDesktopFrameCaptureFailure(for: error)
         }
         try Task.checkCancellation()
         let requested = Set(displayIDs)
@@ -201,7 +220,7 @@ private actor AOSDesktopFrameCaptureActor {
                             configuration: configuration
                         )
                     } catch {
-                        throw AOSDesktopFrameCaptureFailure.captureFailed
+                        throw aosDesktopFrameCaptureFailure(for: error)
                     }
                     try Task.checkCancellation()
                     return AOSDesktopFrameCaptureResult(
@@ -282,6 +301,7 @@ final class AOSDesktopFrameCaptureController {
     private struct ActiveRequest {
         let authorization: AOSDesktopFrameCaptureAuthorization
         var capture: AOSDesktopFrameCancelling
+        let consentGeneration: UInt64
         let consumers: [AOSDesktopFrameConsumerIdentity]
         var deadline: AOSDesktopFrameCancelling
         var epochID: String?
@@ -296,6 +316,7 @@ final class AOSDesktopFrameCaptureController {
     private let authorize: Authorizer
     private let canvasManager: AOSDesktopFrameCanvasProviding
     private let capturer: AOSDesktopFrameCapturing
+    private let consent: AOSDesktopFrameCaptureConsentController
     private let handleAbort: AbortHandler
     private let lock = NSLock()
     private let reauthorize: LeaseAuthorizer
@@ -308,6 +329,7 @@ final class AOSDesktopFrameCaptureController {
         canvasManager: AOSDesktopFrameCanvasProviding,
         store: AOSDesktopFrameStore,
         capturer: AOSDesktopFrameCapturing = AOSNativeDesktopFrameCapturer(),
+        consent: AOSDesktopFrameCaptureConsentController,
         allowedCanvasID: String = AOSDesktopWorldSceneTransportController.stageCanvasID,
         reauthorize: @escaping LeaseAuthorizer,
         handleAbort: @escaping AbortHandler = { _ in },
@@ -322,6 +344,7 @@ final class AOSDesktopFrameCaptureController {
         self.authorize = authorize
         self.canvasManager = canvasManager
         self.capturer = capturer
+        self.consent = consent
         self.handleAbort = handleAbort
         self.reauthorize = reauthorize
         self.scheduleDeadline = scheduleDeadline
@@ -370,6 +393,7 @@ final class AOSDesktopFrameCaptureController {
         lock.unlock()
         active.capture.cancel()
         active.deadline.cancel()
+        consent.releaseRuntimeCapture(generation: active.consentGeneration)
         if notifyConsumers {
             var payload: [String: Any] = [
                 "extension": active.authorization.extensionReference.dictionary,
@@ -436,7 +460,7 @@ final class AOSDesktopFrameCaptureController {
         callerCanvasID: String,
         payload: [String: Any],
         admitted: (AOSDesktopFrameCaptureRequest) -> Bool,
-        completion: @escaping (Result<AOSDesktopFrameCaptureDelivery, Error>) -> Void
+        completion: @escaping (AOSDesktopFrameCaptureOutcome) -> Void
     ) {
         guard callerCanvasID == allowedCanvasID,
               let requestID = payload["request_id"] as? String,
@@ -449,14 +473,38 @@ final class AOSDesktopFrameCaptureController {
                   authorization: authorization,
                   payload: payload
               ) else {
-            completion(.failure(AOSDesktopFrameCaptureFailure.unauthorized))
+            completion(.rejected(
+                request: nil,
+                code: AOSDesktopFrameCaptureFailure.unauthorized.code
+            ))
+            return
+        }
+
+        let request = AOSDesktopFrameCaptureRequest(
+            authorization: authorization,
+            consumers: initialConsumers,
+            requestID: requestID
+        )
+        let consentGeneration: UInt64
+        switch consent.claimRuntimeCapture() {
+        case .admitted(let generation):
+            consentGeneration = generation
+        case .rejected(let failure):
+            completion(.rejected(
+                request: request,
+                code: failure.code
+            ))
             return
         }
 
         lock.lock()
         guard activeRequest == nil else {
             lock.unlock()
-            completion(.failure(AOSDesktopFrameCaptureFailure.busy))
+            consent.releaseRuntimeCapture(generation: consentGeneration)
+            completion(.rejected(
+                request: request,
+                code: AOSDesktopFrameCaptureFailure.busy.code
+            ))
             return
         }
         nextGeneration &+= 1
@@ -465,6 +513,7 @@ final class AOSDesktopFrameCaptureController {
         activeRequest = ActiveRequest(
             authorization: authorization,
             capture: AOSDesktopFrameCancellation(),
+            consentGeneration: consentGeneration,
             consumers: initialConsumers,
             deadline: AOSDesktopFrameCancellation(),
             epochID: nil,
@@ -476,18 +525,16 @@ final class AOSDesktopFrameCaptureController {
         )
         lock.unlock()
 
-        let request = AOSDesktopFrameCaptureRequest(
-            authorization: authorization,
-            consumers: initialConsumers,
-            requestID: requestID
-        )
         guard admitted(request) else {
             _ = finish(
                 generation: generation,
                 releaseEpoch: true,
                 notifyConsumers: false
             )
-            completion(.failure(AOSDesktopFrameCaptureFailure.unauthorized))
+            completion(.rejected(
+                request: request,
+                code: AOSDesktopFrameCaptureFailure.unauthorized.code
+            ))
             return
         }
         installDeadline(scheduleDeadline(Self.requestLifetime) { [weak self] in
@@ -552,7 +599,7 @@ final class AOSDesktopFrameCaptureController {
                             ($0.0.displayID, ($0.0, $0.1))
                         }
                     )
-                    completion(.success(AOSDesktopFrameCaptureDelivery(
+                    completion(.available(AOSDesktopFrameCaptureDelivery(
                         consumers: currentConsumers,
                         epochID: epochID,
                         payload: [
@@ -589,12 +636,20 @@ final class AOSDesktopFrameCaptureController {
                     throw error
                 }
             } catch {
+                if let failure = error as? AOSDesktopFrameCaptureFailure,
+                   failure == .permissionDenied {
+                    self.consent.invalidatePermission()
+                }
                 if self.finish(
                     generation: generation,
                     releaseEpoch: true,
                     notifyConsumers: false
                 ) {
-                    completion(.failure(error))
+                    completion(.rejected(
+                        request: request,
+                        code: (error as? AOSDesktopFrameCaptureFailure)?.code
+                            ?? AOSDesktopFrameCaptureFailure.captureFailed.code
+                    ))
                 }
             }
         }
@@ -717,6 +772,7 @@ final class AOSDesktopFrameCaptureController {
         lock.unlock()
         active.capture.cancel()
         active.deadline.cancel()
+        consent.releaseRuntimeCapture(generation: active.consentGeneration)
         return .complete(delivery)
     }
 
@@ -776,6 +832,9 @@ final class AOSDesktopFrameCaptureController {
         lock.unlock()
         active?.capture.cancel()
         active?.deadline.cancel()
+        if let active {
+            consent.releaseRuntimeCapture(generation: active.consentGeneration)
+        }
         if let active {
             var payload: [String: Any] = [
                 "extension": active.authorization.extensionReference.dictionary,

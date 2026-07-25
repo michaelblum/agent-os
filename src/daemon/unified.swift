@@ -128,9 +128,11 @@ class UnifiedDaemon {
     )
     private var contentServer: ContentServer?
     private let desktopFrameStore = AOSDesktopFrameStore()
+    private lazy var desktopFrameCaptureConsent = AOSDesktopFrameCaptureConsentController()
     private lazy var desktopFrameCapture = AOSDesktopFrameCaptureController(
         canvasManager: canvasManager,
         store: desktopFrameStore,
+        consent: desktopFrameCaptureConsent,
         reauthorize: { [weak self] authorization in
             self?.reauthorizeDesktopFrame(authorization) ?? false
         },
@@ -2781,13 +2783,11 @@ class UnifiedDaemon {
     }
 
     private func handleDesktopFrameAcquire(callerID: String, payload: [String: Any]) {
-        var admittedRequest: AOSDesktopFrameCaptureRequest?
         desktopFrameCapture.acquire(
             callerCanvasID: callerID,
             payload: payload,
             admitted: { [weak self] (request: AOSDesktopFrameCaptureRequest) -> Bool in
                 guard let self else { return false }
-                admittedRequest = request
                 return self.canvasManager.postMessage(
                     canvasID: callerID,
                     exactDesktopFrameConsumers: request.consumers,
@@ -2802,10 +2802,10 @@ class UnifiedDaemon {
                     ]
                 )
             }
-        ) { [weak self] (result: Result<AOSDesktopFrameCaptureDelivery, Error>) in
+        ) { [weak self] outcome in
             guard let self else { return }
-            switch result {
-            case .success(let delivery):
+            switch outcome {
+            case .available(let delivery):
                 var response = delivery.payload
                 response["type"] = "desktop_frame.available"
                 response["status"] = "ok"
@@ -2821,10 +2821,8 @@ class UnifiedDaemon {
                     )
                     return
                 }
-            case .failure(let error):
-                guard let request = admittedRequest else { return }
-                let code = (error as? AOSDesktopFrameCaptureFailure)?.code
-                    ?? "DESKTOP_FRAME_CAPTURE_FAILED"
+            case .rejected(let request, let code):
+                guard let request else { return }
                 _ = self.canvasManager.postMessage(
                     canvasID: callerID,
                     exactDesktopFrameConsumers: request.consumers,
@@ -2927,6 +2925,7 @@ class UnifiedDaemon {
         defer {
             voiceTransport.connectionClosed(connectionID)
             annotationSelection.connectionClosed(connectionID)
+            desktopFrameCaptureConsent.connectionClosed(connectionID)
             statusItemHostController.connectionClosed(connectionID)
             desktopWorldSceneTransport.cleanupConnection(connectionID)
             subscriberLock.lock()
@@ -3151,6 +3150,10 @@ class UnifiedDaemon {
                                                 return "voice-microphone-authorization-status"
         case ("voice", "microphone_authorization_request"):
                                                 return "voice-microphone-authorization-request"
+        case ("permissions", "screen_capture_direct_status"):
+                                                return "permissions-screen-capture-direct-status"
+        case ("permissions", "screen_capture_direct_prime"):
+                                                return "permissions-screen-capture-direct-prime"
         case ("voice", "assignments"):        return "voice-assignments"
         case ("voice", "refresh"):            return "voice-refresh"
         case ("voice", "providers"):          return "voice-providers"
@@ -3266,7 +3269,7 @@ class UnifiedDaemon {
                 return
             }
             // Check that the service is one of the known namespaces.
-            let knownServices: Set<String> = ["see", "do", "show", "tell", "listen", "session", "voice", "annotation", "status_item", "scene", "system", "focus", "graph", "content"]
+            let knownServices: Set<String> = ["see", "do", "show", "tell", "listen", "session", "voice", "permissions", "annotation", "status_item", "scene", "system", "focus", "graph", "content"]
             if !knownServices.contains(env.service) {
                 sendResponseJSON(to: outbound, envelopeError(
                     error: "Unknown service: \(env.service)",
@@ -3498,6 +3501,25 @@ class UnifiedDaemon {
                 "status": result.after.isAuthorized ? "ok" : "degraded",
                 "microphone_authorization": result.dictionary(),
             ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+
+        case "permissions-screen-capture-direct-status":
+            sendResponseJSON(
+                to: outbound,
+                desktopFrameCaptureConsent.snapshot().dictionary,
+                envelopeActive: envelopeActive,
+                envelopeRef: envelopeRef
+            )
+
+        case "permissions-screen-capture-direct-prime":
+            desktopFrameCaptureConsent.prime(owner: connectionID) { [weak outbound] snapshot in
+                guard let outbound else { return }
+                sendResponseJSON(
+                    to: outbound,
+                    snapshot.dictionary,
+                    envelopeActive: envelopeActive,
+                    envelopeRef: envelopeRef
+                )
+            }
 
         case "voice-hotkey":
             guard let shortcut = json["shortcut"] as? String, !shortcut.isEmpty else {
@@ -3848,6 +3870,7 @@ class UnifiedDaemon {
                     "accessibility": perception.daemonAccessibilityGranted,
                     "microphone": microphoneAuthorization.isAuthorized,
                     "microphone_state": microphoneAuthorization.rawValue,
+                    "screen_capture_direct": desktopFrameCaptureConsent.snapshot().dictionary,
                 ] as [String: Any],
             ]
             if let lockOwnerPID = aosDaemonLockOwnerPID(for: mode) {
@@ -4725,6 +4748,7 @@ class UnifiedDaemon {
         fputs("aos daemon shutting down (\(reason))\n", stderr)
         voiceTransport.shutdown()
         annotationSelection.shutdown()
+        desktopFrameCaptureConsent.shutdown()
         _ = desktopFrameCapture.releaseAll(callerCanvasID: sceneStageCanvasID)
         restoreNativeCursorSuppressionForExit()
         perception.stop()

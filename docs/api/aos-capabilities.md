@@ -218,7 +218,7 @@ apps cannot safely reconstruct from the current JSON surfaces.
 
 | Group | Use for | Command surface |
 | --- | --- | --- |
-| Core readiness | Runtime gates and blockers before live desktop work | `ready`, `status`, `doctor`, `permissions check/preflight`, `service status` |
+| Core readiness | Runtime gates, explicit direct-capture consent, and blockers before live desktop work | `ready`, `status`, `doctor`, `permissions check/preflight`, `permissions prime screen-capture`, `service status` |
 | Desktop discovery | Displays, windows, cursor, selection, and active surfaces | `graph displays`, `graph windows`, `see list`, `see cursor`, `see selection` |
 | Capture and perception | Screenshots, window/region/canvas/channel capture, xray, labels, saved refs | `see capture`, `see capture --save`, `see snapshots`, `see refs` |
 | Saved workspace | Snapshot/ref storage, ref lookup, diffs, expectations, cleanup | `see workspaces`, `see workspace`, `see refs --diff --expect`, workspace prune/delete |
