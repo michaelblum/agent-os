@@ -516,15 +516,28 @@ export function createTrustedSceneExtensionRegistry(input = {}) {
           if (!contextValidation.ok) throw new TypeError(contextValidation.errors[0].message)
           let projection = null
           try {
-            projection = assertSynchronousHookResult(
-              factory.createProjection(Object.freeze({
-                THREE: context.THREE,
-                budgets: Object.freeze({ ...context.budgets }),
-                document: context.document,
-                inspectProjectionResources: inspectSceneExtensionProjectionResources,
-              })),
-              'factory createProjection()',
-            )
+            let factoryActive = true
+            const inspectProjectionResources = (object) => {
+              if (!factoryActive) {
+                throw new TypeError(
+                  'Scene extension resource inspection is available only during projection creation.',
+                )
+              }
+              return inspectSceneExtensionProjectionResources(object)
+            }
+            try {
+              projection = assertSynchronousHookResult(
+                factory.createProjection(Object.freeze({
+                  THREE: context.THREE,
+                  budgets: Object.freeze({ ...context.budgets }),
+                  document: context.document,
+                  inspectProjectionResources,
+                })),
+                'factory createProjection()',
+              )
+            } finally {
+              factoryActive = false
+            }
             const projectionValidation = validateSceneExtensionProjection(projection)
             if (!projectionValidation.ok) throw new TypeError(projectionValidation.errors[0].message)
             const effectiveBudgets = Object.freeze({ ...context.budgets })

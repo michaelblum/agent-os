@@ -70,7 +70,7 @@ export interface SceneExtensionProjectionResourceMetrics {
 
 export interface TrustedSceneExtensionFactoryContext
   extends SceneExtensionProjectionContext {
-  inspectProjectionResources(
+  inspectProjectionResources?(
     object: SceneExtensionObject3D,
   ): Readonly<SceneExtensionProjectionResourceMetrics>;
 }
