@@ -344,6 +344,26 @@ precondition(routed)
 precondition(routedOutcome == .enqueued)
 
 let operation: [String: Any] = ["op": "mount", "document": ["revision": 1]]
+let extensionAuthorization: [String: Any] = [
+    "capabilities": ["aos.scene.desktop_frame_texture"],
+    "digest": String(repeating: "a", count: 64),
+    "extensionId": "renderer",
+    "ownerId": "owner",
+    "resourceRevision": 1,
+    "sceneAbi": "aos.scene.projection.v1",
+    "threeRevision": "183",
+]
+precondition(!controller.authorizes(
+    identity: identity,
+    key: key,
+    extensionDigest: String(repeating: "a", count: 64),
+    extensionID: "renderer",
+    extensionOwnerID: "owner",
+    resourceRevision: 1,
+    sceneABI: "aos.scene.projection.v1",
+    threeRevision: "183",
+    capability: "aos.scene.desktop_frame_texture"
+))
 guard case .accepted(let initial) = controller.admitOperation(
     topology: topology,
     key: key,
@@ -351,6 +371,7 @@ guard case .accepted(let initial) = controller.admitOperation(
     resource: "main",
     operationName: "mount",
     operation: operation,
+    extensionAuthorization: extensionAuthorization,
     connectionID: connection,
     ref: "ref-2"
 ) else { preconditionFailure("operation rejected") }
@@ -366,6 +387,107 @@ guard let final = completion(completed), let delivery = controller.complete(fina
 }
 precondition(delivery.route.connectionID == connection)
 precondition(delivery.route.ref == "ref-2")
+precondition(controller.authorizes(
+    identity: identity,
+    key: key,
+    extensionDigest: String(repeating: "a", count: 64),
+    extensionID: "renderer",
+    extensionOwnerID: "owner",
+    resourceRevision: 1,
+    sceneABI: "aos.scene.projection.v1",
+    threeRevision: "183",
+    capability: "aos.scene.desktop_frame_texture"
+))
+precondition(!controller.authorizes(
+    identity: identity,
+    key: key,
+    extensionDigest: String(repeating: "b", count: 64),
+    extensionID: "renderer",
+    extensionOwnerID: "owner",
+    resourceRevision: 1,
+    sceneABI: "aos.scene.projection.v1",
+    threeRevision: "183",
+    capability: "aos.scene.desktop_frame_texture"
+))
+
+let transaction: [String: Any] = [
+    "op": "transact",
+    "transaction": ["expectedRevision": 1],
+]
+guard case .accepted(let transactionInitial) = controller.admitOperation(
+    topology: topology,
+    key: key,
+    owner: "owner",
+    resource: "main",
+    operationName: "transact",
+    operation: transaction,
+    connectionID: connection,
+    ref: "ref-3"
+) else { preconditionFailure("transaction rejected") }
+guard case .broadcast(let transactionPrepare) = transactionInitial else {
+    preconditionFailure("transaction prepare missing")
+}
+precondition(controller.acceptResult(
+    identity: identity,
+    payload: result(transactionPrepare.operationID, "prepare", 7, 0, "transaction-digest")
+).isEmpty)
+let transactionCommitActions = controller.acceptResult(
+    identity: identity,
+    payload: result(transactionPrepare.operationID, "prepare", 9, 1, "transaction-digest")
+)
+guard let transactionCommit = broadcast(transactionCommitActions) else {
+    preconditionFailure("transaction commit missing")
+}
+precondition(controller.acceptResult(
+    identity: identity,
+    payload: result(transactionPrepare.operationID, "commit", 7, 0, "transaction-digest")
+).isEmpty)
+let transactionCompleted = controller.acceptResult(
+    identity: identity,
+    payload: result(transactionPrepare.operationID, "commit", 9, 1, "transaction-digest")
+)
+guard let transactionFinal = completion(transactionCompleted),
+      controller.complete(
+          transactionFinal,
+          operationID: transactionPrepare.operationID
+      ) != nil else {
+    preconditionFailure("transaction did not settle")
+}
+precondition(!controller.authorizes(
+    identity: identity,
+    key: key,
+    extensionDigest: String(repeating: "a", count: 64),
+    extensionID: "renderer",
+    extensionOwnerID: "owner",
+    resourceRevision: 1,
+    sceneABI: "aos.scene.projection.v1",
+    threeRevision: "183",
+    capability: "aos.scene.desktop_frame_texture"
+))
+precondition(controller.authorizes(
+    identity: identity,
+    key: key,
+    extensionDigest: String(repeating: "a", count: 64),
+    extensionID: "renderer",
+    extensionOwnerID: "owner",
+    resourceRevision: 2,
+    sceneABI: "aos.scene.projection.v1",
+    threeRevision: "183",
+    capability: "aos.scene.desktop_frame_texture"
+))
+if case .stageUnavailable = controller.admitOperation(
+    topology: topology,
+    key: key,
+    owner: "owner",
+    resource: "main",
+    operationName: "transact",
+    operation: transaction,
+    connectionID: connection,
+    ref: "stale-ref"
+) {
+} else {
+    preconditionFailure("stale transaction revision retained extension authority")
+}
 
 let next = AOSDesktopWorldSceneTopologyDescriptor(
     identity: AOSDesktopWorldSceneStageIdentity(canvasGeneration: 3, topologyGeneration: 5),
@@ -381,6 +503,17 @@ guard case .recoverable(let replacementDeliveries) = controller.settleRetirement
 ) else { preconditionFailure("topology replacement did not settle") }
 precondition(replacementDeliveries.count == 1)
 precondition(replacementDeliveries[0].payload["code"] as? String == "SCENE_TOPOLOGY_CHANGED")
+precondition(!controller.authorizes(
+    identity: identity,
+    key: key,
+    extensionDigest: String(repeating: "a", count: 64),
+    extensionID: "renderer",
+    extensionOwnerID: "owner",
+    resourceRevision: 1,
+    sceneABI: "aos.scene.projection.v1",
+    threeRevision: "183",
+    capability: "aos.scene.desktop_frame_texture"
+))
 
 let atomic = AOSDesktopWorldSceneController()
 let atomicTopology = readyController(atomic)

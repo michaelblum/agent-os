@@ -220,6 +220,7 @@ private struct DaemonHealthState {
     let daemonAccessibility: Bool?
     let daemonMicrophone: Bool?
     let daemonMicrophoneState: String?
+    let daemonScreenCaptureDirect: DaemonScreenCaptureDirect?
 }
 
 private struct DaemonHealthInputTapFacts: Encodable {
@@ -247,9 +248,10 @@ private struct DaemonHealthPermissionsFacts: Encodable {
     let accessibility: Bool?
     let microphone: Bool?
     let microphone_state: String?
+    let screen_capture_direct: DaemonHealthScreenCaptureDirectFacts?
 
     private enum CodingKeys: String, CodingKey {
-        case accessibility, microphone, microphone_state
+        case accessibility, microphone, microphone_state, screen_capture_direct
     }
 
     func encode(to encoder: Encoder) throws {
@@ -257,7 +259,15 @@ private struct DaemonHealthPermissionsFacts: Encodable {
         try c.encodeIfPresent(accessibility, forKey: .accessibility)
         try c.encodeIfPresent(microphone, forKey: .microphone)
         try c.encodeIfPresent(microphone_state, forKey: .microphone_state)
+        try c.encodeIfPresent(screen_capture_direct, forKey: .screen_capture_direct)
     }
+}
+
+private struct DaemonHealthScreenCaptureDirectFacts: Encodable {
+    let capability: String
+    let status: String
+    let capture_persisted: Bool
+    let error_code: String?
 }
 
 private struct DaemonHealthFacts: Encodable {
@@ -320,7 +330,15 @@ private func currentDaemonHealthFacts() -> DaemonHealthFacts {
         permissions: DaemonHealthPermissionsFacts(
             accessibility: health?.daemonAccessibility,
             microphone: health?.daemonMicrophone,
-            microphone_state: health?.daemonMicrophoneState
+            microphone_state: health?.daemonMicrophoneState,
+            screen_capture_direct: health?.daemonScreenCaptureDirect.map {
+                DaemonHealthScreenCaptureDirectFacts(
+                    capability: $0.capability,
+                    status: $0.status,
+                    capture_persisted: $0.capturePersisted,
+                    error_code: $0.errorCode
+                )
+            }
         )
     )
 }
@@ -357,7 +375,7 @@ func runtimeBrokerCommand(args: [String]) {
 
 func permissionsCommand(args: [String]) {
     guard let sub = args.first else {
-        exitError("__permissions requires a primitive. Usage: aos __permissions <facts|setup-marker|prompt|reset-target|tcc-reset> ...",
+        exitError("__permissions requires a primitive. Usage: aos __permissions <facts|setup-marker|prompt|direct-screen-capture|reset-target|tcc-reset> ...",
                   code: "MISSING_SUBCOMMAND")
     }
     switch sub {
@@ -367,12 +385,91 @@ func permissionsCommand(args: [String]) {
         permissionsSetupMarkerCommand(args: Array(args.dropFirst()))
     case "prompt":
         permissionsPromptCommand(args: Array(args.dropFirst()))
+    case "direct-screen-capture":
+        permissionsDirectScreenCaptureCommand(args: Array(args.dropFirst()))
     case "reset-target":
         permissionsResetTargetCommand(args: Array(args.dropFirst()))
     case "tcc-reset":
         permissionsTCCResetCommand(args: Array(args.dropFirst()))
     default:
         exitError("Unknown __permissions primitive: \(sub)", code: "UNKNOWN_SUBCOMMAND")
+    }
+}
+
+private func permissionsDirectScreenCaptureCommand(args: [String]) {
+    guard args.count == 2,
+          let action = args.first,
+          ["status", "prime"].contains(action),
+          args[1] == "--json" else {
+        exitError(
+            "__permissions direct-screen-capture requires <status|prime> --json.",
+            code: "INVALID_ARG"
+        )
+    }
+    guard let response = sendEnvelopeRequest(
+        service: "permissions",
+        action: action == "prime"
+            ? "screen_capture_direct_prime"
+            : "screen_capture_direct_status",
+        data: [:],
+        socketPath: aosSocketPath(for: aosCurrentRuntimeMode()),
+        timeoutMs: action == "prime" ? 31_000 : 1_000
+    ) else {
+        exitError(
+            "The AOS daemon must be reachable for direct screen-capture permission status.",
+            code: "DAEMON_UNREACHABLE"
+        )
+    }
+    if let error = response["error"] as? String {
+        exitError(
+            error,
+            code: response["code"] as? String ?? "DESKTOP_FRAME_PERMISSION_STATUS_FAILED"
+        )
+    }
+    let body = (response["data"] as? [String: Any]) ?? response
+    guard body["capability"] as? String == AOSDesktopFrameDirectCaptureSnapshot.capability,
+          let status = body["status"] as? String,
+          AOSDesktopFrameDirectCaptureStatus(rawValue: status) != nil,
+          body["capture_persisted"] as? Bool == false,
+          body["error_code"] == nil
+              || body["error_code"] is NSNull
+              || body["error_code"] is String else {
+        exitError(
+            "The daemon returned malformed direct screen-capture permission facts.",
+            code: "DESKTOP_FRAME_PERMISSION_RESPONSE_INVALID"
+        )
+    }
+    print(jsonString(PermissionsDirectScreenCaptureFacts(
+        capability: AOSDesktopFrameDirectCaptureSnapshot.capability,
+        status: status,
+        capture_persisted: false,
+        error_code: body["error_code"] as? String
+    )))
+    if action == "prime" && status != AOSDesktopFrameDirectCaptureStatus.ready.rawValue {
+        exit(1)
+    }
+}
+
+private struct PermissionsDirectScreenCaptureFacts: Encodable {
+    let capability: String
+    let status: String
+    let capture_persisted: Bool
+    let error_code: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case capability, status, capture_persisted, error_code
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(capability, forKey: .capability)
+        try container.encode(status, forKey: .status)
+        try container.encode(capture_persisted, forKey: .capture_persisted)
+        if let error_code {
+            try container.encode(error_code, forKey: .error_code)
+        } else {
+            try container.encodeNil(forKey: .error_code)
+        }
     }
 }
 
@@ -981,7 +1078,8 @@ private func fetchDaemonHealth(socketPath: String, budgetMs: Int = 250) -> Daemo
         inputTapLastErrorAt: view.inputTap.lastErrorAt,
         daemonAccessibility: view.permissions.accessibility,
         daemonMicrophone: view.permissions.microphone,
-        daemonMicrophoneState: view.permissions.microphoneState
+        daemonMicrophoneState: view.permissions.microphoneState,
+        daemonScreenCaptureDirect: view.permissions.screenCaptureDirect
     )
 }
 
@@ -1004,7 +1102,8 @@ extension DaemonHealthState {
             permissions: DaemonPermissions(
                 accessibility: daemonAccessibility,
                 microphone: daemonMicrophone,
-                microphoneState: daemonMicrophoneState
+                microphoneState: daemonMicrophoneState,
+                screenCaptureDirect: daemonScreenCaptureDirect
             )
         )
     }

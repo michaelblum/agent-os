@@ -77,7 +77,7 @@ opening the private daemon socket.
   local asset data.
 - `aos.scene.event.v1` carries typed product-neutral gesture events.
 - `aos.scene.extension.v1` binds reviewed projection code to owner, ABI, Three
-  revision, implementation IDs, and budgets.
+  revision, implementation IDs, capabilities, and budgets.
 - `aos.desktop-world.devtools.stage.v1` is the content-free engine snapshot.
 
 Command help is generated from

@@ -192,8 +192,9 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   );
   assert.equal(rules.get('legacy-sigil-test-fixture')?.tcc_identity_sensitive, false);
   assert.deepEqual(
-    rules.get('desktop-world-scene-engine')?.commands?.slice(0, 4).map((step) => step.id),
+    rules.get('desktop-world-scene-engine')?.commands?.slice(0, 5).map((step) => step.id),
     [
+      'swift-runtime-typecheck',
       'scene-daemon-contract',
       'scene-core-contract',
       'scene-interaction-contract',
@@ -201,6 +202,12 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
     ],
   );
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-world-scene-*.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-frame-capture-consent.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-frame-capture-controller.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/canvas.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-frame-texture.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/scene-extension-store.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('scripts/lib/scene-extension/module-inspector.mjs'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('packages/toolkit/components/desktop-world-stage/**'));
   assert.match(
     rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-daemon-contract')?.command ?? '',
@@ -217,6 +224,14 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.match(
     rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-devtools-contract')?.command ?? '',
     /tests\/toolkit\/desktop-world-devtools-model\.test\.mjs/u,
+  );
+  assert.match(
+    rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-extension-contract')?.command ?? '',
+    /tests\/desktop-frame-texture-native\.test\.mjs/u,
+  );
+  assert.match(
+    rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'desktop-frame-consent-contract')?.command ?? '',
+    /tests\/aos-permissions-microphone-authority\.test\.mjs/u,
   );
   assert.deepEqual(
     rules.get('command-surface-implementations')?.commands?.map((step) => step.command),

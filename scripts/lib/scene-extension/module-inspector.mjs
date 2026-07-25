@@ -75,7 +75,10 @@ function sortedJson(value) {
 
 export function serializeSceneExtensionWrapperModule(manifest, bodySource) {
   const strictBody = `"use strict";\n${bodySource}`
-  return Buffer.from(`const createProjection = Function("context", ${JSON.stringify(strictBody)});\nconst manifest = ${sortedJson(manifest)};\nObject.freeze(manifest.implementationIds);\nObject.freeze(manifest.budgets);\nObject.freeze(manifest);\nexport default Object.freeze({ manifest, createProjection });\n`)
+  const capabilityFreeze = Object.hasOwn(manifest, 'capabilities')
+    ? 'Object.freeze(manifest.capabilities);\n'
+    : ''
+  return Buffer.from(`const createProjection = Function("context", ${JSON.stringify(strictBody)});\nconst manifest = ${sortedJson(manifest)};\nObject.freeze(manifest.implementationIds);\n${capabilityFreeze}Object.freeze(manifest.budgets);\nObject.freeze(manifest);\nexport default Object.freeze({ manifest, createProjection });\n`)
 }
 
 class FactoryBodyCompiler {

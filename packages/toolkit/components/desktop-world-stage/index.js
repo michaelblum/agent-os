@@ -6,6 +6,10 @@ import { createTrustedSceneExtensionRegistry } from '../../scene/scene-extension
 import { normalizeDesktopWorldSceneResultErrorCode } from '../../scene/scene-result-codes.js'
 import { createDesktopWorldStageDisposer, handleDesktopWorldStageLifecycle } from './lifecycle.js'
 import { createDesktopWorldSceneExtensionLoader } from './scene-extension-loader.js'
+import {
+  createDesktopFrameRequestClient,
+  createDesktopFrameTextureSource,
+} from './desktop-frame-texture-source.js'
 import { applyDesktopWorldSceneOperation } from './scene-extension-operation.js'
 import { createDesktopWorldSceneOutlet } from './scene-outlet.js'
 import { createDesktopWorldSceneInteractionRuntime } from './scene-interaction-runtime.js'
@@ -43,8 +47,16 @@ const surface = new DesktopWorldSurface2D({ canvasId })
 const state = createDesktopWorldStageState()
 const sceneExtensionRegistry = createTrustedSceneExtensionRegistry()
 const sceneExtensionLoader = createDesktopWorldSceneExtensionLoader({ registry: sceneExtensionRegistry })
+const desktopFrameClient = createDesktopFrameRequestClient()
 const sceneOutlet = createDesktopWorldSceneOutlet({
   canvas: sceneCanvas,
+  desktopFrameSourceFactory: ({ THREE, identity }) => createDesktopFrameTextureSource({
+    THREE,
+    bounds: surface.segment?.dw_bounds,
+    client: desktopFrameClient,
+    displayId: Number(window.__aosSegmentDisplayId),
+    identity,
+  }),
   extensionRegistry: sceneExtensionRegistry,
 })
 let sceneInteractions = null
@@ -165,6 +177,7 @@ sceneOperations = createDesktopWorldSceneOperationCoordinator({
 let sceneOperationQueue = Promise.resolve()
 const disposeStage = createDesktopWorldStageDisposer({
   devtools: devtoolsProbe,
+  desktopFrameClient,
   interactions: sceneInteractions,
   operations: sceneOperations,
   outlet: sceneOutlet,

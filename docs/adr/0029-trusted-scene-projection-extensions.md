@@ -130,7 +130,11 @@ remains closed during stage resume until every native region generation has
 been restored successfully.
 
 The formal extension context exposes no renderer, camera, RAF, asset loader,
-DOM input, filesystem, network, process, TCC, or native-bridge handle. Browser
+DOM input, filesystem, network, process, general TCC, or native-bridge handle.
+An extension may declare the narrowly reviewed AOS-owned desktop-frame texture
+capability defined by ADR 0030. That capability supplies only a transient Three
+texture source in the stage realm; it does not expose capture authority or
+desktop bytes through the public scene transport. Browser
 extensions still execute in the stage realm and are therefore fully privileged,
 trusted AOS-equivalent code rather than a sandbox. Admission requires an exact
 installation marker under the explicitly trusted same-UID local account; the

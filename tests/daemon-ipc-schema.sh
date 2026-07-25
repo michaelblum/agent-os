@@ -53,6 +53,8 @@ good_requests = [
     {"v":1,"service":"show","action":"post","data":{"id":"x","message":"hello"}},
     {"v":1,"service":"tell","action":"send","data":{"audience":["ops"],"text":"hi"}},
     {"v":1,"service":"session","action":"register","data":{"session_id":"abc"}},
+    {"v":1,"service":"permissions","action":"screen_capture_direct_status","data":{}},
+    {"v":1,"service":"permissions","action":"screen_capture_direct_prime","data":{}},
     {"v":1,"service":"status_item","action":"register","data":{"descriptor":descriptor},"ref":"register-1"},
     {"v":1,"service":"status_item","action":"update","data":{"owner":"io.example.app","item_id":"companion","generation":7,"current_revision":3,"descriptor":{**descriptor,"revision":4}}},
     {"v":1,"service":"status_item","action":"inspect","data":{"owner":"io.example.app","item_id":"companion","generation":7,"descriptor_revision":3}},
@@ -74,6 +76,8 @@ bad_requests = [
     {"v":1,"service":"unknown","action":"ping","data":{}},  # bad service
     {"v":1,"service":"tell","action":"send","data":{"audience":["ops"]}},  # no text or payload
     {"v":1,"service":"session","action":"register","data":{"name":"only-a-name"}},  # missing session_id
+    {"v":1,"service":"permissions","action":"unknown","data":{}},  # permission action vocabulary is closed
+    {"v":1,"service":"permissions","action":"screen_capture_direct_prime","data":{"display":1}},  # permission request data is strict
     {"v":1,"service":"show","action":"create","data":{"id":"x"}},  # no geometry source
     {"v":1,"service":"show","action":"create","data":{"id":"x","surface":"union","html":"<div/>"}},  # bad surface
     {"v":1,"service":"show","action":"create","data":{"id":"x","at":[0,0,10,10],"window_level":"menu_bar","html":"<div/>"}},  # bad window level

@@ -54,7 +54,7 @@ function runService(args, mode = currentMode()) {
 
 function parseArgs(args) {
   const subcommand = args[0];
-  if (!['check', 'preflight', 'setup', 'reset-runtime'].includes(subcommand)) {
+  if (!['check', 'preflight', 'prime', 'setup', 'reset-runtime'].includes(subcommand)) {
     exitError(`Unknown permissions subcommand: ${subcommand ?? ''}`, 'UNKNOWN_SUBCOMMAND');
   }
   return { subcommand };
@@ -121,6 +121,9 @@ function runCheck() {
   const evaluation = readyEvaluationSnake(evaluateReadyForTesting(daemon.comparable, cli, facts.setup));
   const notes = permissionCheckNotes(cli, facts.setup, daemon.comparable, mode);
   const disagreement = disagreementFor(daemon.comparable, cli);
+  const directCapture = normalizeDirectCaptureStatus(
+    facts.daemonHealth?.permissions?.screen_capture_direct,
+  );
   const response = {
     status: notes.length ? 'degraded' : 'ok',
     permissions: effectivePermissions,
@@ -131,10 +134,70 @@ function runCheck() {
     missing_permissions: missingPermissionIDsFor(daemon.comparable, cli),
     ready_for_testing: evaluation.ready_for_testing,
     ready_source: evaluation.ready_source,
+    screen_capture_direct: directCapture,
     notes,
   };
   if (disagreement) response.disagreement = disagreement;
   printJSON(response, { omit: true });
+}
+
+function normalizeDirectCaptureStatus(value) {
+  const statuses = new Set(['ready', 'permission_required', 'unsupported', 'failed']);
+  if (!value || value.capability !== 'screen_capture_direct'
+      || !statuses.has(value.status) || value.capture_persisted !== false
+      || (value.error_code !== undefined
+        && value.error_code !== null
+        && typeof value.error_code !== 'string')) {
+    return {
+      capability: 'screen_capture_direct',
+      status: 'failed',
+      capture_persisted: false,
+      error_code: value ? 'DESKTOP_FRAME_PERMISSION_RESPONSE_INVALID' : 'DAEMON_UNREACHABLE',
+    };
+  }
+  return {
+    capability: 'screen_capture_direct',
+    status: value.status,
+    capture_persisted: false,
+    error_code: value.error_code ?? null,
+  };
+}
+
+function normalizeDirectCapturePrimeResult(value) {
+  const normalized = normalizeDirectCaptureStatus(value);
+  if (normalized.error_code !== 'DESKTOP_FRAME_PERMISSION_RESPONSE_INVALID') {
+    return normalized;
+  }
+  const primitiveCode = typeof value?.code === 'string'
+    && /^[A-Z][A-Z0-9_]{0,127}$/.test(value.code)
+    ? value.code
+    : null;
+  return primitiveCode
+    ? {
+        capability: 'screen_capture_direct',
+        status: 'failed',
+        capture_persisted: false,
+        error_code: primitiveCode,
+      }
+    : normalized;
+}
+
+function runPrime(args) {
+  const usage = `${invocationName()} permissions prime screen-capture [--json]`;
+  if (args[0] !== 'screen-capture') {
+    exitError(`Expected screen-capture. Usage: ${usage}`, 'INVALID_ARG');
+  }
+  for (const arg of args.slice(1)) {
+    if (arg !== '--json') exitError(`Unknown flag: ${arg}. Usage: ${usage}`, 'UNKNOWN_FLAG');
+  }
+  const result = runAOS(['__permissions', 'direct-screen-capture', 'prime', '--json']);
+  const response = parsePrimitiveLoose(
+    result,
+    '__permissions direct-screen-capture prime',
+  );
+  const normalized = normalizeDirectCapturePrimeResult(response);
+  printJSON(normalized);
+  if (result.exitCode !== 0 || normalized.status !== 'ready') process.exitCode = 1;
 }
 
 function parseSetupArgs(args) {
@@ -603,6 +666,8 @@ function runResetRuntime(args) {
 const { subcommand } = parseArgs(process.argv.slice(2));
 if (subcommand === 'setup') {
   runSetup(process.argv.slice(3));
+} else if (subcommand === 'prime') {
+  runPrime(process.argv.slice(3));
 } else if (subcommand === 'reset-runtime') {
   runResetRuntime(process.argv.slice(3));
 } else {

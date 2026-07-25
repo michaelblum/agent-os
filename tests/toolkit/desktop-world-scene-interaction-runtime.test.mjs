@@ -49,6 +49,8 @@ function harness({
   update = async () => {},
   replace = null,
   applyResponse = (event) => ({ ...event.response, applied: true, revision: 1 }),
+  applyPointerVisual = () => false,
+  now = () => Date.now(),
   onEmit = null,
   scheduleTimer = (callback, delay) => setTimeout(callback, delay),
 } = {}) {
@@ -65,6 +67,9 @@ function harness({
     applyInteractionResponse(_key, event) {
       responses.push(event)
       return applyResponse(event)
+    },
+    applyPointerVisual(key, event) {
+      return applyPointerVisual(key, event)
     },
   }
   const runtime = createDesktopWorldSceneInteractionRuntime({
@@ -89,6 +94,7 @@ function harness({
       for (const id of retire) calls.push(['remove', id])
     },
     scheduleFrame(callback) { callback() },
+    now,
     scheduleTimer,
     emitEvent(event) {
       events.push(event)
@@ -180,6 +186,49 @@ test('stage interaction runtime registers one owner-scoped region and applies th
   assert.deepEqual(events.map(({ event }) => event.gesture.phase), ['start', 'update', 'end'])
   assert.deepEqual(calls, [['register', regionId], ['update', regionId]])
   assert.equal(runtime.snapshot(key).leases[0].registered, 1)
+})
+
+test('physical pointer down reaches the projection as a passive visual event before gesture arbitration', async () => {
+  const pointerEvents = []
+  const { responses, runtime } = harness({
+    now: () => 1,
+    applyPointerVisual(key, event) {
+      pointerEvents.push({ key, event })
+      return true
+    },
+  })
+  const key = 'example.consumer::companion/main'
+  const regionId = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions })
+
+  runtime.handleInput(routed(regionId, 'left_mouse_down', 100, 200, 1))
+
+  assert.equal(responses.length, 0)
+  assert.deepEqual(pointerEvents, [{
+    key,
+    event: {
+      affordanceId: 'body-hit',
+      at: 1,
+      phase: 'down',
+      point: { x: 100, y: 200 },
+    },
+  }])
+})
+
+test('a failed passive pointer visual cannot suppress canonical gesture input', async () => {
+  const { responses, runtime } = harness({
+    applyPointerVisual() {
+      throw new Error('injected passive visual failure')
+    },
+  })
+  const key = 'example.consumer::companion/main'
+  const regionId = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions })
+
+  assert.equal(runtime.handleInput(routed(regionId, 'left_mouse_down', 100, 200, 1)), true)
+  assert.equal(runtime.handleInput(routed(regionId, 'left_mouse_dragged', 120, 220, 2)), true)
+  assert.equal(runtime.handleInput(routed(regionId, 'left_mouse_up', 120, 220, 3)), true)
+  assert.deepEqual(responses.map(({ frame }) => frame.phase), ['start', 'update', 'end'])
 })
 
 test('secondary segments build the same region index without mutating daemon regions or duplicating events', async () => {

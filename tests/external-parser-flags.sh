@@ -91,6 +91,7 @@ check_unknown_flag inspect ./aos inspect --bogus
 check_unknown_flag status ./aos status --bogus
 check_unknown_flag doctor ./aos doctor --bogus
 check_unknown_flag permissions-check ./aos permissions check --bogus
+check_unknown_flag permissions-prime-screen-capture ./aos permissions prime screen-capture --bogus
 check_unknown_flag permissions-preflight ./aos permissions preflight --bogus
 check_unknown_flag permissions-setup ./aos permissions setup --bogus
 check_unknown_flag permissions-reset-runtime ./aos permissions reset-runtime --bogus

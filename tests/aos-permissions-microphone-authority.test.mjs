@@ -13,6 +13,12 @@ function runCheck({ microphone = false, microphoneState } = {}) {
   const fakeAOS = path.join(tempRoot, 'aos');
   const healthPermissions = { accessibility: true, microphone };
   if (microphoneState !== undefined) healthPermissions.microphone_state = microphoneState;
+  healthPermissions.screen_capture_direct = {
+    capability: 'screen_capture_direct',
+    status: 'ready',
+    capture_persisted: false,
+    error_code: null,
+  };
   writeFileSync(fakeAOS, `#!/usr/bin/env node
 const args = process.argv.slice(2).join(' ');
 const responses = {
@@ -62,6 +68,68 @@ process.stdout.write(JSON.stringify(responses[args]) + '\\n');
       encoding: 'utf8',
     });
     return { ...result, response: JSON.parse(result.stdout) };
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+function runDirectCapturePrime({
+  status = 'ready',
+  errorCode = null,
+  primitiveCode = null,
+  malformedReady = false,
+} = {}) {
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'aos-permissions-direct-capture-'));
+  const fakeAOS = path.join(tempRoot, 'aos');
+  const callLog = path.join(tempRoot, 'calls.ndjson');
+  writeFileSync(fakeAOS, `#!/usr/bin/env node
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+fs.appendFileSync(${JSON.stringify(callLog)}, JSON.stringify(args) + '\\n');
+if (args.join(' ') !== '__permissions direct-screen-capture prime --json') {
+  process.stderr.write(JSON.stringify({ code: 'UNEXPECTED_AOS', args }) + '\\n');
+  process.exit(1);
+}
+if (${JSON.stringify(primitiveCode)} !== null) {
+  process.stderr.write(JSON.stringify({
+    code: ${JSON.stringify(primitiveCode)},
+    error: 'content-free primitive failure',
+  }) + '\\n');
+  process.exit(1);
+}
+if (${JSON.stringify(malformedReady)}) {
+  process.stdout.write(JSON.stringify({ status: 'ready' }) + '\\n');
+  process.exit(0);
+}
+process.stdout.write(JSON.stringify({
+  capability: 'screen_capture_direct',
+  status: ${JSON.stringify(status)},
+  capture_persisted: false,
+  error_code: ${JSON.stringify(errorCode)},
+}) + '\\n');
+process.exit(${status === 'ready' ? 0 : 1});
+`);
+  chmodSync(fakeAOS, 0o755);
+  try {
+    const result = spawnSync(
+      process.execPath,
+      ['scripts/aos-permissions.mjs', 'prime', 'screen-capture', '--json'],
+      {
+        cwd: root,
+        env: {
+          ...process.env,
+          AOS_PATH: fakeAOS,
+          AOS_RUNTIME_MODE: 'repo',
+          AOS_STATE_ROOT: tempRoot,
+        },
+        encoding: 'utf8',
+      },
+    );
+    return {
+      ...result,
+      response: JSON.parse(result.stdout),
+      calls: readFileSync(callLog, 'utf8').trim().split('\n').map((line) => JSON.parse(line)),
+    };
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -228,6 +296,71 @@ test('foreground microphone true cannot override daemon denied', () => {
   });
   assert.equal(result.response.notes.some((note) => note.includes('denied')), true);
   assert.equal(result.response.notes.some((note) => note.includes('reset-runtime')), false);
+  assert.deepEqual(result.response.screen_capture_direct, {
+    capability: 'screen_capture_direct',
+    status: 'ready',
+    capture_persisted: false,
+  });
+});
+
+test('direct screen-capture prime invokes only the daemon-owned primitive', () => {
+  const result = runDirectCapturePrime();
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(result.calls, [[
+    '__permissions',
+    'direct-screen-capture',
+    'prime',
+    '--json',
+  ]]);
+  assert.deepEqual(result.response, {
+    capability: 'screen_capture_direct',
+    status: 'ready',
+    capture_persisted: false,
+    error_code: null,
+  });
+});
+
+test('direct screen-capture denial remains content-free and retryable', () => {
+  const result = runDirectCapturePrime({
+    status: 'permission_required',
+    errorCode: 'DESKTOP_FRAME_PERMISSION_DENIED',
+  });
+
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.response, {
+    capability: 'screen_capture_direct',
+    status: 'permission_required',
+    capture_persisted: false,
+    error_code: 'DESKTOP_FRAME_PERMISSION_DENIED',
+  });
+  assert.equal(Object.hasOwn(result.response, 'path'), false);
+  assert.equal(Object.hasOwn(result.response, 'frame'), false);
+  assert.equal(Object.hasOwn(result.response, 'content'), false);
+});
+
+test('direct screen-capture prime preserves a structured primitive error code', () => {
+  const result = runDirectCapturePrime({ primitiveCode: 'DAEMON_UNREACHABLE' });
+
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.response, {
+    capability: 'screen_capture_direct',
+    status: 'failed',
+    capture_persisted: false,
+    error_code: 'DAEMON_UNREACHABLE',
+  });
+});
+
+test('direct screen-capture prime rejects a malformed ready response', () => {
+  const result = runDirectCapturePrime({ malformedReady: true });
+
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.response, {
+    capability: 'screen_capture_direct',
+    status: 'failed',
+    capture_persisted: false,
+    error_code: 'DESKTOP_FRAME_PERMISSION_RESPONSE_INVALID',
+  });
 });
 
 test('legacy daemon without microphone state fails closed', () => {

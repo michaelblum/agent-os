@@ -70,6 +70,12 @@ progress remains bounded by the normal DevTools sampling cadence.
 The manifest binds owner, extension ID, sorted implementation IDs, scene ABI,
 AOS's pinned Three revision, finite resource budgets, and the projection body
 SHA-256. `serializeSceneExtensionDigestMaterial()` is the digest authority.
+An optional sorted `capabilities` array is part of the same digest authority.
+The current capability registry contains only:
+
+```json
+["aos.scene.desktop_frame_texture"]
+```
 
 The context contains only AOS's pinned `THREE` namespace, the canonical scene
 document, lowered budgets, and
@@ -82,6 +88,43 @@ and invoking it after factory return is rejected. AOS still performs the
 authoritative admission audit and sampled runtime audits. Extension-local asset
 loading is not part of V1. Procedural geometry and data already admitted by the
 document are supported.
+
+An extension declaring `aos.scene.desktop_frame_texture` also receives
+`desktopFrame`. Each display projection owns one stable Three texture plus
+`request()`, `clear()`, and `snapshot()` operations. One `request()` asks AOS
+for a bounded all-display capture set and returns immediately. Every authorized
+segment stages its own frame, and AOS commits the stable textures only after all
+exact display consumers decode successfully. The aggregate remains active until
+every exact consumer acknowledges presentation; a missing acknowledgement,
+authorization change, or topology change clears all staged and visible
+segments. The one-shot per-display captures may have bounded temporal skew.
+`snapshot()` exposes
+only bounds, dimensions, generation, epoch, capture duration, readiness, and a
+redacted error code. The extension should render the texture only after
+`status` becomes `ready` and call `clear()` when its effect finishes.
+Before the current daemon has been explicitly primed with
+`aos permissions prime screen-capture --json`, `request()` returns normally but
+its snapshot settles at `status="consent_required"` with
+`errorCode="DESKTOP_FRAME_CONSENT_REQUIRED"`. It does not invoke
+ScreenCaptureKit or macOS permission UI. Extensions must treat that state as an
+optional-effect degradation and keep unrelated interactions available.
+
+AOS excludes DesktopWorld's own windows, caps each decoded frame at 1,048,576
+pixels, binds each opaque handle to the exact display WebView, stage generation,
+and scene revision, consumes it once, and expires native and GPU state within
+five seconds. Projection disposal also clears the source. No screenshot bytes, local
+path, native capture handle, or public transport operation enters the extension
+contract. The reviewed extension runs in the same stage realm and can inspect
+the Three objects it receives; this capability is not a sandbox for untrusted
+code. V1 is a one-shot encoded capture and GPU upload, not a continuous or
+zero-copy desktop stream. A later prewarmed ScreenCaptureKit stream may replace
+that native backend only if measured latency requires it; the extension
+contract does not change.
+
+An optional synchronous `applyPointerVisual(event)` hook receives a bounded
+passive `down` notification for an admitted affordance. It may start a visual
+effect but cannot consume input, select a recognizer, publish a gesture, or
+commit state.
 
 ## Review And Installation
 

@@ -70,11 +70,14 @@ struct AOSSceneExtensionArtifact {
         guard let bodyLiteral = String(data: bodyLiteralData, encoding: .utf8) else {
             throw AOSSceneExtensionStoreFailure(code: "SCENE_EXTENSION_BODY_ENCODING")
         }
+        let capabilityFreeze = manifest["capabilities"] == nil
+            ? ""
+            : "Object.freeze(manifest.capabilities);\n"
         let source = """
         const createProjection = Function("context", \(bodyLiteral));
         const manifest = \(manifestJSON);
         Object.freeze(manifest.implementationIds);
-        Object.freeze(manifest.budgets);
+        \(capabilityFreeze)Object.freeze(manifest.budgets);
         Object.freeze(manifest);
         export default Object.freeze({ manifest, createProjection });
 
@@ -92,9 +95,11 @@ final class AOSSceneExtensionStore {
     static let schemaVersion = 1
 
     private static let manifestKeys = Set([
-        "budgets", "contract", "digest", "id", "implementationIds",
+        "budgets", "capabilities", "contract", "digest", "id", "implementationIds",
         "ownerId", "sceneAbi", "schemaVersion", "threeRevision",
     ])
+    private static let requiredManifestKeys = manifestKeys.subtracting(["capabilities"])
+    private static let supportedCapabilities = Set(["aos.scene.desktop_frame_texture"])
     private static let budgetKeys = [
         "maxDrawCalls", "maxObjects", "maxResources", "maxTextureBytes",
         "maxTriangles", "maxWorkingBytes",
@@ -160,6 +165,7 @@ final class AOSSceneExtensionStore {
     private static func digestMaterial(
         manifest: [String: Any],
         implementationIDs: [String],
+        capabilities: [String],
         budgets: [String: Int],
         bodyDigest: String
     ) throws -> Data {
@@ -182,6 +188,10 @@ final class AOSSceneExtensionStore {
             "implementationCount:\(implementationIDs.count)",
         ]
         lines.append(contentsOf: implementationIDs.map { "implementation:\($0)" })
+        if !capabilities.isEmpty {
+            lines.append("capabilityCount:\(capabilities.count)")
+            lines.append(contentsOf: capabilities.map { "capability:\($0)" })
+        }
         for key in budgetKeys {
             guard let value = budgets[key] else {
                 throw AOSSceneExtensionStoreFailure(code: "SCENE_EXTENSION_MANIFEST_INVALID")
@@ -254,11 +264,13 @@ final class AOSSceneExtensionStore {
         dictionary: [String: Any],
         reference: AOSSceneExtensionReference,
         implementationIDs: [String],
+        capabilities: [String],
         budgets: [String: Int]
     ) {
         guard let object = try? JSONSerialization.jsonObject(with: data),
               let manifest = object as? [String: Any],
-              Set(manifest.keys) == manifestKeys,
+              Set(manifest.keys).isSubset(of: manifestKeys),
+              Set(manifest.keys).isSuperset(of: requiredManifestKeys),
               manifest["contract"] as? String == contract,
               manifest["schemaVersion"] as? Int == schemaVersion,
               let ownerID = manifest["ownerId"] as? String,
@@ -280,6 +292,20 @@ final class AOSSceneExtensionStore {
               Set(budgetObject.keys) == Set(budgetKeys) else {
             throw AOSSceneExtensionStoreFailure(code: "SCENE_EXTENSION_MANIFEST_INVALID")
         }
+        let capabilities: [String]
+        if let rawCapabilities = manifest["capabilities"] {
+            guard let values = rawCapabilities as? [String] else {
+                throw AOSSceneExtensionStoreFailure(code: "SCENE_EXTENSION_MANIFEST_INVALID")
+            }
+            capabilities = values
+        } else {
+            capabilities = []
+        }
+        guard capabilities == capabilities.sorted(),
+              Set(capabilities).count == capabilities.count,
+              Set(capabilities).isSubset(of: supportedCapabilities) else {
+            throw AOSSceneExtensionStoreFailure(code: "SCENE_EXTENSION_MANIFEST_INVALID")
+        }
         var budgets: [String: Int] = [:]
         for key in budgetKeys {
             guard let value = budgetObject[key] as? Int,
@@ -296,7 +322,7 @@ final class AOSSceneExtensionStore {
             "sceneAbi": sceneABI,
             "threeRevision": threeRevision,
         ])
-        return (manifest, reference, implementationIDs, budgets)
+        return (manifest, reference, implementationIDs, capabilities, budgets)
     }
 
     private static func validateAuthorization(
@@ -354,6 +380,7 @@ final class AOSSceneExtensionStore {
         let material = try Self.digestMaterial(
             manifest: validated.dictionary,
             implementationIDs: validated.implementationIDs,
+            capabilities: validated.capabilities,
             budgets: validated.budgets,
             bodyDigest: bodyDigest
         )
@@ -386,5 +413,19 @@ final class AOSSceneExtensionStore {
         var accepted = operation
         accepted["extension"] = reference.dictionary
         return accepted
+    }
+
+    func authorization(
+        for reference: AOSSceneExtensionReference
+    ) throws -> [String: Any] {
+        let artifact = try load(reference)
+        return [
+            "capabilities": (artifact.manifest["capabilities"] as? [String]) ?? [],
+            "digest": reference.digest,
+            "extensionId": reference.id,
+            "ownerId": reference.ownerID,
+            "sceneAbi": reference.sceneABI,
+            "threeRevision": reference.threeRevision,
+        ]
     }
 }

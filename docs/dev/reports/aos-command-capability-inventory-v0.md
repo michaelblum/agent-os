@@ -19,12 +19,12 @@ current command tree before public CLI and self-hosting boundary changes.
 ## Summary
 
 - Command paths: 65
-- Concrete forms: 228
-- Consumer-discoverable forms: 219
+- Concrete forms: 229
+- Consumer-discoverable forms: 220
 - Internal/transitional command paths: 1
-- Mutating or conditionally mutating forms: 127
+- Mutating or conditionally mutating forms: 128
 - Forms with unspecified mutability metadata: 0
-- Forms with JSON output path: 223
+- Forms with JSON output path: 224
 - Forms with dry-run support: 37
 
 ## Capability Group Counts
@@ -37,7 +37,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | CLI metadata | 2 |
 | Content/wiki | 18 |
 | Core desktop | 8 |
-| Core readiness | 7 |
+| Core readiness | 8 |
 | Desktop discovery | 4 |
 | Desktop/native control | 19 |
 | Diagnostics/debug | 6 |
@@ -89,7 +89,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `reset` | 1 | Runtime/service | yes | mutates | --json | `manifests/commands/source/aos/26-reset.json` | `node scripts/aos-reset.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `clean` | 1 | Runtime/service | yes | mutates | --json | `manifests/commands/source/aos/27-clean.json` | `node scripts/aos-clean.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `introspect` | 1 | Diagnostics/debug | yes | read-only | --json | `manifests/commands/source/aos/28-introspect.json` | `node scripts/aos-family-router.mjs introspect UNKNOWN_SUBCOMMAND introspect subcommand [child 0]` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
-| `permissions` | 4 | Core readiness, Runtime/service | yes | mutates, read-only | --json | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `permissions` | 5 | Core readiness, Runtime/service | yes | mutates, read-only | --json | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `inspect` | 1 | Diagnostics/debug | yes | mutates | default | `manifests/commands/source/aos/30-inspect.json` | `node scripts/aos-inspect.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `log` | 3 | Diagnostics/debug | yes | mutates, read-only | default | `manifests/commands/source/aos/31-log.json` | `node scripts/aos-log.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `wiki` | 16 | Content/wiki | yes | mutates, read-only | --json | `manifests/commands/source/aos/32-wiki.json` | `node scripts/aos-wiki-router.mjs` | `docs/api/aos.md` |
@@ -269,6 +269,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `reset` | `reset` | Runtime/service | yes | mutates | --json | no | `manifests/commands/source/aos/26-reset.json` | `node scripts/aos-reset.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `clean` | `clean` | Runtime/service | yes | mutates | --json | yes | `manifests/commands/source/aos/27-clean.json` | `node scripts/aos-clean.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `introspect review` | `introspect-review` | Diagnostics/debug | yes | read-only | --json | no | `manifests/commands/source/aos/28-introspect.json` | `node scripts/aos-introspect-review.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
+| `permissions prime screen-capture` | `permissions-prime-screen-capture` | Core readiness | yes | mutates | --json | no | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs prime screen-capture` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `permissions check` | `permissions-check` | Core readiness | yes | read-only | --json | no | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs check` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `permissions preflight` | `permissions-preflight` | Core readiness | yes | read-only | --json | no | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs preflight` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `permissions setup` | `permissions-setup` | Core readiness | yes | mutates | --json | no | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs setup` | `docs/api/aos.md, docs/api/aos-capabilities.md` |

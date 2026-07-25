@@ -61,6 +61,34 @@ enum AOSDesktopWorldSceneOperationAdmission {
     case stageUnavailable
 }
 
+private struct AOSDesktopWorldSceneCapabilityAuthorization: Equatable {
+    let capabilities: Set<String>
+    let digest: String
+    let extensionID: String
+    let ownerID: String
+    let resourceRevision: Int
+    let sceneABI: String
+    let threeRevision: String
+
+    func advancingResourceRevision(to revision: Int) -> Self {
+        Self(
+            capabilities: capabilities,
+            digest: digest,
+            extensionID: extensionID,
+            ownerID: ownerID,
+            resourceRevision: revision,
+            sceneABI: sceneABI,
+            threeRevision: threeRevision
+        )
+    }
+}
+
+private enum AOSDesktopWorldSceneAuthorizationMutation {
+    case unchanged
+    case replace(AOSDesktopWorldSceneCapabilityAuthorization?)
+    case advanceRevision(expected: Int, next: Int)
+}
+
 /// Owns the complete in-memory lifecycle aggregate for the shared DesktopWorld
 /// scene stage. Canvas creation and outbound IPC remain daemon I/O concerns;
 /// lease, generation, readiness, subscription, and barrier state live here.
@@ -70,6 +98,12 @@ final class AOSDesktopWorldSceneController {
     private let results = AOSDesktopWorldSceneResultCoordinator()
     private let readiness = AOSDesktopWorldSceneStageReadiness()
     private var operationTokens: [String: AOSSceneLeaseToken] = [:]
+    private var operationAuthorizationMutations: [
+        String: AOSDesktopWorldSceneAuthorizationMutation
+    ] = [:]
+    private var resourceAuthorizations: [
+        String: AOSDesktopWorldSceneCapabilityAuthorization
+    ] = [:]
     private var blockedIdentity: AOSDesktopWorldSceneStageIdentity?
     private var nextRetirementToken: UInt64 = 0
     private var retirement: (
@@ -211,6 +245,7 @@ final class AOSDesktopWorldSceneController {
             var actions: [AOSDesktopWorldSceneBarrierAction] = []
             for token in leases.beginDisconnect(connectionID: connectionID) {
                 let leaseKey = token.key
+                resourceAuthorizations.removeValue(forKey: leaseKey)
                 let cleanup = results.ownerDisconnected(leaseKey: leaseKey)
                 if !cleanup.isEmpty || results.hasPending(leaseKey: leaseKey) {
                     actions.append(contentsOf: cleanup)
@@ -260,6 +295,7 @@ final class AOSDesktopWorldSceneController {
                     )
                 }
                 operationTokens[operationID] = token
+                operationAuthorizationMutations[operationID] = .replace(nil)
                 actions.append(action)
             }
             return AOSDesktopWorldSceneDisconnectPlan(barrierActions: actions, invalidation: nil)
@@ -357,12 +393,36 @@ final class AOSDesktopWorldSceneController {
         resource: String,
         operationName: String,
         operation: [String: Any],
+        extensionAuthorization: [String: Any]? = nil,
         connectionID: UUID,
         ref: String?
     ) -> AOSDesktopWorldSceneOperationAdmission {
-        withLock {
+        let parsedAuthorization = extensionAuthorization.flatMap {
+            Self.capabilityAuthorization($0)
+        }
+        guard extensionAuthorization == nil || parsedAuthorization != nil else {
+            return .stageUnavailable
+        }
+        let transactionRevision: (expected: Int, next: Int)?
+        if operationName == "transact" {
+            guard let transaction = operation["transaction"] as? [String: Any],
+                  let expectedRevision = transaction["expectedRevision"] as? Int,
+                  expectedRevision >= 0,
+                  expectedRevision < Int.max else {
+                return .stageUnavailable
+            }
+            transactionRevision = (expectedRevision, expectedRevision + 1)
+        } else {
+            transactionRevision = nil
+        }
+        return withLock {
             guard retirement == nil,
                   readiness.isReady(for: topology.identity) else { return .stageUnavailable }
+            if let transactionRevision,
+               let authorization = resourceAuthorizations[key],
+               authorization.resourceRevision != transactionRevision.expected {
+                return .stageUnavailable
+            }
             let acquisition = leases.acquire(key: key, connectionID: connectionID, ref: ref)
             guard case .acquired(let token, let isNewLease) = acquisition else { return .leaseBusy }
             let operationID = UUID().uuidString.lowercased()
@@ -384,7 +444,80 @@ final class AOSDesktopWorldSceneController {
                 return results.hasPending(leaseKey: key) ? .operationPending : .stageUnavailable
             }
             operationTokens[operationID] = token
+            if operationName == "mount" {
+                operationAuthorizationMutations[operationID] = .replace(parsedAuthorization)
+            } else if operationName == "transact" {
+                if resourceAuthorizations[key] != nil, let transactionRevision {
+                    operationAuthorizationMutations[operationID] = .advanceRevision(
+                        expected: transactionRevision.expected,
+                        next: transactionRevision.next
+                    )
+                } else {
+                    operationAuthorizationMutations[operationID] = .unchanged
+                }
+            } else if operationName == "remove" || operationName == "close" {
+                operationAuthorizationMutations[operationID] = .replace(nil)
+            } else {
+                operationAuthorizationMutations[operationID] = .unchanged
+            }
             return .accepted(action)
+        }
+    }
+
+    private static func capabilityAuthorization(
+        _ value: [String: Any]
+    ) -> AOSDesktopWorldSceneCapabilityAuthorization? {
+        let expected = Set([
+            "capabilities", "digest", "extensionId", "ownerId",
+            "resourceRevision", "sceneAbi", "threeRevision",
+        ])
+        guard Set(value.keys) == expected,
+              let capabilities = value["capabilities"] as? [String],
+              let digest = value["digest"] as? String,
+              let extensionID = value["extensionId"] as? String,
+              let ownerID = value["ownerId"] as? String,
+              let resourceRevision = value["resourceRevision"] as? Int,
+              resourceRevision >= 0,
+              let sceneABI = value["sceneAbi"] as? String,
+              let threeRevision = value["threeRevision"] as? String else {
+            return nil
+        }
+        return AOSDesktopWorldSceneCapabilityAuthorization(
+            capabilities: Set(capabilities),
+            digest: digest,
+            extensionID: extensionID,
+            ownerID: ownerID,
+            resourceRevision: resourceRevision,
+            sceneABI: sceneABI,
+            threeRevision: threeRevision
+        )
+    }
+
+    func authorizes(
+        identity: AOSDesktopWorldSceneStageIdentity,
+        key: String,
+        extensionDigest: String,
+        extensionID: String,
+        extensionOwnerID: String,
+        resourceRevision: Int,
+        sceneABI: String,
+        threeRevision: String,
+        capability: String
+    ) -> Bool {
+        withLock {
+            guard retirement == nil,
+                  readiness.isReady(for: identity),
+                  let authorization = resourceAuthorizations[key],
+                  authorization.digest == extensionDigest,
+                  authorization.extensionID == extensionID,
+                  authorization.ownerID == extensionOwnerID,
+                  authorization.resourceRevision == resourceRevision,
+                  authorization.sceneABI == sceneABI,
+                  authorization.threeRevision == threeRevision,
+                  authorization.capabilities.contains(capability) else {
+                return false
+            }
+            return true
         }
     }
 
@@ -396,9 +529,30 @@ final class AOSDesktopWorldSceneController {
         guard let key = payload["lease_key"] as? String,
               let token = operationTokens.removeValue(forKey: operationID),
               token.key == key else { return nil }
+        let authorizationMutation = operationAuthorizationMutations.removeValue(
+            forKey: operationID
+        ) ?? .unchanged
         let releaseLease = payload["operation"] as? String == "close"
             || payload["release_lease"] as? Bool == true
         guard let route = leases.completeOperation(token, releaseLease: releaseLease) else { return nil }
+        if payload["status"] as? String == "ok" {
+            switch authorizationMutation {
+            case .unchanged:
+                break
+            case .replace(let authorization):
+                resourceAuthorizations[key] = authorization
+            case .advanceRevision(let expected, let next):
+                guard let authorization = resourceAuthorizations[key],
+                      authorization.resourceRevision == expected else {
+                    resourceAuthorizations.removeValue(forKey: key)
+                    break
+                }
+                resourceAuthorizations[key] = authorization.advancingResourceRevision(to: next)
+            }
+        }
+        if releaseLease {
+            resourceAuthorizations.removeValue(forKey: key)
+        }
         return AOSDesktopWorldSceneDelivery(payload: payload, route: route)
     }
 
@@ -424,6 +578,8 @@ final class AOSDesktopWorldSceneController {
         let invalidated = leases.invalidateAll()
         results.cancelAll()
         operationTokens.removeAll(keepingCapacity: false)
+        operationAuthorizationMutations.removeAll(keepingCapacity: false)
+        resourceAuthorizations.removeAll(keepingCapacity: false)
         let primaryKey = primaryCompletion?.payload["lease_key"] as? String
         let deliveries = invalidated.map { invalidation -> AOSDesktopWorldSceneDelivery in
             let payload: [String: Any]

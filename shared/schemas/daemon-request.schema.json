@@ -8,7 +8,7 @@
   "additionalProperties": false,
   "properties": {
     "v": { "const": 1 },
-    "service": { "enum": ["see", "do", "show", "tell", "listen", "session", "voice", "status_item", "scene", "system", "focus", "graph", "content"] },
+    "service": { "enum": ["see", "do", "show", "tell", "listen", "session", "voice", "permissions", "status_item", "scene", "system", "focus", "graph", "content"] },
     "action": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
     "data": { "type": "object" },
     "ref": { "type": "string" }
@@ -54,6 +54,10 @@
       "then": { "properties": { "data": { "$ref": "#/$defs/SessionUnregisterData" } } } },
     { "if": { "properties": { "service": { "const": "session" }, "action": { "const": "who" } } },
       "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
+    { "if": { "properties": { "service": { "const": "permissions" } } },
+      "then": { "properties": { "action": { "enum": ["screen_capture_direct_status", "screen_capture_direct_prime"] } } } },
+    { "if": { "properties": { "service": { "const": "permissions" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/EmptyStrict" } } } },
     { "if": { "properties": { "service": { "const": "voice" }, "action": { "const": "list" } } },
       "then": { "properties": { "data": { "$ref": "#/$defs/VoiceListData" } } } },
     { "if": { "properties": { "service": { "const": "voice" }, "action": { "const": "assignments" } } },
@@ -93,6 +97,7 @@
   ],
   "$defs": {
     "Empty": { "type": "object", "additionalProperties": true },
+    "EmptyStrict": { "type": "object", "additionalProperties": false },
     "StatusItemOwner": {
       "$ref": "https://agent-os.local/schemas/aos-status-item-descriptor-v1.schema.json#/$defs/id"
     },

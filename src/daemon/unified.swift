@@ -127,6 +127,34 @@ class UnifiedDaemon {
         }
     )
     private var contentServer: ContentServer?
+    private let desktopFrameStore = AOSDesktopFrameStore()
+    private lazy var desktopFrameCaptureConsent = AOSDesktopFrameCaptureConsentController()
+    private lazy var desktopFrameCapture = AOSDesktopFrameCaptureController(
+        canvasManager: canvasManager,
+        store: desktopFrameStore,
+        consent: desktopFrameCaptureConsent,
+        reauthorize: { [weak self] authorization in
+            self?.reauthorizeDesktopFrame(authorization) ?? false
+        },
+        handleAbort: { [weak self] abort in
+            self?.deliverDesktopFrameAbort(abort)
+        },
+        authorize: { [weak self] payload in
+            self?.authorizeDesktopFrame(payload)
+        }
+    )
+    private lazy var desktopFrameSchemeHandler = AOSDesktopFrameSchemeHandler(
+        store: desktopFrameStore,
+        authorize: { [weak self] authorization in
+            self?.desktopWorldSceneTransport.authorizesDesktopFrame(authorization) ?? false
+        },
+        identityResolver: { [weak self] webView in
+            self?.canvasManager.desktopFrameConsumer(
+                canvasID: AOSDesktopWorldSceneTransportController.stageCanvasID,
+                webViewID: ObjectIdentifier(webView)
+            )
+        }
+    )
     private lazy var sceneExtensionStore = AOSSceneExtensionStore()
     private lazy var sceneExtensionSchemeHandler = AOSSceneExtensionSchemeHandler(store: sceneExtensionStore)
     private let desktopWorldSceneEventRouting = AOSDesktopWorldSceneEventRouteDiagnostics()
@@ -149,6 +177,9 @@ class UnifiedDaemon {
             self.canvasReadyManifests.removeValue(forKey: self.sceneStageCanvasID)
             self.canvasSubscriptionLock.unlock()
         },
+        authorizationChanged: { [weak self] in
+            self?.desktopFrameAuthorizationChanged()
+        },
         emit: { [weak self] route, event, data in
             self?.emitConnectionEvent(
                 service: "scene",
@@ -159,6 +190,7 @@ class UnifiedDaemon {
             ) ?? false
         }
     )
+
     private lazy var desktopWorldDevTools = AOSDesktopWorldDevToolsController(
         canvasManager: canvasManager,
         sceneStageCanvasID: sceneStageCanvasID,
@@ -250,6 +282,22 @@ class UnifiedDaemon {
         self.currentConfig = config
         self.idleTimeout = idleTimeout
         self.perception = PerceptionEngine(config: config)
+    }
+
+    private func authorizeDesktopFrame(
+        _ payload: [String: Any]
+    ) -> AOSDesktopFrameCaptureAuthorization? {
+        desktopWorldSceneTransport.authorizeDesktopFrame(payload)
+    }
+
+    private func reauthorizeDesktopFrame(
+        _ authorization: AOSDesktopFrameLeaseIdentity
+    ) -> Bool {
+        desktopWorldSceneTransport.authorizesDesktopFrame(authorization)
+    }
+
+    private func desktopFrameAuthorizationChanged() {
+        _ = desktopFrameCapture.cancelUnauthorized()
     }
 
     // MARK: - Start
@@ -410,6 +458,21 @@ class UnifiedDaemon {
                 case "capture.region":
                     self.handleCaptureRegion(callerID: canvasID, payload: inner ?? [:])
                     return
+                case "desktop_frame.acquire":
+                    self.handleDesktopFrameAcquire(callerID: canvasID, payload: inner ?? [:])
+                    return
+                case "desktop_frame.cancel":
+                    _ = self.desktopFrameCapture.cancel(callerCanvasID: canvasID, payload: inner ?? [:])
+                    return
+                case "desktop_frame.ready":
+                    self.handleDesktopFrameReady(callerID: canvasID, payload: inner ?? [:])
+                    return
+                case "desktop_frame.presented":
+                    self.handleDesktopFramePresented(callerID: canvasID, payload: inner ?? [:])
+                    return
+                case "desktop_frame.release":
+                    self.handleDesktopFrameRelease(callerID: canvasID, payload: inner ?? [:])
+                    return
                 case "browser_dom.element_target":
                     self.handleBrowserDomElementTarget(callerID: canvasID, payload: inner ?? [:])
                     return
@@ -477,6 +540,9 @@ class UnifiedDaemon {
                 self.removeInputRegionsOwned(by: canvasInfo.id, includeSuspendRetained: true)
                 self.desktopWorldDevTools.detachHost(id: canvasInfo.id)
                 if canvasInfo.id == self.sceneStageCanvasID {
+                    _ = self.desktopFrameCapture.releaseAll(
+                        callerCanvasID: self.sceneStageCanvasID
+                    )
                     self.desktopWorldSceneTransport.stageRemoved()
                 }
             } else if canvasInfo.suspended == true {
@@ -618,6 +684,7 @@ class UnifiedDaemon {
         // fails to rewrite the URL (e.g. content server not yet ready).
         let schemeHandler = AosSchemeHandler()
         schemeHandler.portProvider = { [weak self] in self?.contentServer?.assignedPort ?? 0 }
+        schemeHandler.desktopFrameHandler = desktopFrameSchemeHandler
         schemeHandler.sceneExtensionHandler = extensionHandler
         canvasManager.aosSchemeHandler = schemeHandler
 
@@ -2042,6 +2109,7 @@ class UnifiedDaemon {
                     status: "error", code: "REMOVE_FAILED",
                     message: "target \(targetID) still exists after remove")
             } else {
+                _ = self.desktopFrameCapture.releaseAll(callerCanvasID: targetID)
                 self.dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok")
             }
         }
@@ -2714,6 +2782,116 @@ class UnifiedDaemon {
         }
     }
 
+    private func handleDesktopFrameAcquire(callerID: String, payload: [String: Any]) {
+        desktopFrameCapture.acquire(
+            callerCanvasID: callerID,
+            payload: payload,
+            admitted: { [weak self] (request: AOSDesktopFrameCaptureRequest) -> Bool in
+                guard let self else { return false }
+                return self.canvasManager.postMessage(
+                    canvasID: callerID,
+                    exactDesktopFrameConsumers: request.consumers,
+                    payload: [
+                        "type": "desktop_frame.started",
+                        "status": "ok",
+                        "request_id": request.requestID,
+                        "owner": request.authorization.ownerID,
+                        "resource": request.authorization.resourceID,
+                        "revision": request.authorization.resourceRevision,
+                        "extension": request.authorization.extensionReference.dictionary,
+                    ]
+                )
+            }
+        ) { [weak self] outcome in
+            guard let self else { return }
+            switch outcome {
+            case .available(let delivery):
+                var response = delivery.payload
+                response["type"] = "desktop_frame.available"
+                response["status"] = "ok"
+                response["request_id"] = delivery.requestID
+                guard self.canvasManager.postMessage(
+                    canvasID: callerID,
+                    exactDesktopFrameConsumers: delivery.consumers,
+                    payload: response
+                ) else {
+                    _ = self.desktopFrameCapture.cancel(
+                        callerCanvasID: callerID,
+                        payload: ["request_id": delivery.requestID]
+                    )
+                    return
+                }
+            case .rejected(let request, let code):
+                guard let request else { return }
+                _ = self.canvasManager.postMessage(
+                    canvasID: callerID,
+                    exactDesktopFrameConsumers: request.consumers,
+                    payload: [
+                        "type": "desktop_frame.available",
+                        "status": "error",
+                        "code": code,
+                        "request_id": request.requestID,
+                        "owner": request.authorization.ownerID,
+                        "resource": request.authorization.resourceID,
+                        "revision": request.authorization.resourceRevision,
+                        "extension": request.authorization.extensionReference.dictionary,
+                    ]
+                )
+            }
+        }
+    }
+
+    private func handleDesktopFrameReady(callerID: String, payload: [String: Any]) {
+        guard case .commit(let delivery) = desktopFrameCapture.ready(
+            callerCanvasID: callerID,
+            payload: payload
+        ) else { return }
+        var response = delivery.payload
+        response["type"] = "desktop_frame.commit"
+        response["status"] = "ok"
+        response["request_id"] = delivery.requestID
+        guard canvasManager.postMessage(
+            canvasID: callerID,
+            exactDesktopFrameConsumers: delivery.consumers,
+            payload: response
+        ) else {
+            _ = desktopFrameCapture.release(delivery)
+            return
+        }
+    }
+
+    private func deliverDesktopFrameAbort(_ abort: AOSDesktopFrameCaptureAbort) {
+        var response = abort.payload
+        response["type"] = "desktop_frame.abort"
+        response["status"] = "ok"
+        response["request_id"] = abort.requestID
+        _ = canvasManager.postMessage(
+            canvasID: sceneStageCanvasID,
+            exactDesktopFrameConsumers: abort.consumers,
+            payload: response
+        )
+    }
+
+    private func handleDesktopFramePresented(callerID: String, payload: [String: Any]) {
+        guard case .complete(let delivery) = desktopFrameCapture.presented(
+            callerCanvasID: callerID,
+            payload: payload
+        ) else { return }
+        var response = delivery.payload
+        response["type"] = "desktop_frame.complete"
+        response["status"] = "ok"
+        response["request_id"] = delivery.requestID
+        _ = canvasManager.postMessage(
+            canvasID: callerID,
+            exactDesktopFrameConsumers: delivery.consumers,
+            payload: response
+        )
+    }
+
+    private func handleDesktopFrameRelease(callerID: String, payload: [String: Any]) {
+        _ = desktopFrameCapture.release(callerCanvasID: callerID, payload: payload)
+    }
+
     // MARK: - Connection Handling
 
     private func acceptLoop() {
@@ -2747,6 +2925,7 @@ class UnifiedDaemon {
         defer {
             voiceTransport.connectionClosed(connectionID)
             annotationSelection.connectionClosed(connectionID)
+            desktopFrameCaptureConsent.connectionClosed(connectionID)
             statusItemHostController.connectionClosed(connectionID)
             desktopWorldSceneTransport.cleanupConnection(connectionID)
             subscriberLock.lock()
@@ -2971,6 +3150,10 @@ class UnifiedDaemon {
                                                 return "voice-microphone-authorization-status"
         case ("voice", "microphone_authorization_request"):
                                                 return "voice-microphone-authorization-request"
+        case ("permissions", "screen_capture_direct_status"):
+                                                return "permissions-screen-capture-direct-status"
+        case ("permissions", "screen_capture_direct_prime"):
+                                                return "permissions-screen-capture-direct-prime"
         case ("voice", "assignments"):        return "voice-assignments"
         case ("voice", "refresh"):            return "voice-refresh"
         case ("voice", "providers"):          return "voice-providers"
@@ -3086,7 +3269,7 @@ class UnifiedDaemon {
                 return
             }
             // Check that the service is one of the known namespaces.
-            let knownServices: Set<String> = ["see", "do", "show", "tell", "listen", "session", "voice", "annotation", "status_item", "scene", "system", "focus", "graph", "content"]
+            let knownServices: Set<String> = ["see", "do", "show", "tell", "listen", "session", "voice", "permissions", "annotation", "status_item", "scene", "system", "focus", "graph", "content"]
             if !knownServices.contains(env.service) {
                 sendResponseJSON(to: outbound, envelopeError(
                     error: "Unknown service: \(env.service)",
@@ -3318,6 +3501,25 @@ class UnifiedDaemon {
                 "status": result.after.isAuthorized ? "ok" : "degraded",
                 "microphone_authorization": result.dictionary(),
             ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+
+        case "permissions-screen-capture-direct-status":
+            sendResponseJSON(
+                to: outbound,
+                desktopFrameCaptureConsent.snapshot().dictionary,
+                envelopeActive: envelopeActive,
+                envelopeRef: envelopeRef
+            )
+
+        case "permissions-screen-capture-direct-prime":
+            desktopFrameCaptureConsent.prime(owner: connectionID) { [weak outbound] snapshot in
+                guard let outbound else { return }
+                sendResponseJSON(
+                    to: outbound,
+                    snapshot.dictionary,
+                    envelopeActive: envelopeActive,
+                    envelopeRef: envelopeRef
+                )
+            }
 
         case "voice-hotkey":
             guard let shortcut = json["shortcut"] as? String, !shortcut.isEmpty else {
@@ -3668,6 +3870,7 @@ class UnifiedDaemon {
                     "accessibility": perception.daemonAccessibilityGranted,
                     "microphone": microphoneAuthorization.isAuthorized,
                     "microphone_state": microphoneAuthorization.rawValue,
+                    "screen_capture_direct": desktopFrameCaptureConsent.snapshot().dictionary,
                 ] as [String: Any],
             ]
             if let lockOwnerPID = aosDaemonLockOwnerPID(for: mode) {
@@ -4545,6 +4748,8 @@ class UnifiedDaemon {
         fputs("aos daemon shutting down (\(reason))\n", stderr)
         voiceTransport.shutdown()
         annotationSelection.shutdown()
+        desktopFrameCaptureConsent.shutdown()
+        _ = desktopFrameCapture.releaseAll(callerCanvasID: sceneStageCanvasID)
         restoreNativeCursorSuppressionForExit()
         perception.stop()
         spatial.stopPolling()

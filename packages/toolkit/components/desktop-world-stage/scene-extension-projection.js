@@ -98,13 +98,18 @@ function immutableInteractionEvent(value) {
   return immutableInteractionValue(value, { values: 0 })
 }
 
-function extensionProjectionAdapter(projection, releaseExtension) {
+function extensionProjectionAdapter(projection, releaseExtension, desktopFrame = null) {
   let disposed = false
+  let desktopFrameDisposed = false
+  let projectionDisposed = false
   return {
     object: projection.object,
     activate: (...args) => projection.activate?.apply(projection, args),
     applyInteraction: typeof projection.applyInteraction === 'function'
       ? (event) => interactionResult(projection.applyInteraction.call(projection, immutableInteractionEvent(event)))
+      : undefined,
+    applyPointerVisual: typeof projection.applyPointerVisual === 'function'
+      ? (event) => projection.applyPointerVisual.call(projection, immutableInteractionEvent(event))
       : undefined,
     applyAnimation: (...args) => projection.applyAnimation.apply(projection, args),
     applySignal: (...args) => projection.applySignal.apply(projection, args),
@@ -112,7 +117,27 @@ function extensionProjectionAdapter(projection, releaseExtension) {
     contextRestored: (...args) => projection.contextRestored.apply(projection, args),
     dispose(...args) {
       if (disposed) return
-      const result = projection.dispose.apply(projection, args)
+      const failures = []
+      let result
+      if (!projectionDisposed) {
+        try {
+          result = projection.dispose.apply(projection, args)
+          projectionDisposed = true
+        } catch (error) {
+          failures.push(error)
+        }
+      }
+      if (!desktopFrameDisposed) {
+        try {
+          desktopFrame?.dispose?.()
+          desktopFrameDisposed = true
+        } catch (error) {
+          failures.push(error)
+        }
+      }
+      if (failures.length > 0) {
+        throw new AggregateError(failures, 'Scene extension projection cleanup failed.')
+      }
       disposed = true
       releaseExtension()
       return result
@@ -173,12 +198,16 @@ export function createDesktopWorldSceneProjection({
   expectedOwner,
   extensionReference = null,
   extensionRegistry = null,
+  desktopFrameSourceFactory = null,
+  resource = null,
 } = {}) {
   if (!THREE || typeof THREE !== 'object') throw new TypeError('DesktopWorld scene projection requires Three.js.')
   const document = canonicalizeSceneDocument(documentInput)
+  const effectiveResource = resource ?? document.id
   const genericRegistry = createGenericSceneImplementationRegistry()
   let extensionHandle = null
   let extensionLease = null
+  let desktopFrame = null
 
   if (extensionReference !== null) {
     if (!extensionRegistry || typeof extensionRegistry.retain !== 'function') {
@@ -212,16 +241,32 @@ export function createDesktopWorldSceneProjection({
         Math.min(manifestLimit, budgets?.[key] ?? manifestLimit),
       ]),
     ))
+    if (
+      extensionHandle.manifest.capabilities?.includes('aos.scene.desktop_frame_texture')
+      && typeof desktopFrameSourceFactory === 'function'
+    ) {
+      desktopFrame = desktopFrameSourceFactory({
+        THREE,
+        identity: {
+          extension: extensionReference,
+          owner: expectedOwner,
+          resource: effectiveResource,
+          revision: document.revision,
+        },
+      })
+    }
     const projection = extensionHandle.createProjection({
       THREE,
       budgets: effectiveBudgets,
+      desktopFrame,
       document,
     })
     return Object.freeze({
       extension: extensionHandle.manifest,
-      projection: extensionProjectionAdapter(projection, () => extensionLease.release()),
+      projection: extensionProjectionAdapter(projection, () => extensionLease.release(), desktopFrame),
     })
   } catch (error) {
+    try { desktopFrame?.dispose?.() } catch {}
     extensionLease.release()
     throw error
   }
