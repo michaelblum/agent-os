@@ -66,7 +66,8 @@ tests.
 - `content/` contains content/wiki tests.
 - `daemon/` contains daemon and gate tests.
 - `design/` contains design-contract fixture tests.
-- `fixtures/` contains test fixtures.
+- `fixtures/` contains test fixtures; `fixtures/legacy-sigil/product/AGENTS.md`
+  governs the frozen historical Sigil payload.
 - `gateway/` contains gateway tests.
 - `lib/` contains shared test harness helpers.
 - `manual/` contains manual or environment-sensitive checks.

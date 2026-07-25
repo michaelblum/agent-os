@@ -91,9 +91,9 @@ source root. This file is a routing map, not a replacement for those sources.
   primitives, toolkit policy, hosts, schemas, and public CLI contracts.
 - Repository and compatibility ownership:
   `docs/adr/0021-sigil-reference-consumer-and-toolkit-repository-boundary.md`.
-- Frozen compatibility fixture: `apps/sigil/`.
-- Fixture contract: `apps/sigil/AGENTS.md`.
-- The embedded tree is not an app-development, launch, packaging, recipe, or
+- Frozen compatibility fixture: `tests/fixtures/legacy-sigil/product/`.
+- Fixture contract: `tests/fixtures/legacy-sigil/product/AGENTS.md`.
+- The test-only tree is not an app-development, launch, packaging, recipe, or
   live-proof surface. Use it only through the bounded deterministic fixture
   proof named by its contract.
 

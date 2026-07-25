@@ -8,7 +8,10 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const schemaPath = path.join(repoRoot, 'shared/schemas/aos-app-v0.schema.json');
-const legacySigilManifestPath = path.join(repoRoot, 'apps/sigil/aos-app.fixture.json');
+const legacySigilManifestPath = path.join(
+  repoRoot,
+  'tests/fixtures/legacy-sigil/product/aos-app.fixture.json',
+);
 
 function validate(instancePath) {
   return spawnSync(

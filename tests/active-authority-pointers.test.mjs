@@ -105,7 +105,7 @@ async function embeddedProductAuthorityPaths() {
       || relativePath === 'package.sh'
       || relativePath === 'scripts/package-aos-runtime'
     ))
-    .filter((relativePath) => !relativePath.startsWith('apps/sigil/'))
+    .filter((relativePath) => !relativePath.startsWith('tests/fixtures/legacy-sigil/product/'))
     .filter((relativePath) => !relativePath.startsWith('docs/archive/'))
     .filter((relativePath) => !relativePath.startsWith('docs/dev/reports/'))
     .filter((relativePath) => !relativePath.startsWith('docs/design/fixtures/'))
@@ -206,6 +206,7 @@ test('active authority contains no retired Foreman or GDI role vocabulary', asyn
 test('embedded Sigil cannot return as active AOS product authority', async () => {
   const retiredPaths = [
     'BROKE.md',
+    'apps/sigil',
     'apps/sigil/aos-app.json',
     'experiences/sigil/aos-experience.json',
     'packages/host/src/sigil-bridge.ts',
@@ -232,6 +233,12 @@ test('embedded Sigil cannot return as active AOS product authority', async () =>
   ];
   const violations = [];
   const authorityPaths = await embeddedProductAuthorityPaths();
+  assert.ok(
+    authorityPaths.every(
+      (relativePath) => !relativePath.startsWith('tests/fixtures/legacy-sigil/product/'),
+    ),
+    'frozen test payload must not be scanned as active product authority',
+  );
   assert.ok(authorityPaths.includes('docs/design/notes/pre-release-canonical-naming-policy-2026-05-23.md'));
   assert.ok(authorityPaths.includes('memory/scratchpad/gateway-hardening-followups.md'));
   for (const relativePath of authorityPaths) {

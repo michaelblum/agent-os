@@ -148,9 +148,8 @@ Default section order:
   child doc is needed.
 - `.claude/` contains Claude compatibility settings and statusline hooks; live
   project-agent orchestration is retired from AOS core.
-- `apps/AGENTS.md` governs retained application fixtures. Its current child is
-  the frozen legacy contract at `apps/sigil/AGENTS.md`; active Sigil product
-  authority lives in `Ch-osctrl/sigil`.
+- `apps/AGENTS.md` guards the intentionally empty application-source boundary;
+  active product consumers live in their owning repositories.
 - `docs/AGENTS.md` governs durable docs, ADRs, guides, API docs, reports, and
   archives.
 - `experiences/AGENTS.md` governs experience manifests and app activation
@@ -169,6 +168,6 @@ Default section order:
 - `skills/AGENTS.md` governs local skill packages.
 - `src/AGENTS.md` governs native Swift source. Its current child is
   `src/daemon/AGENTS.md`.
-- `tests/AGENTS.md` governs shell, Node, Python, browser, daemon, toolkit, and
-  scenario verification assets.
+- `tests/AGENTS.md` governs shell, Node, Python, browser, daemon, toolkit,
+  scenario, and frozen compatibility-fixture assets.
 - `wiki-seed/AGENTS.md` governs seed wiki content.

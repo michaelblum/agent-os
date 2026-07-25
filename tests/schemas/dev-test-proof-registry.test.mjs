@@ -139,12 +139,12 @@ test('proof-worth evaluator accepts registered tests and fixtures with exact com
   assert.equal(result.assets.length, 2, result);
 });
 
-test('proof-worth evaluator routes every embedded Sigil path to the frozen fixture proof', () => {
+test('proof-worth evaluator routes every relocated Sigil path to the frozen fixture proof', () => {
   const registry = loadCanonicalRegistry();
   const result = evaluateProofWorth({
     changedFiles: [
-      'apps/sigil/renderer/state.js',
-      'apps/sigil/legacy-fixture.json',
+      'tests/fixtures/legacy-sigil/product/renderer/state.js',
+      'tests/fixtures/legacy-sigil/product/legacy-fixture.json',
     ],
     repoRoot,
     registry,
@@ -161,10 +161,10 @@ test('proof-worth evaluator routes every embedded Sigil path to the frozen fixtu
   assert.deepEqual(result.commands[0].source_entries, ['legacy-sigil-fixture-proof']);
 });
 
-test('proof-worth evaluator routes deleted embedded Sigil bytes to the surviving fixture proof', () => {
+test('proof-worth evaluator routes deleted relocated Sigil bytes to the surviving fixture proof', () => {
   const registry = loadCanonicalRegistry();
   const result = evaluateProofWorth({
-    changedFiles: ['apps/sigil/renderer/deleted-fixture-byte.js'],
+    changedFiles: ['tests/fixtures/legacy-sigil/product/renderer/deleted-fixture-byte.js'],
     repoRoot,
     registry,
     registryPath: 'docs/dev/test-proof-registry.json',

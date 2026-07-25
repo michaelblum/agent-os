@@ -1,12 +1,12 @@
-@../../AGENTS.md
+@../../../AGENTS.md
 
 # Frozen Legacy Sigil Fixture
 
 ## Authority
 
 Active Sigil product authority lives in
-[`Ch-osctrl/sigil`](https://github.com/Ch-osctrl/sigil). This embedded tree is a
-frozen compatibility and proof fixture, not an AOS application source root.
+[`Ch-osctrl/sigil`](https://github.com/Ch-osctrl/sigil). This test-only tree is
+a frozen compatibility and proof fixture, not an AOS application source root.
 
 ## Invariants
 

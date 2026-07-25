@@ -4,8 +4,9 @@
 
 ## Purpose
 
-`apps/` contains frozen application fixtures retained for deterministic
-compatibility proof. Active product consumers live in their owning repositories.
+`apps/` is intentionally empty of product source and compatibility fixtures.
+Active product consumers live in their owning repositories; frozen compatibility
+payloads live under `tests/fixtures/`.
 
 ## Ownership
 
@@ -18,17 +19,15 @@ compatibility proof. Active product consumers live in their owning repositories.
 
 - Do not grow app-private platform subsystems when the capability belongs in the
   daemon or toolkit for future apps.
-- Frozen fixtures must not expose active launch manifests, recipes, packaging,
-  or live-product verification.
+- Do not restore active or fixture product trees under `apps/`.
 
 ## Work Guidance
 
-- Follow the fixture-specific child doc before changing retained bytes.
+- Put reusable runtime or toolkit capability in its owning source boundary and
+  product composition in the external product repository.
 
 ## Verification
 
-- Use only deterministic fixture verification named by the child doc.
+- Run active-authority checks when changing this boundary.
 
 ## Child DOX Index
-
-- `sigil/AGENTS.md` governs the frozen legacy Sigil fixture.
