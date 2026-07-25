@@ -311,7 +311,7 @@ agent-os/
 | `cli` / `daemon` packages | Packaging | JS/TS + assets | `packages/cli/`, `packages/daemon/` | Active | Package roots for CLI verbs and daemon-adjacent runtime surfaces that sit around the unified Swift primitive |
 | `design-tokens` | Design system | CSS | `packages/design-tokens/` | Active | Shared token source consumed by toolkit and app surfaces |
 | `toolkit` | Toolkit/default surface system | JS/HTML/CSS | `packages/toolkit/` | Active | Opt-in reusable AOS surface policy and stock surfaces: `runtime/`, `controls/`, `adapters/zag`, `panel/`, `workbench/`, and `components/` |
-| Sigil | External first-party reference consumer | TypeScript/HTML | [`Ch-osctrl/sigil`](https://github.com/Ch-osctrl/sigil) | External | Product authority for the Sigil application and primary driver of consumer-facing AOS evolution. The embedded `apps/sigil/` tree is a frozen, non-discoverable compatibility fixture only. |
+| Sigil | External first-party reference consumer | TypeScript/HTML | [`Ch-osctrl/sigil`](https://github.com/Ch-osctrl/sigil) | External | Product authority for the Sigil application and primary driver of consumer-facing AOS evolution. The test-only `tests/fixtures/legacy-sigil/product/` tree is a frozen, non-discoverable compatibility fixture only. |
 
 ---
 

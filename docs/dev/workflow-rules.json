@@ -25,6 +25,38 @@
       ]
     },
     {
+      "id": "legacy-sigil-test-fixture",
+      "summary": "Frozen historical Sigil payload or its bounded test-only contract changed.",
+      "patterns": [
+        "tests/fixtures/legacy-sigil/product/**",
+        "tests/fixtures/legacy-sigil/aos-experience.fixture.json",
+        "tests/legacy-sigil-fixture.test.mjs",
+        "tests/schemas/aos-app-v0.test.mjs",
+        "tests/schemas/aos-experience-v0.test.mjs",
+        "docs/dev/test-proof-registry.d/legacy-sigil-fixture.json"
+      ],
+      "classes": [
+        "test_fixture",
+        "legacy_compatibility"
+      ],
+      "actions": [
+        "focused_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "legacy-sigil-fixture-contract",
+          "command": "node --test tests/legacy-sigil-fixture.test.mjs tests/schemas/aos-app-v0.test.mjs tests/schemas/aos-experience-v0.test.mjs tests/active-authority-pointers.test.mjs",
+          "reason": "Verify the relocated payload remains digest-sealed, test-only, schema-valid, non-discoverable, and excluded from active authority."
+        }
+      ],
+      "verification": [],
+      "notes": [
+        "Static test-only route. Do not build or execute ./aos, operate the daemon, or touch TCC."
+      ]
+    },
+    {
       "id": "swift-core",
       "summary": "Unified aos binary or Swift IPC sources changed.",
       "patterns": [

@@ -66,6 +66,26 @@ else
     fail "dev recommend docs-only routing drifted"
 fi
 
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files tests/fixtures/legacy-sigil/product/renderer/state.js 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert "legacy-sigil-test-fixture" in data["summary"]["rule_ids"], data
+assert data["summary"]["tcc_identity_sensitive"] is False, data
+commands = [item["command"] for item in data["next_commands"]]
+assert "node --test tests/legacy-sigil-fixture.test.mjs tests/schemas/aos-app-v0.test.mjs tests/schemas/aos-experience-v0.test.mjs tests/active-authority-pointers.test.mjs" in commands, data
+assert data["proof_worth"]["status"] == "passed", data
+assert data["proof_worth"]["assets"][0]["kind"] == "fixture", data
+assert data["proof_worth"]["assets"][0]["coverage"] == "active", data
+PY
+then
+    pass "dev recommend routes relocated Sigil fixture to static bounded proof"
+else
+    fail "dev recommend relocated Sigil fixture routing drifted"
+fi
+
 if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files tests/dev-workflow-router.sh 2>/dev/null)" python3 - <<'PY'
 import json
 import os

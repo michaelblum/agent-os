@@ -1,7 +1,7 @@
 {
   "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
   "schema_version": 1,
-  "summary": "Bounded deterministic proof for the frozen embedded Sigil fixture.",
+  "summary": "Bounded deterministic proof for the frozen test-only Sigil fixture.",
   "entries": [
     {
       "id": "legacy-sigil-fixture-proof",
@@ -11,14 +11,14 @@
         "tests/schemas/aos-experience-v0.test.mjs"
       ],
       "fixture_patterns": [
-        "apps/sigil/**",
+        "tests/fixtures/legacy-sigil/product/**",
         "tests/fixtures/legacy-sigil/aos-experience.fixture.json"
       ],
       "owner": "legacy-fixture",
       "harness_level": "schema",
       "proof_kind": "frozen_fixture_contract",
-      "contract": "The embedded Sigil snapshot remains digest-sealed, schema-valid, non-discoverable, absent from recipes and packaging, and owned by the external product repository.",
-      "worth": "This is the only AOS-owned proof for embedded Sigil bytes; it prevents accidental product authority or launch compatibility from returning without treating product behavior as AOS acceptance.",
+      "contract": "The relocated Sigil snapshot remains digest-sealed, schema-valid, test-only, non-discoverable, absent from recipes and packaging, and owned by the external product repository.",
+      "worth": "This is the only AOS-owned proof for historical Sigil bytes; it prevents accidental product authority or launch compatibility from returning without treating product behavior as AOS acceptance.",
       "command": "node --test tests/legacy-sigil-fixture.test.mjs tests/schemas/aos-app-v0.test.mjs tests/schemas/aos-experience-v0.test.mjs",
       "replaces": [
         "embedded Sigil renderer, status-item, real-input, and product behavior proofs"
@@ -35,8 +35,8 @@
       "owner": "legacy-config-retirement",
       "harness_level": "model_unit",
       "proof_kind": "legacy_content_root_retirement",
-      "contract": "AOS retires only the historical Sigil content root that resolves to the frozen apps/sigil fixture and preserves every external or user-defined content root.",
-      "worth": "This prevents the frozen product fixture from remaining servable after authority moved to the external Sigil repository without broad or heuristic config deletion.",
+      "contract": "AOS retires only the historical apps/sigil content-root configuration value and preserves every external or user-defined content root.",
+      "worth": "This prevents stale embedded-product configuration from remaining active after authority moved to the external Sigil repository without treating the relocated test fixture as a runtime root.",
       "command": "node --test tests/legacy-sigil-content-root-retirement.test.mjs",
       "replaces": [
         "manual removal of the stale embedded Sigil content root"

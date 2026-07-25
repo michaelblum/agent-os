@@ -7,7 +7,8 @@ import path from 'node:path';
 import test from 'node:test';
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
-const fixtureRoot = path.join(repoRoot, 'apps/sigil');
+const fixtureRelativeRoot = 'tests/fixtures/legacy-sigil/product';
+const fixtureRoot = path.join(repoRoot, fixtureRelativeRoot);
 const metadataPath = path.join(fixtureRoot, 'legacy-fixture.json');
 
 async function exportedFixtureFiles(directory = fixtureRoot) {
@@ -22,7 +23,7 @@ async function exportedFixtureFiles(directory = fixtureRoot) {
 }
 
 function committedFixtureFiles(excludedPaths) {
-  const result = spawnSync('git', ['ls-files', '--', 'apps/sigil'], {
+  const result = spawnSync('git', ['ls-files', '--', fixtureRelativeRoot], {
     cwd: repoRoot,
     encoding: 'utf8',
   });
@@ -30,12 +31,15 @@ function committedFixtureFiles(excludedPaths) {
   return result.stdout
     .split(/\r?\n/)
     .filter(Boolean)
-    .map((relativePath) => relativePath.replace(/^apps\/sigil\//, ''))
+    .map((relativePath) => relativePath.replace(
+      /^tests\/fixtures\/legacy-sigil\/product\//,
+      '',
+    ))
     .filter((relativePath) => !excludedPaths.includes(relativePath))
     .sort();
 }
 
-test('embedded Sigil is a sealed legacy fixture', async () => {
+test('relocated Sigil is a sealed test-only fixture', async () => {
   const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
   assert.equal(metadata.schema_version, 1);
   assert.equal(metadata.status, 'frozen');
@@ -71,7 +75,14 @@ test('embedded Sigil is a sealed legacy fixture', async () => {
   assert.equal(digest.digest('hex'), metadata.content.sha256);
 });
 
-test('embedded Sigil is absent from active discovery, recipes, and packaging', async () => {
+test('relocated Sigil is absent from active discovery, recipes, and packaging', async () => {
+  assert.equal(existsSync(path.join(repoRoot, 'apps/sigil')), false);
+  const retiredTrackedPaths = spawnSync('git', ['ls-files', '--', 'apps/sigil'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  assert.equal(retiredTrackedPaths.status, 0, retiredTrackedPaths.stderr);
+  assert.equal(retiredTrackedPaths.stdout.trim(), '');
   assert.equal(existsSync(path.join(fixtureRoot, 'aos-app.json')), false);
   assert.equal(existsSync(path.join(fixtureRoot, 'aos-app.fixture.json')), true);
   assert.equal(existsSync(path.join(repoRoot, 'experiences/sigil/aos-experience.json')), false);
@@ -82,7 +93,11 @@ test('embedded Sigil is absent from active discovery, recipes, and packaging', a
 
   for (const packageScriptPath of ['package.sh', 'scripts/package-aos-runtime']) {
     const packageScript = await readFile(path.join(repoRoot, packageScriptPath), 'utf8');
-    assert.doesNotMatch(packageScript, /apps\/sigil|recipes\/sigil/, packageScriptPath);
+    assert.doesNotMatch(
+      packageScript,
+      /apps\/sigil|tests\/fixtures\/legacy-sigil\/product|recipes\/sigil/,
+      packageScriptPath,
+    );
   }
 
   const recipes = spawnSync('node', ['scripts/aos-recipe.mjs', 'list', '--json'], {
@@ -97,7 +112,7 @@ test('embedded Sigil is absent from active discovery, recipes, and packaging', a
   ]);
 });
 
-test('embedded Sigil app and experience names fail closed', () => {
+test('relocated Sigil app and experience names fail closed', () => {
   const app = spawnSync('node', ['scripts/aos-launch.mjs', 'sigil', '--dry-run', '--json'], {
     cwd: repoRoot,
     encoding: 'utf8',

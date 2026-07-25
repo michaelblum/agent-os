@@ -45,6 +45,7 @@ for retired_route in [
     "aos launch sigil",
     "sigil/start",
     "apps/sigil",
+    "tests/fixtures/legacy-sigil/product",
 ]:
     assert retired_route not in registry_text, f"generated help must not teach embedded Sigil route: {retired_route}"
 external = json.loads(Path("manifests/commands/aos-external-commands.json").read_text(encoding="utf-8"))

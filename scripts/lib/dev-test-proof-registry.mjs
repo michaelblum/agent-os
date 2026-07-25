@@ -140,10 +140,6 @@ export function classifyProofAsset(itemPath) {
     return { kind: 'proof_registry', patternField: 'path_patterns' };
   }
 
-  if (normalized.startsWith('apps/sigil/')) {
-    return { kind: 'fixture', patternField: 'fixture_patterns' };
-  }
-
   if (normalized.startsWith('shared/schemas/fixtures/')) {
     return { kind: 'fixture', patternField: 'fixture_patterns' };
   }

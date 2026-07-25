@@ -183,6 +183,15 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('desktop-annotation-selection')?.patterns?.includes('scripts/lib/pending-annotations-model.mjs'));
   assert.equal(rules.get('desktop-annotation-selection')?.tcc_identity_sensitive, true);
   assert.deepEqual(
+    rules.get('legacy-sigil-test-fixture')?.commands?.map((step) => step.id),
+    ['legacy-sigil-fixture-contract'],
+  );
+  assert.ok(
+    rules.get('legacy-sigil-test-fixture')?.patterns
+      ?.includes('tests/fixtures/legacy-sigil/product/**'),
+  );
+  assert.equal(rules.get('legacy-sigil-test-fixture')?.tcc_identity_sensitive, false);
+  assert.deepEqual(
     rules.get('desktop-world-scene-engine')?.commands?.slice(0, 4).map((step) => step.id),
     [
       'scene-daemon-contract',
