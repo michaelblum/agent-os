@@ -295,11 +295,26 @@ test('neutral extension restores visibility after context loss without waking a 
 
 test('DesktopWorld lowers extension allocation budgets to remaining segment headroom', () => {
   let received = null
+  let admittedObjects = null
   const extension = factory()
   extension.createProjection = (context) => {
     received = context.budgets
+    const object = new THREE.Group()
+    object.name = 'companion/main'
+    while (object.children.length < context.budgets.maxObjects) {
+      const candidate = new THREE.Group()
+      object.add(candidate)
+      if (
+        context.inspectProjectionResources
+        && context.inspectProjectionResources(object).objects > context.budgets.maxObjects
+      ) {
+        object.remove(candidate)
+        break
+      }
+    }
+    admittedObjects = context.inspectProjectionResources?.(object).objects ?? null
     return {
-      object: projectionObject(),
+      object,
       applySignal() {},
       applyAnimation() {},
       tick() {},
@@ -330,6 +345,7 @@ test('DesktopWorld lowers extension allocation budgets to remaining segment head
   })
 
   assert.deepEqual(received, budgets)
+  assert.equal(admittedObjects, budgets.maxObjects)
 })
 
 test('DesktopWorld rejects wrong owners, missing digests, and undeclared implementations', () => {

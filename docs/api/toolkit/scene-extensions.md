@@ -72,8 +72,16 @@ AOS's pinned Three revision, finite resource budgets, and the projection body
 SHA-256. `serializeSceneExtensionDigestMaterial()` is the digest authority.
 
 The context contains only AOS's pinned `THREE` namespace, the canonical scene
-document, and lowered budgets. Extension-local asset loading is not part of V1.
-Procedural geometry and data already admitted by the document are supported.
+document, lowered budgets, and
+an optional `inspectProjectionResources(object)` capability. The synchronous,
+factory-scoped inspector returns AOS's canonical bounded resource metrics for
+an Object3D subtree so an extension can adapt optional pools before returning
+its projection. Extensions that also support older V1 hosts must fail closed on
+optional allocations when the callback is unavailable. Retaining the callback
+and invoking it after factory return is rejected. AOS still performs the
+authoritative admission audit and sampled runtime audits. Extension-local asset
+loading is not part of V1. Procedural geometry and data already admitted by the
+document are supported.
 
 ## Review And Installation
 

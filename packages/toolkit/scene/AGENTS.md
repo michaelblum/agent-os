@@ -130,10 +130,16 @@ stage internals.
   segment. Runtime extension audits are sampled on a bounded cadence and reuse
   cached metrics between audits; do not add a per-frame scene-tree allocation
   pass.
+- Trusted extension factories receive AOS's canonical synchronous
+  factory-scoped `inspectProjectionResources(object)` callback for adaptive
+  pool admission. V1 extension source treats the capability as optional for
+  compatibility with older hosts. The callback expires when factory creation
+  returns and does not replace the host's authoritative initial and sampled
+  resource audits.
 
 ## Verification
 
-- `node --test tests/toolkit/desktop-world-client.test.mjs tests/toolkit/desktop-world-session.test.mjs tests/toolkit/desktop-world-devtools-compat.test.mjs tests/toolkit/desktop-world-devtools-model.test.mjs tests/toolkit/desktop-world-devtools-view.test.mjs tests/toolkit/desktop-world-surface-three.test.mjs tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs tests/toolkit/desktop-world-scene-interaction-three.test.mjs tests/toolkit/desktop-world-scene-operation-coordinator.test.mjs tests/toolkit/scene-cartridge.test.mjs tests/toolkit/scene-document.test.mjs tests/toolkit/scene-historical-fast-travel-reference.test.mjs tests/toolkit/scene-host.test.mjs tests/toolkit/scene-interaction.test.mjs tests/toolkit/scene-interaction-visual.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/three-render-lifecycle.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs tests/scene-cartridge-cli.test.mjs tests/scene-extension-cli.test.mjs tests/scene-scaffold-cli.test.mjs tests/scene-agent-tooling-cli.test.mjs tests/scene-agent-authoring-acceptance.test.mjs`
+- `node --test tests/toolkit/desktop-world-client.test.mjs tests/toolkit/desktop-world-session.test.mjs tests/toolkit/desktop-world-devtools-compat.test.mjs tests/toolkit/desktop-world-devtools-model.test.mjs tests/toolkit/desktop-world-devtools-view.test.mjs tests/toolkit/desktop-world-surface-three.test.mjs tests/toolkit/desktop-world-scene-extension-projection.test.mjs tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs tests/toolkit/desktop-world-scene-interaction-three.test.mjs tests/toolkit/desktop-world-scene-operation-coordinator.test.mjs tests/toolkit/scene-cartridge.test.mjs tests/toolkit/scene-document.test.mjs tests/toolkit/scene-extension.test.mjs tests/toolkit/scene-historical-fast-travel-reference.test.mjs tests/toolkit/scene-host.test.mjs tests/toolkit/scene-interaction.test.mjs tests/toolkit/scene-interaction-visual.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/three-render-lifecycle.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs tests/scene-cartridge-cli.test.mjs tests/scene-extension-cli.test.mjs tests/scene-scaffold-cli.test.mjs tests/scene-agent-tooling-cli.test.mjs tests/scene-agent-authoring-acceptance.test.mjs`
 - `bash tests/daemon-desktop-world-devtools-session.sh`
 
 ## Child DOX Index
