@@ -188,7 +188,7 @@ test('stage interaction runtime registers one owner-scoped region and applies th
   assert.equal(runtime.snapshot(key).leases[0].registered, 1)
 })
 
-test('physical pointer down reaches the projection as a passive visual event before gesture arbitration', async () => {
+test('physical pointer down and up reach the projection as passive visual events before gesture arbitration', async () => {
   const pointerEvents = []
   const { responses, runtime } = harness({
     now: () => 1,
@@ -202,17 +202,29 @@ test('physical pointer down reaches the projection as a passive visual event bef
   await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions })
 
   runtime.handleInput(routed(regionId, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(regionId, 'left_mouse_up', 100, 200, 2))
 
   assert.equal(responses.length, 0)
-  assert.deepEqual(pointerEvents, [{
-    key,
-    event: {
-      affordanceId: 'body-hit',
-      at: 1,
-      phase: 'down',
-      point: { x: 100, y: 200 },
+  assert.deepEqual(pointerEvents, [
+    {
+      key,
+      event: {
+        affordanceId: 'body-hit',
+        at: 1,
+        phase: 'down',
+        point: { x: 100, y: 200 },
+      },
     },
-  }])
+    {
+      key,
+      event: {
+        affordanceId: 'body-hit',
+        at: 1,
+        phase: 'up',
+        point: { x: 100, y: 200 },
+      },
+    },
+  ])
 })
 
 test('a failed passive pointer visual cannot suppress canonical gesture input', async () => {
@@ -232,7 +244,14 @@ test('a failed passive pointer visual cannot suppress canonical gesture input', 
 })
 
 test('secondary segments build the same region index without mutating daemon regions or duplicating events', async () => {
-  const { calls, events, responses, runtime } = harness({ primary: false })
+  const pointerEvents = []
+  const { calls, events, responses, runtime } = harness({
+    primary: false,
+    applyPointerVisual(key, event) {
+      pointerEvents.push({ key, event })
+      return true
+    },
+  })
   const key = 'example.consumer::companion/main'
   const regionId = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
   await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions })
@@ -243,6 +262,7 @@ test('secondary segments build the same region index without mutating daemon reg
   assert.equal(runtime.handleInput(routed(regionId, 'left_mouse_up', 120, 220, 3)), true)
   assert.equal(responses.length, 3)
   assert.deepEqual(events, [])
+  assert.deepEqual(pointerEvents.map(({ event }) => event.phase), ['down', 'up'])
 })
 
 test('stage resume keeps input admission closed until every region is restored', async () => {

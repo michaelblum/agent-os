@@ -744,14 +744,14 @@ export function createDesktopWorldSceneInteractionRuntime({
       const affordanceId = entry.regionIds.get(regionId)?.affordanceId
       if (!affordanceId) continue
       if (entryBlocked(entry) || entry.animationQuiesced) return true
-      if (normalizedInput?.phase === 'down') {
+      if (normalizedInput?.phase === 'down' || normalizedInput?.phase === 'up') {
         const point = normalizedInput.desktopWorld ?? normalizedInput.desktop_world
         if (Number.isFinite(point?.x) && Number.isFinite(point?.y)) {
           try {
             outlet.applyPointerVisual?.(entry.key, {
               affordanceId,
               at: now(),
-              phase: 'down',
+              phase: normalizedInput.phase,
               point: { x: point.x, y: point.y },
             })
           } catch {
