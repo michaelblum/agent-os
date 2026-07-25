@@ -28,8 +28,10 @@ capture, in-memory handle storage, per-segment decode readiness, and
 acknowledged presentation form one bounded request aggregate with one deadline.
 `desktop-frame-capture-consent.swift` separately owns process-lifetime direct
 capture consent. Passive status never calls ScreenCaptureKit; only the explicit
-permissions-prime action may probe it. Runtime capture must atomically claim
-that gate before emitting a started event or invoking native capture.
+permissions-prime action may request macOS screen-capture authorization and
+probe it. The authorization request runs on the AppKit main thread, while its
+bounded deadline remains independent of that thread. Runtime capture must
+atomically claim that gate before emitting a started event or invoking native capture.
 Disconnect, replacement, cancellation, partial presentation, delivery failure,
 or timeout cancels native work and clears the complete capture set.
 `UnifiedDaemon` only routes exact-generation

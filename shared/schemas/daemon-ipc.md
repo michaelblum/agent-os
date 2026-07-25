@@ -234,10 +234,11 @@ CLI preflight.
 
 The daemon similarly owns closed `permissions.screen_capture_direct_status` and
 `permissions.screen_capture_direct_prime` actions. Status is passive. Prime is
-the only action allowed to probe ScreenCaptureKit while direct capture is
-unprimed, and returns no pixels, paths, handles, or desktop facts. Both actions
-return their capability facts under `data.screen_capture_direct`; this keeps the
-capability's `status` distinct from the response envelope's transport status.
+the only action allowed to request screen-capture authorization and probe
+ScreenCaptureKit while direct capture is unprimed, and returns no pixels,
+paths, handles, or desktop facts. Both actions return their capability facts
+under `data.screen_capture_direct`; this keeps the capability's `status`
+distinct from the response envelope's transport status.
 
 The live daemon additionally emits `system`, `coordination`, and `wiki` event
 services outside the canonical event schema. Request-side namespaces differ

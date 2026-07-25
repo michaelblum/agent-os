@@ -25,10 +25,14 @@ Direct desktop capture also has a process-lifetime consent gate distinct from
 the broad Screen Recording readiness check. A new daemon starts with
 `screen_capture_direct=permission_required`, without probing ScreenCaptureKit.
 Only the explicit operator command
-`aos permissions prime screen-capture --json` may perform a bounded in-memory
-probe. The probe captures at most 4,096 pixels from the main display, discards
-the result immediately, and creates no file, frame lease, opaque handle,
-screenshot record, or diagnostic payload.
+`aos permissions prime screen-capture --json` may request authorization and
+perform a bounded in-memory probe. The request uses
+`CGRequestScreenCaptureAccess()` on the AppKit main thread so macOS can present
+its consent UI before AOS asks ScreenCaptureKit for pixels. Its human-response
+deadline is independent of the AppKit thread. Once granted, the probe captures
+at most 4,096 pixels from the main display, discards the result immediately,
+and creates no file, frame lease, opaque handle, screenshot record, or
+diagnostic payload.
 
 Ordinary frame requests fail with `DESKTOP_FRAME_CONSENT_REQUIRED` before
 ScreenCaptureKit is called until that explicit probe succeeds. Denial,
