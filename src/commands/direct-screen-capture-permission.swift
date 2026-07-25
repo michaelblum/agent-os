@@ -17,7 +17,9 @@ func permissionsDirectScreenCaptureCommand(args: [String]) {
             : "screen_capture_direct_status",
         data: [:],
         socketPath: aosSocketPath(for: aosCurrentRuntimeMode()),
-        timeoutMs: action == "prime" ? 31_000 : 1_000
+        timeoutMs: action == "prime"
+            ? Int32(AOSDesktopFrameCaptureConsentController.responseLifetime * 1_000)
+            : 1_000
     ) else {
         exitError(
             "The AOS daemon must be reachable for direct screen-capture permission status.",

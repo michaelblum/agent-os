@@ -6,22 +6,40 @@ enum AOSDesktopFrameRuntimeCaptureAdmission {
     case rejected(AOSDesktopFrameCaptureFailure)
 }
 
+private let aosDesktopFramePermissionRequestQueue = DispatchQueue(
+    label: "io.agent-os.desktop-frame.permission-request",
+    qos: .userInitiated
+)
+
 final class AOSDesktopFrameCaptureConsentController {
     static let maximumPrimeWaiters = 16
-    static let primeLifetime: TimeInterval = 30
+    static let permissionRequestLifetime: TimeInterval = 120
+    static let probeLifetime: TimeInterval = 30
     static let probeMaximumPixels = 4_096
+    static let responseLifetime: TimeInterval =
+        permissionRequestLifetime + probeLifetime + 10
 
     typealias Completion = (AOSDesktopFrameDirectCaptureSnapshot) -> Void
     typealias DeadlineScheduler = (
         _ delay: TimeInterval,
         _ action: @escaping () -> Void
     ) -> AOSDesktopFrameCancelling
+    typealias PermissionRequester = (
+        _ completion: @escaping (Bool) -> Void
+    ) -> AOSDesktopFrameCancelling
+
+    private enum PrimePhase: Equatable {
+        case requestingPermission
+        case capturingProbe
+    }
 
     private struct ActivePrime {
         var capture: AOSDesktopFrameCancelling
         var waiters: [PrimeWaiter]
         var deadline: AOSDesktopFrameCancelling
         let generation: UInt64
+        var permissionRequest: AOSDesktopFrameCancelling
+        var phase: PrimePhase
         var quarantined: Bool
     }
 
@@ -33,6 +51,7 @@ final class AOSDesktopFrameCaptureConsentController {
     private let capturer: AOSDesktopFrameCapturing
     private let lock = NSLock()
     private let mainDisplayID: () -> UInt32
+    private let requestPermission: PermissionRequester
     private let scheduleDeadline: DeadlineScheduler
     private var activePrime: ActivePrime?
     private var activeRuntimeGeneration: UInt64?
@@ -43,14 +62,25 @@ final class AOSDesktopFrameCaptureConsentController {
     init(
         capturer: AOSDesktopFrameCapturing = AOSNativeDesktopFrameCapturer(),
         mainDisplayID: @escaping () -> UInt32 = { CGMainDisplayID() },
+        requestPermission: @escaping PermissionRequester = { completion in
+            let work = DispatchWorkItem {
+                completion(CGRequestScreenCaptureAccess())
+            }
+            aosDesktopFramePermissionRequestQueue.async(execute: work)
+            return AOSDesktopFrameCancellation { work.cancel() }
+        },
         scheduleDeadline: @escaping DeadlineScheduler = { delay, action in
             let work = DispatchWorkItem(block: action)
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+            DispatchQueue.global(qos: .utility).asyncAfter(
+                deadline: .now() + delay,
+                execute: work
+            )
             return AOSDesktopFrameCancellation { work.cancel() }
         }
     ) {
         self.capturer = capturer
         self.mainDisplayID = mainDisplayID
+        self.requestPermission = requestPermission
         self.scheduleDeadline = scheduleDeadline
         if #available(macOS 14.0, *) {
             state = AOSDesktopFrameDirectCaptureSnapshot(
@@ -160,22 +190,24 @@ final class AOSDesktopFrameCaptureConsentController {
             waiters: [PrimeWaiter(completion: completion, owner: owner)],
             deadline: AOSDesktopFrameCancellation(),
             generation: generation,
+            permissionRequest: AOSDesktopFrameCancellation(),
+            phase: .requestingPermission,
             quarantined: false
         )
         lock.unlock()
 
-        installDeadline(scheduleDeadline(Self.primeLifetime) { [weak self] in
-            self?.primeTimedOut(generation: generation)
+        installDeadline(scheduleDeadline(Self.permissionRequestLifetime) { [weak self] in
+            self?.primeTimedOut(
+                code: "DESKTOP_FRAME_PERMISSION_REQUEST_TIMEOUT",
+                generation: generation,
+                phase: .requestingPermission
+            )
         }, generation: generation)
 
-        let capture = capturer.capture(
-            displayIDs: [mainDisplayID()],
-            excludingWindowIDs: [],
-            maximumPixelsPerDisplay: Self.probeMaximumPixels
-        ) { [weak self] result in
-            self?.finishPrime(result, generation: generation)
+        let request = requestPermission { [weak self] granted in
+            self?.permissionRequestCompleted(granted, generation: generation)
         }
-        installCapture(capture, generation: generation)
+        installPermissionRequest(request, generation: generation)
     }
 
     func shutdown() {
@@ -195,6 +227,7 @@ final class AOSDesktopFrameCaptureConsentController {
         state = next
         lock.unlock()
 
+        active?.permissionRequest.cancel()
         active?.capture.cancel()
         active?.deadline.cancel()
         for waiter in active?.waiters ?? [] {
@@ -227,6 +260,7 @@ final class AOSDesktopFrameCaptureConsentController {
         )
         lock.unlock()
 
+        active.permissionRequest.cancel()
         active.capture.cancel()
         active.deadline.cancel()
     }
@@ -245,6 +279,21 @@ final class AOSDesktopFrameCaptureConsentController {
         lock.unlock()
     }
 
+    private func installPermissionRequest(
+        _ request: AOSDesktopFrameCancelling,
+        generation: UInt64
+    ) {
+        lock.lock()
+        guard activePrime?.generation == generation,
+              activePrime?.phase == .requestingPermission else {
+            lock.unlock()
+            request.cancel()
+            return
+        }
+        activePrime?.permissionRequest = request
+        lock.unlock()
+    }
+
     private func installDeadline(
         _ deadline: AOSDesktopFrameCancelling,
         generation: UInt64
@@ -257,6 +306,62 @@ final class AOSDesktopFrameCaptureConsentController {
         }
         activePrime?.deadline = deadline
         lock.unlock()
+    }
+
+    private func permissionRequestCompleted(
+        _ granted: Bool,
+        generation: UInt64
+    ) {
+        guard granted else {
+            completePrime(AOSDesktopFrameDirectCaptureSnapshot(
+                status: .permissionRequired,
+                errorCode: AOSDesktopFrameCaptureFailure.permissionDenied.code
+            ), generation: generation)
+            return
+        }
+
+        lock.lock()
+        guard var active = activePrime,
+              active.generation == generation,
+              active.phase == .requestingPermission else {
+            lock.unlock()
+            return
+        }
+        if active.quarantined {
+            lock.unlock()
+            completePrime(AOSDesktopFrameDirectCaptureSnapshot(
+                status: .failed,
+                errorCode: "DESKTOP_FRAME_PERMISSION_REQUEST_SETTLED"
+            ), generation: generation)
+            return
+        }
+        let permissionRequest = active.permissionRequest
+        let permissionDeadline = active.deadline
+        active.permissionRequest = AOSDesktopFrameCancellation()
+        active.deadline = AOSDesktopFrameCancellation()
+        active.phase = .capturingProbe
+        activePrime = active
+        lock.unlock()
+
+        permissionRequest.cancel()
+        permissionDeadline.cancel()
+
+        installDeadline(scheduleDeadline(Self.probeLifetime) { [weak self] in
+            self?.primeTimedOut(
+                code: "DESKTOP_FRAME_PROBE_TIMEOUT",
+                generation: generation,
+                phase: .capturingProbe
+            )
+        }, generation: generation)
+
+        let capture = capturer.capture(
+            displayIDs: [mainDisplayID()],
+            excludingWindowIDs: [],
+            maximumPixelsPerDisplay: Self.probeMaximumPixels
+        ) { [weak self] result in
+            self?.finishPrime(result, generation: generation)
+        }
+        installCapture(capture, generation: generation)
     }
 
     private func finishPrime(
@@ -299,14 +404,19 @@ final class AOSDesktopFrameCaptureConsentController {
         completePrime(next, generation: generation)
     }
 
-    private func primeTimedOut(generation: UInt64) {
+    private func primeTimedOut(
+        code: String,
+        generation: UInt64,
+        phase: PrimePhase
+    ) {
         let timeout = AOSDesktopFrameDirectCaptureSnapshot(
             status: .failed,
-            errorCode: "DESKTOP_FRAME_PRIME_TIMEOUT"
+            errorCode: code
         )
         lock.lock()
         guard var active = activePrime,
               active.generation == generation,
+              active.phase == phase,
               !active.quarantined else {
             lock.unlock()
             return
@@ -318,6 +428,7 @@ final class AOSDesktopFrameCaptureConsentController {
         state = timeout
         lock.unlock()
 
+        active.permissionRequest.cancel()
         active.capture.cancel()
         active.deadline.cancel()
         for waiter in waiters {
@@ -341,6 +452,7 @@ final class AOSDesktopFrameCaptureConsentController {
         let waiters = active.quarantined ? [] : active.waiters
         lock.unlock()
 
+        active.permissionRequest.cancel()
         active.capture.cancel()
         active.deadline.cancel()
         for waiter in waiters {

@@ -109,6 +109,13 @@ final class FakeCapturer: AOSDesktopFrameCapturing {
     }
 }
 
+func grantScreenCapturePermission(
+    _ completion: @escaping (Bool) -> Void
+) -> AOSDesktopFrameCancelling {
+    completion(true)
+    return AOSDesktopFrameCancellation()
+}
+
 func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     if !condition() {
         fputs(message + "\\n", stderr)
@@ -141,6 +148,10 @@ struct DesktopFrameProof {
         let passiveConsent = AOSDesktopFrameCaptureConsentController(
             capturer: passiveCapturer,
             mainDisplayID: { 42 },
+            requestPermission: { _ in
+                require(false, "passive status requested permission")
+                return AOSDesktopFrameCancellation()
+            },
             scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
         )
         require(
@@ -202,12 +213,72 @@ struct DesktopFrameProof {
             "CLI wire parser accepted noncanonical flat v1 capability facts"
         )
 
+        let permissionDeniedCapturer = FakeCapturer()
+        var permissionRequests = 0
+        let permissionDeniedConsent = AOSDesktopFrameCaptureConsentController(
+            capturer: permissionDeniedCapturer,
+            mainDisplayID: { 42 },
+            requestPermission: { completion in
+                permissionRequests += 1
+                completion(false)
+                return AOSDesktopFrameCancellation()
+            },
+            scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
+        )
+        var permissionDeniedCode: String?
+        permissionDeniedConsent.prime(owner: owner) {
+            permissionDeniedCode = $0.errorCode
+        }
+        require(permissionRequests == 1, "explicit prime did not request permission")
+        require(permissionDeniedCode == "DESKTOP_FRAME_PERMISSION_DENIED", "permission denial was misclassified")
+        require(permissionDeniedCapturer.captureCount == 0, "permission denial invoked capture")
+
+        let permissionTimeoutCapturer = FakeCapturer()
+        var permissionTimeoutActions: [() -> Void] = []
+        var pendingPermission: ((Bool) -> Void)?
+        var permissionRequestCanceled = 0
+        var deferPermission = true
+        let permissionTimeoutConsent = AOSDesktopFrameCaptureConsentController(
+            capturer: permissionTimeoutCapturer,
+            mainDisplayID: { 42 },
+            requestPermission: { completion in
+                if deferPermission {
+                    pendingPermission = completion
+                } else {
+                    completion(true)
+                }
+                return AOSDesktopFrameCancellation { permissionRequestCanceled += 1 }
+            },
+            scheduleDeadline: { _, action in
+                permissionTimeoutActions.append(action)
+                return AOSDesktopFrameCancellation()
+            }
+        )
+        var permissionTimeoutCode: String?
+        permissionTimeoutConsent.prime(owner: owner) {
+            permissionTimeoutCode = $0.errorCode
+        }
+        permissionTimeoutActions.first?()
+        require(permissionTimeoutCode == "DESKTOP_FRAME_PERMISSION_REQUEST_TIMEOUT", "permission timeout was not phase-specific")
+        require(permissionRequestCanceled == 1, "permission timeout did not cancel its request")
+        require(permissionTimeoutCapturer.captureCount == 0, "permission timeout started capture")
+        deferPermission = false
+        pendingPermission?(true)
+        require(permissionTimeoutCapturer.captureCount == 0, "late permission started capture")
+        var permissionRetryStatus: String?
+        permissionTimeoutConsent.prime(owner: owner) {
+            permissionRetryStatus = $0.status.rawValue
+        }
+        require(permissionRetryStatus == "ready", "late permission result left prime quarantined")
+        require(permissionTimeoutCapturer.captureCount == 1, "permission retry did not probe once")
+
         let joinedCapturer = FakeCapturer()
         joinedCapturer.deferred = true
         var joinedDeadlines: [() -> Void] = []
         let joinedConsent = AOSDesktopFrameCaptureConsentController(
             capturer: joinedCapturer,
             mainDisplayID: { 42 },
+            requestPermission: grantScreenCapturePermission,
             scheduleDeadline: { _, action in
                 joinedDeadlines.append(action)
                 return AOSDesktopFrameCancellation()
@@ -233,6 +304,7 @@ struct DesktopFrameProof {
         let retryConsent = AOSDesktopFrameCaptureConsentController(
             capturer: deniedCapturer,
             mainDisplayID: { 42 },
+            requestPermission: grantScreenCapturePermission,
             scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
         )
         var deniedStatus: String?
@@ -265,6 +337,7 @@ struct DesktopFrameProof {
         let unsupportedConsent = AOSDesktopFrameCaptureConsentController(
             capturer: unsupportedCapturer,
             mainDisplayID: { 42 },
+            requestPermission: grantScreenCapturePermission,
             scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
         )
         var unsupportedStatus: String?
@@ -276,6 +349,7 @@ struct DesktopFrameProof {
         let failedConsent = AOSDesktopFrameCaptureConsentController(
             capturer: failedCapturer,
             mainDisplayID: { 42 },
+            requestPermission: grantScreenCapturePermission,
             scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
         )
         var failedStatus: String?
@@ -288,6 +362,7 @@ struct DesktopFrameProof {
         let timeoutConsent = AOSDesktopFrameCaptureConsentController(
             capturer: timeoutCapturer,
             mainDisplayID: { 42 },
+            requestPermission: grantScreenCapturePermission,
             scheduleDeadline: { _, action in
                 timeoutActions.append(action)
                 return AOSDesktopFrameCancellation()
@@ -296,12 +371,12 @@ struct DesktopFrameProof {
         var timeoutCode: String?
         timeoutConsent.prime(owner: owner) { timeoutCode = $0.errorCode }
         let lateTimeoutCompletion = timeoutCapturer.pending
-        timeoutActions.first?()
-        require(timeoutCode == "DESKTOP_FRAME_PRIME_TIMEOUT", "prime timeout was not bounded")
+        timeoutActions.last?()
+        require(timeoutCode == "DESKTOP_FRAME_PROBE_TIMEOUT", "probe timeout was not bounded")
         require(timeoutCapturer.canceled == 1, "prime timeout did not cancel capture")
         var settlingCode: String?
         timeoutConsent.prime(owner: owner) { settlingCode = $0.errorCode }
-        require(settlingCode == "DESKTOP_FRAME_PRIME_TIMEOUT", "timed-out prime did not remain quarantined")
+        require(settlingCode == "DESKTOP_FRAME_PROBE_TIMEOUT", "timed-out prime did not remain quarantined")
         require(timeoutCapturer.captureCount == 1, "timed-out prime admitted overlapping capture")
         lateTimeoutCompletion?(.success(timeoutCapturer.result([42])))
         timeoutCapturer.deferred = false
@@ -315,6 +390,7 @@ struct DesktopFrameProof {
         let canceledConsent = AOSDesktopFrameCaptureConsentController(
             capturer: canceledCapturer,
             mainDisplayID: { 42 },
+            requestPermission: grantScreenCapturePermission,
             scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
         )
         let canceledOwner = UUID(uuidString: "22222222-2222-4222-8222-222222222222")!
@@ -345,6 +421,7 @@ struct DesktopFrameProof {
         let shutdownConsent = AOSDesktopFrameCaptureConsentController(
             capturer: shutdownCapturer,
             mainDisplayID: { 42 },
+            requestPermission: grantScreenCapturePermission,
             scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
         )
         var shutdownCode: String?
@@ -590,6 +667,7 @@ struct DesktopFrameProof {
         let unprimedConsent = AOSDesktopFrameCaptureConsentController(
             capturer: FakeCapturer(),
             mainDisplayID: { 42 },
+            requestPermission: grantScreenCapturePermission,
             scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
         )
         var capabilityEnabled = true
@@ -625,6 +703,7 @@ struct DesktopFrameProof {
         let consent = AOSDesktopFrameCaptureConsentController(
             capturer: primeCapturer,
             mainDisplayID: { 42 },
+            requestPermission: grantScreenCapturePermission,
             scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
         )
         var primeStatus: String?
