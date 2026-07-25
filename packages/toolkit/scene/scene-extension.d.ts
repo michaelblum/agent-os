@@ -121,7 +121,7 @@ export interface SceneExtensionProjection {
   applyPointerVisual?(event: Readonly<{
     affordanceId: string;
     at: number;
-    phase: 'down';
+    phase: 'down' | 'up';
     point: Readonly<{ x: number; y: number }>;
   }>): void;
   /**
