@@ -135,6 +135,79 @@ test('DesktopWorld selects an exact owner-matched extension projection', () => {
   assert.deepEqual(result.projection.objectPosition('companion/main'), [90, 40, 2])
 })
 
+test('DesktopWorld grants and disposes a desktop-frame source only for an explicit extension capability', () => {
+  let frameDisposeCalls = 0
+  let frameFactoryCalls = 0
+  let frameIdentity
+  let projectionDisposeCalls = 0
+  let receivedFrame
+  const desktopFrame = {
+    texture: {},
+    request() { return true },
+    clear() { return true },
+    snapshot() { return { status: 'empty' } },
+    dispose() {
+      frameDisposeCalls += 1
+      if (frameDisposeCalls === 1) throw new Error('injected frame cleanup failure')
+    },
+  }
+  const extension = factory({ capabilities: ['aos.scene.desktop_frame_texture'] })
+  const createProjection = extension.createProjection
+  extension.createProjection = (context) => {
+    receivedFrame = context.desktopFrame
+    const projection = createProjection()
+    projection.dispose = () => { projectionDisposeCalls += 1 }
+    return projection
+  }
+  const registry = createTrustedSceneExtensionRegistry({ factories: [extension] })
+  const result = createDesktopWorldSceneProjection({
+    THREE: { REVISION: SCENE_EXTENSION_THREE_REVISION },
+    desktopFrameSourceFactory(input) {
+      frameFactoryCalls += 1
+      frameIdentity = input.identity
+      return desktopFrame
+    },
+    document: scene(),
+    expectedOwner: ownerId,
+    extensionReference: reference({ capabilities: ['aos.scene.desktop_frame_texture'] }),
+    extensionRegistry: registry,
+  })
+
+  assert.equal(receivedFrame, desktopFrame)
+  assert.equal(frameFactoryCalls, 1)
+  assert.deepEqual(frameIdentity, {
+    extension: reference({ capabilities: ['aos.scene.desktop_frame_texture'] }),
+    owner: ownerId,
+    resource: 'companion/main',
+  })
+  assert.throws(() => result.projection.dispose(), /cleanup failed/i)
+  result.projection.dispose()
+  assert.equal(projectionDisposeCalls, 1)
+  assert.equal(frameDisposeCalls, 2)
+
+  let unrequestedFactoryCalls = 0
+  const ordinary = factory()
+  const ordinaryCreateProjection = ordinary.createProjection
+  ordinary.createProjection = (context) => {
+    assert.equal(Object.hasOwn(context, 'desktopFrame'), false)
+    return ordinaryCreateProjection()
+  }
+  const ordinaryRegistry = createTrustedSceneExtensionRegistry({ factories: [ordinary] })
+  const ordinaryResult = createDesktopWorldSceneProjection({
+    THREE: { REVISION: SCENE_EXTENSION_THREE_REVISION },
+    desktopFrameSourceFactory() {
+      unrequestedFactoryCalls += 1
+      return desktopFrame
+    },
+    document: scene(),
+    expectedOwner: ownerId,
+    extensionReference: reference(),
+    extensionRegistry: ordinaryRegistry,
+  })
+  assert.equal(unrequestedFactoryCalls, 0)
+  ordinaryResult.projection.dispose()
+})
+
 test('DesktopWorld exposes bounded synchronous extension interaction results', () => {
   const observed = []
   const extension = factory({}, {

@@ -10,6 +10,9 @@ export const SCENE_EXTENSION_SCHEMA_VERSION = 1
 export const SCENE_EXTENSION_SCENE_ABI = 'aos.scene.projection.v1'
 export const SCENE_EXTENSION_THREE_REVISION = '183'
 export const SCENE_EXTENSION_REGISTRY_LIMIT = 64
+export const SCENE_EXTENSION_CAPABILITIES = Object.freeze([
+  'aos.scene.desktop_frame_texture',
+])
 
 // Runtime allocation growth is re-audited within 30 projection ticks (about
 // 500 ms at 60 FPS) without traversing the Three tree on every frame.
@@ -26,6 +29,7 @@ export const SCENE_EXTENSION_BUDGET_LIMITS = Object.freeze({
 
 const MANIFEST_KEYS = new Set([
   'budgets',
+  'capabilities',
   'contract',
   'digest',
   'id',
@@ -35,6 +39,7 @@ const MANIFEST_KEYS = new Set([
   'schemaVersion',
   'threeRevision',
 ])
+const OPTIONAL_MANIFEST_KEYS = new Set(['capabilities'])
 const FACTORY_KEYS = new Set(['createProjection', 'manifest'])
 const REFERENCE_KEYS = new Set([
   'digest',
@@ -43,7 +48,8 @@ const REFERENCE_KEYS = new Set([
   'sceneAbi',
   'threeRevision',
 ])
-const CONTEXT_KEYS = new Set(['THREE', 'budgets', 'document'])
+const CONTEXT_KEYS = new Set(['THREE', 'budgets', 'desktopFrame', 'document'])
+const OPTIONAL_CONTEXT_KEYS = new Set(['desktopFrame'])
 const PROJECTION_METHODS = Object.freeze([
   'applySignal',
   'applyAnimation',
@@ -80,13 +86,15 @@ function projectionCleanupFailure(errors, message) {
   return failure
 }
 
-function exactKeys(value, expected, path, errors) {
+function exactKeys(value, expected, path, errors, optional = new Set()) {
   if (!isSceneRecord(value)) return
   for (const key of Object.keys(value)) {
     if (!expected.has(key)) addError(errors, 'unknown_field', `${path}.${key}`, `Unknown scene extension field ${key}.`)
   }
   for (const key of expected) {
-    if (!Object.hasOwn(value, key)) addError(errors, 'missing_field', `${path}.${key}`, `Missing scene extension field ${key}.`)
+    if (!optional.has(key) && !Object.hasOwn(value, key)) {
+      addError(errors, 'missing_field', `${path}.${key}`, `Missing scene extension field ${key}.`)
+    }
   }
 }
 
@@ -128,7 +136,7 @@ function compareIds(left, right) {
 }
 
 function cloneManifest(manifest) {
-  return Object.freeze({
+  const clone = {
     contract: manifest.contract,
     schemaVersion: manifest.schemaVersion,
     id: manifest.id,
@@ -138,7 +146,11 @@ function cloneManifest(manifest) {
     implementationIds: Object.freeze([...manifest.implementationIds]),
     threeRevision: manifest.threeRevision,
     budgets: Object.freeze({ ...manifest.budgets }),
-  })
+  }
+  if (Object.hasOwn(manifest, 'capabilities')) {
+    clone.capabilities = Object.freeze([...manifest.capabilities])
+  }
+  return Object.freeze(clone)
 }
 
 function manifestIdentity(manifest) {
@@ -360,7 +372,7 @@ function validateProjectionContext(context, manifest) {
   if (!isSceneRecord(context)) {
     return { ok: false, errors: [{ code: 'invalid_context', path: 'context', message: 'Scene extension context must be an object.' }] }
   }
-  exactKeys(context, CONTEXT_KEYS, 'context', errors)
+  exactKeys(context, CONTEXT_KEYS, 'context', errors, OPTIONAL_CONTEXT_KEYS)
   if (!context.THREE || (typeof context.THREE !== 'object' && typeof context.THREE !== 'function')) {
     addError(errors, 'invalid_three', 'context.THREE', 'Scene extension context requires the AOS-provided Three namespace.')
   } else if (context.THREE.REVISION !== manifest.threeRevision) {
@@ -371,6 +383,29 @@ function validateProjectionContext(context, manifest) {
     addError(errors, 'invalid_document', 'context.document', 'Scene extension context requires a valid scene document.')
   }
   validateBudgets(context.budgets, 'context.budgets', errors, manifest.budgets)
+  if (context.desktopFrame !== undefined && context.desktopFrame !== null) {
+    const frame = context.desktopFrame
+    if (!manifest.capabilities?.includes('aos.scene.desktop_frame_texture')) {
+      addError(
+        errors,
+        'undeclared_capability',
+        'context.desktopFrame',
+        'Scene extension desktop-frame capability was not declared.',
+      )
+    } else if (!isSceneRecord(frame)
+        || typeof frame.request !== 'function'
+        || typeof frame.clear !== 'function'
+        || typeof frame.snapshot !== 'function'
+        || !frame.texture
+        || typeof frame.texture !== 'object') {
+      addError(
+        errors,
+        'invalid_desktop_frame',
+        'context.desktopFrame',
+        'Scene extension desktop-frame capability is invalid.',
+      )
+    }
+  }
   return { ok: errors.length === 0, errors }
 }
 
@@ -379,7 +414,7 @@ export function validateSceneExtensionManifest(manifest) {
   if (!isSceneRecord(manifest)) {
     return { ok: false, errors: [{ code: 'invalid_manifest', path: 'manifest', message: 'Scene extension manifest must be an object.' }] }
   }
-  exactKeys(manifest, MANIFEST_KEYS, 'manifest', errors)
+  exactKeys(manifest, MANIFEST_KEYS, 'manifest', errors, OPTIONAL_MANIFEST_KEYS)
   if (manifest.contract !== SCENE_EXTENSION_CONTRACT_ID) {
     addError(errors, 'contract_id', 'manifest.contract', `Scene extension contract must be ${SCENE_EXTENSION_CONTRACT_ID}.`)
   }
@@ -388,6 +423,18 @@ export function validateSceneExtensionManifest(manifest) {
   }
   validateExtensionSegment(manifest.ownerId, 'manifest.ownerId', errors)
   validateExtensionSegment(manifest.id, 'manifest.id', errors)
+  const capabilities = manifest.capabilities ?? []
+  if (!Array.isArray(capabilities)
+      || capabilities.length > SCENE_EXTENSION_CAPABILITIES.length
+      || capabilities.some((entry) => !SCENE_EXTENSION_CAPABILITIES.includes(entry))
+      || capabilities.some((entry, index) => index > 0 && capabilities[index - 1] >= entry)) {
+    addError(
+      errors,
+      'invalid_capabilities',
+      'manifest.capabilities',
+      'Scene extension capabilities must be a uniquely sorted subset of the engine capability registry.',
+    )
+  }
   if (typeof manifest.digest !== 'string' || !SHA256.test(manifest.digest)) {
     addError(errors, 'invalid_digest', 'manifest.digest', 'Scene extension digest must be a lowercase SHA-256 hex string.')
   }
@@ -436,6 +483,12 @@ export function serializeSceneExtensionDigestMaterial(manifest, bodyDigest) {
     `threeRevision:${manifest.threeRevision}`,
     `implementationCount:${manifest.implementationIds.length}`,
     ...manifest.implementationIds.map((id) => `implementation:${id}`),
+    ...(manifest.capabilities?.length
+      ? [
+        `capabilityCount:${manifest.capabilities.length}`,
+        ...manifest.capabilities.map((id) => `capability:${id}`),
+      ]
+      : []),
     ...DIGEST_BUDGET_KEYS.map((key) => `budget.${key}:${manifest.budgets[key]}`),
     `bodySha256:${bodyDigest}`,
     '',
@@ -464,6 +517,17 @@ export function validateSceneExtensionProjection(projection) {
       'invalid_projection_method',
       'projection.inspectInteractionRoute',
       'Scene extension projection inspectInteractionRoute must be a function when provided.',
+    )
+  }
+  if (
+    projection.applyPointerVisual !== undefined
+    && typeof projection.applyPointerVisual !== 'function'
+  ) {
+    addError(
+      errors,
+      'invalid_projection_method',
+      'projection.applyPointerVisual',
+      'Scene extension projection applyPointerVisual must be a function when provided.',
     )
   }
   return { ok: errors.length === 0, errors }
@@ -526,13 +590,17 @@ export function createTrustedSceneExtensionRegistry(input = {}) {
               return inspectSceneExtensionProjectionResources(object)
             }
             try {
+              const factoryContext = {
+                THREE: context.THREE,
+                budgets: Object.freeze({ ...context.budgets }),
+                document: context.document,
+                inspectProjectionResources,
+              }
+              if (manifest.capabilities?.includes('aos.scene.desktop_frame_texture')) {
+                factoryContext.desktopFrame = context.desktopFrame ?? null
+              }
               projection = assertSynchronousHookResult(
-                factory.createProjection(Object.freeze({
-                  THREE: context.THREE,
-                  budgets: Object.freeze({ ...context.budgets }),
-                  document: context.document,
-                  inspectProjectionResources,
-                })),
+                factory.createProjection(Object.freeze(factoryContext)),
                 'factory createProjection()',
               )
             } finally {
@@ -563,6 +631,9 @@ export function createTrustedSceneExtensionRegistry(input = {}) {
                 : undefined,
               applyInteraction: typeof projection.applyInteraction === 'function'
                 ? (...args) => callSynchronousProjectionHook(projection, 'applyInteraction', args)
+                : undefined,
+              applyPointerVisual: typeof projection.applyPointerVisual === 'function'
+                ? (...args) => callSynchronousProjectionHook(projection, 'applyPointerVisual', args)
                 : undefined,
               applyAnimation: (...args) => callSynchronousProjectionHook(projection, 'applyAnimation', args),
               applySignal: (...args) => callSynchronousProjectionHook(projection, 'applySignal', args),

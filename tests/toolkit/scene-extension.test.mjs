@@ -4,6 +4,7 @@ import test from 'node:test'
 
 import {
   SCENE_EXTENSION_BUDGET_LIMITS,
+  SCENE_EXTENSION_CAPABILITIES,
   SCENE_EXTENSION_CONTRACT_ID,
   SCENE_EXTENSION_SCENE_ABI,
   SCENE_EXTENSION_SCHEMA_VERSION,
@@ -114,6 +115,10 @@ function errorCodes(result) {
 
 test('scene extension manifests are exact, digest-pinned, owner-namespaced, and budgeted', () => {
   assert.deepEqual(validateSceneExtensionManifest(manifest()), { ok: true, errors: [] })
+  assert.deepEqual(
+    validateSceneExtensionManifest(manifest({ capabilities: [...SCENE_EXTENSION_CAPABILITIES] })),
+    { ok: true, errors: [] },
+  )
 
   const invalid = manifest({
     contract: 'aos.scene.cartridge.v1',
@@ -141,6 +146,26 @@ test('scene extension manifests are exact, digest-pinned, owner-namespaced, and 
     'three_revision',
     'invalid_budget',
   ]) assert.equal(codes.has(code), true, code)
+})
+
+test('scene extension capabilities are explicit, exact, sorted, and digest-bound', () => {
+  for (const capabilities of [
+    ['unknown.capability'],
+    ['aos.scene.desktop_frame_texture', 'aos.scene.desktop_frame_texture'],
+    ['z.capability', 'a.capability'],
+  ]) {
+    assert.equal(
+      errorCodes(validateSceneExtensionManifest(manifest({ capabilities }))).has('invalid_capabilities'),
+      true,
+    )
+  }
+  assert.notEqual(
+    serializeSceneExtensionDigestMaterial(manifest(), 'b'.repeat(64)),
+    serializeSceneExtensionDigestMaterial(
+      manifest({ capabilities: ['aos.scene.desktop_frame_texture'] }),
+      'b'.repeat(64),
+    ),
+  )
 })
 
 test('scene extension manifests require every exact field and every finite integer budget', () => {
@@ -757,6 +782,46 @@ test('trusted registry supplies only the bounded browser projection context', ()
     () => handle.createProjection(context({ budgets: budgets({ maxObjects: 65 }) })),
     /finite integer within its engine limit/,
   )
+})
+
+test('trusted registry supplies a desktop-frame source only to a declaring extension', () => {
+  const desktopFrame = {
+    texture: {},
+    request() { return true },
+    clear() { return true },
+    snapshot() { return { status: 'empty' } },
+  }
+  let received = null
+  const declaredManifest = manifest({ capabilities: ['aos.scene.desktop_frame_texture'] })
+  const registry = createTrustedSceneExtensionRegistry({
+    factories: [{
+      manifest: declaredManifest,
+      createProjection(value) {
+        received = value
+        return projection()
+      },
+    }],
+  })
+  const handle = registry.resolve(reference(declaredManifest))
+  handle.createProjection(context({ desktopFrame }))
+  assert.equal(received.desktopFrame, desktopFrame)
+  assert.equal(Object.isFrozen(received), true)
+
+  const ordinaryRegistry = createTrustedSceneExtensionRegistry({
+    factories: [{
+      manifest: manifest(),
+      createProjection(value) {
+        received = value
+        return projection()
+      },
+    }],
+  })
+  assert.throws(
+    () => ordinaryRegistry.resolve(reference()).createProjection(context({ desktopFrame })),
+    /capability was not declared/u,
+  )
+  ordinaryRegistry.resolve(reference()).createProjection(context())
+  assert.equal(Object.hasOwn(received, 'desktopFrame'), false)
 })
 
 test('trusted registry rejects invalid projection factories after invocation', () => {

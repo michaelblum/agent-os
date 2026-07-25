@@ -23,7 +23,14 @@ export function handleDesktopWorldStageLifecycle(message, complete, outlet = nul
   return true
 }
 
-export function createDesktopWorldStageDisposer({ devtools, interactions, operations, outlet, surface } = {}) {
+export function createDesktopWorldStageDisposer({
+  desktopFrameClient,
+  devtools,
+  interactions,
+  operations,
+  outlet,
+  surface,
+} = {}) {
   let disposal = null
   return function disposeDesktopWorldStage() {
     if (disposal) return disposal
@@ -40,6 +47,7 @@ export function createDesktopWorldStageDisposer({ devtools, interactions, operat
       try {
         if (outlet?.dispose() === false) failures.push(new Error('DesktopWorld scene outlet cleanup was not settled.'))
       } catch (error) { failures.push(error) }
+      try { desktopFrameClient?.dispose() } catch (error) { failures.push(error) }
       try { await interactions?.dispose('stage_disposed') } catch (error) { failures.push(error) }
       if (failures.length > 0) throw new AggregateError(failures, 'DesktopWorld stage disposal failed.')
       return true

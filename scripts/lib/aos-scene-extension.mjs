@@ -205,7 +205,7 @@ function identityFromStoreSegment(value) {
 }
 
 function summary(artifact, status = 'ok') {
-  return Object.freeze({
+  const result = {
     status,
     contract: artifact.manifest.contract,
     schemaVersion: artifact.manifest.schemaVersion,
@@ -218,7 +218,11 @@ function summary(artifact, status = 'ok') {
     budgets: { ...artifact.manifest.budgets },
     manifestBytes: artifact.manifestBytes.length,
     bodyBytes: artifact.bodyBytes.length,
-  })
+  }
+  if (Object.hasOwn(artifact.manifest, 'capabilities')) {
+    result.capabilities = [...artifact.manifest.capabilities]
+  }
+  return Object.freeze(result)
 }
 
 async function loadSceneExtension(directory, { aggregate = null, compiler, stored = false } = {}) {

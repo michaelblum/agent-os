@@ -61,6 +61,12 @@ Trusted scene extensions may contribute only the bounded engine-defined
 interaction inspection contract to DevTools. Do not expose arbitrary
 extension snapshots, product state, text, audio, or source through stage
 telemetry.
+Desktop-frame texture leases are AOS-owned, stage-only, transient, and
+content-free outside the trusted projection realm. Effects such as distortion,
+masking, blur, or redaction remain consumer recipes; never add their vocabulary
+to AOS capture or scene transport contracts. One request produces a coherent
+all-display epoch bound to exact stage/WebView generations. Keep backend choices
+such as one-shot capture or a future prewarmed stream behind that lease.
 
 Legacy cross-display transfer outlines are superseded by One-World/union-backed
 surfaces. Do not grow that path. The AOS Surface System epic should replace

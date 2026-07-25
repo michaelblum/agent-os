@@ -66,6 +66,7 @@ export function reconcileSceneStageRunState(resources, previous, next, at = perf
 
 export function createDesktopWorldSceneOutlet({
   canvas,
+  desktopFrameSourceFactory = null,
   extensionRegistry,
   window: hostWindow = window,
 } = {}) {
@@ -227,6 +228,7 @@ export function createDesktopWorldSceneOutlet({
     try {
       return createDesktopWorldSceneMountedResource({
         documentInput,
+        desktopFrameSourceFactory,
         extensionReference,
         extensionRegistry,
         identity,
@@ -468,6 +470,13 @@ export function createDesktopWorldSceneOutlet({
       return { handled: false, routeStarted: false }
     }
     return mounted.projection.applyInteraction(input)
+  }
+
+  const applyPointerVisual = (key, input) => {
+    const mounted = resources.get(key)
+    if (!mounted || typeof mounted.projection.applyPointerVisual !== 'function') return false
+    mounted.projection.applyPointerVisual(input)
+    return true
   }
 
   const applyInteractionResponseUnsafe = (key, { frame, interaction, response, topology } = {}) => {
@@ -761,6 +770,7 @@ export function createDesktopWorldSceneOutlet({
   return Object.freeze({
     apply,
     applyInteractionResponse,
+    applyPointerVisual,
     prepareReplacement,
     configuration(key) {
       const mounted = resources.get(key)

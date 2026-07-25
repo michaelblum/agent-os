@@ -127,6 +127,23 @@ class UnifiedDaemon {
         }
     )
     private var contentServer: ContentServer?
+    private let desktopFrameStore = AOSDesktopFrameStore()
+    private lazy var desktopFrameCapture = AOSDesktopFrameCaptureController(
+        canvasManager: canvasManager,
+        store: desktopFrameStore,
+        authorize: { [weak self] payload in
+            self?.desktopWorldSceneTransport.authorizeDesktopFrame(payload)
+        }
+    )
+    private lazy var desktopFrameSchemeHandler = AOSDesktopFrameSchemeHandler(
+        store: desktopFrameStore,
+        identityResolver: { [weak self] webView in
+            self?.canvasManager.desktopFrameConsumer(
+                canvasID: AOSDesktopWorldSceneTransportController.stageCanvasID,
+                webViewID: ObjectIdentifier(webView)
+            )
+        }
+    )
     private lazy var sceneExtensionStore = AOSSceneExtensionStore()
     private lazy var sceneExtensionSchemeHandler = AOSSceneExtensionSchemeHandler(store: sceneExtensionStore)
     private let desktopWorldSceneEventRouting = AOSDesktopWorldSceneEventRouteDiagnostics()
@@ -410,6 +427,12 @@ class UnifiedDaemon {
                 case "capture.region":
                     self.handleCaptureRegion(callerID: canvasID, payload: inner ?? [:])
                     return
+                case "desktop_frame.acquire":
+                    self.handleDesktopFrameAcquire(callerID: canvasID, payload: inner ?? [:])
+                    return
+                case "desktop_frame.release":
+                    self.handleDesktopFrameRelease(callerID: canvasID, payload: inner ?? [:])
+                    return
                 case "browser_dom.element_target":
                     self.handleBrowserDomElementTarget(callerID: canvasID, payload: inner ?? [:])
                     return
@@ -477,6 +500,9 @@ class UnifiedDaemon {
                 self.removeInputRegionsOwned(by: canvasInfo.id, includeSuspendRetained: true)
                 self.desktopWorldDevTools.detachHost(id: canvasInfo.id)
                 if canvasInfo.id == self.sceneStageCanvasID {
+                    _ = self.desktopFrameCapture.releaseAll(
+                        callerCanvasID: self.sceneStageCanvasID
+                    )
                     self.desktopWorldSceneTransport.stageRemoved()
                 }
             } else if canvasInfo.suspended == true {
@@ -618,6 +644,7 @@ class UnifiedDaemon {
         // fails to rewrite the URL (e.g. content server not yet ready).
         let schemeHandler = AosSchemeHandler()
         schemeHandler.portProvider = { [weak self] in self?.contentServer?.assignedPort ?? 0 }
+        schemeHandler.desktopFrameHandler = desktopFrameSchemeHandler
         schemeHandler.sceneExtensionHandler = extensionHandler
         canvasManager.aosSchemeHandler = schemeHandler
 
@@ -2042,6 +2069,7 @@ class UnifiedDaemon {
                     status: "error", code: "REMOVE_FAILED",
                     message: "target \(targetID) still exists after remove")
             } else {
+                _ = self.desktopFrameCapture.releaseAll(callerCanvasID: targetID)
                 self.dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok")
             }
         }
@@ -2712,6 +2740,58 @@ class UnifiedDaemon {
                 ]
             )
         }
+    }
+
+    private func handleDesktopFrameAcquire(callerID: String, payload: [String: Any]) {
+        let requestID = payload["request_id"] as? String
+        desktopFrameCapture.acquire(callerCanvasID: callerID, payload: payload) { [weak self] result in
+            guard let self else { return }
+            var response: [String: Any] = [
+                "type": "desktop_frame.available",
+                "request_id": requestID ?? "",
+            ]
+            if let owner = payload["owner"] as? String {
+                response["owner"] = owner
+            }
+            if let resource = payload["resource"] as? String {
+                response["resource"] = resource
+            }
+            if let extensionReference = payload["extension"] as? [String: Any] {
+                response["extension"] = extensionReference
+            }
+            switch result {
+            case .success(let extra):
+                response["status"] = "ok"
+                for (key, value) in extra {
+                    response[key] = value
+                }
+            case .failure(let failure as AOSDesktopFrameCaptureFailure):
+                response["status"] = "error"
+                response["code"] = failure.code
+            case .failure:
+                response["status"] = "error"
+                response["code"] = "DESKTOP_FRAME_CAPTURE_FAILED"
+            }
+            self.canvasManager.postMessageToCurrentCanvasAsync(
+                canvasID: callerID,
+                payload: response
+            )
+        }
+    }
+
+    private func handleDesktopFrameRelease(callerID: String, payload: [String: Any]) {
+        let requestID = payload["request_id"] as? String
+        guard desktopFrameCapture.release(callerCanvasID: callerID, payload: payload) else {
+            dispatchCanvasResponse(
+                to: callerID,
+                requestID: requestID,
+                status: "error",
+                code: "DESKTOP_FRAME_HANDLE_INVALID",
+                message: "Desktop frame texture handle is unavailable."
+            )
+            return
+        }
+        dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok")
     }
 
     // MARK: - Connection Handling
@@ -4545,6 +4625,7 @@ class UnifiedDaemon {
         fputs("aos daemon shutting down (\(reason))\n", stderr)
         voiceTransport.shutdown()
         annotationSelection.shutdown()
+        _ = desktopFrameCapture.releaseAll(callerCanvasID: sceneStageCanvasID)
         restoreNativeCursorSuppressionForExit()
         perception.stop()
         spatial.stopPolling()

@@ -201,6 +201,8 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
     ],
   );
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-world-scene-*.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-frame-capture-controller.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-frame-texture.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('packages/toolkit/components/desktop-world-stage/**'));
   assert.match(
     rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-daemon-contract')?.command ?? '',
@@ -217,6 +219,10 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.match(
     rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-devtools-contract')?.command ?? '',
     /tests\/toolkit\/desktop-world-devtools-model\.test\.mjs/u,
+  );
+  assert.match(
+    rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-extension-contract')?.command ?? '',
+    /tests\/desktop-frame-texture-native\.test\.mjs/u,
   );
   assert.deepEqual(
     rules.get('command-surface-implementations')?.commands?.map((step) => step.command),

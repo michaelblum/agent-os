@@ -12,6 +12,7 @@ import WebKit
 /// if resolveContentURL() fails to rewrite the URL before it reaches WKWebView.
 class AosSchemeHandler: NSObject, WKURLSchemeHandler {
     var portProvider: () -> UInt16 = { 0 }
+    var desktopFrameHandler: AOSDesktopFrameSchemeHandler?
     var sceneExtensionHandler: AOSSceneExtensionSchemeHandler?
     private var stopped = Set<ObjectIdentifier>()
     private let lock = NSLock()
@@ -25,6 +26,11 @@ class AosSchemeHandler: NSObject, WKURLSchemeHandler {
 
         guard let url = urlSchemeTask.request.url else {
             urlSchemeTask.didFailWithError(URLError(.badURL))
+            return
+        }
+
+        if let handler = desktopFrameHandler, handler.handles(url) {
+            handler.webView(webView, start: urlSchemeTask)
             return
         }
 
@@ -75,6 +81,12 @@ class AosSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
+        if let url = urlSchemeTask.request.url,
+           let handler = desktopFrameHandler,
+           handler.handles(url) {
+            handler.webView(webView, stop: urlSchemeTask)
+            return
+        }
         if let url = urlSchemeTask.request.url,
            let handler = sceneExtensionHandler,
            handler.handles(url) {
@@ -1473,6 +1485,20 @@ class CanvasManager {
             (self?.canvases[canvasID] as? DesktopWorldSurfaceCanvas)?.sceneBarrierTopology()
         }
         return Thread.isMainThread ? read() : DispatchQueue.main.sync(execute: read)
+    }
+
+    func desktopFrameConsumers(canvasID: String) -> [AOSDesktopFrameConsumerIdentity] {
+        let read = { [weak self] in
+            (self?.canvases[canvasID] as? DesktopWorldSurfaceCanvas)?.desktopFrameConsumers() ?? []
+        }
+        return Thread.isMainThread ? read() : DispatchQueue.main.sync(execute: read)
+    }
+
+    func desktopFrameConsumer(
+        canvasID: String,
+        webViewID: ObjectIdentifier
+    ) -> AOSDesktopFrameConsumerIdentity? {
+        desktopFrameConsumers(canvasID: canvasID).first { $0.webViewID == webViewID }
     }
 
     /// Delivers only to the exact stage and topology generation captured by a

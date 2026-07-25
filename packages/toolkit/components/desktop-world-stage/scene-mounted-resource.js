@@ -59,6 +59,7 @@ export function createDesktopWorldSceneMountedResource({
   documentInput,
   extensionReference = null,
   extensionRegistry,
+  desktopFrameSourceFactory = null,
   identity = {},
   key,
   onCleanupFailure = () => {},
@@ -73,6 +74,8 @@ export function createDesktopWorldSceneMountedResource({
     expectedOwner: identity.owner ?? previous?.owner ?? '',
     extensionReference,
     extensionRegistry,
+    desktopFrameSourceFactory,
+    resource: identity.resource ?? previous?.resource ?? key,
   })
   const projection = preparedProjection.projection
   const interactionState = createSceneAnimationInteractionState(document)

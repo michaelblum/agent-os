@@ -55,9 +55,13 @@ function manifestFor(bodyBytes, overrides = {}) {
   return manifest
 }
 
-async function writeInstalledFixture(root, bodyBytes = Buffer.from('return null\n')) {
+async function writeInstalledFixture(
+  root,
+  bodyBytes = Buffer.from('return null\n'),
+  manifestOverrides = {},
+) {
   const stateDirectory = path.join(root, 'repo')
-  const manifest = manifestFor(bodyBytes)
+  const manifest = manifestFor(bodyBytes, manifestOverrides)
   const artifactRoot = path.join(
     stateDirectory,
     'scene-extensions',
@@ -147,6 +151,65 @@ do {
   })
   return executable
 }
+
+test('native extension store accepts and freezes digest-bound engine capabilities', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-native-capability-'))
+  try {
+    const fixture = await writeInstalledFixture(
+      root,
+      Buffer.from('return null\n'),
+      { capabilities: ['aos.scene.desktop_frame_texture'] },
+    )
+    const executable = await compileHarness(root)
+    const result = spawnSync(executable, [fixture.stateDirectory, JSON.stringify({
+      ownerId: fixture.manifest.ownerId,
+      id: fixture.manifest.id,
+      digest: fixture.manifest.digest,
+      sceneAbi: fixture.manifest.sceneAbi,
+      threeRevision: fixture.manifest.threeRevision,
+    }), fixture.manifest.ownerId], { encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+    const output = JSON.parse(result.stdout)
+    assert.match(output.wrapper, /Object\.freeze\(manifest\.capabilities\)/u)
+    assert.equal(
+      output.wrapper,
+      serializeSceneExtensionWrapperModule(
+        fixture.manifest,
+        fixture.bodyBytes.toString('utf8'),
+      ).toString('utf8'),
+    )
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test('native extension store rejects a present non-array capability field', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-native-capability-type-'))
+  try {
+    const fixture = await writeInstalledFixture(root)
+    const malformed = {
+      ...fixture.manifest,
+      capabilities: 'aos.scene.desktop_frame_texture',
+    }
+    await writeFile(
+      path.join(fixture.artifactRoot, 'extension.json'),
+      `${JSON.stringify(malformed)}\n`,
+      { mode: 0o600 },
+    )
+    const executable = await compileHarness(root)
+    const result = spawnSync(executable, [fixture.stateDirectory, JSON.stringify({
+      ownerId: fixture.manifest.ownerId,
+      id: fixture.manifest.id,
+      digest: fixture.manifest.digest,
+      sceneAbi: fixture.manifest.sceneAbi,
+      threeRevision: fixture.manifest.threeRevision,
+    }), fixture.manifest.ownerId], { encoding: 'utf8' })
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, /SCENE_EXTENSION_MANIFEST_INVALID/u)
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
 
 test('native extension store revalidates artifact identity and generates a local immutable wrapper', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-native-store-'))

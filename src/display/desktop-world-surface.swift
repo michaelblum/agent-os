@@ -473,6 +473,20 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         )
     }
 
+    func desktopFrameConsumers() -> [AOSDesktopFrameConsumerIdentity] {
+        precondition(lifecycleGeneration > 0, "Desktop frame consumers require an active canvas generation")
+        return segments.map { segment in
+            AOSDesktopFrameConsumerIdentity(
+                canvasID: id,
+                canvasGeneration: lifecycleGeneration,
+                topologyGeneration: topologyGeneration,
+                displayID: segment.displayID,
+                segmentIndex: segment.index,
+                webViewID: ObjectIdentifier(segment.webView)
+            )
+        }
+    }
+
     private func applyOrderedSegments(_ ordered: [DesktopWorldSurfaceSegment]) -> Bool {
         var byDisplay = Dictionary(uniqueKeysWithValues: segments.map { ($0.displayID, $0) })
         var nextSegments: [Segment] = []
@@ -598,6 +612,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             if type == "desktop_world_stage.scene.result"
                 || type == "desktop_world_stage.scene.fault"
                 || type == "desktop_world_stage.scene.event"
+                || type == "desktop_frame.acquire"
                 || type == "ready"
                 || type == "lifecycle.ready" {
                 guard self.segments.contains(where: { $0 === segment }) else { return }

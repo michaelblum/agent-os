@@ -86,6 +86,54 @@ final class AOSDesktopWorldSceneTransportController {
         validIdentifier(value, allowSlash: true)
     }
 
+    func authorizeDesktopFrame(
+        _ payload: [String: Any]
+    ) -> AOSDesktopFrameCaptureAuthorization? {
+        guard let owner = payload["owner"] as? String,
+              let resource = payload["resource"] as? String,
+              let extensionDictionary = payload["extension"] as? [String: Any],
+              let extensionReference = try? AOSSceneExtensionReference(
+                  dictionary: extensionDictionary
+              ),
+              extensionReference.ownerID == owner,
+              let canvasGeneration = (payload["canvas_generation"] as? NSNumber)?.uint64Value,
+              let topologyGeneration = (payload["topology_generation"] as? NSNumber)?.uint64Value,
+              let displayIDValue = (payload["segment_display_id"] as? NSNumber)?.uint64Value,
+              displayIDValue <= UInt64(UInt32.max),
+              let segmentIndex = (payload["segment_index"] as? NSNumber)?.intValue,
+              let topology = canvasManager.desktopWorldSceneBarrierTopology(
+                  canvasID: Self.stageCanvasID
+              ),
+              topology.canvasGeneration == canvasGeneration,
+              topology.generation == topologyGeneration,
+              topology.segments.contains(where: {
+                  $0.displayID == UInt32(displayIDValue) && $0.index == segmentIndex
+              }) else {
+            return nil
+        }
+        let identity = stageIdentity(topology)
+        guard scene.authorizes(
+            identity: identity,
+            key: scene.key(owner: owner, resource: resource),
+            extensionDigest: extensionReference.digest,
+            extensionID: extensionReference.id,
+            extensionOwnerID: extensionReference.ownerID,
+            sceneABI: extensionReference.sceneABI,
+            threeRevision: extensionReference.threeRevision,
+            capability: "aos.scene.desktop_frame_texture"
+        ) else {
+            return nil
+        }
+        return AOSDesktopFrameCaptureAuthorization(
+            canvasID: Self.stageCanvasID,
+            canvasGeneration: canvasGeneration,
+            extensionReference: extensionReference,
+            ownerID: owner,
+            resourceID: resource,
+            topologyGeneration: topologyGeneration
+        )
+    }
+
     func stageRemoved() {
         guard let invalidation = scene.stageRemoved(code: "SCENE_STAGE_REMOVED") else { return }
         finishInvalidation(invalidation)
@@ -212,8 +260,16 @@ final class AOSDesktopWorldSceneTransportController {
             return response(error: "Unsupported scene operation", code: "INVALID_SCENE_OPERATION")
         }
         let acceptedOperation: [String: Any]
+        let extensionAuthorization: [String: Any]?
         do {
             acceptedOperation = try extensionStore.admitSceneOperation(operation, expectedOwnerID: owner)
+            if let extensionDictionary = acceptedOperation["extension"] as? [String: Any] {
+                extensionAuthorization = try extensionStore.authorization(
+                    for: AOSSceneExtensionReference(dictionary: extensionDictionary)
+                )
+            } else {
+                extensionAuthorization = nil
+            }
         } catch let failure as AOSSceneExtensionStoreFailure {
             return response(error: "Scene extension is unavailable", code: failure.code)
         } catch {
@@ -272,6 +328,7 @@ final class AOSDesktopWorldSceneTransportController {
             resource: resource,
             operationName: op,
             operation: acceptedOperation,
+            extensionAuthorization: extensionAuthorization,
             connectionID: connectionID,
             ref: ref
         ) {

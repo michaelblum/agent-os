@@ -32,6 +32,29 @@ export interface SceneExtensionManifest {
   implementationIds: readonly string[];
   threeRevision: typeof SCENE_EXTENSION_THREE_REVISION;
   budgets: SceneExtensionBudgets;
+  capabilities?: readonly SceneExtensionCapability[];
+}
+
+export type SceneExtensionCapability = 'aos.scene.desktop_frame_texture';
+
+export interface SceneDesktopFrameTextureSnapshot {
+  bounds: readonly [number, number, number, number];
+  captureDurationMs: number | null;
+  capturedAtEpochMs: number | null;
+  epochId: string | null;
+  errorCode: string | null;
+  generation: number;
+  height: number;
+  readyAtMs: number | null;
+  status: 'empty' | 'loading' | 'refreshing' | 'ready' | 'failed' | 'disposed';
+  width: number;
+}
+
+export interface SceneDesktopFrameTextureSource {
+  readonly texture: object;
+  request(): boolean;
+  clear(): boolean;
+  snapshot(): Readonly<SceneDesktopFrameTextureSnapshot>;
 }
 
 export interface SceneExtensionReference {
@@ -51,6 +74,7 @@ export interface SceneExtensionProjectionContext {
   THREE: SceneExtensionThreeNamespace;
   budgets: Readonly<SceneExtensionBudgets>;
   document: SceneDocument;
+  desktopFrame?: Readonly<SceneDesktopFrameTextureSource> | null;
 }
 
 export interface SceneExtensionObject3D {
@@ -89,6 +113,16 @@ export interface SceneExtensionProjection {
   applyInteraction?(event: SceneExtensionReadonly<SceneInteractionVisualEvent>):
     | boolean
     | Readonly<{ handled: boolean; routeStarted?: boolean }>;
+  /**
+   * Optional passive visual-only pointer notification. It cannot consume
+   * input, select a gesture, or alter the canonical interaction response.
+   */
+  applyPointerVisual?(event: Readonly<{
+    affordanceId: string;
+    at: number;
+    phase: 'down';
+    point: Readonly<{ x: number; y: number }>;
+  }>): void;
   /**
    * Optional bounded observability hook. It exposes only engine-defined
    * interaction facts and is sampled only while DesktopWorld inspection is
@@ -137,6 +171,7 @@ export const SCENE_EXTENSION_REGISTRY_LIMIT: 64;
 export const SCENE_EXTENSION_SCHEMA_VERSION: 1;
 export const SCENE_EXTENSION_SCENE_ABI: 'aos.scene.projection.v1';
 export const SCENE_EXTENSION_THREE_REVISION: '183';
+export const SCENE_EXTENSION_CAPABILITIES: readonly SceneExtensionCapability[];
 export const SCENE_EXTENSION_BUDGET_LIMITS: Readonly<SceneExtensionBudgets>;
 
 export function validateSceneExtensionManifest(manifest: unknown): SceneValidationResult;
