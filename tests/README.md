@@ -201,6 +201,7 @@ host-neutral view, and compatibility-projection changes. It does not execute
 the repo AOS binary or require TCC:
 
 ```bash
+bash tests/swift-runtime-typecheck.sh
 bash tests/daemon-desktop-world-devtools-session.sh
 node --test \
   tests/daemon-desktop-world-devtools-contract.test.mjs \

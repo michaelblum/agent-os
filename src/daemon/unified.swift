@@ -132,13 +132,13 @@ class UnifiedDaemon {
         canvasManager: canvasManager,
         store: desktopFrameStore,
         reauthorize: { [weak self] authorization in
-            self?.desktopWorldSceneTransport.authorizesDesktopFrame(authorization) ?? false
+            self?.reauthorizeDesktopFrame(authorization) ?? false
         },
         handleAbort: { [weak self] abort in
             self?.deliverDesktopFrameAbort(abort)
         },
         authorize: { [weak self] payload in
-            self?.desktopWorldSceneTransport.authorizeDesktopFrame(payload)
+            self?.authorizeDesktopFrame(payload)
         }
     )
     private lazy var desktopFrameSchemeHandler = AOSDesktopFrameSchemeHandler(
@@ -176,7 +176,7 @@ class UnifiedDaemon {
             self.canvasSubscriptionLock.unlock()
         },
         authorizationChanged: { [weak self] in
-            _ = self?.desktopFrameCapture.cancelUnauthorized()
+            self?.desktopFrameAuthorizationChanged()
         },
         emit: { [weak self] route, event, data in
             self?.emitConnectionEvent(
@@ -188,6 +188,7 @@ class UnifiedDaemon {
             ) ?? false
         }
     )
+
     private lazy var desktopWorldDevTools = AOSDesktopWorldDevToolsController(
         canvasManager: canvasManager,
         sceneStageCanvasID: sceneStageCanvasID,
@@ -279,6 +280,22 @@ class UnifiedDaemon {
         self.currentConfig = config
         self.idleTimeout = idleTimeout
         self.perception = PerceptionEngine(config: config)
+    }
+
+    private func authorizeDesktopFrame(
+        _ payload: [String: Any]
+    ) -> AOSDesktopFrameCaptureAuthorization? {
+        desktopWorldSceneTransport.authorizeDesktopFrame(payload)
+    }
+
+    private func reauthorizeDesktopFrame(
+        _ authorization: AOSDesktopFrameLeaseIdentity
+    ) -> Bool {
+        desktopWorldSceneTransport.authorizesDesktopFrame(authorization)
+    }
+
+    private func desktopFrameAuthorizationChanged() {
+        _ = desktopFrameCapture.cancelUnauthorized()
     }
 
     // MARK: - Start
@@ -2768,7 +2785,7 @@ class UnifiedDaemon {
         desktopFrameCapture.acquire(
             callerCanvasID: callerID,
             payload: payload,
-            admitted: { [weak self] request in
+            admitted: { [weak self] (request: AOSDesktopFrameCaptureRequest) -> Bool in
                 guard let self else { return false }
                 admittedRequest = request
                 return self.canvasManager.postMessage(
@@ -2785,7 +2802,7 @@ class UnifiedDaemon {
                     ]
                 )
             }
-        ) { [weak self] result in
+        ) { [weak self] (result: Result<AOSDesktopFrameCaptureDelivery, Error>) in
             guard let self else { return }
             switch result {
             case .success(let delivery):

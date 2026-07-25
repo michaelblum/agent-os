@@ -307,6 +307,11 @@
       "tcc_identity_sensitive": false,
       "commands": [
         {
+          "id": "swift-runtime-typecheck",
+          "command": "bash tests/swift-runtime-typecheck.sh",
+          "reason": "Typecheck the complete Swift runtime graph without creating or executing the repo AOS binary."
+        },
+        {
           "id": "scene-daemon-contract",
           "command": "node --test tests/desktop-world-scene-event-routing.test.mjs tests/desktop-world-scene-result-coordinator.test.mjs tests/daemon-desktop-world-devtools-contract.test.mjs tests/scene-follow-cli.test.mjs",
           "reason": "Verify canonical event routing diagnostics, the daemon scene lifecycle aggregate, all-segment barrier ownership, DevTools delegation, and bounded follow transport."
@@ -344,7 +349,7 @@
       ],
       "verification": [],
       "notes": [
-        "These checks are static or fake-transport only; do not build or execute the repo AOS binary for this route."
+        "These checks are static or fake-transport only; the Swift typecheck emits no executable and none of them build or execute the repo AOS binary."
       ]
     },
     {

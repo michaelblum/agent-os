@@ -192,8 +192,9 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   );
   assert.equal(rules.get('legacy-sigil-test-fixture')?.tcc_identity_sensitive, false);
   assert.deepEqual(
-    rules.get('desktop-world-scene-engine')?.commands?.slice(0, 4).map((step) => step.id),
+    rules.get('desktop-world-scene-engine')?.commands?.slice(0, 5).map((step) => step.id),
     [
+      'swift-runtime-typecheck',
       'scene-daemon-contract',
       'scene-core-contract',
       'scene-interaction-contract',

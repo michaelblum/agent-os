@@ -4,6 +4,22 @@
   "summary": "Proof ownership for the product-neutral DesktopWorld scene interaction engine and typed event stream.",
   "entries": [
     {
+      "id": "swift-runtime-typecheck",
+      "path_patterns": [
+        "tests/swift-runtime-typecheck.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-foundation",
+      "harness_level": "model_unit",
+      "proof_kind": "swift_runtime_compile_contract",
+      "contract": "Every checked-in Swift runtime source resolves together through the production module graph without emitting an executable.",
+      "worth": "This catches cross-file type inference, lazy-property dependency, and integration compile failures before the managed raw-binary build and TCC checkpoint.",
+      "command": "bash tests/swift-runtime-typecheck.sh",
+      "replaces": [],
+      "guard": "full Swift typecheck with temporary module caches only; no AOS binary output, execution, daemon, GUI, TCC, signing, or live DesktopWorld",
+      "status": "active"
+    },
+    {
       "id": "desktop-world-scene-interaction-contract",
       "path_patterns": [
         "tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs",

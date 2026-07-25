@@ -223,6 +223,7 @@ summary = data["summary"]
 assert "desktop-world-scene-engine" in summary["rule_ids"], data
 assert "unclassified" not in summary["rule_ids"], data
 files = {item["path"]: item for item in data["files"]}
+commands = {item["command"] for item in summary["commands"]}
 expected_paths = {
     "src/display/canvas.swift",
     "src/display/scene-extension-store.swift",
@@ -231,6 +232,7 @@ expected_paths = {
 assert expected_paths == set(files), data
 for path in expected_paths:
     assert "desktop-world-scene-engine" in files[path]["rules"], files[path]
+assert "bash tests/swift-runtime-typecheck.sh" in commands, data
 PY
 then
     pass "dev recommend routes desktop-frame owners to scene engine proofs"

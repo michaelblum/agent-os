@@ -178,7 +178,7 @@ private actor AOSDesktopFrameCaptureActor {
             of: AOSDesktopFrameCaptureResult.self
         ) { group in
             for display in displays {
-                group.addTask { [self] in
+                group.addTask {
                     let sourceWidth = max(1, display.width)
                     let sourceHeight = max(1, display.height)
                     let sourcePixels = sourceWidth * sourceHeight
