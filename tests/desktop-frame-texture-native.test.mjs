@@ -8,8 +8,13 @@ import test from 'node:test'
 const repoRoot = path.resolve(import.meta.dirname, '..')
 const taskStateSource = path.join(repoRoot, 'src/display/scene-extension-scheme-task-state.swift')
 const storeSource = path.join(repoRoot, 'src/display/desktop-frame-texture.swift')
+const consentContractSource = path.join(
+  repoRoot,
+  'src/shared/desktop-frame-capture-consent-contract.swift',
+)
 const consentSource = path.join(repoRoot, 'src/daemon/desktop-frame-capture-consent.swift')
 const controllerSource = path.join(repoRoot, 'src/daemon/desktop-frame-capture-controller.swift')
+const responseEnvelopeSource = path.join(repoRoot, 'src/shared/response-envelope.swift')
 
 async function compileHarness(root) {
   const main = path.join(root, 'main.swift')
@@ -143,6 +148,59 @@ struct DesktopFrameProof {
             "passive status did not begin unprimed"
         )
         require(passiveCapturer.captureCount == 0, "passive status invoked ScreenCaptureKit")
+        let passiveWireBytes = responseJSONBytes(
+            AOSDesktopFrameDirectCaptureWireContract.responsePayload(passiveConsent.snapshot()),
+            envelopeActive: true,
+            envelopeRef: "prime-1"
+        )
+        require(passiveWireBytes != nil, "direct-capture response did not serialize")
+        let passiveWire = try JSONSerialization.jsonObject(
+            with: passiveWireBytes!,
+            options: []
+        ) as! [String: Any]
+        require(
+            passiveWire["status"] as? String == "success",
+            "capability status escaped into the response envelope"
+        )
+        let passiveWireData = passiveWire["data"] as? [String: Any]
+        let passiveWireFacts = passiveWireData?["screen_capture_direct"] as? [String: Any]
+        require(
+            passiveWireFacts?["status"] as? String == "permission_required",
+            "direct-capture status was stripped from the nested payload"
+        )
+        let parsedPassiveWire = AOSDesktopFrameDirectCaptureWireContract.snapshot(
+            from: passiveWire
+        )
+        require(
+            parsedPassiveWire?.status == .permissionRequired,
+            "CLI wire parser rejected the daemon response envelope"
+        )
+        let strippedStatusEnvelope: [String: Any] = [
+            "v": 1,
+            "status": "permission_required",
+            "data": [
+                "capability": "screen_capture_direct",
+                "capture_persisted": false,
+                "error_code": NSNull(),
+            ],
+        ]
+        require(
+            AOSDesktopFrameDirectCaptureWireContract.snapshot(
+                from: strippedStatusEnvelope
+            ) == nil,
+            "CLI wire parser accepted an envelope that stripped capability status"
+        )
+        let flatCapabilityEnvelope: [String: Any] = [
+            "v": 1,
+            "status": "success",
+            "data": passiveConsent.snapshot().dictionary,
+        ]
+        require(
+            AOSDesktopFrameDirectCaptureWireContract.snapshot(
+                from: flatCapabilityEnvelope
+            ) == nil,
+            "CLI wire parser accepted noncanonical flat v1 capability facts"
+        )
 
         let joinedCapturer = FakeCapturer()
         joinedCapturer.deferred = true
@@ -781,8 +839,10 @@ struct DesktopFrameProof {
     '-parse-as-library',
     taskStateSource,
     storeSource,
+    consentContractSource,
     consentSource,
     controllerSource,
+    responseEnvelopeSource,
     main,
     '-o',
     executable,
@@ -836,6 +896,11 @@ test('daemon desktop-frame routing uses exact consumers and the decode-ready bar
   assert.match(route, /desktop_frame\.abort/u)
   assert.match(unified, /desktop_frame\.presented/u)
   assert.match(unified, /desktopFrameCapture\.cancelUnauthorized\(\)/u)
+  assert.equal(
+    (unified.match(/AOSDesktopFrameDirectCaptureWireContract\.responsePayload/gu) ?? []).length,
+    2,
+    'direct-capture status and prime routes must preserve capability status in the envelope',
+  )
   assert.match(route, /exactDesktopFrameConsumers/u)
   assert.doesNotMatch(route, /postMessageToCurrentCanvasAsync/u)
   assert.match(surface, /type == "desktop_frame\.ready"/u)

@@ -3505,7 +3505,9 @@ class UnifiedDaemon {
         case "permissions-screen-capture-direct-status":
             sendResponseJSON(
                 to: outbound,
-                desktopFrameCaptureConsent.snapshot().dictionary,
+                AOSDesktopFrameDirectCaptureWireContract.responsePayload(
+                    desktopFrameCaptureConsent.snapshot()
+                ),
                 envelopeActive: envelopeActive,
                 envelopeRef: envelopeRef
             )
@@ -3515,7 +3517,7 @@ class UnifiedDaemon {
                 guard let outbound else { return }
                 sendResponseJSON(
                     to: outbound,
-                    snapshot.dictionary,
+                    AOSDesktopFrameDirectCaptureWireContract.responsePayload(snapshot),
                     envelopeActive: envelopeActive,
                     envelopeRef: envelopeRef
                 )

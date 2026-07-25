@@ -1,30 +1,6 @@
 import AppKit
 import Foundation
 
-enum AOSDesktopFrameDirectCaptureStatus: String {
-    case ready
-    case permissionRequired = "permission_required"
-    case unsupported
-    case failed
-}
-
-struct AOSDesktopFrameDirectCaptureSnapshot: Equatable {
-    static let capability = "screen_capture_direct"
-
-    let status: AOSDesktopFrameDirectCaptureStatus
-    let errorCode: String?
-
-    var dictionary: [String: Any] {
-        var value: [String: Any] = [
-            "capability": Self.capability,
-            "status": status.rawValue,
-            "capture_persisted": false,
-        ]
-        value["error_code"] = errorCode ?? NSNull()
-        return value
-    }
-}
-
 enum AOSDesktopFrameRuntimeCaptureAdmission {
     case admitted(generation: UInt64)
     case rejected(AOSDesktopFrameCaptureFailure)
