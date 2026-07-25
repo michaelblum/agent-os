@@ -131,12 +131,21 @@ class UnifiedDaemon {
     private lazy var desktopFrameCapture = AOSDesktopFrameCaptureController(
         canvasManager: canvasManager,
         store: desktopFrameStore,
+        reauthorize: { [weak self] authorization in
+            self?.desktopWorldSceneTransport.authorizesDesktopFrame(authorization) ?? false
+        },
+        handleAbort: { [weak self] abort in
+            self?.deliverDesktopFrameAbort(abort)
+        },
         authorize: { [weak self] payload in
             self?.desktopWorldSceneTransport.authorizeDesktopFrame(payload)
         }
     )
     private lazy var desktopFrameSchemeHandler = AOSDesktopFrameSchemeHandler(
         store: desktopFrameStore,
+        authorize: { [weak self] authorization in
+            self?.desktopWorldSceneTransport.authorizesDesktopFrame(authorization) ?? false
+        },
         identityResolver: { [weak self] webView in
             self?.canvasManager.desktopFrameConsumer(
                 canvasID: AOSDesktopWorldSceneTransportController.stageCanvasID,
@@ -165,6 +174,9 @@ class UnifiedDaemon {
             self.canvasSubscriptionLock.lock()
             self.canvasReadyManifests.removeValue(forKey: self.sceneStageCanvasID)
             self.canvasSubscriptionLock.unlock()
+        },
+        authorizationChanged: { [weak self] in
+            _ = self?.desktopFrameCapture.cancelUnauthorized()
         },
         emit: { [weak self] route, event, data in
             self?.emitConnectionEvent(
@@ -429,6 +441,15 @@ class UnifiedDaemon {
                     return
                 case "desktop_frame.acquire":
                     self.handleDesktopFrameAcquire(callerID: canvasID, payload: inner ?? [:])
+                    return
+                case "desktop_frame.cancel":
+                    _ = self.desktopFrameCapture.cancel(callerCanvasID: canvasID, payload: inner ?? [:])
+                    return
+                case "desktop_frame.ready":
+                    self.handleDesktopFrameReady(callerID: canvasID, payload: inner ?? [:])
+                    return
+                case "desktop_frame.presented":
+                    self.handleDesktopFramePresented(callerID: canvasID, payload: inner ?? [:])
                     return
                 case "desktop_frame.release":
                     self.handleDesktopFrameRelease(callerID: canvasID, payload: inner ?? [:])
@@ -2743,55 +2764,117 @@ class UnifiedDaemon {
     }
 
     private func handleDesktopFrameAcquire(callerID: String, payload: [String: Any]) {
-        let requestID = payload["request_id"] as? String
-        desktopFrameCapture.acquire(callerCanvasID: callerID, payload: payload) { [weak self] result in
+        var admittedRequest: AOSDesktopFrameCaptureRequest?
+        desktopFrameCapture.acquire(
+            callerCanvasID: callerID,
+            payload: payload,
+            admitted: { [weak self] request in
+                guard let self else { return false }
+                admittedRequest = request
+                return self.canvasManager.postMessage(
+                    canvasID: callerID,
+                    exactDesktopFrameConsumers: request.consumers,
+                    payload: [
+                        "type": "desktop_frame.started",
+                        "status": "ok",
+                        "request_id": request.requestID,
+                        "owner": request.authorization.ownerID,
+                        "resource": request.authorization.resourceID,
+                        "revision": request.authorization.resourceRevision,
+                        "extension": request.authorization.extensionReference.dictionary,
+                    ]
+                )
+            }
+        ) { [weak self] result in
             guard let self else { return }
-            var response: [String: Any] = [
-                "type": "desktop_frame.available",
-                "request_id": requestID ?? "",
-            ]
-            if let owner = payload["owner"] as? String {
-                response["owner"] = owner
-            }
-            if let resource = payload["resource"] as? String {
-                response["resource"] = resource
-            }
-            if let extensionReference = payload["extension"] as? [String: Any] {
-                response["extension"] = extensionReference
-            }
             switch result {
-            case .success(let extra):
+            case .success(let delivery):
+                var response = delivery.payload
+                response["type"] = "desktop_frame.available"
                 response["status"] = "ok"
-                for (key, value) in extra {
-                    response[key] = value
+                response["request_id"] = delivery.requestID
+                guard self.canvasManager.postMessage(
+                    canvasID: callerID,
+                    exactDesktopFrameConsumers: delivery.consumers,
+                    payload: response
+                ) else {
+                    _ = self.desktopFrameCapture.cancel(
+                        callerCanvasID: callerID,
+                        payload: ["request_id": delivery.requestID]
+                    )
+                    return
                 }
-            case .failure(let failure as AOSDesktopFrameCaptureFailure):
-                response["status"] = "error"
-                response["code"] = failure.code
-            case .failure:
-                response["status"] = "error"
-                response["code"] = "DESKTOP_FRAME_CAPTURE_FAILED"
+            case .failure(let error):
+                guard let request = admittedRequest else { return }
+                let code = (error as? AOSDesktopFrameCaptureFailure)?.code
+                    ?? "DESKTOP_FRAME_CAPTURE_FAILED"
+                _ = self.canvasManager.postMessage(
+                    canvasID: callerID,
+                    exactDesktopFrameConsumers: request.consumers,
+                    payload: [
+                        "type": "desktop_frame.available",
+                        "status": "error",
+                        "code": code,
+                        "request_id": request.requestID,
+                        "owner": request.authorization.ownerID,
+                        "resource": request.authorization.resourceID,
+                        "revision": request.authorization.resourceRevision,
+                        "extension": request.authorization.extensionReference.dictionary,
+                    ]
+                )
             }
-            self.canvasManager.postMessageToCurrentCanvasAsync(
-                canvasID: callerID,
-                payload: response
-            )
         }
     }
 
-    private func handleDesktopFrameRelease(callerID: String, payload: [String: Any]) {
-        let requestID = payload["request_id"] as? String
-        guard desktopFrameCapture.release(callerCanvasID: callerID, payload: payload) else {
-            dispatchCanvasResponse(
-                to: callerID,
-                requestID: requestID,
-                status: "error",
-                code: "DESKTOP_FRAME_HANDLE_INVALID",
-                message: "Desktop frame texture handle is unavailable."
-            )
+    private func handleDesktopFrameReady(callerID: String, payload: [String: Any]) {
+        guard case .commit(let delivery) = desktopFrameCapture.ready(
+            callerCanvasID: callerID,
+            payload: payload
+        ) else { return }
+        var response = delivery.payload
+        response["type"] = "desktop_frame.commit"
+        response["status"] = "ok"
+        response["request_id"] = delivery.requestID
+        guard canvasManager.postMessage(
+            canvasID: callerID,
+            exactDesktopFrameConsumers: delivery.consumers,
+            payload: response
+        ) else {
+            _ = desktopFrameCapture.release(delivery)
             return
         }
-        dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok")
+    }
+
+    private func deliverDesktopFrameAbort(_ abort: AOSDesktopFrameCaptureAbort) {
+        var response = abort.payload
+        response["type"] = "desktop_frame.abort"
+        response["status"] = "ok"
+        response["request_id"] = abort.requestID
+        _ = canvasManager.postMessage(
+            canvasID: sceneStageCanvasID,
+            exactDesktopFrameConsumers: abort.consumers,
+            payload: response
+        )
+    }
+
+    private func handleDesktopFramePresented(callerID: String, payload: [String: Any]) {
+        guard case .complete(let delivery) = desktopFrameCapture.presented(
+            callerCanvasID: callerID,
+            payload: payload
+        ) else { return }
+        var response = delivery.payload
+        response["type"] = "desktop_frame.complete"
+        response["status"] = "ok"
+        response["request_id"] = delivery.requestID
+        _ = canvasManager.postMessage(
+            canvasID: callerID,
+            exactDesktopFrameConsumers: delivery.consumers,
+            payload: response
+        )
+    }
+
+    private func handleDesktopFrameRelease(callerID: String, payload: [String: Any]) {
+        _ = desktopFrameCapture.release(callerCanvasID: callerID, payload: payload)
     }
 
     // MARK: - Connection Handling

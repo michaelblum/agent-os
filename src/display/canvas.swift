@@ -2507,6 +2507,26 @@ class CanvasManager {
         }
     }
 
+    @discardableResult
+    func postMessage(
+        canvasID: String,
+        exactDesktopFrameConsumers expectedConsumers: [
+            AOSDesktopFrameConsumerIdentity
+        ],
+        payload: Any
+    ) -> Bool {
+        let post = { [weak self] () -> Bool in
+            guard let self,
+                  !expectedConsumers.isEmpty,
+                  Set(self.desktopFrameConsumers(canvasID: canvasID)) == Set(expectedConsumers),
+                  let canvas = self.canvases[canvasID] else {
+                return false
+            }
+            return self.postMessage(for: self.lease(for: canvas), payload: payload).status == "success"
+        }
+        return Thread.isMainThread ? post() : DispatchQueue.main.sync(execute: post)
+    }
+
     func postMessageAsync(
         to generation: CanvasLifecycleGeneration,
         payload: Any

@@ -41,12 +41,13 @@ export interface SceneDesktopFrameTextureSnapshot {
   bounds: readonly [number, number, number, number];
   captureDurationMs: number | null;
   capturedAtEpochMs: number | null;
+  committedAtEpochMs: number | null;
   epochId: string | null;
   errorCode: string | null;
   generation: number;
   height: number;
   readyAtMs: number | null;
-  status: 'empty' | 'loading' | 'refreshing' | 'ready' | 'failed' | 'disposed';
+  status: 'empty' | 'loading' | 'refreshing' | 'staging' | 'presenting' | 'ready' | 'failed' | 'disposed';
   width: number;
 }
 

@@ -251,6 +251,7 @@ export function createDesktopWorldSceneProjection({
           extension: extensionReference,
           owner: expectedOwner,
           resource: effectiveResource,
+          revision: document.revision,
         },
       })
     }

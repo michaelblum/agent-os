@@ -10,7 +10,20 @@ struct AOSDesktopFrameCaptureAuthorization: Equatable {
     let extensionReference: AOSSceneExtensionReference
     let ownerID: String
     let resourceID: String
+    let resourceRevision: Int
     let topologyGeneration: UInt64
+
+    var leaseIdentity: AOSDesktopFrameLeaseIdentity {
+        AOSDesktopFrameLeaseIdentity(
+            canvasID: canvasID,
+            canvasGeneration: canvasGeneration,
+            extensionReference: extensionReference,
+            ownerID: ownerID,
+            resourceID: resourceID,
+            resourceRevision: resourceRevision,
+            topologyGeneration: topologyGeneration
+        )
+    }
 }
 
 struct AOSDesktopFrameCaptureResult {
@@ -25,6 +38,25 @@ struct AOSDesktopFrameCaptureSetResult {
     let capturedAt: Date
     let durationMilliseconds: Int
     let frames: [AOSDesktopFrameCaptureResult]
+}
+
+struct AOSDesktopFrameCaptureRequest {
+    let authorization: AOSDesktopFrameCaptureAuthorization
+    let consumers: [AOSDesktopFrameConsumerIdentity]
+    let requestID: String
+}
+
+struct AOSDesktopFrameCaptureDelivery {
+    let consumers: [AOSDesktopFrameConsumerIdentity]
+    let epochID: String
+    let payload: [String: Any]
+    let requestID: String
+}
+
+struct AOSDesktopFrameCaptureAbort {
+    let consumers: [AOSDesktopFrameConsumerIdentity]
+    let payload: [String: Any]
+    let requestID: String
 }
 
 enum AOSDesktopFrameCaptureFailure: Error {
@@ -47,13 +79,39 @@ enum AOSDesktopFrameCaptureFailure: Error {
     }
 }
 
+protocol AOSDesktopFrameCancelling {
+    func cancel()
+}
+
+final class AOSDesktopFrameCancellation: AOSDesktopFrameCancelling {
+    private let action: () -> Void
+    private let lock = NSLock()
+    private var canceled = false
+
+    init(_ action: @escaping () -> Void = {}) {
+        self.action = action
+    }
+
+    func cancel() {
+        lock.lock()
+        guard !canceled else {
+            lock.unlock()
+            return
+        }
+        canceled = true
+        lock.unlock()
+        action()
+    }
+}
+
 protocol AOSDesktopFrameCapturing {
+    @discardableResult
     func capture(
         displayIDs: [UInt32],
         excludingWindowIDs: [Int],
         maximumPixelsPerDisplay: Int,
         completion: @escaping (Result<AOSDesktopFrameCaptureSetResult, Error>) -> Void
-    )
+    ) -> AOSDesktopFrameCancelling
 }
 
 protocol AOSDesktopFrameCanvasProviding: AnyObject {
@@ -95,6 +153,7 @@ private actor AOSDesktopFrameCaptureActor {
         guard CGPreflightScreenCaptureAccess() else {
             throw AOSDesktopFrameCaptureFailure.permissionDenied
         }
+        try Task.checkCancellation()
 
         let startedAt = Date()
         let content: SCShareableContent
@@ -106,6 +165,7 @@ private actor AOSDesktopFrameCaptureActor {
         } catch {
             throw AOSDesktopFrameCaptureFailure.captureFailed
         }
+        try Task.checkCancellation()
         let requested = Set(displayIDs)
         let displays = content.displays.filter { requested.contains($0.displayID) }
         guard displays.count == requested.count else {
@@ -135,6 +195,7 @@ private actor AOSDesktopFrameCaptureActor {
                     let filter = SCContentFilter(display: display, excludingWindows: windows)
                     let image: CGImage
                     do {
+                        try Task.checkCancellation()
                         image = try await SCScreenshotManager.captureImage(
                             contentFilter: filter,
                             configuration: configuration
@@ -142,6 +203,7 @@ private actor AOSDesktopFrameCaptureActor {
                     } catch {
                         throw AOSDesktopFrameCaptureFailure.captureFailed
                     }
+                    try Task.checkCancellation()
                     return AOSDesktopFrameCaptureResult(
                         data: try aosDesktopFrameEncodedJPEG(image),
                         displayID: display.displayID,
@@ -169,13 +231,14 @@ private actor AOSDesktopFrameCaptureActor {
 final class AOSNativeDesktopFrameCapturer: AOSDesktopFrameCapturing {
     private let actor = AOSDesktopFrameCaptureActor()
 
+    @discardableResult
     func capture(
         displayIDs: [UInt32],
         excludingWindowIDs: [Int],
         maximumPixelsPerDisplay: Int,
         completion: @escaping (Result<AOSDesktopFrameCaptureSetResult, Error>) -> Void
-    ) {
-        Task { @MainActor in
+    ) -> AOSDesktopFrameCancelling {
+        let task = Task { @MainActor [actor] in
             do {
                 completion(.success(try await actor.capture(
                     displayIDs: displayIDs,
@@ -186,36 +249,82 @@ final class AOSNativeDesktopFrameCapturer: AOSDesktopFrameCapturing {
                 completion(.failure(error))
             }
         }
+        return AOSDesktopFrameCancellation { task.cancel() }
     }
 }
 
 final class AOSDesktopFrameCaptureController {
     static let maximumPixelsPerDisplay = 1_048_576
+    static let requestLifetime: TimeInterval = 2
 
     typealias Authorizer = (
         _ payload: [String: Any]
     ) -> AOSDesktopFrameCaptureAuthorization?
+    typealias DeadlineScheduler = (
+        _ delay: TimeInterval,
+        _ action: @escaping () -> Void
+    ) -> AOSDesktopFrameCancelling
+    typealias LeaseAuthorizer = (AOSDesktopFrameLeaseIdentity) -> Bool
+    typealias AbortHandler = (AOSDesktopFrameCaptureAbort) -> Void
+
+    enum ReadyResult {
+        case rejected
+        case pending
+        case commit(AOSDesktopFrameCaptureDelivery)
+    }
+
+    enum PresentedResult {
+        case rejected
+        case pending
+        case complete(AOSDesktopFrameCaptureDelivery)
+    }
+
+    private struct ActiveRequest {
+        let authorization: AOSDesktopFrameCaptureAuthorization
+        var capture: AOSDesktopFrameCancelling
+        let consumers: [AOSDesktopFrameConsumerIdentity]
+        var deadline: AOSDesktopFrameCancelling
+        var epochID: String?
+        let generation: UInt64
+        var presentationStarted: Bool
+        var presentedDisplays: Set<UInt32>
+        var readyDisplays: Set<UInt32>
+        let requestID: String
+    }
 
     private let allowedCanvasID: String
     private let authorize: Authorizer
     private let canvasManager: AOSDesktopFrameCanvasProviding
     private let capturer: AOSDesktopFrameCapturing
+    private let handleAbort: AbortHandler
     private let lock = NSLock()
+    private let reauthorize: LeaseAuthorizer
+    private let scheduleDeadline: DeadlineScheduler
     private let store: AOSDesktopFrameStore
-    private var captureGeneration: UInt64 = 0
-    private var captureInFlight = false
+    private var activeRequest: ActiveRequest?
+    private var nextGeneration: UInt64 = 0
 
     init(
         canvasManager: AOSDesktopFrameCanvasProviding,
         store: AOSDesktopFrameStore,
         capturer: AOSDesktopFrameCapturing = AOSNativeDesktopFrameCapturer(),
         allowedCanvasID: String = AOSDesktopWorldSceneTransportController.stageCanvasID,
+        reauthorize: @escaping LeaseAuthorizer,
+        handleAbort: @escaping AbortHandler = { _ in },
+        scheduleDeadline: @escaping DeadlineScheduler = { delay, action in
+            let work = DispatchWorkItem(block: action)
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+            return AOSDesktopFrameCancellation { work.cancel() }
+        },
         authorize: @escaping Authorizer
     ) {
         self.allowedCanvasID = allowedCanvasID
         self.authorize = authorize
         self.canvasManager = canvasManager
         self.capturer = capturer
+        self.handleAbort = handleAbort
+        self.reauthorize = reauthorize
+        self.scheduleDeadline = scheduleDeadline
         self.store = store
     }
 
@@ -247,12 +356,92 @@ final class AOSDesktopFrameCaptureController {
         }
     }
 
+    private func finish(
+        generation: UInt64,
+        releaseEpoch: Bool,
+        notifyConsumers: Bool
+    ) -> Bool {
+        lock.lock()
+        guard let active = activeRequest, active.generation == generation else {
+            lock.unlock()
+            return false
+        }
+        activeRequest = nil
+        lock.unlock()
+        active.capture.cancel()
+        active.deadline.cancel()
+        if notifyConsumers {
+            var payload: [String: Any] = [
+                "extension": active.authorization.extensionReference.dictionary,
+                "owner": active.authorization.ownerID,
+                "resource": active.authorization.resourceID,
+                "revision": active.authorization.resourceRevision,
+            ]
+            if let epochID = active.epochID { payload["epoch_id"] = epochID }
+            handleAbort(AOSDesktopFrameCaptureAbort(
+                consumers: active.consumers,
+                payload: payload,
+                requestID: active.requestID
+            ))
+        }
+        if releaseEpoch, let epochID = active.epochID {
+            _ = store.release(epochID: epochID, ownerCanvasID: active.authorization.canvasID)
+        }
+        return true
+    }
+
+    private func deadlineExpired(generation: UInt64) {
+        _ = finish(
+            generation: generation,
+            releaseEpoch: true,
+            notifyConsumers: true
+        )
+    }
+
+    private func installCapture(
+        _ capture: AOSDesktopFrameCancelling,
+        generation: UInt64
+    ) {
+        lock.lock()
+        guard activeRequest?.generation == generation else {
+            lock.unlock()
+            capture.cancel()
+            return
+        }
+        activeRequest?.capture = capture
+        lock.unlock()
+    }
+
+    private func installDeadline(
+        _ deadline: AOSDesktopFrameCancelling,
+        generation: UInt64
+    ) {
+        lock.lock()
+        guard activeRequest?.generation == generation else {
+            lock.unlock()
+            deadline.cancel()
+            return
+        }
+        activeRequest?.deadline = deadline
+        lock.unlock()
+    }
+
+    private func remainsActive(generation: UInt64) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return activeRequest?.generation == generation
+    }
+
     func acquire(
         callerCanvasID: String,
         payload: [String: Any],
-        completion: @escaping (Result<[String: Any], Error>) -> Void
+        admitted: (AOSDesktopFrameCaptureRequest) -> Bool,
+        completion: @escaping (Result<AOSDesktopFrameCaptureDelivery, Error>) -> Void
     ) {
         guard callerCanvasID == allowedCanvasID,
+              let requestID = payload["request_id"] as? String,
+              !requestID.isEmpty,
+              requestID.utf8.count <= 128,
               let authorization = authorize(payload),
               authorization.canvasID == callerCanvasID,
               let initialConsumers = consumers(
@@ -265,18 +454,48 @@ final class AOSDesktopFrameCaptureController {
         }
 
         lock.lock()
-        guard !captureInFlight else {
+        guard activeRequest == nil else {
             lock.unlock()
             completion(.failure(AOSDesktopFrameCaptureFailure.busy))
             return
         }
-        captureGeneration &+= 1
-        if captureGeneration == 0 { captureGeneration = 1 }
-        let generation = captureGeneration
-        captureInFlight = true
+        nextGeneration &+= 1
+        if nextGeneration == 0 { nextGeneration = 1 }
+        let generation = nextGeneration
+        activeRequest = ActiveRequest(
+            authorization: authorization,
+            capture: AOSDesktopFrameCancellation(),
+            consumers: initialConsumers,
+            deadline: AOSDesktopFrameCancellation(),
+            epochID: nil,
+            generation: generation,
+            presentationStarted: false,
+            presentedDisplays: [],
+            readyDisplays: [],
+            requestID: requestID
+        )
         lock.unlock()
 
-        capturer.capture(
+        let request = AOSDesktopFrameCaptureRequest(
+            authorization: authorization,
+            consumers: initialConsumers,
+            requestID: requestID
+        )
+        guard admitted(request) else {
+            _ = finish(
+                generation: generation,
+                releaseEpoch: true,
+                notifyConsumers: false
+            )
+            completion(.failure(AOSDesktopFrameCaptureFailure.unauthorized))
+            return
+        }
+        installDeadline(scheduleDeadline(Self.requestLifetime) { [weak self] in
+            self?.deadlineExpired(generation: generation)
+        }, generation: generation)
+        guard remainsActive(generation: generation) else { return }
+
+        let captureTask = capturer.capture(
             displayIDs: initialConsumers.map(\.displayID),
             excludingWindowIDs: canvasManager.windowNumbers(forID: callerCanvasID),
             maximumPixelsPerDisplay: Self.maximumPixelsPerDisplay
@@ -285,6 +504,7 @@ final class AOSDesktopFrameCaptureController {
             do {
                 let capture = try result.get()
                 guard self.authorize(payload) == authorization,
+                      self.reauthorize(authorization.leaseIdentity),
                       let currentConsumers = self.consumers(
                           callerCanvasID: callerCanvasID,
                           authorization: authorization,
@@ -301,69 +521,243 @@ final class AOSDesktopFrameCaptureController {
                 let frameByDisplay = Dictionary(
                     uniqueKeysWithValues: capture.frames.map { ($0.displayID, $0) }
                 )
-                var leases: [AOSDesktopFrameLeaseSnapshot] = []
                 self.lock.lock()
-                guard self.captureInFlight, self.captureGeneration == generation else {
+                guard self.activeRequest?.generation == generation else {
                     self.lock.unlock()
                     throw AOSDesktopFrameCaptureFailure.unauthorized
                 }
                 do {
-                    for consumer in currentConsumers {
+                    let storeFrames = try currentConsumers.map { consumer in
                         guard let frame = frameByDisplay[consumer.displayID] else {
                             throw AOSDesktopFrameCaptureFailure.displayNotFound
                         }
-                        leases.append(try self.store.insert(
-                            data: frame.data,
-                            mimeType: frame.mimeType,
-                            ownerCanvasID: callerCanvasID,
+                        return AOSDesktopFrameStoreFrame(
                             consumer: consumer,
-                            epochID: epochID,
-                            width: frame.width,
-                            height: frame.height
-                        ))
+                            data: frame.data,
+                            height: frame.height,
+                            mimeType: frame.mimeType,
+                            width: frame.width
+                        )
                     }
-                    self.captureInFlight = false
+                    let leases = try self.store.insertEpoch(
+                        frames: storeFrames,
+                        leaseIdentity: authorization.leaseIdentity,
+                        ownerCanvasID: callerCanvasID,
+                        epochID: epochID
+                    )
+                    self.activeRequest?.epochID = epochID
                     self.lock.unlock()
+                    let leaseByDisplay = Dictionary(
+                        uniqueKeysWithValues: zip(currentConsumers, leases).map {
+                            ($0.0.displayID, ($0.0, $0.1))
+                        }
+                    )
+                    completion(.success(AOSDesktopFrameCaptureDelivery(
+                        consumers: currentConsumers,
+                        epochID: epochID,
+                        payload: [
+                            "capture_duration_ms": capture.durationMilliseconds,
+                            "captured_at_epoch_ms": Int(
+                                capture.capturedAt.timeIntervalSince1970 * 1_000
+                            ),
+                            "epoch_id": epochID,
+                            "extension": authorization.extensionReference.dictionary,
+                            "frames": currentConsumers.compactMap {
+                                consumer -> [String: Any]? in
+                                guard let pair = leaseByDisplay[consumer.displayID] else {
+                                    return nil
+                                }
+                                return [
+                                    "display_id": Int(consumer.displayID),
+                                    "segment_index": consumer.segmentIndex,
+                                    "handle": pair.1.handle,
+                                    "height": pair.1.height,
+                                    "mime_type": pair.1.mimeType,
+                                    "url": pair.1.url,
+                                    "width": pair.1.width,
+                                ]
+                            },
+                            "owner": authorization.ownerID,
+                            "resource": authorization.resourceID,
+                            "revision": authorization.resourceRevision,
+                        ],
+                        requestID: requestID
+                    )))
                 } catch {
-                    self.captureInFlight = false
                     self.lock.unlock()
                     _ = self.store.release(epochID: epochID, ownerCanvasID: callerCanvasID)
                     throw error
                 }
-                let leaseByDisplay = Dictionary(
-                    uniqueKeysWithValues: zip(currentConsumers, leases).map {
-                        ($0.0.displayID, ($0.0, $0.1))
-                    }
-                )
-                completion(.success([
-                    "capture_duration_ms": capture.durationMilliseconds,
-                    "captured_at_epoch_ms": Int(capture.capturedAt.timeIntervalSince1970 * 1_000),
-                    "epoch_id": epochID,
-                    "extension": authorization.extensionReference.dictionary,
-                    "frames": currentConsumers.compactMap { consumer -> [String: Any]? in
-                        guard let pair = leaseByDisplay[consumer.displayID] else { return nil }
-                        return [
-                            "display_id": Int(consumer.displayID),
-                            "segment_index": consumer.segmentIndex,
-                            "handle": pair.1.handle,
-                            "height": pair.1.height,
-                            "mime_type": pair.1.mimeType,
-                            "url": pair.1.url,
-                            "width": pair.1.width,
-                        ]
-                    },
-                    "owner": authorization.ownerID,
-                    "resource": authorization.resourceID,
-                ]))
             } catch {
-                self.lock.lock()
-                if self.captureGeneration == generation {
-                    self.captureInFlight = false
+                if self.finish(
+                    generation: generation,
+                    releaseEpoch: true,
+                    notifyConsumers: false
+                ) {
+                    completion(.failure(error))
                 }
-                self.lock.unlock()
-                completion(.failure(error))
             }
         }
+        installCapture(captureTask, generation: generation)
+    }
+
+    func ready(callerCanvasID: String, payload: [String: Any]) -> ReadyResult {
+        guard callerCanvasID == allowedCanvasID,
+              let requestID = payload["request_id"] as? String,
+              let epochID = payload["epoch_id"] as? String,
+              let displayID = (payload["segment_display_id"] as? NSNumber)?.uint32Value,
+              let segmentIndex = (payload["segment_index"] as? NSNumber)?.intValue,
+              let canvasGeneration = (payload["canvas_generation"] as? NSNumber)?.uint64Value,
+              let topologyGeneration = (payload["topology_generation"] as? NSNumber)?.uint64Value else {
+            return .rejected
+        }
+        lock.lock()
+        guard let observed = activeRequest,
+              observed.requestID == requestID,
+              observed.epochID == epochID,
+              observed.authorization.canvasGeneration == canvasGeneration,
+              observed.authorization.topologyGeneration == topologyGeneration,
+              observed.consumers.contains(where: {
+                  $0.displayID == displayID && $0.segmentIndex == segmentIndex
+              }) else {
+            lock.unlock()
+            return .rejected
+        }
+        guard !observed.presentationStarted,
+              reauthorize(observed.authorization.leaseIdentity),
+              Set(canvasManager.desktopFrameConsumers(canvasID: callerCanvasID))
+                  == Set(observed.consumers) else {
+            let generation = observed.generation
+            lock.unlock()
+            _ = finish(
+                generation: generation,
+                releaseEpoch: true,
+                notifyConsumers: true
+            )
+            return .rejected
+        }
+        var active = observed
+        active.readyDisplays.insert(displayID)
+        guard active.readyDisplays.count == active.consumers.count else {
+            activeRequest = active
+            lock.unlock()
+            return .pending
+        }
+        active.presentationStarted = true
+        activeRequest = active
+        lock.unlock()
+        return .commit(AOSDesktopFrameCaptureDelivery(
+            consumers: active.consumers,
+            epochID: epochID,
+            payload: [
+                "committed_at_epoch_ms": Int(Date().timeIntervalSince1970 * 1_000),
+                "epoch_id": epochID,
+                "extension": active.authorization.extensionReference.dictionary,
+                "owner": active.authorization.ownerID,
+                "resource": active.authorization.resourceID,
+                "revision": active.authorization.resourceRevision,
+            ],
+            requestID: requestID
+        ))
+    }
+
+    func presented(callerCanvasID: String, payload: [String: Any]) -> PresentedResult {
+        guard callerCanvasID == allowedCanvasID,
+              let requestID = payload["request_id"] as? String,
+              let epochID = payload["epoch_id"] as? String,
+              let displayID = (payload["segment_display_id"] as? NSNumber)?.uint32Value,
+              let segmentIndex = (payload["segment_index"] as? NSNumber)?.intValue,
+              let canvasGeneration = (payload["canvas_generation"] as? NSNumber)?.uint64Value,
+              let topologyGeneration = (payload["topology_generation"] as? NSNumber)?.uint64Value else {
+            return .rejected
+        }
+        lock.lock()
+        guard var active = activeRequest,
+              active.presentationStarted,
+              active.requestID == requestID,
+              active.epochID == epochID,
+              active.authorization.canvasGeneration == canvasGeneration,
+              active.authorization.topologyGeneration == topologyGeneration,
+              active.consumers.contains(where: {
+                  $0.displayID == displayID && $0.segmentIndex == segmentIndex
+              }),
+              reauthorize(active.authorization.leaseIdentity),
+              Set(canvasManager.desktopFrameConsumers(canvasID: callerCanvasID))
+                  == Set(active.consumers) else {
+            let generation = activeRequest?.generation
+            lock.unlock()
+            if let generation {
+                _ = finish(
+                    generation: generation,
+                    releaseEpoch: true,
+                    notifyConsumers: true
+                )
+            }
+            return .rejected
+        }
+        active.presentedDisplays.insert(displayID)
+        guard active.presentedDisplays.count == active.consumers.count else {
+            activeRequest = active
+            lock.unlock()
+            return .pending
+        }
+        let delivery = AOSDesktopFrameCaptureDelivery(
+            consumers: active.consumers,
+            epochID: epochID,
+            payload: [
+                "epoch_id": epochID,
+                "extension": active.authorization.extensionReference.dictionary,
+                "owner": active.authorization.ownerID,
+                "resource": active.authorization.resourceID,
+                "revision": active.authorization.resourceRevision,
+            ],
+            requestID: requestID
+        )
+        activeRequest = nil
+        lock.unlock()
+        active.capture.cancel()
+        active.deadline.cancel()
+        return .complete(delivery)
+    }
+
+    @discardableResult
+    func cancelUnauthorized() -> Bool {
+        lock.lock()
+        guard let active = activeRequest,
+              !reauthorize(active.authorization.leaseIdentity) else {
+            lock.unlock()
+            return false
+        }
+        let generation = active.generation
+        lock.unlock()
+        return finish(
+            generation: generation,
+            releaseEpoch: true,
+            notifyConsumers: true
+        )
+    }
+
+    @discardableResult
+    func cancel(callerCanvasID: String, payload: [String: Any]) -> Bool {
+        guard callerCanvasID == allowedCanvasID,
+              let requestID = payload["request_id"] as? String else { return false }
+        lock.lock()
+        guard let generation = activeRequest?.generation,
+              activeRequest?.requestID == requestID else {
+            lock.unlock()
+            return false
+        }
+        lock.unlock()
+        return finish(
+            generation: generation,
+            releaseEpoch: true,
+            notifyConsumers: true
+        )
+    }
+
+    @discardableResult
+    func release(_ delivery: AOSDesktopFrameCaptureDelivery) -> Int {
+        store.release(epochID: delivery.epochID, ownerCanvasID: allowedCanvasID)
     }
 
     @discardableResult
@@ -375,11 +769,27 @@ final class AOSDesktopFrameCaptureController {
 
     @discardableResult
     func releaseAll(callerCanvasID: String) -> Int {
+        guard callerCanvasID == allowedCanvasID else { return 0 }
         lock.lock()
-        captureGeneration &+= 1
-        if captureGeneration == 0 { captureGeneration = 1 }
-        captureInFlight = false
+        let active = activeRequest
+        activeRequest = nil
         lock.unlock()
+        active?.capture.cancel()
+        active?.deadline.cancel()
+        if let active {
+            var payload: [String: Any] = [
+                "extension": active.authorization.extensionReference.dictionary,
+                "owner": active.authorization.ownerID,
+                "resource": active.authorization.resourceID,
+                "revision": active.authorization.resourceRevision,
+            ]
+            if let epochID = active.epochID { payload["epoch_id"] = epochID }
+            handleAbort(AOSDesktopFrameCaptureAbort(
+                consumers: active.consumers,
+                payload: payload,
+                requestID: active.requestID
+            ))
+        }
         return store.releaseAll(ownerCanvasID: callerCanvasID)
     }
 }

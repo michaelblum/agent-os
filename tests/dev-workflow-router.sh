@@ -214,6 +214,30 @@ else
     fail "dev recommend semantic target selection routing drifted"
 fi
 
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/display/canvas.swift src/display/scene-extension-store.swift scripts/lib/scene-extension/module-inspector.mjs 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+assert "desktop-world-scene-engine" in summary["rule_ids"], data
+assert "unclassified" not in summary["rule_ids"], data
+files = {item["path"]: item for item in data["files"]}
+expected_paths = {
+    "src/display/canvas.swift",
+    "src/display/scene-extension-store.swift",
+    "scripts/lib/scene-extension/module-inspector.mjs",
+}
+assert expected_paths == set(files), data
+for path in expected_paths:
+    assert "desktop-world-scene-engine" in files[path]["rules"], files[path]
+PY
+then
+    pass "dev recommend routes desktop-frame owners to scene engine proofs"
+else
+    fail "dev recommend desktop-frame owner routing drifted"
+fi
+
 if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/perceive/ax-semantic-target.swift tests/lib/annotation-semantic-target-traversal-tests.swift 2>/dev/null)" python3 - <<'PY'
 import json
 import os

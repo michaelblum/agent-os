@@ -139,8 +139,12 @@ stage internals.
 - Desktop-frame texture access is an explicit digest-bound trusted-extension
   capability. AOS owns capture, stage-window exclusion, the expiring in-memory
   one-shot handle, exact stage/WebView generation binding, decode, and source
-  disposal. One request creates a coherent all-display epoch. Public scene
-  transport, DevTools, diagnostics, and product processes remain pixel-free.
+  disposal. One request creates a bounded all-display capture set; decoded
+  segments remain private until the all-display presentation barrier commits,
+  and every exact consumer must acknowledge presentation before the aggregate
+  settles. Partial presentation fails closed by clearing every segment.
+  One-shot captures may have bounded temporal skew. Public scene transport,
+  DevTools, diagnostics, and product processes remain pixel-free.
   Consumer extensions own distortion, blur, redaction, masking, and other
   visual recipes. A capture backend change must not widen this lease.
 

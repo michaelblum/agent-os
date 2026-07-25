@@ -66,13 +66,27 @@ private struct AOSDesktopWorldSceneCapabilityAuthorization: Equatable {
     let digest: String
     let extensionID: String
     let ownerID: String
+    let resourceRevision: Int
     let sceneABI: String
     let threeRevision: String
+
+    func advancingResourceRevision(to revision: Int) -> Self {
+        Self(
+            capabilities: capabilities,
+            digest: digest,
+            extensionID: extensionID,
+            ownerID: ownerID,
+            resourceRevision: revision,
+            sceneABI: sceneABI,
+            threeRevision: threeRevision
+        )
+    }
 }
 
 private enum AOSDesktopWorldSceneAuthorizationMutation {
     case unchanged
     case replace(AOSDesktopWorldSceneCapabilityAuthorization?)
+    case advanceRevision(expected: Int, next: Int)
 }
 
 /// Owns the complete in-memory lifecycle aggregate for the shared DesktopWorld
@@ -231,6 +245,7 @@ final class AOSDesktopWorldSceneController {
             var actions: [AOSDesktopWorldSceneBarrierAction] = []
             for token in leases.beginDisconnect(connectionID: connectionID) {
                 let leaseKey = token.key
+                resourceAuthorizations.removeValue(forKey: leaseKey)
                 let cleanup = results.ownerDisconnected(leaseKey: leaseKey)
                 if !cleanup.isEmpty || results.hasPending(leaseKey: leaseKey) {
                     actions.append(contentsOf: cleanup)
@@ -388,9 +403,26 @@ final class AOSDesktopWorldSceneController {
         guard extensionAuthorization == nil || parsedAuthorization != nil else {
             return .stageUnavailable
         }
+        let transactionRevision: (expected: Int, next: Int)?
+        if operationName == "transact" {
+            guard let transaction = operation["transaction"] as? [String: Any],
+                  let expectedRevision = transaction["expectedRevision"] as? Int,
+                  expectedRevision >= 0,
+                  expectedRevision < Int.max else {
+                return .stageUnavailable
+            }
+            transactionRevision = (expectedRevision, expectedRevision + 1)
+        } else {
+            transactionRevision = nil
+        }
         return withLock {
             guard retirement == nil,
                   readiness.isReady(for: topology.identity) else { return .stageUnavailable }
+            if let transactionRevision,
+               let authorization = resourceAuthorizations[key],
+               authorization.resourceRevision != transactionRevision.expected {
+                return .stageUnavailable
+            }
             let acquisition = leases.acquire(key: key, connectionID: connectionID, ref: ref)
             guard case .acquired(let token, let isNewLease) = acquisition else { return .leaseBusy }
             let operationID = UUID().uuidString.lowercased()
@@ -414,6 +446,15 @@ final class AOSDesktopWorldSceneController {
             operationTokens[operationID] = token
             if operationName == "mount" {
                 operationAuthorizationMutations[operationID] = .replace(parsedAuthorization)
+            } else if operationName == "transact" {
+                if resourceAuthorizations[key] != nil, let transactionRevision {
+                    operationAuthorizationMutations[operationID] = .advanceRevision(
+                        expected: transactionRevision.expected,
+                        next: transactionRevision.next
+                    )
+                } else {
+                    operationAuthorizationMutations[operationID] = .unchanged
+                }
             } else if operationName == "remove" || operationName == "close" {
                 operationAuthorizationMutations[operationID] = .replace(nil)
             } else {
@@ -428,13 +469,15 @@ final class AOSDesktopWorldSceneController {
     ) -> AOSDesktopWorldSceneCapabilityAuthorization? {
         let expected = Set([
             "capabilities", "digest", "extensionId", "ownerId",
-            "sceneAbi", "threeRevision",
+            "resourceRevision", "sceneAbi", "threeRevision",
         ])
         guard Set(value.keys) == expected,
               let capabilities = value["capabilities"] as? [String],
               let digest = value["digest"] as? String,
               let extensionID = value["extensionId"] as? String,
               let ownerID = value["ownerId"] as? String,
+              let resourceRevision = value["resourceRevision"] as? Int,
+              resourceRevision >= 0,
               let sceneABI = value["sceneAbi"] as? String,
               let threeRevision = value["threeRevision"] as? String else {
             return nil
@@ -444,6 +487,7 @@ final class AOSDesktopWorldSceneController {
             digest: digest,
             extensionID: extensionID,
             ownerID: ownerID,
+            resourceRevision: resourceRevision,
             sceneABI: sceneABI,
             threeRevision: threeRevision
         )
@@ -455,6 +499,7 @@ final class AOSDesktopWorldSceneController {
         extensionDigest: String,
         extensionID: String,
         extensionOwnerID: String,
+        resourceRevision: Int,
         sceneABI: String,
         threeRevision: String,
         capability: String
@@ -466,6 +511,7 @@ final class AOSDesktopWorldSceneController {
                   authorization.digest == extensionDigest,
                   authorization.extensionID == extensionID,
                   authorization.ownerID == extensionOwnerID,
+                  authorization.resourceRevision == resourceRevision,
                   authorization.sceneABI == sceneABI,
                   authorization.threeRevision == threeRevision,
                   authorization.capabilities.contains(capability) else {
@@ -495,6 +541,13 @@ final class AOSDesktopWorldSceneController {
                 break
             case .replace(let authorization):
                 resourceAuthorizations[key] = authorization
+            case .advanceRevision(let expected, let next):
+                guard let authorization = resourceAuthorizations[key],
+                      authorization.resourceRevision == expected else {
+                    resourceAuthorizations.removeValue(forKey: key)
+                    break
+                }
+                resourceAuthorizations[key] = authorization.advancingResourceRevision(to: next)
             }
         }
         if releaseLease {

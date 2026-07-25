@@ -179,6 +179,7 @@ test('DesktopWorld grants and disposes a desktop-frame source only for an explic
     extension: reference({ capabilities: ['aos.scene.desktop_frame_texture'] }),
     owner: ownerId,
     resource: 'companion/main',
+    revision: 1,
   })
   assert.throws(() => result.projection.dispose(), /cleanup failed/i)
   result.projection.dispose()

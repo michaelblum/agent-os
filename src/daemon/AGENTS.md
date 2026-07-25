@@ -21,6 +21,16 @@ subscription maps, or transport orchestration in the connection handler.
 DesktopWorld event-routing failures remain reason-coded and observable through
 bounded daemon diagnostics; never log scene payloads, gesture coordinates,
 labels, or product data to diagnose delivery.
+`desktop-frame-capture-controller.swift` owns the only ScreenCaptureKit request
+admission for trusted scene extensions. A request is bound to the exact scene
+revision, canvas and topology generation, and current display WebViews. Native
+capture, in-memory handle storage, per-segment decode readiness, and
+acknowledged presentation form one bounded request aggregate with one deadline.
+Disconnect, replacement, cancellation, partial presentation, delivery failure,
+or timeout cancels native work and clears the complete capture set.
+`UnifiedDaemon` only routes exact-generation
+messages; it must never forward pixels, paths, handles, or frame URLs through
+public scene transport, events, diagnostics, or consumer processes.
 The singleton full-display stage must be created hidden and resume only after
 every physical display segment in the exact current canvas and topology
 generation reports ready following transparent renderer initialization.

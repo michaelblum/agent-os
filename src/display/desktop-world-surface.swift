@@ -613,6 +613,10 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
                 || type == "desktop_world_stage.scene.fault"
                 || type == "desktop_world_stage.scene.event"
                 || type == "desktop_frame.acquire"
+                || type == "desktop_frame.cancel"
+                || type == "desktop_frame.ready"
+                || type == "desktop_frame.presented"
+                || type == "desktop_frame.release"
                 || type == "ready"
                 || type == "lifecycle.ready" {
                 guard self.segments.contains(where: { $0 === segment }) else { return }

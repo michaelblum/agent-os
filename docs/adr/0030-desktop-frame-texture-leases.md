@@ -21,8 +21,8 @@ AOS owns an opt-in `aos.scene.desktop_frame_texture` extension capability. The
 capability is part of the extension manifest and digest identity. Only the
 singleton DesktopWorld stage may request it.
 
-One trigger creates a single capture epoch across the current display
-topology. AOS:
+One trigger creates a bounded capture set across one validated display
+topology snapshot. AOS:
 
 - captures every physical display concurrently through its existing Screen
   Recording authority and one `SCShareableContent` snapshot;
@@ -30,18 +30,26 @@ topology. AOS:
 - limits each decoded frame to 1,048,576 pixels;
 - holds encoded bytes only in an in-memory, owner-bound store;
 - returns one opaque random handle per display with a five-second lease;
-- binds each handle to the exact canvas, topology generation, display segment,
-  and WebView that requested it;
+- binds each handle to the exact canvas, topology generation, scene revision,
+  display segment, and WebView that requested it;
 - serves each handle exactly once through the local AOS WebKit scheme;
-- decodes each segment into one stable AOS-created Three texture; and
+- stages each decoded segment privately, then updates the stable AOS-created
+  Three textures only after every exact display consumer reports ready;
+- keeps the capture aggregate active until every exact consumer acknowledges
+  presentation, rolling back every staged or visible segment if that barrier
+  fails; and
 - clears native bytes after the first load while clearing the GPU allocation
   after the effect, failure, cancellation, expiry, or projection disposal.
 
 The store holds at most 16 live handles and 8 MiB of encoded bytes. It schedules
 expiry independently of later store access. Capture completion revalidates the
 scene owner, resource, extension digest, canvas generation, topology generation,
-and exact display consumers before making the epoch available. A canceled or
-superseded generation retains no late frame.
+scene revision, and exact display consumers before making the capture set
+available. The daemon delivers admission, handles, and the final presentation
+commit only to that exact consumer generation. Scene authorization changes
+cancel the same request aggregate synchronously. A canceled, superseded,
+timed-out, partially presented, or disconnected request retains no late frame
+or visible texture.
 
 No screenshot, path, pixel payload, handle URL, or encoded bytes enter
 `scene-follow`, public events, DevTools, diagnostics, or consumer persistence.
@@ -62,8 +70,10 @@ state.
 
 V1 deliberately uses one-shot ScreenCaptureKit capture through
 `SCScreenshotManager`, JPEG encoding, WebKit decode, and GPU upload. It is not a
-zero-copy IOSurface contract and is not a continuous desktop stream. This is the
-smallest supported path that proves the privacy and compositor boundary.
+zero-copy IOSurface contract and is not a continuous desktop stream. Individual
+display captures may have bounded temporal skew even though storage admission
+and presentation are whole-set barriers. This is the smallest supported path
+that proves the privacy and compositor boundary.
 Measured input-to-texture latency and repeated-effect resource evidence decide
 whether AOS replaces only the native capture backend with a prewarmed
 `SCStream` latest-frame broker. That optimization must retain the same lease,

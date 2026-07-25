@@ -15,6 +15,7 @@ final class AOSDesktopWorldSceneTransportController {
     private let extensionStore: AOSSceneExtensionStore
     private let resolveContentURL: (String) -> String
     private let clearReadyManifest: () -> Void
+    private let authorizationChanged: () -> Void
     private let emit: (AOSSceneLeaseRoute, String, [String: Any]) -> Bool
     private let eventRouter: AOSDesktopWorldSceneEventRouter
 
@@ -25,6 +26,7 @@ final class AOSDesktopWorldSceneTransportController {
         eventDiagnostics: AOSDesktopWorldSceneEventRouteDiagnostics = AOSDesktopWorldSceneEventRouteDiagnostics(),
         resolveContentURL: @escaping (String) -> String,
         clearReadyManifest: @escaping () -> Void,
+        authorizationChanged: @escaping () -> Void = {},
         emit: @escaping (AOSSceneLeaseRoute, String, [String: Any]) -> Bool
     ) {
         self.canvasManager = canvasManager
@@ -32,6 +34,7 @@ final class AOSDesktopWorldSceneTransportController {
         self.extensionStore = extensionStore
         self.resolveContentURL = resolveContentURL
         self.clearReadyManifest = clearReadyManifest
+        self.authorizationChanged = authorizationChanged
         self.emit = emit
         self.eventRouter = AOSDesktopWorldSceneEventRouter(
             scene: scene,
@@ -75,6 +78,7 @@ final class AOSDesktopWorldSceneTransportController {
             connectionID: connectionID,
             topology: topology.map(topologyDescriptor)
         )
+        authorizationChanged()
         if let invalidation = plan.invalidation {
             finishInvalidation(invalidation)
             return
@@ -91,6 +95,8 @@ final class AOSDesktopWorldSceneTransportController {
     ) -> AOSDesktopFrameCaptureAuthorization? {
         guard let owner = payload["owner"] as? String,
               let resource = payload["resource"] as? String,
+              let resourceRevision = (payload["revision"] as? NSNumber)?.intValue,
+              resourceRevision >= 0,
               let extensionDictionary = payload["extension"] as? [String: Any],
               let extensionReference = try? AOSSceneExtensionReference(
                   dictionary: extensionDictionary
@@ -118,6 +124,7 @@ final class AOSDesktopWorldSceneTransportController {
             extensionDigest: extensionReference.digest,
             extensionID: extensionReference.id,
             extensionOwnerID: extensionReference.ownerID,
+            resourceRevision: resourceRevision,
             sceneABI: extensionReference.sceneABI,
             threeRevision: extensionReference.threeRevision,
             capability: "aos.scene.desktop_frame_texture"
@@ -130,7 +137,31 @@ final class AOSDesktopWorldSceneTransportController {
             extensionReference: extensionReference,
             ownerID: owner,
             resourceID: resource,
+            resourceRevision: resourceRevision,
             topologyGeneration: topologyGeneration
+        )
+    }
+
+    func authorizesDesktopFrame(
+        _ authorization: AOSDesktopFrameLeaseIdentity
+    ) -> Bool {
+        guard authorization.canvasID == Self.stageCanvasID else { return false }
+        return scene.authorizes(
+            identity: AOSDesktopWorldSceneStageIdentity(
+                canvasGeneration: authorization.canvasGeneration,
+                topologyGeneration: authorization.topologyGeneration
+            ),
+            key: scene.key(
+                owner: authorization.ownerID,
+                resource: authorization.resourceID
+            ),
+            extensionDigest: authorization.extensionReference.digest,
+            extensionID: authorization.extensionReference.id,
+            extensionOwnerID: authorization.extensionReference.ownerID,
+            resourceRevision: authorization.resourceRevision,
+            sceneABI: authorization.extensionReference.sceneABI,
+            threeRevision: authorization.extensionReference.threeRevision,
+            capability: "aos.scene.desktop_frame_texture"
         )
     }
 
@@ -264,9 +295,19 @@ final class AOSDesktopWorldSceneTransportController {
         do {
             acceptedOperation = try extensionStore.admitSceneOperation(operation, expectedOwnerID: owner)
             if let extensionDictionary = acceptedOperation["extension"] as? [String: Any] {
-                extensionAuthorization = try extensionStore.authorization(
+                var authorization = try extensionStore.authorization(
                     for: AOSSceneExtensionReference(dictionary: extensionDictionary)
                 )
+                guard let document = acceptedOperation["document"] as? [String: Any],
+                      let revision = document["revision"] as? Int,
+                      revision >= 0 else {
+                    return response(
+                        error: "Scene extension revision is unavailable",
+                        code: "INVALID_SCENE_OPERATION"
+                    )
+                }
+                authorization["resourceRevision"] = revision
+                extensionAuthorization = authorization
             } else {
                 extensionAuthorization = nil
             }
@@ -357,6 +398,7 @@ final class AOSDesktopWorldSceneTransportController {
         operationID: String
     ) {
         guard let delivery = scene.complete(completion, operationID: operationID) else { return }
+        authorizationChanged()
         deliver(delivery)
     }
 
@@ -383,6 +425,7 @@ final class AOSDesktopWorldSceneTransportController {
     }
 
     private func finishInvalidation(_ plan: AOSDesktopWorldSceneInvalidationPlan) {
+        authorizationChanged()
         switch plan {
         case .deliver(let deliveries):
             deliveries.forEach(deliver)

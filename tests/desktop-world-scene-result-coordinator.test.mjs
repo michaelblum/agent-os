@@ -349,6 +349,7 @@ let extensionAuthorization: [String: Any] = [
     "digest": String(repeating: "a", count: 64),
     "extensionId": "renderer",
     "ownerId": "owner",
+    "resourceRevision": 1,
     "sceneAbi": "aos.scene.projection.v1",
     "threeRevision": "183",
 ]
@@ -358,6 +359,7 @@ precondition(!controller.authorizes(
     extensionDigest: String(repeating: "a", count: 64),
     extensionID: "renderer",
     extensionOwnerID: "owner",
+    resourceRevision: 1,
     sceneABI: "aos.scene.projection.v1",
     threeRevision: "183",
     capability: "aos.scene.desktop_frame_texture"
@@ -391,6 +393,7 @@ precondition(controller.authorizes(
     extensionDigest: String(repeating: "a", count: 64),
     extensionID: "renderer",
     extensionOwnerID: "owner",
+    resourceRevision: 1,
     sceneABI: "aos.scene.projection.v1",
     threeRevision: "183",
     capability: "aos.scene.desktop_frame_texture"
@@ -401,10 +404,90 @@ precondition(!controller.authorizes(
     extensionDigest: String(repeating: "b", count: 64),
     extensionID: "renderer",
     extensionOwnerID: "owner",
+    resourceRevision: 1,
     sceneABI: "aos.scene.projection.v1",
     threeRevision: "183",
     capability: "aos.scene.desktop_frame_texture"
 ))
+
+let transaction: [String: Any] = [
+    "op": "transact",
+    "transaction": ["expectedRevision": 1],
+]
+guard case .accepted(let transactionInitial) = controller.admitOperation(
+    topology: topology,
+    key: key,
+    owner: "owner",
+    resource: "main",
+    operationName: "transact",
+    operation: transaction,
+    connectionID: connection,
+    ref: "ref-3"
+) else { preconditionFailure("transaction rejected") }
+guard case .broadcast(let transactionPrepare) = transactionInitial else {
+    preconditionFailure("transaction prepare missing")
+}
+precondition(controller.acceptResult(
+    identity: identity,
+    payload: result(transactionPrepare.operationID, "prepare", 7, 0, "transaction-digest")
+).isEmpty)
+let transactionCommitActions = controller.acceptResult(
+    identity: identity,
+    payload: result(transactionPrepare.operationID, "prepare", 9, 1, "transaction-digest")
+)
+guard let transactionCommit = broadcast(transactionCommitActions) else {
+    preconditionFailure("transaction commit missing")
+}
+precondition(controller.acceptResult(
+    identity: identity,
+    payload: result(transactionPrepare.operationID, "commit", 7, 0, "transaction-digest")
+).isEmpty)
+let transactionCompleted = controller.acceptResult(
+    identity: identity,
+    payload: result(transactionPrepare.operationID, "commit", 9, 1, "transaction-digest")
+)
+guard let transactionFinal = completion(transactionCompleted),
+      controller.complete(
+          transactionFinal,
+          operationID: transactionPrepare.operationID
+      ) != nil else {
+    preconditionFailure("transaction did not settle")
+}
+precondition(!controller.authorizes(
+    identity: identity,
+    key: key,
+    extensionDigest: String(repeating: "a", count: 64),
+    extensionID: "renderer",
+    extensionOwnerID: "owner",
+    resourceRevision: 1,
+    sceneABI: "aos.scene.projection.v1",
+    threeRevision: "183",
+    capability: "aos.scene.desktop_frame_texture"
+))
+precondition(controller.authorizes(
+    identity: identity,
+    key: key,
+    extensionDigest: String(repeating: "a", count: 64),
+    extensionID: "renderer",
+    extensionOwnerID: "owner",
+    resourceRevision: 2,
+    sceneABI: "aos.scene.projection.v1",
+    threeRevision: "183",
+    capability: "aos.scene.desktop_frame_texture"
+))
+if case .stageUnavailable = controller.admitOperation(
+    topology: topology,
+    key: key,
+    owner: "owner",
+    resource: "main",
+    operationName: "transact",
+    operation: transaction,
+    connectionID: connection,
+    ref: "stale-ref"
+) {
+} else {
+    preconditionFailure("stale transaction revision retained extension authority")
+}
 
 let next = AOSDesktopWorldSceneTopologyDescriptor(
     identity: AOSDesktopWorldSceneStageIdentity(canvasGeneration: 3, topologyGeneration: 5),
@@ -426,6 +509,7 @@ precondition(!controller.authorizes(
     extensionDigest: String(repeating: "a", count: 64),
     extensionID: "renderer",
     extensionOwnerID: "owner",
+    resourceRevision: 1,
     sceneABI: "aos.scene.projection.v1",
     threeRevision: "183",
     capability: "aos.scene.desktop_frame_texture"

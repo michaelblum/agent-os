@@ -202,7 +202,10 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   );
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-world-scene-*.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-frame-capture-controller.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/canvas.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-frame-texture.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/scene-extension-store.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('scripts/lib/scene-extension/module-inspector.mjs'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('packages/toolkit/components/desktop-world-stage/**'));
   assert.match(
     rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-daemon-contract')?.command ?? '',

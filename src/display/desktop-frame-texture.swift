@@ -10,6 +10,24 @@ struct AOSDesktopFrameConsumerIdentity: Hashable {
     let webViewID: ObjectIdentifier
 }
 
+struct AOSDesktopFrameLeaseIdentity: Equatable {
+    let canvasID: String
+    let canvasGeneration: UInt64
+    let extensionReference: AOSSceneExtensionReference
+    let ownerID: String
+    let resourceID: String
+    let resourceRevision: Int
+    let topologyGeneration: UInt64
+}
+
+struct AOSDesktopFrameStoreFrame {
+    let consumer: AOSDesktopFrameConsumerIdentity
+    let data: Data
+    let height: Int
+    let mimeType: String
+    let width: Int
+}
+
 struct AOSDesktopFrameLeaseSnapshot: Equatable {
     let epochID: String
     let handle: String
@@ -46,6 +64,7 @@ final class AOSDesktopFrameStore {
         let epochID: String
         let expiresAt: Date
         let height: Int
+        let leaseIdentity: AOSDesktopFrameLeaseIdentity
         let mimeType: String
         let ownerCanvasID: String
         let width: Int
@@ -74,6 +93,14 @@ final class AOSDesktopFrameStore {
         }
     }
 
+    private func oldestEpochLocked() -> String? {
+        entries.values.min(by: { $0.createdAt < $1.createdAt })?.epochID
+    }
+
+    private func removeEpochLocked(_ epochID: String) {
+        entries = entries.filter { $0.value.epochID != epochID }
+    }
+
     private func expire(handle: String, expectedExpiry: Date) {
         lock.lock()
         defer { lock.unlock() }
@@ -86,70 +113,117 @@ final class AOSDesktopFrameStore {
         mimeType: String,
         ownerCanvasID: String,
         consumer: AOSDesktopFrameConsumerIdentity,
+        leaseIdentity: AOSDesktopFrameLeaseIdentity,
         epochID: String,
         width: Int,
         height: Int,
         now: Date = Date()
     ) throws -> AOSDesktopFrameLeaseSnapshot {
-        guard ownerCanvasID == consumer.canvasID,
-              UUID(uuidString: epochID) != nil,
-              ["image/jpeg", "image/png"].contains(mimeType),
-              width > 0,
-              height > 0,
-              width <= 4096,
-              height <= 4096 else {
+        guard let snapshot = try insertEpoch(
+            frames: [AOSDesktopFrameStoreFrame(
+                consumer: consumer,
+                data: data,
+                height: height,
+                mimeType: mimeType,
+                width: width
+            )],
+            leaseIdentity: leaseIdentity,
+            ownerCanvasID: ownerCanvasID,
+            epochID: epochID,
+            now: now
+        ).first else {
             throw AOSDesktopFrameStoreFailure.invalidFrame
         }
-        guard !data.isEmpty, data.count <= Self.maximumEncodedBytes else {
+        return snapshot
+    }
+
+    func insertEpoch(
+        frames: [AOSDesktopFrameStoreFrame],
+        leaseIdentity: AOSDesktopFrameLeaseIdentity,
+        ownerCanvasID: String,
+        epochID: String,
+        now: Date = Date()
+    ) throws -> [AOSDesktopFrameLeaseSnapshot] {
+        let normalizedEpochID = epochID.lowercased()
+        guard !frames.isEmpty,
+              frames.count <= Self.maximumEntries,
+              UUID(uuidString: epochID) != nil,
+              ownerCanvasID == leaseIdentity.canvasID,
+              leaseIdentity.resourceRevision >= 0,
+              Set(frames.map(\.consumer)).count == frames.count,
+              frames.allSatisfy({
+                  $0.consumer.canvasID == ownerCanvasID
+                      && $0.consumer.canvasGeneration == leaseIdentity.canvasGeneration
+                      && $0.consumer.topologyGeneration == leaseIdentity.topologyGeneration
+                      && ["image/jpeg", "image/png"].contains($0.mimeType)
+                      && $0.width > 0
+                      && $0.height > 0
+                      && $0.width <= 4096
+                      && $0.height <= 4096
+                      && !$0.data.isEmpty
+              }) else {
+            throw AOSDesktopFrameStoreFailure.invalidFrame
+        }
+        let epochBytes = frames.reduce(into: 0) { total, frame in
+            total += frame.data.count
+        }
+        guard epochBytes <= Self.maximumEncodedBytes else {
             throw AOSDesktopFrameStoreFailure.oversizedFrame
         }
 
-        let handle = UUID().uuidString.lowercased()
         let expiresAt = now.addingTimeInterval(Self.leaseLifetime)
+        let handles = frames.map { _ in UUID().uuidString.lowercased() }
         lock.lock()
         cleanupExpiredLocked(now: now)
-        var encodedBytes = encodedByteCountLocked()
         while (
-            entries.count >= Self.maximumEntries
-                || encodedBytes + data.count > Self.maximumEncodedBytes
-        ), let oldest = entries.min(by: { $0.value.createdAt < $1.value.createdAt })?.key {
-            if let removed = entries.removeValue(forKey: oldest) {
-                encodedBytes -= removed.data.count
-            }
+            entries.count + frames.count > Self.maximumEntries
+                || encodedByteCountLocked() + epochBytes > Self.maximumEncodedBytes
+        ), let oldestEpoch = oldestEpochLocked() {
+            removeEpochLocked(oldestEpoch)
         }
-        guard encodedBytes + data.count <= Self.maximumEncodedBytes else {
+        guard entries.count + frames.count <= Self.maximumEntries,
+              encodedByteCountLocked() + epochBytes <= Self.maximumEncodedBytes else {
             lock.unlock()
             throw AOSDesktopFrameStoreFailure.oversizedFrame
         }
-        entries[handle] = Entry(
-            consumer: consumer,
-            createdAt: now,
-            data: data,
-            epochID: epochID.lowercased(),
-            expiresAt: expiresAt,
-            height: height,
-            mimeType: mimeType,
-            ownerCanvasID: ownerCanvasID,
-            width: width
-        )
-        lock.unlock()
-        scheduleExpiration(Self.leaseLifetime) { [weak self] in
-            self?.expire(handle: handle, expectedExpiry: expiresAt)
+        for (index, frame) in frames.enumerated() {
+            entries[handles[index]] = Entry(
+                consumer: frame.consumer,
+                createdAt: now,
+                data: frame.data,
+                epochID: normalizedEpochID,
+                expiresAt: expiresAt,
+                height: frame.height,
+                leaseIdentity: leaseIdentity,
+                mimeType: frame.mimeType,
+                ownerCanvasID: ownerCanvasID,
+                width: frame.width
+            )
         }
-        return AOSDesktopFrameLeaseSnapshot(
-            epochID: epochID.lowercased(),
-            handle: handle,
-            height: height,
-            mimeType: mimeType,
-            ownerCanvasID: ownerCanvasID,
-            url: "aos://toolkit\(Self.routePrefix)\(handle)/frame",
-            width: width
-        )
+        lock.unlock()
+
+        for handle in handles {
+            scheduleExpiration(Self.leaseLifetime) { [weak self] in
+                self?.expire(handle: handle, expectedExpiry: expiresAt)
+            }
+        }
+        return zip(frames, handles).map { frame, handle in
+            AOSDesktopFrameLeaseSnapshot(
+                epochID: normalizedEpochID,
+                handle: handle,
+                height: frame.height,
+                mimeType: frame.mimeType,
+                ownerCanvasID: ownerCanvasID,
+                url: "aos://toolkit\(Self.routePrefix)\(handle)/frame",
+                width: frame.width
+            )
+        }
     }
 
     func take(
         handle: String,
         consumer: AOSDesktopFrameConsumerIdentity,
+        authorize: (AOSDesktopFrameLeaseIdentity) -> Bool,
         now: Date = Date()
     ) throws -> (data: Data, mimeType: String) {
         guard UUID(uuidString: handle) != nil else {
@@ -163,6 +237,10 @@ final class AOSDesktopFrameStore {
             throw AOSDesktopFrameStoreFailure.notFound
         }
         guard entry.consumer == consumer else {
+            throw AOSDesktopFrameStoreFailure.unauthorized
+        }
+        guard authorize(entry.leaseIdentity) else {
+            removeEpochLocked(entry.epochID)
             throw AOSDesktopFrameStoreFailure.unauthorized
         }
         entries.removeValue(forKey: key)
@@ -221,15 +299,18 @@ final class AOSDesktopFrameSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     private let store: AOSDesktopFrameStore
+    private let authorize: (AOSDesktopFrameLeaseIdentity) -> Bool
     private let identityResolver: (WKWebView) -> AOSDesktopFrameConsumerIdentity?
     private let loadQueue = DispatchQueue(label: "io.agent-os.desktop-frame-loader", qos: .userInteractive)
     private let taskState = AOSSceneExtensionSchemeTaskState()
 
     init(
         store: AOSDesktopFrameStore,
+        authorize: @escaping (AOSDesktopFrameLeaseIdentity) -> Bool,
         identityResolver: @escaping (WKWebView) -> AOSDesktopFrameConsumerIdentity?
     ) {
         self.store = store
+        self.authorize = authorize
         self.identityResolver = identityResolver
     }
 
@@ -258,7 +339,11 @@ final class AOSDesktopFrameSchemeHandler: NSObject, WKURLSchemeHandler {
         for url: URL,
         consumer: AOSDesktopFrameConsumerIdentity
     ) throws -> (data: Data, mimeType: String) {
-        try store.take(handle: handle(from: url), consumer: consumer)
+        try store.take(
+            handle: handle(from: url),
+            consumer: consumer,
+            authorize: authorize
+        )
     }
 
     private func complete(

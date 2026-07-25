@@ -92,16 +92,21 @@ document are supported.
 An extension declaring `aos.scene.desktop_frame_texture` also receives
 `desktopFrame`. Each display projection owns one stable Three texture plus
 `request()`, `clear()`, and `snapshot()` operations. One `request()` asks AOS
-for a coherent all-display capture epoch and returns immediately. Every
-authorized segment selects its own frame from that epoch. `snapshot()` exposes
+for a bounded all-display capture set and returns immediately. Every authorized
+segment stages its own frame, and AOS commits the stable textures only after all
+exact display consumers decode successfully. The aggregate remains active until
+every exact consumer acknowledges presentation; a missing acknowledgement,
+authorization change, or topology change clears all staged and visible
+segments. The one-shot per-display captures may have bounded temporal skew.
+`snapshot()` exposes
 only bounds, dimensions, generation, epoch, capture duration, readiness, and a
 redacted error code. The extension should render the texture only after
 `status` becomes `ready` and call `clear()` when its effect finishes.
 
 AOS excludes DesktopWorld's own windows, caps each decoded frame at 1,048,576
-pixels, binds each opaque handle to the exact display WebView and stage
-generation, consumes it once, and expires native and GPU state within five
-seconds. Projection disposal also clears the source. No screenshot bytes, local
+pixels, binds each opaque handle to the exact display WebView, stage generation,
+and scene revision, consumes it once, and expires native and GPU state within
+five seconds. Projection disposal also clears the source. No screenshot bytes, local
 path, native capture handle, or public transport operation enters the extension
 contract. The reviewed extension runs in the same stage realm and can inspect
 the Three objects it receives; this capability is not a sandbox for untrusted
