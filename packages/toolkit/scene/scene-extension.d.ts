@@ -68,6 +68,13 @@ export interface SceneExtensionProjectionResourceMetrics {
   workingBytes: number;
 }
 
+export interface TrustedSceneExtensionFactoryContext
+  extends SceneExtensionProjectionContext {
+  inspectProjectionResources(
+    object: SceneExtensionObject3D,
+  ): Readonly<SceneExtensionProjectionResourceMetrics>;
+}
+
 /**
  * Projection hooks are synchronous stage callbacks. The host ignores their
  * return value and rejects Promise-like results at runtime.
@@ -100,7 +107,9 @@ export interface SceneExtensionProjection {
 
 export interface TrustedSceneExtensionFactory {
   manifest: SceneExtensionManifest;
-  createProjection(context: Readonly<SceneExtensionProjectionContext>): SceneExtensionProjection;
+  createProjection(
+    context: Readonly<TrustedSceneExtensionFactoryContext>,
+  ): SceneExtensionProjection;
 }
 
 export interface TrustedSceneExtensionHandle {

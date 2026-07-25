@@ -130,6 +130,10 @@ stage internals.
   segment. Runtime extension audits are sampled on a bounded cadence and reuse
   cached metrics between audits; do not add a per-frame scene-tree allocation
   pass.
+- Trusted extension factories receive AOS's canonical synchronous
+  `inspectProjectionResources(object)` callback for adaptive pool admission.
+  The callback does not replace the host's authoritative initial and sampled
+  resource audits.
 
 ## Verification
 

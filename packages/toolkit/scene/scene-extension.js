@@ -521,6 +521,7 @@ export function createTrustedSceneExtensionRegistry(input = {}) {
                 THREE: context.THREE,
                 budgets: Object.freeze({ ...context.budgets }),
                 document: context.document,
+                inspectProjectionResources: inspectSceneExtensionProjectionResources,
               })),
               'factory createProjection()',
             )

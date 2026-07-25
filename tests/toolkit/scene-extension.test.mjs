@@ -713,9 +713,28 @@ test('trusted registry supplies only the bounded browser projection context', ()
   const handle = registry.resolve(reference)
   assert.ok(handle)
   assert.equal(handle.createProjection(context()).object !== null, true)
-  assert.deepEqual(Object.keys(received).sort(), ['THREE', 'budgets', 'document'])
+  assert.deepEqual(
+    Object.keys(received).sort(),
+    ['THREE', 'budgets', 'document', 'inspectProjectionResources'],
+  )
   assert.equal(Object.isFrozen(received), true)
   assert.equal(Object.isFrozen(received.budgets), true)
+  assert.equal(
+    received.inspectProjectionResources,
+    inspectSceneExtensionProjectionResources,
+  )
+  assert.deepEqual(
+    received.inspectProjectionResources(projection().object),
+    {
+      drawCalls: 0,
+      geometryBytes: 0,
+      objects: 1,
+      resources: 0,
+      textureBytes: 0,
+      triangles: 0,
+      workingBytes: 0,
+    },
+  )
 
   for (const forbidden of ['renderer', 'camera', 'requestAnimationFrame', 'documentElement', 'fs', 'network', 'nativeBridge']) {
     assert.throws(
