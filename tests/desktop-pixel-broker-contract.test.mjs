@@ -29,6 +29,7 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(lifecycle, /AOSDesktopPixelStartupDecision/u)
   assert.match(lifecycle, /AOSDesktopPixelStartupSettlement/u)
   assert.match(lifecycle, /tasks\.forEach \{ \$0\.cancel\(\) \}/u)
+  assert.match(lifecycle, /decision\.complete\(completion\)[\s\S]*await decision\.compensationIsRequired\(\)/u)
   assert.match(lifecycle, /let retired = shouldCompensate \? await compensate\(index\) : true/u)
   assert.match(native, /entries\.append\([\s\S]*aosStartDesktopPixelStreams/u)
   assert.match(native, /aosSettleDesktopPixelStreamRetirement/u)

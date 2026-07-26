@@ -138,12 +138,11 @@ final class AOSDesktopPixelStartupDecision: @unchecked Sendable {
         remaining = count
     }
 
-    func complete(_ completion: Result<Void, Error>) -> Bool {
+    func complete(_ completion: Result<Void, Error>) {
         lock.lock()
         guard remaining > 0 else {
-            let compensate = isFailedLocked()
             lock.unlock()
-            return compensate
+            return
         }
         remaining -= 1
         var settled: Result<Void, Error>?
@@ -163,12 +162,10 @@ final class AOSDesktopPixelStartupDecision: @unchecked Sendable {
             callbacks = waiters
             waiters.removeAll()
         }
-        let compensate = isFailedLocked()
         lock.unlock()
         if let settled {
             callbacks.forEach { $0(settled) }
         }
-        return compensate
     }
 
     func cancel() {
@@ -188,6 +185,15 @@ final class AOSDesktopPixelStartupDecision: @unchecked Sendable {
         }
     }
 
+    func compensationIsRequired() async -> Bool {
+        do {
+            try await value()
+            return false
+        } catch {
+            return true
+        }
+    }
+
     private func settle(_ result: Result<Void, Error>) {
         lock.lock()
         guard self.result == nil else {
@@ -197,12 +203,6 @@ final class AOSDesktopPixelStartupDecision: @unchecked Sendable {
         let callbacks = settleLocked(result)
         lock.unlock()
         callbacks.forEach { $0(result) }
-    }
-
-    private func isFailedLocked() -> Bool {
-        guard let result else { return false }
-        if case .failure = result { return true }
-        return false
     }
 
     private func settleLocked(
@@ -304,7 +304,8 @@ func aosStartDesktopPixelStreams(
             } catch {
                 completion = .failure(error)
             }
-            let shouldCompensate = decision.complete(completion)
+            decision.complete(completion)
+            let shouldCompensate = await decision.compensationIsRequired()
             let retired = shouldCompensate ? await compensate(index) : true
             settlement.complete(retired: retired)
         }

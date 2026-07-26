@@ -78,6 +78,22 @@ func startPixelStreams(
     return result.get()
 }
 
+func startupCompensationRequired(
+    _ decision: AOSDesktopPixelStartupDecision
+) -> Bool {
+    let settled = DispatchSemaphore(value: 0)
+    let result = LockedBoolean()
+    Task {
+        result.set(await decision.compensationIsRequired())
+        settled.signal()
+    }
+    require(
+        settled.wait(timeout: .now() + 1) == .success,
+        "startup decision did not settle"
+    )
+    return result.get()
+}
+
 func settlePixelRetirement(
     lifecycle: AOSDesktopPixelStreamLifecycle,
     timeout: TimeInterval = 0.05,
@@ -241,6 +257,14 @@ func runDesktopPixelNativeLifecycleTests() throws {
     require(
         stalledStartCanceled.wait(timeout: .now() + 1) == .success,
         "failed display did not cancel a stalled sibling startup"
+    )
+
+    let orderedFailure = AOSDesktopPixelStartupDecision(count: 2)
+    orderedFailure.complete(.success(()))
+    orderedFailure.complete(.failure(AOSDesktopFrameCaptureFailure.captureFailed))
+    require(
+        startupCompensationRequired(orderedFailure),
+        "early success did not adopt the later aggregate failure"
     )
 
     let lateStartBarrier = PixelOperationBarrier()
