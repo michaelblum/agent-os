@@ -29,9 +29,12 @@ lifecycle. They return in-memory pixel
 frames only; encoding, cropping, redaction, persistence, and GPU delivery
 belong to downstream adapters. Multi-display warm acquisition configures the
 complete stream set before starting every display concurrently; partial startup
-failure immediately requests compensating stops for the complete set while
-retaining late startup-completion ownership; both startup completion and native
-retirement must settle before later work is admitted. That aggregate retirement
+failure immediately requests aggregate retirement while retaining late
+startup-completion ownership. Only a successfully started stream receives a
+compensating stop; a failed start is confirmed inactive without issuing an
+invalid stop, and its initiating error remains authoritative. Both startup
+completion and native retirement must settle before later work is admitted.
+That aggregate retirement
 wait ignores caller cancellation but remains deadline-bounded, because
 cancellation is the reason cleanup is often running. Superseding a warm
 configuration does not cancel an in-flight ScreenCaptureKit `startCapture()`;
