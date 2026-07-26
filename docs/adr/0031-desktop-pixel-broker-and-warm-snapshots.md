@@ -35,6 +35,13 @@ The broker supports two acquisition forms:
 
 A warm lease is owner-bound, singular, cancelable, and valid only while its
 latest samples remain fresh. A different owner cannot freeze or release it.
+All admitted display streams are configured before any startup begins, then
+started concurrently as one aggregate. Readiness still requires a fresh sample
+from every display. Startup failure or cancellation retires the complete
+configured set. A canceled startup remains owned through its eventual callback;
+a late success performs compensating retirement. Missing startup or retirement
+settlement faults the broker before it can admit later work. Failure diagnostics
+contain only the startup phase, bounded elapsed milliseconds, and a reason code.
 Cancellation, permission loss, topology mismatch, source failure, daemon
 shutdown, or consumer cleanup stops all streams and suppresses late callbacks.
 Once a whole-display frame set is frozen and encoded, the presentation adapter

@@ -22,10 +22,16 @@ DesktopWorld event-routing failures remain reason-coded and observable through
 bounded daemon diagnostics; never log scene payloads, gesture coordinates,
 labels, or product data to diagnose delivery.
 `desktop-pixel-native.swift` owns ScreenCaptureKit snapshots and bounded warm
-streams. `desktop-pixel-broker.swift` serializes that native acquisition across
-daemon consumers and owns warm-lease lifecycle. They return in-memory pixel
+streams. `desktop-pixel-stream-lifecycle.swift` owns generic concurrent stream
+startup, compensation, and acknowledged retirement. `desktop-pixel-broker.swift`
+serializes that native acquisition across daemon consumers and owns warm-lease
+lifecycle. They return in-memory pixel
 frames only; encoding, cropping, redaction, persistence, and GPU delivery
-belong to downstream adapters. `desktop-frame-capture-adapter.swift` converts a
+belong to downstream adapters. Multi-display warm acquisition configures the
+complete stream set before starting every display concurrently; partial startup
+failure retains late completion ownership and retires that complete set before
+later work is admitted.
+`desktop-frame-capture-adapter.swift` converts a
 snapshot into the private WebKit presentation format. Warm snapshots deliver a
 frozen encoded frame before asynchronous stream retirement settles; the broker
 remains closed until native retirement is acknowledged. Delegate-observed and
