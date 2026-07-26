@@ -256,11 +256,7 @@ final class AOSDesktopPixelStartupSettlement: @unchecked Sendable {
         ) { [self] in
             settleWaiter(id: id, result: false)
         }
-        return await withTaskCancellationHandler {
-            await waiter.value()
-        } onCancel: { [self] in
-            settleWaiter(id: id, result: false)
-        }
+        return await waiter.value()
     }
 
     private func completedResultOrRegister(
