@@ -11,6 +11,10 @@ const storeSource = path.join(repoRoot, 'src/display/desktop-frame-texture.swift
 const consentContractSource = path.join(repoRoot, 'src/shared/desktop-frame-capture-consent-contract.swift')
 const consentSource = path.join(repoRoot, 'src/daemon/desktop-frame-capture-consent.swift')
 const brokerSource = path.join(repoRoot, 'src/daemon/desktop-pixel-broker.swift')
+const streamLifecycleSource = path.join(
+  repoRoot,
+  'src/daemon/desktop-pixel-stream-lifecycle.swift',
+)
 const nativePixelSource = path.join(repoRoot, 'src/daemon/desktop-pixel-native.swift')
 const captureAdapterSource = path.join(repoRoot, 'src/daemon/desktop-frame-capture-adapter.swift')
 const controllerSource = path.join(repoRoot, 'src/daemon/desktop-frame-capture-controller.swift')
@@ -1039,6 +1043,7 @@ struct DesktopFrameProof {
     storeSource,
     consentContractSource,
     brokerSource,
+    streamLifecycleSource,
     nativePixelSource,
     captureAdapterSource,
     consentSource,

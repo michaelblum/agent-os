@@ -31,7 +31,7 @@ final class LockedBoolean: @unchecked Sendable {
     }
 }
 
-actor PixelStopBarrier {
+actor PixelOperationBarrier {
     private var arrivals = 0
     private var waiters: [CheckedContinuation<Void, Never>] = []
 
@@ -47,6 +47,35 @@ actor PixelStopBarrier {
             waiters.append(continuation)
         }
     }
+}
+
+func startPixelStreams(
+    count: Int,
+    settlementTimeout: TimeInterval = 0.1,
+    compensate: @escaping @Sendable (_ index: Int) async -> Bool = { _ in true },
+    start: @escaping @Sendable (_ index: Int) async throws -> Void
+) -> Bool {
+    let settled = DispatchSemaphore(value: 0)
+    let result = LockedBoolean()
+    Task {
+        do {
+            try await aosStartDesktopPixelStreams(
+                count: count,
+                settlementTimeout: settlementTimeout,
+                start: start,
+                compensate: compensate
+            )
+            result.set(true)
+        } catch {
+            result.set(false)
+        }
+        settled.signal()
+    }
+    require(
+        settled.wait(timeout: .now() + 1) == .success,
+        "multi-stream startup did not complete"
+    )
+    return result.get()
 }
 
 func settlePixelRetirement(
@@ -175,6 +204,71 @@ func runDesktopPixelNativeLifecycleTests() throws {
         )
     }
 
+    let startBarrier = PixelOperationBarrier()
+    require(
+        !startPixelStreams(count: 0) { _ in },
+        "empty multi-display startup was accepted"
+    )
+    require(
+        startPixelStreams(count: 2) { _ in
+            await startBarrier.arrive(expected: 2)
+        },
+        "multi-display stream startup did not execute concurrently"
+    )
+
+    let failedStartBarrier = PixelOperationBarrier()
+    let stalledStartCanceled = DispatchSemaphore(value: 0)
+    let failedStartBegan = Date()
+    require(
+        !startPixelStreams(count: 2) { index in
+            await failedStartBarrier.arrive(expected: 2)
+            if index == 1 {
+                throw AOSDesktopFrameCaptureFailure.captureFailed
+            }
+            do {
+                try await Task.sleep(nanoseconds: 60_000_000_000)
+            } catch is CancellationError {
+                stalledStartCanceled.signal()
+                throw CancellationError()
+            }
+        },
+        "multi-display startup failure was swallowed"
+    )
+    require(
+        Date().timeIntervalSince(failedStartBegan) < 0.5,
+        "failed display waited for a stalled sibling startup"
+    )
+    require(
+        stalledStartCanceled.wait(timeout: .now() + 1) == .success,
+        "failed display did not cancel a stalled sibling startup"
+    )
+
+    let lateStartBarrier = PixelOperationBarrier()
+    let releaseLateStart = DispatchSemaphore(value: 0)
+    let lateStartCompensated = DispatchSemaphore(value: 0)
+    require(
+        !startPixelStreams(
+            count: 2,
+            settlementTimeout: 0.05,
+            compensate: { index in
+                if index == 0 { lateStartCompensated.signal() }
+                return true
+            }
+        ) { index in
+            await lateStartBarrier.arrive(expected: 2)
+            if index == 1 {
+                throw AOSDesktopFrameCaptureFailure.captureFailed
+            }
+            releaseLateStart.wait()
+        },
+        "cancellation-insensitive startup escaped the settlement deadline"
+    )
+    releaseLateStart.signal()
+    require(
+        lateStartCompensated.wait(timeout: .now() + 1) == .success,
+        "late successful startup was not compensated after aggregate failure"
+    )
+
     let delegateFirst = FakePixelStreamLifecycle()
     delegateFirst.latch.observe()
     require(
@@ -270,7 +364,7 @@ func runDesktopPixelNativeLifecycleTests() throws {
 
     let firstDisplay = FakePixelStreamLifecycle()
     let secondDisplay = FakePixelStreamLifecycle()
-    let stopBarrier = PixelStopBarrier()
+    let stopBarrier = PixelOperationBarrier()
     require(
         settlePixelRetirements(
             lifecycles: [firstDisplay, secondDisplay],

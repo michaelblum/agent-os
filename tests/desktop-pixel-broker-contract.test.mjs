@@ -10,8 +10,9 @@ async function source(relativePath) {
 }
 
 test('desktop pixel acquisition stays native, serialized, and artifact-free', async () => {
-  const [broker, native, adapter, daemon] = await Promise.all([
+  const [broker, lifecycle, native, adapter, daemon] = await Promise.all([
     source('src/daemon/desktop-pixel-broker.swift'),
+    source('src/daemon/desktop-pixel-stream-lifecycle.swift'),
     source('src/daemon/desktop-pixel-native.swift'),
     source('src/daemon/desktop-frame-capture-adapter.swift'),
     source('src/daemon/unified.swift'),
@@ -23,18 +24,25 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(native, /waitUntilReady\(timeout: 0\.75\)/u)
   assert.doesNotMatch(native, /try\? await entry\.stream\.stopCapture\(\)/u)
   assert.doesNotMatch(native, /\(try\? \$0\.output\.snapshot\(\)\) != nil/u)
-  assert.match(native, /aosDesktopPixelStopErrorConfirmsRetirement/u)
+  assert.match(lifecycle, /aosDesktopPixelStopErrorConfirmsRetirement/u)
+  assert.match(native, /aosStartDesktopPixelStreams/u)
+  assert.match(lifecycle, /AOSDesktopPixelStartupDecision/u)
+  assert.match(lifecycle, /AOSDesktopPixelStartupSettlement/u)
+  assert.match(lifecycle, /tasks\.forEach \{ \$0\.cancel\(\) \}/u)
+  assert.match(lifecycle, /let retired = shouldCompensate \? await compensate\(index\) : true/u)
+  assert.match(native, /entries\.append\([\s\S]*aosStartDesktopPixelStreams/u)
   assert.match(native, /aosSettleDesktopPixelStreamRetirement/u)
-  assert.match(native, /retirementWasObserved\(\)/u)
+  assert.match(lifecycle, /retirementWasObserved\(\)/u)
   assert.match(native, /func quiesce\(\)/u)
-  assert.match(native, /withTaskGroup\(of: Bool\.self\)/u)
+  assert.match(lifecycle, /withTaskGroup\(of: Bool\.self\)/u)
+  assert.match(native, /\[desktop-pixel\] warm-open failed phase=/u)
   assert.match(broker, /DESKTOP_FRAME_RETIREMENT_UNCERTAIN/u)
   assert.match(broker, /defaultRetirementTimeout: TimeInterval = 5/u)
   assert.match(broker, /maximumPixelsPerDisplay = 16_777_216/u)
   assert.match(broker, /maximumTotalPixels = 67_108_864/u)
   assert.match(broker, /superviseSnapshotRetirement/u)
   assert.match(broker, /superviseWarmRetirement/u)
-  assert.doesNotMatch(`${broker}\n${native}`, /base64|CGImageDestination|write\s*\(/iu)
+  assert.doesNotMatch(`${broker}\n${lifecycle}\n${native}`, /base64|CGImageDestination|write\s*\(/iu)
   assert.match(adapter, /CGImageDestinationCreateWithData/u)
   assert.match(adapter, /performRetirement\(action\)[\s\S]*completion\(result\)/u)
   assert.match(daemon, /private let desktopPixelBroker = AOSDesktopPixelBroker\(\)/u)
