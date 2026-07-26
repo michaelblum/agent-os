@@ -56,11 +56,13 @@ numeric, monotonically advancing timestamp. The later callback may be idle
 because ScreenCaptureKit uses that status when a live display has not changed;
 it proves liveness but does not replace the retained image. Missing status
 metadata, nonnumeric times, blank, suspended, and stopped callbacks fail closed.
-Startup failure or cancellation immediately requests compensating stops for the
-complete configured set while retaining ownership of every pending startup
-callback. The aggregate does not settle until every startup returns and every
-native stream confirms retirement; a late success therefore cannot escape
-cleanup. Missing startup or retirement
+Startup failure or cancellation immediately requests aggregate retirement while
+retaining ownership of every pending startup callback. A successfully started
+stream receives exactly one compensating stop. A failed start is confirmed
+inactive without an invalid stop call, and its initiating error remains
+authoritative. The aggregate does not report cleanup complete until every
+startup returns and every active native stream confirms retirement; a late
+success therefore cannot escape cleanup. Missing startup or retirement
 settlement faults the broker before it can admit later work. Failure diagnostics
 contain only the startup phase, bounded elapsed milliseconds, and a reason code.
 Cancellation, permission loss, topology mismatch, source failure, daemon

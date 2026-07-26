@@ -271,6 +271,145 @@ final class AOSDesktopPixelAggregateSettlement: @unchecked Sendable {
     }
 }
 
+final class AOSDesktopPixelStartupCancellation: @unchecked Sendable {
+    private var action: (@Sendable () -> Void)?
+    private var canceled = false
+    private let lock = NSLock()
+
+    func register(_ action: @escaping @Sendable () -> Void) -> Bool {
+        lock.lock()
+        guard !canceled, self.action == nil else {
+            lock.unlock()
+            return false
+        }
+        self.action = action
+        lock.unlock()
+        return true
+    }
+
+    func cancel() {
+        lock.lock()
+        guard !canceled else {
+            lock.unlock()
+            return
+        }
+        canceled = true
+        let action = self.action
+        self.action = nil
+        lock.unlock()
+        action?()
+    }
+
+    func clear() {
+        lock.lock()
+        action = nil
+        lock.unlock()
+    }
+}
+
+final class AOSDesktopPixelWarmOpenOperation: AOSDesktopFrameCancelling,
+    @unchecked Sendable
+{
+    typealias Open = @Sendable (
+        _ cancellation: AOSDesktopPixelStartupCancellation
+    ) async throws -> AOSDesktopPixelWarmSource
+
+    private var cancellationRequested = false
+    private let completion: (Result<AOSDesktopPixelWarmSource, Error>) -> Void
+    private var completionSettled = false
+    private let lock = NSLock()
+    private let open: Open
+    private var openSettled = false
+    private var started = false
+    private let startupCancellation = AOSDesktopPixelStartupCancellation()
+    private var task: Task<Void, Never>?
+
+    init(
+        open: @escaping Open,
+        completion: @escaping (Result<AOSDesktopPixelWarmSource, Error>) -> Void
+    ) {
+        self.open = open
+        self.completion = completion
+    }
+
+    func start() {
+        lock.lock()
+        guard !started else {
+            lock.unlock()
+            return
+        }
+        started = true
+        let task = Task.detached(priority: .userInitiated) { [self] in
+            let result: Result<AOSDesktopPixelWarmSource, Error>
+            do {
+                result = .success(try await open(startupCancellation))
+            } catch {
+                result = .failure(error)
+            }
+            openCompleted(result)
+        }
+        self.task = task
+        lock.unlock()
+    }
+
+    func cancel() {
+        lock.lock()
+        guard !completionSettled else {
+            lock.unlock()
+            return
+        }
+        cancellationRequested = true
+        lock.unlock()
+        startupCancellation.cancel()
+    }
+
+    private func openCompleted(
+        _ result: Result<AOSDesktopPixelWarmSource, Error>
+    ) {
+        lock.lock()
+        guard !openSettled else {
+            lock.unlock()
+            return
+        }
+        openSettled = true
+        task = nil
+        let shouldRetire = cancellationRequested
+        if !shouldRetire { completionSettled = true }
+        lock.unlock()
+
+        guard shouldRetire else {
+            completion(result)
+            return
+        }
+        switch result {
+        case .failure:
+            finish(result)
+        case .success(let source):
+            source.cancel { [self] retirement in
+                switch retirement {
+                case .success:
+                    finish(.failure(CancellationError()))
+                case .failure(let error):
+                    finish(.failure(error))
+                }
+            }
+        }
+    }
+
+    private func finish(
+        _ result: Result<AOSDesktopPixelWarmSource, Error>
+    ) {
+        lock.lock()
+        guard !completionSettled else {
+            lock.unlock()
+            return
+        }
+        completionSettled = true
+        lock.unlock()
+        completion(result)
+    }
+}
+
 private final class AOSDesktopPixelStopAttempt: @unchecked Sendable {
     private var cancellationRequested = false
     private var finished = false
@@ -319,6 +458,12 @@ private final class AOSDesktopPixelStopAttempt: @unchecked Sendable {
 }
 
 private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable {
+    private enum RetirementAction {
+        case confirmInactive
+        case none
+        case stop(AOSDesktopPixelStopAttempt)
+    }
+
     private enum StartState {
         case failed
         case pending
@@ -366,9 +511,8 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
     func requestRetirement() {
         lock.lock()
         retirementRequested = true
-        let shouldStop = startState != .pending
         lock.unlock()
-        if shouldStop { startStopIfNeeded() }
+        retireIfNeeded()
     }
 
     func waitForRetirement(timeout: TimeInterval) async -> Bool {
@@ -388,26 +532,43 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
     private func startCompleted(_ result: Result<Void, Error>) {
         lock.lock()
         startState = result.isSuccess ? .succeeded : .failed
-        let shouldStop = retirementRequested && !retired && !stopInFlight
         lock.unlock()
-        if shouldStop { startStopIfNeeded() }
+        retireIfNeeded()
     }
 
-    private func startStopIfNeeded() {
+    private func retireIfNeeded() {
         lock.lock()
         guard retirementRequested, !retired, !stopInFlight else {
             lock.unlock()
             return
         }
-        guard startState != .pending else {
-            lock.unlock()
-            return
+        let action: RetirementAction
+        switch startState {
+        case .pending:
+            action = .none
+        case .failed:
+            retired = true
+            action = .confirmInactive
+        case .succeeded:
+            let attempt = AOSDesktopPixelStopAttempt()
+            stopAttempt = attempt
+            stopInFlight = true
+            action = .stop(attempt)
         }
-        let attempt = AOSDesktopPixelStopAttempt()
-        stopAttempt = attempt
-        stopInFlight = true
         lock.unlock()
 
+        switch action {
+        case .none:
+            return
+        case .confirmInactive:
+            lifecycle.confirmRetirement()
+            retirement.observe()
+        case .stop(let attempt):
+            startStop(attempt)
+        }
+    }
+
+    private func startStop(_ attempt: AOSDesktopPixelStopAttempt) {
         let task = Task.detached(priority: .utility) { [self, attempt] in
             let result: Result<Void, Error>
             do {
@@ -489,6 +650,7 @@ private extension Result where Success == Void, Failure == Error {
 func aosStartDesktopPixelStreams(
     lifecycles: [AOSDesktopPixelStreamLifecycle],
     settlementTimeout: TimeInterval,
+    cancellation: AOSDesktopPixelStartupCancellation? = nil,
     start: @escaping @Sendable (_ index: Int) async throws -> Void,
     stop: @escaping @Sendable (_ index: Int) async throws -> Void
 ) async throws {
@@ -498,6 +660,11 @@ func aosStartDesktopPixelStreams(
     let count = lifecycles.count
     let decision = AOSDesktopPixelStartupDecision(count: count)
     let startupSettlement = AOSDesktopPixelAggregateSettlement(count: count)
+    if let cancellation,
+       !cancellation.register({ decision.cancel() }) {
+        throw CancellationError()
+    }
+    defer { cancellation?.clear() }
     let coordinators = lifecycles.enumerated().map { index, lifecycle in
         AOSDesktopPixelStartupStreamCoordinator(
             lifecycle: lifecycle,

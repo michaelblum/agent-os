@@ -439,6 +439,33 @@ func runDesktopPixelNativeLifecycleTests() throws {
         "failed display did not retain sibling startup ownership"
     )
 
+    let failedOnlyLifecycle = FakePixelStreamLifecycle()
+    let failedOnlyStopCalls = LockedCounter()
+    let failedOnlySettled = DispatchSemaphore(value: 0)
+    let failedOnlyPreservedError = LockedBoolean()
+    Task {
+        do {
+            try await aosStartDesktopPixelStreams(
+                lifecycles: [failedOnlyLifecycle],
+                settlementTimeout: 0.1,
+                start: { _ in
+                    throw AOSDesktopFrameCaptureFailure.captureFailed
+                },
+                stop: { _ in failedOnlyStopCalls.increment() }
+            )
+        } catch let failure as AOSDesktopFrameCaptureFailure {
+            failedOnlyPreservedError.set(failure == .captureFailed)
+        } catch {}
+        failedOnlySettled.signal()
+    }
+    require(
+        failedOnlySettled.wait(timeout: .now() + 1) == .success
+            && failedOnlyPreservedError.get()
+            && failedOnlyStopCalls.get() == 0
+            && failedOnlyLifecycle.retirementWasObserved(),
+        "failed native startup was stopped or lost its initiating error"
+    )
+
     let canceledStartupSettlement = AOSDesktopPixelAggregateSettlement(count: 1)
     DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.01) {
         canceledStartupSettlement.complete(success: true)
@@ -638,15 +665,15 @@ func runDesktopPixelNativeLifecycleTests() throws {
     )
     require(
         startupHungStopEntered.wait(timeout: .now()) == .success
-            && startupHungStopEntered.wait(timeout: .now()) == .success,
-        "startup retirement did not begin every stop attempt"
+            && startupHungStopEntered.wait(timeout: .now()) == .timedOut,
+        "startup retirement did not isolate the successfully started stream"
     )
     Task { await startupHungStopRelease.open() }
     require(
         startupHungStopFinished.wait(timeout: .now() + 1) == .success
-            && startupHungStopFinished.wait(timeout: .now() + 1) == .success
-            && canceledStartupHungStops.get() == startupHungStopLifecycles.count,
-        "retirement timeout did not cancel every tracked stop task"
+            && startupHungStopFinished.wait(timeout: .now()) == .timedOut
+            && canceledStartupHungStops.get() == 1,
+        "retirement timeout did not cancel the tracked successful-stream stop"
     )
 
     let startupLifecycles = [
@@ -667,8 +694,9 @@ func runDesktopPixelNativeLifecycleTests() throws {
         "startup-compensation fixture unexpectedly succeeded"
     )
     require(
-        startupLifecycles.allSatisfy { $0.retirementWasObserved() },
-        "startup compensation did not retain explicit stream retirement"
+        startupLifecycles.allSatisfy { $0.retirementWasObserved() }
+            && startupStopCalls.get() == 1,
+        "startup compensation did not distinguish failed and active streams"
     )
     require(
         settlePixelRetirements(
@@ -676,8 +704,8 @@ func runDesktopPixelNativeLifecycleTests() throws {
             timeout: 0.1
         ) { _ in
             startupStopCalls.increment()
-        } && startupStopCalls.get() == startupLifecycles.count,
-        "outer cleanup stopped streams already retired by startup compensation"
+        } && startupStopCalls.get() == 1,
+        "startup compensation stopped a failed stream or retried cleanup"
     )
 
     let delegateFirst = FakePixelStreamLifecycle()

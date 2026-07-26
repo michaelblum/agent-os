@@ -351,7 +351,8 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
     }
 
     static func open(
-        request: AOSDesktopPixelSnapshotRequest
+        request: AOSDesktopPixelSnapshotRequest,
+        cancellation: AOSDesktopPixelStartupCancellation
     ) async throws -> AOSNativeDesktopPixelWarmSource {
         guard CGPreflightScreenCaptureAccess() else {
             throw AOSDesktopFrameCaptureFailure.permissionDenied
@@ -446,7 +447,8 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
             let configuredEntries = entries
             try await aosStartDesktopPixelStreams(
                 lifecycles: configuredEntries.map(\.output),
-                settlementTimeout: aosDesktopPixelStreamRetirementTimeout
+                settlementTimeout: aosDesktopPixelStreamRetirementTimeout,
+                cancellation: cancellation
             ) { index in
                 try await configuredEntries[index].stream.startCapture()
             } stop: { index in
@@ -624,15 +626,16 @@ final class AOSNativeDesktopPixelAcquirer: AOSDesktopPixelAcquiring,
             completion(.failure(AOSDesktopFrameCaptureFailure.unsupported))
             return AOSDesktopFrameCancellation()
         }
-        let task = Task.detached(priority: .userInitiated) {
-            do {
-                completion(.success(try await AOSNativeDesktopPixelWarmSource.open(
-                    request: request
-                )))
-            } catch {
-                completion(.failure(error))
-            }
-        }
-        return AOSDesktopFrameCancellation { task.cancel() }
+        let operation = AOSDesktopPixelWarmOpenOperation(
+            open: { cancellation in
+                try await AOSNativeDesktopPixelWarmSource.open(
+                    request: request,
+                    cancellation: cancellation
+                )
+            },
+            completion: completion
+        )
+        operation.start()
+        return operation
     }
 }

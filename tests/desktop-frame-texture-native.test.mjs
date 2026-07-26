@@ -29,6 +29,10 @@ const nativeLifecycleTestsSource = path.join(
   repoRoot,
   'tests/lib/desktop-pixel-native-lifecycle-tests.swift',
 )
+const warmOpenOperationTestsSource = path.join(
+  repoRoot,
+  'tests/lib/desktop-pixel-warm-open-operation-tests.swift',
+)
 async function compileHarness(root) {
   const main = path.join(root, 'main.swift')
   const executable = path.join(root, 'desktop-frame-proof')
@@ -226,6 +230,7 @@ func rejectedCode(_ outcome: AOSDesktopFrameCaptureOutcome) -> String? {
 struct DesktopFrameProof {
     static func main() throws {
         let owner = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
+        try runDesktopPixelWarmOpenOperationTests()
         try runDesktopPixelNativeLifecycleTests()
         try runDesktopPixelBrokerTests()
         try runDesktopFrameWarmPoolTests()
@@ -1163,6 +1168,7 @@ struct DesktopFrameProof {
     controllerSource,
     responseEnvelopeSource,
     nativeLifecycleTestsSource,
+    warmOpenOperationTestsSource,
     brokerTestsSource,
     warmPoolTestsSource,
     main,
