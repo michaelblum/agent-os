@@ -33,9 +33,13 @@ failure immediately requests compensating stops for the complete set while
 retaining late startup-completion ownership; both startup completion and native
 retirement must settle before later work is admitted. That aggregate retirement
 wait ignores caller cancellation but remains deadline-bounded, because
-cancellation is the reason cleanup is often running. A warm stream retains its
-latest complete or started native sample, so it uses a fixed queue depth of
-three and cannot become ready
+cancellation is the reason cleanup is often running. Superseding a warm
+configuration does not cancel an in-flight ScreenCaptureKit `startCapture()`;
+startup settles before one acknowledged retirement begins, so native start and
+stop never race. A startup that misses the settlement deadline fails the broker
+closed while its coordinator retains ownership and retires any late completion.
+A warm stream retains its latest complete or started native
+sample, so it uses a fixed queue depth of three and cannot become ready
 until every display has retained a usable frame and then delivered a later,
 numeric producer timestamp. An idle callback proves liveness for a static
 display but never replaces the retained image. Missing status metadata and

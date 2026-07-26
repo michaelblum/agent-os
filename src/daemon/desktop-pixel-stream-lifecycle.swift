@@ -327,7 +327,6 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
 
     private let lifecycle: AOSDesktopPixelStreamLifecycle
     private let lock = NSLock()
-    private var postStartStopRequired = false
     private let retirement = AOSDesktopPixelRetirementLatch()
     private var retirementRequested = false
     private var retired = false
@@ -367,8 +366,9 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
     func requestRetirement() {
         lock.lock()
         retirementRequested = true
+        let shouldStop = startState != .pending
         lock.unlock()
-        startStopIfNeeded()
+        if shouldStop { startStopIfNeeded() }
     }
 
     func waitForRetirement(timeout: TimeInterval) async -> Bool {
@@ -399,8 +399,10 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
             lock.unlock()
             return
         }
-        let beganWhileStartPending = startState == .pending
-        if beganWhileStartPending { postStartStopRequired = true }
+        guard startState != .pending else {
+            lock.unlock()
+            return
+        }
         let attempt = AOSDesktopPixelStopAttempt()
         stopAttempt = attempt
         stopInFlight = true
@@ -416,8 +418,7 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
             }
             stopCompleted(
                 result,
-                attempt: attempt,
-                beganWhileStartPending: beganWhileStartPending
+                attempt: attempt
             )
             attempt.finish()
         }
@@ -426,8 +427,7 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
 
     private func stopCompleted(
         _ result: Result<Void, Error>,
-        attempt: AOSDesktopPixelStopAttempt,
-        beganWhileStartPending: Bool
+        attempt: AOSDesktopPixelStopAttempt
     ) {
         lock.lock()
         guard stopAttempt === attempt else {
@@ -436,7 +436,6 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
         }
         stopAttempt = nil
         stopInFlight = false
-        let startHasSettled = startState != .pending
         let confirmsRetirement: Bool
         switch result {
         case .success:
@@ -445,24 +444,15 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
             confirmsRetirement = lifecycle.retirementWasObserved()
                 || aosDesktopPixelStopErrorConfirmsRetirement(error)
         }
-        let canRetire = !beganWhileStartPending
-            && startHasSettled
-            && confirmsRetirement
+        let canRetire = startState != .pending && confirmsRetirement
         if canRetire {
             retired = true
-            postStartStopRequired = false
         }
-        let requiresPostStartStop = beganWhileStartPending
-            && startHasSettled
-            && retirementRequested
-            && !retired
         lock.unlock()
 
         if canRetire {
             lifecycle.confirmRetirement()
             retirement.observe()
-        } else if requiresPostStartStop {
-            startStopIfNeeded()
         }
     }
 
@@ -482,7 +472,6 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
         lock.lock()
         let canRetire = retirementRequested
             && startState != .pending
-            && !postStartStopRequired
             && !retired
         if canRetire { retired = true }
         lock.unlock()
@@ -516,8 +505,8 @@ func aosStartDesktopPixelStreams(
             stop: { try await stop(index) }
         )
     }
-    let tasks = coordinators.map { coordinator in
-        coordinator.begin { completion in
+    coordinators.forEach { coordinator in
+        _ = coordinator.begin { completion in
             decision.complete(completion)
             startupSettlement.complete(success: true)
         }
@@ -527,10 +516,8 @@ func aosStartDesktopPixelStreams(
             try await decision.value()
         } onCancel: {
             decision.cancel()
-            tasks.forEach { $0.cancel() }
         }
     } catch {
-        tasks.forEach { $0.cancel() }
         coordinators.forEach { $0.requestRetirement() }
         let retirementSettlement = AOSDesktopPixelAggregateSettlement(count: count)
         let compensationTasks = coordinators.map { coordinator in
