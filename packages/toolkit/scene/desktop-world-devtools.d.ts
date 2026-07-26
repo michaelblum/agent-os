@@ -14,6 +14,14 @@ export interface DesktopWorldDevToolsStageSnapshot {
   contract: typeof DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID;
   sequence: number;
   status: 'available' | 'unavailable' | 'unknown';
+  native?: Readonly<{
+    desktopFrameWarm: Readonly<{
+      displayCount: number;
+      errorCode: string | null;
+      generation: number;
+      state: 'failed' | 'idle' | 'ready' | 'retiring' | 'warming';
+    }>;
+  }>;
   world: {
     displays: ReadonlyArray<Readonly<{
       id: string;

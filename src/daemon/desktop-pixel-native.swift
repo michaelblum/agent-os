@@ -379,6 +379,7 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
         let windows = content.windows.filter { excluded.contains(Int($0.windowID)) }
         var entries: [Entry] = []
         var phase = "configure"
+        var startupCompleted = false
         let openedAt = Date()
 
         do {
@@ -444,20 +445,16 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
             phase = "start"
             let configuredEntries = entries
             try await aosStartDesktopPixelStreams(
-                count: configuredEntries.count,
+                lifecycles: configuredEntries.map(\.output),
                 settlementTimeout: aosDesktopPixelStreamRetirementTimeout
             ) { index in
                 try await configuredEntries[index].stream.startCapture()
-            } compensate: { index in
+            } stop: { index in
                 let entry = configuredEntries[index]
                 entry.output.quiesce()
-                return await aosSettleDesktopPixelStreamRetirement(
-                    lifecycle: entry.output,
-                    timeout: aosDesktopPixelStreamRetirementTimeout
-                ) {
-                    try await entry.stream.stopCapture()
-                }
+                try await entry.stream.stopCapture()
             }
+            startupCompleted = true
             let source = AOSNativeDesktopPixelWarmSource(entries: entries)
             // The browser-side request expires at 1.5 seconds. Leave the
             // remaining budget for freeze, encoding, decode, and presentation.
@@ -466,7 +463,7 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
             return source
         } catch {
             entries.forEach { $0.output.quiesce() }
-            if !(await stopEntries(entries)) {
+            if startupCompleted, !(await stopEntries(entries)) {
                 aosLogDesktopPixelWarmOpenFailure(
                     phase: phase,
                     elapsedSince: openedAt,

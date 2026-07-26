@@ -1,5 +1,22 @@
 import Foundation
 
+final class LockedWarmStatuses: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [AOSDesktopFrameWarmStatus] = []
+
+    func append(_ value: AOSDesktopFrameWarmStatus) {
+        lock.lock()
+        values.append(value)
+        lock.unlock()
+    }
+
+    func contains(_ state: AOSDesktopFrameWarmState) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return values.contains(where: { $0.state == state })
+    }
+}
+
 final class SequencedWarmAcquirer: AOSDesktopPixelWarmAcquiring {
     private let lock = NSLock()
     private var nextIndex = 0
@@ -112,10 +129,19 @@ func runDesktopFrameWarmPoolTests() throws {
         ),
         strategy: .prewarmedSnapshot
     )
+    let observedWarmStatuses = LockedWarmStatuses()
+    capturer.setWarmStatusObserver { observedWarmStatuses.append($0) }
     capturer.reconcileWarm(configuration)
     let initialStatus = waitForWarmState(capturer, .ready)
     require(initialStatus.state == .ready, "warm pool did not become ready")
     require(acquirer.openCount == 1, "warm pool opened duplicate native sources")
+    require(
+        waitForCondition {
+            observedWarmStatuses.contains(.warming)
+                && observedWarmStatuses.contains(.ready)
+        },
+        "warm pool did not publish its bounded lifecycle transitions"
+    )
 
     for _ in 0..<2 {
         require(

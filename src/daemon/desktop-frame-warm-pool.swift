@@ -33,7 +33,16 @@ struct AOSDesktopFrameWarmStatus: Equatable {
 
 protocol AOSDesktopFrameWarmPreparing: AnyObject {
     func reconcileWarm(_ configuration: AOSDesktopFrameWarmConfiguration?)
+    func setWarmStatusObserver(
+        _ observer: ((AOSDesktopFrameWarmStatus) -> Void)?
+    )
     func warmStatus() -> AOSDesktopFrameWarmStatus
+}
+
+extension AOSDesktopFrameWarmPreparing {
+    func setWarmStatusObserver(
+        _ observer: ((AOSDesktopFrameWarmStatus) -> Void)?
+    ) {}
 }
 
 protocol AOSDesktopFrameRuntimeCapturing: AOSDesktopFrameWarmPreparing {
@@ -63,6 +72,8 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
     private var sourceRecoveryBlockedGeneration: UInt64?
     private var startup: AOSDesktopFrameCancelling?
     private var state: AOSDesktopFrameWarmState = .idle
+    private var statusObserver: ((AOSDesktopFrameWarmStatus) -> Void)?
+    private var lastNotifiedStatus: AOSDesktopFrameWarmStatus?
     private var terminalFailure = false
 
     init(
@@ -80,13 +91,17 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
     }
 
     func warmStatus() -> AOSDesktopFrameWarmStatus {
-        queue.sync {
-            AOSDesktopFrameWarmStatus(
-                displayCount: desired?.displayIDs.count ?? 0,
-                errorCode: failure?.code,
-                generation: generation,
-                state: state
-            )
+        queue.sync { statusOnQueue() }
+    }
+
+    func setWarmStatusObserver(
+        _ observer: ((AOSDesktopFrameWarmStatus) -> Void)?
+    ) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            statusObserver = observer
+            lastNotifiedStatus = nil
+            notifyStatusIfChangedOnQueue()
         }
     }
 
@@ -130,6 +145,7 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
     private func reconcileOnQueue(
         _ configuration: AOSDesktopFrameWarmConfiguration?
     ) {
+        defer { notifyStatusIfChangedOnQueue() }
         if desired == configuration {
             if state == .failed, !retiring, !terminalFailure {
                 beginDesiredOnQueue()
@@ -152,6 +168,7 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
     }
 
     private func beginDesiredOnQueue() {
+        defer { notifyStatusIfChangedOnQueue() }
         guard !retiring else { return }
         guard let configuration = desired else {
             state = .idle
@@ -200,6 +217,7 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
         configuration: AOSDesktopFrameWarmConfiguration,
         result: Result<AOSDesktopPixelWarmLease, Error>
     ) {
+        defer { notifyStatusIfChangedOnQueue() }
         guard self.generation == generation,
               desired == configuration,
               !retiring else { return }
@@ -233,6 +251,7 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
         leaseID: UUID,
         error: Error
     ) {
+        defer { notifyStatusIfChangedOnQueue() }
         guard self.generation == generation,
               desired == configuration,
               lease?.id == leaseID,
@@ -272,6 +291,7 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
     }
 
     private func retireCurrentOnQueue() {
+        defer { notifyStatusIfChangedOnQueue() }
         guard !retiring else { return }
         retiring = true
         state = .retiring
@@ -305,6 +325,7 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
     }
 
     private func retirementSettledOnQueue(_ result: Result<Void, Error>) {
+        defer { notifyStatusIfChangedOnQueue() }
         guard retiring else { return }
         retiring = false
         if case .failure(let error) = result {
@@ -315,5 +336,21 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
             return
         }
         beginDesiredOnQueue()
+    }
+
+    private func statusOnQueue() -> AOSDesktopFrameWarmStatus {
+        AOSDesktopFrameWarmStatus(
+            displayCount: desired?.displayIDs.count ?? 0,
+            errorCode: failure?.code,
+            generation: generation,
+            state: state
+        )
+    }
+
+    private func notifyStatusIfChangedOnQueue() {
+        let current = statusOnQueue()
+        guard current != lastNotifiedStatus else { return }
+        lastNotifiedStatus = current
+        statusObserver?(current)
     }
 }

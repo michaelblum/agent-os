@@ -150,6 +150,14 @@ function stageSnapshot(overrides = {}) {
     contract: DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID,
     sequence: 7,
     status: 'available',
+    native: {
+      desktopFrameWarm: {
+        displayCount: 2,
+        errorCode: null,
+        generation: 4,
+        state: 'ready',
+      },
+    },
     world: {
       displays: [
         { id: 'left', index: 0, bounds: [0, 0, 1920, 1080], nativeBounds: [-1920, 0, 1920, 1080] },
@@ -197,6 +205,44 @@ test('DesktopWorld DevTools stage normalization is strict, bounded, and content-
   assert.equal(normalized.counters.activeGestures, 1);
   assert.equal(normalized.counters.activeRoutes, 1);
   assert.deepEqual(normalized.world.displays[0].nativeBounds, [-1920, 0, 1920, 1080]);
+  assert.deepEqual(normalized.native.desktopFrameWarm, {
+    displayCount: 2,
+    errorCode: null,
+    generation: 4,
+    state: 'ready',
+  });
+});
+
+test('DesktopWorld DevTools bounds native warm status without exposing capture content', () => {
+  const normalized = normalizeDesktopWorldDevToolsStageSnapshot(stageSnapshot({
+    native: {
+      desktopFrameWarm: {
+        displayCount: 99,
+        errorCode: 'x'.repeat(100),
+        generation: -1,
+        state: 'unknown',
+        pixels: 'not allowed',
+      },
+      frame: 'not allowed',
+    },
+  }));
+
+  assert.deepEqual(normalized.native, {
+    desktopFrameWarm: {
+      displayCount: 16,
+      errorCode: 'x'.repeat(64),
+      generation: 0,
+      state: 'idle',
+    },
+  });
+});
+
+test('browser-authored stage snapshots do not invent daemon-owned native state', () => {
+  const browser = stageSnapshot();
+  delete browser.native;
+  const normalized = normalizeDesktopWorldDevToolsStageSnapshot(browser);
+
+  assert.equal('native' in normalized, false);
 });
 
 test('DesktopWorld DevTools keeps older display facts readable without inventing native geometry', () => {

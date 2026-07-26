@@ -208,6 +208,20 @@ class UnifiedDaemon {
         sceneStageCanvasID: sceneStageCanvasID,
         ensureSceneStage: { [weak self] in self?.desktopWorldSceneTransport.ensureStage() != nil },
         hasSceneMonitor: { [weak self] in self?.hasDesktopWorldSceneMonitor() ?? false },
+        nativeStageFacts: { [weak self] in
+            guard let status = self?.desktopFrameCapture.warmStatus() else {
+                return .idle
+            }
+            return AOSDesktopWorldDevToolsNativeStageFacts(
+                displayCount: status.displayCount,
+                errorCode: status.errorCode,
+                generation: status.generation,
+                state: status.state.rawValue
+            )
+        },
+        observeNativeStageFacts: { [weak self] changed in
+            self?.desktopFrameCapture.setWarmStatusObserver { _ in changed() }
+        },
         resolveContentURL: { [weak self] value in self?.resolveContentURL(value) ?? value }
     )
     private let voiceTelemetryLock = NSLock()

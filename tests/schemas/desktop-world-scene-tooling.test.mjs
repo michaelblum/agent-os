@@ -60,6 +60,17 @@ function stage() {
 
 test('DesktopWorld tooling schemas accept canonical content-free facts', () => {
   assert.equal(validate('desktop-world-devtools-stage-v1.schema.json', stage()).status, 0)
+  assert.equal(validate('desktop-world-devtools-stage-v1.schema.json', {
+    ...stage(),
+    native: {
+      desktopFrameWarm: {
+        displayCount: 2,
+        errorCode: null,
+        generation: 4,
+        state: 'ready',
+      },
+    },
+  }).status, 0)
   assert.equal(validate('scene-replay-v1.schema.json', {
     status: 'ok', contract: 'aos.scene.replay.v1', eventCount: 3, resourceCount: 1,
     resources: ['companion/main'], completedGestures: 1, canceledGestures: 0,
@@ -75,6 +86,18 @@ test('DesktopWorld tooling schemas reject product content and unknown fields', (
   const productRoute = stage()
   productRoute.world.routes[0].label = 'Fast travel to secret target'
   assert.notEqual(validate('desktop-world-devtools-stage-v1.schema.json', productRoute).status, 0)
+  assert.notEqual(validate('desktop-world-devtools-stage-v1.schema.json', {
+    ...stage(),
+    native: {
+      desktopFrameWarm: {
+        displayCount: 1,
+        errorCode: null,
+        generation: 1,
+        state: 'ready',
+        pixels: 'secret',
+      },
+    },
+  }).status, 0)
   assert.notEqual(validate('scene-replay-v1.schema.json', {
     status: 'ok', contract: 'aos.scene.replay.v1', eventCount: 0, resourceCount: 0,
     resources: [], completedGestures: 0, canceledGestures: 0, finalPositions: {}, prompt: 'secret',

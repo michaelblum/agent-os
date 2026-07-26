@@ -275,6 +275,12 @@ final class AOSNativeDesktopFrameCapturer:
         warmPool.warmStatus()
     }
 
+    func setWarmStatusObserver(
+        _ observer: ((AOSDesktopFrameWarmStatus) -> Void)?
+    ) {
+        warmPool.setWarmStatusObserver(observer)
+    }
+
     @discardableResult
     func capturePrewarmed(
         _ configuration: AOSDesktopFrameWarmConfiguration,

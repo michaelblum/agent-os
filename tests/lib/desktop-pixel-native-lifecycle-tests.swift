@@ -36,16 +36,44 @@ final class LockedCounter: @unchecked Sendable {
     private let lock = NSLock()
     private var value = 0
 
-    func increment() {
+    @discardableResult
+    func increment() -> Int {
         lock.lock()
         value += 1
+        let current = value
         lock.unlock()
+        return current
     }
 
     func get() -> Int {
         lock.lock()
         defer { lock.unlock() }
         return value
+    }
+}
+
+final class LockedConcurrencyProbe: @unchecked Sendable {
+    private var active = 0
+    private let lock = NSLock()
+    private var maximum = 0
+
+    func enter() {
+        lock.lock()
+        active += 1
+        maximum = max(maximum, active)
+        lock.unlock()
+    }
+
+    func leave() {
+        lock.lock()
+        active -= 1
+        lock.unlock()
+    }
+
+    func maximumObserved() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return maximum
     }
 }
 
@@ -67,21 +95,44 @@ actor PixelOperationBarrier {
     }
 }
 
+actor PixelOperationGate {
+    private var opened = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func open() {
+        guard !opened else { return }
+        opened = true
+        let pending = waiters
+        waiters = []
+        pending.forEach { $0.resume() }
+    }
+
+    func wait() async {
+        guard !opened else { return }
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+}
+
 func startPixelStreams(
     count: Int,
     settlementTimeout: TimeInterval = 0.1,
-    compensate: @escaping @Sendable (_ index: Int) async -> Bool = { _ in true },
+    lifecycles: [AOSDesktopPixelStreamLifecycle]? = nil,
+    stop: @escaping @Sendable (_ index: Int) async throws -> Void = { _ in },
     start: @escaping @Sendable (_ index: Int) async throws -> Void
 ) -> Bool {
     let settled = DispatchSemaphore(value: 0)
     let result = LockedBoolean()
+    let ownedLifecycles = lifecycles
+        ?? (0..<count).map { _ in FakePixelStreamLifecycle() }
     Task {
         do {
             try await aosStartDesktopPixelStreams(
-                count: count,
+                lifecycles: ownedLifecycles,
                 settlementTimeout: settlementTimeout,
                 start: start,
-                compensate: compensate
+                stop: stop
             )
             result.set(true)
         } catch {
@@ -96,24 +147,8 @@ func startPixelStreams(
     return result.get()
 }
 
-func startupCompensationRequired(
-    _ decision: AOSDesktopPixelStartupDecision
-) -> Bool {
-    let settled = DispatchSemaphore(value: 0)
-    let result = LockedBoolean()
-    Task {
-        result.set(await decision.compensationIsRequired())
-        settled.signal()
-    }
-    require(
-        settled.wait(timeout: .now() + 1) == .success,
-        "startup decision did not settle"
-    )
-    return result.get()
-}
-
-func waitForStartupSettlementFromCanceledTask(
-    _ settlement: AOSDesktopPixelStartupSettlement,
+func waitForAggregateSettlementFromCanceledTask(
+    _ settlement: AOSDesktopPixelAggregateSettlement,
     timeout: TimeInterval
 ) -> Bool {
     let began = DispatchSemaphore(value: 0)
@@ -398,20 +433,12 @@ func runDesktopPixelNativeLifecycleTests() throws {
         "failed display did not cancel a stalled sibling startup"
     )
 
-    let orderedFailure = AOSDesktopPixelStartupDecision(count: 2)
-    orderedFailure.complete(.success(()))
-    orderedFailure.complete(.failure(AOSDesktopFrameCaptureFailure.captureFailed))
-    require(
-        startupCompensationRequired(orderedFailure),
-        "early success did not adopt the later aggregate failure"
-    )
-
-    let canceledStartupSettlement = AOSDesktopPixelStartupSettlement(count: 1)
+    let canceledStartupSettlement = AOSDesktopPixelAggregateSettlement(count: 1)
     DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.01) {
-        canceledStartupSettlement.complete(retired: true)
+        canceledStartupSettlement.complete(success: true)
     }
     require(
-        waitForStartupSettlementFromCanceledTask(
+        waitForAggregateSettlementFromCanceledTask(
             canceledStartupSettlement,
             timeout: 0.1
         ),
@@ -421,27 +448,123 @@ func runDesktopPixelNativeLifecycleTests() throws {
     let lateStartBarrier = PixelOperationBarrier()
     let releaseLateStart = DispatchSemaphore(value: 0)
     let lateStartCompensated = DispatchSemaphore(value: 0)
+    let lateStartStopCalls = LockedCounter()
+    let lateStartStopConcurrency = LockedConcurrencyProbe()
+    let lateStartResult = startPixelStreams(
+        count: 2,
+        settlementTimeout: 0.2,
+        stop: { index in
+            if index == 0 {
+                lateStartStopConcurrency.enter()
+                defer { lateStartStopConcurrency.leave() }
+                if lateStartStopCalls.increment() == 1 {
+                    lateStartCompensated.signal()
+                    releaseLateStart.signal()
+                    throw NSError(
+                        domain: SCStreamErrorDomain,
+                        code: SCStreamError.Code.attemptToStopStreamState.rawValue
+                    )
+                }
+            }
+        }
+    ) { index in
+        await lateStartBarrier.arrive(expected: 2)
+        if index == 1 {
+            throw AOSDesktopFrameCaptureFailure.captureFailed
+        }
+        releaseLateStart.wait()
+    }
+    let compensatedBeforeCallerRelease = lateStartCompensated.wait(
+        timeout: .now()
+    ) == .success
+    releaseLateStart.signal()
+    require(
+        !lateStartResult,
+        "cancellation-insensitive startup escaped the settlement deadline"
+    )
+    require(
+        compensatedBeforeCallerRelease,
+        "aggregate failure did not compensate a cancellation-insensitive startup immediately"
+    )
+    require(
+        lateStartStopCalls.get() == 2,
+        "an early invalid-state stop was not followed by one post-start stop"
+    )
+    require(
+        lateStartStopConcurrency.maximumObserved() == 1,
+        "startup retirement allowed overlapping stop owners"
+    )
+
+    let delegateRetirementLifecycles = [
+        FakePixelStreamLifecycle(),
+        FakePixelStreamLifecycle(),
+    ]
+    let delegateStopEntered = DispatchSemaphore(value: 0)
+    let delegateStopCanceled = DispatchSemaphore(value: 0)
+    DispatchQueue.global(qos: .utility).async {
+        _ = delegateStopEntered.wait(timeout: .now() + 1)
+        delegateRetirementLifecycles[0].confirmRetirement()
+    }
     require(
         !startPixelStreams(
-            count: 2,
-            settlementTimeout: 0.05,
-            compensate: { index in
-                if index == 0 { lateStartCompensated.signal() }
-                return true
+            count: delegateRetirementLifecycles.count,
+            settlementTimeout: 0.2,
+            lifecycles: delegateRetirementLifecycles,
+            stop: { index in
+                guard index == 0 else { return }
+                delegateStopEntered.signal()
+                while !Task.isCancelled { await Task.yield() }
+                delegateStopCanceled.signal()
             }
         ) { index in
-            await lateStartBarrier.arrive(expected: 2)
             if index == 1 {
                 throw AOSDesktopFrameCaptureFailure.captureFailed
             }
-            releaseLateStart.wait()
         },
-        "cancellation-insensitive startup escaped the settlement deadline"
+        "delegate-first startup retirement unexpectedly succeeded"
     )
-    releaseLateStart.signal()
     require(
-        lateStartCompensated.wait(timeout: .now() + 1) == .success,
-        "late successful startup was not compensated after aggregate failure"
+        delegateStopCanceled.wait(timeout: .now()) == .success,
+        "native retirement did not cancel and join its pending stop task"
+    )
+
+    let startupHungStopLifecycles = [
+        FakePixelStreamLifecycle(),
+        FakePixelStreamLifecycle(),
+    ]
+    let startupHungStopEntered = DispatchSemaphore(value: 0)
+    let startupHungStopRelease = PixelOperationGate()
+    let startupHungStopFinished = DispatchSemaphore(value: 0)
+    let canceledStartupHungStops = LockedCounter()
+    require(
+        !startPixelStreams(
+            count: startupHungStopLifecycles.count,
+            settlementTimeout: 0.05,
+            lifecycles: startupHungStopLifecycles,
+            stop: { _ in
+                startupHungStopEntered.signal()
+                await startupHungStopRelease.wait()
+                if Task.isCancelled { canceledStartupHungStops.increment() }
+                startupHungStopFinished.signal()
+            }
+        ) { index in
+            if index == 1 {
+                throw AOSDesktopFrameCaptureFailure.captureFailed
+            }
+        },
+        "cancellation-insensitive stop escaped the retirement deadline"
+    )
+    require(
+        startupHungStopEntered.wait(timeout: .now()) == .success
+            && startupHungStopEntered.wait(timeout: .now()) == .success,
+        "startup retirement did not begin every stop attempt"
+    )
+    Task { await startupHungStopRelease.open() }
+    require(
+        startupHungStopFinished.wait(timeout: .now() + 1) == .success
+            && startupHungStopFinished.wait(timeout: .now() + 1) == .success
+            && canceledStartupHungStops.get() == startupHungStopLifecycles.count,
+        "retirement timeout did not cancel every tracked stop task"
     )
 
     let startupLifecycles = [
@@ -452,14 +575,8 @@ func runDesktopPixelNativeLifecycleTests() throws {
     require(
         !startPixelStreams(
             count: startupLifecycles.count,
-            compensate: { index in
-                await aosSettleDesktopPixelStreamRetirement(
-                    lifecycle: startupLifecycles[index],
-                    timeout: 0.1
-                ) {
-                    startupStopCalls.increment()
-                }
-            }
+            lifecycles: startupLifecycles,
+            stop: { _ in startupStopCalls.increment() }
         ) { index in
             if index == 1 {
                 throw AOSDesktopFrameCaptureFailure.captureFailed
