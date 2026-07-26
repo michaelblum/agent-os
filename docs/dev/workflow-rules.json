@@ -272,8 +272,11 @@
         "packages/toolkit/components/desktop-world-stage/**",
         "src/daemon/desktop-world-scene-*.swift",
         "src/commands/direct-screen-capture-permission.swift",
+        "src/daemon/desktop-frame-capture-adapter.swift",
         "src/daemon/desktop-frame-capture-consent.swift",
         "src/daemon/desktop-frame-capture-controller.swift",
+        "src/daemon/desktop-pixel-broker.swift",
+        "src/daemon/desktop-pixel-native.swift",
         "src/daemon/scene-event.swift",
         "src/daemon/scene-lease-registry.swift",
         "src/daemon/unified.swift",
@@ -292,6 +295,8 @@
         "tests/desktop-world-scene-event-routing.test.mjs",
         "tests/desktop-world-scene-result-coordinator.test.mjs",
         "tests/desktop-frame-texture-native.test.mjs",
+        "tests/desktop-pixel-broker-contract.test.mjs",
+        "tests/lib/desktop-pixel-broker-tests.swift",
         "tests/aos-permissions-microphone-authority.test.mjs",
         "tests/daemon-desktop-world-devtools-contract.test.mjs",
         "tests/toolkit/desktop-world-scene-*.test.mjs",
@@ -342,7 +347,7 @@
         },
         {
           "id": "scene-extension-contract",
-          "command": "node --test tests/toolkit/scene-extension.test.mjs tests/toolkit/desktop-frame-texture-source.test.mjs tests/toolkit/desktop-world-scene-extension-loader.test.mjs tests/toolkit/desktop-world-scene-extension-operation.test.mjs tests/toolkit/desktop-world-scene-extension-projection.test.mjs tests/desktop-frame-texture-native.test.mjs tests/scene-extension-cli.test.mjs tests/scene-extension-native-store.test.mjs",
+          "command": "node --test tests/toolkit/scene-extension.test.mjs tests/toolkit/desktop-frame-texture-source.test.mjs tests/toolkit/desktop-world-scene-extension-loader.test.mjs tests/toolkit/desktop-world-scene-extension-operation.test.mjs tests/toolkit/desktop-world-scene-extension-projection.test.mjs tests/desktop-frame-texture-native.test.mjs tests/desktop-pixel-broker-contract.test.mjs tests/scene-extension-cli.test.mjs tests/scene-extension-native-store.test.mjs",
           "reason": "Verify reviewed extension identity, validation, loading, operation, projection, immutable storage, and disposal."
         },
         {

@@ -90,16 +90,24 @@ owns hit regions, recognition, arbitration, capture, cancellation, and
 canonical gesture events; the hook cannot consume input or commit product
 state.
 
-V1 deliberately uses one-shot ScreenCaptureKit capture through
-`SCScreenshotManager`, JPEG encoding, WebKit decode, and GPU upload. It is not a
-zero-copy IOSurface contract and is not a continuous desktop stream. Individual
-display captures may have bounded temporal skew even though storage admission
-and presentation are whole-set barriers. This is the smallest supported path
-that proves the privacy and compositor boundary.
-Measured input-to-texture latency and repeated-effect resource evidence decide
-whether AOS replaces only the native capture backend with a prewarmed
-`SCStream` latest-frame broker. That optimization must retain the same lease,
-authorization, topology, and pixel-free public contracts.
+Native desktop acquisition is owned by one daemon pixel broker. Its one-shot
+snapshot result is an in-memory `CGImage` set; it creates no file, base64 value,
+or encoded artifact. Direct-consent probing and DesktopWorld runtime capture
+share that broker instance and therefore cannot invoke overlapping
+ScreenCaptureKit operations. JPEG encoding remains a downstream adapter at the
+private WebKit presentation boundary.
+
+The initial V1 implementation deliberately used one-shot ScreenCaptureKit
+capture through `SCScreenshotManager`, downstream JPEG encoding, WebKit decode,
+and GPU upload. It was not a zero-copy IOSurface contract or a continuous
+desktop stream. Individual display captures could have bounded temporal skew
+even though storage admission and presentation were whole-set barriers. This
+was the smallest supported path that proved the privacy and compositor
+boundary.
+ADR 0031 replaces the native acquisition backend with a bounded `SCStream`
+warm-snapshot broker while retaining the same lease, authorization, topology,
+and pixel-free public contracts. JPEG/WebKit presentation remains temporary and
+is measured independently.
 
 ## Consequences
 
