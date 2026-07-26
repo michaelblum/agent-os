@@ -224,6 +224,12 @@ final class AOSDesktopFrameCaptureController {
         capturer.warmStatus()
     }
 
+    func setWarmStatusObserver(
+        _ observer: ((AOSDesktopFrameWarmStatus) -> Void)?
+    ) {
+        capturer.setWarmStatusObserver(observer)
+    }
+
     private func finish(
         generation: UInt64,
         releaseEpoch: Bool,

@@ -22,8 +22,10 @@ test('daemon routes bounded stage snapshots and every revisioned session action'
     assert.match(unified, new RegExp(`case \\(\\"scene\\", \\"${action}\\"\\)`))
   }
   assert.match(unified, /AOSDesktopWorldDevToolsController/)
+  assert.match(unified, /observeNativeStageFacts:[\s\S]*setWarmStatusObserver/)
   assert.doesNotMatch(unified, /mutateDesktopWorldDevToolsCanvas|transferDesktopWorldDevToolsHost|String\?\?/)
   assert.match(controller, /final class AOSDesktopWorldDevToolsController/)
+  assert.match(controller, /observeNativeStageFacts[\s\S]*publishSnapshots/)
   assert.match(controller, /guard !Thread\.isMainThread, ensureSceneStage\(\) else \{ return false \}/)
   assert.match(controller, /aos:\/\/toolkit\/components\/desktop-world-devtools\/index\.html/)
   assert.match(controller, /closeSessionHosts/)

@@ -229,6 +229,23 @@ function normalizePerformance(value = {}) {
   })
 }
 
+function normalizeNativeState(value = {}) {
+  const desktopFrameWarm = value.desktopFrameWarm && typeof value.desktopFrameWarm === 'object'
+    ? value.desktopFrameWarm
+    : {}
+  const warmStates = ['failed', 'idle', 'ready', 'retiring', 'warming']
+  return Object.freeze({
+    desktopFrameWarm: Object.freeze({
+      displayCount: boundedInteger(desktopFrameWarm.displayCount, 0, 0, 16),
+      errorCode: desktopFrameWarm.errorCode == null
+        ? null
+        : boundedString(desktopFrameWarm.errorCode, '', 64),
+      generation: boundedInteger(desktopFrameWarm.generation, 0),
+      state: warmStates.includes(desktopFrameWarm.state) ? desktopFrameWarm.state : 'idle',
+    }),
+  })
+}
+
 function normalizeEvent(value = {}, index = 0) {
   return Object.freeze({
     sequence: boundedInteger(value.sequence, index + 1),
@@ -501,7 +518,7 @@ export function normalizeDesktopWorldDevToolsStageSnapshot(input = {}) {
   const routes = boundedNormalized(world.routes, DESKTOP_WORLD_DEVTOOLS_LIMITS.resources, normalizeRoute)
   const interactions = boundedNormalized(input.interactions, DESKTOP_WORLD_DEVTOOLS_LIMITS.interactions, normalizeInteraction)
   const displays = boundedNormalized(world.displays, 16, normalizeDisplay)
-  return Object.freeze({
+  const snapshot = {
     contract: DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID,
     sequence: boundedInteger(input.sequence, 0),
     status: ['available', 'unavailable'].includes(input.status) ? input.status : 'unknown',
@@ -523,7 +540,11 @@ export function normalizeDesktopWorldDevToolsStageSnapshot(input = {}) {
     lastError: input.lastError && typeof input.lastError === 'object'
       ? Object.freeze({ code: boundedString(input.lastError.code, 'UNKNOWN', 64), at: finite(input.lastError.at, 0, 0, Number.MAX_SAFE_INTEGER) })
       : null,
-  })
+  }
+  if (input.native && typeof input.native === 'object' && !Array.isArray(input.native)) {
+    snapshot.native = normalizeNativeState(input.native)
+  }
+  return Object.freeze(snapshot)
 }
 
 function normalizeHost(value) {

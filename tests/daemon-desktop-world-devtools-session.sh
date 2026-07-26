@@ -58,7 +58,15 @@ func stageSnapshot() -> [String: Any] {
     ]
 }
 
-let registry = AOSDesktopWorldDevToolsSessionRegistry()
+var nativeWarmState = AOSDesktopWorldDevToolsNativeStageFacts(
+    displayCount: 1,
+    errorCode: nil,
+    generation: 2,
+    state: "warming"
+)
+let registry = AOSDesktopWorldDevToolsSessionRegistry(
+    nativeStageFacts: { nativeWarmState }
+)
 guard let parsedUpdate = AOSDesktopWorldDevToolsUpdateRequest.parse([
     "selected_resource": NSNull(),
     "active_tab": "interactions",
@@ -170,13 +178,27 @@ default: fatalError("stale update was not rejected")
 
 var leaked = stageSnapshot()
 leaked["transcript"] = "secret"
+leaked["native"] = ["desktopFrameWarm": ["pixels": "secret"]]
 require(registry.recordStageSnapshot(leaked), "valid stage snapshot with unknown renderer field was rejected")
+nativeWarmState = AOSDesktopWorldDevToolsNativeStageFacts(
+    displayCount: 1,
+    errorCode: nil,
+    generation: 3,
+    state: "ready"
+)
 let canonical = registry.snapshot(sessionID: first.id)!
 require(canonical["stageSnapshotRevision"] as? Int == 1, "session snapshot lost the stage receipt revision")
 let canonicalSession = canonical["session"] as! [String: Any]
 require(canonicalSession["stageSnapshotReady"] as? Bool == true, "interactive session reported pending freshness")
 let stage = canonical["stage"] as! [String: Any]
 require(stage["transcript"] == nil, "unknown renderer content crossed the daemon boundary")
+let native = stage["native"] as! [String: Any]
+let warm = native["desktopFrameWarm"] as! [String: Any]
+require(warm["displayCount"] as? Int == 1, "native warm display count was lost")
+require(warm["generation"] as? Int == 3, "native warm generation was lost")
+require(warm["state"] as? String == "ready", "native warm state was lost")
+require(warm["errorCode"] == nil || warm["errorCode"] is NSNull, "native warm status invented an error")
+require(warm["pixels"] == nil, "renderer-supplied native content crossed the daemon boundary")
 let canonicalWorld = stage["world"] as! [String: Any]
 let canonicalDisplay = (canonicalWorld["displays"] as! [[String: Any]])[0]
 require(canonicalDisplay["bounds"] as? [Double] == [200.0, 0.0, 1440.0, 900.0], "DesktopWorld display bounds drifted")

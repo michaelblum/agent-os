@@ -56,9 +56,11 @@ numeric, monotonically advancing timestamp. The later callback may be idle
 because ScreenCaptureKit uses that status when a live display has not changed;
 it proves liveness but does not replace the retained image. Missing status
 metadata, nonnumeric times, blank, suspended, and stopped callbacks fail closed.
-Startup failure or cancellation retires the complete configured set. A canceled
-startup remains owned through its eventual callback;
-a late success performs compensating retirement. Missing startup or retirement
+Startup failure or cancellation immediately requests compensating stops for the
+complete configured set while retaining ownership of every pending startup
+callback. The aggregate does not settle until every startup returns and every
+native stream confirms retirement; a late success therefore cannot escape
+cleanup. Missing startup or retirement
 settlement faults the broker before it can admit later work. Failure diagnostics
 contain only the startup phase, bounded elapsed milliseconds, and a reason code.
 Cancellation, permission loss, topology mismatch, source failure, daemon
@@ -83,6 +85,16 @@ sample per display.
 The broker enforces fixed display-count, per-display pixel, and aggregate pixel
 ceilings before invoking ScreenCaptureKit. Downstream consumers may set stricter
 limits but cannot raise the broker-owned ceilings.
+
+At read time, the daemon decorates DesktopWorld inspection with only the warm
+pool's content-free native stage health: `state`, `displayCount`, `generation`,
+and a redacted `errorCode`. The browser-produced stage snapshot remains the
+canonical engine record, while each inspection observes current native state.
+This lets agents and acceptance harnesses wait for `ready` without probing
+capture or guessing a delay. Warm lifecycle transitions also republish to an
+already-active DevTools host; this is transition-driven and adds no sampler or
+frame loop. Pixels, handles, paths, frame timestamps, and desktop facts do not
+enter DevTools.
 
 For compatibility, DesktopWorld's existing `desktop_frame.acquire` request now
 uses one warm snapshot internally and retains the exact lease, topology,

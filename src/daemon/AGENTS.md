@@ -29,11 +29,13 @@ lifecycle. They return in-memory pixel
 frames only; encoding, cropping, redaction, persistence, and GPU delivery
 belong to downstream adapters. Multi-display warm acquisition configures the
 complete stream set before starting every display concurrently; partial startup
-failure retains late completion ownership and retires that complete set before
-later work is admitted. That aggregate retirement wait ignores caller
-cancellation but remains deadline-bounded, because cancellation is the reason
-cleanup is often running. A warm stream retains its latest complete or started
-native sample, so it uses a fixed queue depth of three and cannot become ready
+failure immediately requests compensating stops for the complete set while
+retaining late startup-completion ownership; both startup completion and native
+retirement must settle before later work is admitted. That aggregate retirement
+wait ignores caller cancellation but remains deadline-bounded, because
+cancellation is the reason cleanup is often running. A warm stream retains its
+latest complete or started native sample, so it uses a fixed queue depth of
+three and cannot become ready
 until every display has retained a usable frame and then delivered a later,
 numeric producer timestamp. An idle callback proves liveness for a static
 display but never replaces the retained image. Missing status metadata and
@@ -90,6 +92,12 @@ order; failure restores the previous host. The daemon may create the stock AOS
 panel but owns no DevTools layout or product policy. Connection-scoped scene
 monitors consume the same canonical stage snapshot and existing probe cadence;
 they must not add another sampler or survive their owning connection.
+At inspection read time, the daemon decorates canonical stage snapshots with
+only the native desktop-frame warm pool's state, display count, generation, and
+redacted error code. Browser snapshots do not own or cache those facts, and
+bounded warm lifecycle transitions republish to active DevTools hosts without
+polling. DevTools never includes pixels, handles, paths, frame timestamps, or
+captured desktop facts.
 
 Use generic nouns in daemon contracts. Prefer `canvas`, `surface`,
 `input_region`, `binding`, `channel`, and `lifecycle` over product names such as

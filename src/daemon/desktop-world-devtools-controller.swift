@@ -7,13 +7,17 @@ final class AOSDesktopWorldDevToolsController {
     private let ensureSceneStage: () -> Bool
     private let hasSceneMonitor: () -> Bool
     private let resolveContentURL: (String) -> String
-    private let sessions = AOSDesktopWorldDevToolsSessionRegistry()
+    private let sessions: AOSDesktopWorldDevToolsSessionRegistry
 
     init(
         canvasManager: CanvasManager,
         sceneStageCanvasID: String,
         ensureSceneStage: @escaping () -> Bool,
         hasSceneMonitor: @escaping () -> Bool,
+        nativeStageFacts: @escaping () -> AOSDesktopWorldDevToolsNativeStageFacts = {
+            .idle
+        },
+        observeNativeStageFacts: (@escaping () -> Void) -> Void = { _ in },
         resolveContentURL: @escaping (String) -> String
     ) {
         self.canvasManager = canvasManager
@@ -21,6 +25,14 @@ final class AOSDesktopWorldDevToolsController {
         self.ensureSceneStage = ensureSceneStage
         self.hasSceneMonitor = hasSceneMonitor
         self.resolveContentURL = resolveContentURL
+        sessions = AOSDesktopWorldDevToolsSessionRegistry(
+            nativeStageFacts: nativeStageFacts
+        )
+        observeNativeStageFacts { [weak self] in
+            DispatchQueue.main.async { [weak self] in
+                self?.publishSnapshots()
+            }
+        }
     }
 
     @discardableResult

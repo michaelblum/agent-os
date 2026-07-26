@@ -3,6 +3,46 @@ import Foundation
 let aosDesktopWorldDevToolsStageContract = "aos.desktop-world.devtools.stage.v1"
 let aosDesktopWorldDevToolsSnapshotContract = "aos.desktop-world.devtools.snapshot.v1"
 
+struct AOSDesktopWorldDevToolsNativeStageFacts: Equatable {
+    private static let maximumSafeGeneration: UInt64 = 9_007_199_254_740_991
+    private static let warmStates = ["failed", "idle", "ready", "retiring", "warming"]
+
+    let displayCount: Int
+    let errorCode: String?
+    let generation: UInt64
+    let state: String
+
+    init(
+        displayCount: Int,
+        errorCode: String?,
+        generation: UInt64,
+        state: String
+    ) {
+        self.displayCount = min(max(displayCount, 0), 16)
+        self.errorCode = errorCode.map { String($0.prefix(64)) }
+        self.generation = min(generation, Self.maximumSafeGeneration)
+        self.state = Self.warmStates.contains(state) ? state : "idle"
+    }
+
+    static let idle = AOSDesktopWorldDevToolsNativeStageFacts(
+        displayCount: 0,
+        errorCode: nil,
+        generation: 0,
+        state: "idle"
+    )
+
+    var dictionary: [String: Any] {
+        [
+            "desktopFrameWarm": [
+                "displayCount": displayCount,
+                "errorCode": errorCode.map { $0 as Any } ?? NSNull(),
+                "generation": Int(generation),
+                "state": state,
+            ],
+        ]
+    }
+}
+
 enum AOSDesktopWorldDevToolsTab: String, Codable, CaseIterable {
     case world
     case resources
@@ -386,11 +426,20 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
     private let lock = NSLock()
     private let maximumSessions = 8
     private var sessions: [String: AOSDesktopWorldDevToolsSessionState] = [:]
+    private let nativeStageFacts: () -> AOSDesktopWorldDevToolsNativeStageFacts
     private var hostOwners: [String: String] = [:]
     private var pendingBySession: [String: PendingTransfer] = [:]
     private var pendingByToken: [UUID: PendingTransfer] = [:]
     private var stageSnapshot: [String: Any] = AOSDesktopWorldDevToolsSessionRegistry.unavailableStageSnapshot()
     private var stageSnapshotRevision = 0
+
+    init(
+        nativeStageFacts: @escaping () -> AOSDesktopWorldDevToolsNativeStageFacts = {
+            .idle
+        }
+    ) {
+        self.nativeStageFacts = nativeStageFacts
+    }
 
     func create(
         selectedResource: String? = nil,
@@ -557,45 +606,66 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
 
     func snapshot(sessionID: String) -> [String: Any]? {
         lock.lock()
-        defer { lock.unlock() }
-        guard let state = sessions[sessionID] else { return nil }
-        return Self.snapshotDictionary(
+        guard let state = sessions[sessionID] else {
+            lock.unlock()
+            return nil
+        }
+        let snapshot = Self.snapshotDictionary(
             state: state,
             stage: stageSnapshot,
             stageSnapshotRevision: stageSnapshotRevision
         )
+        lock.unlock()
+        return decorateSnapshot(snapshot, native: nativeStageFacts())
     }
 
     func snapshots() -> [[String: Any]] {
         lock.lock()
-        defer { lock.unlock() }
-        return sessions.values.sorted(by: { $0.id < $1.id }).map {
+        let snapshots = sessions.values.sorted(by: { $0.id < $1.id }).map {
             Self.snapshotDictionary(
                 state: $0,
                 stage: stageSnapshot,
                 stageSnapshotRevision: stageSnapshotRevision
             )
         }
+        lock.unlock()
+        let native = nativeStageFacts()
+        return snapshots.map { decorateSnapshot($0, native: native) }
     }
 
     func stageSnapshot(resourceID: String? = nil) -> [String: Any]? {
         lock.lock()
-        defer { lock.unlock() }
-        guard let resourceID else { return stageSnapshot }
-        guard Self.validIdentifier(resourceID) else { return nil }
-        return Self.filteredStageSnapshot(stageSnapshot, resourceID: resourceID)
+        let snapshot: [String: Any]?
+        if let resourceID {
+            snapshot = Self.validIdentifier(resourceID)
+                ? Self.filteredStageSnapshot(stageSnapshot, resourceID: resourceID)
+                : nil
+        } else {
+            snapshot = stageSnapshot
+        }
+        lock.unlock()
+        guard let snapshot else { return nil }
+        return decorateStage(snapshot, native: nativeStageFacts())
     }
 
     func activeHostSnapshots() -> [(host: AOSDesktopWorldDevToolsHost, snapshot: [String: Any])] {
         lock.lock()
-        defer { lock.unlock() }
-        return sessions.values.compactMap { state in
+        let snapshots: [(host: AOSDesktopWorldDevToolsHost, snapshot: [String: Any])] =
+            sessions.values.compactMap { state in
             guard let host = state.host else { return nil }
-            return (host, Self.snapshotDictionary(
+            return (host: host, snapshot: Self.snapshotDictionary(
                 state: state,
                 stage: stageSnapshot,
                 stageSnapshotRevision: stageSnapshotRevision
             ))
+        }
+        lock.unlock()
+        let native = nativeStageFacts()
+        return snapshots.map {
+            (
+                host: $0.host,
+                snapshot: decorateSnapshot($0.snapshot, native: native)
+            )
         }
     }
 
@@ -676,6 +746,25 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
             "session": session,
             "stage": stage,
         ]
+    }
+
+    private func decorateSnapshot(
+        _ input: [String: Any],
+        native: AOSDesktopWorldDevToolsNativeStageFacts
+    ) -> [String: Any] {
+        guard let stage = input["stage"] as? [String: Any] else { return input }
+        var output = input
+        output["stage"] = decorateStage(stage, native: native)
+        return output
+    }
+
+    private func decorateStage(
+        _ input: [String: Any],
+        native: AOSDesktopWorldDevToolsNativeStageFacts
+    ) -> [String: Any] {
+        var output = input
+        output["native"] = native.dictionary
+        return output
     }
 
     private static func unavailableStageSnapshot() -> [String: Any] {
