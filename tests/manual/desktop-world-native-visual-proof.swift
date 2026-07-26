@@ -7,7 +7,6 @@ private let markerPointSize: CGFloat = 128
 private let maximumDisplayCount = 8
 private let maximumMarkerPixelDimension = 512
 private let markerPresentationTimeoutNanoseconds: UInt64 = 2_000_000_000
-private let totalProofTimeoutNanoseconds: UInt64 = 5_000_000_000
 private let captureAttemptLimit = 8
 
 private func monotonicNanoseconds() -> UInt64 {
@@ -38,7 +37,6 @@ private enum VisualProofFailure: String, Error {
     case displayCaptureUnavailable = "DISPLAY_CAPTURE_UNAVAILABLE"
     case markerPixelsMissing = "MARKER_PIXELS_MISSING"
     case cleanupFailed = "CLEANUP_FAILED"
-    case proofTimedOut = "PROOF_TIMEOUT"
 }
 
 private final class PresentationCounter: @unchecked Sendable {
@@ -282,25 +280,13 @@ private func markerPixelCounts(in image: CGImage) -> MarkerPixelCounts? {
 @MainActor
 private final class VisualProofController: NSObject, NSApplicationDelegate {
     private(set) var exitCode: Int32 = 1
-    private var finishing = false
     private var managedWindowNumbers: [CGWindowID] = []
-    private var runTask: Task<Void, Never>?
     private var surfaces: [MarkerSurface] = []
-    private var watchdogTask: Task<Void, Never>?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        runTask = Task { @MainActor [weak self] in
-            guard let self else { return }
+        Task { @MainActor in
             await run()
-        }
-        watchdogTask = Task { @MainActor [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: totalProofTimeoutNanoseconds)
-            } catch {
-                return
-            }
-            guard let self else { return }
-            await finishFailure(VisualProofFailure.proofTimedOut)
+            NSApp.terminate(nil)
         }
     }
 
@@ -428,19 +414,11 @@ private final class VisualProofController: NSObject, NSApplicationDelegate {
     }
 
     private func finishSuccess(_ payload: [String: Any]) {
-        guard !finishing else { return }
-        finishing = true
-        watchdogTask?.cancel()
         emit(payload)
         exitCode = 0
-        NSApp.terminate(nil)
     }
 
     private func finishFailure(_ error: Error) async {
-        guard !finishing else { return }
-        finishing = true
-        watchdogTask?.cancel()
-        runTask?.cancel()
         let retainedWindowCount = await disposeAndCountRetainedWindows()
         let code = (error as? VisualProofFailure)?.rawValue
             ?? "NATIVE_VISUAL_PROOF_FAILED"
@@ -452,7 +430,6 @@ private final class VisualProofController: NSObject, NSApplicationDelegate {
             "retained_windows": retainedWindowCount,
         ])
         exitCode = 1
-        NSApp.terminate(nil)
     }
 
     private func disposeAndCountRetainedWindows() async -> Int {
