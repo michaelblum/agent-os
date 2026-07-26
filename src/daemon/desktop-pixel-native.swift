@@ -149,6 +149,30 @@ private struct AOSDesktopPixelLatestSample: @unchecked Sendable {
     let sampleBuffer: CMSampleBuffer
 }
 
+struct AOSDesktopPixelFrameAdvancement {
+    static let requiredDistinctFrames: UInt64 = 2
+
+    private(set) var distinctFrameCount: UInt64 = 0
+    private var lastPresentationTime: CMTime?
+
+    mutating func observe(presentationTime: CMTime) -> Bool {
+        guard presentationTime.isValid else { return false }
+        if let lastPresentationTime,
+           CMTimeCompare(presentationTime, lastPresentationTime) <= 0 {
+            return false
+        }
+        lastPresentationTime = presentationTime
+        if distinctFrameCount < Self.requiredDistinctFrames {
+            distinctFrameCount += 1
+        }
+        return true
+    }
+
+    var isReady: Bool {
+        distinctFrameCount >= Self.requiredDistinctFrames
+    }
+}
+
 private final class AOSDesktopPixelStreamOutput: NSObject,
     AOSDesktopPixelStreamLifecycle,
     SCStreamOutput,
@@ -157,6 +181,7 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
     let displayID: UInt32
     private var acceptingSamples = true
     private var failure: Error?
+    private var frameAdvancement = AOSDesktopPixelFrameAdvancement()
     private var latestSample: AOSDesktopPixelLatestSample?
     private let lock = NSLock()
     private let retirementLatch = AOSDesktopPixelRetirementLatch()
@@ -183,8 +208,10 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
            SCFrameStatus(rawValue: statusValue.intValue) != .complete {
             return
         }
+        let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         lock.lock()
-        if acceptingSamples {
+        if acceptingSamples,
+           frameAdvancement.observe(presentationTime: presentationTime) {
             latestSample = AOSDesktopPixelLatestSample(
                 capturedAt: Date(),
                 sampleBuffer: sampleBuffer
@@ -197,6 +224,7 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
         lock.lock()
         acceptingSamples = false
         failure = error
+        frameAdvancement = AOSDesktopPixelFrameAdvancement()
         latestSample = nil
         lock.unlock()
         retirementLatch.observe()
@@ -215,13 +243,12 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
     }
 
     func sampleIsReady() throws -> Bool {
-        do {
-            _ = try snapshot()
-            return true
-        } catch let failure as AOSDesktopFrameCaptureFailure
-            where failure == .frameNotReady {
-            return false
+        lock.lock()
+        defer { lock.unlock() }
+        if let failure {
+            throw aosDesktopFrameCaptureFailure(for: failure)
         }
+        return latestSample != nil && frameAdvancement.isReady
     }
 
     func snapshot() throws -> AOSDesktopPixelLatestSample {
@@ -239,6 +266,7 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
     func quiesce() {
         lock.lock()
         acceptingSamples = false
+        frameAdvancement = AOSDesktopPixelFrameAdvancement()
         latestSample = nil
         lock.unlock()
     }
@@ -336,7 +364,9 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
                 configuration.capturesAudio = false
                 configuration.captureResolution = .best
                 configuration.minimumFrameInterval = CMTime(value: 1, timescale: 30)
-                configuration.queueDepth = 1
+                // Retaining the latest IOSurface occupies one producer slot.
+                // Two additional slots permit ScreenCaptureKit to advance.
+                configuration.queueDepth = 3
                 configuration.pixelFormat = kCVPixelFormatType_32BGRA
                 let filter = SCContentFilter(
                     display: display,

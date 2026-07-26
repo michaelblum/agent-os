@@ -32,7 +32,10 @@ complete stream set before starting every display concurrently; partial startup
 failure retains late completion ownership and retires that complete set before
 later work is admitted. That aggregate retirement wait ignores caller
 cancellation but remains deadline-bounded, because cancellation is the reason
-cleanup is often running.
+cleanup is often running. A warm stream retains its latest native sample, so it
+uses a fixed queue depth of three and cannot become ready until every display
+has delivered two distinct complete frame timestamps. This proves producer
+advancement instead of mistaking a retained first frame for a live source.
 `desktop-frame-capture-adapter.swift` converts a
 snapshot into the private WebKit presentation format.
 `desktop-frame-warm-pool.swift` owns capability-scoped prewarming for the

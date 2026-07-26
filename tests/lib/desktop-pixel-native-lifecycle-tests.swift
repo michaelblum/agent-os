@@ -186,6 +186,35 @@ func settlePixelRetirements(
 }
 
 func runDesktopPixelNativeLifecycleTests() throws {
+    var frameAdvancement = AOSDesktopPixelFrameAdvancement()
+    let firstFrameTime = CMTime(value: 1, timescale: 30)
+    let secondFrameTime = CMTime(value: 2, timescale: 30)
+    require(!frameAdvancement.isReady, "empty stream was reported ready")
+    require(
+        frameAdvancement.observe(presentationTime: firstFrameTime),
+        "first complete frame was not observed"
+    )
+    require(
+        !frameAdvancement.isReady,
+        "warm stream was ready before proving frame advancement"
+    )
+    require(
+        !frameAdvancement.observe(presentationTime: firstFrameTime),
+        "duplicate frame timestamp advanced warm readiness"
+    )
+    require(
+        !frameAdvancement.observe(presentationTime: .zero),
+        "out-of-order frame timestamp advanced warm readiness"
+    )
+    require(
+        frameAdvancement.observe(presentationTime: secondFrameTime),
+        "second distinct frame was not observed"
+    )
+    require(
+        frameAdvancement.isReady,
+        "two distinct complete frames did not prove advancement"
+    )
+
     require(
         aosDesktopPixelStreamRetirementTimeout >= 1
             && aosDesktopPixelStreamRetirementTimeout

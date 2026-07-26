@@ -31,7 +31,9 @@ The broker supports two acquisition forms:
 - **snapshot** uses one bounded `SCScreenshotManager` operation;
 - **warm snapshot** opens one `SCStream` per admitted display, excludes the
   owning DesktopWorld windows, and retains only the latest complete sample per
-  display for a whole-display freeze.
+  display for a whole-display freeze. Each stream uses a fixed queue depth of
+  three: one slot may remain retained by the latest sample while two bounded
+  producer slots permit frame advancement.
 
 Warm snapshots have two lifecycles. Explicit consent probes stop every stream
 immediately after one freeze. Runtime DesktopWorld requests never use that
@@ -49,7 +51,9 @@ A warm lease is owner-bound, singular, cancelable, and valid only while its
 latest samples remain fresh. A different owner cannot freeze or release it.
 All admitted display streams are configured before any startup begins, then
 started concurrently as one aggregate. Readiness still requires a fresh sample
-from every display. Startup failure or cancellation retires the complete
+from every display, and each display must advance through two distinct complete
+frame timestamps before the source is considered live. Startup failure or
+cancellation retires the complete
 configured set. A canceled startup remains owned through its eventual callback;
 a late success performs compensating retirement. Missing startup or retirement
 settlement faults the broker before it can admit later work. Failure diagnostics
