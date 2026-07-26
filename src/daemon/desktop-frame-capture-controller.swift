@@ -257,7 +257,7 @@ final class AOSNativeDesktopFrameCapturer: AOSDesktopFrameCapturing {
         maximumPixelsPerDisplay: Int,
         completion: @escaping (Result<AOSDesktopFrameCaptureSetResult, Error>) -> Void
     ) -> AOSDesktopFrameCancelling {
-        let task = Task { @MainActor [actor] in
+        let task = Task.detached(priority: .userInitiated) { [actor] in
             do {
                 completion(.success(try await actor.capture(
                     displayIDs: displayIDs,

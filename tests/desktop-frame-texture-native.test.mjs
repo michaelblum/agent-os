@@ -138,6 +138,10 @@ struct DesktopFrameProof {
     static func main() throws {
         let owner = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
         require(
+            AOSDesktopFrameCaptureConsentController.probeLifetime == 2,
+            "direct-capture probe no longer fails within its interactive bound"
+        )
+        require(
             aosDesktopFrameCaptureFailure(for: NSError(
                 domain: SCStreamErrorDomain,
                 code: SCStreamError.Code.userDeclined.rawValue

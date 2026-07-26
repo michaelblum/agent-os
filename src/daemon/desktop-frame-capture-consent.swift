@@ -14,7 +14,10 @@ private let aosDesktopFramePermissionRequestQueue = DispatchQueue(
 final class AOSDesktopFrameCaptureConsentController {
     static let maximumPrimeWaiters = 16
     static let permissionRequestLifetime: TimeInterval = 120
-    static let probeLifetime: TimeInterval = 30
+    // A granted capture that cannot return a tiny frame promptly is not usable
+    // for interactive desktop effects. Permission requests retain their own
+    // human-scale deadline above; this phase is machine work only.
+    static let probeLifetime: TimeInterval = 2
     static let probeMaximumPixels = 4_096
     static let responseLifetime: TimeInterval =
         permissionRequestLifetime + probeLifetime + 10
