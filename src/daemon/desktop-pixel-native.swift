@@ -206,6 +206,10 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
         retirementLatch.snapshot()
     }
 
+    func confirmRetirement() {
+        retirementLatch.observe()
+    }
+
     func waitForRetirement(timeout: TimeInterval) async -> Bool {
         await retirementLatch.wait(timeout: timeout)
     }

@@ -35,6 +35,7 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(native, /entries\.append\([\s\S]*aosStartDesktopPixelStreams/u)
   assert.match(native, /aosSettleDesktopPixelStreamRetirement/u)
   assert.match(lifecycle, /retirementWasObserved\(\)/u)
+  assert.match(lifecycle, /lifecycle\.confirmRetirement\(\)/u)
   assert.match(native, /func quiesce\(\)/u)
   assert.match(lifecycle, /withTaskGroup\(of: Bool\.self\)/u)
   assert.match(native, /\[desktop-pixel\] warm-open failed phase=/u)

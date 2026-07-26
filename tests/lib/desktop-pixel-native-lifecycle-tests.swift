@@ -7,6 +7,7 @@ final class FakePixelStreamLifecycle: AOSDesktopPixelStreamLifecycle,
     let latch = AOSDesktopPixelRetirementLatch()
     var readiness: Result<Bool, Error> = .success(false)
 
+    func confirmRetirement() { latch.observe() }
     func sampleIsReady() throws -> Bool { try readiness.get() }
     func retirementWasObserved() -> Bool { latch.snapshot() }
     func waitForRetirement(timeout: TimeInterval) async -> Bool {
@@ -25,6 +26,23 @@ final class LockedBoolean: @unchecked Sendable {
     }
 
     func get() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+}
+
+final class LockedCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+
+    func increment() {
+        lock.lock()
+        value += 1
+        lock.unlock()
+    }
+
+    func get() -> Int {
         lock.lock()
         defer { lock.unlock() }
         return value
@@ -293,6 +311,43 @@ func runDesktopPixelNativeLifecycleTests() throws {
         "late successful startup was not compensated after aggregate failure"
     )
 
+    let startupLifecycles = [
+        FakePixelStreamLifecycle(),
+        FakePixelStreamLifecycle(),
+    ]
+    let startupStopCalls = LockedCounter()
+    require(
+        !startPixelStreams(
+            count: startupLifecycles.count,
+            compensate: { index in
+                await aosSettleDesktopPixelStreamRetirement(
+                    lifecycle: startupLifecycles[index],
+                    timeout: 0.1
+                ) {
+                    startupStopCalls.increment()
+                }
+            }
+        ) { index in
+            if index == 1 {
+                throw AOSDesktopFrameCaptureFailure.captureFailed
+            }
+        },
+        "startup-compensation fixture unexpectedly succeeded"
+    )
+    require(
+        startupLifecycles.allSatisfy { $0.retirementWasObserved() },
+        "startup compensation did not retain explicit stream retirement"
+    )
+    require(
+        settlePixelRetirements(
+            lifecycles: startupLifecycles,
+            timeout: 0.1
+        ) { _ in
+            startupStopCalls.increment()
+        } && startupStopCalls.get() == startupLifecycles.count,
+        "outer cleanup stopped streams already retired by startup compensation"
+    )
+
     let delegateFirst = FakePixelStreamLifecycle()
     delegateFirst.latch.observe()
     require(
@@ -300,6 +355,26 @@ func runDesktopPixelNativeLifecycleTests() throws {
             throw AOSDesktopFrameCaptureFailure.captureFailed
         },
         "delegate-first retirement was rejected"
+    )
+
+    let explicitStop = FakePixelStreamLifecycle()
+    let explicitStopCalls = LockedCounter()
+    require(
+        settlePixelRetirement(lifecycle: explicitStop) {
+            explicitStopCalls.increment()
+        },
+        "successful explicit stop was not accepted as retirement"
+    )
+    require(
+        explicitStop.retirementWasObserved(),
+        "successful explicit stop was not retained by the retirement latch"
+    )
+    require(
+        settlePixelRetirement(lifecycle: explicitStop) {
+            explicitStopCalls.increment()
+            throw AOSDesktopFrameCaptureFailure.captureFailed
+        } && explicitStopCalls.get() == 1,
+        "repeated cleanup retried an explicitly retired stream"
     )
 
     let errorFirst = FakePixelStreamLifecycle()

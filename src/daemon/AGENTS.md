@@ -43,8 +43,9 @@ snapshot used for both prewarming and interaction. One-shot consent probes
 deliver a frozen encoded frame
 before asynchronous stream retirement settles; the broker remains closed until
 native retirement is acknowledged. Delegate-observed and explicit
-ScreenCaptureKit terminal states count as retirement; unknown stop failures
-remain fail-closed.
+ScreenCaptureKit terminal states count as retirement. A successful explicit
+stop is latched so repeated cleanup is idempotent; unknown stop failures remain
+fail-closed.
 `desktop-frame-capture-controller.swift` owns request admission for trusted
 scene extensions. A request is bound to the exact scene revision, canvas and
 topology generation, and current display WebViews. Native
