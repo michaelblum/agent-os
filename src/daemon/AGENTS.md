@@ -32,11 +32,19 @@ complete stream set before starting every display concurrently; partial startup
 failure retains late completion ownership and retires that complete set before
 later work is admitted.
 `desktop-frame-capture-adapter.swift` converts a
-snapshot into the private WebKit presentation format. Warm snapshots deliver a
-frozen encoded frame before asynchronous stream retirement settles; the broker
-remains closed until native retirement is acknowledged. Delegate-observed and
-explicit ScreenCaptureKit terminal states count as retirement; unknown stop
-failures remain fail-closed.
+snapshot into the private WebKit presentation format.
+`desktop-frame-warm-pool.swift` owns capability-scoped prewarming for the
+authorized DesktopWorld stage. It retains only the broker's latest bounded
+native sample set, freezes on demand, and retires on authorization, consent,
+topology, or stage loss. Runtime freezes require the exact generation-bound pool
+configuration and never cold-start ScreenCaptureKit. The capture controller gets
+ordered consumers and excluded stage windows from one main-thread context
+snapshot used for both prewarming and interaction. One-shot consent probes
+deliver a frozen encoded frame
+before asynchronous stream retirement settles; the broker remains closed until
+native retirement is acknowledged. Delegate-observed and explicit
+ScreenCaptureKit terminal states count as retirement; unknown stop failures
+remain fail-closed.
 `desktop-frame-capture-controller.swift` owns request admission for trusted
 scene extensions. A request is bound to the exact scene revision, canvas and
 topology generation, and current display WebViews. Native

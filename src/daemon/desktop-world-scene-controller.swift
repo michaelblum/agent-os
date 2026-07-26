@@ -521,6 +521,22 @@ final class AOSDesktopWorldSceneController {
         }
     }
 
+    func hasAuthorizedCapability(
+        identity: AOSDesktopWorldSceneStageIdentity,
+        capability: String
+    ) -> Bool {
+        guard !capability.isEmpty, capability.utf8.count <= 128 else {
+            return false
+        }
+        return withLock {
+            retirement == nil
+                && readiness.isReady(for: identity)
+                && resourceAuthorizations.values.contains {
+                    $0.capabilities.contains(capability)
+                }
+        }
+    }
+
     private func completeLocked(
         _ completion: AOSDesktopWorldSceneResultCompletion,
         operationID: String

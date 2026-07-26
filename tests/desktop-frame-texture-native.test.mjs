@@ -16,10 +16,15 @@ const streamLifecycleSource = path.join(
   'src/daemon/desktop-pixel-stream-lifecycle.swift',
 )
 const nativePixelSource = path.join(repoRoot, 'src/daemon/desktop-pixel-native.swift')
+const warmPoolSource = path.join(repoRoot, 'src/daemon/desktop-frame-warm-pool.swift')
 const captureAdapterSource = path.join(repoRoot, 'src/daemon/desktop-frame-capture-adapter.swift')
 const controllerSource = path.join(repoRoot, 'src/daemon/desktop-frame-capture-controller.swift')
 const responseEnvelopeSource = path.join(repoRoot, 'src/shared/response-envelope.swift')
 const brokerTestsSource = path.join(repoRoot, 'tests/lib/desktop-pixel-broker-tests.swift')
+const warmPoolTestsSource = path.join(
+  repoRoot,
+  'tests/lib/desktop-frame-warm-pool-tests.swift',
+)
 const nativeLifecycleTestsSource = path.join(
   repoRoot,
   'tests/lib/desktop-pixel-native-lifecycle-tests.swift',
@@ -58,18 +63,20 @@ final class CanvasManager {
         self.windows = windows
     }
 
-    func desktopFrameConsumers(canvasID: String) -> [AOSDesktopFrameConsumerIdentity] {
-        consumers
+    func desktopFrameCaptureContext(canvasID: String) -> AOSDesktopFrameCaptureContext? {
+        AOSDesktopFrameCaptureContext(
+            canvasID: canvasID,
+            consumers: consumers,
+            excludingWindowIDs: windows
+        )
     }
-
-    func windowNumbers(forID id: String) -> [Int] { windows }
 }
 
 final class AOSDesktopWorldSceneTransportController {
     static let stageCanvasID = "aos-desktop-world-stage"
 }
 
-final class FakeCapturer: AOSDesktopFrameCapturing {
+final class FakeCapturer: AOSDesktopFrameCapturing, AOSDesktopFrameRuntimeCapturing {
     var canceled = 0
     var captureCount = 0
     var displayIDs: [UInt32] = []
@@ -78,6 +85,37 @@ final class FakeCapturer: AOSDesktopFrameCapturing {
     var pending: ((Result<AOSDesktopFrameCaptureSetResult, Error>) -> Void)?
     var deferred = false
     var failure: AOSDesktopFrameCaptureFailure?
+    var lastWarmConfiguration: AOSDesktopFrameWarmConfiguration?
+    var lastCaptureConfiguration: AOSDesktopFrameWarmConfiguration?
+    var warmReconcileCount = 0
+
+    func reconcileWarm(_ configuration: AOSDesktopFrameWarmConfiguration?) {
+        warmReconcileCount += 1
+        lastWarmConfiguration = configuration
+    }
+
+    func warmStatus() -> AOSDesktopFrameWarmStatus {
+        AOSDesktopFrameWarmStatus(
+            displayCount: lastWarmConfiguration?.displayIDs.count ?? 0,
+            errorCode: nil,
+            generation: UInt64(warmReconcileCount),
+            state: lastWarmConfiguration == nil ? .idle : .ready
+        )
+    }
+
+    @discardableResult
+    func capturePrewarmed(
+        _ configuration: AOSDesktopFrameWarmConfiguration,
+        completion: @escaping (Result<AOSDesktopFrameCaptureSetResult, Error>) -> Void
+    ) -> AOSDesktopFrameCancelling {
+        lastCaptureConfiguration = configuration
+        return capture(
+            displayIDs: configuration.displayIDs,
+            excludingWindowIDs: configuration.excludingWindowIDs,
+            maximumPixelsPerDisplay: configuration.maximumPixelsPerDisplay,
+            completion: completion
+        )
+    }
 
     @discardableResult
     func capture(
@@ -190,6 +228,7 @@ struct DesktopFrameProof {
         let owner = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
         try runDesktopPixelNativeLifecycleTests()
         try runDesktopPixelBrokerTests()
+        try runDesktopFrameWarmPoolTests()
         require(
             AOSDesktopFrameCaptureConsentController.probeLifetime == 2,
             "direct-capture probe no longer fails within its interactive bound"
@@ -784,7 +823,10 @@ struct DesktopFrameProof {
             "segment_index": 0,
             "topology_generation": 11,
         ]
-        let canvas = CanvasManager(consumers: [consumerA, consumerB], windows: [7, 8])
+        let canvas = CanvasManager(
+            consumers: [consumerB, consumerA],
+            windows: [8, 7, 8]
+        )
         let capturer = FakeCapturer()
         let unprimedCapturer = FakeCapturer()
         let unprimedConsent = AOSDesktopFrameCaptureConsentController(
@@ -805,6 +847,16 @@ struct DesktopFrameProof {
             reauthorize: { capabilityEnabled && $0 == leaseIdentity },
             scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() },
             authorize: { _ in capabilityEnabled ? authorization : nil }
+        )
+        let warmAuthorization = AOSDesktopFrameWarmAuthorization(
+            canvasGeneration: 7,
+            topologyGeneration: 11
+        )
+        unprimedController.reconcileWarm(authorization: warmAuthorization)
+        require(
+            unprimedCapturer.warmReconcileCount == 1
+                && unprimedCapturer.lastWarmConfiguration == nil,
+            "unprimed controller started warm native capture"
         )
         var unprimedCode: String?
         var unprimedAdmitted = false
@@ -847,6 +899,32 @@ struct DesktopFrameProof {
             },
             authorize: { _ in capabilityEnabled ? authorization : nil }
         )
+        controller.reconcileWarm(authorization: AOSDesktopFrameWarmAuthorization(
+            canvasGeneration: 7,
+            topologyGeneration: 12
+        ))
+        require(
+            capturer.lastWarmConfiguration == nil,
+            "stale topology authorization configured warm native capture"
+        )
+        controller.reconcileWarm(authorization: warmAuthorization)
+        require(
+            capturer.lastWarmConfiguration == AOSDesktopFrameWarmConfiguration(
+                canvasGeneration: 7,
+                displayIDs: [42, 43],
+                excludingWindowIDs: [7, 8],
+                maximumPixelsPerDisplay:
+                    AOSDesktopFrameCaptureController.maximumPixelsPerDisplay,
+                topologyGeneration: 11
+            ),
+            "authorized controller did not configure one all-display warm pool"
+        )
+        controller.reconcileWarm(authorization: nil)
+        require(
+            capturer.warmReconcileCount == 3
+                && capturer.lastWarmConfiguration == nil,
+            "authorization removal did not retire warm capture"
+        )
 
         capabilityEnabled = false
         var unauthorizedCode: String?
@@ -860,6 +938,36 @@ struct DesktopFrameProof {
         require(unauthorizedCode == "DESKTOP_FRAME_UNAUTHORIZED", "undeclared capability admitted")
 
         capabilityEnabled = true
+        controller.reconcileWarm(authorization: warmAuthorization)
+        capturer.failure = .permissionDenied
+        var permissionLossCode: String?
+        controller.acquire(
+            callerCanvasID: "stage",
+            payload: payload,
+            admitted: { _ in true }
+        ) {
+            permissionLossCode = rejectedCode($0)
+        }
+        require(
+            permissionLossCode == "DESKTOP_FRAME_PERMISSION_DENIED"
+                && consent.snapshot().status == .permissionRequired,
+            "runtime permission loss did not invalidate direct-capture consent"
+        )
+        require(
+            capturer.lastWarmConfiguration == nil,
+            "runtime permission loss retained the warm capture pool"
+        )
+        capturer.failure = nil
+        var permissionRecoveryStatus: String?
+        consent.prime(owner: owner) {
+            permissionRecoveryStatus = $0.status.rawValue
+        }
+        require(
+            permissionRecoveryStatus == "ready",
+            "explicit prime did not recover runtime permission loss"
+        )
+        controller.reconcileWarm(authorization: warmAuthorization)
+
         var admittedConsumers = 0
         var delivery: AOSDesktopFrameCaptureDelivery?
         controller.acquire(
@@ -880,6 +988,10 @@ struct DesktopFrameProof {
         require(admittedConsumers == 2, "capture admission omitted exact consumers")
         require(capturer.displayIDs == [42, 43], "capture epoch omitted a display")
         require(capturer.excludedWindowIDs == [7, 8], "stage windows were not excluded")
+        require(
+            capturer.lastCaptureConfiguration == capturer.lastWarmConfiguration,
+            "interaction did not use the exact atomically prewarmed context"
+        )
         require(
             capturer.maximumPixels == AOSDesktopFrameCaptureController.maximumPixelsPerDisplay,
             "pixel bound changed"
@@ -1045,12 +1157,14 @@ struct DesktopFrameProof {
     brokerSource,
     streamLifecycleSource,
     nativePixelSource,
+    warmPoolSource,
     captureAdapterSource,
     consentSource,
     controllerSource,
     responseEnvelopeSource,
     nativeLifecycleTestsSource,
     brokerTestsSource,
+    warmPoolTestsSource,
     main,
     '-o',
     executable,
@@ -1104,6 +1218,8 @@ test('daemon desktop-frame routing uses exact consumers and the decode-ready bar
   assert.match(route, /desktop_frame\.abort/u)
   assert.match(unified, /desktop_frame\.presented/u)
   assert.match(unified, /desktopFrameCapture\.cancelUnauthorized\(\)/u)
+  assert.match(unified, /desktopFrameCapture\.reconcileWarm\(/u)
+  assert.match(unified, /desktopFrameTextureAuthorization\(\)/u)
   assert.equal(
     (unified.match(/AOSDesktopFrameDirectCaptureWireContract\.responsePayload/gu) ?? []).length,
     2,

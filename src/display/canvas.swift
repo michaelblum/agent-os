@@ -1494,6 +1494,20 @@ class CanvasManager {
         return Thread.isMainThread ? read() : DispatchQueue.main.sync(execute: read)
     }
 
+    func desktopFrameCaptureContext(canvasID: String) -> AOSDesktopFrameCaptureContext? {
+        let read = { [weak self] () -> AOSDesktopFrameCaptureContext? in
+            guard let surface = self?.canvases[canvasID] as? DesktopWorldSurfaceCanvas else {
+                return nil
+            }
+            return AOSDesktopFrameCaptureContext(
+                canvasID: canvasID,
+                consumers: surface.desktopFrameConsumers(),
+                excludingWindowIDs: surface.windowNumbers
+            )
+        }
+        return Thread.isMainThread ? read() : DispatchQueue.main.sync(execute: read)
+    }
+
     func desktopFrameConsumer(
         canvasID: String,
         webViewID: ObjectIdentifier

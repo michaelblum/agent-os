@@ -42,6 +42,11 @@ struct AOSDesktopFrameCaptureRequest {
     let requestID: String
 }
 
+struct AOSDesktopFrameWarmAuthorization: Equatable {
+    let canvasGeneration: UInt64
+    let topologyGeneration: UInt64
+}
+
 struct AOSDesktopFrameCaptureDelivery {
     let consumers: [AOSDesktopFrameConsumerIdentity]
     let epochID: String
@@ -71,8 +76,7 @@ protocol AOSDesktopFrameCapturing {
 }
 
 protocol AOSDesktopFrameCanvasProviding: AnyObject {
-    func desktopFrameConsumers(canvasID: String) -> [AOSDesktopFrameConsumerIdentity]
-    func windowNumbers(forID id: String) -> [Int]
+    func desktopFrameCaptureContext(canvasID: String) -> AOSDesktopFrameCaptureContext?
 }
 
 extension CanvasManager: AOSDesktopFrameCanvasProviding {}
@@ -106,6 +110,7 @@ final class AOSDesktopFrameCaptureController {
     private struct ActiveRequest {
         let authorization: AOSDesktopFrameCaptureAuthorization
         var capture: AOSDesktopFrameCancelling
+        let context: AOSDesktopFrameCaptureContext
         let consentGeneration: UInt64
         let consumers: [AOSDesktopFrameConsumerIdentity]
         var deadline: AOSDesktopFrameCancelling
@@ -120,7 +125,7 @@ final class AOSDesktopFrameCaptureController {
     private let allowedCanvasID: String
     private let authorize: Authorizer
     private let canvasManager: AOSDesktopFrameCanvasProviding
-    private let capturer: AOSDesktopFrameCapturing
+    private let capturer: AOSDesktopFrameRuntimeCapturing
     private let consent: AOSDesktopFrameCaptureConsentController
     private let handleAbort: AbortHandler
     private let lock = NSLock()
@@ -133,7 +138,9 @@ final class AOSDesktopFrameCaptureController {
     init(
         canvasManager: AOSDesktopFrameCanvasProviding,
         store: AOSDesktopFrameStore,
-        capturer: AOSDesktopFrameCapturing = AOSNativeDesktopFrameCapturer(),
+        capturer: AOSDesktopFrameRuntimeCapturing = AOSNativeDesktopFrameCapturer(
+            strategy: .prewarmedSnapshot
+        ),
         consent: AOSDesktopFrameCaptureConsentController,
         allowedCanvasID: String = AOSDesktopWorldSceneTransportController.stageCanvasID,
         reauthorize: @escaping LeaseAuthorizer,
@@ -156,32 +163,65 @@ final class AOSDesktopFrameCaptureController {
         self.store = store
     }
 
-    private func consumers(
+    private func captureContext(
         callerCanvasID: String,
-        authorization: AOSDesktopFrameCaptureAuthorization,
-        payload: [String: Any]
-    ) -> [AOSDesktopFrameConsumerIdentity]? {
-        let values = canvasManager.desktopFrameConsumers(canvasID: callerCanvasID)
-        guard !values.isEmpty,
-              values.count <= 16,
-              Set(values.map(\.displayID)).count == values.count,
-              values.allSatisfy({
-                  $0.canvasID == callerCanvasID
-                      && $0.canvasGeneration == authorization.canvasGeneration
-                      && $0.topologyGeneration == authorization.topologyGeneration
-              }),
-              let callerDisplay = (payload["segment_display_id"] as? NSNumber)?.uint32Value,
-              let callerIndex = (payload["segment_index"] as? NSNumber)?.intValue,
-              values.contains(where: {
-                  $0.displayID == callerDisplay && $0.segmentIndex == callerIndex
-              }) else {
+        canvasGeneration: UInt64,
+        topologyGeneration: UInt64,
+        payload: [String: Any]? = nil
+    ) -> AOSDesktopFrameCaptureContext? {
+        guard let context = canvasManager.desktopFrameCaptureContext(
+            canvasID: callerCanvasID
+        ),
+              context.consumers.count <= AOSDesktopPixelLimits.maximumDisplayCount,
+              context.canvasID == callerCanvasID,
+              context.canvasGeneration == canvasGeneration,
+              context.topologyGeneration == topologyGeneration else {
             return nil
         }
-        return values.sorted { left, right in
-            left.segmentIndex == right.segmentIndex
-                ? left.displayID < right.displayID
-                : left.segmentIndex < right.segmentIndex
+        if let payload {
+            guard let callerDisplay = (payload["segment_display_id"] as? NSNumber)?.uint32Value,
+                  let callerIndex = (payload["segment_index"] as? NSNumber)?.intValue,
+                  context.consumers.contains(where: {
+                      $0.displayID == callerDisplay && $0.segmentIndex == callerIndex
+                  }) else {
+                return nil
+            }
         }
+        return context
+    }
+
+    private func warmConfiguration(
+        _ context: AOSDesktopFrameCaptureContext
+    ) -> AOSDesktopFrameWarmConfiguration {
+        AOSDesktopFrameWarmConfiguration(
+            canvasGeneration: context.canvasGeneration,
+            displayIDs: context.displayIDs,
+            excludingWindowIDs: context.excludingWindowIDs,
+            maximumPixelsPerDisplay: Self.maximumPixelsPerDisplay,
+            topologyGeneration: context.topologyGeneration
+        )
+    }
+
+    func reconcileWarm(
+        authorization: AOSDesktopFrameWarmAuthorization?
+    ) {
+        guard let authorization, consent.snapshot().status == .ready else {
+            capturer.reconcileWarm(nil)
+            return
+        }
+        guard let context = captureContext(
+            callerCanvasID: allowedCanvasID,
+            canvasGeneration: authorization.canvasGeneration,
+            topologyGeneration: authorization.topologyGeneration
+        ) else {
+            capturer.reconcileWarm(nil)
+            return
+        }
+        capturer.reconcileWarm(warmConfiguration(context))
+    }
+
+    func warmStatus() -> AOSDesktopFrameWarmStatus? {
+        capturer.warmStatus()
     }
 
     private func finish(
@@ -273,9 +313,10 @@ final class AOSDesktopFrameCaptureController {
               requestID.utf8.count <= 128,
               let authorization = authorize(payload),
               authorization.canvasID == callerCanvasID,
-              let initialConsumers = consumers(
+              let initialContext = captureContext(
                   callerCanvasID: callerCanvasID,
-                  authorization: authorization,
+                  canvasGeneration: authorization.canvasGeneration,
+                  topologyGeneration: authorization.topologyGeneration,
                   payload: payload
               ) else {
             completion(.rejected(
@@ -285,6 +326,7 @@ final class AOSDesktopFrameCaptureController {
             return
         }
 
+        let initialConsumers = initialContext.consumers
         let request = AOSDesktopFrameCaptureRequest(
             authorization: authorization,
             consumers: initialConsumers,
@@ -318,6 +360,7 @@ final class AOSDesktopFrameCaptureController {
         activeRequest = ActiveRequest(
             authorization: authorization,
             capture: AOSDesktopFrameCancellation(),
+            context: initialContext,
             consentGeneration: consentGeneration,
             consumers: initialConsumers,
             deadline: AOSDesktopFrameCancellation(),
@@ -347,28 +390,28 @@ final class AOSDesktopFrameCaptureController {
         }, generation: generation)
         guard remainsActive(generation: generation) else { return }
 
-        let captureTask = capturer.capture(
-            displayIDs: initialConsumers.map(\.displayID),
-            excludingWindowIDs: canvasManager.windowNumbers(forID: callerCanvasID),
-            maximumPixelsPerDisplay: Self.maximumPixelsPerDisplay
+        let captureTask = capturer.capturePrewarmed(
+            warmConfiguration(initialContext)
         ) { [weak self] result in
             guard let self else { return }
             do {
                 let capture = try result.get()
                 guard self.authorize(payload) == authorization,
                       self.reauthorize(authorization.leaseIdentity),
-                      let currentConsumers = self.consumers(
+                      let currentContext = self.captureContext(
                           callerCanvasID: callerCanvasID,
-                          authorization: authorization,
+                          canvasGeneration: authorization.canvasGeneration,
+                          topologyGeneration: authorization.topologyGeneration,
                           payload: payload
                       ),
-                      currentConsumers == initialConsumers,
+                      currentContext == initialContext,
                       capture.frames.count == initialConsumers.count,
                       capture.frames.reduce(into: 0, { $0 += $1.data.count })
                           <= AOSDesktopFrameStore.maximumEncodedBytes,
                       Set(capture.frames.map(\.displayID)) == Set(initialConsumers.map(\.displayID)) else {
                     throw AOSDesktopFrameCaptureFailure.unauthorized
                 }
+                let currentConsumers = currentContext.consumers
                 let epochID = UUID().uuidString.lowercased()
                 let frameByDisplay = Dictionary(
                     uniqueKeysWithValues: capture.frames.map { ($0.displayID, $0) }
@@ -444,6 +487,7 @@ final class AOSDesktopFrameCaptureController {
                 if let failure = error as? AOSDesktopFrameCaptureFailure,
                    failure == .permissionDenied {
                     self.consent.invalidatePermission()
+                    self.capturer.reconcileWarm(nil)
                 }
                 if self.finish(
                     generation: generation,
@@ -485,8 +529,11 @@ final class AOSDesktopFrameCaptureController {
         }
         guard !observed.presentationStarted,
               reauthorize(observed.authorization.leaseIdentity),
-              Set(canvasManager.desktopFrameConsumers(canvasID: callerCanvasID))
-                  == Set(observed.consumers) else {
+              captureContext(
+                  callerCanvasID: callerCanvasID,
+                  canvasGeneration: observed.authorization.canvasGeneration,
+                  topologyGeneration: observed.authorization.topologyGeneration
+              ) == observed.context else {
             let generation = observed.generation
             lock.unlock()
             _ = finish(
@@ -542,8 +589,11 @@ final class AOSDesktopFrameCaptureController {
                   $0.displayID == displayID && $0.segmentIndex == segmentIndex
               }),
               reauthorize(active.authorization.leaseIdentity),
-              Set(canvasManager.desktopFrameConsumers(canvasID: callerCanvasID))
-                  == Set(active.consumers) else {
+              captureContext(
+                  callerCanvasID: callerCanvasID,
+                  canvasGeneration: active.authorization.canvasGeneration,
+                  topologyGeneration: active.authorization.topologyGeneration
+              ) == active.context else {
             let generation = activeRequest?.generation
             lock.unlock()
             if let generation {

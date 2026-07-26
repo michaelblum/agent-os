@@ -30,8 +30,20 @@ The broker supports two acquisition forms:
 
 - **snapshot** uses one bounded `SCScreenshotManager` operation;
 - **warm snapshot** opens one `SCStream` per admitted display, excludes the
-  owning DesktopWorld windows, retains only the latest complete sample per
-  display, freezes one whole-display set, and stops every stream immediately.
+  owning DesktopWorld windows, and retains only the latest complete sample per
+  display for a whole-display freeze.
+
+Warm snapshots have two lifecycles. Explicit consent probes stop every stream
+immediately after one freeze. Runtime DesktopWorld requests never use that
+one-shot path and fail with `DESKTOP_FRAME_NOT_READY` until their
+capability-scoped pool is ready. An authorized mounted scene extension declaring
+`aos.scene.desktop_frame_texture` may instead keep one daemon-owned warm lease
+open after explicit direct-capture consent is ready. That lease is scoped to
+the exact current canvas and topology generations, ordered stage displays, and
+excluded stage windows captured atomically on the main thread. It is retired on
+capability removal, permission failure, topology or stage loss, or daemon
+shutdown. Pointer interaction never starts ScreenCaptureKit and never requests
+permission; it only freezes the already available latest sample set.
 
 A warm lease is owner-bound, singular, cancelable, and valid only while its
 latest samples remain fresh. A different owner cannot freeze or release it.
@@ -44,6 +56,9 @@ settlement faults the broker before it can admit later work. Failure diagnostics
 contain only the startup phase, bounded elapsed milliseconds, and a reason code.
 Cancellation, permission loss, topology mismatch, source failure, daemon
 shutdown, or consumer cleanup stops all streams and suppresses late callbacks.
+An unexpected source failure permits one retirement-confirmed reopen for the
+same scene generation; a repeated source failure remains honestly unavailable
+until the authorized configuration changes.
 Once a whole-display frame set is frozen and encoded, the presentation adapter
 delivers it without waiting for `SCStream` shutdown. Stream retirement proceeds
 in the background while the broker remains closed to overlapping acquisition.
@@ -53,7 +68,10 @@ retirement interval. A delegate-observed stop or ScreenCaptureKit's explicit
 already-stopped, user-stopped, or system-stopped result is a successful
 retirement acknowledgement. An unknown stop failure or missing acknowledgement
 faults that broker instance permanently instead of admitting overlapping native
-capture. There is no frame history and no permanently running desktop backdrop.
+capture. There is no frame history, continuous GPU upload, or permanently
+rendered desktop backdrop. The warm lease receives frames only while an
+authorized capability needs low-latency sampling and stores at most one native
+sample per display.
 
 The broker enforces fixed display-count, per-display pixel, and aggregate pixel
 ceilings before invoking ScreenCaptureKit. Downstream consumers may set stricter
@@ -78,9 +96,11 @@ already frozen frame set.
 ## Consequences
 
 - DesktopWorld no longer cold-starts `SCScreenshotManager` for its effect path.
+- Capability-scoped DesktopWorld effects pay stream startup before interaction;
+  pointer-down performs only a bounded freeze, encode, and presentation.
 - Consent probing and scene capture cannot contend inside one daemon.
 - Native perception still has an independent legacy capture path until its
   explicit compatibility migration.
 - Browser-native screenshots and AX-only perception remain separate.
-- Predictive hover warming, continuous capture, frame history, and persistent
-  desktop textures remain unsupported.
+- Predictive hover warming, frame history, continuous texture presentation, and
+  persistent desktop textures remain unsupported.
