@@ -14,13 +14,15 @@ private let aosDesktopFramePermissionRequestQueue = DispatchQueue(
 final class AOSDesktopFrameCaptureConsentController {
     static let maximumPrimeWaiters = 16
     static let permissionRequestLifetime: TimeInterval = 120
-    // A granted capture that cannot return a tiny frame promptly is not usable
-    // for interactive desktop effects. Permission requests retain their own
-    // human-scale deadline above; this phase is machine work only.
+    // A granted capture that cannot freeze a tiny frame promptly is not usable
+    // for interactive desktop effects. Stream retirement has a separate bound
+    // so native cleanup latency cannot be mistaken for pixel-delivery latency.
     static let probeLifetime: TimeInterval = 2
+    static let probeRetirementLifetime: TimeInterval =
+        AOSDesktopPixelBroker.defaultRetirementTimeout + 1
     static let probeMaximumPixels = 4_096
     static let responseLifetime: TimeInterval =
-        permissionRequestLifetime + probeLifetime + 10
+        permissionRequestLifetime + probeLifetime + probeRetirementLifetime + 10
 
     typealias Completion = (AOSDesktopFrameDirectCaptureSnapshot) -> Void
     typealias DeadlineScheduler = (
@@ -34,16 +36,20 @@ final class AOSDesktopFrameCaptureConsentController {
     private enum PrimePhase: Equatable {
         case requestingPermission
         case capturingProbe
+        case retiringProbe
     }
 
     private struct ActivePrime {
         var capture: AOSDesktopFrameCancelling
+        var captureInstalled: Bool
         var waiters: [PrimeWaiter]
         var deadline: AOSDesktopFrameCancelling
         let generation: UInt64
+        var pendingResult: AOSDesktopFrameDirectCaptureSnapshot?
         var permissionRequest: AOSDesktopFrameCancelling
         var phase: PrimePhase
         var quarantined: Bool
+        var retirementStarted: Bool
     }
 
     private struct PrimeWaiter {
@@ -190,12 +196,15 @@ final class AOSDesktopFrameCaptureConsentController {
         )
         activePrime = ActivePrime(
             capture: AOSDesktopFrameCancellation(),
+            captureInstalled: false,
             waiters: [PrimeWaiter(completion: completion, owner: owner)],
             deadline: AOSDesktopFrameCancellation(),
             generation: generation,
+            pendingResult: nil,
             permissionRequest: AOSDesktopFrameCancellation(),
             phase: .requestingPermission,
-            quarantined: false
+            quarantined: false,
+            retirementStarted: false
         )
         lock.unlock()
 
@@ -280,11 +289,17 @@ final class AOSDesktopFrameCaptureConsentController {
             return
         }
         active.capture = capture
+        active.captureInstalled = true
+        let shouldRetire = active.phase == .retiringProbe
+            && !active.retirementStarted
+        if shouldRetire { active.retirementStarted = true }
         activePrime = active
         let quarantined = active.quarantined
         lock.unlock()
         if quarantined {
             cancelQuarantinedCapture(active, generation: generation)
+        } else if shouldRetire {
+            awaitProbeRetirement(capture, generation: generation)
         }
     }
 
@@ -410,6 +425,92 @@ final class AOSDesktopFrameCaptureConsentController {
                 errorCode: AOSDesktopFrameCaptureFailure.captureFailed.code
             )
         }
+        beginProbeRetirement(next, generation: generation)
+    }
+
+    private func beginProbeRetirement(
+        _ next: AOSDesktopFrameDirectCaptureSnapshot,
+        generation: UInt64
+    ) {
+        lock.lock()
+        guard var active = activePrime,
+              active.generation == generation,
+              active.phase == .capturingProbe else {
+            lock.unlock()
+            return
+        }
+        if active.quarantined {
+            let captureSettledWithResult = active.captureInstalled
+                && !(active.capture is AOSDesktopFrameRetirementAwaiting)
+            lock.unlock()
+            if captureSettledWithResult {
+                retireQuarantinedPrime(
+                    generation: generation,
+                    result: .success(())
+                )
+            }
+            return
+        }
+        let probeDeadline = active.deadline
+        active.deadline = AOSDesktopFrameCancellation()
+        active.pendingResult = next
+        active.phase = .retiringProbe
+        let shouldRetire = active.captureInstalled && !active.retirementStarted
+        if shouldRetire { active.retirementStarted = true }
+        activePrime = active
+        lock.unlock()
+
+        probeDeadline.cancel()
+        installDeadline(scheduleDeadline(Self.probeRetirementLifetime) { [weak self] in
+            self?.primeTimedOut(
+                code: AOSDesktopFrameCaptureFailure.retirementUncertain.code,
+                generation: generation,
+                phase: .retiringProbe
+            )
+        }, generation: generation)
+        if shouldRetire {
+            awaitProbeRetirement(active.capture, generation: generation)
+        }
+    }
+
+    private func awaitProbeRetirement(
+        _ capture: AOSDesktopFrameCancelling,
+        generation: UInt64
+    ) {
+        if let retiring = capture as? AOSDesktopFrameRetirementAwaiting {
+            retiring.cancelAndAwaitRetirement { [weak self] result in
+                self?.probeRetirementCompleted(result, generation: generation)
+            }
+        } else {
+            capture.cancel()
+            probeRetirementCompleted(.success(()), generation: generation)
+        }
+    }
+
+    private func probeRetirementCompleted(
+        _ result: Result<Void, Error>,
+        generation: UInt64
+    ) {
+        lock.lock()
+        guard let active = activePrime,
+              active.generation == generation,
+              active.phase == .retiringProbe,
+              !active.quarantined,
+              let pendingResult = active.pendingResult else {
+            lock.unlock()
+            return
+        }
+        lock.unlock()
+
+        let next: AOSDesktopFrameDirectCaptureSnapshot
+        if case .failure = result {
+            next = AOSDesktopFrameDirectCaptureSnapshot(
+                status: .failed,
+                errorCode: AOSDesktopFrameCaptureFailure.retirementUncertain.code
+            )
+        } else {
+            next = pendingResult
+        }
         completePrime(next, generation: generation)
     }
 
@@ -460,6 +561,7 @@ final class AOSDesktopFrameCaptureConsentController {
         _ active: ActivePrime,
         generation: UInt64
     ) {
+        guard active.captureInstalled else { return }
         if let retiring = active.capture as? AOSDesktopFrameRetirementAwaiting {
             retiring.cancelAndAwaitRetirement { [weak self] result in
                 self?.retireQuarantinedPrime(

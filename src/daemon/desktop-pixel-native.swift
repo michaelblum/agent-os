@@ -138,6 +138,7 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
     SCStreamDelegate
 {
     let displayID: UInt32
+    private var acceptingSamples = true
     private var failure: Error?
     private var latestSample: AOSDesktopPixelLatestSample?
     private let lock = NSLock()
@@ -165,10 +166,12 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
             return
         }
         lock.lock()
-        latestSample = AOSDesktopPixelLatestSample(
-            capturedAt: Date(),
-            sampleBuffer: sampleBuffer
-        )
+        if acceptingSamples {
+            latestSample = AOSDesktopPixelLatestSample(
+                capturedAt: Date(),
+                sampleBuffer: sampleBuffer
+            )
+        }
         lock.unlock()
     }
 
@@ -188,6 +191,13 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
             throw AOSDesktopFrameCaptureFailure.frameNotReady
         }
         return latestSample
+    }
+
+    func quiesce() {
+        lock.lock()
+        acceptingSamples = false
+        latestSample = nil
+        lock.unlock()
     }
 }
 
@@ -210,6 +220,26 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
 
     private init(entries: [Entry]) {
         self.entries = entries
+    }
+
+    private static func stopEntries(_ entries: [Entry]) async -> Bool {
+        return await withTaskGroup(of: Bool.self) { group in
+            for entry in entries {
+                group.addTask {
+                    do {
+                        try await entry.stream.stopCapture()
+                        return true
+                    } catch {
+                        return false
+                    }
+                }
+            }
+            var stopped = true
+            for await result in group {
+                stopped = result && stopped
+            }
+            return stopped
+        }
     }
 
     static func open(
@@ -306,15 +336,8 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
             try await source.waitUntilReady(timeout: 0.75)
             return source
         } catch {
-            var retirementFailed = false
-            for entry in entries {
-                do {
-                    try await entry.stream.stopCapture()
-                } catch {
-                    retirementFailed = true
-                }
-            }
-            if retirementFailed {
+            entries.forEach { $0.output.quiesce() }
+            if !(await stopEntries(entries)) {
                 throw AOSDesktopFrameCaptureFailure.retirementUncertain
             }
             if error is CancellationError {
@@ -398,23 +421,14 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
         let currentEntries = entries
         entries = []
         lock.unlock()
+        currentEntries.forEach { $0.output.quiesce() }
         Task.detached(priority: .utility) { [self] in
-            var firstFailure: Error?
-            for entry in currentEntries {
-                do {
-                    try await entry.stream.stopCapture()
-                } catch {
-                    if firstFailure == nil {
-                        firstFailure = error
-                    }
-                }
-            }
-            if let firstFailure {
-                finishStop(.failure(
-                    aosDesktopFrameCaptureFailure(for: firstFailure)
-                ))
-            } else {
+            if await Self.stopEntries(currentEntries) {
                 finishStop(.success(()))
+            } else {
+                finishStop(.failure(
+                    AOSDesktopFrameCaptureFailure.retirementUncertain
+                ))
             }
         }
     }

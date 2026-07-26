@@ -26,7 +26,9 @@ streams. `desktop-pixel-broker.swift` serializes that native acquisition across
 daemon consumers and owns warm-lease lifecycle. They return in-memory pixel
 frames only; encoding, cropping, redaction, persistence, and GPU delivery
 belong to downstream adapters. `desktop-frame-capture-adapter.swift` converts a
-snapshot into the private WebKit presentation format.
+snapshot into the private WebKit presentation format. Warm snapshots deliver a
+frozen encoded frame before asynchronous stream retirement settles; the broker
+remains closed until native retirement is acknowledged.
 `desktop-frame-capture-controller.swift` owns request admission for trusted
 scene extensions. A request is bound to the exact scene revision, canvas and
 topology generation, and current display WebViews. Native

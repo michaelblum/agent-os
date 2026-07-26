@@ -83,11 +83,6 @@ private final class AOSDesktopFrameWarmSnapshotOperation {
             completion(retirementResult)
             return
         }
-        if deliveryCompleted {
-            lock.unlock()
-            completion(.success(()))
-            return
-        }
         cancelRequested = true
         cancellationWaiters.append(completion)
         let freeze = freeze
@@ -161,13 +156,10 @@ private final class AOSDesktopFrameWarmSnapshotOperation {
         }
         pendingResult = result
         let action = takeRetirementActionLocked()
-        let shouldDeliver = !cancelRequested && !retirementStarted
+        let shouldDeliver = !cancelRequested
         if shouldDeliver { deliveryCompleted = true }
         lock.unlock()
-        if let action {
-            performRetirement(action)
-            return
-        }
+        performRetirement(action)
         if shouldDeliver { completion(result) }
     }
 
@@ -180,32 +172,21 @@ private final class AOSDesktopFrameWarmSnapshotOperation {
         retirementResult = result
         let waiters = cancellationWaiters
         cancellationWaiters = []
-        let delivery: Result<AOSDesktopFrameCaptureSetResult, Error>?
-        if cancelRequested || deliveryCompleted {
-            delivery = nil
-        } else if case .failure(let error) = result {
-            deliveryCompleted = true
-            delivery = .failure(error)
-        } else {
-            deliveryCompleted = true
-            delivery = pendingResult
-        }
         lock.unlock()
         waiters.forEach { $0(result) }
-        if let delivery {
-            completion(delivery)
-        }
     }
 
     private func installStartup(_ operation: AOSDesktopFrameCancelling) {
         lock.lock()
-        if deliveryCompleted || retirementResult != nil {
+        if retirementResult != nil {
             lock.unlock()
             operation.cancel()
             return
         }
         startup = operation
-        let action = cancelRequested ? takeRetirementActionLocked() : nil
+        let action = (cancelRequested || pendingResult != nil)
+            ? takeRetirementActionLocked()
+            : nil
         lock.unlock()
         performRetirement(action)
     }

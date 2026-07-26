@@ -109,6 +109,49 @@ final class FakeCapturer: AOSDesktopFrameCapturing {
     }
 }
 
+final class FakeRetiringCapturer: AOSDesktopFrameCapturing {
+    var captureCount = 0
+    var deferredCapture = true
+    var pendingCapture: ((Result<AOSDesktopFrameCaptureSetResult, Error>) -> Void)?
+    var retirementCompletesImmediately = false
+    var retirementCompletion: ((Result<Void, Error>) -> Void)?
+
+    @discardableResult
+    func capture(
+        displayIDs: [UInt32],
+        excludingWindowIDs: [Int],
+        maximumPixelsPerDisplay: Int,
+        completion: @escaping (Result<AOSDesktopFrameCaptureSetResult, Error>) -> Void
+    ) -> AOSDesktopFrameCancelling {
+        captureCount += 1
+        let result = AOSDesktopFrameCaptureSetResult(
+            capturedAt: Date(timeIntervalSince1970: 10),
+            durationMilliseconds: 14,
+            frames: displayIDs.map {
+                AOSDesktopFrameCaptureResult(
+                    data: Data([0xff, 0xd8, UInt8($0 & 0xff), 0xd9]),
+                    displayID: $0,
+                    height: 640,
+                    mimeType: "image/jpeg",
+                    width: 1024
+                )
+            }
+        )
+        if deferredCapture {
+            pendingCapture = completion
+        } else {
+            completion(.success(result))
+        }
+        return AOSDesktopFrameRetirementCancellation { [self] retirement in
+            if retirementCompletesImmediately {
+                retirement(.success(()))
+            } else {
+                retirementCompletion = retirement
+            }
+        }
+    }
+}
+
 func grantScreenCapturePermission(
     _ completion: @escaping (Bool) -> Void
 ) -> AOSDesktopFrameCancelling {
@@ -141,6 +184,10 @@ struct DesktopFrameProof {
         require(
             AOSDesktopFrameCaptureConsentController.probeLifetime == 2,
             "direct-capture probe no longer fails within its interactive bound"
+        )
+        require(
+            AOSDesktopFrameCaptureConsentController.probeRetirementLifetime == 6,
+            "direct-capture retirement lost its separate bounded phase"
         )
         require(
             aosDesktopFrameCaptureFailure(for: NSError(
@@ -396,6 +443,60 @@ struct DesktopFrameProof {
         require(
             timeoutConsent.snapshot().status == .ready,
             "late timed-out capture overwrote the successful retry"
+        )
+
+        let lateFrameCapturer = FakeRetiringCapturer()
+        var lateFrameDeadlines: [(TimeInterval, () -> Void)] = []
+        let lateFrameConsent = AOSDesktopFrameCaptureConsentController(
+            capturer: lateFrameCapturer,
+            mainDisplayID: { 42 },
+            requestPermission: grantScreenCapturePermission,
+            scheduleDeadline: { delay, action in
+                lateFrameDeadlines.append((delay, action))
+                return AOSDesktopFrameCancellation()
+            }
+        )
+        var lateFrameTimeoutCode: String?
+        lateFrameConsent.prime(owner: owner) {
+            lateFrameTimeoutCode = $0.errorCode
+        }
+        lateFrameDeadlines.first(where: {
+            $0.0 == AOSDesktopFrameCaptureConsentController.probeLifetime
+        })?.1()
+        require(
+            lateFrameTimeoutCode == "DESKTOP_FRAME_PROBE_TIMEOUT",
+            "retiring capture did not preserve its probe timeout"
+        )
+        lateFrameCapturer.pendingCapture?(.success(AOSDesktopFrameCaptureSetResult(
+            capturedAt: Date(timeIntervalSince1970: 10),
+            durationMilliseconds: 14,
+            frames: [AOSDesktopFrameCaptureResult(
+                data: Data([0xff, 0xd8, 42, 0xd9]),
+                displayID: 42,
+                height: 640,
+                mimeType: "image/jpeg",
+                width: 1024
+            )]
+        )))
+        var lateFrameQuarantineCode: String?
+        lateFrameConsent.prime(owner: owner) {
+            lateFrameQuarantineCode = $0.errorCode
+        }
+        require(
+            lateFrameQuarantineCode == "DESKTOP_FRAME_PROBE_TIMEOUT"
+                && lateFrameCapturer.captureCount == 1,
+            "late frame callback escaped before native retirement"
+        )
+        lateFrameCapturer.retirementCompletion?(.success(()))
+        lateFrameCapturer.deferredCapture = false
+        lateFrameCapturer.retirementCompletesImmediately = true
+        var lateFrameRetryStatus: String?
+        lateFrameConsent.prime(owner: owner) {
+            lateFrameRetryStatus = $0.status.rawValue
+        }
+        require(
+            lateFrameRetryStatus == "ready" && lateFrameCapturer.captureCount == 2,
+            "retired late frame could not be retried"
         )
 
         let canceledCapturer = FakeCapturer()

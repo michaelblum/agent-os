@@ -37,10 +37,14 @@ A warm lease is owner-bound, singular, cancelable, and valid only while its
 latest samples remain fresh. A different owner cannot freeze or release it.
 Cancellation, permission loss, topology mismatch, source failure, daemon
 shutdown, or consumer cleanup stops all streams and suppresses late callbacks.
-Canceled work receives a bounded retirement interval. A stop failure or missing
-retirement acknowledgement faults that broker instance permanently instead of
-admitting overlapping native capture. There is no frame history and no
-permanently running desktop backdrop.
+Once a whole-display frame set is frozen and encoded, the presentation adapter
+delivers it without waiting for `SCStream` shutdown. Stream retirement proceeds
+in the background while the broker remains closed to overlapping acquisition.
+The explicit consent probe still waits for that retirement acknowledgement
+before reporting the capability ready. Canceled work receives a bounded
+retirement interval. A stop failure or missing retirement acknowledgement
+faults that broker instance permanently instead of admitting overlapping native
+capture. There is no frame history and no permanently running desktop backdrop.
 
 The broker enforces fixed display-count, per-display pixel, and aggregate pixel
 ceilings before invoking ScreenCaptureKit. Downstream consumers may set stricter
@@ -55,7 +59,9 @@ behind daemon broker IPC in a separate slice.
 JPEG encoding remains temporarily at the private WebKit presentation adapter.
 This is not a zero-copy IOSurface-to-WebGL contract. Native acquisition latency,
 freeze latency, decode latency, and cleanup are measured separately before any
-additional transport optimization.
+additional transport optimization. Retained native samples are quiesced before
+stream shutdown, and multi-display streams retire concurrently so cleanup time
+is bounded by the slowest display rather than their sum.
 
 ## Consequences
 
