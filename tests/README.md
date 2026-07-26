@@ -393,6 +393,21 @@ isolated native harness or use fake daemon transport; they must not invoke
 ScreenCaptureKit, show permission UI, create a repo binary, or depend on live
 TCC state.
 
+The reusable native visual proof remains an explicit manual lane. It renders a
+deterministic Metal marker in one input-transparent window per display, captures
+only the bounded marker region in memory, verifies expected pixels, and reports
+cleanup as content-free JSON:
+
+```bash
+bash tests/manual/desktop-world-native-visual-proof.sh --typecheck
+AOS_NATIVE_VISUAL_PROOF_OK=1 \
+  bash tests/manual/desktop-world-native-visual-proof.sh --run
+```
+
+The live form requires pre-existing Screen Recording consent and never prompts,
+persists pixels, builds `./aos`, or operates an AOS daemon. Use it to validate
+physical native projection and capture composition, not product semantics.
+
 These tests should also run in an isolated `AOS_STATE_ROOT` and tear down their
 own temp-root daemon state so they do not leave duplicate `aos` windows behind
 if a run is interrupted.
