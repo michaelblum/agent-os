@@ -204,7 +204,7 @@ protocol AOSDesktopPixelAcquiring: AnyObject {
 }
 
 final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
-    static let defaultRetirementTimeout: TimeInterval = 2
+    static let defaultRetirementTimeout: TimeInterval = 5
 
     private struct ActiveSnapshot {
         var capture: AOSDesktopFrameCancelling

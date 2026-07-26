@@ -360,9 +360,14 @@ func runDesktopPixelBrokerTests() throws {
         delayedAdapterSettled.signal()
     }
     require(
-        delayedAdapterSettled.wait(timeout: .now() + 0.02) == .timedOut,
-        "warm adapter completed before stream retirement"
+        delayedAdapterSettled.wait(timeout: .now() + 1) == .success,
+        "warm adapter withheld the frozen frame during stream retirement"
     )
+    if case .some(.success(let capture)) = delayedAdapterResult {
+        require(capture.frames.count == 1, "warm adapter lost its early frame")
+    } else {
+        require(false, "warm adapter failed before stream retirement")
+    }
     let stopRequestDeadline = Date().addingTimeInterval(1)
     while delayedAdapterStopSource.stopCompletion == nil,
           Date() < stopRequestDeadline {
@@ -372,23 +377,42 @@ func runDesktopPixelBrokerTests() throws {
         delayedAdapterStopSource.stopCompletion != nil,
         "warm adapter did not request stream retirement"
     )
-    delayedAdapterStopSource.stopCompletion?(.success(()))
-    require(
-        delayedAdapterSettled.wait(timeout: .now() + 1) == .success,
-        "warm adapter did not complete after stream retirement"
-    )
-    if case .some(.success(let capture)) = delayedAdapterResult {
+    var overlapDuringAdapterRetirement: Result<AOSDesktopPixelFrameSet, Error>?
+    _ = delayedAdapterStopBroker.snapshot(pixelRequest) {
+        overlapDuringAdapterRetirement = $0
+    }
+    if case .failure(let error) = overlapDuringAdapterRetirement {
         require(
-            capture.frames.count == 1,
-            "warm adapter lost the captured frame after retirement"
+            error as? AOSDesktopFrameCaptureFailure == .busy,
+            "early frame delivery reopened the broker before retirement"
         )
     } else {
-        require(false, "warm adapter failed after successful retirement")
+        require(false, "early frame delivery admitted overlapping capture")
     }
-    delayedAdapterCancellation.cancel()
+    let delayedAdapterRetired = DispatchSemaphore(value: 0)
+    var delayedAdapterRetirement: Result<Void, Error>?
+    (delayedAdapterCancellation as? AOSDesktopFrameRetirementAwaiting)?
+        .cancelAndAwaitRetirement {
+            delayedAdapterRetirement = $0
+            delayedAdapterRetired.signal()
+        }
+    require(
+        delayedAdapterRetired.wait(timeout: .now() + 0.02) == .timedOut,
+        "retirement waiter escaped before native shutdown"
+    )
+    delayedAdapterStopSource.stopCompletion?(.success(()))
+    require(
+        delayedAdapterRetired.wait(timeout: .now() + 1) == .success,
+        "warm adapter did not acknowledge stream retirement"
+    )
+    if case .some(.failure) = delayedAdapterRetirement {
+        require(false, "successful native shutdown became retirement failure")
+    }
 
     let canceledRetirementSource = FakeWarmSource(failure: nil)
     canceledRetirementSource.completesStopImmediately = false
+    canceledRetirementSource.freezeEntered = DispatchSemaphore(value: 0)
+    canceledRetirementSource.freezeRelease = DispatchSemaphore(value: 0)
     let canceledRetirementCapturer = AOSNativeDesktopFrameCapturer(
         broker: AOSDesktopPixelBroker(
             acquirer: FakePixelAcquirer(),
@@ -404,6 +428,14 @@ func runDesktopPixelBrokerTests() throws {
     ) { _ in
         canceledRetirementSettled.signal()
     }
+    require(
+        canceledRetirementSource.freezeEntered?.wait(timeout: .now() + 1)
+            == .success,
+        "cancel regression did not reach the in-flight freeze"
+    )
+    let canceledRetired = DispatchSemaphore(value: 0)
+    (canceledRetirement as? AOSDesktopFrameRetirementAwaiting)?
+        .cancelAndAwaitRetirement { _ in canceledRetired.signal() }
     let canceledStopDeadline = Date().addingTimeInterval(1)
     while canceledRetirementSource.stopCompletion == nil,
           Date() < canceledStopDeadline {
@@ -413,8 +445,12 @@ func runDesktopPixelBrokerTests() throws {
         canceledRetirementSource.stopCompletion != nil,
         "cancel regression did not reach stream retirement"
     )
-    canceledRetirement.cancel()
     canceledRetirementSource.stopCompletion?(.success(()))
+    require(
+        canceledRetired.wait(timeout: .now() + 1) == .success,
+        "canceled warm capture did not retire"
+    )
+    canceledRetirementSource.freezeRelease?.signal()
     require(
         canceledRetirementSettled.wait(timeout: .now() + 0.05) == .timedOut,
         "canceled warm retirement delivered a late frame"
@@ -430,7 +466,6 @@ func runDesktopPixelBrokerTests() throws {
         ),
         strategy: .warmSnapshot
     )
-    var consentDeadlines: [() -> Void] = []
     let consent = AOSDesktopFrameCaptureConsentController(
         capturer: consentCapturer,
         mainDisplayID: { 42 },
@@ -438,17 +473,16 @@ func runDesktopPixelBrokerTests() throws {
             completion(true)
             return AOSDesktopFrameCancellation()
         },
-        scheduleDeadline: { _, action in
-            consentDeadlines.append(action)
-            return AOSDesktopFrameCancellation()
-        }
+        scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
     )
     let consentOwner = UUID(
         uuidString: "33333333-3333-4333-8333-333333333333"
     )!
-    var consentTimeoutCode: String?
+    let consentSettled = DispatchSemaphore(value: 0)
+    var consentStatus: String?
     consent.prime(owner: consentOwner) {
-        consentTimeoutCode = $0.errorCode
+        consentStatus = $0.status.rawValue
+        consentSettled.signal()
     }
     let consentStopDeadline = Date().addingTimeInterval(1)
     while consentRetirementSource.stopCompletion == nil,
@@ -459,44 +493,65 @@ func runDesktopPixelBrokerTests() throws {
         consentRetirementSource.stopCompletion != nil,
         "integrated consent proof did not reach warm retirement"
     )
-    consentDeadlines.last?()
     require(
-        consentTimeoutCode == "DESKTOP_FRAME_PROBE_TIMEOUT",
-        "integrated warm timeout lost its reason code"
+        consentSettled.wait(timeout: .now() + 0.02) == .timedOut,
+        "consent became ready before broker retirement acknowledgement"
     )
-    var quarantinedCode: String?
-    consent.prime(owner: consentOwner) {
-        quarantinedCode = $0.errorCode
-    }
     require(
-        quarantinedCode == "DESKTOP_FRAME_PROBE_TIMEOUT",
-        "retry escaped before broker retirement acknowledgement"
+        consent.snapshot().status != .ready,
+        "passive consent status escaped while the probe was retiring"
     )
     require(
         consentWarmAcquirer.openCount == 1,
-        "quarantined retry opened overlapping native capture"
+        "consent probe opened duplicate native capture"
     )
     consentRetirementSource.stopCompletion?(.success(()))
-    consentRetirementSource.stopCompletion = nil
-    consentRetirementSource.completesStopImmediately = true
-    let consentRetrySettled = DispatchSemaphore(value: 0)
-    var consentRetryStatus: String?
-    consent.prime(owner: consentOwner) {
-        consentRetryStatus = $0.status.rawValue
-        consentRetrySettled.signal()
+    require(
+        consentSettled.wait(timeout: .now() + 1) == .success,
+        "consent did not settle after broker retirement acknowledgement"
+    )
+    require(
+        consentStatus == "ready" && consent.snapshot().status == .ready,
+        "retired warm probe did not converge to ready"
+    )
+
+    let failedConsentSource = FakeWarmSource(failure: nil)
+    failedConsentSource.stopResult = .failure(
+        AOSDesktopFrameCaptureFailure.captureFailed
+    )
+    let failedConsent = AOSDesktopFrameCaptureConsentController(
+        capturer: AOSNativeDesktopFrameCapturer(
+            broker: AOSDesktopPixelBroker(
+                acquirer: FakePixelAcquirer(),
+                warmAcquirer: FakeWarmAcquirer(source: failedConsentSource)
+            ),
+            strategy: .warmSnapshot
+        ),
+        mainDisplayID: { 42 },
+        requestPermission: { completion in
+            completion(true)
+            return AOSDesktopFrameCancellation()
+        },
+        scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
+    )
+    let failedConsentSettled = DispatchSemaphore(value: 0)
+    var failedConsentCode: String?
+    failedConsent.prime(owner: consentOwner) {
+        failedConsentCode = $0.errorCode
+        failedConsentSettled.signal()
     }
     require(
-        consentRetrySettled.wait(timeout: .now() + 1) == .success,
-        "retired warm timeout could not be retried"
+        failedConsentSettled.wait(timeout: .now() + 1) == .success,
+        "failed native retirement did not settle consent"
     )
     require(
-        consentRetryStatus == "ready",
-        "retired warm timeout did not converge to ready"
+        failedConsentCode == "DESKTOP_FRAME_RETIREMENT_UNCERTAIN",
+        "consent became ready after failed native retirement"
     )
-    require(
-        consentWarmAcquirer.openCount == 2,
-        "explicit retry did not open exactly one new warm capture"
-    )
+    if case .rejected(.consentRequired) = failedConsent.claimRuntimeCapture() {
+    } else {
+        require(false, "failed probe retirement admitted runtime capture")
+    }
 
     let installRaceSource = FakeWarmSource(failure: nil)
     installRaceSource.completesStopImmediately = false
