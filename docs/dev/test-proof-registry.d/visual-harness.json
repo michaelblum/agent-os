@@ -56,6 +56,24 @@
       ],
       "guard": "fake AOS command only; no daemon, canvas, native input, or TCC",
       "status": "active"
+    },
+    {
+      "id": "desktop-world-native-visual-proof-tool",
+      "path_patterns": [
+        "tests/desktop-world-native-visual-proof-contract.test.mjs",
+        "tests/manual/desktop-world-native-visual-proof.sh",
+        "tests/manual/desktop-world-native-visual-proof.swift"
+      ],
+      "fixture_patterns": [],
+      "owner": "visual-harness",
+      "harness_level": "visual_harness",
+      "proof_kind": "native_visual_proof_tool_contract",
+      "contract": "The reusable native proof renders one deterministic input-transparent Metal marker per display, verifies bounded regions through in-memory ScreenCaptureKit reads, and disposes every window and temporary build artifact.",
+      "worth": "This distinguishes drawable submission from visible multi-display WindowServer composition without persisting screen pixels or introducing product-specific semantics.",
+      "command": "node --test tests/desktop-world-native-visual-proof-contract.test.mjs",
+      "replaces": [],
+      "guard": "static source assertions and Swift typecheck only; the explicit AOS_NATIVE_VISUAL_PROOF_OK=1 manual route is the separate live ScreenCaptureKit and Metal proof",
+      "status": "active"
     }
   ]
 }

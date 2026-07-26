@@ -186,6 +186,100 @@ func settlePixelRetirements(
 }
 
 func runDesktopPixelNativeLifecycleTests() throws {
+    var frameAdvancement = AOSDesktopPixelFrameAdvancement()
+    let firstFrameTime = CMTime(value: 1, timescale: 30)
+    let secondFrameTime = CMTime(value: 2, timescale: 30)
+    require(!frameAdvancement.isReady, "empty stream was reported ready")
+    require(
+        frameAdvancement.observe(presentationTime: firstFrameTime),
+        "first complete frame was not observed"
+    )
+    require(
+        !frameAdvancement.isReady,
+        "warm stream was ready before proving frame advancement"
+    )
+    require(
+        !frameAdvancement.observe(presentationTime: firstFrameTime),
+        "duplicate frame timestamp advanced warm readiness"
+    )
+    require(
+        !frameAdvancement.observe(presentationTime: .zero),
+        "out-of-order frame timestamp advanced warm readiness"
+    )
+    require(
+        frameAdvancement.observe(presentationTime: secondFrameTime),
+        "second distinct frame was not observed"
+    )
+    require(
+        frameAdvancement.isReady,
+        "two distinct producer timestamps did not prove advancement"
+    )
+    require(
+        !frameAdvancement.observe(presentationTime: .indefinite),
+        "indefinite frame timestamp advanced warm readiness"
+    )
+    require(
+        !frameAdvancement.observe(presentationTime: .positiveInfinity),
+        "infinite frame timestamp advanced warm readiness"
+    )
+
+    require(
+        aosDesktopPixelSampleAdmission(
+            statusRawValue: SCFrameStatus.complete.rawValue,
+            presentationTime: firstFrameTime,
+            hasImageBuffer: true
+        ) == .frame,
+        "complete image frame was not admitted"
+    )
+    require(
+        aosDesktopPixelSampleAdmission(
+            statusRawValue: SCFrameStatus.started.rawValue,
+            presentationTime: firstFrameTime,
+            hasImageBuffer: true
+        ) == .frame,
+        "started image frame was not admitted"
+    )
+    require(
+        aosDesktopPixelSampleAdmission(
+            statusRawValue: SCFrameStatus.idle.rawValue,
+            presentationTime: secondFrameTime,
+            hasImageBuffer: false
+        ) == .heartbeat,
+        "idle producer heartbeat was not admitted"
+    )
+    require(
+        aosDesktopPixelSampleAdmission(
+            statusRawValue: nil,
+            presentationTime: secondFrameTime,
+            hasImageBuffer: true
+        ) == nil,
+        "sample without status metadata was admitted"
+    )
+    require(
+        aosDesktopPixelSampleAdmission(
+            statusRawValue: SCFrameStatus.complete.rawValue,
+            presentationTime: secondFrameTime,
+            hasImageBuffer: false
+        ) == nil,
+        "complete sample without image data was admitted"
+    )
+    require(
+        aosDesktopPixelSampleAdmission(
+            statusRawValue: SCFrameStatus.blank.rawValue,
+            presentationTime: secondFrameTime,
+            hasImageBuffer: true
+        ) == nil,
+        "blank sample was admitted"
+    )
+    require(
+        aosDesktopPixelSampleAdmission(
+            statusRawValue: SCFrameStatus.complete.rawValue,
+            presentationTime: .indefinite,
+            hasImageBuffer: true
+        ) == nil,
+        "sample with nonnumeric timestamp was admitted"
+    )
+
     require(
         aosDesktopPixelStreamRetirementTimeout >= 1
             && aosDesktopPixelStreamRetirementTimeout

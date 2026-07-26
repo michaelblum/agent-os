@@ -149,6 +149,71 @@ private struct AOSDesktopPixelLatestSample: @unchecked Sendable {
     let sampleBuffer: CMSampleBuffer
 }
 
+func aosDesktopPixelPresentationTimeIsNumeric(_ presentationTime: CMTime) -> Bool {
+    let nonNumericFlags: CMTimeFlags = [
+        .positiveInfinity,
+        .negativeInfinity,
+        .indefinite,
+    ]
+    return presentationTime.flags.contains(.valid)
+        && presentationTime.flags.intersection(nonNumericFlags).isEmpty
+        && presentationTime.timescale > 0
+}
+
+struct AOSDesktopPixelFrameAdvancement {
+    static let requiredDistinctFrames: UInt64 = 2
+
+    private(set) var distinctFrameCount: UInt64 = 0
+    private var lastPresentationTime: CMTime?
+
+    mutating func observe(presentationTime: CMTime) -> Bool {
+        guard aosDesktopPixelPresentationTimeIsNumeric(presentationTime) else {
+            return false
+        }
+        if let lastPresentationTime,
+           CMTimeCompare(presentationTime, lastPresentationTime) <= 0 {
+            return false
+        }
+        lastPresentationTime = presentationTime
+        if distinctFrameCount < Self.requiredDistinctFrames {
+            distinctFrameCount += 1
+        }
+        return true
+    }
+
+    var isReady: Bool {
+        distinctFrameCount >= Self.requiredDistinctFrames
+    }
+}
+
+enum AOSDesktopPixelSampleAdmission: Equatable {
+    case frame
+    case heartbeat
+}
+
+func aosDesktopPixelSampleAdmission(
+    statusRawValue: Int?,
+    presentationTime: CMTime,
+    hasImageBuffer: Bool
+) -> AOSDesktopPixelSampleAdmission? {
+    guard let statusRawValue,
+          let status = SCFrameStatus(rawValue: statusRawValue),
+          aosDesktopPixelPresentationTimeIsNumeric(presentationTime) else {
+        return nil
+    }
+
+    switch status {
+    case .complete, .started:
+        return hasImageBuffer ? .frame : nil
+    case .idle:
+        return .heartbeat
+    case .blank, .suspended, .stopped:
+        return nil
+    @unknown default:
+        return nil
+    }
+}
+
 private final class AOSDesktopPixelStreamOutput: NSObject,
     AOSDesktopPixelStreamLifecycle,
     SCStreamOutput,
@@ -157,6 +222,7 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
     let displayID: UInt32
     private var acceptingSamples = true
     private var failure: Error?
+    private var frameAdvancement = AOSDesktopPixelFrameAdvancement()
     private var latestSample: AOSDesktopPixelLatestSample?
     private let lock = NSLock()
     private let retirementLatch = AOSDesktopPixelRetirementLatch()
@@ -171,24 +237,33 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
         of outputType: SCStreamOutputType
     ) {
         guard outputType == .screen,
-              CMSampleBufferIsValid(sampleBuffer),
-              CMSampleBufferGetImageBuffer(sampleBuffer) != nil else {
+              CMSampleBufferIsValid(sampleBuffer) else {
             return
         }
-        if let attachments = CMSampleBufferGetSampleAttachmentsArray(
+        guard let attachments = CMSampleBufferGetSampleAttachmentsArray(
             sampleBuffer,
             createIfNecessary: false
         ) as? [[SCStreamFrameInfo: Any]],
-           let statusValue = attachments.first?[.status] as? NSNumber,
-           SCFrameStatus(rawValue: statusValue.intValue) != .complete {
+              let statusValue = attachments.first?[.status] as? NSNumber else {
             return
         }
+        let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        let admission = aosDesktopPixelSampleAdmission(
+            statusRawValue: statusValue.intValue,
+            presentationTime: presentationTime,
+            hasImageBuffer: CMSampleBufferGetImageBuffer(sampleBuffer) != nil
+        )
+        guard let admission else { return }
+
         lock.lock()
-        if acceptingSamples {
-            latestSample = AOSDesktopPixelLatestSample(
-                capturedAt: Date(),
-                sampleBuffer: sampleBuffer
-            )
+        if acceptingSamples,
+           frameAdvancement.observe(presentationTime: presentationTime) {
+            if admission == .frame {
+                latestSample = AOSDesktopPixelLatestSample(
+                    capturedAt: Date(),
+                    sampleBuffer: sampleBuffer
+                )
+            }
         }
         lock.unlock()
     }
@@ -197,6 +272,7 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
         lock.lock()
         acceptingSamples = false
         failure = error
+        frameAdvancement = AOSDesktopPixelFrameAdvancement()
         latestSample = nil
         lock.unlock()
         retirementLatch.observe()
@@ -215,13 +291,12 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
     }
 
     func sampleIsReady() throws -> Bool {
-        do {
-            _ = try snapshot()
-            return true
-        } catch let failure as AOSDesktopFrameCaptureFailure
-            where failure == .frameNotReady {
-            return false
+        lock.lock()
+        defer { lock.unlock() }
+        if let failure {
+            throw aosDesktopFrameCaptureFailure(for: failure)
         }
+        return latestSample != nil && frameAdvancement.isReady
     }
 
     func snapshot() throws -> AOSDesktopPixelLatestSample {
@@ -239,6 +314,7 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
     func quiesce() {
         lock.lock()
         acceptingSamples = false
+        frameAdvancement = AOSDesktopPixelFrameAdvancement()
         latestSample = nil
         lock.unlock()
     }
@@ -336,7 +412,9 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
                 configuration.capturesAudio = false
                 configuration.captureResolution = .best
                 configuration.minimumFrameInterval = CMTime(value: 1, timescale: 30)
-                configuration.queueDepth = 1
+                // Retaining the latest IOSurface occupies one producer slot.
+                // Two additional slots permit ScreenCaptureKit to advance.
+                configuration.queueDepth = 3
                 configuration.pixelFormat = kCVPixelFormatType_32BGRA
                 let filter = SCContentFilter(
                     display: display,

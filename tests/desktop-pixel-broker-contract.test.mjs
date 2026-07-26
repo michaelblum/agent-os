@@ -21,7 +21,9 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
 
   assert.match(native, /SCScreenshotManager\.captureImage/u)
   assert.match(native, /SCStream\(/u)
-  assert.match(native, /configuration\.queueDepth = 1/u)
+  assert.match(native, /configuration\.queueDepth = 3/u)
+  assert.match(native, /AOSDesktopPixelFrameAdvancement/u)
+  assert.match(native, /requiredDistinctFrames: UInt64 = 2/u)
   assert.match(native, /waitUntilReady\(timeout: 0\.75\)/u)
   assert.doesNotMatch(native, /try\? await entry\.stream\.stopCapture\(\)/u)
   assert.doesNotMatch(native, /\(try\? \$0\.output\.snapshot\(\)\) != nil/u)
