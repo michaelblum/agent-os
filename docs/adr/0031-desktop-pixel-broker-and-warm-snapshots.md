@@ -50,11 +50,14 @@ permission; it only freezes the already available latest sample set.
 A warm lease is owner-bound, singular, cancelable, and valid only while its
 latest samples remain fresh. A different owner cannot freeze or release it.
 All admitted display streams are configured before any startup begins, then
-started concurrently as one aggregate. Readiness still requires a fresh sample
-from every display, and each display must advance through two distinct complete
-frame timestamps before the source is considered live. Startup failure or
-cancellation retires the complete
-configured set. A canceled startup remains owned through its eventual callback;
+started concurrently as one aggregate. Readiness requires a usable complete or
+started sample from every display followed by a later producer callback with a
+numeric, monotonically advancing timestamp. The later callback may be idle
+because ScreenCaptureKit uses that status when a live display has not changed;
+it proves liveness but does not replace the retained image. Missing status
+metadata, nonnumeric times, blank, suspended, and stopped callbacks fail closed.
+Startup failure or cancellation retires the complete configured set. A canceled
+startup remains owned through its eventual callback;
 a late success performs compensating retirement. Missing startup or retirement
 settlement faults the broker before it can admit later work. Failure diagnostics
 contain only the startup phase, bounded elapsed milliseconds, and a reason code.

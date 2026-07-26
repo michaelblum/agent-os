@@ -149,6 +149,17 @@ private struct AOSDesktopPixelLatestSample: @unchecked Sendable {
     let sampleBuffer: CMSampleBuffer
 }
 
+func aosDesktopPixelPresentationTimeIsNumeric(_ presentationTime: CMTime) -> Bool {
+    let nonNumericFlags: CMTimeFlags = [
+        .positiveInfinity,
+        .negativeInfinity,
+        .indefinite,
+    ]
+    return presentationTime.flags.contains(.valid)
+        && presentationTime.flags.intersection(nonNumericFlags).isEmpty
+        && presentationTime.timescale > 0
+}
+
 struct AOSDesktopPixelFrameAdvancement {
     static let requiredDistinctFrames: UInt64 = 2
 
@@ -156,7 +167,9 @@ struct AOSDesktopPixelFrameAdvancement {
     private var lastPresentationTime: CMTime?
 
     mutating func observe(presentationTime: CMTime) -> Bool {
-        guard presentationTime.isValid else { return false }
+        guard aosDesktopPixelPresentationTimeIsNumeric(presentationTime) else {
+            return false
+        }
         if let lastPresentationTime,
            CMTimeCompare(presentationTime, lastPresentationTime) <= 0 {
             return false
@@ -170,6 +183,34 @@ struct AOSDesktopPixelFrameAdvancement {
 
     var isReady: Bool {
         distinctFrameCount >= Self.requiredDistinctFrames
+    }
+}
+
+enum AOSDesktopPixelSampleAdmission: Equatable {
+    case frame
+    case heartbeat
+}
+
+func aosDesktopPixelSampleAdmission(
+    statusRawValue: Int?,
+    presentationTime: CMTime,
+    hasImageBuffer: Bool
+) -> AOSDesktopPixelSampleAdmission? {
+    guard let statusRawValue,
+          let status = SCFrameStatus(rawValue: statusRawValue),
+          aosDesktopPixelPresentationTimeIsNumeric(presentationTime) else {
+        return nil
+    }
+
+    switch status {
+    case .complete, .started:
+        return hasImageBuffer ? .frame : nil
+    case .idle:
+        return .heartbeat
+    case .blank, .suspended, .stopped:
+        return nil
+    @unknown default:
+        return nil
     }
 }
 
@@ -196,26 +237,33 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
         of outputType: SCStreamOutputType
     ) {
         guard outputType == .screen,
-              CMSampleBufferIsValid(sampleBuffer),
-              CMSampleBufferGetImageBuffer(sampleBuffer) != nil else {
+              CMSampleBufferIsValid(sampleBuffer) else {
             return
         }
-        if let attachments = CMSampleBufferGetSampleAttachmentsArray(
+        guard let attachments = CMSampleBufferGetSampleAttachmentsArray(
             sampleBuffer,
             createIfNecessary: false
         ) as? [[SCStreamFrameInfo: Any]],
-           let statusValue = attachments.first?[.status] as? NSNumber,
-           SCFrameStatus(rawValue: statusValue.intValue) != .complete {
+              let statusValue = attachments.first?[.status] as? NSNumber else {
             return
         }
         let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        let admission = aosDesktopPixelSampleAdmission(
+            statusRawValue: statusValue.intValue,
+            presentationTime: presentationTime,
+            hasImageBuffer: CMSampleBufferGetImageBuffer(sampleBuffer) != nil
+        )
+        guard let admission else { return }
+
         lock.lock()
         if acceptingSamples,
            frameAdvancement.observe(presentationTime: presentationTime) {
-            latestSample = AOSDesktopPixelLatestSample(
-                capturedAt: Date(),
-                sampleBuffer: sampleBuffer
-            )
+            if admission == .frame {
+                latestSample = AOSDesktopPixelLatestSample(
+                    capturedAt: Date(),
+                    sampleBuffer: sampleBuffer
+                )
+            }
         }
         lock.unlock()
     }

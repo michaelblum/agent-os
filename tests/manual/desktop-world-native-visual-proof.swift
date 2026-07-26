@@ -6,7 +6,8 @@ import ScreenCaptureKit
 private let markerPointSize: CGFloat = 128
 private let maximumDisplayCount = 8
 private let maximumMarkerPixelDimension = 512
-private let proofTimeoutNanoseconds: UInt64 = 2_000_000_000
+private let markerPresentationTimeoutNanoseconds: UInt64 = 2_000_000_000
+private let totalProofTimeoutNanoseconds: UInt64 = 5_000_000_000
 private let captureAttemptLimit = 8
 
 private func monotonicNanoseconds() -> UInt64 {
@@ -37,6 +38,7 @@ private enum VisualProofFailure: String, Error {
     case displayCaptureUnavailable = "DISPLAY_CAPTURE_UNAVAILABLE"
     case markerPixelsMissing = "MARKER_PIXELS_MISSING"
     case cleanupFailed = "CLEANUP_FAILED"
+    case proofTimedOut = "PROOF_TIMEOUT"
 }
 
 private final class PresentationCounter: @unchecked Sendable {
@@ -240,7 +242,7 @@ private struct MarkerPixelCounts {
     let total: Int
 
     var passed: Bool {
-        let minimum = max(64, total / 100)
+        let minimum = max(64, total / 10)
         return green >= minimum && magenta >= minimum
     }
 }
@@ -280,12 +282,25 @@ private func markerPixelCounts(in image: CGImage) -> MarkerPixelCounts? {
 @MainActor
 private final class VisualProofController: NSObject, NSApplicationDelegate {
     private(set) var exitCode: Int32 = 1
+    private var finishing = false
+    private var managedWindowNumbers: [CGWindowID] = []
+    private var runTask: Task<Void, Never>?
     private var surfaces: [MarkerSurface] = []
+    private var watchdogTask: Task<Void, Never>?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        Task { @MainActor in
+        runTask = Task { @MainActor [weak self] in
+            guard let self else { return }
             await run()
-            NSApp.terminate(nil)
+        }
+        watchdogTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: totalProofTimeoutNanoseconds)
+            } catch {
+                return
+            }
+            guard let self else { return }
+            await finishFailure(VisualProofFailure.proofTimedOut)
         }
     }
 
@@ -309,10 +324,12 @@ private final class VisualProofController: NSObject, NSApplicationDelegate {
             surfaces = try screenPairs.map { screen, id in
                 try MarkerSurface(screen: screen, displayID: id, device: device)
             }
+            managedWindowNumbers = surfaces.map { CGWindowID($0.window.windowNumber) }
 
             let counter = PresentationCounter()
             surfaces.forEach { $0.present(counter: counter) }
-            let presentationDeadline = monotonicNanoseconds() + proofTimeoutNanoseconds
+            let presentationDeadline = monotonicNanoseconds()
+                + markerPresentationTimeoutNanoseconds
             while counter.count < surfaces.count,
                   monotonicNanoseconds() < presentationDeadline {
                 try await Task.sleep(nanoseconds: 5_000_000)
@@ -334,18 +351,23 @@ private final class VisualProofController: NSObject, NSApplicationDelegate {
                 guard let display = displayByID[surface.displayID] else {
                     throw VisualProofFailure.displayCaptureUnavailable
                 }
+                let sourcePointSize = min(
+                    markerPointSize,
+                    CGFloat(display.width),
+                    CGFloat(display.height)
+                )
                 let pixelSize = max(
                     1,
                     min(
                         maximumMarkerPixelDimension,
-                        Int((markerPointSize * surface.scale).rounded())
+                        Int((sourcePointSize * surface.scale).rounded())
                     )
                 )
                 let sourceRect = CGRect(
-                    x: CGFloat(display.width - pixelSize) / 2,
-                    y: CGFloat(display.height - pixelSize) / 2,
-                    width: CGFloat(pixelSize),
-                    height: CGFloat(pixelSize)
+                    x: (CGFloat(display.width) - sourcePointSize) / 2,
+                    y: (CGFloat(display.height) - sourcePointSize) / 2,
+                    width: sourcePointSize,
+                    height: sourcePointSize
                 )
                 var verified: MarkerPixelCounts?
                 var attempts = 0
@@ -382,21 +404,12 @@ private final class VisualProofController: NSObject, NSApplicationDelegate {
                 ])
             }
 
-            let windowNumbers = surfaces.map { CGWindowID($0.window.windowNumber) }
-            disposeSurfaces()
-            try await Task.sleep(nanoseconds: 50_000_000)
-            let remaining = windowNumbers.filter { windowID in
-                let rows = CGWindowListCopyWindowInfo(
-                    .optionIncludingWindow,
-                    windowID
-                ) as? [[String: Any]]
-                return rows?.first?[kCGWindowIsOnscreen as String] as? Bool == true
-            }
-            guard remaining.isEmpty else {
+            let retainedWindowCount = await disposeAndCountRetainedWindows()
+            guard retainedWindowCount == 0 else {
                 throw VisualProofFailure.cleanupFailed
             }
 
-            emit([
+            finishSuccess([
                 "status": "passed",
                 "display_count": results.count,
                 "all_displays_verified": results.count == screenPairs.count,
@@ -409,19 +422,49 @@ private final class VisualProofController: NSObject, NSApplicationDelegate {
                 "retained_windows": 0,
                 "retained_gpu_surfaces": 0,
             ])
-            exitCode = 0
         } catch {
-            disposeSurfaces()
-            let code = (error as? VisualProofFailure)?.rawValue
-                ?? "NATIVE_VISUAL_PROOF_FAILED"
-            emit([
-                "status": "failed",
-                "error_code": code,
-                "pixels_persisted": false,
-                "cleanup_complete": surfaces.isEmpty,
-            ])
-            exitCode = 1
+            await finishFailure(error)
         }
+    }
+
+    private func finishSuccess(_ payload: [String: Any]) {
+        guard !finishing else { return }
+        finishing = true
+        watchdogTask?.cancel()
+        emit(payload)
+        exitCode = 0
+        NSApp.terminate(nil)
+    }
+
+    private func finishFailure(_ error: Error) async {
+        guard !finishing else { return }
+        finishing = true
+        watchdogTask?.cancel()
+        runTask?.cancel()
+        let retainedWindowCount = await disposeAndCountRetainedWindows()
+        let code = (error as? VisualProofFailure)?.rawValue
+            ?? "NATIVE_VISUAL_PROOF_FAILED"
+        emit([
+            "status": "failed",
+            "error_code": code,
+            "pixels_persisted": false,
+            "cleanup_complete": retainedWindowCount == 0,
+            "retained_windows": retainedWindowCount,
+        ])
+        exitCode = 1
+        NSApp.terminate(nil)
+    }
+
+    private func disposeAndCountRetainedWindows() async -> Int {
+        disposeSurfaces()
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        return managedWindowNumbers.filter { windowID in
+            let rows = CGWindowListCopyWindowInfo(
+                .optionIncludingWindow,
+                windowID
+            ) as? [[String: Any]]
+            return rows?.first?[kCGWindowIsOnscreen as String] as? Bool == true
+        }.count
     }
 
     private func disposeSurfaces() {
