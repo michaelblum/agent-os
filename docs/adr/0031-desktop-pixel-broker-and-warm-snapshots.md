@@ -42,7 +42,9 @@ delivers it without waiting for `SCStream` shutdown. Stream retirement proceeds
 in the background while the broker remains closed to overlapping acquisition.
 The explicit consent probe still waits for that retirement acknowledgement
 before reporting the capability ready. Canceled work receives a bounded
-retirement interval. A stop failure or missing retirement acknowledgement
+retirement interval. A delegate-observed stop or ScreenCaptureKit's explicit
+already-stopped, user-stopped, or system-stopped result is a successful
+retirement acknowledgement. An unknown stop failure or missing acknowledgement
 faults that broker instance permanently instead of admitting overlapping native
 capture. There is no frame history and no permanently running desktop backdrop.
 

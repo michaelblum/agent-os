@@ -20,6 +20,146 @@ func aosDesktopFrameCaptureFailure(for error: Error) -> AOSDesktopFrameCaptureFa
     return .captureFailed
 }
 
+func aosDesktopPixelStopErrorConfirmsRetirement(_ error: Error) -> Bool {
+    let native = error as NSError
+    guard native.domain == SCStreamErrorDomain else { return false }
+    if native.code == SCStreamError.Code.attemptToStopStreamState.rawValue
+        || native.code == SCStreamError.Code.userStopped.rawValue {
+        return true
+    }
+    if #available(macOS 15.0, *),
+       native.code == SCStreamError.Code.systemStoppedStream.rawValue {
+        return true
+    }
+    return false
+}
+
+protocol AOSDesktopPixelStreamLifecycle: AnyObject {
+    func sampleIsReady() throws -> Bool
+    func retirementWasObserved() -> Bool
+    func waitForRetirement(timeout: TimeInterval) async -> Bool
+}
+
+final class AOSDesktopPixelRetirementLatch: @unchecked Sendable {
+    private let lock = NSLock()
+    private var observed = false
+    private var waiters: [UUID: (Bool) -> Void] = [:]
+
+    func observe() {
+        lock.lock()
+        guard !observed else {
+            lock.unlock()
+            return
+        }
+        observed = true
+        let callbacks = Array(waiters.values)
+        waiters.removeAll()
+        lock.unlock()
+        callbacks.forEach { $0(true) }
+    }
+
+    func snapshot() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return observed
+    }
+
+    func wait(timeout: TimeInterval) async -> Bool {
+        await withCheckedContinuation { continuation in
+            let id = UUID()
+            lock.lock()
+            if observed {
+                lock.unlock()
+                continuation.resume(returning: true)
+                return
+            }
+            waiters[id] = { continuation.resume(returning: $0) }
+            lock.unlock()
+            DispatchQueue.global(qos: .utility).asyncAfter(
+                deadline: .now() + max(0.01, min(timeout, 1))
+            ) { [self] in
+                expire(id: id)
+            }
+        }
+    }
+
+    private func expire(id: UUID) {
+        lock.lock()
+        let callback = waiters.removeValue(forKey: id)
+        lock.unlock()
+        callback?(false)
+    }
+}
+
+final class AOSDesktopPixelRetirementDecision: @unchecked Sendable {
+    private let lock = NSLock()
+    private var result: Bool?
+    private var waiters: [(Bool) -> Void] = []
+
+    func resolve(_ result: Bool) {
+        lock.lock()
+        guard self.result == nil else {
+            lock.unlock()
+            return
+        }
+        self.result = result
+        let callbacks = waiters
+        waiters.removeAll()
+        lock.unlock()
+        callbacks.forEach { $0(result) }
+    }
+
+    func value() async -> Bool {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if let result {
+                lock.unlock()
+                continuation.resume(returning: result)
+                return
+            }
+            waiters.append { continuation.resume(returning: $0) }
+            lock.unlock()
+        }
+    }
+}
+
+func aosDesktopPixelStreamsAreReady(
+    _ lifecycles: [AOSDesktopPixelStreamLifecycle]
+) throws -> Bool {
+    var allReady = true
+    for lifecycle in lifecycles {
+        if try !lifecycle.sampleIsReady() { allReady = false }
+    }
+    return allReady
+}
+
+func aosSettleDesktopPixelStreamRetirement(
+    lifecycle: AOSDesktopPixelStreamLifecycle,
+    timeout: TimeInterval,
+    stop: @escaping () async throws -> Void
+) async -> Bool {
+    if lifecycle.retirementWasObserved() { return true }
+    let decision = AOSDesktopPixelRetirementDecision()
+    let stopTask = Task {
+        do {
+            try await stop()
+            decision.resolve(true)
+        } catch {
+            if lifecycle.retirementWasObserved()
+                || aosDesktopPixelStopErrorConfirmsRetirement(error) {
+                decision.resolve(true)
+            }
+        }
+    }
+    let observationTask = Task {
+        decision.resolve(await lifecycle.waitForRetirement(timeout: timeout))
+    }
+    let result = await decision.value()
+    stopTask.cancel()
+    observationTask.cancel()
+    return result
+}
+
 private actor AOSNativeDesktopPixelSnapshotActor {
     func snapshot(
         _ request: AOSDesktopPixelSnapshotRequest
@@ -134,6 +274,7 @@ private struct AOSDesktopPixelLatestSample: @unchecked Sendable {
 }
 
 private final class AOSDesktopPixelStreamOutput: NSObject,
+    AOSDesktopPixelStreamLifecycle,
     SCStreamOutput,
     SCStreamDelegate
 {
@@ -142,6 +283,7 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
     private var failure: Error?
     private var latestSample: AOSDesktopPixelLatestSample?
     private let lock = NSLock()
+    private let retirementLatch = AOSDesktopPixelRetirementLatch()
 
     init(displayID: UInt32) {
         self.displayID = displayID
@@ -177,8 +319,29 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
 
     func stream(_ stream: SCStream, didStopWithError error: Error) {
         lock.lock()
+        acceptingSamples = false
         failure = error
+        latestSample = nil
         lock.unlock()
+        retirementLatch.observe()
+    }
+
+    func retirementWasObserved() -> Bool {
+        retirementLatch.snapshot()
+    }
+
+    func waitForRetirement(timeout: TimeInterval) async -> Bool {
+        await retirementLatch.wait(timeout: timeout)
+    }
+
+    func sampleIsReady() throws -> Bool {
+        do {
+            _ = try snapshot()
+            return true
+        } catch let failure as AOSDesktopFrameCaptureFailure
+            where failure == .frameNotReady {
+            return false
+        }
     }
 
     func snapshot() throws -> AOSDesktopPixelLatestSample {
@@ -226,11 +389,11 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
         return await withTaskGroup(of: Bool.self) { group in
             for entry in entries {
                 group.addTask {
-                    do {
+                    await aosSettleDesktopPixelStreamRetirement(
+                        lifecycle: entry.output,
+                        timeout: 0.25
+                    ) {
                         try await entry.stream.stopCapture()
-                        return true
-                    } catch {
-                        return false
                     }
                 }
             }
@@ -451,9 +614,7 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             try Task.checkCancellation()
-            if entries.allSatisfy({ (try? $0.output.snapshot()) != nil }) {
-                return
-            }
+            if try aosDesktopPixelStreamsAreReady(entries.map(\.output)) { return }
             try await Task.sleep(nanoseconds: 10_000_000)
         }
         throw AOSDesktopFrameCaptureFailure.frameNotReady
