@@ -8,14 +8,14 @@ import test from 'node:test'
 const repoRoot = path.resolve(import.meta.dirname, '..')
 const taskStateSource = path.join(repoRoot, 'src/display/scene-extension-scheme-task-state.swift')
 const storeSource = path.join(repoRoot, 'src/display/desktop-frame-texture.swift')
-const consentContractSource = path.join(
-  repoRoot,
-  'src/shared/desktop-frame-capture-consent-contract.swift',
-)
+const consentContractSource = path.join(repoRoot, 'src/shared/desktop-frame-capture-consent-contract.swift')
 const consentSource = path.join(repoRoot, 'src/daemon/desktop-frame-capture-consent.swift')
+const brokerSource = path.join(repoRoot, 'src/daemon/desktop-pixel-broker.swift')
+const nativePixelSource = path.join(repoRoot, 'src/daemon/desktop-pixel-native.swift')
+const captureAdapterSource = path.join(repoRoot, 'src/daemon/desktop-frame-capture-adapter.swift')
 const controllerSource = path.join(repoRoot, 'src/daemon/desktop-frame-capture-controller.swift')
 const responseEnvelopeSource = path.join(repoRoot, 'src/shared/response-envelope.swift')
-
+const brokerTestsSource = path.join(repoRoot, 'tests/lib/desktop-pixel-broker-tests.swift')
 async function compileHarness(root) {
   const main = path.join(root, 'main.swift')
   const executable = path.join(root, 'desktop-frame-proof')
@@ -137,6 +137,7 @@ func rejectedCode(_ outcome: AOSDesktopFrameCaptureOutcome) -> String? {
 struct DesktopFrameProof {
     static func main() throws {
         let owner = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
+        try runDesktopPixelBrokerTests()
         require(
             AOSDesktopFrameCaptureConsentController.probeLifetime == 2,
             "direct-capture probe no longer fails within its interactive bound"
@@ -923,9 +924,13 @@ struct DesktopFrameProof {
     taskStateSource,
     storeSource,
     consentContractSource,
+    brokerSource,
+    nativePixelSource,
+    captureAdapterSource,
     consentSource,
     controllerSource,
     responseEnvelopeSource,
+    brokerTestsSource,
     main,
     '-o',
     executable,

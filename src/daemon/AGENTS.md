@@ -21,9 +21,15 @@ subscription maps, or transport orchestration in the connection handler.
 DesktopWorld event-routing failures remain reason-coded and observable through
 bounded daemon diagnostics; never log scene payloads, gesture coordinates,
 labels, or product data to diagnose delivery.
-`desktop-frame-capture-controller.swift` owns the only ScreenCaptureKit request
-admission for trusted scene extensions. A request is bound to the exact scene
-revision, canvas and topology generation, and current display WebViews. Native
+`desktop-pixel-native.swift` owns ScreenCaptureKit snapshots and bounded warm
+streams. `desktop-pixel-broker.swift` serializes that native acquisition across
+daemon consumers and owns warm-lease lifecycle. They return in-memory pixel
+frames only; encoding, cropping, redaction, persistence, and GPU delivery
+belong to downstream adapters. `desktop-frame-capture-adapter.swift` converts a
+snapshot into the private WebKit presentation format.
+`desktop-frame-capture-controller.swift` owns request admission for trusted
+scene extensions. A request is bound to the exact scene revision, canvas and
+topology generation, and current display WebViews. Native
 capture, in-memory handle storage, per-segment decode readiness, and
 acknowledged presentation form one bounded request aggregate with one deadline.
 `desktop-frame-capture-consent.swift` separately owns process-lifetime direct
@@ -33,7 +39,9 @@ probe it. The non-interruptible authorization request runs on a dedicated
 serial worker so AppKit remains responsive, while its bounded deadline remains
 independent of that worker. Runtime capture must
 atomically claim that gate before emitting a started event or invoking native capture.
-Disconnect, replacement, cancellation, partial presentation, delivery failure,
+The consent probe and runtime controller must share the daemon's one pixel
+broker instance so their ScreenCaptureKit work cannot overlap. Disconnect,
+replacement, cancellation, partial presentation, delivery failure,
 or timeout cancels native work and clears the complete capture set.
 `UnifiedDaemon` only routes exact-generation
 messages; it must never forward pixels, paths, handles, or frame URLs through

@@ -100,6 +100,7 @@
       "id": "desktop-world-scene-extension-contract",
       "path_patterns": [
         "tests/desktop-frame-texture-native.test.mjs",
+        "tests/desktop-pixel-broker-contract.test.mjs",
         "tests/scene-extension-cli.test.mjs",
         "tests/scene-extension-native-store.test.mjs",
         "tests/toolkit/desktop-frame-texture-source.test.mjs",
@@ -114,7 +115,7 @@
       "proof_kind": "trusted_scene_projection_extension_contract",
       "contract": "Exact-digest operator authorization, compile-only factory-body validation, immutable native storage, explicitly primed and capability-gated desktop-frame leases, host-generated module wrapping, bounded projection execution, and deterministic disposal remain one trusted extension boundary.",
       "worth": "This prevents executable scene artifacts or privileged desktop-frame textures from bypassing reviewed identity, explicit consent, owner, ABI, capability, resource-budget, and lifecycle checks without executing the AOS binary or candidate code during validation.",
-      "command": "node --test tests/desktop-frame-texture-native.test.mjs tests/scene-extension-cli.test.mjs tests/scene-extension-native-store.test.mjs tests/toolkit/desktop-frame-texture-source.test.mjs tests/toolkit/scene-extension.test.mjs tests/toolkit/desktop-world-scene-extension-loader.test.mjs tests/toolkit/desktop-world-scene-extension-operation.test.mjs tests/toolkit/desktop-world-scene-extension-projection.test.mjs",
+      "command": "node --test tests/desktop-frame-texture-native.test.mjs tests/desktop-pixel-broker-contract.test.mjs tests/scene-extension-cli.test.mjs tests/scene-extension-native-store.test.mjs tests/toolkit/desktop-frame-texture-source.test.mjs tests/toolkit/scene-extension.test.mjs tests/toolkit/desktop-world-scene-extension-loader.test.mjs tests/toolkit/desktop-world-scene-extension-operation.test.mjs tests/toolkit/desktop-world-scene-extension-projection.test.mjs",
       "replaces": [],
       "guard": "temporary owner-only filesystem fixtures, a fake ScreenCaptureKit boundary, bounded child compilation, Swift typecheck stubs, and pure Three object graphs only; no AOS binary, daemon, GUI, live TCC capture, signing, or candidate execution",
       "status": "active"

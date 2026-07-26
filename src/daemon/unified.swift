@@ -128,10 +128,22 @@ class UnifiedDaemon {
     )
     private var contentServer: ContentServer?
     private let desktopFrameStore = AOSDesktopFrameStore()
-    private lazy var desktopFrameCaptureConsent = AOSDesktopFrameCaptureConsentController()
+    private let desktopPixelBroker = AOSDesktopPixelBroker()
+    private lazy var desktopFrameProbeCapturer = AOSNativeDesktopFrameCapturer(
+        broker: desktopPixelBroker,
+        strategy: .snapshot
+    )
+    private lazy var desktopFrameCapturer = AOSNativeDesktopFrameCapturer(
+        broker: desktopPixelBroker,
+        strategy: .warmSnapshot
+    )
+    private lazy var desktopFrameCaptureConsent = AOSDesktopFrameCaptureConsentController(
+        capturer: desktopFrameProbeCapturer
+    )
     private lazy var desktopFrameCapture = AOSDesktopFrameCaptureController(
         canvasManager: canvasManager,
         store: desktopFrameStore,
+        capturer: desktopFrameCapturer,
         consent: desktopFrameCaptureConsent,
         reauthorize: { [weak self] authorization in
             self?.reauthorizeDesktopFrame(authorization) ?? false
@@ -4752,6 +4764,7 @@ class UnifiedDaemon {
         annotationSelection.shutdown()
         desktopFrameCaptureConsent.shutdown()
         _ = desktopFrameCapture.releaseAll(callerCanvasID: sceneStageCanvasID)
+        desktopPixelBroker.shutdown()
         restoreNativeCursorSuppressionForExit()
         perception.stop()
         spatial.stopPolling()
