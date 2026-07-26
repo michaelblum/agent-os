@@ -264,7 +264,7 @@ final class AOSDesktopFrameCaptureConsentController {
         lock.unlock()
 
         active.permissionRequest.cancel()
-        active.capture.cancel()
+        retireQuarantinedOperation(active, generation: active.generation)
         active.deadline.cancel()
     }
 
@@ -273,13 +273,19 @@ final class AOSDesktopFrameCaptureConsentController {
         generation: UInt64
     ) {
         lock.lock()
-        guard activePrime?.generation == generation else {
+        guard var active = activePrime,
+              active.generation == generation else {
             lock.unlock()
             capture.cancel()
             return
         }
-        activePrime?.capture = capture
+        active.capture = capture
+        activePrime = active
+        let quarantined = active.quarantined
         lock.unlock()
+        if quarantined {
+            cancelQuarantinedCapture(active, generation: generation)
+        }
     }
 
     private func installPermissionRequest(
@@ -432,11 +438,63 @@ final class AOSDesktopFrameCaptureConsentController {
         lock.unlock()
 
         active.permissionRequest.cancel()
-        active.capture.cancel()
+        retireQuarantinedOperation(active, generation: generation)
         active.deadline.cancel()
         for waiter in waiters {
             waiter.completion(timeout)
         }
+    }
+
+    private func retireQuarantinedOperation(
+        _ active: ActivePrime,
+        generation: UInt64
+    ) {
+        if active.phase == .requestingPermission {
+            retireQuarantinedPrime(generation: generation, result: .success(()))
+        } else {
+            cancelQuarantinedCapture(active, generation: generation)
+        }
+    }
+
+    private func cancelQuarantinedCapture(
+        _ active: ActivePrime,
+        generation: UInt64
+    ) {
+        if let retiring = active.capture as? AOSDesktopFrameRetirementAwaiting {
+            retiring.cancelAndAwaitRetirement { [weak self] result in
+                self?.retireQuarantinedPrime(
+                    generation: generation,
+                    result: result
+                )
+            }
+        } else {
+            active.capture.cancel()
+        }
+    }
+
+    private func retireQuarantinedPrime(
+        generation: UInt64,
+        result: Result<Void, Error>
+    ) {
+        lock.lock()
+        guard let active = activePrime,
+              active.generation == generation,
+              active.quarantined else {
+            lock.unlock()
+            return
+        }
+        activePrime = nil
+        if case .failure = result {
+            state = AOSDesktopFrameDirectCaptureSnapshot(
+                status: .failed,
+                errorCode: AOSDesktopFrameCaptureFailure.retirementUncertain.code
+            )
+        }
+        lock.unlock()
+
+        active.permissionRequest.cancel()
+        active.capture.cancel()
+        active.deadline.cancel()
     }
 
     private func completePrime(

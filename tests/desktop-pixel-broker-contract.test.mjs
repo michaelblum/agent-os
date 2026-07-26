@@ -30,7 +30,7 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.doesNotMatch(`${broker}\n${native}`, /base64|CGImageDestination|write\s*\(/iu)
   assert.match(adapter, /CGImageDestinationCreateWithData/u)
   assert.match(daemon, /private let desktopPixelBroker = AOSDesktopPixelBroker\(\)/u)
-  assert.match(daemon, /desktopFrameProbeCapturer[\s\S]*strategy: \.snapshot/u)
+  assert.match(daemon, /desktopFrameProbeCapturer[\s\S]*strategy: \.warmSnapshot/u)
   assert.match(daemon, /desktopFrameCapturer[\s\S]*strategy: \.warmSnapshot/u)
   assert.doesNotMatch(native, /Task\s*\{\s*@MainActor/u)
 })

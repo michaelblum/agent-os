@@ -29,16 +29,26 @@ enum AOSDesktopFrameCaptureStrategy {
 }
 
 private final class AOSDesktopFrameWarmSnapshotOperation {
+    private enum RetirementAction {
+        case lease(AOSDesktopPixelWarmLease)
+        case startup(AOSDesktopFrameCancelling)
+    }
+
     private let broker: AOSDesktopPixelBroker
+    private var cancelRequested = false
+    private var cancellationWaiters: [(Result<Void, Error>) -> Void] = []
     private let completion: (Result<AOSDesktopFrameCaptureSetResult, Error>) -> Void
-    private var completed = false
+    private var deliveryCompleted = false
     private var freeze: AOSDesktopFrameCancelling = AOSDesktopFrameCancellation()
     private var lease: AOSDesktopPixelWarmLease?
     private let lock = NSLock()
     private let ownerID = "desktop-frame-\(UUID().uuidString.lowercased())"
+    private var pendingResult: Result<AOSDesktopFrameCaptureSetResult, Error>?
     private let request: AOSDesktopPixelSnapshotRequest
+    private var retirementResult: Result<Void, Error>?
+    private var retirementStarted = false
     private let startedAt = Date()
-    private var startup: AOSDesktopFrameCancelling = AOSDesktopFrameCancellation()
+    private var startup: AOSDesktopFrameCancelling?
 
     init(
         broker: AOSDesktopPixelBroker,
@@ -61,21 +71,30 @@ private final class AOSDesktopFrameWarmSnapshotOperation {
     }
 
     func cancel() {
+        cancelAndAwaitRetirement { _ in }
+    }
+
+    func cancelAndAwaitRetirement(
+        _ completion: @escaping (Result<Void, Error>) -> Void
+    ) {
         lock.lock()
-        guard !completed else {
+        if let retirementResult {
             lock.unlock()
+            completion(retirementResult)
             return
         }
-        completed = true
-        let startup = startup
-        let freeze = freeze
-        let lease = lease
-        lock.unlock()
-        startup.cancel()
-        freeze.cancel()
-        if let lease {
-            _ = broker.releaseWarm(leaseID: lease.id, ownerID: ownerID)
+        if deliveryCompleted {
+            lock.unlock()
+            completion(.success(()))
+            return
         }
+        cancelRequested = true
+        cancellationWaiters.append(completion)
+        let freeze = freeze
+        let action = takeRetirementActionLocked()
+        lock.unlock()
+        freeze.cancel()
+        performRetirement(action)
     }
 
     private func prepared(
@@ -86,13 +105,15 @@ private final class AOSDesktopFrameWarmSnapshotOperation {
             finish(.failure(error))
         case .success(let lease):
             lock.lock()
-            guard !completed else {
-                lock.unlock()
-                _ = broker.releaseWarm(leaseID: lease.id, ownerID: ownerID)
+            self.lease = lease
+            let action = cancelRequested ? takeRetirementActionLocked() : nil
+            let shouldFreeze = !cancelRequested && !deliveryCompleted
+            lock.unlock()
+            if let action {
+                performRetirement(action)
                 return
             }
-            self.lease = lease
-            lock.unlock()
+            guard shouldFreeze else { return }
             let operation = broker.freezeWarm(
                 leaseID: lease.id,
                 ownerID: ownerID,
@@ -134,39 +155,105 @@ private final class AOSDesktopFrameWarmSnapshotOperation {
         _ result: Result<AOSDesktopFrameCaptureSetResult, Error>
     ) {
         lock.lock()
-        guard !completed else {
+        guard !deliveryCompleted, pendingResult == nil else {
             lock.unlock()
             return
         }
-        completed = true
-        let lease = lease
+        pendingResult = result
+        let action = takeRetirementActionLocked()
+        let shouldDeliver = !cancelRequested && !retirementStarted
+        if shouldDeliver { deliveryCompleted = true }
         lock.unlock()
-        if let lease {
-            _ = broker.releaseWarm(leaseID: lease.id, ownerID: ownerID)
+        if let action {
+            performRetirement(action)
+            return
         }
-        completion(result)
+        if shouldDeliver { completion(result) }
+    }
+
+    private func retire(_ result: Result<Void, Error>) {
+        lock.lock()
+        guard retirementResult == nil else {
+            lock.unlock()
+            return
+        }
+        retirementResult = result
+        let waiters = cancellationWaiters
+        cancellationWaiters = []
+        let delivery: Result<AOSDesktopFrameCaptureSetResult, Error>?
+        if cancelRequested || deliveryCompleted {
+            delivery = nil
+        } else if case .failure(let error) = result {
+            deliveryCompleted = true
+            delivery = .failure(error)
+        } else {
+            deliveryCompleted = true
+            delivery = pendingResult
+        }
+        lock.unlock()
+        waiters.forEach { $0(result) }
+        if let delivery {
+            completion(delivery)
+        }
     }
 
     private func installStartup(_ operation: AOSDesktopFrameCancelling) {
         lock.lock()
-        guard !completed else {
+        if deliveryCompleted || retirementResult != nil {
             lock.unlock()
             operation.cancel()
             return
         }
         startup = operation
+        let action = cancelRequested ? takeRetirementActionLocked() : nil
         lock.unlock()
+        performRetirement(action)
     }
 
     private func installFreeze(_ operation: AOSDesktopFrameCancelling) {
         lock.lock()
-        guard !completed else {
+        guard !cancelRequested, !deliveryCompleted, !retirementStarted else {
             lock.unlock()
             operation.cancel()
             return
         }
         freeze = operation
         lock.unlock()
+    }
+
+    private func takeRetirementActionLocked() -> RetirementAction? {
+        guard !retirementStarted else { return nil }
+        if let lease {
+            retirementStarted = true
+            return .lease(lease)
+        }
+        if let startup {
+            retirementStarted = true
+            return .startup(startup)
+        }
+        return nil
+    }
+
+    private func performRetirement(_ action: RetirementAction?) {
+        guard let action else { return }
+        switch action {
+        case .lease(let lease):
+            let released = broker.releaseWarm(
+                leaseID: lease.id,
+                ownerID: ownerID,
+                completion: retire
+            )
+            if !released {
+                retire(.failure(AOSDesktopFrameCaptureFailure.leaseNotFound))
+            }
+        case .startup(let startup):
+            if let retiring = startup as? AOSDesktopFrameRetirementAwaiting {
+                retiring.cancelAndAwaitRetirement(retire)
+            } else {
+                startup.cancel()
+                retire(.success(()))
+            }
+        }
     }
 }
 
@@ -201,7 +288,9 @@ final class AOSNativeDesktopFrameCapturer: AOSDesktopFrameCapturing {
                 completion: completion
             )
             operation.start()
-            return AOSDesktopFrameCancellation { operation.cancel() }
+            return AOSDesktopFrameRetirementCancellation { completion in
+                operation.cancelAndAwaitRetirement(completion)
+            }
         }
         return broker.snapshot(request) { result in
             completion(result.flatMap { frameSet in
