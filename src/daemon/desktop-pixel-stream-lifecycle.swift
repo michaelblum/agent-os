@@ -16,6 +16,7 @@ func aosDesktopPixelStopErrorConfirmsRetirement(_ error: Error) -> Bool {
 }
 
 protocol AOSDesktopPixelStreamLifecycle: AnyObject {
+    func confirmRetirement()
     func sampleIsReady() throws -> Bool
     func retirementWasObserved() -> Bool
     func waitForRetirement(timeout: TimeInterval) async -> Bool
@@ -336,10 +337,12 @@ func aosSettleDesktopPixelStreamRetirement(
     let stopTask = Task {
         do {
             try await stop()
+            lifecycle.confirmRetirement()
             decision.resolve(true)
         } catch {
             if lifecycle.retirementWasObserved()
                 || aosDesktopPixelStopErrorConfirmsRetirement(error) {
+                lifecycle.confirmRetirement()
                 decision.resolve(true)
             }
         }
