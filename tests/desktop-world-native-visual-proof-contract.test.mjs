@@ -26,6 +26,8 @@ test('native visual proof is bounded, content-free, and explicitly live', () => 
   assert.match(source, /window\.ignoresMouseEvents = true/u)
   assert.match(source, /pixels_persisted["']:\s*false/u)
   assert.match(source, /captureAttemptLimit = 8/u)
+  assert.match(source, /maximumDisplayCount = 8/u)
+  assert.match(source, /maximumMarkerPixelDimension = 512/u)
   assert.match(source, /surfaces\.removeAll\(keepingCapacity: false\)/u)
   assert.doesNotMatch(source, /pngData|jpegData|write\(to:|CGImageDestination/u)
   assert.match(runner, /AOS_NATIVE_VISUAL_PROOF_OK/u)

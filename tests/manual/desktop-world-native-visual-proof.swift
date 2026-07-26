@@ -4,6 +4,8 @@ import MetalKit
 import ScreenCaptureKit
 
 private let markerPointSize: CGFloat = 128
+private let maximumDisplayCount = 8
+private let maximumMarkerPixelDimension = 512
 private let proofTimeoutNanoseconds: UInt64 = 2_000_000_000
 private let captureAttemptLimit = 8
 
@@ -300,7 +302,8 @@ private final class VisualProofController: NSObject, NSApplicationDelegate {
                 guard let id = displayID(for: screen) else { return nil }
                 return (screen, id)
             }
-            guard !screenPairs.isEmpty else {
+            guard !screenPairs.isEmpty,
+                  screenPairs.count <= maximumDisplayCount else {
                 throw VisualProofFailure.displayTopologyUnavailable
             }
             surfaces = try screenPairs.map { screen, id in
@@ -331,7 +334,13 @@ private final class VisualProofController: NSObject, NSApplicationDelegate {
                 guard let display = displayByID[surface.displayID] else {
                     throw VisualProofFailure.displayCaptureUnavailable
                 }
-                let pixelSize = max(1, Int((markerPointSize * surface.scale).rounded()))
+                let pixelSize = max(
+                    1,
+                    min(
+                        maximumMarkerPixelDimension,
+                        Int((markerPointSize * surface.scale).rounded())
+                    )
+                )
                 let sourceRect = CGRect(
                     x: CGFloat(display.width - pixelSize) / 2,
                     y: CGFloat(display.height - pixelSize) / 2,
