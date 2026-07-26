@@ -10,6 +10,44 @@ struct AOSDesktopFrameConsumerIdentity: Hashable {
     let webViewID: ObjectIdentifier
 }
 
+struct AOSDesktopFrameCaptureContext: Equatable {
+    let canvasGeneration: UInt64
+    let canvasID: String
+    let consumers: [AOSDesktopFrameConsumerIdentity]
+    let excludingWindowIDs: [Int]
+    let topologyGeneration: UInt64
+
+    init?(
+        canvasID: String,
+        consumers: [AOSDesktopFrameConsumerIdentity],
+        excludingWindowIDs: [Int]
+    ) {
+        let ordered = consumers.sorted { left, right in
+            left.segmentIndex == right.segmentIndex
+                ? left.displayID < right.displayID
+                : left.segmentIndex < right.segmentIndex
+        }
+        guard !canvasID.isEmpty,
+              let first = ordered.first,
+              Set(ordered.map(\.displayID)).count == ordered.count,
+              Set(ordered.map(\.segmentIndex)).count == ordered.count,
+              ordered.allSatisfy({
+                  $0.canvasID == canvasID
+                      && $0.canvasGeneration == first.canvasGeneration
+                      && $0.topologyGeneration == first.topologyGeneration
+              }) else {
+            return nil
+        }
+        self.canvasGeneration = first.canvasGeneration
+        self.canvasID = canvasID
+        self.consumers = ordered
+        self.excludingWindowIDs = Array(Set(excludingWindowIDs)).sorted()
+        self.topologyGeneration = first.topologyGeneration
+    }
+
+    var displayIDs: [UInt32] { consumers.map(\.displayID) }
+}
+
 struct AOSDesktopFrameLeaseIdentity: Equatable {
     let canvasID: String
     let canvasGeneration: UInt64

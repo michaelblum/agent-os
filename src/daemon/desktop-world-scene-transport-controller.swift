@@ -165,6 +165,22 @@ final class AOSDesktopWorldSceneTransportController {
         )
     }
 
+    func desktopFrameTextureAuthorization()
+        -> AOSDesktopFrameWarmAuthorization? {
+        guard let topology = canvasManager.desktopWorldSceneBarrierTopology(
+            canvasID: Self.stageCanvasID
+        ) else { return nil }
+        let identity = stageIdentity(topology)
+        guard scene.hasAuthorizedCapability(
+            identity: identity,
+            capability: "aos.scene.desktop_frame_texture"
+        ) else { return nil }
+        return AOSDesktopFrameWarmAuthorization(
+            canvasGeneration: identity.canvasGeneration,
+            topologyGeneration: identity.topologyGeneration
+        )
+    }
+
     func stageRemoved() {
         guard let invalidation = scene.stageRemoved(code: "SCENE_STAGE_REMOVED") else { return }
         finishInvalidation(invalidation)

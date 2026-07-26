@@ -37,7 +37,7 @@ final class FakeWarmSource: AOSDesktopPixelWarmSource {
     private var storedStopCompletion: ((Result<Void, Error>) -> Void)?
     var canceled = 0
     var completesStopImmediately = true
-    let failure: AOSDesktopFrameCaptureFailure?
+    var failure: AOSDesktopFrameCaptureFailure?
     var freezeEntered: DispatchSemaphore?
     var freezeRelease: DispatchSemaphore?
     var freezeCount = 0
@@ -312,7 +312,7 @@ func runDesktopPixelBrokerTests() throws {
     )
     let warmCapturer = AOSNativeDesktopFrameCapturer(
         broker: warmCaptureBroker,
-        strategy: .warmSnapshot
+        strategy: .oneShotWarmSnapshot
     )
     let warmCaptureSettled = DispatchSemaphore(value: 0)
     var warmCaptureResult: Result<AOSDesktopFrameCaptureSetResult, Error>?
@@ -347,7 +347,7 @@ func runDesktopPixelBrokerTests() throws {
     )
     let delayedAdapterCapturer = AOSNativeDesktopFrameCapturer(
         broker: delayedAdapterStopBroker,
-        strategy: .warmSnapshot
+        strategy: .oneShotWarmSnapshot
     )
     let delayedAdapterSettled = DispatchSemaphore(value: 0)
     var delayedAdapterResult: Result<AOSDesktopFrameCaptureSetResult, Error>?
@@ -418,7 +418,7 @@ func runDesktopPixelBrokerTests() throws {
             acquirer: FakePixelAcquirer(),
             warmAcquirer: FakeWarmAcquirer(source: canceledRetirementSource)
         ),
-        strategy: .warmSnapshot
+        strategy: .oneShotWarmSnapshot
     )
     let canceledRetirementSettled = DispatchSemaphore(value: 0)
     let canceledRetirement = canceledRetirementCapturer.capture(
@@ -464,7 +464,7 @@ func runDesktopPixelBrokerTests() throws {
             acquirer: FakePixelAcquirer(),
             warmAcquirer: consentWarmAcquirer
         ),
-        strategy: .warmSnapshot
+        strategy: .oneShotWarmSnapshot
     )
     let consent = AOSDesktopFrameCaptureConsentController(
         capturer: consentCapturer,
@@ -525,7 +525,7 @@ func runDesktopPixelBrokerTests() throws {
                 acquirer: FakePixelAcquirer(),
                 warmAcquirer: FakeWarmAcquirer(source: failedConsentSource)
             ),
-            strategy: .warmSnapshot
+            strategy: .oneShotWarmSnapshot
         ),
         mainDisplayID: { 42 },
         requestPermission: { completion in
@@ -568,7 +568,7 @@ func runDesktopPixelBrokerTests() throws {
                 acquirer: FakePixelAcquirer(),
                 warmAcquirer: installRaceAcquirer
             ),
-            strategy: .warmSnapshot
+            strategy: .oneShotWarmSnapshot
         ),
         mainDisplayID: { 42 },
         requestPermission: { completion in

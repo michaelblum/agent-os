@@ -131,11 +131,11 @@ class UnifiedDaemon {
     private let desktopPixelBroker = AOSDesktopPixelBroker()
     private lazy var desktopFrameProbeCapturer = AOSNativeDesktopFrameCapturer(
         broker: desktopPixelBroker,
-        strategy: .warmSnapshot
+        strategy: .oneShotWarmSnapshot
     )
     private lazy var desktopFrameCapturer = AOSNativeDesktopFrameCapturer(
         broker: desktopPixelBroker,
-        strategy: .warmSnapshot
+        strategy: .prewarmedSnapshot
     )
     private lazy var desktopFrameCaptureConsent = AOSDesktopFrameCaptureConsentController(
         capturer: desktopFrameProbeCapturer
@@ -310,6 +310,10 @@ class UnifiedDaemon {
 
     private func desktopFrameAuthorizationChanged() {
         _ = desktopFrameCapture.cancelUnauthorized()
+        desktopFrameCapture.reconcileWarm(
+            authorization: desktopWorldSceneTransport
+                .desktopFrameTextureAuthorization()
+        )
     }
 
     // MARK: - Start
@@ -3525,7 +3529,11 @@ class UnifiedDaemon {
             )
 
         case "permissions-screen-capture-direct-prime":
-            desktopFrameCaptureConsent.prime(owner: connectionID) { [weak outbound] snapshot in
+            desktopFrameCaptureConsent.prime(owner: connectionID) {
+                [weak self, weak outbound] snapshot in
+                if snapshot.status == .ready {
+                    self?.desktopFrameAuthorizationChanged()
+                }
                 guard let outbound else { return }
                 sendResponseJSON(
                     to: outbound,

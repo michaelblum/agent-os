@@ -10,10 +10,11 @@ async function source(relativePath) {
 }
 
 test('desktop pixel acquisition stays native, serialized, and artifact-free', async () => {
-  const [broker, lifecycle, native, adapter, daemon] = await Promise.all([
+  const [broker, lifecycle, native, pool, adapter, daemon] = await Promise.all([
     source('src/daemon/desktop-pixel-broker.swift'),
     source('src/daemon/desktop-pixel-stream-lifecycle.swift'),
     source('src/daemon/desktop-pixel-native.swift'),
+    source('src/daemon/desktop-frame-warm-pool.swift'),
     source('src/daemon/desktop-frame-capture-adapter.swift'),
     source('src/daemon/unified.swift'),
   ])
@@ -43,11 +44,18 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(broker, /maximumTotalPixels = 67_108_864/u)
   assert.match(broker, /superviseSnapshotRetirement/u)
   assert.match(broker, /superviseWarmRetirement/u)
-  assert.doesNotMatch(`${broker}\n${lifecycle}\n${native}`, /base64|CGImageDestination|write\s*\(/iu)
+  assert.match(pool, /final class AOSDesktopFrameWarmPool/u)
+  assert.match(pool, /desired == configuration/u)
+  assert.match(pool, /broker\.freezeWarm/u)
+  assert.doesNotMatch(
+    `${broker}\n${lifecycle}\n${native}\n${pool}`,
+    /base64|CGImageDestination|write\s*\(/iu,
+  )
   assert.match(adapter, /CGImageDestinationCreateWithData/u)
   assert.match(adapter, /performRetirement\(action\)[\s\S]*completion\(result\)/u)
   assert.match(daemon, /private let desktopPixelBroker = AOSDesktopPixelBroker\(\)/u)
-  assert.match(daemon, /desktopFrameProbeCapturer[\s\S]*strategy: \.warmSnapshot/u)
-  assert.match(daemon, /desktopFrameCapturer[\s\S]*strategy: \.warmSnapshot/u)
+  assert.match(daemon, /desktopFrameProbeCapturer[\s\S]*strategy: \.oneShotWarmSnapshot/u)
+  assert.match(daemon, /desktopFrameCapturer[\s\S]*strategy: \.prewarmedSnapshot/u)
+  assert.match(daemon, /desktopFrameTextureAuthorization/u)
   assert.doesNotMatch(native, /Task\s*\{\s*@MainActor/u)
 })

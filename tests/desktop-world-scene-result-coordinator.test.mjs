@@ -398,6 +398,14 @@ precondition(controller.authorizes(
     threeRevision: "183",
     capability: "aos.scene.desktop_frame_texture"
 ))
+precondition(controller.hasAuthorizedCapability(
+    identity: identity,
+    capability: "aos.scene.desktop_frame_texture"
+))
+precondition(!controller.hasAuthorizedCapability(
+    identity: identity,
+    capability: "aos.scene.future_unknown"
+))
 precondition(!controller.authorizes(
     identity: identity,
     key: key,
@@ -503,6 +511,10 @@ guard case .recoverable(let replacementDeliveries) = controller.settleRetirement
 ) else { preconditionFailure("topology replacement did not settle") }
 precondition(replacementDeliveries.count == 1)
 precondition(replacementDeliveries[0].payload["code"] as? String == "SCENE_TOPOLOGY_CHANGED")
+precondition(!controller.hasAuthorizedCapability(
+    identity: identity,
+    capability: "aos.scene.desktop_frame_texture"
+))
 precondition(!controller.authorizes(
     identity: identity,
     key: key,
