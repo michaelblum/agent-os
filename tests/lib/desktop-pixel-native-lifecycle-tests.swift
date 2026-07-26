@@ -31,6 +31,24 @@ final class LockedBoolean: @unchecked Sendable {
     }
 }
 
+actor PixelStopBarrier {
+    private var arrivals = 0
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func arrive(expected: Int) async {
+        arrivals += 1
+        if arrivals == expected {
+            let pending = waiters
+            waiters = []
+            pending.forEach { $0.resume() }
+            return
+        }
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+}
+
 func settlePixelRetirement(
     lifecycle: AOSDesktopPixelStreamLifecycle,
     timeout: TimeInterval = 0.05,
@@ -48,13 +66,42 @@ func settlePixelRetirement(
         settled.signal()
     }
     require(
-        settled.wait(timeout: .now() + 1) == .success,
+        settled.wait(timeout: .now() + max(1, timeout + 0.5)) == .success,
         "stream-retirement settlement did not complete"
     )
     return result.get()
 }
 
+func settlePixelRetirements(
+    lifecycles: [AOSDesktopPixelStreamLifecycle],
+    timeout: TimeInterval,
+    stop: @escaping (_ index: Int) async throws -> Void
+) -> Bool {
+    let settled = DispatchSemaphore(value: 0)
+    let result = LockedBoolean()
+    Task {
+        let value = await aosSettleDesktopPixelStreamRetirements(
+            lifecycles: lifecycles,
+            timeout: timeout,
+            stop: stop
+        )
+        result.set(value)
+        settled.signal()
+    }
+    require(
+        settled.wait(timeout: .now() + max(1, timeout + 0.5)) == .success,
+        "multi-stream retirement settlement did not complete"
+    )
+    return result.get()
+}
+
 func runDesktopPixelNativeLifecycleTests() throws {
+    require(
+        aosDesktopPixelStreamRetirementTimeout >= 1
+            && aosDesktopPixelStreamRetirementTimeout
+                < AOSDesktopPixelBroker.defaultRetirementTimeout,
+        "native stream retirement must leave margin inside the broker deadline"
+    )
     require(
         aosDesktopPixelStopErrorConfirmsRetirement(NSError(
             domain: SCStreamErrorDomain,
@@ -159,6 +206,43 @@ func runDesktopPixelNativeLifecycleTests() throws {
         "missing retirement acknowledgement failed open"
     )
 
+    let delayedAcknowledgement = FakePixelStreamLifecycle()
+    let delayedAcknowledgementLatch = delayedAcknowledgement.latch
+    require(
+        settlePixelRetirement(
+            lifecycle: delayedAcknowledgement,
+            timeout: 1.3
+        ) {
+            DispatchQueue.global(qos: .utility).asyncAfter(
+                deadline: .now() + 1.1
+            ) {
+                delayedAcknowledgementLatch.observe()
+            }
+            throw AOSDesktopFrameCaptureFailure.captureFailed
+        },
+        "delegate acknowledgement inside the configured timeout was rejected"
+    )
+
+    let canceledWaitLifecycle = FakePixelStreamLifecycle()
+    let canceledWaitSettled = DispatchSemaphore(value: 0)
+    let canceledWaitResult = LockedBoolean()
+    let canceledWaitTask = Task {
+        canceledWaitResult.set(await canceledWaitLifecycle.waitForRetirement(
+            timeout: aosDesktopPixelStreamRetirementTimeout
+        ))
+        canceledWaitSettled.signal()
+    }
+    usleep(10_000)
+    canceledWaitTask.cancel()
+    require(
+        canceledWaitSettled.wait(timeout: .now() + 0.5) == .success,
+        "canceling a retirement wait retained it until the full timeout"
+    )
+    require(
+        !canceledWaitResult.get(),
+        "canceling a retirement wait reported retirement"
+    )
+
     let hungStopLifecycle = FakePixelStreamLifecycle()
     let hungStopEntered = DispatchSemaphore(value: 0)
     let hungStopCanceled = DispatchSemaphore(value: 0)
@@ -182,5 +266,18 @@ func runDesktopPixelNativeLifecycleTests() throws {
     require(
         hungStopCanceled.wait(timeout: .now() + 1) == .success,
         "retirement deadline did not cancel the hung stop operation"
+    )
+
+    let firstDisplay = FakePixelStreamLifecycle()
+    let secondDisplay = FakePixelStreamLifecycle()
+    let stopBarrier = PixelStopBarrier()
+    require(
+        settlePixelRetirements(
+            lifecycles: [firstDisplay, secondDisplay],
+            timeout: 0.5
+        ) { _ in
+            await stopBarrier.arrive(expected: 2)
+        },
+        "multi-display stream retirement did not execute concurrently"
     )
 }
