@@ -408,6 +408,7 @@ func runDesktopPixelNativeLifecycleTests() throws {
 
     let failedStartBarrier = PixelOperationBarrier()
     let stalledStartCanceled = DispatchSemaphore(value: 0)
+    let stalledStartSettled = DispatchSemaphore(value: 0)
     let failedStartBegan = Date()
     require(
         !startPixelStreams(count: 2) { index in
@@ -416,11 +417,12 @@ func runDesktopPixelNativeLifecycleTests() throws {
                 throw AOSDesktopFrameCaptureFailure.captureFailed
             }
             do {
-                try await Task.sleep(nanoseconds: 60_000_000_000)
+                try await Task.sleep(nanoseconds: 30_000_000)
             } catch is CancellationError {
                 stalledStartCanceled.signal()
                 throw CancellationError()
             }
+            stalledStartSettled.signal()
         },
         "multi-display startup failure was swallowed"
     )
@@ -429,8 +431,12 @@ func runDesktopPixelNativeLifecycleTests() throws {
         "failed display waited for a stalled sibling startup"
     )
     require(
-        stalledStartCanceled.wait(timeout: .now() + 1) == .success,
-        "failed display did not cancel a stalled sibling startup"
+        stalledStartCanceled.wait(timeout: .now() + 0.02) == .timedOut,
+        "failed display interrupted an in-flight sibling startup"
+    )
+    require(
+        stalledStartSettled.wait(timeout: .now()) == .success,
+        "failed display did not retain sibling startup ownership"
     )
 
     let canceledStartupSettlement = AOSDesktopPixelAggregateSettlement(count: 1)
@@ -445,11 +451,92 @@ func runDesktopPixelNativeLifecycleTests() throws {
         "caller cancellation defeated bounded startup compensation"
     )
 
+    let callerCancellationLifecycle = FakePixelStreamLifecycle()
+    let callerCancellationGate = PixelOperationGate()
+    let callerCancellationStartEntered = DispatchSemaphore(value: 0)
+    let callerCancellationStopEntered = DispatchSemaphore(value: 0)
+    let callerCancellationSettled = DispatchSemaphore(value: 0)
+    let callerCancellationResult = LockedBoolean()
+    let callerCancellationTask = Task {
+        do {
+            try await aosStartDesktopPixelStreams(
+                lifecycles: [callerCancellationLifecycle],
+                settlementTimeout: 0.2,
+                start: { _ in
+                    callerCancellationStartEntered.signal()
+                    await callerCancellationGate.wait()
+                },
+                stop: { _ in callerCancellationStopEntered.signal() }
+            )
+            callerCancellationResult.set(true)
+        } catch {
+            callerCancellationResult.set(false)
+        }
+        callerCancellationSettled.signal()
+    }
+    require(
+        callerCancellationStartEntered.wait(timeout: .now() + 1) == .success,
+        "caller-cancellation fixture did not enter native startup"
+    )
+    callerCancellationTask.cancel()
+    require(
+        callerCancellationStopEntered.wait(timeout: .now() + 0.02) == .timedOut,
+        "caller cancellation raced stop against pending native startup"
+    )
+    Task { await callerCancellationGate.open() }
+    require(
+        callerCancellationSettled.wait(timeout: .now() + 1) == .success
+            && !callerCancellationResult.get()
+            && callerCancellationStopEntered.wait(timeout: .now()) == .success
+            && callerCancellationLifecycle.retirementWasObserved(),
+        "caller cancellation did not retire once after native startup settled"
+    )
+
+    let stalledLifecycles = [
+        FakePixelStreamLifecycle(),
+        FakePixelStreamLifecycle(),
+    ]
+    let stalledGate = PixelOperationGate()
+    let stalledStopEntered = DispatchSemaphore(value: 0)
+    let stalledBegan = Date()
+    require(
+        !startPixelStreams(
+            count: stalledLifecycles.count,
+            settlementTimeout: 0.02,
+            lifecycles: stalledLifecycles,
+            stop: { index in
+                if index == 0 { stalledStopEntered.signal() }
+            },
+            start: { index in
+                if index == 1 {
+                    throw AOSDesktopFrameCaptureFailure.captureFailed
+                }
+                await stalledGate.wait()
+            }
+        ),
+        "stalled startup escaped its settlement deadline"
+    )
+    require(
+        Date().timeIntervalSince(stalledBegan) < 0.5
+            && stalledStopEntered.wait(timeout: .now()) == .timedOut,
+        "stalled startup either blocked the caller or raced an early stop"
+    )
+    Task { await stalledGate.open() }
+    require(
+        stalledStopEntered.wait(timeout: .now() + 1) == .success,
+        "late startup completion did not retain retirement ownership"
+    )
+
     let lateStartBarrier = PixelOperationBarrier()
     let releaseLateStart = DispatchSemaphore(value: 0)
     let lateStartCompensated = DispatchSemaphore(value: 0)
+    let lateStartCompleted = LockedBoolean()
+    let lateStartStoppedBeforeCompletion = LockedBoolean()
     let lateStartStopCalls = LockedCounter()
     let lateStartStopConcurrency = LockedConcurrencyProbe()
+    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.03) {
+        releaseLateStart.signal()
+    }
     let lateStartResult = startPixelStreams(
         count: 2,
         settlementTimeout: 0.2,
@@ -457,14 +544,11 @@ func runDesktopPixelNativeLifecycleTests() throws {
             if index == 0 {
                 lateStartStopConcurrency.enter()
                 defer { lateStartStopConcurrency.leave() }
-                if lateStartStopCalls.increment() == 1 {
-                    lateStartCompensated.signal()
-                    releaseLateStart.signal()
-                    throw NSError(
-                        domain: SCStreamErrorDomain,
-                        code: SCStreamError.Code.attemptToStopStreamState.rawValue
-                    )
+                if !lateStartCompleted.get() {
+                    lateStartStoppedBeforeCompletion.set(true)
                 }
+                lateStartStopCalls.increment()
+                lateStartCompensated.signal()
             }
         }
     ) { index in
@@ -473,22 +557,20 @@ func runDesktopPixelNativeLifecycleTests() throws {
             throw AOSDesktopFrameCaptureFailure.captureFailed
         }
         releaseLateStart.wait()
+        lateStartCompleted.set(true)
     }
-    let compensatedBeforeCallerRelease = lateStartCompensated.wait(
-        timeout: .now()
-    ) == .success
-    releaseLateStart.signal()
     require(
         !lateStartResult,
         "cancellation-insensitive startup escaped the settlement deadline"
     )
     require(
-        compensatedBeforeCallerRelease,
-        "aggregate failure did not compensate a cancellation-insensitive startup immediately"
+        !lateStartStoppedBeforeCompletion.get(),
+        "aggregate failure stopped a sibling before native startup settled"
     )
     require(
-        lateStartStopCalls.get() == 2,
-        "an early invalid-state stop was not followed by one post-start stop"
+        lateStartStopCalls.get() == 1
+            && lateStartCompensated.wait(timeout: .now()) == .success,
+        "settled sibling startup did not receive exactly one compensating stop"
     )
     require(
         lateStartStopConcurrency.maximumObserved() == 1,
