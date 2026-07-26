@@ -40,10 +40,13 @@ protocol AOSDesktopPixelStreamLifecycle: AnyObject {
     func waitForRetirement(timeout: TimeInterval) async -> Bool
 }
 
+let aosDesktopPixelStreamRetirementTimeout: TimeInterval =
+    AOSDesktopPixelBroker.defaultRetirementTimeout - 1
+
 final class AOSDesktopPixelRetirementLatch: @unchecked Sendable {
     private let lock = NSLock()
     private var observed = false
-    private var waiters: [UUID: (Bool) -> Void] = [:]
+    private var waiters: [UUID: AOSDesktopPixelRetirementDecision] = [:]
 
     func observe() {
         lock.lock()
@@ -52,10 +55,10 @@ final class AOSDesktopPixelRetirementLatch: @unchecked Sendable {
             return
         }
         observed = true
-        let callbacks = Array(waiters.values)
+        let pending = Array(waiters.values)
         waiters.removeAll()
         lock.unlock()
-        callbacks.forEach { $0(true) }
+        pending.forEach { $0.resolve(true) }
     }
 
     func snapshot() -> Bool {
@@ -65,29 +68,40 @@ final class AOSDesktopPixelRetirementLatch: @unchecked Sendable {
     }
 
     func wait(timeout: TimeInterval) async -> Bool {
-        await withCheckedContinuation { continuation in
-            let id = UUID()
-            lock.lock()
-            if observed {
-                lock.unlock()
-                continuation.resume(returning: true)
-                return
-            }
-            waiters[id] = { continuation.resume(returning: $0) }
-            lock.unlock()
-            DispatchQueue.global(qos: .utility).asyncAfter(
-                deadline: .now() + max(0.01, min(timeout, 1))
-            ) { [self] in
-                expire(id: id)
-            }
+        let id = UUID()
+        let waiter = AOSDesktopPixelRetirementDecision()
+        guard register(id: id, waiter: waiter) else { return true }
+        DispatchQueue.global(qos: .utility).asyncAfter(
+            deadline: .now() + max(
+                0.01,
+                min(timeout, AOSDesktopPixelBroker.defaultRetirementTimeout)
+            )
+        ) { [self] in
+            settle(id: id, result: false)
+        }
+        return await withTaskCancellationHandler {
+            await waiter.value()
+        } onCancel: { [self] in
+            settle(id: id, result: false)
         }
     }
 
-    private func expire(id: UUID) {
+    private func register(
+        id: UUID,
+        waiter: AOSDesktopPixelRetirementDecision
+    ) -> Bool {
         lock.lock()
-        let callback = waiters.removeValue(forKey: id)
+        defer { lock.unlock() }
+        guard !observed else { return false }
+        waiters[id] = waiter
+        return true
+    }
+
+    private func settle(id: UUID, result: Bool) {
+        lock.lock()
+        let waiter = waiters.removeValue(forKey: id)
         lock.unlock()
-        callback?(false)
+        waiter?.resolve(result)
     }
 }
 
@@ -158,6 +172,30 @@ func aosSettleDesktopPixelStreamRetirement(
     stopTask.cancel()
     observationTask.cancel()
     return result
+}
+
+func aosSettleDesktopPixelStreamRetirements(
+    lifecycles: [AOSDesktopPixelStreamLifecycle],
+    timeout: TimeInterval,
+    stop: @escaping (_ index: Int) async throws -> Void
+) async -> Bool {
+    await withTaskGroup(of: Bool.self) { group in
+        for (index, lifecycle) in lifecycles.enumerated() {
+            group.addTask {
+                await aosSettleDesktopPixelStreamRetirement(
+                    lifecycle: lifecycle,
+                    timeout: timeout
+                ) {
+                    try await stop(index)
+                }
+            }
+        }
+        var settled = true
+        for await result in group {
+            settled = result && settled
+        }
+        return settled
+    }
 }
 
 private actor AOSNativeDesktopPixelSnapshotActor {
@@ -386,22 +424,11 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
     }
 
     private static func stopEntries(_ entries: [Entry]) async -> Bool {
-        return await withTaskGroup(of: Bool.self) { group in
-            for entry in entries {
-                group.addTask {
-                    await aosSettleDesktopPixelStreamRetirement(
-                        lifecycle: entry.output,
-                        timeout: 0.25
-                    ) {
-                        try await entry.stream.stopCapture()
-                    }
-                }
-            }
-            var stopped = true
-            for await result in group {
-                stopped = result && stopped
-            }
-            return stopped
+        await aosSettleDesktopPixelStreamRetirements(
+            lifecycles: entries.map(\.output),
+            timeout: aosDesktopPixelStreamRetirementTimeout
+        ) { index in
+            try await entries[index].stream.stopCapture()
         }
     }
 

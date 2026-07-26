@@ -63,7 +63,10 @@ This is not a zero-copy IOSurface-to-WebGL contract. Native acquisition latency,
 freeze latency, decode latency, and cleanup are measured separately before any
 additional transport optimization. Retained native samples are quiesced before
 stream shutdown, and multi-display streams retire concurrently so cleanup time
-is bounded by the slowest display rather than their sum.
+is bounded by the slowest display rather than their sum. Native stream shutdown
+uses an acknowledgement budget with a one-second settlement margin inside the
+broker's five-second fail-closed deadline; it does not delay delivery of an
+already frozen frame set.
 
 ## Consequences
 
