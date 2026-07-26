@@ -20,8 +20,11 @@ Encoding, cropping, redaction, hashing, evidence persistence, and GPU delivery
 are downstream adapters.
 
 The direct-capture consent probe and DesktopWorld runtime share the same broker
-instance. The broker serializes native acquisition and rejects overlapping work
-with a content-free reason code.
+instance and the same bounded warm-snapshot acquisition path. The broker
+serializes native acquisition and rejects overlapping work with a content-free
+reason code. A timed-out prime remains quarantined through the broker's cleanup
+acknowledgement, then permits a later explicit retry; uncertain retirement
+remains fail-closed and late results cannot alter the newer state.
 
 The broker supports two acquisition forms:
 

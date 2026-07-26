@@ -33,11 +33,26 @@ func onePixelImage() -> CGImage {
 }
 
 final class FakeWarmSource: AOSDesktopPixelWarmSource {
+    private let lock = NSLock()
+    private var storedStopCompletion: ((Result<Void, Error>) -> Void)?
     var canceled = 0
     var completesStopImmediately = true
     let failure: AOSDesktopFrameCaptureFailure?
+    var freezeEntered: DispatchSemaphore?
+    var freezeRelease: DispatchSemaphore?
     var freezeCount = 0
-    var stopCompletion: ((Result<Void, Error>) -> Void)?
+    var stopCompletion: ((Result<Void, Error>) -> Void)? {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return storedStopCompletion
+        }
+        set {
+            lock.lock()
+            storedStopCompletion = newValue
+            lock.unlock()
+        }
+    }
     var stopResult: Result<Void, Error> = .success(())
 
     init(failure: AOSDesktopFrameCaptureFailure? = .captureFailed) {
@@ -46,6 +61,8 @@ final class FakeWarmSource: AOSDesktopPixelWarmSource {
 
     func freeze(maximumAge: TimeInterval) throws -> AOSDesktopPixelFrameSet {
         freezeCount += 1
+        freezeEntered?.signal()
+        freezeRelease?.wait()
         if let failure { throw failure }
         let now = Date()
         return AOSDesktopPixelFrameSet(
@@ -66,6 +83,41 @@ final class FakeWarmSource: AOSDesktopPixelWarmSource {
         } else {
             stopCompletion = completion
         }
+    }
+}
+
+final class BlockingFirstWarmAcquirer: AOSDesktopPixelWarmAcquiring {
+    private let lock = NSLock()
+    private var storedOpenCount = 0
+    let allowFirstReturn = DispatchSemaphore(value: 0)
+    let firstEntered = DispatchSemaphore(value: 0)
+    let source: FakeWarmSource
+
+    var openCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedOpenCount
+    }
+
+    init(source: FakeWarmSource) {
+        self.source = source
+    }
+
+    @discardableResult
+    func openWarm(
+        _ request: AOSDesktopPixelSnapshotRequest,
+        completion: @escaping (Result<AOSDesktopPixelWarmSource, Error>) -> Void
+    ) -> AOSDesktopFrameCancelling {
+        lock.lock()
+        storedOpenCount += 1
+        let count = storedOpenCount
+        lock.unlock()
+        if count == 1 {
+            firstEntered.signal()
+            allowFirstReturn.wait()
+        }
+        completion(.success(source))
+        return AOSDesktopFrameCancellation()
     }
 }
 
@@ -286,6 +338,267 @@ func runDesktopPixelBrokerTests() throws {
     require(successfulWarmSource.canceled == 1, "warm frame source survived delivery")
     require(successfulWarmAcquirer.canceled == 1, "warm startup survived delivery")
     warmCaptureCancellation.cancel()
+
+    let delayedAdapterStopSource = FakeWarmSource(failure: nil)
+    delayedAdapterStopSource.completesStopImmediately = false
+    let delayedAdapterStopBroker = AOSDesktopPixelBroker(
+        acquirer: FakePixelAcquirer(),
+        warmAcquirer: FakeWarmAcquirer(source: delayedAdapterStopSource)
+    )
+    let delayedAdapterCapturer = AOSNativeDesktopFrameCapturer(
+        broker: delayedAdapterStopBroker,
+        strategy: .warmSnapshot
+    )
+    let delayedAdapterSettled = DispatchSemaphore(value: 0)
+    var delayedAdapterResult: Result<AOSDesktopFrameCaptureSetResult, Error>?
+    let delayedAdapterCancellation = delayedAdapterCapturer.capture(
+        displayIDs: [42],
+        excludingWindowIDs: [],
+        maximumPixelsPerDisplay: 4_096
+    ) {
+        delayedAdapterResult = $0
+        delayedAdapterSettled.signal()
+    }
+    require(
+        delayedAdapterSettled.wait(timeout: .now() + 0.02) == .timedOut,
+        "warm adapter completed before stream retirement"
+    )
+    let stopRequestDeadline = Date().addingTimeInterval(1)
+    while delayedAdapterStopSource.stopCompletion == nil,
+          Date() < stopRequestDeadline {
+        Thread.sleep(forTimeInterval: 0.01)
+    }
+    require(
+        delayedAdapterStopSource.stopCompletion != nil,
+        "warm adapter did not request stream retirement"
+    )
+    delayedAdapterStopSource.stopCompletion?(.success(()))
+    require(
+        delayedAdapterSettled.wait(timeout: .now() + 1) == .success,
+        "warm adapter did not complete after stream retirement"
+    )
+    if case .some(.success(let capture)) = delayedAdapterResult {
+        require(
+            capture.frames.count == 1,
+            "warm adapter lost the captured frame after retirement"
+        )
+    } else {
+        require(false, "warm adapter failed after successful retirement")
+    }
+    delayedAdapterCancellation.cancel()
+
+    let canceledRetirementSource = FakeWarmSource(failure: nil)
+    canceledRetirementSource.completesStopImmediately = false
+    let canceledRetirementCapturer = AOSNativeDesktopFrameCapturer(
+        broker: AOSDesktopPixelBroker(
+            acquirer: FakePixelAcquirer(),
+            warmAcquirer: FakeWarmAcquirer(source: canceledRetirementSource)
+        ),
+        strategy: .warmSnapshot
+    )
+    let canceledRetirementSettled = DispatchSemaphore(value: 0)
+    let canceledRetirement = canceledRetirementCapturer.capture(
+        displayIDs: [42],
+        excludingWindowIDs: [],
+        maximumPixelsPerDisplay: 4_096
+    ) { _ in
+        canceledRetirementSettled.signal()
+    }
+    let canceledStopDeadline = Date().addingTimeInterval(1)
+    while canceledRetirementSource.stopCompletion == nil,
+          Date() < canceledStopDeadline {
+        Thread.sleep(forTimeInterval: 0.01)
+    }
+    require(
+        canceledRetirementSource.stopCompletion != nil,
+        "cancel regression did not reach stream retirement"
+    )
+    canceledRetirement.cancel()
+    canceledRetirementSource.stopCompletion?(.success(()))
+    require(
+        canceledRetirementSettled.wait(timeout: .now() + 0.05) == .timedOut,
+        "canceled warm retirement delivered a late frame"
+    )
+
+    let consentRetirementSource = FakeWarmSource(failure: nil)
+    consentRetirementSource.completesStopImmediately = false
+    let consentWarmAcquirer = FakeWarmAcquirer(source: consentRetirementSource)
+    let consentCapturer = AOSNativeDesktopFrameCapturer(
+        broker: AOSDesktopPixelBroker(
+            acquirer: FakePixelAcquirer(),
+            warmAcquirer: consentWarmAcquirer
+        ),
+        strategy: .warmSnapshot
+    )
+    var consentDeadlines: [() -> Void] = []
+    let consent = AOSDesktopFrameCaptureConsentController(
+        capturer: consentCapturer,
+        mainDisplayID: { 42 },
+        requestPermission: { completion in
+            completion(true)
+            return AOSDesktopFrameCancellation()
+        },
+        scheduleDeadline: { _, action in
+            consentDeadlines.append(action)
+            return AOSDesktopFrameCancellation()
+        }
+    )
+    let consentOwner = UUID(
+        uuidString: "33333333-3333-4333-8333-333333333333"
+    )!
+    var consentTimeoutCode: String?
+    consent.prime(owner: consentOwner) {
+        consentTimeoutCode = $0.errorCode
+    }
+    let consentStopDeadline = Date().addingTimeInterval(1)
+    while consentRetirementSource.stopCompletion == nil,
+          Date() < consentStopDeadline {
+        Thread.sleep(forTimeInterval: 0.01)
+    }
+    require(
+        consentRetirementSource.stopCompletion != nil,
+        "integrated consent proof did not reach warm retirement"
+    )
+    consentDeadlines.last?()
+    require(
+        consentTimeoutCode == "DESKTOP_FRAME_PROBE_TIMEOUT",
+        "integrated warm timeout lost its reason code"
+    )
+    var quarantinedCode: String?
+    consent.prime(owner: consentOwner) {
+        quarantinedCode = $0.errorCode
+    }
+    require(
+        quarantinedCode == "DESKTOP_FRAME_PROBE_TIMEOUT",
+        "retry escaped before broker retirement acknowledgement"
+    )
+    require(
+        consentWarmAcquirer.openCount == 1,
+        "quarantined retry opened overlapping native capture"
+    )
+    consentRetirementSource.stopCompletion?(.success(()))
+    consentRetirementSource.stopCompletion = nil
+    consentRetirementSource.completesStopImmediately = true
+    let consentRetrySettled = DispatchSemaphore(value: 0)
+    var consentRetryStatus: String?
+    consent.prime(owner: consentOwner) {
+        consentRetryStatus = $0.status.rawValue
+        consentRetrySettled.signal()
+    }
+    require(
+        consentRetrySettled.wait(timeout: .now() + 1) == .success,
+        "retired warm timeout could not be retried"
+    )
+    require(
+        consentRetryStatus == "ready",
+        "retired warm timeout did not converge to ready"
+    )
+    require(
+        consentWarmAcquirer.openCount == 2,
+        "explicit retry did not open exactly one new warm capture"
+    )
+
+    let installRaceSource = FakeWarmSource(failure: nil)
+    installRaceSource.completesStopImmediately = false
+    installRaceSource.freezeEntered = DispatchSemaphore(value: 0)
+    installRaceSource.freezeRelease = DispatchSemaphore(value: 0)
+    let installRaceAcquirer = BlockingFirstWarmAcquirer(
+        source: installRaceSource
+    )
+    let installRaceProbeDeadlineReady = DispatchSemaphore(value: 0)
+    var installRaceProbeDeadline: (() -> Void)?
+    let installRaceConsent = AOSDesktopFrameCaptureConsentController(
+        capturer: AOSNativeDesktopFrameCapturer(
+            broker: AOSDesktopPixelBroker(
+                acquirer: FakePixelAcquirer(),
+                warmAcquirer: installRaceAcquirer
+            ),
+            strategy: .warmSnapshot
+        ),
+        mainDisplayID: { 42 },
+        requestPermission: { completion in
+            completion(true)
+            return AOSDesktopFrameCancellation()
+        },
+        scheduleDeadline: { delay, action in
+            if delay == AOSDesktopFrameCaptureConsentController.probeLifetime {
+                installRaceProbeDeadline = action
+                installRaceProbeDeadlineReady.signal()
+            }
+            return AOSDesktopFrameCancellation()
+        }
+    )
+    let installRacePrimeReturned = DispatchSemaphore(value: 0)
+    var installRaceTimeoutCode: String?
+    DispatchQueue.global(qos: .userInitiated).async {
+        installRaceConsent.prime(owner: consentOwner) {
+            installRaceTimeoutCode = $0.errorCode
+        }
+        installRacePrimeReturned.signal()
+    }
+    require(
+        installRaceAcquirer.firstEntered.wait(timeout: .now() + 1) == .success,
+        "capture-install race did not block native startup"
+    )
+    require(
+        installRaceProbeDeadlineReady.wait(timeout: .now() + 1) == .success,
+        "capture-install race did not schedule its probe deadline"
+    )
+    installRaceProbeDeadline?()
+    require(
+        installRaceTimeoutCode == "DESKTOP_FRAME_PROBE_TIMEOUT",
+        "capture-install race lost its timeout response"
+    )
+    var installRaceQuarantinedCode: String?
+    installRaceConsent.prime(owner: consentOwner) {
+        installRaceQuarantinedCode = $0.errorCode
+    }
+    require(
+        installRaceQuarantinedCode == "DESKTOP_FRAME_PROBE_TIMEOUT",
+        "capture-install race admitted a retry before token installation"
+    )
+    installRaceAcquirer.allowFirstReturn.signal()
+    require(
+        installRacePrimeReturned.wait(timeout: .now() + 1) == .success,
+        "capture-install race did not return its installed token"
+    )
+    require(
+        installRaceSource.freezeEntered?.wait(timeout: .now() + 1) == .success,
+        "capture-install race did not begin its frozen frame"
+    )
+    let installRaceStopDeadline = Date().addingTimeInterval(1)
+    while installRaceSource.stopCompletion == nil,
+          Date() < installRaceStopDeadline {
+        Thread.sleep(forTimeInterval: 0.01)
+    }
+    require(
+        installRaceSource.stopCompletion != nil,
+        "quarantined capture was not retired after token installation"
+    )
+    require(
+        installRaceAcquirer.openCount == 1,
+        "capture-install race opened overlapping native capture"
+    )
+    installRaceSource.stopCompletion?(.success(()))
+    installRaceSource.stopCompletion = nil
+    installRaceSource.completesStopImmediately = true
+    installRaceSource.freezeRelease?.signal()
+    installRaceSource.freezeEntered = nil
+    installRaceSource.freezeRelease = nil
+    let installRaceRetrySettled = DispatchSemaphore(value: 0)
+    var installRaceRetryStatus: String?
+    installRaceConsent.prime(owner: consentOwner) {
+        installRaceRetryStatus = $0.status.rawValue
+        installRaceRetrySettled.signal()
+    }
+    require(
+        installRaceRetrySettled.wait(timeout: .now() + 1) == .success,
+        "capture-install race did not permit a retired explicit retry"
+    )
+    require(
+        installRaceRetryStatus == "ready" && installRaceAcquirer.openCount == 2,
+        "capture-install race did not converge through one replacement capture"
+    )
 
     let delayedStopSource = FakeWarmSource()
     delayedStopSource.completesStopImmediately = false

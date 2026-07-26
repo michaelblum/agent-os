@@ -35,9 +35,12 @@ acknowledged presentation form one bounded request aggregate with one deadline.
 `desktop-frame-capture-consent.swift` separately owns process-lifetime direct
 capture consent. Passive status never calls ScreenCaptureKit; only the explicit
 permissions-prime action may request macOS screen-capture authorization and
-probe it. The non-interruptible authorization request runs on a dedicated
-serial worker so AppKit remains responsive, while its bounded deadline remains
-independent of that worker. Runtime capture must
+probe it through the same warm-snapshot path as runtime capture. A timed-out
+probe remains quarantined until the broker acknowledges retirement, then allows
+a later explicit retry without admitting overlap. The non-interruptible
+authorization request runs on a dedicated serial worker so AppKit remains
+responsive, while its bounded deadline remains independent of that worker.
+Runtime capture must
 atomically claim that gate before emitting a started event or invoking native capture.
 The consent probe and runtime controller must share the daemon's one pixel
 broker instance so their ScreenCaptureKit work cannot overlap. Disconnect,

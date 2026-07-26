@@ -268,14 +268,18 @@ struct DesktopFrameProof {
         require(permissionRequestCanceled == 1, "permission timeout did not cancel its request")
         require(permissionTimeoutCapturer.captureCount == 0, "permission timeout started capture")
         deferPermission = false
-        pendingPermission?(true)
-        require(permissionTimeoutCapturer.captureCount == 0, "late permission started capture")
         var permissionRetryStatus: String?
         permissionTimeoutConsent.prime(owner: owner) {
             permissionRetryStatus = $0.status.rawValue
         }
-        require(permissionRetryStatus == "ready", "late permission result left prime quarantined")
+        require(permissionRetryStatus == "ready", "permission timeout could not be retried without a late callback")
         require(permissionTimeoutCapturer.captureCount == 1, "permission retry did not probe once")
+        pendingPermission?(true)
+        require(
+            permissionTimeoutConsent.snapshot().status == .ready,
+            "late permission callback overwrote the successful retry"
+        )
+        require(permissionTimeoutCapturer.captureCount == 1, "late permission callback started capture")
 
         let joinedCapturer = FakeCapturer()
         joinedCapturer.deferred = true
@@ -389,6 +393,10 @@ struct DesktopFrameProof {
         timeoutConsent.prime(owner: owner) { postTimeoutStatus = $0.status.rawValue }
         require(postTimeoutStatus == "ready", "settled timeout could not be explicitly retried")
         require(timeoutCapturer.captureCount == 2, "post-timeout retry did not issue one new capture")
+        require(
+            timeoutConsent.snapshot().status == .ready,
+            "late timed-out capture overwrote the successful retry"
+        )
 
         let canceledCapturer = FakeCapturer()
         canceledCapturer.deferred = true
