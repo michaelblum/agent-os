@@ -112,6 +112,33 @@ func startupCompensationRequired(
     return result.get()
 }
 
+func waitForStartupSettlementFromCanceledTask(
+    _ settlement: AOSDesktopPixelStartupSettlement,
+    timeout: TimeInterval
+) -> Bool {
+    let began = DispatchSemaphore(value: 0)
+    let proceed = DispatchSemaphore(value: 0)
+    let settled = DispatchSemaphore(value: 0)
+    let result = LockedBoolean()
+    let task = Task {
+        began.signal()
+        proceed.wait()
+        result.set(await settlement.wait(timeout: timeout))
+        settled.signal()
+    }
+    require(
+        began.wait(timeout: .now() + 1) == .success,
+        "canceled startup-settlement fixture did not start"
+    )
+    task.cancel()
+    proceed.signal()
+    require(
+        settled.wait(timeout: .now() + max(1, timeout + 0.5)) == .success,
+        "canceled startup-settlement fixture did not complete"
+    )
+    return result.get()
+}
+
 func settlePixelRetirement(
     lifecycle: AOSDesktopPixelStreamLifecycle,
     timeout: TimeInterval = 0.05,
@@ -283,6 +310,18 @@ func runDesktopPixelNativeLifecycleTests() throws {
     require(
         startupCompensationRequired(orderedFailure),
         "early success did not adopt the later aggregate failure"
+    )
+
+    let canceledStartupSettlement = AOSDesktopPixelStartupSettlement(count: 1)
+    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.01) {
+        canceledStartupSettlement.complete(retired: true)
+    }
+    require(
+        waitForStartupSettlementFromCanceledTask(
+            canceledStartupSettlement,
+            timeout: 0.1
+        ),
+        "caller cancellation defeated bounded startup compensation"
     )
 
     let lateStartBarrier = PixelOperationBarrier()

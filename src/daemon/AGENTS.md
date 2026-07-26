@@ -30,7 +30,9 @@ frames only; encoding, cropping, redaction, persistence, and GPU delivery
 belong to downstream adapters. Multi-display warm acquisition configures the
 complete stream set before starting every display concurrently; partial startup
 failure retains late completion ownership and retires that complete set before
-later work is admitted.
+later work is admitted. That aggregate retirement wait ignores caller
+cancellation but remains deadline-bounded, because cancellation is the reason
+cleanup is often running.
 `desktop-frame-capture-adapter.swift` converts a
 snapshot into the private WebKit presentation format.
 `desktop-frame-warm-pool.swift` owns capability-scoped prewarming for the
