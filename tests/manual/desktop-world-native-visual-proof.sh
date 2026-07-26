@@ -8,16 +8,66 @@ TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/aos-native-visual-proof.XXXXXX")"
 BINARY_PID=""
 WATCHDOG_PID=""
 
+stop_owned_pid() {
+  local pid="$1"
+  if [[ -z "$pid" ]] || ! kill -0 "$pid" 2>/dev/null; then
+    return 0
+  fi
+
+  kill -TERM "$pid" 2>/dev/null || true
+  local attempt=0
+  while kill -0 "$pid" 2>/dev/null && (( attempt < 5 )); do
+    sleep 0.05
+    (( attempt += 1 ))
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -KILL "$pid" 2>/dev/null || true
+  fi
+  wait "$pid" 2>/dev/null || true
+}
+
 cleanup() {
-  if [[ -n "$WATCHDOG_PID" ]]; then
-    kill "$WATCHDOG_PID" 2>/dev/null || true
-  fi
-  if [[ -n "$BINARY_PID" ]]; then
-    kill "$BINARY_PID" 2>/dev/null || true
-  fi
+  trap - EXIT INT TERM
+  stop_owned_pid "$WATCHDOG_PID"
+  stop_owned_pid "$BINARY_PID"
   rm -rf "$TMP_ROOT"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+run_with_deadline() {
+  local timeout_hundredths="$1"
+  shift
+  local timeout_marker="$TMP_ROOT/proof-timed-out"
+  rm -f "$timeout_marker"
+
+  "$@" &
+  BINARY_PID="$!"
+  (
+    zmodload zsh/zselect
+    zselect -t "$timeout_hundredths" || true
+    if kill -0 "$BINARY_PID" 2>/dev/null; then
+      print -r -- "timed_out" > "$timeout_marker"
+      stop_owned_pid "$BINARY_PID"
+    fi
+  ) &
+  WATCHDOG_PID="$!"
+
+  set +e
+  wait "$BINARY_PID"
+  local child_status="$?"
+  set -e
+  BINARY_PID=""
+  stop_owned_pid "$WATCHDOG_PID"
+  WATCHDOG_PID=""
+
+  if [[ -f "$timeout_marker" ]]; then
+    print -r -- '{"cleanup_complete":true,"error_code":"PROOF_TIMEOUT","pixels_persisted":false,"process_exited":true,"status":"failed"}'
+    return 124
+  fi
+  return "$child_status"
+}
 
 COMMON_ARGS=(
   -parse-as-library
@@ -37,35 +87,31 @@ case "$MODE" in
       exit 2
     fi
     BINARY="$TMP_ROOT/desktop-world-native-visual-proof"
-    TIMEOUT_MARKER="$TMP_ROOT/proof-timed-out"
     swiftc "${COMMON_ARGS[@]}" "$SOURCE" -o "$BINARY"
-    "$BINARY" &
-    BINARY_PID="$!"
-    (
-      sleep 5
-      if kill -0 "$BINARY_PID" 2>/dev/null; then
-        print -r -- "timed_out" > "$TIMEOUT_MARKER"
-        kill -TERM "$BINARY_PID" 2>/dev/null || true
-        sleep 0.25
-        kill -KILL "$BINARY_PID" 2>/dev/null || true
-      fi
-    ) &
-    WATCHDOG_PID="$!"
-
     set +e
-    wait "$BINARY_PID"
+    run_with_deadline 500 "$BINARY"
     STATUS="$?"
     set -e
+    exit "$STATUS"
+    ;;
+  --timeout-self-test)
+    set +e
+    run_with_deadline 5 /bin/sleep 10
+    STATUS="$?"
+    set -e
+    exit "$STATUS"
+    ;;
+  --cleanup-self-test)
+    /bin/zsh -c 'trap "" TERM; exec /bin/sleep 10' &
+    BINARY_PID="$!"
+    OWNED_PID="$BINARY_PID"
+    stop_owned_pid "$BINARY_PID"
     BINARY_PID=""
-    kill "$WATCHDOG_PID" 2>/dev/null || true
-    wait "$WATCHDOG_PID" 2>/dev/null || true
-    WATCHDOG_PID=""
-
-    if [[ -f "$TIMEOUT_MARKER" ]]; then
-      print -r -- '{"cleanup_complete":true,"error_code":"PROOF_TIMEOUT","pixels_persisted":false,"process_exited":true,"status":"failed"}'
+    if kill -0 "$OWNED_PID" 2>/dev/null; then
+      print -r -- '{"owned_child_reaped":false,"status":"failed"}'
       exit 1
     fi
-    exit "$STATUS"
+    print -r -- '{"owned_child_reaped":true,"status":"passed"}'
     ;;
   *)
     print -u2 "usage: AOS_NATIVE_VISUAL_PROOF_OK=1 $0 --run"
