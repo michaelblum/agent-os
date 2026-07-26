@@ -43,8 +43,8 @@ stage internals.
 - Export named, dependency-injected primitives only. Do not bundle Three.js or
   expose private toolkit indexes through this facade.
 - Keep `index.js`, `index.d.ts`, focused `authoring`, `runtime`, `extensions`,
-  and `devtools` entry points, package exports, tests, and the corresponding
-  split guides under `docs/api/toolkit/` synchronized.
+  `radial-menu`, and `devtools` entry points, package exports, tests, and the
+  corresponding split guides under `docs/api/toolkit/` synchronized.
 - Renderer disposal applies only to resources the consumer explicitly gives
   the lifecycle; shared resource ownership remains with the consumer.
 - Scene documents and cartridges never carry implementation code. Only AOS
@@ -83,6 +83,10 @@ stage internals.
   stage. Cartridges provide bounded item IDs, semantic labels, and visual data;
   labels identify native hit regions but remain absent from scene events.
   Product commands and product-specific hover art remain in the consumer.
+- `compileSceneRadialMenuDefinition()` is the authoring bridge from the
+  renderer-neutral 3D definition into separate interaction, logical-action,
+  and visual projections. Product actions and visual definitions must never be
+  copied into scene events or native hit-region metadata.
 - Interaction visuals are deterministic models advanced by the existing host
   clock. They must not create a renderer, frame loop, unbounded history, or
   per-frame resource allocation. Cartridge values may theme registered stock

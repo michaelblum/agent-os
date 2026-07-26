@@ -22,6 +22,7 @@ const scopedFiles = [
   'docs/api/toolkit/scene-authoring.md',
   'docs/api/toolkit/scene-runtime.md',
   'docs/api/toolkit/scene-extensions.md',
+  'docs/api/toolkit/radial-menu-authoring.md',
   'docs/api/toolkit/scene-devtools.md',
   'docs/api/toolkit/controls.md',
   'docs/api/toolkit/panel-window.md',
@@ -73,6 +74,7 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
   assert.match(docs['docs/api/toolkit/scene.md'], /scene-authoring\.md/);
   assert.match(docs['docs/api/toolkit/scene.md'], /scene-runtime\.md/);
   assert.match(docs['docs/api/toolkit/scene.md'], /scene-extensions\.md/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /radial-menu-authoring\.md/);
   assert.match(docs['docs/api/toolkit/scene.md'], /scene-devtools\.md/);
   assert.match(docs['docs/api/toolkit/scene.md'], /aos\.scene\.document\.v1/);
   assert.match(docs['docs/api/toolkit/scene.md'], /global DesktopWorld coordinate\s+plane/);
@@ -100,6 +102,10 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
 
   assert.match(docs['docs/api/toolkit/scene-extensions.md'], /aos\.scene\.extension\.v1/);
   assert.match(docs['docs/api/toolkit/scene-extensions.md'], /serializeSceneExtensionDigestMaterial/);
+  assert.match(docs['docs/api/toolkit/radial-menu-authoring.md'], /@agent-os\/toolkit\/scene\/radial-menu/);
+  assert.match(docs['docs/api/toolkit/radial-menu-authoring.md'], /compileSceneRadialMenuDefinition/);
+  assert.match(docs['docs/api/toolkit/radial-menu-authoring.md'], /non-consuming outside-dismiss backdrop/);
+  assert.match(docs['docs/api/toolkit/radial-menu-authoring.md'], /Extension-local asset loading is not part of V1/);
   assert.match(docs['docs/api/toolkit/scene-devtools.md'], /createDesktopWorldDevToolsStageProbe/);
   assert.match(docs['docs/api/toolkit/scene-devtools.md'], /createDesktopWorldDevToolsView/);
   assert.match(docs['docs/api/toolkit/scene-devtools.md'], /buildDesktopWorldMinimapLayout/);
@@ -124,6 +130,7 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
   assert.match(docs['docs/api/toolkit/workbench.md'], /Artifact Bundle Subject V0/);
   assert.match(docs['docs/api/toolkit/workbench.md'], /Step Descriptor Workbench V0/);
   assert.match(docs['docs/api/toolkit/workbench.md'], /Wiki Subject Browser V0/);
+  assert.match(docs['docs/api/toolkit/workbench.md'], /Radial Menu Authoring/);
 
   assert.match(docs['docs/api/toolkit/components.md'], /Surface Inspector/);
   assert.match(docs['docs/api/toolkit/components.md'], /Surface-Zoom Inspector Proof/);

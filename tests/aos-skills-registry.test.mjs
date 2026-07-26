@@ -18,7 +18,7 @@ const repoRoot = path.resolve(__dirname, '..');
 test('root skill registry covers current direct skill packages', async () => {
   const result = await validateSkillRegistry({ repoRoot });
   assert.equal(result.ok, true, JSON.stringify(result.errors, null, 2));
-  assert.equal(result.summary.skills, 23);
+  assert.equal(result.summary.skills, 25);
 
   const byName = new Map(result.skills.map((skill) => [skill.name, skill]));
   const installablePack = [
@@ -30,9 +30,11 @@ test('root skill registry covers current direct skill packages', async () => {
     'aos-desktop-world-authoring',
     'aos-focus-sessions',
     'aos-operator-annotations',
+    'aos-radial-menu-authoring',
     'aos-recipes',
     'aos-runtime-readiness',
     'aos-saved-workspace',
+    'aos-toolkit-authoring',
     'aos-verification',
     'aos-work-records',
   ];
@@ -175,7 +177,7 @@ test('CLI emits structured validation JSON', () => {
   const payload = JSON.parse(result.stdout);
   assert.equal(payload.schema_version, 'aos.skills.validation.v0');
   assert.equal(payload.ok, true);
-  assert.equal(payload.summary.skills, 23);
+  assert.equal(payload.summary.skills, 25);
 });
 
 test('validator rejects unsafe targets, missing durable backing, and untracked body bloat', async () => {

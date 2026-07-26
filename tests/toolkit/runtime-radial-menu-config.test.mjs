@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import default3d from '../../packages/toolkit/runtime/radial-menu/default-3d.json' with { type: 'json' }
+import radialMenuSchema from '../../shared/schemas/radial-menu-3d.schema.json' with { type: 'json' }
 import {
   resolveRadialMenuConfig,
   validateRadialMenuDefinition,
@@ -43,6 +44,13 @@ test('radial menu resolver validates the default toolkit 3D menu contract', () =
   assert.equal(validation.ok, true)
 })
 
+test('radial menu schema declares the bounded DesktopWorld scene projection', () => {
+  assert.equal(radialMenuSchema.properties.items.maxItems, 32)
+  assert.equal(radialMenuSchema.$defs.sceneProjection.additionalProperties, false)
+  assert.equal(radialMenuSchema.$defs.sceneProjection.properties.radius.maximum, 2048)
+  assert.equal(radialMenuSchema.$defs.sceneProjection.properties.style.additionalProperties, false)
+})
+
 test('radial menu resolver cascades toolkit defaults into consumer override data', () => {
   const resolved = resolveRadialMenuConfig(exampleMenu, {
     allowExtends: {
@@ -54,6 +62,7 @@ test('radial menu resolver cascades toolkit defaults into consumer override data
   assert.equal(resolved.id, 'example.radial.main')
   assert.equal(resolved.items.length, 2)
   assert.equal(resolved.logical_items.length, 2)
+  assert.equal(resolved.scene.radius, 108)
   assert.deepEqual(
     resolved.logical_items.map((item) => [item.id, item.label, item.action]),
     [

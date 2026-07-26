@@ -1296,6 +1296,11 @@ Concrete helper examples:
   control route can be addressed as
   `object-controls:aos.radial_menu:example.main/item/wiki-graph`.
 
+The workbench edits the same renderer-neutral definition compiled by
+`@agent-os/toolkit/scene/radial-menu`. See
+[Radial Menu Authoring](./radial-menu-authoring.md); do not create a separate
+workbench-only visual or action model.
+
 Radial menu item and object-part drilldown is represented as Facets, Hosts,
 resource paths, and Subject Entry Handles under the radial-menu Subject. A menu
 item resource such as `item/wiki-graph` is not a wiki graph node by default.

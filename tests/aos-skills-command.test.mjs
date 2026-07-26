@@ -42,8 +42,8 @@ function parseBlockedStdout(result) {
 test('aos skills list reports installable root skills with digests', () => {
   const payload = parseStdout(runAos(['skills', 'list', '--json']));
   assert.equal(payload.schema_version, 'aos.skills.list.v0');
-  assert.equal(payload.summary.total, 22);
-  assert.equal(payload.summary.installable, 12);
+  assert.equal(payload.summary.total, 25);
+  assert.equal(payload.summary.installable, 15);
   assert.equal(payload.summary.needs_split, 0);
   assert.equal(payload.summary.retained_local, 6);
   assert.equal(payload.summary.retired, 3);
@@ -85,7 +85,7 @@ test('aos skills install dry-run reports planned writes and does not mutate targ
     ]));
     assert.equal(payload.schema_version, 'aos.skills.install.plan.v0');
     assert.equal(payload.status, 'dry_run');
-    assert.equal(payload.summary.selected, 12);
+    assert.equal(payload.summary.selected, 15);
     assert.ok(payload.planned_writes.some((write) => (
       write.skill === 'aos-core-orientation'
       && write.kind === 'package_file'
@@ -110,8 +110,8 @@ test('aos skills install writes the default installable pack', async () => {
     const installed = parseStdout(runAos(['skills', 'install', '--target', 'path', '--path', target, '--json']));
     assert.equal(installed.schema_version, 'aos.skills.install.v0');
     assert.equal(installed.status, 'installed');
-    assert.equal(installed.summary.selected, 12);
-    assert.equal(installed.summary.states_after.ok, 12);
+    assert.equal(installed.summary.selected, 15);
+    assert.equal(installed.summary.states_after.ok, 15);
     assert.ok(installed.selected_skills.includes('aos-browser'));
     assert.ok(installed.selected_skills.includes('aos-desktop'));
     assert.ok(installed.selected_skills.includes('aos-verification'));

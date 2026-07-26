@@ -24,6 +24,7 @@ import {
   compileSceneAnimationBindings,
   createDesktopWorldDevToolsStageProbe,
   createSceneInteractionVisualController,
+  resolveThreeRenderMetrics,
   resolveSceneAffordanceFrame,
 } from '../../packages/toolkit/scene/index.js'
 
@@ -204,7 +205,7 @@ test('DesktopWorld render loop runs only while at least one visible resource is 
   assert.deepEqual(DESKTOP_WORLD_SCENE_RENDER_LIMITS, {
     maxDevicePixelRatio: 2,
     maxBackingDimension: 4096,
-    maxBackingPixels: 2_097_152,
+    maxBackingPixels: 4_194_304,
   })
   const resources = new Map()
   assert.equal(sceneStageShouldRender(resources, false, false), false)
@@ -216,6 +217,15 @@ test('DesktopWorld render loop runs only while at least one visible resource is 
   assert.equal(sceneStageShouldRender(resources, false, true), false)
   assert.equal(sceneStageShouldRender(resources, false, false, true), false)
   assert.equal(sceneStageShouldRender(resources, false, false, false, true), false)
+
+  const retinaSegment = resolveThreeRenderMetrics({
+    width: 1440,
+    height: 900,
+    devicePixelRatio: 2,
+    ...DESKTOP_WORLD_SCENE_RENDER_LIMITS,
+  })
+  assert.ok(retinaSegment.effectiveDevicePixelRatio > 1.79)
+  assert.ok(retinaSegment.backingPixels <= 4_194_304)
 })
 
 test('DesktopWorld segment resource budgets aggregate every mounted projection', () => {
