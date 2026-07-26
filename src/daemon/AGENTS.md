@@ -28,7 +28,9 @@ frames only; encoding, cropping, redaction, persistence, and GPU delivery
 belong to downstream adapters. `desktop-frame-capture-adapter.swift` converts a
 snapshot into the private WebKit presentation format. Warm snapshots deliver a
 frozen encoded frame before asynchronous stream retirement settles; the broker
-remains closed until native retirement is acknowledged.
+remains closed until native retirement is acknowledged. Delegate-observed and
+explicit ScreenCaptureKit terminal states count as retirement; unknown stop
+failures remain fail-closed.
 `desktop-frame-capture-controller.swift` owns request admission for trusted
 scene extensions. A request is bound to the exact scene revision, canvas and
 topology generation, and current display WebViews. Native

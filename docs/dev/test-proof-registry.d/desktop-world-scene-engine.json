@@ -101,6 +101,8 @@
       "path_patterns": [
         "tests/desktop-frame-texture-native.test.mjs",
         "tests/desktop-pixel-broker-contract.test.mjs",
+        "tests/lib/desktop-pixel-broker-tests.swift",
+        "tests/lib/desktop-pixel-native-lifecycle-tests.swift",
         "tests/scene-extension-cli.test.mjs",
         "tests/scene-extension-native-store.test.mjs",
         "tests/toolkit/desktop-frame-texture-source.test.mjs",

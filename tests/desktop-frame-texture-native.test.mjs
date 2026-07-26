@@ -16,6 +16,10 @@ const captureAdapterSource = path.join(repoRoot, 'src/daemon/desktop-frame-captu
 const controllerSource = path.join(repoRoot, 'src/daemon/desktop-frame-capture-controller.swift')
 const responseEnvelopeSource = path.join(repoRoot, 'src/shared/response-envelope.swift')
 const brokerTestsSource = path.join(repoRoot, 'tests/lib/desktop-pixel-broker-tests.swift')
+const nativeLifecycleTestsSource = path.join(
+  repoRoot,
+  'tests/lib/desktop-pixel-native-lifecycle-tests.swift',
+)
 async function compileHarness(root) {
   const main = path.join(root, 'main.swift')
   const executable = path.join(root, 'desktop-frame-proof')
@@ -180,6 +184,7 @@ func rejectedCode(_ outcome: AOSDesktopFrameCaptureOutcome) -> String? {
 struct DesktopFrameProof {
     static func main() throws {
         let owner = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
+        try runDesktopPixelNativeLifecycleTests()
         try runDesktopPixelBrokerTests()
         require(
             AOSDesktopFrameCaptureConsentController.probeLifetime == 2,
@@ -1039,6 +1044,7 @@ struct DesktopFrameProof {
     consentSource,
     controllerSource,
     responseEnvelopeSource,
+    nativeLifecycleTestsSource,
     brokerTestsSource,
     main,
     '-o',
