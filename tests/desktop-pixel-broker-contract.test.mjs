@@ -30,19 +30,18 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(warmNative, /onScreenWindowsOnly: false/u)
   assert.match(warmNative, /guard ownApplication != nil \|\| excluded\.isEmpty/u)
   assert.match(warmNative, /excludingApplications: \[ownApplication\]/u)
-  assert.match(native, /DispatchQueue\.main\.async/u)
-  assert.equal(
-    warmNative.match(/aosPerformDesktopPixelNativeOperation \{ completion in/gu)?.length,
-    3,
+  assert.match(warmNative, /@MainActor\s+static func open/u)
+  assert.match(
+    warmNative,
+    /stopEntries[\s\S]*try await entries\[index\]\.stream\.stopCapture\(\)/u,
   )
   assert.match(
     warmNative,
-    /stopEntries[\s\S]*aosPerformDesktopPixelNativeOperation[\s\S]*stopCapture/u,
+    /aosStartDesktopPixelStreams[\s\S]*try await configuredEntries\[index\]\.stream\.startCapture\(\)[\s\S]*stop:[\s\S]*try await entry\.stream\.stopCapture\(\)/u,
   )
-  assert.match(
-    warmNative,
-    /aosStartDesktopPixelStreams[\s\S]*aosPerformDesktopPixelNativeOperation[\s\S]*startCapture[\s\S]*stop:[\s\S]*aosPerformDesktopPixelNativeOperation[\s\S]*stopCapture/u,
-  )
+  assert.doesNotMatch(native, /withCheckedThrowingContinuation/u)
+  assert.match(warmNative, /configuration\.width = profile\.width/u)
+  assert.match(warmNative, /configuration\.height = profile\.height/u)
   assert.doesNotMatch(warmNative, /configuration\.captureResolution = \.best/u)
   assert.match(native, /AOSDesktopPixelFrameAdvancement/u)
   assert.match(native, /requiredDistinctFrames: UInt64 = 2/u)
@@ -77,7 +76,9 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(broker, /superviseSnapshotRetirement/u)
   assert.match(broker, /superviseWarmRetirement/u)
   assert.match(pool, /final class AOSDesktopFrameWarmPool/u)
-  assert.match(pool, /desired == configuration/u)
+  assert.match(pool, /AOSDesktopFrameWarmSourceIdentity/u)
+  assert.match(pool, /desired\?\.sourceIdentity == configuration\?\.sourceIdentity/u)
+  assert.match(pool, /desired = configuration/u)
   assert.match(pool, /broker\.freezeWarm/u)
   assert.doesNotMatch(
     `${broker}\n${lifecycle}\n${native}\n${pool}`,

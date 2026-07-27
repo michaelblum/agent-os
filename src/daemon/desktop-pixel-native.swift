@@ -59,25 +59,6 @@ struct AOSDesktopPixelWarmStreamProfile: Equatable {
     }
 }
 
-func aosPerformDesktopPixelNativeOperation(
-    _ operation: @escaping @Sendable (
-        _ completion: @escaping @Sendable (Error?) -> Void
-    ) -> Void
-) async throws {
-    try await withCheckedThrowingContinuation {
-        (continuation: CheckedContinuation<Void, Error>) in
-        DispatchQueue.main.async {
-            operation { error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: ())
-                }
-            }
-        }
-    }
-}
-
 private actor AOSNativeDesktopPixelSnapshotActor {
     func snapshot(
         _ request: AOSDesktopPixelSnapshotRequest
@@ -363,7 +344,9 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
 }
 
 @available(macOS 14.0, *)
-private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
+private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
+    @unchecked Sendable
+{
     private struct Entry: @unchecked Sendable {
         let output: AOSDesktopPixelStreamOutput
         let sampleQueue: DispatchQueue
@@ -388,12 +371,11 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
             lifecycles: entries.map(\.output),
             timeout: aosDesktopPixelStreamRetirementTimeout
         ) { index in
-            try await aosPerformDesktopPixelNativeOperation { completion in
-                entries[index].stream.stopCapture(completionHandler: completion)
-            }
+            try await entries[index].stream.stopCapture()
         }
     }
 
+    @MainActor
     static func open(
         request: AOSDesktopPixelSnapshotRequest,
         cancellation: AOSDesktopPixelStartupCancellation
@@ -496,17 +478,11 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
                 settlementTimeout: aosDesktopPixelStreamRetirementTimeout,
                 cancellation: cancellation
             ) { index in
-                try await aosPerformDesktopPixelNativeOperation { completion in
-                    configuredEntries[index].stream.startCapture(
-                        completionHandler: completion
-                    )
-                }
+                try await configuredEntries[index].stream.startCapture()
             } stop: { index in
                 let entry = configuredEntries[index]
                 entry.output.quiesce()
-                try await aosPerformDesktopPixelNativeOperation { completion in
-                    entry.stream.stopCapture(completionHandler: completion)
-                }
+                try await entry.stream.stopCapture()
             }
             startupCompleted = true
             let source = AOSNativeDesktopPixelWarmSource(entries: entries)

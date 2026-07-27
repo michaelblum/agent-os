@@ -49,12 +49,16 @@ permission; it only freezes the already available latest sample set.
 
 A warm lease is owner-bound, singular, cancelable, and valid only while its
 latest samples remain fresh. A different owner cannot freeze or release it.
+Because the native filter excludes the complete AOS process, stage-window IDs
+remain exact freeze-authorization metadata but do not define native stream
+identity. Window-ID-only updates therefore do not churn the warm producer;
+canvas, topology, display, or pixel-budget changes still do.
 All admitted display streams are configured before any startup begins, then
-started concurrently as one aggregate. Native start and stop requests are
-issued on AppKit's main queue, while completion and frame delivery remain
-asynchronous. The stream profile includes off-screen shareable content, keeps
-the consent probe at 4,096 pixels and runtime at a one-megapixel-per-display
-ceiling, and does not request best-resolution resampling for reduced output.
+started concurrently as one aggregate. Warm ScreenCaptureKit sources are
+constructed on AppKit's main actor, while Apple's async start, stop, and frame
+delivery remain asynchronous. The stream profile keeps the consent probe at
+4,096 pixels and runtime at a one-megapixel-per-display ceiling, and does not
+request best-resolution resampling for reduced output.
 Readiness requires a usable complete or started sample from every display,
 followed by a later producer callback with a
 numeric, monotonically advancing timestamp. The later callback may be idle

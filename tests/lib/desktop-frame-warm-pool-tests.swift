@@ -58,6 +58,38 @@ final class SequencedWarmAcquirer: AOSDesktopPixelWarmAcquiring {
     }
 }
 
+final class DeferredWarmAcquirer: AOSDesktopPixelWarmAcquiring {
+    private var completion: ((Result<AOSDesktopPixelWarmSource, Error>) -> Void)?
+    private let lock = NSLock()
+    private var storedOpenCount = 0
+
+    var openCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedOpenCount
+    }
+
+    @discardableResult
+    func openWarm(
+        _ request: AOSDesktopPixelSnapshotRequest,
+        completion: @escaping (Result<AOSDesktopPixelWarmSource, Error>) -> Void
+    ) -> AOSDesktopFrameCancelling {
+        lock.lock()
+        storedOpenCount += 1
+        self.completion = completion
+        lock.unlock()
+        return AOSDesktopFrameCancellation()
+    }
+
+    func complete(_ result: Result<AOSDesktopPixelWarmSource, Error>) {
+        lock.lock()
+        let completion = self.completion
+        self.completion = nil
+        lock.unlock()
+        completion?(result)
+    }
+}
+
 private func waitForWarmState(
     _ capturer: AOSNativeDesktopFrameCapturer,
     _ expected: AOSDesktopFrameWarmState,
@@ -201,17 +233,133 @@ func runDesktopFrameWarmPoolTests() throws {
         "mismatched warm request did not fail closed"
     )
     capturer.reconcileWarm(replacement)
+    let replacementStatus = waitForWarmState(capturer, .ready)
     require(
-        waitForWarmState(capturer, .ready).state == .ready
-            && acquirer.openCount == 3
-            && source.canceled == 2,
-        "warm configuration replacement overlapped native sources"
+        replacementStatus.state == .ready
+            && replacementStatus.generation == successorStatus.generation
+            && acquirer.openCount == 2
+            && source.canceled == 1,
+        "stage-window metadata churn restarted the process-excluding native source"
+    )
+    requireFailure(
+        freeze(capturer, configuration: successor),
+        .frameNotReady,
+        "superseded stage-window authorization remained current"
+    )
+    require(
+        (try? freeze(capturer, configuration: replacement).get().frames.count) == 1,
+        "updated stage-window authorization could not freeze the retained source"
     )
     capturer.reconcileWarm(nil)
     require(
         waitForWarmState(capturer, .idle).state == .idle
-            && source.canceled == 3,
+            && source.canceled == 2,
         "warm pool disable retained its native source"
+    )
+
+    let deferredSource = FakeWarmSource(failure: nil)
+    let deferredAcquirer = DeferredWarmAcquirer()
+    let deferredCapturer = AOSNativeDesktopFrameCapturer(
+        broker: AOSDesktopPixelBroker(
+            acquirer: FakePixelAcquirer(),
+            warmAcquirer: deferredAcquirer
+        ),
+        strategy: .prewarmedSnapshot
+    )
+    deferredCapturer.reconcileWarm(successor)
+    require(
+        waitForCondition { deferredAcquirer.openCount == 1 },
+        "deferred warm source did not begin"
+    )
+    deferredCapturer.reconcileWarm(replacement)
+    _ = deferredCapturer.warmStatus()
+    deferredAcquirer.complete(.success(deferredSource))
+    require(
+        waitForWarmState(deferredCapturer, .ready).state == .ready
+            && deferredAcquirer.openCount == 1,
+        "window authorization churn reopened a warming native source"
+    )
+    requireFailure(
+        freeze(deferredCapturer, configuration: successor),
+        .frameNotReady,
+        "deferred startup restored stale window authorization"
+    )
+    require(
+        (try? freeze(
+            deferredCapturer,
+            configuration: replacement
+        ).get().frames.count) == 1,
+        "deferred startup did not adopt current window authorization"
+    )
+    deferredCapturer.reconcileWarm(nil)
+    require(
+        waitForWarmState(deferredCapturer, .idle).state == .idle
+            && deferredSource.canceled == 1,
+        "deferred warm source did not retire"
+    )
+
+    let inFlightSource = FakeWarmSource(failure: nil)
+    inFlightSource.freezeEntered = DispatchSemaphore(value: 0)
+    inFlightSource.freezeRelease = DispatchSemaphore(value: 0)
+    let inFlightAcquirer = FakeWarmAcquirer(source: inFlightSource)
+    let inFlightCapturer = AOSNativeDesktopFrameCapturer(
+        broker: AOSDesktopPixelBroker(
+            acquirer: FakePixelAcquirer(),
+            warmAcquirer: inFlightAcquirer
+        ),
+        strategy: .prewarmedSnapshot
+    )
+    inFlightCapturer.reconcileWarm(successor)
+    require(
+        waitForWarmState(inFlightCapturer, .ready).state == .ready,
+        "in-flight authorization fixture did not start"
+    )
+    let inFlightSettled = DispatchSemaphore(value: 0)
+    var inFlightCompletionState: AOSDesktopFrameWarmState?
+    var inFlightResult: Result<AOSDesktopFrameCaptureSetResult, Error>?
+    _ = inFlightCapturer.capturePrewarmed(successor) {
+        inFlightCompletionState = inFlightCapturer.warmStatus().state
+        inFlightResult = $0
+        inFlightSettled.signal()
+    }
+    require(
+        inFlightSource.freezeEntered?.wait(timeout: .now() + 1) == .success,
+        "in-flight freeze did not enter its source"
+    )
+    inFlightCapturer.reconcileWarm(replacement)
+    _ = inFlightCapturer.warmStatus()
+    inFlightSource.freezeRelease?.signal()
+    require(
+        inFlightSettled.wait(timeout: .now() + 1) == .success,
+        "in-flight freeze did not settle after authorization changed"
+    )
+    requireFailure(
+        inFlightResult ?? .failure(AOSDesktopFrameCaptureFailure.captureFailed),
+        .frameNotReady,
+        "in-flight freeze escaped superseded window authorization"
+    )
+    require(
+        inFlightCompletionState == .ready,
+        "warm-pool completion ran inside its serialized state queue"
+    )
+    inFlightSource.freezeEntered = nil
+    inFlightSource.freezeRelease = nil
+    require(
+        inFlightAcquirer.openCount == 1 && inFlightSource.canceled == 0,
+        "window authorization update churned the active native source"
+    )
+    require(
+        (try? freeze(
+            inFlightCapturer,
+            configuration: replacement
+        ).get().frames.count) == 1,
+        "current authorization could not freeze after stale completion"
+    )
+    inFlightCapturer.reconcileWarm(nil)
+    require(
+        waitForWarmState(inFlightCapturer, .idle).state == .idle
+            && inFlightSource.canceled == 1,
+        "in-flight authorization fixture did not retire"
     )
 
     let firstFailedSource = FakeWarmSource(failure: .captureFailed)

@@ -221,37 +221,6 @@ func settlePixelRetirements(
 }
 
 func runDesktopPixelNativeLifecycleTests() async throws {
-    let nativeOperationRanOnMain = LockedBoolean()
-    try await aosPerformDesktopPixelNativeOperation { completion in
-        nativeOperationRanOnMain.set(Thread.isMainThread)
-        completion(nil)
-    }
-    require(
-        nativeOperationRanOnMain.get(),
-        "native stream operation was not initiated on the main thread"
-    )
-    let delayedOperationStarted = LockedBoolean()
-    let delayedOperationCompleted = LockedBoolean()
-    let delayedOperation = Task {
-        try await aosPerformDesktopPixelNativeOperation { completion in
-            delayedOperationStarted.set(true)
-            DispatchQueue.global(qos: .utility).asyncAfter(
-                deadline: .now() + 0.02
-            ) {
-                delayedOperationCompleted.set(true)
-                completion(nil)
-            }
-        }
-    }
-    while !delayedOperationStarted.get() {
-        try await Task.sleep(nanoseconds: 1_000_000)
-    }
-    delayedOperation.cancel()
-    try await delayedOperation.value
-    require(
-        delayedOperationCompleted.get(),
-        "caller cancellation abandoned a pending native stream completion"
-    )
     require(
         AOSDesktopPixelWarmStreamProfile.queueDepth == 3,
         "warm stream profile lost its bounded producer depth"
