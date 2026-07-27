@@ -220,7 +220,60 @@ func settlePixelRetirements(
     return result.get()
 }
 
-func runDesktopPixelNativeLifecycleTests() throws {
+func runDesktopPixelNativeLifecycleTests() async throws {
+    let nativeOperationRanOnMain = LockedBoolean()
+    try await aosPerformDesktopPixelNativeOperation { completion in
+        nativeOperationRanOnMain.set(Thread.isMainThread)
+        completion(nil)
+    }
+    require(
+        nativeOperationRanOnMain.get(),
+        "native stream operation was not initiated on the main thread"
+    )
+    let delayedOperationStarted = LockedBoolean()
+    let delayedOperationCompleted = LockedBoolean()
+    let delayedOperation = Task {
+        try await aosPerformDesktopPixelNativeOperation { completion in
+            delayedOperationStarted.set(true)
+            DispatchQueue.global(qos: .utility).asyncAfter(
+                deadline: .now() + 0.02
+            ) {
+                delayedOperationCompleted.set(true)
+                completion(nil)
+            }
+        }
+    }
+    while !delayedOperationStarted.get() {
+        try await Task.sleep(nanoseconds: 1_000_000)
+    }
+    delayedOperation.cancel()
+    try await delayedOperation.value
+    require(
+        delayedOperationCompleted.get(),
+        "caller cancellation abandoned a pending native stream completion"
+    )
+    require(
+        AOSDesktopPixelWarmStreamProfile.queueDepth == 3,
+        "warm stream profile lost its bounded producer depth"
+    )
+    let scaledProfile = AOSDesktopPixelWarmStreamProfile(
+        sourceWidth: 2_560,
+        sourceHeight: 1_440,
+        maximumPixels: AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay
+    )
+    require(
+        scaledProfile.width == 1_365 && scaledProfile.height == 768,
+        "warm stream profile did not preserve aspect ratio within the runtime budget"
+    )
+    let boundedProfile = AOSDesktopPixelWarmStreamProfile(
+        sourceWidth: 64,
+        sourceHeight: 64,
+        maximumPixels: AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay
+    )
+    require(
+        boundedProfile.width == 64 && boundedProfile.height == 64,
+        "warm stream profile upscaled a bounded source"
+    )
     var frameAdvancement = AOSDesktopPixelFrameAdvancement()
     let firstFrameTime = CMTime(value: 1, timescale: 30)
     let secondFrameTime = CMTime(value: 2, timescale: 30)

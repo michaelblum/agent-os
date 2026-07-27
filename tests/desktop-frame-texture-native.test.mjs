@@ -228,10 +228,10 @@ func rejectedCode(_ outcome: AOSDesktopFrameCaptureOutcome) -> String? {
 
 @main
 struct DesktopFrameProof {
-    static func main() throws {
+    static func main() async throws {
         let owner = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
         try runDesktopPixelWarmOpenOperationTests()
-        try runDesktopPixelNativeLifecycleTests()
+        try await runDesktopPixelNativeLifecycleTests()
         try runDesktopPixelBrokerTests()
         try runDesktopFrameWarmPoolTests()
         require(
@@ -890,6 +890,11 @@ struct DesktopFrameProof {
         consent.prime(owner: owner) { primeStatus = $0.status.rawValue }
         require(primeStatus == "ready", "explicit direct-capture prime did not settle")
         require(primeCapturer.captureCount == 1, "explicit prime did not issue exactly one probe")
+        require(
+            primeCapturer.maximumPixels
+                == AOSDesktopFrameCaptureConsentController.probeMaximumPixels,
+            "consent did not retain its bounded native probe budget"
+        )
         let controller = AOSDesktopFrameCaptureController(
             canvasManager: canvas,
             store: store,

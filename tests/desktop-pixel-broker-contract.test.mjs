@@ -19,9 +19,31 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
     source('src/daemon/unified.swift'),
   ])
 
+  const warmNative = native.slice(
+    native.indexOf('private final class AOSNativeDesktopPixelWarmSource'),
+  )
+
   assert.match(native, /SCScreenshotManager\.captureImage/u)
   assert.match(native, /SCStream\(/u)
-  assert.match(native, /configuration\.queueDepth = 3/u)
+  assert.match(native, /AOSDesktopPixelWarmStreamProfile/u)
+  assert.match(native, /static let queueDepth = 3/u)
+  assert.match(warmNative, /onScreenWindowsOnly: false/u)
+  assert.match(warmNative, /guard ownApplication != nil \|\| excluded\.isEmpty/u)
+  assert.match(warmNative, /excludingApplications: \[ownApplication\]/u)
+  assert.match(native, /DispatchQueue\.main\.async/u)
+  assert.equal(
+    warmNative.match(/aosPerformDesktopPixelNativeOperation \{ completion in/gu)?.length,
+    3,
+  )
+  assert.match(
+    warmNative,
+    /stopEntries[\s\S]*aosPerformDesktopPixelNativeOperation[\s\S]*stopCapture/u,
+  )
+  assert.match(
+    warmNative,
+    /aosStartDesktopPixelStreams[\s\S]*aosPerformDesktopPixelNativeOperation[\s\S]*startCapture[\s\S]*stop:[\s\S]*aosPerformDesktopPixelNativeOperation[\s\S]*stopCapture/u,
+  )
+  assert.doesNotMatch(warmNative, /configuration\.captureResolution = \.best/u)
   assert.match(native, /AOSDesktopPixelFrameAdvancement/u)
   assert.match(native, /requiredDistinctFrames: UInt64 = 2/u)
   assert.match(native, /waitUntilReady\(timeout: 0\.75\)/u)

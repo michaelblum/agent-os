@@ -36,6 +36,48 @@ private func aosLogDesktopPixelWarmOpenFailure(
     )
 }
 
+struct AOSDesktopPixelWarmStreamProfile: Equatable {
+    static let queueDepth = 3
+
+    let height: Int
+    let width: Int
+
+    init(
+        sourceWidth: Int,
+        sourceHeight: Int,
+        maximumPixels: Int
+    ) {
+        let width = max(1, sourceWidth)
+        let height = max(1, sourceHeight)
+        let multiplied = width.multipliedReportingOverflow(by: height)
+        let sourcePixels = multiplied.overflow ? Int.max : multiplied.partialValue
+        let scale = sourcePixels > maximumPixels
+            ? sqrt(Double(maximumPixels) / Double(sourcePixels))
+            : 1
+        self.width = max(1, Int((Double(width) * scale).rounded(.down)))
+        self.height = max(1, Int((Double(height) * scale).rounded(.down)))
+    }
+}
+
+func aosPerformDesktopPixelNativeOperation(
+    _ operation: @escaping @Sendable (
+        _ completion: @escaping @Sendable (Error?) -> Void
+    ) -> Void
+) async throws {
+    try await withCheckedThrowingContinuation {
+        (continuation: CheckedContinuation<Void, Error>) in
+        DispatchQueue.main.async {
+            operation { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: ())
+                }
+            }
+        }
+    }
+}
+
 private actor AOSNativeDesktopPixelSnapshotActor {
     func snapshot(
         _ request: AOSDesktopPixelSnapshotRequest
@@ -346,7 +388,9 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
             lifecycles: entries.map(\.output),
             timeout: aosDesktopPixelStreamRetirementTimeout
         ) { index in
-            try await entries[index].stream.stopCapture()
+            try await aosPerformDesktopPixelNativeOperation { completion in
+                entries[index].stream.stopCapture(completionHandler: completion)
+            }
         }
     }
 
@@ -366,7 +410,7 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
         do {
             content = try await SCShareableContent.excludingDesktopWindows(
                 false,
-                onScreenWindowsOnly: true
+                onScreenWindowsOnly: false
             )
         } catch {
             throw aosDesktopFrameCaptureFailure(for: error)
@@ -377,7 +421,12 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
             throw AOSDesktopFrameCaptureFailure.displayNotFound
         }
         let excluded = Set(request.excludingWindowIDs)
-        let windows = content.windows.filter { excluded.contains(Int($0.windowID)) }
+        let ownApplication = content.applications.first {
+            $0.processID == ProcessInfo.processInfo.processIdentifier
+        }
+        guard ownApplication != nil || excluded.isEmpty else {
+            throw AOSDesktopFrameCaptureFailure.captureFailed
+        }
         var entries: [Entry] = []
         var phase = "configure"
         var startupCompleted = false
@@ -394,34 +443,31 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
                 guard !multiplied.overflow else {
                     throw AOSDesktopFrameCaptureFailure.captureFailed
                 }
-                let sourcePixels = multiplied.partialValue
-                let scale = sourcePixels > request.maximumPixelsPerDisplay
-                    ? sqrt(
-                        Double(request.maximumPixelsPerDisplay)
-                            / Double(sourcePixels)
-                    )
-                    : 1
+                let profile = AOSDesktopPixelWarmStreamProfile(
+                    sourceWidth: sourceWidth,
+                    sourceHeight: sourceHeight,
+                    maximumPixels: request.maximumPixelsPerDisplay
+                )
                 let configuration = SCStreamConfiguration()
-                configuration.width = max(
-                    1,
-                    Int((Double(sourceWidth) * scale).rounded(.down))
-                )
-                configuration.height = max(
-                    1,
-                    Int((Double(sourceHeight) * scale).rounded(.down))
-                )
+                configuration.width = profile.width
+                configuration.height = profile.height
                 configuration.showsCursor = false
                 configuration.capturesAudio = false
-                configuration.captureResolution = .best
                 configuration.minimumFrameInterval = CMTime(value: 1, timescale: 30)
                 // Retaining the latest IOSurface occupies one producer slot.
                 // Two additional slots permit ScreenCaptureKit to advance.
-                configuration.queueDepth = 3
+                configuration.queueDepth = AOSDesktopPixelWarmStreamProfile.queueDepth
                 configuration.pixelFormat = kCVPixelFormatType_32BGRA
-                let filter = SCContentFilter(
-                    display: display,
-                    excludingWindows: windows
-                )
+                let filter: SCContentFilter
+                if let ownApplication {
+                    filter = SCContentFilter(
+                        display: display,
+                        excludingApplications: [ownApplication],
+                        exceptingWindows: []
+                    )
+                } else {
+                    filter = SCContentFilter(display: display, excludingWindows: [])
+                }
                 let output = AOSDesktopPixelStreamOutput(displayID: display.displayID)
                 let stream = SCStream(
                     filter: filter,
@@ -450,11 +496,17 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource {
                 settlementTimeout: aosDesktopPixelStreamRetirementTimeout,
                 cancellation: cancellation
             ) { index in
-                try await configuredEntries[index].stream.startCapture()
+                try await aosPerformDesktopPixelNativeOperation { completion in
+                    configuredEntries[index].stream.startCapture(
+                        completionHandler: completion
+                    )
+                }
             } stop: { index in
                 let entry = configuredEntries[index]
                 entry.output.quiesce()
-                try await entry.stream.stopCapture()
+                try await aosPerformDesktopPixelNativeOperation { completion in
+                    entry.stream.stopCapture(completionHandler: completion)
+                }
             }
             startupCompleted = true
             let source = AOSNativeDesktopPixelWarmSource(entries: entries)
