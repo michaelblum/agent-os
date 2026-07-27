@@ -53,6 +53,25 @@ private func aosDesktopPixelNativeError(
     return nil
 }
 
+func aosPerformDesktopPixelNativeOperation(
+    _ operation: @escaping @Sendable (
+        _ completion: @escaping @Sendable (Error?) -> Void
+    ) -> Void
+) async throws {
+    try await withCheckedThrowingContinuation {
+        (continuation: CheckedContinuation<Void, Error>) in
+        DispatchQueue.main.async {
+            operation { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: ())
+                }
+            }
+        }
+    }
+}
+
 final class AOSDesktopPixelRetainedAsyncOperation: @unchecked Sendable {
     typealias Operation = @Sendable () async throws -> Void
 
@@ -663,7 +682,10 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                         "start_invoked",
                         slot: index
                     )
-                    try await stream.startCapture()
+                    try await aosPerformDesktopPixelNativeOperation {
+                        completion in
+                        stream.startCapture(completionHandler: completion)
+                    }
                 }, completion: { result in
                     output.startSettled(aosDesktopPixelNativeError(result))
                     completion(result)
@@ -678,7 +700,10 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                 output.quiesce()
                 let started = entry.stopOperation.start(operation: {
                     output.stopInvoked()
-                    try await stream.stopCapture()
+                    try await aosPerformDesktopPixelNativeOperation {
+                        completion in
+                        stream.stopCapture(completionHandler: completion)
+                    }
                 }, completion: { result in
                     output.stopSettled(aosDesktopPixelNativeError(result))
                     completion(result)

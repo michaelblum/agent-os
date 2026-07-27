@@ -70,10 +70,11 @@ later freeze can be admitted; canvas, topology, display, and pixel-budget change
 do the same.
 All admitted display streams are configured before any startup begins, then
 started concurrently as one aggregate. Warm ScreenCaptureKit sources are
-constructed on AppKit's main actor. A retained operation invokes each native
-async start and stop exactly once. Its detached task retains only the native
-stream operands and completion until Apple settles; delegate-proven retirement
-may release the higher-level coordinator and broker ownership graph first.
+constructed on AppKit's main actor. A retained operation dispatches each native
+start and stop completion-handler request exactly once on AppKit's main queue.
+Its detached owner retains only the native stream operands and checked
+continuation until Apple settles; delegate-proven retirement may release the
+higher-level coordinator and broker ownership graph first.
 Caller cancellation does not cancel Apple's in-flight operation; the
 coordinator waits for authoritative startup or retirement evidence and
 compensates a late active start when required. The consent probe and runtime

@@ -60,7 +60,11 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(warmNative, /@MainActor\s+static func open/u)
   assert.match(
     warmNative,
-    /aosStartDesktopPixelStreams[\s\S]*let stream = entry\.stream[\s\S]*startOperation\.start[\s\S]*try await stream\.startCapture\(\)[\s\S]*stop:[\s\S]*let stream = entry\.stream[\s\S]*stopOperation\.start[\s\S]*try await stream\.stopCapture\(\)/u,
+    /aosStartDesktopPixelStreams[\s\S]*let stream = entry\.stream[\s\S]*startOperation\.start[\s\S]*aosPerformDesktopPixelNativeOperation[\s\S]*stream\.startCapture\(completionHandler: completion\)[\s\S]*stop:[\s\S]*let stream = entry\.stream[\s\S]*stopOperation\.start[\s\S]*aosPerformDesktopPixelNativeOperation[\s\S]*stream\.stopCapture\(completionHandler: completion\)/u,
+  )
+  assert.match(
+    native,
+    /func aosPerformDesktopPixelNativeOperation[\s\S]*withCheckedThrowingContinuation[\s\S]*DispatchQueue\.main\.async/u,
   )
   assert.match(native, /final class AOSDesktopPixelRetainedAsyncOperation/u)
   assert.doesNotMatch(retainedNativeOperation, /task\.cancel\(\)|task\?\.cancel\(\)/u)
@@ -68,7 +72,6 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.doesNotMatch(retainedNativeOperation, /Task\.detached\([^)]*\) \{ \[self\]/u)
   assert.doesNotMatch(native, /cancelPendingStart/u)
   assert.match(native, /Task\.detached\(priority: priority\)/u)
-  assert.doesNotMatch(native, /withCheckedThrowingContinuation/u)
   assert.match(warmNative, /configuration\.width = profile\.width/u)
   assert.match(warmNative, /configuration\.height = profile\.height/u)
   assert.doesNotMatch(warmNative, /configuration\.captureResolution/u)
