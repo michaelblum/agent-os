@@ -33,9 +33,10 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(warmNative, /@MainActor\s+static func open/u)
   assert.match(
     warmNative,
-    /aosStartDesktopPixelStreams[\s\S]*aosScheduleDesktopPixelNativeOperation[\s\S]*entry\.stream\.startCapture \{ error in[\s\S]*stop:[\s\S]*aosScheduleDesktopPixelNativeOperation[\s\S]*entry\.stream\.stopCapture \{ error in/u,
+    /aosStartDesktopPixelStreams[\s\S]*startOperation\.start[\s\S]*try await entry\.stream\.startCapture\(\)[\s\S]*stop:[\s\S]*stopOperation\.start[\s\S]*try await entry\.stream\.stopCapture\(\)/u,
   )
-  assert.match(native, /DispatchQueue\.main\.async\(execute: operation\)/u)
+  assert.match(native, /final class AOSDesktopPixelRetainedAsyncOperation/u)
+  assert.match(native, /Task\.detached\(priority: priority\)/u)
   assert.doesNotMatch(native, /withCheckedThrowingContinuation/u)
   assert.match(warmNative, /configuration\.width = profile\.width/u)
   assert.match(warmNative, /configuration\.height = profile\.height/u)
@@ -50,12 +51,12 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(lifecycle, /AOSDesktopPixelStartupDecision/u)
   assert.match(lifecycle, /AOSDesktopPixelStartupSignal/u)
   assert.match(native, /first_sample[\s\S]*startupSignal\.succeed\(\)/u)
-  assert.match(native, /start_callback/u)
-  assert.match(native, /stop_callback/u)
+  assert.match(native, /start_settled/u)
+  assert.match(native, /stop_settled/u)
   assert.match(native, /lateFailure: \{ error in sourceFailure\.record\(error\) \}/u)
   assert.match(native, /failureState\.current\(\)/u)
-  assert.doesNotMatch(warmNative, /try await .*\.stream\.startCapture\(\)/u)
-  assert.doesNotMatch(warmNative, /try await .*\.stream\.stopCapture\(\)/u)
+  assert.doesNotMatch(warmNative, /\.startCapture\s*\{/u)
+  assert.doesNotMatch(warmNative, /\.stopCapture\s*\{/u)
   assert.match(lifecycle, /AOSDesktopPixelAggregateSettlement/u)
   assert.match(lifecycle, /AOSDesktopPixelStartupStreamCoordinator/u)
   assert.match(lifecycle, /AOSDesktopPixelStartupOwner/u)
@@ -94,6 +95,7 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(adapter, /performRetirement\(action\)[\s\S]*completion\(result\)/u)
   assert.match(daemon, /private let desktopPixelBroker = AOSDesktopPixelBroker\(\)/u)
   assert.match(daemon, /desktopFrameProbeCapturer[\s\S]*strategy: \.oneShotWarmSnapshot/u)
+  assert.match(daemon, /preflightPermission: \{ CGPreflightScreenCaptureAccess\(\) \}/u)
   assert.match(daemon, /desktopFrameCapturer[\s\S]*strategy: \.prewarmedSnapshot/u)
   assert.match(daemon, /desktopFrameTextureAuthorization/u)
   assert.doesNotMatch(native, /Task\s*\{\s*@MainActor/u)

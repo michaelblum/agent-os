@@ -528,6 +528,7 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
     private let signal: AOSDesktopPixelStartupSignal
     private let start: AOSDesktopPixelNativeOperation
     private var startState: StartState = .pending
+    private var startupWasPublished = false
     private let stop: AOSDesktopPixelNativeOperation
     private var stopAttempt: AOSDesktopPixelStopAttempt?
     private var stopInFlight = false
@@ -555,11 +556,14 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
         completion: @escaping @Sendable (Result<Void, Error>) -> Void
     ) {
         let shouldStart = signal.observeStartup { [self] result in
-            startCompleted(result)
+            startupEvidenceCompleted(result)
             completion(result)
         }
         if shouldStart {
-            start { [signal] result in signal.complete(result) }
+            start { [self, signal] result in
+                signal.complete(result)
+                nativeStartSettled(result)
+            }
         }
     }
 
@@ -581,7 +585,14 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
         return result
     }
 
-    private func startCompleted(_ result: Result<Void, Error>) {
+    private func startupEvidenceCompleted(_ result: Result<Void, Error>) {
+        guard result.isSuccess else { return }
+        lock.lock()
+        startupWasPublished = true
+        lock.unlock()
+    }
+
+    private func nativeStartSettled(_ result: Result<Void, Error>) {
         lock.lock()
         startState = result.isSuccess ? .succeeded : .failed
         lock.unlock()
@@ -590,7 +601,7 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
 
     private func startupFailed(_ error: Error) {
         lock.lock()
-        let isLate = startState == .succeeded
+        let isLate = startupWasPublished
             && !retirementRequested
             && !retired
         lock.unlock()

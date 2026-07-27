@@ -257,21 +257,6 @@ func settlePixelRetirements(
 }
 
 func runDesktopPixelNativeLifecycleTests() async throws {
-    let nativeOperationCompleted = LockedBoolean()
-    let nativeOperationWasMain = LockedBoolean()
-    await withCheckedContinuation { continuation in
-        DispatchQueue.global(qos: .userInitiated).async {
-            aosScheduleDesktopPixelNativeOperation {
-                nativeOperationWasMain.set(Thread.isMainThread)
-                nativeOperationCompleted.set(true)
-                continuation.resume()
-            }
-        }
-    }
-    require(
-        nativeOperationCompleted.get() && nativeOperationWasMain.get(),
-        "desktop pixel native operation did not hop to the AppKit main queue"
-    )
     require(
         AOSDesktopPixelWarmStreamProfile.queueDepth == 3,
         "warm stream profile lost its bounded producer depth"
@@ -291,17 +276,18 @@ func runDesktopPixelNativeLifecycleTests() async throws {
     guard let consentProfile = AOSDesktopPixelWarmStreamProfile(
         sourceWidth: 1_920,
         sourceHeight: 1_080,
-        maximumPixels: 4_096
+        maximumPixels: AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay
     ) else {
         require(false, "ordinary consent stream profile was rejected")
         return
     }
     require(
-        consentProfile.width == 84 && consentProfile.height == 48,
+        consentProfile.width == 1_364 && consentProfile.height == 768,
         "consent stream profile did not align the scaled IOSurface"
     )
     require(
-        consentProfile.width * consentProfile.height <= 4_096,
+        consentProfile.width * consentProfile.height
+            <= AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay,
         "aligned consent stream profile exceeded its pixel budget"
     )
     guard let boundedProfile = AOSDesktopPixelWarmStreamProfile(
@@ -933,7 +919,7 @@ func runDesktopPixelNativeLifecycleTests() async throws {
     Task { await hungStopRelease.open() }
     require(
         hungStopFinished.wait(timeout: .now() + 1) == .success,
-        "late native stop callback lost its callback owner"
+        "late native stop result lost its operation owner"
     )
 
     let firstDisplay = FakePixelStreamLifecycle()

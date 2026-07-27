@@ -14,13 +14,14 @@ private let aosDesktopFramePermissionRequestQueue = DispatchQueue(
 final class AOSDesktopFrameCaptureConsentController {
     static let maximumPrimeWaiters = 16
     static let permissionRequestLifetime: TimeInterval = 120
-    // A granted capture that cannot freeze a tiny frame promptly is not usable
+    // A granted capture that cannot freeze a bounded frame promptly is not usable
     // for interactive desktop effects. Stream retirement has a separate bound
     // so native cleanup latency cannot be mistaken for pixel-delivery latency.
     static let probeLifetime: TimeInterval = 2
     static let probeRetirementLifetime: TimeInterval =
         AOSDesktopPixelBroker.defaultRetirementTimeout + 1
-    static let probeMaximumPixels = 4_096
+    static let probeMaximumPixels =
+        AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay
     static let responseLifetime: TimeInterval =
         permissionRequestLifetime + probeLifetime + probeRetirementLifetime + 10
 
@@ -32,6 +33,7 @@ final class AOSDesktopFrameCaptureConsentController {
     typealias PermissionRequester = (
         _ completion: @escaping (Bool) -> Void
     ) -> AOSDesktopFrameCancelling
+    typealias PermissionPreflight = () -> Bool
 
     private enum PrimePhase: Equatable {
         case requestingPermission
@@ -60,6 +62,7 @@ final class AOSDesktopFrameCaptureConsentController {
     private let capturer: AOSDesktopFrameCapturing
     private let lock = NSLock()
     private let mainDisplayID: () -> UInt32
+    private let preflightPermission: PermissionPreflight
     private let requestPermission: PermissionRequester
     private let scheduleDeadline: DeadlineScheduler
     private var activePrime: ActivePrime?
@@ -71,6 +74,7 @@ final class AOSDesktopFrameCaptureConsentController {
     init(
         capturer: AOSDesktopFrameCapturing = AOSNativeDesktopFrameCapturer(),
         mainDisplayID: @escaping () -> UInt32 = { CGMainDisplayID() },
+        preflightPermission: @escaping PermissionPreflight = { false },
         requestPermission: @escaping PermissionRequester = { completion in
             let work = DispatchWorkItem {
                 completion(CGRequestScreenCaptureAccess())
@@ -89,6 +93,7 @@ final class AOSDesktopFrameCaptureConsentController {
     ) {
         self.capturer = capturer
         self.mainDisplayID = mainDisplayID
+        self.preflightPermission = preflightPermission
         self.requestPermission = requestPermission
         self.scheduleDeadline = scheduleDeadline
         if #available(macOS 14.0, *) {
@@ -207,6 +212,11 @@ final class AOSDesktopFrameCaptureConsentController {
             retirementStarted: false
         )
         lock.unlock()
+
+        if preflightPermission() {
+            permissionRequestCompleted(true, generation: generation)
+            return
+        }
 
         installDeadline(scheduleDeadline(Self.permissionRequestLifetime) { [weak self] in
             self?.primeTimedOut(

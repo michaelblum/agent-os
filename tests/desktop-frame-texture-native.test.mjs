@@ -343,6 +343,31 @@ struct DesktopFrameProof {
         require(permissionDeniedCode == "DESKTOP_FRAME_PERMISSION_DENIED", "permission denial was misclassified")
         require(permissionDeniedCapturer.captureCount == 0, "permission denial invoked capture")
 
+        let preflightCapturer = FakeCapturer()
+        var preflightPermissionRequests = 0
+        let preflightConsent = AOSDesktopFrameCaptureConsentController(
+            capturer: preflightCapturer,
+            mainDisplayID: { 42 },
+            preflightPermission: { true },
+            requestPermission: { _ in
+                preflightPermissionRequests += 1
+                return AOSDesktopFrameCancellation()
+            },
+            scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
+        )
+        var preflightStatus: String?
+        preflightConsent.prime(owner: owner) {
+            preflightStatus = $0.status.rawValue
+        }
+        require(preflightStatus == "ready", "existing permission did not proceed directly to probe")
+        require(preflightPermissionRequests == 0, "existing permission was requested again")
+        require(preflightCapturer.captureCount == 1, "existing permission did not probe exactly once")
+        require(
+            preflightCapturer.maximumPixels
+                == AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay,
+            "permission prime did not use the runtime warm-stream profile"
+        )
+
         let permissionTimeoutCapturer = FakeCapturer()
         var permissionTimeoutActions: [() -> Void] = []
         var pendingPermission: ((Bool) -> Void)?
@@ -899,6 +924,11 @@ struct DesktopFrameProof {
             primeCapturer.maximumPixels
                 == AOSDesktopFrameCaptureConsentController.probeMaximumPixels,
             "consent did not retain its bounded native probe budget"
+        )
+        require(
+            AOSDesktopFrameCaptureConsentController.probeMaximumPixels
+                == AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay,
+            "consent probe diverged from the interactive warm-stream profile"
         )
         let controller = AOSDesktopFrameCaptureController(
             canvasManager: canvas,

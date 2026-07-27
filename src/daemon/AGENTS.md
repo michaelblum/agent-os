@@ -30,8 +30,8 @@ frames only; encoding, cropping, redaction, persistence, and GPU delivery
 belong to downstream adapters. Multi-display warm acquisition configures the
 complete stream set before starting every display concurrently; partial startup
 failure immediately requests aggregate retirement while retaining late
-startup-completion ownership. A callback-native coordinator owns each Apple
-start and stop operation without an unstructured task or continuation. Native
+startup-completion ownership. A retained async-operation owner invokes each
+Apple start and stop exactly once without a continuation. Native
 start success or the first usable frame may establish startup, whichever arrives
 first. A later start failure retires the complete aggregate. Only a stream
 proven active receives a compensating stop; a failed start
@@ -45,19 +45,19 @@ configuration does not cancel an in-flight ScreenCaptureKit `startCapture()`;
 startup evidence settles before one acknowledged retirement begins, so native
 start and stop never race. A startup that misses the settlement deadline fails
 the broker closed while its coordinator retains ownership and retires any late
-success. The coordinator may run on a generic executor, but it schedules native
-ScreenCaptureKit start and stop invocation onto AppKit's main queue. Content-free
+success. Caller cancellation does not cancel an in-flight native operation;
+the coordinator waits for settlement and compensates a late start. Content-free
 lifecycle diagnostics may record configured, start, first
 sample, stop, and delegate-stop phases, but never display identity or pixels.
 A native failure marker may retain only the stable `SCStreamError` numeric code;
 it may not include localized descriptions, user info, source metadata, or paths.
 AOS constructs each warm ScreenCaptureKit source on AppKit's main actor, uses
-ScreenCaptureKit's native completion-handler operations, excludes its complete
+ScreenCaptureKit's native async operations, excludes its complete
 process from captured display content when AOS surfaces exist, and uses one
-off-screen-inclusive stream configuration with consumer-specific bounded pixel
-ceilings for consent and runtime acquisition. Scaled stream surfaces round down
-to positive even dimensions without exceeding those ceilings; an impossible
-budget or aspect ratio fails before ScreenCaptureKit is invoked.
+off-screen-inclusive stream configuration with the same bounded pixel ceiling
+for consent and runtime acquisition. Scaled stream surfaces round down to
+positive even dimensions without exceeding that ceiling; an impossible budget
+or aspect ratio fails before ScreenCaptureKit is invoked.
 A warm stream retains its latest complete or started native
 sample, so it uses a fixed queue depth of three and cannot become ready
 until every display has retained a usable frame and then delivered a later,
