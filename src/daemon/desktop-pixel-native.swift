@@ -200,9 +200,6 @@ private actor AOSNativeDesktopPixelSnapshotActor {
         guard displays.count == requested.count else {
             throw AOSDesktopFrameCaptureFailure.displayNotFound
         }
-        let excluded = Set(request.excludingWindowIDs)
-        let windows = content.windows.filter { excluded.contains(Int($0.windowID)) }
-
         let frames = try await withThrowingTaskGroup(
             of: AOSDesktopPixelFrame.self
         ) { group in
@@ -236,9 +233,10 @@ private actor AOSNativeDesktopPixelSnapshotActor {
                     configuration.height = height
                     configuration.showsCursor = false
                     configuration.captureResolution = .best
-                    let filter = SCContentFilter(
+                    let filter = try aosDesktopPixelCaptureFilter(
+                        content: content,
                         display: display,
-                        excludingWindows: windows
+                        excludingWindowIDs: request.excludingWindowIDs
                     )
                     let image: CGImage
                     do {
@@ -569,11 +567,6 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
         guard displays.count == requested.count else {
             throw AOSDesktopFrameCaptureFailure.displayNotFound
         }
-        let excluded = Set(request.excludingWindowIDs)
-        let windows = content.windows.filter { excluded.contains(Int($0.windowID)) }
-        guard windows.count == excluded.count else {
-            throw AOSDesktopFrameCaptureFailure.captureFailed
-        }
         var entries: [Entry] = []
         var phase = "configure"
         var startupCompleted = false
@@ -612,9 +605,10 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                 // Two additional slots permit ScreenCaptureKit to advance.
                 configuration.queueDepth = AOSDesktopPixelWarmStreamProfile.queueDepth
                 configuration.pixelFormat = kCVPixelFormatType_32BGRA
-                let filter = SCContentFilter(
+                let filter = try aosDesktopPixelCaptureFilter(
+                    content: content,
                     display: display,
-                    excludingWindows: windows
+                    excludingWindowIDs: request.excludingWindowIDs
                 )
                 let startupSignal = AOSDesktopPixelStartupSignal()
                 let startOperation = AOSDesktopPixelRetainedAsyncOperation(

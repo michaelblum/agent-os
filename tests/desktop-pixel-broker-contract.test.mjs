@@ -10,10 +10,11 @@ async function source(relativePath) {
 }
 
 test('desktop pixel acquisition stays native, serialized, and artifact-free', async () => {
-  const [broker, retirement, lifecycle, native, pool, adapter, daemon] = await Promise.all([
+  const [broker, retirement, lifecycle, captureFilter, native, pool, adapter, daemon] = await Promise.all([
     source('src/daemon/desktop-pixel-broker.swift'),
     source('src/daemon/desktop-pixel-retirement.swift'),
     source('src/daemon/desktop-pixel-stream-lifecycle.swift'),
+    source('src/daemon/desktop-pixel-capture-filter.swift'),
     source('src/daemon/desktop-pixel-native.swift'),
     source('src/daemon/desktop-frame-warm-pool.swift'),
     source('src/daemon/desktop-frame-capture-adapter.swift'),
@@ -22,6 +23,11 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
 
   const warmNative = native.slice(
     native.indexOf('private final class AOSNativeDesktopPixelWarmSource'),
+    native.indexOf('final class AOSNativeDesktopPixelAcquirer'),
+  )
+  const snapshotNative = native.slice(
+    native.indexOf('private actor AOSNativeDesktopPixelSnapshotActor'),
+    native.indexOf('private struct AOSDesktopPixelLatestSample'),
   )
   const retainedNativeOperation = native.slice(
     native.indexOf('final class AOSDesktopPixelRetainedAsyncOperation'),
@@ -33,10 +39,22 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(native, /AOSDesktopPixelWarmStreamProfile/u)
   assert.match(native, /static let queueDepth = 3/u)
   assert.match(warmNative, /onScreenWindowsOnly: false/u)
-  assert.match(warmNative, /let windows = content\.windows\.filter/u)
-  assert.match(warmNative, /guard windows\.count == excluded\.count/u)
-  assert.match(warmNative, /excludingWindows: windows/u)
-  assert.doesNotMatch(warmNative, /excludingApplications:/u)
+  assert.match(captureFilter, /aosDesktopPixelCaptureFilterSelection/u)
+  assert.match(captureFilter, /availableApplicationProcessIDs\.contains\(currentProcessID\)/u)
+  assert.match(captureFilter, /excludingApplications: \[application\]/u)
+  assert.match(captureFilter, /exceptingWindows: \[\]/u)
+  assert.match(captureFilter, /return SCContentFilter\(display: display, excludingWindows: windows\)/u)
+  assert.match(captureFilter, /guard windows\.count == requested\.count/u)
+  assert.equal((snapshotNative.match(/aosDesktopPixelCaptureFilter\(/gu) ?? []).length, 1)
+  assert.match(
+    snapshotNative,
+    /content: content,[\s\S]*display: display,[\s\S]*excludingWindowIDs: request\.excludingWindowIDs/u,
+  )
+  assert.equal((warmNative.match(/aosDesktopPixelCaptureFilter\(/gu) ?? []).length, 1)
+  assert.match(
+    warmNative,
+    /content: content,[\s\S]*display: display,[\s\S]*excludingWindowIDs: request\.excludingWindowIDs/u,
+  )
   assert.match(warmNative, /@MainActor\s+static func open/u)
   assert.match(
     warmNative,
