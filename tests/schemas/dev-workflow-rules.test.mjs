@@ -216,17 +216,14 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/canvas.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-frame-texture.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/scene-extension-store.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/shared/scene-extension-identifier.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('tests/desktop-world-scene-*.test.mjs'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('tests/fixtures/desktop-world-framebuffer-proof-identifiers.json'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('scripts/lib/scene-extension/module-inspector.mjs'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('packages/toolkit/components/desktop-world-stage/**'));
-  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('tests/desktop-world-framebuffer-proof-controller.test.mjs'));
-  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('shared/schemas/desktop-world-framebuffer-proof-*.schema.json'));
   assert.match(
     rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-daemon-contract')?.command ?? '',
     /tests\/desktop-world-scene-result-coordinator\.test\.mjs/u,
-  );
-  assert.match(
-    rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-daemon-contract')?.command ?? '',
-    /tests\/desktop-world-framebuffer-proof-controller\.test\.mjs/u,
   );
   assert.match(
     rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-interaction-contract')?.command ?? '',
@@ -235,10 +232,6 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.match(
     rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-core-contract')?.command ?? '',
     /tests\/toolkit\/scene-host\.test\.mjs/u,
-  );
-  assert.match(
-    rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-core-contract')?.command ?? '',
-    /tests\/toolkit\/desktop-world-framebuffer-proof\.test\.mjs/u,
   );
   assert.match(
     rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-devtools-contract')?.command ?? '',

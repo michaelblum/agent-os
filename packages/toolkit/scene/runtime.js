@@ -33,6 +33,12 @@ export {
   createDesktopWorldSceneSession,
 } from './desktop-world-session.js'
 export {
+  DESKTOP_WORLD_FRAMEBUFFER_PROOF_ERROR_CODES,
+  DESKTOP_WORLD_FRAMEBUFFER_PROOF_RESULT_CONTRACT_ID,
+  normalizeDesktopWorldFramebufferProofId,
+  normalizeDesktopWorldFramebufferProofResult,
+} from './desktop-world-framebuffer-proof.js'
+export {
   DESKTOP_WORLD_SCENE_RESULT_ERROR_CODES,
   normalizeDesktopWorldSceneResultErrorCode,
 } from './scene-result-codes.js'

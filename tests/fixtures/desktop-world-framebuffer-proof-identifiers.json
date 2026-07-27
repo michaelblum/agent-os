@@ -1,0 +1,20 @@
+{
+  "valid": [
+    "a",
+    "capture-overlay-visible",
+    "capture.overlay_1",
+    "group/proof-2"
+  ],
+  "invalid": [
+    "",
+    "Capture-overlay-visible",
+    "-capture-overlay-visible",
+    "capture-overlay-visible-",
+    "capture//overlay",
+    "capture/./overlay",
+    "capture/../overlay",
+    "capture/.",
+    "capture/..",
+    "capture/"
+  ]
+}

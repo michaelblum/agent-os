@@ -19,7 +19,6 @@ import {
   projectSceneEventTopology,
 } from './topology.js'
 import { createDesktopWorldDevToolsStageProbe } from '../../scene/desktop-world-devtools.js'
-import { normalizeDesktopWorldFramebufferProofRequest } from '../../scene/desktop-world-framebuffer-proof.js'
 import {
   registerInputKeyLease,
   registerInputRegion,
@@ -309,7 +308,6 @@ declareManifest({
     'desktop_world_stage.scene.release',
     'desktop_world_stage.devtools.configure',
     'desktop_world_stage.devtools.request',
-    'desktop_world_stage.framebuffer_proof.request',
     'input_region.event',
     'key_down',
     'lifecycle',
@@ -321,7 +319,6 @@ declareManifest({
     'desktop_world_stage.scene.fault',
     'desktop_world_stage.scene.result',
     'desktop_world_stage.devtools.snapshot',
-    'desktop_world_stage.framebuffer_proof.result',
     'input_region.register',
     'input_region.update',
     'input_region.remove',
@@ -344,7 +341,7 @@ async function applySceneMessage(message) {
       error.code = 'SCENE_STAGE_DISPOSED'
       throw error
     }
-    const { applied, candidateFingerprint = null } = await applyDesktopWorldSceneOperation({
+    const { applied, candidateFingerprint = null, proof = null } = await applyDesktopWorldSceneOperation({
       extensionLoader: sceneExtensionLoader,
       message,
       operations: sceneOperations,
@@ -362,6 +359,7 @@ async function applySceneMessage(message) {
       resource: payload.resource ?? null,
       status: applied ? 'ok' : 'ignored',
       snapshot: sceneOutlet.snapshot(),
+      ...(proof === null ? {} : { proof }),
     })
     devtoolsProbe.recordEvent({ kind: `scene.${op}`, resourceId: payload.resource ?? null })
     lastSceneError = null
@@ -383,43 +381,6 @@ async function applySceneMessage(message) {
       resource: payload.resource ?? null,
       status: 'error',
       code,
-    })
-  }
-}
-
-function applyFramebufferProofMessage(message) {
-  const payload = message.payload ?? {}
-  const requestId = typeof payload.request_id === 'string'
-    && /^[a-z0-9][a-z0-9._-]{0,127}$/u.test(payload.request_id)
-    ? payload.request_id
-    : null
-  const owner = typeof payload.owner === 'string' ? payload.owner : null
-  const resource = typeof payload.resource === 'string' ? payload.resource : null
-  try {
-    if (stageLifecycleState !== 'active' || requestId === null || owner === null || resource === null) {
-      const error = new Error('DesktopWorld framebuffer proof request is invalid.')
-      error.code = 'INVALID_SCENE_FRAMEBUFFER_PROOF'
-      throw error
-    }
-    const request = normalizeDesktopWorldFramebufferProofRequest(payload.proof)
-    const result = sceneOutlet.proveFramebuffer(`${owner}::${resource}`, request)
-    emit('desktop_world_stage.framebuffer_proof.result', {
-      request_id: requestId,
-      owner,
-      resource,
-      segment_display_id: window.__aosSegmentDisplayId ?? null,
-      segment_index: surface.segment?.index ?? null,
-      ...result,
-    })
-  } catch (error) {
-    emit('desktop_world_stage.framebuffer_proof.result', {
-      request_id: requestId,
-      owner,
-      resource,
-      segment_display_id: window.__aosSegmentDisplayId ?? null,
-      segment_index: surface.segment?.index ?? null,
-      status: 'error',
-      code: typeof error?.code === 'string' ? error.code : 'SCENE_FRAMEBUFFER_PROOF_FAILED',
     })
   }
 }
@@ -448,10 +409,6 @@ wireBridge((message) => {
       ? message.payload.request_id
       : null
     devtoolsProbe.emitSnapshot('requested', undefined, requestId == null ? {} : { request_id: requestId })
-    return
-  }
-  if (message?.type === 'desktop_world_stage.framebuffer_proof.request') {
-    void enqueueSceneWork(() => applyFramebufferProofMessage(message))
     return
   }
   if (message?.type === 'input_region.event') {

@@ -129,6 +129,18 @@ function harness({
       const mounted = resources.get(key)
       return mounted ? mounted.playGeneration + 1 : null
     },
+    proveFramebuffer(key, input) {
+      calls.push(['prove', key, input])
+      return {
+        extension_digest: input.expectedDigest,
+        passed: true,
+        pixels_persisted: false,
+        pixels_returned: false,
+        proof_id: input.proofId,
+        readback_duration_ms: 1,
+        resource_revision: input.expectedRevision,
+      }
+    },
     releaseAll() {
       resources.clear()
       return true
@@ -304,6 +316,41 @@ function suspendOrResume(key, op) {
     payload: { lease_key: key, operation: { op } },
   }
 }
+
+function prove(key, proofId = 'capture-overlay-visible') {
+  return {
+    type: 'desktop_world_stage.scene.operation',
+    payload: {
+      lease_key: key,
+      operation: {
+        expectedExtensionDigest: 'a'.repeat(64),
+        expectedRevision: 1,
+        op: 'prove',
+        proofId,
+      },
+    },
+  }
+}
+
+test('framebuffer proof stays on the scene coordinator owner path with no caller pixel predicate', async () => {
+  const key = 'example.consumer::companion/main'
+  const fixture = harness()
+  const result = await fixture.coordinator.apply(prove(key))
+
+  assert.equal(result.applied, true)
+  assert.equal(result.op, 'prove')
+  assert.equal(result.proof.proof_id, 'capture-overlay-visible')
+  assert.deepEqual(fixture.calls, [[
+    'prove',
+    key,
+    {
+      expectedDigest: 'a'.repeat(64),
+      expectedRevision: 1,
+      proofId: 'capture-overlay-visible',
+    },
+  ]])
+  assert.equal(Object.hasOwn(result.proof, 'pixels'), false)
+})
 
 test('failed resume recovery remounts the exact trusted projection extension', async () => {
   const key = 'example.consumer::companion/main'

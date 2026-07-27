@@ -214,7 +214,7 @@ else
     fail "dev recommend semantic target selection routing drifted"
 fi
 
-if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/display/canvas.swift src/display/scene-extension-store.swift src/commands/direct-screen-capture-permission.swift src/daemon/desktop-frame-capture-consent.swift src/daemon/desktop-frame-warm-pool.swift src/daemon/desktop-pixel-retirement.swift src/daemon/desktop-pixel-stream-lifecycle.swift src/shared/desktop-frame-capture-consent-contract.swift scripts/lib/scene-extension/module-inspector.mjs tests/lib/desktop-frame-warm-pool-tests.swift tests/lib/desktop-pixel-native-lifecycle-tests.swift tests/lib/desktop-pixel-terminal-startup-tests.swift tests/lib/desktop-pixel-startup-callback-tests.swift tests/lib/desktop-pixel-warm-open-operation-tests.swift 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/display/canvas.swift src/display/scene-extension-store.swift src/commands/direct-screen-capture-permission.swift src/daemon/desktop-frame-capture-consent.swift src/daemon/desktop-frame-warm-pool.swift src/daemon/desktop-pixel-retirement.swift src/daemon/desktop-pixel-stream-lifecycle.swift src/shared/desktop-frame-capture-consent-contract.swift src/shared/scene-extension-identifier.swift scripts/lib/scene-extension/module-inspector.mjs tests/lib/desktop-frame-warm-pool-tests.swift tests/lib/desktop-pixel-native-lifecycle-tests.swift tests/lib/desktop-pixel-terminal-startup-tests.swift tests/lib/desktop-pixel-startup-callback-tests.swift tests/lib/desktop-pixel-warm-open-operation-tests.swift 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -233,6 +233,7 @@ expected_paths = {
     "src/daemon/desktop-pixel-retirement.swift",
     "src/daemon/desktop-pixel-stream-lifecycle.swift",
     "src/shared/desktop-frame-capture-consent-contract.swift",
+    "src/shared/scene-extension-identifier.swift",
     "scripts/lib/scene-extension/module-inspector.mjs",
     "tests/lib/desktop-frame-warm-pool-tests.swift",
     "tests/lib/desktop-pixel-native-lifecycle-tests.swift",
@@ -250,30 +251,6 @@ then
     pass "dev recommend routes desktop-frame owners to scene engine proofs"
 else
     fail "dev recommend desktop-frame owner routing drifted"
-fi
-
-if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/daemon/desktop-world-scene-framebuffer-proof-controller.swift shared/schemas/desktop-world-framebuffer-proof-request-v1.schema.json tests/desktop-world-framebuffer-proof-controller.test.mjs tests/toolkit/desktop-world-framebuffer-proof.test.mjs 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-files = {item["path"]: item for item in data["files"]}
-assert set(files) == {
-    "src/daemon/desktop-world-scene-framebuffer-proof-controller.swift",
-    "shared/schemas/desktop-world-framebuffer-proof-request-v1.schema.json",
-    "tests/desktop-world-framebuffer-proof-controller.test.mjs",
-    "tests/toolkit/desktop-world-framebuffer-proof.test.mjs",
-}, data
-for value in files.values():
-    assert "desktop-world-scene-engine" in value["rules"], value
-commands = {item["command"] for item in data["summary"]["commands"]}
-assert any("desktop-world-framebuffer-proof-controller.test.mjs" in command for command in commands), data
-assert any("desktop-world-framebuffer-proof.test.mjs" in command for command in commands), data
-PY
-then
-    pass "dev recommend routes framebuffer proof owners to focused scene proofs"
-else
-    fail "dev recommend framebuffer proof routing drifted"
 fi
 
 if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/perceive/ax-semantic-target.swift tests/lib/annotation-semantic-target-traversal-tests.swift 2>/dev/null)" python3 - <<'PY'

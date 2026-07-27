@@ -2,8 +2,7 @@
 
 import readline from 'node:readline'
 import { randomUUID } from 'node:crypto'
-import { constants as fsConstants } from 'node:fs'
-import { lstat, open, readFile, stat } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { connectWithAutoStart, stopManagedDaemon } from './lib/aos-daemon-client.mjs'
 import { loadSceneCartridge } from './lib/aos-scene-cartridge.mjs'
 import { connectSceneDaemon, installSceneProcessLifecycle } from './lib/aos-scene-daemon.mjs'
@@ -13,16 +12,17 @@ import {
   selectDesktopWorldResourceSnapshot,
 } from '../packages/toolkit/scene/desktop-world-client.js'
 import { validateSceneExtensionReference } from '../packages/toolkit/scene/scene-extension.js'
-import { normalizeDesktopWorldFramebufferProofRequest } from '../packages/toolkit/scene/desktop-world-framebuffer-proof.js'
+import { normalizeDesktopWorldFramebufferProofId } from '../packages/toolkit/scene/desktop-world-framebuffer-proof.js'
 
 const MAX_INPUT_LINE_BYTES = 2 * 1024 * 1024
 const MAX_OUTPUT_LINE_BYTES = 64 * 1024
 const MAX_STDERR_BYTES = 32 * 1024
 const MAX_REPLAY_BYTES = 16 * 1024 * 1024
-const MAX_FRAMEBUFFER_PROOF_BYTES = 16 * 1024
-const NO_FOLLOW = fsConstants.O_NOFOLLOW ?? 0
 const SOCKET_CLOSE_TIMEOUT_MS = 500
-const ALLOWED_OPERATIONS = new Set(['mount', 'transact', 'signal', 'play', 'suspend', 'resume', 'inspect', 'remove', 'close', 'subscribe', 'unsubscribe'])
+const ALLOWED_OPERATIONS = new Set([
+  'mount', 'transact', 'signal', 'play', 'suspend', 'resume', 'inspect', 'prove',
+  'remove', 'close', 'subscribe', 'unsubscribe',
+])
 const ALLOWED_SCENE_EVENTS = new Set(['gesture'])
 const DEVTOOLS_TABS = new Set(['world', 'resources', 'interactions', 'performance', 'events'])
 const DEVTOOLS_HOST_KINDS = new Set(['compatibility', 'external', 'panel'])
@@ -271,7 +271,7 @@ function parseToolArgs(args) {
   const json = tail.includes('--json')
   if (tail.filter((value) => value === '--json').length > 1) fail('DUPLICATE_FLAG', '--json may be supplied once')
   const withoutJson = tail.filter((value) => value !== '--json')
-  if (['list', 'inspect', 'monitor', 'perf', 'prove', 'replay', 'devtools'].includes(command) && !json) {
+  if (['list', 'inspect', 'monitor', 'perf', 'replay', 'devtools'].includes(command) && !json) {
     fail('MISSING_ARG', `scene ${command} requires --json`)
   }
   if (command === 'list') {
@@ -290,31 +290,6 @@ function parseToolArgs(args) {
     if (resourceFlags > 1) fail('DUPLICATE_FLAG', '--resource may be supplied once')
     if (command === 'monitor' && !withoutJson.includes('--follow')) fail('MISSING_ARG', 'scene monitor requires --follow')
     return { command, json, resource: validateResource(valueAfter(withoutJson, '--resource')) }
-  }
-  if (command === 'prove') {
-    const allowed = new Set(['--owner', '--resource', '--assertions'])
-    const values = new Map()
-    for (let index = 0; index < withoutJson.length; index += 1) {
-      const token = withoutJson[index]
-      if (!allowed.has(token)) fail('UNKNOWN_FLAG', `Unknown prove flag: ${token}`)
-      if (values.has(token)) fail('DUPLICATE_FLAG', `${token} may be supplied once`)
-      const value = withoutJson[index + 1]
-      if (!value || value.startsWith('--')) fail('MISSING_ARG', `${token} requires a value`)
-      values.set(token, value)
-      index += 1
-    }
-    for (const token of allowed) {
-      if (!values.has(token)) fail('MISSING_ARG', `prove requires ${token}`)
-    }
-    const owner = values.get('--owner')
-    if (!/^[a-z0-9][a-z0-9._-]{0,127}$/u.test(owner)) fail('INVALID_SCENE_OWNER', 'scene owner is invalid')
-    return {
-      command,
-      json,
-      assertions: values.get('--assertions'),
-      owner,
-      resource: validateResource(values.get('--resource')),
-    }
   }
   if (command === 'replay') {
     for (let index = 0; index < withoutJson.length; index += 2) {
@@ -354,6 +329,17 @@ function validateFollowOperation(operation) {
         threeRevision: operation.extension.threeRevision,
       },
     }
+  }
+  if (operation.op === 'prove') {
+    if (Object.keys(operation).some((key) => !['expectedRevision', 'op', 'proofId'].includes(key))
+        || !Number.isInteger(operation.expectedRevision)
+        || operation.expectedRevision < 0) {
+      fail('INVALID_SCENE_OPERATION', 'scene framebuffer proof contains invalid fields')
+    }
+    let proofId
+    try { proofId = normalizeDesktopWorldFramebufferProofId(operation.proofId) }
+    catch { fail('INVALID_SCENE_OPERATION', 'scene framebuffer proof ID is invalid') }
+    return { op: 'prove', expectedRevision: operation.expectedRevision, proofId }
   }
   if (operation.op !== 'subscribe' && operation.op !== 'unsubscribe') return operation
   const keys = Object.keys(operation)
@@ -446,39 +432,6 @@ async function readReplayEvents(file) {
   return events
 }
 
-async function readFramebufferProof(file) {
-  let before
-  let handle
-  try { before = await lstat(file) }
-  catch { fail('SCENE_FRAMEBUFFER_PROOF_UNAVAILABLE', 'Framebuffer proof assertions are unavailable') }
-  if (!before.isFile() || before.isSymbolicLink() || before.size > MAX_FRAMEBUFFER_PROOF_BYTES) {
-    fail('SCENE_FRAMEBUFFER_PROOF_LIMIT_EXCEEDED', 'Framebuffer proof assertions exceed the input budget')
-  }
-  try {
-    handle = await open(file, fsConstants.O_RDONLY | NO_FOLLOW)
-    const opened = await handle.stat()
-    if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino
-        || opened.size !== before.size || opened.size > MAX_FRAMEBUFFER_PROOF_BYTES) {
-      fail('SCENE_FRAMEBUFFER_PROOF_CHANGED', 'Framebuffer proof assertions changed during admission')
-    }
-    const bytes = await handle.readFile()
-    if (bytes.length !== opened.size) {
-      fail('SCENE_FRAMEBUFFER_PROOF_CHANGED', 'Framebuffer proof assertions changed during admission')
-    }
-    let parsed
-    try { parsed = JSON.parse(bytes.toString('utf8')) }
-    catch { fail('INVALID_SCENE_FRAMEBUFFER_PROOF', 'Framebuffer proof assertions contain malformed JSON') }
-    return normalizeDesktopWorldFramebufferProofRequest(parsed)
-  } catch (error) {
-    if (error?.code === 'ELOOP') {
-      fail('SCENE_FRAMEBUFFER_PROOF_LIMIT_EXCEEDED', 'Framebuffer proof assertions cannot be symbolic links')
-    }
-    throw error
-  } finally {
-    await handle?.close().catch(() => {})
-  }
-}
-
 async function runToolCommand(options) {
   if (options.command === 'replay') {
     writeToolResult(replayDesktopWorldSceneEvents(await readReplayEvents(options.events)), options.json, 'replay')
@@ -505,13 +458,6 @@ async function runToolCommand(options) {
     if (options.command === 'list') result = await client.list()
     else if (options.command === 'inspect') result = await client.inspect(options.resource)
     else if (options.command === 'perf') result = await client.perf(options.resource)
-    else if (options.command === 'prove') {
-      result = await client.prove(
-        options.owner,
-        options.resource,
-        await readFramebufferProof(options.assertions),
-      )
-    }
     else if (options.command === 'devtools' && options.action === 'open') result = await client.devtools.open({ resource: options.resource })
     else if (options.command === 'devtools' && options.action === 'status') result = await client.devtools.status(options.session)
     else if (options.command === 'devtools' && options.action === 'update') result = await client.devtools.update(options.session, options.expectedRevision, options.changes)

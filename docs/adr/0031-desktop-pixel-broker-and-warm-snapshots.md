@@ -154,13 +154,6 @@ uses an acknowledgement budget with a one-second settlement margin inside the
 broker's five-second fail-closed deadline; it does not delay delivery of an
 already frozen frame set.
 
-DesktopWorld framebuffer assertions are deliberately outside this broker. A
-one-shot assertion renders the existing WebGL scene once in each active display
-segment and compares at most eight individual framebuffer pixels locally. It
-does not invoke ScreenCaptureKit, create another capture session, or return
-pixel values. This keeps native capture lifecycle evidence separate from
-content-free proof that the already-presented scene reached every AOS segment.
-
 ## Consequences
 
 - DesktopWorld no longer cold-starts `SCScreenshotManager` for its effect path.

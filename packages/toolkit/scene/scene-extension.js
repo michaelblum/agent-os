@@ -12,7 +12,9 @@ export const SCENE_EXTENSION_THREE_REVISION = '183'
 export const SCENE_EXTENSION_REGISTRY_LIMIT = 64
 export const SCENE_EXTENSION_CAPABILITIES = Object.freeze([
   'aos.scene.desktop_frame_texture',
+  'aos.scene.framebuffer_proof',
 ])
+const SCENE_EXTENSION_FRAMEBUFFER_PROOF_LIMIT = 4
 
 // Runtime allocation growth is re-audited within 30 projection ticks (about
 // 500 ms at 60 FPS) without traversing the Three tree on every frame.
@@ -32,6 +34,7 @@ const MANIFEST_KEYS = new Set([
   'capabilities',
   'contract',
   'digest',
+  'framebufferProofs',
   'id',
   'implementationIds',
   'ownerId',
@@ -39,7 +42,7 @@ const MANIFEST_KEYS = new Set([
   'schemaVersion',
   'threeRevision',
 ])
-const OPTIONAL_MANIFEST_KEYS = new Set(['capabilities'])
+const OPTIONAL_MANIFEST_KEYS = new Set(['capabilities', 'framebufferProofs'])
 const FACTORY_KEYS = new Set(['createProjection', 'manifest'])
 const REFERENCE_KEYS = new Set([
   'digest',
@@ -129,6 +132,95 @@ function validateBudgets(value, path, errors, maximums = SCENE_EXTENSION_BUDGET_
   }
 }
 
+function validateByteTuple(value, path, errors) {
+  if (!Array.isArray(value) || value.length !== 4
+      || value.some((entry) => !Number.isInteger(entry) || entry < 0 || entry > 255)) {
+    addError(errors, 'invalid_framebuffer_proof', path, 'Framebuffer proof colors must contain four bytes.')
+    return false
+  }
+  return true
+}
+
+function validateFramebufferProofs(value, errors) {
+  if (value === undefined) return
+  if (!Array.isArray(value) || value.length < 1 || value.length > SCENE_EXTENSION_FRAMEBUFFER_PROOF_LIMIT) {
+    addError(
+      errors,
+      'invalid_framebuffer_proofs',
+      'manifest.framebufferProofs',
+      `Scene extensions may declare between 1 and ${SCENE_EXTENSION_FRAMEBUFFER_PROOF_LIMIT} framebuffer proofs.`,
+    )
+    return
+  }
+  let previous = null
+  for (const [index, proof] of value.entries()) {
+    const path = `manifest.framebufferProofs.${index}`
+    if (!isSceneRecord(proof)) {
+      addError(errors, 'invalid_framebuffer_proof', path, 'Framebuffer proof descriptors must be objects.')
+      continue
+    }
+    exactKeys(
+      proof,
+      new Set(['id', 'matchingPixels', 'rgbaMax', 'rgbaMin', 'sampleSize', 'uvPermille']),
+      path,
+      errors,
+    )
+    const validId = validateId(proof.id, `${path}.id`, errors)
+    if (validId && previous !== null && compareIds(previous, proof.id) >= 0) {
+      addError(
+        errors,
+        'framebuffer_proof_order',
+        `${path}.id`,
+        'Framebuffer proof IDs must be uniquely sorted.',
+      )
+    }
+    if (validId) previous = proof.id
+    if (!Array.isArray(proof.sampleSize) || proof.sampleSize.length !== 2
+        || proof.sampleSize.some((entry) => !Number.isInteger(entry) || entry < 1 || entry > 32)
+        || proof.sampleSize[0] * proof.sampleSize[1] > 1024) {
+      addError(
+        errors,
+        'invalid_framebuffer_proof',
+        `${path}.sampleSize`,
+        'Framebuffer proof sample size must contain two positive integers no larger than 32.',
+      )
+    }
+    if (!Array.isArray(proof.uvPermille) || proof.uvPermille.length !== 2
+        || proof.uvPermille.some((entry) => !Number.isInteger(entry) || entry < 0 || entry > 1000)) {
+      addError(
+        errors,
+        'invalid_framebuffer_proof',
+        `${path}.uvPermille`,
+        'Framebuffer proof coordinates must contain two permille integers.',
+      )
+    }
+    const validMin = validateByteTuple(proof.rgbaMin, `${path}.rgbaMin`, errors)
+    const validMax = validateByteTuple(proof.rgbaMax, `${path}.rgbaMax`, errors)
+    if (validMin && validMax && proof.rgbaMin.some((entry, component) => entry > proof.rgbaMax[component])) {
+      addError(
+        errors,
+        'invalid_framebuffer_proof',
+        `${path}.rgbaMin`,
+        'Framebuffer proof color bounds cannot be inverted.',
+      )
+    }
+    const sampleArea = Array.isArray(proof.sampleSize) && proof.sampleSize.length === 2
+      ? proof.sampleSize[0] * proof.sampleSize[1]
+      : -1
+    if (!Array.isArray(proof.matchingPixels) || proof.matchingPixels.length !== 2
+        || proof.matchingPixels.some((entry) => !Number.isInteger(entry) || entry < 0)
+        || proof.matchingPixels[0] > proof.matchingPixels[1]
+        || proof.matchingPixels[1] > sampleArea) {
+      addError(
+        errors,
+        'invalid_framebuffer_proof',
+        `${path}.matchingPixels`,
+        'Framebuffer proof matching-pixel bounds must fit inside the sample region.',
+      )
+    }
+  }
+}
+
 function compareIds(left, right) {
   if (left < right) return -1
   if (left > right) return 1
@@ -149,6 +241,16 @@ function cloneManifest(manifest) {
   }
   if (Object.hasOwn(manifest, 'capabilities')) {
     clone.capabilities = Object.freeze([...manifest.capabilities])
+  }
+  if (Object.hasOwn(manifest, 'framebufferProofs')) {
+    clone.framebufferProofs = Object.freeze(manifest.framebufferProofs.map((proof) => Object.freeze({
+      id: proof.id,
+      matchingPixels: Object.freeze([...proof.matchingPixels]),
+      rgbaMax: Object.freeze([...proof.rgbaMax]),
+      rgbaMin: Object.freeze([...proof.rgbaMin]),
+      sampleSize: Object.freeze([...proof.sampleSize]),
+      uvPermille: Object.freeze([...proof.uvPermille]),
+    })))
   }
   return Object.freeze(clone)
 }
@@ -464,6 +566,16 @@ export function validateSceneExtensionManifest(manifest) {
     })
   }
   validateBudgets(manifest.budgets, 'manifest.budgets', errors)
+  validateFramebufferProofs(manifest.framebufferProofs, errors)
+  if (manifest.framebufferProofs !== undefined
+      && !capabilities.includes('aos.scene.framebuffer_proof')) {
+    addError(
+      errors,
+      'undeclared_capability',
+      'manifest.framebufferProofs',
+      'Framebuffer proofs require the aos.scene.framebuffer_proof capability.',
+    )
+  }
   return { ok: errors.length === 0, errors }
 }
 
@@ -487,6 +599,20 @@ export function serializeSceneExtensionDigestMaterial(manifest, bodyDigest) {
       ? [
         `capabilityCount:${manifest.capabilities.length}`,
         ...manifest.capabilities.map((id) => `capability:${id}`),
+      ]
+      : []),
+    ...(manifest.framebufferProofs?.length
+      ? [
+        `framebufferProofCount:${manifest.framebufferProofs.length}`,
+        ...manifest.framebufferProofs.map((proof) => [
+          'framebufferProof',
+          proof.id,
+          proof.uvPermille.join(','),
+          proof.sampleSize.join(','),
+          proof.rgbaMin.join(','),
+          proof.rgbaMax.join(','),
+          proof.matchingPixels.join(','),
+        ].join(':')),
       ]
       : []),
     ...DIGEST_BUDGET_KEYS.map((key) => `budget.${key}:${manifest.budgets[key]}`),

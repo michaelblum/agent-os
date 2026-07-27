@@ -71,11 +71,36 @@ The manifest binds owner, extension ID, sorted implementation IDs, scene ABI,
 AOS's pinned Three revision, finite resource budgets, and the projection body
 SHA-256. `serializeSceneExtensionDigestMaterial()` is the digest authority.
 An optional sorted `capabilities` array is part of the same digest authority.
-The current capability registry contains only:
+The current capability registry contains:
 
 ```json
-["aos.scene.desktop_frame_texture"]
+["aos.scene.desktop_frame_texture", "aos.scene.framebuffer_proof"]
 ```
+
+An extension declaring `aos.scene.framebuffer_proof` may also declare up to
+four uniquely sorted `framebufferProofs`. Each proof fixes one normalized
+anchor, a region no larger than 32 by 32 pixels, one RGBA range, and an
+inclusive matching-pixel range. These bytes are part of the extension digest:
+
+```json
+{
+  "id": "surface-visible",
+  "matchingPixels": [4, 256],
+  "rgbaMax": [255, 255, 255, 255],
+  "rgbaMin": [240, 240, 240, 220],
+  "sampleSize": [16, 16],
+  "uvPermille": [500, 500]
+}
+```
+
+Only the connection that owns the mounted scene lease can call
+`session.assertFramebuffer("surface-visible")`. AOS requires the exact current
+scene revision, extension digest, proof ID, and display topology before one
+bounded readback per segment. The two-per-second stage limit is shared across
+resources. Predicate mismatch is a successful operation with `passed=false`;
+context loss, throttling, or readback failure is an explicit operation error.
+Assertions return no pixels or per-pixel values and are not exposed as a
+standalone command that can inspect another connection's scene.
 
 The context contains only AOS's pinned `THREE` namespace, the canonical scene
 document, lowered budgets, and

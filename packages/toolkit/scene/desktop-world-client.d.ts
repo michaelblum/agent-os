@@ -5,10 +5,6 @@ import type {
   DesktopWorldDevToolsTab,
 } from './desktop-world-devtools.js';
 import type { SceneEventEnvelope } from './scene-interaction.js';
-import type {
-  DesktopWorldFramebufferProofRequest,
-  DesktopWorldFramebufferProofResult,
-} from './desktop-world-framebuffer-proof.js';
 
 export type DesktopWorldSceneMaybePromise<T> = T | Promise<T>;
 
@@ -98,11 +94,6 @@ export interface DesktopWorldSceneClient<TSubscription = unknown> {
   list(): Promise<Readonly<DesktopWorldSceneResourceList>>;
   inspect(resource: string): Promise<DesktopWorldDevToolsStageSnapshot>;
   perf(resource: string): Promise<Readonly<DesktopWorldScenePerformanceSnapshot>>;
-  prove(
-    owner: string,
-    resource: string,
-    proof: DesktopWorldFramebufferProofRequest,
-  ): Promise<Readonly<DesktopWorldFramebufferProofResult>>;
   monitor(resource: string, options?: DesktopWorldSceneMonitorOptions): TSubscription;
   replay: typeof replayDesktopWorldSceneEvents;
   devtools: Readonly<{

@@ -881,4 +881,3 @@ export function createDesktopWorldSceneHost(options: SceneHostOptions & {
   surface: DesktopWorldSurfaceThree;
   surfaceHandlers?: Record<string, (...args: readonly unknown[]) => unknown>;
 }): Readonly<SceneHost>;
-export * from './desktop-world-framebuffer-proof.js';

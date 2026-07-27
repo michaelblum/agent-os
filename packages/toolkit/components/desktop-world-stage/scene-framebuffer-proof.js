@@ -1,64 +1,125 @@
-import { normalizeDesktopWorldFramebufferProofRequest } from '../../scene/desktop-world-framebuffer-proof.js'
-
-function fail(code, message) {
+function proofError(code, message) {
   const error = new Error(message)
   error.code = code
-  throw error
+  return error
 }
 
-function pixelCoordinate(value, size, invert = false) {
-  const normalized = invert ? 1 - value : value
+function coordinate(permille, size, invert = false) {
+  const normalized = (invert ? 1000 - permille : permille) / 1000
   return Math.min(size - 1, Math.max(0, Math.round(normalized * (size - 1))))
 }
 
-function matchesRange(pixel, sample) {
-  return pixel.every((entry, index) => (
-    entry >= sample.rgba_min[index] && entry <= sample.rgba_max[index]
-  ))
+function regionOrigin(permille, extent, sampleSize, invert = false) {
+  const center = coordinate(permille, extent, invert)
+  return Math.min(extent - sampleSize, Math.max(0, center - Math.floor(sampleSize / 2)))
+}
+
+function matchingPixelCount(pixels, descriptor) {
+  let matching = 0
+  for (let offset = 0; offset < pixels.length; offset += 4) {
+    let match = true
+    for (let component = 0; component < 4; component += 1) {
+      const value = pixels[offset + component]
+      if (value < descriptor.rgbaMin[component] || value > descriptor.rgbaMax[component]) {
+        match = false
+        break
+      }
+    }
+    if (match) matching += 1
+  }
+  return matching
+}
+
+export function createDesktopWorldFramebufferProofRateLimiter({
+  limit = 2,
+  now = () => performance.now(),
+  windowMs = 1000,
+} = {}) {
+  if (!Number.isInteger(limit) || limit < 1 || !Number.isFinite(windowMs) || windowMs <= 0
+      || typeof now !== 'function') {
+    throw new TypeError('DesktopWorld framebuffer proof rate limit is invalid.')
+  }
+  let windowStartedAt = Number.NEGATIVE_INFINITY
+  let count = 0
+  return Object.freeze({
+    admit() {
+      const at = now()
+      if (!Number.isFinite(at)) return false
+      if (at - windowStartedAt >= windowMs) {
+        windowStartedAt = at
+        count = 0
+      }
+      count += 1
+      return count <= limit
+    },
+  })
 }
 
 export function proveDesktopWorldSceneFramebuffer({
+  admit = () => true,
   camera,
+  descriptor,
   now = () => performance.now(),
   renderer,
-  request,
   scene,
 } = {}) {
-  const normalized = normalizeDesktopWorldFramebufferProofRequest(request)
+  if (typeof admit !== 'function' || !admit()) {
+    throw proofError(
+      'SCENE_FRAMEBUFFER_PROOF_RATE_LIMITED',
+      'DesktopWorld framebuffer proof rate limit was exceeded.',
+    )
+  }
   const context = renderer?.getContext?.()
   const width = renderer?.domElement?.width
   const height = renderer?.domElement?.height
   if (!context || typeof context.readPixels !== 'function'
+      || typeof context.getError !== 'function'
+      || typeof context.isContextLost !== 'function'
       || !Number.isInteger(width) || width < 1
-      || !Number.isInteger(height) || height < 1) {
-    fail('SCENE_FRAMEBUFFER_PROOF_UNAVAILABLE', 'DesktopWorld framebuffer is unavailable.')
+      || !Number.isInteger(height) || height < 1
+      || !descriptor
+      || width < descriptor.sampleSize?.[0]
+      || height < descriptor.sampleSize?.[1]) {
+    throw proofError(
+      'SCENE_FRAMEBUFFER_PROOF_UNAVAILABLE',
+      'DesktopWorld framebuffer proof is unavailable.',
+    )
   }
+  if (context.isContextLost() || context.getError() !== context.NO_ERROR) {
+    throw proofError(
+      'SCENE_FRAMEBUFFER_READBACK_FAILED',
+      'DesktopWorld framebuffer is not readable.',
+    )
+  }
+
   const startedAt = now()
   renderer.render(scene, camera)
-  const pixel = new Uint8Array(4)
-  let matchedCount = 0
-  for (const sample of normalized.samples) {
-    context.readPixels(
-      pixelCoordinate(sample.uv[0], width),
-      pixelCoordinate(sample.uv[1], height, true),
-      1,
-      1,
-      context.RGBA,
-      context.UNSIGNED_BYTE,
-      pixel,
+  const [sampleWidth, sampleHeight] = descriptor.sampleSize
+  const pixels = new Uint8Array(sampleWidth * sampleHeight * 4)
+  pixels.fill(0xa5)
+  context.readPixels(
+    regionOrigin(descriptor.uvPermille[0], width, sampleWidth),
+    regionOrigin(descriptor.uvPermille[1], height, sampleHeight, true),
+    sampleWidth,
+    sampleHeight,
+    context.RGBA,
+    context.UNSIGNED_BYTE,
+    pixels,
+  )
+  if (context.isContextLost() || context.getError() !== context.NO_ERROR) {
+    throw proofError(
+      'SCENE_FRAMEBUFFER_READBACK_FAILED',
+      'DesktopWorld framebuffer readback failed.',
     )
-    if (matchesRange(pixel, sample)) matchedCount += 1
   }
-  const renderDurationMs = Math.max(0, now() - startedAt)
+  const matching = matchingPixelCount(pixels, descriptor)
+  const passed = matching >= descriptor.matchingPixels[0]
+    && matching <= descriptor.matchingPixels[1]
   return Object.freeze({
-    status: 'ok',
-    passed: matchedCount >= normalized.minimum_matches
-      && matchedCount <= normalized.maximum_matches,
-    sample_count: normalized.samples.length,
-    matched_count: matchedCount,
-    render_duration_ms: renderDurationMs,
-    pixels_returned: false,
+    passed,
     pixels_persisted: false,
-    error_code: null,
+    pixels_returned: false,
+    proof_id: descriptor.id,
+    readback_duration_ms: Math.max(0, now() - startedAt),
   })
 }

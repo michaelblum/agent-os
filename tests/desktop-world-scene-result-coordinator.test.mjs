@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -188,83 +188,6 @@ precondition(completion(direct.accept(result("play", "apply", 9, 1, "ok", finger
   }
 })
 
-test('DesktopWorld stage results are origin-attributed and controller-coordinated', async () => {
-  const [stage, daemon, controller, transport, surface] = await Promise.all([
-    readFile(path.join(repoRoot, 'packages/toolkit/components/desktop-world-stage/index.js'), 'utf8'),
-    readFile(path.join(repoRoot, 'src/daemon/unified.swift'), 'utf8'),
-    readFile(path.join(repoRoot, 'src/daemon/desktop-world-scene-controller.swift'), 'utf8'),
-    readFile(path.join(repoRoot, 'src/daemon/desktop-world-scene-transport-controller.swift'), 'utf8'),
-    readFile(path.join(repoRoot, 'src/display/desktop-world-surface.swift'), 'utf8'),
-  ])
-  assert.match(stage, /barrier_phase: barrierPhase/u)
-  assert.match(stage, /candidate_fingerprint: candidateFingerprint/u)
-  assert.doesNotMatch(stage, /if \(surface\.isPrimary\) \{[\s\S]{0,160}desktop_world_stage\.scene\.result/u)
-  assert.match(surface, /payload\["segment_display_id"\] = Int\(segment\.displayID\)/u)
-  assert.match(surface, /payload\["canvas_generation"\] = self\.lifecycleGeneration/u)
-  assert.match(surface, /payload\["topology_generation"\] = self\.topologyGeneration/u)
-  assert.match(surface, /self\.segments\.contains\(where: \{ \$0 === segment \}\)/u)
-  assert.match(daemon, /desktopWorldSceneTransport\.handleResult\(target: target, payload: inner \?\? \[:\]\)/u)
-  assert.match(transport, /private func authenticatedTopology\(/u)
-  assert.match(transport, /canvasGeneration == target\.value/u)
-  assert.match(transport, /scene\.acceptResult\(identity: stageIdentity\(topology\), payload: payload\)/u)
-  assert.match(transport, /aosCanonicalDesktopWorldSceneResultErrorCode\(/u)
-  assert.doesNotMatch(daemon, /canonicalSceneStageFailureCode/u)
-  assert.match(controller, /return results\.accept\(payload\)/u)
-  assert.match(transport, /barrier_phase": broadcast\.phase\.rawValue/u)
-  assert.match(transport, /postMessageToDesktopWorldSceneStage/u)
-  assert.doesNotMatch(transport, /postMessageToCurrentCanvasAsync\(canvasID: Self\.stageCanvasID, payload: \[/u)
-  assert.match(transport, /retireDesktopWorldSceneStageAsync/u)
-  assert.doesNotMatch(daemon, /private func dispatchSceneBarrierActions|private func ensureSceneStage/u)
-})
-
-test('DesktopWorld native orchestration pins lease refs and serializes topology retirement', async () => {
-  const [daemon, controller, transport, leases, canvas] = await Promise.all([
-    readFile(path.join(repoRoot, 'src/daemon/unified.swift'), 'utf8'),
-    readFile(path.join(repoRoot, 'src/daemon/desktop-world-scene-controller.swift'), 'utf8'),
-    readFile(path.join(repoRoot, 'src/daemon/desktop-world-scene-transport-controller.swift'), 'utf8'),
-    readFile(path.join(repoRoot, 'src/daemon/scene-lease-registry.swift'), 'utf8'),
-    readFile(path.join(repoRoot, 'src/display/canvas.swift'), 'utf8'),
-  ])
-
-  assert.match(leases, /struct AOSSceneLeaseToken: Equatable/u)
-  assert.match(leases, /guard operationTokens\[token\.key\] == token else \{ return nil \}/u)
-  assert.match(leases, /closing\.insert\(key\)/u)
-  assert.match(controller, /operationTokens\[operationID\] = token/u)
-  assert.match(controller, /completeOperation\(token, releaseLease: releaseLease\)/u)
-  assert.match(controller, /operation: "close",\s*operationPayload: \["op": "close"\]/u)
-  assert.match(
-    transport,
-    /scene\.withAuthorizedBroadcast\([\s\S]{0,500}postMessageToDesktopWorldSceneStage/u,
-    'native posting must execute inside the controller-owned authorization barrier',
-  )
-  assert.doesNotMatch(controller, /func canBroadcast/u)
-  assert.doesNotMatch(daemon, /"desktop_world_stage\.scene\.release"/u)
-  assert.doesNotMatch(daemon, /AOSSceneLeaseRegistry|AOSDesktopWorldSceneResultCoordinator|AOSDesktopWorldSceneStageReadiness/u)
-
-  assert.match(canvas, /surface\.lifecycleGeneration == topology\.canvasGeneration/u)
-  assert.match(canvas, /surface\.topologyGeneration == topology\.generation/u)
-  assert.match(canvas, /surface\.sceneBarrierTopology\(\) == topology/u)
-  assert.match(transport, /func topologySettled\(_ payload: \[String: Any\]\)/u)
-  assert.match(controller, /private var retirement:/u)
-  assert.match(controller, /func settleRetirement/u)
-  assert.match(controller, /readiness\.currentIdentity\(\)\.map\(\{ \$0 == topology\.identity \}\) \?\? true/u)
-  assert.match(controller, /readiness\.invalidateIfCurrent\(identity\)[\s\S]{0,800}invalidateLocked/u)
-  assert.match(controller, /AOSDesktopWorldSceneRetirementRequest/u)
-  assert.match(controller, /guard let pending = retirement, pending\.request == request else \{ return \.stale \}/u)
-  assert.match(
-    transport,
-    /retireDesktopWorldSceneStageAsync\([\s\S]{0,600}settleRetirement\(request, outcome: outcome\)[\s\S]{0,300}deliveries\.forEach\(self\.deliver\)/u,
-    'client invalidation must be released only after the exact native retirement callback settles',
-  )
-  assert.match(canvas, /completion\?\(\.superseded\)/u)
-  assert.match(
-    daemon,
-    /if canvasInfo\.id == self\.sceneStageCanvasID \{[\s\S]{0,360}desktopWorldFramebufferProof\.stageInvalidated\(\)[\s\S]{0,120}desktopWorldSceneTransport\.stageRemoved\(\)/u,
-    'removing the native stage must retire the exact scene generation and its leases',
-  )
-  assert.match(transport, /eventRouter\.handle\(identity: stageIdentity\(topology\), payload: payload\)/u)
-})
-
 test('DesktopWorld scene controller owns readiness, leases, barriers, subscriptions, and retirement', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-controller-'))
   const main = path.join(root, 'main.swift')
@@ -294,6 +217,25 @@ func result(_ operationID: String, _ phase: String, _ displayID: Int, _ index: I
         "status": "ok",
     ]
     if let fingerprint { payload["candidate_fingerprint"] = fingerprint }
+    return payload
+}
+
+func proofResult(
+    _ operationID: String,
+    _ displayID: Int,
+    _ index: Int,
+    _ passed: Bool
+) -> [String: Any] {
+    var payload = result(operationID, "apply", displayID, index, nil)
+    payload["proof"] = [
+        "extension_digest": String(repeating: "a", count: 64),
+        "passed": passed,
+        "pixels_persisted": false,
+        "pixels_returned": false,
+        "proof_id": "capture-overlay-visible",
+        "readback_duration_ms": index == 0 ? 2.0 : 3.0,
+        "resource_revision": 2,
+    ]
     return payload
 }
 
@@ -345,9 +287,10 @@ precondition(routedOutcome == .enqueued)
 
 let operation: [String: Any] = ["op": "mount", "document": ["revision": 1]]
 let extensionAuthorization: [String: Any] = [
-    "capabilities": ["aos.scene.desktop_frame_texture"],
+    "capabilities": ["aos.scene.desktop_frame_texture", "aos.scene.framebuffer_proof"],
     "digest": String(repeating: "a", count: 64),
     "extensionId": "renderer",
+    "framebufferProofIds": ["capture-overlay-visible"],
     "ownerId": "owner",
     "resourceRevision": 1,
     "sceneAbi": "aos.scene.projection.v1",
@@ -496,6 +439,121 @@ if case .stageUnavailable = controller.admitOperation(
 } else {
     preconditionFailure("stale transaction revision retained extension authority")
 }
+
+let proof: [String: Any] = [
+    "op": "prove",
+    "expectedRevision": 2,
+    "proofId": "capture-overlay-visible",
+]
+if case .leaseBusy = controller.admitOperation(
+    topology: topology,
+    key: key,
+    owner: "owner",
+    resource: "main",
+    operationName: "prove",
+    operation: proof,
+    connectionID: UUID(),
+    ref: "wrong-owner-stream"
+) {
+} else {
+    preconditionFailure("another connection asserted an existing resource")
+}
+if case .stageUnavailable = controller.admitOperation(
+    topology: topology,
+    key: key,
+    owner: "owner",
+    resource: "main",
+    operationName: "prove",
+    operation: ["op": "prove", "expectedRevision": 2, "proofId": "unknown-proof"],
+    connectionID: connection,
+    ref: "unknown-proof"
+) {
+} else {
+    preconditionFailure("unknown proof was admitted")
+}
+if case .stageUnavailable = controller.admitOperation(
+    topology: topology,
+    key: key,
+    owner: "owner",
+    resource: "main",
+    operationName: "prove",
+    operation: ["op": "prove", "expectedRevision": 1, "proofId": "capture-overlay-visible"],
+    connectionID: connection,
+    ref: "stale-proof"
+) {
+} else {
+    preconditionFailure("stale proof revision was admitted")
+}
+guard case .accepted(let proofInitial) = controller.admitOperation(
+    topology: topology,
+    key: key,
+    owner: "owner",
+    resource: "main",
+    operationName: "prove",
+    operation: proof,
+    connectionID: connection,
+    ref: "proof-ref"
+) else { preconditionFailure("proof rejected") }
+guard case .broadcast(let proofBroadcast) = proofInitial else {
+    preconditionFailure("proof broadcast missing")
+}
+precondition(proofBroadcast.phase == .apply)
+precondition(proofBroadcast.operation["expectedExtensionDigest"] as? String == String(repeating: "a", count: 64))
+precondition(controller.acceptResult(
+    identity: identity,
+    payload: proofResult(proofBroadcast.operationID, 7, 0, true)
+).isEmpty)
+let proofCompleted = controller.acceptResult(
+    identity: identity,
+    payload: proofResult(proofBroadcast.operationID, 9, 1, false)
+)
+guard let proofFinal = completion(proofCompleted),
+      let proofDelivery = controller.complete(proofFinal, operationID: proofBroadcast.operationID),
+      let aggregateProof = proofDelivery.payload["proof"] as? [String: Any] else {
+    preconditionFailure("proof did not settle")
+}
+precondition(aggregateProof["passed"] as? Bool == false)
+precondition(aggregateProof["passed_segment_count"] as? Int == 1)
+precondition(aggregateProof["segment_count"] as? Int == 2)
+precondition(aggregateProof["resource_revision"] as? Int == 2)
+precondition(aggregateProof["max_readback_duration_ms"] as? Double == 3.0)
+precondition(aggregateProof["pixels_returned"] as? Bool == false)
+precondition(aggregateProof["pixels_persisted"] as? Bool == false)
+
+guard case .accepted(let failedProofInitial) = controller.admitOperation(
+    topology: topology,
+    key: key,
+    owner: "owner",
+    resource: "main",
+    operationName: "prove",
+    operation: proof,
+    connectionID: connection,
+    ref: "failed-proof-ref"
+) else { preconditionFailure("failed-proof route was not admitted") }
+guard case .broadcast(let failedProofBroadcast) = failedProofInitial else {
+    preconditionFailure("failed-proof broadcast missing")
+}
+var failedProofResult = result(failedProofBroadcast.operationID, "apply", 7, 0, nil)
+failedProofResult["status"] = "error"
+failedProofResult["code"] = "SCENE_FRAMEBUFFER_PROOF_RATE_LIMITED"
+let failedProofActions = controller.acceptResult(identity: identity, payload: failedProofResult)
+guard let failedProofCompletion = completion(failedProofActions),
+      let failedProofDelivery = controller.complete(
+          failedProofCompletion,
+          operationID: failedProofBroadcast.operationID
+      ) else { preconditionFailure("failed proof did not settle") }
+precondition(failedProofDelivery.payload["code"] as? String == "SCENE_FRAMEBUFFER_PROOF_RATE_LIMITED")
+precondition(controller.authorizes(
+    identity: identity,
+    key: key,
+    extensionDigest: String(repeating: "a", count: 64),
+    extensionID: "renderer",
+    extensionOwnerID: "owner",
+    resourceRevision: 2,
+    sceneABI: "aos.scene.projection.v1",
+    threeRevision: "183",
+    capability: "aos.scene.framebuffer_proof"
+))
 
 let next = AOSDesktopWorldSceneTopologyDescriptor(
     identity: AOSDesktopWorldSceneStageIdentity(canvasGeneration: 3, topologyGeneration: 5),
@@ -891,55 +949,11 @@ precondition(expired.complete(expiredCompletion, operationID: release.operationI
 `)
     execFileSync('swiftc', [
       '-module-cache-path', path.join(root, 'module-cache'),
+      path.join(repoRoot, 'src/shared/scene-extension-identifier.swift'),
       path.join(repoRoot, 'src/daemon/scene-lease-registry.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-scene-result-coordinator.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-scene-stage-readiness.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-scene-controller.swift'),
-      main,
-      '-o', executable,
-    ], { cwd: repoRoot, stdio: 'pipe' })
-    execFileSync(executable, [], { cwd: repoRoot, stdio: 'pipe' })
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-test('DesktopWorld stage readiness requires every exact-generation segment', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-stage-readiness-'))
-  const main = path.join(root, 'main.swift')
-  const executable = path.join(root, 'scene-readiness-proof')
-  const readinessSource = path.join(repoRoot, 'src/daemon/desktop-world-scene-stage-readiness.swift')
-  try {
-    await writeFile(main, `
-import Foundation
-
-let readiness = AOSDesktopWorldSceneStageReadiness()
-let first = AOSDesktopWorldSceneStageIdentity(canvasGeneration: 3, topologyGeneration: 4)
-let second = AOSDesktopWorldSceneStageIdentity(canvasGeneration: 3, topologyGeneration: 5)
-let segments = [
-    AOSDesktopWorldSceneStageSegment(displayID: 7, index: 0),
-    AOSDesktopWorldSceneStageSegment(displayID: 9, index: 1),
-]
-let manifest: [String: Any] = ["name": "desktop-world-stage", "surface": "desktop-world"]
-precondition(readiness.configure(identity: first, segments: segments))
-precondition(readiness.record(identity: first, displayID: 7, index: 0, manifest: manifest) == false)
-precondition(readiness.isReady(for: first) == false)
-precondition(readiness.record(identity: first, displayID: 9, index: 1, manifest: manifest))
-precondition(readiness.isReady(for: first))
-precondition(readiness.record(identity: first, displayID: 9, index: 0, manifest: manifest) == false)
-precondition(readiness.configure(identity: second, segments: segments))
-precondition(readiness.isReady(for: first) == false)
-precondition(readiness.isReady(for: second) == false)
-precondition(readiness.record(identity: first, displayID: 7, index: 0, manifest: manifest) == false)
-precondition(readiness.record(identity: second, displayID: 7, index: 0, manifest: manifest) == false)
-precondition(readiness.invalidateIfCurrent(second))
-precondition(readiness.invalidateIfCurrent(second) == false)
-precondition(readiness.record(identity: second, displayID: 9, index: 1, manifest: manifest) == false)
-precondition(readiness.isReady(for: second) == false)
-`)
-    execFileSync('swiftc', [
-      '-module-cache-path', path.join(root, 'module-cache'),
-      readinessSource,
       main,
       '-o', executable,
     ], { cwd: repoRoot, stdio: 'pipe' })

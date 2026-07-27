@@ -225,6 +225,7 @@ print("PASS desktop world scene event routing")
 `)
     execFileSync('swiftc', [
       '-module-cache-path', path.join(root, 'module-cache'),
+      path.join(repoRoot, 'src/shared/scene-extension-identifier.swift'),
       path.join(repoRoot, 'src/daemon/scene-lease-registry.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-scene-result-coordinator.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-scene-stage-readiness.swift'),

@@ -33,9 +33,21 @@ export interface SceneExtensionManifest {
   threeRevision: typeof SCENE_EXTENSION_THREE_REVISION;
   budgets: SceneExtensionBudgets;
   capabilities?: readonly SceneExtensionCapability[];
+  framebufferProofs?: readonly SceneExtensionFramebufferProofDescriptor[];
 }
 
-export type SceneExtensionCapability = 'aos.scene.desktop_frame_texture';
+export type SceneExtensionCapability =
+  | 'aos.scene.desktop_frame_texture'
+  | 'aos.scene.framebuffer_proof';
+
+export interface SceneExtensionFramebufferProofDescriptor {
+  id: string;
+  matchingPixels: readonly [number, number];
+  uvPermille: readonly [number, number];
+  sampleSize: readonly [number, number];
+  rgbaMin: readonly [number, number, number, number];
+  rgbaMax: readonly [number, number, number, number];
+}
 
 export interface SceneDesktopFrameTextureSnapshot {
   bounds: readonly [number, number, number, number];

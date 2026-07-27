@@ -895,7 +895,10 @@ printf '%s\n' \
 ```
 
 The operation vocabulary is `mount`, `transact`, `signal`, `play`, `suspend`,
-`resume`, `inspect`, `subscribe`, `unsubscribe`, `remove`, and `close`.
+`resume`, `inspect`, `prove`, `subscribe`, `unsubscribe`, `remove`, and `close`.
+`prove` accepts only a named framebuffer predicate declared by the currently
+mounted trusted extension; normal consumers call it through
+`session.assertFramebuffer()` rather than constructing pixel predicates.
 Subscriptions are scoped to that same lease and currently expose only typed
 `gesture` events. Gesture payloads conform to `aos.scene.event.v1`; they contain
 bounded scene identity, coordinates, topology, arbitration, cancellation, and

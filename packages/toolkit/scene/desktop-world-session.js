@@ -8,6 +8,10 @@ import { validateSceneInteractionDocument } from './scene-interaction.js'
 import { validateSceneExtensionReference } from './scene-extension.js'
 import { normalizeDesktopWorldSceneEvent } from './desktop-world-client.js'
 import {
+  normalizeDesktopWorldFramebufferProofId,
+  normalizeDesktopWorldFramebufferProofResult,
+} from './desktop-world-framebuffer-proof.js'
+import {
   isCanonicalSceneId,
   isSceneRecord,
 } from './scene-contract-primitives.js'
@@ -48,7 +52,7 @@ const SIGNAL_ID = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u
 const ANIMATION_ID = /^[a-z0-9][a-z0-9._/-]{0,127}$/u
 const OPERATION_NAMES = new Set([
   'mount', 'transact', 'signal', 'play', 'suspend', 'resume', 'inspect',
-  'subscribe', 'unsubscribe', 'remove', 'close',
+  'prove', 'subscribe', 'unsubscribe', 'remove', 'close',
 ])
 
 function sceneSessionError(code, message, cause) {
@@ -116,12 +120,19 @@ function normalizeOperationResult(value, operation, resourceId) {
         || value.events.some((event) => !DESKTOP_WORLD_SCENE_SESSION_EVENT_NAMES.includes(event)))) {
     throw sceneSessionError('SCENE_SESSION_INVALID_RESULT', 'Scene subscription metadata is invalid.')
   }
+  const proof = operation === 'prove'
+    ? normalizeDesktopWorldFramebufferProofResult(value.proof)
+    : undefined
+  if (operation !== 'prove' && value.proof !== undefined) {
+    throw sceneSessionError('SCENE_SESSION_INVALID_RESULT', 'Unexpected framebuffer proof result.')
+  }
   return Object.freeze({
     operation,
     resource: resourceId,
     status: 'ok',
     ...(value.snapshot === undefined ? {} : { snapshot: Object.freeze({ ...value.snapshot }) }),
     ...(value.events === undefined ? {} : { events: Object.freeze([...new Set(value.events)]) }),
+    ...(proof === undefined ? {} : { proof }),
   })
 }
 
@@ -457,6 +468,34 @@ export function createDesktopWorldSceneSession(input = {}) {
     },
     async inspect() {
       return enqueue(() => send({ op: 'inspect' }))
+    },
+    async assertFramebuffer(proofId) {
+      return enqueue(async () => {
+        if (!committedMount?.extension) {
+          throw sceneSessionError(
+            'SCENE_SESSION_NOT_MOUNTED',
+            'Framebuffer proof requires a committed trusted-extension mount.',
+          )
+        }
+        const expectedRevision = committedMount.document.revision
+        const expectedProofId = normalizeDesktopWorldFramebufferProofId(proofId)
+        const result = await send({
+          op: 'prove',
+          expectedRevision,
+          proofId: expectedProofId,
+        })
+        if (result.proof.proof_id !== expectedProofId
+            || result.proof.resource_revision !== expectedRevision
+            || result.proof.extension_digest !== committedMount.extension.digest) {
+          throw await markFault(
+            sceneSessionError(
+              'SCENE_SESSION_INVALID_RESULT',
+              'Framebuffer proof authority does not match the committed mount.',
+            ),
+          )
+        }
+        return result
+      })
     },
     async subscribe(eventName, listener) {
       return enqueue(async () => {

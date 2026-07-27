@@ -91,12 +91,6 @@ stage internals.
   instrumentation creates no timer, RAF, stage read, or per-frame allocation.
   The daemon owns revisioned session and host-lease state; consumers may host
   the public view but never own or fork its telemetry.
-- One-shot framebuffer proof reuses the existing renderer, renders once per
-  active segment, and compares at most eight one-pixel color ranges locally.
-  It returns counts and pass/fail only. It must not start capture, return pixel
-  values, allocate a second renderer or render target, persist data, or become
-  continuous instrumentation. AOS owns no marker art; temporary visual fixtures
-  belong to the caller and must be removed after proof.
 - Trusted extensions may expose only the exact synchronous
   `inspectInteractionRoute()` contract to DesktopWorld DevTools. AOS validates
   and stamps these engine-defined route facts. Product state, text, audio,
@@ -153,10 +147,18 @@ stage internals.
   DevTools, diagnostics, and product processes remain pixel-free.
   Consumer extensions own distortion, blur, redaction, masking, and other
   visual recipes. A capture backend change must not widen this lease.
+- Framebuffer proofs are optional digest-bound trusted-extension predicates
+  evaluated only through the mounted resource's owning scene session. Callers
+  select a named proof but cannot supply coordinates, colors, thresholds, or
+  another resource identity. Each segment performs one bounded readback and
+  the all-segment barrier returns content-free aggregate facts. A mismatch is a
+  normal failed assertion; context loss, throttling, stale authority, or GPU
+  readback failure is an operation error. Fixture markers and product visuals
+  remain in the consumer repository and never become AOS rendering vocabulary.
 
 ## Verification
 
-- `node --test tests/toolkit/desktop-world-client.test.mjs tests/toolkit/desktop-world-framebuffer-proof.test.mjs tests/toolkit/desktop-world-session.test.mjs tests/toolkit/desktop-world-devtools-compat.test.mjs tests/toolkit/desktop-world-devtools-model.test.mjs tests/toolkit/desktop-world-devtools-view.test.mjs tests/toolkit/desktop-world-surface-three.test.mjs tests/toolkit/desktop-world-scene-extension-projection.test.mjs tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs tests/toolkit/desktop-world-scene-interaction-three.test.mjs tests/toolkit/desktop-world-scene-operation-coordinator.test.mjs tests/toolkit/scene-cartridge.test.mjs tests/toolkit/scene-document.test.mjs tests/toolkit/scene-extension.test.mjs tests/toolkit/scene-historical-fast-travel-reference.test.mjs tests/toolkit/scene-host.test.mjs tests/toolkit/scene-interaction.test.mjs tests/toolkit/scene-interaction-visual.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/three-render-lifecycle.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs tests/scene-cartridge-cli.test.mjs tests/scene-extension-cli.test.mjs tests/scene-scaffold-cli.test.mjs tests/scene-agent-tooling-cli.test.mjs tests/scene-agent-authoring-acceptance.test.mjs`
+- `node --test tests/toolkit/desktop-world-client.test.mjs tests/toolkit/desktop-world-session.test.mjs tests/toolkit/desktop-world-devtools-compat.test.mjs tests/toolkit/desktop-world-devtools-model.test.mjs tests/toolkit/desktop-world-devtools-view.test.mjs tests/toolkit/desktop-world-surface-three.test.mjs tests/toolkit/desktop-world-scene-extension-projection.test.mjs tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs tests/toolkit/desktop-world-scene-interaction-three.test.mjs tests/toolkit/desktop-world-scene-operation-coordinator.test.mjs tests/toolkit/scene-cartridge.test.mjs tests/toolkit/scene-document.test.mjs tests/toolkit/scene-extension.test.mjs tests/toolkit/scene-historical-fast-travel-reference.test.mjs tests/toolkit/scene-host.test.mjs tests/toolkit/scene-interaction.test.mjs tests/toolkit/scene-interaction-visual.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/three-render-lifecycle.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs tests/scene-cartridge-cli.test.mjs tests/scene-extension-cli.test.mjs tests/scene-scaffold-cli.test.mjs tests/scene-agent-tooling-cli.test.mjs tests/scene-agent-authoring-acceptance.test.mjs`
 - `bash tests/daemon-desktop-world-devtools-session.sh`
 
 ## Child DOX Index
