@@ -317,7 +317,7 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
         _ failure: AOSDesktopFrameCaptureFailure
     ) -> Bool {
         switch failure {
-        case .captureFailed, .displayNotFound, .leaseNotFound,
+        case .captureFailed, .connectionInterrupted, .displayNotFound, .leaseNotFound,
              .permissionDenied, .retirementUncertain, .unauthorized, .unsupported:
             return true
         case .busy, .consentRequired, .frameNotReady, .staleFrame:
@@ -329,7 +329,7 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
         _ failure: AOSDesktopFrameCaptureFailure
     ) -> Bool {
         switch failure {
-        case .captureFailed, .displayNotFound, .leaseNotFound:
+        case .captureFailed, .connectionInterrupted, .displayNotFound, .leaseNotFound:
             return true
         default:
             return false

@@ -14,6 +14,10 @@ func aosDesktopFrameCaptureFailure(for error: Error) -> AOSDesktopFrameCaptureFa
        native.code == SCStreamError.Code.userDeclined.rawValue {
         return .permissionDenied
     }
+    if native.domain == SCStreamErrorDomain,
+       native.code == SCStreamError.Code.failedApplicationConnectionInterrupted.rawValue {
+        return .connectionInterrupted
+    }
     if !CGPreflightScreenCaptureAccess() {
         return .permissionDenied
     }

@@ -24,7 +24,13 @@ instance and the same bounded warm-snapshot acquisition path. The broker
 serializes native acquisition and rejects overlapping work with a content-free
 reason code. A timed-out prime remains quarantined through the broker's cleanup
 acknowledgement, then permits a later explicit retry; uncertain retirement
-remains fail-closed and late results cannot alter the newer state.
+remains fail-closed and late results cannot alter the newer state. An explicit
+prime may recover from one ScreenCaptureKit
+`failedApplicationConnectionInterrupted` result only after the failed probe has
+retired authoritatively. A second interruption fails closed, and ordinary
+runtime interaction does not perform this prime-specific retry. Each timeout is
+bound to its exact attempt token, so canceling a superseded timer is not treated
+as sufficient protection from an already-running callback.
 
 The broker supports two acquisition forms:
 
@@ -137,6 +143,10 @@ capture or guessing a delay. Warm lifecycle transitions also republish to an
 already-active DevTools host; this is transition-driven and adds no sampler or
 frame loop. Pixels, handles, paths, frame timestamps, and desktop facts do not
 enter DevTools.
+
+Named framebuffer proof completion is also content-free. It returns the
+all-display proof aggregate only and does not attach the ordinary scene snapshot
+used by mount, transaction, and inspection results.
 
 For compatibility, DesktopWorld's existing `desktop_frame.acquire` request now
 uses one warm snapshot internally and retains the exact lease, topology,

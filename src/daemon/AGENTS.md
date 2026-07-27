@@ -15,7 +15,8 @@ Named framebuffer proofs travel only as an operation on that existing owner
 stream. Admission binds the exact authorized extension digest, declared proof
 ID, resource revision, and current topology before the normal all-segment
 barrier dispatches; the daemon never accepts runtime pixel predicates or a
-second proof connection.
+second proof connection. Successful proof results contain only the bounded
+proof aggregate and must not inherit the ordinary scene snapshot projection.
 `desktop-world-scene-controller.swift` is the single atomic owner for scene
 lease admission, typed subscriptions, readiness, result/event routing, and
 disconnect cleanup. `desktop-world-scene-transport-controller.swift` owns the
@@ -109,7 +110,12 @@ capture consent. Passive status never calls ScreenCaptureKit; only the explicit
 permissions-prime action may request macOS screen-capture authorization and
 probe it through the same warm-snapshot path as runtime capture. A timed-out
 probe remains quarantined until the broker acknowledges retirement, then allows
-a later explicit retry without admitting overlap. The non-interruptible
+later explicit retry without admitting overlap. If ScreenCaptureKit reports one
+`failedApplicationConnectionInterrupted` during an explicit prime, retire the
+probe completely and retry it exactly once. A repeated interruption fails
+closed; runtime interaction never owns this prime-specific retry. Every prime
+deadline is bound to the exact attempt token so an already-running superseded
+timer cannot settle a later attempt. The non-interruptible
 authorization request runs on a dedicated serial worker so AppKit remains
 responsive, while its bounded deadline remains independent of that worker.
 Runtime capture must
