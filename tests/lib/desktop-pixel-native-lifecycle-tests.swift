@@ -261,6 +261,28 @@ func settlePixelRetirements(
 
 func runDesktopPixelNativeLifecycleTests() async throws {
     runDesktopPixelCaptureFilterTests()
+    let operationUsedMainQueue = LockedBoolean()
+    try await aosPerformDesktopPixelNativeOperation { completion in
+        operationUsedMainQueue.set(Thread.isMainThread)
+        DispatchQueue.global(qos: .userInitiated).async {
+            completion(nil)
+        }
+    }
+    require(
+        operationUsedMainQueue.get(),
+        "native ScreenCaptureKit operation was not admitted on AppKit's main queue"
+    )
+    do {
+        try await aosPerformDesktopPixelNativeOperation { completion in
+            completion(AOSDesktopFrameCaptureFailure.connectionInterrupted)
+        }
+        require(false, "native ScreenCaptureKit operation swallowed its error")
+    } catch let failure as AOSDesktopFrameCaptureFailure {
+        require(
+            failure == .connectionInterrupted,
+            "native ScreenCaptureKit operation changed its exact failure"
+        )
+    }
     require(
         AOSDesktopPixelWarmStreamProfile.queueDepth == 3,
         "warm stream profile lost its bounded producer depth"

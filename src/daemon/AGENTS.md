@@ -39,7 +39,8 @@ Multi-display warm acquisition configures the
 complete stream set before starting every display concurrently; partial startup
 failure immediately requests aggregate retirement while retaining late
 startup-completion ownership. A retained async-operation owner invokes each
-Apple start and stop exactly once without a continuation. Native
+Apple start and stop completion-handler request exactly once on AppKit's main
+queue and retains its checked continuation until Apple settles. Native
 start success or the first usable frame may establish startup, whichever arrives
 first. A later start failure retires the complete aggregate. Only a stream
 proven active receives a compensating stop; a failed start
@@ -60,12 +61,12 @@ sample, stop, and delegate-stop phases, but never display identity or pixels.
 A native failure marker may retain only the stable `SCStreamError` numeric code;
 it may not include localized descriptions, user info, source metadata, or paths.
 AOS constructs each warm ScreenCaptureKit source on AppKit's main actor and
-uses ScreenCaptureKit's native async operations. An app-bundle host may exclude
-its complete AOS process; a raw or otherwise unqualified host must exclude the
-complete exact DesktopWorld surface-window set and fails before stream creation
-when any requested window is unresolved. Merely appearing in ScreenCaptureKit's
-application inventory does not qualify a raw process for app exclusion. It uses
-one bounded stream configuration with the same pixel ceiling
+dispatches native start and stop requests on AppKit's main queue. An app-bundle
+host may exclude its complete AOS process; a raw or otherwise unqualified host
+must exclude the complete exact DesktopWorld surface-window set and fails before
+stream creation when any requested window is unresolved. Merely appearing in
+ScreenCaptureKit's application inventory does not qualify a raw process for app
+exclusion. It uses one bounded stream configuration with the same pixel ceiling
 for consent and runtime acquisition. Scaled stream surfaces round down to
 positive even dimensions without exceeding that ceiling; an impossible budget
 or aspect ratio fails before ScreenCaptureKit is invoked.
