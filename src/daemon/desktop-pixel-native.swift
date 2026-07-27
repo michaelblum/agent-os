@@ -20,6 +20,12 @@ func aosDesktopFrameCaptureFailure(for error: Error) -> AOSDesktopFrameCaptureFa
     return .captureFailed
 }
 
+func aosDesktopPixelNativeTraceCode(for error: Error) -> String {
+    let native = error as NSError
+    guard native.domain == SCStreamErrorDomain else { return "native_other" }
+    return "scstream_\(native.code)"
+}
+
 private func aosLogDesktopPixelWarmOpenFailure(
     phase: String,
     elapsedSince startedAt: Date,
@@ -36,26 +42,125 @@ private func aosLogDesktopPixelWarmOpenFailure(
     )
 }
 
+private func aosDesktopPixelNativeError(
+    _ result: Result<Void, Error>
+) -> Error? {
+    if case .failure(let error) = result { return error }
+    return nil
+}
+
+final class AOSDesktopPixelRetainedAsyncOperation: @unchecked Sendable {
+    typealias Operation = @Sendable () async throws -> Void
+
+    private let lock = NSLock()
+    private let priority: TaskPriority
+    private var started = false
+
+    init(priority: TaskPriority) {
+        self.priority = priority
+    }
+
+    @discardableResult
+    func start(
+        operation: @escaping Operation,
+        completion: @escaping AOSDesktopPixelNativeCompletion
+    ) -> Bool {
+        lock.lock()
+        guard !started else {
+            lock.unlock()
+            return false
+        }
+        started = true
+        lock.unlock()
+
+        Task.detached(priority: priority) {
+            let result: Result<Void, Error>
+            do {
+                try await operation()
+                result = .success(())
+            } catch {
+                result = .failure(error)
+            }
+            completion(result)
+        }
+        return true
+    }
+}
+
+private final class AOSDesktopPixelNativeTrace: @unchecked Sendable {
+    private let startedAt = Date()
+
+    func emit(
+        _ event: String,
+        slot: Int,
+        code: String? = nil,
+        nativeCode: String? = nil
+    ) {
+        var fields = [
+            "event=\(event)",
+            "slot=\(slot)",
+            "elapsed_ms=\(max(0, Int(Date().timeIntervalSince(startedAt) * 1_000)))",
+        ]
+        if let code { fields.append("code=\(code)") }
+        if let nativeCode { fields.append("native=\(nativeCode)") }
+        fputs("[desktop-pixel] \(fields.joined(separator: " "))\n", stderr)
+    }
+}
+
+private final class AOSDesktopPixelSourceFailureState: @unchecked Sendable {
+    private var failure: Error?
+    private let lock = NSLock()
+
+    func record(_ error: Error) {
+        lock.lock()
+        if failure == nil { failure = error }
+        lock.unlock()
+    }
+
+    func current() -> Error? {
+        lock.lock()
+        defer { lock.unlock() }
+        return failure
+    }
+}
+
 struct AOSDesktopPixelWarmStreamProfile: Equatable {
     static let queueDepth = 3
 
     let height: Int
     let width: Int
 
-    init(
+    init?(
         sourceWidth: Int,
         sourceHeight: Int,
         maximumPixels: Int
     ) {
-        let width = max(1, sourceWidth)
-        let height = max(1, sourceHeight)
+        guard sourceWidth >= 2,
+              sourceHeight >= 2,
+              maximumPixels >= 4 else {
+            return nil
+        }
+        let width = sourceWidth
+        let height = sourceHeight
         let multiplied = width.multipliedReportingOverflow(by: height)
         let sourcePixels = multiplied.overflow ? Int.max : multiplied.partialValue
         let scale = sourcePixels > maximumPixels
             ? sqrt(Double(maximumPixels) / Double(sourcePixels))
             : 1
-        self.width = max(1, Int((Double(width) * scale).rounded(.down)))
-        self.height = max(1, Int((Double(height) * scale).rounded(.down)))
+        let scaledWidth = Int((Double(width) * scale).rounded(.down))
+        let scaledHeight = Int((Double(height) * scale).rounded(.down))
+        guard scaledWidth >= 2, scaledHeight >= 2 else { return nil }
+        self.width = Self.alignedDimension(scaledWidth)
+        self.height = Self.alignedDimension(scaledHeight)
+        let outputPixels = self.width.multipliedReportingOverflow(by: self.height)
+        guard !outputPixels.overflow,
+              outputPixels.partialValue <= maximumPixels else {
+            return nil
+        }
+    }
+
+    private static func alignedDimension(_ value: Int) -> Int {
+        value - (value % 2)
     }
 }
 
@@ -249,9 +354,20 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
     private var latestSample: AOSDesktopPixelLatestSample?
     private let lock = NSLock()
     private let retirementLatch = AOSDesktopPixelRetirementLatch()
+    private let slot: Int
+    private let startupSignal: AOSDesktopPixelStartupSignal
+    private let trace: AOSDesktopPixelNativeTrace
 
-    init(displayID: UInt32) {
+    init(
+        displayID: UInt32,
+        slot: Int,
+        startupSignal: AOSDesktopPixelStartupSignal,
+        trace: AOSDesktopPixelNativeTrace
+    ) {
         self.displayID = displayID
+        self.slot = slot
+        self.startupSignal = startupSignal
+        self.trace = trace
     }
 
     func stream(
@@ -278,10 +394,12 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
         )
         guard let admission else { return }
 
+        var firstFrame = false
         lock.lock()
         if acceptingSamples,
            frameAdvancement.observe(presentationTime: presentationTime) {
             if admission == .frame {
+                firstFrame = latestSample == nil
                 latestSample = AOSDesktopPixelLatestSample(
                     capturedAt: Date(),
                     sampleBuffer: sampleBuffer
@@ -289,6 +407,10 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
             }
         }
         lock.unlock()
+        if firstFrame {
+            trace.emit("first_sample", slot: slot)
+            startupSignal.succeed()
+        }
     }
 
     func stream(_ stream: SCStream, didStopWithError error: Error) {
@@ -298,11 +420,50 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
         frameAdvancement = AOSDesktopPixelFrameAdvancement()
         latestSample = nil
         lock.unlock()
+        trace.emit(
+            "delegate_stopped",
+            slot: slot,
+            code: aosDesktopFrameCaptureFailure(for: error).code,
+            nativeCode: aosDesktopPixelNativeTraceCode(for: error)
+        )
         retirementLatch.observe()
+        startupSignal.fail(error)
+    }
+
+    func startSettled(_ error: Error?) {
+        if let error {
+            lock.lock()
+            acceptingSamples = false
+            failure = error
+            lock.unlock()
+        }
+        trace.emit(
+            "start_settled",
+            slot: slot,
+            code: error.map { aosDesktopFrameCaptureFailure(for: $0).code },
+            nativeCode: error.map(aosDesktopPixelNativeTraceCode)
+        )
+    }
+
+    func stopInvoked() {
+        trace.emit("stop_invoked", slot: slot)
+    }
+
+    func stopSettled(_ error: Error?) {
+        trace.emit(
+            "stop_settled",
+            slot: slot,
+            code: error.map { aosDesktopFrameCaptureFailure(for: $0).code },
+            nativeCode: error.map(aosDesktopPixelNativeTraceCode)
+        )
     }
 
     func retirementWasObserved() -> Bool {
         retirementLatch.snapshot()
+    }
+
+    func admitExplicitStop() -> AOSDesktopPixelStopAdmission {
+        retirementLatch.admitExplicitStop()
     }
 
     func confirmRetirement() {
@@ -350,29 +511,31 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
     private struct Entry: @unchecked Sendable {
         let output: AOSDesktopPixelStreamOutput
         let sampleQueue: DispatchQueue
+        let startOperation: AOSDesktopPixelRetainedAsyncOperation
+        let startupSignal: AOSDesktopPixelStartupSignal
+        let stopOperation: AOSDesktopPixelRetainedAsyncOperation
         let stream: SCStream
     }
 
     private let context = CIContext(options: [.cacheIntermediates: false])
     private var entries: [Entry]
+    private let failureState: AOSDesktopPixelSourceFailureState
     private let lock = NSLock()
     private var stopFinished = false
     private var stopResult: Result<Void, Error>?
     private var stopStarted = false
     private var stopWaiters: [(Result<Void, Error>) -> Void] = []
     private var stopped = false
+    private var startupOwner: AOSDesktopPixelStartupOwner?
 
-    private init(entries: [Entry]) {
+    private init(
+        entries: [Entry],
+        failureState: AOSDesktopPixelSourceFailureState,
+        startupOwner: AOSDesktopPixelStartupOwner
+    ) {
         self.entries = entries
-    }
-
-    private static func stopEntries(_ entries: [Entry]) async -> Bool {
-        await aosSettleDesktopPixelStreamRetirements(
-            lifecycles: entries.map(\.output),
-            timeout: aosDesktopPixelStreamRetirementTimeout
-        ) { index in
-            try await entries[index].stream.stopCapture()
-        }
+        self.failureState = failureState
+        self.startupOwner = startupOwner
     }
 
     @MainActor
@@ -403,19 +566,22 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
             throw AOSDesktopFrameCaptureFailure.displayNotFound
         }
         let excluded = Set(request.excludingWindowIDs)
-        let ownApplication = content.applications.first {
-            $0.processID == ProcessInfo.processInfo.processIdentifier
-        }
-        guard ownApplication != nil || excluded.isEmpty else {
+        let windows = content.windows.filter { excluded.contains(Int($0.windowID)) }
+        guard windows.count == excluded.count else {
             throw AOSDesktopFrameCaptureFailure.captureFailed
         }
         var entries: [Entry] = []
         var phase = "configure"
         var startupCompleted = false
+        var startupOwner: AOSDesktopPixelStartupOwner?
         let openedAt = Date()
+        let sourceFailure = AOSDesktopPixelSourceFailureState()
+        let trace = AOSDesktopPixelNativeTrace()
 
         do {
-            for display in displays.sorted(by: { $0.displayID < $1.displayID }) {
+            for (slot, display) in displays.sorted(
+                by: { $0.displayID < $1.displayID }
+            ).enumerated() {
                 try Task.checkCancellation()
                 let sourceWidth = max(1, display.width)
                 let sourceHeight = max(1, display.height)
@@ -425,11 +591,13 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                 guard !multiplied.overflow else {
                     throw AOSDesktopFrameCaptureFailure.captureFailed
                 }
-                let profile = AOSDesktopPixelWarmStreamProfile(
+                guard let profile = AOSDesktopPixelWarmStreamProfile(
                     sourceWidth: sourceWidth,
                     sourceHeight: sourceHeight,
                     maximumPixels: request.maximumPixelsPerDisplay
-                )
+                ) else {
+                    throw AOSDesktopFrameCaptureFailure.captureFailed
+                }
                 let configuration = SCStreamConfiguration()
                 configuration.width = profile.width
                 configuration.height = profile.height
@@ -440,17 +608,20 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                 // Two additional slots permit ScreenCaptureKit to advance.
                 configuration.queueDepth = AOSDesktopPixelWarmStreamProfile.queueDepth
                 configuration.pixelFormat = kCVPixelFormatType_32BGRA
-                let filter: SCContentFilter
-                if let ownApplication {
-                    filter = SCContentFilter(
-                        display: display,
-                        excludingApplications: [ownApplication],
-                        exceptingWindows: []
-                    )
-                } else {
-                    filter = SCContentFilter(display: display, excludingWindows: [])
-                }
-                let output = AOSDesktopPixelStreamOutput(displayID: display.displayID)
+                let filter = SCContentFilter(
+                    display: display,
+                    excludingWindows: windows
+                )
+                let startupSignal = AOSDesktopPixelStartupSignal()
+                let startOperation = AOSDesktopPixelRetainedAsyncOperation(
+                    priority: .userInitiated
+                )
+                let output = AOSDesktopPixelStreamOutput(
+                    displayID: display.displayID,
+                    slot: slot,
+                    startupSignal: startupSignal,
+                    trace: trace
+                )
                 let stream = SCStream(
                     filter: filter,
                     configuration: configuration,
@@ -468,24 +639,65 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                 entries.append(Entry(
                     output: output,
                     sampleQueue: sampleQueue,
+                    startOperation: startOperation,
+                    startupSignal: startupSignal,
+                    stopOperation: AOSDesktopPixelRetainedAsyncOperation(
+                        priority: .utility
+                    ),
                     stream: stream
                 ))
+                trace.emit("configured", slot: slot)
             }
             phase = "start"
             let configuredEntries = entries
-            try await aosStartDesktopPixelStreams(
+            startupOwner = try await aosStartDesktopPixelStreams(
+                signals: configuredEntries.map(\.startupSignal),
                 lifecycles: configuredEntries.map(\.output),
                 settlementTimeout: aosDesktopPixelStreamRetirementTimeout,
-                cancellation: cancellation
-            ) { index in
-                try await configuredEntries[index].stream.startCapture()
-            } stop: { index in
+                cancellation: cancellation,
+                lateFailure: { error in sourceFailure.record(error) }
+            ) { index, completion in
                 let entry = configuredEntries[index]
-                entry.output.quiesce()
-                try await entry.stream.stopCapture()
+                let output = entry.output
+                let stream = entry.stream
+                let started = entry.startOperation.start(operation: {
+                    trace.emit(
+                        "start_invoked",
+                        slot: index
+                    )
+                    try await stream.startCapture()
+                }, completion: { result in
+                    output.startSettled(aosDesktopPixelNativeError(result))
+                    completion(result)
+                })
+                if !started {
+                    completion(.failure(AOSDesktopFrameCaptureFailure.busy))
+                }
+            } stop: { index, completion in
+                let entry = configuredEntries[index]
+                let output = entry.output
+                let stream = entry.stream
+                output.quiesce()
+                let started = entry.stopOperation.start(operation: {
+                    output.stopInvoked()
+                    try await stream.stopCapture()
+                }, completion: { result in
+                    output.stopSettled(aosDesktopPixelNativeError(result))
+                    completion(result)
+                })
+                if !started {
+                    completion(.failure(AOSDesktopFrameCaptureFailure.busy))
+                }
             }
             startupCompleted = true
-            let source = AOSNativeDesktopPixelWarmSource(entries: entries)
+            guard let startupOwner else {
+                throw AOSDesktopFrameCaptureFailure.captureFailed
+            }
+            let source = AOSNativeDesktopPixelWarmSource(
+                entries: entries,
+                failureState: sourceFailure,
+                startupOwner: startupOwner
+            )
             // The browser-side request expires at 1.5 seconds. Leave the
             // remaining budget for freeze, encoding, decode, and presentation.
             phase = "sample"
@@ -493,13 +705,17 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
             return source
         } catch {
             entries.forEach { $0.output.quiesce() }
-            if startupCompleted, !(await stopEntries(entries)) {
-                aosLogDesktopPixelWarmOpenFailure(
-                    phase: phase,
-                    elapsedSince: openedAt,
-                    code: AOSDesktopFrameCaptureFailure.retirementUncertain.code
-                )
-                throw AOSDesktopFrameCaptureFailure.retirementUncertain
+            if startupCompleted {
+                if !(await startupOwner?.retire(
+                    timeout: aosDesktopPixelStreamRetirementTimeout
+                ) ?? false) {
+                    aosLogDesktopPixelWarmOpenFailure(
+                        phase: phase,
+                        elapsedSince: openedAt,
+                        code: AOSDesktopFrameCaptureFailure.retirementUncertain.code
+                    )
+                    throw AOSDesktopFrameCaptureFailure.retirementUncertain
+                }
             }
             if error is CancellationError {
                 throw error
@@ -517,6 +733,9 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
     func freeze(maximumAge: TimeInterval) throws -> AOSDesktopPixelFrameSet {
         guard maximumAge > 0, maximumAge <= 5 else {
             throw AOSDesktopFrameCaptureFailure.captureFailed
+        }
+        if let failure = failureState.current() {
+            throw aosDesktopFrameCaptureFailure(for: failure)
         }
         lock.lock()
         guard !stopped else {
@@ -586,11 +805,15 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
         stopStarted = true
         stopped = true
         let currentEntries = entries
+        let currentStartupOwner = startupOwner
         entries = []
+        startupOwner = nil
         lock.unlock()
         currentEntries.forEach { $0.output.quiesce() }
         Task.detached(priority: .utility) { [self] in
-            if await Self.stopEntries(currentEntries) {
+            if await currentStartupOwner?.retire(
+                timeout: aosDesktopPixelStreamRetirementTimeout
+            ) ?? currentEntries.isEmpty {
                 finishStop(.success(()))
             } else {
                 finishStop(.failure(
@@ -618,6 +841,9 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             try Task.checkCancellation()
+            if let failure = failureState.current() {
+                throw aosDesktopFrameCaptureFailure(for: failure)
+            }
             if try aosDesktopPixelStreamsAreReady(entries.map(\.output)) { return }
             try await Task.sleep(nanoseconds: 10_000_000)
         }

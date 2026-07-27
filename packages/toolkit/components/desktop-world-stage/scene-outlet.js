@@ -20,6 +20,10 @@ import {
   DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS,
   createSceneSegmentResourceBudget,
 } from './scene-resource-budget.js'
+import {
+  createDesktopWorldFramebufferProofRateLimiter,
+  proveDesktopWorldSceneFramebuffer,
+} from './scene-framebuffer-proof.js'
 
 const MAX_RESOURCES = 32
 const MAX_SIGNALS_PER_SECOND = 30
@@ -98,6 +102,7 @@ export function createDesktopWorldSceneOutlet({
   let lastRenderAt = null
   let interactionGeometryObserver = null
   let nextPlayGeneration = 0
+  const framebufferProofRateLimiter = createDesktopWorldFramebufferProofRateLimiter()
 
   const notifyInteractionGeometry = (key, generation) => {
     try {
@@ -804,6 +809,50 @@ export function createDesktopWorldSceneOutlet({
     setInteractionGeometryObserver(observer) {
       interactionGeometryObserver = typeof observer === 'function' ? observer : null
       return true
+    },
+    proveFramebuffer(key, { expectedDigest, expectedRevision, proofId } = {}) {
+      const mounted = resources.get(key)
+      if (disposed || hidden || contextLost || stageSuspended || stageFault || mounted?.suspended !== false) {
+        throw sceneOutletError(
+          'SCENE_FRAMEBUFFER_PROOF_UNAVAILABLE',
+          'DesktopWorld framebuffer proof is unavailable.',
+        )
+      }
+      if (mounted.document.revision !== expectedRevision
+          || mounted.extensionReference?.digest !== expectedDigest) {
+        throw sceneOutletError(
+          'SCENE_FRAMEBUFFER_PROOF_UNAVAILABLE',
+          'DesktopWorld framebuffer proof authority is stale.',
+        )
+      }
+      const descriptor = mounted.projection.framebufferProofDescriptor?.(proofId) ?? null
+      if (!descriptor) {
+        throw sceneOutletError(
+          'SCENE_FRAMEBUFFER_PROOF_UNAVAILABLE',
+          'DesktopWorld framebuffer proof is not declared by the mounted extension.',
+        )
+      }
+      try {
+        return Object.freeze({
+          ...proveDesktopWorldSceneFramebuffer({
+            admit: () => framebufferProofRateLimiter.admit(),
+            camera,
+            descriptor,
+            renderer,
+            scene,
+          }),
+          extension_digest: expectedDigest,
+          resource_revision: expectedRevision,
+        })
+      } catch (error) {
+        if (error?.code === 'SCENE_FRAMEBUFFER_PROOF_UNAVAILABLE'
+            || error?.code === 'SCENE_FRAMEBUFFER_PROOF_RATE_LIMITED'
+            || error?.code === 'SCENE_FRAMEBUFFER_READBACK_FAILED') throw error
+        throw sceneOutletError(
+          'SCENE_FRAMEBUFFER_READBACK_FAILED',
+          'DesktopWorld framebuffer proof failed.',
+        )
+      }
     },
     releaseAll,
     updateSegment,

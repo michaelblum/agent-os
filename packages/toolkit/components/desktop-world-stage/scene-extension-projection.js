@@ -98,10 +98,16 @@ function immutableInteractionEvent(value) {
   return immutableInteractionValue(value, { values: 0 })
 }
 
-function extensionProjectionAdapter(projection, releaseExtension, desktopFrame = null) {
+function extensionProjectionAdapter(
+  projection,
+  releaseExtension,
+  desktopFrame = null,
+  framebufferProofs = [],
+) {
   let disposed = false
   let desktopFrameDisposed = false
   let projectionDisposed = false
+  const proofDescriptors = new Map(framebufferProofs.map((proof) => [proof.id, proof]))
   return {
     object: projection.object,
     activate: (...args) => projection.activate?.apply(projection, args),
@@ -143,6 +149,9 @@ function extensionProjectionAdapter(projection, releaseExtension, desktopFrame =
       return result
     },
     resourceMetrics: () => projection.resourceMetrics(),
+    framebufferProofDescriptor(proofId) {
+      return proofDescriptors.get(proofId) ?? null
+    },
     inspectInteractionRoute: typeof projection.inspectInteractionRoute === 'function'
       ? () => projection.inspectInteractionRoute()
       : undefined,
@@ -263,7 +272,12 @@ export function createDesktopWorldSceneProjection({
     })
     return Object.freeze({
       extension: extensionHandle.manifest,
-      projection: extensionProjectionAdapter(projection, () => extensionLease.release(), desktopFrame),
+      projection: extensionProjectionAdapter(
+        projection,
+        () => extensionLease.release(),
+        desktopFrame,
+        extensionHandle.manifest.framebufferProofs,
+      ),
     })
   } catch (error) {
     try { desktopFrame?.dispose?.() } catch {}

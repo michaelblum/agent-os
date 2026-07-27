@@ -22,6 +22,9 @@ let aosDesktopWorldSceneResultErrorCodes: Set<String> = [
     "SCENE_EXTENSION_SUSPEND_FAILED",
     "SCENE_EXTENSION_TICK_FAILED",
     "SCENE_EXTENSION_URL_INVALID",
+    "SCENE_FRAMEBUFFER_PROOF_RATE_LIMITED",
+    "SCENE_FRAMEBUFFER_PROOF_UNAVAILABLE",
+    "SCENE_FRAMEBUFFER_READBACK_FAILED",
     "SCENE_OWNER_DISCONNECTED",
     "SCENE_PROJECTION_FAILED",
     "SCENE_RENDER_FAILED",
@@ -35,6 +38,12 @@ let aosDesktopWorldSceneResultErrorCodes: Set<String> = [
     "SCENE_STAGE_RETIRED",
     "SCENE_STAGE_RETIRE_FAILED",
     "SCENE_TOPOLOGY_CHANGED",
+]
+
+private let aosDesktopWorldFramebufferProofLocalErrorCodes: Set<String> = [
+    "SCENE_FRAMEBUFFER_PROOF_RATE_LIMITED",
+    "SCENE_FRAMEBUFFER_PROOF_UNAVAILABLE",
+    "SCENE_FRAMEBUFFER_READBACK_FAILED",
 ]
 
 func aosCanonicalDesktopWorldSceneResultErrorCode(_ value: Any?, fallback: String) -> String {
@@ -215,6 +224,10 @@ final class AOSDesktopWorldSceneResultCoordinator {
         }
         switch operation.phase {
         case .apply, .commit:
+            if operation.phase == .apply, operation.operation == "prove" {
+                _ = removePending(operationID)
+                return [.complete(completion(operation, status: "error", code: "SCENE_SEGMENT_TIMEOUT"))]
+            }
             return transition(operationID, operation, to: .release, code: "SCENE_SEGMENT_TIMEOUT")
         case .prepare:
             return transition(operationID, operation, to: .abort, code: "SCENE_SEGMENT_TIMEOUT")
@@ -281,6 +294,12 @@ final class AOSDesktopWorldSceneResultCoordinator {
         _ operation: PendingOperation,
         code: String
     ) -> [AOSDesktopWorldSceneBarrierAction] {
+        if operation.phase == .apply,
+           operation.operation == "prove",
+           aosDesktopWorldFramebufferProofLocalErrorCodes.contains(code) {
+            _ = removePending(operationID)
+            return [.complete(completion(operation, status: "error", code: code))]
+        }
         switch operation.phase {
         case .apply, .commit, .abort:
             return transition(operationID, operation, to: .release, code: code)
@@ -303,6 +322,9 @@ final class AOSDesktopWorldSceneResultCoordinator {
             guard statuses.count == 1,
                   let status = statuses.first,
                   status == "ok" || status == "ignored" else {
+                return transition(operationID, operation, to: .release, code: "SCENE_SEGMENT_DIVERGED")
+            }
+            if operation.operation == "prove", framebufferProofCompletion(operation) == nil {
                 return transition(operationID, operation, to: .release, code: "SCENE_SEGMENT_DIVERGED")
             }
             _ = removePending(operationID)
@@ -400,7 +422,56 @@ final class AOSDesktopWorldSceneResultCoordinator {
            let snapshot = operation.results[primaryID]?["snapshot"] as? [String: Any] {
             result["snapshot"] = snapshot
         }
+        if status == "ok", operation.operation == "prove" {
+            guard let proof = framebufferProofCompletion(operation) else {
+                result["status"] = "error"
+                result["code"] = "SCENE_SEGMENT_FAILED"
+                return AOSDesktopWorldSceneResultCompletion(payload: result)
+            }
+            result["proof"] = proof
+        }
         return AOSDesktopWorldSceneResultCompletion(payload: result)
+    }
+
+    private func framebufferProofCompletion(_ operation: PendingOperation) -> [String: Any]? {
+        guard let proofID = operation.operationPayload["proofId"] as? String,
+              let expectedRevision = operation.operationPayload["expectedRevision"] as? Int,
+              expectedRevision >= 0,
+              let expectedDigest = operation.operationPayload["expectedExtensionDigest"] as? String,
+              expectedDigest.utf8.count == 64,
+              operation.results.count == operation.expected.count else { return nil }
+        var passedSegments = 0
+        var maximumDuration = 0.0
+        for payload in operation.results.values {
+            guard let proof = payload["proof"] as? [String: Any],
+                  Set(proof.keys) == Set([
+                    "extension_digest", "passed", "pixels_persisted", "pixels_returned",
+                    "proof_id", "readback_duration_ms", "resource_revision",
+                  ]),
+                  proof["proof_id"] as? String == proofID,
+                  proof["extension_digest"] as? String == expectedDigest,
+                  proof["resource_revision"] as? Int == expectedRevision,
+                  proof["pixels_persisted"] as? Bool == false,
+                  proof["pixels_returned"] as? Bool == false,
+                  let segmentPassed = proof["passed"] as? Bool,
+                  let readbackDuration = (proof["readback_duration_ms"] as? NSNumber)?.doubleValue,
+                  readbackDuration >= 0,
+                  readbackDuration <= 1_000 else { return nil }
+            if segmentPassed { passedSegments += 1 }
+            maximumDuration = max(maximumDuration, readbackDuration)
+        }
+        return [
+            "contract": "aos.desktop-world.framebuffer-proof.result.v1",
+            "extension_digest": expectedDigest,
+            "max_readback_duration_ms": maximumDuration,
+            "passed": passedSegments == operation.expected.count,
+            "passed_segment_count": passedSegments,
+            "pixels_persisted": false,
+            "pixels_returned": false,
+            "proof_id": proofID,
+            "resource_revision": expectedRevision,
+            "segment_count": operation.expected.count,
+        ]
     }
 
     private func retirement(

@@ -18,6 +18,7 @@ import { serializeSceneExtensionWrapperModule } from '../scripts/lib/scene-exten
 
 const repoRoot = path.resolve(import.meta.dirname, '..')
 const contentServerSource = path.join(repoRoot, 'src/content/server.swift')
+const identifierSource = path.join(repoRoot, 'src/shared/scene-extension-identifier.swift')
 const storeSource = path.join(repoRoot, 'src/display/scene-extension-store.swift')
 const handlerSource = path.join(repoRoot, 'src/display/scene-extension-scheme-handler.swift')
 const taskStateSource = path.join(repoRoot, 'src/display/scene-extension-scheme-task-state.swift')
@@ -126,6 +127,7 @@ do {
         "digest": artifact.reference.digest,
         "bodyBytes": artifact.body.count,
         "admittedExtension": admitted["extension"] as Any,
+        "authorization": try store.authorization(for: reference),
         "wrapper": String(data: wrapper, encoding: .utf8) ?? "",
     ]
     let output = try JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])
@@ -140,7 +142,7 @@ do {
 `)
   const moduleCache = path.join(root, 'module-cache')
   await mkdir(moduleCache, { mode: 0o700 })
-  execFileSync('swiftc', [storeSource, main, '-o', executable], {
+  execFileSync('swiftc', [identifierSource, storeSource, main, '-o', executable], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -178,6 +180,51 @@ test('native extension store accepts and freezes digest-bound engine capabilitie
         fixture.bodyBytes.toString('utf8'),
       ).toString('utf8'),
     )
+  } finally {
+    await rm(root, { force: true, recursive: true })
+  }
+})
+
+test('native extension store matches JS digest and authorization for bounded framebuffer proofs', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-native-framebuffer-proof-'))
+  try {
+    const proof = {
+      id: 'capture-overlay-visible',
+      matchingPixels: [4, 256],
+      rgbaMax: [40, 255, 40, 255],
+      rgbaMin: [0, 220, 0, 220],
+      sampleSize: [16, 16],
+      uvPermille: [500, 500],
+    }
+    const fixture = await writeInstalledFixture(
+      root,
+      Buffer.from('return null\n'),
+      {
+        capabilities: ['aos.scene.desktop_frame_texture', 'aos.scene.framebuffer_proof'],
+        framebufferProofs: [proof],
+      },
+    )
+    const executable = await compileHarness(root)
+    const result = spawnSync(executable, [fixture.stateDirectory, JSON.stringify({
+      ownerId: fixture.manifest.ownerId,
+      id: fixture.manifest.id,
+      digest: fixture.manifest.digest,
+      sceneAbi: fixture.manifest.sceneAbi,
+      threeRevision: fixture.manifest.threeRevision,
+    }), fixture.manifest.ownerId], { encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+    const output = JSON.parse(result.stdout)
+    assert.deepEqual(output.authorization.framebufferProofIds, [proof.id])
+    assert.deepEqual(output.authorization.capabilities, fixture.manifest.capabilities)
+    assert.equal(
+      output.wrapper,
+      serializeSceneExtensionWrapperModule(
+        fixture.manifest,
+        fixture.bodyBytes.toString('utf8'),
+      ).toString('utf8'),
+    )
+    assert.match(output.wrapper, /Object\.freeze\(proof\.sampleSize\)/u)
+    assert.match(output.wrapper, /Object\.freeze\(proof\.matchingPixels\)/u)
   } finally {
     await rm(root, { force: true, recursive: true })
   }
@@ -436,7 +483,7 @@ DispatchQueue.global().async {
 
 dispatchMain()
 `)
-    execFileSync('swiftc', [storeSource, taskStateSource, handlerSource, main, '-o', executable], {
+    execFileSync('swiftc', [identifierSource, storeSource, taskStateSource, handlerSource, main, '-o', executable], {
       cwd: repoRoot,
       env: {
         ...process.env,
@@ -581,6 +628,7 @@ exit(2)
 `)
     execFileSync('swiftc', [
       contentServerSource,
+      identifierSource,
       storeSource,
       taskStateSource,
       handlerSource,
@@ -617,7 +665,9 @@ test('native extension handler and store typecheck together without the AOS bina
     const moduleCache = path.join(root, 'module-cache')
     await mkdir(moduleCache, { mode: 0o700 })
     await writeFile(stub, 'import Foundation\nfunc aosStateDir() -> String { "/tmp/aos-scene-extension-test" }\n')
-    const result = spawnSync('swiftc', ['-parse-as-library', '-typecheck', storeSource, taskStateSource, handlerSource, stub], {
+    const result = spawnSync('swiftc', [
+      '-parse-as-library', '-typecheck', identifierSource, storeSource, taskStateSource, handlerSource, stub,
+    ], {
       cwd: repoRoot,
       encoding: 'utf8',
       env: {

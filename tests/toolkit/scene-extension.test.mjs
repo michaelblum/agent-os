@@ -60,6 +60,18 @@ function reference(value = manifest()) {
   }
 }
 
+function framebufferProof(overrides = {}) {
+  return {
+    id: 'capture-overlay-visible',
+    matchingPixels: [4, 256],
+    rgbaMax: [40, 255, 40, 255],
+    rgbaMin: [0, 220, 0, 220],
+    sampleSize: [16, 16],
+    uvPermille: [500, 500],
+    ...overrides,
+  }
+}
+
 function document() {
   return {
     contract: 'aos.scene.document.v1',
@@ -168,6 +180,37 @@ test('scene extension capabilities are explicit, exact, sorted, and digest-bound
   )
 })
 
+test('framebuffer proofs are bounded, capability-gated, sorted, and digest-bound', () => {
+  const proof = framebufferProof()
+  const declared = manifest({
+    capabilities: ['aos.scene.framebuffer_proof'],
+    framebufferProofs: [proof],
+  })
+  assert.deepEqual(validateSceneExtensionManifest(declared), { ok: true, errors: [] })
+  assert.equal(
+    errorCodes(validateSceneExtensionManifest(manifest({ framebufferProofs: [proof] }))).has('undeclared_capability'),
+    true,
+  )
+  for (const invalidProof of [
+    framebufferProof({ sampleSize: [33, 1] }),
+    framebufferProof({ matchingPixels: [0, 257] }),
+    framebufferProof({ uvPermille: [500, 1001] }),
+    framebufferProof({ rgbaMin: [50, 220, 0, 220], rgbaMax: [40, 255, 40, 255] }),
+  ]) {
+    assert.equal(validateSceneExtensionManifest(manifest({
+      capabilities: ['aos.scene.framebuffer_proof'],
+      framebufferProofs: [invalidProof],
+    })).ok, false)
+  }
+  assert.notEqual(
+    serializeSceneExtensionDigestMaterial(declared, 'b'.repeat(64)),
+    serializeSceneExtensionDigestMaterial({
+      ...declared,
+      framebufferProofs: [framebufferProof({ matchingPixels: [5, 256] })],
+    }, 'b'.repeat(64)),
+  )
+})
+
 test('scene extension manifests require every exact field and every finite integer budget', () => {
   const missing = manifest()
   delete missing.digest
@@ -183,6 +226,26 @@ test('scene extension manifests require every exact field and every finite integ
 
 test('scene extension digest material binds manifest authority and factory-body bytes canonically', () => {
   const first = serializeSceneExtensionDigestMaterial(manifest(), 'b'.repeat(64))
+  assert.equal(first, [
+    'aos.scene.extension.digest.v1',
+    'contract:aos.scene.extension.v1',
+    'schemaVersion:1',
+    'ownerId:sigil',
+    'id:companion-renderer',
+    'sceneAbi:aos.scene.projection.v1',
+    'threeRevision:183',
+    'implementationCount:2',
+    'implementation:sigil.companion.geometry',
+    'implementation:sigil.companion.runtime',
+    'budget.maxDrawCalls:32',
+    'budget.maxObjects:64',
+    'budget.maxResources:64',
+    'budget.maxTextureBytes:8388608',
+    'budget.maxTriangles:100000',
+    'budget.maxWorkingBytes:16777216',
+    `bodySha256:${'b'.repeat(64)}`,
+    '',
+  ].join('\n'))
   assert.equal(first, serializeSceneExtensionDigestMaterial(manifest(), 'b'.repeat(64)))
   assert.notEqual(first, serializeSceneExtensionDigestMaterial(
     manifest({ implementationIds: ['sigil.companion.runtime'] }),

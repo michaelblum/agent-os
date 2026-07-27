@@ -10,6 +10,33 @@ const identity = Object.freeze({
   ownerId: 'example.consumer',
   resourceId: 'companion/main',
 })
+const extensionDigest = 'a'.repeat(64)
+
+function extension() {
+  return {
+    digest: extensionDigest,
+    id: 'companion-renderer',
+    ownerId: identity.ownerId,
+    sceneAbi: 'aos.scene.projection.v1',
+    threeRevision: '183',
+  }
+}
+
+function framebufferProof(overrides = {}) {
+  return {
+    contract: 'aos.desktop-world.framebuffer-proof.result.v1',
+    extension_digest: extensionDigest,
+    max_readback_duration_ms: 2,
+    passed: true,
+    passed_segment_count: 2,
+    pixels_persisted: false,
+    pixels_returned: false,
+    proof_id: 'capture-overlay-visible',
+    resource_revision: 1,
+    segment_count: 2,
+    ...overrides,
+  }
+}
 
 function deferred() {
   let resolve
@@ -193,6 +220,97 @@ test('scene session serializes operations and commits only acknowledged structur
   assert.equal(session.snapshot().mounted, false)
   assert.equal((await session.close()).status, 'closed')
   assert.equal((await session.close()).status, 'closed')
+})
+
+test('scene session proves only a named digest-bound assertion on its committed owner stream', async () => {
+  const fixture = fakeTransportFactory({
+    async send({ operation }) {
+      return {
+        operation: operation.op,
+        resource: identity.resourceId,
+        status: 'ok',
+        ...(operation.op === 'prove' ? { proof: framebufferProof() } : {}),
+      }
+    },
+  })
+  const session = createDesktopWorldSceneSession({ ...identity, connect: fixture.connect })
+  await session.mount({ document: scene(), extension: extension(), interactions: interactions() })
+  const result = await session.assertFramebuffer('capture-overlay-visible')
+
+  assert.equal(result.proof.passed, true)
+  assert.deepEqual(fixture.transports[0].operations.at(-1), {
+    op: 'prove',
+    expectedRevision: 1,
+    proofId: 'capture-overlay-visible',
+  })
+  assert.equal(Object.hasOwn(fixture.transports[0].operations.at(-1), 'uv'), false)
+  assert.equal(Object.hasOwn(fixture.transports[0].operations.at(-1), 'rgba'), false)
+  await session.close()
+})
+
+test('scene session rejects framebuffer proof without extension authority or matching result identity', async () => {
+  const noExtensionFixture = fakeTransportFactory()
+  const noExtension = createDesktopWorldSceneSession({ ...identity, connect: noExtensionFixture.connect })
+  await noExtension.mount({ document: scene(), interactions: interactions() })
+  await assert.rejects(noExtension.assertFramebuffer('capture-overlay-visible'), { code: 'SCENE_SESSION_NOT_MOUNTED' })
+  assert.deepEqual(noExtensionFixture.transports[0].operations.map(({ op }) => op), ['mount'])
+  await noExtension.close()
+
+  const staleFixture = fakeTransportFactory({
+    async send({ operation }) {
+      return {
+        operation: operation.op,
+        resource: identity.resourceId,
+        status: 'ok',
+        ...(operation.op === 'prove'
+          ? { proof: framebufferProof({ extension_digest: 'b'.repeat(64) }) }
+          : {}),
+      }
+    },
+  })
+  const stale = createDesktopWorldSceneSession({ ...identity, connect: staleFixture.connect })
+  await stale.mount({ document: scene(), extension: extension(), interactions: interactions() })
+  await assert.rejects(stale.assertFramebuffer('capture-overlay-visible'), { code: 'SCENE_SESSION_FAULTED' })
+  assert.equal(stale.snapshot().lastErrorCode, 'SCENE_SESSION_INVALID_RESULT')
+  await stale.close()
+
+  const wrongProofFixture = fakeTransportFactory({
+    async send({ operation }) {
+      return {
+        operation: operation.op,
+        resource: identity.resourceId,
+        status: 'ok',
+        ...(operation.op === 'prove'
+          ? { proof: framebufferProof({ proof_id: 'different-proof' }) }
+          : {}),
+      }
+    },
+  })
+  const wrongProof = createDesktopWorldSceneSession({ ...identity, connect: wrongProofFixture.connect })
+  await wrongProof.mount({ document: scene(), extension: extension(), interactions: interactions() })
+  await assert.rejects(wrongProof.assertFramebuffer('capture-overlay-visible'), { code: 'SCENE_SESSION_FAULTED' })
+  assert.equal(wrongProof.snapshot().lastErrorCode, 'SCENE_SESSION_INVALID_RESULT')
+  await wrongProof.close()
+})
+
+test('scene session remounts after an uncertain proof but never replays the readback', async () => {
+  let failed = false
+  const fixture = fakeTransportFactory({
+    async send({ operation, transport }) {
+      if (operation.op === 'prove' && !failed) {
+        failed = true
+        transport.disconnect()
+        throw Object.assign(new Error('lost proof acknowledgement'), { code: 'SCENE_TRANSPORT_CLOSED' })
+      }
+      return { operation: operation.op, resource: identity.resourceId, status: 'ok' }
+    },
+  })
+  const session = createDesktopWorldSceneSession({ ...identity, connect: fixture.connect })
+  await session.mount({ document: scene(), extension: extension(), interactions: interactions() })
+  await assert.rejects(session.assertFramebuffer('capture-overlay-visible'), { code: 'SCENE_OPERATION_UNCERTAIN' })
+  assert.equal(fixture.transports.length, 2)
+  assert.deepEqual(fixture.transports[1].operations.map(({ op }) => op), ['mount'])
+  await session.close()
 })
 
 test('scene session validates non-empty interactions against the mounted document', async () => {

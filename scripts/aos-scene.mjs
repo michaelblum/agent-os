@@ -12,13 +12,17 @@ import {
   selectDesktopWorldResourceSnapshot,
 } from '../packages/toolkit/scene/desktop-world-client.js'
 import { validateSceneExtensionReference } from '../packages/toolkit/scene/scene-extension.js'
+import { normalizeDesktopWorldFramebufferProofId } from '../packages/toolkit/scene/desktop-world-framebuffer-proof.js'
 
 const MAX_INPUT_LINE_BYTES = 2 * 1024 * 1024
 const MAX_OUTPUT_LINE_BYTES = 64 * 1024
 const MAX_STDERR_BYTES = 32 * 1024
 const MAX_REPLAY_BYTES = 16 * 1024 * 1024
 const SOCKET_CLOSE_TIMEOUT_MS = 500
-const ALLOWED_OPERATIONS = new Set(['mount', 'transact', 'signal', 'play', 'suspend', 'resume', 'inspect', 'remove', 'close', 'subscribe', 'unsubscribe'])
+const ALLOWED_OPERATIONS = new Set([
+  'mount', 'transact', 'signal', 'play', 'suspend', 'resume', 'inspect', 'prove',
+  'remove', 'close', 'subscribe', 'unsubscribe',
+])
 const ALLOWED_SCENE_EVENTS = new Set(['gesture'])
 const DEVTOOLS_TABS = new Set(['world', 'resources', 'interactions', 'performance', 'events'])
 const DEVTOOLS_HOST_KINDS = new Set(['compatibility', 'external', 'panel'])
@@ -325,6 +329,17 @@ function validateFollowOperation(operation) {
         threeRevision: operation.extension.threeRevision,
       },
     }
+  }
+  if (operation.op === 'prove') {
+    if (Object.keys(operation).some((key) => !['expectedRevision', 'op', 'proofId'].includes(key))
+        || !Number.isInteger(operation.expectedRevision)
+        || operation.expectedRevision < 0) {
+      fail('INVALID_SCENE_OPERATION', 'scene framebuffer proof contains invalid fields')
+    }
+    let proofId
+    try { proofId = normalizeDesktopWorldFramebufferProofId(operation.proofId) }
+    catch { fail('INVALID_SCENE_OPERATION', 'scene framebuffer proof ID is invalid') }
+    return { op: 'prove', expectedRevision: operation.expectedRevision, proofId }
   }
   if (operation.op !== 'subscribe' && operation.op !== 'unsubscribe') return operation
   const keys = Object.keys(operation)

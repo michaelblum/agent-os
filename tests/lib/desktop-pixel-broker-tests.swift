@@ -304,6 +304,106 @@ func runDesktopPixelBrokerTests() throws {
         "warm lease release was not idempotent"
     )
 
+    let releasedFreezeSource = FakeWarmSource(failure: nil)
+    releasedFreezeSource.freezeEntered = DispatchSemaphore(value: 0)
+    releasedFreezeSource.freezeRelease = DispatchSemaphore(value: 0)
+    let releasedFreezeBroker = AOSDesktopPixelBroker(
+        acquirer: FakePixelAcquirer(),
+        warmAcquirer: FakeWarmAcquirer(source: releasedFreezeSource)
+    )
+    var releasedFreezeLease: AOSDesktopPixelWarmLease?
+    _ = releasedFreezeBroker.prepareWarm(
+        pixelRequest,
+        ownerID: "released-freeze-owner"
+    ) { releasedFreezeLease = try? $0.get() }
+    let releasedFreezeSettled = DispatchSemaphore(value: 0)
+    let releasedFreezeLock = NSLock()
+    var releasedFreezeCompletions = 0
+    var releasedFreezeFailure: AOSDesktopFrameCaptureFailure?
+    _ = releasedFreezeBroker.freezeWarm(
+        leaseID: releasedFreezeLease!.id,
+        ownerID: "released-freeze-owner",
+        maximumAge: 0.5
+    ) { result in
+        releasedFreezeLock.lock()
+        releasedFreezeCompletions += 1
+        if case .failure(let error) = result {
+            releasedFreezeFailure = error as? AOSDesktopFrameCaptureFailure
+        }
+        releasedFreezeLock.unlock()
+        releasedFreezeSettled.signal()
+    }
+    require(
+        releasedFreezeSource.freezeEntered?.wait(timeout: .now() + 1) == .success,
+        "release regression did not enter the in-flight freeze"
+    )
+    require(
+        releasedFreezeBroker.releaseWarm(
+            leaseID: releasedFreezeLease!.id,
+            ownerID: "released-freeze-owner"
+        ),
+        "release regression did not retire the warm source"
+    )
+    require(
+        releasedFreezeSettled.wait(timeout: .now() + 1) == .success,
+        "warm-source release did not settle its in-flight freeze"
+    )
+    releasedFreezeLock.lock()
+    let releasedFailure = releasedFreezeFailure
+    releasedFreezeLock.unlock()
+    require(
+        releasedFailure == .frameNotReady,
+        "warm-source release changed the superseded freeze failure"
+    )
+    releasedFreezeSource.freezeRelease?.signal()
+    Thread.sleep(forTimeInterval: 0.03)
+    releasedFreezeLock.lock()
+    let releaseCompletionCount = releasedFreezeCompletions
+    releasedFreezeLock.unlock()
+    require(
+        releaseCompletionCount == 1,
+        "late warm freeze settled twice after source release"
+    )
+
+    let shutdownFreezeSource = FakeWarmSource(failure: nil)
+    shutdownFreezeSource.freezeEntered = DispatchSemaphore(value: 0)
+    shutdownFreezeSource.freezeRelease = DispatchSemaphore(value: 0)
+    let shutdownFreezeBroker = AOSDesktopPixelBroker(
+        acquirer: FakePixelAcquirer(),
+        warmAcquirer: FakeWarmAcquirer(source: shutdownFreezeSource)
+    )
+    var shutdownFreezeLease: AOSDesktopPixelWarmLease?
+    _ = shutdownFreezeBroker.prepareWarm(
+        pixelRequest,
+        ownerID: "shutdown-freeze-owner"
+    ) { shutdownFreezeLease = try? $0.get() }
+    let shutdownFreezeSettled = DispatchSemaphore(value: 0)
+    var shutdownFreezeFailure: AOSDesktopFrameCaptureFailure?
+    _ = shutdownFreezeBroker.freezeWarm(
+        leaseID: shutdownFreezeLease!.id,
+        ownerID: "shutdown-freeze-owner",
+        maximumAge: 0.5
+    ) { result in
+        if case .failure(let error) = result {
+            shutdownFreezeFailure = error as? AOSDesktopFrameCaptureFailure
+        }
+        shutdownFreezeSettled.signal()
+    }
+    require(
+        shutdownFreezeSource.freezeEntered?.wait(timeout: .now() + 1) == .success,
+        "shutdown regression did not enter the in-flight freeze"
+    )
+    shutdownFreezeBroker.shutdown()
+    require(
+        shutdownFreezeSettled.wait(timeout: .now() + 1) == .success,
+        "broker shutdown did not settle its in-flight warm freeze"
+    )
+    require(
+        shutdownFreezeFailure == .unauthorized,
+        "broker shutdown changed the in-flight freeze failure"
+    )
+    shutdownFreezeSource.freezeRelease?.signal()
+
     let successfulWarmSource = FakeWarmSource(failure: nil)
     let successfulWarmAcquirer = FakeWarmAcquirer(source: successfulWarmSource)
     let warmCaptureBroker = AOSDesktopPixelBroker(

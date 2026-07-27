@@ -207,6 +207,20 @@ protocol AOSDesktopPixelAcquiring: AnyObject {
 final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
     static let defaultRetirementTimeout: TimeInterval = 5
 
+    private typealias WarmFreezeCompletion = (
+        Result<AOSDesktopPixelFrameSet, Error>
+    ) -> Void
+
+    private static func settleCanceledWarmFreeze(
+        _ completion: WarmFreezeCompletion?,
+        failure: AOSDesktopFrameCaptureFailure
+    ) {
+        guard let completion else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            completion(.failure(failure))
+        }
+    }
+
     private struct ActiveSnapshot {
         var capture: AOSDesktopFrameCancelling
         let generation: UInt64
@@ -216,6 +230,7 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
 
     private struct ActiveWarmLease {
         var freezeCanceled: Bool
+        var freezeCompletion: WarmFreezeCompletion?
         var freezeGeneration: UInt64?
         let generation: UInt64
         var lease: AOSDesktopPixelWarmLease
@@ -301,6 +316,10 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
         activeSnapshot?.capture.cancel()
         activeWarmLease?.startup.cancel()
         activeWarmLease?.source?.cancel()
+        Self.settleCanceledWarmFreeze(
+            activeWarmLease?.freezeCompletion,
+            failure: .unauthorized
+        )
         let shutdown: Result<Void, Error> = .failure(
             AOSDesktopFrameCaptureFailure.unauthorized
         )
@@ -348,6 +367,7 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
         )
         activeWarmLease = ActiveWarmLease(
             freezeCanceled: false,
+            freezeCompletion: nil,
             freezeGeneration: nil,
             generation: generation,
             lease: lease,
@@ -415,6 +435,7 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
         let freezeGeneration = nextGeneration
         active.freezeGeneration = freezeGeneration
         active.freezeCanceled = false
+        active.freezeCompletion = completion
         activeWarmLease = active
         lock.unlock()
 
@@ -425,8 +446,7 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
             self?.finishWarmFreeze(
                 leaseGeneration: active.generation,
                 freezeGeneration: freezeGeneration,
-                result: result,
-                completion: completion
+                result: result
             )
         }
         return AOSDesktopFrameCancellation { [weak self] in
@@ -454,12 +474,18 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
         }
         active.retiring = true
         active.freezeCanceled = true
+        let freezeCompletion = active.freezeCompletion
+        active.freezeCompletion = nil
         active.freezeGeneration = nil
         if let completion {
             active.retirementWaiters.append(completion)
         }
         activeWarmLease = active
         lock.unlock()
+        Self.settleCanceledWarmFreeze(
+            freezeCompletion,
+            failure: .frameNotReady
+        )
         superviseWarmRetirement(generation: active.generation)
         active.startup.cancel()
         if let source = active.source {
@@ -516,9 +542,15 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
         }
         active.retiring = true
         active.freezeCanceled = true
+        let freezeCompletion = active.freezeCompletion
+        active.freezeCompletion = nil
         active.freezeGeneration = nil
         activeWarmLease = active
         lock.unlock()
+        Self.settleCanceledWarmFreeze(
+            freezeCompletion,
+            failure: .frameNotReady
+        )
         superviseWarmRetirement(generation: generation)
         active.startup.cancel()
         if let source = active.source {
@@ -543,6 +575,7 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
             return
         }
         active.freezeCanceled = true
+        active.freezeCompletion = nil
         activeWarmLease = active
         lock.unlock()
     }
@@ -668,8 +701,7 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
     private func finishWarmFreeze(
         leaseGeneration: UInt64,
         freezeGeneration: UInt64,
-        result: Result<AOSDesktopPixelFrameSet, Error>,
-        completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void
+        result: Result<AOSDesktopPixelFrameSet, Error>
     ) {
         lock.lock()
         guard var active = activeWarmLease,
@@ -679,11 +711,13 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
             return
         }
         let canceled = active.freezeCanceled
+        let completion = active.freezeCompletion
         active.freezeCanceled = false
+        active.freezeCompletion = nil
         active.freezeGeneration = nil
         activeWarmLease = active
         lock.unlock()
-        if !canceled { completion(result) }
+        if !canceled { completion?(result) }
     }
 
     private func finishWarmRetirement(

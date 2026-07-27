@@ -341,7 +341,7 @@ async function applySceneMessage(message) {
       error.code = 'SCENE_STAGE_DISPOSED'
       throw error
     }
-    const { applied, candidateFingerprint = null } = await applyDesktopWorldSceneOperation({
+    const { applied, candidateFingerprint = null, proof = null } = await applyDesktopWorldSceneOperation({
       extensionLoader: sceneExtensionLoader,
       message,
       operations: sceneOperations,
@@ -359,6 +359,7 @@ async function applySceneMessage(message) {
       resource: payload.resource ?? null,
       status: applied ? 'ok' : 'ignored',
       snapshot: sceneOutlet.snapshot(),
+      ...(proof === null ? {} : { proof }),
     })
     devtoolsProbe.recordEvent({ kind: `scene.${op}`, resourceId: payload.resource ?? null })
     lastSceneError = null

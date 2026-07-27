@@ -11,7 +11,8 @@ The caller injects a `SceneFollowTransportFactory`; the toolkit never discovers
 a runtime path, opens the private socket, or starts a daemon.
 
 The session exposes `open`, `mount`, `transact`, `signal`, `play`, `suspend`,
-`resume`, `inspect`, `subscribe`, `remove`, `close`, and `snapshot`.
+`resume`, `inspect`, `assertFramebuffer`, `subscribe`, `remove`, `close`, and
+`snapshot`.
 
 ```js
 import {
@@ -26,15 +27,26 @@ const session = createDesktopWorldSceneSession({
 })
 
 await session.open()
-await session.mount({ document, interactions })
+await session.mount({ document, interactions, extension })
 const stopGestures = await session.subscribe('gesture', handleGesture)
 await session.transact(transaction)
 await session.signal('audio.rms', 0.45, 500)
 await session.play('idle-spin')
 await session.inspect()
+const proofResult = await session.assertFramebuffer('surface-visible')
+if (!proofResult.proof.passed) throw new Error('Expected surface pixels are not visible.')
 await stopGestures()
 await session.close()
 ```
+
+`assertFramebuffer()` names a bounded predicate already declared by the
+mounted trusted extension. The caller cannot supply coordinates, colors, pixel
+thresholds, or another resource identity at runtime. AOS evaluates the
+digest-bound predicate once in every current display segment and returns only
+pass/fail, segment counts, the committed revision and extension digest, and a
+bounded duration. It returns no pixels or match counts and performs no screen
+capture. This verifies the WebGL framebuffer, not final WindowServer
+composition.
 
 `sceneFollowTransportFactory` is supplied by the product adapter and returns
 the public transport handle described by `SceneFollowTransportFactory`. A
@@ -53,9 +65,9 @@ connection generations are ignored.
 
 On one recoverable transport or stage loss, the session reconnects once and
 remounts the last committed document, subscriptions, and suspended state. It
-never replays transient signals, animation plays, or the uncertain in-flight
-operation. A second recovery failure terminally faults the session. `close()`
-is idempotent and releases the connection-scoped lease.
+never replays transient signals, animation plays, framebuffer assertions, or
+the uncertain in-flight operation. A second recovery failure terminally faults
+the session. `close()` is idempotent and releases the connection-scoped lease.
 
 The error-code authority is exported with the implementation:
 

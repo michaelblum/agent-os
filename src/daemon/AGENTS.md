@@ -11,6 +11,11 @@ delivery, voice/communication routing, and cleanup.
 Scene transport owns only connection-scoped owner/resource leases and delivery
 to the singleton toolkit DesktopWorld stage. Declarative validation and render
 policy remain in the scene toolkit; disconnect always releases owned scenes.
+Named framebuffer proofs travel only as an operation on that existing owner
+stream. Admission binds the exact authorized extension digest, declared proof
+ID, resource revision, and current topology before the normal all-segment
+barrier dispatches; the daemon never accepts runtime pixel predicates or a
+second proof connection.
 `desktop-world-scene-controller.swift` is the single atomic owner for scene
 lease admission, typed subscriptions, readiness, result/event routing, and
 disconnect cleanup. `desktop-world-scene-transport-controller.swift` owns the
@@ -30,22 +35,38 @@ frames only; encoding, cropping, redaction, persistence, and GPU delivery
 belong to downstream adapters. Multi-display warm acquisition configures the
 complete stream set before starting every display concurrently; partial startup
 failure immediately requests aggregate retirement while retaining late
-startup-completion ownership. Only a successfully started stream receives a
-compensating stop; a failed start is confirmed inactive without issuing an
-invalid stop, and its initiating error remains authoritative. Both startup
-completion and native retirement must settle before later work is admitted.
+startup-completion ownership. A retained async-operation owner invokes each
+Apple start and stop exactly once without a continuation. Native
+start success or the first usable frame may establish startup, whichever arrives
+first. A later start failure retires the complete aggregate. Only a stream
+proven active receives a compensating stop; a failed start
+is confirmed inactive without issuing an invalid stop, and its initiating error
+remains authoritative. Both startup evidence and native retirement must settle
+before later work is admitted.
 That aggregate retirement
 wait ignores caller cancellation but remains deadline-bounded, because
 cancellation is the reason cleanup is often running. Superseding a warm
 configuration does not cancel an in-flight ScreenCaptureKit `startCapture()`;
-startup settles before one acknowledged retirement begins, so native start and
-stop never race. A startup that misses the settlement deadline fails the broker
-closed while its coordinator retains ownership and retires any late completion.
+startup evidence settles before one acknowledged retirement begins, so native
+start and stop never race. A startup that misses the settlement deadline fails
+the broker closed while its coordinator retains ownership and retires any late
+success. Caller cancellation does not cancel an in-flight native operation;
+the coordinator waits for settlement and compensates a late start. Content-free
+lifecycle diagnostics may record configured, start, first
+sample, stop, and delegate-stop phases, but never display identity or pixels.
+A native failure marker may retain only the stable `SCStreamError` numeric code;
+it may not include localized descriptions, user info, source metadata, or paths.
 AOS constructs each warm ScreenCaptureKit source on AppKit's main actor, uses
-ScreenCaptureKit's async start and stop operations, excludes its complete
-process from captured display content when AOS surfaces exist, and uses one
-off-screen-inclusive stream configuration with consumer-specific bounded pixel
-ceilings for consent and runtime acquisition.
+ScreenCaptureKit's native async operations, excludes the exact DesktopWorld
+surface windows from captured display content, and uses one bounded stream
+configuration with the same pixel ceiling
+for consent and runtime acquisition. Scaled stream surfaces round down to
+positive even dimensions without exceeding that ceiling; an impossible budget
+or aspect ratio fails before ScreenCaptureKit is invoked.
+Warm source discovery includes off-screen windows so hidden or suspended stage
+windows retain stable identities; the display filter still excludes only the
+exact authorized stage windows. Explicit dimensions enforce the pixel budget,
+and the stream keeps ScreenCaptureKit's default capture-resolution mode.
 A warm stream retains its latest complete or started native
 sample, so it uses a fixed queue depth of three and cannot become ready
 until every display has retained a usable frame and then delivered a later,
@@ -57,8 +78,7 @@ snapshot into the private WebKit presentation format.
 `desktop-frame-warm-pool.swift` owns capability-scoped prewarming for the
 authorized DesktopWorld stage. It retains only the broker's latest bounded
 native sample set, freezes on demand, and retires on authorization, consent,
-topology, or stage loss. Stage-window ID churn updates exact freeze authorization
-without restarting the process-excluding native source. Runtime freezes require
+topology, stage-window, or stage loss. Runtime freezes require
 the exact generation-bound pool configuration and never cold-start
 ScreenCaptureKit. The capture controller gets
 ordered consumers and excluded stage windows from one main-thread context
@@ -69,6 +89,16 @@ native retirement is acknowledged. Delegate-observed and explicit
 ScreenCaptureKit terminal states count as retirement. A successful explicit
 stop is latched so repeated cleanup is idempotent; unknown stop failures remain
 fail-closed.
+When the delegate reports a terminal error before native startup returns,
+retain the delegate error as authoritative and do not cancel the task awaiting
+`startCapture()`. Its late completion references the startup coordinator only
+weakly, so a stalled native await cannot retain the broker ownership graph.
+The delegate's terminal callback is also authoritative retirement evidence for
+that stream even while `startCapture()` remains pending; a complete display
+aggregate may settle without waiting for a duplicate native start callback,
+but any stream lacking terminal evidence keeps the aggregate fail-closed.
+Delegate retirement and explicit stop admission are linearized by one lifecycle
+latch; at most one explicit stop may be admitted, and none after retirement.
 `desktop-frame-capture-controller.swift` owns request admission for trusted
 scene extensions. A request is bound to the exact scene revision, canvas and
 topology generation, and current display WebViews. Native

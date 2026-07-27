@@ -8,6 +8,7 @@ import type {
   SceneInteractionDocument,
 } from './scene-interaction.js';
 import type { SceneExtensionReference } from './scene-extension.js';
+import type { DesktopWorldFramebufferProofResult } from './desktop-world-framebuffer-proof.js';
 
 export const DESKTOP_WORLD_SCENE_SESSION_CONTRACT_ID: 'aos.desktop-world.scene-session.snapshot.v1';
 export const DESKTOP_WORLD_SCENE_SESSION_EVENT_NAMES: readonly ['gesture'];
@@ -49,6 +50,7 @@ export type DesktopWorldSceneOperationName =
   | 'suspend'
   | 'resume'
   | 'inspect'
+  | 'prove'
   | 'subscribe'
   | 'unsubscribe'
   | 'remove'
@@ -59,6 +61,7 @@ export type DesktopWorldSceneOperation =
   | { op: 'transact'; transaction: SceneTransaction; lease: SceneLease }
   | { op: 'signal'; signalId: string; value: number; at?: number }
   | { op: 'play'; animationId?: string }
+  | { op: 'prove'; proofId: string; expectedRevision: number }
   | { op: 'subscribe'; events: DesktopWorldSceneSessionEventName[] }
   | { op: 'unsubscribe'; events?: DesktopWorldSceneSessionEventName[] }
   | { op: 'suspend' | 'resume' | 'inspect' | 'remove' | 'close' };
@@ -69,6 +72,7 @@ export interface DesktopWorldSceneOperationResult {
   status: 'ok';
   snapshot?: Readonly<Record<string, unknown>>;
   events?: readonly DesktopWorldSceneSessionEventName[];
+  proof?: Readonly<DesktopWorldFramebufferProofResult>;
 }
 
 export interface DesktopWorldSceneFollowTransport {
@@ -112,6 +116,9 @@ export interface DesktopWorldSceneSession {
   suspend(): Promise<DesktopWorldSceneOperationResult>;
   resume(): Promise<DesktopWorldSceneOperationResult>;
   inspect(): Promise<DesktopWorldSceneOperationResult>;
+  assertFramebuffer(proofId: string): Promise<DesktopWorldSceneOperationResult & {
+    proof: Readonly<DesktopWorldFramebufferProofResult>;
+  }>;
   subscribe(
     eventName: DesktopWorldSceneSessionEventName,
     listener: (event: SceneEventEnvelope) => void,

@@ -300,7 +300,7 @@ final class AOSDesktopWorldSceneTransportController {
             return response(error: "Invalid scene owner or resource", code: "INVALID_SCENE_IDENTITY")
         }
         let allowed = Set([
-            "mount", "transact", "signal", "play", "suspend", "resume", "inspect",
+            "mount", "transact", "signal", "play", "suspend", "resume", "inspect", "prove",
             "remove", "close", "subscribe", "unsubscribe",
         ])
         guard allowed.contains(op) else {

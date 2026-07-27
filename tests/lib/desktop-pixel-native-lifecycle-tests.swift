@@ -7,6 +7,9 @@ final class FakePixelStreamLifecycle: AOSDesktopPixelStreamLifecycle,
     let latch = AOSDesktopPixelRetirementLatch()
     var readiness: Result<Bool, Error> = .success(false)
 
+    func admitExplicitStop() -> AOSDesktopPixelStopAdmission {
+        latch.admitExplicitStop()
+    }
     func confirmRetirement() { latch.observe() }
     func sampleIsReady() throws -> Bool { try readiness.get() }
     func retirementWasObserved() -> Bool { latch.snapshot() }
@@ -126,13 +129,33 @@ func startPixelStreams(
     let result = LockedBoolean()
     let ownedLifecycles = lifecycles
         ?? (0..<count).map { _ in FakePixelStreamLifecycle() }
+    let signals = (0..<count).map { _ in AOSDesktopPixelStartupSignal() }
     Task {
         do {
             try await aosStartDesktopPixelStreams(
+                signals: signals,
                 lifecycles: ownedLifecycles,
                 settlementTimeout: settlementTimeout,
-                start: start,
-                stop: stop
+                start: { index, completion in
+                    Task {
+                        do {
+                            try await start(index)
+                            completion(.success(()))
+                        } catch {
+                            completion(.failure(error))
+                        }
+                    }
+                },
+                stop: { index, completion in
+                    Task {
+                        do {
+                            try await stop(index)
+                            completion(.success(()))
+                        } catch {
+                            completion(.failure(error))
+                        }
+                    }
+                }
             )
             result.set(true)
         } catch {
@@ -184,9 +207,17 @@ func settlePixelRetirement(
     Task {
         let value = await aosSettleDesktopPixelStreamRetirement(
             lifecycle: lifecycle,
-            timeout: timeout,
-            stop: stop
-        )
+            timeout: timeout
+        ) { completion in
+            Task {
+                do {
+                    try await stop()
+                    completion(.success(()))
+                } catch {
+                    completion(.failure(error))
+                }
+            }
+        }
         result.set(value)
         settled.signal()
     }
@@ -207,9 +238,17 @@ func settlePixelRetirements(
     Task {
         let value = await aosSettleDesktopPixelStreamRetirements(
             lifecycles: lifecycles,
-            timeout: timeout,
-            stop: stop
-        )
+            timeout: timeout
+        ) { index, completion in
+            Task {
+                do {
+                    try await stop(index)
+                    completion(.success(()))
+                } catch {
+                    completion(.failure(error))
+                }
+            }
+        }
         result.set(value)
         settled.signal()
     }
@@ -225,24 +264,100 @@ func runDesktopPixelNativeLifecycleTests() async throws {
         AOSDesktopPixelWarmStreamProfile.queueDepth == 3,
         "warm stream profile lost its bounded producer depth"
     )
-    let scaledProfile = AOSDesktopPixelWarmStreamProfile(
+    guard let scaledProfile = AOSDesktopPixelWarmStreamProfile(
         sourceWidth: 2_560,
         sourceHeight: 1_440,
         maximumPixels: AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay
+    ) else {
+        require(false, "ordinary warm stream profile was rejected")
+        return
+    }
+    require(
+        scaledProfile.width == 1_364 && scaledProfile.height == 768,
+        "warm stream profile did not preserve aligned dimensions within the runtime budget"
+    )
+    guard let consentProfile = AOSDesktopPixelWarmStreamProfile(
+        sourceWidth: 1_920,
+        sourceHeight: 1_080,
+        maximumPixels: AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay
+    ) else {
+        require(false, "ordinary consent stream profile was rejected")
+        return
+    }
+    require(
+        consentProfile.width == 1_364 && consentProfile.height == 768,
+        "consent stream profile did not align the scaled IOSurface"
     )
     require(
-        scaledProfile.width == 1_365 && scaledProfile.height == 768,
-        "warm stream profile did not preserve aspect ratio within the runtime budget"
+        consentProfile.width * consentProfile.height
+            <= AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay,
+        "aligned consent stream profile exceeded its pixel budget"
     )
-    let boundedProfile = AOSDesktopPixelWarmStreamProfile(
+    guard let boundedProfile = AOSDesktopPixelWarmStreamProfile(
         sourceWidth: 64,
         sourceHeight: 64,
         maximumPixels: AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay
-    )
+    ) else {
+        require(false, "bounded warm stream profile was rejected")
+        return
+    }
     require(
         boundedProfile.width == 64 && boundedProfile.height == 64,
         "warm stream profile upscaled a bounded source"
     )
+    guard let oddSourceProfile = AOSDesktopPixelWarmStreamProfile(
+        sourceWidth: 65,
+        sourceHeight: 63,
+        maximumPixels: 65 * 63
+    ) else {
+        require(false, "odd-sized source profile was rejected")
+        return
+    }
+    require(
+        oddSourceProfile.width == 64 && oddSourceProfile.height == 62,
+        "odd-sized source profile did not round down to even dimensions"
+    )
+    require(
+        oddSourceProfile.width * oddSourceProfile.height <= 65 * 63,
+        "odd-sized source profile exceeded its pixel budget"
+    )
+    let sourceAspect = 65.0 / 63.0
+    let outputAspect = Double(oddSourceProfile.width) / Double(oddSourceProfile.height)
+    require(
+        abs(sourceAspect - outputAspect) < 0.001,
+        "odd-sized source profile exceeded the bounded aspect error"
+    )
+    require(
+        AOSDesktopPixelWarmStreamProfile(
+            sourceWidth: 1_920,
+            sourceHeight: 1_080,
+            maximumPixels: 1
+        ) == nil,
+        "one-pixel budget produced an invalid warm stream surface"
+    )
+    require(
+        AOSDesktopPixelWarmStreamProfile(
+            sourceWidth: 10_000,
+            sourceHeight: 2,
+            maximumPixels: 4_096
+        ) == nil,
+        "extreme aspect ratio produced a one-pixel warm stream axis"
+    )
+    require(
+        aosDesktopPixelNativeTraceCode(for: NSError(
+            domain: SCStreamErrorDomain,
+            code: SCStreamError.Code.invalidParameter.rawValue
+        )) == "scstream_-3812",
+        "native trace code did not retain the content-free SCStream error identity"
+    )
+    require(
+        aosDesktopPixelNativeTraceCode(for: NSError(
+            domain: "io.agent-os.tests",
+            code: 1
+        )) == "native_other",
+        "native trace code exposed an unrelated error identity"
+    )
+    try await runDesktopPixelTerminalStartupTests()
     var frameAdvancement = AOSDesktopPixelFrameAdvancement()
     let firstFrameTime = CMTime(value: 1, timescale: 30)
     let secondFrameTime = CMTime(value: 2, timescale: 30)
@@ -465,15 +580,20 @@ func runDesktopPixelNativeLifecycleTests() async throws {
     let failedOnlyStopCalls = LockedCounter()
     let failedOnlySettled = DispatchSemaphore(value: 0)
     let failedOnlyPreservedError = LockedBoolean()
+    let failedOnlySignal = AOSDesktopPixelStartupSignal()
     Task {
         do {
             try await aosStartDesktopPixelStreams(
+                signals: [failedOnlySignal],
                 lifecycles: [failedOnlyLifecycle],
                 settlementTimeout: 0.1,
-                start: { _ in
-                    throw AOSDesktopFrameCaptureFailure.captureFailed
+                start: { _, completion in
+                    completion(.failure(AOSDesktopFrameCaptureFailure.captureFailed))
                 },
-                stop: { _ in failedOnlyStopCalls.increment() }
+                stop: { _, completion in
+                    failedOnlyStopCalls.increment()
+                    completion(.success(()))
+                }
             )
         } catch let failure as AOSDesktopFrameCaptureFailure {
             failedOnlyPreservedError.set(failure == .captureFailed)
@@ -498,47 +618,6 @@ func runDesktopPixelNativeLifecycleTests() async throws {
             timeout: 0.1
         ),
         "caller cancellation defeated bounded startup compensation"
-    )
-
-    let callerCancellationLifecycle = FakePixelStreamLifecycle()
-    let callerCancellationGate = PixelOperationGate()
-    let callerCancellationStartEntered = DispatchSemaphore(value: 0)
-    let callerCancellationStopEntered = DispatchSemaphore(value: 0)
-    let callerCancellationSettled = DispatchSemaphore(value: 0)
-    let callerCancellationResult = LockedBoolean()
-    let callerCancellationTask = Task {
-        do {
-            try await aosStartDesktopPixelStreams(
-                lifecycles: [callerCancellationLifecycle],
-                settlementTimeout: 0.2,
-                start: { _ in
-                    callerCancellationStartEntered.signal()
-                    await callerCancellationGate.wait()
-                },
-                stop: { _ in callerCancellationStopEntered.signal() }
-            )
-            callerCancellationResult.set(true)
-        } catch {
-            callerCancellationResult.set(false)
-        }
-        callerCancellationSettled.signal()
-    }
-    require(
-        callerCancellationStartEntered.wait(timeout: .now() + 1) == .success,
-        "caller-cancellation fixture did not enter native startup"
-    )
-    callerCancellationTask.cancel()
-    require(
-        callerCancellationStopEntered.wait(timeout: .now() + 0.02) == .timedOut,
-        "caller cancellation raced stop against pending native startup"
-    )
-    Task { await callerCancellationGate.open() }
-    require(
-        callerCancellationSettled.wait(timeout: .now() + 1) == .success
-            && !callerCancellationResult.get()
-            && callerCancellationStopEntered.wait(timeout: .now()) == .success
-            && callerCancellationLifecycle.retirementWasObserved(),
-        "caller cancellation did not retire once after native startup settled"
     )
 
     let stalledLifecycles = [
@@ -631,7 +710,8 @@ func runDesktopPixelNativeLifecycleTests() async throws {
         FakePixelStreamLifecycle(),
     ]
     let delegateStopEntered = DispatchSemaphore(value: 0)
-    let delegateStopCanceled = DispatchSemaphore(value: 0)
+    let delegateStopRelease = PixelOperationGate()
+    let delegateStopFinished = DispatchSemaphore(value: 0)
     DispatchQueue.global(qos: .utility).async {
         _ = delegateStopEntered.wait(timeout: .now() + 1)
         delegateRetirementLifecycles[0].confirmRetirement()
@@ -644,8 +724,8 @@ func runDesktopPixelNativeLifecycleTests() async throws {
             stop: { index in
                 guard index == 0 else { return }
                 delegateStopEntered.signal()
-                while !Task.isCancelled { await Task.yield() }
-                delegateStopCanceled.signal()
+                await delegateStopRelease.wait()
+                delegateStopFinished.signal()
             }
         ) { index in
             if index == 1 {
@@ -655,8 +735,13 @@ func runDesktopPixelNativeLifecycleTests() async throws {
         "delegate-first startup retirement unexpectedly succeeded"
     )
     require(
-        delegateStopCanceled.wait(timeout: .now()) == .success,
-        "native retirement did not cancel and join its pending stop task"
+        delegateStopFinished.wait(timeout: .now()) == .timedOut,
+        "delegate retirement waited for the native stop callback"
+    )
+    Task { await delegateStopRelease.open() }
+    require(
+        delegateStopFinished.wait(timeout: .now() + 1) == .success,
+        "late native stop callback did not retain its owner"
     )
 
     let startupHungStopLifecycles = [
@@ -666,16 +751,16 @@ func runDesktopPixelNativeLifecycleTests() async throws {
     let startupHungStopEntered = DispatchSemaphore(value: 0)
     let startupHungStopRelease = PixelOperationGate()
     let startupHungStopFinished = DispatchSemaphore(value: 0)
-    let canceledStartupHungStops = LockedCounter()
+    let startupHungStopCalls = LockedCounter()
     require(
         !startPixelStreams(
             count: startupHungStopLifecycles.count,
             settlementTimeout: 0.05,
             lifecycles: startupHungStopLifecycles,
             stop: { _ in
+                startupHungStopCalls.increment()
                 startupHungStopEntered.signal()
                 await startupHungStopRelease.wait()
-                if Task.isCancelled { canceledStartupHungStops.increment() }
                 startupHungStopFinished.signal()
             }
         ) { index in
@@ -694,8 +779,8 @@ func runDesktopPixelNativeLifecycleTests() async throws {
     require(
         startupHungStopFinished.wait(timeout: .now() + 1) == .success
             && startupHungStopFinished.wait(timeout: .now()) == .timedOut
-            && canceledStartupHungStops.get() == 1,
-        "retirement timeout did not cancel the tracked successful-stream stop"
+            && startupHungStopCalls.get() == 1,
+        "late native stop callback lost ownership or executed twice"
     )
 
     let startupLifecycles = [
@@ -820,27 +905,25 @@ func runDesktopPixelNativeLifecycleTests() async throws {
 
     let hungStopLifecycle = FakePixelStreamLifecycle()
     let hungStopEntered = DispatchSemaphore(value: 0)
-    let hungStopCanceled = DispatchSemaphore(value: 0)
+    let hungStopRelease = PixelOperationGate()
+    let hungStopFinished = DispatchSemaphore(value: 0)
     let hungStopResult = settlePixelRetirement(
         lifecycle: hungStopLifecycle,
         timeout: 0.02
     ) {
         hungStopEntered.signal()
-        do {
-            try await Task.sleep(nanoseconds: 60_000_000_000)
-        } catch is CancellationError {
-            hungStopCanceled.signal()
-            throw CancellationError()
-        }
+        await hungStopRelease.wait()
+        hungStopFinished.signal()
     }
     require(
         hungStopEntered.wait(timeout: .now()) == .success,
         "hung stop operation was not started"
     )
     require(!hungStopResult, "hung stop operation escaped the retirement deadline")
+    Task { await hungStopRelease.open() }
     require(
-        hungStopCanceled.wait(timeout: .now() + 1) == .success,
-        "retirement deadline did not cancel the hung stop operation"
+        hungStopFinished.wait(timeout: .now() + 1) == .success,
+        "late native stop result lost its operation owner"
     )
 
     let firstDisplay = FakePixelStreamLifecycle()

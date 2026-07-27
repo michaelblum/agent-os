@@ -138,7 +138,8 @@ class UnifiedDaemon {
         strategy: .prewarmedSnapshot
     )
     private lazy var desktopFrameCaptureConsent = AOSDesktopFrameCaptureConsentController(
-        capturer: desktopFrameProbeCapturer
+        capturer: desktopFrameProbeCapturer,
+        preflightPermission: { CGPreflightScreenCaptureAccess() }
     )
     private lazy var desktopFrameCapture = AOSDesktopFrameCaptureController(
         canvasManager: canvasManager,

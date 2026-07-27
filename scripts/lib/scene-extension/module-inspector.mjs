@@ -78,7 +78,10 @@ export function serializeSceneExtensionWrapperModule(manifest, bodySource) {
   const capabilityFreeze = Object.hasOwn(manifest, 'capabilities')
     ? 'Object.freeze(manifest.capabilities);\n'
     : ''
-  return Buffer.from(`const createProjection = Function("context", ${JSON.stringify(strictBody)});\nconst manifest = ${sortedJson(manifest)};\nObject.freeze(manifest.implementationIds);\n${capabilityFreeze}Object.freeze(manifest.budgets);\nObject.freeze(manifest);\nexport default Object.freeze({ manifest, createProjection });\n`)
+  const framebufferProofFreeze = Object.hasOwn(manifest, 'framebufferProofs')
+    ? 'for (const proof of manifest.framebufferProofs) { Object.freeze(proof.uvPermille); Object.freeze(proof.sampleSize); Object.freeze(proof.rgbaMin); Object.freeze(proof.rgbaMax); Object.freeze(proof.matchingPixels); Object.freeze(proof); }\nObject.freeze(manifest.framebufferProofs);\n'
+    : ''
+  return Buffer.from(`const createProjection = Function("context", ${JSON.stringify(strictBody)});\nconst manifest = ${sortedJson(manifest)};\nObject.freeze(manifest.implementationIds);\n${capabilityFreeze}${framebufferProofFreeze}Object.freeze(manifest.budgets);\nObject.freeze(manifest);\nexport default Object.freeze({ manifest, createProjection });\n`)
 }
 
 class FactoryBodyCompiler {

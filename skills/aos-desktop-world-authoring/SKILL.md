@@ -61,7 +61,8 @@ Use `createDesktopWorldSceneSession()` from
 discovers a runtime path, or starts a daemon.
 
 The session exposes `open`, `mount`, `transact`, `signal`, `play`, `suspend`,
-`resume`, `inspect`, `subscribe`, `remove`, `close`, and `snapshot`. It
+`resume`, `inspect`, `assertFramebuffer`, `subscribe`, `remove`, `close`, and
+`snapshot`. It
 serializes operations, commits state only after the authoritative all-display
 result, ignores prior-generation events, and closes idempotently.
 
@@ -75,6 +76,14 @@ node packages/toolkit/scene/examples/session-lifecycle.mjs \
 That example mounts, subscribes, transacts, signals, plays, inspects, replays,
 forces one disconnect, remounts canonical state once, rejects a stale event,
 does not replay the uncertain operation, and releases the lease.
+
+For a trusted-extension visual assertion, declare a bounded
+`framebufferProofs` descriptor in the reviewed extension and call
+`session.assertFramebuffer("surface-visible")`. The name selects a
+digest-bound predicate; never accept runtime coordinates, colors, thresholds,
+or arbitrary pixel reads. This proves the current WebGL framebuffer and returns
+content-free aggregate facts only. Temporary marker art belongs to the
+consumer's fixture and must be removed when that fixture is no longer needed.
 
 Recovery is intentionally narrow. One recoverable transport or stage loss may
 reconnect and restore the last committed document, subscriptions, and

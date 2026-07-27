@@ -15,6 +15,10 @@ const streamLifecycleSource = path.join(
   repoRoot,
   'src/daemon/desktop-pixel-stream-lifecycle.swift',
 )
+const retirementSource = path.join(
+  repoRoot,
+  'src/daemon/desktop-pixel-retirement.swift',
+)
 const nativePixelSource = path.join(repoRoot, 'src/daemon/desktop-pixel-native.swift')
 const warmPoolSource = path.join(repoRoot, 'src/daemon/desktop-frame-warm-pool.swift')
 const captureAdapterSource = path.join(repoRoot, 'src/daemon/desktop-frame-capture-adapter.swift')
@@ -28,6 +32,14 @@ const warmPoolTestsSource = path.join(
 const nativeLifecycleTestsSource = path.join(
   repoRoot,
   'tests/lib/desktop-pixel-native-lifecycle-tests.swift',
+)
+const terminalStartupTestsSource = path.join(
+  repoRoot,
+  'tests/lib/desktop-pixel-terminal-startup-tests.swift',
+)
+const startupCallbackTestsSource = path.join(
+  repoRoot,
+  'tests/lib/desktop-pixel-startup-callback-tests.swift',
 )
 const warmOpenOperationTestsSource = path.join(
   repoRoot,
@@ -231,6 +243,7 @@ struct DesktopFrameProof {
     static func main() async throws {
         let owner = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
         try runDesktopPixelWarmOpenOperationTests()
+        try await runDesktopPixelStartupCallbackTests()
         try await runDesktopPixelNativeLifecycleTests()
         try runDesktopPixelBrokerTests()
         try runDesktopFrameWarmPoolTests()
@@ -337,6 +350,31 @@ struct DesktopFrameProof {
         require(permissionRequests == 1, "explicit prime did not request permission")
         require(permissionDeniedCode == "DESKTOP_FRAME_PERMISSION_DENIED", "permission denial was misclassified")
         require(permissionDeniedCapturer.captureCount == 0, "permission denial invoked capture")
+
+        let preflightCapturer = FakeCapturer()
+        var preflightPermissionRequests = 0
+        let preflightConsent = AOSDesktopFrameCaptureConsentController(
+            capturer: preflightCapturer,
+            mainDisplayID: { 42 },
+            preflightPermission: { true },
+            requestPermission: { _ in
+                preflightPermissionRequests += 1
+                return AOSDesktopFrameCancellation()
+            },
+            scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
+        )
+        var preflightStatus: String?
+        preflightConsent.prime(owner: owner) {
+            preflightStatus = $0.status.rawValue
+        }
+        require(preflightStatus == "ready", "existing permission did not proceed directly to probe")
+        require(preflightPermissionRequests == 0, "existing permission was requested again")
+        require(preflightCapturer.captureCount == 1, "existing permission did not probe exactly once")
+        require(
+            preflightCapturer.maximumPixels
+                == AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay,
+            "permission prime did not use the runtime warm-stream profile"
+        )
 
         let permissionTimeoutCapturer = FakeCapturer()
         var permissionTimeoutActions: [() -> Void] = []
@@ -895,6 +933,11 @@ struct DesktopFrameProof {
                 == AOSDesktopFrameCaptureConsentController.probeMaximumPixels,
             "consent did not retain its bounded native probe budget"
         )
+        require(
+            AOSDesktopFrameCaptureConsentController.probeMaximumPixels
+                == AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay,
+            "consent probe diverged from the interactive warm-stream profile"
+        )
         let controller = AOSDesktopFrameCaptureController(
             canvasManager: canvas,
             store: store,
@@ -1165,6 +1208,7 @@ struct DesktopFrameProof {
     storeSource,
     consentContractSource,
     brokerSource,
+    retirementSource,
     streamLifecycleSource,
     nativePixelSource,
     warmPoolSource,
@@ -1173,6 +1217,8 @@ struct DesktopFrameProof {
     controllerSource,
     responseEnvelopeSource,
     nativeLifecycleTestsSource,
+    terminalStartupTestsSource,
+    startupCallbackTestsSource,
     warmOpenOperationTestsSource,
     brokerTestsSource,
     warmPoolTestsSource,

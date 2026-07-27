@@ -147,6 +147,14 @@ stage internals.
   DevTools, diagnostics, and product processes remain pixel-free.
   Consumer extensions own distortion, blur, redaction, masking, and other
   visual recipes. A capture backend change must not widen this lease.
+- Framebuffer proofs are optional digest-bound trusted-extension predicates
+  evaluated only through the mounted resource's owning scene session. Callers
+  select a named proof but cannot supply coordinates, colors, thresholds, or
+  another resource identity. Each segment performs one bounded readback and
+  the all-segment barrier returns content-free aggregate facts. A mismatch is a
+  normal failed assertion; context loss, throttling, stale authority, or GPU
+  readback failure is an operation error. Fixture markers and product visuals
+  remain in the consumer repository and never become AOS rendering vocabulary.
 
 ## Verification
 

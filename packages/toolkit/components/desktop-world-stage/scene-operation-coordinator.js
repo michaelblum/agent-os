@@ -288,6 +288,20 @@ export function createDesktopWorldSceneOperationCoordinator({ outlet, interactio
     const op = operationName(message)
     if (op === 'mount' || op === 'transact') return replace(message, op)
     if (op === 'play') return play(message, key)
+    if (op === 'prove') {
+      if (typeof outlet.proveFramebuffer !== 'function') {
+        throw new TypeError('DesktopWorld framebuffer proof is unavailable.')
+      }
+      return {
+        applied: true,
+        op,
+        proof: outlet.proveFramebuffer(key, {
+          expectedDigest: payload.operation?.expectedExtensionDigest,
+          expectedRevision: payload.operation?.expectedRevision,
+          proofId: payload.operation?.proofId,
+        }),
+      }
+    }
 
     const previousOutlet = outlet.configuration(key)
     const previous = {

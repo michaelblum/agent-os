@@ -78,6 +78,17 @@ function reference(overrides = {}) {
   }
 }
 
+function framebufferProof() {
+  return {
+    id: 'capture-overlay-visible',
+    matchingPixels: [4, 256],
+    rgbaMax: [40, 255, 40, 255],
+    rgbaMin: [0, 220, 0, 220],
+    sampleSize: [16, 16],
+    uvPermille: [500, 500],
+  }
+}
+
 function projectionObject() {
   const child = {
     name: 'companion/main',
@@ -133,6 +144,24 @@ test('DesktopWorld selects an exact owner-matched extension projection', () => {
   assert.deepEqual(result.projection.objectPosition('companion/main'), [0, 0, 0])
   assert.equal(result.projection.setObjectPosition('companion/main', [90, 40, 2]), true)
   assert.deepEqual(result.projection.objectPosition('companion/main'), [90, 40, 2])
+})
+
+test('DesktopWorld resolves only digest-bound named framebuffer proof descriptors', () => {
+  const proof = framebufferProof()
+  const capabilities = ['aos.scene.framebuffer_proof']
+  const extension = factory({ capabilities, framebufferProofs: [proof] })
+  const registry = createTrustedSceneExtensionRegistry({ factories: [extension] })
+  const result = createDesktopWorldSceneProjection({
+    THREE: { REVISION: SCENE_EXTENSION_THREE_REVISION },
+    document: scene(),
+    expectedOwner: ownerId,
+    extensionReference: reference({ capabilities, framebufferProofs: [proof] }),
+    extensionRegistry: registry,
+  })
+
+  assert.deepEqual(result.projection.framebufferProofDescriptor(proof.id), proof)
+  assert.equal(result.projection.framebufferProofDescriptor('other-proof'), null)
+  result.projection.dispose()
 })
 
 test('DesktopWorld grants and disposes a desktop-frame source only for an explicit extension capability', () => {

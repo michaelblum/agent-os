@@ -277,8 +277,9 @@
         "src/daemon/desktop-frame-capture-controller.swift",
         "src/daemon/desktop-frame-warm-pool.swift",
         "src/daemon/desktop-pixel-broker.swift",
-        "src/daemon/desktop-pixel-stream-lifecycle.swift",
         "src/daemon/desktop-pixel-native.swift",
+        "src/daemon/desktop-pixel-retirement.swift",
+        "src/daemon/desktop-pixel-stream-lifecycle.swift",
         "src/daemon/scene-event.swift",
         "src/daemon/scene-lease-registry.swift",
         "src/daemon/unified.swift",
@@ -287,6 +288,7 @@
         "src/display/desktop-frame-texture.swift",
         "src/display/scene-extension-store.swift",
         "src/shared/desktop-frame-capture-consent-contract.swift",
+        "src/shared/scene-extension-identifier.swift",
         "scripts/aos-scene.mjs",
         "scripts/lib/aos-scene-*.mjs",
         "scripts/lib/scene-extension/module-inspector.mjs",
@@ -294,6 +296,8 @@
         "manifests/commands/source/external/47-scene.json",
         "docs/api/toolkit/scene*.md",
         "tests/scene-*.test.mjs",
+        "tests/fixtures/desktop-world-framebuffer-proof-identifiers.json",
+        "tests/desktop-world-scene-*.test.mjs",
         "tests/desktop-world-scene-event-routing.test.mjs",
         "tests/desktop-world-scene-result-coordinator.test.mjs",
         "tests/desktop-frame-texture-native.test.mjs",
@@ -301,6 +305,8 @@
         "tests/lib/desktop-frame-warm-pool-tests.swift",
         "tests/lib/desktop-pixel-broker-tests.swift",
         "tests/lib/desktop-pixel-native-lifecycle-tests.swift",
+        "tests/lib/desktop-pixel-terminal-startup-tests.swift",
+        "tests/lib/desktop-pixel-startup-callback-tests.swift",
         "tests/lib/desktop-pixel-warm-open-operation-tests.swift",
         "tests/aos-permissions-microphone-authority.test.mjs",
         "tests/daemon-desktop-world-devtools-contract.test.mjs",
@@ -327,7 +333,7 @@
         },
         {
           "id": "scene-daemon-contract",
-          "command": "node --test tests/desktop-world-scene-event-routing.test.mjs tests/desktop-world-scene-result-coordinator.test.mjs tests/daemon-desktop-world-devtools-contract.test.mjs tests/scene-follow-cli.test.mjs",
+          "command": "node --test tests/desktop-world-scene-event-routing.test.mjs tests/desktop-world-scene-framebuffer-proof-result.test.mjs tests/desktop-world-scene-native-orchestration.test.mjs tests/desktop-world-scene-result-coordinator.test.mjs tests/desktop-world-scene-stage-readiness.test.mjs tests/daemon-desktop-world-devtools-contract.test.mjs tests/scene-follow-cli.test.mjs",
           "reason": "Verify canonical event routing diagnostics, the daemon scene lifecycle aggregate, all-segment barrier ownership, DevTools delegation, and bounded follow transport."
         },
         {
@@ -352,7 +358,7 @@
         },
         {
           "id": "scene-extension-contract",
-          "command": "node --test tests/toolkit/scene-extension.test.mjs tests/toolkit/desktop-frame-texture-source.test.mjs tests/toolkit/desktop-world-scene-extension-loader.test.mjs tests/toolkit/desktop-world-scene-extension-operation.test.mjs tests/toolkit/desktop-world-scene-extension-projection.test.mjs tests/desktop-frame-texture-native.test.mjs tests/desktop-pixel-broker-contract.test.mjs tests/scene-extension-cli.test.mjs tests/scene-extension-native-store.test.mjs",
+          "command": "node --test tests/toolkit/scene-extension.test.mjs tests/toolkit/desktop-frame-texture-source.test.mjs tests/toolkit/desktop-world-framebuffer-proof.test.mjs tests/toolkit/desktop-world-scene-extension-loader.test.mjs tests/toolkit/desktop-world-scene-extension-operation.test.mjs tests/toolkit/desktop-world-scene-extension-projection.test.mjs tests/desktop-frame-texture-native.test.mjs tests/desktop-pixel-broker-contract.test.mjs tests/scene-extension-cli.test.mjs tests/scene-extension-identifier-native.test.mjs tests/scene-extension-native-store.test.mjs",
           "reason": "Verify reviewed extension identity, validation, loading, operation, projection, immutable storage, and disposal."
         },
         {

@@ -65,6 +65,7 @@ private struct AOSDesktopWorldSceneCapabilityAuthorization: Equatable {
     let capabilities: Set<String>
     let digest: String
     let extensionID: String
+    let framebufferProofIDs: Set<String>
     let ownerID: String
     let resourceRevision: Int
     let sceneABI: String
@@ -75,6 +76,7 @@ private struct AOSDesktopWorldSceneCapabilityAuthorization: Equatable {
             capabilities: capabilities,
             digest: digest,
             extensionID: extensionID,
+            framebufferProofIDs: framebufferProofIDs,
             ownerID: ownerID,
             resourceRevision: revision,
             sceneABI: sceneABI,
@@ -415,6 +417,19 @@ final class AOSDesktopWorldSceneController {
         } else {
             transactionRevision = nil
         }
+        let proofRequest: (revision: Int, id: String)?
+        if operationName == "prove" {
+            guard Set(operation.keys) == Set(["expectedRevision", "op", "proofId"]),
+                  let proofID = operation["proofId"] as? String,
+                  aosSceneExtensionIdentifierIsCanonical(proofID),
+                  let expectedRevision = operation["expectedRevision"] as? Int,
+                  expectedRevision >= 0 else {
+                return .stageUnavailable
+            }
+            proofRequest = (expectedRevision, proofID)
+        } else {
+            proofRequest = nil
+        }
         return withLock {
             guard retirement == nil,
                   readiness.isReady(for: topology.identity) else { return .stageUnavailable }
@@ -422,6 +437,16 @@ final class AOSDesktopWorldSceneController {
                let authorization = resourceAuthorizations[key],
                authorization.resourceRevision != transactionRevision.expected {
                 return .stageUnavailable
+            }
+            var admittedOperation = operation
+            if let proofRequest {
+                guard let authorization = resourceAuthorizations[key],
+                      authorization.resourceRevision == proofRequest.revision,
+                      authorization.capabilities.contains("aos.scene.framebuffer_proof"),
+                      authorization.framebufferProofIDs.contains(proofRequest.id) else {
+                    return .stageUnavailable
+                }
+                admittedOperation["expectedExtensionDigest"] = authorization.digest
             }
             let acquisition = leases.acquire(key: key, connectionID: connectionID, ref: ref)
             guard case .acquired(let token, let isNewLease) = acquisition else { return .leaseBusy }
@@ -431,7 +456,7 @@ final class AOSDesktopWorldSceneController {
                 leaseKey: key,
                 owner: owner,
                 operation: operationName,
-                operationPayload: operation,
+                operationPayload: admittedOperation,
                 resource: resource,
                 canvasGeneration: topology.identity.canvasGeneration,
                 topologyGeneration: topology.identity.topologyGeneration,
@@ -468,13 +493,16 @@ final class AOSDesktopWorldSceneController {
         _ value: [String: Any]
     ) -> AOSDesktopWorldSceneCapabilityAuthorization? {
         let expected = Set([
-            "capabilities", "digest", "extensionId", "ownerId",
+            "capabilities", "digest", "extensionId", "framebufferProofIds", "ownerId",
             "resourceRevision", "sceneAbi", "threeRevision",
         ])
         guard Set(value.keys) == expected,
               let capabilities = value["capabilities"] as? [String],
               let digest = value["digest"] as? String,
               let extensionID = value["extensionId"] as? String,
+              let framebufferProofIDs = value["framebufferProofIds"] as? [String],
+              Set(framebufferProofIDs).count == framebufferProofIDs.count,
+              framebufferProofIDs.allSatisfy(aosSceneExtensionIdentifierIsCanonical),
               let ownerID = value["ownerId"] as? String,
               let resourceRevision = value["resourceRevision"] as? Int,
               resourceRevision >= 0,
@@ -486,6 +514,7 @@ final class AOSDesktopWorldSceneController {
             capabilities: Set(capabilities),
             digest: digest,
             extensionID: extensionID,
+            framebufferProofIDs: Set(framebufferProofIDs),
             ownerID: ownerID,
             resourceRevision: resourceRevision,
             sceneABI: sceneABI,

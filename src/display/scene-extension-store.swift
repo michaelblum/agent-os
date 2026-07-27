@@ -73,11 +73,14 @@ struct AOSSceneExtensionArtifact {
         let capabilityFreeze = manifest["capabilities"] == nil
             ? ""
             : "Object.freeze(manifest.capabilities);\n"
+        let framebufferProofFreeze = manifest["framebufferProofs"] == nil
+            ? ""
+            : "for (const proof of manifest.framebufferProofs) { Object.freeze(proof.uvPermille); Object.freeze(proof.sampleSize); Object.freeze(proof.rgbaMin); Object.freeze(proof.rgbaMax); Object.freeze(proof.matchingPixels); Object.freeze(proof); }\nObject.freeze(manifest.framebufferProofs);\n"
         let source = """
         const createProjection = Function("context", \(bodyLiteral));
         const manifest = \(manifestJSON);
         Object.freeze(manifest.implementationIds);
-        \(capabilityFreeze)Object.freeze(manifest.budgets);
+        \(capabilityFreeze)\(framebufferProofFreeze)Object.freeze(manifest.budgets);
         Object.freeze(manifest);
         export default Object.freeze({ manifest, createProjection });
 
@@ -95,11 +98,15 @@ final class AOSSceneExtensionStore {
     static let schemaVersion = 1
 
     private static let manifestKeys = Set([
-        "budgets", "capabilities", "contract", "digest", "id", "implementationIds",
+        "budgets", "capabilities", "contract", "digest", "framebufferProofs", "id", "implementationIds",
         "ownerId", "sceneAbi", "schemaVersion", "threeRevision",
     ])
-    private static let requiredManifestKeys = manifestKeys.subtracting(["capabilities"])
-    private static let supportedCapabilities = Set(["aos.scene.desktop_frame_texture"])
+    private static let requiredManifestKeys = manifestKeys.subtracting([
+        "capabilities", "framebufferProofs",
+    ])
+    private static let supportedCapabilities = Set([
+        "aos.scene.desktop_frame_texture", "aos.scene.framebuffer_proof",
+    ])
     private static let budgetKeys = [
         "maxDrawCalls", "maxObjects", "maxResources", "maxTextureBytes",
         "maxTriangles", "maxWorkingBytes",
@@ -135,19 +142,6 @@ final class AOSSceneExtensionStore {
         }
     }
 
-    static func isCanonicalImplementationID(_ value: String) -> Bool {
-        let bytes = Array(value.utf8)
-        guard !bytes.isEmpty, bytes.count <= 128,
-              isLowerAlphanumeric(bytes[0]),
-              isLowerAlphanumeric(bytes[bytes.count - 1]) else { return false }
-        guard bytes.allSatisfy({
-            isLowerAlphanumeric($0) || $0 == 0x2e || $0 == 0x5f || $0 == 0x2d || $0 == 0x2f
-        }) else { return false }
-        return !value.contains("//") && !value.split(separator: "/", omittingEmptySubsequences: false).contains {
-            $0.isEmpty || $0 == "." || $0 == ".."
-        }
-    }
-
     static func isSHA256(_ value: String) -> Bool {
         value.utf8.count == 64 && value.utf8.allSatisfy {
             ($0 >= 0x30 && $0 <= 0x39) || ($0 >= 0x61 && $0 <= 0x66)
@@ -166,6 +160,7 @@ final class AOSSceneExtensionStore {
         manifest: [String: Any],
         implementationIDs: [String],
         capabilities: [String],
+        framebufferProofs: [[String: Any]],
         budgets: [String: Int],
         bodyDigest: String
     ) throws -> Data {
@@ -191,6 +186,27 @@ final class AOSSceneExtensionStore {
         if !capabilities.isEmpty {
             lines.append("capabilityCount:\(capabilities.count)")
             lines.append(contentsOf: capabilities.map { "capability:\($0)" })
+        }
+        if !framebufferProofs.isEmpty {
+            lines.append("framebufferProofCount:\(framebufferProofs.count)")
+            for proof in framebufferProofs {
+                guard let id = proof["id"] as? String,
+                      let uvPermille = proof["uvPermille"] as? [Int],
+                      let sampleSize = proof["sampleSize"] as? [Int],
+                      let rgbaMin = proof["rgbaMin"] as? [Int],
+                      let rgbaMax = proof["rgbaMax"] as? [Int],
+                      let matchingPixels = proof["matchingPixels"] as? [Int] else {
+                    throw AOSSceneExtensionStoreFailure(code: "SCENE_EXTENSION_MANIFEST_INVALID")
+                }
+                lines.append([
+                    "framebufferProof", id,
+                    uvPermille.map(String.init).joined(separator: ","),
+                    sampleSize.map(String.init).joined(separator: ","),
+                    rgbaMin.map(String.init).joined(separator: ","),
+                    rgbaMax.map(String.init).joined(separator: ","),
+                    matchingPixels.map(String.init).joined(separator: ","),
+                ].joined(separator: ":"))
+            }
         }
         for key in budgetKeys {
             guard let value = budgets[key] else {
@@ -265,6 +281,7 @@ final class AOSSceneExtensionStore {
         reference: AOSSceneExtensionReference,
         implementationIDs: [String],
         capabilities: [String],
+        framebufferProofs: [[String: Any]],
         budgets: [String: Int]
     ) {
         guard let object = try? JSONSerialization.jsonObject(with: data),
@@ -287,7 +304,7 @@ final class AOSSceneExtensionStore {
               implementationIDs == implementationIDs.sorted(),
               Set(implementationIDs).count == implementationIDs.count,
               implementationIDs.allSatisfy({
-                  isCanonicalImplementationID($0) && $0.hasPrefix("\(ownerID).")
+                  aosSceneExtensionIdentifierIsCanonical($0) && $0.hasPrefix("\(ownerID).")
               }),
               Set(budgetObject.keys) == Set(budgetKeys) else {
             throw AOSSceneExtensionStoreFailure(code: "SCENE_EXTENSION_MANIFEST_INVALID")
@@ -306,6 +323,49 @@ final class AOSSceneExtensionStore {
               Set(capabilities).isSubset(of: supportedCapabilities) else {
             throw AOSSceneExtensionStoreFailure(code: "SCENE_EXTENSION_MANIFEST_INVALID")
         }
+        let framebufferProofs: [[String: Any]]
+        if let rawProofs = manifest["framebufferProofs"] {
+            guard let values = rawProofs as? [[String: Any]],
+                  !values.isEmpty,
+                  values.count <= 4,
+                  capabilities.contains("aos.scene.framebuffer_proof") else {
+                throw AOSSceneExtensionStoreFailure(code: "SCENE_EXTENSION_MANIFEST_INVALID")
+            }
+            var previousID: String?
+            for proof in values {
+                guard Set(proof.keys) == Set([
+                    "id", "matchingPixels", "rgbaMax", "rgbaMin", "sampleSize", "uvPermille",
+                ]),
+                let id = proof["id"] as? String,
+                aosSceneExtensionIdentifierIsCanonical(id),
+                previousID.map({ $0 < id }) ?? true,
+                let uvPermille = proof["uvPermille"] as? [Int],
+                uvPermille.count == 2,
+                uvPermille.allSatisfy({ $0 >= 0 && $0 <= 1_000 }),
+                let sampleSize = proof["sampleSize"] as? [Int],
+                sampleSize.count == 2,
+                sampleSize.allSatisfy({ $0 >= 1 && $0 <= 32 }),
+                sampleSize[0] * sampleSize[1] <= 1_024,
+                let rgbaMin = proof["rgbaMin"] as? [Int],
+                let rgbaMax = proof["rgbaMax"] as? [Int],
+                rgbaMin.count == 4,
+                rgbaMax.count == 4,
+                rgbaMin.allSatisfy({ $0 >= 0 && $0 <= 255 }),
+                rgbaMax.allSatisfy({ $0 >= 0 && $0 <= 255 }),
+                rgbaMin.enumerated().allSatisfy({ $0.element <= rgbaMax[$0.offset] }),
+                let matchingPixels = proof["matchingPixels"] as? [Int],
+                matchingPixels.count == 2,
+                matchingPixels[0] >= 0,
+                matchingPixels[0] <= matchingPixels[1],
+                matchingPixels[1] <= sampleSize[0] * sampleSize[1] else {
+                    throw AOSSceneExtensionStoreFailure(code: "SCENE_EXTENSION_MANIFEST_INVALID")
+                }
+                previousID = id
+            }
+            framebufferProofs = values
+        } else {
+            framebufferProofs = []
+        }
         var budgets: [String: Int] = [:]
         for key in budgetKeys {
             guard let value = budgetObject[key] as? Int,
@@ -322,7 +382,7 @@ final class AOSSceneExtensionStore {
             "sceneAbi": sceneABI,
             "threeRevision": threeRevision,
         ])
-        return (manifest, reference, implementationIDs, capabilities, budgets)
+        return (manifest, reference, implementationIDs, capabilities, framebufferProofs, budgets)
     }
 
     private static func validateAuthorization(
@@ -381,6 +441,7 @@ final class AOSSceneExtensionStore {
             manifest: validated.dictionary,
             implementationIDs: validated.implementationIDs,
             capabilities: validated.capabilities,
+            framebufferProofs: validated.framebufferProofs,
             budgets: validated.budgets,
             bodyDigest: bodyDigest
         )
@@ -419,10 +480,13 @@ final class AOSSceneExtensionStore {
         for reference: AOSSceneExtensionReference
     ) throws -> [String: Any] {
         let artifact = try load(reference)
+        let proofIDs = (artifact.manifest["framebufferProofs"] as? [[String: Any]])?
+            .compactMap { $0["id"] as? String } ?? []
         return [
             "capabilities": (artifact.manifest["capabilities"] as? [String]) ?? [],
             "digest": reference.digest,
             "extensionId": reference.id,
+            "framebufferProofIds": proofIDs,
             "ownerId": reference.ownerID,
             "sceneAbi": reference.sceneABI,
             "threeRevision": reference.threeRevision,

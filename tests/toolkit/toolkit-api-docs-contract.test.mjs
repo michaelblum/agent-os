@@ -97,6 +97,8 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
   assert.match(docs['docs/api/toolkit/scene-runtime.md'], /authoritative public result after the all-segment\s+barrier settles/);
   assert.match(docs['docs/api/toolkit/scene-runtime.md'], /DESKTOP_WORLD_SCENE_SESSION_RECOVERABLE_CODES/);
   assert.match(docs['docs/api/toolkit/scene-runtime.md'], /DESKTOP_WORLD_SCENE_SESSION_TERMINAL_CODES/);
+  assert.match(docs['docs/api/toolkit/scene-runtime.md'], /session\.mount\(\{ document, interactions, extension \}\)/);
+  assert.match(docs['docs/api/toolkit/scene-runtime.md'], /proofResult\.proof\.passed/);
 
   assert.match(docs['docs/api/toolkit/scene-extensions.md'], /aos\.scene\.extension\.v1/);
   assert.match(docs['docs/api/toolkit/scene-extensions.md'], /serializeSceneExtensionDigestMaterial/);
@@ -138,6 +140,16 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
   assert.match(docs['docs/api/toolkit/content-host.md'], /ContentHost/);
   assert.match(docs['docs/api/toolkit/content-host.md'], /Styling Boundary/);
   assert.match(docs['docs/api/toolkit/content-host.md'], /Minimal Standalone Template/);
+});
+
+test('scene follow documentation includes the named framebuffer proof operation', async () => {
+  const [api, implementation] = await Promise.all([
+    text('docs/api/aos.md'),
+    text('scripts/aos-scene.mjs'),
+  ]);
+  assert.match(api, /operation vocabulary is[\s\S]{0,180}`prove`/);
+  assert.match(api, /session\.assertFramebuffer\(\)/);
+  assert.match(implementation, /'inspect', 'prove'/);
 });
 
 test('surface interaction decision tree remains discoverable from toolkit API docs', async () => {

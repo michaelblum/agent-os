@@ -29,11 +29,16 @@ remains fail-closed and late results cannot alter the newer state.
 The broker supports two acquisition forms:
 
 - **snapshot** uses one bounded `SCScreenshotManager` operation;
-- **warm snapshot** opens one `SCStream` per admitted display, excludes the AOS
-  process that owns DesktopWorld surfaces, and retains only the latest complete
+- **warm snapshot** opens one `SCStream` per admitted display, excludes the exact
+  DesktopWorld surface windows, and retains only the latest complete
   sample per display for a whole-display freeze. Each stream uses a fixed queue
   depth of three: one slot may remain retained by the latest sample while two
   bounded producer slots permit frame advancement.
+
+Warm source discovery includes off-screen windows so an exact authorized stage
+window remains resolvable while hidden or suspended. This changes identity
+discovery only; every stream remains display-scoped and excludes the exact
+authorized stage-window set from captured content.
 
 Warm snapshots have two lifecycles. Explicit consent probes stop every stream
 immediately after one freeze. Runtime DesktopWorld requests never use that
@@ -49,37 +54,59 @@ permission; it only freezes the already available latest sample set.
 
 A warm lease is owner-bound, singular, cancelable, and valid only while its
 latest samples remain fresh. A different owner cannot freeze or release it.
-Because the native filter excludes the complete AOS process, stage-window IDs
-remain exact freeze-authorization metadata but do not define native stream
-identity. Window-ID-only updates therefore do not churn the warm producer;
-canvas, topology, display, or pixel-budget changes still do.
+The exact normalized DesktopWorld window set is part of native stream identity.
+A window-set change therefore retires and replaces the warm producer before a
+later freeze can be admitted; canvas, topology, display, and pixel-budget changes
+do the same.
 All admitted display streams are configured before any startup begins, then
 started concurrently as one aggregate. Warm ScreenCaptureKit sources are
-constructed on AppKit's main actor, while Apple's async start, stop, and frame
-delivery remain asynchronous. The stream profile keeps the consent probe at
-4,096 pixels and runtime at a one-megapixel-per-display ceiling, and does not
-request best-resolution resampling for reduced output.
+constructed on AppKit's main actor. A retained operation invokes each native
+async start and stop exactly once. Its detached task retains only the native
+stream operands and completion until Apple settles; delegate-proven retirement
+may release the higher-level coordinator and broker ownership graph first.
+Caller cancellation does not cancel Apple's in-flight operation; the
+coordinator waits for authoritative startup or retirement evidence and
+compensates a late active start when required. The consent probe and runtime
+use the same one-megapixel-per-display stream profile. Explicit width and height bounds
+control the output surface; the warm stream retains ScreenCaptureKit's default
+capture-resolution mode, matching the proven low-latency native path without
+requesting a second high-resolution resampling policy.
 Readiness requires a usable complete or started sample from every display,
 followed by a later producer callback with a
 numeric, monotonically advancing timestamp. The later callback may be idle
 because ScreenCaptureKit uses that status when a live display has not changed;
 it proves liveness but does not replace the retained image. Missing status
 metadata, nonnumeric times, blank, suspended, and stopped callbacks fail closed.
-If a request declares AOS windows to exclude but ScreenCaptureKit cannot resolve
-the current AOS application, startup fails before creating a stream. The
-pre-surface consent probe declares no excluded windows and may use an empty
-window exclusion until any AOS surface exists.
-Startup failure or cancellation immediately requests aggregate retirement while
-retaining ownership of every pending startup callback. A successfully started
-stream receives exactly one compensating stop. A failed start is confirmed
-inactive without an invalid stop call, and its initiating error remains
-authoritative. The aggregate does not report cleanup complete until every
-startup returns and every active native stream confirms retirement; a late
-success therefore cannot escape cleanup. Missing startup or retirement
-settlement faults the broker before it can admit later work. Failure diagnostics
-contain only the startup phase, bounded elapsed milliseconds, and a reason code.
+If a requested DesktopWorld window is absent from the current shareable-content
+snapshot, startup fails before creating a stream. The pre-surface consent probe
+declares no excluded windows and may use an empty window exclusion until any AOS
+surface exists.
+The native start result or the first usable frame may establish startup,
+whichever arrives first. A late start failure still faults that stream and
+retires the complete aggregate even when a frame established startup first.
+Startup failure or cancellation immediately
+requests aggregate retirement while retaining every native operation owner. A
+stream proven active receives exactly one compensating stop. A failed start is
+confirmed inactive without an invalid stop call, and its initiating error
+remains authoritative. The aggregate does not report cleanup complete until
+every startup signal settles and every active native stream confirms retirement;
+a late success therefore cannot escape cleanup. Missing startup evidence or
+retirement settlement faults the broker before it can admit later work. Failure
+diagnostics contain only lifecycle markers, the startup phase, bounded elapsed
+milliseconds, reason codes, and the stable numeric `SCStreamError` identity;
+they contain no localized error description, display identity, or pixels.
+An authoritative `didStopWithError` callback records native retirement but does
+not cancel the task awaiting `startCapture()`. That task does not retain its
+operation owner, and its completion references the startup coordinator weakly,
+so bounded failure can release the broker ownership graph without replaying or
+canceling the uncertain native operation. Delegate retirement and explicit
+stop admission share one atomic lifecycle gate: only one stop may be admitted,
+and none may be admitted after retirement.
+Scaled warm-stream IOSurfaces round down to even dimensions while remaining
+within the declared per-display pixel budget. A budget or aspect ratio that
+cannot produce two positive even axes fails before native stream creation.
 Cancellation, permission loss, topology mismatch, source failure, daemon
-shutdown, or consumer cleanup stops all streams and suppresses late callbacks.
+shutdown, or consumer cleanup stops all streams and suppresses late results.
 An unexpected source failure permits one retirement-confirmed reopen for the
 same scene generation; a repeated source failure remains honestly unavailable
 until the authorized configuration changes.

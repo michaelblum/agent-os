@@ -207,13 +207,18 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-frame-capture-controller.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-frame-warm-pool.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-pixel-broker.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-pixel-retirement.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-pixel-stream-lifecycle.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-pixel-native.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('tests/lib/desktop-pixel-broker-tests.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('tests/lib/desktop-frame-warm-pool-tests.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('tests/lib/desktop-pixel-startup-callback-tests.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/canvas.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-frame-texture.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/scene-extension-store.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/shared/scene-extension-identifier.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('tests/desktop-world-scene-*.test.mjs'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('tests/fixtures/desktop-world-framebuffer-proof-identifiers.json'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('scripts/lib/scene-extension/module-inspector.mjs'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('packages/toolkit/components/desktop-world-stage/**'));
   assert.match(
