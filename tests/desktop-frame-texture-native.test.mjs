@@ -29,6 +29,10 @@ const nativeLifecycleTestsSource = path.join(
   repoRoot,
   'tests/lib/desktop-pixel-native-lifecycle-tests.swift',
 )
+const startupCallbackTestsSource = path.join(
+  repoRoot,
+  'tests/lib/desktop-pixel-startup-callback-tests.swift',
+)
 const warmOpenOperationTestsSource = path.join(
   repoRoot,
   'tests/lib/desktop-pixel-warm-open-operation-tests.swift',
@@ -231,6 +235,7 @@ struct DesktopFrameProof {
     static func main() async throws {
         let owner = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
         try runDesktopPixelWarmOpenOperationTests()
+        try await runDesktopPixelStartupCallbackTests()
         try await runDesktopPixelNativeLifecycleTests()
         try runDesktopPixelBrokerTests()
         try runDesktopFrameWarmPoolTests()
@@ -1173,6 +1178,7 @@ struct DesktopFrameProof {
     controllerSource,
     responseEnvelopeSource,
     nativeLifecycleTestsSource,
+    startupCallbackTestsSource,
     warmOpenOperationTestsSource,
     brokerTestsSource,
     warmPoolTestsSource,

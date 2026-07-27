@@ -154,23 +154,31 @@ func runDesktopPixelWarmOpenOperationTests() throws {
     let partialStopEntered = DispatchSemaphore(value: 0)
     let partialCompleted = DispatchSemaphore(value: 0)
     let partialRetirementUncertain = LockedBoolean()
+    let partialSignals = partialLifecycles.map { _ in
+        AOSDesktopPixelStartupSignal()
+    }
     let partial = AOSDesktopPixelWarmOpenOperation(
         open: { cancellation in
             try await aosStartDesktopPixelStreams(
+                signals: partialSignals,
                 lifecycles: partialLifecycles,
                 settlementTimeout: 0.05,
                 cancellation: cancellation,
-                start: { index in
-                    if index == 0 {
-                        partialStarted.signal()
-                        return
+                start: { index, completion in
+                    Task {
+                        if index == 0 {
+                            partialStarted.signal()
+                        } else {
+                            partialPendingEntered.signal()
+                            await partialPendingGate.wait()
+                        }
+                        completion(.success(()))
                     }
-                    partialPendingEntered.signal()
-                    await partialPendingGate.wait()
                 },
-                stop: { _ in
+                stop: { _, completion in
                     partialStopCalls.increment()
                     partialStopEntered.signal()
+                    completion(.success(()))
                 }
             )
             return FakeWarmOpenSource()

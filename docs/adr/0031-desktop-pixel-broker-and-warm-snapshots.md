@@ -55,10 +55,11 @@ identity. Window-ID-only updates therefore do not churn the warm producer;
 canvas, topology, display, or pixel-budget changes still do.
 All admitted display streams are configured before any startup begins, then
 started concurrently as one aggregate. Warm ScreenCaptureKit sources are
-constructed on AppKit's main actor, while Apple's async start, stop, and frame
-delivery remain asynchronous. The stream profile keeps the consent probe at
-4,096 pixels and runtime at a one-megapixel-per-display ceiling, and does not
-request best-resolution resampling for reduced output.
+constructed on AppKit's main actor. A retained callback-native coordinator owns
+each start and stop operation; it does not bridge Apple's completion handlers
+through an unstructured Swift task or continuation. The stream profile keeps
+the consent probe at 4,096 pixels and runtime at a one-megapixel-per-display
+ceiling, and does not request best-resolution resampling for reduced output.
 Readiness requires a usable complete or started sample from every display,
 followed by a later producer callback with a
 numeric, monotonically advancing timestamp. The later callback may be idle
@@ -69,15 +70,23 @@ If a request declares AOS windows to exclude but ScreenCaptureKit cannot resolve
 the current AOS application, startup fails before creating a stream. The
 pre-surface consent probe declares no excluded windows and may use an empty
 window exclusion until any AOS surface exists.
-Startup failure or cancellation immediately requests aggregate retirement while
-retaining ownership of every pending startup callback. A successfully started
-stream receives exactly one compensating stop. A failed start is confirmed
-inactive without an invalid stop call, and its initiating error remains
-authoritative. The aggregate does not report cleanup complete until every
-startup returns and every active native stream confirms retirement; a late
-success therefore cannot escape cleanup. Missing startup or retirement
-settlement faults the broker before it can admit later work. Failure diagnostics
-contain only the startup phase, bounded elapsed milliseconds, and a reason code.
+The native start callback or the first usable frame may establish startup,
+whichever arrives first. A late start failure still faults that stream and
+retires the complete aggregate even when a frame established startup first.
+Startup failure or cancellation immediately
+requests aggregate retirement while retaining every callback owner. A stream
+proven active receives exactly one compensating stop. A failed start is
+confirmed inactive without an invalid stop call, and its initiating error
+remains authoritative. The aggregate does not report cleanup complete until
+every startup signal settles and every active native stream confirms retirement;
+a late success therefore cannot escape cleanup. Missing startup evidence or
+retirement settlement faults the broker before it can admit later work. Failure
+diagnostics contain only lifecycle markers, the startup phase, bounded elapsed
+milliseconds, reason codes, and the stable numeric `SCStreamError` identity;
+they contain no localized error description, display identity, or pixels.
+Scaled warm-stream IOSurfaces round down to even dimensions while remaining
+within the declared per-display pixel budget. A budget or aspect ratio that
+cannot produce two positive even axes fails before native stream creation.
 Cancellation, permission loss, topology mismatch, source failure, daemon
 shutdown, or consumer cleanup stops all streams and suppresses late callbacks.
 An unexpected source failure permits one retirement-confirmed reopen for the

@@ -30,22 +30,32 @@ frames only; encoding, cropping, redaction, persistence, and GPU delivery
 belong to downstream adapters. Multi-display warm acquisition configures the
 complete stream set before starting every display concurrently; partial startup
 failure immediately requests aggregate retirement while retaining late
-startup-completion ownership. Only a successfully started stream receives a
-compensating stop; a failed start is confirmed inactive without issuing an
-invalid stop, and its initiating error remains authoritative. Both startup
-completion and native retirement must settle before later work is admitted.
+startup-completion ownership. A callback-native coordinator owns each Apple
+start and stop operation without an unstructured task or continuation. Native
+start success or the first usable frame may establish startup, whichever arrives
+first. A later start failure retires the complete aggregate. Only a stream
+proven active receives a compensating stop; a failed start
+is confirmed inactive without issuing an invalid stop, and its initiating error
+remains authoritative. Both startup evidence and native retirement must settle
+before later work is admitted.
 That aggregate retirement
 wait ignores caller cancellation but remains deadline-bounded, because
 cancellation is the reason cleanup is often running. Superseding a warm
 configuration does not cancel an in-flight ScreenCaptureKit `startCapture()`;
-startup settles before one acknowledged retirement begins, so native start and
-stop never race. A startup that misses the settlement deadline fails the broker
-closed while its coordinator retains ownership and retires any late completion.
+startup evidence settles before one acknowledged retirement begins, so native
+start and stop never race. A startup that misses the settlement deadline fails
+the broker closed while its coordinator retains ownership and retires any late
+success. Content-free lifecycle diagnostics may record configured, start, first
+sample, stop, and delegate-stop phases, but never display identity or pixels.
+A native failure marker may retain only the stable `SCStreamError` numeric code;
+it may not include localized descriptions, user info, source metadata, or paths.
 AOS constructs each warm ScreenCaptureKit source on AppKit's main actor, uses
-ScreenCaptureKit's async start and stop operations, excludes its complete
+ScreenCaptureKit's native completion-handler operations, excludes its complete
 process from captured display content when AOS surfaces exist, and uses one
 off-screen-inclusive stream configuration with consumer-specific bounded pixel
-ceilings for consent and runtime acquisition.
+ceilings for consent and runtime acquisition. Scaled stream surfaces round down
+to positive even dimensions without exceeding those ceilings; an impossible
+budget or aspect ratio fails before ScreenCaptureKit is invoked.
 A warm stream retains its latest complete or started native
 sample, so it uses a fixed queue depth of three and cannot become ready
 until every display has retained a usable frame and then delivered a later,
