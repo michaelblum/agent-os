@@ -173,6 +173,23 @@
       "examples":["aos scene perf --resource companion/main --json"]
     }]
   }, {
+    "path": ["scene", "prove"],
+    "summary": "Assert bounded pixels from every active DesktopWorld segment",
+    "forms": [{
+      "id": "scene-framebuffer-proof",
+      "usage": "aos scene prove --owner <id> --resource <id> --assertions <path> --json",
+      "args": [
+        {"id":"owner","kind":"flag","token":"--owner","value_type":"string","required":true,"summary":"Consumer owner identifier"},
+        {"id":"resource","kind":"flag","token":"--resource","value_type":"string","required":true,"summary":"Owner-scoped scene resource identifier"},
+        {"id":"assertions","kind":"flag","token":"--assertions","value_type":"string","required":true,"summary":"Bounded local color-range assertion document"},
+        {"id":"json","kind":"flag","token":"--json","value_type":"bool","required":true,"summary":"Emit content-free aggregate proof results"}
+      ],
+      "stdin":{"supported":false,"content_type":null,"used_when":"never"},
+      "output":{"default_mode":"json","error_mode":"json_stderr","streaming":false,"supports_json_flag":true},
+      "execution":{"auto_starts_daemon":true,"interactive":false,"mutates_state":false,"read_only":true,"requires_permissions":false,"streaming":false,"supports_dry_run":false},
+      "examples":["aos scene prove --owner example.consumer --resource companion/main --assertions ./fixtures/framebuffer-proof.json --json"]
+    }]
+  }, {
     "path": ["scene", "replay"],
     "summary": "Replay a deterministic scene event fixture without live input",
     "forms": [{

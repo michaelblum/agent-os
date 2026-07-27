@@ -26,6 +26,30 @@ Replay requires monotonic owner/resource sequences and complete gesture
 lifecycles. It reports counts, resource IDs, and final numeric positions only.
 It performs no rendering, stage mutation, or live TCC input.
 
+## One-Shot Framebuffer Assertions
+
+`scene prove` verifies a bounded set of color ranges directly in every active
+DesktopWorld WebGL segment:
+
+```bash
+node -e 'require("node:fs").writeFileSync("./framebuffer-proof.json", JSON.stringify({contract:"aos.desktop-world.framebuffer-proof.request.v1",minimum_matches:1,maximum_matches:1,samples:[{uv:[0.25,0.25],rgba_min:[0,220,0,220],rgba_max:[80,255,80,255]}]}))'
+aos scene prove --owner example.consumer --resource companion/main \
+  --assertions ./framebuffer-proof.json --json
+rm -f ./framebuffer-proof.json
+```
+
+The operation synchronously renders the existing scene once per display,
+reads at most eight individual pixels per segment, compares them inside that
+segment, and returns counts and pass/fail only. It does not start screen
+capture, return pixel values, encode an image, write a file, allocate another
+renderer, or enable persistent instrumentation. It proves the AOS WebGL
+framebuffer rather than final WindowServer composition; combine it with
+existing stage-window visibility and geometry facts when final composition
+matters.
+
+AOS does not draw proof markers. The caller owns and removes any temporary
+fixture art used to make captured or mirrored content visually unambiguous.
+
 ## Detachable Inspector
 
 ```bash

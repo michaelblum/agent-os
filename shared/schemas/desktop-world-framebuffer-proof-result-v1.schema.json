@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-os.local/schemas/desktop-world-framebuffer-proof-result-v1.schema.json",
+  "title": "AOS DesktopWorld framebuffer proof result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract", "status", "passed", "segment_count", "sample_count",
+    "matched_count", "max_render_duration_ms", "segments",
+    "pixels_returned", "pixels_persisted", "error_code"
+  ],
+  "properties": {
+    "contract": {"const": "aos.desktop-world.framebuffer-proof.result.v1"},
+    "status": {"const": "ok"},
+    "passed": {"type": "boolean"},
+    "segment_count": {"type": "integer", "minimum": 1, "maximum": 16},
+    "sample_count": {"type": "integer", "minimum": 1, "maximum": 128},
+    "matched_count": {"type": "integer", "minimum": 0, "maximum": 128},
+    "max_render_duration_ms": {"type": "number", "minimum": 0, "maximum": 1000},
+    "segments": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "segment_index", "sample_count", "matched_count", "passed",
+          "render_duration_ms", "error_code"
+        ],
+        "properties": {
+          "segment_index": {"type": "integer", "minimum": 0, "maximum": 15},
+          "sample_count": {"type": "integer", "minimum": 1, "maximum": 8},
+          "matched_count": {"type": "integer", "minimum": 0, "maximum": 8},
+          "passed": {"type": "boolean"},
+          "render_duration_ms": {"type": "number", "minimum": 0, "maximum": 1000},
+          "error_code": {"type": "null"}
+        }
+      }
+    },
+    "pixels_returned": {"const": false},
+    "pixels_persisted": {"const": false},
+    "error_code": {"type": "null"}
+  }
+}

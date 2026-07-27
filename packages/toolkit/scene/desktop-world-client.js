@@ -2,6 +2,10 @@ import {
   normalizeDesktopWorldDevToolsSnapshot,
   normalizeDesktopWorldDevToolsStageSnapshot,
 } from './desktop-world-devtools.js'
+import {
+  normalizeDesktopWorldFramebufferProofRequest,
+  normalizeDesktopWorldFramebufferProofResult,
+} from './desktop-world-framebuffer-proof.js'
 
 export const DESKTOP_WORLD_SCENE_REPLAY_LIMITS = Object.freeze({ events: 10_000, resources: 128 })
 
@@ -26,6 +30,13 @@ function resourceId(value, optional = false) {
   if (optional && value == null) return null
   if (typeof value !== 'string' || value.length > 128 || !RESOURCE_ID.test(value)) {
     fail('INVALID_SCENE_RESOURCE', 'DesktopWorld resource identifier is invalid.')
+  }
+  return value
+}
+
+function ownerId(value) {
+  if (typeof value !== 'string' || !OWNER_ID.test(value)) {
+    fail('INVALID_SCENE_OWNER', 'DesktopWorld owner identifier is invalid.')
   }
   return value
 }
@@ -374,6 +385,14 @@ export function createDesktopWorldSceneClient({ request, subscribe } = {}) {
         performance: stage.performance,
       })
     }),
+    async prove(owner, resource, proof) {
+      const result = await call('framebuffer_proof', {
+        owner: ownerId(owner),
+        resource: resourceId(resource),
+        proof: normalizeDesktopWorldFramebufferProofRequest(proof),
+      })
+      return normalizeDesktopWorldFramebufferProofResult(result)
+    },
     monitor(resource, options = {}) {
       if (typeof subscribe !== 'function') throw new TypeError('DesktopWorld scene client requires a subscription transport.')
       return subscribe({ ...options, service: 'scene', action: 'devtools_monitor', data: { resource: resourceId(resource) } })

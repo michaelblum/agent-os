@@ -161,6 +161,12 @@ Monitoring is connection-scoped. Stop it by terminating its owning client.
 Snapshots exclude scene parameters, product text, prompts, audio, and desktop
 content.
 
+For a one-shot assertion against every active display segment:
+```bash
+node -e 'require("node:fs").writeFileSync("./framebuffer-proof.json", JSON.stringify({contract:"aos.desktop-world.framebuffer-proof.request.v1",minimum_matches:1,maximum_matches:1,samples:[{uv:[0.25,0.25],rgba_min:[0,220,0,220],rgba_max:[80,255,80,255]}]}))' && aos scene prove --owner example.consumer --resource companion/main --assertions ./framebuffer-proof.json --json; rm -f ./framebuffer-proof.json
+```
+This returns only bounded counts and pass/fail; callers own and remove any temporary marker.
+
 ## Open And Transfer DevTools
 
 Open the AOS-owned detachable inspector and retain its revision:

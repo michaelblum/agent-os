@@ -145,6 +145,14 @@ final class AOSSceneLeaseRegistry {
         return owners.isEmpty
     }
 
+    func hasStableLease(key: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return owners[key] != nil
+            && operationTokens[key] == nil
+            && !closing.contains(key)
+    }
+
     func updateSubscriptions(
         token: AOSSceneLeaseToken,
         adding: Set<String> = [],

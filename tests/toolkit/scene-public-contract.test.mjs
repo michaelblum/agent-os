@@ -20,6 +20,9 @@ const EXPECTED_EXPORTS = [
   'DESKTOP_WORLD_DEVTOOLS_LIMITS',
   'DESKTOP_WORLD_DEVTOOLS_SNAPSHOT_CONTRACT_ID',
   'DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID',
+  'DESKTOP_WORLD_FRAMEBUFFER_PROOF_LIMITS',
+  'DESKTOP_WORLD_FRAMEBUFFER_PROOF_REQUEST_CONTRACT_ID',
+  'DESKTOP_WORLD_FRAMEBUFFER_PROOF_RESULT_CONTRACT_ID',
   'DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS',
   'DesktopWorldSurface3D',
   'DesktopWorldSurfaceThree',
@@ -102,6 +105,8 @@ const EXPECTED_EXPORTS = [
   'normalizeCanvasGeometry',
   'normalizeDesktopWorldDevToolsSnapshot',
   'normalizeDesktopWorldDevToolsStageSnapshot',
+  'normalizeDesktopWorldFramebufferProofRequest',
+  'normalizeDesktopWorldFramebufferProofResult',
   'normalizeDesktopWorldSceneEvent',
   'normalizeDesktopWorldSceneResultErrorCode',
   'normalizeSceneExtensionInteractionRouteState',
@@ -193,6 +198,7 @@ test('focused scene entry points expose their owned contract families', () => {
   assert.equal(Object.hasOwn(extensionToolkit, 'createDesktopWorldSceneSession'), false)
 
   assert.equal(typeof devtoolsToolkit.createDesktopWorldDevToolsView, 'function')
+  assert.equal(typeof devtoolsToolkit.normalizeDesktopWorldFramebufferProofRequest, 'function')
   assert.equal(typeof devtoolsToolkit.replayDesktopWorldSceneEvents, 'function')
   assert.equal(Object.hasOwn(devtoolsToolkit, 'createLocalSceneViewportHost'), false)
 })

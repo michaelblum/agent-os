@@ -2945,6 +2945,19 @@
       "stdio": "inherit"
     },
     {
+      "path": ["scene", "prove"],
+      "summary": "Assert bounded DesktopWorld framebuffer pixels",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs", "prove"],
+      "cwd": "repo",
+      "stdio": "inherit",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["scene", "replay"],
       "summary": "Replay a deterministic scene event fixture",
       "executable": "/usr/bin/env",

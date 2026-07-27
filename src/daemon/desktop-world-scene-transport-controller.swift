@@ -181,6 +181,22 @@ final class AOSDesktopWorldSceneTransportController {
         )
     }
 
+    func framebufferProofTopology(
+        owner: String,
+        resource: String
+    ) -> DesktopWorldSceneBarrierTopology? {
+        guard validIdentifier(owner, allowSlash: false),
+              validIdentifier(resource, allowSlash: true),
+              let topology = canvasManager.desktopWorldSceneBarrierTopology(
+                  canvasID: Self.stageCanvasID
+              ),
+              scene.isStableResource(
+                  identity: stageIdentity(topology),
+                  key: scene.key(owner: owner, resource: resource)
+              ) else { return nil }
+        return topology
+    }
+
     func stageRemoved() {
         guard let invalidation = scene.stageRemoved(code: "SCENE_STAGE_REMOVED") else { return }
         finishInvalidation(invalidation)

@@ -20,6 +20,7 @@ import {
   DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS,
   createSceneSegmentResourceBudget,
 } from './scene-resource-budget.js'
+import { proveDesktopWorldSceneFramebuffer } from './scene-framebuffer-proof.js'
 
 const MAX_RESOURCES = 32
 const MAX_SIGNALS_PER_SECOND = 30
@@ -804,6 +805,16 @@ export function createDesktopWorldSceneOutlet({
     setInteractionGeometryObserver(observer) {
       interactionGeometryObserver = typeof observer === 'function' ? observer : null
       return true
+    },
+    proveFramebuffer(key, request) {
+      const mounted = resources.get(key)
+      if (disposed || hidden || contextLost || stageSuspended || stageFault || mounted?.suspended !== false) {
+        throw sceneOutletError(
+          'SCENE_FRAMEBUFFER_PROOF_UNAVAILABLE',
+          'DesktopWorld scene resource is not available for framebuffer proof.',
+        )
+      }
+      return proveDesktopWorldSceneFramebuffer({ camera, renderer, request, scene })
     },
     releaseAll,
     updateSegment,

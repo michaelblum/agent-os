@@ -537,6 +537,17 @@ final class AOSDesktopWorldSceneController {
         }
     }
 
+    func isStableResource(
+        identity: AOSDesktopWorldSceneStageIdentity,
+        key: String
+    ) -> Bool {
+        withLock {
+            retirement == nil
+                && readiness.isReady(for: identity)
+                && leases.hasStableLease(key: key)
+        }
+    }
+
     private func completeLocked(
         _ completion: AOSDesktopWorldSceneResultCompletion,
         operationID: String

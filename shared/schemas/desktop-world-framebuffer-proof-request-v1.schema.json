@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-os.local/schemas/desktop-world-framebuffer-proof-request-v1.schema.json",
+  "title": "AOS DesktopWorld framebuffer proof request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "minimum_matches", "maximum_matches", "samples"],
+  "properties": {
+    "contract": {"const": "aos.desktop-world.framebuffer-proof.request.v1"},
+    "minimum_matches": {"type": "integer", "minimum": 0, "maximum": 8},
+    "maximum_matches": {"type": "integer", "minimum": 0, "maximum": 8},
+    "samples": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["uv", "rgba_min", "rgba_max"],
+        "properties": {
+          "uv": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {"type": "number", "minimum": 0, "maximum": 1}
+          },
+          "rgba_min": {"$ref": "#/$defs/rgba"},
+          "rgba_max": {"$ref": "#/$defs/rgba"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "rgba": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {"type": "integer", "minimum": 0, "maximum": 255}
+    }
+  }
+}

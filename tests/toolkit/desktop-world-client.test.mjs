@@ -130,6 +130,15 @@ test('transport-injected client emits familiar scene actions without owning a so
         stageSnapshotRevision += 1
         return { session: devtoolsSnapshot({ stageSnapshotRevision }) }
       }
+      if (value.action === 'framebuffer_proof') {
+        return {
+          contract: 'aos.desktop-world.framebuffer-proof.result.v1',
+          status: 'ok', passed: true, segment_count: 1, sample_count: 1, matched_count: 1,
+          max_render_duration_ms: 2,
+          segments: [{ segment_index: 0, sample_count: 1, matched_count: 1, passed: true, render_duration_ms: 2, error_code: null }],
+          pixels_returned: false, pixels_persisted: false, error_code: null,
+        }
+      }
       return value
     },
     subscribe(value) { subscriptions.push(value); return value },
@@ -137,6 +146,12 @@ test('transport-injected client emits familiar scene actions without owning a so
   await client.list()
   await client.inspect('companion/main')
   await client.perf('companion/main')
+  await client.prove('example.consumer', 'companion/main', {
+    contract: 'aos.desktop-world.framebuffer-proof.request.v1',
+    minimum_matches: 1,
+    maximum_matches: 1,
+    samples: [{ uv: [0.25, 0.25], rgba_min: [0, 220, 0, 220], rgba_max: [80, 255, 80, 255] }],
+  })
   client.monitor('companion/main', { follow: true, action: 'must-not-win', data: {} })
   await client.devtools.open({ resource: 'companion/main' })
   await client.devtools.update('devtools-1', 2, { recording: true })
@@ -146,6 +161,7 @@ test('transport-injected client emits familiar scene actions without owning a so
     'devtools_open', 'devtools_status', 'devtools_close',
     'devtools_open', 'devtools_status', 'devtools_close',
     'devtools_open', 'devtools_status', 'devtools_close',
+    'framebuffer_proof',
     'devtools_open', 'devtools_update', 'devtools_close',
   ])
   assert.equal(subscriptions[0].action, 'devtools_monitor')

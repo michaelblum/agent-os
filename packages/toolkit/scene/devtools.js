@@ -12,6 +12,13 @@ export {
 } from './desktop-world-devtools.js'
 export { createDesktopWorldDevToolsView } from './desktop-world-devtools-view.js'
 export {
+  DESKTOP_WORLD_FRAMEBUFFER_PROOF_LIMITS,
+  DESKTOP_WORLD_FRAMEBUFFER_PROOF_REQUEST_CONTRACT_ID,
+  DESKTOP_WORLD_FRAMEBUFFER_PROOF_RESULT_CONTRACT_ID,
+  normalizeDesktopWorldFramebufferProofRequest,
+  normalizeDesktopWorldFramebufferProofResult,
+} from './desktop-world-framebuffer-proof.js'
+export {
   DESKTOP_WORLD_SCENE_REPLAY_LIMITS,
   createDesktopWorldSceneClient,
   listDesktopWorldResources,

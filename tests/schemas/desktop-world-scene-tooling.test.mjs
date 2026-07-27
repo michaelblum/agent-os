@@ -76,6 +76,32 @@ test('DesktopWorld tooling schemas accept canonical content-free facts', () => {
     resources: ['companion/main'], completedGestures: 1, canceledGestures: 0,
     finalPositions: { 'companion/main': [100, 200, 0] },
   }).status, 0)
+  assert.equal(validate('desktop-world-framebuffer-proof-request-v1.schema.json', {
+    contract: 'aos.desktop-world.framebuffer-proof.request.v1',
+    minimum_matches: 1,
+    maximum_matches: 2,
+    samples: [{ uv: [0.25, 0.25], rgba_min: [0, 220, 0, 220], rgba_max: [80, 255, 80, 255] }],
+  }).status, 0)
+  assert.equal(validate('desktop-world-framebuffer-proof-result-v1.schema.json', {
+    contract: 'aos.desktop-world.framebuffer-proof.result.v1',
+    status: 'ok',
+    passed: true,
+    segment_count: 1,
+    sample_count: 1,
+    matched_count: 1,
+    max_render_duration_ms: 2,
+    segments: [{
+      segment_index: 0,
+      sample_count: 1,
+      matched_count: 1,
+      passed: true,
+      render_duration_ms: 2,
+      error_code: null,
+    }],
+    pixels_returned: false,
+    pixels_persisted: false,
+    error_code: null,
+  }).status, 0)
 })
 
 test('DesktopWorld tooling schemas reject product content and unknown fields', () => {
@@ -101,5 +127,26 @@ test('DesktopWorld tooling schemas reject product content and unknown fields', (
   assert.notEqual(validate('scene-replay-v1.schema.json', {
     status: 'ok', contract: 'aos.scene.replay.v1', eventCount: 0, resourceCount: 0,
     resources: [], completedGestures: 0, canceledGestures: 0, finalPositions: {}, prompt: 'secret',
+  }).status, 0)
+  assert.notEqual(validate('desktop-world-framebuffer-proof-result-v1.schema.json', {
+    contract: 'aos.desktop-world.framebuffer-proof.result.v1',
+    status: 'ok',
+    passed: true,
+    segment_count: 1,
+    sample_count: 1,
+    matched_count: 1,
+    max_render_duration_ms: 2,
+    segments: [{
+      segment_index: 0,
+      sample_count: 1,
+      matched_count: 1,
+      passed: true,
+      render_duration_ms: 2,
+      error_code: null,
+    }],
+    pixels_returned: false,
+    pixels_persisted: false,
+    error_code: null,
+    pixels: [0, 255, 0, 255],
   }).status, 0)
 })

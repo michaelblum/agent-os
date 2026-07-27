@@ -21,6 +21,12 @@ subscription maps, or transport orchestration in the connection handler.
 DesktopWorld event-routing failures remain reason-coded and observable through
 bounded daemon diagnostics; never log scene payloads, gesture coordinates,
 labels, or product data to diagnose delivery.
+`desktop-world-scene-framebuffer-proof-controller.swift` owns the separate one-shot,
+all-segment framebuffer assertion aggregate. It authenticates a stable mounted
+resource and exact topology, bounds one active request, accepts only
+origin-attributed segment results, and returns counts and pass/fail without
+pixels or display identities. It never invokes ScreenCaptureKit or mutates the
+scene lease.
 `desktop-pixel-native.swift` owns ScreenCaptureKit snapshots and bounded warm
 streams. `desktop-pixel-stream-lifecycle.swift` owns generic concurrent stream
 startup, compensation, and acknowledged retirement. `desktop-pixel-broker.swift`

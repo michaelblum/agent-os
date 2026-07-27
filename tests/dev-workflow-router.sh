@@ -252,6 +252,30 @@ else
     fail "dev recommend desktop-frame owner routing drifted"
 fi
 
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/daemon/desktop-world-scene-framebuffer-proof-controller.swift shared/schemas/desktop-world-framebuffer-proof-request-v1.schema.json tests/desktop-world-framebuffer-proof-controller.test.mjs tests/toolkit/desktop-world-framebuffer-proof.test.mjs 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+files = {item["path"]: item for item in data["files"]}
+assert set(files) == {
+    "src/daemon/desktop-world-scene-framebuffer-proof-controller.swift",
+    "shared/schemas/desktop-world-framebuffer-proof-request-v1.schema.json",
+    "tests/desktop-world-framebuffer-proof-controller.test.mjs",
+    "tests/toolkit/desktop-world-framebuffer-proof.test.mjs",
+}, data
+for value in files.values():
+    assert "desktop-world-scene-engine" in value["rules"], value
+commands = {item["command"] for item in data["summary"]["commands"]}
+assert any("desktop-world-framebuffer-proof-controller.test.mjs" in command for command in commands), data
+assert any("desktop-world-framebuffer-proof.test.mjs" in command for command in commands), data
+PY
+then
+    pass "dev recommend routes framebuffer proof owners to focused scene proofs"
+else
+    fail "dev recommend framebuffer proof routing drifted"
+fi
+
 if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/perceive/ax-semantic-target.swift tests/lib/annotation-semantic-target-traversal-tests.swift 2>/dev/null)" python3 - <<'PY'
 import json
 import os

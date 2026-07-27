@@ -203,6 +203,16 @@ class UnifiedDaemon {
             ) ?? false
         }
     )
+    private lazy var desktopWorldFramebufferProof = AOSDesktopWorldFramebufferProofController(
+        canvasManager: canvasManager,
+        stageCanvasID: sceneStageCanvasID,
+        authorize: { [weak self] owner, resource in
+            self?.desktopWorldSceneTransport.framebufferProofTopology(
+                owner: owner,
+                resource: resource
+            )
+        }
+    )
 
     private lazy var desktopWorldDevTools = AOSDesktopWorldDevToolsController(
         canvasManager: canvasManager,
@@ -480,6 +490,12 @@ class UnifiedDaemon {
                         self.handleDesktopWorldDevToolsStageSnapshot(inner ?? [:])
                     }
                     return
+                case "desktop_world_stage.framebuffer_proof.result":
+                    self.desktopWorldFramebufferProof.handleResult(
+                        target: target,
+                        payload: inner ?? [:]
+                    )
+                    return
                 case "desktop_world_devtools.host.ready":
                     self.publishDesktopWorldDevToolsSnapshots(hostID: canvasID)
                     return
@@ -574,6 +590,7 @@ class UnifiedDaemon {
                     _ = self.desktopFrameCapture.releaseAll(
                         callerCanvasID: self.sceneStageCanvasID
                     )
+                    self.desktopWorldFramebufferProof.stageInvalidated()
                     self.desktopWorldSceneTransport.stageRemoved()
                 }
             } else if canvasInfo.suspended == true {
@@ -640,6 +657,9 @@ class UnifiedDaemon {
         canvasManager.onCanvasSurfaceEvent = { [weak self] event, data in
             if event == "canvas_topology_settled",
                data["canvas_id"] as? String == self?.sceneStageCanvasID {
+                self?.desktopWorldFramebufferProof.stageInvalidated(
+                    code: "SCENE_TOPOLOGY_CHANGED"
+                )
                 self?.desktopWorldSceneTransport.topologySettled(data)
             }
             self?.publishCanvasSurfaceEvent(event: event, data: data)
@@ -2958,6 +2978,7 @@ class UnifiedDaemon {
             annotationSelection.connectionClosed(connectionID)
             desktopFrameCaptureConsent.connectionClosed(connectionID)
             statusItemHostController.connectionClosed(connectionID)
+            desktopWorldFramebufferProof.connectionClosed(connectionID)
             desktopWorldSceneTransport.cleanupConnection(connectionID)
             subscriberLock.lock()
             let hadSceneMonitor = subscribers[connectionID]?.sceneMonitorResource != nil
@@ -3209,6 +3230,7 @@ class UnifiedDaemon {
         case ("scene", "devtools_transfer"):  return "scene-devtools-transfer"
         case ("scene", "devtools_close"):     return "scene-devtools-close"
         case ("scene", "devtools_monitor"):   return "scene-devtools-monitor"
+        case ("scene", "framebuffer_proof"): return "scene-framebuffer-proof"
         case ("system", "ping"):              return "ping"
         // Content server actions
         case ("content", "status"):           return "content_status"
@@ -3380,6 +3402,19 @@ class UnifiedDaemon {
                 envelopeActive: envelopeActive,
                 envelopeRef: envelopeRef
             )
+
+        case "scene-framebuffer-proof":
+            desktopWorldFramebufferProof.start(
+                payload: json,
+                connectionID: connectionID
+            ) { result in
+                sendResponseJSON(
+                    to: outbound,
+                    result,
+                    envelopeActive: envelopeActive,
+                    envelopeRef: envelopeRef
+                )
+            }
 
         case "status-item-register", "status-item-update", "status-item-inspect", "status-item-invoke",
              "status-item-invoke-dry-run":

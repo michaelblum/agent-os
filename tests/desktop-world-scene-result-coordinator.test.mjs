@@ -259,7 +259,7 @@ test('DesktopWorld native orchestration pins lease refs and serializes topology 
   assert.match(canvas, /completion\?\(\.superseded\)/u)
   assert.match(
     daemon,
-    /if canvasInfo\.id == self\.sceneStageCanvasID \{[\s\S]{0,180}desktopWorldSceneTransport\.stageRemoved\(\)/u,
+    /if canvasInfo\.id == self\.sceneStageCanvasID \{[\s\S]{0,360}desktopWorldFramebufferProof\.stageInvalidated\(\)[\s\S]{0,120}desktopWorldSceneTransport\.stageRemoved\(\)/u,
     'removing the native stage must retire the exact scene generation and its leases',
   )
   assert.match(transport, /eventRouter\.handle\(identity: stageIdentity\(topology\), payload: payload\)/u)

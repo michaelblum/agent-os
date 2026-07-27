@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
@@ -41,6 +41,19 @@ function snapshot() {
   }
 }
 
+function framebufferProofResult() {
+  return {
+    contract: 'aos.desktop-world.framebuffer-proof.result.v1',
+    status: 'ok', passed: true, segment_count: 2, sample_count: 2, matched_count: 2,
+    max_render_duration_ms: 3,
+    segments: [0, 1].map((segment_index) => ({
+      segment_index, sample_count: 1, matched_count: 1, passed: true,
+      render_duration_ms: segment_index + 2, error_code: null,
+    })),
+    pixels_returned: false, pixels_persisted: false, error_code: null,
+  }
+}
+
 async function run(args, env, { stopAfter = null } = {}) {
   const child = spawn(process.execPath, ['scripts/aos-scene.mjs', ...args], {
     cwd: repo, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'],
@@ -60,6 +73,15 @@ test('scene agent tooling uses headless snapshots and a bounded monitor stream',
   const root = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-tools-'))
   const state = path.join(root, 'repo')
   await mkdir(state, { recursive: true })
+  const proof = path.join(root, 'proof.json')
+  const proofLink = path.join(root, 'proof-link.json')
+  await writeFile(proof, JSON.stringify({
+    contract: 'aos.desktop-world.framebuffer-proof.request.v1',
+    minimum_matches: 1,
+    maximum_matches: 1,
+    samples: [{ uv: [0.25, 0.25], rgba_min: [0, 220, 0, 220], rgba_max: [80, 255, 80, 255] }],
+  }))
+  await symlink(proof, proofLink)
   const received = []
   const server = net.createServer((socket) => {
     let buffer = ''
@@ -83,6 +105,7 @@ test('scene agent tooling uses headless snapshots and a bounded monitor stream',
           })}\n`)
           reply({ status: 'ok', resource: request.data.resource, following: true })
         }
+        else if (request.action === 'framebuffer_proof') reply(framebufferProofResult())
       }
     })
   })
@@ -93,6 +116,7 @@ test('scene agent tooling uses headless snapshots and a bounded monitor stream',
       [['list', '--json'], (value) => assert.equal(value.resources[0].id, 'companion/main')],
       [['inspect', '--resource', 'companion/main', '--json'], (value) => assert.equal(value.resources.length, 1)],
       [['perf', '--resource', 'companion/main', '--json'], (value) => assert.equal(value.performance.currentFps, 60)],
+      [['prove', '--owner', 'example.consumer', '--resource', 'companion/main', '--assertions', proof, '--json'], (value) => assert.equal(value.segment_count, 2)],
       [['devtools', 'open', '--resource', 'companion/main', '--json'], (value) => assert.equal(value.session.session.id, 'devtools-test')],
       [['devtools', 'status', '--json'], (value) => assert.equal(value.sessions.length, 1)],
       [['devtools', 'update', '--session', 'devtools-test', '--expected-revision', '1', '--tab', 'performance', '--query', 'companion', '--event-kinds', 'gesture,error', '--errors-only', 'on', '--recording', 'on', '--json'], (value) => assert.equal(value.session.session.id, 'devtools-test')],
@@ -103,6 +127,12 @@ test('scene agent tooling uses headless snapshots and a bounded monitor stream',
       assert.equal(result.code, 0, result.stderr)
       assertion(JSON.parse(result.stdout))
     }
+    const linked = await run([
+      'prove', '--owner', 'example.consumer', '--resource', 'companion/main',
+      '--assertions', proofLink, '--json',
+    ], env)
+    assert.equal(linked.code, 1)
+    assert.match(linked.stderr, /SCENE_FRAMEBUFFER_PROOF_LIMIT_EXCEEDED/u)
     const monitor = await run(['monitor', '--resource', 'companion/main', '--follow', '--json'], env, { stopAfter: '"event":"monitor"' })
     assert.equal(monitor.code, 0, monitor.stderr)
     const monitorEvent = JSON.parse(monitor.stdout)
@@ -125,6 +155,16 @@ test('scene agent tooling uses headless snapshots and a bounded monitor stream',
     })
     assert.deepEqual(received.find((entry) => entry.action === 'devtools_transfer')?.data, {
       session: 'devtools-test', expected_revision: 1, host: { kind: 'external', id: 'sigil/companion-studio' },
+    })
+    assert.deepEqual(received.find((entry) => entry.action === 'framebuffer_proof')?.data, {
+      owner: 'example.consumer',
+      resource: 'companion/main',
+      proof: {
+        contract: 'aos.desktop-world.framebuffer-proof.request.v1',
+        minimum_matches: 1,
+        maximum_matches: 1,
+        samples: [{ uv: [0.25, 0.25], rgba_min: [0, 220, 0, 220], rgba_max: [80, 255, 80, 255] }],
+      },
     })
   } finally {
     await new Promise((resolve) => server.close(resolve))
@@ -186,6 +226,7 @@ test('scene tooling rejects missing machine mode and duplicate identity flags be
   for (const [args, code] of [
     [['list'], 'MISSING_ARG'],
     [['inspect', '--resource', 'one', '--resource', 'two', '--json'], 'DUPLICATE_FLAG'],
+    [['prove', '--owner', 'example.consumer', '--resource', 'one', '--json'], 'MISSING_ARG'],
     [['devtools', 'close', '--json'], 'MISSING_ARG'],
     [['devtools', 'update', '--session', 'one', '--expected-revision', '1', '--json'], 'MISSING_ARG'],
     [['devtools', 'update', '--session', 'one', '--expected-revision', '1', '--recording', 'yes', '--json'], 'INVALID_DEVTOOLS_TOGGLE'],
