@@ -227,6 +227,7 @@ func proofResult(
     _ passed: Bool
 ) -> [String: Any] {
     var payload = result(operationID, "apply", displayID, index, nil)
+    payload["snapshot"] = ["revision": 2]
     payload["proof"] = [
         "extension_digest": String(repeating: "a", count: 64),
         "passed": passed,
@@ -519,6 +520,7 @@ precondition(aggregateProof["resource_revision"] as? Int == 2)
 precondition(aggregateProof["max_readback_duration_ms"] as? Double == 3.0)
 precondition(aggregateProof["pixels_returned"] as? Bool == false)
 precondition(aggregateProof["pixels_persisted"] as? Bool == false)
+precondition(proofDelivery.payload["snapshot"] == nil)
 
 guard case .accepted(let failedProofInitial) = controller.admitOperation(
     topology: topology,

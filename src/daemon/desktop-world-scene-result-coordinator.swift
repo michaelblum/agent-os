@@ -418,6 +418,7 @@ final class AOSDesktopWorldSceneResultCoordinator {
         if let code { result["code"] = code }
         if operation.releaseLeaseOnCompletion { result["release_lease"] = true }
         if status == "ok",
+           operation.operation != "prove",
            let primaryID = operation.expected.values.first(where: { $0.index == 0 })?.displayID,
            let snapshot = operation.results[primaryID]?["snapshot"] as? [String: Any] {
             result["snapshot"] = snapshot

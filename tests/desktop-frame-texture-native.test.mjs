@@ -101,6 +101,7 @@ final class FakeCapturer: AOSDesktopFrameCapturing, AOSDesktopFrameRuntimeCaptur
     var pending: ((Result<AOSDesktopFrameCaptureSetResult, Error>) -> Void)?
     var deferred = false
     var failure: AOSDesktopFrameCaptureFailure?
+    var failures: [AOSDesktopFrameCaptureFailure] = []
     var lastWarmConfiguration: AOSDesktopFrameWarmConfiguration?
     var lastCaptureConfiguration: AOSDesktopFrameWarmConfiguration?
     var warmReconcileCount = 0
@@ -144,8 +145,9 @@ final class FakeCapturer: AOSDesktopFrameCapturing, AOSDesktopFrameRuntimeCaptur
         self.displayIDs = displayIDs
         excludedWindowIDs = excludingWindowIDs
         maximumPixels = maximumPixelsPerDisplay
-        if let failure {
-            completion(.failure(failure))
+        let observedFailure = failures.isEmpty ? failure : failures.removeFirst()
+        if let observedFailure {
+            completion(.failure(observedFailure))
         } else if deferred {
             pending = completion
         } else {
@@ -174,6 +176,7 @@ final class FakeCapturer: AOSDesktopFrameCapturing, AOSDesktopFrameRuntimeCaptur
 final class FakeRetiringCapturer: AOSDesktopFrameCapturing {
     var captureCount = 0
     var deferredCapture = true
+    var failures: [AOSDesktopFrameCaptureFailure] = []
     var pendingCapture: ((Result<AOSDesktopFrameCaptureSetResult, Error>) -> Void)?
     var retirementCompletesImmediately = false
     var retirementCompletion: ((Result<Void, Error>) -> Void)?
@@ -199,7 +202,10 @@ final class FakeRetiringCapturer: AOSDesktopFrameCapturing {
                 )
             }
         )
-        if deferredCapture {
+        let failure = failures.isEmpty ? nil : failures.removeFirst()
+        if let failure {
+            completion(.failure(failure))
+        } else if deferredCapture {
             pendingCapture = completion
         } else {
             completion(.success(result))
@@ -261,6 +267,26 @@ struct DesktopFrameProof {
                 code: SCStreamError.Code.userDeclined.rawValue
             )) == .permissionDenied,
             "native ScreenCaptureKit denial was not classified"
+        )
+        require(
+            aosDesktopFrameCaptureFailure(for: NSError(
+                domain: SCStreamErrorDomain,
+                code: SCStreamError.Code.failedApplicationConnectionInterrupted.rawValue
+            )) == .connectionInterrupted,
+            "transient ScreenCaptureKit connection interruption was not classified"
+        )
+        require(
+            AOSDesktopFrameCaptureConsentController.responseLifetime
+                == AOSDesktopFrameCaptureConsentController.permissionRequestLifetime
+                + TimeInterval(
+                    AOSDesktopFrameCaptureConsentController.maximumConnectionInterruptedRetries
+                        + 1
+                ) * (
+                    AOSDesktopFrameCaptureConsentController.probeLifetime
+                        + AOSDesktopFrameCaptureConsentController.probeRetirementLifetime
+                )
+                + 10,
+            "prime response lifetime lost its per-attempt safety margin"
         )
         let passiveCapturer = FakeCapturer()
         let passiveConsent = AOSDesktopFrameCaptureConsentController(
@@ -502,6 +528,79 @@ struct DesktopFrameProof {
         var failedStatus: String?
         failedConsent.prime(owner: owner) { failedStatus = $0.status.rawValue }
         require(failedStatus == "failed", "failed prime lost its status")
+
+        let interruptedCapturer = FakeCapturer()
+        interruptedCapturer.failures = [.connectionInterrupted]
+        let interruptedConsent = AOSDesktopFrameCaptureConsentController(
+            capturer: interruptedCapturer,
+            mainDisplayID: { 42 },
+            requestPermission: grantScreenCapturePermission,
+            scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
+        )
+        var interruptedStatus: String?
+        interruptedConsent.prime(owner: owner) { interruptedStatus = $0.status.rawValue }
+        require(interruptedStatus == "ready", "transient connection interruption was not recovered")
+        require(interruptedCapturer.captureCount == 2, "transient connection retry count changed")
+
+        let retirementGatedCapturer = FakeRetiringCapturer()
+        retirementGatedCapturer.deferredCapture = false
+        retirementGatedCapturer.failures = [.connectionInterrupted]
+        var retirementDeadlineCanceled: [Bool] = []
+        var retirementDeadlineRawActions: [() -> Void] = []
+        let retirementGatedConsent = AOSDesktopFrameCaptureConsentController(
+            capturer: retirementGatedCapturer,
+            mainDisplayID: { 42 },
+            requestPermission: grantScreenCapturePermission,
+            scheduleDeadline: { _, action in
+                let index = retirementDeadlineCanceled.count
+                retirementDeadlineCanceled.append(false)
+                retirementDeadlineRawActions.append(action)
+                return AOSDesktopFrameCancellation {
+                    retirementDeadlineCanceled[index] = true
+                }
+            }
+        )
+        var retirementGatedStatus: String?
+        retirementGatedConsent.prime(owner: owner) {
+            retirementGatedStatus = $0.status.rawValue
+        }
+        require(retirementGatedCapturer.captureCount == 1, "retry started before retirement")
+        require(retirementGatedStatus == nil, "prime settled before retirement")
+        let firstRetirementDeadlineIndex = retirementDeadlineRawActions.count - 1
+        let firstInterruptedRetirement = retirementGatedCapturer.retirementCompletion
+        firstInterruptedRetirement?(.success(()))
+        require(retirementGatedCapturer.captureCount == 2, "retry did not follow retirement")
+        require(retirementGatedStatus == nil, "retry settled before its retirement")
+        require(
+            retirementDeadlineCanceled[firstRetirementDeadlineIndex],
+            "superseded retirement deadline was not canceled"
+        )
+        retirementDeadlineRawActions[firstRetirementDeadlineIndex]()
+        require(retirementGatedStatus == nil, "stale retirement deadline poisoned retry")
+        let successfulRetryRetirement = retirementGatedCapturer.retirementCompletion
+        successfulRetryRetirement?(.success(()))
+        require(retirementGatedStatus == "ready", "retirement-gated retry did not settle")
+
+        let repeatedlyInterruptedCapturer = FakeCapturer()
+        repeatedlyInterruptedCapturer.failures = [.connectionInterrupted, .connectionInterrupted]
+        let repeatedlyInterruptedConsent = AOSDesktopFrameCaptureConsentController(
+            capturer: repeatedlyInterruptedCapturer,
+            mainDisplayID: { 42 },
+            requestPermission: grantScreenCapturePermission,
+            scheduleDeadline: { _, _ in AOSDesktopFrameCancellation() }
+        )
+        var repeatedlyInterruptedStatus: String?
+        repeatedlyInterruptedConsent.prime(owner: owner) {
+            repeatedlyInterruptedStatus = $0.status.rawValue
+        }
+        require(
+            repeatedlyInterruptedStatus == "failed",
+            "repeated connection interruption did not fail closed"
+        )
+        require(
+            repeatedlyInterruptedCapturer.captureCount == 2,
+            "connection interruption exceeded its single retry budget"
+        )
 
         let timeoutCapturer = FakeCapturer()
         timeoutCapturer.deferred = true

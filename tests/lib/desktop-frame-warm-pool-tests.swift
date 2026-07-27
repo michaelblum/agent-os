@@ -368,7 +368,7 @@ func runDesktopFrameWarmPoolTests() throws {
         "in-flight authorization fixture did not retire"
     )
 
-    let firstFailedSource = FakeWarmSource(failure: .captureFailed)
+    let firstFailedSource = FakeWarmSource(failure: .connectionInterrupted)
     let recoveredSource = FakeWarmSource(failure: nil)
     let recoveringAcquirer = SequencedWarmAcquirer(
         sources: [firstFailedSource, recoveredSource]
@@ -387,8 +387,8 @@ func runDesktopFrameWarmPoolTests() throws {
     )
     requireFailure(
         freeze(recoveringCapturer, configuration: configuration),
-        .captureFailed,
-        "runtime source failure changed its caller result"
+        .connectionInterrupted,
+        "runtime connection interruption changed its caller result"
     )
     require(
         waitForCondition {

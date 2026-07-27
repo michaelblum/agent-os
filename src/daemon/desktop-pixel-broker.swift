@@ -4,6 +4,7 @@ import Foundation
 enum AOSDesktopFrameCaptureFailure: Error, Equatable {
     case busy
     case captureFailed
+    case connectionInterrupted
     case consentRequired
     case displayNotFound
     case frameNotReady
@@ -17,7 +18,8 @@ enum AOSDesktopFrameCaptureFailure: Error, Equatable {
     var code: String {
         switch self {
         case .busy: return "DESKTOP_FRAME_BUSY"
-        case .captureFailed: return "DESKTOP_FRAME_CAPTURE_FAILED"
+        case .captureFailed, .connectionInterrupted:
+            return "DESKTOP_FRAME_CAPTURE_FAILED"
         case .consentRequired: return "DESKTOP_FRAME_CONSENT_REQUIRED"
         case .displayNotFound: return "DESKTOP_FRAME_DISPLAY_NOT_FOUND"
         case .frameNotReady: return "DESKTOP_FRAME_NOT_READY"

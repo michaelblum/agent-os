@@ -12,6 +12,7 @@ private let aosDesktopFramePermissionRequestQueue = DispatchQueue(
 )
 
 final class AOSDesktopFrameCaptureConsentController {
+    static let maximumConnectionInterruptedRetries = 1
     static let maximumPrimeWaiters = 16
     static let permissionRequestLifetime: TimeInterval = 120
     // A granted capture that cannot freeze a bounded frame promptly is not usable
@@ -23,7 +24,10 @@ final class AOSDesktopFrameCaptureConsentController {
     static let probeMaximumPixels =
         AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay
     static let responseLifetime: TimeInterval =
-        permissionRequestLifetime + probeLifetime + probeRetirementLifetime + 10
+        permissionRequestLifetime
+        + TimeInterval(maximumConnectionInterruptedRetries + 1)
+            * (probeLifetime + probeRetirementLifetime)
+        + 10
 
     typealias Completion = (AOSDesktopFrameDirectCaptureSnapshot) -> Void
     typealias DeadlineScheduler = (
@@ -44,9 +48,12 @@ final class AOSDesktopFrameCaptureConsentController {
     private struct ActivePrime {
         var capture: AOSDesktopFrameCancelling
         var captureInstalled: Bool
+        var connectionInterruptedRetryCount: Int
         var waiters: [PrimeWaiter]
         var deadline: AOSDesktopFrameCancelling
+        var deadlineToken: UInt64
         let generation: UInt64
+        var pendingConnectionInterrupted: Bool
         var pendingResult: AOSDesktopFrameDirectCaptureSnapshot?
         var permissionRequest: AOSDesktopFrameCancelling
         var phase: PrimePhase
@@ -202,9 +209,12 @@ final class AOSDesktopFrameCaptureConsentController {
         activePrime = ActivePrime(
             capture: AOSDesktopFrameCancellation(),
             captureInstalled: false,
+            connectionInterruptedRetryCount: 0,
             waiters: [PrimeWaiter(completion: completion, owner: owner)],
             deadline: AOSDesktopFrameCancellation(),
+            deadlineToken: 0,
             generation: generation,
+            pendingConnectionInterrupted: false,
             pendingResult: nil,
             permissionRequest: AOSDesktopFrameCancellation(),
             phase: .requestingPermission,
@@ -218,13 +228,12 @@ final class AOSDesktopFrameCaptureConsentController {
             return
         }
 
-        installDeadline(scheduleDeadline(Self.permissionRequestLifetime) { [weak self] in
-            self?.primeTimedOut(
-                code: "DESKTOP_FRAME_PERMISSION_REQUEST_TIMEOUT",
-                generation: generation,
-                phase: .requestingPermission
-            )
-        }, generation: generation)
+        armDeadline(
+            Self.permissionRequestLifetime,
+            code: "DESKTOP_FRAME_PERMISSION_REQUEST_TIMEOUT",
+            generation: generation,
+            phase: .requestingPermission
+        )
 
         let request = requestPermission { [weak self] granted in
             self?.permissionRequestCompleted(granted, generation: generation)
@@ -328,12 +337,40 @@ final class AOSDesktopFrameCaptureConsentController {
         lock.unlock()
     }
 
-    private func installDeadline(
-        _ deadline: AOSDesktopFrameCancelling,
-        generation: UInt64
+    private func armDeadline(
+        _ delay: TimeInterval,
+        code: String,
+        generation: UInt64,
+        phase: PrimePhase
     ) {
         lock.lock()
-        guard activePrime?.generation == generation else {
+        guard var active = activePrime,
+              active.generation == generation,
+              active.phase == phase,
+              !active.quarantined else {
+            lock.unlock()
+            return
+        }
+        active.deadlineToken &+= 1
+        if active.deadlineToken == 0 { active.deadlineToken = 1 }
+        let deadlineToken = active.deadlineToken
+        activePrime = active
+        lock.unlock()
+
+        let deadline = scheduleDeadline(delay) { [weak self] in
+            self?.primeTimedOut(
+                code: code,
+                deadlineToken: deadlineToken,
+                generation: generation,
+                phase: phase
+            )
+        }
+
+        lock.lock()
+        guard activePrime?.generation == generation,
+              activePrime?.deadlineToken == deadlineToken,
+              activePrime?.phase == phase,
+              activePrime?.quarantined == false else {
             lock.unlock()
             deadline.cancel()
             return
@@ -380,13 +417,16 @@ final class AOSDesktopFrameCaptureConsentController {
         permissionRequest.cancel()
         permissionDeadline.cancel()
 
-        installDeadline(scheduleDeadline(Self.probeLifetime) { [weak self] in
-            self?.primeTimedOut(
-                code: "DESKTOP_FRAME_PROBE_TIMEOUT",
-                generation: generation,
-                phase: .capturingProbe
-            )
-        }, generation: generation)
+        beginCaptureProbe(generation: generation)
+    }
+
+    private func beginCaptureProbe(generation: UInt64) {
+        armDeadline(
+            Self.probeLifetime,
+            code: "DESKTOP_FRAME_PROBE_TIMEOUT",
+            generation: generation,
+            phase: .capturingProbe
+        )
 
         let capture = capturer.capture(
             displayIDs: [mainDisplayID()],
@@ -403,6 +443,7 @@ final class AOSDesktopFrameCaptureConsentController {
         generation: UInt64
     ) {
         let next: AOSDesktopFrameDirectCaptureSnapshot
+        let connectionInterrupted: Bool
         do {
             let capture = try result.get()
             guard capture.frames.count == 1,
@@ -411,7 +452,9 @@ final class AOSDesktopFrameCaptureConsentController {
                 throw AOSDesktopFrameCaptureFailure.captureFailed
             }
             next = AOSDesktopFrameDirectCaptureSnapshot(status: .ready, errorCode: nil)
+            connectionInterrupted = false
         } catch let failure as AOSDesktopFrameCaptureFailure {
+            connectionInterrupted = failure == .connectionInterrupted
             switch failure {
             case .permissionDenied:
                 next = AOSDesktopFrameDirectCaptureSnapshot(
@@ -430,16 +473,22 @@ final class AOSDesktopFrameCaptureConsentController {
                 )
             }
         } catch {
+            connectionInterrupted = false
             next = AOSDesktopFrameDirectCaptureSnapshot(
                 status: .failed,
                 errorCode: AOSDesktopFrameCaptureFailure.captureFailed.code
             )
         }
-        beginProbeRetirement(next, generation: generation)
+        beginProbeRetirement(
+            next,
+            connectionInterrupted: connectionInterrupted,
+            generation: generation
+        )
     }
 
     private func beginProbeRetirement(
         _ next: AOSDesktopFrameDirectCaptureSnapshot,
+        connectionInterrupted: Bool,
         generation: UInt64
     ) {
         lock.lock()
@@ -463,6 +512,7 @@ final class AOSDesktopFrameCaptureConsentController {
         }
         let probeDeadline = active.deadline
         active.deadline = AOSDesktopFrameCancellation()
+        active.pendingConnectionInterrupted = connectionInterrupted
         active.pendingResult = next
         active.phase = .retiringProbe
         let shouldRetire = active.captureInstalled && !active.retirementStarted
@@ -471,13 +521,12 @@ final class AOSDesktopFrameCaptureConsentController {
         lock.unlock()
 
         probeDeadline.cancel()
-        installDeadline(scheduleDeadline(Self.probeRetirementLifetime) { [weak self] in
-            self?.primeTimedOut(
-                code: AOSDesktopFrameCaptureFailure.retirementUncertain.code,
-                generation: generation,
-                phase: .retiringProbe
-            )
-        }, generation: generation)
+        armDeadline(
+            Self.probeRetirementLifetime,
+            code: AOSDesktopFrameCaptureFailure.retirementUncertain.code,
+            generation: generation,
+            phase: .retiringProbe
+        )
         if shouldRetire {
             awaitProbeRetirement(active.capture, generation: generation)
         }
@@ -502,7 +551,7 @@ final class AOSDesktopFrameCaptureConsentController {
         generation: UInt64
     ) {
         lock.lock()
-        guard let active = activePrime,
+        guard var active = activePrime,
               active.generation == generation,
               active.phase == .retiringProbe,
               !active.quarantined,
@@ -510,22 +559,39 @@ final class AOSDesktopFrameCaptureConsentController {
             lock.unlock()
             return
         }
-        lock.unlock()
-
-        let next: AOSDesktopFrameDirectCaptureSnapshot
         if case .failure = result {
-            next = AOSDesktopFrameDirectCaptureSnapshot(
+            lock.unlock()
+            completePrime(AOSDesktopFrameDirectCaptureSnapshot(
                 status: .failed,
                 errorCode: AOSDesktopFrameCaptureFailure.retirementUncertain.code
-            )
-        } else {
-            next = pendingResult
+            ), generation: generation)
+            return
         }
-        completePrime(next, generation: generation)
+        if active.pendingConnectionInterrupted,
+           active.connectionInterruptedRetryCount
+            < Self.maximumConnectionInterruptedRetries {
+            let retirementDeadline = active.deadline
+            active.capture = AOSDesktopFrameCancellation()
+            active.captureInstalled = false
+            active.connectionInterruptedRetryCount += 1
+            active.deadline = AOSDesktopFrameCancellation()
+            active.pendingConnectionInterrupted = false
+            active.pendingResult = nil
+            active.phase = .capturingProbe
+            active.retirementStarted = false
+            activePrime = active
+            lock.unlock()
+            retirementDeadline.cancel()
+            beginCaptureProbe(generation: generation)
+            return
+        }
+        lock.unlock()
+        completePrime(pendingResult, generation: generation)
     }
 
     private func primeTimedOut(
         code: String,
+        deadlineToken: UInt64,
         generation: UInt64,
         phase: PrimePhase
     ) {
@@ -536,6 +602,7 @@ final class AOSDesktopFrameCaptureConsentController {
         lock.lock()
         guard var active = activePrime,
               active.generation == generation,
+              active.deadlineToken == deadlineToken,
               active.phase == phase,
               !active.quarantined else {
             lock.unlock()
