@@ -62,41 +62,48 @@ private final class TerminalStartupOwnerBox: @unchecked Sendable {
 }
 
 func runDesktopPixelTerminalStartupTests() async throws {
-    let retainedGate = PixelOperationGate()
     let retainedEntered = DispatchSemaphore(value: 0)
     let retainedSettled = DispatchSemaphore(value: 0)
-    weak var retainedOperation: AOSDesktopPixelRetainedAsyncOperation?
+    let retainedNativeCompletion = LockedNativeCompletion()
+    let retainedCompletionCount = LockedCounter()
+    weak var retainedOperation: AOSDesktopPixelRetainedNativeOperation?
     do {
-        let operation = AOSDesktopPixelRetainedAsyncOperation(
-            priority: .userInitiated
-        )
+        let operation = AOSDesktopPixelRetainedNativeOperation()
         retainedOperation = operation
         require(
-            operation.start(operation: {
+            operation.start(operation: { completion in
                 retainedEntered.signal()
-                await retainedGate.wait()
+                retainedNativeCompletion.install(completion)
             }, completion: { _ in
+                retainedCompletionCount.increment()
                 retainedSettled.signal()
             }),
             "retained native operation fixture was not admitted"
         )
+        require(
+            retainedEntered.wait(timeout: .now() + 1) == .success,
+            "retained native operation fixture did not begin"
+        )
+        operation.settle(.failure(
+            AOSDesktopFrameCaptureFailure.connectionInterrupted
+        ))
+        require(
+            retainedSettled.wait(timeout: .now() + 1) == .success,
+            "delegate evidence did not settle the native operation"
+        )
     }
-    require(
-        retainedEntered.wait(timeout: .now() + 1) == .success,
-        "retained native operation fixture did not begin"
-    )
     let retainedReleaseDeadline = Date().addingTimeInterval(1)
     while retainedOperation != nil, Date() < retainedReleaseDeadline {
         usleep(1_000)
     }
     require(
         retainedOperation == nil,
-        "unresolved native operation retained its higher-level owner"
+        "settled native operation retained its higher-level owner"
     )
-    Task { await retainedGate.open() }
+    retainedNativeCompletion.invoke(nil)
     require(
-        retainedSettled.wait(timeout: .now() + 1) == .success,
-        "detached native operation did not settle after release"
+        retainedCompletionCount.get() == 1,
+        "late native callback settled the released operation twice"
     )
 
     let observedLifecycle = ObservedTerminalPixelStreamLifecycle()

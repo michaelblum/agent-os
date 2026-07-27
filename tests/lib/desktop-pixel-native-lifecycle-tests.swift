@@ -262,26 +262,55 @@ func settlePixelRetirements(
 func runDesktopPixelNativeLifecycleTests() async throws {
     runDesktopPixelCaptureFilterTests()
     let operationUsedMainQueue = LockedBoolean()
-    try await aosPerformDesktopPixelNativeOperation { completion in
-        operationUsedMainQueue.set(Thread.isMainThread)
-        DispatchQueue.global(qos: .userInitiated).async {
-            completion(nil)
-        }
+    let nativeCompletion = LockedNativeCompletion()
+    let operationCompletionCount = LockedCounter()
+    let retainedOperation = AOSDesktopPixelRetainedNativeOperation()
+    let operationResult: Result<Void, Error> = await withCheckedContinuation {
+        continuation in
+        require(
+            retainedOperation.start(operation: { completion in
+                operationUsedMainQueue.set(Thread.isMainThread)
+                nativeCompletion.install(completion)
+                retainedOperation.settle(.failure(
+                    AOSDesktopFrameCaptureFailure.connectionInterrupted
+                ))
+            }, completion: { result in
+                operationCompletionCount.increment()
+                continuation.resume(returning: result)
+            }),
+            "native ScreenCaptureKit operation was not admitted"
+        )
     }
     require(
         operationUsedMainQueue.get(),
         "native ScreenCaptureKit operation was not admitted on AppKit's main queue"
     )
-    do {
-        try await aosPerformDesktopPixelNativeOperation { completion in
-            completion(AOSDesktopFrameCaptureFailure.connectionInterrupted)
-        }
-        require(false, "native ScreenCaptureKit operation swallowed its error")
-    } catch let failure as AOSDesktopFrameCaptureFailure {
+    guard case .failure(let error) = operationResult,
+          error as? AOSDesktopFrameCaptureFailure == .connectionInterrupted else {
+        require(false, "delegate settlement changed its exact native failure")
+        return
+    }
+    nativeCompletion.invoke(nil)
+    require(
+        operationCompletionCount.get() == 1,
+        "late native callback settled the retained operation twice"
+    )
+
+    let callbackOperation = AOSDesktopPixelRetainedNativeOperation()
+    let callbackResult: Result<Void, Error> = await withCheckedContinuation {
+        continuation in
         require(
-            failure == .connectionInterrupted,
-            "native ScreenCaptureKit operation changed its exact failure"
+            callbackOperation.start(operation: { completion in
+                completion(nil)
+            }, completion: { result in
+                continuation.resume(returning: result)
+            }),
+            "native callback operation was not admitted"
         )
+    }
+    guard case .success = callbackResult else {
+        require(false, "native completion callback did not settle successfully")
+        return
     }
     require(
         AOSDesktopPixelWarmStreamProfile.queueDepth == 3,

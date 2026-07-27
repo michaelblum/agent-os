@@ -53,35 +53,15 @@ private func aosDesktopPixelNativeError(
     return nil
 }
 
-func aosPerformDesktopPixelNativeOperation(
-    _ operation: @escaping @Sendable (
+final class AOSDesktopPixelRetainedNativeOperation: @unchecked Sendable {
+    typealias Operation = @Sendable (
         _ completion: @escaping @Sendable (Error?) -> Void
     ) -> Void
-) async throws {
-    try await withCheckedThrowingContinuation {
-        (continuation: CheckedContinuation<Void, Error>) in
-        DispatchQueue.main.async {
-            operation { error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: ())
-                }
-            }
-        }
-    }
-}
 
-final class AOSDesktopPixelRetainedAsyncOperation: @unchecked Sendable {
-    typealias Operation = @Sendable () async throws -> Void
-
+    private var completion: AOSDesktopPixelNativeCompletion?
+    private var finished = false
     private let lock = NSLock()
-    private let priority: TaskPriority
     private var started = false
-
-    init(priority: TaskPriority) {
-        self.priority = priority
-    }
 
     @discardableResult
     func start(
@@ -89,24 +69,37 @@ final class AOSDesktopPixelRetainedAsyncOperation: @unchecked Sendable {
         completion: @escaping AOSDesktopPixelNativeCompletion
     ) -> Bool {
         lock.lock()
-        guard !started else {
+        guard !started, !finished else {
             lock.unlock()
             return false
         }
         started = true
+        self.completion = completion
         lock.unlock()
 
-        Task.detached(priority: priority) {
-            let result: Result<Void, Error>
-            do {
-                try await operation()
-                result = .success(())
-            } catch {
-                result = .failure(error)
+        DispatchQueue.main.async {
+            operation { [weak self] error in
+                if let error {
+                    self?.settle(.failure(error))
+                } else {
+                    self?.settle(.success(()))
+                }
             }
-            completion(result)
         }
         return true
+    }
+
+    func settle(_ result: Result<Void, Error>) {
+        lock.lock()
+        guard !finished else {
+            lock.unlock()
+            return
+        }
+        finished = true
+        let completion = self.completion
+        self.completion = nil
+        lock.unlock()
+        completion?(result)
     }
 }
 
@@ -374,6 +367,7 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
     private var frameAdvancement = AOSDesktopPixelFrameAdvancement()
     private var latestSample: AOSDesktopPixelLatestSample?
     private let lock = NSLock()
+    private let nativeStopped: @Sendable (Error) -> Void
     private let retirementLatch = AOSDesktopPixelRetirementLatch()
     private let slot: Int
     private let startupSignal: AOSDesktopPixelStartupSignal
@@ -382,11 +376,13 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
     init(
         displayID: UInt32,
         slot: Int,
+        nativeStopped: @escaping @Sendable (Error) -> Void,
         startupSignal: AOSDesktopPixelStartupSignal,
         trace: AOSDesktopPixelNativeTrace
     ) {
         self.displayID = displayID
         self.slot = slot
+        self.nativeStopped = nativeStopped
         self.startupSignal = startupSignal
         self.trace = trace
     }
@@ -448,6 +444,7 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
             nativeCode: aosDesktopPixelNativeTraceCode(for: error)
         )
         retirementLatch.observe()
+        nativeStopped(error)
         startupSignal.fail(error)
     }
 
@@ -532,9 +529,9 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
     private struct Entry: @unchecked Sendable {
         let output: AOSDesktopPixelStreamOutput
         let sampleQueue: DispatchQueue
-        let startOperation: AOSDesktopPixelRetainedAsyncOperation
+        let startOperation: AOSDesktopPixelRetainedNativeOperation
         let startupSignal: AOSDesktopPixelStartupSignal
-        let stopOperation: AOSDesktopPixelRetainedAsyncOperation
+        let stopOperation: AOSDesktopPixelRetainedNativeOperation
         let stream: SCStream
     }
 
@@ -630,12 +627,15 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                     excludingWindowIDs: request.excludingWindowIDs
                 )
                 let startupSignal = AOSDesktopPixelStartupSignal()
-                let startOperation = AOSDesktopPixelRetainedAsyncOperation(
-                    priority: .userInitiated
-                )
+                let startOperation = AOSDesktopPixelRetainedNativeOperation()
+                let stopOperation = AOSDesktopPixelRetainedNativeOperation()
                 let output = AOSDesktopPixelStreamOutput(
                     displayID: display.displayID,
                     slot: slot,
+                    nativeStopped: { [weak startOperation, weak stopOperation] error in
+                        startOperation?.settle(.failure(error))
+                        stopOperation?.settle(.failure(error))
+                    },
                     startupSignal: startupSignal,
                     trace: trace
                 )
@@ -658,9 +658,7 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                     sampleQueue: sampleQueue,
                     startOperation: startOperation,
                     startupSignal: startupSignal,
-                    stopOperation: AOSDesktopPixelRetainedAsyncOperation(
-                        priority: .utility
-                    ),
+                    stopOperation: stopOperation,
                     stream: stream
                 ))
                 trace.emit("configured", slot: slot)
@@ -678,14 +676,12 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                 let output = entry.output
                 let stream = entry.stream
                 let started = entry.startOperation.start(operation: {
+                    nativeCompletion in
                     trace.emit(
                         "start_invoked",
                         slot: index
                     )
-                    try await aosPerformDesktopPixelNativeOperation {
-                        completion in
-                        stream.startCapture(completionHandler: completion)
-                    }
+                    stream.startCapture(completionHandler: nativeCompletion)
                 }, completion: { result in
                     output.startSettled(aosDesktopPixelNativeError(result))
                     completion(result)
@@ -699,11 +695,9 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                 let stream = entry.stream
                 output.quiesce()
                 let started = entry.stopOperation.start(operation: {
+                    nativeCompletion in
                     output.stopInvoked()
-                    try await aosPerformDesktopPixelNativeOperation {
-                        completion in
-                        stream.stopCapture(completionHandler: completion)
-                    }
+                    stream.stopCapture(completionHandler: nativeCompletion)
                 }, completion: { result in
                     output.stopSettled(aosDesktopPixelNativeError(result))
                     completion(result)

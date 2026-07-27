@@ -19,40 +19,57 @@ private final class NativeCompletionSlot: @unchecked Sendable {
     }
 }
 
+final class LockedNativeCompletion: @unchecked Sendable {
+    private var completion: (@Sendable (Error?) -> Void)?
+    private let lock = NSLock()
+
+    func install(_ completion: @escaping @Sendable (Error?) -> Void) {
+        lock.lock()
+        self.completion = completion
+        lock.unlock()
+    }
+
+    func invoke(_ error: Error?) {
+        lock.lock()
+        let current = completion
+        completion = nil
+        lock.unlock()
+        current?(error)
+    }
+}
+
 func runDesktopPixelStartupCallbackTests() async throws {
-    let retainedGate = PixelOperationGate()
     let retainedEntered = DispatchSemaphore(value: 0)
+    let retainedNativeCompletion = LockedNativeCompletion()
     let retainedSettled = DispatchSemaphore(value: 0)
     let retainedSucceeded = LockedBoolean()
-    let retainedOperation = AOSDesktopPixelRetainedAsyncOperation(
-        priority: .userInitiated
-    )
+    let retainedOperation = AOSDesktopPixelRetainedNativeOperation()
     require(
-        retainedOperation.start(operation: {
+        retainedOperation.start(operation: { completion in
             retainedEntered.signal()
-            await retainedGate.wait()
+            retainedNativeCompletion.install(completion)
         }, completion: { result in
             if case .success = result { retainedSucceeded.set(true) }
             retainedSettled.signal()
         }),
-        "retained async operation rejected its first invocation"
+        "retained native operation rejected its first invocation"
     )
     require(
         retainedEntered.wait(timeout: .now() + 1) == .success,
-        "retained async operation did not begin"
+        "retained native operation did not begin"
     )
     require(
         !retainedOperation.start(
-            operation: {},
+            operation: { _ in },
             completion: { _ in }
         ),
-        "retained async operation admitted a duplicate invocation"
+        "retained native operation admitted a duplicate invocation"
     )
-    Task { await retainedGate.open() }
+    retainedNativeCompletion.invoke(nil)
     require(
         retainedSettled.wait(timeout: .now() + 1) == .success
             && retainedSucceeded.get(),
-        "retained async operation did not deliver its authoritative result"
+        "retained native operation did not deliver its authoritative result"
     )
 
     let firstFrameLifecycle = FakePixelStreamLifecycle()
@@ -243,19 +260,15 @@ func runDesktopPixelStartupCallbackTests() async throws {
 
     let integratedLifecycle = FakePixelStreamLifecycle()
     let integratedSignal = AOSDesktopPixelStartupSignal()
-    let integratedStartGate = PixelOperationGate()
+    let integratedStartCompletion = LockedNativeCompletion()
     let integratedStartEntered = DispatchSemaphore(value: 0)
     let integratedOwnerReady = DispatchSemaphore(value: 0)
     let integratedStopEntered = DispatchSemaphore(value: 0)
     let integratedRetireSettled = DispatchSemaphore(value: 0)
     let integratedRetired = LockedBoolean()
     let integratedStopCalls = LockedCounter()
-    let integratedStartOperation = AOSDesktopPixelRetainedAsyncOperation(
-        priority: .userInitiated
-    )
-    let integratedStopOperation = AOSDesktopPixelRetainedAsyncOperation(
-        priority: .utility
-    )
+    let integratedStartOperation = AOSDesktopPixelRetainedNativeOperation()
+    let integratedStopOperation = AOSDesktopPixelRetainedNativeOperation()
     Task {
         do {
             let owner = try await aosStartDesktopPixelStreams(
@@ -264,8 +277,9 @@ func runDesktopPixelStartupCallbackTests() async throws {
                 settlementTimeout: 0.5,
                 start: { _, completion in
                     if !integratedStartOperation.start(operation: {
+                        nativeCompletion in
                         integratedStartEntered.signal()
-                        await integratedStartGate.wait()
+                        integratedStartCompletion.install(nativeCompletion)
                     }, completion: completion) {
                         completion(.failure(
                             AOSDesktopFrameCaptureFailure.busy
@@ -275,7 +289,9 @@ func runDesktopPixelStartupCallbackTests() async throws {
                 stop: { _, completion in
                     integratedStopCalls.increment()
                     if !integratedStopOperation.start(operation: {
+                        nativeCompletion in
                         integratedStopEntered.signal()
+                        nativeCompletion(nil)
                     }, completion: completion) {
                         completion(.failure(
                             AOSDesktopFrameCaptureFailure.busy
@@ -302,7 +318,7 @@ func runDesktopPixelStartupCallbackTests() async throws {
             && integratedRetireSettled.wait(timeout: .now()) == .timedOut,
         "integrated retirement overlapped its pending retained startup"
     )
-    Task { await integratedStartGate.open() }
+    integratedStartCompletion.invoke(nil)
     require(
         integratedStopEntered.wait(timeout: .now() + 1) == .success
             && integratedRetireSettled.wait(timeout: .now() + 1) == .success
