@@ -27,8 +27,9 @@ subscription maps, or transport orchestration in the connection handler.
 DesktopWorld event-routing failures remain reason-coded and observable through
 bounded daemon diagnostics; never log scene payloads, gesture coordinates,
 labels, or product data to diagnose delivery.
-`desktop-pixel-native.swift` owns ScreenCaptureKit snapshots and bounded warm
-streams. `desktop-pixel-stream-lifecycle.swift` owns generic concurrent stream
+`desktop-pixel-capture-filter.swift` owns process self-exclusion and the exact
+window fallback. `desktop-pixel-native.swift` owns ScreenCaptureKit snapshots
+and bounded warm streams. `desktop-pixel-stream-lifecycle.swift` owns generic concurrent stream
 startup, compensation, and acknowledged retirement. `desktop-pixel-broker.swift`
 serializes that native acquisition across daemon consumers and owns warm-lease
 lifecycle. They return in-memory pixel
@@ -58,15 +59,18 @@ sample, stop, and delegate-stop phases, but never display identity or pixels.
 A native failure marker may retain only the stable `SCStreamError` numeric code;
 it may not include localized descriptions, user info, source metadata, or paths.
 AOS constructs each warm ScreenCaptureKit source on AppKit's main actor, uses
-ScreenCaptureKit's native async operations, excludes the exact DesktopWorld
-surface windows from captured display content, and uses one bounded stream
-configuration with the same pixel ceiling
+ScreenCaptureKit's native async operations, and excludes the current AOS
+capture process from captured display content so no AOS-owned projection can
+self-capture. If ScreenCaptureKit does not expose that process, capture falls
+back to the complete exact DesktopWorld surface-window set and fails before
+stream creation when any requested window is unresolved. It uses one bounded
+stream configuration with the same pixel ceiling
 for consent and runtime acquisition. Scaled stream surfaces round down to
 positive even dimensions without exceeding that ceiling; an impossible budget
 or aspect ratio fails before ScreenCaptureKit is invoked.
 Warm source discovery includes off-screen windows so hidden or suspended stage
-windows retain stable identities; the display filter still excludes only the
-exact authorized stage windows. Explicit dimensions enforce the pixel budget,
+windows retain stable identities for conservative source replacement and the
+exact-window fallback. Explicit dimensions enforce the pixel budget,
 and the stream keeps ScreenCaptureKit's default capture-resolution mode.
 A warm stream retains its latest complete or started native
 sample, so it uses a fixed queue depth of three and cannot become ready

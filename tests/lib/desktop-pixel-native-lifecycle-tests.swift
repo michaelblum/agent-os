@@ -260,6 +260,7 @@ func settlePixelRetirements(
 }
 
 func runDesktopPixelNativeLifecycleTests() async throws {
+    runDesktopPixelCaptureFilterTests()
     require(
         AOSDesktopPixelWarmStreamProfile.queueDepth == 3,
         "warm stream profile lost its bounded producer depth"
