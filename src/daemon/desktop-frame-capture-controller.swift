@@ -82,7 +82,8 @@ protocol AOSDesktopFrameCanvasProviding: AnyObject {
 extension CanvasManager: AOSDesktopFrameCanvasProviding {}
 
 final class AOSDesktopFrameCaptureController {
-    static let maximumPixelsPerDisplay = 1_048_576
+    static let maximumPixelsPerDisplay =
+        AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay
     static let requestLifetime: TimeInterval = 2
 
     typealias Authorizer = (

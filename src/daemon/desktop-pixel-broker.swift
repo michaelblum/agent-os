@@ -32,6 +32,7 @@ enum AOSDesktopFrameCaptureFailure: Error, Equatable {
 }
 
 enum AOSDesktopPixelLimits {
+    static let interactiveMaximumPixelsPerDisplay = 1_048_576
     static let maximumDisplayCount = 16
     static let maximumPixelsPerDisplay = 16_777_216
     static let maximumTotalPixels = 67_108_864

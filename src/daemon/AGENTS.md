@@ -41,6 +41,10 @@ configuration does not cancel an in-flight ScreenCaptureKit `startCapture()`;
 startup settles before one acknowledged retirement begins, so native start and
 stop never race. A startup that misses the settlement deadline fails the broker
 closed while its coordinator retains ownership and retires any late completion.
+AOS issues native stream start and stop requests on AppKit's main queue, excludes
+its complete process from captured display content when AOS surfaces exist, and
+uses one off-screen-inclusive stream configuration with consumer-specific
+bounded pixel ceilings for consent and runtime acquisition.
 A warm stream retains its latest complete or started native
 sample, so it uses a fixed queue depth of three and cannot become ready
 until every display has retained a usable frame and then delivered a later,

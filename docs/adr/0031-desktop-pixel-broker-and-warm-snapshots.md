@@ -29,11 +29,11 @@ remains fail-closed and late results cannot alter the newer state.
 The broker supports two acquisition forms:
 
 - **snapshot** uses one bounded `SCScreenshotManager` operation;
-- **warm snapshot** opens one `SCStream` per admitted display, excludes the
-  owning DesktopWorld windows, and retains only the latest complete sample per
-  display for a whole-display freeze. Each stream uses a fixed queue depth of
-  three: one slot may remain retained by the latest sample while two bounded
-  producer slots permit frame advancement.
+- **warm snapshot** opens one `SCStream` per admitted display, excludes the AOS
+  process that owns DesktopWorld surfaces, and retains only the latest complete
+  sample per display for a whole-display freeze. Each stream uses a fixed queue
+  depth of three: one slot may remain retained by the latest sample while two
+  bounded producer slots permit frame advancement.
 
 Warm snapshots have two lifecycles. Explicit consent probes stop every stream
 immediately after one freeze. Runtime DesktopWorld requests never use that
@@ -50,12 +50,21 @@ permission; it only freezes the already available latest sample set.
 A warm lease is owner-bound, singular, cancelable, and valid only while its
 latest samples remain fresh. A different owner cannot freeze or release it.
 All admitted display streams are configured before any startup begins, then
-started concurrently as one aggregate. Readiness requires a usable complete or
-started sample from every display followed by a later producer callback with a
+started concurrently as one aggregate. Native start and stop requests are
+issued on AppKit's main queue, while completion and frame delivery remain
+asynchronous. The stream profile includes off-screen shareable content, keeps
+the consent probe at 4,096 pixels and runtime at a one-megapixel-per-display
+ceiling, and does not request best-resolution resampling for reduced output.
+Readiness requires a usable complete or started sample from every display,
+followed by a later producer callback with a
 numeric, monotonically advancing timestamp. The later callback may be idle
 because ScreenCaptureKit uses that status when a live display has not changed;
 it proves liveness but does not replace the retained image. Missing status
 metadata, nonnumeric times, blank, suspended, and stopped callbacks fail closed.
+If a request declares AOS windows to exclude but ScreenCaptureKit cannot resolve
+the current AOS application, startup fails before creating a stream. The
+pre-surface consent probe declares no excluded windows and may use an empty
+window exclusion until any AOS surface exists.
 Startup failure or cancellation immediately requests aggregate retirement while
 retaining ownership of every pending startup callback. A successfully started
 stream receives exactly one compensating stop. A failed start is confirmed
