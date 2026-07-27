@@ -27,7 +27,7 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(native, /SCStream\(/u)
   assert.match(native, /AOSDesktopPixelWarmStreamProfile/u)
   assert.match(native, /static let queueDepth = 3/u)
-  assert.match(warmNative, /onScreenWindowsOnly: true/u)
+  assert.match(warmNative, /onScreenWindowsOnly: false/u)
   assert.match(warmNative, /let windows = content\.windows\.filter/u)
   assert.match(warmNative, /guard windows\.count == excluded\.count/u)
   assert.match(warmNative, /excludingWindows: windows/u)
@@ -38,11 +38,12 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
     /aosStartDesktopPixelStreams[\s\S]*startOperation\.start[\s\S]*try await entry\.stream\.startCapture\(\)[\s\S]*stop:[\s\S]*stopOperation\.start[\s\S]*try await entry\.stream\.stopCapture\(\)/u,
   )
   assert.match(native, /final class AOSDesktopPixelRetainedAsyncOperation/u)
+  assert.match(native, /func cancel\(\)[\s\S]*task\?\.cancel\(\)/u)
   assert.match(native, /Task\.detached\(priority: priority\)/u)
   assert.doesNotMatch(native, /withCheckedThrowingContinuation/u)
   assert.match(warmNative, /configuration\.width = profile\.width/u)
   assert.match(warmNative, /configuration\.height = profile\.height/u)
-  assert.match(warmNative, /configuration\.captureResolution = \.best/u)
+  assert.doesNotMatch(warmNative, /configuration\.captureResolution/u)
   assert.match(native, /AOSDesktopPixelFrameAdvancement/u)
   assert.match(native, /requiredDistinctFrames: UInt64 = 2/u)
   assert.match(native, /waitUntilReady\(timeout: 0\.75\)/u)
@@ -64,6 +65,10 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(lifecycle, /AOSDesktopPixelStartupOwner/u)
   assert.match(lifecycle, /AOSDesktopPixelLateStartupFailure/u)
   assert.match(lifecycle, /case \.failed:[\s\S]*action = \.confirmInactive/u)
+  assert.match(
+    lifecycle,
+    /if startState == \.pending \{ startState = \.failed \}[\s\S]*retireIfNeeded\(\)/u,
+  )
   assert.match(lifecycle, /case \.succeeded:[\s\S]*action = \.stop\(attempt\)/u)
   assert.match(lifecycle, /AOSDesktopPixelWarmOpenOperation/u)
   assert.match(lifecycle, /cancellationRequested = true/u)

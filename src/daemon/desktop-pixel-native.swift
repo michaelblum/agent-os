@@ -55,6 +55,7 @@ final class AOSDesktopPixelRetainedAsyncOperation: @unchecked Sendable {
     private var finished = false
     private let lock = NSLock()
     private let priority: TaskPriority
+    private var cancellationRequested = false
     private var started = false
     private var task: Task<Void, Never>?
 
@@ -87,9 +88,20 @@ final class AOSDesktopPixelRetainedAsyncOperation: @unchecked Sendable {
         }
 
         lock.lock()
-        if !finished { self.task = task }
+        let shouldCancel = cancellationRequested
+        if !finished, !shouldCancel { self.task = task }
         lock.unlock()
+        if shouldCancel { task.cancel() }
         return true
+    }
+
+    func cancel() {
+        lock.lock()
+        cancellationRequested = true
+        let task = self.task
+        self.task = nil
+        lock.unlock()
+        task?.cancel()
     }
 
     private func finish(
@@ -376,17 +388,20 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
     private let lock = NSLock()
     private let retirementLatch = AOSDesktopPixelRetirementLatch()
     private let slot: Int
+    private let cancelPendingStart: @Sendable () -> Void
     private let startupSignal: AOSDesktopPixelStartupSignal
     private let trace: AOSDesktopPixelNativeTrace
 
     init(
         displayID: UInt32,
         slot: Int,
+        cancelPendingStart: @escaping @Sendable () -> Void,
         startupSignal: AOSDesktopPixelStartupSignal,
         trace: AOSDesktopPixelNativeTrace
     ) {
         self.displayID = displayID
         self.slot = slot
+        self.cancelPendingStart = cancelPendingStart
         self.startupSignal = startupSignal
         self.trace = trace
     }
@@ -448,6 +463,9 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
             nativeCode: aosDesktopPixelNativeTraceCode(for: error)
         )
         startupSignal.fail(error)
+        // ScreenCaptureKit has already declared this stream terminal. Cancel
+        // only the stale Swift waiter so it cannot retain the failed stream.
+        cancelPendingStart()
         retirementLatch.observe()
     }
 
@@ -572,7 +590,7 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
         do {
             content = try await SCShareableContent.excludingDesktopWindows(
                 false,
-                onScreenWindowsOnly: true
+                onScreenWindowsOnly: false
             )
         } catch {
             throw aosDesktopFrameCaptureFailure(for: error)
@@ -620,7 +638,6 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                 configuration.height = profile.height
                 configuration.showsCursor = false
                 configuration.capturesAudio = false
-                configuration.captureResolution = .best
                 configuration.minimumFrameInterval = CMTime(value: 1, timescale: 30)
                 // Retaining the latest IOSurface occupies one producer slot.
                 // Two additional slots permit ScreenCaptureKit to advance.
@@ -631,9 +648,15 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                     excludingWindows: windows
                 )
                 let startupSignal = AOSDesktopPixelStartupSignal()
+                let startOperation = AOSDesktopPixelRetainedAsyncOperation(
+                    priority: .userInitiated
+                )
                 let output = AOSDesktopPixelStreamOutput(
                     displayID: display.displayID,
                     slot: slot,
+                    cancelPendingStart: { [weak startOperation] in
+                        startOperation?.cancel()
+                    },
                     startupSignal: startupSignal,
                     trace: trace
                 )
@@ -654,9 +677,7 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                 entries.append(Entry(
                     output: output,
                     sampleQueue: sampleQueue,
-                    startOperation: AOSDesktopPixelRetainedAsyncOperation(
-                        priority: .userInitiated
-                    ),
+                    startOperation: startOperation,
                     startupSignal: startupSignal,
                     stopOperation: AOSDesktopPixelRetainedAsyncOperation(
                         priority: .utility

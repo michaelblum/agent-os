@@ -35,6 +35,11 @@ The broker supports two acquisition forms:
   depth of three: one slot may remain retained by the latest sample while two
   bounded producer slots permit frame advancement.
 
+Warm source discovery includes off-screen windows so an exact authorized stage
+window remains resolvable while hidden or suspended. This changes identity
+discovery only; every stream remains display-scoped and excludes the exact
+authorized stage-window set from captured content.
+
 Warm snapshots have two lifecycles. Explicit consent probes stop every stream
 immediately after one freeze. Runtime DesktopWorld requests never use that
 one-shot path and fail with `DESKTOP_FRAME_NOT_READY` until their
@@ -60,8 +65,10 @@ native async start and stop exactly once and remains alive until that operation
 settles. Caller cancellation does not cancel Apple's in-flight operation; the
 coordinator waits for authoritative settlement and compensates a late start
 when required. The consent probe and runtime use the same
-one-megapixel-per-display stream profile. ScreenCaptureKit performs its best
-available resampling into that bounded output surface.
+one-megapixel-per-display stream profile. Explicit width and height bounds
+control the output surface; the warm stream retains ScreenCaptureKit's default
+capture-resolution mode, matching the proven low-latency native path without
+requesting a second high-resolution resampling policy.
 Readiness requires a usable complete or started sample from every display,
 followed by a later producer callback with a
 numeric, monotonically advancing timestamp. The later callback may be idle
@@ -86,6 +93,9 @@ retirement settlement faults the broker before it can admit later work. Failure
 diagnostics contain only lifecycle markers, the startup phase, bounded elapsed
 milliseconds, reason codes, and the stable numeric `SCStreamError` identity;
 they contain no localized error description, display identity, or pixels.
+An authoritative `didStopWithError` callback also terminates any still-pending
+Swift startup waiter. It does not issue a competing native stop; it releases the
+failed stream after ScreenCaptureKit has already declared retirement.
 Scaled warm-stream IOSurfaces round down to even dimensions while remaining
 within the declared per-display pixel budget. A budget or aspect ratio that
 cannot produce two positive even axes fails before native stream creation.

@@ -104,6 +104,7 @@
         "tests/lib/desktop-frame-warm-pool-tests.swift",
         "tests/lib/desktop-pixel-broker-tests.swift",
         "tests/lib/desktop-pixel-native-lifecycle-tests.swift",
+        "tests/lib/desktop-pixel-terminal-startup-tests.swift",
         "tests/lib/desktop-pixel-startup-callback-tests.swift",
         "tests/lib/desktop-pixel-warm-open-operation-tests.swift",
         "tests/scene-extension-cli.test.mjs",

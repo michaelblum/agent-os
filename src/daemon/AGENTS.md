@@ -58,6 +58,10 @@ configuration with the same pixel ceiling
 for consent and runtime acquisition. Scaled stream surfaces round down to
 positive even dimensions without exceeding that ceiling; an impossible budget
 or aspect ratio fails before ScreenCaptureKit is invoked.
+Warm source discovery includes off-screen windows so hidden or suspended stage
+windows retain stable identities; the display filter still excludes only the
+exact authorized stage windows. Explicit dimensions enforce the pixel budget,
+and the stream keeps ScreenCaptureKit's default capture-resolution mode.
 A warm stream retains its latest complete or started native
 sample, so it uses a fixed queue depth of three and cannot become ready
 until every display has retained a usable frame and then delivered a later,
@@ -80,6 +84,9 @@ native retirement is acknowledged. Delegate-observed and explicit
 ScreenCaptureKit terminal states count as retirement. A successful explicit
 stop is latched so repeated cleanup is idempotent; unknown stop failures remain
 fail-closed.
+When the delegate reports a terminal error before native startup returns, cancel
+only the stale Swift waiter and retain the delegate error as authoritative. Do
+not issue a competing native stop against that already-retired stream.
 `desktop-frame-capture-controller.swift` owns request admission for trusted
 scene extensions. A request is bound to the exact scene revision, canvas and
 topology generation, and current display WebViews. Native

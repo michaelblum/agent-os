@@ -594,6 +594,10 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
 
     private func nativeStartSettled(_ result: Result<Void, Error>) {
         lock.lock()
+        guard startState != .failed else {
+            lock.unlock()
+            return
+        }
         startState = result.isSuccess ? .succeeded : .failed
         lock.unlock()
         retireIfNeeded()
@@ -601,11 +605,13 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
 
     private func startupFailed(_ error: Error) {
         lock.lock()
+        if startState == .pending { startState = .failed }
         let isLate = startupWasPublished
             && !retirementRequested
             && !retired
         lock.unlock()
         if isLate { lateFailure(error) }
+        retireIfNeeded()
     }
 
     private func retireIfNeeded() {

@@ -29,6 +29,10 @@ const nativeLifecycleTestsSource = path.join(
   repoRoot,
   'tests/lib/desktop-pixel-native-lifecycle-tests.swift',
 )
+const terminalStartupTestsSource = path.join(
+  repoRoot,
+  'tests/lib/desktop-pixel-terminal-startup-tests.swift',
+)
 const startupCallbackTestsSource = path.join(
   repoRoot,
   'tests/lib/desktop-pixel-startup-callback-tests.swift',
@@ -1208,6 +1212,7 @@ struct DesktopFrameProof {
     controllerSource,
     responseEnvelopeSource,
     nativeLifecycleTestsSource,
+    terminalStartupTestsSource,
     startupCallbackTestsSource,
     warmOpenOperationTestsSource,
     brokerTestsSource,

@@ -354,6 +354,7 @@ func runDesktopPixelNativeLifecycleTests() async throws {
         )) == "native_other",
         "native trace code exposed an unrelated error identity"
     )
+    try await runDesktopPixelTerminalStartupTests()
     var frameAdvancement = AOSDesktopPixelFrameAdvancement()
     let firstFrameTime = CMTime(value: 1, timescale: 30)
     let secondFrameTime = CMTime(value: 2, timescale: 30)
