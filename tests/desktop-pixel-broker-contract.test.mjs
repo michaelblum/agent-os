@@ -33,8 +33,9 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(warmNative, /@MainActor\s+static func open/u)
   assert.match(
     warmNative,
-    /aosStartDesktopPixelStreams[\s\S]*entry\.stream\.startCapture \{ error in[\s\S]*stop:[\s\S]*entry\.stream\.stopCapture \{ error in/u,
+    /aosStartDesktopPixelStreams[\s\S]*aosScheduleDesktopPixelNativeOperation[\s\S]*entry\.stream\.startCapture \{ error in[\s\S]*stop:[\s\S]*aosScheduleDesktopPixelNativeOperation[\s\S]*entry\.stream\.stopCapture \{ error in/u,
   )
+  assert.match(native, /DispatchQueue\.main\.async\(execute: operation\)/u)
   assert.doesNotMatch(native, /withCheckedThrowingContinuation/u)
   assert.match(warmNative, /configuration\.width = profile\.width/u)
   assert.match(warmNative, /configuration\.height = profile\.height/u)

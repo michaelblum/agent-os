@@ -47,6 +47,16 @@ private func aosDesktopPixelNativeResult(_ error: Error?) -> Result<Void, Error>
     return .success(())
 }
 
+func aosScheduleDesktopPixelNativeOperation(
+    _ operation: @escaping @Sendable () -> Void
+) {
+    if Thread.isMainThread {
+        operation()
+    } else {
+        DispatchQueue.main.async(execute: operation)
+    }
+}
+
 private final class AOSDesktopPixelNativeTrace: @unchecked Sendable {
     private let startedAt = Date()
 
@@ -615,22 +625,26 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                 lateFailure: { error in sourceFailure.record(error) }
             ) { index, completion in
                 let entry = configuredEntries[index]
-                trace.emit(
-                    "start_invoked",
-                    slot: index,
-                    isMainThread: Thread.isMainThread
-                )
-                entry.stream.startCapture { error in
-                    entry.output.startCompleted(error)
-                    completion(aosDesktopPixelNativeResult(error))
+                aosScheduleDesktopPixelNativeOperation {
+                    trace.emit(
+                        "start_invoked",
+                        slot: index,
+                        isMainThread: Thread.isMainThread
+                    )
+                    entry.stream.startCapture { error in
+                        entry.output.startCompleted(error)
+                        completion(aosDesktopPixelNativeResult(error))
+                    }
                 }
             } stop: { index, completion in
                 let entry = configuredEntries[index]
                 entry.output.quiesce()
-                entry.output.stopInvoked()
-                entry.stream.stopCapture { error in
-                    entry.output.stopCompleted(error)
-                    completion(aosDesktopPixelNativeResult(error))
+                aosScheduleDesktopPixelNativeOperation {
+                    entry.output.stopInvoked()
+                    entry.stream.stopCapture { error in
+                        entry.output.stopCompleted(error)
+                        completion(aosDesktopPixelNativeResult(error))
+                    }
                 }
             }
             startupCompleted = true

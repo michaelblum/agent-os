@@ -257,6 +257,21 @@ func settlePixelRetirements(
 }
 
 func runDesktopPixelNativeLifecycleTests() async throws {
+    let nativeOperationCompleted = LockedBoolean()
+    let nativeOperationWasMain = LockedBoolean()
+    await withCheckedContinuation { continuation in
+        DispatchQueue.global(qos: .userInitiated).async {
+            aosScheduleDesktopPixelNativeOperation {
+                nativeOperationWasMain.set(Thread.isMainThread)
+                nativeOperationCompleted.set(true)
+                continuation.resume()
+            }
+        }
+    }
+    require(
+        nativeOperationCompleted.get() && nativeOperationWasMain.get(),
+        "desktop pixel native operation did not hop to the AppKit main queue"
+    )
     require(
         AOSDesktopPixelWarmStreamProfile.queueDepth == 3,
         "warm stream profile lost its bounded producer depth"

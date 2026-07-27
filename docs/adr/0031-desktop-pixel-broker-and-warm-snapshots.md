@@ -57,7 +57,9 @@ All admitted display streams are configured before any startup begins, then
 started concurrently as one aggregate. Warm ScreenCaptureKit sources are
 constructed on AppKit's main actor. A retained callback-native coordinator owns
 each start and stop operation; it does not bridge Apple's completion handlers
-through an unstructured Swift task or continuation. The stream profile keeps
+through an unstructured Swift task or continuation. The coordinator may run on
+a generic executor, but it schedules each native start and stop invocation onto
+AppKit's main queue while retaining callback ownership of settlement. The stream profile keeps
 the consent probe at 4,096 pixels and runtime at a one-megapixel-per-display
 ceiling, and does not request best-resolution resampling for reduced output.
 Readiness requires a usable complete or started sample from every display,

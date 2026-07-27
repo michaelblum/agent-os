@@ -45,7 +45,9 @@ configuration does not cancel an in-flight ScreenCaptureKit `startCapture()`;
 startup evidence settles before one acknowledged retirement begins, so native
 start and stop never race. A startup that misses the settlement deadline fails
 the broker closed while its coordinator retains ownership and retires any late
-success. Content-free lifecycle diagnostics may record configured, start, first
+success. The coordinator may run on a generic executor, but it schedules native
+ScreenCaptureKit start and stop invocation onto AppKit's main queue. Content-free
+lifecycle diagnostics may record configured, start, first
 sample, stop, and delegate-stop phases, but never display identity or pixels.
 A native failure marker may retain only the stable `SCStreamError` numeric code;
 it may not include localized descriptions, user info, source metadata, or paths.
