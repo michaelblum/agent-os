@@ -7,6 +7,9 @@ final class FakePixelStreamLifecycle: AOSDesktopPixelStreamLifecycle,
     let latch = AOSDesktopPixelRetirementLatch()
     var readiness: Result<Bool, Error> = .success(false)
 
+    func admitExplicitStop() -> AOSDesktopPixelStopAdmission {
+        latch.admitExplicitStop()
+    }
     func confirmRetirement() { latch.observe() }
     func sampleIsReady() throws -> Bool { try readiness.get() }
     func retirementWasObserved() -> Bool { latch.snapshot() }

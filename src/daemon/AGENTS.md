@@ -84,9 +84,12 @@ native retirement is acknowledged. Delegate-observed and explicit
 ScreenCaptureKit terminal states count as retirement. A successful explicit
 stop is latched so repeated cleanup is idempotent; unknown stop failures remain
 fail-closed.
-When the delegate reports a terminal error before native startup returns, cancel
-only the stale Swift waiter and retain the delegate error as authoritative. Do
-not issue a competing native stop against that already-retired stream.
+When the delegate reports a terminal error before native startup returns,
+retain the delegate error as authoritative and do not cancel the task awaiting
+`startCapture()`. Its late completion references the startup coordinator only
+weakly, so a stalled native await cannot retain the broker ownership graph.
+Delegate retirement and explicit stop admission are linearized by one lifecycle
+latch; at most one explicit stop may be admitted, and none after retirement.
 `desktop-frame-capture-controller.swift` owns request admission for trusted
 scene extensions. A request is bound to the exact scene revision, canvas and
 topology generation, and current display WebViews. Native

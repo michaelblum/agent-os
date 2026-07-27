@@ -214,7 +214,7 @@ else
     fail "dev recommend semantic target selection routing drifted"
 fi
 
-if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/display/canvas.swift src/display/scene-extension-store.swift src/commands/direct-screen-capture-permission.swift src/daemon/desktop-frame-capture-consent.swift src/daemon/desktop-frame-warm-pool.swift src/daemon/desktop-pixel-stream-lifecycle.swift src/shared/desktop-frame-capture-consent-contract.swift scripts/lib/scene-extension/module-inspector.mjs tests/lib/desktop-frame-warm-pool-tests.swift tests/lib/desktop-pixel-native-lifecycle-tests.swift tests/lib/desktop-pixel-startup-callback-tests.swift tests/lib/desktop-pixel-warm-open-operation-tests.swift 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/display/canvas.swift src/display/scene-extension-store.swift src/commands/direct-screen-capture-permission.swift src/daemon/desktop-frame-capture-consent.swift src/daemon/desktop-frame-warm-pool.swift src/daemon/desktop-pixel-retirement.swift src/daemon/desktop-pixel-stream-lifecycle.swift src/shared/desktop-frame-capture-consent-contract.swift scripts/lib/scene-extension/module-inspector.mjs tests/lib/desktop-frame-warm-pool-tests.swift tests/lib/desktop-pixel-native-lifecycle-tests.swift tests/lib/desktop-pixel-startup-callback-tests.swift tests/lib/desktop-pixel-warm-open-operation-tests.swift 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -230,6 +230,7 @@ expected_paths = {
     "src/commands/direct-screen-capture-permission.swift",
     "src/daemon/desktop-frame-capture-consent.swift",
     "src/daemon/desktop-frame-warm-pool.swift",
+    "src/daemon/desktop-pixel-retirement.swift",
     "src/daemon/desktop-pixel-stream-lifecycle.swift",
     "src/shared/desktop-frame-capture-consent-contract.swift",
     "scripts/lib/scene-extension/module-inspector.mjs",

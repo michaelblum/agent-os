@@ -52,12 +52,9 @@ private func aosDesktopPixelNativeError(
 final class AOSDesktopPixelRetainedAsyncOperation: @unchecked Sendable {
     typealias Operation = @Sendable () async throws -> Void
 
-    private var finished = false
     private let lock = NSLock()
     private let priority: TaskPriority
-    private var cancellationRequested = false
     private var started = false
-    private var task: Task<Void, Never>?
 
     init(priority: TaskPriority) {
         self.priority = priority
@@ -76,7 +73,7 @@ final class AOSDesktopPixelRetainedAsyncOperation: @unchecked Sendable {
         started = true
         lock.unlock()
 
-        let task = Task.detached(priority: priority) { [self] in
+        Task.detached(priority: priority) {
             let result: Result<Void, Error>
             do {
                 try await operation()
@@ -84,39 +81,9 @@ final class AOSDesktopPixelRetainedAsyncOperation: @unchecked Sendable {
             } catch {
                 result = .failure(error)
             }
-            finish(result, completion: completion)
+            completion(result)
         }
-
-        lock.lock()
-        let shouldCancel = cancellationRequested
-        if !finished, !shouldCancel { self.task = task }
-        lock.unlock()
-        if shouldCancel { task.cancel() }
         return true
-    }
-
-    func cancel() {
-        lock.lock()
-        cancellationRequested = true
-        let task = self.task
-        self.task = nil
-        lock.unlock()
-        task?.cancel()
-    }
-
-    private func finish(
-        _ result: Result<Void, Error>,
-        completion: AOSDesktopPixelNativeCompletion
-    ) {
-        lock.lock()
-        guard !finished else {
-            lock.unlock()
-            return
-        }
-        finished = true
-        task = nil
-        lock.unlock()
-        completion(result)
     }
 }
 
@@ -388,20 +355,17 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
     private let lock = NSLock()
     private let retirementLatch = AOSDesktopPixelRetirementLatch()
     private let slot: Int
-    private let cancelPendingStart: @Sendable () -> Void
     private let startupSignal: AOSDesktopPixelStartupSignal
     private let trace: AOSDesktopPixelNativeTrace
 
     init(
         displayID: UInt32,
         slot: Int,
-        cancelPendingStart: @escaping @Sendable () -> Void,
         startupSignal: AOSDesktopPixelStartupSignal,
         trace: AOSDesktopPixelNativeTrace
     ) {
         self.displayID = displayID
         self.slot = slot
-        self.cancelPendingStart = cancelPendingStart
         self.startupSignal = startupSignal
         self.trace = trace
     }
@@ -462,11 +426,8 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
             code: aosDesktopFrameCaptureFailure(for: error).code,
             nativeCode: aosDesktopPixelNativeTraceCode(for: error)
         )
-        startupSignal.fail(error)
-        // ScreenCaptureKit has already declared this stream terminal. Cancel
-        // only the stale Swift waiter so it cannot retain the failed stream.
-        cancelPendingStart()
         retirementLatch.observe()
+        startupSignal.fail(error)
     }
 
     func startSettled(_ error: Error?) {
@@ -499,6 +460,10 @@ private final class AOSDesktopPixelStreamOutput: NSObject,
 
     func retirementWasObserved() -> Bool {
         retirementLatch.snapshot()
+    }
+
+    func admitExplicitStop() -> AOSDesktopPixelStopAdmission {
+        retirementLatch.admitExplicitStop()
     }
 
     func confirmRetirement() {
@@ -654,9 +619,6 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                 let output = AOSDesktopPixelStreamOutput(
                     displayID: display.displayID,
                     slot: slot,
-                    cancelPendingStart: { [weak startOperation] in
-                        startOperation?.cancel()
-                    },
                     startupSignal: startupSignal,
                     trace: trace
                 )
@@ -696,14 +658,16 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                 lateFailure: { error in sourceFailure.record(error) }
             ) { index, completion in
                 let entry = configuredEntries[index]
+                let output = entry.output
+                let stream = entry.stream
                 let started = entry.startOperation.start(operation: {
                     trace.emit(
                         "start_invoked",
                         slot: index
                     )
-                    try await entry.stream.startCapture()
+                    try await stream.startCapture()
                 }, completion: { result in
-                    entry.output.startSettled(aosDesktopPixelNativeError(result))
+                    output.startSettled(aosDesktopPixelNativeError(result))
                     completion(result)
                 })
                 if !started {
@@ -711,12 +675,14 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                 }
             } stop: { index, completion in
                 let entry = configuredEntries[index]
-                entry.output.quiesce()
+                let output = entry.output
+                let stream = entry.stream
+                output.quiesce()
                 let started = entry.stopOperation.start(operation: {
-                    entry.output.stopInvoked()
-                    try await entry.stream.stopCapture()
+                    output.stopInvoked()
+                    try await stream.stopCapture()
                 }, completion: { result in
-                    entry.output.stopSettled(aosDesktopPixelNativeError(result))
+                    output.stopSettled(aosDesktopPixelNativeError(result))
                     completion(result)
                 })
                 if !started {

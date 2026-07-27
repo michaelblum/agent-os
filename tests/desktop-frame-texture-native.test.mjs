@@ -15,6 +15,10 @@ const streamLifecycleSource = path.join(
   repoRoot,
   'src/daemon/desktop-pixel-stream-lifecycle.swift',
 )
+const retirementSource = path.join(
+  repoRoot,
+  'src/daemon/desktop-pixel-retirement.swift',
+)
 const nativePixelSource = path.join(repoRoot, 'src/daemon/desktop-pixel-native.swift')
 const warmPoolSource = path.join(repoRoot, 'src/daemon/desktop-frame-warm-pool.swift')
 const captureAdapterSource = path.join(repoRoot, 'src/daemon/desktop-frame-capture-adapter.swift')
@@ -1204,6 +1208,7 @@ struct DesktopFrameProof {
     storeSource,
     consentContractSource,
     brokerSource,
+    retirementSource,
     streamLifecycleSource,
     nativePixelSource,
     warmPoolSource,

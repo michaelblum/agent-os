@@ -93,9 +93,13 @@ retirement settlement faults the broker before it can admit later work. Failure
 diagnostics contain only lifecycle markers, the startup phase, bounded elapsed
 milliseconds, reason codes, and the stable numeric `SCStreamError` identity;
 they contain no localized error description, display identity, or pixels.
-An authoritative `didStopWithError` callback also terminates any still-pending
-Swift startup waiter. It does not issue a competing native stop; it releases the
-failed stream after ScreenCaptureKit has already declared retirement.
+An authoritative `didStopWithError` callback records native retirement but does
+not cancel the task awaiting `startCapture()`. That task does not retain its
+operation owner, and its completion references the startup coordinator weakly,
+so bounded failure can release the broker ownership graph without replaying or
+canceling the uncertain native operation. Delegate retirement and explicit
+stop admission share one atomic lifecycle gate: only one stop may be admitted,
+and none may be admitted after retirement.
 Scaled warm-stream IOSurfaces round down to even dimensions while remaining
 within the declared per-display pixel budget. A budget or aspect ratio that
 cannot produce two positive even axes fails before native stream creation.

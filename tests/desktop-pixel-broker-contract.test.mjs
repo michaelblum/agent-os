@@ -10,8 +10,9 @@ async function source(relativePath) {
 }
 
 test('desktop pixel acquisition stays native, serialized, and artifact-free', async () => {
-  const [broker, lifecycle, native, pool, adapter, daemon] = await Promise.all([
+  const [broker, retirement, lifecycle, native, pool, adapter, daemon] = await Promise.all([
     source('src/daemon/desktop-pixel-broker.swift'),
+    source('src/daemon/desktop-pixel-retirement.swift'),
     source('src/daemon/desktop-pixel-stream-lifecycle.swift'),
     source('src/daemon/desktop-pixel-native.swift'),
     source('src/daemon/desktop-frame-warm-pool.swift'),
@@ -21,6 +22,10 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
 
   const warmNative = native.slice(
     native.indexOf('private final class AOSNativeDesktopPixelWarmSource'),
+  )
+  const retainedNativeOperation = native.slice(
+    native.indexOf('final class AOSDesktopPixelRetainedAsyncOperation'),
+    native.indexOf('private final class AOSDesktopPixelNativeTrace'),
   )
 
   assert.match(native, /SCScreenshotManager\.captureImage/u)
@@ -35,10 +40,13 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(warmNative, /@MainActor\s+static func open/u)
   assert.match(
     warmNative,
-    /aosStartDesktopPixelStreams[\s\S]*startOperation\.start[\s\S]*try await entry\.stream\.startCapture\(\)[\s\S]*stop:[\s\S]*stopOperation\.start[\s\S]*try await entry\.stream\.stopCapture\(\)/u,
+    /aosStartDesktopPixelStreams[\s\S]*let stream = entry\.stream[\s\S]*startOperation\.start[\s\S]*try await stream\.startCapture\(\)[\s\S]*stop:[\s\S]*let stream = entry\.stream[\s\S]*stopOperation\.start[\s\S]*try await stream\.stopCapture\(\)/u,
   )
   assert.match(native, /final class AOSDesktopPixelRetainedAsyncOperation/u)
-  assert.match(native, /func cancel\(\)[\s\S]*task\?\.cancel\(\)/u)
+  assert.doesNotMatch(retainedNativeOperation, /task\.cancel\(\)|task\?\.cancel\(\)/u)
+  assert.doesNotMatch(retainedNativeOperation, /private var task:/u)
+  assert.doesNotMatch(retainedNativeOperation, /Task\.detached\([^)]*\) \{ \[self\]/u)
+  assert.doesNotMatch(native, /cancelPendingStart/u)
   assert.match(native, /Task\.detached\(priority: priority\)/u)
   assert.doesNotMatch(native, /withCheckedThrowingContinuation/u)
   assert.match(warmNative, /configuration\.width = profile\.width/u)
@@ -54,6 +62,10 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(lifecycle, /AOSDesktopPixelStartupDecision/u)
   assert.match(lifecycle, /AOSDesktopPixelStartupSignal/u)
   assert.match(native, /first_sample[\s\S]*startupSignal\.succeed\(\)/u)
+  assert.match(
+    native,
+    /delegate_stopped[\s\S]*retirementLatch\.observe\(\)[\s\S]*startupSignal\.fail\(error\)/u,
+  )
   assert.match(native, /start_settled/u)
   assert.match(native, /stop_settled/u)
   assert.match(native, /lateFailure: \{ error in sourceFailure\.record\(error\) \}/u)
@@ -64,10 +76,20 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(lifecycle, /AOSDesktopPixelStartupStreamCoordinator/u)
   assert.match(lifecycle, /AOSDesktopPixelStartupOwner/u)
   assert.match(lifecycle, /AOSDesktopPixelLateStartupFailure/u)
-  assert.match(lifecycle, /case \.failed:[\s\S]*action = \.confirmInactive/u)
+  assert.match(lifecycle, /start \{ \[weak self, signal\] result in/u)
+  assert.match(lifecycle, /func admitExplicitStop\(\) -> AOSDesktopPixelStopAdmission/u)
+  assert.match(
+    retirement,
+    /func admitExplicitStop\(\)[\s\S]*if observed \{ return \.retired \}[\s\S]*guard !stopAdmitted else \{ return \.unavailable \}[\s\S]*stopAdmitted = true/u,
+  )
   assert.match(
     lifecycle,
-    /if startState == \.pending \{ startState = \.failed \}[\s\S]*retireIfNeeded\(\)/u,
+    /switch lifecycle\.admitExplicitStop\(\)[\s\S]*case \.retired:[\s\S]*case \.unavailable:[\s\S]*case \.admitted:/u,
+  )
+  assert.match(lifecycle, /case \.failed:[\s\S]*action = \.confirmInactive/u)
+  assert.doesNotMatch(
+    lifecycle,
+    /private func startupFailed[\s\S]*?startState\s*=/u,
   )
   assert.match(lifecycle, /case \.succeeded:[\s\S]*action = \.stop\(attempt\)/u)
   assert.match(lifecycle, /AOSDesktopPixelWarmOpenOperation/u)
