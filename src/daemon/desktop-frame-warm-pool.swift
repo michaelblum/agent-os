@@ -1,11 +1,27 @@
 import Foundation
 
+private struct AOSDesktopFrameWarmSourceIdentity: Equatable {
+    let canvasGeneration: UInt64
+    let displayIDs: [UInt32]
+    let maximumPixelsPerDisplay: Int
+    let topologyGeneration: UInt64
+}
+
 struct AOSDesktopFrameWarmConfiguration: Equatable {
     let canvasGeneration: UInt64
     let displayIDs: [UInt32]
     let excludingWindowIDs: [Int]
     let maximumPixelsPerDisplay: Int
     let topologyGeneration: UInt64
+
+    fileprivate var sourceIdentity: AOSDesktopFrameWarmSourceIdentity {
+        AOSDesktopFrameWarmSourceIdentity(
+            canvasGeneration: canvasGeneration,
+            displayIDs: displayIDs,
+            maximumPixelsPerDisplay: maximumPixelsPerDisplay,
+            topologyGeneration: topologyGeneration
+        )
+    }
 
     var request: AOSDesktopPixelSnapshotRequest {
         AOSDesktopPixelSnapshotRequest(
@@ -122,17 +138,21 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
                 ownerID: ownerID,
                 maximumAge: 0.5,
                 completion: { [weak self] result in
-                    if case .failure(let error) = result {
-                        self?.queue.async {
-                            self?.freezeFailedOnQueue(
-                                configuration: configuration,
-                                generation: admitted.generation,
-                                leaseID: admitted.lease.id,
-                                error: error
-                            )
-                        }
+                    guard let self else {
+                        completion(.failure(
+                            AOSDesktopFrameCaptureFailure.unauthorized
+                        ))
+                        return
                     }
-                    completion(result)
+                    let delivery = queue.sync {
+                        self.freezeResultOnQueue(
+                            configuration: configuration,
+                            generation: admitted.generation,
+                            leaseID: admitted.lease.id,
+                            result: result
+                        )
+                    }
+                    completion(delivery)
                 }
             ))
         }
@@ -146,7 +166,10 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
         _ configuration: AOSDesktopFrameWarmConfiguration?
     ) {
         defer { notifyStatusIfChangedOnQueue() }
-        if desired == configuration {
+        if desired?.sourceIdentity == configuration?.sourceIdentity {
+            // Stage-window IDs are authorization metadata, not native capture
+            // identity: the warm stream excludes the complete AOS process.
+            desired = configuration
             if state == .failed, !retiring, !terminalFailure {
                 beginDesiredOnQueue()
             }
@@ -219,7 +242,7 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
     ) {
         defer { notifyStatusIfChangedOnQueue() }
         guard self.generation == generation,
-              desired == configuration,
+              desired?.sourceIdentity == configuration.sourceIdentity,
               !retiring else { return }
         startup = nil
         switch result {
@@ -265,6 +288,29 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
             sourceRecoveryBlockedGeneration = generation
         }
         retireCurrentOnQueue()
+    }
+
+    private func freezeResultOnQueue(
+        configuration: AOSDesktopFrameWarmConfiguration,
+        generation: UInt64,
+        leaseID: UUID,
+        result: Result<AOSDesktopPixelFrameSet, Error>
+    ) -> Result<AOSDesktopPixelFrameSet, Error> {
+        guard self.generation == generation,
+              desired == configuration,
+              lease?.id == leaseID,
+              !retiring else {
+            return .failure(AOSDesktopFrameCaptureFailure.frameNotReady)
+        }
+        if case .failure(let error) = result {
+            freezeFailedOnQueue(
+                configuration: configuration,
+                generation: generation,
+                leaseID: leaseID,
+                error: error
+            )
+        }
+        return result
     }
 
     private func sourceFailureRequiresRetirement(

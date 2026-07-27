@@ -41,10 +41,11 @@ configuration does not cancel an in-flight ScreenCaptureKit `startCapture()`;
 startup settles before one acknowledged retirement begins, so native start and
 stop never race. A startup that misses the settlement deadline fails the broker
 closed while its coordinator retains ownership and retires any late completion.
-AOS issues native stream start and stop requests on AppKit's main queue, excludes
-its complete process from captured display content when AOS surfaces exist, and
-uses one off-screen-inclusive stream configuration with consumer-specific
-bounded pixel ceilings for consent and runtime acquisition.
+AOS constructs each warm ScreenCaptureKit source on AppKit's main actor, uses
+ScreenCaptureKit's async start and stop operations, excludes its complete
+process from captured display content when AOS surfaces exist, and uses one
+off-screen-inclusive stream configuration with consumer-specific bounded pixel
+ceilings for consent and runtime acquisition.
 A warm stream retains its latest complete or started native
 sample, so it uses a fixed queue depth of three and cannot become ready
 until every display has retained a usable frame and then delivered a later,
@@ -56,8 +57,10 @@ snapshot into the private WebKit presentation format.
 `desktop-frame-warm-pool.swift` owns capability-scoped prewarming for the
 authorized DesktopWorld stage. It retains only the broker's latest bounded
 native sample set, freezes on demand, and retires on authorization, consent,
-topology, or stage loss. Runtime freezes require the exact generation-bound pool
-configuration and never cold-start ScreenCaptureKit. The capture controller gets
+topology, or stage loss. Stage-window ID churn updates exact freeze authorization
+without restarting the process-excluding native source. Runtime freezes require
+the exact generation-bound pool configuration and never cold-start
+ScreenCaptureKit. The capture controller gets
 ordered consumers and excluded stage windows from one main-thread context
 snapshot used for both prewarming and interaction. One-shot consent probes
 deliver a frozen encoded frame
