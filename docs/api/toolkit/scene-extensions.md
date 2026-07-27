@@ -134,8 +134,9 @@ its snapshot settles at `status="consent_required"` with
 ScreenCaptureKit or macOS permission UI. Extensions must treat that state as an
 optional-effect degradation and keep unrelated interactions available.
 
-AOS excludes its own capture process, with complete exact-stage-window exclusion
-as a fail-closed fallback, and caps each decoded frame at 1,048,576 pixels. It
+AOS excludes a qualified app-hosted capture process. Raw and otherwise
+unqualified hosts use complete exact-stage-window exclusion and fail before
+capture when that set is incomplete. Each decoded frame is capped at 1,048,576 pixels. It
 binds each opaque handle to the exact display WebView, stage generation,
 and scene revision, consumes it once, and expires native and GPU state within
 five seconds. Projection disposal also clears the source. No screenshot bytes, local

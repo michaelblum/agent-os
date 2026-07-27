@@ -35,19 +35,20 @@ as sufficient protection from an already-running callback.
 The broker supports two acquisition forms:
 
 - **snapshot** uses one bounded `SCScreenshotManager` operation;
-- **warm snapshot** opens one `SCStream` per admitted display, excludes the
-  current AOS capture process when ScreenCaptureKit exposes it, and retains only
-  the latest complete sample per display for a whole-display freeze. Each stream
-  uses a fixed queue depth of three: one slot may remain retained by the latest
-  sample while two bounded producer slots permit frame advancement.
+- **warm snapshot** opens one `SCStream` per admitted display, excludes either
+  the qualified app-hosted AOS process or the complete exact AOS surface-window
+  set, and retains only the latest complete sample per display for a
+  whole-display freeze. Each stream uses a fixed queue depth of three: one slot
+  may remain retained by the latest sample while two bounded producer slots
+  permit frame advancement.
 
-Process-level self-exclusion prevents any AOS-owned DesktopWorld, DevTools, or
-fallback surface from feeding its own backing pixels into capture. When the raw
-AOS process is absent from ScreenCaptureKit's application inventory, capture
-falls back to excluding the complete exact authorized stage-window set. The
-fallback fails before stream creation if any requested window is unresolved.
-Warm source discovery includes off-screen windows so that fallback remains
-valid while a stage window is hidden or suspended.
+Process-level self-exclusion is used only when AOS has an app-bundle identity;
+ScreenCaptureKit listing a raw executable's PID does not prove that application
+exclusion is viable. Raw and otherwise unqualified hosts exclude the complete
+exact authorized stage-window set instead. Exact-window exclusion fails before
+stream creation if any requested window is unresolved. Warm source discovery
+includes off-screen windows so that raw-host capture remains valid while a
+stage window is hidden or suspended.
 
 Warm snapshots have two lifecycles. Explicit consent probes stop every stream
 immediately after one freeze. Runtime DesktopWorld requests never use that
@@ -87,7 +88,7 @@ because ScreenCaptureKit uses that status when a live display has not changed;
 it proves liveness but does not replace the retained image. Missing status
 metadata, nonnumeric times, blank, suspended, and stopped callbacks fail closed.
 The exact normalized DesktopWorld window set remains part of warm-source
-identity even when process-level self-exclusion is available, so a surface
+identity even when app-hosted process self-exclusion is available, so a surface
 replacement conservatively retires the prior producer. Under exact-window
 fallback, an absent requested window fails startup before stream creation. The
 pre-surface consent probe declares no excluded windows and may use an empty

@@ -27,14 +27,15 @@ subscription maps, or transport orchestration in the connection handler.
 DesktopWorld event-routing failures remain reason-coded and observable through
 bounded daemon diagnostics; never log scene payloads, gesture coordinates,
 labels, or product data to diagnose delivery.
-`desktop-pixel-capture-filter.swift` owns process self-exclusion and the exact
-window fallback. `desktop-pixel-native.swift` owns ScreenCaptureKit snapshots
-and bounded warm streams. `desktop-pixel-stream-lifecycle.swift` owns generic concurrent stream
-startup, compensation, and acknowledged retirement. `desktop-pixel-broker.swift`
+`desktop-pixel-capture-filter.swift` owns qualified app-process self-exclusion
+and raw-host exact-window exclusion. `desktop-pixel-native.swift` owns
+ScreenCaptureKit snapshots and bounded warm streams.
+`desktop-pixel-stream-lifecycle.swift` owns generic concurrent stream startup,
+compensation, and acknowledged retirement. `desktop-pixel-broker.swift`
 serializes that native acquisition across daemon consumers and owns warm-lease
-lifecycle. They return in-memory pixel
-frames only; encoding, cropping, redaction, persistence, and GPU delivery
-belong to downstream adapters. Multi-display warm acquisition configures the
+lifecycle. They return in-memory pixel frames only; encoding, cropping,
+redaction, persistence, and GPU delivery belong to downstream adapters.
+Multi-display warm acquisition configures the
 complete stream set before starting every display concurrently; partial startup
 failure immediately requests aggregate retirement while retaining late
 startup-completion ownership. A retained async-operation owner invokes each
@@ -58,13 +59,13 @@ lifecycle diagnostics may record configured, start, first
 sample, stop, and delegate-stop phases, but never display identity or pixels.
 A native failure marker may retain only the stable `SCStreamError` numeric code;
 it may not include localized descriptions, user info, source metadata, or paths.
-AOS constructs each warm ScreenCaptureKit source on AppKit's main actor, uses
-ScreenCaptureKit's native async operations, and excludes the current AOS
-capture process from captured display content so no AOS-owned projection can
-self-capture. If ScreenCaptureKit does not expose that process, capture falls
-back to the complete exact DesktopWorld surface-window set and fails before
-stream creation when any requested window is unresolved. It uses one bounded
-stream configuration with the same pixel ceiling
+AOS constructs each warm ScreenCaptureKit source on AppKit's main actor and
+uses ScreenCaptureKit's native async operations. An app-bundle host may exclude
+its complete AOS process; a raw or otherwise unqualified host must exclude the
+complete exact DesktopWorld surface-window set and fails before stream creation
+when any requested window is unresolved. Merely appearing in ScreenCaptureKit's
+application inventory does not qualify a raw process for app exclusion. It uses
+one bounded stream configuration with the same pixel ceiling
 for consent and runtime acquisition. Scaled stream surfaces round down to
 positive even dimensions without exceeding that ceiling; an impossible budget
 or aspect ratio fails before ScreenCaptureKit is invoked.
