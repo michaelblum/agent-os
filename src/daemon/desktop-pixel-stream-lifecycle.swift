@@ -530,7 +530,12 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
         let action: RetirementAction
         switch startState {
         case .pending:
-            action = .none
+            if nativeAlreadyRetired {
+                retired = true
+                action = .confirmInactive
+            } else {
+                action = .none
+            }
         case .failed:
             retired = true
             action = .confirmInactive
@@ -630,7 +635,6 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
     private func nativeRetirementObserved() {
         lock.lock()
         let canRetire = retirementRequested
-            && startState != .pending
             && !retired
         if canRetire {
             retired = true

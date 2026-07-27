@@ -60,12 +60,14 @@ later freeze can be admitted; canvas, topology, display, and pixel-budget change
 do the same.
 All admitted display streams are configured before any startup begins, then
 started concurrently as one aggregate. Warm ScreenCaptureKit sources are
-constructed on AppKit's main actor. A retained operation owner invokes each
-native async start and stop exactly once and remains alive until that operation
-settles. Caller cancellation does not cancel Apple's in-flight operation; the
-coordinator waits for authoritative settlement and compensates a late start
-when required. The consent probe and runtime use the same
-one-megapixel-per-display stream profile. Explicit width and height bounds
+constructed on AppKit's main actor. A retained operation invokes each native
+async start and stop exactly once. Its detached task retains only the native
+stream operands and completion until Apple settles; delegate-proven retirement
+may release the higher-level coordinator and broker ownership graph first.
+Caller cancellation does not cancel Apple's in-flight operation; the
+coordinator waits for authoritative startup or retirement evidence and
+compensates a late active start when required. The consent probe and runtime
+use the same one-megapixel-per-display stream profile. Explicit width and height bounds
 control the output surface; the warm stream retains ScreenCaptureKit's default
 capture-resolution mode, matching the proven low-latency native path without
 requesting a second high-resolution resampling policy.

@@ -88,6 +88,10 @@ When the delegate reports a terminal error before native startup returns,
 retain the delegate error as authoritative and do not cancel the task awaiting
 `startCapture()`. Its late completion references the startup coordinator only
 weakly, so a stalled native await cannot retain the broker ownership graph.
+The delegate's terminal callback is also authoritative retirement evidence for
+that stream even while `startCapture()` remains pending; a complete display
+aggregate may settle without waiting for a duplicate native start callback,
+but any stream lacking terminal evidence keeps the aggregate fail-closed.
 Delegate retirement and explicit stop admission are linearized by one lifecycle
 latch; at most one explicit stop may be admitted, and none after retirement.
 `desktop-frame-capture-controller.swift` owns request admission for trusted

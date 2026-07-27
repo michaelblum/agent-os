@@ -21,6 +21,29 @@ private final class TerminalStartupCompletion: @unchecked Sendable {
 
 private final class TerminalStartupLifetimeProbe: @unchecked Sendable {}
 
+private final class ObservedTerminalPixelStreamLifecycle:
+    AOSDesktopPixelStreamLifecycle,
+    @unchecked Sendable
+{
+    private let latch = AOSDesktopPixelRetirementLatch()
+    let waitEntered = DispatchSemaphore(value: 0)
+
+    func admitExplicitStop() -> AOSDesktopPixelStopAdmission {
+        latch.admitExplicitStop()
+    }
+
+    func confirmRetirement() { latch.observe() }
+
+    func retirementWasObserved() -> Bool { latch.snapshot() }
+
+    func sampleIsReady() throws -> Bool { false }
+
+    func waitForRetirement(timeout: TimeInterval) async -> Bool {
+        waitEntered.signal()
+        return await latch.wait(timeout: timeout)
+    }
+}
+
 private final class TerminalStartupOwnerBox: @unchecked Sendable {
     private let lock = NSLock()
     private var owner: AOSDesktopPixelStartupOwner?
@@ -76,112 +99,181 @@ func runDesktopPixelTerminalStartupTests() async throws {
         "detached native operation did not settle after release"
     )
 
-    for nativeResult: Result<Void, Error> in [
-        .failure(AOSDesktopFrameCaptureFailure.captureFailed),
-        .success(()),
-    ] {
-        let lifecycle = FakePixelStreamLifecycle()
-        let signal = AOSDesktopPixelStartupSignal()
-        let nativeStart = TerminalStartupCompletion()
-        let startEntered = DispatchSemaphore(value: 0)
-        let settled = DispatchSemaphore(value: 0)
-        let preservedError = LockedBoolean()
-        let stopCalls = LockedCounter()
-        Task {
-            do {
-                try await aosStartDesktopPixelStreams(
-                    signals: [signal],
-                    lifecycles: [lifecycle],
-                    settlementTimeout: 0.2,
-                    start: { _, completion in
-                        nativeStart.store(completion)
-                        startEntered.signal()
-                    },
-                    stop: { _, completion in
-                        stopCalls.increment()
-                        completion(.success(()))
-                    }
-                )
-            } catch let failure as AOSDesktopFrameCaptureFailure {
-                preservedError.set(failure == .captureFailed)
-            } catch {}
-            settled.signal()
-        }
-        require(
-            startEntered.wait(timeout: .now() + 1) == .success,
-            "delegate-terminal fixture did not begin native startup"
-        )
-        lifecycle.confirmRetirement()
-        signal.fail(AOSDesktopFrameCaptureFailure.captureFailed)
-        require(
-            settled.wait(timeout: .now() + 0.02) == .timedOut
-                && stopCalls.get() == 0,
-            "delegate-terminal startup settled before native startup ownership"
-        )
-        nativeStart.complete(nativeResult)
-        require(
-            settled.wait(timeout: .now() + 1) == .success
-                && preservedError.get()
-                && stopCalls.get() == 0
-                && lifecycle.retirementWasObserved(),
-            "delegate-terminal startup lost its error or duplicated retirement"
-        )
-    }
-
-    let abandonedLifecycle = FakePixelStreamLifecycle()
-    let abandonedSignal = AOSDesktopPixelStartupSignal()
-    let abandonedStart = TerminalStartupCompletion()
-    let abandonedStartEntered = DispatchSemaphore(value: 0)
-    let abandonedSettled = DispatchSemaphore(value: 0)
-    let abandonedFailedClosed = LockedBoolean()
-    let abandonedStopCalls = LockedCounter()
-    weak var abandonedProbe: TerminalStartupLifetimeProbe?
+    let observedLifecycle = ObservedTerminalPixelStreamLifecycle()
+    let observedSignal = AOSDesktopPixelStartupSignal()
+    let observedStart = TerminalStartupCompletion()
+    let observedStartEntered = DispatchSemaphore(value: 0)
+    let observedSettled = DispatchSemaphore(value: 0)
+    let observedPreservedError = LockedBoolean()
+    let observedStopCalls = LockedCounter()
+    weak var observedProbe: TerminalStartupLifetimeProbe?
     do {
         let probe = TerminalStartupLifetimeProbe()
-        abandonedProbe = probe
+        observedProbe = probe
         Task { [probe] in
             do {
                 _ = try await aosStartDesktopPixelStreams(
-                    signals: [abandonedSignal],
-                    lifecycles: [abandonedLifecycle],
-                    settlementTimeout: 0.03,
+                    signals: [observedSignal],
+                    lifecycles: [observedLifecycle],
+                    settlementTimeout: 0.2,
                     start: { _, completion in
-                        abandonedStart.store(completion)
-                        abandonedStartEntered.signal()
+                        observedStart.store(completion)
+                        observedStartEntered.signal()
                     },
                     stop: { _, completion in
                         _ = probe
-                        abandonedStopCalls.increment()
+                        observedStopCalls.increment()
                         completion(.success(()))
                     }
                 )
             } catch let failure as AOSDesktopFrameCaptureFailure {
-                abandonedFailedClosed.set(failure == .retirementUncertain)
+                observedPreservedError.set(failure == .captureFailed)
             } catch {}
-            abandonedSettled.signal()
+            observedSettled.signal()
         }
     }
     require(
-        abandonedStartEntered.wait(timeout: .now() + 1) == .success,
-        "abandoned native startup fixture did not begin"
+        observedStartEntered.wait(timeout: .now() + 1) == .success,
+        "observed delegate-terminal fixture did not begin native startup"
     )
-    abandonedLifecycle.confirmRetirement()
-    abandonedSignal.fail(AOSDesktopFrameCaptureFailure.captureFailed)
+    observedSignal.fail(AOSDesktopFrameCaptureFailure.captureFailed)
     require(
-        abandonedSettled.wait(timeout: .now() + 1) == .success
-            && abandonedFailedClosed.get()
-            && abandonedStopCalls.get() == 0,
-        "unresolved native startup did not fail closed without stopping"
+        observedLifecycle.waitEntered.wait(timeout: .now() + 1) == .success
+            && observedSettled.wait(timeout: .now() + 0.02) == .timedOut
+            && observedStopCalls.get() == 0,
+        "pending startup did not await delegate retirement evidence"
     )
-    let abandonedReleaseDeadline = Date().addingTimeInterval(1)
-    while abandonedProbe != nil, Date() < abandonedReleaseDeadline {
+    observedLifecycle.confirmRetirement()
+    require(
+        observedSettled.wait(timeout: .now() + 1) == .success
+            && observedPreservedError.get()
+            && observedStopCalls.get() == 0,
+        "delegate retirement did not settle pending startup with its initiating error"
+    )
+    let observedReleaseDeadline = Date().addingTimeInterval(1)
+    while observedProbe != nil, Date() < observedReleaseDeadline {
         usleep(1_000)
     }
     require(
-        abandonedProbe == nil,
-        "unresolved native startup retained the coordinator ownership graph"
+        observedProbe == nil,
+        "delegate retirement retained the pending startup coordinator graph"
     )
-    abandonedStart.complete(.success(()))
+    observedStart.complete(.success(()))
+    usleep(20_000)
+    require(
+        observedStopCalls.get() == 0,
+        "late startup completion stopped a delegate-retired stream"
+    )
+
+    let terminalLifecycles = [FakePixelStreamLifecycle(), FakePixelStreamLifecycle()]
+    let terminalSignals = [AOSDesktopPixelStartupSignal(), AOSDesktopPixelStartupSignal()]
+    let terminalStarts = [TerminalStartupCompletion(), TerminalStartupCompletion()]
+    let terminalStartEntered = DispatchSemaphore(value: 0)
+    let terminalSettled = DispatchSemaphore(value: 0)
+    let terminalPreservedError = LockedBoolean()
+    let terminalStopCalls = LockedCounter()
+    weak var terminalProbe: TerminalStartupLifetimeProbe?
+    do {
+        let probe = TerminalStartupLifetimeProbe()
+        terminalProbe = probe
+        Task { [probe] in
+            do {
+                _ = try await aosStartDesktopPixelStreams(
+                    signals: terminalSignals,
+                    lifecycles: terminalLifecycles,
+                    settlementTimeout: 0.2,
+                    start: { index, completion in
+                        terminalStarts[index].store(completion)
+                        terminalStartEntered.signal()
+                    },
+                    stop: { _, completion in
+                        _ = probe
+                        terminalStopCalls.increment()
+                        completion(.success(()))
+                    }
+                )
+            } catch let failure as AOSDesktopFrameCaptureFailure {
+                terminalPreservedError.set(failure == .captureFailed)
+            } catch {}
+            terminalSettled.signal()
+        }
+    }
+    for _ in terminalStarts {
+        require(
+            terminalStartEntered.wait(timeout: .now() + 1) == .success,
+            "delegate-terminal aggregate did not begin every native startup"
+        )
+    }
+    for index in terminalLifecycles.indices {
+        terminalLifecycles[index].confirmRetirement()
+        terminalSignals[index].fail(AOSDesktopFrameCaptureFailure.captureFailed)
+    }
+    require(
+        terminalSettled.wait(timeout: .now() + 1) == .success
+            && terminalPreservedError.get()
+            && terminalStopCalls.get() == 0,
+        "delegate-proven aggregate retirement did not preserve the initiating error"
+    )
+    let terminalReleaseDeadline = Date().addingTimeInterval(1)
+    while terminalProbe != nil, Date() < terminalReleaseDeadline {
+        usleep(1_000)
+    }
+    require(
+        terminalProbe == nil,
+        "delegate-proven retirement retained the coordinator ownership graph"
+    )
+    terminalStarts[0].complete(.failure(AOSDesktopFrameCaptureFailure.captureFailed))
+    terminalStarts[1].complete(.success(()))
+    usleep(20_000)
+    require(
+        terminalStopCalls.get() == 0,
+        "late native startup callbacks duplicated delegate-proven retirement"
+    )
+
+    let mixedLifecycles = [FakePixelStreamLifecycle(), FakePixelStreamLifecycle()]
+    let mixedSignals = [AOSDesktopPixelStartupSignal(), AOSDesktopPixelStartupSignal()]
+    let mixedStarts = [TerminalStartupCompletion(), TerminalStartupCompletion()]
+    let mixedStartEntered = DispatchSemaphore(value: 0)
+    let mixedSettled = DispatchSemaphore(value: 0)
+    let mixedFailedClosed = LockedBoolean()
+    let mixedStopCalls = LockedCounter()
+    Task {
+        do {
+            _ = try await aosStartDesktopPixelStreams(
+                signals: mixedSignals,
+                lifecycles: mixedLifecycles,
+                settlementTimeout: 0.03,
+                start: { index, completion in
+                    mixedStarts[index].store(completion)
+                    mixedStartEntered.signal()
+                },
+                stop: { _, completion in
+                    mixedStopCalls.increment()
+                    completion(.success(()))
+                }
+            )
+        } catch let failure as AOSDesktopFrameCaptureFailure {
+            mixedFailedClosed.set(failure == .retirementUncertain)
+        } catch {}
+        mixedSettled.signal()
+    }
+    for _ in mixedStarts {
+        require(
+            mixedStartEntered.wait(timeout: .now() + 1) == .success,
+            "mixed terminal fixture did not begin every native startup"
+        )
+    }
+    mixedLifecycles[0].confirmRetirement()
+    mixedSignals[0].fail(AOSDesktopFrameCaptureFailure.captureFailed)
+    require(
+        mixedSettled.wait(timeout: .now() + 1) == .success
+            && mixedFailedClosed.get()
+            && mixedStopCalls.get() == 0,
+        "missing retirement evidence did not remain fail-closed"
+    )
+    mixedLifecycles[1].confirmRetirement()
+    mixedStarts[0].complete(.failure(AOSDesktopFrameCaptureFailure.captureFailed))
+    mixedStarts[1].complete(.failure(AOSDesktopFrameCaptureFailure.captureFailed))
 
     let lateLifecycle = FakePixelStreamLifecycle()
     let lateSignal = AOSDesktopPixelStartupSignal()
