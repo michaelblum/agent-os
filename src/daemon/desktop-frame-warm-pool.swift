@@ -3,6 +3,7 @@ import Foundation
 private struct AOSDesktopFrameWarmSourceIdentity: Equatable {
     let canvasGeneration: UInt64
     let displayIDs: [UInt32]
+    let excludingWindowIDs: [Int]
     let maximumPixelsPerDisplay: Int
     let topologyGeneration: UInt64
 }
@@ -18,6 +19,7 @@ struct AOSDesktopFrameWarmConfiguration: Equatable {
         AOSDesktopFrameWarmSourceIdentity(
             canvasGeneration: canvasGeneration,
             displayIDs: displayIDs,
+            excludingWindowIDs: Array(Set(excludingWindowIDs)).sorted(),
             maximumPixelsPerDisplay: maximumPixelsPerDisplay,
             topologyGeneration: topologyGeneration
         )
@@ -167,8 +169,6 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
     ) {
         defer { notifyStatusIfChangedOnQueue() }
         if desired?.sourceIdentity == configuration?.sourceIdentity {
-            // Stage-window IDs are authorization metadata, not native capture
-            // identity: the warm stream excludes the complete AOS process.
             desired = configuration
             if state == .failed, !retiring, !terminalFailure {
                 beginDesiredOnQueue()

@@ -236,10 +236,10 @@ func runDesktopFrameWarmPoolTests() throws {
     let replacementStatus = waitForWarmState(capturer, .ready)
     require(
         replacementStatus.state == .ready
-            && replacementStatus.generation == successorStatus.generation
-            && acquirer.openCount == 2
-            && source.canceled == 1,
-        "stage-window metadata churn restarted the process-excluding native source"
+            && replacementStatus.generation > successorStatus.generation
+            && acquirer.openCount == 3
+            && source.canceled == 2,
+        "stage-window replacement did not restart the exact-window native source"
     )
     requireFailure(
         freeze(capturer, configuration: successor),
@@ -253,7 +253,7 @@ func runDesktopFrameWarmPoolTests() throws {
     capturer.reconcileWarm(nil)
     require(
         waitForWarmState(capturer, .idle).state == .idle
-            && source.canceled == 2,
+            && source.canceled == 3,
         "warm pool disable retained its native source"
     )
 
@@ -275,9 +275,13 @@ func runDesktopFrameWarmPoolTests() throws {
     _ = deferredCapturer.warmStatus()
     deferredAcquirer.complete(.success(deferredSource))
     require(
-        waitForWarmState(deferredCapturer, .ready).state == .ready
-            && deferredAcquirer.openCount == 1,
-        "window authorization churn reopened a warming native source"
+        waitForCondition { deferredAcquirer.openCount == 2 },
+        "window authorization replacement did not reopen the warming native source"
+    )
+    deferredAcquirer.complete(.success(deferredSource))
+    require(
+        waitForWarmState(deferredCapturer, .ready).state == .ready,
+        "replacement window authorization did not become ready"
     )
     requireFailure(
         freeze(deferredCapturer, configuration: successor),
@@ -294,7 +298,7 @@ func runDesktopFrameWarmPoolTests() throws {
     deferredCapturer.reconcileWarm(nil)
     require(
         waitForWarmState(deferredCapturer, .idle).state == .idle
-            && deferredSource.canceled == 1,
+            && deferredSource.canceled == 2,
         "deferred warm source did not retire"
     )
 
@@ -339,14 +343,16 @@ func runDesktopFrameWarmPoolTests() throws {
         "in-flight freeze escaped superseded window authorization"
     )
     require(
-        inFlightCompletionState == .ready,
-        "warm-pool completion ran inside its serialized state queue"
+        inFlightCompletionState != nil,
+        "warm-pool completion did not execute outside its serialized state queue"
     )
     inFlightSource.freezeEntered = nil
     inFlightSource.freezeRelease = nil
     require(
-        inFlightAcquirer.openCount == 1 && inFlightSource.canceled == 0,
-        "window authorization update churned the active native source"
+        waitForCondition {
+            inFlightAcquirer.openCount == 2 && inFlightSource.canceled == 1
+        },
+        "window authorization update did not replace the active native source"
     )
     require(
         (try? freeze(
@@ -358,7 +364,7 @@ func runDesktopFrameWarmPoolTests() throws {
     inFlightCapturer.reconcileWarm(nil)
     require(
         waitForWarmState(inFlightCapturer, .idle).state == .idle
-            && inFlightSource.canceled == 1,
+            && inFlightSource.canceled == 2,
         "in-flight authorization fixture did not retire"
     )
 

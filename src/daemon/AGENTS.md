@@ -52,9 +52,9 @@ sample, stop, and delegate-stop phases, but never display identity or pixels.
 A native failure marker may retain only the stable `SCStreamError` numeric code;
 it may not include localized descriptions, user info, source metadata, or paths.
 AOS constructs each warm ScreenCaptureKit source on AppKit's main actor, uses
-ScreenCaptureKit's native async operations, excludes its complete
-process from captured display content when AOS surfaces exist, and uses one
-off-screen-inclusive stream configuration with the same bounded pixel ceiling
+ScreenCaptureKit's native async operations, excludes the exact DesktopWorld
+surface windows from captured display content, and uses one bounded stream
+configuration with the same pixel ceiling
 for consent and runtime acquisition. Scaled stream surfaces round down to
 positive even dimensions without exceeding that ceiling; an impossible budget
 or aspect ratio fails before ScreenCaptureKit is invoked.
@@ -69,8 +69,7 @@ snapshot into the private WebKit presentation format.
 `desktop-frame-warm-pool.swift` owns capability-scoped prewarming for the
 authorized DesktopWorld stage. It retains only the broker's latest bounded
 native sample set, freezes on demand, and retires on authorization, consent,
-topology, or stage loss. Stage-window ID churn updates exact freeze authorization
-without restarting the process-excluding native source. Runtime freezes require
+topology, stage-window, or stage loss. Runtime freezes require
 the exact generation-bound pool configuration and never cold-start
 ScreenCaptureKit. The capture controller gets
 ordered consumers and excluded stage windows from one main-thread context

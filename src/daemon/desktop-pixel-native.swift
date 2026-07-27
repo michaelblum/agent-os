@@ -572,7 +572,7 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
         do {
             content = try await SCShareableContent.excludingDesktopWindows(
                 false,
-                onScreenWindowsOnly: false
+                onScreenWindowsOnly: true
             )
         } catch {
             throw aosDesktopFrameCaptureFailure(for: error)
@@ -583,10 +583,8 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
             throw AOSDesktopFrameCaptureFailure.displayNotFound
         }
         let excluded = Set(request.excludingWindowIDs)
-        let ownApplication = content.applications.first {
-            $0.processID == ProcessInfo.processInfo.processIdentifier
-        }
-        guard ownApplication != nil || excluded.isEmpty else {
+        let windows = content.windows.filter { excluded.contains(Int($0.windowID)) }
+        guard windows.count == excluded.count else {
             throw AOSDesktopFrameCaptureFailure.captureFailed
         }
         var entries: [Entry] = []
@@ -622,21 +620,16 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                 configuration.height = profile.height
                 configuration.showsCursor = false
                 configuration.capturesAudio = false
+                configuration.captureResolution = .best
                 configuration.minimumFrameInterval = CMTime(value: 1, timescale: 30)
                 // Retaining the latest IOSurface occupies one producer slot.
                 // Two additional slots permit ScreenCaptureKit to advance.
                 configuration.queueDepth = AOSDesktopPixelWarmStreamProfile.queueDepth
                 configuration.pixelFormat = kCVPixelFormatType_32BGRA
-                let filter: SCContentFilter
-                if let ownApplication {
-                    filter = SCContentFilter(
-                        display: display,
-                        excludingApplications: [ownApplication],
-                        exceptingWindows: []
-                    )
-                } else {
-                    filter = SCContentFilter(display: display, excludingWindows: [])
-                }
+                let filter = SCContentFilter(
+                    display: display,
+                    excludingWindows: windows
+                )
                 let startupSignal = AOSDesktopPixelStartupSignal()
                 let output = AOSDesktopPixelStreamOutput(
                     displayID: display.displayID,
