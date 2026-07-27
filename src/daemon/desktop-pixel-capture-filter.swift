@@ -1,4 +1,5 @@
 import Darwin
+import Foundation
 import ScreenCaptureKit
 
 enum AOSDesktopPixelCaptureFilterSelection: Equatable {
@@ -8,16 +9,26 @@ enum AOSDesktopPixelCaptureFilterSelection: Equatable {
 
 func aosDesktopPixelCaptureFilterSelection(
     currentProcessID: pid_t,
+    applicationSelfExclusionEligible: Bool,
     availableApplicationProcessIDs: [pid_t],
     requestedWindowIDs: [Int],
     availableWindowIDs: [Int]
 ) -> AOSDesktopPixelCaptureFilterSelection? {
-    if availableApplicationProcessIDs.contains(currentProcessID) {
+    if applicationSelfExclusionEligible,
+       availableApplicationProcessIDs.contains(currentProcessID) {
         return .application(processID: currentProcessID)
     }
     let requested = Set(requestedWindowIDs)
     guard requested.isSubset(of: Set(availableWindowIDs)) else { return nil }
     return .windows(requested.sorted())
+}
+
+func aosDesktopPixelApplicationSelfExclusionEligible(
+    bundleURL: URL,
+    bundleIdentifier: String?
+) -> Bool {
+    bundleURL.pathExtension.lowercased() == "app"
+        && !(bundleIdentifier?.isEmpty ?? true)
 }
 
 @available(macOS 14.0, *)
@@ -29,6 +40,11 @@ func aosDesktopPixelCaptureFilter(
     let currentProcessID = getpid()
     guard let selection = aosDesktopPixelCaptureFilterSelection(
         currentProcessID: currentProcessID,
+        applicationSelfExclusionEligible:
+            aosDesktopPixelApplicationSelfExclusionEligible(
+                bundleURL: Bundle.main.bundleURL,
+                bundleIdentifier: Bundle.main.bundleIdentifier
+            ),
         availableApplicationProcessIDs: content.applications.map(\.processID),
         requestedWindowIDs: excludingWindowIDs,
         availableWindowIDs: content.windows.map { Int($0.windowID) }
