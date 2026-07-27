@@ -72,9 +72,10 @@ All admitted display streams are configured before any startup begins, then
 started concurrently as one aggregate. Warm ScreenCaptureKit sources are
 constructed on AppKit's main actor. A retained operation dispatches each native
 start and stop completion-handler request exactly once on AppKit's main queue.
-Its detached owner retains only the native stream operands and checked
-continuation until Apple settles; delegate-proven retirement may release the
-higher-level coordinator and broker ownership graph first.
+The operation settles from either Apple's completion callback or the stream
+delegate's terminal stop, whichever is accepted first. It owns no suspended
+Swift task or continuation. Delegate-proven retirement therefore cannot leave a
+detached waiter retaining the stream after ScreenCaptureKit drops its callback.
 Caller cancellation does not cancel Apple's in-flight operation; the
 coordinator waits for authoritative startup or retirement evidence and
 compensates a late active start when required. The consent probe and runtime
@@ -108,11 +109,11 @@ retirement settlement faults the broker before it can admit later work. Failure
 diagnostics contain only lifecycle markers, the startup phase, bounded elapsed
 milliseconds, reason codes, and the stable numeric `SCStreamError` identity;
 they contain no localized error description, display identity, or pixels.
-An authoritative `didStopWithError` callback records native retirement but does
-not cancel the task awaiting `startCapture()`. That task does not retain its
-operation owner, and its completion references the startup coordinator weakly,
-so bounded failure can release the broker ownership graph without replaying or
-canceling the uncertain native operation. Delegate retirement and explicit
+An authoritative `didStopWithError` callback records native retirement and
+settles the retained native operation. Apple's completion callback references
+that operation weakly and becomes a no-op if it arrives later, so bounded
+failure can release the broker ownership graph without replaying or canceling
+the uncertain native operation. Delegate retirement and explicit
 stop admission share one atomic lifecycle gate: only one stop may be admitted,
 and none may be admitted after retirement.
 Scaled warm-stream IOSurfaces round down to even dimensions while remaining

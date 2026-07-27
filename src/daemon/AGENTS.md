@@ -38,9 +38,10 @@ redaction, persistence, and GPU delivery belong to downstream adapters.
 Multi-display warm acquisition configures the
 complete stream set before starting every display concurrently; partial startup
 failure immediately requests aggregate retirement while retaining late
-startup-completion ownership. A retained async-operation owner invokes each
+startup-completion ownership. A retained native-operation owner invokes each
 Apple start and stop completion-handler request exactly once on AppKit's main
-queue and retains its checked continuation until Apple settles. Native
+queue. It settles exactly once from either Apple's callback or the stream
+delegate's terminal stop and owns no suspended Swift task or continuation. Native
 start success or the first usable frame may establish startup, whichever arrives
 first. A later start failure retires the complete aggregate. Only a stream
 proven active receives a compensating stop; a failed start
@@ -96,12 +97,13 @@ native retirement is acknowledged. Delegate-observed and explicit
 ScreenCaptureKit terminal states count as retirement. A successful explicit
 stop is latched so repeated cleanup is idempotent; unknown stop failures remain
 fail-closed.
-When the delegate reports a terminal error before native startup returns,
-retain the delegate error as authoritative and do not cancel the task awaiting
-`startCapture()`. Its late completion references the startup coordinator only
-weakly, so a stalled native await cannot retain the broker ownership graph.
+When the delegate reports a terminal error before Apple's startup callback,
+retain the delegate error as authoritative and settle the retained native
+operation immediately. The callback references that operation weakly, so a
+missing or late callback cannot retain the broker ownership graph or settle the
+operation twice.
 The delegate's terminal callback is also authoritative retirement evidence for
-that stream even while `startCapture()` remains pending; a complete display
+that stream even while the native callback remains pending; a complete display
 aggregate may settle without waiting for a duplicate native start callback,
 but any stream lacking terminal evidence keeps the aggregate fail-closed.
 Delegate retirement and explicit stop admission are linearized by one lifecycle
