@@ -186,6 +186,13 @@ test('status item registration inherits stdio for its connection-scoped follow l
   assert.equal(register.stdio, 'inherit');
 });
 
+test('desktop pixel native baseline inherits stdio for supervised cancellation', async () => {
+  const manifest = await loadJson(manifestPath);
+  const baseline = manifest.commands.find((command) => command.path.join(' ') === 'runtime probe desktop-pixels');
+  assert.ok(baseline, 'desktop pixel native baseline route is missing');
+  assert.equal(baseline.stdio, 'inherit');
+});
+
 test('external command manifest only routes bootstrap families to Swift', async () => {
   const manifest = await loadJson(manifestPath);
   const allowedSwiftRoutes = new Map([

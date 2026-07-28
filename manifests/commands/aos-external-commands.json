@@ -875,6 +875,7 @@
       "summary": "Run the explicit foreground ScreenCaptureKit-to-Metal control or AOS-owned DesktopWorld native-sheet increment in the current AOS executable.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-runtime-desktop-pixel-baseline.mjs"],
+      "stdio": "inherit",
       "cwd": "repo",
       "env": {
         "AOS_PATH": "$AOS_PATH",

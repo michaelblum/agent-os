@@ -31,6 +31,7 @@
         "node",
         "scripts/aos-runtime-desktop-pixel-baseline.mjs"
       ],
+      "stdio": "inherit",
       "cwd": "repo",
       "env": {
         "AOS_PATH": "$AOS_PATH",
