@@ -35,24 +35,7 @@ private func aosSceneString(_ value: Any?, maximum: Int) -> String? {
 }
 
 private func aosSceneIdentifier(_ value: Any?, allowSlash: Bool) -> String? {
-    guard let value = aosSceneString(value, maximum: 128) else { return nil }
-    let scalars = Array(value.unicodeScalars)
-    func alphaNumeric(_ scalar: UnicodeScalar) -> Bool {
-        return (scalar.value >= 97 && scalar.value <= 122)
-            || (scalar.value >= 48 && scalar.value <= 57)
-    }
-    guard let first = scalars.first, alphaNumeric(first) else { return nil }
-    guard scalars.allSatisfy({ scalar in
-        alphaNumeric(scalar)
-            || scalar == "."
-            || scalar == "_"
-            || scalar == "-"
-            || (allowSlash && scalar == "/")
-    }) else { return nil }
-    if allowSlash && value.split(separator: "/", omittingEmptySubsequences: false).contains(where: {
-        $0.isEmpty || $0 == "." || $0 == ".."
-    }) { return nil }
-    return value
+    AOSDesktopWorldResourceIdentity.canonicalIdentifier(value, allowSlash: allowSlash)
 }
 
 private func aosSceneColor(_ value: Any?) -> Bool {

@@ -8201,6 +8201,98 @@
       "summary" : "Package/sign/install the stable AOS.app runtime"
     },
     {
+      "forms" : [
+        {
+          "args" : [
+            {
+              "default_value" : "standalone",
+              "id" : "host",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Use the standalone control windows or existing DesktopWorld segment hosts",
+              "token" : "--host",
+              "value_type" : {
+                "enum" : [
+                  {
+                    "summary" : "Use the original direct per-display control windows",
+                    "value" : "standalone"
+                  },
+                  {
+                    "summary" : "Use the existing DesktopWorld topology and segment windows",
+                    "value" : "desktop-world"
+                  }
+                ]
+              }
+            },
+            {
+              "default_value" : 750,
+              "id" : "hold-ms",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Keep the proof surface visible for 50 to 5000 milliseconds",
+              "token" : "--hold-ms",
+              "value_type" : "integer"
+            },
+            {
+              "default_value" : "identity",
+              "id" : "presentation",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Identity or inverted proof presentation",
+              "token" : "--presentation",
+              "value_type" : {
+                "enum" : [
+                  {
+                    "summary" : "Present current desktop pixels unchanged",
+                    "value" : "identity"
+                  },
+                  {
+                    "summary" : "Invert colors to make the temporary proof visible",
+                    "value" : "inverted"
+                  }
+                ]
+              }
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Emit one content-free machine-readable result",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "AOS_ENABLE_DEVELOPMENT_PROBES=1 aos runtime probe desktop-pixels --host standalone --presentation inverted --hold-ms 750 --json",
+            "AOS_ENABLE_DEVELOPMENT_PROBES=1 aos runtime probe desktop-pixels --host desktop-world --presentation inverted --hold-ms 750 --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : true,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "runtime-probe-desktop-pixels",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos runtime probe desktop-pixels [--host <standalone|desktop-world>] [--hold-ms <50..5000>] [--presentation <identity|inverted>] --json"
+        }
+      ],
+      "path" : [
+        "runtime",
+        "probe",
+        "desktop-pixels"
+      ],
+      "summary" : "Compare the direct ScreenCaptureKit-to-Metal control with the AOS-owned DesktopWorld native sheet"
+    },
+    {
       "path" : [
         "shortcut"
       ],

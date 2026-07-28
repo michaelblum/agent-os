@@ -34,6 +34,22 @@ needs, but public command policy and product UI policy belong above it:
   the owning external product repository;
 - product-specific daemon branches are prohibited unless an explicit temporary
   adapter names its external contract and removal gate.
+- `aos runtime probe desktop-pixels` is a supervised development baseline that
+  runs directly in the foreground AOS process. Its `standalone` host is the
+  known-working control; its `desktop-world` host reuses the canonical segment
+  topology, windows, and lifecycle while preserving the same capture and Metal
+  renderer. The DesktopWorld host installs one stable AOS-owned native sheet at
+  `io.agent-os::native-sheet/main` and resolves that exact sheet before
+  presentation; its bounded per-segment tessellated meshes carry global
+  DesktopWorld coordinates. A process-wide lease permits one exact sheet
+  identity, and its owning canvas binds that lease to one canvas and topology
+  generation. A display-topology change retires the whole sheet before segment
+  mutation; consumers must remount capture, renderers, and diagnostics as one
+  new generation instead of partially reconciling them.
+  Both hosts must remain daemon-free, broker-free, prompt-free, content-free in
+  output, and unavailable to product consumers. The public adapter and hidden
+  primitive both require `AOS_ENABLE_DEVELOPMENT_PROBES=1` before any native
+  resource is created.
 - Historical embedded-product config residue may be retired only through an
   exact key and repo-path migration. Preserve external or user-defined content
   roots and never mutate the frozen product fixture during config cleanup.

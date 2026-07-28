@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import Metal
 import WebKit
 
 protocol CanvasLike: CanvasNativeRetirable {
@@ -122,6 +123,12 @@ func orderSegments(_ unordered: [DesktopWorldSurfaceSegment]) -> [DesktopWorldSu
 }
 
 final class DesktopWorldSurfaceCanvas: CanvasLike {
+    enum NativeSheetError: Error {
+        case identityMismatch
+        case missing
+        case occupied
+    }
+
     final class Segment: CanvasNativeRetirable {
         let displayID: UInt32
         var index: Int
@@ -131,6 +138,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         let webView: WKWebView
         let messageHandler: CanvasMessageHandler
         let nativeRetirementID: String
+        private(set) var nativeProjectionHost: DesktopWorldNativeProjectionHost?
         private var retirementQuiesced = false
         private var retirementFinalized = false
 
@@ -147,6 +155,41 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             self.nativeRetirementID = nativeRetirementID
         }
 
+        func ensureNativeProjectionHost(device: MTLDevice) throws -> DesktopWorldNativeProjectionHost {
+            precondition(Thread.isMainThread, "native projection installation must run on the main thread")
+            if let nativeProjectionHost {
+                guard nativeProjectionHost.view.device?.registryID == device.registryID else {
+                    throw NSError(
+                        domain: "DesktopWorldNativeProjection",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "native projection device mismatch"]
+                    )
+                }
+                return nativeProjectionHost
+            }
+            guard !retirementQuiesced, !retirementFinalized, let contentView = window.contentView else {
+                throw NSError(
+                    domain: "DesktopWorldNativeProjection",
+                    code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "desktop-world segment is retiring"]
+                )
+            }
+            let host = DesktopWorldNativeProjectionHost(
+                containerView: contentView,
+                below: webView,
+                device: device
+            )
+            nativeProjectionHost = host
+            return host
+        }
+
+        func removeNativeProjectionHost(_ expected: DesktopWorldNativeProjectionHost) {
+            precondition(Thread.isMainThread, "native projection removal must run on the main thread")
+            guard nativeProjectionHost === expected else { return }
+            expected.finalize()
+            nativeProjectionHost = nil
+        }
+
         func quiesceForRetirement() {
             precondition(Thread.isMainThread, "segment quiesce must run on the main thread")
             guard !retirementQuiesced else { return }
@@ -156,6 +199,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             window.isInteractiveCanvas = false
             window.orderOut(nil)
             webView.stopLoading()
+            nativeProjectionHost?.suspend()
         }
 
         func finalizeRetirement() {
@@ -166,6 +210,8 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             webView.configuration.userContentController.removeScriptMessageHandler(forName: "headsup")
             webView.navigationDelegate = nil
             webView.uiDelegate = nil
+            nativeProjectionHost?.finalize()
+            nativeProjectionHost = nil
             webView.removeFromSuperview()
             window.contentView = nil
             window.close()
@@ -224,6 +270,8 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     private var inputPassthrough = false
     private var retirementQuiesced = false
     private var retirementFinalized = false
+    private var installedNativeSheet: DesktopWorldNativeSheet?
+    private var nativeSheetLease: DesktopWorldNativeSheetProcessLease.Token?
     private(set) var segments: [Segment] = []
     private(set) var lastDelta: TopologyDelta?
     private(set) var topologyGeneration: UInt64 = 0
@@ -322,6 +370,56 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         }
     }
 
+    func installNativeSheet(
+        device: MTLDevice,
+        geometryDescriptor: DesktopWorldNativeSheetGeometryDescriptor = .standard
+    ) throws -> DesktopWorldNativeSheet {
+        precondition(Thread.isMainThread, "native sheet installation must run on the main thread")
+        guard installedNativeSheet == nil else { throw NativeSheetError.occupied }
+        let lease = try DesktopWorldNativeSheetProcessLease.shared.claim(
+            owner: self,
+            canvasGeneration: lifecycleGeneration
+        )
+        do {
+            let sheet = try DesktopWorldNativeSheet(
+                segments: segments,
+                device: device,
+                geometryDescriptor: geometryDescriptor,
+                topologyGeneration: topologyGeneration
+            )
+            nativeSheetLease = lease
+            installedNativeSheet = sheet
+            return sheet
+        } catch {
+            DesktopWorldNativeSheetProcessLease.shared.release(lease)
+            throw error
+        }
+    }
+
+    func nativeSheet(for identity: AOSDesktopWorldResourceIdentity) throws -> DesktopWorldNativeSheet {
+        guard let sheet = installedNativeSheet else { throw NativeSheetError.missing }
+        guard sheet.identity == identity else { throw NativeSheetError.identityMismatch }
+        return sheet
+    }
+
+    func removeNativeSheet(_ identity: AOSDesktopWorldResourceIdentity) throws {
+        guard let sheet = installedNativeSheet else { throw NativeSheetError.missing }
+        guard sheet.identity == identity else { throw NativeSheetError.identityMismatch }
+        installedNativeSheet = nil
+        sheet.dispose()
+        releaseNativeSheetLease()
+    }
+
+    func discardNativeSheetImmediately() {
+        installedNativeSheet?.dispose()
+        installedNativeSheet = nil
+        releaseNativeSheetLease()
+    }
+
+    var nativeSheetCount: Int {
+        installedNativeSheet == nil ? 0 : 1
+    }
+
     func grabFocus() {
         guard isInteractive, let first = segments.first else { return }
         NSApp.activate(ignoringOtherApps: true)
@@ -336,6 +434,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         onTTLExpired = nil
         ttlTimer?.cancel()
         ttlTimer = nil
+        installedNativeSheet?.suspend()
         for segment in segments {
             segment.quiesceForRetirement()
         }
@@ -347,6 +446,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         guard !retirementFinalized else { return }
         retirementFinalized = true
         quiesceForRetirement()
+        discardNativeSheetImmediately()
         for segment in segments {
             segment.finalizeRetirement()
         }
@@ -488,6 +588,11 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     }
 
     private func applyOrderedSegments(_ ordered: [DesktopWorldSurfaceSegment]) -> Bool {
+        let topologyWillChange = ordered != segmentMetadata()
+        if topologyWillChange {
+            // Capture, renderers, and diagnostics are one generation-scoped aggregate.
+            discardNativeSheetImmediately()
+        }
         var byDisplay = Dictionary(uniqueKeysWithValues: segments.map { ($0.displayID, $0) })
         var nextSegments: [Segment] = []
         var added: [DesktopWorldSurfaceSegment] = []
@@ -505,6 +610,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
                     existing.nativeBounds = nativeRect
                     existing.dwBounds = dwRect
                     existing.window.setFrame(canvasScreenFrame(nativeRect), display: true)
+                    existing.nativeProjectionHost?.resize()
                     changed.append(segmentMetadata(existing))
                 }
                 nextSegments.append(existing)
@@ -532,11 +638,19 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         segments = nextSegments
         let settled = segmentMetadata()
         let hasChanges = !added.isEmpty || !removed.isEmpty || !changed.isEmpty
-        if hasChanges { topologyGeneration &+= 1 }
+        if hasChanges {
+            topologyGeneration &+= 1
+        }
         lastDelta = hasChanges
             ? TopologyDelta(added: added, removed: removed, changed: changed, settled: settled)
             : nil
         return hasChanges
+    }
+
+    private func releaseNativeSheetLease() {
+        guard let nativeSheetLease else { return }
+        DesktopWorldNativeSheetProcessLease.shared.release(nativeSheetLease)
+        self.nativeSheetLease = nil
     }
 
     private func makeSegmentWindow(meta: DesktopWorldSurfaceSegment, nativeRect: CGRect, dwRect: CGRect) -> Segment {
@@ -555,7 +669,16 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         window.level = resolveCanvasWindowLevel(windowLevel, interactive: isInteractive)
         window.ignoresMouseEvents = inputPassthrough || !isInteractive
         window.isInteractiveCanvas = !inputPassthrough && isInteractive
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        var collectionBehavior: NSWindow.CollectionBehavior = [
+            .canJoinAllSpaces,
+            .fullScreenAuxiliary,
+            .ignoresCycle,
+            .stationary,
+        ]
+        if #available(macOS 26.0, *) {
+            collectionBehavior.insert(.canJoinAllApplications)
+        }
+        window.collectionBehavior = collectionBehavior
 
         let config = WKWebViewConfiguration()
         if let handler = aosSchemeHandler {

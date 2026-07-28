@@ -864,11 +864,23 @@
         "scripts/aos-subcommand-router.mjs",
         "runtime",
         "MISSING_SUBCOMMAND",
-        "runtime requires a subcommand. Usage: aos runtime <status|build-attestation|path|sign|install|display-union [--native]> ...",
+        "runtime requires a subcommand. Usage: aos runtime <status|build-attestation|path|sign|install|display-union|probe> ...",
         "UNKNOWN_SUBCOMMAND",
         "runtime subcommand"
       ],
       "cwd": "repo"
+    },
+    {
+      "path": ["runtime", "probe", "desktop-pixels"],
+      "summary": "Run the explicit foreground ScreenCaptureKit-to-Metal control or AOS-owned DesktopWorld native-sheet increment in the current AOS executable.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-runtime-desktop-pixel-baseline.mjs"],
+      "stdio": "inherit",
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE"
+      }
     },
     {
       "path": ["runtime", "build-attestation"],
