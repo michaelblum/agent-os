@@ -87,7 +87,7 @@ test('DesktopWorld host reuses the canonical segmented surface and existing wind
   assert.doesNotMatch(desktopHost, /NSScreen\.screens|NSWindow\(/);
   assert.match(surfaceSource, /private\(set\) var nativeProjectionHost: DesktopWorldNativeProjectionHost\?/);
   assert.match(surfaceSource, /existing\.nativeProjectionHost\?\.resize\(\)/);
-  assert.match(surfaceSource, /if topologyWillChange \{\s*discardNativeSheetImmediately\(\)/);
+  assert.match(surfaceSource, /if topologyWillChange \{[^}]*discardNativeSheetImmediately\(\)/);
   assert.doesNotMatch(surfaceSource, /reconcileNativeSheetForCurrentTopology/);
   assert.match(projectionSource, /addSubview\(view, positioned: \.below, relativeTo: webView\)/);
   assert.match(projectionSource, /view\.isHidden = true/);
@@ -136,7 +136,7 @@ test('native sheet uses one bounded tessellated geometry model across display se
   assert.match(commandSource, /cleanup\.retainedGeometryBuffers == 0/);
   assert.match(commandSource, /cleanup\.retainedGPUResources == 0/);
   assert.match(sheetSource, /let topologyGeneration: UInt64/);
-  assert.match(surfaceSource, /if topologyWillChange \{\s*discardNativeSheetImmediately\(\)/);
+  assert.match(surfaceSource, /if topologyWillChange \{[^}]*discardNativeSheetImmediately\(\)/);
   assert.match(commandSource, /NSApplication\.didChangeScreenParametersNotification/);
   assert.match(commandSource, /cancelProof\(code: "DESKTOP_PIXEL_BASELINE_TOPOLOGY_CHANGED"\)/);
   assert.doesNotMatch(sheetSource, /func reconcile\(/);
