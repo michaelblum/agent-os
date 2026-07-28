@@ -177,6 +177,13 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             return host
         }
 
+        func removeNativeProjectionHost(_ expected: DesktopWorldNativeProjectionHost) {
+            precondition(Thread.isMainThread, "native projection removal must run on the main thread")
+            guard nativeProjectionHost === expected else { return }
+            expected.finalize()
+            nativeProjectionHost = nil
+        }
+
         func quiesceForRetirement() {
             precondition(Thread.isMainThread, "segment quiesce must run on the main thread")
             guard !retirementQuiesced else { return }

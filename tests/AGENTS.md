@@ -34,7 +34,9 @@ tests.
   fake input-region bridges, disposable sockets, and schema fixtures. Static
   scene contract work must not execute the repo AOS binary or require TCC.
 - The desktop-pixel native baseline compares a standalone control with the
-  DesktopWorld-hosted topology/window increment. It has source and full Swift
+  DesktopWorld-hosted AOS sheet increment. It proves that the native sheet
+  reuses the stage topology and windows, resolves by exact identity, and leaves
+  no installed sheet after cleanup. It has source and full Swift
   integration typecheck coverage plus a supervised TCC-sensitive proof. Static
   verification must never invoke capture or treat a typecheck as native evidence.
 - Status-item host contract tests must use disposable fake sockets and schema

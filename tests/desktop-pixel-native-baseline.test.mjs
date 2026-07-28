@@ -13,8 +13,18 @@ const captureSource = read('src/commands/desktop-pixel-native-baseline-capture.s
 const hostSource = read('src/commands/desktop-pixel-native-baseline-host.swift');
 const metalSource = read('src/commands/desktop-pixel-native-baseline-metal.swift');
 const projectionSource = read('src/display/desktop-world-native-projection.swift');
+const sheetSource = read('src/display/desktop-world-native-sheet.swift');
+const identitySource = read('src/shared/desktop-world-resource-identity.swift');
 const surfaceSource = read('src/display/desktop-world-surface.swift');
-const nativeSources = [commandSource, captureSource, hostSource, metalSource, projectionSource].join('\n');
+const nativeSources = [
+  commandSource,
+  captureSource,
+  hostSource,
+  metalSource,
+  projectionSource,
+  sheetSource,
+  identitySource,
+].join('\n');
 
 async function waitFor(predicate, timeoutMs = 3000) {
   const deadline = Date.now() + timeoutMs;
@@ -64,8 +74,8 @@ test('DesktopWorld host reuses the canonical segmented surface and existing wind
   );
   assert.match(hostSource, /let canvas = DesktopWorldSurfaceCanvas\(/);
   assert.match(hostSource, /coordinator\.issueGeneration\(for: canvas\)/);
-  assert.match(hostSource, /canvas\.segments\.map/);
-  assert.match(hostSource, /segment\.ensureNativeProjectionHost\(device: device\)/);
+  assert.match(hostSource, /segments: canvas\.segments/);
+  assert.match(sheetSource, /segment\.ensureNativeProjectionHost\(device: device\)/);
   assert.match(hostSource, /canvas\.show\(\)/);
   assert.doesNotMatch(desktopHost, /NSScreen\.screens|NSWindow\(/);
   assert.match(surfaceSource, /private\(set\) var nativeProjectionHost: DesktopWorldNativeProjectionHost\?/);
@@ -73,6 +83,24 @@ test('DesktopWorld host reuses the canonical segmented surface and existing wind
   assert.match(projectionSource, /addSubview\(view, positioned: \.below, relativeTo: webView\)/);
   assert.match(projectionSource, /view\.isHidden = true/);
   assert.match(surfaceSource, /collectionBehavior\.insert\(\.canJoinAllApplications\)/);
+});
+
+test('DesktopWorld native sheet is AOS-owned and addressable through the existing resource scope', () => {
+  assert.match(identitySource, /static let stageID = "desktop-world\/main"/);
+  assert.match(identitySource, /let ownerID: String/);
+  assert.match(identitySource, /let resourceID: String/);
+  assert.match(identitySource, /"\\\(ownerID\)::\\\(resourceID\)"/);
+  assert.match(sheetSource, /static let ownerID = "io\.agent-os"/);
+  assert.match(sheetSource, /static let resourceID = "native-sheet\/main"/);
+  assert.match(sheetSource, /private var installed: DesktopWorldNativeSheet\?/);
+  assert.match(sheetSource, /guard installed == nil else \{ throw RegistryError\.occupied \}/);
+  assert.match(hostSource, /sheet = try registry\.install\(\)/);
+  assert.match(hostSource, /let addressed = try registry\.sheet\(for: sheet\.identity\)/);
+  assert.match(hostSource, /guard addressed === sheet/);
+  assert.match(hostSource, /registry\.remove\(sheet\.identity\)/);
+  assert.match(commandSource, /sheetAddressed: host\.sheetIdentity != nil/);
+  assert.match(commandSource, /cleanup\.retainedSheets == 0/);
+  assert.doesNotMatch(sheetSource, /ScreenCaptureKit|CVPixelBuffer|texture2d|fragment /);
 });
 
 test('native baseline is bounded and disposes every retained resource', () => {
@@ -93,6 +121,7 @@ test('native baseline is bounded and disposes every retained resource', () => {
   assert.match(commandSource, /cleanup\.pendingRetirements == 0/);
   assert.match(hostSource, /coordinator\.retainUntilNextRunLoop\(canvas, generation: generation\)/);
   assert.match(hostSource, /coordinator\.pendingFinalizationCount > 0/);
+  assert.match(commandSource, /cleanup\.retainedSheets == 0/);
   assert.match(commandSource, /DESKTOP_PIXEL_BASELINE_CLEANUP_INCOMPLETE/);
   assert.match(commandSource, /NSApp\.stop\(nil\)/);
   assert.match(commandSource, /NSApp\.postEvent\(wakeEvent, atStart: false\)/);
@@ -173,6 +202,7 @@ test('runtime proof adapter validates and forwards only bounded arguments', () =
     });
     assert.equal(duplicate.status, 1);
     assert.equal(JSON.parse(duplicate.stderr).code, 'DUPLICATE_FLAG');
+
   } finally {
     fs.rmSync(temporary, { recursive: true, force: true });
   }

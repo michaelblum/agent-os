@@ -287,7 +287,7 @@
         "probe",
         "desktop-pixels"
       ],
-      "summary": "Compare the direct ScreenCaptureKit-to-Metal control with DesktopWorld-owned segment hosting"
+      "summary": "Compare the direct ScreenCaptureKit-to-Metal control with the AOS-owned DesktopWorld native sheet"
     }
   ]
 }

@@ -43,10 +43,16 @@ without changing capture or rendering:
   --json
 ```
 
-The DesktopWorld-hosted result includes its canvas and topology generations.
-It still starts no daemon and creates no scene resource. The native Metal view
-is lazy, input-transparent, placed beneath WebKit, and retired by the existing
-canvas lifecycle coordinator.
+The DesktopWorld-hosted result includes its canvas and topology generations plus
+the stable AOS-owned sheet address `io.agent-os::native-sheet/main`. The sheet
+is one logical DesktopWorld resource implemented by one coordinated native view
+per physical display; it is not a single cross-display AppKit window. The stage
+owns topology and windows, while the sheet owns only its native projection
+hosts. The proof resolves the exact address before presentation and must report
+zero installed sheets after cleanup. It still starts no daemon and creates no
+scene document or scene-protocol lease. Each native view is lazy,
+input-transparent, placed beneath WebKit, and retired by the existing canvas
+lifecycle coordinator.
 
 `identity` presents captured pixels unchanged. `inverted` is a visible proof
 transform; it is not a reusable effect contract.
@@ -56,20 +62,25 @@ result establishes the native baseline for subsequent increments. Each later
 layer must rerun the same proof before it can replace or absorb this path:
 
 1. existing display topology and window ownership;
-2. an addressable AOS resource;
+2. an addressable AOS-owned native sheet;
 3. budgets and deterministic disposal;
 4. reviewed consumer effect parameters and event triggers;
 5. gesture and scene coordination;
 6. explicit permission priming and passive consent status;
 7. bounded image-product adapters for perception, crops, redaction, and diffs.
 
-The intended product path is in-process and event-driven. A loaded consumer
-cartridge may bind a companion affordance event such as pointer-down to a named,
-reviewed native effect and bounded parameters. AOS resolves that binding against
-its trusted implementation registry and runs it on the already-owned capture,
+The intended product path is in-process and event-driven. The native sheet is a
+specialized low-latency desktop-compositing lane, not a second general scene
+engine. Later increments may add bounded geometry, materials, render passes,
+parameters, and clock bindings suitable for screen-aligned and bounded desktop
+effects. A loaded consumer cartridge may bind a companion affordance event such
+as pointer-down to a named digest-reviewed effect program and bounded
+parameters. AOS resolves and runs that program on its owned sheet, capture,
 topology, clock, and Metal resources; it does not spawn this proof command for
-each interaction. Agent-facing scene or `show` tooling may later invoke and
-inspect the same addressable resource, but that is a manual/debug route rather
+each interaction. Three.js remains the richer object-scene lane. The two lanes
+share DesktopWorld coordinates, signals, gestures, timing, and lifecycle rather
+than pretending to share one renderer. Agent-facing scene or `show` tooling may
+later invoke and inspect the same sheet, but that is a manual/debug route rather
 than the interaction hot path.
 
 Do not backfill an existing abstraction merely because it already exists. A

@@ -58,7 +58,11 @@ private struct AOSDesktopPixelNativeBaselineOptions {
         guard sawJSON else {
             throw AOSDesktopPixelNativeBaselineFailure(code: "DESKTOP_PIXEL_BASELINE_JSON_REQUIRED")
         }
-        return Self(host: host, holdMilliseconds: holdMilliseconds, presentation: presentation)
+        return Self(
+            host: host,
+            holdMilliseconds: holdMilliseconds,
+            presentation: presentation
+        )
     }
 }
 
@@ -71,6 +75,9 @@ private struct AOSDesktopPixelNativeBaselineSummary: Encodable {
     let host: AOSDesktopPixelNativeBaselineHostKind
     let canvasGeneration: UInt64?
     let topologyGeneration: UInt64?
+    let sheetOwner: String?
+    let sheetResource: String?
+    let sheetAddressed: Bool
     let queueDepth = AOSDesktopPixelNativeBaselineCapture.queueDepth
     let presentation: AOSDesktopPixelNativeBaselinePresentation
     let warmupMilliseconds: Double?
@@ -84,6 +91,7 @@ private struct AOSDesktopPixelNativeBaselineSummary: Encodable {
     let sceneProtocolUsed = false
     var retainedFramesAfterCleanup: Int
     var pendingRetirementsAfterCleanup: Int
+    var sheetsAfterCleanup: Int
     var retainedTexturesAfterCleanup: Int
     var retainedViewsAfterCleanup: Int
     var windowsAfterCleanup: Int
@@ -97,6 +105,9 @@ private struct AOSDesktopPixelNativeBaselineSummary: Encodable {
         case host
         case canvasGeneration = "canvas_generation"
         case topologyGeneration = "topology_generation"
+        case sheetOwner = "sheet_owner"
+        case sheetResource = "sheet_resource"
+        case sheetAddressed = "sheet_addressed"
         case queueDepth = "queue_depth"
         case presentation
         case warmupMilliseconds = "warmup_ms"
@@ -110,6 +121,7 @@ private struct AOSDesktopPixelNativeBaselineSummary: Encodable {
         case sceneProtocolUsed = "scene_protocol_used"
         case retainedFramesAfterCleanup = "retained_frames_after_cleanup"
         case pendingRetirementsAfterCleanup = "pending_retirements_after_cleanup"
+        case sheetsAfterCleanup = "sheets_after_cleanup"
         case retainedTexturesAfterCleanup = "retained_textures_after_cleanup"
         case retainedViewsAfterCleanup = "retained_views_after_cleanup"
         case windowsAfterCleanup = "windows_after_cleanup"
@@ -214,7 +226,10 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
         }
 
         do {
-            let host = try makeAOSDesktopPixelNativeBaselineHost(kind: options.host, device: device)
+            let host = try makeAOSDesktopPixelNativeBaselineHost(
+                kind: options.host,
+                device: device
+            )
             self.host = host
             let endpoints = host.endpoints
 
@@ -236,7 +251,7 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
             }
 
             let triggered = DispatchTime.now().uptimeNanoseconds
-            host.present()
+            try host.present()
             guard let presented = await barrier.wait(timeoutMilliseconds: 2_000),
                   let firstPresented = presented.min(),
                   let lastPresented = presented.max() else {
@@ -252,6 +267,9 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
                 host: host.kind,
                 canvasGeneration: host.canvasGeneration,
                 topologyGeneration: host.topologyGeneration,
+                sheetOwner: host.sheetIdentity?.ownerID,
+                sheetResource: host.sheetIdentity?.resourceID,
+                sheetAddressed: host.sheetIdentity != nil,
                 presentation: options.presentation,
                 warmupMilliseconds: milliseconds(warmupFinished - warmupStarted),
                 triggerToVisibleMilliseconds: milliseconds(lastPresented - triggered),
@@ -259,6 +277,7 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
                 oldestFrameAgeMilliseconds: milliseconds(lastPresented - oldestFrame),
                 retainedFramesAfterCleanup: 0,
                 pendingRetirementsAfterCleanup: 0,
+                sheetsAfterCleanup: 0,
                 retainedTexturesAfterCleanup: 0,
                 retainedViewsAfterCleanup: 0,
                 windowsAfterCleanup: 0
@@ -287,6 +306,7 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
         let topologyGeneration = activeHost?.topologyGeneration
         let cleanup = await activeHost?.dispose() ?? AOSDesktopPixelNativeBaselineHostCleanup(
             pendingRetirements: 0,
+            retainedSheets: 0,
             retainedTextures: 0,
             retainedViews: 0,
             retainedWindows: 0
@@ -300,11 +320,13 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
         if var success,
            retainedFramesAfterCleanup == 0,
            cleanup.pendingRetirements == 0,
+           cleanup.retainedSheets == 0,
            cleanup.retainedTextures == 0,
            cleanup.retainedViews == 0,
            cleanup.retainedWindows == 0 {
             success.retainedFramesAfterCleanup = retainedFramesAfterCleanup
             success.pendingRetirementsAfterCleanup = cleanup.pendingRetirements
+            success.sheetsAfterCleanup = cleanup.retainedSheets
             success.retainedTexturesAfterCleanup = cleanup.retainedTextures
             success.retainedViewsAfterCleanup = cleanup.retainedViews
             success.windowsAfterCleanup = cleanup.retainedWindows
@@ -329,6 +351,9 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
                 host: hostKind,
                 canvasGeneration: canvasGeneration,
                 topologyGeneration: topologyGeneration,
+                sheetOwner: activeHost?.sheetIdentity?.ownerID,
+                sheetResource: activeHost?.sheetIdentity?.resourceID,
+                sheetAddressed: activeHost?.sheetIdentity != nil,
                 presentation: options.presentation,
                 warmupMilliseconds: nil,
                 triggerToVisibleMilliseconds: nil,
@@ -336,6 +361,7 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
                 oldestFrameAgeMilliseconds: nil,
                 retainedFramesAfterCleanup: retainedFramesAfterCleanup,
                 pendingRetirementsAfterCleanup: cleanup.pendingRetirements,
+                sheetsAfterCleanup: cleanup.retainedSheets,
                 retainedTexturesAfterCleanup: cleanup.retainedTextures,
                 retainedViewsAfterCleanup: cleanup.retainedViews,
                 windowsAfterCleanup: cleanup.retainedWindows

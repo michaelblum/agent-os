@@ -38,8 +38,11 @@ needs, but public command policy and product UI policy belong above it:
   runs directly in the foreground AOS process. Its `standalone` host is the
   known-working control; its `desktop-world` host reuses the canonical segment
   topology, windows, and lifecycle while preserving the same capture and Metal
-  renderer. Both must remain daemon-free, broker-free, prompt-free, content-
-  free in output, and unavailable to product consumers.
+  renderer. The DesktopWorld host installs one stable AOS-owned native sheet at
+  `io.agent-os::native-sheet/main` and resolves that exact sheet before
+  presentation; the sheet registry does not own another canvas or topology.
+  Both hosts must remain daemon-free, broker-free, prompt-free, content-free in
+  output, and unavailable to product consumers.
 - Historical embedded-product config residue may be retired only through an
   exact key and repo-path migration. Preserve external or user-defined content
   roots and never mutate the frozen product fixture during config cleanup.

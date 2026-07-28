@@ -9,6 +9,7 @@ enum AOSDesktopPixelNativeBaselineHostKind: String, Encodable {
 
 struct AOSDesktopPixelNativeBaselineHostCleanup {
     let pendingRetirements: Int
+    let retainedSheets: Int
     let retainedTextures: Int
     let retainedViews: Int
     let retainedWindows: Int
@@ -31,7 +32,8 @@ protocol AOSDesktopPixelNativeBaselineHost: AnyObject {
     var endpoints: [any AOSDesktopPixelNativeBaselineEndpoint] { get }
     var canvasGeneration: UInt64? { get }
     var topologyGeneration: UInt64? { get }
-    func present()
+    var sheetIdentity: AOSDesktopWorldResourceIdentity? { get }
+    func present() throws
     func dispose() async -> AOSDesktopPixelNativeBaselineHostCleanup
 }
 
@@ -41,6 +43,7 @@ final class AOSDesktopPixelNativeBaselineStandaloneHost: AOSDesktopPixelNativeBa
     private(set) var endpoints: [any AOSDesktopPixelNativeBaselineEndpoint]
     let canvasGeneration: UInt64? = nil
     let topologyGeneration: UInt64? = nil
+    let sheetIdentity: AOSDesktopWorldResourceIdentity? = nil
 
     init(device: MTLDevice) throws {
         let screens = NSScreen.screens
@@ -69,7 +72,7 @@ final class AOSDesktopPixelNativeBaselineStandaloneHost: AOSDesktopPixelNativeBa
         endpoints = created
     }
 
-    func present() {
+    func present() throws {
         endpoints.forEach { $0.present() }
     }
 
@@ -77,6 +80,7 @@ final class AOSDesktopPixelNativeBaselineStandaloneHost: AOSDesktopPixelNativeBa
         endpoints.forEach { $0.disposeRenderer() }
         let result = AOSDesktopPixelNativeBaselineHostCleanup(
             pendingRetirements: 0,
+            retainedSheets: 0,
             retainedTextures: endpoints.reduce(0) { $0 + $1.retainedTextureCount() },
             retainedViews: endpoints.reduce(0) { $0 + $1.retainedViewCount() },
             retainedWindows: endpoints.reduce(0) { $0 + $1.retainedWindowCount() }
@@ -92,12 +96,11 @@ private final class AOSDesktopPixelNativeBaselineDesktopWorldEndpoint:
 {
     let displayID: CGDirectDisplayID
     let renderer: AOSDesktopPixelNativeBaselineRenderer
-    private let host: DesktopWorldNativeProjectionHost
-    private let segment: DesktopWorldSurfaceCanvas.Segment
+    private let endpoint: DesktopWorldNativeSheet.Endpoint
 
-    init(segment: DesktopWorldSurfaceCanvas.Segment, device: MTLDevice) throws {
-        let width = Int(CGDisplayPixelsWide(segment.displayID))
-        let height = Int(CGDisplayPixelsHigh(segment.displayID))
+    init(endpoint: DesktopWorldNativeSheet.Endpoint, device: MTLDevice) throws {
+        let width = Int(CGDisplayPixelsWide(endpoint.displayID))
+        let height = Int(CGDisplayPixelsHigh(endpoint.displayID))
         let backingPixels = width <= Int.max / max(1, height) ? width * height : Int.max
         guard backingPixels > 0,
               backingPixels <= AOSDesktopPixelNativeBaselineCapture.maximumPixelsPerDisplay else {
@@ -105,26 +108,18 @@ private final class AOSDesktopPixelNativeBaselineDesktopWorldEndpoint:
                 code: "DESKTOP_PIXEL_BASELINE_BACKING_PIXEL_BUDGET_EXCEEDED"
             )
         }
-        displayID = segment.displayID
-        self.segment = segment
-        do {
-            host = try segment.ensureNativeProjectionHost(device: device)
-        } catch {
-            throw AOSDesktopPixelNativeBaselineFailure(
-                code: "DESKTOP_PIXEL_BASELINE_DESKTOP_WORLD_HOST_FAILED",
-                nativeCode: (error as NSError).code
-            )
-        }
-        renderer = try AOSDesktopPixelNativeBaselineRenderer(view: host.view)
+        displayID = endpoint.displayID
+        self.endpoint = endpoint
+        renderer = try AOSDesktopPixelNativeBaselineRenderer(view: endpoint.host.view)
     }
 
     func present() {
-        host.present()
+        endpoint.host.present()
     }
 
     func disposeRenderer() {
         renderer.clear()
-        host.detachRenderer()
+        endpoint.host.detachRenderer()
     }
 
     func retainedTextureCount() -> Int {
@@ -132,11 +127,11 @@ private final class AOSDesktopPixelNativeBaselineDesktopWorldEndpoint:
     }
 
     func retainedViewCount() -> Int {
-        host.retainedViewCount
+        endpoint.host.retainedViewCount
     }
 
     func retainedWindowCount() -> Int {
-        segment.window.isVisible || segment.window.contentView != nil ? 1 : 0
+        endpoint.segment.window.isVisible || endpoint.segment.window.contentView != nil ? 1 : 0
     }
 }
 
@@ -146,9 +141,12 @@ final class AOSDesktopPixelNativeBaselineDesktopWorldHost: AOSDesktopPixelNative
     private(set) var endpoints: [any AOSDesktopPixelNativeBaselineEndpoint] = []
     let canvasGeneration: UInt64?
     let topologyGeneration: UInt64?
+    let sheetIdentity: AOSDesktopWorldResourceIdentity?
     private let canvas: DesktopWorldSurfaceCanvas
     private let coordinator: CanvasLifecycleCoordinator
     private let generation: CanvasLifecycleGeneration
+    private let registry: DesktopWorldNativeSheetRegistry
+    private let sheet: DesktopWorldNativeSheet
     private var disposed = false
 
     init(device: MTLDevice) throws {
@@ -166,35 +164,60 @@ final class AOSDesktopPixelNativeBaselineDesktopWorldHost: AOSDesktopPixelNative
             canvas.finalizeRetirement()
             throw AOSDesktopPixelNativeBaselineFailure(code: "DESKTOP_PIXEL_BASELINE_DISPLAY_LIMIT")
         }
+        let registry = DesktopWorldNativeSheetRegistry(
+            segments: canvas.segments,
+            device: device
+        )
+        let sheet: DesktopWorldNativeSheet
+        do {
+            sheet = try registry.install()
+        } catch {
+            canvas.finalizeRetirement()
+            throw AOSDesktopPixelNativeBaselineFailure(
+                code: "DESKTOP_PIXEL_BASELINE_SHEET_INSTALLATION_FAILED",
+                nativeCode: (error as NSError).code
+            )
+        }
         let createdEndpoints: [any AOSDesktopPixelNativeBaselineEndpoint]
         do {
-            createdEndpoints = try canvas.segments.map {
+            createdEndpoints = try sheet.endpoints.map {
                 try AOSDesktopPixelNativeBaselineDesktopWorldEndpoint(
-                    segment: $0,
+                    endpoint: $0,
                     device: device
                 )
             }
         } catch {
+            registry.discardImmediately()
             canvas.finalizeRetirement()
             throw error
         }
         self.canvas = canvas
         self.coordinator = coordinator
         self.generation = generation
+        self.registry = registry
+        self.sheet = sheet
+        sheetIdentity = sheet.identity
         endpoints = createdEndpoints
         canvasGeneration = generation.value
         topologyGeneration = canvas.topologyGeneration
     }
 
-    func present() {
+    func present() throws {
+        let addressed = try registry.sheet(for: sheet.identity)
+        guard addressed === sheet else {
+            throw AOSDesktopPixelNativeBaselineFailure(
+                code: "DESKTOP_PIXEL_BASELINE_SHEET_IDENTITY_MISMATCH"
+            )
+        }
         canvas.show()
-        endpoints.forEach { $0.present() }
+        addressed.present()
     }
 
     func dispose() async -> AOSDesktopPixelNativeBaselineHostCleanup {
         guard !disposed else {
             return AOSDesktopPixelNativeBaselineHostCleanup(
                 pendingRetirements: 0,
+                retainedSheets: 0,
                 retainedTextures: 0,
                 retainedViews: 0,
                 retainedWindows: 0
@@ -202,6 +225,13 @@ final class AOSDesktopPixelNativeBaselineDesktopWorldHost: AOSDesktopPixelNative
         }
         disposed = true
         endpoints.forEach { $0.disposeRenderer() }
+        let sheetRemoved: Bool
+        do {
+            try registry.remove(sheet.identity)
+            sheetRemoved = true
+        } catch {
+            sheetRemoved = false
+        }
         coordinator.retainUntilNextRunLoop(canvas, generation: generation)
         let deadline = DispatchTime.now().uptimeNanoseconds + 2_000_000_000
         while coordinator.pendingFinalizationCount > 0,
@@ -210,6 +240,7 @@ final class AOSDesktopPixelNativeBaselineDesktopWorldHost: AOSDesktopPixelNative
         }
         let result = AOSDesktopPixelNativeBaselineHostCleanup(
             pendingRetirements: coordinator.pendingFinalizationCount,
+            retainedSheets: sheetRemoved ? registry.count : max(1, registry.count),
             retainedTextures: endpoints.reduce(0) { $0 + $1.retainedTextureCount() },
             retainedViews: endpoints.reduce(0) { $0 + $1.retainedViewCount() },
             retainedWindows: endpoints.reduce(0) { $0 + $1.retainedWindowCount() }

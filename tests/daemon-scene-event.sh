@@ -15,6 +15,28 @@ func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     }
 }
 
+require(
+    (try? AOSDesktopWorldResourceIdentity(
+        ownerID: "example.consumer",
+        resourceID: "companion/main"
+    )) != nil,
+    "canonical DesktopWorld resource identity was rejected"
+)
+require(
+    (try? AOSDesktopWorldResourceIdentity(
+        ownerID: "Example Consumer",
+        resourceID: "companion/main"
+    )) == nil,
+    "non-canonical DesktopWorld resource owner was accepted"
+)
+require(
+    (try? AOSDesktopWorldResourceIdentity(
+        ownerID: "example.consumer",
+        resourceID: "companion/../main"
+    )) == nil,
+    "traversing DesktopWorld resource identity was accepted"
+)
+
 let valid: [String: Any] = [
     "contract": "aos.scene.event.v1",
     "schemaVersion": 1,
@@ -96,5 +118,9 @@ print("PASS daemon scene event projection")
 SWIFT
 
 CLANG_MODULE_CACHE_PATH="$TMP/cache" SWIFT_MODULECACHE_PATH="$TMP/cache" \
-    swiftc "$ROOT/src/daemon/scene-event.swift" "$TMP/main.swift" -o "$TMP/test"
+    swiftc \
+        "$ROOT/src/shared/desktop-world-resource-identity.swift" \
+        "$ROOT/src/daemon/scene-event.swift" \
+        "$TMP/main.swift" \
+        -o "$TMP/test"
 "$TMP/test"

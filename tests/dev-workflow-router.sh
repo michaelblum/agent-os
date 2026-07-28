@@ -214,7 +214,7 @@ else
     fail "dev recommend semantic target selection routing drifted"
 fi
 
-if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/commands/desktop-pixel-native-baseline.swift scripts/aos-runtime-desktop-pixel-baseline.mjs tests/desktop-pixel-native-baseline.test.mjs tests/desktop-pixel-native-baseline-typecheck.sh 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/commands/desktop-pixel-native-baseline.swift src/display/desktop-world-native-sheet.swift src/shared/desktop-world-resource-identity.swift scripts/aos-runtime-desktop-pixel-baseline.mjs tests/desktop-pixel-native-baseline.test.mjs tests/desktop-pixel-native-baseline-typecheck.sh 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -228,13 +228,23 @@ assert summary["tcc_identity_sensitive"] is True, data
 files = {item["path"]: item for item in data["files"]}
 expected_paths = {
     "src/commands/desktop-pixel-native-baseline.swift",
+    "src/display/desktop-world-native-sheet.swift",
+    "src/shared/desktop-world-resource-identity.swift",
     "scripts/aos-runtime-desktop-pixel-baseline.mjs",
     "tests/desktop-pixel-native-baseline.test.mjs",
     "tests/desktop-pixel-native-baseline-typecheck.sh",
 }
 assert expected_paths == set(files), data
-assert "desktop-pixel-native-baseline" in files["src/commands/desktop-pixel-native-baseline.swift"]["rules"], files
-for path in expected_paths - {"src/commands/desktop-pixel-native-baseline.swift"}:
+native_paths = {
+    "src/commands/desktop-pixel-native-baseline.swift",
+    "src/display/desktop-world-native-sheet.swift",
+    "src/shared/desktop-world-resource-identity.swift",
+}
+for path in native_paths:
+    assert "desktop-pixel-native-baseline" in files[path]["rules"], files[path]
+for path in native_paths - {"src/commands/desktop-pixel-native-baseline.swift"}:
+    assert "desktop-world-scene-engine" in files[path]["rules"], files[path]
+for path in expected_paths - native_paths:
     assert "desktop-pixel-native-baseline-command" in files[path]["rules"], files[path]
 PY
 then

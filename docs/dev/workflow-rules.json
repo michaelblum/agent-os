@@ -268,10 +268,12 @@
     },
     {
       "id": "desktop-pixel-native-baseline",
-      "summary": "Foreground ScreenCaptureKit-to-Metal baseline or its explicit runtime proof command changed.",
+      "summary": "Foreground ScreenCaptureKit-to-Metal baseline, DesktopWorld native sheet, or explicit runtime proof command changed.",
       "patterns": [
         "src/commands/desktop-pixel-native-baseline*.swift",
-        "src/display/desktop-world-native-projection.swift",
+        "src/display/desktop-world-native-projection*.swift",
+        "src/display/desktop-world-native-sheet.swift",
+        "src/shared/desktop-world-resource-identity.swift",
         "src/main.swift"
       ],
       "classes": [
@@ -288,7 +290,7 @@
         {
           "id": "desktop-pixel-native-baseline-contract",
           "command": "node --test tests/desktop-pixel-native-baseline.test.mjs && bash tests/desktop-pixel-native-baseline-typecheck.sh && bash tests/command-manifest-generation.sh",
-          "reason": "Keep the standalone control and DesktopWorld-hosted increment daemon-free, prompt-free, in-memory, bounded, type-correct, and aligned with generated help."
+          "reason": "Keep the standalone control and AOS-owned DesktopWorld native-sheet increment daemon-free, prompt-free, in-memory, bounded, type-correct, and aligned with generated help."
         }
       ],
       "verification": [],
@@ -356,6 +358,8 @@
         "src/display/canvas.swift",
         "src/display/desktop-world-surface.swift",
         "src/display/desktop-world-native-projection.swift",
+        "src/display/desktop-world-native-sheet.swift",
+        "src/shared/desktop-world-resource-identity.swift",
         "src/display/desktop-frame-texture.swift",
         "src/display/scene-extension-store.swift",
         "src/shared/desktop-frame-capture-consent-contract.swift",
