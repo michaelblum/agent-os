@@ -1,4 +1,5 @@
 import AppKit
+import CoreImage
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
@@ -23,6 +24,27 @@ private func aosDesktopFrameEncodedJPEG(_ image: CGImage) throws -> Data {
     return data as Data
 }
 
+private let aosDesktopFrameImageContext = CIContext(options: [
+    .cacheIntermediates: false,
+])
+
+private func aosDesktopFrameImage(_ frame: AOSDesktopPixelFrame) throws -> CGImage {
+    if let image = frame.image { return image }
+    guard let pixelBuffer = frame.pixelBuffer else {
+        throw AOSDesktopFrameCaptureFailure.frameNotReady
+    }
+    let width = CVPixelBufferGetWidth(pixelBuffer)
+    let height = CVPixelBufferGetHeight(pixelBuffer)
+    let image = CIImage(cvPixelBuffer: pixelBuffer)
+    guard let rendered = aosDesktopFrameImageContext.createCGImage(
+        image,
+        from: CGRect(x: 0, y: 0, width: width, height: height)
+    ) else {
+        throw AOSDesktopFrameCaptureFailure.captureFailed
+    }
+    return rendered
+}
+
 private func aosDesktopFrameCaptureSetResult(
     _ frameSet: AOSDesktopPixelFrameSet,
     startedAt: Date
@@ -36,7 +58,7 @@ private func aosDesktopFrameCaptureSetResult(
         frames: try frameSet.frames.map { frame in
             try autoreleasepool {
                 AOSDesktopFrameCaptureResult(
-                    data: try aosDesktopFrameEncodedJPEG(frame.image),
+                    data: try aosDesktopFrameEncodedJPEG(try aosDesktopFrameImage(frame)),
                     displayID: frame.displayID,
                     height: frame.height,
                     mimeType: "image/jpeg",
@@ -54,7 +76,8 @@ enum AOSDesktopFrameCaptureStrategy {
 
 final class AOSNativeDesktopFrameCapturer:
     AOSDesktopFrameCapturing,
-    AOSDesktopFrameRuntimeCapturing
+    AOSDesktopFrameRuntimeCapturing,
+    AOSDesktopPixelFrameSetCapturing
 {
     private let broker: AOSDesktopPixelBroker
     private let strategy: AOSDesktopFrameCaptureStrategy
@@ -85,25 +108,15 @@ final class AOSNativeDesktopFrameCapturer:
     }
 
     @discardableResult
-    func capturePrewarmed(
+    func capturePrewarmedFrames(
         _ configuration: AOSDesktopFrameWarmConfiguration,
-        completion: @escaping (Result<AOSDesktopFrameCaptureSetResult, Error>) -> Void
+        completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void
     ) -> AOSDesktopFrameCancelling {
         guard strategy == .prewarmedSnapshot else {
             completion(.failure(AOSDesktopFrameCaptureFailure.frameNotReady))
             return AOSDesktopFrameCancellation()
         }
-        let startedAt = Date()
-        let admission = warmPool.freeze(configuration) { result in
-            completion(result.flatMap { frameSet in
-                Result {
-                    try aosDesktopFrameCaptureSetResult(
-                        frameSet,
-                        startedAt: startedAt
-                    )
-                }
-            })
-        }
+        let admission = warmPool.freeze(configuration, completion: completion)
         switch admission {
         case .admitted(let operation):
             return operation
@@ -116,6 +129,24 @@ final class AOSNativeDesktopFrameCapturer:
             }
             completion(.failure(failure))
             return AOSDesktopFrameCancellation()
+        }
+    }
+
+    @discardableResult
+    func capturePrewarmed(
+        _ configuration: AOSDesktopFrameWarmConfiguration,
+        completion: @escaping (Result<AOSDesktopFrameCaptureSetResult, Error>) -> Void
+    ) -> AOSDesktopFrameCancelling {
+        let startedAt = Date()
+        return capturePrewarmedFrames(configuration) { result in
+            completion(result.flatMap { frameSet in
+                Result {
+                    try aosDesktopFrameCaptureSetResult(
+                        frameSet,
+                        startedAt: startedAt
+                    )
+                }
+            })
         }
     }
 
@@ -144,7 +175,7 @@ final class AOSNativeDesktopFrameCapturer:
                         frames: try frameSet.frames.map { frame in
                             try autoreleasepool {
                                 AOSDesktopFrameCaptureResult(
-                                    data: try aosDesktopFrameEncodedJPEG(frame.image),
+                                    data: try aosDesktopFrameEncodedJPEG(try aosDesktopFrameImage(frame)),
                                     displayID: frame.displayID,
                                     height: frame.height,
                                     mimeType: "image/jpeg",

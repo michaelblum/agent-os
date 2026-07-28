@@ -468,6 +468,7 @@ export function createSceneLease(input: Omit<SceneLease, 'contract'>): Readonly<
 
 export type SceneCartridgeImplementationKind =
   | SceneImplementationKind
+  | 'effect'
   | 'interaction'
   | 'recognizer'
   | 'response';
@@ -534,6 +535,22 @@ export interface SceneCartridgeInteraction {
   affordanceId: string;
   recognizer: SceneCartridgeInteractionImplementation;
   response: SceneCartridgeInteractionImplementation;
+  nativeEffect?: SceneNativeEffectDescriptor;
+}
+
+export interface SceneNativeEffectDescriptor {
+  implementation: 'aos.scene.effect.desktop-ripple';
+  trigger:
+    | { input: 'pointer_down'; button?: 'left' | 'middle' | 'right' }
+    | { phase: 'start' | 'end' };
+  parameters: {
+    amplitude?: number;
+    decay?: number;
+    durationMs?: number;
+    frequency?: number;
+    radius?: number;
+    speed?: number;
+  };
 }
 
 export interface SceneCartridgeInteractions {
@@ -573,6 +590,7 @@ export const SCENE_CARTRIDGE_IMPLEMENTATIONS: Readonly<{
   radialMenuResponse: 'aos.scene.response.radial-menu';
   signalGraphResponse: 'aos.scene.response.signal-graph';
   translateResponse: 'aos.scene.response.translate';
+  desktopRippleEffect: 'aos.scene.effect.desktop-ripple';
 }>;
 export const SCENE_CARTRIDGE_LIMITS: Readonly<SceneCartridgeBudgets>;
 

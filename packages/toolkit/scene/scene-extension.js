@@ -13,6 +13,7 @@ export const SCENE_EXTENSION_REGISTRY_LIMIT = 64
 export const SCENE_EXTENSION_CAPABILITIES = Object.freeze([
   'aos.scene.desktop_frame_texture',
   'aos.scene.framebuffer_proof',
+  'aos.scene.native_sheet_effect',
 ])
 const SCENE_EXTENSION_FRAMEBUFFER_PROOF_LIMIT = 4
 

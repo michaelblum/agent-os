@@ -3,6 +3,7 @@
 // Includes WKScriptMessageHandler relay for canvas→host events.
 
 import AppKit
+import Metal
 import WebKit
 
 // MARK: - AOS URL Scheme Handler
@@ -1485,6 +1486,48 @@ class CanvasManager {
             (self?.canvases[canvasID] as? DesktopWorldSurfaceCanvas)?.sceneBarrierTopology()
         }
         return Thread.isMainThread ? read() : DispatchQueue.main.sync(execute: read)
+    }
+
+    func installDesktopWorldNativeSheet(
+        canvasID: String,
+        canvasGeneration: UInt64,
+        topologyGeneration: UInt64,
+        device: MTLDevice
+    ) throws -> DesktopWorldNativeSheet {
+        let install = { [weak self] () throws -> DesktopWorldNativeSheet in
+            guard let surface = self?.canvases[canvasID] as? DesktopWorldSurfaceCanvas,
+                  surface.lifecycleGeneration == canvasGeneration,
+                  surface.topologyGeneration == topologyGeneration else {
+                throw DesktopWorldNativeSheetFailure.invalidGeometry
+            }
+            return try surface.installNativeSheet(device: device)
+        }
+        if Thread.isMainThread { return try install() }
+        return try DispatchQueue.main.sync(execute: install)
+    }
+
+    @discardableResult
+    func removeDesktopWorldNativeSheet(
+        canvasID: String,
+        canvasGeneration: UInt64,
+        topologyGeneration: UInt64,
+        identity: AOSDesktopWorldResourceIdentity
+    ) -> Bool {
+        let remove = { [weak self] () -> Bool in
+            guard let surface = self?.canvases[canvasID] as? DesktopWorldSurfaceCanvas,
+                  surface.lifecycleGeneration == canvasGeneration,
+                  surface.topologyGeneration == topologyGeneration else {
+                return false
+            }
+            do {
+                try surface.removeNativeSheet(identity)
+                return true
+            } catch {
+                surface.discardNativeSheetImmediately()
+                return false
+            }
+        }
+        return Thread.isMainThread ? remove() : DispatchQueue.main.sync(execute: remove)
     }
 
     func desktopFrameConsumers(canvasID: String) -> [AOSDesktopFrameConsumerIdentity] {

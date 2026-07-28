@@ -106,6 +106,7 @@ final class AOSSceneExtensionStore {
     ])
     private static let supportedCapabilities = Set([
         "aos.scene.desktop_frame_texture", "aos.scene.framebuffer_proof",
+        "aos.scene.native_sheet_effect",
     ])
     private static let budgetKeys = [
         "maxDrawCalls", "maxObjects", "maxResources", "maxTextureBytes",

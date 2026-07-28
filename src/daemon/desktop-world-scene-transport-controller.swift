@@ -24,6 +24,7 @@ final class AOSDesktopWorldSceneTransportController {
         scene: AOSDesktopWorldSceneController = AOSDesktopWorldSceneController(),
         extensionStore: AOSSceneExtensionStore,
         eventDiagnostics: AOSDesktopWorldSceneEventRouteDiagnostics = AOSDesktopWorldSceneEventRouteDiagnostics(),
+        nativeFeedback: @escaping (AOSDesktopWorldNativeEffectRequest) -> Void = { _ in },
         resolveContentURL: @escaping (String) -> String,
         clearReadyManifest: @escaping () -> Void,
         authorizationChanged: @escaping () -> Void = {},
@@ -39,6 +40,7 @@ final class AOSDesktopWorldSceneTransportController {
         self.eventRouter = AOSDesktopWorldSceneEventRouter(
             scene: scene,
             diagnostics: eventDiagnostics,
+            nativeFeedback: nativeFeedback,
             emit: emit
         )
     }
@@ -162,6 +164,45 @@ final class AOSDesktopWorldSceneTransportController {
             sceneABI: authorization.extensionReference.sceneABI,
             threeRevision: authorization.extensionReference.threeRevision,
             capability: "aos.scene.desktop_frame_texture"
+        )
+    }
+
+    func authorizesNativeEffect(
+        _ request: AOSDesktopWorldNativeEffectRequest
+    ) -> Bool {
+        scene.authorizesNativeEffect(request)
+    }
+
+    func hasNativeEffectAuthorization() -> Bool {
+        scene.hasNativeEffectAuthorization()
+    }
+
+    func nativePointerEffectRequest(
+        region: AOSInputRegionRecord,
+        phase: AOSInputEventPhase,
+        button: AOSInputButton?,
+        desktopWorld: CGPoint
+    ) -> AOSDesktopWorldNativeEffectRequest? {
+        guard region.ownerCanvasID == Self.stageCanvasID,
+              phase == .down,
+              let button,
+              let ownerID = region.metadata["scene_owner"],
+              let resourceID = region.metadata["scene_resource"],
+              let affordanceID = region.metadata["scene_affordance"],
+              let revisionValue = region.metadata["scene_revision"],
+              let resourceRevision = Int(revisionValue),
+              resourceRevision > 0 else {
+            return nil
+        }
+        return scene.nativePointerEffectRequest(
+            ownerID: ownerID,
+            resourceID: resourceID,
+            resourceRevision: resourceRevision,
+            affordanceID: affordanceID,
+            canvasGeneration: region.ownerCanvasGeneration.value,
+            phase: phase.rawValue,
+            button: button.rawValue,
+            point: desktopWorld
         )
     }
 

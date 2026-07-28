@@ -78,19 +78,17 @@ layer must rerun the same proof before it can replace or absorb this path:
 6. explicit permission priming and passive consent status;
 7. bounded image-product adapters for perception, crops, redaction, and diffs.
 
-The intended product path is in-process and event-driven. The native sheet is a
+The product path is now in-process and event-driven. The native sheet is a
 specialized low-latency desktop-compositing lane, not a second general scene
-engine. Later increments may add bounded geometry, materials, render passes,
-parameters, and clock bindings suitable for screen-aligned and bounded desktop
-effects. A loaded consumer cartridge may bind a companion affordance event such
-as pointer-down to a named digest-reviewed effect program and bounded
-parameters. AOS resolves and runs that program on its owned sheet, capture,
-topology, clock, and Metal resources; it does not spawn this proof command for
-each interaction. Three.js remains the richer object-scene lane. The two lanes
-share DesktopWorld coordinates, signals, gestures, timing, and lifecycle rather
-than pretending to share one renderer. Agent-facing scene or `show` tooling may
-later invoke and inspect the same sheet, but that is a manual/debug route rather
-than the interaction hot path.
+engine. ADR 0032 adds the first bounded runtime primitive,
+`aos.scene.effect.desktop-ripple`. A loaded consumer cartridge may bind a
+companion affordance phase to that reviewed implementation ID and bounded
+parameters. AOS resolves and runs it on the owned sheet, capture, topology,
+clock, and Metal resources; it never spawns this proof command per interaction.
+Three.js remains the richer object-scene lane. The two lanes share DesktopWorld
+coordinates, gestures, timing, and lifecycle rather than pretending to share
+one renderer. Additional native effects require reviewed AOS implementations
+and schemas; consumers cannot inject Metal or JavaScript into the native lane.
 
 Do not backfill an existing abstraction merely because it already exists. A
 layer is retained only when the unchanged native proof remains green and the

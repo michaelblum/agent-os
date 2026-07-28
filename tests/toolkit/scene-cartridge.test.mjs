@@ -107,3 +107,26 @@ test('cartridge interaction roles remain distinct from conventional object trans
   assert.equal(aim.interactions.interactions[0].response.implementation, SCENE_CARTRIDGE_IMPLEMENTATIONS.aimCommitResponse)
   assert.equal(conventional.interactions.interactions[0].response.implementation, SCENE_CARTRIDGE_IMPLEMENTATIONS.translateResponse)
 })
+
+test('cartridge manifests declare native feedback as an effect implementation', async () => {
+  const cartridge = await example('conventional-drag')
+  cartridge.interactions.interactions[0].nativeEffect = {
+    implementation: 'aos.scene.effect.desktop-ripple',
+    trigger: { input: 'pointer_down' },
+    parameters: {},
+  }
+  cartridge.manifest.implementations.push({
+    id: 'aos.scene.effect.desktop-ripple',
+    kind: 'effect',
+  })
+  cartridge.manifest.implementations.sort((left, right) => left.id.localeCompare(right.id))
+
+  assert.deepEqual(validateSceneCartridge(cartridge), { ok: true, errors: [] })
+
+  cartridge.manifest.implementations.find(
+    (entry) => entry.id === 'aos.scene.effect.desktop-ripple',
+  ).kind = 'component'
+  const invalid = validateSceneCartridge(cartridge)
+  assert.equal(invalid.ok, false)
+  assert.ok(invalid.errors.some((error) => error.code === 'implementation_declarations'))
+})

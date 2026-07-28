@@ -181,6 +181,10 @@ test('authoring skill contains exact routes without placeholders or private tran
   assert.doesNotMatch(skill, /<[a-z][a-z0-9_-]*>/iu)
   assert.doesNotMatch(skill, /AOS_STATE_ROOT|net\.connect|\/sock\b/u)
   assert.doesNotMatch(skill, /roadmap|future status-item|dependent visual slice/iu)
+  assert.match(skill, /"implementation": "aos\.scene\.effect\.desktop-ripple"/u)
+  assert.match(skill, /aos\.scene\.desktop_frame_texture/u)
+  assert.match(skill, /aos\.scene\.native_sheet_effect/u)
+  assert.match(skill, /AOS owns pixels, Metal, topology, clocks, and disposal/u)
 })
 
 test('scene scaffold guides describe the manifest-last activation boundary', async () => {

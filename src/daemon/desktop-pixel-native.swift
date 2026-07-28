@@ -1,5 +1,4 @@
 import AppKit
-import CoreImage
 import CoreMedia
 import CoreVideo
 import Foundation
@@ -420,7 +419,6 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
         let stream: SCStream
     }
 
-    private let context = CIContext(options: [.cacheIntermediates: false])
     private var entries: [Entry]
     private let failureState: AOSDesktopPixelSourceFailureState
     private let lock = NSLock()
@@ -664,27 +662,16 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
             throw AOSDesktopFrameCaptureFailure.staleFrame
         }
         let frames = try samples.map { displayID, latest in
-            try autoreleasepool {
-                guard let pixelBuffer = CMSampleBufferGetImageBuffer(
-                    latest.sampleBuffer
-                ) else {
-                    throw AOSDesktopFrameCaptureFailure.frameNotReady
-                }
-                let width = CVPixelBufferGetWidth(pixelBuffer)
-                let height = CVPixelBufferGetHeight(pixelBuffer)
-                let image = CIImage(cvPixelBuffer: pixelBuffer)
-                guard let cgImage = context.createCGImage(
-                    image,
-                    from: CGRect(x: 0, y: 0, width: width, height: height)
-                ) else {
-                    throw AOSDesktopFrameCaptureFailure.captureFailed
-                }
-                return AOSDesktopPixelFrame(
-                    capturedAt: latest.capturedAt,
-                    displayID: displayID,
-                    image: cgImage
-                )
+            guard let pixelBuffer = CMSampleBufferGetImageBuffer(
+                latest.sampleBuffer
+            ) else {
+                throw AOSDesktopFrameCaptureFailure.frameNotReady
             }
+            return AOSDesktopPixelFrame(
+                capturedAt: latest.capturedAt,
+                displayID: displayID,
+                pixelBuffer: pixelBuffer
+            )
         }
         return AOSDesktopPixelFrameSet(
             capturedAt: samples.map(\.1.capturedAt).min() ?? startedAt,

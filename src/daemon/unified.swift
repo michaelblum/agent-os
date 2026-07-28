@@ -156,6 +156,16 @@ class UnifiedDaemon {
             self?.authorizeDesktopFrame(payload)
         }
     )
+    private lazy var desktopWorldNativeFeedbackHost =
+        AOSDesktopWorldNativeFeedbackHost(canvasManager: canvasManager)
+    private lazy var desktopWorldNativeFeedback =
+        AOSDesktopWorldNativeFeedbackController(
+            host: desktopWorldNativeFeedbackHost,
+            capturer: desktopFrameCapturer,
+            authorize: { [weak self] request in
+                self?.authorizeNativeSheetEffect(request) ?? false
+            }
+        )
     private lazy var desktopFrameSchemeHandler = AOSDesktopFrameSchemeHandler(
         store: desktopFrameStore,
         authorize: { [weak self] authorization in
@@ -183,6 +193,9 @@ class UnifiedDaemon {
         canvasManager: canvasManager,
         extensionStore: sceneExtensionStore,
         eventDiagnostics: desktopWorldSceneEventRouting,
+        nativeFeedback: { [weak self] request in
+            self?.triggerNativeSheetEffect(request)
+        },
         resolveContentURL: { [weak self] value in self?.resolveContentURL(value) ?? value },
         clearReadyManifest: { [weak self] in
             guard let self else { return }
@@ -323,12 +336,30 @@ class UnifiedDaemon {
         desktopWorldSceneTransport.authorizesDesktopFrame(authorization)
     }
 
+    private func authorizeNativeSheetEffect(
+        _ request: AOSDesktopWorldNativeEffectRequest
+    ) -> Bool {
+        desktopWorldSceneTransport.authorizesNativeEffect(request)
+    }
+
+    private func triggerNativeSheetEffect(
+        _ request: AOSDesktopWorldNativeEffectRequest
+    ) {
+        DispatchQueue.main.async { [weak self] in
+            _ = self?.desktopWorldNativeFeedback.trigger(request)
+        }
+    }
+
     private func desktopFrameAuthorizationChanged() {
         _ = desktopFrameCapture.cancelUnauthorized()
         desktopFrameCapture.reconcileWarm(
             authorization: desktopWorldSceneTransport
                 .desktopFrameTextureAuthorization()
         )
+        desktopWorldNativeFeedback.reconcileAvailability(
+            desktopWorldSceneTransport.hasNativeEffectAuthorization()
+        )
+        desktopWorldNativeFeedback.reconcileAuthorization()
     }
 
     // MARK: - Start
@@ -4622,6 +4653,15 @@ class UnifiedDaemon {
             }
             return false
         case .deliver(let delivery):
+            if let desktopWorld,
+               let request = desktopWorldSceneTransport.nativePointerEffectRequest(
+                region: delivery.region,
+                phase: delivery.phase,
+                button: delivery.button,
+                desktopWorld: desktopWorld
+               ) {
+                triggerNativeSheetEffect(request)
+            }
             canvasManager.postMessageAsync(
                 to: delivery.ownerCanvasGeneration,
                 payload: delivery.payload
@@ -4787,6 +4827,7 @@ class UnifiedDaemon {
         annotationSelection.shutdown()
         desktopFrameCaptureConsent.shutdown()
         _ = desktopFrameCapture.releaseAll(callerCanvasID: sceneStageCanvasID)
+        desktopWorldNativeFeedback.shutdown()
         desktopPixelBroker.shutdown()
         restoreNativeCursorSuppressionForExit()
         perception.stop()

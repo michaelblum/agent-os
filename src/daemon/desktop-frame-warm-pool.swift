@@ -71,6 +71,14 @@ protocol AOSDesktopFrameRuntimeCapturing: AOSDesktopFrameWarmPreparing {
     ) -> AOSDesktopFrameCancelling
 }
 
+protocol AOSDesktopPixelFrameSetCapturing: AnyObject {
+    @discardableResult
+    func capturePrewarmedFrames(
+        _ configuration: AOSDesktopFrameWarmConfiguration,
+        completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void
+    ) -> AOSDesktopFrameCancelling
+}
+
 enum AOSDesktopFrameWarmCaptureAdmission {
     case admitted(AOSDesktopFrameCancelling)
     case notConfigured

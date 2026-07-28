@@ -38,7 +38,8 @@ export interface SceneExtensionManifest {
 
 export type SceneExtensionCapability =
   | 'aos.scene.desktop_frame_texture'
-  | 'aos.scene.framebuffer_proof';
+  | 'aos.scene.framebuffer_proof'
+  | 'aos.scene.native_sheet_effect';
 
 export interface SceneExtensionFramebufferProofDescriptor {
   id: string;

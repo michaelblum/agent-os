@@ -1,4 +1,5 @@
 import AppKit
+import CoreVideo
 import Foundation
 
 enum AOSDesktopFrameCaptureFailure: Error, Equatable {
@@ -150,10 +151,30 @@ struct AOSDesktopPixelSnapshotRequest: Equatable {
 struct AOSDesktopPixelFrame: @unchecked Sendable {
     let capturedAt: Date
     let displayID: UInt32
-    let image: CGImage
+    let image: CGImage?
+    let pixelBuffer: CVPixelBuffer?
 
-    var height: Int { image.height }
-    var width: Int { image.width }
+    init(capturedAt: Date, displayID: UInt32, image: CGImage) {
+        self.capturedAt = capturedAt
+        self.displayID = displayID
+        self.image = image
+        pixelBuffer = nil
+    }
+
+    init(capturedAt: Date, displayID: UInt32, pixelBuffer: CVPixelBuffer) {
+        self.capturedAt = capturedAt
+        self.displayID = displayID
+        image = nil
+        self.pixelBuffer = pixelBuffer
+    }
+
+    var height: Int {
+        image?.height ?? pixelBuffer.map(CVPixelBufferGetHeight) ?? 0
+    }
+
+    var width: Int {
+        image?.width ?? pixelBuffer.map(CVPixelBufferGetWidth) ?? 0
+    }
 }
 
 struct AOSDesktopPixelFrameSet: @unchecked Sendable {
