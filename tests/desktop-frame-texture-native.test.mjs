@@ -407,7 +407,7 @@ struct DesktopFrameProof {
         require(
             preflightCapturer.maximumPixels
                 == AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay,
-            "permission prime did not use the runtime warm-stream profile"
+            "permission prime did not retain the interactive pixel ceiling"
         )
 
         let permissionTimeoutCapturer = FakeCapturer()
@@ -1043,7 +1043,7 @@ struct DesktopFrameProof {
         require(
             AOSDesktopFrameCaptureConsentController.probeMaximumPixels
                 == AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay,
-            "consent probe diverged from the interactive warm-stream profile"
+            "consent probe diverged from the interactive pixel ceiling"
         )
         let controller = AOSDesktopFrameCaptureController(
             canvasManager: canvas,

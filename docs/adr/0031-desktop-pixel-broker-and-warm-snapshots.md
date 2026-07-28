@@ -20,17 +20,16 @@ Encoding, cropping, redaction, hashing, evidence persistence, and GPU delivery
 are downstream adapters.
 
 The direct-capture consent probe and DesktopWorld runtime share the same broker
-instance and the same bounded warm-snapshot acquisition path. The broker
-serializes native acquisition and rejects overlapping work with a content-free
-reason code. A timed-out prime remains quarantined through the broker's cleanup
-acknowledgement, then permits a later explicit retry; uncertain retirement
-remains fail-closed and late results cannot alter the newer state. An explicit
-prime may recover from one ScreenCaptureKit
-`failedApplicationConnectionInterrupted` result only after the failed probe has
-retired authoritatively. A second interruption fails closed, and ordinary
-runtime interaction does not perform this prime-specific retry. Each timeout is
-bound to its exact attempt token, so canceling a superseded timer is not treated
-as sufficient protection from an already-running callback.
+instance, which serializes native acquisition and rejects overlapping work with
+a content-free reason code. The explicit pre-surface prime uses one bounded
+`SCScreenshotManager` snapshot and discards it immediately. It verifies the
+daemon's direct ScreenCaptureKit permission without cold-starting a continuous
+stream before DesktopWorld surfaces exist. Runtime DesktopWorld capture uses the
+warm-snapshot path only after an authorized stage provides its exact display and
+window identity. A timed-out prime remains quarantined through broker settlement,
+then permits a later explicit retry; late results cannot alter newer state. Each
+timeout is bound to its exact attempt token, so canceling a superseded timer is
+not treated as sufficient protection from an already-running callback.
 
 The broker supports two acquisition forms:
 
@@ -50,10 +49,9 @@ stream creation if any requested window is unresolved. Warm source discovery
 includes off-screen windows so that raw-host capture remains valid while a
 stage window is hidden or suspended.
 
-Warm snapshots have two lifecycles. Explicit consent probes stop every stream
-immediately after one freeze. Runtime DesktopWorld requests never use that
-one-shot path and fail with `DESKTOP_FRAME_NOT_READY` until their
-capability-scoped pool is ready. An authorized mounted scene extension declaring
+Warm snapshots have one runtime lifecycle. DesktopWorld requests fail with
+`DESKTOP_FRAME_NOT_READY` until their capability-scoped pool is ready. An
+authorized mounted scene extension declaring
 `aos.scene.desktop_frame_texture` may instead keep one daemon-owned warm lease
 open after explicit direct-capture consent is ready. That lease is scoped to
 the exact current canvas and topology generations, ordered stage displays, and
@@ -83,8 +81,8 @@ If settlement wins before queue admission, the pending native closure is release
 immediately and the weakly owned queue block becomes a no-op.
 Caller cancellation does not cancel Apple's in-flight operation; the
 coordinator waits for authoritative startup or retirement evidence and
-compensates a late active start when required. The consent probe and runtime
-use the same one-megapixel-per-display stream profile. Explicit width and height bounds
+compensates a late active start when required. Runtime warm capture uses a
+one-megapixel-per-display stream profile. Explicit width and height bounds
 control the output surface; the warm stream retains ScreenCaptureKit's default
 capture-resolution mode, matching the proven low-latency native path without
 requesting a second high-resolution resampling policy.
@@ -97,9 +95,7 @@ metadata, nonnumeric times, blank, suspended, and stopped callbacks fail closed.
 The exact normalized DesktopWorld window set remains part of warm-source
 identity even when app-hosted process self-exclusion is available, so a surface
 replacement conservatively retires the prior producer. Under exact-window
-fallback, an absent requested window fails startup before stream creation. The
-pre-surface consent probe declares no excluded windows and may use an empty
-window fallback until any AOS surface exists.
+fallback, an absent requested window fails startup before stream creation.
 The native start result or the first usable frame may establish startup,
 whichever arrives first. A late start failure still faults that stream and
 retires the complete aggregate even when a frame established startup first.
@@ -132,9 +128,8 @@ until the authorized configuration changes.
 Once a whole-display frame set is frozen and encoded, the presentation adapter
 delivers it without waiting for `SCStream` shutdown. Stream retirement proceeds
 in the background while the broker remains closed to overlapping acquisition.
-The explicit consent probe still waits for that retirement acknowledgement
-before reporting the capability ready. Canceled work receives a bounded
-retirement interval. A delegate-observed stop or ScreenCaptureKit's explicit
+Canceled work receives a bounded retirement interval. A delegate-observed stop
+or ScreenCaptureKit's explicit
 already-stopped, user-stopped, or system-stopped result is a successful
 retirement acknowledgement. An unknown stop failure or missing acknowledgement
 faults that broker instance permanently instead of admitting overlapping native

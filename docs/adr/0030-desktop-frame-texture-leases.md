@@ -32,10 +32,12 @@ directly to the probe without invoking the system request again. Otherwise,
 non-interruptible system request cannot occupy AppKit's main thread. Its
 human-response deadline is independent of that worker. A late system response
 settles the quarantined generation without starting capture, after which an
-explicit retry is allowed. Once granted, the probe uses the same bounded
-one-megapixel warm-stream profile as interactive runtime capture, discards the
-result immediately, and creates no file, frame lease, opaque handle,
-screenshot record, or diagnostic payload.
+explicit retry is allowed. Once granted, the pre-surface probe uses one bounded
+`SCScreenshotManager` capture through the shared pixel broker, discards the
+result immediately, and creates no file, frame lease, opaque handle, screenshot
+record, or diagnostic payload. Interactive runtime capture starts its
+generation-bound warm streams only after the authorized DesktopWorld stage
+provides exact display and window identity.
 
 Ordinary frame requests fail with `DESKTOP_FRAME_CONSENT_REQUIRED` before
 ScreenCaptureKit is called until that explicit probe succeeds. Denial,

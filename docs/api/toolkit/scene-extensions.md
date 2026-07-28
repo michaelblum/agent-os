@@ -118,11 +118,12 @@ An extension declaring `aos.scene.desktop_frame_texture` also receives
 `desktopFrame`. Each display projection owns one stable Three texture plus
 `request()`, `clear()`, and `snapshot()` operations. One `request()` asks AOS
 for a bounded all-display capture set and returns immediately. Every authorized
-segment stages its own frame, and AOS commits the stable textures only after all
-exact display consumers decode successfully. The aggregate remains active until
-every exact consumer acknowledges presentation; a missing acknowledgement,
-authorization change, or topology change clears all staged and visible
-segments. The one-shot per-display captures may have bounded temporal skew.
+segment stages its frame from the same daemon-owned warm-source generation, and
+AOS commits the stable textures only after all exact display consumers decode
+successfully. The aggregate remains active until every exact consumer
+acknowledges presentation; a missing acknowledgement, authorization change, or
+topology change clears all staged and visible segments. The retained per-display
+samples may have bounded temporal skew.
 `snapshot()` exposes
 only bounds, dimensions, generation, epoch, capture duration, readiness, and a
 redacted error code. The extension should render the texture only after
@@ -143,10 +144,10 @@ five seconds. Projection disposal also clears the source. No screenshot bytes, l
 path, native capture handle, or public transport operation enters the extension
 contract. The reviewed extension runs in the same stage realm and can inspect
 the Three objects it receives; this capability is not a sandbox for untrusted
-code. V1 is a one-shot encoded capture and GPU upload, not a continuous or
-zero-copy desktop stream. A later prewarmed ScreenCaptureKit stream may replace
-that native backend only if measured latency requires it; the extension
-contract does not change.
+code. V1 freezes one frame set from daemon-owned prewarmed ScreenCaptureKit
+streams, then performs one encoded GPU upload. It is not a continuous or
+zero-copy desktop stream; future transport optimization does not change the
+extension contract.
 
 An optional synchronous `applyPointerVisual(event)` hook receives a bounded
 passive `down` notification for an admitted affordance. It may start a visual
