@@ -4,7 +4,7 @@ Status: supervised validation evidence, not a standing runtime guarantee.
 
 ## Corrected-Head Validation
 
-- Tested tree before this evidence-only update: `adcc162e`
+- Tested tree before this evidence-only update: `15117dfc`
 - Native executable source revision: `d9c65fc9`
 - Runtime-read command manifest revision: `adcc162e`
 - Base revision: `280433cf`
@@ -19,6 +19,9 @@ the required untouched 15-second pause completed, and the immediately following
 did not change after that build. `adcc162e` changed only the runtime-read
 external command manifest so the public command uses the existing
 signal-forwarding stdio path; it did not require another binary or TCC cycle.
+`15117dfc` then aligned the wrapper's escalation grace with the native capture
+and host cleanup budgets. That wrapper-only correction is covered by a delayed
+fake-child settlement proof and likewise required no binary or TCC cycle.
 The live proof ran only after all five permissions and `ready=true` were read
 back from the daemon, then the exact repo service was stopped.
 
