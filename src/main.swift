@@ -37,6 +37,8 @@ struct AOS {
             permissionsCommand(args: Array(args.dropFirst()))
         case "__render":
             renderCommand(args: Array(args.dropFirst()))
+        case "__desktop-pixel-native-baseline":
+            runDesktopPixelNativeBaselineCommand(args: Array(args.dropFirst()))
         case "__see":
             handleSeePrimitive(args: Array(args.dropFirst()))
         case "__say":

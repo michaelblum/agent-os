@@ -18,13 +18,13 @@ current command tree before public CLI and self-hosting boundary changes.
 
 ## Summary
 
-- Command paths: 65
-- Concrete forms: 229
-- Consumer-discoverable forms: 220
+- Command paths: 66
+- Concrete forms: 230
+- Consumer-discoverable forms: 221
 - Internal/transitional command paths: 1
-- Mutating or conditionally mutating forms: 128
+- Mutating or conditionally mutating forms: 129
 - Forms with unspecified mutability metadata: 0
-- Forms with JSON output path: 224
+- Forms with JSON output path: 225
 - Forms with dry-run support: 37
 
 ## Capability Group Counts
@@ -45,7 +45,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | Operator messaging | 10 |
 | Overlay/display | 37 |
 | Pointer and keyboard | 9 |
-| Runtime/service | 16 |
+| Runtime/service | 17 |
 | Saved workspace | 6 |
 | Skills and recipes | 7 |
 | Storage/config | 5 |
@@ -81,7 +81,8 @@ current command tree before public CLI and self-hosting boundary changes.
 | `serve` | 1 | Runtime/service | yes | mutates | no | `manifests/commands/source/aos/18-serve.json` | `__serve` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `content` | 2 | Content/wiki | yes | read-only | --json | `manifests/commands/source/aos/19-content.json` | `node scripts/aos-family-router.mjs content UNKNOWN_COMMAND content command [child 0]` | `docs/api/aos.md` |
 | `service` | 6 | Runtime/service | yes | mutates, read-only | --json, no | `manifests/commands/source/aos/20-service.json` | `node scripts/aos-subcommand-router.mjs service MISSING_SUBCOMMAND service requires a subcommand. Usage: aos service <install\|start\|stop\|restart\|status\|logs> ... UNKNOWN_SUBCOMMAND service subcommand` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `runtime` | 6 | Runtime/service | yes | mutates, read-only | --json, no | `manifests/commands/source/aos/21-runtime.json` | `node scripts/aos-subcommand-router.mjs runtime MISSING_SUBCOMMAND runtime requires a subcommand. Usage: aos runtime <status\|build-attestation\|path\|sign\|install\|display-union [--native]> ... UNKNOWN_SUBCOMMAND runtime subcommand` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `runtime` | 6 | Runtime/service | yes | mutates, read-only | --json, no | `manifests/commands/source/aos/21-runtime.json` | `node scripts/aos-subcommand-router.mjs runtime MISSING_SUBCOMMAND runtime requires a subcommand. Usage: aos runtime <status\|build-attestation\|path\|sign\|install\|display-union\|probe> ... UNKNOWN_SUBCOMMAND runtime subcommand` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `runtime probe desktop-pixels` | 1 | Runtime/service | yes | mutates | --json | `manifests/commands/source/aos/21-runtime.json` | `node scripts/aos-runtime-desktop-pixel-baseline.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `shortcut` | 1 | Desktop/native control | yes | mutates | --json | `manifests/commands/source/aos/22-shortcut.json` | `node scripts/aos-shortcut.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `status` | 1 | Core readiness | yes | read-only | --json | `manifests/commands/source/aos/23-status.json` | `node scripts/aos-status.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `ready` | 1 | Core readiness | yes | conditional --repair | --json | `manifests/commands/source/aos/24-ready.json` | `node scripts/aos-ready.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
@@ -261,6 +262,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `runtime path` | `runtime-path` | Runtime/service | yes | read-only | --json | no | `manifests/commands/source/aos/21-runtime.json` | `scripts/aos-runtime-path` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `runtime sign` | `runtime-sign` | Runtime/service | yes | mutates | no | no | `manifests/commands/source/aos/21-runtime.json` | `scripts/sign-aos-runtime` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `runtime display-union` | `runtime-display-union` | Runtime/service | yes | read-only | no | no | `manifests/commands/source/aos/21-runtime.json` | `scripts/aos-runtime-display-union` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `runtime probe desktop-pixels` | `runtime-probe-desktop-pixels` | Runtime/service | yes | mutates | --json | no | `manifests/commands/source/aos/21-runtime.json` | `node scripts/aos-runtime-desktop-pixel-baseline.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `shortcut run` | `shortcut-run` | Desktop/native control | yes | mutates | --json | no | `manifests/commands/source/aos/22-shortcut.json` | `node scripts/aos-shortcut.mjs run` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `status` | `status` | Core readiness | yes | read-only | --json | no | `manifests/commands/source/aos/23-status.json` | `node scripts/aos-status.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `ready` | `ready` | Core readiness | yes | conditional --repair | --json | no | `manifests/commands/source/aos/24-ready.json` | `node scripts/aos-ready.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |

@@ -267,6 +267,70 @@
       ]
     },
     {
+      "id": "desktop-pixel-native-baseline",
+      "summary": "Foreground ScreenCaptureKit-to-Metal baseline or its explicit runtime proof command changed.",
+      "patterns": [
+        "src/commands/desktop-pixel-native-baseline*.swift",
+        "src/main.swift"
+      ],
+      "classes": [
+        "native_pixel_baseline",
+        "swift"
+      ],
+      "actions": [
+        "focused_test",
+        "help_contract"
+      ],
+      "hot_swappable": false,
+      "tcc_identity_sensitive": true,
+      "commands": [
+        {
+          "id": "desktop-pixel-native-baseline-contract",
+          "command": "node --test tests/desktop-pixel-native-baseline.test.mjs && bash tests/desktop-pixel-native-baseline-typecheck.sh && bash tests/command-manifest-generation.sh",
+          "reason": "Keep the explicit foreground proof daemon-free, prompt-free, in-memory, bounded, type-correct, and aligned with generated help."
+        }
+      ],
+      "verification": [],
+      "notes": [
+        "The routed checks are static and typecheck-only. They do not build or execute ./aos, operate a daemon, or touch TCC.",
+        "Run the native command only at a separate supervised checkpoint after the raw repo binary recovery contract is satisfied."
+      ]
+    },
+    {
+      "id": "desktop-pixel-native-baseline-command",
+      "summary": "The script-owned native baseline route, manifests, documentation, or static proofs changed.",
+      "patterns": [
+        "scripts/aos-runtime-desktop-pixel-baseline.mjs",
+        "manifests/commands/source/aos/21-runtime.json",
+        "manifests/commands/source/external/10-runtime.json",
+        "docs/guides/desktop-pixel-native-baseline.md",
+        "tests/desktop-pixel-native-baseline.test.mjs",
+        "tests/desktop-pixel-native-baseline-typecheck.sh"
+      ],
+      "classes": [
+        "native_pixel_baseline",
+        "command_contract"
+      ],
+      "actions": [
+        "focused_test",
+        "help_contract"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "desktop-pixel-native-baseline-contract",
+          "command": "node --test tests/desktop-pixel-native-baseline.test.mjs && bash tests/desktop-pixel-native-baseline-typecheck.sh && bash tests/command-manifest-generation.sh",
+          "reason": "Keep the explicit foreground proof daemon-free, prompt-free, in-memory, bounded, type-correct, and aligned with generated help."
+        }
+      ],
+      "verification": [],
+      "notes": [
+        "The routed checks are static and typecheck-only. They do not build or execute ./aos, operate a daemon, or touch TCC.",
+        "Run the native command only at a separate supervised checkpoint after the raw repo binary recovery contract is satisfied."
+      ]
+    },
+    {
       "id": "desktop-world-scene-engine",
       "summary": "DesktopWorld scene contracts, authoring tools, runtime session, extensions, or agent route changed.",
       "patterns": [

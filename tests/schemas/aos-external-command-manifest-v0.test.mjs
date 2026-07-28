@@ -212,6 +212,7 @@ test('Swift entry point exposes only private bootstrap and native primitives', a
     '__daemon',
     '__runtime',
     '__render',
+    '__desktop-pixel-native-baseline',
     '__see',
     '__say',
     '__do',

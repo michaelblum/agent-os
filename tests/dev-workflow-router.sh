@@ -214,6 +214,35 @@ else
     fail "dev recommend semantic target selection routing drifted"
 fi
 
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/commands/desktop-pixel-native-baseline.swift scripts/aos-runtime-desktop-pixel-baseline.mjs tests/desktop-pixel-native-baseline.test.mjs tests/desktop-pixel-native-baseline-typecheck.sh 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+assert "desktop-pixel-native-baseline" in summary["rule_ids"], data
+assert "desktop-pixel-native-baseline-command" in summary["rule_ids"], data
+assert "unclassified" not in summary["rule_ids"], data
+assert summary["requires_swift_build"] is True, data
+assert summary["tcc_identity_sensitive"] is True, data
+files = {item["path"]: item for item in data["files"]}
+expected_paths = {
+    "src/commands/desktop-pixel-native-baseline.swift",
+    "scripts/aos-runtime-desktop-pixel-baseline.mjs",
+    "tests/desktop-pixel-native-baseline.test.mjs",
+    "tests/desktop-pixel-native-baseline-typecheck.sh",
+}
+assert expected_paths == set(files), data
+assert "desktop-pixel-native-baseline" in files["src/commands/desktop-pixel-native-baseline.swift"]["rules"], files
+for path in expected_paths - {"src/commands/desktop-pixel-native-baseline.swift"}:
+    assert "desktop-pixel-native-baseline-command" in files[path]["rules"], files[path]
+PY
+then
+    pass "dev recommend routes native desktop-pixel baseline owners to focused static proof"
+else
+    fail "dev recommend native desktop-pixel baseline routing drifted"
+fi
+
 if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/display/canvas.swift src/display/scene-extension-store.swift src/commands/daemon-application-lifecycle.swift src/commands/direct-screen-capture-permission.swift src/commands/serve.swift src/daemon/desktop-frame-capture-consent.swift src/daemon/desktop-frame-warm-pool.swift src/daemon/desktop-pixel-capture-filter.swift src/daemon/desktop-pixel-retirement.swift src/daemon/desktop-pixel-stream-lifecycle.swift src/shared/desktop-frame-capture-consent-contract.swift src/shared/scene-extension-identifier.swift scripts/lib/scene-extension/module-inspector.mjs tests/daemon-appkit-readiness.test.mjs tests/lib/daemon-appkit-readiness-tests.swift tests/lib/desktop-frame-warm-pool-tests.swift tests/lib/desktop-pixel-capture-filter-tests.swift tests/lib/desktop-pixel-native-lifecycle-tests.swift tests/lib/desktop-pixel-terminal-startup-tests.swift tests/lib/desktop-pixel-startup-callback-tests.swift tests/lib/desktop-pixel-warm-open-operation-tests.swift 2>/dev/null)" python3 - <<'PY'
 import json
 import os

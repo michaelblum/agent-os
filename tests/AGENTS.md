@@ -33,6 +33,9 @@ tests.
 - DesktopWorld gesture and scene-follow tests must use deterministic clocks,
   fake input-region bridges, disposable sockets, and schema fixtures. Static
   scene contract work must not execute the repo AOS binary or require TCC.
+- The desktop-pixel native baseline has separate source/typecheck coverage and
+  a supervised TCC-sensitive proof. Static verification must never invoke its
+  foreground capture command or treat a typecheck as native evidence.
 - Status-item host contract tests must use disposable fake sockets and schema
   fixtures, model startup admission ordering, and prove registration output
   precedes initial events. Fake sockets must emit the complete daemon envelope
