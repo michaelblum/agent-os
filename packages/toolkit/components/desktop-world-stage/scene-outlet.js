@@ -266,7 +266,7 @@ export function createDesktopWorldSceneOutlet({
     try {
       // The active projection and candidate coexist until commit. Admission is
       // against the real transient allocation, not the eventual replacement.
-      resourceReservation = segmentBudget.reserve(candidate)
+      resourceReservation = segmentBudget.reserve(candidate, previous)
       if (!previous) pendingResourceKeys.add(key)
     } catch (error) {
       if (!retireMounted(candidate, { preserveInteractionOrigins: true })) {

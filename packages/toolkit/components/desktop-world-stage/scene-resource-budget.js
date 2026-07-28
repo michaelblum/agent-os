@@ -26,6 +26,18 @@ export const DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS = Object.freeze({
   maxWorkingBytes: 256 * 1024 * 1024,
 })
 
+// Atomic replacement keeps the old projection alive until the candidate commits.
+// Bound that short-lived overlap without increasing the steady-state allowance.
+function replacementResourceLimits(limits) {
+  return Object.freeze(Object.fromEntries(RESOURCE_LIMIT_KEYS.map(([, limitKey]) => {
+    const value = Number(limits?.[limitKey])
+    if (!Number.isSafeInteger(value) || value < 0 || value > Number.MAX_SAFE_INTEGER / 2) {
+      throw new TypeError(`Scene segment budget ${limitKey} cannot provide bounded replacement headroom.`)
+    }
+    return [limitKey, value * 2]
+  })))
+}
+
 export function emptySceneResourceMetrics() {
   return {
     drawCalls: 0,
@@ -117,27 +129,85 @@ function sceneSegmentResourceError(code, message) {
 
 export function createSceneSegmentResourceBudget(
   limits = DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS,
+  replacementLimits = replacementResourceLimits(limits),
 ) {
   const metrics = emptySceneResourceMetrics()
   const reservations = new Map()
   let nextReservation = 0
 
-  const prospectiveMetrics = (excluding = null) => {
+  const actualMetrics = (override = null) => {
     const prospective = { ...metrics }
-    for (const [token, reserved] of reservations) {
-      if (token !== excluding) accumulateSceneResourceMetrics(prospective, reserved)
+    if (override?.mounted?.metricsAccounted) {
+      accumulateSceneResourceMetrics(prospective, override.mounted.resourceMetrics, -1)
+      accumulateSceneResourceMetrics(prospective, override.resourceMetrics)
     }
     return prospective
   }
 
-  const assertWithinLimits = (prospective) => {
-    if (sceneResourceBudgetViolations(prospective, limits).length > 0) {
+  const mountedMetrics = (mounted, override = null) => {
+    if (!mounted?.metricsAccounted) return null
+    return override?.mounted === mounted ? override.resourceMetrics : mounted.resourceMetrics
+  }
+
+  const committedMetrics = (excluding = null, override = null) => {
+    const prospective = actualMetrics(override)
+    for (const [token, reserved] of reservations) {
+      if (token === excluding) continue
+      const replaced = mountedMetrics(reserved.previous, override)
+      if (replaced) accumulateSceneResourceMetrics(prospective, replaced, -1)
+      accumulateSceneResourceMetrics(prospective, reserved.resourceMetrics)
+    }
+    return prospective
+  }
+
+  const transientMetrics = (excluding = null, override = null) => {
+    const prospective = actualMetrics(override)
+    for (const [token, reserved] of reservations) {
+      if (token !== excluding) accumulateSceneResourceMetrics(prospective, reserved.resourceMetrics)
+    }
+    return prospective
+  }
+
+  const assertWithinLimits = (prospective, effectiveLimits = limits) => {
+    if (sceneResourceBudgetViolations(prospective, effectiveLimits).length > 0) {
       throw sceneSegmentResourceError(
         'SCENE_SEGMENT_RESOURCE_BUDGET_EXCEEDED',
         'DesktopWorld scene segment resource budget exceeded.',
       )
     }
     return prospective
+  }
+
+  const assertPreviousAvailable = (previous, excluding = null) => {
+    if (previous == null) return
+    if (!previous?.metricsAccounted) {
+      throw sceneSegmentResourceError(
+        'SCENE_SEGMENT_RESOURCE_ACCOUNTING_FAILED',
+        'Scene replacement base resource metrics are unavailable.',
+      )
+    }
+    for (const [token, reserved] of reservations) {
+      if (token !== excluding && reserved.previous === previous) {
+        throw sceneSegmentResourceError(
+          'SCENE_SEGMENT_RESOURCE_ACCOUNTING_FAILED',
+          'Scene replacement base already has a resource reservation.',
+        )
+      }
+    }
+  }
+
+  const assertCandidate = (candidate, previous = null, excluding = null) => {
+    assertPreviousAvailable(previous, excluding)
+    const committed = committedMetrics(excluding)
+    const replaced = mountedMetrics(previous)
+    if (replaced) accumulateSceneResourceMetrics(committed, replaced, -1)
+    accumulateSceneResourceMetrics(committed, candidate.resourceMetrics)
+    assertWithinLimits(committed)
+
+    const transient = transientMetrics(excluding)
+    accumulateSceneResourceMetrics(transient, candidate.resourceMetrics)
+    assertWithinLimits(transient, replacementLimits)
+    return committed
   }
 
   const measure = (projection) => {
@@ -158,12 +228,6 @@ export function createSceneSegmentResourceBudget(
     }
   }
 
-  const assertCandidate = (candidate) => {
-    const prospective = prospectiveMetrics()
-    accumulateSceneResourceMetrics(prospective, candidate.resourceMetrics)
-    return assertWithinLimits(prospective)
-  }
-
   const unaccount = (mounted) => {
     if (!mounted?.metricsAccounted) return false
     accumulateSceneResourceMetrics(metrics, mounted.resourceMetrics, -1)
@@ -174,11 +238,15 @@ export function createSceneSegmentResourceBudget(
   return Object.freeze({
     assertCandidate,
     commit(mounted, previous = null, reservation = null) {
-      if (reservation !== null && !reservations.delete(reservation)) {
-        throw sceneSegmentResourceError(
-          'SCENE_SEGMENT_RESOURCE_ACCOUNTING_FAILED',
-          'Scene projection resource reservation is unavailable.',
-        )
+      if (reservation !== null) {
+        const reserved = reservations.get(reservation)
+        if (!reserved || (reserved.previous ?? null) !== (previous ?? null)) {
+          throw sceneSegmentResourceError(
+            'SCENE_SEGMENT_RESOURCE_ACCOUNTING_FAILED',
+            'Scene projection resource reservation does not match its replacement base.',
+          )
+        }
+        reservations.delete(reservation)
       }
       unaccount(previous)
       accumulateSceneResourceMetrics(metrics, mounted.resourceMetrics)
@@ -193,10 +261,9 @@ export function createSceneSegmentResourceBudget(
         throw error
       }
       if (measured.source === mounted.resourceMetricsSource) return false
-      const prospective = prospectiveMetrics()
-      if (mounted.metricsAccounted) accumulateSceneResourceMetrics(prospective, mounted.resourceMetrics, -1)
-      accumulateSceneResourceMetrics(prospective, measured.metrics)
-      assertWithinLimits(prospective)
+      const override = { mounted, resourceMetrics: measured.metrics }
+      assertWithinLimits(committedMetrics(null, override))
+      assertWithinLimits(transientMetrics(null, override), replacementLimits)
       unaccount(mounted)
       accumulateSceneResourceMetrics(metrics, measured.metrics)
       mounted.metricsAccounted = true
@@ -207,28 +274,40 @@ export function createSceneSegmentResourceBudget(
     releaseReservation(reservation) {
       return reservations.delete(reservation)
     },
-    reserve(candidate) {
-      assertCandidate(candidate)
+    reserve(candidate, previous = null) {
+      assertCandidate(candidate, previous)
       const reservation = `scene-resource-reservation-${++nextReservation}`
-      reservations.set(reservation, candidate.resourceMetrics)
+      reservations.set(reservation, { previous: previous ?? null, resourceMetrics: candidate.resourceMetrics })
       return reservation
     },
-    remaining(requested = limits) {
-      return remainingSceneSegmentResourceBudgets(prospectiveMetrics(), requested, limits)
+    remaining(requested = limits, previous = null) {
+      assertPreviousAvailable(previous)
+      const committed = committedMetrics()
+      const replaced = mountedMetrics(previous)
+      if (replaced) accumulateSceneResourceMetrics(committed, replaced, -1)
+      const steady = remainingSceneSegmentResourceBudgets(committed, requested, limits)
+      const transient = remainingSceneSegmentResourceBudgets(
+        transientMetrics(),
+        requested,
+        replacementLimits,
+      )
+      return Object.freeze(Object.fromEntries(RESOURCE_LIMIT_KEYS.map(([, limitKey]) => [
+        limitKey,
+        Math.min(steady[limitKey], transient[limitKey]),
+      ])))
     },
     snapshot() { return Object.freeze({ ...metrics }) },
     unaccount,
     updateReservation(reservation, candidate) {
-      if (!reservations.has(reservation)) {
+      const reserved = reservations.get(reservation)
+      if (!reserved) {
         throw sceneSegmentResourceError(
           'SCENE_SEGMENT_RESOURCE_ACCOUNTING_FAILED',
           'Scene projection resource reservation is unavailable.',
         )
       }
-      const prospective = prospectiveMetrics(reservation)
-      accumulateSceneResourceMetrics(prospective, candidate.resourceMetrics)
-      assertWithinLimits(prospective)
-      reservations.set(reservation, candidate.resourceMetrics)
+      assertCandidate(candidate, reserved.previous, reservation)
+      reservations.set(reservation, { ...reserved, resourceMetrics: candidate.resourceMetrics })
       return true
     },
   })

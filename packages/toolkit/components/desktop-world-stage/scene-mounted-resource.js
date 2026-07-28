@@ -68,7 +68,7 @@ export function createDesktopWorldSceneMountedResource({
 } = {}) {
   const document = canonicalizeSceneDocument(documentInput)
   const preparedProjection = createDesktopWorldSceneProjection({
-    budgets: extensionReference ? segmentBudget.remaining() : null,
+    budgets: extensionReference ? segmentBudget.remaining(undefined, previous) : null,
     THREE,
     document,
     expectedOwner: identity.owner ?? previous?.owner ?? '',
