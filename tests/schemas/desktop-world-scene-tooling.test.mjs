@@ -69,6 +69,16 @@ test('DesktopWorld tooling schemas accept canonical content-free facts', () => {
         generation: 4,
         state: 'ready',
       },
+      nativeEffect: {
+        acceptedCount: 2,
+        attemptedCount: 3,
+        completedCount: 1,
+        failedCount: 1,
+        lastErrorCode: 'NATIVE_EFFECT_CAPTURE_TIMEOUT',
+        presentedCount: 1,
+        rejectedCount: 1,
+        state: 'ready',
+      },
     },
   }).status, 0)
   assert.equal(validate('scene-replay-v1.schema.json', {
@@ -95,6 +105,17 @@ test('DesktopWorld tooling schemas reject product content and unknown fields', (
         generation: 1,
         state: 'ready',
         pixels: 'secret',
+      },
+      nativeEffect: {
+        acceptedCount: 1,
+        attemptedCount: 1,
+        completedCount: 0,
+        failedCount: 0,
+        lastErrorCode: null,
+        parameters: { amplitude: 18 },
+        presentedCount: 0,
+        rejectedCount: 0,
+        state: 'capturing',
       },
     },
   }).status, 0)

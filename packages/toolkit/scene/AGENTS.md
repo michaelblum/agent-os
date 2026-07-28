@@ -91,6 +91,11 @@ stage internals.
   instrumentation creates no timer, RAF, stage read, or per-frame allocation.
   The daemon owns revisioned session and host-lease state; consumers may host
   the public view but never own or fork its telemetry.
+- Native-effect DevTools facts are content-free lifecycle state and bounded
+  counters only. Presentation means every display segment reported an actual
+  Metal drawable presentation; attempts to present are not counted as visible
+  output. Parameters, coordinates, pixels, native handles, and product state
+  remain outside the snapshot.
 - Trusted extensions may expose only the exact synchronous
   `inspectInteractionRoute()` contract to DesktopWorld DevTools. AOS validates
   and stamps these engine-defined route facts. Product state, text, audio,

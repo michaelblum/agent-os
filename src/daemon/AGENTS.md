@@ -161,11 +161,13 @@ panel but owns no DevTools layout or product policy. Connection-scoped scene
 monitors consume the same canonical stage snapshot and existing probe cadence;
 they must not add another sampler or survive their owning connection.
 At inspection read time, the daemon decorates canonical stage snapshots with
-only the native desktop-frame warm pool's state, display count, generation, and
-redacted error code. Browser snapshots do not own or cache those facts, and
-bounded warm lifecycle transitions republish to active DevTools hosts without
-polling. DevTools never includes pixels, handles, paths, frame timestamps, or
-captured desktop facts.
+the native desktop-frame warm pool's state, display count, generation, and
+redacted error code, plus bounded native-effect admission, presentation,
+completion, rejection, and failure counters with one redacted error code.
+Browser snapshots do not own or cache those facts, and bounded warm lifecycle
+transitions republish to active DevTools hosts without polling. DevTools never
+includes pixels, handles, paths, frame timestamps, effect parameters,
+coordinates, product state, or captured desktop facts.
 
 Use generic nouns in daemon contracts. Prefer `canvas`, `surface`,
 `input_region`, `binding`, `channel`, and `lifecycle` over product names such as

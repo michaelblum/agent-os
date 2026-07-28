@@ -233,6 +233,13 @@ function normalizeNativeState(value = {}) {
   const desktopFrameWarm = value.desktopFrameWarm && typeof value.desktopFrameWarm === 'object'
     ? value.desktopFrameWarm
     : {}
+  const nativeEffect = value.nativeEffect && typeof value.nativeEffect === 'object'
+    ? value.nativeEffect
+    : {}
+  const effectStates = [
+    'capturing', 'installing', 'preparing', 'presenting', 'ready',
+    'retiring', 'stopped', 'unavailable',
+  ]
   const warmStates = ['failed', 'idle', 'ready', 'retiring', 'warming']
   return Object.freeze({
     desktopFrameWarm: Object.freeze({
@@ -242,6 +249,18 @@ function normalizeNativeState(value = {}) {
         : boundedString(desktopFrameWarm.errorCode, '', 64),
       generation: boundedInteger(desktopFrameWarm.generation, 0),
       state: warmStates.includes(desktopFrameWarm.state) ? desktopFrameWarm.state : 'idle',
+    }),
+    nativeEffect: Object.freeze({
+      acceptedCount: boundedInteger(nativeEffect.acceptedCount, 0, 0, 1e9),
+      attemptedCount: boundedInteger(nativeEffect.attemptedCount, 0, 0, 1e9),
+      completedCount: boundedInteger(nativeEffect.completedCount, 0, 0, 1e9),
+      failedCount: boundedInteger(nativeEffect.failedCount, 0, 0, 1e9),
+      lastErrorCode: nativeEffect.lastErrorCode == null
+        ? null
+        : boundedString(nativeEffect.lastErrorCode, '', 64),
+      presentedCount: boundedInteger(nativeEffect.presentedCount, 0, 0, 1e9),
+      rejectedCount: boundedInteger(nativeEffect.rejectedCount, 0, 0, 1e9),
+      state: effectStates.includes(nativeEffect.state) ? nativeEffect.state : 'unavailable',
     }),
   })
 }

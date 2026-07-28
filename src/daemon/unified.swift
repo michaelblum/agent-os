@@ -223,14 +223,22 @@ class UnifiedDaemon {
         ensureSceneStage: { [weak self] in self?.desktopWorldSceneTransport.ensureStage() != nil },
         hasSceneMonitor: { [weak self] in self?.hasDesktopWorldSceneMonitor() ?? false },
         nativeStageFacts: { [weak self] in
-            guard let status = self?.desktopFrameCapture.warmStatus() else {
-                return .idle
-            }
+            guard let self else { return .idle }
+            let status = self.desktopFrameCapture.warmStatus()
+            let nativeEffect = self.desktopWorldNativeFeedback.snapshot()
             return AOSDesktopWorldDevToolsNativeStageFacts(
-                displayCount: status.displayCount,
-                errorCode: status.errorCode,
-                generation: status.generation,
-                state: status.state.rawValue
+                displayCount: status?.displayCount ?? 0,
+                errorCode: status?.errorCode,
+                generation: status?.generation ?? 0,
+                nativeEffectAcceptedCount: nativeEffect.acceptedCount,
+                nativeEffectAttemptedCount: nativeEffect.attemptedCount,
+                nativeEffectCompletedCount: nativeEffect.completedCount,
+                nativeEffectFailedCount: nativeEffect.failedCount,
+                nativeEffectLastErrorCode: nativeEffect.lastErrorCode,
+                nativeEffectPresentedCount: nativeEffect.presentedCount,
+                nativeEffectRejectedCount: nativeEffect.rejectedCount,
+                nativeEffectState: nativeEffect.state,
+                state: status?.state.rawValue ?? "idle"
             )
         },
         observeNativeStageFacts: { [weak self] changed in

@@ -184,6 +184,14 @@ nativeWarmState = AOSDesktopWorldDevToolsNativeStageFacts(
     displayCount: 1,
     errorCode: nil,
     generation: 3,
+    nativeEffectAcceptedCount: 2,
+    nativeEffectAttemptedCount: 3,
+    nativeEffectCompletedCount: 1,
+    nativeEffectFailedCount: 1,
+    nativeEffectLastErrorCode: "NATIVE_EFFECT_CAPTURE_TIMEOUT",
+    nativeEffectPresentedCount: 1,
+    nativeEffectRejectedCount: 1,
+    nativeEffectState: "ready",
     state: "ready"
 )
 let canonical = registry.snapshot(sessionID: first.id)!
@@ -199,6 +207,16 @@ require(warm["generation"] as? Int == 3, "native warm generation was lost")
 require(warm["state"] as? String == "ready", "native warm state was lost")
 require(warm["errorCode"] == nil || warm["errorCode"] is NSNull, "native warm status invented an error")
 require(warm["pixels"] == nil, "renderer-supplied native content crossed the daemon boundary")
+let nativeEffect = native["nativeEffect"] as! [String: Any]
+require(nativeEffect["state"] as? String == "ready", "native effect state was lost")
+require(nativeEffect["attemptedCount"] as? Int == 3, "native effect attempts were lost")
+require(nativeEffect["acceptedCount"] as? Int == 2, "native effect accepts were lost")
+require(nativeEffect["presentedCount"] as? Int == 1, "native effect presentations were lost")
+require(nativeEffect["completedCount"] as? Int == 1, "native effect completions were lost")
+require(nativeEffect["rejectedCount"] as? Int == 1, "native effect rejections were lost")
+require(nativeEffect["failedCount"] as? Int == 1, "native effect failures were lost")
+require(nativeEffect["lastErrorCode"] as? String == "NATIVE_EFFECT_CAPTURE_TIMEOUT", "native effect error was lost")
+require(nativeEffect["parameters"] == nil, "native effect parameters crossed the diagnostics boundary")
 let canonicalWorld = stage["world"] as! [String: Any]
 let canonicalDisplay = (canonicalWorld["displays"] as! [[String: Any]])[0]
 require(canonicalDisplay["bounds"] as? [Double] == [200.0, 0.0, 1440.0, 900.0], "DesktopWorld display bounds drifted")
