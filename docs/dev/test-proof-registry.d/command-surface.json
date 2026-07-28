@@ -36,6 +36,22 @@
       "status": "active"
     },
     {
+      "id": "native-see-lifecycle-proof",
+      "path_patterns": [
+        "tests/aos-see-native-lifecycle.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "command-surface",
+      "harness_level": "model_unit",
+      "proof_kind": "lifecycle",
+      "contract": "Direct and saved native perception terminate their exact child after owner, wrapper, or signal loss and cannot orphan a desktop capture.",
+      "worth": "This deterministically reproduces retained capture processes and unsafe live-daemon proof admission without invoking AOS, ScreenCaptureKit, or TCC.",
+      "command": "node --test tests/aos-see-native-lifecycle.test.mjs",
+      "replaces": [],
+      "guard": "uses disposable fake AOS children, exact PID assertions, bounded waits, and a preflight-only live-daemon fixture",
+      "status": "active"
+    },
+    {
       "id": "external-command-dispatch-proof",
       "path_patterns": [
         "tests/external-command-dispatch.sh",
@@ -49,7 +65,7 @@
       "worth": "This catches route drift where generated command manifests still validate but runtime dispatch reaches the wrong implementation.",
       "command": "bash tests/external-command-dispatch.sh",
       "replaces": [],
-      "guard": "uses bounded CLI dispatch, isolated state for daemon-sensitive checks, and the shared lockf process-cleanup boundary",
+      "guard": "fails fast while a raw repo daemon is live, uses isolated state for daemon-sensitive checks, and holds the shared lockf process-cleanup boundary",
       "status": "active"
     },
     {

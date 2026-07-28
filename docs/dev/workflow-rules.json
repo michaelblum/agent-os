@@ -554,6 +554,36 @@
       "verification": []
     },
     {
+      "id": "native-see-capture-lifecycle",
+      "summary": "Native perception wrapper or its focused cancellation proof changed.",
+      "patterns": [
+        "scripts/aos-see-native.mjs",
+        "scripts/lib/aos-see-child-runner.mjs",
+        "scripts/lib/aos-see-supervision.mjs",
+        "scripts/lib/agent-workspace/capture.mjs",
+        "scripts/lib/agent-workspace/browser-ref-validation.mjs",
+        "tests/aos-see-native-lifecycle.test.mjs",
+        "tests/external-command-dispatch.sh"
+      ],
+      "classes": [
+        "command_implementation",
+        "tests"
+      ],
+      "actions": [
+        "focused_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "native-see-lifecycle",
+          "command": "node --test tests/aos-see-native-lifecycle.test.mjs",
+          "reason": "Verify cancellation and timeout cannot orphan the exact native capture child."
+        }
+      ],
+      "verification": []
+    },
+    {
       "id": "command-surface-manifests",
       "summary": "Command metadata or external command manifest changed.",
       "patterns": [

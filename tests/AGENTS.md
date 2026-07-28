@@ -24,6 +24,8 @@ tests.
   or source when behavior intentionally changes.
 - Preserve cleanup for canvases, daemon state, temporary files, and live
   resources.
+- Proofs that exercise global process cleanup must fail fast while an unrelated
+  raw repo daemon is live; they may never stop that runtime as test setup.
 - Artifact-producing proof harnesses under `tests/manual/` must write stable
   machine-readable summaries and explicit cleanup evidence when they create
   `/tmp` proof roots.

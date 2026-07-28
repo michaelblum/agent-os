@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process';
 import {
   aosPath,
   exitAgentWorkspaceError,
@@ -19,6 +18,7 @@ import {
   failIncompatibleDragEndpoint,
   recommendedRefreshResponseFields,
 } from './ref-action-resolution.mjs';
+import { runNativeSeeSync } from '../aos-see-supervision.mjs';
 
 export function parseBrowserActionTarget(value) {
   if (!value?.startsWith?.('browser:')) return null;
@@ -103,8 +103,10 @@ function isAgentWorkspaceParseError(error) {
 }
 
 function currentBrowserCapture(session, workspace, record, env) {
-  const result = spawnSync(aosPath(env), ['__see', 'capture', `browser:${session}`, '--xray'], {
-    encoding: 'utf8',
+  const result = runNativeSeeSync({
+    primitive: 'capture',
+    args: [`browser:${session}`, '--xray'],
+    executablePath: aosPath(env),
     env: {
       ...env,
       AOS_RUNTIME_MODE: runtimeMode(env),

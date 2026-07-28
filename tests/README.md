@@ -184,6 +184,7 @@ by `node scripts/aos-dev-workflow.mjs recommend`.
 
 Examples:
 
+- `node --test tests/aos-see-native-lifecycle.test.mjs`
 - `node --test tests/renderer/*.test.mjs`
 - `node --test tests/bundled-whisper-stt.test.mjs`
 - `cd packages/gateway && npm test`
@@ -304,6 +305,11 @@ the complete script lifetime with macOS `lockf -k -t 120`, providing ordered,
 kernel-released exclusion across shells and worktrees. Unlike the fail-fast
 live-resource contracts, this bounded lock waits so normal parallel validation
 becomes serial rather than failing or killing a peer's fixture.
+
+`tests/external-command-dispatch.sh` also fails fast while a raw repo AOS daemon
+is live because its `aos clean` contract case mutates global daemon cleanup
+state. Stop the owned runtime before running that proof; the test never stops it
+for you.
 
 Use `aos_harness_repo_service_stop_for_isolated_test` and
 `aos_harness_repo_service_restore_if_needed` when a test intentionally stops the

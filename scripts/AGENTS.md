@@ -117,6 +117,11 @@ commands, runtime helpers, wiki tools, and command adapters.
   `permissions prime screen-capture` may request authorization and invoke the
   daemon-owned bounded probe; its output stays content-free and it never
   persists the setup frame.
+- `aos-see-native.mjs` owns native perception admission,
+  `lib/aos-see-supervision.mjs` owns the shared process-group boundary, and
+  `lib/aos-see-child-runner.mjs` guards the exact native child for direct,
+  saved, and saved-ref revalidation captures. Parent, wrapper, or guardian loss
+  must retire that group after a bounded grace period and never orphan capture.
 - `aos-wiki-put.mjs` owns bounded conditional wiki publication. It accepts only
   canonical Markdown paths and UTF-8 stdin, serializes writers, rejects
   symlinks, commits owner-only files atomically, and exposes hashes without

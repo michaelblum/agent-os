@@ -286,6 +286,24 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.equal(rules.get('command-surface-implementations')?.hot_swappable, true);
   assert.equal(rules.get('command-surface-implementations')?.tcc_identity_sensitive, false);
   assert.deepEqual(
+    rules.get('native-see-capture-lifecycle')?.patterns,
+    [
+      'scripts/aos-see-native.mjs',
+      'scripts/lib/aos-see-child-runner.mjs',
+      'scripts/lib/aos-see-supervision.mjs',
+      'scripts/lib/agent-workspace/capture.mjs',
+      'scripts/lib/agent-workspace/browser-ref-validation.mjs',
+      'tests/aos-see-native-lifecycle.test.mjs',
+      'tests/external-command-dispatch.sh',
+    ],
+  );
+  assert.deepEqual(
+    rules.get('native-see-capture-lifecycle')?.commands?.map((step) => step.command),
+    ['node --test tests/aos-see-native-lifecycle.test.mjs'],
+  );
+  assert.equal(rules.get('native-see-capture-lifecycle')?.hot_swappable, true);
+  assert.equal(rules.get('native-see-capture-lifecycle')?.tcc_identity_sensitive, false);
+  assert.deepEqual(
     rules.get('dev-gh-helper')?.commands?.map((step) => step.command),
     [
       'node --test tests/aos-dev-gh-contract.test.mjs',

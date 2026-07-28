@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
@@ -37,6 +36,7 @@ import {
   queryBrowserPageIdentity,
 } from './browser-identity.mjs';
 import { commandToken, compactNextRecommendations } from './recommendations.mjs';
+import { runNativeSeeSync } from '../aos-see-supervision.mjs';
 
 function snapshotID(explicit) {
   if (explicit) return validateLocalID(explicit, 'snapshot id');
@@ -367,8 +367,10 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
       const captureArtifact = path.join(stagedArtifactsDir, 'capture.png');
       const captureArgs = captureArgsForMode(parsed.passthrough, parsed.options.mode, captureArtifact, target);
       const createdAt = nowISO();
-      const result = spawnSync(aosPath(env), ['__see', 'capture', ...captureArgs], {
-        encoding: 'utf8',
+      const result = runNativeSeeSync({
+        primitive: 'capture',
+        args: captureArgs,
+        executablePath: aosPath(env),
         env: {
           ...env,
           AOS_RUNTIME_MODE: runtimeMode(env),
