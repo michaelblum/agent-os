@@ -261,10 +261,14 @@ test('runtime proof adapter retires the exact native child on cancellation', asy
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-pixel-baseline-cancel-'));
   const fakeAOS = path.join(temporary, 'aos');
   const pidFile = path.join(temporary, 'child.pid');
+  const cleanupFile = path.join(temporary, 'cleanup-complete');
   fs.writeFileSync(fakeAOS, `#!/usr/bin/env node
 const fs = require('node:fs');
 fs.writeFileSync(process.env.BASELINE_CHILD_PID_FILE, String(process.pid));
-process.on('SIGTERM', () => {});
+process.on('SIGTERM', () => setTimeout(() => {
+  fs.writeFileSync(process.env.BASELINE_CHILD_CLEANUP_FILE, 'complete');
+  process.exit(0);
+}, 1500));
 setInterval(() => {}, 1000);
 `);
   fs.chmodSync(fakeAOS, 0o700);
@@ -275,6 +279,7 @@ setInterval(() => {}, 1000);
     env: {
       ...process.env,
       AOS_PATH: fakeAOS,
+      BASELINE_CHILD_CLEANUP_FILE: cleanupFile,
       BASELINE_CHILD_PID_FILE: pidFile,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -287,6 +292,7 @@ setInterval(() => {}, 1000);
       wrapper.once('close', (code, signal) => resolve({ code, signal }));
     });
     assert.deepEqual(result, { code: 143, signal: null });
+    assert.equal(fs.readFileSync(cleanupFile, 'utf8'), 'complete');
     await waitFor(() => {
       try {
         process.kill(childPID, 0);

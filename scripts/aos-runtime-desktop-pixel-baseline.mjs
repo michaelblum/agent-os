@@ -5,7 +5,8 @@ import { aosPath, currentMode } from './lib/aos-cli.mjs';
 
 const MAX_OUTPUT_BYTES = 64 * 1024;
 const MAX_RUNTIME_MS = 20_000;
-const TERMINATION_GRACE_MS = 1_000;
+// Native capture stop and DesktopWorld retirement each own a two-second bound.
+const TERMINATION_GRACE_MS = 5_000;
 
 function fail(message, code) {
   process.stderr.write(`${JSON.stringify({ code, error: message }, null, 2)}\n`);
