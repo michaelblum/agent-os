@@ -38,6 +38,30 @@ final class LockedNativeCompletion: @unchecked Sendable {
     }
 }
 
+private final class NativeOperationRetentionProbe: @unchecked Sendable {
+    private let released: DispatchSemaphore
+
+    init(released: DispatchSemaphore) {
+        self.released = released
+    }
+
+    deinit {
+        released.signal()
+    }
+
+    func retain() {}
+}
+
+private func retainingNativeOperation(
+    _ probe: NativeOperationRetentionProbe,
+    invoked: LockedBoolean
+) -> AOSDesktopPixelRetainedNativeOperation.Operation {
+    { _ in
+        probe.retain()
+        invoked.set(true)
+    }
+}
+
 func runDesktopPixelStartupCallbackTests() async throws {
     let retainedEntered = DispatchSemaphore(value: 0)
     let retainedNativeCompletion = LockedNativeCompletion()
@@ -70,6 +94,48 @@ func runDesktopPixelStartupCallbackTests() async throws {
         retainedSettled.wait(timeout: .now() + 1) == .success
             && retainedSucceeded.get(),
         "retained native operation did not deliver its authoritative result"
+    )
+
+    let delayedQueue = DispatchQueue(
+        label: "io.agent-os.tests.desktop-pixel.delayed-native-operation"
+    )
+    delayedQueue.suspend()
+    let delayedInvocation = LockedBoolean()
+    let delayedOperationReleased = DispatchSemaphore(value: 0)
+    var delayedOperationProbe: NativeOperationRetentionProbe? =
+        NativeOperationRetentionProbe(released: delayedOperationReleased)
+    let delayedSettlement = DispatchSemaphore(value: 0)
+    let delayedOperation = AOSDesktopPixelRetainedNativeOperation(
+        executionQueue: delayedQueue
+    )
+    require(
+        delayedOperation.start(operation: retainingNativeOperation(
+            delayedOperationProbe!,
+            invoked: delayedInvocation
+        ), completion: { _ in
+            delayedSettlement.signal()
+        }),
+        "delayed native operation was not admitted"
+    )
+    delayedOperationProbe = nil
+    delayedOperation.settle(.failure(
+        AOSDesktopFrameCaptureFailure.connectionInterrupted
+    ))
+    require(
+        delayedSettlement.wait(timeout: .now() + 1) == .success,
+        "pre-invocation delegate settlement did not complete"
+    )
+    require(
+        delayedOperationReleased.wait(timeout: .now() + 1) == .success,
+        "settled native operation retained its queued ScreenCaptureKit graph"
+    )
+    let delayedQueueDrained = DispatchSemaphore(value: 0)
+    delayedQueue.async { delayedQueueDrained.signal() }
+    delayedQueue.resume()
+    require(
+        delayedQueueDrained.wait(timeout: .now() + 1) == .success
+            && !delayedInvocation.get(),
+        "settled native operation invoked after aggregate retirement"
     )
 
     let firstFrameLifecycle = FakePixelStreamLifecycle()

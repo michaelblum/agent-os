@@ -71,11 +71,16 @@ do the same.
 All admitted display streams are configured before any startup begins, then
 started concurrently as one aggregate. Warm ScreenCaptureKit sources are
 constructed on AppKit's main actor. A retained operation dispatches each native
-start and stop completion-handler request exactly once on AppKit's main queue.
+start and stop completion-handler request exactly once on an explicit non-main
+QoS queue. This matches the proven ScreenCaptureKit path and avoids immediate
+application-connection interruption observed when invoking startup on the main
+thread.
 The operation settles from either Apple's completion callback or the stream
 delegate's terminal stop, whichever is accepted first. It owns no suspended
 Swift task or continuation. Delegate-proven retirement therefore cannot leave a
 detached waiter retaining the stream after ScreenCaptureKit drops its callback.
+If settlement wins before queue admission, the pending native closure is released
+immediately and the weakly owned queue block becomes a no-op.
 Caller cancellation does not cancel Apple's in-flight operation; the
 coordinator waits for authoritative startup or retirement evidence and
 compensates a late active start when required. The consent probe and runtime

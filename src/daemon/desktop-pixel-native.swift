@@ -59,9 +59,21 @@ final class AOSDesktopPixelRetainedNativeOperation: @unchecked Sendable {
     ) -> Void
 
     private var completion: AOSDesktopPixelNativeCompletion?
+    private let executionQueue: DispatchQueue
     private var finished = false
+    private var invoking = false
     private let lock = NSLock()
+    private var pendingOperation: Operation?
+    private var settlement: Result<Void, Error>?
     private var started = false
+
+    init(
+        executionQueue: DispatchQueue = DispatchQueue.global(
+            qos: .userInitiated
+        )
+    ) {
+        self.executionQueue = executionQueue
+    }
 
     @discardableResult
     func start(
@@ -75,31 +87,67 @@ final class AOSDesktopPixelRetainedNativeOperation: @unchecked Sendable {
         }
         started = true
         self.completion = completion
+        pendingOperation = operation
         lock.unlock()
 
-        DispatchQueue.main.async {
-            operation { [weak self] error in
-                if let error {
-                    self?.settle(.failure(error))
-                } else {
-                    self?.settle(.success(()))
-                }
-            }
+        // Raw-host startup on AppKit's main thread can interrupt the
+        // ScreenCaptureKit application connection.
+        executionQueue.async { [weak self] in
+            self?.invokeIfPending()
         }
         return true
     }
 
     func settle(_ result: Result<Void, Error>) {
+        let delivery: AOSDesktopPixelNativeCompletion?
         lock.lock()
-        guard !finished else {
+        guard settlement == nil else {
             lock.unlock()
             return
         }
-        finished = true
-        let completion = self.completion
-        self.completion = nil
+        settlement = result
+        delivery = invoking ? nil : finishLocked()
         lock.unlock()
-        completion?(result)
+        delivery?(result)
+    }
+
+    private func invokeIfPending() {
+        let operation: Operation
+        lock.lock()
+        guard settlement == nil, let pendingOperation else {
+            lock.unlock()
+            return
+        }
+        invoking = true
+        operation = pendingOperation
+        self.pendingOperation = nil
+        lock.unlock()
+
+        operation { [weak self] error in
+            if let error {
+                self?.settle(.failure(error))
+            } else {
+                self?.settle(.success(()))
+            }
+        }
+
+        let delivery: AOSDesktopPixelNativeCompletion?
+        let result: Result<Void, Error>?
+        lock.lock()
+        invoking = false
+        result = settlement
+        delivery = result == nil ? nil : finishLocked()
+        lock.unlock()
+        if let result { delivery?(result) }
+    }
+
+    private func finishLocked() -> AOSDesktopPixelNativeCompletion? {
+        guard !finished else { return nil }
+        finished = true
+        let delivery = completion
+        completion = nil
+        pendingOperation = nil
+        return delivery
     }
 }
 
@@ -627,8 +675,12 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                     excludingWindowIDs: request.excludingWindowIDs
                 )
                 let startupSignal = AOSDesktopPixelStartupSignal()
-                let startOperation = AOSDesktopPixelRetainedNativeOperation()
-                let stopOperation = AOSDesktopPixelRetainedNativeOperation()
+                let startOperation = AOSDesktopPixelRetainedNativeOperation(
+                    executionQueue: DispatchQueue.global(qos: .userInitiated)
+                )
+                let stopOperation = AOSDesktopPixelRetainedNativeOperation(
+                    executionQueue: DispatchQueue.global(qos: .utility)
+                )
                 let output = AOSDesktopPixelStreamOutput(
                     displayID: display.displayID,
                     slot: slot,
