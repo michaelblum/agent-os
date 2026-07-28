@@ -35,10 +35,11 @@ needs, but public command policy and product UI policy belong above it:
 - product-specific daemon branches are prohibited unless an explicit temporary
   adapter names its external contract and removal gate.
 - `aos runtime probe desktop-pixels` is a supervised development baseline that
-  runs directly in the foreground AOS process. It must remain daemon-free,
-  broker-free, prompt-free, content-free in output, and unavailable to product
-  consumers. It exists only to preserve a known-working ScreenCaptureKit-to-
-  Metal path while later infrastructure layers are admitted one at a time.
+  runs directly in the foreground AOS process. Its `standalone` host is the
+  known-working control; its `desktop-world` host reuses the canonical segment
+  topology, windows, and lifecycle while preserving the same capture and Metal
+  renderer. Both must remain daemon-free, broker-free, prompt-free, content-
+  free in output, and unavailable to product consumers.
 - Historical embedded-product config residue may be retired only through an
   exact key and repo-path migration. Preserve external or user-defined content
   roots and never mutate the frozen product fixture during config cleanup.

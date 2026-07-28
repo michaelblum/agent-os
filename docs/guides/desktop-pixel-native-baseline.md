@@ -5,7 +5,14 @@ It answers one question before any daemon, broker, consent, scene-resource, or
 consumer abstraction participates: can the current AOS executable move current
 desktop pixels from ScreenCaptureKit to one Metal surface per active display?
 
-The command:
+The command has two explicit host modes:
+
+- `standalone` preserves the original direct per-display windows as the known-
+  working control;
+- `desktop-world` installs the same Metal renderer beneath the transparent
+  WebKit layer in AOS's existing per-display DesktopWorld segment windows.
+
+Both modes:
 
 - uses only an existing Screen Recording grant and never requests permission;
 - keeps captured pixels in memory and emits content-free timing facts;
@@ -19,10 +26,27 @@ consumers stopped:
 
 ```bash
 ./aos runtime probe desktop-pixels \
+  --host standalone \
   --presentation inverted \
   --hold-ms 750 \
   --json
 ```
+
+After the standalone control passes, prove the first infrastructure increment
+without changing capture or rendering:
+
+```bash
+./aos runtime probe desktop-pixels \
+  --host desktop-world \
+  --presentation inverted \
+  --hold-ms 750 \
+  --json
+```
+
+The DesktopWorld-hosted result includes its canvas and topology generations.
+It still starts no daemon and creates no scene resource. The native Metal view
+is lazy, input-transparent, placed beneath WebKit, and retired by the existing
+canvas lifecycle coordinator.
 
 `identity` presents captured pixels unchanged. `inverted` is a visible proof
 transform; it is not a reusable effect contract.

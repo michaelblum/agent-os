@@ -25,7 +25,7 @@
         "probe",
         "desktop-pixels"
       ],
-      "summary": "Run the explicit foreground ScreenCaptureKit-to-Metal baseline in the current AOS executable.",
+      "summary": "Run the explicit foreground ScreenCaptureKit-to-Metal control or DesktopWorld-hosted increment in the current AOS executable.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",

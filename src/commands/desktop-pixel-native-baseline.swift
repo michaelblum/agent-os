@@ -14,16 +14,25 @@ struct AOSDesktopPixelNativeBaselineFailure: Error {
 }
 
 private struct AOSDesktopPixelNativeBaselineOptions {
+    let host: AOSDesktopPixelNativeBaselineHostKind
     let holdMilliseconds: UInt64
     let presentation: AOSDesktopPixelNativeBaselinePresentation
 
     static func parse(_ args: [String]) throws -> Self {
+        var host = AOSDesktopPixelNativeBaselineHostKind.standalone
         var holdMilliseconds: UInt64 = 750
         var presentation: AOSDesktopPixelNativeBaselinePresentation = .identity
         var sawJSON = false
         var index = 0
         while index < args.count {
             switch args[index] {
+            case "--host":
+                index += 1
+                guard args.indices.contains(index),
+                      let value = AOSDesktopPixelNativeBaselineHostKind(rawValue: args[index]) else {
+                    throw AOSDesktopPixelNativeBaselineFailure(code: "DESKTOP_PIXEL_BASELINE_INVALID_HOST")
+                }
+                host = value
             case "--hold-ms":
                 index += 1
                 guard args.indices.contains(index),
@@ -49,7 +58,7 @@ private struct AOSDesktopPixelNativeBaselineOptions {
         guard sawJSON else {
             throw AOSDesktopPixelNativeBaselineFailure(code: "DESKTOP_PIXEL_BASELINE_JSON_REQUIRED")
         }
-        return Self(holdMilliseconds: holdMilliseconds, presentation: presentation)
+        return Self(host: host, holdMilliseconds: holdMilliseconds, presentation: presentation)
     }
 }
 
@@ -59,6 +68,9 @@ private struct AOSDesktopPixelNativeBaselineSummary: Encodable {
     let errorCode: String?
     let nativeCode: Int?
     let displayCount: Int
+    let host: AOSDesktopPixelNativeBaselineHostKind
+    let canvasGeneration: UInt64?
+    let topologyGeneration: UInt64?
     let queueDepth = AOSDesktopPixelNativeBaselineCapture.queueDepth
     let presentation: AOSDesktopPixelNativeBaselinePresentation
     let warmupMilliseconds: Double?
@@ -71,7 +83,9 @@ private struct AOSDesktopPixelNativeBaselineSummary: Encodable {
     let brokerUsed = false
     let sceneProtocolUsed = false
     var retainedFramesAfterCleanup: Int
+    var pendingRetirementsAfterCleanup: Int
     var retainedTexturesAfterCleanup: Int
+    var retainedViewsAfterCleanup: Int
     var windowsAfterCleanup: Int
 
     enum CodingKeys: String, CodingKey {
@@ -80,6 +94,9 @@ private struct AOSDesktopPixelNativeBaselineSummary: Encodable {
         case errorCode = "error_code"
         case nativeCode = "native_code"
         case displayCount = "display_count"
+        case host
+        case canvasGeneration = "canvas_generation"
+        case topologyGeneration = "topology_generation"
         case queueDepth = "queue_depth"
         case presentation
         case warmupMilliseconds = "warmup_ms"
@@ -92,7 +109,9 @@ private struct AOSDesktopPixelNativeBaselineSummary: Encodable {
         case brokerUsed = "broker_used"
         case sceneProtocolUsed = "scene_protocol_used"
         case retainedFramesAfterCleanup = "retained_frames_after_cleanup"
+        case pendingRetirementsAfterCleanup = "pending_retirements_after_cleanup"
         case retainedTexturesAfterCleanup = "retained_textures_after_cleanup"
+        case retainedViewsAfterCleanup = "retained_views_after_cleanup"
         case windowsAfterCleanup = "windows_after_cleanup"
     }
 }
@@ -165,8 +184,8 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
     private let capture = AOSDesktopPixelNativeBaselineCapture()
     private let options: AOSDesktopPixelNativeBaselineOptions
     private var finishing = false
+    private var host: (any AOSDesktopPixelNativeBaselineHost)?
     private var signalSources: [DispatchSourceSignal] = []
-    private var surfaces: [AOSDesktopPixelNativeBaselineSurface] = []
     private(set) var exitCode: Int32 = 1
 
     init(options: AOSDesktopPixelNativeBaselineOptions) {
@@ -195,43 +214,29 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
         }
 
         do {
-            let screens = NSScreen.screens
-            guard !screens.isEmpty,
-                  screens.count <= AOSDesktopPixelNativeBaselineCapture.maximumDisplays else {
-                throw AOSDesktopPixelNativeBaselineFailure(code: "DESKTOP_PIXEL_BASELINE_DISPLAY_LIMIT")
-            }
-            for screen in screens {
-                guard let displayID = aosDesktopPixelNativeBaselineDisplayID(screen) else {
-                    throw AOSDesktopPixelNativeBaselineFailure(
-                        code: "DESKTOP_PIXEL_BASELINE_DISPLAY_ID_UNAVAILABLE"
-                    )
-                }
-                surfaces.append(try AOSDesktopPixelNativeBaselineSurface(
-                    screen: screen,
-                    displayID: displayID,
-                    device: device
-                ))
-            }
+            let host = try makeAOSDesktopPixelNativeBaselineHost(kind: options.host, device: device)
+            self.host = host
+            let endpoints = host.endpoints
 
             let warmupStarted = DispatchTime.now().uptimeNanoseconds
-            try await capture.start(displayIDs: surfaces.map(\.displayID))
+            try await capture.start(displayIDs: endpoints.map(\.displayID))
             let warmupFinished = DispatchTime.now().uptimeNanoseconds
             let frames = capture.snapshots()
-            guard frames.count == surfaces.count else {
+            guard frames.count == endpoints.count else {
                 throw AOSDesktopPixelNativeBaselineFailure(code: "DESKTOP_PIXEL_BASELINE_FRAME_SET_INCOMPLETE")
             }
             let byDisplay = Dictionary(uniqueKeysWithValues: frames.map { ($0.displayID, $0) })
-            let barrier = AOSDesktopPixelNativeBaselinePresentationBarrier(expected: surfaces.count)
-            for surface in surfaces {
-                guard let frame = byDisplay[surface.displayID] else {
+            let barrier = AOSDesktopPixelNativeBaselinePresentationBarrier(expected: endpoints.count)
+            for endpoint in endpoints {
+                guard let frame = byDisplay[endpoint.displayID] else {
                     throw AOSDesktopPixelNativeBaselineFailure(code: "DESKTOP_PIXEL_BASELINE_FRAME_SET_INCOMPLETE")
                 }
-                try surface.renderer.setFrame(frame, presentation: options.presentation)
-                surface.renderer.onPresented = { barrier.markPresented() }
+                try endpoint.renderer.setFrame(frame, presentation: options.presentation)
+                endpoint.renderer.onPresented = { barrier.markPresented() }
             }
 
             let triggered = DispatchTime.now().uptimeNanoseconds
-            surfaces.forEach { $0.show() }
+            host.present()
             guard let presented = await barrier.wait(timeoutMilliseconds: 2_000),
                   let firstPresented = presented.min(),
                   let lastPresented = presented.max() else {
@@ -243,14 +248,19 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
                 status: "passed",
                 errorCode: nil,
                 nativeCode: nil,
-                displayCount: surfaces.count,
+                displayCount: endpoints.count,
+                host: host.kind,
+                canvasGeneration: host.canvasGeneration,
+                topologyGeneration: host.topologyGeneration,
                 presentation: options.presentation,
                 warmupMilliseconds: milliseconds(warmupFinished - warmupStarted),
                 triggerToVisibleMilliseconds: milliseconds(lastPresented - triggered),
                 presentationSkewMilliseconds: milliseconds(lastPresented - firstPresented),
                 oldestFrameAgeMilliseconds: milliseconds(lastPresented - oldestFrame),
                 retainedFramesAfterCleanup: 0,
+                pendingRetirementsAfterCleanup: 0,
                 retainedTexturesAfterCleanup: 0,
+                retainedViewsAfterCleanup: 0,
                 windowsAfterCleanup: 0
             )
             await finish(success: success)
@@ -270,15 +280,18 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
     ) async {
         guard !finishing else { return }
         finishing = true
-        let displayCount = surfaces.count
-        surfaces.forEach { $0.dispose() }
-        let retainedTexturesAfterCleanup = surfaces.reduce(0) {
-            $0 + $1.retainedTextureCount()
-        }
-        let windowsAfterCleanup = surfaces.reduce(0) {
-            $0 + $1.retainedWindowCount()
-        }
-        surfaces = []
+        let activeHost = host
+        let displayCount = activeHost?.endpoints.count ?? 0
+        let hostKind = activeHost?.kind ?? options.host
+        let canvasGeneration = activeHost?.canvasGeneration
+        let topologyGeneration = activeHost?.topologyGeneration
+        let cleanup = await activeHost?.dispose() ?? AOSDesktopPixelNativeBaselineHostCleanup(
+            pendingRetirements: 0,
+            retainedTextures: 0,
+            retainedViews: 0,
+            retainedWindows: 0
+        )
+        host = nil
         await capture.stop()
         let retainedFramesAfterCleanup = capture.retainedFrameCount()
         signalSources.forEach { $0.cancel() }
@@ -286,11 +299,15 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
 
         if var success,
            retainedFramesAfterCleanup == 0,
-           retainedTexturesAfterCleanup == 0,
-           windowsAfterCleanup == 0 {
+           cleanup.pendingRetirements == 0,
+           cleanup.retainedTextures == 0,
+           cleanup.retainedViews == 0,
+           cleanup.retainedWindows == 0 {
             success.retainedFramesAfterCleanup = retainedFramesAfterCleanup
-            success.retainedTexturesAfterCleanup = retainedTexturesAfterCleanup
-            success.windowsAfterCleanup = windowsAfterCleanup
+            success.pendingRetirementsAfterCleanup = cleanup.pendingRetirements
+            success.retainedTexturesAfterCleanup = cleanup.retainedTextures
+            success.retainedViewsAfterCleanup = cleanup.retainedViews
+            success.windowsAfterCleanup = cleanup.retainedWindows
             emit(success)
             exitCode = 0
         } else {
@@ -309,14 +326,19 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
                 errorCode: observed.code,
                 nativeCode: observed.nativeCode,
                 displayCount: displayCount,
+                host: hostKind,
+                canvasGeneration: canvasGeneration,
+                topologyGeneration: topologyGeneration,
                 presentation: options.presentation,
                 warmupMilliseconds: nil,
                 triggerToVisibleMilliseconds: nil,
                 presentationSkewMilliseconds: nil,
                 oldestFrameAgeMilliseconds: nil,
                 retainedFramesAfterCleanup: retainedFramesAfterCleanup,
-                retainedTexturesAfterCleanup: retainedTexturesAfterCleanup,
-                windowsAfterCleanup: windowsAfterCleanup
+                pendingRetirementsAfterCleanup: cleanup.pendingRetirements,
+                retainedTexturesAfterCleanup: cleanup.retainedTextures,
+                retainedViewsAfterCleanup: cleanup.retainedViews,
+                windowsAfterCleanup: cleanup.retainedWindows
             ), toStandardError: true)
             exitCode = 1
         }
@@ -366,7 +388,7 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
     }
 }
 
-private func aosDesktopPixelNativeBaselineDisplayID(_ screen: NSScreen) -> CGDirectDisplayID? {
+func aosDesktopPixelNativeBaselineDisplayID(_ screen: NSScreen) -> CGDirectDisplayID? {
     let key = NSDeviceDescriptionKey("NSScreenNumber")
     return (screen.deviceDescription[key] as? NSNumber)?.uint32Value
 }

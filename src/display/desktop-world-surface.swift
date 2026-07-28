@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import Metal
 import WebKit
 
 protocol CanvasLike: CanvasNativeRetirable {
@@ -131,6 +132,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         let webView: WKWebView
         let messageHandler: CanvasMessageHandler
         let nativeRetirementID: String
+        private(set) var nativeProjectionHost: DesktopWorldNativeProjectionHost?
         private var retirementQuiesced = false
         private var retirementFinalized = false
 
@@ -147,6 +149,34 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             self.nativeRetirementID = nativeRetirementID
         }
 
+        func ensureNativeProjectionHost(device: MTLDevice) throws -> DesktopWorldNativeProjectionHost {
+            precondition(Thread.isMainThread, "native projection installation must run on the main thread")
+            if let nativeProjectionHost {
+                guard nativeProjectionHost.view.device?.registryID == device.registryID else {
+                    throw NSError(
+                        domain: "DesktopWorldNativeProjection",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "native projection device mismatch"]
+                    )
+                }
+                return nativeProjectionHost
+            }
+            guard !retirementQuiesced, !retirementFinalized, let contentView = window.contentView else {
+                throw NSError(
+                    domain: "DesktopWorldNativeProjection",
+                    code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "desktop-world segment is retiring"]
+                )
+            }
+            let host = DesktopWorldNativeProjectionHost(
+                containerView: contentView,
+                below: webView,
+                device: device
+            )
+            nativeProjectionHost = host
+            return host
+        }
+
         func quiesceForRetirement() {
             precondition(Thread.isMainThread, "segment quiesce must run on the main thread")
             guard !retirementQuiesced else { return }
@@ -156,6 +186,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             window.isInteractiveCanvas = false
             window.orderOut(nil)
             webView.stopLoading()
+            nativeProjectionHost?.suspend()
         }
 
         func finalizeRetirement() {
@@ -166,6 +197,8 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             webView.configuration.userContentController.removeScriptMessageHandler(forName: "headsup")
             webView.navigationDelegate = nil
             webView.uiDelegate = nil
+            nativeProjectionHost?.finalize()
+            nativeProjectionHost = nil
             webView.removeFromSuperview()
             window.contentView = nil
             window.close()
@@ -505,6 +538,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
                     existing.nativeBounds = nativeRect
                     existing.dwBounds = dwRect
                     existing.window.setFrame(canvasScreenFrame(nativeRect), display: true)
+                    existing.nativeProjectionHost?.resize()
                     changed.append(segmentMetadata(existing))
                 }
                 nextSegments.append(existing)
@@ -555,7 +589,16 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         window.level = resolveCanvasWindowLevel(windowLevel, interactive: isInteractive)
         window.ignoresMouseEvents = inputPassthrough || !isInteractive
         window.isInteractiveCanvas = !inputPassthrough && isInteractive
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        var collectionBehavior: NSWindow.CollectionBehavior = [
+            .canJoinAllSpaces,
+            .fullScreenAuxiliary,
+            .ignoresCycle,
+            .stationary,
+        ]
+        if #available(macOS 26.0, *) {
+            collectionBehavior.insert(.canJoinAllApplications)
+        }
+        window.collectionBehavior = collectionBehavior
 
         let config = WKWebViewConfiguration()
         if let handler = aosSchemeHandler {

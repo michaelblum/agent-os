@@ -34,6 +34,17 @@ function parseArgs(args) {
       index += 1;
       continue;
     }
+    if (arg === '--host') {
+      if (seen.has(arg)) fail('--host may be provided only once', 'DUPLICATE_FLAG');
+      seen.add(arg);
+      const value = args[index + 1];
+      if (!['standalone', 'desktop-world'].includes(value)) {
+        fail('--host must be standalone or desktop-world', 'INVALID_ARG');
+      }
+      forwarded.push(arg, value);
+      index += 1;
+      continue;
+    }
     if (arg === '--presentation') {
       if (seen.has(arg)) fail('--presentation may be provided only once', 'DUPLICATE_FLAG');
       seen.add(arg);

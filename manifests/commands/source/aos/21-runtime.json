@@ -202,6 +202,26 @@
         {
           "args": [
             {
+              "default_value": "standalone",
+              "id": "host",
+              "kind": "flag",
+              "required": false,
+              "summary": "Use the standalone control windows or existing DesktopWorld segment hosts",
+              "token": "--host",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Use the original direct per-display control windows",
+                    "value": "standalone"
+                  },
+                  {
+                    "summary": "Use the existing DesktopWorld topology and segment windows",
+                    "value": "desktop-world"
+                  }
+                ]
+              }
+            },
+            {
               "default_value": 750,
               "id": "hold-ms",
               "kind": "flag",
@@ -240,7 +260,8 @@
             }
           ],
           "examples": [
-            "aos runtime probe desktop-pixels --presentation inverted --hold-ms 750 --json"
+            "aos runtime probe desktop-pixels --host standalone --presentation inverted --hold-ms 750 --json",
+            "aos runtime probe desktop-pixels --host desktop-world --presentation inverted --hold-ms 750 --json"
           ],
           "execution": {
             "auto_starts_daemon": false,
@@ -258,7 +279,7 @@
             "streaming": false,
             "supports_json_flag": true
           },
-          "usage": "aos runtime probe desktop-pixels [--hold-ms <50..5000>] [--presentation <identity|inverted>] --json"
+          "usage": "aos runtime probe desktop-pixels [--host <standalone|desktop-world>] [--hold-ms <50..5000>] [--presentation <identity|inverted>] --json"
         }
       ],
       "path": [
@@ -266,7 +287,7 @@
         "probe",
         "desktop-pixels"
       ],
-      "summary": "Run the explicit foreground ScreenCaptureKit-to-Metal baseline without the daemon"
+      "summary": "Compare the direct ScreenCaptureKit-to-Metal control with DesktopWorld-owned segment hosting"
     }
   ]
 }

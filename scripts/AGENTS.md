@@ -29,8 +29,9 @@ commands, runtime helpers, wiki tools, and command adapters.
   read-only build-receipt comparison shared by `build.sh` and
   `aos runtime build-attestation`; keep that command passive and daemon-free.
 - `aos-runtime-desktop-pixel-baseline.mjs` validates the explicit foreground
-  proof arguments and delegates to the private in-process native primitive. It
-  owns no capture, rendering, daemon, broker, permission, or product behavior.
+  proof arguments, including the standalone or DesktopWorld host selector, and
+  delegates to the private in-process native primitive. It owns no capture,
+  rendering, daemon, broker, permission, or product behavior.
 - `lib/experience-runtime-env.mjs` owns normalized experience runtime
   environment and state paths: `AOS_STATE_ROOT`, `AOS_RUNTIME_MODE`,
   `AOS_PATH`, `AOS_EXPERIENCES_DIR`, mode-scoped state/config files, and the

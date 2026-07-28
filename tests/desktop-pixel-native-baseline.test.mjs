@@ -10,8 +10,11 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 const commandSource = read('src/commands/desktop-pixel-native-baseline.swift');
 const captureSource = read('src/commands/desktop-pixel-native-baseline-capture.swift');
+const hostSource = read('src/commands/desktop-pixel-native-baseline-host.swift');
 const metalSource = read('src/commands/desktop-pixel-native-baseline-metal.swift');
-const nativeSources = [commandSource, captureSource, metalSource].join('\n');
+const projectionSource = read('src/display/desktop-world-native-projection.swift');
+const surfaceSource = read('src/display/desktop-world-surface.swift');
+const nativeSources = [commandSource, captureSource, hostSource, metalSource, projectionSource].join('\n');
 
 async function waitFor(predicate, timeoutMs = 3000) {
   const deadline = Date.now() + timeoutMs;
@@ -48,10 +51,28 @@ test('native baseline presents in-memory pixel buffers directly through Metal', 
   assert.match(metalSource, /retainedPixelBuffer = frame\.pixelBuffer/);
   assert.match(metalSource, /window\.ignoresMouseEvents = true/);
   assert.match(metalSource, /window\.collectionBehavior = behavior/);
-  assert.match(commandSource, /let screens = NSScreen\.screens/);
-  assert.match(commandSource, /for screen in screens/);
-  assert.match(commandSource, /surfaces\.append\(try AOSDesktopPixelNativeBaselineSurface/);
+  assert.match(hostSource, /let screens = NSScreen\.screens/);
+  assert.match(hostSource, /return try AOSDesktopPixelNativeBaselineStandaloneHost/);
+  assert.match(hostSource, /return try AOSDesktopPixelNativeBaselineDesktopWorldHost/);
   assert.doesNotMatch(nativeSources, /green|mirror|encoded|base64/i);
+});
+
+test('DesktopWorld host reuses the canonical segmented surface and existing windows', () => {
+  const desktopHost = hostSource.slice(
+    hostSource.indexOf('final class AOSDesktopPixelNativeBaselineDesktopWorldHost'),
+    hostSource.indexOf('func makeAOSDesktopPixelNativeBaselineHost'),
+  );
+  assert.match(hostSource, /let canvas = DesktopWorldSurfaceCanvas\(/);
+  assert.match(hostSource, /coordinator\.issueGeneration\(for: canvas\)/);
+  assert.match(hostSource, /canvas\.segments\.map/);
+  assert.match(hostSource, /segment\.ensureNativeProjectionHost\(device: device\)/);
+  assert.match(hostSource, /canvas\.show\(\)/);
+  assert.doesNotMatch(desktopHost, /NSScreen\.screens|NSWindow\(/);
+  assert.match(surfaceSource, /private\(set\) var nativeProjectionHost: DesktopWorldNativeProjectionHost\?/);
+  assert.match(surfaceSource, /existing\.nativeProjectionHost\?\.resize\(\)/);
+  assert.match(projectionSource, /addSubview\(view, positioned: \.below, relativeTo: webView\)/);
+  assert.match(projectionSource, /view\.isHidden = true/);
+  assert.match(surfaceSource, /collectionBehavior\.insert\(\.canJoinAllApplications\)/);
 });
 
 test('native baseline is bounded and disposes every retained resource', () => {
@@ -62,12 +83,16 @@ test('native baseline is bounded and disposes every retained resource', () => {
   assert.match(commandSource, /barrier\.wait\(timeoutMilliseconds: 2_000\)/);
   assert.match(metalSource, /renderer\.clear\(\)/);
   assert.match(metalSource, /view\.delegate = nil/);
+  assert.match(metalSource, /view\.removeFromSuperview\(\)/);
   assert.match(metalSource, /window\.contentView = nil/);
   assert.match(metalSource, /window\.close\(\)/);
   assert.match(captureSource, /stopping\.forEach \{ \$0\.output\.clear\(\) \}/);
   assert.match(captureSource, /retainedFramesAfterStop = stopping\.compactMap/);
-  assert.match(commandSource, /retainedTexturesAfterCleanup = surfaces\.reduce/);
-  assert.match(commandSource, /windowsAfterCleanup = surfaces\.reduce/);
+  assert.match(commandSource, /let cleanup = await activeHost\?\.dispose\(\)/);
+  assert.match(commandSource, /cleanup\.retainedViews == 0/);
+  assert.match(commandSource, /cleanup\.pendingRetirements == 0/);
+  assert.match(hostSource, /coordinator\.retainUntilNextRunLoop\(canvas, generation: generation\)/);
+  assert.match(hostSource, /coordinator\.pendingFinalizationCount > 0/);
   assert.match(commandSource, /DESKTOP_PIXEL_BASELINE_CLEANUP_INCOMPLETE/);
   assert.match(commandSource, /NSApp\.stop\(nil\)/);
   assert.match(commandSource, /NSApp\.postEvent\(wakeEvent, atStart: false\)/);
@@ -92,6 +117,10 @@ test('runtime proof command routes directly back into the current AOS executable
   assert.equal(command.forms[0].id, 'runtime-probe-desktop-pixels');
   assert.equal(command.forms[0].execution.auto_starts_daemon, false);
   assert.equal(command.forms[0].execution.requires_permissions, true);
+  assert.deepEqual(
+    command.forms[0].args.find((argument) => argument.id === 'host').value_type.enum.map((item) => item.value),
+    ['standalone', 'desktop-world'],
+  );
   assert.equal(route.executable, '/usr/bin/env');
   assert.deepEqual(route.argv_prefix, ['node', 'scripts/aos-runtime-desktop-pixel-baseline.mjs']);
   assert.equal(route.env.AOS_PATH, '$AOS_PATH');
@@ -111,7 +140,7 @@ test('runtime proof adapter validates and forwards only bounded arguments', () =
   try {
     const accepted = spawnSync(process.execPath, [
       path.join(root, 'scripts/aos-runtime-desktop-pixel-baseline.mjs'),
-      '--presentation', 'inverted', '--hold-ms', '250', '--json',
+      '--host', 'desktop-world', '--presentation', 'inverted', '--hold-ms', '250', '--json',
     ], {
       cwd: root,
       env: { ...process.env, AOS_PATH: fakeAOS },
@@ -120,7 +149,7 @@ test('runtime proof adapter validates and forwards only bounded arguments', () =
     assert.equal(accepted.status, 0, accepted.stderr);
     assert.deepEqual(JSON.parse(accepted.stdout), [
       '__desktop-pixel-native-baseline',
-      '--presentation', 'inverted', '--hold-ms', '250', '--json',
+      '--host', 'desktop-world', '--presentation', 'inverted', '--hold-ms', '250', '--json',
     ]);
 
     const rejected = spawnSync(process.execPath, [

@@ -183,7 +183,7 @@ private final class AOSDesktopPixelNativeBaselineWindow: NSWindow {
 }
 
 @MainActor
-final class AOSDesktopPixelNativeBaselineSurface {
+final class AOSDesktopPixelNativeBaselineSurface: AOSDesktopPixelNativeBaselineEndpoint {
     let displayID: CGDirectDisplayID
     let renderer: AOSDesktopPixelNativeBaselineRenderer
     let view: MTKView
@@ -244,12 +244,21 @@ final class AOSDesktopPixelNativeBaselineSurface {
         view.draw()
     }
 
+    func present() {
+        show()
+    }
+
     func dispose() {
         window.orderOut(nil)
         renderer.clear()
         view.delegate = nil
+        view.removeFromSuperview()
         window.contentView = nil
         window.close()
+    }
+
+    func disposeRenderer() {
+        dispose()
     }
 
     func retainedTextureCount() -> Int {
@@ -258,5 +267,9 @@ final class AOSDesktopPixelNativeBaselineSurface {
 
     func retainedWindowCount() -> Int {
         window.isVisible || window.contentView != nil ? 1 : 0
+    }
+
+    func retainedViewCount() -> Int {
+        view.superview == nil ? 0 : 1
     }
 }
