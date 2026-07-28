@@ -63,10 +63,25 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
     /aosStartDesktopPixelStreams[\s\S]*let stream = entry\.stream[\s\S]*startOperation\.start[\s\S]*stream\.startCapture\(completionHandler: nativeCompletion\)[\s\S]*stop:[\s\S]*let stream = entry\.stream[\s\S]*stopOperation\.start[\s\S]*stream\.stopCapture\(completionHandler: nativeCompletion\)/u,
   )
   assert.match(native, /final class AOSDesktopPixelRetainedNativeOperation/u)
-  assert.match(retainedNativeOperation, /DispatchQueue\.main\.async/u)
+  assert.match(retainedNativeOperation, /DispatchQueue\.global\([\s\S]*qos: \.userInitiated/u)
+  assert.match(retainedNativeOperation, /executionQueue\.async/u)
   assert.match(
     retainedNativeOperation,
-    /func settle\(_ result: Result<Void, Error>\)[\s\S]*guard !finished[\s\S]*completion\?\(result\)/u,
+    /executionQueue\.async \{ \[weak self\] in[\s\S]*self\?\.invokeIfPending\(\)/u,
+  )
+  assert.doesNotMatch(retainedNativeOperation, /invokeIfPending\(operation\)/u)
+  assert.doesNotMatch(retainedNativeOperation, /DispatchQueue\.main/u)
+  assert.match(
+    retainedNativeOperation,
+    /invokeIfPending[\s\S]*guard settlement == nil, let pendingOperation[\s\S]*invoking = true[\s\S]*self\.pendingOperation = nil[\s\S]*operation[\s\S]*invoking = false[\s\S]*finishLocked/u,
+  )
+  assert.match(
+    retainedNativeOperation,
+    /func settle\(_ result: Result<Void, Error>\)[\s\S]*guard settlement == nil[\s\S]*settlement = result[\s\S]*delivery = invoking \? nil : finishLocked\(\)[\s\S]*delivery\?\(result\)/u,
+  )
+  assert.match(
+    retainedNativeOperation,
+    /func finishLocked[\s\S]*completion = nil[\s\S]*pendingOperation = nil/u,
   )
   assert.doesNotMatch(retainedNativeOperation, /Task(?:\.|<)|withChecked/u)
   assert.doesNotMatch(native, /func aosPerformDesktopPixelNativeOperation/u)

@@ -39,11 +39,13 @@ Multi-display warm acquisition configures the
 complete stream set before starting every display concurrently; partial startup
 failure immediately requests aggregate retirement while retaining late
 startup-completion ownership. A retained native-operation owner invokes each
-Apple start and stop completion-handler request exactly once on AppKit's main
-queue. It settles exactly once from either Apple's callback or the stream
-delegate's terminal stop and owns no suspended Swift task or continuation. Native
-start success or the first usable frame may establish startup, whichever arrives
-first. A later start failure retires the complete aggregate. Only a stream
+Apple start and stop completion-handler request exactly once on a non-main
+system QoS queue. It settles exactly once from either Apple's callback or the
+stream delegate's terminal stop and owns no suspended Swift task or continuation.
+Settlement before queue admission drops the pending native closure immediately;
+the queue captures only the operation owner weakly.
+Native start success or the first usable frame may establish startup, whichever
+arrives first. A later start failure retires the complete aggregate. Only a stream
 proven active receives a compensating stop; a failed start
 is confirmed inactive without issuing an invalid stop, and its initiating error
 remains authoritative. Both startup evidence and native retirement must settle
@@ -62,9 +64,10 @@ sample, stop, and delegate-stop phases, but never display identity or pixels.
 A native failure marker may retain only the stable `SCStreamError` numeric code;
 it may not include localized descriptions, user info, source metadata, or paths.
 AOS constructs each warm ScreenCaptureKit source on AppKit's main actor and
-dispatches native start and stop requests on AppKit's main queue. An app-bundle
-host may exclude its complete AOS process; a raw or otherwise unqualified host
-must exclude the complete exact DesktopWorld surface-window set and fails before
+dispatches native start and stop requests off the main thread; main-thread
+invocation can interrupt ScreenCaptureKit's application connection. An
+app-bundle host may exclude its complete AOS process; a raw or otherwise
+unqualified host must exclude the complete exact DesktopWorld surface-window set and fails before
 stream creation when any requested window is unresolved. Merely appearing in
 ScreenCaptureKit's application inventory does not qualify a raw process for app
 exclusion. It uses one bounded stream configuration with the same pixel ceiling

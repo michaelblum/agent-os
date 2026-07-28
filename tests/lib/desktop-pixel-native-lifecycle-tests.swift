@@ -261,7 +261,7 @@ func settlePixelRetirements(
 
 func runDesktopPixelNativeLifecycleTests() async throws {
     runDesktopPixelCaptureFilterTests()
-    let operationUsedMainQueue = LockedBoolean()
+    let operationUsedMainThread = LockedBoolean()
     let nativeCompletion = LockedNativeCompletion()
     let operationCompletionCount = LockedCounter()
     let retainedOperation = AOSDesktopPixelRetainedNativeOperation()
@@ -269,7 +269,7 @@ func runDesktopPixelNativeLifecycleTests() async throws {
         continuation in
         require(
             retainedOperation.start(operation: { completion in
-                operationUsedMainQueue.set(Thread.isMainThread)
+                operationUsedMainThread.set(Thread.isMainThread)
                 nativeCompletion.install(completion)
                 retainedOperation.settle(.failure(
                     AOSDesktopFrameCaptureFailure.connectionInterrupted
@@ -282,8 +282,8 @@ func runDesktopPixelNativeLifecycleTests() async throws {
         )
     }
     require(
-        operationUsedMainQueue.get(),
-        "native ScreenCaptureKit operation was not admitted on AppKit's main queue"
+        !operationUsedMainThread.get(),
+        "native ScreenCaptureKit operation was admitted on AppKit's main thread"
     )
     guard case .failure(let error) = operationResult,
           error as? AOSDesktopFrameCaptureFailure == .connectionInterrupted else {
