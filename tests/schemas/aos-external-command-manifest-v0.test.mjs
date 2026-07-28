@@ -46,6 +46,16 @@ async function loadJson(file) {
   return JSON.parse(await fs.readFile(file, 'utf8'));
 }
 
+async function listModuleFiles(root) {
+  const files = [];
+  for (const entry of await fs.readdir(root, { withFileTypes: true })) {
+    const absolute = path.join(root, entry.name);
+    if (entry.isDirectory()) files.push(...await listModuleFiles(absolute));
+    if (entry.isFile() && entry.name.endsWith('.mjs')) files.push(absolute);
+  }
+  return files;
+}
+
 function concreteUsagePath(form) {
   const aosUsage = form.usage?.startsWith('aos ')
     ? form.usage
@@ -455,13 +465,31 @@ test('private Swift primitives are reachable only through expected external wrap
 
   const directSeeWrapper = await fs.readFile(path.join(repoRoot, 'scripts/aos-see-native.mjs'), 'utf8');
   const savedCaptureOwner = await fs.readFile(path.join(repoRoot, 'scripts/lib/agent-workspace/capture.mjs'), 'utf8');
+  const browserRefValidator = await fs.readFile(path.join(repoRoot, 'scripts/lib/agent-workspace/browser-ref-validation.mjs'), 'utf8');
   assert.ok(
-    directSeeWrapper.includes("new URL('./lib/aos-see-child-runner.mjs'"),
+    directSeeWrapper.includes('aosSeeChildRunnerPath'),
     'direct native perception must route through the shared child guardian',
   );
   assert.ok(
-    savedCaptureOwner.includes("new URL('../aos-see-child-runner.mjs'"),
+    savedCaptureOwner.includes('runNativeSeeSync'),
     'saved native perception must route through the shared child guardian',
+  );
+  assert.ok(
+    browserRefValidator.includes('runNativeSeeSync'),
+    'saved browser-ref revalidation must route through the shared child guardian',
+  );
+
+  const nestedSeeCallers = [];
+  for (const absolutePath of await listModuleFiles(path.join(repoRoot, 'scripts'))) {
+    const source = await fs.readFile(absolutePath, 'utf8');
+    if (/\[\s*['"]__see['"]/u.test(source)) {
+      nestedSeeCallers.push(path.relative(repoRoot, absolutePath));
+    }
+  }
+  assert.deepEqual(
+    nestedSeeCallers.sort(),
+    ['scripts/lib/aos-see-child-runner.mjs'],
+    'only the shared child guardian may invoke private __see',
   );
 
   const scriptFiles = (await fs.readdir(path.join(repoRoot, 'scripts')))

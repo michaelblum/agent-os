@@ -95,24 +95,42 @@ function parentPID(pid) {
   return Number.isSafeInteger(value) && value > 1 ? value : null;
 }
 
-function registerChildCleanup(t, child) {
+function createTestCleanup(t, root) {
+  const children = new Set();
+  const pids = new Set();
+  const pidFiles = new Set();
   t.after(async () => {
-    if (child.pid && processExists(child.pid)) child.kill('SIGTERM');
-    try {
-      await waitForExit(child, 1_500);
-    } catch {
-      if (child.pid && processExists(child.pid)) child.kill('SIGKILL');
-      await waitForExit(child, 1_500).catch(() => {});
+    for (const child of children) {
+      if (child.pid && processExists(child.pid)) child.kill('SIGTERM');
     }
+    for (const pidPath of pidFiles) {
+      try { pids.add(Number(await readFile(pidPath, 'utf8'))); } catch {}
+    }
+    for (const child of children) {
+      try {
+        await waitForExit(child, 500);
+      } catch {
+        if (child.pid && processExists(child.pid)) child.kill('SIGKILL');
+        await waitForExit(child, 500).catch(() => {});
+      }
+    }
+    for (const pid of pids) await stopExactPID(pid);
+    await rm(root, { force: true, recursive: true });
   });
-}
-
-function registerPIDFileCleanup(t, pidPath) {
-  t.after(async () => {
-    let value = null;
-    try { value = Number(await readFile(pidPath, 'utf8')); } catch {}
-    if (Number.isSafeInteger(value) && value > 1) await stopExactPID(value);
-  });
+  return {
+    trackChild(child) {
+      children.add(child);
+      return child;
+    },
+    trackPID(pid) {
+      pids.add(pid);
+      return pid;
+    },
+    trackPIDFile(path) {
+      pidFiles.add(path);
+      return path;
+    },
+  };
 }
 
 async function createHangingFakeAos(root) {
@@ -135,8 +153,9 @@ async function processArgumentsContain(pid, expected, timeoutMs = 2_000) {
   throw new Error(`process ${pid} never exposed expected arguments: ${expected}`);
 }
 
-async function runCaptured(command, args, options = {}) {
+async function runCaptured(cleanup, command, args, options = {}) {
   const child = spawn(command, args, { ...options, stdio: ['ignore', 'pipe', 'pipe'] });
+  cleanup.trackChild(child);
   let stdout = '';
   let stderr = '';
   child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk; });
@@ -146,12 +165,12 @@ async function runCaptured(command, args, options = {}) {
 
 test('native see wrapper preserves child output and exit status', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'aos-see-native-exit-'));
-  t.after(() => rm(root, { force: true, recursive: true }));
+  const cleanup = createTestCleanup(t, root);
   const fakeAos = join(root, 'fake-aos.mjs');
   await writeFile(fakeAos, `#!/usr/bin/env node\nprocess.stdout.write(JSON.stringify({ argv: process.argv.slice(2) }) + '\\n');\nprocess.stderr.write('fake stderr\\n');\nprocess.exit(7);\n`);
   await chmod(fakeAos, 0o755);
 
-  const result = await runCaptured(process.execPath, [wrapperPath, 'capture', '--region', '0,0,10,10'], {
+  const result = await runCaptured(cleanup, process.execPath, [wrapperPath, 'capture', '--region', '0,0,10,10'], {
     cwd: repoRoot,
     env: { ...process.env, AOS_PATH: fakeAos },
   });
@@ -163,12 +182,12 @@ test('native see wrapper preserves child output and exit status', async (t) => {
 
 test('saved native capture succeeds through the shared guardian', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'aos-see-saved-success-'));
-  t.after(() => rm(root, { force: true, recursive: true }));
+  const cleanup = createTestCleanup(t, root);
   const fakeAos = join(root, 'fake-aos.mjs');
   await writeFile(fakeAos, `#!/usr/bin/env node\nimport { mkdirSync, writeFileSync } from 'node:fs';\nimport { dirname } from 'node:path';\nconst index = process.argv.indexOf('--out');\nif (process.argv[2] !== '__see' || process.argv[3] !== 'capture' || index < 0) process.exit(9);\nconst output = process.argv[index + 1];\nmkdirSync(dirname(output), { recursive: true });\nwriteFileSync(output, 'fixture image');\nprocess.stdout.write(JSON.stringify({ status: 'success', state_id: 'fixture', files: [output], elements: [] }) + '\\n');\n`);
   await chmod(fakeAos, 0o755);
 
-  const result = await runCaptured(process.execPath, [
+  const result = await runCaptured(cleanup, process.execPath, [
     wrapperPath,
     'capture',
     'main',
@@ -196,9 +215,9 @@ test('saved native capture succeeds through the shared guardian', async (t) => {
 
 test('terminating the native see wrapper cannot orphan its capture child', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'aos-see-native-signal-'));
-  t.after(() => rm(root, { force: true, recursive: true }));
+  const cleanup = createTestCleanup(t, root);
   const childPidPath = join(root, 'child.pid');
-  registerPIDFileCleanup(t, childPidPath);
+  cleanup.trackPIDFile(childPidPath);
   const fakeAos = await createHangingFakeAos(root);
 
   const wrapper = spawn(process.execPath, [wrapperPath, 'capture', '--region', '0,0,10,10'], {
@@ -206,10 +225,9 @@ test('terminating the native see wrapper cannot orphan its capture child', async
     env: { ...process.env, AOS_PATH: fakeAos, CHILD_PID_PATH: childPidPath },
     stdio: 'ignore',
   });
-  registerChildCleanup(t, wrapper);
+  cleanup.trackChild(wrapper);
   const capturePid = Number(await waitForFile(childPidPath));
-  const guardianPid = parentPID(capturePid);
-  t.after(() => stopExactPID(guardianPid));
+  const guardianPid = cleanup.trackPID(parentPID(capturePid));
 
   wrapper.kill('SIGTERM');
   assert.deepEqual(await waitForExit(wrapper), { code: 143, signal: null });
@@ -219,9 +237,9 @@ test('terminating the native see wrapper cannot orphan its capture child', async
 
 test('killing the native see wrapper cannot orphan its guardian or capture child', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'aos-see-native-kill-'));
-  t.after(() => rm(root, { force: true, recursive: true }));
+  const cleanup = createTestCleanup(t, root);
   const childPidPath = join(root, 'child.pid');
-  registerPIDFileCleanup(t, childPidPath);
+  cleanup.trackPIDFile(childPidPath);
   const fakeAos = await createHangingFakeAos(root);
 
   const wrapper = spawn(process.execPath, [wrapperPath, 'capture', '--region', '0,0,10,10'], {
@@ -229,10 +247,9 @@ test('killing the native see wrapper cannot orphan its guardian or capture child
     env: { ...process.env, AOS_PATH: fakeAos, CHILD_PID_PATH: childPidPath },
     stdio: 'ignore',
   });
-  registerChildCleanup(t, wrapper);
+  cleanup.trackChild(wrapper);
   const capturePid = Number(await waitForFile(childPidPath));
-  const guardianPid = parentPID(capturePid);
-  t.after(() => stopExactPID(guardianPid));
+  const guardianPid = cleanup.trackPID(parentPID(capturePid));
 
   wrapper.kill('SIGKILL');
   assert.deepEqual(await waitForExit(wrapper), { code: null, signal: 'SIGKILL' });
@@ -240,11 +257,31 @@ test('killing the native see wrapper cannot orphan its guardian or capture child
   await waitForProcessGone(guardianPid);
 });
 
+test('killing the direct-capture guardian makes its wrapper retire the native process group', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'aos-see-guardian-kill-'));
+  const cleanup = createTestCleanup(t, root);
+  const childPidPath = cleanup.trackPIDFile(join(root, 'child.pid'));
+  const fakeAos = await createHangingFakeAos(root);
+
+  const wrapper = cleanup.trackChild(spawn(process.execPath, [wrapperPath, 'capture', '--region', '0,0,10,10'], {
+    cwd: repoRoot,
+    env: { ...process.env, AOS_PATH: fakeAos, CHILD_PID_PATH: childPidPath },
+    stdio: 'ignore',
+  }));
+  const capturePid = Number(await waitForFile(childPidPath));
+  const guardianPid = cleanup.trackPID(parentPID(capturePid));
+
+  process.kill(guardianPid, 'SIGKILL');
+  assert.deepEqual(await waitForExit(wrapper), { code: 1, signal: null });
+  await waitForProcessGone(capturePid);
+  await waitForProcessGone(guardianPid);
+});
+
 test('killing a saved-capture wrapper cannot orphan its native capture child', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'aos-see-saved-kill-'));
-  t.after(() => rm(root, { force: true, recursive: true }));
+  const cleanup = createTestCleanup(t, root);
   const childPidPath = join(root, 'child.pid');
-  registerPIDFileCleanup(t, childPidPath);
+  cleanup.trackPIDFile(childPidPath);
   const fakeAos = await createHangingFakeAos(root);
 
   const wrapper = spawn(process.execPath, [
@@ -268,10 +305,9 @@ test('killing a saved-capture wrapper cannot orphan its native capture child', a
     },
     stdio: 'ignore',
   });
-  registerChildCleanup(t, wrapper);
+  cleanup.trackChild(wrapper);
   const capturePid = Number(await waitForFile(childPidPath));
-  const guardianPid = parentPID(capturePid);
-  t.after(() => stopExactPID(guardianPid));
+  const guardianPid = cleanup.trackPID(parentPID(capturePid));
 
   wrapper.kill('SIGKILL');
   assert.deepEqual(await waitForExit(wrapper), { code: null, signal: 'SIGKILL' });
@@ -279,13 +315,49 @@ test('killing a saved-capture wrapper cannot orphan its native capture child', a
   await waitForProcessGone(guardianPid);
 });
 
+test('killing the saved-capture guardian makes its wrapper retire the native process group', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'aos-see-saved-guardian-kill-'));
+  const cleanup = createTestCleanup(t, root);
+  const childPidPath = cleanup.trackPIDFile(join(root, 'child.pid'));
+  const fakeAos = await createHangingFakeAos(root);
+
+  const wrapper = cleanup.trackChild(spawn(process.execPath, [
+    wrapperPath,
+    'capture',
+    'main',
+    '--save',
+    '--workspace',
+    'lifecycle-test',
+    '--name',
+    'saved-guardian-kill',
+    '--mode',
+    'vision',
+  ], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      AOS_PATH: fakeAos,
+      AOS_STATE_ROOT: join(root, 'state'),
+      CHILD_PID_PATH: childPidPath,
+    },
+    stdio: 'ignore',
+  }));
+  const capturePid = Number(await waitForFile(childPidPath));
+  const guardianPid = cleanup.trackPID(parentPID(capturePid));
+
+  process.kill(guardianPid, 'SIGKILL');
+  assert.deepEqual(await waitForExit(wrapper), { code: 1, signal: null });
+  await waitForProcessGone(capturePid);
+  await waitForProcessGone(guardianPid);
+});
+
 test('native see wrapper retires its capture when its owner disappears', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'aos-see-native-owner-'));
-  t.after(() => rm(root, { force: true, recursive: true }));
+  const cleanup = createTestCleanup(t, root);
   const childPidPath = join(root, 'child.pid');
   const wrapperPidPath = join(root, 'wrapper.pid');
-  registerPIDFileCleanup(t, childPidPath);
-  registerPIDFileCleanup(t, wrapperPidPath);
+  cleanup.trackPIDFile(childPidPath);
+  cleanup.trackPIDFile(wrapperPidPath);
   const fakeAos = await createHangingFakeAos(root);
   const launcherPath = join(root, 'launcher.mjs');
   await writeFile(launcherPath, `import { spawn } from 'node:child_process';\nimport { writeFileSync } from 'node:fs';\nconst child = spawn(process.execPath, [${JSON.stringify(wrapperPath)}, 'capture', '--region', '0,0,10,10'], { env: process.env, stdio: 'ignore' });\nwriteFileSync(process.env.WRAPPER_PID_PATH, String(child.pid));\nsetInterval(() => {}, 1000);\n`);
@@ -300,11 +372,10 @@ test('native see wrapper retires its capture when its owner disappears', async (
     },
     stdio: 'ignore',
   });
-  registerChildCleanup(t, launcher);
+  cleanup.trackChild(launcher);
   const wrapperPid = Number(await waitForFile(wrapperPidPath));
   const capturePid = Number(await waitForFile(childPidPath));
-  const guardianPid = parentPID(capturePid);
-  t.after(() => stopExactPID(guardianPid));
+  const guardianPid = cleanup.trackPID(parentPID(capturePid));
 
   launcher.kill('SIGKILL');
   assert.deepEqual(await waitForExit(launcher), { code: null, signal: 'SIGKILL' });
@@ -315,14 +386,16 @@ test('native see wrapper retires its capture when its owner disappears', async (
 
 for (const daemonTitle of [`${join(repoRoot, 'aos')} __serve`, './aos __serve']) {
   test(`external dispatch refuses a live raw daemon launched as ${daemonTitle}`, async (t) => {
+    const root = await mkdtemp(join(tmpdir(), 'aos-external-dispatch-preflight-'));
+    const cleanup = createTestCleanup(t, root);
     const daemon = spawn('/usr/bin/perl', ['-e', '$0 = $ARGV[0]; sleep 30', daemonTitle], {
       cwd: repoRoot,
       stdio: 'ignore',
     });
-    registerChildCleanup(t, daemon);
+    cleanup.trackChild(daemon);
     await processArgumentsContain(daemon.pid, daemonTitle);
 
-    const result = await runCaptured('/bin/bash', [externalDispatchPath, '--preflight-only'], {
+    const result = await runCaptured(cleanup, '/bin/bash', [externalDispatchPath, '--preflight-only'], {
       cwd: repoRoot,
       env: process.env,
     });

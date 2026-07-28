@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import {
   emitAgentWorkspaceError,
   isAgentWorkspaceError,
   parseCaptureArgs,
   savedCaptureCommand,
 } from './lib/aos-agent-workspace.mjs';
+import {
+  aosSeeChildRunnerPath,
+  aosSeeGuardianEnvironment,
+  retireAosSeeProcessGroup,
+} from './lib/aos-see-supervision.mjs';
 
 function error(message, code) {
   process.stderr.write(`${JSON.stringify({ code, error: message })}\n`);
@@ -25,7 +29,6 @@ const SIGNAL_EXIT_CODES = new Map([
 ]);
 const GUARDIAN_SHUTDOWN_GRACE_MS = 2_500;
 const PARENT_LIVENESS_POLL_MS = 250;
-const childRunnerPath = fileURLToPath(new URL('./lib/aos-see-child-runner.mjs', import.meta.url));
 
 function processExists(pid) {
   try {
@@ -38,12 +41,9 @@ function processExists(pid) {
 
 async function runNativePrimitive(primitive, args) {
   const ownerPid = process.ppid;
-  const child = spawn(process.execPath, [childRunnerPath, primitive, ...args], {
-    env: {
-      ...process.env,
-      AOS_INTERNAL_SEE_OWNER_PID: String(ownerPid),
-      AOS_PATH: aosPath(),
-    },
+  const child = spawn(process.execPath, [aosSeeChildRunnerPath, primitive, ...args], {
+    detached: true,
+    env: aosSeeGuardianEnvironment(process.env, ownerPid, aosPath()),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   child.stdout.pipe(process.stdout);
@@ -57,7 +57,7 @@ async function runNativePrimitive(primitive, args) {
     requestedSignal = signal;
     child.kill(signal);
     escalationTimer = setTimeout(() => {
-      if (!closed) child.kill('SIGKILL');
+      if (!closed) retireAosSeeProcessGroup(child.pid);
     }, GUARDIAN_SHUTDOWN_GRACE_MS);
   };
   const signalHandlers = new Map(
@@ -68,7 +68,7 @@ async function runNativePrimitive(primitive, args) {
     }),
   );
   const releaseOnParentExit = () => {
-    if (!closed) child.kill('SIGKILL');
+    if (!closed) retireAosSeeProcessGroup(child.pid);
   };
   process.once('exit', releaseOnParentExit);
   const parentMonitor = setInterval(() => {
@@ -84,6 +84,8 @@ async function runNativePrimitive(primitive, args) {
   if (escalationTimer !== null) clearTimeout(escalationTimer);
   for (const [signal, handler] of signalHandlers) process.off(signal, handler);
   process.off('exit', releaseOnParentExit);
+
+  if (result.signal !== null || result.cause) retireAosSeeProcessGroup(child.pid);
 
   if (result.cause) {
     process.stderr.write(`${JSON.stringify({

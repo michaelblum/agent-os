@@ -50,8 +50,10 @@ const childEnv = { ...process.env };
 delete childEnv.AOS_INTERNAL_SEE_OWNER_PID;
 const child = spawn(process.env.AOS_PATH || './aos', ['__see', primitive, ...args], {
   env: childEnv,
-  stdio: 'inherit',
+  stdio: ['ignore', 'pipe', 'pipe'],
 });
+child.stdout.pipe(process.stdout);
+child.stderr.pipe(process.stderr);
 
 let closed = false;
 let requestedSignal = null;
