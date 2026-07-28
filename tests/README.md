@@ -213,6 +213,7 @@ node --test \
   tests/toolkit/desktop-world-devtools-compat.test.mjs \
   tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs \
   tests/toolkit/desktop-world-scene-outlet.test.mjs \
+  tests/toolkit/desktop-world-scene-outlet-replacement.test.mjs \
   tests/toolkit/scene-interaction.test.mjs \
   tests/toolkit/scene-interaction-visual.test.mjs
 ```
