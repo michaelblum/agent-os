@@ -34,6 +34,10 @@ labels, or product data to diagnose delivery.
 `desktop-pixel-capture-filter.swift` owns qualified app-process self-exclusion
 and raw-host exact-window exclusion. `desktop-pixel-native.swift` owns
 ScreenCaptureKit snapshots and bounded warm streams.
+`src/shared/desktop-pixel-sample-admission.swift` owns the common usable-frame
+and producer-advancement rules shared by runtime capture and native proofs.
+`desktop-pixel-native-operation.swift` owns the exactly-once, callback-backed
+native start/stop operation used by both paths.
 `desktop-pixel-stream-lifecycle.swift` owns generic concurrent stream startup,
 compensation, and acknowledged retirement. `desktop-pixel-broker.swift`
 serializes that native acquisition across daemon consumers and owns warm-lease

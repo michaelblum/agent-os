@@ -39,8 +39,11 @@ tests.
   deformable geometry, and leaves no installed sheet, geometry buffer, texture,
   or shared GPU resource after cleanup. It has source, full Swift integration,
   and runtime Metal-shader compilation coverage plus a supervised TCC-sensitive
-  proof. Static verification must never invoke capture or treat these checks as
-  native presentation evidence.
+  proof. Its focused lifecycle harness must reject blank/stale frames, prove
+  producer advancement, compensate partial startup through the production
+  coordinator, and keep the development-probe gate closed by default. Static
+  verification must never invoke capture or treat these checks as native
+  presentation evidence.
 - Status-item host contract tests must use disposable fake sockets and schema
   fixtures, model startup admission ordering, and prove registration output
   precedes initial events. Fake sockets must emit the complete daemon envelope

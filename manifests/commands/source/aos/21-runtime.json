@@ -260,8 +260,8 @@
             }
           ],
           "examples": [
-            "aos runtime probe desktop-pixels --host standalone --presentation inverted --hold-ms 750 --json",
-            "aos runtime probe desktop-pixels --host desktop-world --presentation inverted --hold-ms 750 --json"
+            "AOS_ENABLE_DEVELOPMENT_PROBES=1 aos runtime probe desktop-pixels --host standalone --presentation inverted --hold-ms 750 --json",
+            "AOS_ENABLE_DEVELOPMENT_PROBES=1 aos runtime probe desktop-pixels --host desktop-world --presentation inverted --hold-ms 750 --json"
           ],
           "execution": {
             "auto_starts_daemon": false,

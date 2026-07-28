@@ -47,7 +47,9 @@ needs, but public command policy and product UI policy belong above it:
   mutation; consumers must remount capture, renderers, and diagnostics as one
   new generation instead of partially reconciling them.
   Both hosts must remain daemon-free, broker-free, prompt-free, content-free in
-  output, and unavailable to product consumers.
+  output, and unavailable to product consumers. The public adapter and hidden
+  primitive both require `AOS_ENABLE_DEVELOPMENT_PROBES=1` before any native
+  resource is created.
 - Historical embedded-product config residue may be retired only through an
   exact key and repo-path migration. Preserve external or user-defined content
   roots and never mutate the frozen product fixture during config cleanup.

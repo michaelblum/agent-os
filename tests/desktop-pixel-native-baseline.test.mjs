@@ -17,6 +17,9 @@ const geometrySource = read('src/display/desktop-world-native-sheet-geometry.swi
 const leaseSource = read('src/display/desktop-world-native-sheet-lease.swift');
 const sheetSource = read('src/display/desktop-world-native-sheet.swift');
 const identitySource = read('src/shared/desktop-world-resource-identity.swift');
+const sampleAdmissionSource = read('src/shared/desktop-pixel-sample-admission.swift');
+const nativeOperationSource = read('src/daemon/desktop-pixel-native-operation.swift');
+const streamLifecycleSource = read('src/daemon/desktop-pixel-stream-lifecycle.swift');
 const surfaceSource = read('src/display/desktop-world-surface.swift');
 const nativeSources = [
   commandSource,
@@ -47,6 +50,8 @@ test('native baseline is an explicit foreground AOS primitive', () => {
   assert.match(commandSource, /daemonUsed = false/);
   assert.match(commandSource, /brokerUsed = false/);
   assert.match(commandSource, /sceneProtocolUsed = false/);
+  assert.match(commandSource, /environment\["AOS_ENABLE_DEVELOPMENT_PROBES"\] == "1"/);
+  assert.match(commandSource, /"DEVELOPMENT_PROBE_DISABLED"/);
 });
 
 test('native baseline retains the proven warm ScreenCaptureKit shape', () => {
@@ -55,11 +60,22 @@ test('native baseline retains the proven warm ScreenCaptureKit shape', () => {
   assert.match(captureSource, /static let queueDepth = 3/);
   assert.match(captureSource, /configuration\.capturesAudio = false/);
   assert.match(captureSource, /configuration\.minimumFrameInterval = CMTime\(value: 1, timescale: 30\)/);
-  assert.match(captureSource, /try await entry\.stream\.startCapture\(\)/);
-  assert.match(captureSource, /entry\.stream\.stopCapture\(completionHandler: completion\)/);
+  assert.match(captureSource, /aosDesktopPixelSampleAdmission\(/);
+  assert.match(captureSource, /frameAdvancement\.observe\(presentationTime: presentationTime\)/);
+  assert.match(captureSource, /frameAdvancement\.isReady/);
+  assert.match(sampleAdmissionSource, /requiredDistinctFrames: UInt64 = 2/);
+  assert.match(captureSource, /aosStartDesktopPixelStreams\(/);
+  assert.match(captureSource, /lateFailure: \{ error in failureState\.record\(error\) \}/);
+  assert.match(captureSource, /aosRecordDesktopPixelNativeBaselineStartSettlement\(\s*result,\s*failureState: failureState/);
+  assert.match(captureSource, /func runtimeFailure\(\) -> AOSDesktopPixelNativeBaselineFailure\?/);
+  assert.match(commandSource, /let captureFailure = capture\.runtimeFailure\(\)/);
+  assert.match(commandSource, /if var success, cleanupComplete, captureFailure == nil/);
+  assert.match(captureSource, /entry\.stream\.startCapture\(completionHandler: \$0\)/);
+  assert.match(captureSource, /entry\.stream\.stopCapture\(completionHandler: \$0\)/);
+  assert.match(captureSource, /aosDesktopPixelCaptureFilter\(/);
   assert.match(captureSource, /try entry\.stream\.removeStreamOutput\(entry\.output, type: \.screen\)/);
   assert.match(captureSource, /entry\.sampleQueue\.sync \{\}/);
-  assert.doesNotMatch(captureSource, /try\? await entry\.stream\.stopCapture/);
+  assert.match(nativeOperationSource, /final class AOSDesktopPixelRetainedNativeOperation/);
   assert.doesNotMatch(nativeSources, /AOSDesktopPixelBroker|AOSDesktopFrameCaptureConsent|AOSDesktopFrameWarmPool/);
 });
 
@@ -156,8 +172,9 @@ test('native baseline is bounded and disposes every retained resource', () => {
   assert.match(metalSource, /window\.contentView = nil/);
   assert.match(metalSource, /window\.close\(\)/);
   assert.match(captureSource, /stopping\.forEach \{ \$0\.output\.quiesce\(\) \}/);
-  assert.match(captureSource, /unsettled\.append\(entry\)/);
-  assert.match(captureSource, /retainedFramesAfterStop = unsettled\.reduce/);
+  assert.match(captureSource, /startupOwner\.retire\(timeout: Self\.stopTimeoutSeconds\)/);
+  assert.match(captureSource, /retained\.append\(entry\)/);
+  assert.match(captureSource, /retainedFrames: retained\.reduce/);
   assert.match(commandSource, /captureCleanup\.unsettledStreams == 0/);
   assert.match(commandSource, /if !cleanupComplete \{/);
   assert.match(commandSource, /code: "DESKTOP_PIXEL_BASELINE_CLEANUP_INCOMPLETE",\s*nativeCode: captureCleanup\.nativeCode/);
@@ -207,6 +224,8 @@ test('runtime proof command routes directly back into the current AOS executable
   assert.match(adapter, /spawn\(aosPath\(\), \['__desktop-pixel-native-baseline'/);
   assert.match(adapter, /detached: true/);
   assert.match(adapter, /process\.kill\(-child\.pid, signal\)/);
+  assert.match(adapter, /AOS_ENABLE_DEVELOPMENT_PROBES/);
+  assert.match(adapter, /TERMINATION_GRACE_MS = 8_000/);
   assert.doesNotMatch(adapter, /ScreenCaptureKit|Metal|daemon|broker/i);
 });
 
@@ -216,12 +235,22 @@ test('runtime proof adapter validates and forwards only bounded arguments', () =
   fs.writeFileSync(fakeAOS, `#!/usr/bin/env node\nprocess.stdout.write(JSON.stringify(process.argv.slice(2)));\n`);
   fs.chmodSync(fakeAOS, 0o700);
   try {
+    const disabled = spawnSync(process.execPath, [
+      path.join(root, 'scripts/aos-runtime-desktop-pixel-baseline.mjs'), '--json',
+    ], {
+      cwd: root,
+      env: { ...process.env, AOS_PATH: fakeAOS, AOS_ENABLE_DEVELOPMENT_PROBES: '' },
+      encoding: 'utf8',
+    });
+    assert.equal(disabled.status, 1);
+    assert.equal(JSON.parse(disabled.stderr).code, 'DEVELOPMENT_PROBE_DISABLED');
+
     const accepted = spawnSync(process.execPath, [
       path.join(root, 'scripts/aos-runtime-desktop-pixel-baseline.mjs'),
       '--host', 'desktop-world', '--presentation', 'inverted', '--hold-ms', '250', '--json',
     ], {
       cwd: root,
-      env: { ...process.env, AOS_PATH: fakeAOS },
+      env: { ...process.env, AOS_PATH: fakeAOS, AOS_ENABLE_DEVELOPMENT_PROBES: '1' },
       encoding: 'utf8',
     });
     assert.equal(accepted.status, 0, accepted.stderr);
@@ -235,7 +264,7 @@ test('runtime proof adapter validates and forwards only bounded arguments', () =
       '--hold-ms', '5001', '--json',
     ], {
       cwd: root,
-      env: { ...process.env, AOS_PATH: fakeAOS },
+      env: { ...process.env, AOS_PATH: fakeAOS, AOS_ENABLE_DEVELOPMENT_PROBES: '1' },
       encoding: 'utf8',
     });
     assert.equal(rejected.status, 1);
@@ -246,7 +275,7 @@ test('runtime proof adapter validates and forwards only bounded arguments', () =
       '--hold-ms', '100', '--hold-ms', '200', '--json',
     ], {
       cwd: root,
-      env: { ...process.env, AOS_PATH: fakeAOS },
+      env: { ...process.env, AOS_PATH: fakeAOS, AOS_ENABLE_DEVELOPMENT_PROBES: '1' },
       encoding: 'utf8',
     });
     assert.equal(duplicate.status, 1);
@@ -279,6 +308,7 @@ setInterval(() => {}, 1000);
     env: {
       ...process.env,
       AOS_PATH: fakeAOS,
+      AOS_ENABLE_DEVELOPMENT_PROBES: '1',
       BASELINE_CHILD_CLEANUP_FILE: cleanupFile,
       BASELINE_CHILD_PID_FILE: pidFile,
     },

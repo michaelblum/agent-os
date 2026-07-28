@@ -5,12 +5,20 @@ import { aosPath, currentMode } from './lib/aos-cli.mjs';
 
 const MAX_OUTPUT_BYTES = 64 * 1024;
 const MAX_RUNTIME_MS = 20_000;
-// Native capture stop and DesktopWorld retirement each own a two-second bound.
-const TERMINATION_GRACE_MS = 5_000;
+// Two capture retirement attempts plus DesktopWorld cleanup can consume six seconds.
+const TERMINATION_GRACE_MS = 8_000;
+const DEVELOPMENT_PROBE_ENV = 'AOS_ENABLE_DEVELOPMENT_PROBES';
 
 function fail(message, code) {
   process.stderr.write(`${JSON.stringify({ code, error: message }, null, 2)}\n`);
   process.exit(1);
+}
+
+if (process.env[DEVELOPMENT_PROBE_ENV] !== '1') {
+  fail(
+    `Desktop-pixel baseline requires ${DEVELOPMENT_PROBE_ENV}=1`,
+    'DEVELOPMENT_PROBE_DISABLED',
+  );
 }
 
 function parseArgs(args) {

@@ -24,6 +24,11 @@ trap 'rm -rf "$TMP"' EXIT
 "$TMP/native-sheet-lease-tests"
 
 /usr/bin/xcrun swiftc -parse-as-library \
+  "$ROOT/src/shared/desktop-pixel-sample-admission.swift" \
+  "$ROOT/src/daemon/desktop-pixel-retirement.swift" \
+  "$ROOT/src/daemon/desktop-pixel-native-operation.swift" \
+  "$ROOT/src/daemon/desktop-pixel-stream-lifecycle.swift" \
+  "$ROOT/src/daemon/desktop-pixel-capture-filter.swift" \
   "$ROOT/src/commands/desktop-pixel-native-baseline-capture.swift" \
   "$ROOT/tests/lib/desktop-pixel-native-baseline-lifecycle-tests.swift" \
   -framework CoreGraphics \

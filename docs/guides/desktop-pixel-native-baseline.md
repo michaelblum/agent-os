@@ -26,7 +26,7 @@ Run it only at a supervised native checkpoint with the daemon and product
 consumers stopped:
 
 ```bash
-./aos runtime probe desktop-pixels \
+AOS_ENABLE_DEVELOPMENT_PROBES=1 ./aos runtime probe desktop-pixels \
   --host standalone \
   --presentation inverted \
   --hold-ms 750 \
@@ -37,7 +37,7 @@ After the standalone control passes, prove the first infrastructure increment
 without changing capture or rendering:
 
 ```bash
-./aos runtime probe desktop-pixels \
+AOS_ENABLE_DEVELOPMENT_PROBES=1 ./aos runtime probe desktop-pixels \
   --host desktop-world \
   --presentation inverted \
   --hold-ms 750 \
@@ -95,3 +95,7 @@ than the interaction hot path.
 Do not backfill an existing abstraction merely because it already exists. A
 layer is retained only when the unchanged native proof remains green and the
 layer provides a necessary ownership or safety property.
+
+Both the public adapter and its hidden foreground primitive require
+`AOS_ENABLE_DEVELOPMENT_PROBES=1`. Without that explicit development switch,
+the command fails before creating a capture stream or native surface.

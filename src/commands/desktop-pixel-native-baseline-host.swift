@@ -37,6 +37,7 @@ protocol AOSDesktopPixelNativeBaselineHost: AnyObject {
     var geometryMetrics: DesktopWorldNativeSheetGeometryMetrics { get }
     var topologyGeneration: UInt64? { get }
     var sheetIdentity: AOSDesktopWorldResourceIdentity? { get }
+    var excludingWindowIDs: [Int] { get }
     func present() throws
     func dispose() async -> AOSDesktopPixelNativeBaselineHostCleanup
 }
@@ -50,6 +51,16 @@ final class AOSDesktopPixelNativeBaselineStandaloneHost: AOSDesktopPixelNativeBa
     let topologyGeneration: UInt64? = nil
     let sheetIdentity: AOSDesktopWorldResourceIdentity? = nil
     private let context: AOSDesktopPixelNativeBaselineGPUContext
+
+    var excludingWindowIDs: [Int] {
+        endpoints.compactMap { endpoint in
+            guard let surface = endpoint as? AOSDesktopPixelNativeBaselineSurface else {
+                return nil
+            }
+            let identifier = surface.window.windowNumber
+            return identifier > 0 ? identifier : nil
+        }.sorted()
+    }
 
     init(device: MTLDevice) throws {
         let screens = NSScreen.screens
@@ -165,6 +176,11 @@ private final class AOSDesktopPixelNativeBaselineDesktopWorldEndpoint:
     func retainedWindowCount() -> Int {
         segmentSheet.segment.window.isVisible || segmentSheet.segment.window.contentView != nil ? 1 : 0
     }
+
+    var windowID: Int? {
+        let identifier = segmentSheet.segment.window.windowNumber
+        return identifier > 0 ? identifier : nil
+    }
 }
 
 @MainActor
@@ -181,6 +197,12 @@ final class AOSDesktopPixelNativeBaselineDesktopWorldHost: AOSDesktopPixelNative
     private let generation: CanvasLifecycleGeneration
     private let sheet: DesktopWorldNativeSheet
     private var disposed = false
+
+    var excludingWindowIDs: [Int] {
+        endpoints.compactMap { endpoint in
+            (endpoint as? AOSDesktopPixelNativeBaselineDesktopWorldEndpoint)?.windowID
+        }.sorted()
+    }
 
     init(device: MTLDevice) throws {
         let coordinator = CanvasLifecycleCoordinator()

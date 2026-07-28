@@ -10,10 +10,12 @@ async function source(relativePath) {
 }
 
 test('desktop pixel acquisition stays native, serialized, and artifact-free', async () => {
-  const [broker, retirement, lifecycle, captureFilter, native, pool, adapter, daemon] = await Promise.all([
+  const [broker, retirement, nativeOperation, lifecycle, sampleAdmission, captureFilter, native, pool, adapter, daemon] = await Promise.all([
     source('src/daemon/desktop-pixel-broker.swift'),
     source('src/daemon/desktop-pixel-retirement.swift'),
+    source('src/daemon/desktop-pixel-native-operation.swift'),
     source('src/daemon/desktop-pixel-stream-lifecycle.swift'),
+    source('src/shared/desktop-pixel-sample-admission.swift'),
     source('src/daemon/desktop-pixel-capture-filter.swift'),
     source('src/daemon/desktop-pixel-native.swift'),
     source('src/daemon/desktop-frame-warm-pool.swift'),
@@ -29,10 +31,7 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
     native.indexOf('private actor AOSNativeDesktopPixelSnapshotActor'),
     native.indexOf('private struct AOSDesktopPixelLatestSample'),
   )
-  const retainedNativeOperation = native.slice(
-    native.indexOf('final class AOSDesktopPixelRetainedNativeOperation'),
-    native.indexOf('private final class AOSDesktopPixelNativeTrace'),
-  )
+  const retainedNativeOperation = nativeOperation
 
   assert.match(native, /SCScreenshotManager\.captureImage/u)
   assert.match(native, /SCStream\(/u)
@@ -62,7 +61,7 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
     warmNative,
     /aosStartDesktopPixelStreams[\s\S]*let stream = entry\.stream[\s\S]*startOperation\.start[\s\S]*stream\.startCapture\(completionHandler: nativeCompletion\)[\s\S]*stop:[\s\S]*let stream = entry\.stream[\s\S]*stopOperation\.start[\s\S]*stream\.stopCapture\(completionHandler: nativeCompletion\)/u,
   )
-  assert.match(native, /final class AOSDesktopPixelRetainedNativeOperation/u)
+  assert.match(nativeOperation, /final class AOSDesktopPixelRetainedNativeOperation/u)
   assert.match(retainedNativeOperation, /DispatchQueue\.global\([\s\S]*qos: \.userInitiated/u)
   assert.match(retainedNativeOperation, /executionQueue\.async/u)
   assert.match(
@@ -90,7 +89,7 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(warmNative, /configuration\.height = profile\.height/u)
   assert.doesNotMatch(warmNative, /configuration\.captureResolution/u)
   assert.match(native, /AOSDesktopPixelFrameAdvancement/u)
-  assert.match(native, /requiredDistinctFrames: UInt64 = 2/u)
+  assert.match(sampleAdmission, /requiredDistinctFrames: UInt64 = 2/u)
   assert.match(native, /waitUntilReady\(timeout: 0\.75\)/u)
   assert.doesNotMatch(native, /try\? await entry\.stream\.stopCapture\(\)/u)
   assert.doesNotMatch(native, /\(try\? \$0\.output\.snapshot\(\)\) != nil/u)

@@ -213,8 +213,10 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-frame-warm-pool.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-pixel-broker.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-pixel-capture-filter.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-pixel-native-operation.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-pixel-retirement.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-pixel-stream-lifecycle.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/shared/desktop-pixel-sample-admission.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-pixel-native.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('tests/lib/desktop-pixel-broker-tests.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('tests/lib/desktop-pixel-capture-filter-tests.swift'));
@@ -226,6 +228,10 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-world-native-sheet-lease.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/shared/desktop-world-resource-identity.swift'));
   assert.ok(rules.get('desktop-pixel-native-baseline')?.patterns?.includes('src/display/desktop-world-surface.swift'));
+  assert.ok(rules.get('desktop-pixel-native-baseline')?.patterns?.includes('src/daemon/desktop-pixel-capture-filter.swift'));
+  assert.ok(rules.get('desktop-pixel-native-baseline')?.patterns?.includes('src/daemon/desktop-pixel-native-operation.swift'));
+  assert.ok(rules.get('desktop-pixel-native-baseline')?.patterns?.includes('src/daemon/desktop-pixel-stream-lifecycle.swift'));
+  assert.ok(rules.get('desktop-pixel-native-baseline')?.patterns?.includes('src/shared/desktop-pixel-sample-admission.swift'));
   assert.ok(rules.get('desktop-pixel-native-baseline-command')?.patterns?.includes('tests/lib/desktop-pixel-metal-pipeline-tests.swift'));
   assert.ok(rules.get('desktop-pixel-native-baseline-command')?.patterns?.includes('tests/lib/desktop-pixel-native-baseline-lifecycle-tests.swift'));
   assert.ok(rules.get('desktop-pixel-native-baseline-command')?.patterns?.includes('tests/lib/desktop-world-native-sheet-lease-tests.swift'));

@@ -171,25 +171,33 @@ private final class AOSDesktopPixelNativeBaselinePresentationBarrier: @unchecked
     }
 
     func wait(timeoutMilliseconds: UInt64) async -> [UInt64]? {
-        await withCheckedContinuation { continuation in
-            lock.lock()
-            if terminal {
-                let result = completed.count == expected ? completed : nil
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                lock.lock()
+                if terminal {
+                    let result = completed.count == expected ? completed : nil
+                    lock.unlock()
+                    continuation.resume(returning: result)
+                    return
+                }
+                self.continuation = continuation
                 lock.unlock()
-                continuation.resume(returning: result)
-                return
+                DispatchQueue.global(qos: .userInitiated).asyncAfter(
+                    deadline: .now() + .milliseconds(Int(timeoutMilliseconds))
+                ) { [weak self] in
+                    self?.timeout()
+                }
             }
-            self.continuation = continuation
-            lock.unlock()
-            DispatchQueue.global(qos: .userInitiated).asyncAfter(
-                deadline: .now() + .milliseconds(Int(timeoutMilliseconds))
-            ) { [weak self] in
-                self?.timeout()
-            }
+        } onCancel: {
+            cancel()
         }
     }
 
     private func timeout() {
+        cancel()
+    }
+
+    private func cancel() {
         lock.lock()
         guard !terminal else {
             lock.unlock()
@@ -254,7 +262,10 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
             let endpoints = host.endpoints
 
             let warmupStarted = DispatchTime.now().uptimeNanoseconds
-            try await capture.start(displayIDs: endpoints.map(\.displayID))
+            try await capture.start(
+                displayIDs: endpoints.map(\.displayID),
+                excludingWindowIDs: host.excludingWindowIDs
+            )
             try Task.checkCancellation()
             let warmupFinished = DispatchTime.now().uptimeNanoseconds
             let frames = capture.snapshots()
@@ -273,7 +284,9 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
 
             let triggered = DispatchTime.now().uptimeNanoseconds
             try host.present()
-            guard let presented = await barrier.wait(timeoutMilliseconds: 2_000),
+            let presentation = await barrier.wait(timeoutMilliseconds: 2_000)
+            try Task.checkCancellation()
+            guard let presented = presentation,
                   let firstPresented = presented.min(),
                   let lastPresented = presented.max() else {
                 throw AOSDesktopPixelNativeBaselineFailure(code: "DESKTOP_PIXEL_BASELINE_PRESENTATION_TIMEOUT")
@@ -351,6 +364,7 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
         let topologyGeneration = activeHost?.topologyGeneration
         let geometryMetrics = activeHost?.geometryMetrics
         let captureCleanup = await capture.stop()
+        let captureFailure = capture.runtimeFailure()
         let cleanup = await activeHost?.dispose() ?? AOSDesktopPixelNativeBaselineHostCleanup(
             pendingRetirements: 0,
             retainedGeometryBuffers: 0,
@@ -376,7 +390,7 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
             && cleanup.retainedViews == 0
             && cleanup.retainedWindows == 0
 
-        if var success, cleanupComplete {
+        if var success, cleanupComplete, captureFailure == nil {
             success.retainedFramesAfterCleanup = retainedFramesAfterCleanup
             success.retainedCaptureStreamsAfterCleanup = captureCleanup.unsettledStreams
             success.retainedGeometryBuffersAfterCleanup = cleanup.retainedGeometryBuffers
@@ -396,7 +410,7 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
                     nativeCode: captureCleanup.nativeCode
                 )
             } else {
-                observed = failure ?? AOSDesktopPixelNativeBaselineFailure(
+                observed = captureFailure ?? failure ?? AOSDesktopPixelNativeBaselineFailure(
                     code: "DESKTOP_PIXEL_BASELINE_CANCELED"
                 )
             }
@@ -493,23 +507,35 @@ func aosDesktopPixelNativeBaselineDisplayID(_ screen: NSScreen) -> CGDirectDispl
     return (screen.deviceDescription[key] as? NSNumber)?.uint32Value
 }
 
+private func exitDesktopPixelNativeBaselineCommandFailure(_ code: String) -> Never {
+    let response = [
+        "schema_version": "aos.desktop-pixel-native-baseline.v1",
+        "status": "failed",
+        "error_code": code,
+    ]
+    if let data = try? JSONSerialization.data(
+        withJSONObject: response,
+        options: [.sortedKeys]
+    ) {
+        FileHandle.standardError.write(data)
+        FileHandle.standardError.write(Data("\n".utf8))
+    }
+    exit(1)
+}
+
 func runDesktopPixelNativeBaselineCommand(args: [String]) -> Never {
+    guard ProcessInfo.processInfo.environment["AOS_ENABLE_DEVELOPMENT_PROBES"] == "1" else {
+        exitDesktopPixelNativeBaselineCommandFailure(
+            "DEVELOPMENT_PROBE_DISABLED"
+        )
+    }
     let options: AOSDesktopPixelNativeBaselineOptions
     do {
         options = try AOSDesktopPixelNativeBaselineOptions.parse(args)
     } catch {
         let failure = error as? AOSDesktopPixelNativeBaselineFailure
             ?? AOSDesktopPixelNativeBaselineFailure(code: "DESKTOP_PIXEL_BASELINE_INVALID_ARGUMENT")
-        let response = [
-            "schema_version": "aos.desktop-pixel-native-baseline.v1",
-            "status": "failed",
-            "error_code": failure.code,
-        ]
-        if let data = try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys]) {
-            FileHandle.standardError.write(data)
-            FileHandle.standardError.write(Data("\n".utf8))
-        }
-        exit(1)
+        exitDesktopPixelNativeBaselineCommandFailure(failure.code)
     }
 
     return MainActor.assumeIsolated {
