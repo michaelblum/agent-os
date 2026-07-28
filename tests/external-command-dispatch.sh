@@ -6,6 +6,28 @@ cd "$ROOT"
 source tests/lib/process-cleanup-serial.sh
 aos_process_cleanup_reexec_serial "$ROOT/tests/external-command-dispatch.sh" "$@"
 
+LIVE_REPO_DAEMON_PIDS="$(/bin/ps -axww -o pid=,args= | python3 -c '
+import shlex
+import sys
+
+expected = sys.argv[1]
+for raw in sys.stdin:
+    raw = raw.strip()
+    if not raw:
+        continue
+    pid_text, _, command = raw.partition(" ")
+    try:
+        argv = shlex.split(command.strip())
+    except ValueError:
+        continue
+    if len(argv) >= 2 and argv[0] == expected and argv[1] in {"serve", "__serve"}:
+        print(pid_text)
+' "$ROOT/aos")"
+if [[ -n "$LIVE_REPO_DAEMON_PIDS" ]]; then
+  echo "FAIL: external-command-dispatch mutates daemon cleanup state and refuses while raw AOS is live (pids: $LIVE_REPO_DAEMON_PIDS)" >&2
+  exit 1
+fi
+
 FAILS=0
 
 pass() { echo "PASS: $1"; }

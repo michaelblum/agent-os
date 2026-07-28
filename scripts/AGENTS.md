@@ -117,6 +117,10 @@ commands, runtime helpers, wiki tools, and command adapters.
   `permissions prime screen-capture` may request authorization and invoke the
   daemon-owned bounded probe; its output stays content-free and it never
   persists the setup frame.
+- `aos-see-native.mjs` owns the direct native perception wrapper. Its child
+  process is supervised asynchronously: parent cancellation must reach the
+  exact `__see` child, escalate after a bounded grace period, and never leave a
+  capture process orphaned.
 - `aos-wiki-put.mjs` owns bounded conditional wiki publication. It accepts only
   canonical Markdown paths and UTF-8 stdin, serializes writers, rejects
   symlinks, commits owner-only files atomically, and exposes hashes without
