@@ -13,6 +13,7 @@ const captureSource = read('src/commands/desktop-pixel-native-baseline-capture.s
 const hostSource = read('src/commands/desktop-pixel-native-baseline-host.swift');
 const metalSource = read('src/commands/desktop-pixel-native-baseline-metal.swift');
 const projectionSource = read('src/display/desktop-world-native-projection.swift');
+const geometrySource = read('src/display/desktop-world-native-sheet-geometry.swift');
 const sheetSource = read('src/display/desktop-world-native-sheet.swift');
 const identitySource = read('src/shared/desktop-world-resource-identity.swift');
 const surfaceSource = read('src/display/desktop-world-surface.swift');
@@ -22,6 +23,7 @@ const nativeSources = [
   hostSource,
   metalSource,
   projectionSource,
+  geometrySource,
   sheetSource,
   identitySource,
 ].join('\n');
@@ -103,13 +105,32 @@ test('DesktopWorld native sheet is AOS-owned and addressable through the existin
   assert.doesNotMatch(sheetSource, /ScreenCaptureKit|CVPixelBuffer|texture2d|fragment /);
 });
 
+test('native sheet uses one bounded tessellated geometry model across display segments', () => {
+  assert.match(geometrySource, /standard = DesktopWorldNativeSheetGeometryDescriptor\(columns: 64, rows: 64\)/);
+  assert.match(geometrySource, /maximumColumns = 128/);
+  assert.match(geometrySource, /maximumRows = 128/);
+  assert.match(geometrySource, /maximumSegments = 8/);
+  assert.match(geometrySource, /maximumGeometryBytes = 16 \* 1024 \* 1024/);
+  assert.match(geometrySource, /worldAndUV: SIMD4<Float>\(worldX, worldY, horizontal, vertical\)/);
+  assert.match(geometrySource, /device\.makeBuffer\(/);
+  assert.match(metalSource, /final class AOSDesktopPixelNativeBaselineGPUContext/);
+  assert.match(hostSource, /context: context/);
+  assert.match(metalSource, /encoder\.drawIndexedPrimitives\(/);
+  assert.doesNotMatch(metalSource, /drawPrimitives\(type: \.triangle, vertexStart: 0, vertexCount: 3\)/);
+  assert.match(commandSource, /sheetGeometryBytes: host\.geometryMetrics\.geometryBytes/);
+  assert.match(commandSource, /cleanup\.retainedGeometryBuffers == 0/);
+  assert.match(commandSource, /cleanup\.retainedGPUResources == 0/);
+});
+
 test('native baseline is bounded and disposes every retained resource', () => {
   assert.match(captureSource, /maximumDisplays = 8/);
   assert.match(captureSource, /maximumPixelsPerDisplay = 33_554_432/);
   assert.match(captureSource, /maximumAggregatePixels = 67_108_864/);
   assert.match(commandSource, /\(50\.\.\.5_000\)\.contains\(value\)/);
   assert.match(commandSource, /barrier\.wait\(timeoutMilliseconds: 2_000\)/);
-  assert.match(metalSource, /renderer\.clear\(\)/);
+  assert.match(metalSource, /renderer\.dispose\(\)/);
+  assert.match(metalSource, /mesh\.dispose\(\)/);
+  assert.match(hostSource, /context\.dispose\(\)/);
   assert.match(metalSource, /view\.delegate = nil/);
   assert.match(metalSource, /view\.removeFromSuperview\(\)/);
   assert.match(metalSource, /window\.contentView = nil/);

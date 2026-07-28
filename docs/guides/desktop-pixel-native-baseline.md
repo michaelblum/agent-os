@@ -17,9 +17,10 @@ Both modes:
 - uses only an existing Screen Recording grant and never requests permission;
 - keeps captured pixels in memory and emits content-free timing facts;
 - starts no daemon and uses no scene or desktop-pixel broker;
-- bounds display count, pixels, presentation time, and visible duration;
-- ignores pointer input and disposes streams, textures, views, and windows
-  before returning.
+- bounds display count, pixels, tessellated geometry, presentation time, and
+  visible duration;
+- ignores pointer input and disposes streams, textures, geometry buffers, GPU
+  pipeline resources, views, and windows before returning.
 
 Run it only at a supervised native checkpoint with the daemon and product
 consumers stopped:
@@ -48,9 +49,13 @@ the stable AOS-owned sheet address `io.agent-os::native-sheet/main`. The sheet
 is one logical DesktopWorld resource implemented by one coordinated native view
 per physical display; it is not a single cross-display AppKit window. The stage
 owns topology and windows, while the sheet owns only its native projection
-hosts. The proof resolves the exact address before presentation and must report
-zero installed sheets after cleanup. It still starts no daemon and creates no
-scene document or scene-protocol lease. Each native view is lazy,
+hosts and a preallocated 64-by-64 tessellated mesh per segment. Every mesh
+vertex carries its position in the shared DesktopWorld coordinate plane, so a
+future effect can remain coherent across segment boundaries without creating a
+second topology. The proof resolves the exact address before presentation and
+must report zero installed sheets, geometry buffers, textures, and shared GPU
+resources after cleanup. It still starts no daemon and creates no scene
+document or scene-protocol lease. Each native view is lazy,
 input-transparent, placed beneath WebKit, and retired by the existing canvas
 lifecycle coordinator.
 

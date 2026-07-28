@@ -7,9 +7,10 @@ final class DesktopWorldNativeSheet {
     static let ownerID = "io.agent-os"
     static let resourceID = "native-sheet/main"
 
-    struct Endpoint {
+    struct SegmentSheet {
         let displayID: CGDirectDisplayID
         let host: DesktopWorldNativeProjectionHost
+        let mesh: DesktopWorldNativeSheetMesh
         let segment: DesktopWorldSurfaceCanvas.Segment
     }
 
@@ -20,48 +21,79 @@ final class DesktopWorldNativeSheet {
         case disposed
     }
 
+    let geometryDescriptor: DesktopWorldNativeSheetGeometryDescriptor
     let identity: AOSDesktopWorldResourceIdentity
-    private(set) var endpoints: [Endpoint]
+    let metrics: DesktopWorldNativeSheetGeometryMetrics
+    private(set) var segmentSheets: [SegmentSheet]
     private(set) var state: State = .registered
 
-    init(segments: [DesktopWorldSurfaceCanvas.Segment], device: MTLDevice) throws {
+    init(
+        segments: [DesktopWorldSurfaceCanvas.Segment],
+        device: MTLDevice,
+        geometryDescriptor: DesktopWorldNativeSheetGeometryDescriptor
+    ) throws {
         identity = try AOSDesktopWorldResourceIdentity(
             ownerID: Self.ownerID,
             resourceID: Self.resourceID
         )
-        var created: [Endpoint] = []
+        self.geometryDescriptor = geometryDescriptor
+        metrics = try geometryDescriptor.metrics(segmentCount: segments.count)
+        var created: [SegmentSheet] = []
         do {
             for segment in segments {
-                created.append(Endpoint(
-                    displayID: segment.displayID,
-                    host: try segment.ensureNativeProjectionHost(device: device),
-                    segment: segment
-                ))
+                let host = try segment.ensureNativeProjectionHost(device: device)
+                do {
+                    let mesh = try DesktopWorldNativeSheetMesh(
+                        descriptor: geometryDescriptor,
+                        device: device,
+                        worldBounds: segment.dwBounds
+                    )
+                    created.append(SegmentSheet(
+                        displayID: segment.displayID,
+                        host: host,
+                        mesh: mesh,
+                        segment: segment
+                    ))
+                } catch {
+                    segment.removeNativeProjectionHost(host)
+                    throw error
+                }
             }
         } catch {
-            created.forEach { $0.segment.removeNativeProjectionHost($0.host) }
+            created.forEach {
+                $0.mesh.dispose()
+                $0.segment.removeNativeProjectionHost($0.host)
+            }
             throw error
         }
-        endpoints = created
+        segmentSheets = created
     }
 
     func present() {
         guard state != .disposed else { return }
-        endpoints.forEach { $0.host.present() }
+        segmentSheets.forEach { $0.host.present() }
         state = .active
     }
 
     func suspend() {
         guard state != .disposed else { return }
-        endpoints.forEach { $0.host.suspend() }
+        segmentSheets.forEach { $0.host.suspend() }
         state = .suspended
     }
 
     func dispose() {
         guard state != .disposed else { return }
         state = .disposed
-        endpoints.forEach { $0.segment.removeNativeProjectionHost($0.host) }
-        endpoints = []
+        segmentSheets.forEach {
+            $0.host.detachRenderer()
+            $0.mesh.dispose()
+            $0.segment.removeNativeProjectionHost($0.host)
+        }
+        segmentSheets = []
+    }
+
+    var retainedGeometryBufferCount: Int {
+        segmentSheets.reduce(0) { $0 + $1.mesh.retainedBufferCount }
     }
 }
 
@@ -74,17 +106,27 @@ final class DesktopWorldNativeSheetRegistry {
     }
 
     private let device: MTLDevice
+    private let geometryDescriptor: DesktopWorldNativeSheetGeometryDescriptor
     private let segments: [DesktopWorldSurfaceCanvas.Segment]
     private var installed: DesktopWorldNativeSheet?
 
-    init(segments: [DesktopWorldSurfaceCanvas.Segment], device: MTLDevice) {
+    init(
+        segments: [DesktopWorldSurfaceCanvas.Segment],
+        device: MTLDevice,
+        geometryDescriptor: DesktopWorldNativeSheetGeometryDescriptor = .standard
+    ) {
         self.segments = segments
         self.device = device
+        self.geometryDescriptor = geometryDescriptor
     }
 
     func install() throws -> DesktopWorldNativeSheet {
         guard installed == nil else { throw RegistryError.occupied }
-        let sheet = try DesktopWorldNativeSheet(segments: segments, device: device)
+        let sheet = try DesktopWorldNativeSheet(
+            segments: segments,
+            device: device,
+            geometryDescriptor: geometryDescriptor
+        )
         installed = sheet
         return sheet
     }

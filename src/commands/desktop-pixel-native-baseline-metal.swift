@@ -15,26 +15,27 @@ using namespace metal;
 struct VertexOut {
     float4 position [[position]];
     float2 uv;
+    float2 worldPosition;
+};
+
+struct NativeSheetVertex {
+    float4 clipPosition;
+    float4 worldAndUV;
 };
 
 struct Uniforms {
     float inverted;
 };
 
-vertex VertexOut desktopPixelBaselineVertex(uint vertexID [[vertex_id]]) {
-    const float2 positions[3] = {
-        float2(-1.0, -1.0),
-        float2( 3.0, -1.0),
-        float2(-1.0,  3.0)
-    };
-    const float2 uvs[3] = {
-        float2(0.0, 1.0),
-        float2(2.0, 1.0),
-        float2(0.0, -1.0)
-    };
+vertex VertexOut desktopPixelBaselineVertex(
+    const device NativeSheetVertex *vertices [[buffer(0)]],
+    uint vertexID [[vertex_id]]
+) {
+    NativeSheetVertex vertex = vertices[vertexID];
     VertexOut output;
-    output.position = float4(positions[vertexID], 0.0, 1.0);
-    output.uv = uvs[vertexID];
+    output.position = vertex.clipPosition;
+    output.worldPosition = vertex.worldAndUV.xy;
+    output.uv = vertex.worldAndUV.zw;
     return output;
 }
 
@@ -57,18 +58,13 @@ private struct AOSDesktopPixelNativeBaselineUniforms {
 }
 
 @MainActor
-final class AOSDesktopPixelNativeBaselineRenderer: NSObject, MTKViewDelegate {
-    private let commandQueue: MTLCommandQueue
-    private let pipeline: MTLRenderPipelineState
-    private let textureCache: CVMetalTextureCache
-    private var retainedCVTexture: CVMetalTexture?
-    private var retainedPixelBuffer: CVPixelBuffer?
-    private var texture: MTLTexture?
-    private var presentation: AOSDesktopPixelNativeBaselinePresentation = .identity
-    var onPresented: (() -> Void)?
+final class AOSDesktopPixelNativeBaselineGPUContext {
+    private(set) var commandQueue: MTLCommandQueue?
+    private(set) var pipeline: MTLRenderPipelineState?
+    private(set) var textureCache: CVMetalTextureCache?
 
-    init(view: MTKView) throws {
-        guard let device = view.device, let commandQueue = device.makeCommandQueue() else {
+    init(device: MTLDevice, pixelFormat: MTLPixelFormat) throws {
+        guard let commandQueue = device.makeCommandQueue() else {
             throw AOSDesktopPixelNativeBaselineFailure(code: "DESKTOP_PIXEL_BASELINE_METAL_UNAVAILABLE")
         }
         self.commandQueue = commandQueue
@@ -80,7 +76,7 @@ final class AOSDesktopPixelNativeBaselineRenderer: NSObject, MTKViewDelegate {
         let descriptor = MTLRenderPipelineDescriptor()
         descriptor.vertexFunction = vertex
         descriptor.fragmentFunction = fragment
-        descriptor.colorAttachments[0].pixelFormat = view.colorPixelFormat
+        descriptor.colorAttachments[0].pixelFormat = pixelFormat
         pipeline = try device.makeRenderPipelineState(descriptor: descriptor)
 
         var cache: CVMetalTextureCache?
@@ -92,6 +88,39 @@ final class AOSDesktopPixelNativeBaselineRenderer: NSObject, MTKViewDelegate {
             )
         }
         textureCache = cache
+    }
+
+    func dispose() {
+        if let textureCache { CVMetalTextureCacheFlush(textureCache, 0) }
+        textureCache = nil
+        pipeline = nil
+        commandQueue = nil
+    }
+
+    var retainedResourceCount: Int {
+        (commandQueue == nil ? 0 : 1)
+            + (pipeline == nil ? 0 : 1)
+            + (textureCache == nil ? 0 : 1)
+    }
+}
+
+@MainActor
+final class AOSDesktopPixelNativeBaselineRenderer: NSObject, MTKViewDelegate {
+    private let context: AOSDesktopPixelNativeBaselineGPUContext
+    private let mesh: DesktopWorldNativeSheetMesh
+    private var retainedCVTexture: CVMetalTexture?
+    private var retainedPixelBuffer: CVPixelBuffer?
+    private var texture: MTLTexture?
+    private var presentation: AOSDesktopPixelNativeBaselinePresentation = .identity
+    var onPresented: (() -> Void)?
+
+    init(
+        view: MTKView,
+        context: AOSDesktopPixelNativeBaselineGPUContext,
+        mesh: DesktopWorldNativeSheetMesh
+    ) {
+        self.context = context
+        self.mesh = mesh
         super.init()
         view.delegate = self
     }
@@ -100,7 +129,10 @@ final class AOSDesktopPixelNativeBaselineRenderer: NSObject, MTKViewDelegate {
         _ frame: AOSDesktopPixelNativeBaselineFrame,
         presentation: AOSDesktopPixelNativeBaselinePresentation
     ) throws {
-        clear()
+        clearFrame()
+        guard let textureCache = context.textureCache else {
+            throw AOSDesktopPixelNativeBaselineFailure(code: "DESKTOP_PIXEL_BASELINE_RENDERER_DISPOSED")
+        }
         let width = CVPixelBufferGetWidth(frame.pixelBuffer)
         let height = CVPixelBufferGetHeight(frame.pixelBuffer)
         var cvTexture: CVMetalTexture?
@@ -129,12 +161,15 @@ final class AOSDesktopPixelNativeBaselineRenderer: NSObject, MTKViewDelegate {
         self.presentation = presentation
     }
 
-    func clear() {
+    func clearFrame() {
         onPresented = nil
         texture = nil
         retainedCVTexture = nil
         retainedPixelBuffer = nil
-        CVMetalTextureCacheFlush(textureCache, 0)
+    }
+
+    func dispose() {
+        clearFrame()
     }
 
     func retainedTextureCount() -> Int {
@@ -145,6 +180,10 @@ final class AOSDesktopPixelNativeBaselineRenderer: NSObject, MTKViewDelegate {
 
     func draw(in view: MTKView) {
         guard let texture,
+              let vertexBuffer = mesh.vertexBuffer,
+              let indexBuffer = mesh.indexBuffer,
+              let commandQueue = context.commandQueue,
+              let pipeline = context.pipeline,
               let descriptor = view.currentRenderPassDescriptor,
               let drawable = view.currentDrawable,
               let commandBuffer = commandQueue.makeCommandBuffer(),
@@ -155,13 +194,20 @@ final class AOSDesktopPixelNativeBaselineRenderer: NSObject, MTKViewDelegate {
             inverted: presentation == .inverted ? 1 : 0
         )
         encoder.setRenderPipelineState(pipeline)
+        encoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
         encoder.setFragmentTexture(texture, index: 0)
         encoder.setFragmentBytes(
             &uniforms,
             length: MemoryLayout<AOSDesktopPixelNativeBaselineUniforms>.stride,
             index: 0
         )
-        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        encoder.drawIndexedPrimitives(
+            type: .triangle,
+            indexCount: mesh.indexCount,
+            indexType: .uint32,
+            indexBuffer: indexBuffer,
+            indexBufferOffset: 0
+        )
         encoder.endEncoding()
         if let callback = onPresented {
             onPresented = nil
@@ -186,10 +232,17 @@ private final class AOSDesktopPixelNativeBaselineWindow: NSWindow {
 final class AOSDesktopPixelNativeBaselineSurface: AOSDesktopPixelNativeBaselineEndpoint {
     let displayID: CGDirectDisplayID
     let renderer: AOSDesktopPixelNativeBaselineRenderer
+    let mesh: DesktopWorldNativeSheetMesh
     let view: MTKView
     let window: NSWindow
 
-    init(screen: NSScreen, displayID: CGDirectDisplayID, device: MTLDevice) throws {
+    init(
+        screen: NSScreen,
+        displayID: CGDirectDisplayID,
+        device: MTLDevice,
+        context: AOSDesktopPixelNativeBaselineGPUContext,
+        geometryDescriptor: DesktopWorldNativeSheetGeometryDescriptor
+    ) throws {
         self.displayID = displayID
         let backingPixels = Int(screen.frame.width * screen.backingScaleFactor)
             * Int(screen.frame.height * screen.backingScaleFactor)
@@ -208,7 +261,16 @@ final class AOSDesktopPixelNativeBaselineSurface: AOSDesktopPixelNativeBaselineE
         view.framebufferOnly = true
         view.isPaused = true
         self.view = view
-        renderer = try AOSDesktopPixelNativeBaselineRenderer(view: view)
+        mesh = try DesktopWorldNativeSheetMesh(
+            descriptor: geometryDescriptor,
+            device: device,
+            worldBounds: screen.frame
+        )
+        renderer = AOSDesktopPixelNativeBaselineRenderer(
+            view: view,
+            context: context,
+            mesh: mesh
+        )
 
         let window = AOSDesktopPixelNativeBaselineWindow(
             contentRect: screen.frame,
@@ -250,7 +312,8 @@ final class AOSDesktopPixelNativeBaselineSurface: AOSDesktopPixelNativeBaselineE
 
     func dispose() {
         window.orderOut(nil)
-        renderer.clear()
+        renderer.dispose()
+        mesh.dispose()
         view.delegate = nil
         view.removeFromSuperview()
         window.contentView = nil
@@ -263,6 +326,10 @@ final class AOSDesktopPixelNativeBaselineSurface: AOSDesktopPixelNativeBaselineE
 
     func retainedTextureCount() -> Int {
         renderer.retainedTextureCount()
+    }
+
+    func retainedGeometryBufferCount() -> Int {
+        mesh.retainedBufferCount
     }
 
     func retainedWindowCount() -> Int {

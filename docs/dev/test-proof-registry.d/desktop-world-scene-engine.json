@@ -40,14 +40,15 @@
       "id": "desktop-pixel-native-baseline-contract",
       "path_patterns": [
         "tests/desktop-pixel-native-baseline.test.mjs",
-        "tests/desktop-pixel-native-baseline-typecheck.sh"
+        "tests/desktop-pixel-native-baseline-typecheck.sh",
+        "tests/lib/desktop-world-native-sheet-geometry-tests.swift"
       ],
       "fixture_patterns": [],
       "owner": "desktop-world-rendering",
       "harness_level": "model_unit",
       "proof_kind": "desktop_pixel_native_baseline_contract",
-      "contract": "The explicit foreground proof retains the direct ScreenCaptureKit-to-Metal data path in both its standalone control and its AOS-owned DesktopWorld native sheet, with bounded display and pixel budgets, exact sheet lookup, content-free reporting, and deterministic in-memory cleanup without using the daemon capture stack.",
-      "worth": "This preserves a minimal known-working native control and verifies that DesktopWorld topology, window ownership, and an addressable AOS sheet can be added without changing capture or rendering.",
+      "contract": "The explicit foreground proof retains the direct ScreenCaptureKit-to-Metal data path in both its standalone control and its AOS-owned DesktopWorld native sheet, with bounded display, pixel, tessellated-geometry, and GPU-resource budgets, exact sheet lookup, content-free reporting, and deterministic in-memory cleanup without using the daemon capture stack.",
+      "worth": "This preserves a minimal known-working native control and verifies that DesktopWorld topology, window ownership, an addressable AOS sheet, and deformable screen-space geometry can be added without changing capture ownership.",
       "command": "node --test tests/desktop-pixel-native-baseline.test.mjs && bash tests/desktop-pixel-native-baseline-typecheck.sh",
       "replaces": [],
       "guard": "source-contract assertions, a fake executable adapter, and full Swift integration typechecking only; no AOS binary, daemon socket, GUI, TCC, ScreenCaptureKit invocation, or live display",

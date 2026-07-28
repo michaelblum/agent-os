@@ -78,6 +78,9 @@ private struct AOSDesktopPixelNativeBaselineSummary: Encodable {
     let sheetOwner: String?
     let sheetResource: String?
     let sheetAddressed: Bool
+    let sheetGeometryBytes: Int
+    let sheetTriangleCount: Int
+    let sheetVertexCount: Int
     let queueDepth = AOSDesktopPixelNativeBaselineCapture.queueDepth
     let presentation: AOSDesktopPixelNativeBaselinePresentation
     let warmupMilliseconds: Double?
@@ -90,6 +93,8 @@ private struct AOSDesktopPixelNativeBaselineSummary: Encodable {
     let brokerUsed = false
     let sceneProtocolUsed = false
     var retainedFramesAfterCleanup: Int
+    var retainedGeometryBuffersAfterCleanup: Int
+    var retainedGPUResourcesAfterCleanup: Int
     var pendingRetirementsAfterCleanup: Int
     var sheetsAfterCleanup: Int
     var retainedTexturesAfterCleanup: Int
@@ -108,6 +113,9 @@ private struct AOSDesktopPixelNativeBaselineSummary: Encodable {
         case sheetOwner = "sheet_owner"
         case sheetResource = "sheet_resource"
         case sheetAddressed = "sheet_addressed"
+        case sheetGeometryBytes = "sheet_geometry_bytes"
+        case sheetTriangleCount = "sheet_triangle_count"
+        case sheetVertexCount = "sheet_vertex_count"
         case queueDepth = "queue_depth"
         case presentation
         case warmupMilliseconds = "warmup_ms"
@@ -120,6 +128,8 @@ private struct AOSDesktopPixelNativeBaselineSummary: Encodable {
         case brokerUsed = "broker_used"
         case sceneProtocolUsed = "scene_protocol_used"
         case retainedFramesAfterCleanup = "retained_frames_after_cleanup"
+        case retainedGeometryBuffersAfterCleanup = "retained_geometry_buffers_after_cleanup"
+        case retainedGPUResourcesAfterCleanup = "retained_gpu_resources_after_cleanup"
         case pendingRetirementsAfterCleanup = "pending_retirements_after_cleanup"
         case sheetsAfterCleanup = "sheets_after_cleanup"
         case retainedTexturesAfterCleanup = "retained_textures_after_cleanup"
@@ -270,12 +280,17 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
                 sheetOwner: host.sheetIdentity?.ownerID,
                 sheetResource: host.sheetIdentity?.resourceID,
                 sheetAddressed: host.sheetIdentity != nil,
+                sheetGeometryBytes: host.geometryMetrics.geometryBytes,
+                sheetTriangleCount: host.geometryMetrics.triangleCount,
+                sheetVertexCount: host.geometryMetrics.vertexCount,
                 presentation: options.presentation,
                 warmupMilliseconds: milliseconds(warmupFinished - warmupStarted),
                 triggerToVisibleMilliseconds: milliseconds(lastPresented - triggered),
                 presentationSkewMilliseconds: milliseconds(lastPresented - firstPresented),
                 oldestFrameAgeMilliseconds: milliseconds(lastPresented - oldestFrame),
                 retainedFramesAfterCleanup: 0,
+                retainedGeometryBuffersAfterCleanup: 0,
+                retainedGPUResourcesAfterCleanup: 0,
                 pendingRetirementsAfterCleanup: 0,
                 sheetsAfterCleanup: 0,
                 retainedTexturesAfterCleanup: 0,
@@ -304,8 +319,11 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
         let hostKind = activeHost?.kind ?? options.host
         let canvasGeneration = activeHost?.canvasGeneration
         let topologyGeneration = activeHost?.topologyGeneration
+        let geometryMetrics = activeHost?.geometryMetrics
         let cleanup = await activeHost?.dispose() ?? AOSDesktopPixelNativeBaselineHostCleanup(
             pendingRetirements: 0,
+            retainedGeometryBuffers: 0,
+            retainedGPUResources: 0,
             retainedSheets: 0,
             retainedTextures: 0,
             retainedViews: 0,
@@ -319,12 +337,16 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
 
         if var success,
            retainedFramesAfterCleanup == 0,
+           cleanup.retainedGeometryBuffers == 0,
+           cleanup.retainedGPUResources == 0,
            cleanup.pendingRetirements == 0,
            cleanup.retainedSheets == 0,
            cleanup.retainedTextures == 0,
            cleanup.retainedViews == 0,
            cleanup.retainedWindows == 0 {
             success.retainedFramesAfterCleanup = retainedFramesAfterCleanup
+            success.retainedGeometryBuffersAfterCleanup = cleanup.retainedGeometryBuffers
+            success.retainedGPUResourcesAfterCleanup = cleanup.retainedGPUResources
             success.pendingRetirementsAfterCleanup = cleanup.pendingRetirements
             success.sheetsAfterCleanup = cleanup.retainedSheets
             success.retainedTexturesAfterCleanup = cleanup.retainedTextures
@@ -354,12 +376,17 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
                 sheetOwner: activeHost?.sheetIdentity?.ownerID,
                 sheetResource: activeHost?.sheetIdentity?.resourceID,
                 sheetAddressed: activeHost?.sheetIdentity != nil,
+                sheetGeometryBytes: geometryMetrics?.geometryBytes ?? 0,
+                sheetTriangleCount: geometryMetrics?.triangleCount ?? 0,
+                sheetVertexCount: geometryMetrics?.vertexCount ?? 0,
                 presentation: options.presentation,
                 warmupMilliseconds: nil,
                 triggerToVisibleMilliseconds: nil,
                 presentationSkewMilliseconds: nil,
                 oldestFrameAgeMilliseconds: nil,
                 retainedFramesAfterCleanup: retainedFramesAfterCleanup,
+                retainedGeometryBuffersAfterCleanup: cleanup.retainedGeometryBuffers,
+                retainedGPUResourcesAfterCleanup: cleanup.retainedGPUResources,
                 pendingRetirementsAfterCleanup: cleanup.pendingRetirements,
                 sheetsAfterCleanup: cleanup.retainedSheets,
                 retainedTexturesAfterCleanup: cleanup.retainedTextures,

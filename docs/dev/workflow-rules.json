@@ -272,6 +272,7 @@
       "patterns": [
         "src/commands/desktop-pixel-native-baseline*.swift",
         "src/display/desktop-world-native-projection*.swift",
+        "src/display/desktop-world-native-sheet-geometry.swift",
         "src/display/desktop-world-native-sheet.swift",
         "src/shared/desktop-world-resource-identity.swift",
         "src/main.swift"
@@ -308,7 +309,8 @@
         "manifests/commands/source/external/10-runtime.json",
         "docs/guides/desktop-pixel-native-baseline.md",
         "tests/desktop-pixel-native-baseline.test.mjs",
-        "tests/desktop-pixel-native-baseline-typecheck.sh"
+        "tests/desktop-pixel-native-baseline-typecheck.sh",
+        "tests/lib/desktop-world-native-sheet-geometry-tests.swift"
       ],
       "classes": [
         "native_pixel_baseline",
@@ -358,6 +360,7 @@
         "src/display/canvas.swift",
         "src/display/desktop-world-surface.swift",
         "src/display/desktop-world-native-projection.swift",
+        "src/display/desktop-world-native-sheet-geometry.swift",
         "src/display/desktop-world-native-sheet.swift",
         "src/shared/desktop-world-resource-identity.swift",
         "src/display/desktop-frame-texture.swift",
