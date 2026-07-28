@@ -97,12 +97,12 @@ topology, stage-window, or stage loss. Runtime freezes require
 the exact generation-bound pool configuration and never cold-start
 ScreenCaptureKit. The capture controller gets
 ordered consumers and excluded stage windows from one main-thread context
-snapshot used for both prewarming and interaction. One-shot consent probes
-deliver a frozen encoded frame
-before asynchronous stream retirement settles; the broker remains closed until
-native retirement is acknowledged. Delegate-observed and explicit
-ScreenCaptureKit terminal states count as retirement. A successful explicit
-stop is latched so repeated cleanup is idempotent; unknown stop failures remain
+snapshot used for both prewarming and interaction. One-shot consent probes use
+the broker's bounded still-snapshot path. Runtime warm freezes deliver an
+encoded frame before asynchronous stream retirement settles; the broker remains
+closed until native retirement is acknowledged. Delegate-observed and explicit
+ScreenCaptureKit terminal states count as retirement. A successful explicit stop
+is latched so repeated cleanup is idempotent; unknown stop failures remain
 fail-closed.
 When the delegate reports a terminal error before Apple's startup callback,
 retain the delegate error as authoritative and settle the retained native
@@ -122,15 +122,14 @@ capture, in-memory handle storage, per-segment decode readiness, and
 acknowledged presentation form one bounded request aggregate with one deadline.
 `desktop-frame-capture-consent.swift` separately owns process-lifetime direct
 capture consent. Passive status never calls ScreenCaptureKit; only the explicit
-permissions-prime action may request macOS screen-capture authorization and
-probe it through the same warm-snapshot path as runtime capture. A timed-out
-probe remains quarantined until the broker acknowledges retirement, then allows
-later explicit retry without admitting overlap. If ScreenCaptureKit reports one
-`failedApplicationConnectionInterrupted` during an explicit prime, retire the
-probe completely and retry it exactly once. A repeated interruption fails
-closed; runtime interaction never owns this prime-specific retry. Every prime
-deadline is bound to the exact attempt token so an already-running superseded
-timer cannot settle a later attempt. The non-interruptible
+permissions-prime action may request macOS screen-capture authorization. The
+prime uses one bounded in-memory `SCScreenshotManager` snapshot through the
+shared broker and discards it immediately; it does not cold-start the
+DesktopWorld warm stream before stage surfaces exist. A timed-out probe remains
+quarantined until the broker acknowledges settlement, then allows later
+explicit retry without admitting overlap. Every prime deadline is bound to the
+exact attempt token so an already-running superseded timer cannot settle a later
+attempt. The non-interruptible
 authorization request runs on a dedicated serial worker so AppKit remains
 responsive, while its bounded deadline remains independent of that worker.
 Runtime capture must

@@ -163,9 +163,13 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
     /base64|CGImageDestination|write\s*\(/iu,
   )
   assert.match(adapter, /CGImageDestinationCreateWithData/u)
-  assert.match(adapter, /performRetirement\(action\)[\s\S]*completion\(result\)/u)
+  assert.match(adapter, /return broker\.snapshot\(request\)/u)
+  assert.doesNotMatch(
+    adapter,
+    /oneShotWarmSnapshot|AOSDesktopFrameWarmSnapshotOperation/u,
+  )
   assert.match(daemon, /private let desktopPixelBroker = AOSDesktopPixelBroker\(\)/u)
-  assert.match(daemon, /desktopFrameProbeCapturer[\s\S]*strategy: \.oneShotWarmSnapshot/u)
+  assert.match(daemon, /desktopFrameProbeCapturer[\s\S]*strategy: \.snapshot/u)
   assert.match(daemon, /preflightPermission: \{ CGPreflightScreenCaptureAccess\(\) \}/u)
   assert.match(daemon, /desktopFrameCapturer[\s\S]*strategy: \.prewarmedSnapshot/u)
   assert.match(daemon, /desktopFrameTextureAuthorization/u)

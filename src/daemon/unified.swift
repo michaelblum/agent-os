@@ -131,7 +131,7 @@ class UnifiedDaemon {
     private let desktopPixelBroker = AOSDesktopPixelBroker()
     private lazy var desktopFrameProbeCapturer = AOSNativeDesktopFrameCapturer(
         broker: desktopPixelBroker,
-        strategy: .oneShotWarmSnapshot
+        strategy: .snapshot
     )
     private lazy var desktopFrameCapturer = AOSNativeDesktopFrameCapturer(
         broker: desktopPixelBroker,
