@@ -144,9 +144,12 @@ final class AOSDesktopWorldNativeRippleRenderer: NSObject, MTKViewDelegate {
     private var completed = false
     private var retainedCVTexture: CVMetalTexture?
     private var retainedPixelBuffer: CVPixelBuffer?
+    private var presentationReported = false
     private let startedAt: TimeInterval
     private var texture: MTLTexture?
     var onComplete: (() -> Void)?
+    var onFailure: ((String) -> Void)?
+    var onPresented: (() -> Void)?
 
     init(
         view: MTKView,
@@ -196,6 +199,8 @@ final class AOSDesktopWorldNativeRippleRenderer: NSObject, MTKViewDelegate {
 
     func dispose(view: MTKView) {
         onComplete = nil
+        onFailure = nil
+        onPresented = nil
         view.isPaused = true
         view.enableSetNeedsDisplay = true
         if view.delegate === self { view.delegate = nil }
@@ -216,8 +221,12 @@ final class AOSDesktopWorldNativeRippleRenderer: NSObject, MTKViewDelegate {
             view.isPaused = true
             if !completed {
                 completed = true
-                let callback = onComplete
+                let callback = presentationReported ? onComplete : nil
+                let failure = presentationReported ? nil : onFailure
                 onComplete = nil
+                onFailure = nil
+                onPresented = nil
+                failure?("NATIVE_EFFECT_NO_PRESENTED_FRAME")
                 callback?()
             }
             return
@@ -264,8 +273,40 @@ final class AOSDesktopWorldNativeRippleRenderer: NSObject, MTKViewDelegate {
             indexBufferOffset: 0
         )
         encoder.endEncoding()
+        if !presentationReported {
+            drawable.addPresentedHandler { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.markPresented()
+                }
+            }
+        }
+        commandBuffer.addCompletedHandler { [weak self] completedBuffer in
+            guard completedBuffer.status == .error else { return }
+            DispatchQueue.main.async {
+                self?.fail("NATIVE_EFFECT_COMMAND_BUFFER_FAILED", view: view)
+            }
+        }
         commandBuffer.present(drawable)
         commandBuffer.commit()
+    }
+
+    private func markPresented() {
+        guard !completed, !presentationReported else { return }
+        presentationReported = true
+        let callback = onPresented
+        onPresented = nil
+        callback?()
+    }
+
+    private func fail(_ code: String, view: MTKView) {
+        guard !completed else { return }
+        completed = true
+        view.isPaused = true
+        let callback = onFailure
+        onComplete = nil
+        onFailure = nil
+        onPresented = nil
+        callback?(code)
     }
 }
 
@@ -314,11 +355,28 @@ final class AOSDesktopWorldNativeRippleRuntime {
         }
     }
 
-    func present(onComplete: @escaping () -> Void) {
+    func present(
+        onPresented: @escaping () -> Void,
+        onFailure: @escaping (String) -> Void,
+        onComplete: @escaping () -> Void
+    ) {
         guard !disposed, !renderers.isEmpty else { return }
+        var failed = false
+        var remainingPresentations = renderers.count
         var remaining = renderers.count
         for renderer in renderers.values {
+            renderer.onPresented = {
+                guard !failed else { return }
+                remainingPresentations -= 1
+                if remainingPresentations == 0 { onPresented() }
+            }
+            renderer.onFailure = { code in
+                guard !failed else { return }
+                failed = true
+                onFailure(code)
+            }
             renderer.onComplete = {
+                guard !failed else { return }
                 remaining -= 1
                 if remaining == 0 { onComplete() }
             }

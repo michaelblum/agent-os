@@ -157,6 +157,16 @@ function stageSnapshot(overrides = {}) {
         generation: 4,
         state: 'ready',
       },
+      nativeEffect: {
+        acceptedCount: 2,
+        attemptedCount: 3,
+        completedCount: 1,
+        failedCount: 1,
+        lastErrorCode: 'NATIVE_EFFECT_CAPTURE_TIMEOUT',
+        presentedCount: 1,
+        rejectedCount: 1,
+        state: 'ready',
+      },
     },
     world: {
       displays: [
@@ -211,6 +221,16 @@ test('DesktopWorld DevTools stage normalization is strict, bounded, and content-
     generation: 4,
     state: 'ready',
   });
+  assert.deepEqual(normalized.native.nativeEffect, {
+    acceptedCount: 2,
+    attemptedCount: 3,
+    completedCount: 1,
+    failedCount: 1,
+    lastErrorCode: 'NATIVE_EFFECT_CAPTURE_TIMEOUT',
+    presentedCount: 1,
+    rejectedCount: 1,
+    state: 'ready',
+  });
 });
 
 test('DesktopWorld DevTools bounds native warm status without exposing capture content', () => {
@@ -223,6 +243,17 @@ test('DesktopWorld DevTools bounds native warm status without exposing capture c
         state: 'unknown',
         pixels: 'not allowed',
       },
+      nativeEffect: {
+        acceptedCount: -1,
+        attemptedCount: 1e12,
+        completedCount: 2,
+        failedCount: 3,
+        lastErrorCode: 'y'.repeat(100),
+        parameters: 'not allowed',
+        presentedCount: 4,
+        rejectedCount: 5,
+        state: 'unknown',
+      },
       frame: 'not allowed',
     },
   }));
@@ -233,6 +264,16 @@ test('DesktopWorld DevTools bounds native warm status without exposing capture c
       errorCode: 'x'.repeat(64),
       generation: 0,
       state: 'idle',
+    },
+    nativeEffect: {
+      acceptedCount: 0,
+      attemptedCount: 1e9,
+      completedCount: 2,
+      failedCount: 3,
+      lastErrorCode: 'y'.repeat(64),
+      presentedCount: 4,
+      rejectedCount: 5,
+      state: 'unavailable',
     },
   });
 });

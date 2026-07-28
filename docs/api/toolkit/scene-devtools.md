@@ -58,15 +58,19 @@ nodes, hit regions, affordances, gestures, routes, allocations, interactions,
 performance, events, counters, and last-error facts. Text, prompts, audio,
 scene parameters, and desktop content are excluded.
 
-At each inspection read, the daemon adds `native.desktopFrameWarm` to that
-snapshot with only `state`, `displayCount`, `generation`, and a redacted
-`errorCode`. The browser does not author or cache these native facts. A consumer
-that needs low-latency desktop textures should wait for `state: "ready"` before
-triggering an effect. Active hosts receive bounded warm-state transitions
-without polling or another frame sampler. Reading this status does not start
-capture or request permission, and the snapshot never contains pixels, handles,
-paths, frame timestamps, or desktop facts. Browser-authored snapshots omit the
-native field until the daemon adds authoritative facts.
+At each inspection read, the daemon adds `native.desktopFrameWarm` and
+`native.nativeEffect`. Warm state contains only `state`, `displayCount`,
+`generation`, and a redacted `errorCode`. Native-effect state contains only its
+lifecycle state, bounded attempt/admission/presentation/completion/failure
+counters, and one redacted error code. The browser does not author or cache
+these native facts. A consumer that needs low-latency desktop textures should
+wait for warm `state: "ready"` before triggering an effect. Reading these facts
+does not start capture or request permission, and the snapshot never contains
+pixels, handles, paths, parameters, frame timestamps, or desktop facts.
+Browser-authored snapshots omit the native field until the daemon adds
+authoritative facts. `presentedCount` advances only after every display segment
+reports an actual Metal drawable presentation, not when presentation is merely
+requested.
 
 Displays include DesktopWorld-local `bounds` and optional native global
 `nativeBounds`. Native input translation must require `nativeBounds`; it must

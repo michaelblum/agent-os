@@ -21,6 +21,16 @@ export interface DesktopWorldDevToolsStageSnapshot {
       generation: number;
       state: 'failed' | 'idle' | 'ready' | 'retiring' | 'warming';
     }>;
+    nativeEffect: Readonly<{
+      acceptedCount: number;
+      attemptedCount: number;
+      completedCount: number;
+      failedCount: number;
+      lastErrorCode: string | null;
+      presentedCount: number;
+      rejectedCount: number;
+      state: 'capturing' | 'installing' | 'preparing' | 'presenting' | 'ready' | 'retiring' | 'stopped' | 'unavailable';
+    }>;
   }>;
   world: {
     displays: ReadonlyArray<Readonly<{

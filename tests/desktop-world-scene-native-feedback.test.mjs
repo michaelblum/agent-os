@@ -547,6 +547,21 @@ enum AOSDesktopPixelLimits {
     static let interactiveMaximumPixelsPerDisplay = 1_048_576
 }
 
+enum AOSDesktopFrameCaptureFailure: Error {
+    case captureFailed
+    var code: String { "DESKTOP_FRAME_CAPTURE_FAILED" }
+}
+
+enum DesktopWorldNativeSheetFailure: Error {
+    case frameSetIncomplete
+    case geometryAllocationFailed
+    case geometryBudgetExceeded
+    case invalidGeometry
+    case projectionOccupied
+    case rendererUnavailable
+    case textureUnavailable
+}
+
 protocol AOSDesktopFrameCancelling { func cancel() }
 final class AOSDesktopFrameCancellation: AOSDesktopFrameCancelling {
     var canceled = false
@@ -609,15 +624,45 @@ final class Capturer: AOSDesktopPixelFrameSetCapturing {
             frames: [AOSDesktopPixelFrame(displayID: 7), AOSDesktopPixelFrame(displayID: 9)]
         )))
     }
+    func failNext() {
+        pending.removeFirst()(.failure(AOSDesktopFrameCaptureFailure.captureFailed))
+    }
 }
 
 @MainActor
 final class Runtime: AOSDesktopWorldNativeFeedbackRuntime {
     var completion: (() -> Void)?
     var disposed = false
-    func present(onComplete: @escaping () -> Void) { completion = onComplete }
-    func dispose() { disposed = true; completion = nil }
-    func complete() { let value = completion; completion = nil; value?() }
+    var failure: ((String) -> Void)?
+    var presentation: (() -> Void)?
+    func present(
+        onPresented: @escaping () -> Void,
+        onFailure: @escaping (String) -> Void,
+        onComplete: @escaping () -> Void
+    ) {
+        presentation = onPresented
+        failure = onFailure
+        completion = onComplete
+    }
+    func dispose() {
+        disposed = true
+        completion = nil
+        failure = nil
+        presentation = nil
+    }
+    func complete() {
+        let presented = presentation
+        presentation = nil
+        presented?()
+        let value = completion
+        completion = nil
+        value?()
+    }
+    func completeWithoutPresentation() {
+        let value = completion
+        completion = nil
+        value?()
+    }
 }
 
 final class Host: AOSDesktopWorldNativeFeedbackHosting {
@@ -628,6 +673,7 @@ final class Host: AOSDesktopWorldNativeFeedbackHosting {
         topologyGeneration: 4
     )
     @MainActor var installCount = 0
+    @MainActor var installFailure: DesktopWorldNativeSheetFailure?
     @MainActor var onInstall: (() -> Void)?
     @MainActor var prepareCount = 0
     @MainActor var prepareFails = false
@@ -645,6 +691,7 @@ final class Host: AOSDesktopWorldNativeFeedbackHosting {
         frames: AOSDesktopPixelFrameSet
     ) throws -> AOSDesktopWorldNativeFeedbackInstallation {
         installCount += 1
+        if let installFailure { throw installFailure }
         let runtime = Runtime()
         runtimes.append(runtime)
         onInstall?()
@@ -700,22 +747,48 @@ let controller = AOSDesktopWorldNativeFeedbackController(
 
 precondition(!controller.trigger(request))
 precondition(capturer.pending.isEmpty)
+var feedback = controller.snapshot()
+precondition(feedback.attemptedCount == 1)
+precondition(feedback.rejectedCount == 1)
+precondition(feedback.lastErrorCode == "NATIVE_EFFECT_UNAVAILABLE")
+precondition(feedback.state == "unavailable")
 controller.reconcileAvailability(true)
 pumpUntil { MainActor.assumeIsolated { host.prepareCount == 1 } }
+precondition(controller.snapshot().state == "ready")
 precondition(controller.trigger(request))
 precondition(!controller.trigger(request))
+feedback = controller.snapshot()
+precondition(feedback.acceptedCount == 1)
+precondition(feedback.rejectedCount == 2)
+precondition(feedback.lastErrorCode == "NATIVE_EFFECT_BUSY")
 capturer.completeNext()
 pumpUntil { MainActor.assumeIsolated { host.installCount == 1 } }
 MainActor.assumeIsolated { host.runtimes.last?.complete() }
 pumpUntil { MainActor.assumeIsolated { host.removeCount == 1 } }
+feedback = controller.snapshot()
+precondition(feedback.completedCount == 1)
+precondition(feedback.presentedCount == 1)
+precondition(feedback.lastErrorCode == nil)
+precondition(feedback.state == "ready")
+
+precondition(controller.trigger(request))
+capturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { host.installCount == 2 } }
+MainActor.assumeIsolated { host.runtimes.last?.completeWithoutPresentation() }
+pumpUntil { MainActor.assumeIsolated { host.removeCount == 2 } }
+feedback = controller.snapshot()
+precondition(feedback.failedCount == 1)
+precondition(
+    feedback.lastErrorCode == "NATIVE_EFFECT_COMPLETED_WITHOUT_PRESENTATION"
+)
 
 MainActor.assumeIsolated {
     host.onInstall = { controller.cancelAll() }
 }
 precondition(controller.trigger(request))
 capturer.completeNext()
-pumpUntil { MainActor.assumeIsolated { host.installCount == 2 } }
-pumpUntil { MainActor.assumeIsolated { host.removeCount == 2 } }
+pumpUntil { MainActor.assumeIsolated { host.installCount == 3 } }
+pumpUntil { MainActor.assumeIsolated { host.removeCount == 3 } }
 precondition(MainActor.assumeIsolated { host.runtimes.last?.disposed == true })
 MainActor.assumeIsolated { host.onInstall = nil }
 
@@ -728,9 +801,9 @@ precondition(MainActor.assumeIsolated { host.releaseCount == 0 })
 for index in 0..<100 {
     precondition(controller.trigger(request))
     capturer.completeNext()
-    pumpUntil { MainActor.assumeIsolated { host.installCount == index + 3 } }
+    pumpUntil { MainActor.assumeIsolated { host.installCount == index + 4 } }
     MainActor.assumeIsolated { host.runtimes.last?.complete() }
-    pumpUntil { MainActor.assumeIsolated { host.removeCount == index + 3 } }
+    pumpUntil { MainActor.assumeIsolated { host.removeCount == index + 4 } }
 }
 precondition(MainActor.assumeIsolated {
     host.runtimes.allSatisfy(\\.disposed)
@@ -738,11 +811,15 @@ precondition(MainActor.assumeIsolated {
 
 precondition(controller.trigger(request))
 capturer.completeNext()
-pumpUntil { MainActor.assumeIsolated { host.installCount == 103 } }
+pumpUntil { MainActor.assumeIsolated { host.installCount == 104 } }
 precondition(deadlines.last?.delay == 1.15)
 deadlines.last?.item.perform()
+feedback = controller.snapshot()
+precondition(feedback.failedCount == 2)
+precondition(feedback.lastErrorCode == "NATIVE_EFFECT_PRESENT_TIMEOUT")
 precondition(!controller.trigger(request))
-pumpUntil { MainActor.assumeIsolated { host.removeCount == 103 } }
+pumpUntil { MainActor.assumeIsolated { host.removeCount == 104 } }
+pumpUntil { controller.snapshot().state == "ready" }
 
 precondition(controller.trigger(request))
 let timeoutCapture = capturer.cancellations.last!
@@ -751,7 +828,11 @@ deadlines.last?.item.perform()
 precondition(timeoutCapture.canceled)
 capturer.completeNext()
 RunLoop.current.run(until: Date().addingTimeInterval(0.02))
-precondition(MainActor.assumeIsolated { host.installCount == 103 })
+precondition(MainActor.assumeIsolated { host.installCount == 104 })
+pumpUntil { controller.snapshot().state == "ready" }
+feedback = controller.snapshot()
+precondition(feedback.failedCount == 3)
+precondition(feedback.lastErrorCode == "NATIVE_EFFECT_CAPTURE_TIMEOUT")
 
 precondition(controller.trigger(request))
 let unauthorizedCapture = capturer.cancellations.last!
@@ -760,7 +841,7 @@ controller.reconcileAuthorization()
 precondition(unauthorizedCapture.canceled)
 capturer.completeNext()
 RunLoop.current.run(until: Date().addingTimeInterval(0.02))
-precondition(MainActor.assumeIsolated { host.installCount == 103 })
+precondition(MainActor.assumeIsolated { host.installCount == 104 })
 precondition(!controller.trigger(request))
 
 authorized = true
@@ -785,7 +866,52 @@ failedController.reconcileAvailability(true)
 pumpUntil { MainActor.assumeIsolated { failedHost.prepareCount == 1 } }
 precondition(!failedController.trigger(request))
 precondition(failedCapturer.pending.isEmpty)
+let failedSnapshot = failedController.snapshot()
+precondition(failedSnapshot.failedCount == 1)
+precondition(failedSnapshot.lastErrorCode == "NATIVE_EFFECT_NOT_PREPARED")
+precondition(failedSnapshot.state == "unavailable")
 failedController.shutdown()
+
+let captureFailureHost = Host()
+let captureFailureCapturer = Capturer()
+let captureFailureController = AOSDesktopWorldNativeFeedbackController(
+    host: captureFailureHost,
+    capturer: captureFailureCapturer,
+    scheduleDeadline: { _, _ in },
+    authorize: { _ in true }
+)
+captureFailureController.reconcileAvailability(true)
+pumpUntil { MainActor.assumeIsolated { captureFailureHost.prepareCount == 1 } }
+precondition(captureFailureController.trigger(request))
+captureFailureCapturer.failNext()
+pumpUntil { captureFailureController.snapshot().state == "ready" }
+precondition(
+    captureFailureController.snapshot().lastErrorCode ==
+        "DESKTOP_FRAME_CAPTURE_FAILED"
+)
+captureFailureController.shutdown()
+
+let installFailureHost = Host()
+MainActor.assumeIsolated {
+    installFailureHost.installFailure = .textureUnavailable
+}
+let installFailureCapturer = Capturer()
+let installFailureController = AOSDesktopWorldNativeFeedbackController(
+    host: installFailureHost,
+    capturer: installFailureCapturer,
+    scheduleDeadline: { _, _ in },
+    authorize: { _ in true }
+)
+installFailureController.reconcileAvailability(true)
+pumpUntil { MainActor.assumeIsolated { installFailureHost.prepareCount == 1 } }
+precondition(installFailureController.trigger(request))
+installFailureCapturer.completeNext()
+pumpUntil { installFailureController.snapshot().state == "ready" }
+precondition(
+    installFailureController.snapshot().lastErrorCode ==
+        "NATIVE_EFFECT_TEXTURE_UNAVAILABLE"
+)
+installFailureController.shutdown()
 print("PASS native feedback lifecycle")
 `)
   assert.match(output, /PASS native feedback lifecycle/u)

@@ -15,12 +15,38 @@ struct AOSDesktopWorldNativeFeedbackCaptureContext: Equatable {
 @MainActor
 protocol AOSDesktopWorldNativeFeedbackRuntime: AnyObject {
     func dispose()
-    func present(onComplete: @escaping () -> Void)
+    func present(
+        onPresented: @escaping () -> Void,
+        onFailure: @escaping (String) -> Void,
+        onComplete: @escaping () -> Void
+    )
 }
 
 struct AOSDesktopWorldNativeFeedbackInstallation {
     let identity: AOSDesktopWorldResourceIdentity
     let runtime: AOSDesktopWorldNativeFeedbackRuntime
+}
+
+struct AOSDesktopWorldNativeFeedbackSnapshot: Equatable {
+    let acceptedCount: Int
+    let attemptedCount: Int
+    let completedCount: Int
+    let failedCount: Int
+    let lastErrorCode: String?
+    let presentedCount: Int
+    let rejectedCount: Int
+    let state: String
+
+    static let idle = AOSDesktopWorldNativeFeedbackSnapshot(
+        acceptedCount: 0,
+        attemptedCount: 0,
+        completedCount: 0,
+        failedCount: 0,
+        lastErrorCode: nil,
+        presentedCount: 0,
+        rejectedCount: 0,
+        state: "unavailable"
+    )
 }
 
 protocol AOSDesktopWorldNativeFeedbackHosting: AnyObject {
@@ -61,22 +87,31 @@ final class AOSDesktopWorldNativeFeedbackController {
         var deadline: DispatchWorkItem
         let generation: UInt64
         var phase: Phase
+        var presented: Bool
         let request: AOSDesktopWorldNativeEffectRequest
     }
 
     private static let captureTimeout: TimeInterval = 0.75
     private static let effectCleanupGrace: TimeInterval = 0.25
+    private static let maximumDiagnosticCount = 1_000_000_000
 
     private var active: Active?
+    private var acceptedCount = 0
     private let authorize: (AOSDesktopWorldNativeEffectRequest) -> Bool
+    private var attemptedCount = 0
     private let capturer: AOSDesktopPixelFrameSetCapturing
+    private var completedCount = 0
+    private var failedCount = 0
     private let host: AOSDesktopWorldNativeFeedbackHosting
+    private var lastErrorCode: String?
     private let lock = NSLock()
     private var availabilityGeneration: UInt64 = 0
     private var available = false
     private var nextGeneration: UInt64 = 0
     private var prepared = false
     private var preparing = false
+    private var presentedCount = 0
+    private var rejectedCount = 0
     private var retirementPending = false
     private let scheduleDeadline: (TimeInterval, DispatchWorkItem) -> Void
     private var stopped = false
@@ -108,14 +143,35 @@ final class AOSDesktopWorldNativeFeedbackController {
     @discardableResult
     func trigger(_ request: AOSDesktopWorldNativeEffectRequest) -> Bool {
         lock.lock()
-        let canAttempt = !stopped && available && prepared
-            && active == nil && !retirementPending
+        attemptedCount = Self.increment(attemptedCount)
+        let admissionError: String?
+        if stopped {
+            admissionError = "NATIVE_EFFECT_STOPPED"
+        } else if !available {
+            admissionError = "NATIVE_EFFECT_UNAVAILABLE"
+        } else if !prepared {
+            admissionError = "NATIVE_EFFECT_NOT_PREPARED"
+        } else if active != nil || retirementPending {
+            admissionError = "NATIVE_EFFECT_BUSY"
+        } else {
+            admissionError = nil
+        }
+        if let admissionError {
+            recordRejectionLocked(admissionError)
+        }
         lock.unlock()
-        guard canAttempt,
-              authorize(request),
-              let captureContext = host.captureContext(),
-              captureContext.canvasGeneration == request.canvasGeneration,
+        guard admissionError == nil else { return false }
+        guard authorize(request) else {
+            recordRejection("NATIVE_EFFECT_UNAUTHORIZED")
+            return false
+        }
+        guard let captureContext = host.captureContext() else {
+            recordRejection("NATIVE_EFFECT_CAPTURE_CONTEXT_UNAVAILABLE")
+            return false
+        }
+        guard captureContext.canvasGeneration == request.canvasGeneration,
               captureContext.topologyGeneration == request.topologyGeneration else {
+            recordRejection("NATIVE_EFFECT_GENERATION_MISMATCH")
             return false
         }
         let configuration = AOSDesktopFrameWarmConfiguration(
@@ -130,6 +186,7 @@ final class AOSDesktopWorldNativeFeedbackController {
         lock.lock()
         guard !stopped, available, prepared, active == nil,
               !retirementPending else {
+            recordRejectionLocked("NATIVE_EFFECT_ADMISSION_RACE")
             lock.unlock()
             return false
         }
@@ -141,8 +198,11 @@ final class AOSDesktopWorldNativeFeedbackController {
             deadline: deadline,
             generation: generation,
             phase: .capturing,
+            presented: false,
             request: request
         )
+        acceptedCount = Self.increment(acceptedCount)
+        lastErrorCode = nil
         lock.unlock()
 
         let capture = capturer.capturePrewarmedFrames(configuration) {
@@ -160,6 +220,21 @@ final class AOSDesktopWorldNativeFeedbackController {
         installDeadline(timeout, generation: generation)
         scheduleDeadline(Self.captureTimeout, timeout)
         return true
+    }
+
+    func snapshot() -> AOSDesktopWorldNativeFeedbackSnapshot {
+        lock.lock()
+        defer { lock.unlock() }
+        return AOSDesktopWorldNativeFeedbackSnapshot(
+            acceptedCount: acceptedCount,
+            attemptedCount: attemptedCount,
+            completedCount: completedCount,
+            failedCount: failedCount,
+            lastErrorCode: lastErrorCode,
+            presentedCount: presentedCount,
+            rejectedCount: rejectedCount,
+            state: stateLocked()
+        )
     }
 
     func reconcileAuthorization() {
@@ -198,14 +273,17 @@ final class AOSDesktopWorldNativeFeedbackController {
 
         Task { @MainActor [weak self] in
             guard let self else { return }
-            let succeeded: Bool
+            let errorCode: String?
             do {
                 try self.host.prepare()
-                succeeded = true
+                errorCode = nil
             } catch {
-                succeeded = false
+                errorCode = Self.failureCode(
+                    error,
+                    fallback: "NATIVE_EFFECT_PREPARATION_FAILED"
+                )
             }
-            if !self.finishPreparation(generation: generation, succeeded: succeeded) {
+            if !self.finishPreparation(generation: generation, errorCode: errorCode) {
                 self.host.releasePreparedResources()
             }
         }
@@ -298,6 +376,7 @@ final class AOSDesktopWorldNativeFeedbackController {
             allowedPhases: [.capturing, .installing],
             requiresRuntimeDisposal: true
         ) else { return }
+        recordFailure("NATIVE_EFFECT_CAPTURE_TIMEOUT")
         retired.capture.cancel()
         Task { @MainActor [weak self] in
             self?.disposeRuntime()
@@ -316,7 +395,22 @@ final class AOSDesktopWorldNativeFeedbackController {
             return
         }
         lock.unlock()
-        guard case .success(let frames) = result, authorize(request) else {
+        guard case .success(let frames) = result else {
+            if case .failure(let error) = result {
+                recordFailure(Self.failureCode(
+                    error,
+                    fallback: "NATIVE_EFFECT_CAPTURE_FAILED"
+                ))
+            }
+            _ = retireActive(
+                generation: generation,
+                allowedPhases: [.capturing],
+                requiresRuntimeDisposal: false
+            )
+            return
+        }
+        guard authorize(request) else {
+            recordFailure("NATIVE_EFFECT_UNAUTHORIZED")
             _ = retireActive(
                 generation: generation,
                 allowedPhases: [.capturing],
@@ -345,6 +439,7 @@ final class AOSDesktopWorldNativeFeedbackController {
               captureContext.topologyGeneration == request.topologyGeneration,
               captureContext.displayIDs.count == frames.frames.count,
               Set(captureContext.displayIDs) == Set(frames.frames.map(\.displayID)) else {
+            recordFailure("NATIVE_EFFECT_FRAME_SET_MISMATCH")
             _ = retireActive(
                 generation: generation,
                 allowedPhases: [.capturing],
@@ -381,9 +476,17 @@ final class AOSDesktopWorldNativeFeedbackController {
                 installation.identity
             )
             runtime = installation.runtime
-            installation.runtime.present { [weak self] in
-                self?.effectCompleted(generation: generation)
-            }
+            installation.runtime.present(
+                onPresented: { [weak self] in
+                    self?.effectPresented(generation: generation)
+                },
+                onFailure: { [weak self] code in
+                    self?.effectFailed(generation: generation, code: code)
+                },
+                onComplete: { [weak self] in
+                    self?.effectCompleted(generation: generation)
+                }
+            )
             let cleanup = DispatchWorkItem { [weak self] in
                 self?.effectTimedOut(generation: generation)
             }
@@ -394,6 +497,10 @@ final class AOSDesktopWorldNativeFeedbackController {
                 cleanup
             )
         } catch {
+            recordFailure(Self.failureCode(
+                error,
+                fallback: "NATIVE_EFFECT_INSTALL_FAILED"
+            ))
             if retireActive(
                 generation: generation,
                 allowedPhases: [.installing],
@@ -406,12 +513,56 @@ final class AOSDesktopWorldNativeFeedbackController {
     }
 
     @MainActor
-    private func effectCompleted(generation: UInt64) {
+    private func effectPresented(generation: UInt64) {
+        lock.lock()
+        guard var current = active,
+              current.generation == generation,
+              current.phase == .presenting,
+              !current.presented else {
+            lock.unlock()
+            return
+        }
+        current.presented = true
+        active = current
+        presentedCount = Self.increment(presentedCount)
+        lock.unlock()
+    }
+
+    @MainActor
+    private func effectFailed(generation: UInt64, code: String) {
         guard retireActive(
             generation: generation,
             allowedPhases: [.presenting],
             requiresRuntimeDisposal: true
         ) != nil else { return }
+        recordFailure(code)
+        disposeRuntime()
+        finishRuntimeRetirement()
+    }
+
+    @MainActor
+    private func effectCompleted(generation: UInt64) {
+        lock.lock()
+        let didPresent = active?.generation == generation
+            && active?.phase == .presenting
+            && active?.presented == true
+        lock.unlock()
+        guard didPresent else {
+            effectFailed(
+                generation: generation,
+                code: "NATIVE_EFFECT_COMPLETED_WITHOUT_PRESENTATION"
+            )
+            return
+        }
+        guard retireActive(
+            generation: generation,
+            allowedPhases: [.presenting],
+            requiresRuntimeDisposal: true
+        ) != nil else { return }
+        lock.lock()
+        completedCount = Self.increment(completedCount)
+        lastErrorCode = nil
+        lock.unlock()
         disposeRuntime()
         finishRuntimeRetirement()
     }
@@ -422,6 +573,7 @@ final class AOSDesktopWorldNativeFeedbackController {
             allowedPhases: [.presenting],
             requiresRuntimeDisposal: true
         ) else { return }
+        recordFailure("NATIVE_EFFECT_PRESENT_TIMEOUT")
         retired.capture.cancel()
         Task { @MainActor [weak self] in
             self?.disposeRuntime()
@@ -449,7 +601,10 @@ final class AOSDesktopWorldNativeFeedbackController {
         return active?.generation == generation
     }
 
-    private func finishPreparation(generation: UInt64, succeeded: Bool) -> Bool {
+    private func finishPreparation(
+        generation: UInt64,
+        errorCode: String?
+    ) -> Bool {
         lock.lock()
         defer { lock.unlock() }
         guard !stopped, available,
@@ -458,7 +613,8 @@ final class AOSDesktopWorldNativeFeedbackController {
             return false
         }
         preparing = false
-        prepared = succeeded
+        prepared = errorCode == nil
+        if let errorCode { recordFailureLocked(errorCode) }
         return true
     }
 
@@ -508,5 +664,66 @@ final class AOSDesktopWorldNativeFeedbackController {
         lock.unlock()
         current.deadline.cancel()
         return current
+    }
+
+    private static func increment(_ value: Int) -> Int {
+        min(value + 1, maximumDiagnosticCount)
+    }
+
+    private static func failureCode(_ error: Error, fallback: String) -> String {
+        if let failure = error as? AOSDesktopFrameCaptureFailure {
+            return failure.code
+        }
+        if let failure = error as? DesktopWorldNativeSheetFailure {
+            switch failure {
+            case .frameSetIncomplete: return "NATIVE_EFFECT_FRAME_SET_INCOMPLETE"
+            case .geometryAllocationFailed:
+                return "NATIVE_EFFECT_GEOMETRY_ALLOCATION_FAILED"
+            case .geometryBudgetExceeded:
+                return "NATIVE_EFFECT_GEOMETRY_BUDGET_EXCEEDED"
+            case .invalidGeometry: return "NATIVE_EFFECT_GEOMETRY_INVALID"
+            case .projectionOccupied: return "NATIVE_EFFECT_PROJECTION_OCCUPIED"
+            case .rendererUnavailable: return "NATIVE_EFFECT_RENDERER_UNAVAILABLE"
+            case .textureUnavailable: return "NATIVE_EFFECT_TEXTURE_UNAVAILABLE"
+            }
+        }
+        return fallback
+    }
+
+    private func recordFailure(_ code: String) {
+        lock.lock()
+        recordFailureLocked(code)
+        lock.unlock()
+    }
+
+    private func recordFailureLocked(_ code: String) {
+        failedCount = Self.increment(failedCount)
+        lastErrorCode = code
+    }
+
+    private func recordRejection(_ code: String) {
+        lock.lock()
+        recordRejectionLocked(code)
+        lock.unlock()
+    }
+
+    private func recordRejectionLocked(_ code: String) {
+        rejectedCount = Self.increment(rejectedCount)
+        lastErrorCode = code
+    }
+
+    private func stateLocked() -> String {
+        if stopped { return "stopped" }
+        if let phase = active?.phase {
+            switch phase {
+            case .capturing: return "capturing"
+            case .installing: return "installing"
+            case .presenting: return "presenting"
+            }
+        }
+        if retirementPending { return "retiring" }
+        if preparing { return "preparing" }
+        if available && prepared { return "ready" }
+        return "unavailable"
     }
 }
