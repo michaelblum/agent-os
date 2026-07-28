@@ -955,6 +955,7 @@ precondition(expired.complete(expiredCompletion, operationID: release.operationI
       path.join(repoRoot, 'src/daemon/scene-lease-registry.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-scene-result-coordinator.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-scene-stage-readiness.swift'),
+      path.join(repoRoot, 'src/daemon/desktop-world-native-effect-contract.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-scene-controller.swift'),
       main,
       '-o', executable,

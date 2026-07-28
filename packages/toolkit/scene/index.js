@@ -78,6 +78,7 @@ export {
   SCENE_GESTURE_CANCELLATION_REASONS,
   SCENE_GESTURE_KINDS,
   SCENE_GESTURE_PHASES,
+  SCENE_NATIVE_EFFECT_IMPLEMENTATIONS,
   createSceneEventEnvelope,
   createSceneGestureArena,
   createSceneInteractionController,

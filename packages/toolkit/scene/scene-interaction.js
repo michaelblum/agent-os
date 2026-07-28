@@ -16,6 +16,7 @@ export {
   SCENE_GESTURE_KINDS,
   SCENE_GESTURE_PHASES,
   SCENE_INTERACTIONS_CONTRACT_ID,
+  SCENE_NATIVE_EFFECT_IMPLEMENTATIONS,
   validateSceneAffordanceDescriptor,
   validateSceneInteractionDocument,
 } from './scene-interaction-contract.js'

@@ -101,6 +101,20 @@ Responses are independent:
 - `signal_graph` emits bounded numeric signals.
 - `radial_menu` opens an AOS-owned transient menu lease with bounded items.
 
+An interaction may also declare a `nativeEffect`. This optional visual response
+does not replace its semantic response or public gesture event. V1 accepts only
+`aos.scene.effect.desktop-ripple`, either
+`trigger: { input: "pointer_down", button: "left" }` (with `button` optional
+and defaulting to `left`) or a `start`/`end` gesture-phase trigger, and bounded
+`amplitude`, `decay`, `durationMs`, `frequency`, `radius`, and `speed`
+parameters. Native pointer-down is resolved against the committed hit-region
+generation before tap-versus-drag arbitration; a gesture-phase trigger waits
+for its recognizer. The extension must declare
+`aos.scene.desktop_frame_texture` and
+`aos.scene.native_sheet_effect`; the cartridge manifest declares the
+implementation with kind `effect`. AOS owns the compiled Metal program,
+desktop pixels, topology, clock, and disposal. A cartridge supplies data only.
+
 Cartridges may supply bounded item labels for native accessibility and exact
 semantic inspection. AOS validates those labels when it creates native hit
 regions, but redacts them from scene and gesture events. Commands and action

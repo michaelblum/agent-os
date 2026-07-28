@@ -21,6 +21,10 @@ export const SCENE_GESTURE_PHASES = Object.freeze({
   cancel: 'cancel',
 })
 
+export const SCENE_NATIVE_EFFECT_IMPLEMENTATIONS = Object.freeze({
+  desktopRipple: 'aos.scene.effect.desktop-ripple',
+})
+
 export const SCENE_GESTURE_CANCELLATION_REASONS = Object.freeze([
   'escape',
   'owner_disconnected',
@@ -128,6 +132,61 @@ function validateInteractionImplementation(value, path, errors, allowed) {
   if (!allowed.has(value.implementation)) errors.push({ code: 'unknown_implementation', path: `${path}.implementation`, message: 'Scene interaction implementation is not registered.' })
   if (!isRecord(value.parameters)) errors.push({ code: 'invalid_parameters', path: `${path}.parameters`, message: 'Scene interaction parameters must be an object.' })
   else validateFiniteData(value.parameters, `${path}.parameters`, errors)
+}
+
+function validateNativeEffect(value, path, errors) {
+  if (!isRecord(value)) {
+    errors.push({ code: 'invalid_native_effect', path, message: 'Scene native effects require an implementation, trigger, and parameters.' })
+    return
+  }
+  exactKeys(value, new Set(['implementation', 'parameters', 'trigger']), path, errors)
+  if (!Object.values(SCENE_NATIVE_EFFECT_IMPLEMENTATIONS).includes(value.implementation)) {
+    errors.push({ code: 'unknown_implementation', path: `${path}.implementation`, message: 'Scene native effect implementation is not registered.' })
+  }
+  if (!isRecord(value.trigger)) {
+    errors.push({ code: 'invalid_native_effect_trigger', path: `${path}.trigger`, message: 'Scene native effect trigger must be an object.' })
+  } else {
+    const keys = Object.keys(value.trigger)
+    const gesturePhase = keys.length === 1 && keys[0] === 'phase'
+    const pointerInput = keys.includes('input')
+      && keys.every((key) => ['button', 'input'].includes(key))
+      && keys.length <= 2
+    if (!gesturePhase && !pointerInput) {
+      errors.push({ code: 'invalid_native_effect_trigger', path: `${path}.trigger`, message: 'Scene native effect triggers require exactly one input or gesture phase.' })
+    } else if (gesturePhase && !['end', 'start'].includes(value.trigger.phase)) {
+      errors.push({ code: 'invalid_native_effect_trigger', path: `${path}.trigger.phase`, message: 'Scene native effects may trigger on gesture start or end.' })
+    } else if (pointerInput && value.trigger.input !== 'pointer_down') {
+      errors.push({ code: 'invalid_native_effect_trigger', path: `${path}.trigger.input`, message: 'Scene native input effects may trigger only on pointer down.' })
+    } else if (pointerInput && value.trigger.button !== undefined
+      && !['left', 'middle', 'right'].includes(value.trigger.button)) {
+      errors.push({ code: 'invalid_native_effect_trigger', path: `${path}.trigger.button`, message: 'Scene native pointer effects require a supported button.' })
+    }
+  }
+  if (!isRecord(value.parameters)) {
+    errors.push({ code: 'invalid_parameters', path: `${path}.parameters`, message: 'Scene native effect parameters must be an object.' })
+    return
+  }
+  exactKeys(value.parameters, new Set([
+    'amplitude', 'decay', 'durationMs', 'frequency', 'radius', 'speed',
+  ]), `${path}.parameters`, errors)
+  for (const [key, min, max] of [
+    ['amplitude', 0, 96],
+    ['decay', 0, 10],
+    ['durationMs', 100, 3000],
+    ['frequency', 0.001, 0.25],
+    ['radius', 32, 5000],
+    ['speed', 10, 4000],
+  ]) {
+    const entry = value.parameters[key]
+    if (entry !== undefined && (
+      !Number.isFinite(entry)
+      || entry < min
+      || entry > max
+      || (key === 'durationMs' && !Number.isInteger(entry))
+    )) {
+      errors.push({ code: 'invalid_native_effect_parameter', path: `${path}.parameters.${key}`, message: 'Scene native effect parameters must be finite and bounded.' })
+    }
+  }
 }
 
 function validateRecognizerParameters(value, path, errors) {
@@ -332,13 +391,14 @@ export function validateSceneInteractionDocument(value, options = {}) {
     return { ok: false, errors }
   }
   const ids = new Set()
+  const nativeTriggerKeys = new Set()
   for (const [index, interaction] of value.interactions.entries()) {
     const path = `interactions.interactions.${index}`
     if (!isRecord(interaction)) {
       errors.push({ code: 'invalid_interaction', path, message: 'Scene interactions must be objects.' })
       continue
     }
-    exactKeys(interaction, new Set(['affordanceId', 'id', 'recognizer', 'response']), path, errors)
+    exactKeys(interaction, new Set(['affordanceId', 'id', 'nativeEffect', 'recognizer', 'response']), path, errors)
     if (!validId(interaction.id)) errors.push({ code: 'invalid_id', path: `${path}.id`, message: 'Scene interaction ID is invalid.' })
     if (!validId(interaction.affordanceId)) errors.push({ code: 'invalid_id', path: `${path}.affordanceId`, message: 'Scene interaction affordance ID is invalid.' })
     if (ids.has(interaction.id)) errors.push({ code: 'duplicate_interaction', path: `${path}.id`, message: 'Scene interaction IDs must be unique.' })
@@ -348,6 +408,18 @@ export function validateSceneInteractionDocument(value, options = {}) {
     validateInteractionImplementation(interaction.response, `${path}.response`, errors, new Set(RESPONSE_KINDS.keys()))
     validateRecognizerParameters(interaction.recognizer, `${path}.recognizer`, errors)
     validateResponseParameters(interaction.response, `${path}.response`, errors)
+    if (interaction.nativeEffect !== undefined) {
+      validateNativeEffect(interaction.nativeEffect, `${path}.nativeEffect`, errors)
+      const trigger = interaction.nativeEffect?.trigger
+      const triggerKey = trigger?.input === 'pointer_down'
+        ? `${interaction.affordanceId}:input:pointer_down:${trigger.button ?? 'left'}`
+        : ['end', 'start'].includes(trigger?.phase)
+          ? `${interaction.affordanceId}:gesture:${trigger.phase}`
+          : null
+      if (triggerKey && nativeTriggerKeys.has(triggerKey)) {
+        errors.push({ code: 'duplicate_native_effect_trigger', path: `${path}.nativeEffect.trigger`, message: 'An affordance may declare only one native effect for each trigger.' })
+      } else if (triggerKey) nativeTriggerKeys.add(triggerKey)
+    }
   }
   return { ok: errors.length === 0, errors }
 }

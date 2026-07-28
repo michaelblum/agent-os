@@ -53,14 +53,17 @@ final class AOSDesktopWorldSceneEventRouter {
     private let scene: AOSDesktopWorldSceneController
     private let emit: (AOSSceneLeaseRoute, String, [String: Any]) -> Bool
     private let diagnostics: AOSDesktopWorldSceneEventRouteDiagnostics
+    private let nativeFeedback: (AOSDesktopWorldNativeEffectRequest) -> Void
 
     init(
         scene: AOSDesktopWorldSceneController,
         diagnostics: AOSDesktopWorldSceneEventRouteDiagnostics = AOSDesktopWorldSceneEventRouteDiagnostics(),
+        nativeFeedback: @escaping (AOSDesktopWorldNativeEffectRequest) -> Void = { _ in },
         emit: @escaping (AOSSceneLeaseRoute, String, [String: Any]) -> Bool
     ) {
         self.scene = scene
         self.diagnostics = diagnostics
+        self.nativeFeedback = nativeFeedback
         self.emit = emit
     }
 
@@ -86,6 +89,13 @@ final class AOSDesktopWorldSceneEventRouter {
               scene.key(owner: ownerID, resource: resourceID) == key else {
             diagnostics.record(.identityMismatch)
             return
+        }
+        if let request = scene.nativeEffectRequest(
+            identity: identity,
+            key: key,
+            event: canonicalEvent
+        ) {
+            nativeFeedback(request)
         }
         diagnostics.record(scene.withEventRoute(identity: identity, key: key, event: eventType) { route in
             emit(route, eventType, canonicalEvent)

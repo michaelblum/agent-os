@@ -252,7 +252,9 @@ func aosInputRegionEventEnvelope(routedInput: AOSInputRegionRoutedInput) -> [Str
 struct AOSInputRegionDelivery {
     let ownerCanvasID: String
     let ownerCanvasGeneration: CanvasLifecycleGeneration
+    let button: AOSInputButton?
     let phase: AOSInputEventPhase
+    let region: AOSInputRegionRecord
     let regionID: String
     let consume: Bool
     private let routedInput: AOSInputRegionRoutedInput
@@ -260,11 +262,14 @@ struct AOSInputRegionDelivery {
     init(
         routedInput: AOSInputRegionRoutedInput,
         route: AOSInputRegionRoute,
+        button: AOSInputButton?,
         phase: AOSInputEventPhase
     ) {
         self.ownerCanvasID = route.region.ownerCanvasID
         self.ownerCanvasGeneration = route.region.ownerCanvasGeneration
+        self.button = button
         self.phase = phase
+        self.region = route.region
         self.regionID = route.region.id
         self.consume = route.shouldConsume
         self.routedInput = routedInput
@@ -403,7 +408,12 @@ func aosInputRegionDeliveryDecision(
           ) else {
         return .failOpen
     }
-    return .deliver(AOSInputRegionDelivery(routedInput: routedInput, route: route, phase: phase))
+    return .deliver(AOSInputRegionDelivery(
+        routedInput: routedInput,
+        route: route,
+        button: event.descriptor.button,
+        phase: phase
+    ))
 }
 
 final class AOSInputRegionRegistry {

@@ -353,6 +353,7 @@
         "src/commands/daemon-application-lifecycle.swift",
         "src/commands/serve.swift",
         "src/daemon/desktop-world-scene-*.swift",
+        "src/daemon/desktop-world-native-*.swift",
         "src/commands/direct-screen-capture-permission.swift",
         "src/daemon/desktop-frame-capture-adapter.swift",
         "src/daemon/desktop-frame-capture-consent.swift",
@@ -374,6 +375,7 @@
         "src/display/desktop-world-native-sheet-geometry.swift",
         "src/display/desktop-world-native-sheet-lease.swift",
         "src/display/desktop-world-native-sheet.swift",
+        "src/display/desktop-world-native-effect-renderer.swift",
         "src/shared/desktop-world-resource-identity.swift",
         "src/display/desktop-frame-texture.swift",
         "src/display/scene-extension-store.swift",
@@ -431,8 +433,8 @@
         },
         {
           "id": "scene-daemon-contract",
-          "command": "node --test tests/desktop-world-scene-event-routing.test.mjs tests/desktop-world-scene-framebuffer-proof-result.test.mjs tests/desktop-world-scene-native-orchestration.test.mjs tests/desktop-world-scene-result-coordinator.test.mjs tests/desktop-world-scene-stage-readiness.test.mjs tests/daemon-desktop-world-devtools-contract.test.mjs tests/scene-follow-cli.test.mjs",
-          "reason": "Verify canonical event routing diagnostics, the daemon scene lifecycle aggregate, all-segment barrier ownership, DevTools delegation, and bounded follow transport."
+          "command": "node --test tests/desktop-world-scene-event-routing.test.mjs tests/desktop-world-scene-framebuffer-proof-result.test.mjs tests/desktop-world-scene-native-feedback.test.mjs tests/desktop-world-scene-native-orchestration.test.mjs tests/desktop-world-scene-result-coordinator.test.mjs tests/desktop-world-scene-stage-readiness.test.mjs tests/daemon-desktop-world-devtools-contract.test.mjs tests/scene-follow-cli.test.mjs",
+          "reason": "Verify canonical event routing diagnostics, atomic native-feedback authorization and disposal, the daemon scene lifecycle aggregate, all-segment barrier ownership, DevTools delegation, and bounded follow transport."
         },
         {
           "id": "scene-core-contract",

@@ -173,8 +173,11 @@ final class DesktopWorldNativeSheetMesh {
 }
 
 enum DesktopWorldNativeSheetFailure: Error {
+    case frameSetIncomplete
     case geometryAllocationFailed
     case geometryBudgetExceeded
     case invalidGeometry
     case projectionOccupied
+    case rendererUnavailable
+    case textureUnavailable
 }

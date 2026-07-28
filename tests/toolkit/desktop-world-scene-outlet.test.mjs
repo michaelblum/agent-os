@@ -28,6 +28,7 @@ import {
 } from '../../packages/toolkit/scene/index.js'
 
 const outletURL = new URL('../../packages/toolkit/components/desktop-world-stage/scene-outlet.js', import.meta.url)
+const outletRunStateURL = new URL('../../packages/toolkit/components/desktop-world-stage/scene-outlet-run-state.js', import.meta.url)
 const mountedResourceURL = new URL('../../packages/toolkit/components/desktop-world-stage/scene-mounted-resource.js', import.meta.url)
 const devtoolsSnapshotURL = new URL('../../packages/toolkit/components/desktop-world-stage/scene-outlet-devtools.js', import.meta.url)
 const stageURL = new URL('../../packages/toolkit/components/desktop-world-stage/index.js', import.meta.url)
@@ -660,8 +661,9 @@ test('scene outlet emits an immediate snapshot only after a route actually start
 })
 
 test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop', async () => {
-  const [outlet, mountedResource, devtoolsSnapshot, stage, three, threeCore] = await Promise.all([
+  const [outlet, runState, mountedResource, devtoolsSnapshot, stage, three, threeCore] = await Promise.all([
     readFile(outletURL, 'utf8'),
+    readFile(outletRunStateURL, 'utf8'),
     readFile(mountedResourceURL, 'utf8'),
     readFile(devtoolsSnapshotURL, 'utf8'),
     readFile(stageURL, 'utf8'),
@@ -708,8 +710,8 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /mounted\.playGeneration = \+\+nextPlayGeneration/u)
   assert.match(outlet, /resources\.has\(key\) \? nextPlayGeneration \+ 1 : null/u)
   assert.match(outlet, /mounted\.interactionVisuals\?\.tick\(at\)/u)
-  assert.match(outlet, /mounted\.interactionVisuals\?\.suspend\(at\)/u)
-  assert.match(outlet, /mounted\.interactionVisuals\?\.resume\(at\)/u)
+  assert.match(runState, /mounted\.interactionVisuals\?\.suspend\(at\)/u)
+  assert.match(runState, /mounted\.interactionVisuals\?\.resume\(at\)/u)
   assert.match(outlet, /sceneResourceCanRun\([\s\S]*mounted\.suspended,[\s\S]*hidden \|\| stageSuspended,[\s\S]*contextLost \|\| Boolean\(stageFault\)/u)
   assert.match(outlet, /reconcileSceneStageRunState/u)
   assert.match(outlet, /createDesktopWorldSceneInteractionThree/u)
@@ -738,6 +740,7 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /createSceneOutletDevToolsSnapshot\(resources/u)
   assert.match(devtoolsSnapshot, /mountedResources\.push/u)
   assert.ok(outlet.split('\n').length < 900, 'scene outlet must remain below its decomposition ratchet')
+  assert.ok(runState.split('\n').length < 100, 'scene outlet run-state policy must remain focused')
   assert.match(stage, /desktop_world_stage\.devtools\.configure/u)
   assert.match(stage, /desktop_world_stage\.devtools\.snapshot/u)
   assert.match(outlet, /webglcontextlost/u)

@@ -67,20 +67,34 @@ private struct AOSDesktopWorldSceneCapabilityAuthorization: Equatable {
     let extensionID: String
     let framebufferProofIDs: Set<String>
     let ownerID: String
+    let nativeEffects: [AOSDesktopWorldNativeEffectBinding]
     let resourceRevision: Int
     let sceneABI: String
     let threeRevision: String
 
-    func advancingResourceRevision(to revision: Int) -> Self {
+    func advancingResourceRevision(
+        to revision: Int,
+        nativeEffects replacementEffects: [AOSDesktopWorldNativeEffectBinding]? = nil
+    ) -> Self {
         Self(
             capabilities: capabilities,
             digest: digest,
             extensionID: extensionID,
             framebufferProofIDs: framebufferProofIDs,
             ownerID: ownerID,
+            nativeEffects: replacementEffects ?? nativeEffects,
             resourceRevision: revision,
             sceneABI: sceneABI,
             threeRevision: threeRevision
+        )
+    }
+
+    func replacingNativeEffects(
+        _ nativeEffects: [AOSDesktopWorldNativeEffectBinding]
+    ) -> Self {
+        advancingResourceRevision(
+            to: resourceRevision,
+            nativeEffects: nativeEffects
         )
     }
 }
@@ -88,7 +102,11 @@ private struct AOSDesktopWorldSceneCapabilityAuthorization: Equatable {
 private enum AOSDesktopWorldSceneAuthorizationMutation {
     case unchanged
     case replace(AOSDesktopWorldSceneCapabilityAuthorization?)
-    case advanceRevision(expected: Int, next: Int)
+    case advanceRevision(
+        expected: Int,
+        next: Int,
+        nativeEffects: [AOSDesktopWorldNativeEffectBinding]?
+    )
 }
 
 /// Owns the complete in-memory lifecycle aggregate for the shared DesktopWorld
@@ -400,10 +418,20 @@ final class AOSDesktopWorldSceneController {
         ref: String?
     ) -> AOSDesktopWorldSceneOperationAdmission {
         let parsedAuthorization = extensionAuthorization.flatMap {
-            Self.capabilityAuthorization($0)
+            Self.capabilityAuthorization($0, nativeEffects: [])
         }
         guard extensionAuthorization == nil || parsedAuthorization != nil else {
             return .stageUnavailable
+        }
+        let nativeEffects: [AOSDesktopWorldNativeEffectBinding]?
+        if let interactions = operation["interactions"] {
+            guard let dictionary = interactions as? [String: Any],
+                  let parsed = AOSDesktopWorldNativeEffectContract.parseBindings(dictionary) else {
+                return .stageUnavailable
+            }
+            nativeEffects = parsed
+        } else {
+            nativeEffects = operationName == "mount" ? [] : nil
         }
         let transactionRevision: (expected: Int, next: Int)?
         if operationName == "transact" {
@@ -438,6 +466,19 @@ final class AOSDesktopWorldSceneController {
                authorization.resourceRevision != transactionRevision.expected {
                 return .stageUnavailable
             }
+            if let nativeEffects, !nativeEffects.isEmpty {
+                let authorization = operationName == "mount"
+                    ? parsedAuthorization
+                    : parsedAuthorization ?? resourceAuthorizations[key]
+                guard authorization?.capabilities.contains(
+                    AOSDesktopWorldNativeEffectBinding.capability
+                ) == true,
+                      authorization?.capabilities.contains(
+                        "aos.scene.desktop_frame_texture"
+                      ) == true else {
+                    return .stageUnavailable
+                }
+            }
             var admittedOperation = operation
             if let proofRequest {
                 guard let authorization = resourceAuthorizations[key],
@@ -470,12 +511,17 @@ final class AOSDesktopWorldSceneController {
             }
             operationTokens[operationID] = token
             if operationName == "mount" {
-                operationAuthorizationMutations[operationID] = .replace(parsedAuthorization)
+                operationAuthorizationMutations[operationID] = .replace(
+                    parsedAuthorization.map { authorization in
+                        authorization.replacingNativeEffects(nativeEffects ?? [])
+                    }
+                )
             } else if operationName == "transact" {
                 if resourceAuthorizations[key] != nil, let transactionRevision {
                     operationAuthorizationMutations[operationID] = .advanceRevision(
                         expected: transactionRevision.expected,
-                        next: transactionRevision.next
+                        next: transactionRevision.next,
+                        nativeEffects: nativeEffects
                     )
                 } else {
                     operationAuthorizationMutations[operationID] = .unchanged
@@ -490,7 +536,8 @@ final class AOSDesktopWorldSceneController {
     }
 
     private static func capabilityAuthorization(
-        _ value: [String: Any]
+        _ value: [String: Any],
+        nativeEffects: [AOSDesktopWorldNativeEffectBinding]
     ) -> AOSDesktopWorldSceneCapabilityAuthorization? {
         let expected = Set([
             "capabilities", "digest", "extensionId", "framebufferProofIds", "ownerId",
@@ -516,6 +563,7 @@ final class AOSDesktopWorldSceneController {
             extensionID: extensionID,
             framebufferProofIDs: Set(framebufferProofIDs),
             ownerID: ownerID,
+            nativeEffects: nativeEffects,
             resourceRevision: resourceRevision,
             sceneABI: sceneABI,
             threeRevision: threeRevision
@@ -566,6 +614,107 @@ final class AOSDesktopWorldSceneController {
         }
     }
 
+    func nativeEffectRequest(
+        identity: AOSDesktopWorldSceneStageIdentity,
+        key: String,
+        event: [String: Any]
+    ) -> AOSDesktopWorldNativeEffectRequest? {
+        withLock {
+            guard retirement == nil,
+                  readiness.isReady(for: identity),
+                  let authorization = resourceAuthorizations[key],
+                  let resourceIdentity = leaseIdentity(from: key) else {
+                return nil
+            }
+            return AOSDesktopWorldNativeEffectContract.gestureRequest(
+                bindings: authorization.nativeEffects,
+                capabilities: authorization.capabilities,
+                ownerID: resourceIdentity.owner,
+                resourceID: resourceIdentity.resource,
+                resourceRevision: authorization.resourceRevision,
+                identity: identity,
+                event: event
+            )
+        }
+    }
+
+    func nativePointerEffectRequest(
+        ownerID: String,
+        resourceID: String,
+        resourceRevision: Int,
+        affordanceID: String,
+        canvasGeneration: UInt64,
+        phase: String,
+        button: String,
+        point: CGPoint
+    ) -> AOSDesktopWorldNativeEffectRequest? {
+        withLock {
+            guard retirement == nil,
+                  let identity = readiness.currentIdentity(),
+                  identity.canvasGeneration == canvasGeneration,
+                  readiness.isReady(for: identity),
+                  let authorization = resourceAuthorizations[key(
+                    owner: ownerID,
+                    resource: resourceID
+                  )],
+                  authorization.ownerID == ownerID,
+                  authorization.resourceRevision == resourceRevision else {
+                return nil
+            }
+            return AOSDesktopWorldNativeEffectContract.pointerRequest(
+                bindings: authorization.nativeEffects,
+                capabilities: authorization.capabilities,
+                ownerID: ownerID,
+                resourceID: resourceID,
+                resourceRevision: resourceRevision,
+                identity: identity,
+                affordanceID: affordanceID,
+                phase: phase,
+                button: button,
+                point: point
+            )
+        }
+    }
+
+    func authorizesNativeEffect(
+        _ request: AOSDesktopWorldNativeEffectRequest
+    ) -> Bool {
+        let identity = AOSDesktopWorldSceneStageIdentity(
+            canvasGeneration: request.canvasGeneration,
+            topologyGeneration: request.topologyGeneration
+        )
+        return withLock {
+            guard retirement == nil,
+                  readiness.isReady(for: identity),
+                  let authorization = resourceAuthorizations[key(
+                    owner: request.ownerID,
+                    resource: request.resourceID
+                  )],
+                  authorization.resourceRevision == request.resourceRevision else {
+                return false
+            }
+            return AOSDesktopWorldNativeEffectContract.authorizes(
+                request,
+                bindings: authorization.nativeEffects,
+                capabilities: authorization.capabilities,
+                ownerID: authorization.ownerID,
+                resourceID: request.resourceID,
+                resourceRevision: authorization.resourceRevision
+            )
+        }
+    }
+
+    func hasNativeEffectAuthorization() -> Bool {
+        withLock {
+            retirement == nil && resourceAuthorizations.values.contains {
+                AOSDesktopWorldNativeEffectContract.available(
+                    bindings: $0.nativeEffects,
+                    capabilities: $0.capabilities
+                )
+            }
+        }
+    }
+
     private func completeLocked(
         _ completion: AOSDesktopWorldSceneResultCompletion,
         operationID: String
@@ -586,13 +735,16 @@ final class AOSDesktopWorldSceneController {
                 break
             case .replace(let authorization):
                 resourceAuthorizations[key] = authorization
-            case .advanceRevision(let expected, let next):
+            case .advanceRevision(let expected, let next, let nativeEffects):
                 guard let authorization = resourceAuthorizations[key],
                       authorization.resourceRevision == expected else {
                     resourceAuthorizations.removeValue(forKey: key)
                     break
                 }
-                resourceAuthorizations[key] = authorization.advancingResourceRevision(to: next)
+                resourceAuthorizations[key] = authorization.advancingResourceRevision(
+                    to: next,
+                    nativeEffects: nativeEffects
+                )
             }
         }
         if releaseLease {

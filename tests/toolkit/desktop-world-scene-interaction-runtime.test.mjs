@@ -152,12 +152,21 @@ function escapeKey(sequenceValue) {
 }
 
 test('stage interaction runtime registers one owner-scoped region and applies the full drag lifecycle', async () => {
-  const { calls, events, responses, runtime } = harness()
+  const registered = []
+  const { calls, events, responses, runtime } = harness({
+    register: async (payload) => { registered.push(structuredClone(payload)) },
+  })
   const key = 'example.consumer::companion/main'
   const regionId = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
   await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions })
 
   assert.deepEqual(calls, [['register', regionId]])
+  assert.deepEqual(registered[0].metadata, {
+    scene_owner: 'example.consumer',
+    scene_resource: 'companion/main',
+    scene_affordance: 'body-hit',
+    scene_revision: 1,
+  })
   runtime.handleInput(routed(regionId, 'left_mouse_down', 100, 200, 1))
   runtime.handleInput(routed(regionId, 'left_mouse_dragged', 140, 230, 2))
   const activeDevTools = runtime.devtoolsSnapshot()

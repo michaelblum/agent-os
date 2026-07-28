@@ -325,6 +325,36 @@ else
     fail "dev recommend desktop-frame owner routing drifted"
 fi
 
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/daemon/desktop-world-native-effect-contract.swift src/daemon/desktop-world-native-feedback-controller.swift src/daemon/desktop-world-native-feedback-host.swift src/display/desktop-world-native-effect-renderer.swift tests/desktop-world-scene-native-feedback.test.mjs 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+assert "desktop-world-scene-engine" in summary["rule_ids"], data
+assert "unclassified" not in summary["rule_ids"], data
+assert summary["requires_swift_build"] is True, data
+assert summary["tcc_identity_sensitive"] is True, data
+files = {item["path"]: item for item in data["files"]}
+expected_paths = {
+    "src/daemon/desktop-world-native-effect-contract.swift",
+    "src/daemon/desktop-world-native-feedback-controller.swift",
+    "src/daemon/desktop-world-native-feedback-host.swift",
+    "src/display/desktop-world-native-effect-renderer.swift",
+    "tests/desktop-world-scene-native-feedback.test.mjs",
+}
+assert expected_paths == set(files), data
+for path in expected_paths:
+    assert "desktop-world-scene-engine" in files[path]["rules"], files[path]
+commands = {item["command"] for item in summary["commands"]}
+assert any("tests/desktop-world-scene-native-feedback.test.mjs" in command for command in commands), data
+PY
+then
+    pass "dev classify routes native DesktopWorld feedback owners to focused static proof"
+else
+    fail "dev classify native DesktopWorld feedback routing drifted"
+fi
+
 if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/perceive/ax-semantic-target.swift tests/lib/annotation-semantic-target-traversal-tests.swift 2>/dev/null)" python3 - <<'PY'
 import json
 import os

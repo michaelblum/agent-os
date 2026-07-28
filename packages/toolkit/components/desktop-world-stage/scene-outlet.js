@@ -24,48 +24,27 @@ import {
   createDesktopWorldFramebufferProofRateLimiter,
   proveDesktopWorldSceneFramebuffer,
 } from './scene-framebuffer-proof.js'
+import {
+  DESKTOP_WORLD_SCENE_RENDER_LIMITS,
+  reconcileSceneStageRunState,
+  sceneResourceCanRun,
+  sceneStageShouldRender,
+} from './scene-outlet-run-state.js'
+
+export {
+  DESKTOP_WORLD_SCENE_RENDER_LIMITS,
+  reconcileSceneStageRunState,
+  sceneResourceCanRun,
+  sceneStageShouldRender,
+} from './scene-outlet-run-state.js'
 
 const MAX_RESOURCES = 32
 const MAX_SIGNALS_PER_SECOND = 30
-
-export const DESKTOP_WORLD_SCENE_RENDER_LIMITS = Object.freeze({
-  maxDevicePixelRatio: 2,
-  maxBackingDimension: 4096,
-  maxBackingPixels: 2_097_152,
-})
 
 function sceneOutletError(code, message) {
   const error = new Error(message)
   error.code = code
   return error
-}
-
-export function sceneResourceCanRun(resourceSuspended, stageHidden, contextLost) {
-  return !resourceSuspended && !stageHidden && !contextLost
-}
-
-export function sceneStageShouldRender(resources, stageHidden, contextLost, stageSuspended = false, faulted = false) {
-  if (stageHidden || contextLost || stageSuspended || faulted) return false
-  for (const mounted of resources.values()) {
-    if (!mounted.suspended) return true
-  }
-  return false
-}
-
-export function reconcileSceneStageRunState(resources, previous, next, at = performance.now()) {
-  const wasRunnable = !previous.hidden && !previous.contextLost && !previous.suspended && !previous.faulted
-  const isRunnable = !next.hidden && !next.contextLost && !next.suspended && !next.faulted
-  if (wasRunnable === isRunnable) return false
-  for (const mounted of resources.values()) {
-    if (!isRunnable) {
-      mounted.playClock.suspend(at)
-      mounted.interactionVisuals?.suspend(at)
-    } else if (sceneResourceCanRun(mounted.suspended, next.hidden || next.suspended, next.contextLost || next.faulted)) {
-      mounted.playClock.resume(at)
-      mounted.interactionVisuals?.resume(at)
-    }
-  }
-  return true
 }
 
 export function createDesktopWorldSceneOutlet({

@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import {
   SCENE_EVENT_CONTRACT_ID,
+  SCENE_NATIVE_EFFECT_IMPLEMENTATIONS,
   createSceneEventEnvelope,
   createSceneGestureArena,
   resolveSceneAffordanceFrame,
@@ -164,6 +165,78 @@ test('scene interaction validation accepts bounded historical arrow descriptors'
   const invalid = validateSceneInteractionDocument(candidate, { scene: document })
   assert.equal(invalid.ok, false)
   assert.ok(invalid.errors.some((error) => error.code === 'invalid_visual_style'))
+})
+
+test('scene native feedback accepts only bounded declarative ripple parameters', () => {
+  const candidate = {
+    contract: 'aos.scene.cartridge.interactions.v1',
+    schemaVersion: 1,
+    affordances: [affordance],
+    interactions: [{
+      ...interaction('tap-ripple', 'aos.scene.gesture.tap', 'aos.scene.response.drop'),
+      nativeEffect: {
+        implementation: SCENE_NATIVE_EFFECT_IMPLEMENTATIONS.desktopRipple,
+        trigger: { input: 'pointer_down' },
+        parameters: {
+          amplitude: 24,
+          decay: 2.5,
+          durationMs: 900,
+          frequency: 0.04,
+          radius: 1800,
+          speed: 900,
+        },
+      },
+    }],
+  }
+
+  assert.deepEqual(validateSceneInteractionDocument(candidate, { scene: document }), {
+    ok: true,
+    errors: [],
+  })
+
+  for (const [key, value] of [
+    ['amplitude', true],
+    ['durationMs', 900.5],
+    ['frequency', Number.NaN],
+    ['radius', 5001],
+  ]) {
+    const invalid = structuredClone(candidate)
+    invalid.interactions[0].nativeEffect.parameters[key] = value
+    const result = validateSceneInteractionDocument(invalid, { scene: document })
+    assert.equal(result.ok, false, key)
+    assert.ok(result.errors.some((error) => error.code === 'invalid_native_effect_parameter'), key)
+  }
+
+  const executable = structuredClone(candidate)
+  executable.interactions[0].nativeEffect.parameters.script = 'javascript:run()'
+  const executableResult = validateSceneInteractionDocument(executable, { scene: document })
+  assert.equal(executableResult.ok, false)
+  assert.ok(executableResult.errors.some((error) => error.code === 'unknown_field'))
+
+  const unknown = structuredClone(candidate)
+  unknown.interactions[0].nativeEffect.implementation = 'consumer.effect.ripple'
+  const unknownResult = validateSceneInteractionDocument(unknown, { scene: document })
+  assert.equal(unknownResult.ok, false)
+  assert.ok(unknownResult.errors.some((error) => error.code === 'unknown_implementation'))
+
+  const duplicateTrigger = structuredClone(candidate)
+  duplicateTrigger.interactions.push({
+    ...structuredClone(duplicateTrigger.interactions[0]),
+    id: 'second-ripple',
+  })
+  const duplicateResult = validateSceneInteractionDocument(duplicateTrigger, { scene: document })
+  assert.equal(duplicateResult.ok, false)
+  assert.ok(duplicateResult.errors.some((error) => error.code === 'duplicate_native_effect_trigger'))
+
+  const gesturePhase = structuredClone(candidate)
+  gesturePhase.interactions[0].nativeEffect.trigger = { phase: 'end' }
+  assert.equal(validateSceneInteractionDocument(gesturePhase, { scene: document }).ok, true)
+
+  const invalidButton = structuredClone(candidate)
+  invalidButton.interactions[0].nativeEffect.trigger.button = 'other'
+  const invalidButtonResult = validateSceneInteractionDocument(invalidButton, { scene: document })
+  assert.equal(invalidButtonResult.ok, false)
+  assert.ok(invalidButtonResult.errors.some((error) => error.code === 'invalid_native_effect_trigger'))
 })
 
 test('gesture arena deterministically claims drag and coalesces updates without dropping terminal frames', () => {

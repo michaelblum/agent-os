@@ -37,6 +37,7 @@ export const SCENE_CARTRIDGE_IMPLEMENTATIONS = Object.freeze({
   radialMenuResponse: 'aos.scene.response.radial-menu',
   signalGraphResponse: 'aos.scene.response.signal-graph',
   translateResponse: 'aos.scene.response.translate',
+  desktopRippleEffect: 'aos.scene.effect.desktop-ripple',
 })
 
 export const SCENE_CARTRIDGE_LIMITS = Object.freeze({
@@ -343,7 +344,7 @@ function validateInteractions(value, scene, budgets, knownImplementations, error
   errors.push(...validation.errors)
   if (!isRecord(value) || !Array.isArray(value.interactions)) return
   for (const [index, interaction] of value.interactions.entries()) {
-    for (const field of ['recognizer', 'response']) {
+    for (const field of ['recognizer', 'response', 'nativeEffect']) {
       const implementation = interaction?.[field]?.implementation
       if (implementation && !knownImplementations.has(implementation)) {
         addError(errors, 'unknown_implementation', `interactions.interactions.${index}.${field}.implementation`, 'Interaction implementation is not registered.')
@@ -362,6 +363,9 @@ function requiredImplementationEntries(scene, interactions) {
   for (const interaction of interactions.interactions) {
     interactionKinds.set(interaction.recognizer.implementation, 'recognizer')
     interactionKinds.set(interaction.response.implementation, 'response')
+    if (interaction.nativeEffect) {
+      interactionKinds.set(interaction.nativeEffect.implementation, 'effect')
+    }
   }
   return [...new Map([...sceneKinds, ...interactionKinds]).entries()]
     .map(([id, kind]) => ({ id, kind }))

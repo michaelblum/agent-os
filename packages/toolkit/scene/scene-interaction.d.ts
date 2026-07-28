@@ -3,11 +3,13 @@ import type {
   SceneCartridgeInteractionImplementation,
   SceneCartridgeInteractions,
   SceneDocument,
+  SceneNativeEffectDescriptor,
   SceneValidationResult,
 } from './index.js';
 
 export type GestureRecognizerDescriptor = SceneCartridgeInteractionImplementation;
 export type GestureResponseDescriptor = SceneCartridgeInteractionImplementation;
+export type SceneNativeFeedbackDescriptor = SceneNativeEffectDescriptor;
 
 export interface SceneAffordanceDescriptor {
   id: string;
@@ -214,6 +216,9 @@ export const SCENE_GESTURE_PHASES: Readonly<{
   update: 'update';
   end: 'end';
   cancel: 'cancel';
+}>;
+export const SCENE_NATIVE_EFFECT_IMPLEMENTATIONS: Readonly<{
+  desktopRipple: 'aos.scene.effect.desktop-ripple';
 }>;
 export const SCENE_GESTURE_CANCELLATION_REASONS: readonly SceneGestureCancellationReason[];
 export const SCENE_AFFORDANCE_LIMITS: Readonly<{

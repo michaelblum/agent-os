@@ -19,12 +19,8 @@ stage, render lifecycle, gesture mechanics, telemetry, and DevTools.
 3. Use **isolated standalone WebGL** when executable content is not trusted to
    share the AOS renderer realm. Do not disguise untrusted code as an extension.
 
-Read the focused contracts before editing:
-
-- `docs/api/toolkit/scene-authoring.md`
-- `docs/api/toolkit/scene-runtime.md`
-- `docs/api/toolkit/scene-extensions.md`
-- `docs/api/toolkit/scene-devtools.md`
+Read the focused `scene-authoring.md`, `scene-runtime.md`,
+`scene-extensions.md`, and `scene-devtools.md` contracts under `docs/api/toolkit/`.
 
 ## Scaffold A Cartridge
 
@@ -39,15 +35,8 @@ aos scene cartridge validate ./scene-work/companion --json
 
 Available templates are `spinning-object`, `conventional-drag`,
 `aim-and-commit`, and `radial-menu`. Scaffolding never overwrites, installs,
-mounts, authorizes, or executes content. Keep these files data-only:
-
-```text
-cartridge.json
-scene.json
-animations.json
-interactions.json
-assets/
-```
+mounts, authorizes, or executes content. Keep `cartridge.json`, `scene.json`,
+`animations.json`, `interactions.json`, and `assets/` data-only.
 
 Declare exact implementation IDs, finite budgets, canonical relative asset
 paths, and SHA-256 digests. Do not add scripts, functions, links, traversal,
@@ -117,6 +106,26 @@ pointer loss, topology change, and owner loss cancel through AOS. Cartridges
 provide bounded IDs, semantic labels, and visual data; consumers map resulting
 ID-only events to product actions.
 
+## Bind Native Sheet Feedback
+
+Use a data-only `nativeEffect` when an interaction needs immediate AOS-owned
+desktop feedback. The reviewed extension must declare
+`aos.scene.desktop_frame_texture` and `aos.scene.native_sheet_effect`:
+
+```json
+{
+  "nativeEffect": {
+    "implementation": "aos.scene.effect.desktop-ripple",
+    "trigger": { "input": "pointer_down", "button": "left" },
+    "parameters": { "amplitude": 18, "decay": 2.4, "durationMs": 900, "frequency": 0.045, "radius": 1200, "speed": 850 }
+  }
+}
+```
+
+AOS owns pixels, Metal, topology, clocks, and disposal. Consumers choose only
+the registered implementation, trigger, and bounded parameters. Native effects
+are best-effort visuals; never depend on one for product state or authority.
+
 ## Scaffold And Review An Extension
 
 Create a neutral trusted extension only when a cartridge is insufficient:
@@ -144,9 +153,8 @@ aos scene extension install ./scene-work/renderer \
 aos scene extension list --json
 ```
 
-Validation compiles but does not execute the projection body. Installation is
-the explicit executable-authority boundary. Never install a digest that was
-not the exact independently reviewed artifact.
+Validation does not execute the projection body. Install only the exact
+independently reviewed digest.
 
 When an extension owns a line or wormhole interaction route, implement the
 exact synchronous `inspectInteractionRoute()` hook so AOS DevTools and
@@ -192,8 +200,8 @@ aos scene devtools transfer --session "$session_id" \
   --host-id example/inspector-host --json
 ```
 
-The daemon suspends the prior host before activating the next one. Never fork
-the telemetry model or create a second interactive host.
+The daemon suspends the prior host before activation; never fork its telemetry
+model or create a second interactive host.
 
 ## Replay Without Live Input
 
@@ -209,14 +217,11 @@ event-model behavior, not live visual parity.
 
 ## Recover Or Stop
 
-1. Read `session.snapshot()` after any operation failure.
-2. Let the typed session spend its one recovery attempt. Do not add a second
-   consumer retry loop.
-3. If the session becomes `faulted`, close it and surface its redacted failure.
-4. Recreate the session only after product policy revalidates ownership and the
-   canonical document.
-5. Stop immediately for implementation mismatch, budget rejection, malformed
-   transport data, or an extension digest change.
+1. Read `session.snapshot()` and let the session spend its one recovery attempt.
+2. If it becomes `faulted`, close it and surface the redacted failure.
+3. Recreate it only after revalidating ownership and the canonical document.
+4. Stop for implementation mismatch, budget rejection, malformed transport,
+   or an extension digest change.
 
 Close everything explicitly:
 
@@ -228,15 +233,3 @@ rm -rf -- ./scene-work
 Always call `session.close()` in consumer cleanup. Closing a DevTools view does
 not close its daemon-owned session, and deleting a scaffold does not release a
 mounted scene lease.
-
-## References
-
-- `docs/api/toolkit/scene.md`
-- `docs/api/toolkit/scene-authoring.md`
-- `docs/api/toolkit/scene-runtime.md`
-- `docs/api/toolkit/scene-extensions.md`
-- `docs/api/toolkit/scene-devtools.md`
-- `docs/api/aos.md`
-- `packages/toolkit/scene/examples/session-lifecycle.mjs`
-- `shared/schemas/scene-event-v1.schema.json`
-- `shared/schemas/desktop-world-devtools-stage-v1.schema.json`
