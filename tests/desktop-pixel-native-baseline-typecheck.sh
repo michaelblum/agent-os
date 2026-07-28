@@ -16,4 +16,12 @@ trap 'rm -rf "$TMP"' EXIT
   -o "$TMP/native-sheet-geometry-tests"
 "$TMP/native-sheet-geometry-tests"
 
+/usr/bin/xcrun swiftc -parse-as-library \
+  "$ROOT/tests/lib/desktop-pixel-metal-pipeline-tests.swift" \
+  -framework Foundation \
+  -framework Metal \
+  -o "$TMP/desktop-pixel-metal-pipeline-tests"
+"$TMP/desktop-pixel-metal-pipeline-tests" \
+  "$ROOT/src/commands/desktop-pixel-native-baseline-metal.swift"
+
 echo "PASS desktop pixel native baseline integration typecheck"

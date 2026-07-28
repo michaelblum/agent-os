@@ -31,11 +31,11 @@ vertex VertexOut desktopPixelBaselineVertex(
     const device NativeSheetVertex *vertices [[buffer(0)]],
     uint vertexID [[vertex_id]]
 ) {
-    NativeSheetVertex vertex = vertices[vertexID];
+    NativeSheetVertex sheetVertex = vertices[vertexID];
     VertexOut output;
-    output.position = vertex.clipPosition;
-    output.worldPosition = vertex.worldAndUV.xy;
-    output.uv = vertex.worldAndUV.zw;
+    output.position = sheetVertex.clipPosition;
+    output.worldPosition = sheetVertex.worldAndUV.xy;
+    output.uv = sheetVertex.worldAndUV.zw;
     return output;
 }
 

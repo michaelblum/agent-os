@@ -37,9 +37,10 @@ tests.
   DesktopWorld-hosted AOS sheet increment. It proves that the native sheet
   reuses the stage topology and windows, resolves by exact identity, bounds its
   deformable geometry, and leaves no installed sheet, geometry buffer, texture,
-  or shared GPU resource after cleanup. It has source and full Swift
-  integration typecheck coverage plus a supervised TCC-sensitive proof. Static
-  verification must never invoke capture or treat a typecheck as native evidence.
+  or shared GPU resource after cleanup. It has source, full Swift integration,
+  and runtime Metal-shader compilation coverage plus a supervised TCC-sensitive
+  proof. Static verification must never invoke capture or treat these checks as
+  native presentation evidence.
 - Status-item host contract tests must use disposable fake sockets and schema
   fixtures, model startup admission ordering, and prove registration output
   precedes initial events. Fake sockets must emit the complete daemon envelope
