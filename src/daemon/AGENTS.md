@@ -8,6 +8,10 @@ state and routing that must outlive individual canvases: sockets,
 subscriptions, display geometry, canvas lifecycle, content routing, input event
 delivery, voice/communication routing, and cleanup.
 
+The public socket may begin accepting work only after AppKit's launch callback
+and one queued main-loop action. Native capability requests must never race a
+merely initialized `NSApplication` that has not entered its event loop.
+
 Scene transport owns only connection-scoped owner/resource leases and delivery
 to the singleton toolkit DesktopWorld stage. Declarative validation and render
 policy remain in the scene toolkit; disconnect always releases owned scenes.

@@ -182,6 +182,8 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('desktop-annotation-selection')?.patterns?.includes('src/daemon/annotation-target-selection.swift'));
   assert.ok(rules.get('desktop-annotation-selection')?.patterns?.includes('scripts/lib/pending-annotations-model.mjs'));
   assert.equal(rules.get('desktop-annotation-selection')?.tcc_identity_sensitive, true);
+  assert.ok(rules.get('status-item-contract')?.patterns?.includes('src/commands/daemon-application-lifecycle.swift'));
+  assert.ok(rules.get('status-item-contract')?.patterns?.includes('src/commands/serve.swift'));
   assert.deepEqual(
     rules.get('legacy-sigil-test-fixture')?.commands?.map((step) => step.id),
     ['legacy-sigil-fixture-contract'],
@@ -192,8 +194,9 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   );
   assert.equal(rules.get('legacy-sigil-test-fixture')?.tcc_identity_sensitive, false);
   assert.deepEqual(
-    rules.get('desktop-world-scene-engine')?.commands?.slice(0, 5).map((step) => step.id),
+    rules.get('desktop-world-scene-engine')?.commands?.slice(0, 6).map((step) => step.id),
     [
+      'daemon-appkit-readiness',
       'swift-runtime-typecheck',
       'scene-daemon-contract',
       'scene-core-contract',
@@ -201,6 +204,8 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
       'scene-devtools-contract',
     ],
   );
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/commands/daemon-application-lifecycle.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/commands/serve.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-world-scene-*.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-frame-capture-consent.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-frame-capture-adapter.swift'));
