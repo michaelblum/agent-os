@@ -44,11 +44,11 @@
       "owner": "command-surface",
       "harness_level": "model_unit",
       "proof_kind": "lifecycle",
-      "contract": "Native perception wrapper cancellation terminates its exact child and cannot orphan a desktop capture.",
-      "worth": "This deterministically reproduces the formerly retained capture process without invoking AOS, ScreenCaptureKit, or TCC.",
+      "contract": "Direct and saved native perception terminate their exact child after owner, wrapper, or signal loss and cannot orphan a desktop capture.",
+      "worth": "This deterministically reproduces retained capture processes and unsafe live-daemon proof admission without invoking AOS, ScreenCaptureKit, or TCC.",
       "command": "node --test tests/aos-see-native-lifecycle.test.mjs",
       "replaces": [],
-      "guard": "uses a disposable fake AOS child and exact PID assertions",
+      "guard": "uses disposable fake AOS children, exact PID assertions, bounded waits, and a preflight-only live-daemon fixture",
       "status": "active"
     },
     {

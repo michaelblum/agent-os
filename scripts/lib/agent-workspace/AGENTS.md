@@ -12,6 +12,9 @@ backend validation, and local cleanup.
 
 - `capture.mjs`, `store.mjs`, and `commands.mjs` own persisted workspace state,
   compact stdout/readback, atomic snapshot commits, and cleanup commands.
+- Saved native capture must use the shared `../aos-see-child-runner.mjs`
+  guardian so owner or wrapper loss retires the exact native child without
+  weakening synchronous workspace locking.
 - `refs.mjs`, `contracts.mjs`, and `browser-ref-validation.mjs` own saved-ref
   conformance, backend action matrices, browser current-target validation, and
   saved-ref capability projections consumed by annotation surfaces.

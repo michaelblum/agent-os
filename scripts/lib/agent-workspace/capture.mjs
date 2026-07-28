@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   AgentWorkspaceError,
   CAPTURE_MODES,
@@ -37,6 +38,8 @@ import {
   queryBrowserPageIdentity,
 } from './browser-identity.mjs';
 import { commandToken, compactNextRecommendations } from './recommendations.mjs';
+
+const childRunnerPath = fileURLToPath(new URL('../aos-see-child-runner.mjs', import.meta.url));
 
 function snapshotID(explicit) {
   if (explicit) return validateLocalID(explicit, 'snapshot id');
@@ -367,10 +370,12 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
       const captureArtifact = path.join(stagedArtifactsDir, 'capture.png');
       const captureArgs = captureArgsForMode(parsed.passthrough, parsed.options.mode, captureArtifact, target);
       const createdAt = nowISO();
-      const result = spawnSync(aosPath(env), ['__see', 'capture', ...captureArgs], {
+      const result = spawnSync(process.execPath, [childRunnerPath, 'capture', ...captureArgs], {
         encoding: 'utf8',
         env: {
           ...env,
+          AOS_INTERNAL_SEE_OWNER_PID: String(process.ppid),
+          AOS_PATH: aosPath(env),
           AOS_RUNTIME_MODE: runtimeMode(env),
           AOS_STATE_ROOT: stateRoot(env),
         },

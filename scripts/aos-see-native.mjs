@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import {
   emitAgentWorkspaceError,
   isAgentWorkspaceError,
@@ -22,8 +23,9 @@ const SIGNAL_EXIT_CODES = new Map([
   ['SIGINT', 130],
   ['SIGTERM', 143],
 ]);
-const CHILD_SHUTDOWN_GRACE_MS = 1_000;
+const GUARDIAN_SHUTDOWN_GRACE_MS = 2_500;
 const PARENT_LIVENESS_POLL_MS = 250;
+const childRunnerPath = fileURLToPath(new URL('./lib/aos-see-child-runner.mjs', import.meta.url));
 
 function processExists(pid) {
   try {
@@ -36,8 +38,12 @@ function processExists(pid) {
 
 async function runNativePrimitive(primitive, args) {
   const ownerPid = process.ppid;
-  const child = spawn(aosPath(), ['__see', primitive, ...args], {
-    env: process.env,
+  const child = spawn(process.execPath, [childRunnerPath, primitive, ...args], {
+    env: {
+      ...process.env,
+      AOS_INTERNAL_SEE_OWNER_PID: String(ownerPid),
+      AOS_PATH: aosPath(),
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   child.stdout.pipe(process.stdout);
@@ -52,7 +58,7 @@ async function runNativePrimitive(primitive, args) {
     child.kill(signal);
     escalationTimer = setTimeout(() => {
       if (!closed) child.kill('SIGKILL');
-    }, CHILD_SHUTDOWN_GRACE_MS);
+    }, GUARDIAN_SHUTDOWN_GRACE_MS);
   };
   const signalHandlers = new Map(
     [...SIGNAL_EXIT_CODES.keys()].map((signal) => {

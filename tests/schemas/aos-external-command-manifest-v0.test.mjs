@@ -420,7 +420,7 @@ test('private Swift primitives are reachable only through expected external wrap
     ['__runtime', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs', 'scripts/aos-doctor.mjs', 'scripts/aos-service.mjs', 'scripts/aos-clean.mjs']],
     ['__permissions', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs', 'scripts/aos-doctor.mjs', 'scripts/aos-permissions.mjs']],
     ['__render', ['scripts/aos-show-render.mjs']],
-    ['__see', ['scripts/aos-see-native.mjs']],
+    ['__see', ['scripts/lib/aos-see-child-runner.mjs']],
     ['__say', ['scripts/aos-say.mjs']],
     ['__do', ['scripts/aos-do-native.mjs', 'scripts/aos-do-canvas.mjs']],
   ]);
@@ -448,10 +448,21 @@ test('private Swift primitives are reachable only through expected external wrap
       const source = await fs.readFile(path.join(repoRoot, relativePath), 'utf8');
       assert.ok(
         `${source}\n${sharedCompositionSource}`.includes(primitive),
-        `${relativePath} must invoke ${primitive} directly or through scripts/lib/aos-facts.mjs`,
+        `${relativePath} must invoke ${primitive} through its approved private owner`,
       );
     }
   }
+
+  const directSeeWrapper = await fs.readFile(path.join(repoRoot, 'scripts/aos-see-native.mjs'), 'utf8');
+  const savedCaptureOwner = await fs.readFile(path.join(repoRoot, 'scripts/lib/agent-workspace/capture.mjs'), 'utf8');
+  assert.ok(
+    directSeeWrapper.includes("new URL('./lib/aos-see-child-runner.mjs'"),
+    'direct native perception must route through the shared child guardian',
+  );
+  assert.ok(
+    savedCaptureOwner.includes("new URL('../aos-see-child-runner.mjs'"),
+    'saved native perception must route through the shared child guardian',
+  );
 
   const scriptFiles = (await fs.readdir(path.join(repoRoot, 'scripts')))
     .filter((file) => file.endsWith('.mjs'))

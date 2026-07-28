@@ -289,7 +289,10 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
     rules.get('native-see-capture-lifecycle')?.patterns,
     [
       'scripts/aos-see-native.mjs',
+      'scripts/lib/aos-see-child-runner.mjs',
+      'scripts/lib/agent-workspace/capture.mjs',
       'tests/aos-see-native-lifecycle.test.mjs',
+      'tests/external-command-dispatch.sh',
     ],
   );
   assert.deepEqual(
