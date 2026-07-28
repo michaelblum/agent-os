@@ -3,7 +3,7 @@ import Darwin
 import Foundation
 import Metal
 
-struct AOSDesktopPixelNativeBaselineFailure: Error {
+struct AOSDesktopPixelNativeBaselineFailure: Error, Sendable {
     let code: String
     let nativeCode: Int?
 
@@ -66,7 +66,7 @@ private struct AOSDesktopPixelNativeBaselineOptions {
     }
 }
 
-private struct AOSDesktopPixelNativeBaselineSummary: Encodable {
+private struct AOSDesktopPixelNativeBaselineSummary: Encodable, Sendable {
     let schemaVersion = "aos.desktop-pixel-native-baseline.v1"
     let status: String
     let errorCode: String?
@@ -93,6 +93,7 @@ private struct AOSDesktopPixelNativeBaselineSummary: Encodable {
     let brokerUsed = false
     let sceneProtocolUsed = false
     var retainedFramesAfterCleanup: Int
+    var retainedCaptureStreamsAfterCleanup: Int
     var retainedGeometryBuffersAfterCleanup: Int
     var retainedGPUResourcesAfterCleanup: Int
     var pendingRetirementsAfterCleanup: Int
@@ -128,6 +129,7 @@ private struct AOSDesktopPixelNativeBaselineSummary: Encodable {
         case brokerUsed = "broker_used"
         case sceneProtocolUsed = "scene_protocol_used"
         case retainedFramesAfterCleanup = "retained_frames_after_cleanup"
+        case retainedCaptureStreamsAfterCleanup = "retained_capture_streams_after_cleanup"
         case retainedGeometryBuffersAfterCleanup = "retained_geometry_buffers_after_cleanup"
         case retainedGPUResourcesAfterCleanup = "retained_gpu_resources_after_cleanup"
         case pendingRetirementsAfterCleanup = "pending_retirements_after_cleanup"
@@ -207,6 +209,8 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
     private let options: AOSDesktopPixelNativeBaselineOptions
     private var finishing = false
     private var host: (any AOSDesktopPixelNativeBaselineHost)?
+    private var cancellationFailureCode = "DESKTOP_PIXEL_BASELINE_CANCELED"
+    private var proofTask: Task<Void, Never>?
     private var signalSources: [DispatchSourceSignal] = []
     private(set) var exitCode: Int32 = 1
 
@@ -216,20 +220,26 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installSignalHandlers()
-        Task { @MainActor in
-            await runProof()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(displayParametersChanged(_:)),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
+        proofTask = Task { @MainActor [weak self] in
+            await self?.runProof()
         }
     }
 
     private func runProof() async {
         guard CGPreflightScreenCaptureAccess() else {
-            await finish(failure: AOSDesktopPixelNativeBaselineFailure(
+            await conclude(failure: AOSDesktopPixelNativeBaselineFailure(
                 code: "SCREEN_CAPTURE_PERMISSION_REQUIRED"
             ))
             return
         }
         guard let device = MTLCreateSystemDefaultDevice() else {
-            await finish(failure: AOSDesktopPixelNativeBaselineFailure(
+            await conclude(failure: AOSDesktopPixelNativeBaselineFailure(
                 code: "DESKTOP_PIXEL_BASELINE_METAL_UNAVAILABLE"
             ))
             return
@@ -245,6 +255,7 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
 
             let warmupStarted = DispatchTime.now().uptimeNanoseconds
             try await capture.start(displayIDs: endpoints.map(\.displayID))
+            try Task.checkCancellation()
             let warmupFinished = DispatchTime.now().uptimeNanoseconds
             let frames = capture.snapshots()
             guard frames.count == endpoints.count else {
@@ -267,6 +278,7 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
                   let lastPresented = presented.max() else {
                 throw AOSDesktopPixelNativeBaselineFailure(code: "DESKTOP_PIXEL_BASELINE_PRESENTATION_TIMEOUT")
             }
+            try Task.checkCancellation()
             try await Task.sleep(nanoseconds: options.holdMilliseconds * 1_000_000)
             let oldestFrame = frames.map(\.receivedAtNanoseconds).min() ?? triggered
             let success = AOSDesktopPixelNativeBaselineSummary(
@@ -289,6 +301,7 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
                 presentationSkewMilliseconds: milliseconds(lastPresented - firstPresented),
                 oldestFrameAgeMilliseconds: milliseconds(lastPresented - oldestFrame),
                 retainedFramesAfterCleanup: 0,
+                retainedCaptureStreamsAfterCleanup: 0,
                 retainedGeometryBuffersAfterCleanup: 0,
                 retainedGPUResourcesAfterCleanup: 0,
                 pendingRetirementsAfterCleanup: 0,
@@ -297,29 +310,47 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
                 retainedViewsAfterCleanup: 0,
                 windowsAfterCleanup: 0
             )
-            await finish(success: success)
+            await conclude(success: success)
         } catch {
-            let failure = error as? AOSDesktopPixelNativeBaselineFailure
-                ?? AOSDesktopPixelNativeBaselineFailure(
-                    code: "DESKTOP_PIXEL_BASELINE_FAILED",
-                    nativeCode: (error as NSError).code
+            let failure: AOSDesktopPixelNativeBaselineFailure
+            if error is CancellationError {
+                failure = AOSDesktopPixelNativeBaselineFailure(
+                    code: cancellationFailureCode
                 )
-            await finish(failure: failure)
+            } else {
+                failure = error as? AOSDesktopPixelNativeBaselineFailure
+                    ?? AOSDesktopPixelNativeBaselineFailure(
+                        code: "DESKTOP_PIXEL_BASELINE_FAILED",
+                        nativeCode: (error as NSError).code
+                    )
+            }
+            await conclude(failure: failure)
         }
+    }
+
+    private func conclude(
+        success: AOSDesktopPixelNativeBaselineSummary? = nil,
+        failure: AOSDesktopPixelNativeBaselineFailure? = nil
+    ) async {
+        guard !finishing else { return }
+        finishing = true
+        let teardown = Task.detached { @MainActor [weak self] in
+            await self?.finish(success: success, failure: failure)
+        }
+        await teardown.value
     }
 
     private func finish(
         success: AOSDesktopPixelNativeBaselineSummary? = nil,
         failure: AOSDesktopPixelNativeBaselineFailure? = nil
     ) async {
-        guard !finishing else { return }
-        finishing = true
         let activeHost = host
         let displayCount = activeHost?.endpoints.count ?? 0
         let hostKind = activeHost?.kind ?? options.host
         let canvasGeneration = activeHost?.canvasGeneration
         let topologyGeneration = activeHost?.topologyGeneration
         let geometryMetrics = activeHost?.geometryMetrics
+        let captureCleanup = await capture.stop()
         let cleanup = await activeHost?.dispose() ?? AOSDesktopPixelNativeBaselineHostCleanup(
             pendingRetirements: 0,
             retainedGeometryBuffers: 0,
@@ -330,21 +361,24 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
             retainedWindows: 0
         )
         host = nil
-        await capture.stop()
-        let retainedFramesAfterCleanup = capture.retainedFrameCount()
+        let retainedFramesAfterCleanup = captureCleanup.retainedFrames
         signalSources.forEach { $0.cancel() }
         signalSources = []
+        NotificationCenter.default.removeObserver(self)
+        let cleanupComplete = retainedFramesAfterCleanup == 0
+            && captureCleanup.unsettledStreams == 0
+            && captureCleanup.nativeCode == nil
+            && cleanup.retainedGeometryBuffers == 0
+            && cleanup.retainedGPUResources == 0
+            && cleanup.pendingRetirements == 0
+            && cleanup.retainedSheets == 0
+            && cleanup.retainedTextures == 0
+            && cleanup.retainedViews == 0
+            && cleanup.retainedWindows == 0
 
-        if var success,
-           retainedFramesAfterCleanup == 0,
-           cleanup.retainedGeometryBuffers == 0,
-           cleanup.retainedGPUResources == 0,
-           cleanup.pendingRetirements == 0,
-           cleanup.retainedSheets == 0,
-           cleanup.retainedTextures == 0,
-           cleanup.retainedViews == 0,
-           cleanup.retainedWindows == 0 {
+        if var success, cleanupComplete {
             success.retainedFramesAfterCleanup = retainedFramesAfterCleanup
+            success.retainedCaptureStreamsAfterCleanup = captureCleanup.unsettledStreams
             success.retainedGeometryBuffersAfterCleanup = cleanup.retainedGeometryBuffers
             success.retainedGPUResourcesAfterCleanup = cleanup.retainedGPUResources
             success.pendingRetirementsAfterCleanup = cleanup.pendingRetirements
@@ -356,9 +390,10 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
             exitCode = 0
         } else {
             let observed: AOSDesktopPixelNativeBaselineFailure
-            if failure == nil, success != nil {
+            if !cleanupComplete {
                 observed = AOSDesktopPixelNativeBaselineFailure(
-                    code: "DESKTOP_PIXEL_BASELINE_CLEANUP_INCOMPLETE"
+                    code: "DESKTOP_PIXEL_BASELINE_CLEANUP_INCOMPLETE",
+                    nativeCode: captureCleanup.nativeCode
                 )
             } else {
                 observed = failure ?? AOSDesktopPixelNativeBaselineFailure(
@@ -385,6 +420,7 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
                 presentationSkewMilliseconds: nil,
                 oldestFrameAgeMilliseconds: nil,
                 retainedFramesAfterCleanup: retainedFramesAfterCleanup,
+                retainedCaptureStreamsAfterCleanup: captureCleanup.unsettledStreams,
                 retainedGeometryBuffersAfterCleanup: cleanup.retainedGeometryBuffers,
                 retainedGPUResourcesAfterCleanup: cleanup.retainedGPUResources,
                 pendingRetirementsAfterCleanup: cleanup.pendingRetirements,
@@ -395,6 +431,7 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
             ), toStandardError: true)
             exitCode = 1
         }
+        proofTask = nil
         stopApplicationRunLoop()
     }
 
@@ -403,13 +440,23 @@ private final class AOSDesktopPixelNativeBaselineController: NSObject, NSApplica
             signal(value, SIG_IGN)
             let source = DispatchSource.makeSignalSource(signal: value, queue: .main)
             source.setEventHandler { [weak self] in
-                Task { @MainActor in
-                    await self?.finish()
+                Task { @MainActor [weak self] in
+                    self?.cancelProof(code: "DESKTOP_PIXEL_BASELINE_CANCELED")
                 }
             }
             source.resume()
             signalSources.append(source)
         }
+    }
+
+    @objc private func displayParametersChanged(_ notification: Notification) {
+        cancelProof(code: "DESKTOP_PIXEL_BASELINE_TOPOLOGY_CHANGED")
+    }
+
+    private func cancelProof(code: String) {
+        guard !finishing, let proofTask, !proofTask.isCancelled else { return }
+        cancellationFailureCode = code
+        proofTask.cancel()
     }
 
     private func milliseconds(_ nanoseconds: UInt64) -> Double {

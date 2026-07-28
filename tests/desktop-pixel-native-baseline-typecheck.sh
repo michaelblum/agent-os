@@ -17,6 +17,24 @@ trap 'rm -rf "$TMP"' EXIT
 "$TMP/native-sheet-geometry-tests"
 
 /usr/bin/xcrun swiftc -parse-as-library \
+  "$ROOT/src/display/desktop-world-native-sheet-lease.swift" \
+  "$ROOT/tests/lib/desktop-world-native-sheet-lease-tests.swift" \
+  -framework Foundation \
+  -o "$TMP/native-sheet-lease-tests"
+"$TMP/native-sheet-lease-tests"
+
+/usr/bin/xcrun swiftc -parse-as-library \
+  "$ROOT/src/commands/desktop-pixel-native-baseline-capture.swift" \
+  "$ROOT/tests/lib/desktop-pixel-native-baseline-lifecycle-tests.swift" \
+  -framework CoreGraphics \
+  -framework CoreMedia \
+  -framework CoreVideo \
+  -framework Foundation \
+  -framework ScreenCaptureKit \
+  -o "$TMP/desktop-pixel-native-baseline-lifecycle-tests"
+"$TMP/desktop-pixel-native-baseline-lifecycle-tests"
+
+/usr/bin/xcrun swiftc -parse-as-library \
   "$ROOT/tests/lib/desktop-pixel-metal-pipeline-tests.swift" \
   -framework Foundation \
   -framework Metal \

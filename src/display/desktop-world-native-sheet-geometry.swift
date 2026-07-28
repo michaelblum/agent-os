@@ -79,7 +79,6 @@ struct DesktopWorldNativeSheetVertex {
     var worldAndUV: SIMD4<Float>
 }
 
-@MainActor
 final class DesktopWorldNativeSheetMesh {
     let descriptor: DesktopWorldNativeSheetGeometryDescriptor
     let indexCount: Int
@@ -177,4 +176,5 @@ enum DesktopWorldNativeSheetFailure: Error {
     case geometryAllocationFailed
     case geometryBudgetExceeded
     case invalidGeometry
+    case projectionOccupied
 }

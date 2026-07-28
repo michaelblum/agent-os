@@ -273,7 +273,9 @@
         "src/commands/desktop-pixel-native-baseline*.swift",
         "src/display/desktop-world-native-projection*.swift",
         "src/display/desktop-world-native-sheet-geometry.swift",
+        "src/display/desktop-world-native-sheet-lease.swift",
         "src/display/desktop-world-native-sheet.swift",
+        "src/display/desktop-world-surface.swift",
         "src/shared/desktop-world-resource-identity.swift",
         "src/main.swift"
       ],
@@ -310,6 +312,9 @@
         "docs/guides/desktop-pixel-native-baseline.md",
         "tests/desktop-pixel-native-baseline.test.mjs",
         "tests/desktop-pixel-native-baseline-typecheck.sh",
+        "tests/lib/desktop-pixel-native-baseline-lifecycle-tests.swift",
+        "tests/lib/desktop-pixel-metal-pipeline-tests.swift",
+        "tests/lib/desktop-world-native-sheet-lease-tests.swift",
         "tests/lib/desktop-world-native-sheet-geometry-tests.swift"
       ],
       "classes": [
@@ -361,6 +366,7 @@
         "src/display/desktop-world-surface.swift",
         "src/display/desktop-world-native-projection.swift",
         "src/display/desktop-world-native-sheet-geometry.swift",
+        "src/display/desktop-world-native-sheet-lease.swift",
         "src/display/desktop-world-native-sheet.swift",
         "src/shared/desktop-world-resource-identity.swift",
         "src/display/desktop-frame-texture.swift",

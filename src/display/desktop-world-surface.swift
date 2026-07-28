@@ -123,6 +123,12 @@ func orderSegments(_ unordered: [DesktopWorldSurfaceSegment]) -> [DesktopWorldSu
 }
 
 final class DesktopWorldSurfaceCanvas: CanvasLike {
+    enum NativeSheetError: Error {
+        case identityMismatch
+        case missing
+        case occupied
+    }
+
     final class Segment: CanvasNativeRetirable {
         let displayID: UInt32
         var index: Int
@@ -264,6 +270,8 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     private var inputPassthrough = false
     private var retirementQuiesced = false
     private var retirementFinalized = false
+    private var installedNativeSheet: DesktopWorldNativeSheet?
+    private var nativeSheetLease: DesktopWorldNativeSheetProcessLease.Token?
     private(set) var segments: [Segment] = []
     private(set) var lastDelta: TopologyDelta?
     private(set) var topologyGeneration: UInt64 = 0
@@ -362,6 +370,56 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         }
     }
 
+    func installNativeSheet(
+        device: MTLDevice,
+        geometryDescriptor: DesktopWorldNativeSheetGeometryDescriptor = .standard
+    ) throws -> DesktopWorldNativeSheet {
+        precondition(Thread.isMainThread, "native sheet installation must run on the main thread")
+        guard installedNativeSheet == nil else { throw NativeSheetError.occupied }
+        let lease = try DesktopWorldNativeSheetProcessLease.shared.claim(
+            owner: self,
+            canvasGeneration: lifecycleGeneration
+        )
+        do {
+            let sheet = try DesktopWorldNativeSheet(
+                segments: segments,
+                device: device,
+                geometryDescriptor: geometryDescriptor,
+                topologyGeneration: topologyGeneration
+            )
+            nativeSheetLease = lease
+            installedNativeSheet = sheet
+            return sheet
+        } catch {
+            DesktopWorldNativeSheetProcessLease.shared.release(lease)
+            throw error
+        }
+    }
+
+    func nativeSheet(for identity: AOSDesktopWorldResourceIdentity) throws -> DesktopWorldNativeSheet {
+        guard let sheet = installedNativeSheet else { throw NativeSheetError.missing }
+        guard sheet.identity == identity else { throw NativeSheetError.identityMismatch }
+        return sheet
+    }
+
+    func removeNativeSheet(_ identity: AOSDesktopWorldResourceIdentity) throws {
+        guard let sheet = installedNativeSheet else { throw NativeSheetError.missing }
+        guard sheet.identity == identity else { throw NativeSheetError.identityMismatch }
+        installedNativeSheet = nil
+        sheet.dispose()
+        releaseNativeSheetLease()
+    }
+
+    func discardNativeSheetImmediately() {
+        installedNativeSheet?.dispose()
+        installedNativeSheet = nil
+        releaseNativeSheetLease()
+    }
+
+    var nativeSheetCount: Int {
+        installedNativeSheet == nil ? 0 : 1
+    }
+
     func grabFocus() {
         guard isInteractive, let first = segments.first else { return }
         NSApp.activate(ignoringOtherApps: true)
@@ -376,6 +434,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         onTTLExpired = nil
         ttlTimer?.cancel()
         ttlTimer = nil
+        installedNativeSheet?.suspend()
         for segment in segments {
             segment.quiesceForRetirement()
         }
@@ -387,6 +446,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         guard !retirementFinalized else { return }
         retirementFinalized = true
         quiesceForRetirement()
+        discardNativeSheetImmediately()
         for segment in segments {
             segment.finalizeRetirement()
         }
@@ -528,6 +588,11 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     }
 
     private func applyOrderedSegments(_ ordered: [DesktopWorldSurfaceSegment]) -> Bool {
+        let topologyWillChange = ordered != segmentMetadata()
+        if topologyWillChange {
+            // Capture, renderers, and diagnostics are one generation-scoped aggregate.
+            discardNativeSheetImmediately()
+        }
         var byDisplay = Dictionary(uniqueKeysWithValues: segments.map { ($0.displayID, $0) })
         var nextSegments: [Segment] = []
         var added: [DesktopWorldSurfaceSegment] = []
@@ -573,11 +638,19 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         segments = nextSegments
         let settled = segmentMetadata()
         let hasChanges = !added.isEmpty || !removed.isEmpty || !changed.isEmpty
-        if hasChanges { topologyGeneration &+= 1 }
+        if hasChanges {
+            topologyGeneration &+= 1
+        }
         lastDelta = hasChanges
             ? TopologyDelta(added: added, removed: removed, changed: changed, settled: settled)
             : nil
         return hasChanges
+    }
+
+    private func releaseNativeSheetLease() {
+        guard let nativeSheetLease else { return }
+        DesktopWorldNativeSheetProcessLease.shared.release(nativeSheetLease)
+        self.nativeSheetLease = nil
     }
 
     private func makeSegmentWindow(meta: DesktopWorldSurfaceSegment, nativeRect: CGRect, dwRect: CGRect) -> Segment {

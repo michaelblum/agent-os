@@ -2,7 +2,6 @@ import CoreGraphics
 import Foundation
 import Metal
 
-@MainActor
 final class DesktopWorldNativeSheet {
     static let ownerID = "io.agent-os"
     static let resourceID = "native-sheet/main"
@@ -26,21 +25,28 @@ final class DesktopWorldNativeSheet {
     let metrics: DesktopWorldNativeSheetGeometryMetrics
     private(set) var segmentSheets: [SegmentSheet]
     private(set) var state: State = .registered
+    let topologyGeneration: UInt64
 
     init(
         segments: [DesktopWorldSurfaceCanvas.Segment],
         device: MTLDevice,
-        geometryDescriptor: DesktopWorldNativeSheetGeometryDescriptor
+        geometryDescriptor: DesktopWorldNativeSheetGeometryDescriptor,
+        topologyGeneration: UInt64
     ) throws {
+        precondition(Thread.isMainThread, "native sheet creation must run on the main thread")
         identity = try AOSDesktopWorldResourceIdentity(
             ownerID: Self.ownerID,
             resourceID: Self.resourceID
         )
         self.geometryDescriptor = geometryDescriptor
+        self.topologyGeneration = topologyGeneration
         metrics = try geometryDescriptor.metrics(segmentCount: segments.count)
         var created: [SegmentSheet] = []
         do {
             for segment in segments {
+                guard segment.nativeProjectionHost == nil else {
+                    throw DesktopWorldNativeSheetFailure.projectionOccupied
+                }
                 let host = try segment.ensureNativeProjectionHost(device: device)
                 do {
                     let mesh = try DesktopWorldNativeSheetMesh(
@@ -70,18 +76,21 @@ final class DesktopWorldNativeSheet {
     }
 
     func present() {
+        precondition(Thread.isMainThread, "native sheet presentation must run on the main thread")
         guard state != .disposed else { return }
         segmentSheets.forEach { $0.host.present() }
         state = .active
     }
 
     func suspend() {
+        precondition(Thread.isMainThread, "native sheet suspension must run on the main thread")
         guard state != .disposed else { return }
         segmentSheets.forEach { $0.host.suspend() }
         state = .suspended
     }
 
     func dispose() {
+        precondition(Thread.isMainThread, "native sheet disposal must run on the main thread")
         guard state != .disposed else { return }
         state = .disposed
         segmentSheets.forEach {
@@ -94,62 +103,5 @@ final class DesktopWorldNativeSheet {
 
     var retainedGeometryBufferCount: Int {
         segmentSheets.reduce(0) { $0 + $1.mesh.retainedBufferCount }
-    }
-}
-
-@MainActor
-final class DesktopWorldNativeSheetRegistry {
-    enum RegistryError: Error {
-        case occupied
-        case missing
-        case identityMismatch
-    }
-
-    private let device: MTLDevice
-    private let geometryDescriptor: DesktopWorldNativeSheetGeometryDescriptor
-    private let segments: [DesktopWorldSurfaceCanvas.Segment]
-    private var installed: DesktopWorldNativeSheet?
-
-    init(
-        segments: [DesktopWorldSurfaceCanvas.Segment],
-        device: MTLDevice,
-        geometryDescriptor: DesktopWorldNativeSheetGeometryDescriptor = .standard
-    ) {
-        self.segments = segments
-        self.device = device
-        self.geometryDescriptor = geometryDescriptor
-    }
-
-    func install() throws -> DesktopWorldNativeSheet {
-        guard installed == nil else { throw RegistryError.occupied }
-        let sheet = try DesktopWorldNativeSheet(
-            segments: segments,
-            device: device,
-            geometryDescriptor: geometryDescriptor
-        )
-        installed = sheet
-        return sheet
-    }
-
-    func sheet(for identity: AOSDesktopWorldResourceIdentity) throws -> DesktopWorldNativeSheet {
-        guard let sheet = installed else { throw RegistryError.missing }
-        guard sheet.identity == identity else { throw RegistryError.identityMismatch }
-        return sheet
-    }
-
-    func remove(_ identity: AOSDesktopWorldResourceIdentity) throws {
-        guard let sheet = installed else { throw RegistryError.missing }
-        guard sheet.identity == identity else { throw RegistryError.identityMismatch }
-        installed = nil
-        sheet.dispose()
-    }
-
-    func discardImmediately() {
-        installed?.dispose()
-        installed = nil
-    }
-
-    var count: Int {
-        installed == nil ? 0 : 1
     }
 }

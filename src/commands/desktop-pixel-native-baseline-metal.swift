@@ -3,7 +3,7 @@ import CoreVideo
 import Foundation
 import MetalKit
 
-enum AOSDesktopPixelNativeBaselinePresentation: String, Encodable {
+enum AOSDesktopPixelNativeBaselinePresentation: String, Encodable, Sendable {
     case identity
     case inverted
 }

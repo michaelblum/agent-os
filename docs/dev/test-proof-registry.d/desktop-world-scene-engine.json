@@ -41,6 +41,9 @@
       "path_patterns": [
         "tests/desktop-pixel-native-baseline.test.mjs",
         "tests/desktop-pixel-native-baseline-typecheck.sh",
+        "tests/lib/desktop-pixel-native-baseline-lifecycle-tests.swift",
+        "tests/lib/desktop-pixel-metal-pipeline-tests.swift",
+        "tests/lib/desktop-world-native-sheet-lease-tests.swift",
         "tests/lib/desktop-world-native-sheet-geometry-tests.swift"
       ],
       "fixture_patterns": [],

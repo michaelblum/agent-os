@@ -1,7 +1,7 @@
 import CoreMedia
 import CoreVideo
 import Foundation
-import ScreenCaptureKit
+@preconcurrency import ScreenCaptureKit
 
 struct AOSDesktopPixelNativeBaselineFrame {
     let displayID: CGDirectDisplayID
@@ -15,6 +15,7 @@ final class AOSDesktopPixelNativeBaselineStreamOutput: NSObject, SCStreamOutput,
 
     private let lock = NSLock()
     private var frameCount: UInt64 = 0
+    private var acceptingFrames = true
     private var latestBuffer: CVPixelBuffer?
     private var latestAtNanoseconds: UInt64 = 0
     private var terminalNativeCode: Int?
@@ -34,6 +35,10 @@ final class AOSDesktopPixelNativeBaselineStreamOutput: NSObject, SCStreamOutput,
             return
         }
         lock.lock()
+        guard acceptingFrames else {
+            lock.unlock()
+            return
+        }
         frameCount &+= 1
         latestBuffer = buffer
         latestAtNanoseconds = DispatchTime.now().uptimeNanoseconds
@@ -69,16 +74,108 @@ final class AOSDesktopPixelNativeBaselineStreamOutput: NSObject, SCStreamOutput,
         latestBuffer = nil
         lock.unlock()
     }
+
+    func quiesce() {
+        lock.lock()
+        acceptingFrames = false
+        lock.unlock()
+    }
+
+    var retainedFrameCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return latestBuffer == nil ? 0 : 1
+    }
 }
 
+enum AOSDesktopPixelNativeBaselineStopOutcome: Sendable {
+    case stopped
+    case failed(Int)
+    case timedOut
+}
+
+final class AOSDesktopPixelNativeBaselineStopSettlement: @unchecked Sendable {
+    typealias Completion = @Sendable (Error?) -> Void
+    typealias Operation = @Sendable (@escaping Completion) -> Void
+
+    private let lock = NSLock()
+    private var continuations: [CheckedContinuation<AOSDesktopPixelNativeBaselineStopOutcome, Never>] = []
+    private var operationStarted = false
+    private var outcome: AOSDesktopPixelNativeBaselineStopOutcome?
+
+    func wait(
+        timeoutMilliseconds: Int,
+        operation: @escaping Operation
+    ) async -> AOSDesktopPixelNativeBaselineStopOutcome {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if let outcome {
+                lock.unlock()
+                continuation.resume(returning: outcome)
+                return
+            }
+            continuations.append(continuation)
+            guard !operationStarted else {
+                lock.unlock()
+                return
+            }
+            operationStarted = true
+            lock.unlock()
+
+            let settlement = self
+            DispatchQueue.global(qos: .utility).async {
+                operation { error in
+                    if let error {
+                        settlement.settle(.failed((error as NSError).code))
+                    } else {
+                        settlement.settle(.stopped)
+                    }
+                }
+            }
+            DispatchQueue.global(qos: .utility).asyncAfter(
+                deadline: .now() + .milliseconds(timeoutMilliseconds)
+            ) {
+                settlement.settle(.timedOut)
+            }
+        }
+    }
+
+    private func settle(_ outcome: AOSDesktopPixelNativeBaselineStopOutcome) {
+        lock.lock()
+        guard self.outcome == nil else {
+            lock.unlock()
+            return
+        }
+        self.outcome = outcome
+        let waiting = continuations
+        continuations = []
+        lock.unlock()
+        waiting.forEach { $0.resume(returning: outcome) }
+    }
+}
+
+struct AOSDesktopPixelNativeBaselineCaptureCleanup {
+    let nativeCode: Int?
+    let retainedFrames: Int
+    let unsettledStreams: Int
+
+    var complete: Bool {
+        nativeCode == nil && retainedFrames == 0 && unsettledStreams == 0
+    }
+}
+
+@MainActor
 final class AOSDesktopPixelNativeBaselineCapture {
-    static let maximumDisplays = 8
-    static let maximumPixelsPerDisplay = 33_554_432
-    static let maximumAggregatePixels = 67_108_864
-    static let queueDepth = 3
+    nonisolated static let maximumDisplays = 8
+    nonisolated static let maximumPixelsPerDisplay = 33_554_432
+    nonisolated static let maximumAggregatePixels = 67_108_864
+    nonisolated static let queueDepth = 3
+    nonisolated static let stopTimeoutMilliseconds = 2_000
 
     private struct Entry {
         let output: AOSDesktopPixelNativeBaselineStreamOutput
+        let sampleQueue: DispatchQueue
+        let stopSettlement: AOSDesktopPixelNativeBaselineStopSettlement
         let stream: SCStream
     }
 
@@ -95,6 +192,7 @@ final class AOSDesktopPixelNativeBaselineCapture {
             false,
             onScreenWindowsOnly: false
         )
+        try Task.checkCancellation()
         let requested = Set(displayIDs)
         let displays = content.displays
             .filter { requested.contains($0.displayID) }
@@ -118,6 +216,7 @@ final class AOSDesktopPixelNativeBaselineCapture {
         var configured: [Entry] = []
         do {
             for display in displays {
+                try Task.checkCancellation()
                 let configuration = SCStreamConfiguration()
                 configuration.width = display.width
                 configuration.height = display.height
@@ -145,34 +244,61 @@ final class AOSDesktopPixelNativeBaselineCapture {
                     qos: .userInteractive
                 )
                 try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: queue)
-                configured.append(Entry(output: output, stream: stream))
+                configured.append(Entry(
+                    output: output,
+                    sampleQueue: queue,
+                    stopSettlement: AOSDesktopPixelNativeBaselineStopSettlement(),
+                    stream: stream
+                ))
             }
             entries = configured
             try await withThrowingTaskGroup(of: Void.self) { group in
                 for entry in configured {
-                    group.addTask { try await entry.stream.startCapture() }
+                    group.addTask {
+                        try Task.checkCancellation()
+                        try await entry.stream.startCapture()
+                    }
                 }
                 try await group.waitForAll()
             }
         } catch {
             entries = configured
-            await stop()
+            let cleanup = await stop()
+            guard cleanup.complete else {
+                throw AOSDesktopPixelNativeBaselineFailure(
+                    code: "DESKTOP_PIXEL_BASELINE_CAPTURE_START_CLEANUP_FAILED",
+                    nativeCode: cleanup.nativeCode
+                )
+            }
             throw nativeFailure(error, fallback: "DESKTOP_PIXEL_BASELINE_CAPTURE_START_FAILED")
         }
 
         let deadline = DispatchTime.now().uptimeNanoseconds + 5_000_000_000
         while DispatchTime.now().uptimeNanoseconds < deadline {
             if let nativeCode = entries.compactMap({ $0.output.failureCode() }).first {
-                await stop()
+                let cleanup = await stop()
+                guard cleanup.complete else {
+                    throw AOSDesktopPixelNativeBaselineFailure(
+                        code: "DESKTOP_PIXEL_BASELINE_CAPTURE_CLEANUP_FAILED",
+                        nativeCode: cleanup.nativeCode
+                    )
+                }
                 throw AOSDesktopPixelNativeBaselineFailure(
                     code: "DESKTOP_PIXEL_BASELINE_STREAM_STOPPED",
                     nativeCode: nativeCode
                 )
             }
             if snapshots().count == entries.count { return }
+            try Task.checkCancellation()
             try await Task.sleep(nanoseconds: 10_000_000)
         }
-        await stop()
+        let cleanup = await stop()
+        guard cleanup.complete else {
+            throw AOSDesktopPixelNativeBaselineFailure(
+                code: "DESKTOP_PIXEL_BASELINE_CAPTURE_CLEANUP_FAILED",
+                nativeCode: cleanup.nativeCode
+            )
+        }
         throw AOSDesktopPixelNativeBaselineFailure(code: "DESKTOP_PIXEL_BASELINE_FRAME_TIMEOUT")
     }
 
@@ -180,20 +306,57 @@ final class AOSDesktopPixelNativeBaselineCapture {
         entries.compactMap { $0.output.snapshot() }.sorted { $0.displayID < $1.displayID }
     }
 
-    func retainedFrameCount() -> Int {
-        entries.isEmpty ? retainedFramesAfterStop : snapshots().count
-    }
-
-    func stop() async {
+    func stop() async -> AOSDesktopPixelNativeBaselineCaptureCleanup {
         let stopping = entries
-        entries = []
-        await withTaskGroup(of: Void.self) { group in
-            for entry in stopping {
-                group.addTask { try? await entry.stream.stopCapture() }
+        stopping.forEach { $0.output.quiesce() }
+        let outcomes = await withTaskGroup(
+            of: (Int, AOSDesktopPixelNativeBaselineStopOutcome).self,
+            returning: [(Int, AOSDesktopPixelNativeBaselineStopOutcome)].self
+        ) { group in
+            for (index, entry) in stopping.enumerated() {
+                group.addTask {
+                    let outcome = await entry.stopSettlement.wait(
+                        timeoutMilliseconds: Self.stopTimeoutMilliseconds,
+                        operation: { completion in
+                            entry.stream.stopCapture(completionHandler: completion)
+                        }
+                    )
+                    return (index, outcome)
+                }
+            }
+            var collected: [(Int, AOSDesktopPixelNativeBaselineStopOutcome)] = []
+            for await outcome in group { collected.append(outcome) }
+            return collected
+        }
+
+        let byIndex = Dictionary(uniqueKeysWithValues: outcomes)
+        var unsettled: [Entry] = []
+        var nativeCode: Int?
+        for (index, entry) in stopping.enumerated() {
+            switch byIndex[index] ?? .timedOut {
+            case .stopped:
+                do {
+                    try entry.stream.removeStreamOutput(entry.output, type: .screen)
+                    entry.sampleQueue.sync {}
+                    entry.output.clear()
+                } catch {
+                    nativeCode = nativeCode ?? (error as NSError).code
+                    unsettled.append(entry)
+                }
+            case .failed(let code):
+                nativeCode = nativeCode ?? code
+                unsettled.append(entry)
+            case .timedOut:
+                unsettled.append(entry)
             }
         }
-        stopping.forEach { $0.output.clear() }
-        retainedFramesAfterStop = stopping.compactMap { $0.output.snapshot() }.count
+        entries = unsettled
+        retainedFramesAfterStop = unsettled.reduce(0) { $0 + $1.output.retainedFrameCount }
+        return AOSDesktopPixelNativeBaselineCaptureCleanup(
+            nativeCode: nativeCode,
+            retainedFrames: retainedFramesAfterStop,
+            unsettledStreams: unsettled.count
+        )
     }
 
     private func checkedPixels(width: Int, height: Int) throws -> Int {

@@ -14,6 +14,7 @@ const hostSource = read('src/commands/desktop-pixel-native-baseline-host.swift')
 const metalSource = read('src/commands/desktop-pixel-native-baseline-metal.swift');
 const projectionSource = read('src/display/desktop-world-native-projection.swift');
 const geometrySource = read('src/display/desktop-world-native-sheet-geometry.swift');
+const leaseSource = read('src/display/desktop-world-native-sheet-lease.swift');
 const sheetSource = read('src/display/desktop-world-native-sheet.swift');
 const identitySource = read('src/shared/desktop-world-resource-identity.swift');
 const surfaceSource = read('src/display/desktop-world-surface.swift');
@@ -24,6 +25,7 @@ const nativeSources = [
   metalSource,
   projectionSource,
   geometrySource,
+  leaseSource,
   sheetSource,
   identitySource,
 ].join('\n');
@@ -54,7 +56,10 @@ test('native baseline retains the proven warm ScreenCaptureKit shape', () => {
   assert.match(captureSource, /configuration\.capturesAudio = false/);
   assert.match(captureSource, /configuration\.minimumFrameInterval = CMTime\(value: 1, timescale: 30\)/);
   assert.match(captureSource, /try await entry\.stream\.startCapture\(\)/);
-  assert.match(captureSource, /try\? await entry\.stream\.stopCapture\(\)/);
+  assert.match(captureSource, /entry\.stream\.stopCapture\(completionHandler: completion\)/);
+  assert.match(captureSource, /try entry\.stream\.removeStreamOutput\(entry\.output, type: \.screen\)/);
+  assert.match(captureSource, /entry\.sampleQueue\.sync \{\}/);
+  assert.doesNotMatch(captureSource, /try\? await entry\.stream\.stopCapture/);
   assert.doesNotMatch(nativeSources, /AOSDesktopPixelBroker|AOSDesktopFrameCaptureConsent|AOSDesktopFrameWarmPool/);
 });
 
@@ -76,12 +81,14 @@ test('DesktopWorld host reuses the canonical segmented surface and existing wind
   );
   assert.match(hostSource, /let canvas = DesktopWorldSurfaceCanvas\(/);
   assert.match(hostSource, /coordinator\.issueGeneration\(for: canvas\)/);
-  assert.match(hostSource, /segments: canvas\.segments/);
+  assert.match(hostSource, /canvas\.installNativeSheet\(device: device\)/);
   assert.match(sheetSource, /segment\.ensureNativeProjectionHost\(device: device\)/);
   assert.match(hostSource, /canvas\.show\(\)/);
   assert.doesNotMatch(desktopHost, /NSScreen\.screens|NSWindow\(/);
   assert.match(surfaceSource, /private\(set\) var nativeProjectionHost: DesktopWorldNativeProjectionHost\?/);
   assert.match(surfaceSource, /existing\.nativeProjectionHost\?\.resize\(\)/);
+  assert.match(surfaceSource, /if topologyWillChange \{\s*discardNativeSheetImmediately\(\)/);
+  assert.doesNotMatch(surfaceSource, /reconcileNativeSheetForCurrentTopology/);
   assert.match(projectionSource, /addSubview\(view, positioned: \.below, relativeTo: webView\)/);
   assert.match(projectionSource, /view\.isHidden = true/);
   assert.match(surfaceSource, /collectionBehavior\.insert\(\.canJoinAllApplications\)/);
@@ -94,12 +101,20 @@ test('DesktopWorld native sheet is AOS-owned and addressable through the existin
   assert.match(identitySource, /"\\\(ownerID\)::\\\(resourceID\)"/);
   assert.match(sheetSource, /static let ownerID = "io\.agent-os"/);
   assert.match(sheetSource, /static let resourceID = "native-sheet\/main"/);
-  assert.match(sheetSource, /private var installed: DesktopWorldNativeSheet\?/);
-  assert.match(sheetSource, /guard installed == nil else \{ throw RegistryError\.occupied \}/);
-  assert.match(hostSource, /sheet = try registry\.install\(\)/);
-  assert.match(hostSource, /let addressed = try registry\.sheet\(for: sheet\.identity\)/);
+  assert.match(surfaceSource, /private var installedNativeSheet: DesktopWorldNativeSheet\?/);
+  assert.match(surfaceSource, /DesktopWorldNativeSheetProcessLease\.shared\.claim/);
+  assert.match(leaseSource, /static let shared = DesktopWorldNativeSheetProcessLease\(\)/);
+  assert.match(leaseSource, /guard active == nil else \{ throw LeaseError\.occupied \}/);
+  assert.match(leaseSource, /nextSerial &\+= 1/);
+  assert.match(leaseSource, /guard active == token else \{ return \}/);
+  assert.match(surfaceSource, /guard installedNativeSheet == nil else \{ throw NativeSheetError\.occupied \}/);
+  assert.match(hostSource, /sheet = try canvas\.installNativeSheet\(device: device\)/);
+  assert.match(hostSource, /let addressed = try canvas\.nativeSheet\(for: sheet\.identity\)/);
   assert.match(hostSource, /guard addressed === sheet/);
-  assert.match(hostSource, /registry\.remove\(sheet\.identity\)/);
+  assert.match(hostSource, /canvas\.removeNativeSheet\(sheet\.identity\)/);
+  assert.doesNotMatch(sheetSource, /class DesktopWorldNativeSheetRegistry/);
+  assert.match(sheetSource, /guard segment\.nativeProjectionHost == nil else/);
+  assert.match(sheetSource, /DesktopWorldNativeSheetFailure\.projectionOccupied/);
   assert.match(commandSource, /sheetAddressed: host\.sheetIdentity != nil/);
   assert.match(commandSource, /cleanup\.retainedSheets == 0/);
   assert.doesNotMatch(sheetSource, /ScreenCaptureKit|CVPixelBuffer|texture2d|fragment /);
@@ -120,6 +135,11 @@ test('native sheet uses one bounded tessellated geometry model across display se
   assert.match(commandSource, /sheetGeometryBytes: host\.geometryMetrics\.geometryBytes/);
   assert.match(commandSource, /cleanup\.retainedGeometryBuffers == 0/);
   assert.match(commandSource, /cleanup\.retainedGPUResources == 0/);
+  assert.match(sheetSource, /let topologyGeneration: UInt64/);
+  assert.match(surfaceSource, /if topologyWillChange \{\s*discardNativeSheetImmediately\(\)/);
+  assert.match(commandSource, /NSApplication\.didChangeScreenParametersNotification/);
+  assert.match(commandSource, /cancelProof\(code: "DESKTOP_PIXEL_BASELINE_TOPOLOGY_CHANGED"\)/);
+  assert.doesNotMatch(sheetSource, /func reconcile\(/);
 });
 
 test('native baseline is bounded and disposes every retained resource', () => {
@@ -135,8 +155,16 @@ test('native baseline is bounded and disposes every retained resource', () => {
   assert.match(metalSource, /view\.removeFromSuperview\(\)/);
   assert.match(metalSource, /window\.contentView = nil/);
   assert.match(metalSource, /window\.close\(\)/);
-  assert.match(captureSource, /stopping\.forEach \{ \$0\.output\.clear\(\) \}/);
-  assert.match(captureSource, /retainedFramesAfterStop = stopping\.compactMap/);
+  assert.match(captureSource, /stopping\.forEach \{ \$0\.output\.quiesce\(\) \}/);
+  assert.match(captureSource, /unsettled\.append\(entry\)/);
+  assert.match(captureSource, /retainedFramesAfterStop = unsettled\.reduce/);
+  assert.match(commandSource, /captureCleanup\.unsettledStreams == 0/);
+  assert.match(commandSource, /if !cleanupComplete \{/);
+  assert.match(commandSource, /code: "DESKTOP_PIXEL_BASELINE_CLEANUP_INCOMPLETE",\s*nativeCode: captureCleanup\.nativeCode/);
+  assert.match(commandSource, /proofTask\.cancel\(\)/);
+  assert.match(commandSource, /guard !finishing else \{ return \}\s*finishing = true\s*let teardown = Task\.detached/);
+  assert.match(commandSource, /Task\.detached \{ @MainActor \[weak self\] in/);
+  assert.doesNotMatch(commandSource, /source\.setEventHandler[\s\S]{0,160}await self\?\.finish/);
   assert.match(commandSource, /let cleanup = await activeHost\?\.dispose\(\)/);
   assert.match(commandSource, /cleanup\.retainedViews == 0/);
   assert.match(commandSource, /cleanup\.pendingRetirements == 0/);

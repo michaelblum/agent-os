@@ -41,8 +41,11 @@ needs, but public command policy and product UI policy belong above it:
   renderer. The DesktopWorld host installs one stable AOS-owned native sheet at
   `io.agent-os::native-sheet/main` and resolves that exact sheet before
   presentation; its bounded per-segment tessellated meshes carry global
-  DesktopWorld coordinates, and the sheet registry does not own another canvas
-  or topology.
+  DesktopWorld coordinates. A process-wide lease permits one exact sheet
+  identity, and its owning canvas binds that lease to one canvas and topology
+  generation. A display-topology change retires the whole sheet before segment
+  mutation; consumers must remount capture, renderers, and diagnostics as one
+  new generation instead of partially reconciling them.
   Both hosts must remain daemon-free, broker-free, prompt-free, content-free in
   output, and unavailable to product consumers.
 - Historical embedded-product config residue may be retired only through an

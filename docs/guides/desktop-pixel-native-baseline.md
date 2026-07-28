@@ -48,8 +48,12 @@ The DesktopWorld-hosted result includes its canvas and topology generations plus
 the stable AOS-owned sheet address `io.agent-os::native-sheet/main`. The sheet
 is one logical DesktopWorld resource implemented by one coordinated native view
 per physical display; it is not a single cross-display AppKit window. The stage
-owns topology and windows, while the sheet owns only its native projection
-hosts and a preallocated 64-by-64 tessellated mesh per segment. Every mesh
+owns topology and windows. A process-wide lease admits one exact sheet identity
+and binds it to one canvas and topology generation. The sheet owns only its
+native projection hosts and a preallocated 64-by-64 tessellated mesh per
+segment. A display-topology change retires the complete sheet before segment
+mutation; capture, renderer endpoints, and diagnostics must be remounted later
+as one new generation rather than partially reconciled. Every mesh
 vertex carries its position in the shared DesktopWorld coordinate plane, so a
 future effect can remain coherent across segment boundaries without creating a
 second topology. The proof resolves the exact address before presentation and

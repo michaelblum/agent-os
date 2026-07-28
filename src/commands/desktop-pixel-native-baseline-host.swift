@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 import Metal
 
-enum AOSDesktopPixelNativeBaselineHostKind: String, Encodable {
+enum AOSDesktopPixelNativeBaselineHostKind: String, Encodable, Sendable {
     case standalone
     case desktopWorld = "desktop-world"
 }
@@ -179,7 +179,6 @@ final class AOSDesktopPixelNativeBaselineDesktopWorldHost: AOSDesktopPixelNative
     private let coordinator: CanvasLifecycleCoordinator
     private let context: AOSDesktopPixelNativeBaselineGPUContext
     private let generation: CanvasLifecycleGeneration
-    private let registry: DesktopWorldNativeSheetRegistry
     private let sheet: DesktopWorldNativeSheet
     private var disposed = false
 
@@ -208,13 +207,9 @@ final class AOSDesktopPixelNativeBaselineDesktopWorldHost: AOSDesktopPixelNative
             canvas.finalizeRetirement()
             throw error
         }
-        let registry = DesktopWorldNativeSheetRegistry(
-            segments: canvas.segments,
-            device: device
-        )
         let sheet: DesktopWorldNativeSheet
         do {
-            sheet = try registry.install()
+            sheet = try canvas.installNativeSheet(device: device)
         } catch {
             context.dispose()
             canvas.finalizeRetirement()
@@ -232,7 +227,7 @@ final class AOSDesktopPixelNativeBaselineDesktopWorldHost: AOSDesktopPixelNative
                 )
             }
         } catch {
-            registry.discardImmediately()
+            canvas.discardNativeSheetImmediately()
             context.dispose()
             canvas.finalizeRetirement()
             throw error
@@ -241,7 +236,6 @@ final class AOSDesktopPixelNativeBaselineDesktopWorldHost: AOSDesktopPixelNative
         self.coordinator = coordinator
         self.context = context
         self.generation = generation
-        self.registry = registry
         self.sheet = sheet
         geometryMetrics = sheet.metrics
         sheetIdentity = sheet.identity
@@ -251,8 +245,12 @@ final class AOSDesktopPixelNativeBaselineDesktopWorldHost: AOSDesktopPixelNative
     }
 
     func present() throws {
-        let addressed = try registry.sheet(for: sheet.identity)
-        guard addressed === sheet else {
+        let addressed = try canvas.nativeSheet(for: sheet.identity)
+        let endpointDisplays = Set(endpoints.map(\.displayID))
+        let sheetDisplays = Set(addressed.segmentSheets.map(\.displayID))
+        guard addressed === sheet,
+              addressed.topologyGeneration == canvas.topologyGeneration,
+              endpointDisplays == sheetDisplays else {
             throw AOSDesktopPixelNativeBaselineFailure(
                 code: "DESKTOP_PIXEL_BASELINE_SHEET_IDENTITY_MISMATCH"
             )
@@ -277,10 +275,10 @@ final class AOSDesktopPixelNativeBaselineDesktopWorldHost: AOSDesktopPixelNative
         endpoints.forEach { $0.disposeRenderer() }
         let sheetRemoved: Bool
         do {
-            try registry.remove(sheet.identity)
+            try canvas.removeNativeSheet(sheet.identity)
             sheetRemoved = true
         } catch {
-            sheetRemoved = false
+            sheetRemoved = sheet.state == .disposed && canvas.nativeSheetCount == 0
         }
         context.dispose()
         coordinator.retainUntilNextRunLoop(canvas, generation: generation)
@@ -295,7 +293,7 @@ final class AOSDesktopPixelNativeBaselineDesktopWorldHost: AOSDesktopPixelNative
                 $0 + $1.retainedGeometryBufferCount()
             },
             retainedGPUResources: context.retainedResourceCount,
-            retainedSheets: sheetRemoved ? registry.count : max(1, registry.count),
+            retainedSheets: sheetRemoved ? canvas.nativeSheetCount : max(1, canvas.nativeSheetCount),
             retainedTextures: endpoints.reduce(0) { $0 + $1.retainedTextureCount() },
             retainedViews: endpoints.reduce(0) { $0 + $1.retainedViewCount() },
             retainedWindows: endpoints.reduce(0) { $0 + $1.retainedWindowCount() }

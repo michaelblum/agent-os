@@ -214,7 +214,7 @@ else
     fail "dev recommend semantic target selection routing drifted"
 fi
 
-if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/commands/desktop-pixel-native-baseline.swift src/display/desktop-world-native-sheet-geometry.swift src/display/desktop-world-native-sheet.swift src/shared/desktop-world-resource-identity.swift scripts/aos-runtime-desktop-pixel-baseline.mjs tests/desktop-pixel-native-baseline.test.mjs tests/desktop-pixel-native-baseline-typecheck.sh tests/lib/desktop-world-native-sheet-geometry-tests.swift 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/commands/desktop-pixel-native-baseline.swift src/display/desktop-world-native-sheet-geometry.swift src/display/desktop-world-native-sheet-lease.swift src/display/desktop-world-native-sheet.swift src/display/desktop-world-surface.swift src/shared/desktop-world-resource-identity.swift scripts/aos-runtime-desktop-pixel-baseline.mjs tests/desktop-pixel-native-baseline.test.mjs tests/desktop-pixel-native-baseline-typecheck.sh tests/lib/desktop-pixel-native-baseline-lifecycle-tests.swift tests/lib/desktop-pixel-metal-pipeline-tests.swift tests/lib/desktop-world-native-sheet-geometry-tests.swift tests/lib/desktop-world-native-sheet-lease-tests.swift 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -229,18 +229,25 @@ files = {item["path"]: item for item in data["files"]}
 expected_paths = {
     "src/commands/desktop-pixel-native-baseline.swift",
     "src/display/desktop-world-native-sheet-geometry.swift",
+    "src/display/desktop-world-native-sheet-lease.swift",
     "src/display/desktop-world-native-sheet.swift",
+    "src/display/desktop-world-surface.swift",
     "src/shared/desktop-world-resource-identity.swift",
     "scripts/aos-runtime-desktop-pixel-baseline.mjs",
     "tests/desktop-pixel-native-baseline.test.mjs",
     "tests/desktop-pixel-native-baseline-typecheck.sh",
+    "tests/lib/desktop-pixel-native-baseline-lifecycle-tests.swift",
+    "tests/lib/desktop-pixel-metal-pipeline-tests.swift",
     "tests/lib/desktop-world-native-sheet-geometry-tests.swift",
+    "tests/lib/desktop-world-native-sheet-lease-tests.swift",
 }
 assert expected_paths == set(files), data
 native_paths = {
     "src/commands/desktop-pixel-native-baseline.swift",
     "src/display/desktop-world-native-sheet-geometry.swift",
+    "src/display/desktop-world-native-sheet-lease.swift",
     "src/display/desktop-world-native-sheet.swift",
+    "src/display/desktop-world-surface.swift",
     "src/shared/desktop-world-resource-identity.swift",
 }
 for path in native_paths:

@@ -223,7 +223,12 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/canvas.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-world-native-sheet.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-world-native-sheet-geometry.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-world-native-sheet-lease.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/shared/desktop-world-resource-identity.swift'));
+  assert.ok(rules.get('desktop-pixel-native-baseline')?.patterns?.includes('src/display/desktop-world-surface.swift'));
+  assert.ok(rules.get('desktop-pixel-native-baseline-command')?.patterns?.includes('tests/lib/desktop-pixel-metal-pipeline-tests.swift'));
+  assert.ok(rules.get('desktop-pixel-native-baseline-command')?.patterns?.includes('tests/lib/desktop-pixel-native-baseline-lifecycle-tests.swift'));
+  assert.ok(rules.get('desktop-pixel-native-baseline-command')?.patterns?.includes('tests/lib/desktop-world-native-sheet-lease-tests.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-frame-texture.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/scene-extension-store.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/shared/scene-extension-identifier.swift'));
