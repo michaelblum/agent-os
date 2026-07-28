@@ -184,6 +184,8 @@
         "shared/schemas/daemon-response.schema.json",
         "shared/schemas/daemon-event.schema.json",
         "shared/schemas/fixtures/daemon-event/**/status-item-*.json",
+        "src/commands/daemon-application-lifecycle.swift",
+        "src/commands/serve.swift",
         "src/display/status-item*.swift"
       ],
       "classes": [
@@ -270,6 +272,8 @@
       "patterns": [
         "packages/toolkit/scene/**",
         "packages/toolkit/components/desktop-world-stage/**",
+        "src/commands/daemon-application-lifecycle.swift",
+        "src/commands/serve.swift",
         "src/daemon/desktop-world-scene-*.swift",
         "src/commands/direct-screen-capture-permission.swift",
         "src/daemon/desktop-frame-capture-adapter.swift",
@@ -302,8 +306,10 @@
         "tests/desktop-world-scene-event-routing.test.mjs",
         "tests/desktop-world-scene-result-coordinator.test.mjs",
         "tests/desktop-frame-texture-native.test.mjs",
+        "tests/daemon-appkit-readiness.test.mjs",
         "tests/desktop-pixel-broker-contract.test.mjs",
         "tests/lib/desktop-frame-warm-pool-tests.swift",
+        "tests/lib/daemon-appkit-readiness-tests.swift",
         "tests/lib/desktop-pixel-broker-tests.swift",
         "tests/lib/desktop-pixel-capture-filter-tests.swift",
         "tests/lib/desktop-pixel-native-lifecycle-tests.swift",
@@ -328,6 +334,11 @@
       "hot_swappable": true,
       "tcc_identity_sensitive": false,
       "commands": [
+        {
+          "id": "daemon-appkit-readiness",
+          "command": "node --test tests/daemon-appkit-readiness.test.mjs",
+          "reason": "Prove daemon socket admission begins only after AppKit launch and one queued main-loop turn."
+        },
         {
           "id": "swift-runtime-typecheck",
           "command": "bash tests/swift-runtime-typecheck.sh",

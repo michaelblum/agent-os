@@ -25,6 +25,9 @@ needs, but public command policy and product UI policy belong above it:
 - permission status and request primitives belong to the process that owns the
   privileged capability; daemon-owned microphone capture therefore uses
   daemon-owned authorization rather than foreground CLI authorization;
+- daemon socket admission begins only after AppKit finishes launch and services
+  one queued main-loop action, so clients cannot invoke native hosts against a
+  merely initialized but not yet running application connection;
 - generic windowing semantics, panel chrome, minimize chips, and reusable
   workbench layout belong in `packages/toolkit/`;
 - product themes, product UX, and product-specific surface behavior belong in

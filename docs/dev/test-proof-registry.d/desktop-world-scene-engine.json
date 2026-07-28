@@ -4,6 +4,23 @@
   "summary": "Proof ownership for the product-neutral DesktopWorld scene interaction engine and typed event stream.",
   "entries": [
     {
+      "id": "daemon-appkit-readiness-contract",
+      "path_patterns": [
+        "tests/daemon-appkit-readiness.test.mjs",
+        "tests/lib/daemon-appkit-readiness-tests.swift"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-foundation",
+      "harness_level": "model_unit",
+      "proof_kind": "daemon_appkit_readiness_contract",
+      "contract": "The daemon cannot expose its socket until AppKit has finished launch and serviced one queued main-loop action, and duplicate launch notifications cannot start it twice.",
+      "worth": "This prevents native hosts such as ScreenCaptureKit from receiving work through a reachable daemon before their AppKit application connection is operational.",
+      "command": "node --test tests/daemon-appkit-readiness.test.mjs",
+      "replaces": [],
+      "guard": "disposable Swift lifecycle harness only; no AOS binary, daemon socket, GUI presentation, TCC, ScreenCaptureKit invocation, or live DesktopWorld",
+      "status": "active"
+    },
+    {
       "id": "swift-runtime-typecheck",
       "path_patterns": [
         "tests/swift-runtime-typecheck.sh"

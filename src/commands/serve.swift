@@ -18,20 +18,20 @@ func serveCommand(args: [String]) {
     let config = loadConfig()
     // Accessory policy: no dock icon, no menu bar, but can own key windows
     // and receive mouse/keyboard events. Required for interactive canvases.
-    // Initialize NSApplication before daemon.start(): the perception engine's
-    // live input tap depends on AppKit being bootstrapped first. If the daemon
-    // starts before NSApplication.shared exists, one-shot cursor snapshots can
-    // still work while live input_event fanout silently stops after startup.
-    //
-    // Note: use NSApplication.shared (not the NSApp global) to force
-    // initialization of the singleton. Accessing NSApp before NSApplication.shared
-    // has been evaluated traps, because NSApp is an implicitly-unwrapped optional
-    // that is only assigned as a side effect of NSApplication.shared's first access.
-    NSApplication.shared.setActivationPolicy(.accessory)
+    // The daemon socket is deliberately opened from the first queued AppKit
+    // turn after launch. Clients must not observe a ready daemon before native
+    // hosts such as ScreenCaptureKit can establish their application connection.
+    let application = NSApplication.shared
+    application.setActivationPolicy(.accessory)
 
     let daemon = UnifiedDaemon(config: config, idleTimeout: idleTimeout)
-    daemon.start()
+    let lifecycle = AOSDaemonApplicationLifecycle {
+        daemon.start()
+    }
+    application.delegate = lifecycle
 
     // Run the main loop (needed for CGEventTap, NSWindow, WKWebView)
-    NSApplication.shared.run()
+    withExtendedLifetime(lifecycle) {
+        application.run()
+    }
 }
