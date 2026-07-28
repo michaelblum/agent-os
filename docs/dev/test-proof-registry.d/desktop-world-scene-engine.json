@@ -113,6 +113,22 @@
       "status": "active"
     },
     {
+      "id": "desktop-world-scene-outlet-replacement",
+      "path_patterns": [
+        "tests/toolkit/desktop-world-scene-outlet-replacement.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit-scene",
+      "harness_level": "model_unit",
+      "proof_kind": "scene_outlet_replacement_contract",
+      "contract": "Atomic scene replacement admits an extension against post-commit headroom, bounds old and candidate allocations during the barrier, and releases every reservation on commit, rollback, or fail-closed cleanup.",
+      "worth": "This executes the production outlet replacement lifecycle so a valid rich projection cannot regress to source-text-only coverage or leave stale accounting after activation and disposal failures.",
+      "command": "node --test tests/toolkit/desktop-world-scene-outlet-replacement.test.mjs",
+      "replaces": [],
+      "guard": "pure resource-ledger and outlet lifecycle fakes only; no WebGL context, AOS binary, daemon, GUI, TCC, capture, GPU, or live DesktopWorld",
+      "status": "active"
+    },
+    {
       "id": "desktop-world-stage-lifecycle-contract",
       "path_patterns": [
         "tests/toolkit/desktop-world-stage-lifecycle.test.mjs"

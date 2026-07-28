@@ -16,6 +16,7 @@ import {
   createSceneOutletDevToolsSnapshot,
   emitSceneOutletRouteStartedSnapshot,
 } from './scene-outlet-devtools.js'
+import { prepareDesktopWorldSceneOutletReplacement } from './scene-outlet-replacement.js'
 import {
   DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS,
   createSceneSegmentResourceBudget,
@@ -208,9 +209,11 @@ export function createDesktopWorldSceneOutlet({
     identity = {},
     previous = resources.get(key),
     extensionReference = previous?.extensionReference ?? null,
+    budgets = null,
   ) => {
     try {
       return createDesktopWorldSceneMountedResource({
+        budgets,
         documentInput,
         desktopFrameSourceFactory,
         extensionReference,
@@ -261,83 +264,25 @@ export function createDesktopWorldSceneOutlet({
         throw new TypeError('Scene projection extensions may change only through a full mount.')
       }
     }
-    const candidate = prepareMounted(key, document, payload, previous, requestedExtension)
-    let resourceReservation = null
-    try {
-      // The active projection and candidate coexist until commit. Admission is
-      // against the real transient allocation, not the eventual replacement.
-      resourceReservation = segmentBudget.reserve(candidate)
-      if (!previous) pendingResourceKeys.add(key)
-    } catch (error) {
-      if (!retireMounted(candidate, { preserveInteractionOrigins: true })) {
-        faultSceneSegment('SCENE_EXTENSION_DISPOSE_FAILED', candidate)
-        throw new AggregateError([error], 'Scene replacement admission and cleanup failed.')
-      }
-      throw error
-    }
-    let state = 'prepared'
-
-    const releaseReservation = () => {
-      if (resourceReservation !== null) {
-        segmentBudget.releaseReservation(resourceReservation)
-        resourceReservation = null
-      }
-      if (!previous) pendingResourceKeys.delete(key)
-    }
-
-    return Object.freeze({
-      document: candidate.document,
-      assertCurrent() {
-        if (state !== 'prepared') throw new TypeError('Scene replacement is no longer pending.')
-        if ((resources.get(key) ?? null) !== previous) throw new TypeError('Scene replacement base changed before commit.')
-        return true
-      },
-      commit() {
-        this.assertCurrent()
-        candidate.projection.activate?.()
-        if (candidate.suspended || stageSuspended) {
-          if (candidate.projection.suspend() === false) {
-            throw sceneOutletError(
-              'SCENE_EXTENSION_SUSPEND_FAILED',
-              'Scene projection rejected its initial suspended state.',
-            )
-          }
-        }
-        candidate.stageSuspendedApplied = stageSuspended
-        const measured = segmentBudget.measure(candidate.projection)
-        candidate.resourceMetrics = measured.metrics
-        candidate.resourceMetricsSource = measured.source
-        segmentBudget.updateReservation(resourceReservation, candidate)
-        scene.add(candidate.projection.object)
-        if (previous && !retireMounted(previous, { preserveInteractionOrigins: true })) {
-          const candidateClean = retireMounted(candidate, { preserveInteractionOrigins: true })
-          releaseReservation()
-          state = 'failed_closed'
-          faultSceneSegment('SCENE_EXTENSION_DISPOSE_FAILED', previous)
-          const failure = sceneOutletError('SCENE_EXTENSION_DISPOSE_FAILED', 'Scene replacement cleanup failed.')
-          if (!candidateClean) throw new AggregateError([failure], 'Scene replacement cleanup failed closed.')
-          throw failure
-        }
-        segmentBudget.commit(candidate, previous, resourceReservation)
-        resourceReservation = null
-        if (!previous) pendingResourceKeys.delete(key)
-        resources.set(key, candidate)
-        state = 'committed'
-        reconcileRenderLoop()
-        return true
-      },
-      rollback() {
-        if (state !== 'prepared') return false
-        if (!retireMounted(candidate, { preserveInteractionOrigins: true })) {
-          releaseReservation()
-          state = 'rollback_failed'
-          faultSceneSegment('SCENE_EXTENSION_DISPOSE_FAILED', candidate)
-          throw sceneOutletError('SCENE_EXTENSION_DISPOSE_FAILED', 'Scene replacement rollback cleanup failed.')
-        }
-        releaseReservation()
-        state = 'rolled_back'
-        return true
-      },
+    return prepareDesktopWorldSceneOutletReplacement({
+      addToScene: (object) => scene.add(object),
+      createCandidate: (budgets) => prepareMounted(
+        key,
+        document,
+        payload,
+        previous,
+        requestedExtension,
+        budgets,
+      ),
+      faultSceneSegment,
+      key,
+      pendingResourceKeys,
+      previous,
+      reconcileRenderLoop,
+      resources,
+      retireMounted,
+      segmentBudget,
+      stageSuspended: () => stageSuspended,
     })
   }
 

@@ -285,7 +285,7 @@ test('DesktopWorld extension admission receives only unallocated segment headroo
   })
 })
 
-test('DesktopWorld replacement admission budgets the old and candidate projections concurrently', () => {
+test('DesktopWorld replacement admission preserves steady limits with bounded atomic headroom', () => {
   const limits = {
     maxDrawCalls: 4,
     maxObjects: 4,
@@ -323,7 +323,58 @@ test('DesktopWorld replacement admission budgets the old and candidate projectio
   budget.commit(mounted)
 
   assert.throws(() => budget.assertCandidate(candidate), /segment resource budget exceeded/u)
+  assert.deepEqual(budget.remaining(limits, mounted), limits)
+  const reservation = budget.reserve(candidate, mounted)
   assert.deepEqual(budget.snapshot(), mounted.resourceMetrics)
+  budget.commit(candidate, mounted, reservation)
+  assert.deepEqual(budget.snapshot(), candidate.resourceMetrics)
+
+  const oversized = {
+    metricsAccounted: false,
+    resourceMetrics: {
+      drawCalls: 5,
+      geometryBytes: 50,
+      objects: 5,
+      resources: 5,
+      textureBytes: 50,
+      triangles: 50,
+      workingBytes: 100,
+    },
+  }
+  assert.throws(() => budget.reserve(oversized, candidate), /segment resource budget exceeded/u)
+})
+
+test('DesktopWorld rich extension replacements receive post-commit segment headroom', () => {
+  const budget = createSceneSegmentResourceBudget()
+  const richProjection = {
+    metricsAccounted: false,
+    resourceMetrics: {
+      drawCalls: 209,
+      geometryBytes: 0,
+      objects: 397,
+      resources: 536,
+      textureBytes: 0,
+      triangles: 20_948,
+      workingBytes: 0,
+    },
+  }
+  budget.assertCandidate(richProjection)
+  budget.commit(richProjection)
+
+  assert.equal(budget.remaining().maxResources, 488)
+  assert.equal(
+    budget.remaining(DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS, richProjection).maxResources,
+    DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS.maxResources,
+  )
+  const replacement = {
+    ...richProjection,
+    metricsAccounted: false,
+    resourceMetrics: { ...richProjection.resourceMetrics },
+  }
+  const reservation = budget.reserve(replacement, richProjection)
+  assert.deepEqual(budget.snapshot(), richProjection.resourceMetrics)
+  budget.commit(replacement, richProjection, reservation)
+  assert.deepEqual(budget.snapshot(), replacement.resourceMetrics)
 })
 
 test('DesktopWorld candidate reservations prevent concurrent resource overbooking', () => {
@@ -357,6 +408,56 @@ test('DesktopWorld candidate reservations prevent concurrent resource overbookin
   const secondReservation = budget.reserve(second)
   budget.commit(second, null, secondReservation)
   assert.deepEqual(budget.snapshot(), second.resourceMetrics)
+})
+
+test('DesktopWorld replacement reservations isolate bases and stay bounded together', () => {
+  const limits = {
+    maxDrawCalls: 4,
+    maxObjects: 4,
+    maxResources: 4,
+    maxTextureBytes: 400,
+    maxTriangles: 400,
+    maxWorkingBytes: 400,
+  }
+  const budget = createSceneSegmentResourceBudget(limits)
+  const projection = () => ({
+    metricsAccounted: false,
+    resourceMetrics: {
+      drawCalls: 2,
+      geometryBytes: 20,
+      objects: 2,
+      resources: 2,
+      textureBytes: 20,
+      triangles: 20,
+      workingBytes: 20,
+    },
+  })
+  const first = projection()
+  const second = projection()
+  budget.commit(first)
+  budget.commit(second)
+
+  const firstReplacement = projection()
+  const secondReplacement = projection()
+  const firstReservation = budget.reserve(firstReplacement, first)
+  assert.throws(
+    () => budget.reserve(projection(), first),
+    /base already has a resource reservation/u,
+  )
+  const secondReservation = budget.reserve(secondReplacement, second)
+  assert.deepEqual(budget.snapshot(), {
+    drawCalls: 4,
+    geometryBytes: 40,
+    objects: 4,
+    resources: 4,
+    textureBytes: 40,
+    triangles: 40,
+    workingBytes: 40,
+  })
+
+  budget.commit(firstReplacement, first, firstReservation)
+  budget.commit(secondReplacement, second, secondReservation)
+  assert.equal(budget.snapshot().resources, 4)
 })
 
 test('stage visibility and context transitions resume only runnable resources', () => {
@@ -693,14 +794,10 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /mounted\.projection\.contextRestored\?\.\(\)/u)
   assert.match(outlet, /SCENE_EXTENSION_CONTEXT_RESTORED_FAILED/u)
   assert.match(outlet, /SCENE_EXTENSION_INTERACTION_FAILED/u)
-  assert.match(outlet, /candidate\.projection\.activate\?\.\(\)/u)
   assert.match(outlet, /error\?\.code === 'SCENE_EXTENSION_DISPOSE_FAILED'[\s\S]*faultSceneSegment\('SCENE_EXTENSION_DISPOSE_FAILED'\)/u)
   assert.match(mountedResource, /failures\.length > 0[\s\S]*SCENE_EXTENSION_DISPOSE_FAILED/u)
-  assert.match(outlet, /candidate\.suspended \|\| stageSuspended/u)
-  assert.match(outlet, /candidate\.stageSuspendedApplied = stageSuspended/u)
-  assert.match(outlet, /segmentBudget\.reserve\(candidate\)/u)
-  assert.match(outlet, /segmentBudget\.updateReservation\(resourceReservation, candidate\)/u)
-  assert.match(outlet, /segmentBudget\.commit\(candidate, previous, resourceReservation\)/u)
+  assert.match(mountedResource, /budgets: extensionReference \? budgets : null/u)
+  assert.match(outlet, /prepareDesktopWorldSceneOutletReplacement/u)
   assert.match(outlet, /resources\.delete\(key\)[\s\S]*segmentBudget\.unaccount\(mounted\)[\s\S]*retireMounted\(mounted\)/u)
   assert.match(outlet, /operation\.op === 'mount'[\s\S]*Object\.hasOwn\(operation, 'extension'\) \? operation\.extension : null/u)
   assert.match(outlet, /mounted\.playClock\.elapsed\(at\)/u)
@@ -725,8 +822,6 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.doesNotMatch(outlet, /elapsed % duration/u)
   assert.match(outlet, /MAX_RESOURCES = 32/u)
   assert.match(outlet, /resources\.size \+ pendingResourceKeys\.size >= MAX_RESOURCES/u)
-  assert.match(outlet, /if \(!previous\) pendingResourceKeys\.add\(key\)/u)
-  assert.match(outlet, /if \(!previous\) pendingResourceKeys\.delete\(key\)/u)
   assert.match(outlet, /MAX_SIGNALS_PER_SECOND = 30/u)
   assert.match(outlet, /resolveThreeRenderMetrics/u)
   assert.match(outlet, /\.\.\.DESKTOP_WORLD_SCENE_RENDER_LIMITS/u)
