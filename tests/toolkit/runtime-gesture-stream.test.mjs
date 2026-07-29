@@ -106,6 +106,19 @@ test('createPointerGestureStream does not manufacture native coordinates from De
   assert.equal(Object.hasOwn(frame.coordinates, 'native'), false)
 })
 
+test('createPointerGestureStream preserves gesture identity without inventing capture', () => {
+  const stream = createPointerGestureStream({ kind: 'drag' })
+  const frame = stream.handleCanvasInput(routedPointer({
+    type: 'left_mouse_down',
+    delivery_role: 'owned',
+    capture_id: undefined,
+    gesture_id: 'uncaptured-gesture',
+  }), { now: 1000 })
+
+  assert.equal(frame.gesture_id, 'uncaptured-gesture')
+  assert.equal(Object.hasOwn(frame.pointer, 'capture_id'), false)
+})
+
 test('createPointerGestureStream rejects unversioned canvas input', () => {
   const stream = createPointerGestureStream({ kind: 'drag' })
   const frames = []

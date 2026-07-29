@@ -367,6 +367,7 @@ test('gesture arena deterministically claims drag and coalesces updates without 
   })
 
   arena.handle(pointer('left_mouse_down', 100, 200), { now: 0 })
+  assert.equal(arena.snapshot().pointerSessionId, 'gesture-1')
   arena.handle(pointer('left_mouse_dragged', 110, 200, 2), { now: 10 })
   arena.handle(pointer('left_mouse_dragged', 140, 220, 3), { now: 12 })
   assert.equal(callbacks.length, 1)
@@ -491,7 +492,7 @@ test('scene event envelopes carry stable lease identity without product semantic
   })
   assert.equal(envelope.contract, SCENE_EVENT_CONTRACT_ID)
   assert.equal(envelope.ownerId, 'example.consumer')
-  assert.equal(envelope.gesture.pointerSessionId, 'c1')
+  assert.equal(envelope.gesture.pointerSessionId, 'g1')
   assert.deepEqual(envelope.coordinates.totalDelta, { x: 4, y: 4 })
   assert.equal(JSON.stringify(envelope).includes('Sigil'), false)
 })

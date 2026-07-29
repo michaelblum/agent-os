@@ -224,7 +224,7 @@ export function createCanvasOriginInputEvent(message = {}, facts = {}) {
     `canvas:${sourceSequence.value}`,
   )
   const captureId = phase === 'down' || phase === 'drag' || phase === 'up' || phase === 'cancel'
-    ? pickString(facts.captureId, facts.capture_id, payload.capture_id, payload.captureId, `${gestureId}:capture`)
+    ? pickString(facts.captureId, facts.capture_id, payload.capture_id, payload.captureId)
     : null
   const dx = finiteNumber(facts.dx ?? payload.dx ?? payload.delta_x ?? payload.deltaX)
   const dy = finiteNumber(facts.dy ?? payload.dy ?? payload.delta_y ?? payload.deltaY)

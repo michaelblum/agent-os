@@ -217,7 +217,7 @@ export function createPointerGestureStream(options = {}) {
       active = {
         gestureId,
         transactionId: extra.transactionId || rawEvent.transactionId || rawEvent.transaction_id || gestureId,
-        captureId: extra.captureId || rawEvent.captureId || rawEvent.capture_id || `${gestureId}:capture`,
+        captureId: extra.captureId || rawEvent.captureId || rawEvent.capture_id || null,
         pointerId: extra.pointerId ?? rawEvent.pointerId ?? rawEvent.pointer_id ?? null,
         origin: current,
         previous: current,

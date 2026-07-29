@@ -11,6 +11,14 @@ func aosValidInputRegionSemanticLabel(_ value: String, maxUTF8Bytes: Int = 256) 
     }
 }
 
+func aosValidPointerSessionID(_ value: String, maxUTF8Bytes: Int = 256) -> Bool {
+    guard !value.isEmpty, value.utf8.count <= maxUTF8Bytes else { return false }
+    return value.unicodeScalars.allSatisfy { scalar in
+        scalar.properties.generalCategory != .control
+            && scalar.properties.generalCategory != .format
+    }
+}
+
 struct AOSNativeCursorSuppressionReconcileResult: Equatable {
     let hideNativeCursor: Bool
     let showNativeCursor: Bool
@@ -194,7 +202,8 @@ struct AOSInputRegionRoutedInput {
         let canonicalSequenceValue = (sourceSequence?.isEmpty == false ? sourceSequence : nil) ?? descriptor.type
         let fallbackIdentity = "\(descriptor.type):\(route.region.id)"
         let canonicalGestureID = (gestureID?.isEmpty == false ? gestureID : nil) ?? fallbackIdentity
-        guard !canonicalSequenceValue.isEmpty, !canonicalGestureID.isEmpty else { return nil }
+        guard !canonicalSequenceValue.isEmpty,
+              aosValidPointerSessionID(canonicalGestureID) else { return nil }
 
         self.eventKind = descriptor.kind
         self.type = descriptor.type
@@ -240,6 +249,8 @@ struct AOSInputRegionRoutedInput {
         if let cancelReason { result["cancel_reason"] = cancelReason }
         return result
     }
+
+    var pointerSessionID: String { gestureID }
 }
 
 func aosInputRegionEventEnvelope(routedInput: AOSInputRegionRoutedInput) -> [String: Any] {
@@ -272,7 +283,7 @@ struct AOSInputRegionDelivery {
         self.phase = phase
         self.region = route.region
         self.regionID = route.region.id
-        self.pointerSessionID = route.captureID
+        self.pointerSessionID = routedInput.pointerSessionID
         self.consume = route.shouldConsume
         self.routedInput = routedInput
     }
@@ -650,7 +661,11 @@ final class AOSInputRegionRegistry {
         )
     }
 
-    static func defaultCaptureID(regionID: String, sourceSequence: String?, gestureID: String?) -> String {
+    static func defaultCaptureID(
+        regionID: String,
+        sourceSequence: String?,
+        gestureID: String?
+    ) -> String {
         if let sourceSequence, !sourceSequence.isEmpty { return "\(sourceSequence):\(regionID)" }
         if let gestureID, !gestureID.isEmpty { return "\(gestureID):\(regionID)" }
         return "capture:\(regionID)"

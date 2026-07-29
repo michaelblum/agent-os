@@ -138,12 +138,33 @@ let neverRegion = AOSInputRegionRecord(
     consumePolicy: "never"
 )
 registry.register(neverRegion)
-if let route = registry.route(event: descriptor("left_mouse_down"), point: CGPoint(x: 210, y: 210)) {
-    assert(route.region.id == "never-region", "never-consume region should still receive events")
-    assert(!route.shouldConsume, "never policy must not consume")
+let neverPoint = CGPoint(x: 210, y: 210)
+let neverDown = AOSCanonicalInputEvent(
+    type: "left_mouse_down",
+    x: neverPoint.x,
+    y: neverPoint.y
+)!
+let neverDelivery = registry.resolveDelivery(
+    descriptor: neverDown.descriptor,
+    event: neverDown,
+    point: neverPoint,
+    desktopWorld: neverPoint,
+    sourceSequence: "daemon:never",
+    gestureID: "gesture-never"
+)
+if case .deliver(let delivery)? = neverDelivery {
+    assert(delivery.regionID == "never-region", "never-consume region should still receive events")
+    assert(!delivery.consume, "never policy must not consume")
+    assert(
+        delivery.pointerSessionID == "gesture-never",
+        "pointer-session identity must not depend on native capture"
+    )
+    assert(registry.activeCaptureSnapshot() == nil, "never policy must not establish native capture")
 } else {
-    assert(false, "expected never-consume region route")
+    assert(false, "expected never-consume region delivery")
 }
+assert(!aosValidPointerSessionID(String(repeating: "x", count: 257)), "pointer-session identity must be bounded")
+assert(!aosValidPointerSessionID("unsafe\u{202E}session"), "pointer-session identity must reject format controls")
 
 let removedOnSuspend = registry.removeOwned(by: "stage", includeSuspendRetained: false)
 assert(removedOnSuspend.map(\.id).sorted() == ["high-region", "low-region", "never-region"], "owner suspend should remove default regions")

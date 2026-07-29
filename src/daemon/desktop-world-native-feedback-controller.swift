@@ -716,7 +716,9 @@ final class AOSDesktopWorldNativeFeedbackController {
         )
         preparationTransitionLock.unlock()
         switch completion {
-        case .failed, .ready, .stale:
+        case .ready:
+            startPendingReplacement()
+        case .failed, .stale:
             break
         case .retry(let followUp):
             reconcileAvailability(true, programs: followUp)

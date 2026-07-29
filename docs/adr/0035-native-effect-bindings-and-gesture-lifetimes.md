@@ -39,11 +39,19 @@ another sheet. Gesture end may atomically replace it with a timed end-phase
 binding from the same interaction. Gesture cancellation or an end without a
 replacement retires it immediately.
 
+Pointer-session identity is independent of whether an affordance consumes or
+captures native input. A non-consuming affordance may therefore trigger a
+timed pointer-down effect without changing event pass-through behavior.
+
 One native sheet remains active at a time. A later phase from the same owner,
 resource revision, topology generation, and interaction may replace the active
 phase after deterministic disposal. Unrelated effects and same-phase reentry
 remain busy-rejected. Capture, installation, authorization, and replacement
 races fail closed.
+Program-catalog preparation may temporarily close effect admission without
+terminating an already active gesture. A queued end-phase replacement starts
+only after both the old runtime has retired and the new program catalog has
+committed; either completion order must converge on the same result.
 
 The three-second program-duration limit remains the artistic and resource
 bound for timed effects. It is not the lifetime of a gesture-owned effect. A

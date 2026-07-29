@@ -329,7 +329,7 @@ let lifecycleEvent = AOSDesktopWorldNativeEffectContract.gestureLifecycleEvent(
         "aos.scene.desktop_frame_texture",
     ],
     ownerID: "example.consumer",
-    resourceID: "companion/main",
+    resourceID: "example/object",
     resourceRevision: 7,
     identity: identity,
     event: [
@@ -356,7 +356,7 @@ precondition(AOSDesktopWorldNativeEffectContract.gestureLifecycleEvent(
     bindings: [gestureBinding],
     capabilities: [AOSDesktopWorldNativeEffectBinding.capability],
     ownerID: "example.consumer",
-    resourceID: "companion/main",
+    resourceID: "example/object",
     resourceRevision: 7,
     identity: identity,
     event: [
@@ -371,7 +371,7 @@ precondition(AOSDesktopWorldNativeEffectContract.gestureLifecycleEvent(
 ) == nil)
 let request = AOSDesktopWorldNativeEffectContract.request(
     binding: binding,
-    authorization: (ownerID: "example.consumer", resourceID: "companion/main", revision: 7),
+    authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 7),
     identity: identity,
     event: [
         "sequence": 1,
@@ -390,7 +390,7 @@ precondition(request?.eventSequence == 1)
 precondition(request?.pointerSessionID == "pointer-1")
 precondition(AOSDesktopWorldNativeEffectContract.request(
     binding: binding,
-    authorization: (ownerID: "example.consumer", resourceID: "companion/main", revision: 7),
+    authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 7),
     identity: identity,
     event: [
         "sequence": 3,
@@ -414,7 +414,7 @@ precondition(AOSDesktopWorldNativeEffectContract.parseBindings(
 ) == nil)
 let pointerRequest = AOSDesktopWorldNativeEffectContract.pointerRequest(
     binding: pointerBinding,
-    authorization: (ownerID: "example.consumer", resourceID: "companion/main", revision: 8),
+    authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 8),
     identity: identity,
     affordanceID: "body",
     phase: "down",
@@ -427,7 +427,7 @@ precondition(pointerRequest?.resourceRevision == 8)
 precondition(pointerRequest?.pointerSessionID == "pointer-1")
 precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
     binding: pointerBinding,
-    authorization: (ownerID: "example.consumer", resourceID: "companion/main", revision: 8),
+    authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 8),
     identity: identity,
     affordanceID: "body",
     phase: "down",
@@ -437,7 +437,7 @@ precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
 ) == nil)
 precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
     binding: pointerBinding,
-    authorization: (ownerID: "example.consumer", resourceID: "companion/main", revision: 8),
+    authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 8),
     identity: identity,
     affordanceID: "body",
     phase: "up",
@@ -447,7 +447,7 @@ precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
 ) == nil)
 precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
     binding: pointerBinding,
-    authorization: (ownerID: "example.consumer", resourceID: "companion/main", revision: 8),
+    authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 8),
     identity: identity,
     affordanceID: "body",
     phase: "down",
@@ -492,7 +492,7 @@ precondition(programBinding.durationMilliseconds == 1500)
 precondition(programInstance.parameterValues[0] == 24)
 let programRequest = AOSDesktopWorldNativeEffectContract.pointerRequest(
     binding: programBinding,
-    authorization: (ownerID: "example.consumer", resourceID: "companion/main", revision: 9),
+    authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 9),
     identity: identity,
     affordanceID: "body",
     phase: "down",
@@ -517,6 +517,7 @@ test('native feedback authorization commits atomically with scene operations', a
     'src/daemon/desktop-world-native-effect-program.swift',
     'src/daemon/desktop-world-native-effect-contract.swift',
     'src/daemon/desktop-world-scene-controller.swift',
+    'src/daemon/desktop-world-scene-native-effects.swift',
     'src/daemon/scene-event.swift',
     'src/daemon/desktop-world-scene-event-router.swift',
   ], `
@@ -632,7 +633,7 @@ let authorization: [String: Any] = [
         "aos.scene.native_sheet_effect",
     ],
     "digest": String(repeating: "a", count: 64),
-    "extensionId": "companion",
+    "extensionId": "example.extension",
     "framebufferProofIds": [],
     "ownerId": "example.consumer",
     "resourceRevision": 1,
@@ -692,9 +693,9 @@ func admissionName(_ admission: AOSDesktopWorldSceneOperationAdmission) -> Strin
 let (unauthorized, unauthorizedTopology) = readyController()
 guard case .stageUnavailable = unauthorized.admitOperation(
     topology: unauthorizedTopology,
-    key: unauthorized.key(owner: "example.consumer", resource: "companion/main"),
+    key: unauthorized.key(owner: "example.consumer", resource: "example/object"),
     owner: "example.consumer",
-    resource: "companion/main",
+    resource: "example/object",
     operationName: "mount",
     operation: ["op": "mount", "interactions": interactions()],
     connectionID: UUID(),
@@ -702,13 +703,13 @@ guard case .stageUnavailable = unauthorized.admitOperation(
 ) else { preconditionFailure("native feedback mount borrowed missing authority") }
 
 let (controller, topology) = readyController()
-let key = controller.key(owner: "example.consumer", resource: "companion/main")
+let key = controller.key(owner: "example.consumer", resource: "example/object")
 let connection = UUID()
 guard case .accepted(let mount) = controller.admitOperation(
     topology: topology,
     key: key,
     owner: "example.consumer",
-    resource: "companion/main",
+    resource: "example/object",
     operationName: "mount",
     operation: ["op": "mount", "interactions": gestureInteractions()],
     extensionAuthorization: authorization,
@@ -728,6 +729,15 @@ let mounted = controller.nativeEffectRequest(
 )
 precondition(mounted?.resourceRevision == 1)
 precondition(mounted.map(controller.authorizesNativeEffect) == true)
+guard case .accepted(let subscribedEvents) = controller.updateSubscriptions(
+    key: key,
+    connectionID: connection,
+    ref: "events",
+    adding: ["gesture"],
+    removing: [],
+    removeAll: false
+) else { preconditionFailure("gesture subscription rejected") }
+precondition(subscribedEvents == ["gesture"])
 
 let canonicalEvent: [String: Any] = [
     "contract": "aos.scene.event.v1",
@@ -736,7 +746,7 @@ let canonicalEvent: [String: Any] = [
     "sequence": 1,
     "stageId": "desktop-world/main",
     "ownerId": "example.consumer",
-    "resourceId": "companion/main",
+    "resourceId": "example/object",
     "affordanceId": "body",
     "interactionId": "tap-ripple",
     "gesture": [
@@ -768,15 +778,21 @@ let canonicalEvent: [String: Any] = [
 var nativeRequests: [AOSDesktopWorldNativeEffectRequest] = []
 var nativeGestureEvents: [AOSDesktopWorldNativeEffectGestureEvent] = []
 var publicEvents = 0
+var deliveryOrder: [String] = []
 let router = AOSDesktopWorldSceneEventRouter(
     scene: controller,
-    nativeFeedback: { nativeRequests.append($0) },
+    nativeFeedback: {
+        deliveryOrder.append("native-start")
+        nativeRequests.append($0)
+    },
     nativeGestureFeedback: { event, replacement in
         precondition(replacement == nil)
+        deliveryOrder.append("native-" + event.phase.rawValue)
         nativeGestureEvents.append(event)
     }
 ) { _, _, _ in
     publicEvents += 1
+    deliveryOrder.append("public-" + String(publicEvents))
     return true
 }
 router.handle(identity: topology.identity, payload: [
@@ -814,17 +830,26 @@ precondition(
     nativeGestureEvents[0].request.inputs.current.x == 1_100,
     "native gesture inputs"
 )
-precondition(publicEvents == 0, "public route should remain unsubscribed")
+precondition(publicEvents == 2, "public gesture delivery count")
 precondition(
-    (router.snapshot()["by_outcome"] as? [String: Int])?["unsubscribed"] == 2,
-    "unsubscribed route count"
+    deliveryOrder == [
+        "native-start",
+        "public-1",
+        "native-update",
+        "public-2",
+    ],
+    "native admission must precede public event delivery: \\(deliveryOrder)"
+)
+precondition(
+    (router.snapshot()["by_outcome"] as? [String: Int])?["enqueued"] == 2,
+    "enqueued route count"
 )
 
 guard case .accepted(let transaction) = controller.admitOperation(
     topology: topology,
     key: key,
     owner: "example.consumer",
-    resource: "companion/main",
+    resource: "example/object",
     operationName: "transact",
     operation: [
         "op": "transact",
@@ -845,7 +870,7 @@ precondition(controller.nativeEffectRequest(
 ) == nil)
 let transacted = controller.nativePointerEffectRequest(
     ownerID: "example.consumer",
-    resourceID: "companion/main",
+    resourceID: "example/object",
     resourceRevision: 2,
     affordanceID: "body",
     canvasGeneration: topology.identity.canvasGeneration,
@@ -861,7 +886,7 @@ guard let transacted, case .ripple(let transactedRipple) = transacted.binding.de
 precondition(transactedRipple.amplitude == 26)
 precondition(controller.nativePointerEffectRequest(
     ownerID: "example.consumer",
-    resourceID: "companion/main",
+    resourceID: "example/object",
     resourceRevision: 1,
     affordanceID: "body",
     canvasGeneration: topology.identity.canvasGeneration,
@@ -875,7 +900,7 @@ guard case .stageUnavailable = controller.admitOperation(
     topology: topology,
     key: key,
     owner: "example.consumer",
-    resource: "companion/main",
+    resource: "example/object",
     operationName: "transact",
     operation: ["op": "transact", "transaction": ["expectedRevision": 1]],
     connectionID: connection,
@@ -886,7 +911,7 @@ guard case .accepted(let remove) = controller.admitOperation(
     topology: topology,
     key: key,
     owner: "example.consumer",
-    resource: "companion/main",
+    resource: "example/object",
     operationName: "remove",
     operation: ["op": "remove"],
     connectionID: connection,
@@ -900,12 +925,12 @@ precondition(controller.nativeEffectRequest(
 ) == nil)
 
 let (failed, failedTopology) = readyController()
-let failedKey = failed.key(owner: "example.consumer", resource: "companion/main")
+let failedKey = failed.key(owner: "example.consumer", resource: "example/object")
 guard case .accepted(let failedMountAction) = failed.admitOperation(
     topology: failedTopology,
     key: failedKey,
     owner: "example.consumer",
-    resource: "companion/main",
+    resource: "example/object",
     operationName: "mount",
     operation: ["op": "mount", "interactions": interactions()],
     extensionAuthorization: authorization,
@@ -939,7 +964,7 @@ precondition(failed.nativeEffectRequest(
 let (budgetController, budgetTopology) = readyController()
 let budgetConnection = UUID()
 for batch in 0..<4 {
-    let resource = "companion/budget-\\(batch)"
+    let resource = "example/budget-\\(batch)"
     let batchInteractions = programInteractions(batch)
     precondition(
         AOSDesktopWorldNativeEffectContract.parseBindings(batchInteractions)?.count == 8,
@@ -967,7 +992,7 @@ precondition(
     budgetController.nativeEffectPrograms().count ==
         AOSDesktopWorldNativeEffectProgram.maximumPreparedPrograms
 )
-let overflowResource = "companion/budget-overflow"
+let overflowResource = "example/budget-overflow"
 guard case .nativeEffectBudgetExceeded = budgetController.admitOperation(
     topology: budgetTopology,
     key: budgetController.key(
@@ -990,7 +1015,7 @@ precondition(
 let (reservationController, reservationTopology) = readyController()
 let reservationConnection = UUID()
 for batch in 0..<3 {
-    let resource = "companion/reservation-\\(batch)"
+    let resource = "example/reservation-\\(batch)"
     guard case .accepted(let action) = reservationController.admitOperation(
         topology: reservationTopology,
         key: reservationController.key(owner: "example.consumer", resource: resource),
@@ -1004,7 +1029,7 @@ for batch in 0..<3 {
     ) else { preconditionFailure("reservation fixture mount was rejected") }
     _ = settleSuccess(reservationController, action)
 }
-let pendingResource = "companion/reservation-pending"
+let pendingResource = "example/reservation-pending"
 guard case .accepted(let pendingReservation) = reservationController.admitOperation(
     topology: reservationTopology,
     key: reservationController.key(
@@ -1020,7 +1045,7 @@ guard case .accepted(let pendingReservation) = reservationController.admitOperat
     ref: "reservation-pending"
 ) else { preconditionFailure("bounded pending reservation was rejected") }
 precondition(reservationController.nativeEffectPrograms().count == 24)
-let competingResource = "companion/reservation-competing"
+let competingResource = "example/reservation-competing"
 guard case .operationPending = reservationController.admitOperation(
     topology: reservationTopology,
     key: reservationController.key(
@@ -1054,7 +1079,7 @@ guard case .nativeEffectBudgetExceeded = reservationController.admitOperation(
 let (replacementController, replacementTopology) = readyController()
 let replacementConnection = UUID()
 for batch in 0..<4 {
-    let resource = "companion/replacement-\\(batch)"
+    let resource = "example/replacement-\\(batch)"
     guard case .accepted(let action) = replacementController.admitOperation(
         topology: replacementTopology,
         key: replacementController.key(owner: "example.consumer", resource: resource),
@@ -1095,10 +1120,10 @@ func mountDuplicatePrograms(_ ref: String) -> AOSDesktopWorldSceneOperationAdmis
         topology: replacementTopology,
         key: replacementController.key(
             owner: "example.consumer",
-            resource: "companion/duplicate-owner"
+            resource: "example/duplicate-owner"
         ),
         owner: "example.consumer",
-        resource: "companion/duplicate-owner",
+        resource: "example/duplicate-owner",
         operationName: "mount",
         operation: ["op": "mount", "interactions": programInteractions(0)],
         extensionAuthorization: authorization,
@@ -1107,7 +1132,7 @@ func mountDuplicatePrograms(_ ref: String) -> AOSDesktopWorldSceneOperationAdmis
     )
 }
 let firstReplacementAdmission = replacePrograms(
-    "companion/replacement-0", batch: 4, ref: "replacement-first"
+    "example/replacement-0", batch: 4, ref: "replacement-first"
 )
 guard case .accepted(let firstReplacement) = firstReplacementAdmission else {
     preconditionFailure(
@@ -1133,14 +1158,14 @@ guard case .accepted(let genericMount) = replacementController.admitOperation(
 ) else { preconditionFailure("generic scene work was serialized with program catalogs") }
 _ = settleSuccess(replacementController, genericMount)
 guard case .operationPending = replacePrograms(
-    "companion/replacement-1", batch: 5, ref: "replacement-queued"
+    "example/replacement-1", batch: 5, ref: "replacement-queued"
 ) else { preconditionFailure("concurrent replacement reported false budget overflow") }
 _ = settleSuccess(replacementController, firstReplacement)
 guard case .nativeEffectBudgetExceeded = mountDuplicatePrograms("duplicate-overflow") else {
     preconditionFailure("settled replacement admitted an oversized duplicate owner")
 }
 guard case .accepted(let secondReplacement) = replacePrograms(
-    "companion/replacement-1", batch: 5, ref: "replacement-second"
+    "example/replacement-1", batch: 5, ref: "replacement-second"
 ) else { preconditionFailure("serialized replacement remained blocked") }
 _ = settleSuccess(replacementController, secondReplacement)
 precondition(
@@ -1154,8 +1179,8 @@ let disconnect = replacementController.beginDisconnect(
 precondition(disconnect.barrierActions.count == 4)
 let postDisconnectAdmission = replacementController.admitOperation(
     topology: replacementTopology,
-    key: replacementController.key(owner: "example.consumer", resource: "companion/after-close"),
-    owner: "example.consumer", resource: "companion/after-close",
+    key: replacementController.key(owner: "example.consumer", resource: "example/after-close"),
+    owner: "example.consumer", resource: "example/after-close",
     operationName: "mount", operation: ["op": "mount", "interactions": programInteractions(6)],
     extensionAuthorization: authorization, connectionID: UUID(), ref: "after-close"
 )

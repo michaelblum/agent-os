@@ -42,6 +42,9 @@ Routed envelopes preserve the observed event identity in `source_event` and,
 when available, `source_sequence`. Owned and captured deliveries must include
 `region_id` and `owner_canvas_id`; captured deliveries must also include
 `capture_id`, which stays stable from captured drag through release/cancel.
+`gesture_id` is the pointer-session correlation identity and exists independently
+of capture or consumption. `capture_id` identifies only the optional native
+capture lease; non-consuming owned input must not invent one.
 `source_canvas_id` is reserved for routed canvas-origin echoes. This lets
 toolkit and app consumers suppress duplicates by identity rather than private
 booleans such as `fromHitTarget`.

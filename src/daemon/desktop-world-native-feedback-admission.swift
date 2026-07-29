@@ -1,6 +1,12 @@
 import Foundation
 
 final class AOSDesktopWorldNativeFeedbackAdmission {
+    private enum RetirementPhase {
+        case disposing
+        case idle
+        case replacementReady
+    }
+
     struct Active {
         enum Phase: Hashable {
             case capturing
@@ -53,7 +59,7 @@ final class AOSDesktopWorldNativeFeedbackAdmission {
     private var nextGeneration: UInt64 = 0
     private var pendingReplacement: AOSDesktopWorldNativeEffectRequest?
     private var prepared = false
-    private var retirementPending = false
+    private var retirementPhase = RetirementPhase.idle
     private var stopped = false
 
     func setGate(available: Bool, prepared: Bool, stopped: Bool? = nil) {
@@ -78,17 +84,17 @@ final class AOSDesktopWorldNativeFeedbackAdmission {
         if !prepared { return .rejected("NATIVE_EFFECT_NOT_PREPARED") }
         if let current = active {
             guard pendingReplacement == nil,
-                  !retirementPending,
+                  retirementPhase == .idle,
                   Self.canReplace(current.request, with: request) else {
                 return .rejected("NATIVE_EFFECT_BUSY")
             }
             active = nil
-            retirementPending = true
+            retirementPhase = .disposing
             pendingReplacement = request
             advanceGeneration()
             return .retire(current)
         }
-        if retirementPending {
+        if retirementPhase != .idle {
             guard let pending = pendingReplacement,
                   Self.canReplace(pending, with: request) else {
                 return .rejected("NATIVE_EFFECT_BUSY")
@@ -138,7 +144,7 @@ final class AOSDesktopWorldNativeFeedbackAdmission {
         if let current = active,
            Self.matchesGesture(current.request, event.request) {
             active = nil
-            retirementPending = true
+            retirementPhase = .disposing
             advanceGeneration()
             retired = current
             if let replacement,
@@ -249,7 +255,9 @@ final class AOSDesktopWorldNativeFeedbackAdmission {
             return nil
         }
         active = nil
-        if requiresRuntimeDisposal { retirementPending = true }
+        if requiresRuntimeDisposal {
+            retirementPhase = .disposing
+        }
         current.deadline.cancel()
         return current
     }
@@ -264,10 +272,12 @@ final class AOSDesktopWorldNativeFeedbackAdmission {
         let retired = active
         active = nil
         pendingReplacement = nil
-        if retired != nil { retirementPending = true }
+        if retired != nil {
+            retirementPhase = .disposing
+        }
         return Cancellation(
             retired: retired,
-            shouldRetireRuntime: retired != nil || retirementPending
+            shouldRetireRuntime: retired != nil || retirementPhase != .idle
         )
     }
 
@@ -282,23 +292,29 @@ final class AOSDesktopWorldNativeFeedbackAdmission {
         let retired = active
         active = nil
         pendingReplacement = nil
-        if retired != nil { retirementPending = true }
+        if retired != nil {
+            retirementPhase = .disposing
+        }
         return retired
     }
 
     func finishRetirement() -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        let hasReplacement = pendingReplacement != nil
-        if !hasReplacement { retirementPending = false }
-        return hasReplacement
+        guard retirementPhase == .disposing else { return false }
+        guard pendingReplacement != nil else {
+            retirementPhase = .idle
+            return false
+        }
+        retirementPhase = .replacementReady
+        return !stopped && available && prepared
     }
 
     func pendingRequest() -> AOSDesktopWorldNativeEffectRequest? {
         lock.lock()
         defer { lock.unlock() }
         guard !stopped, available, prepared, active == nil,
-              retirementPending else { return nil }
+              retirementPhase == .replacementReady else { return nil }
         return pendingReplacement
     }
 
@@ -308,14 +324,14 @@ final class AOSDesktopWorldNativeFeedbackAdmission {
         lock.lock()
         defer { lock.unlock() }
         guard !stopped, available, prepared, active == nil,
-              retirementPending else {
+              retirementPhase == .replacementReady else {
             pendingReplacement = nil
-            retirementPending = false
+            retirementPhase = .idle
             return .none
         }
         guard pendingReplacement == request else { return .stale }
         pendingReplacement = nil
-        retirementPending = false
+        retirementPhase = .idle
         return .start(request: request, generation: admit(request))
     }
 
@@ -323,10 +339,11 @@ final class AOSDesktopWorldNativeFeedbackAdmission {
         lock.lock()
         defer { lock.unlock() }
         guard pendingReplacement == request else {
-            return pendingReplacement != nil && retirementPending
+            return pendingReplacement != nil
+                && retirementPhase == .replacementReady
         }
         pendingReplacement = nil
-        retirementPending = false
+        retirementPhase = .idle
         return false
     }
 
@@ -341,7 +358,7 @@ final class AOSDesktopWorldNativeFeedbackAdmission {
             case .presenting: return "presenting"
             }
         }
-        if retirementPending { return "retiring" }
+        if retirementPhase != .idle { return "retiring" }
         if preparing { return "preparing" }
         if available && prepared { return "ready" }
         return "unavailable"
@@ -534,7 +551,7 @@ extension AOSDesktopWorldNativeFeedbackController {
     }
 
     @MainActor
-    private func startPendingReplacement() {
+    func startPendingReplacement() {
         guard let request = admission.pendingRequest() else { return }
         guard authorize(request) else {
             failPendingReplacement(

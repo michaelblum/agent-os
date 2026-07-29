@@ -62,7 +62,7 @@ test('DesktopWorld native orchestration pins lease refs and serializes topology 
   assert.match(canvas, /surface\.topologyGeneration == topology\.generation/u)
   assert.match(canvas, /surface\.sceneBarrierTopology\(\) == topology/u)
   assert.match(transport, /func topologySettled\(_ payload: \[String: Any\]\)/u)
-  assert.match(controller, /private var retirement:/u)
+  assert.match(controller, /private\(set\) var retirement:/u)
   assert.match(controller, /func settleRetirement/u)
   assert.match(controller, /readiness\.currentIdentity\(\)\.map\(\{ \$0 == topology\.identity \}\) \?\? true/u)
   assert.match(controller, /readiness\.invalidateIfCurrent\(identity\)[\s\S]{0,800}invalidateLocked/u)

@@ -525,6 +525,118 @@ precondition(replacementSnapshot.disposedCount == 2)
 precondition(replacementSnapshot.lastProgramID == "example.release-transition")
 replacementController.shutdown()
 
+let deferredReplacementHost = Host()
+let deferredReplacementCapturer = Capturer()
+let deferredReplacementController = AOSDesktopWorldNativeFeedbackController(
+    host: deferredReplacementHost,
+    capturer: deferredReplacementCapturer,
+    scheduleDeadline: { _, _ in },
+    authorize: { _ in true }
+)
+let deferredPrograms = [
+    AOSDesktopWorldNativeEffectProgram(digest: "program-digest"),
+    AOSDesktopWorldNativeEffectProgram(
+        digest: "replacement-digest",
+        id: "example.release-transition",
+        revision: 2
+    ),
+]
+deferredReplacementController.reconcileAvailability(
+    true,
+    programs: deferredPrograms
+)
+pumpUntil { deferredReplacementController.snapshot().state == "ready" }
+precondition(deferredReplacementController.trigger(gestureRequest))
+deferredReplacementCapturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { deferredReplacementHost.installCount == 1 } }
+precondition(deferredReplacementController.snapshot().state == "presenting")
+MainActor.assumeIsolated { deferredReplacementHost.deferPreparations = true }
+deferredReplacementController.reconcileAvailability(
+    true,
+    programs: deferredPrograms + [
+        AOSDesktopWorldNativeEffectProgram(
+            digest: "catalog-refresh-digest",
+            id: "example.catalog-refresh",
+            revision: 1
+        ),
+    ]
+)
+pumpUntil { MainActor.assumeIsolated { deferredReplacementHost.prepareCount == 2 } }
+deferredReplacementController.handleGesture(
+    endEvent,
+    replacement: replacementRequest
+)
+pumpUntil { MainActor.assumeIsolated { deferredReplacementHost.removeCount == 1 } }
+precondition(deferredReplacementController.snapshot().state == "retiring")
+precondition(deferredReplacementCapturer.pending.isEmpty)
+MainActor.assumeIsolated { deferredReplacementHost.completePreparation(at: 0) }
+pumpUntil {
+    deferredReplacementController.snapshot().state == "capturing"
+        && deferredReplacementCapturer.pending.count == 1
+}
+deferredReplacementCapturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { deferredReplacementHost.installCount == 2 } }
+MainActor.assumeIsolated { deferredReplacementHost.runtimes.last?.complete() }
+pumpUntil { deferredReplacementController.snapshot().state == "ready" }
+precondition(deferredReplacementController.snapshot().acceptedCount == 2)
+deferredReplacementController.shutdown()
+
+let retryingReplacementHost = Host()
+let retryingReplacementCapturer = Capturer()
+var retryingRetirementItems: [DispatchWorkItem] = []
+let retryingReplacementController = AOSDesktopWorldNativeFeedbackController(
+    host: retryingReplacementHost,
+    capturer: retryingReplacementCapturer,
+    scheduleDeadline: { delay, item in
+        if abs(delay - 0.05) < 0.001 { retryingRetirementItems.append(item) }
+    },
+    authorize: { _ in true }
+)
+retryingReplacementController.reconcileAvailability(
+    true,
+    programs: deferredPrograms
+)
+pumpUntil { retryingReplacementController.snapshot().state == "ready" }
+precondition(retryingReplacementController.trigger(gestureRequest))
+retryingReplacementCapturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { retryingReplacementHost.installCount == 1 } }
+MainActor.assumeIsolated {
+    retryingReplacementHost.deferPreparations = true
+    retryingReplacementHost.removeSucceeds = false
+}
+retryingReplacementController.reconcileAvailability(
+    true,
+    programs: deferredPrograms + [
+        AOSDesktopWorldNativeEffectProgram(
+            digest: "retrying-refresh-digest",
+            id: "example.retrying-refresh",
+            revision: 1
+        ),
+    ]
+)
+pumpUntil { MainActor.assumeIsolated { retryingReplacementHost.prepareCount == 2 } }
+retryingReplacementController.handleGesture(
+    endEvent,
+    replacement: replacementRequest
+)
+pumpUntil { retryingRetirementItems.count == 1 }
+MainActor.assumeIsolated { retryingReplacementHost.completePreparation(at: 0) }
+RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+precondition(retryingReplacementController.snapshot().state == "retiring")
+precondition(retryingReplacementCapturer.pending.isEmpty)
+MainActor.assumeIsolated { retryingReplacementHost.removeSucceeds = true }
+retryingRetirementItems[0].perform()
+pumpUntil {
+    retryingReplacementController.snapshot().state == "capturing"
+        && retryingReplacementCapturer.pending.count == 1
+}
+retryingReplacementCapturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { retryingReplacementHost.installCount == 2 } }
+MainActor.assumeIsolated { retryingReplacementHost.runtimes.last?.complete() }
+pumpUntil { retryingReplacementController.snapshot().state == "ready" }
+precondition(retryingReplacementController.snapshot().acceptedCount == 2)
+retryingReplacementController.shutdown()
+
 let reservedHost = Host()
 let reservedCapturer = Capturer()
 let reservedController = AOSDesktopWorldNativeFeedbackController(
