@@ -80,18 +80,21 @@ layer must rerun the same proof before it can replace or absorb this path:
 
 The product path is now in-process and event-driven. The native sheet is a
 specialized low-latency desktop-compositing lane, not a second general scene
-engine. ADR 0033 adds a bounded effect-program engine over that sheet. A loaded
-consumer cartridge may bind an affordance event to a typed, data-only graph;
-AOS validates and compiles the graph from trusted Metal templates, then runs it
-on owned capture, topology, clock, and GPU resources. It never spawns this proof
-command per interaction.
+engine. ADR 0033 adds a bounded effect-program engine over that sheet, and ADR
+0034 adds bounded deformation and material lighting to the existing tessellated
+geometry. A loaded consumer cartridge may bind an affordance event to a typed,
+data-only graph; AOS validates and compiles the graph from trusted Metal
+templates, then runs it on owned capture, topology, clock, and GPU resources.
+It never spawns this proof command per interaction.
 
 Three.js remains the richer object-scene lane. The two lanes share DesktopWorld
 coordinates, gestures, timing, and lifecycle rather than pretending to share
-one renderer. Consumers can revise supported compositions and bounded values
-without an AOS rebuild. Adding operators, geometry sources, render passes, or
-active input streams remains an AOS engine-contract change. Consumers cannot
-inject Metal or JavaScript into the native lane.
+one renderer. The toolkit can compile the same validated graph into a bounded
+GLSL evaluation function for a trusted Three.js preview. Consumers can revise
+supported compositions and bounded values without an AOS rebuild. Adding
+operators, geometry sources, render passes, or active input streams remains an
+AOS engine-contract change. Consumers cannot inject Metal or JavaScript into
+the native lane.
 
 Do not backfill an existing abstraction merely because it already exists. A
 layer is retained only when the unchanged native proof remains green and the

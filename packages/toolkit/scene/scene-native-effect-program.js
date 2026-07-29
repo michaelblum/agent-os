@@ -4,23 +4,40 @@ import {
 } from './scene-contract-primitives.js'
 
 export const SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID = 'aos.scene.native-effect-program.v1'
+export const SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID = 'aos.scene.native-effect-program.v2'
+export const SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_IDS = Object.freeze([
+  SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID,
+  SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID,
+])
 export const SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION = 'aos.scene.effect.program'
+export const SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID = 'aos.scene.native-effect-glsl.v1'
 
 export const SCENE_NATIVE_EFFECT_PROGRAM_LIMITS = Object.freeze({
   maxConstantMagnitude: 1_000_000,
   maxDurationMs: 3_000,
   maxNodes: 64,
+  maxNormalSampleDistance: 64,
   maxParameters: 16,
+  maxPerspectiveDistance: 20_000,
+  maxPositionOffset: 512,
   maxPrograms: 8,
   maxSerializedBytes: 32_768,
+  maxTextureDisplacement: 96,
   maxTranscendentalOperations: 16,
   minDurationMs: 100,
+  minNormalSampleDistance: 0.25,
+  minPerspectiveDistance: 256,
 })
 
 export const SCENE_NATIVE_EFFECT_PROGRAM_OPERATORS = Object.freeze([
   'absolute',
   'add',
   'clamp01',
+  'component_x',
+  'component_y',
+  'component_z',
+  'compose2',
+  'compose3',
   'constant',
   'cosine',
   'distance_to_segment',
@@ -48,6 +65,7 @@ const BUILTIN_TYPES = new Map([
   ['event.origin', 'vec2'],
   ['event.total_delta', 'vec2'],
   ['surface.size', 'vec2'],
+  ['surface.position', 'vec3'],
   ['surface.uv', 'vec2'],
   ['world.position', 'vec2'],
 ])
@@ -72,9 +90,10 @@ function finiteScalar(value) {
     && Math.abs(value) <= SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxConstantMagnitude
 }
 
-function constantType(value) {
+function constantType(value, allowVector3) {
   if (finiteScalar(value)) return 'scalar'
   if (Array.isArray(value) && value.length === 2 && value.every(finiteScalar)) return 'vec2'
+  if (allowVector3 && Array.isArray(value) && value.length === 3 && value.every(finiteScalar)) return 'vec3'
   return null
 }
 
@@ -92,7 +111,7 @@ function sameType(inputs, count) {
     : null
 }
 
-function inferOperatorType(operation, inputs) {
+function inferOperatorType(operation, inputs, allowVector3) {
   switch (operation) {
   case 'add':
   case 'subtract':
@@ -102,16 +121,19 @@ function inferOperatorType(operation, inputs) {
   case 'multiply':
     if (inputs.length !== 2) return null
     if (inputs[0] === inputs[1]) return inputs[0]
-    if (inputs.includes('scalar') && inputs.includes('vec2')) return 'vec2'
+    if (inputs.includes('scalar') && inputs.some((entry) => ['vec2', 'vec3'].includes(entry))) {
+      return inputs.find((entry) => entry !== 'scalar')
+    }
     return null
   case 'divide':
     if (inputs.length !== 2) return null
     if (inputs[0] === 'scalar' && inputs[1] === 'scalar') return 'scalar'
-    if (inputs[0] === 'vec2' && ['scalar', 'vec2'].includes(inputs[1])) return 'vec2'
+    if (['vec2', 'vec3'].includes(inputs[0]) && ['scalar', inputs[0]].includes(inputs[1])) return inputs[0]
     return null
   case 'length':
-    return inputs.length === 1 && inputs[0] === 'vec2' ? 'scalar' : null
+    return inputs.length === 1 && ['vec2', 'vec3'].includes(inputs[0]) ? 'scalar' : null
   case 'normalize':
+    return inputs.length === 1 && ['vec2', 'vec3'].includes(inputs[0]) ? inputs[0] : null
   case 'perpendicular':
     return inputs.length === 1 && inputs[0] === 'vec2' ? 'vec2' : null
   case 'absolute':
@@ -123,7 +145,20 @@ function inferOperatorType(operation, inputs) {
   case 'sine':
     return inputs.length === 1 && inputs[0] === 'scalar' ? 'scalar' : null
   case 'dot':
-    return inputs.length === 2 && inputs.every((entry) => entry === 'vec2') ? 'scalar' : null
+    return inputs.length === 2
+      && inputs[0] === inputs[1]
+      && ['vec2', 'vec3'].includes(inputs[0])
+      ? 'scalar'
+      : null
+  case 'compose2':
+    return allowVector3 && inputs.length === 2 && inputs.every((entry) => entry === 'scalar') ? 'vec2' : null
+  case 'compose3':
+    return allowVector3 && inputs.length === 3 && inputs.every((entry) => entry === 'scalar') ? 'vec3' : null
+  case 'component_x':
+  case 'component_y':
+    return allowVector3 && inputs.length === 1 && ['vec2', 'vec3'].includes(inputs[0]) ? 'scalar' : null
+  case 'component_z':
+    return allowVector3 && inputs.length === 1 && inputs[0] === 'vec3' ? 'scalar' : null
   case 'smoothstep':
     return inputs.length === 3 && inputs.every((entry) => entry === 'scalar') ? 'scalar' : null
   case 'distance_to_segment':
@@ -164,7 +199,7 @@ function validateParameter(parameter, index, types, errors) {
   types.set(reference, 'scalar')
 }
 
-function validateNode(node, index, types, errors) {
+function validateNode(node, index, types, errors, allowVector3) {
   const path = `program.nodes.${index}`
   if (!isSceneRecord(node)) {
     addError(errors, 'invalid_native_effect_node', path, 'Native effect program nodes must be bounded declarations.')
@@ -182,8 +217,8 @@ function validateNode(node, index, types, errors) {
     return
   }
   if (constant) {
-    const type = constantType(node.value)
-    if (!type) addError(errors, 'invalid_native_effect_constant', `${path}.value`, 'Native effect constants must be a bounded scalar or vec2.')
+    const type = constantType(node.value, allowVector3)
+    if (!type) addError(errors, 'invalid_native_effect_constant', `${path}.value`, `Native effect constants must be a bounded scalar, vec2${allowVector3 ? ', or vec3' : ''}.`)
     else types.set(reference, type)
     return
   }
@@ -201,12 +236,49 @@ function validateNode(node, index, types, errors) {
     return type
   })
   if (inputTypes.some((entry) => !entry)) return
-  const type = inferOperatorType(node.op, inputTypes)
+  const type = inferOperatorType(node.op, inputTypes, allowVector3)
   if (!type) {
     addError(errors, 'invalid_native_effect_operator_types', path, 'Native effect operator inputs do not match its typed signature.')
     return
   }
   types.set(reference, type)
+}
+
+function validateMaterial(material, errors) {
+  const path = 'program.material'
+  if (!isSceneRecord(material)) {
+    addError(errors, 'invalid_native_effect_material', path, 'V2 native effect programs require a bounded material declaration.')
+    return
+  }
+  exactKeys(material, new Set([
+    'ambient', 'diffuse', 'lightDirection', 'lighting',
+    'normalSampleDistance', 'perspectiveDistance',
+  ]), path, errors)
+  if (!['lambert', 'unlit'].includes(material.lighting)) {
+    addError(errors, 'invalid_native_effect_lighting', `${path}.lighting`, 'Native effect materials support only unlit or Lambert lighting.')
+  }
+  for (const field of ['ambient', 'diffuse']) {
+    if (!finiteScalar(material[field]) || material[field] < 0 || material[field] > 2) {
+      addError(errors, 'invalid_native_effect_material_scalar', `${path}.${field}`, 'Native effect material light levels must be finite values from 0 through 2.')
+    }
+  }
+  const direction = material.lightDirection
+  if (!Array.isArray(direction)
+      || direction.length !== 3
+      || !direction.every(finiteScalar)
+      || Math.hypot(...direction) < 0.000001) {
+    addError(errors, 'invalid_native_effect_light_direction', `${path}.lightDirection`, 'Native effect light direction must be a finite nonzero vec3.')
+  }
+  if (!finiteScalar(material.normalSampleDistance)
+      || material.normalSampleDistance < SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.minNormalSampleDistance
+      || material.normalSampleDistance > SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxNormalSampleDistance) {
+    addError(errors, 'invalid_native_effect_normal_sample_distance', `${path}.normalSampleDistance`, 'Native effect normal sampling must stay within the engine bounds.')
+  }
+  if (!finiteScalar(material.perspectiveDistance)
+      || material.perspectiveDistance < SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.minPerspectiveDistance
+      || material.perspectiveDistance > SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxPerspectiveDistance) {
+    addError(errors, 'invalid_native_effect_perspective_distance', `${path}.perspectiveDistance`, 'Native effect perspective distance must stay within the engine bounds.')
+  }
 }
 
 export function validateSceneNativeEffectProgram(program) {
@@ -221,11 +293,16 @@ export function validateSceneNativeEffectProgram(program) {
   } catch {
     addError(errors, 'invalid_native_effect_program', 'program', 'Native effect program must be finite JSON.')
   }
+  const version = program.contract === SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID
+    ? 1
+    : program.contract === SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID ? 2 : null
+  const allowVector3 = version === 2
   exactKeys(program, new Set([
-    'contract', 'durationMs', 'id', 'nodes', 'outputs', 'parameters', 'revision', 'schemaVersion',
+    'contract', 'durationMs', 'id', ...(allowVector3 ? ['material'] : []),
+    'nodes', 'outputs', 'parameters', 'revision', 'schemaVersion',
   ]), 'program', errors)
-  if (program.contract !== SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID) addError(errors, 'invalid_native_effect_program_contract', 'program.contract', 'Native effect program contract is unsupported.')
-  if (program.schemaVersion !== 1) addError(errors, 'invalid_native_effect_program_version', 'program.schemaVersion', 'Native effect program schema version is unsupported.')
+  if (!version) addError(errors, 'invalid_native_effect_program_contract', 'program.contract', 'Native effect program contract is unsupported.')
+  if (program.schemaVersion !== version) addError(errors, 'invalid_native_effect_program_version', 'program.schemaVersion', 'Native effect program schema version is unsupported.')
   if (!isCanonicalSceneId(program.id)) addError(errors, 'invalid_native_effect_program_id', 'program.id', 'Native effect program ID must be canonical.')
   if (!Number.isInteger(program.revision) || program.revision < 1 || program.revision > 2_147_483_647) addError(errors, 'invalid_native_effect_program_revision', 'program.revision', 'Native effect program revision must be a positive bounded integer.')
   if (!Number.isInteger(program.durationMs)
@@ -235,6 +312,7 @@ export function validateSceneNativeEffectProgram(program) {
   }
 
   const types = new Map(BUILTIN_TYPES)
+  if (!allowVector3) types.delete('surface.position')
   if (!Array.isArray(program.parameters) || program.parameters.length > SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxParameters) {
     addError(errors, 'invalid_native_effect_parameter_count', 'program.parameters', 'Native effect programs exceed the parameter limit.')
   } else {
@@ -243,7 +321,7 @@ export function validateSceneNativeEffectProgram(program) {
   if (!Array.isArray(program.nodes) || program.nodes.length < 1 || program.nodes.length > SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxNodes) {
     addError(errors, 'invalid_native_effect_node_count', 'program.nodes', 'Native effect programs require a bounded node graph.')
   } else {
-    program.nodes.forEach((entry, index) => validateNode(entry, index, types, errors))
+    program.nodes.forEach((entry, index) => validateNode(entry, index, types, errors, allowVector3))
     const transcendentalCount = program.nodes.filter((entry) => [
       'cosine', 'exponential', 'sine', 'smoothstep',
     ].includes(entry?.op)).length
@@ -252,12 +330,22 @@ export function validateSceneNativeEffectProgram(program) {
     }
   }
   if (!isSceneRecord(program.outputs)) {
-    addError(errors, 'invalid_native_effect_outputs', 'program.outputs', 'Native effect programs require displacement and opacity outputs.')
+    addError(errors, 'invalid_native_effect_outputs', 'program.outputs', 'Native effect programs require bounded geometry and material outputs.')
   } else {
-    exactKeys(program.outputs, new Set(['displacement', 'opacity']), 'program.outputs', errors)
-    if (resolveReference(program.outputs.displacement, types) !== 'vec2') addError(errors, 'invalid_native_effect_output_type', 'program.outputs.displacement', 'Native effect displacement must reference a vec2 value.')
+    const outputKeys = allowVector3
+      ? ['opacity', 'positionOffset', 'textureDisplacement']
+      : ['displacement', 'opacity']
+    exactKeys(program.outputs, new Set(outputKeys), 'program.outputs', errors)
+    const displacement = allowVector3
+      ? program.outputs.textureDisplacement
+      : program.outputs.displacement
+    if (resolveReference(displacement, types) !== 'vec2') addError(errors, 'invalid_native_effect_output_type', allowVector3 ? 'program.outputs.textureDisplacement' : 'program.outputs.displacement', 'Native effect texture displacement must reference a vec2 value.')
     if (resolveReference(program.outputs.opacity, types) !== 'scalar') addError(errors, 'invalid_native_effect_output_type', 'program.outputs.opacity', 'Native effect opacity must reference a scalar value.')
+    if (allowVector3 && resolveReference(program.outputs.positionOffset, types) !== 'vec3') {
+      addError(errors, 'invalid_native_effect_output_type', 'program.outputs.positionOffset', 'V2 native effect position offset must reference a vec3 value.')
+    }
   }
+  if (allowVector3) validateMaterial(program.material, errors)
   return { ok: errors.length === 0, errors }
 }
 
@@ -291,4 +379,203 @@ export function createSceneNativeEffectProgram(program) {
   const validation = validateSceneNativeEffectProgram(program)
   if (!validation.ok) throw new TypeError(validation.errors[0]?.message ?? 'Invalid native effect program.')
   return freeze(clone(program))
+}
+
+function glslScalar(value) {
+  const encoded = Number(value).toPrecision(9).replace(/(?:\.0+|(?:(\.\d*?)0+))(?=e|$)/u, '$1')
+  return /[.e]/iu.test(encoded) ? encoded : `${encoded}.0`
+}
+
+function glslType(type) {
+  if (type === 'scalar') return 'float'
+  return type
+}
+
+function glslReference(reference, variables, parameterIndexes) {
+  const builtins = {
+    'clock.elapsed': 'aosEffectElapsed',
+    'event.current': 'aosEffectEventCurrent',
+    'event.delta': 'aosEffectEventDelta',
+    'event.origin': 'aosEffectEventOrigin',
+    'event.total_delta': 'aosEffectEventTotalDelta',
+    'surface.position': 'surfacePosition',
+    'surface.size': 'aosEffectSurfaceSize',
+    'surface.uv': 'surfaceUV',
+    'world.position': 'worldPosition',
+  }
+  if (builtins[reference]) return builtins[reference]
+  if (reference.startsWith('parameter.')) {
+    const index = parameterIndexes.get(reference.slice('parameter.'.length))
+    return index === undefined ? null : `aosEffectParameters[${index}]`
+  }
+  return variables.get(reference) ?? null
+}
+
+function glslExpression(node, inputs, inputTypes) {
+  switch (node.op) {
+  case 'constant':
+    if (!Array.isArray(node.value)) return glslScalar(node.value)
+    return `${glslType(constantType(node.value, true))}(${node.value.map(glslScalar).join(', ')})`
+  case 'absolute': return `abs(${inputs[0]})`
+  case 'add': return `(${inputs[0]} + ${inputs[1]})`
+  case 'clamp01': return `clamp(${inputs[0]}, 0.0, 1.0)`
+  case 'component_x': return `(${inputs[0]}.x)`
+  case 'component_y': return `(${inputs[0]}.y)`
+  case 'component_z': return `(${inputs[0]}.z)`
+  case 'compose2': return `vec2(${inputs[0]}, ${inputs[1]})`
+  case 'compose3': return `vec3(${inputs[0]}, ${inputs[1]}, ${inputs[2]})`
+  case 'cosine': return `cos(${inputs[0]})`
+  case 'distance_to_segment': return `aosPointSegmentDistance(${inputs.join(', ')})`
+  case 'divide':
+    if (node.type === 'scalar') return `aosSafeScalarDivide(${inputs[0]}, ${inputs[1]})`
+    return inputTypes[1] === 'scalar'
+      ? `(${inputs[0]} / aosSafeScalarDenominator(${inputs[1]}))`
+      : `aosSafeVectorDivide(${inputs[0]}, ${inputs[1]})`
+  case 'dot': return `dot(${inputs[0]}, ${inputs[1]})`
+  case 'exponential': return `exp(clamp(${inputs[0]}, -32.0, 32.0))`
+  case 'length': return `length(${inputs[0]})`
+  case 'maximum': return `max(${inputs[0]}, ${inputs[1]})`
+  case 'minimum': return `min(${inputs[0]}, ${inputs[1]})`
+  case 'mix': return `mix(${inputs[0]}, ${inputs[1]}, ${inputs[2]})`
+  case 'multiply': return `(${inputs[0]} * ${inputs[1]})`
+  case 'negate': return `(-${inputs[0]})`
+  case 'normalize': return `aosSafeNormalize(${inputs[0]})`
+  case 'one_minus': return `(1.0 - ${inputs[0]})`
+  case 'perpendicular': return `vec2(-${inputs[0]}.y, ${inputs[0]}.x)`
+  case 'sine': return `sin(${inputs[0]})`
+  case 'smoothstep': return `smoothstep(${inputs[0]}, ${inputs[1]}, ${inputs[2]})`
+  case 'subtract': return `(${inputs[0]} - ${inputs[1]})`
+  default: return null
+  }
+}
+
+const GLSL_COMMON_SOURCE = `
+float aosSafeScalarDenominator(float value) {
+  float safeValue = max(abs(value), 0.000001);
+  return value < 0.0 ? -safeValue : safeValue;
+}
+float aosSafeScalarDivide(float numerator, float denominator) {
+  return numerator / aosSafeScalarDenominator(denominator);
+}
+vec2 aosSafeVectorDivide(vec2 numerator, vec2 denominator) {
+  return numerator / vec2(
+    aosSafeScalarDenominator(denominator.x),
+    aosSafeScalarDenominator(denominator.y)
+  );
+}
+vec3 aosSafeVectorDivide(vec3 numerator, vec3 denominator) {
+  return numerator / vec3(
+    aosSafeScalarDenominator(denominator.x),
+    aosSafeScalarDenominator(denominator.y),
+    aosSafeScalarDenominator(denominator.z)
+  );
+}
+vec2 aosSafeNormalize(vec2 value) {
+  float magnitude = length(value);
+  return magnitude > 0.000001 ? value / magnitude : vec2(0.0);
+}
+vec3 aosSafeNormalize(vec3 value) {
+  float magnitude = length(value);
+  return magnitude > 0.000001 ? value / magnitude : vec3(0.0, 0.0, 1.0);
+}
+float aosPointSegmentDistance(vec2 point, vec2 start, vec2 end) {
+  vec2 segment = end - start;
+  float denominator = max(dot(segment, segment), 0.000001);
+  float amount = clamp(dot(point - start, segment) / denominator, 0.0, 1.0);
+  return length(point - (start + segment * amount));
+}
+bool aosFinite(float value) {
+  return value == value && abs(value) <= 3.402823e38;
+}
+bool aosFinite(vec2 value) {
+  return all(equal(value, value))
+    && all(lessThanEqual(abs(value), vec2(3.402823e38)));
+}
+bool aosFinite(vec3 value) {
+  return all(equal(value, value))
+    && all(lessThanEqual(abs(value), vec3(3.402823e38)));
+}`.trim()
+
+export function compileSceneNativeEffectProgramGLSL(program) {
+  const validation = validateSceneNativeEffectProgram(program)
+  if (!validation.ok) throw new TypeError(validation.errors[0]?.message ?? 'Invalid native effect program.')
+  const version = program.schemaVersion
+  const types = new Map(BUILTIN_TYPES)
+  if (version === 1) types.delete('surface.position')
+  const parameterIndexes = new Map(program.parameters.map((entry, index) => [entry.id, index]))
+  program.parameters.forEach((entry) => types.set(`parameter.${entry.id}`, 'scalar'))
+  const variables = new Map()
+  const statements = []
+  program.nodes.forEach((node, index) => {
+    const reference = `node.${node.id}`
+    const inputTypes = node.op === 'constant' ? [] : node.inputs.map((entry) => types.get(entry))
+    const type = node.op === 'constant'
+      ? constantType(node.value, version === 2)
+      : inferOperatorType(node.op, inputTypes, version === 2)
+    const inputs = node.op === 'constant'
+      ? []
+      : node.inputs.map((entry) => glslReference(entry, variables, parameterIndexes))
+    const expression = glslExpression({ ...node, type }, inputs, inputTypes)
+    if (!type || !expression || inputs.some((entry) => !entry)) {
+      throw new TypeError('Native effect program could not compile to GLSL.')
+    }
+    const variable = `aosNode${index}`
+    statements.push(`  ${glslType(type)} ${variable} = ${expression};`)
+    variables.set(reference, variable)
+    types.set(reference, type)
+  })
+  const positionOffset = version === 2
+    ? glslReference(program.outputs.positionOffset, variables, parameterIndexes)
+    : 'vec3(0.0)'
+  const textureDisplacement = glslReference(
+    version === 2 ? program.outputs.textureDisplacement : program.outputs.displacement,
+    variables,
+    parameterIndexes,
+  )
+  const opacity = glslReference(program.outputs.opacity, variables, parameterIndexes)
+  const parameterCount = Math.max(1, program.parameters.length)
+  const maxPositionOffset = glslScalar(SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxPositionOffset)
+  const maxTextureDisplacement = glslScalar(SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxTextureDisplacement)
+  const source = `${GLSL_COMMON_SOURCE}
+
+uniform float aosEffectElapsed;
+uniform vec2 aosEffectEventCurrent;
+uniform vec2 aosEffectEventDelta;
+uniform vec2 aosEffectEventOrigin;
+uniform vec2 aosEffectEventTotalDelta;
+uniform vec2 aosEffectSurfaceSize;
+uniform float aosEffectParameters[${parameterCount}];
+
+struct AosNativeEffectEvaluation {
+  vec3 positionOffset;
+  vec2 textureDisplacement;
+  float opacity;
+};
+
+AosNativeEffectEvaluation aosEvaluateNativeEffect(
+  vec2 worldPosition,
+  vec2 surfaceUV,
+  vec3 surfacePosition
+) {
+${statements.join('\n')}
+  AosNativeEffectEvaluation result;
+  vec3 aosRawPositionOffset = ${positionOffset};
+  result.positionOffset = aosFinite(aosRawPositionOffset) ? aosRawPositionOffset : vec3(0.0);
+  float aosPositionLength = length(result.positionOffset);
+  if (aosPositionLength > ${maxPositionOffset}) result.positionOffset *= ${maxPositionOffset} / aosPositionLength;
+  vec2 aosRawTextureDisplacement = ${textureDisplacement};
+  result.textureDisplacement = aosFinite(aosRawTextureDisplacement) ? aosRawTextureDisplacement : vec2(0.0);
+  float aosDisplacementLength = length(result.textureDisplacement);
+  if (aosDisplacementLength > ${maxTextureDisplacement}) result.textureDisplacement *= ${maxTextureDisplacement} / aosDisplacementLength;
+  float aosRawOpacity = ${opacity};
+  result.opacity = aosFinite(aosRawOpacity) ? clamp(aosRawOpacity, 0.0, 1.0) : 0.0;
+  return result;
+}`
+  return freeze({
+    contract: SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID,
+    schemaVersion: 1,
+    material: version === 2 ? clone(program.material) : null,
+    parameterIds: program.parameters.map((entry) => entry.id),
+    source,
+  })
 }

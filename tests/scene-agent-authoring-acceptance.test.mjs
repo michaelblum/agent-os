@@ -189,7 +189,8 @@ test('authoring skill contains exact routes without placeholders or private tran
   assert.doesNotMatch(skill, /AOS_STATE_ROOT|net\.connect|\/sock\b/u)
   assert.doesNotMatch(skill, /roadmap|future status-item|dependent visual slice/iu)
   assert.match(skill, /references\/native-effect-program\.md/u)
-  assert.match(nativeEffectReference, /"contract": "aos\.scene\.native-effect-program\.v1"/u)
+  assert.match(nativeEffectReference, /"contract": "aos\.scene\.native-effect-program\.v2"/u)
+  assert.match(nativeEffectReference, /compileSceneNativeEffectProgramGLSL/u)
   assert.match(nativeEffectReference, /"implementation": "aos\.scene\.effect\.program"/u)
   assert.match(nativeEffectReference, /"programId": "example\.pointer-wave"/u)
   assert.doesNotMatch(skill, /"implementation": "aos\.scene\.effect\.desktop-ripple"/u)
@@ -198,7 +199,7 @@ test('authoring skill contains exact routes without placeholders or private tran
   assert.match(skill, /AOS owns pixels, Metal, topology, clocks, validation, compilation, budgets, and\s+disposal/u)
   assert.match(sceneGuidance, /bounded data-only native-effect program/u)
   assert.match(sceneGuidance, /aggregate program-budget overflow reject\s+before scene dispatch/u)
-  assert.match(sceneGuidance, /does\s+not invalidate an otherwise usable committed browser scene/u)
+  assert.match(sceneGuidance, /does\s+not\s+invalidate\s+an\s+otherwise\s+usable\s+committed\s+browser\s+scene/u)
   assert.doesNotMatch(sceneGuidance, /cartridges never carry implementation code/u)
   const nativeEffectBlock = [...nativeEffectReference.matchAll(/```json\n([\s\S]*?)\n```/gu)]
     .map((match) => match[1])

@@ -118,7 +118,11 @@ extension must declare `aos.scene.desktop_frame_texture` and
 AOS owns pixels, Metal, topology, clocks, validation, compilation, budgets, and
 disposal. Consumers own the bounded graph, trigger, and parameter values. Use
 only the operators and limits exported by `@agent-os/toolkit/scene/authoring`.
-Programs cannot contain source code or read pixels. The legacy
+V2 programs can deform the existing tessellated native sheet and use bounded
+unlit or Lambert material lighting. Use
+`compileSceneNativeEffectProgramGLSL()` when a trusted Three.js surface needs a
+preview of the same validated graph; it does not grant capture or native
+authority. Programs cannot contain source code or read pixels. The legacy
 `aos.scene.effect.desktop-ripple` ID is decode-only compatibility; do not use it
 for new authoring. Native effects are best-effort visuals; never depend on one
 for product state or authority.

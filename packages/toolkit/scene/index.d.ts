@@ -547,7 +547,7 @@ export interface SceneNativeEffectProgramParameter {
 
 export type SceneNativeEffectProgramReference = string;
 
-export type SceneNativeEffectProgramNode =
+export type SceneNativeEffectProgramV1Node =
   | { id: string; op: 'constant'; value: number | [number, number] }
   | {
       id: string;
@@ -575,19 +575,66 @@ export type SceneNativeEffectProgramNode =
       inputs: SceneNativeEffectProgramReference[];
     };
 
-export interface SceneNativeEffectProgram {
+export type SceneNativeEffectProgramV2Node =
+  | { id: string; op: 'constant'; value: number | [number, number] | [number, number, number] }
+  | Exclude<SceneNativeEffectProgramV1Node, { op: 'constant' }>
+  | {
+      id: string;
+      op:
+        | 'component_x'
+        | 'component_y'
+        | 'component_z'
+        | 'compose2'
+        | 'compose3';
+      inputs: SceneNativeEffectProgramReference[];
+    };
+
+export type SceneNativeEffectProgramNode =
+  | SceneNativeEffectProgramV1Node
+  | SceneNativeEffectProgramV2Node;
+
+export interface SceneNativeEffectProgramV1 {
   contract: 'aos.scene.native-effect-program.v1';
   schemaVersion: 1;
   id: string;
   revision: number;
   durationMs: number;
   parameters: SceneNativeEffectProgramParameter[];
-  nodes: SceneNativeEffectProgramNode[];
+  nodes: SceneNativeEffectProgramV1Node[];
   outputs: {
     displacement: SceneNativeEffectProgramReference;
     opacity: SceneNativeEffectProgramReference;
   };
 }
+
+export interface SceneNativeEffectProgramMaterial {
+  lighting: 'lambert' | 'unlit';
+  ambient: number;
+  diffuse: number;
+  lightDirection: [number, number, number];
+  normalSampleDistance: number;
+  perspectiveDistance: number;
+}
+
+export interface SceneNativeEffectProgramV2 {
+  contract: 'aos.scene.native-effect-program.v2';
+  schemaVersion: 2;
+  id: string;
+  revision: number;
+  durationMs: number;
+  parameters: SceneNativeEffectProgramParameter[];
+  nodes: SceneNativeEffectProgramV2Node[];
+  outputs: {
+    positionOffset: SceneNativeEffectProgramReference;
+    textureDisplacement: SceneNativeEffectProgramReference;
+    opacity: SceneNativeEffectProgramReference;
+  };
+  material: SceneNativeEffectProgramMaterial;
+}
+
+export type SceneNativeEffectProgram =
+  | SceneNativeEffectProgramV1
+  | SceneNativeEffectProgramV2;
 
 export type SceneNativeEffectTrigger =
   | { input: 'pointer_down'; button?: 'left' | 'middle' | 'right' }
@@ -612,16 +659,28 @@ export type SceneNativeEffectDescriptor = {
 };
 
 export const SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID: 'aos.scene.native-effect-program.v1';
+export const SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID: 'aos.scene.native-effect-program.v2';
+export const SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_IDS: readonly [
+  typeof SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID,
+  typeof SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID,
+];
 export const SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION: 'aos.scene.effect.program';
+export const SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID: 'aos.scene.native-effect-glsl.v1';
 export const SCENE_NATIVE_EFFECT_PROGRAM_LIMITS: Readonly<{
   maxConstantMagnitude: 1000000;
   maxDurationMs: 3000;
   maxNodes: 64;
+  maxNormalSampleDistance: 64;
   maxParameters: 16;
+  maxPerspectiveDistance: 20000;
+  maxPositionOffset: 512;
   maxPrograms: 8;
   maxSerializedBytes: 32768;
+  maxTextureDisplacement: 96;
   maxTranscendentalOperations: 16;
   minDurationMs: 100;
+  minNormalSampleDistance: 0.25;
+  minPerspectiveDistance: 256;
 }>;
 export const SCENE_NATIVE_EFFECT_PROGRAM_OPERATORS: readonly SceneNativeEffectProgramNode['op'][];
 export function validateSceneNativeEffectProgram(program: unknown): SceneValidationResult;
@@ -631,6 +690,16 @@ export function validateSceneNativeEffectParameters(
   path?: string,
 ): SceneValidationResult;
 export function createSceneNativeEffectProgram(program: SceneNativeEffectProgram): Readonly<SceneNativeEffectProgram>;
+export interface SceneNativeEffectGLSLProgram {
+  contract: typeof SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID;
+  schemaVersion: 1;
+  material: Readonly<SceneNativeEffectProgramMaterial> | null;
+  parameterIds: readonly string[];
+  source: string;
+}
+export function compileSceneNativeEffectProgramGLSL(
+  program: SceneNativeEffectProgram,
+): Readonly<SceneNativeEffectGLSLProgram>;
 
 export interface SceneCartridgeInteractions {
   contract: typeof SCENE_CARTRIDGE_INTERACTIONS_CONTRACT_ID;

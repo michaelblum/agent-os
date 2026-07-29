@@ -56,11 +56,15 @@ stage internals.
 - A cartridge may carry a bounded data-only native-effect program. AOS owns its
   finite graph vocabulary, validation, trusted Metal templates, compilation,
   capture textures, budgets, and disposal; the consumer owns graph composition,
-  parameter presets, and event bindings. This is not source code or a trusted
-  extension. Unknown operators and aggregate program-budget overflow reject
-  before scene dispatch. Environmental Metal preparation failure keeps native
-  input admission closed and retains the prior prepared pipeline set, but does
-  not invalidate an otherwise usable committed browser scene. Failed trusted
+  parameter presets, and event bindings. V2 may deform the existing tessellated
+  sheet and declare bounded unlit or Lambert material facts. The toolkit may
+  compile the same validated graph into a Three.js-compatible GLSL evaluation
+  function for trusted previews. Neither form accepts consumer source, creates
+  geometry, mutates topology, or grants capture authority. Unknown operators
+  and aggregate program-budget overflow reject before scene dispatch.
+  Environmental Metal preparation failure keeps native input admission closed
+  and retains the prior prepared pipeline set. It does not invalidate an
+  otherwise usable committed browser scene. Failed trusted
   projection-extension preparation still leaves the active document and
   projection unchanged.
 - Scene cartridges use the canonical `cartridge.json`, `scene.json`,

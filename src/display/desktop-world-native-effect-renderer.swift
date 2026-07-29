@@ -233,25 +233,34 @@ enum AOSDesktopWorldNativeEffectRenderPlan {
         }
     }
 
+    var usesVertexUniforms: Bool {
+        switch self {
+        case .program(let instance): return instance.program.version == .v2
+        case .ripple: return false
+        }
+    }
+
     func makeUniformStorage(
         inputs: AOSDesktopWorldNativeEffectInputs,
-        segmentSize: CGSize
+        globalBounds: CGRect,
+        segmentBounds: CGRect
     ) -> [Float] {
         switch self {
         case .program(let instance):
-            return [
-                Float(inputs.origin.x), Float(inputs.origin.y),
-                Float(inputs.current.x), Float(inputs.current.y),
-                Float(inputs.delta.x), Float(inputs.delta.y),
-                Float(inputs.totalDelta.x), Float(inputs.totalDelta.y),
-                Float(segmentSize.width), Float(segmentSize.height),
-                0,
-            ] + instance.parameterValues.map(Float.init)
+            return AOSDesktopWorldNativeEffectProgramCompiler.uniformStorage(
+                for: instance,
+                eventCurrent: inputs.current,
+                eventDelta: inputs.delta,
+                eventOrigin: inputs.origin,
+                eventTotalDelta: inputs.totalDelta,
+                globalBounds: globalBounds,
+                segmentBounds: segmentBounds
+            )
         case .ripple(let parameters):
             let envelopeWidth = min(180, max(24, parameters.radius * 0.08))
             return [
                 Float(inputs.current.x), Float(inputs.current.y),
-                Float(segmentSize.width), Float(segmentSize.height),
+                Float(segmentBounds.size.width), Float(segmentBounds.size.height),
                 Float(parameters.amplitude), Float(parameters.decay),
                 Float(envelopeWidth), 0,
                 Float(parameters.frequency), Float(parameters.radius),
@@ -287,6 +296,7 @@ final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
         pixelBuffer: CVPixelBuffer,
         inputs: AOSDesktopWorldNativeEffectInputs,
         plan: AOSDesktopWorldNativeEffectRenderPlan,
+        globalBounds: CGRect,
         startedAt: TimeInterval
     ) throws {
         self.context = context
@@ -298,7 +308,8 @@ final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
         self.startedAt = startedAt
         self.uniforms = plan.makeUniformStorage(
             inputs: inputs,
-            segmentSize: mesh.worldBounds.size
+            globalBounds: globalBounds,
+            segmentBounds: mesh.worldBounds
         )
         super.init()
 
@@ -383,6 +394,13 @@ final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
         encoder.setFragmentTexture(texture, index: 0)
         uniforms.withUnsafeBytes { bytes in
             if let address = bytes.baseAddress {
+                if plan.usesVertexUniforms {
+                    encoder.setVertexBytes(
+                        address,
+                        length: bytes.count,
+                        index: 1
+                    )
+                }
                 encoder.setFragmentBytes(
                     address,
                     length: bytes.count,
@@ -460,6 +478,14 @@ final class AOSDesktopWorldNativeEffectRuntime {
         self.sheet = sheet
         let plan = AOSDesktopWorldNativeEffectRenderPlan(definition: definition)
         let startedAt = ProcessInfo.processInfo.systemUptime
+        let globalBounds = sheet.segmentSheets.reduce(CGRect.null) {
+            $0.union($1.mesh.worldBounds)
+        }
+        guard !globalBounds.isNull,
+              globalBounds.size.width > 0,
+              globalBounds.size.height > 0 else {
+            throw DesktopWorldNativeSheetFailure.invalidGeometry
+        }
         do {
             for segment in sheet.segmentSheets {
                 guard let pixelBuffer = framesByDisplay[segment.displayID]?.pixelBuffer else {
@@ -472,6 +498,7 @@ final class AOSDesktopWorldNativeEffectRuntime {
                     pixelBuffer: pixelBuffer,
                     inputs: inputs,
                     plan: plan,
+                    globalBounds: globalBounds,
                     startedAt: startedAt
                 )
             }

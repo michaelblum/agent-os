@@ -10,8 +10,8 @@ and its reviewed extension must grant `aos.scene.desktop_frame_texture` and
   "contract": "aos.scene.cartridge.interactions.v1",
   "schemaVersion": 1,
   "nativeEffectPrograms": [{
-    "contract": "aos.scene.native-effect-program.v1",
-    "schemaVersion": 1,
+    "contract": "aos.scene.native-effect-program.v2",
+    "schemaVersion": 2,
     "id": "example.pointer-wave",
     "revision": 1,
     "durationMs": 900,
@@ -32,10 +32,23 @@ and its reviewed extension must grant `aos.scene.desktop_frame_texture` and
       { "id": "amount", "op": "multiply", "inputs": ["node.wave", "parameter.amplitude"] },
       { "id": "displacement", "op": "multiply", "inputs": ["node.direction", "node.amount"] },
       { "id": "zero", "op": "constant", "value": 0 },
+      { "id": "position", "op": "compose3", "inputs": ["node.zero", "node.zero", "node.amount"] },
       { "id": "edge", "op": "smoothstep", "inputs": ["node.zero", "parameter.radius", "node.distance"] },
       { "id": "opacity", "op": "one_minus", "inputs": ["node.edge"] }
     ],
-    "outputs": { "displacement": "node.displacement", "opacity": "node.opacity" }
+    "outputs": {
+      "positionOffset": "node.position",
+      "textureDisplacement": "node.displacement",
+      "opacity": "node.opacity"
+    },
+    "material": {
+      "lighting": "lambert",
+      "ambient": 0.65,
+      "diffuse": 0.45,
+      "lightDirection": [-0.35, -0.45, 0.82],
+      "normalSampleDistance": 2,
+      "perspectiveDistance": 2400
+    }
   }],
   "interactions": [{
     "id": "body-pointer-wave",
@@ -59,11 +72,15 @@ aos scene cartridge validate ./scene-work/companion --json
 ```
 
 `event.origin`, `event.current`, `event.delta`, and `event.total_delta` use the
-global DesktopWorld coordinate plane. `clock.elapsed` starts at zero for the
-effect instance. `world.position` is the current fragment in that same global
-plane; `surface.size` and `surface.uv` are segment-local rendering facts.
+global DesktopWorld coordinate plane. `clock.elapsed` is measured in seconds
+and starts at zero for the effect instance. In V2, `world.position`,
+`surface.position`, `surface.size`,
+and `surface.uv` use the logical global sheet. AOS converts the result into each
+native display segment and samples that segment's captured texture internally.
 
-The graph is forward-only. Parameters are bounded scalars. Outputs are one
-`vec2` displacement in DesktopWorld points and one scalar opacity. Use only the
-operators and limits exported by `@agent-os/toolkit/scene/authoring`; AOS clamps
-the final displacement and opacity even after a valid graph executes.
+The graph is forward-only. Parameters are bounded scalars. V2 outputs one
+`vec3` sheet-position offset, one `vec2` texture displacement in DesktopWorld
+points, and one scalar opacity. Use only the operators and limits exported by
+`@agent-os/toolkit/scene/authoring`; AOS clamps every output even after a valid
+graph executes. A trusted Three.js preview can compile this same artifact with
+`compileSceneNativeEffectProgramGLSL()`; do not hand-maintain a second effect.
