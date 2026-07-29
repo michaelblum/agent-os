@@ -37,6 +37,15 @@ export {
   validateSceneInteractionDocument,
 } from './scene-interaction.js'
 export {
+  SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID,
+  SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION,
+  SCENE_NATIVE_EFFECT_PROGRAM_LIMITS,
+  SCENE_NATIVE_EFFECT_PROGRAM_OPERATORS,
+  createSceneNativeEffectProgram,
+  validateSceneNativeEffectParameters,
+  validateSceneNativeEffectProgram,
+} from './scene-native-effect-program.js'
+export {
   SCENE_RADIAL_MENU_LIMITS,
   normalizeSceneRadialMenuParameters,
   resolveSceneRadialMenuItemLabel,

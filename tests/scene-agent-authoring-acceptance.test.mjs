@@ -5,6 +5,8 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 
+import { validateSceneInteractionDocument } from '../packages/toolkit/scene/authoring.js'
+
 const repoRoot = path.resolve(import.meta.dirname, '..')
 
 async function runProcess(executable, args, { cwd = repoRoot, env = {} } = {}) {
@@ -164,6 +166,11 @@ if !runExternalCommandIfMatched(args: Array(CommandLine.arguments.dropFirst())) 
 
 test('authoring skill contains exact routes without placeholders or private transport instructions', async () => {
   const skill = await readFile(path.join(repoRoot, 'skills/aos-desktop-world-authoring/SKILL.md'), 'utf8')
+  const sceneGuidance = await readFile(path.join(repoRoot, 'packages/toolkit/scene/AGENTS.md'), 'utf8')
+  const nativeEffectReference = await readFile(path.join(
+    repoRoot,
+    'skills/aos-desktop-world-authoring/references/native-effect-program.md',
+  ), 'utf8')
   for (const command of [
     'aos scene cartridge scaffold ./scene-work/companion',
     'aos scene cartridge validate ./scene-work/companion --json',
@@ -181,10 +188,26 @@ test('authoring skill contains exact routes without placeholders or private tran
   assert.doesNotMatch(skill, /<[a-z][a-z0-9_-]*>/iu)
   assert.doesNotMatch(skill, /AOS_STATE_ROOT|net\.connect|\/sock\b/u)
   assert.doesNotMatch(skill, /roadmap|future status-item|dependent visual slice/iu)
-  assert.match(skill, /"implementation": "aos\.scene\.effect\.desktop-ripple"/u)
+  assert.match(skill, /references\/native-effect-program\.md/u)
+  assert.match(nativeEffectReference, /"contract": "aos\.scene\.native-effect-program\.v1"/u)
+  assert.match(nativeEffectReference, /"implementation": "aos\.scene\.effect\.program"/u)
+  assert.match(nativeEffectReference, /"programId": "example\.pointer-wave"/u)
+  assert.doesNotMatch(skill, /"implementation": "aos\.scene\.effect\.desktop-ripple"/u)
   assert.match(skill, /aos\.scene\.desktop_frame_texture/u)
   assert.match(skill, /aos\.scene\.native_sheet_effect/u)
-  assert.match(skill, /AOS owns pixels, Metal, topology, clocks, and disposal/u)
+  assert.match(skill, /AOS owns pixels, Metal, topology, clocks, validation, compilation, budgets, and\s+disposal/u)
+  assert.match(sceneGuidance, /bounded data-only native-effect program/u)
+  assert.match(sceneGuidance, /aggregate program-budget overflow reject\s+before scene dispatch/u)
+  assert.match(sceneGuidance, /does\s+not invalidate an otherwise usable committed browser scene/u)
+  assert.doesNotMatch(sceneGuidance, /cartridges never carry implementation code/u)
+  const nativeEffectBlock = [...nativeEffectReference.matchAll(/```json\n([\s\S]*?)\n```/gu)]
+    .map((match) => match[1])
+    .find((value) => value.includes('"nativeEffectPrograms"'))
+  assert.ok(nativeEffectBlock)
+  assert.deepEqual(
+    validateSceneInteractionDocument(JSON.parse(nativeEffectBlock)),
+    { ok: true, errors: [] },
+  )
 })
 
 test('scene scaffold guides describe the manifest-last activation boundary', async () => {

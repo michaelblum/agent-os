@@ -365,7 +365,8 @@ class UnifiedDaemon {
                 .desktopFrameTextureAuthorization()
         )
         desktopWorldNativeFeedback.reconcileAvailability(
-            desktopWorldSceneTransport.hasNativeEffectAuthorization()
+            desktopWorldSceneTransport.hasNativeEffectAuthorization(),
+            programs: desktopWorldSceneTransport.nativeEffectPrograms()
         )
         desktopWorldNativeFeedback.reconcileAuthorization()
     }

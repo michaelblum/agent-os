@@ -47,12 +47,22 @@ stage internals.
   split guides under `docs/api/toolkit/` synchronized.
 - Renderer disposal applies only to resources the consumer explicitly gives
   the lifecycle; shared resource ownership remains with the consumer.
-- Scene documents and cartridges never carry implementation code. Only AOS
-  built-ins or separately installed, owner-authorized, digest-pinned trusted
-  projection extensions may execute. Product geometry, shader, effect, and
-  animation vocabulary remains in the consumer extension; it must not be
-  translated into AOS stock-effect parameters. Failed preparation must leave
-  the active document and projection unchanged.
+- Scene documents and cartridges never carry executable implementation code.
+  Browser/Three implementation code executes only through AOS built-ins or a
+  separately installed, owner-authorized, digest-pinned trusted projection
+  extension. Product geometry, custom shaders, and executable animation code
+  remain in that consumer extension; they must not be translated into AOS
+  stock-effect parameters.
+- A cartridge may carry a bounded data-only native-effect program. AOS owns its
+  finite graph vocabulary, validation, trusted Metal templates, compilation,
+  capture textures, budgets, and disposal; the consumer owns graph composition,
+  parameter presets, and event bindings. This is not source code or a trusted
+  extension. Unknown operators and aggregate program-budget overflow reject
+  before scene dispatch. Environmental Metal preparation failure keeps native
+  input admission closed and retains the prior prepared pipeline set, but does
+  not invalidate an otherwise usable committed browser scene. Failed trusted
+  projection-extension preparation still leaves the active document and
+  projection unchanged.
 - Scene cartridges use the canonical `cartridge.json`, `scene.json`,
   `animations.json`, `interactions.json`, and `assets/` layout. Payload files
   and local assets are digest-bound, budgets are explicit, and the filesystem

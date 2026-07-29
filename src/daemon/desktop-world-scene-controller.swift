@@ -57,6 +57,7 @@ enum AOSDesktopWorldSceneSubscriptionOutcome {
 enum AOSDesktopWorldSceneOperationAdmission {
     case accepted(AOSDesktopWorldSceneBarrierAction)
     case leaseBusy
+    case nativeEffectBudgetExceeded
     case operationPending
     case stageUnavailable
 }
@@ -109,6 +110,12 @@ private enum AOSDesktopWorldSceneAuthorizationMutation {
     )
 }
 
+private struct AOSDesktopWorldScenePendingAuthorizationMutation {
+    let changesNativeEffectPrograms: Bool
+    let key: String
+    let mutation: AOSDesktopWorldSceneAuthorizationMutation
+}
+
 /// Owns the complete in-memory lifecycle aggregate for the shared DesktopWorld
 /// scene stage. Canvas creation and outbound IPC remain daemon I/O concerns;
 /// lease, generation, readiness, subscription, and barrier state live here.
@@ -119,7 +126,7 @@ final class AOSDesktopWorldSceneController {
     private let readiness = AOSDesktopWorldSceneStageReadiness()
     private var operationTokens: [String: AOSSceneLeaseToken] = [:]
     private var operationAuthorizationMutations: [
-        String: AOSDesktopWorldSceneAuthorizationMutation
+        String: AOSDesktopWorldScenePendingAuthorizationMutation
     ] = [:]
     private var resourceAuthorizations: [
         String: AOSDesktopWorldSceneCapabilityAuthorization
@@ -265,8 +272,26 @@ final class AOSDesktopWorldSceneController {
             var actions: [AOSDesktopWorldSceneBarrierAction] = []
             for token in leases.beginDisconnect(connectionID: connectionID) {
                 let leaseKey = token.key
+                let mutation = AOSDesktopWorldSceneAuthorizationMutation.replace(nil)
+                let changesNativeEffectPrograms = mutationChangesNativeEffectProgramsLocked(
+                    key: leaseKey,
+                    mutation: mutation
+                )
                 resourceAuthorizations.removeValue(forKey: leaseKey)
                 let cleanup = results.ownerDisconnected(leaseKey: leaseKey)
+                if changesNativeEffectPrograms {
+                    let pendingOperationIDs = operationAuthorizationMutations.compactMap {
+                        $0.value.key == leaseKey ? $0.key : nil
+                    }
+                    for operationID in pendingOperationIDs {
+                        guard let pending = operationAuthorizationMutations[operationID] else { continue }
+                        operationAuthorizationMutations[operationID] = .init(
+                            changesNativeEffectPrograms: true,
+                            key: pending.key,
+                            mutation: pending.mutation
+                        )
+                    }
+                }
                 if !cleanup.isEmpty || results.hasPending(leaseKey: leaseKey) {
                     actions.append(contentsOf: cleanup)
                     continue
@@ -315,7 +340,11 @@ final class AOSDesktopWorldSceneController {
                     )
                 }
                 operationTokens[operationID] = token
-                operationAuthorizationMutations[operationID] = .replace(nil)
+                operationAuthorizationMutations[operationID] = .init(
+                    changesNativeEffectPrograms: changesNativeEffectPrograms,
+                    key: leaseKey,
+                    mutation: mutation
+                )
                 actions.append(action)
             }
             return AOSDesktopWorldSceneDisconnectPlan(barrierActions: actions, invalidation: nil)
@@ -489,6 +518,45 @@ final class AOSDesktopWorldSceneController {
                 }
                 admittedOperation["expectedExtensionDigest"] = authorization.digest
             }
+            let authorizationMutation: AOSDesktopWorldSceneAuthorizationMutation
+            if operationName == "mount" {
+                authorizationMutation = .replace(
+                    parsedAuthorization.map { authorization in
+                        authorization.replacingNativeEffects(nativeEffects ?? [])
+                    }
+                )
+            } else if operationName == "transact" {
+                if resourceAuthorizations[key] != nil, let transactionRevision {
+                    authorizationMutation = .advanceRevision(
+                        expected: transactionRevision.expected,
+                        next: transactionRevision.next,
+                        nativeEffects: nativeEffects
+                    )
+                } else {
+                    authorizationMutation = .unchanged
+                }
+            } else if operationName == "remove" || operationName == "close" {
+                authorizationMutation = .replace(nil)
+            } else {
+                authorizationMutation = .unchanged
+            }
+            let changesNativeEffectPrograms = mutationChangesNativeEffectProgramsLocked(
+                key: key,
+                mutation: authorizationMutation
+            )
+            if changesNativeEffectPrograms,
+               operationAuthorizationMutations.values.contains(where: {
+                   $0.changesNativeEffectPrograms
+               }) {
+                return .operationPending
+            }
+            if changesNativeEffectPrograms,
+               candidateNativeEffectProgramsLocked(
+                    key: key,
+                    mutation: authorizationMutation
+               ) == nil {
+                return .nativeEffectBudgetExceeded
+            }
             let acquisition = leases.acquire(key: key, connectionID: connectionID, ref: ref)
             guard case .acquired(let token, let isNewLease) = acquisition else { return .leaseBusy }
             let operationID = UUID().uuidString.lowercased()
@@ -510,27 +578,11 @@ final class AOSDesktopWorldSceneController {
                 return results.hasPending(leaseKey: key) ? .operationPending : .stageUnavailable
             }
             operationTokens[operationID] = token
-            if operationName == "mount" {
-                operationAuthorizationMutations[operationID] = .replace(
-                    parsedAuthorization.map { authorization in
-                        authorization.replacingNativeEffects(nativeEffects ?? [])
-                    }
-                )
-            } else if operationName == "transact" {
-                if resourceAuthorizations[key] != nil, let transactionRevision {
-                    operationAuthorizationMutations[operationID] = .advanceRevision(
-                        expected: transactionRevision.expected,
-                        next: transactionRevision.next,
-                        nativeEffects: nativeEffects
-                    )
-                } else {
-                    operationAuthorizationMutations[operationID] = .unchanged
-                }
-            } else if operationName == "remove" || operationName == "close" {
-                operationAuthorizationMutations[operationID] = .replace(nil)
-            } else {
-                operationAuthorizationMutations[operationID] = .unchanged
-            }
+            operationAuthorizationMutations[operationID] = .init(
+                changesNativeEffectPrograms: changesNativeEffectPrograms,
+                key: key,
+                mutation: authorizationMutation
+            )
             return .accepted(action)
         }
     }
@@ -715,17 +767,116 @@ final class AOSDesktopWorldSceneController {
         }
     }
 
+    func nativeEffectPrograms() -> [AOSDesktopWorldNativeEffectProgram] {
+        withLock {
+            nativeEffectProgramsLocked(in: resourceAuthorizations)
+        }
+    }
+
+    private func candidateNativeEffectProgramsLocked(
+        key: String,
+        mutation: AOSDesktopWorldSceneAuthorizationMutation
+    ) -> [AOSDesktopWorldNativeEffectProgram]? {
+        var candidate = resourceAuthorizations
+        guard applyAuthorizationMutationLocked(
+            mutation,
+            key: key,
+            to: &candidate
+        ) else {
+            return nil
+        }
+        let programs = nativeEffectProgramsLocked(in: candidate)
+        guard programs.count <=
+                AOSDesktopWorldNativeEffectProgram.maximumPreparedPrograms else {
+            return nil
+        }
+        return programs
+    }
+
+    private func mutationChangesNativeEffectProgramsLocked(
+        key: String,
+        mutation: AOSDesktopWorldSceneAuthorizationMutation
+    ) -> Bool {
+        let current = nativeEffectProgramDigests(in: resourceAuthorizations[key])
+        var candidate = resourceAuthorizations
+        guard applyAuthorizationMutationLocked(
+            mutation,
+            key: key,
+            to: &candidate
+        ) else {
+            return true
+        }
+        return current != nativeEffectProgramDigests(in: candidate[key])
+    }
+
+    private func nativeEffectProgramDigests(
+        in authorization: AOSDesktopWorldSceneCapabilityAuthorization?
+    ) -> Set<String> {
+        guard let authorization,
+              AOSDesktopWorldNativeEffectContract.available(
+                bindings: authorization.nativeEffects,
+                capabilities: authorization.capabilities
+              ) else { return [] }
+        return Set(authorization.nativeEffects.compactMap { $0.program?.digest })
+    }
+
+    private func applyAuthorizationMutationLocked(
+        _ mutation: AOSDesktopWorldSceneAuthorizationMutation,
+        key: String,
+        to authorizations: inout [String: AOSDesktopWorldSceneCapabilityAuthorization]
+    ) -> Bool {
+        switch mutation {
+        case .unchanged:
+            return true
+        case .replace(let authorization):
+            authorizations[key] = authorization
+            return true
+        case .advanceRevision(let expected, let next, let nativeEffects):
+            guard let authorization = authorizations[key],
+                  authorization.resourceRevision == expected else {
+                return false
+            }
+            authorizations[key] = authorization.advancingResourceRevision(
+                to: next,
+                nativeEffects: nativeEffects
+            )
+            return true
+        }
+    }
+
+    private func nativeEffectProgramsLocked(
+        in authorizations: [String: AOSDesktopWorldSceneCapabilityAuthorization]
+    ) -> [AOSDesktopWorldNativeEffectProgram] {
+        var programs: [String: AOSDesktopWorldNativeEffectProgram] = [:]
+        for authorization in authorizations.values where
+            AOSDesktopWorldNativeEffectContract.available(
+                bindings: authorization.nativeEffects,
+                capabilities: authorization.capabilities
+            ) {
+            for binding in authorization.nativeEffects {
+                if let program = binding.program {
+                    programs[program.digest] = program
+                }
+            }
+        }
+        return programs.values.sorted { $0.digest < $1.digest }
+    }
+
     private func completeLocked(
         _ completion: AOSDesktopWorldSceneResultCompletion,
         operationID: String
     ) -> AOSDesktopWorldSceneDelivery? {
         let payload = completion.payload
         guard let key = payload["lease_key"] as? String,
-              let token = operationTokens.removeValue(forKey: operationID),
-              token.key == key else { return nil }
-        let authorizationMutation = operationAuthorizationMutations.removeValue(
-            forKey: operationID
-        ) ?? .unchanged
+              let token = operationTokens[operationID],
+              token.key == key,
+              let pendingAuthorizationMutation = operationAuthorizationMutations[operationID],
+              pendingAuthorizationMutation.key == key else {
+            return nil
+        }
+        operationTokens.removeValue(forKey: operationID)
+        operationAuthorizationMutations.removeValue(forKey: operationID)
+        let authorizationMutation = pendingAuthorizationMutation.mutation
         let releaseLease = payload["operation"] as? String == "close"
             || payload["release_lease"] as? Bool == true
         guard let route = leases.completeOperation(token, releaseLease: releaseLease) else { return nil }

@@ -215,8 +215,12 @@ node --test \
   tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs \
   tests/toolkit/desktop-world-scene-outlet.test.mjs \
   tests/toolkit/desktop-world-scene-outlet-replacement.test.mjs \
+  tests/toolkit/scene-native-effect-program.test.mjs \
   tests/toolkit/scene-interaction.test.mjs \
-  tests/toolkit/scene-interaction-visual.test.mjs
+  tests/toolkit/scene-interaction-visual.test.mjs \
+  tests/desktop-world-native-effect-program.test.mjs \
+  tests/desktop-world-scene-native-feedback.test.mjs \
+  tests/desktop-world-scene-native-feedback-lifecycle.test.mjs
 ```
 
 The DevTools session owns one interactive canvas host at a time. Model tests
@@ -224,6 +228,9 @@ must prove revision conflicts, transfer rollback, bounded content-free
 snapshots, disabled instrumentation with no scheduler, and focused historical
 views projected from the same canonical snapshot. The agent-tooling CLI test
 uses only a temporary fake Unix socket; it must not execute or rebuild `./aos`.
+Native effect-program proof compiles only disposable Swift/Metal fixtures and
+typechecks production sources; it does not build or execute the repo binary or
+open ScreenCaptureKit.
 
 ## Toolkit Radial / Wiki Surface Family
 

@@ -3,6 +3,12 @@ import {
   isCanonicalSceneId as validId,
   isSceneRecord as isRecord,
 } from './scene-contract-primitives.js'
+import {
+  SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION,
+  SCENE_NATIVE_EFFECT_PROGRAM_LIMITS,
+  validateSceneNativeEffectParameters,
+  validateSceneNativeEffectProgram,
+} from './scene-native-effect-program.js'
 
 export const SCENE_EVENT_CONTRACT_ID = 'aos.scene.event.v1'
 export const SCENE_INTERACTIONS_CONTRACT_ID = 'aos.scene.cartridge.interactions.v1'
@@ -23,6 +29,7 @@ export const SCENE_GESTURE_PHASES = Object.freeze({
 
 export const SCENE_NATIVE_EFFECT_IMPLEMENTATIONS = Object.freeze({
   desktopRipple: 'aos.scene.effect.desktop-ripple',
+  program: SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION,
 })
 
 export const SCENE_GESTURE_CANCELLATION_REASONS = Object.freeze([
@@ -134,12 +141,15 @@ function validateInteractionImplementation(value, path, errors, allowed) {
   else validateFiniteData(value.parameters, `${path}.parameters`, errors)
 }
 
-function validateNativeEffect(value, path, errors) {
+function validateNativeEffect(value, path, errors, programs) {
   if (!isRecord(value)) {
     errors.push({ code: 'invalid_native_effect', path, message: 'Scene native effects require an implementation, trigger, and parameters.' })
     return
   }
-  exactKeys(value, new Set(['implementation', 'parameters', 'trigger']), path, errors)
+  const programEffect = value.implementation === SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION
+  exactKeys(value, programEffect
+    ? new Set(['implementation', 'parameters', 'programId', 'trigger'])
+    : new Set(['implementation', 'parameters', 'trigger']), path, errors)
   if (!Object.values(SCENE_NATIVE_EFFECT_IMPLEMENTATIONS).includes(value.implementation)) {
     errors.push({ code: 'unknown_implementation', path: `${path}.implementation`, message: 'Scene native effect implementation is not registered.' })
   }
@@ -164,6 +174,15 @@ function validateNativeEffect(value, path, errors) {
   }
   if (!isRecord(value.parameters)) {
     errors.push({ code: 'invalid_parameters', path: `${path}.parameters`, message: 'Scene native effect parameters must be an object.' })
+    return
+  }
+  if (programEffect) {
+    if (!validId(value.programId) || !programs.has(value.programId)) {
+      errors.push({ code: 'unknown_native_effect_program', path: `${path}.programId`, message: 'Scene native effect binding references an unknown program.' })
+    } else {
+      const parameterResult = validateSceneNativeEffectParameters(programs.get(value.programId), value.parameters, `${path}.parameters`)
+      errors.push(...parameterResult.errors)
+    }
     return
   }
   exactKeys(value.parameters, new Set([
@@ -367,10 +386,26 @@ function validateResponseParameters(value, path, errors) {
 export function validateSceneInteractionDocument(value, options = {}) {
   const errors = []
   if (!isRecord(value)) return { ok: false, errors: [{ code: 'invalid_interactions', path: 'interactions', message: 'Scene interactions must be an object.' }] }
-  exactKeys(value, new Set(['affordances', 'contract', 'interactions', 'schemaVersion']), 'interactions', errors)
+  exactKeys(value, new Set(['affordances', 'contract', 'interactions', 'nativeEffectPrograms', 'schemaVersion']), 'interactions', errors)
   if (value.contract !== SCENE_INTERACTIONS_CONTRACT_ID) errors.push({ code: 'contract_id', path: 'interactions.contract', message: `Interaction contract must be ${SCENE_INTERACTIONS_CONTRACT_ID}.` })
   if (value.schemaVersion !== 1) errors.push({ code: 'schema_version', path: 'interactions.schemaVersion', message: 'Interaction schema version must be 1.' })
   const objectIds = new Set(options.scene?.objects?.map((object) => object.id) ?? [])
+  const programs = new Map()
+  if (value.nativeEffectPrograms !== undefined) {
+    if (!Array.isArray(value.nativeEffectPrograms) || value.nativeEffectPrograms.length > SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxPrograms) {
+      errors.push({ code: 'native_effect_program_count', path: 'interactions.nativeEffectPrograms', message: 'Scene native effect programs exceed the engine limit.' })
+    } else {
+      value.nativeEffectPrograms.forEach((program, index) => {
+        const validation = validateSceneNativeEffectProgram(program)
+        errors.push(...validation.errors.map((error) => ({
+          ...error,
+          path: `interactions.nativeEffectPrograms.${index}.${error.path.replace(/^program\.?/u, '')}`,
+        })))
+        if (programs.has(program?.id)) errors.push({ code: 'duplicate_native_effect_program', path: `interactions.nativeEffectPrograms.${index}.id`, message: 'Scene native effect program IDs must be unique.' })
+        if (validation.ok) programs.set(program.id, program)
+      })
+    }
+  }
   const affordanceIds = new Set()
   if (value.affordances !== undefined) {
     if (!Array.isArray(value.affordances) || value.affordances.length > SCENE_AFFORDANCE_LIMITS.maxAffordances) {
@@ -409,7 +444,7 @@ export function validateSceneInteractionDocument(value, options = {}) {
     validateRecognizerParameters(interaction.recognizer, `${path}.recognizer`, errors)
     validateResponseParameters(interaction.response, `${path}.response`, errors)
     if (interaction.nativeEffect !== undefined) {
-      validateNativeEffect(interaction.nativeEffect, `${path}.nativeEffect`, errors)
+      validateNativeEffect(interaction.nativeEffect, `${path}.nativeEffect`, errors, programs)
       const trigger = interaction.nativeEffect?.trigger
       const triggerKey = trigger?.input === 'pointer_down'
         ? `${interaction.affordanceId}:input:pointer_down:${trigger.button ?? 'left'}`

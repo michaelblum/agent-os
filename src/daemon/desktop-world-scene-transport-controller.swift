@@ -177,6 +177,10 @@ final class AOSDesktopWorldSceneTransportController {
         scene.hasNativeEffectAuthorization()
     }
 
+    func nativeEffectPrograms() -> [AOSDesktopWorldNativeEffectProgram] {
+        scene.nativeEffectPrograms()
+    }
+
     func nativePointerEffectRequest(
         region: AOSInputRegionRecord,
         phase: AOSInputEventPhase,
@@ -434,6 +438,11 @@ final class AOSDesktopWorldSceneTransportController {
             return response(error: "DesktopWorld scene generation is no longer ready", code: "SCENE_STAGE_UNAVAILABLE")
         case .leaseBusy:
             return response(error: "Scene resource already has an active lease", code: "SCENE_LEASE_BUSY")
+        case .nativeEffectBudgetExceeded:
+            return response(
+                error: "DesktopWorld native effect program budget exceeded",
+                code: "NATIVE_EFFECT_PROGRAM_LIMIT"
+            )
         case .operationPending:
             return response(error: "DesktopWorld scene operation is still pending", code: "SCENE_OPERATION_PENDING")
         case .accepted(let initialAction):

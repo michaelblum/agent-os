@@ -130,3 +130,34 @@ test('cartridge manifests declare native feedback as an effect implementation', 
   assert.equal(invalid.ok, false)
   assert.ok(invalid.errors.some((error) => error.code === 'implementation_declarations'))
 })
+
+test('cartridges admit a bounded consumer-authored native effect program', async () => {
+  const cartridge = await example('conventional-drag')
+  cartridge.interactions.nativeEffectPrograms = [{
+    contract: 'aos.scene.native-effect-program.v1',
+    schemaVersion: 1,
+    id: 'example.effect.offset',
+    revision: 1,
+    durationMs: 500,
+    parameters: [{ id: 'amplitude', default: 8, min: 0, max: 32 }],
+    nodes: [
+      { id: 'direction', op: 'constant', value: [1, 0] },
+      { id: 'displacement', op: 'multiply', inputs: ['node.direction', 'parameter.amplitude'] },
+      { id: 'opacity', op: 'constant', value: 1 },
+    ],
+    outputs: { displacement: 'node.displacement', opacity: 'node.opacity' },
+  }]
+  cartridge.interactions.interactions[0].nativeEffect = {
+    implementation: SCENE_CARTRIDGE_IMPLEMENTATIONS.nativeEffectProgram,
+    programId: 'example.effect.offset',
+    trigger: { input: 'pointer_down' },
+    parameters: { amplitude: 12 },
+  }
+  cartridge.manifest.implementations.push({
+    id: SCENE_CARTRIDGE_IMPLEMENTATIONS.nativeEffectProgram,
+    kind: 'effect',
+  })
+  cartridge.manifest.implementations.sort((left, right) => left.id.localeCompare(right.id))
+
+  assert.deepEqual(validateSceneCartridge(cartridge), { ok: true, errors: [] })
+})

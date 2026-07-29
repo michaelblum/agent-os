@@ -230,6 +230,7 @@ print("PASS desktop world scene event routing")
       path.join(repoRoot, 'src/daemon/scene-lease-registry.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-scene-result-coordinator.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-scene-stage-readiness.swift'),
+      path.join(repoRoot, 'src/daemon/desktop-world-native-effect-program.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-native-effect-contract.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-scene-controller.swift'),
       path.join(repoRoot, 'src/daemon/scene-event.swift'),

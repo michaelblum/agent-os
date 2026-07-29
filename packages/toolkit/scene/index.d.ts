@@ -538,11 +538,64 @@ export interface SceneCartridgeInteraction {
   nativeEffect?: SceneNativeEffectDescriptor;
 }
 
-export interface SceneNativeEffectDescriptor {
+export interface SceneNativeEffectProgramParameter {
+  id: string;
+  default: number;
+  min: number;
+  max: number;
+}
+
+export type SceneNativeEffectProgramReference = string;
+
+export type SceneNativeEffectProgramNode =
+  | { id: string; op: 'constant'; value: number | [number, number] }
+  | {
+      id: string;
+      op:
+        | 'absolute'
+        | 'add'
+        | 'clamp01'
+        | 'cosine'
+        | 'distance_to_segment'
+        | 'divide'
+        | 'dot'
+        | 'exponential'
+        | 'length'
+        | 'maximum'
+        | 'minimum'
+        | 'mix'
+        | 'multiply'
+        | 'negate'
+        | 'normalize'
+        | 'one_minus'
+        | 'perpendicular'
+        | 'sine'
+        | 'smoothstep'
+        | 'subtract';
+      inputs: SceneNativeEffectProgramReference[];
+    };
+
+export interface SceneNativeEffectProgram {
+  contract: 'aos.scene.native-effect-program.v1';
+  schemaVersion: 1;
+  id: string;
+  revision: number;
+  durationMs: number;
+  parameters: SceneNativeEffectProgramParameter[];
+  nodes: SceneNativeEffectProgramNode[];
+  outputs: {
+    displacement: SceneNativeEffectProgramReference;
+    opacity: SceneNativeEffectProgramReference;
+  };
+}
+
+export type SceneNativeEffectTrigger =
+  | { input: 'pointer_down'; button?: 'left' | 'middle' | 'right' }
+  | { phase: 'start' | 'end' };
+
+export type SceneNativeEffectDescriptor = {
   implementation: 'aos.scene.effect.desktop-ripple';
-  trigger:
-    | { input: 'pointer_down'; button?: 'left' | 'middle' | 'right' }
-    | { phase: 'start' | 'end' };
+  trigger: SceneNativeEffectTrigger;
   parameters: {
     amplitude?: number;
     decay?: number;
@@ -551,12 +604,39 @@ export interface SceneNativeEffectDescriptor {
     radius?: number;
     speed?: number;
   };
-}
+} | {
+  implementation: 'aos.scene.effect.program';
+  programId: string;
+  trigger: SceneNativeEffectTrigger;
+  parameters: Record<string, number>;
+};
+
+export const SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID: 'aos.scene.native-effect-program.v1';
+export const SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION: 'aos.scene.effect.program';
+export const SCENE_NATIVE_EFFECT_PROGRAM_LIMITS: Readonly<{
+  maxConstantMagnitude: 1000000;
+  maxDurationMs: 3000;
+  maxNodes: 64;
+  maxParameters: 16;
+  maxPrograms: 8;
+  maxSerializedBytes: 32768;
+  maxTranscendentalOperations: 16;
+  minDurationMs: 100;
+}>;
+export const SCENE_NATIVE_EFFECT_PROGRAM_OPERATORS: readonly SceneNativeEffectProgramNode['op'][];
+export function validateSceneNativeEffectProgram(program: unknown): SceneValidationResult;
+export function validateSceneNativeEffectParameters(
+  program: SceneNativeEffectProgram,
+  values: unknown,
+  path?: string,
+): SceneValidationResult;
+export function createSceneNativeEffectProgram(program: SceneNativeEffectProgram): Readonly<SceneNativeEffectProgram>;
 
 export interface SceneCartridgeInteractions {
   contract: typeof SCENE_CARTRIDGE_INTERACTIONS_CONTRACT_ID;
   schemaVersion: 1;
   affordances?: SceneAffordanceDescriptor[];
+  nativeEffectPrograms?: SceneNativeEffectProgram[];
   interactions: SceneCartridgeInteraction[];
 }
 
@@ -590,6 +670,7 @@ export const SCENE_CARTRIDGE_IMPLEMENTATIONS: Readonly<{
   radialMenuResponse: 'aos.scene.response.radial-menu';
   signalGraphResponse: 'aos.scene.response.signal-graph';
   translateResponse: 'aos.scene.response.translate';
+  nativeEffectProgram: 'aos.scene.effect.program';
   desktopRippleEffect: 'aos.scene.effect.desktop-ripple';
 }>;
 export const SCENE_CARTRIDGE_LIMITS: Readonly<SceneCartridgeBudgets>;

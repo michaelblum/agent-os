@@ -80,15 +80,18 @@ layer must rerun the same proof before it can replace or absorb this path:
 
 The product path is now in-process and event-driven. The native sheet is a
 specialized low-latency desktop-compositing lane, not a second general scene
-engine. ADR 0032 adds the first bounded runtime primitive,
-`aos.scene.effect.desktop-ripple`. A loaded consumer cartridge may bind a
-companion affordance phase to that reviewed implementation ID and bounded
-parameters. AOS resolves and runs it on the owned sheet, capture, topology,
-clock, and Metal resources; it never spawns this proof command per interaction.
+engine. ADR 0033 adds a bounded effect-program engine over that sheet. A loaded
+consumer cartridge may bind an affordance event to a typed, data-only graph;
+AOS validates and compiles the graph from trusted Metal templates, then runs it
+on owned capture, topology, clock, and GPU resources. It never spawns this proof
+command per interaction.
+
 Three.js remains the richer object-scene lane. The two lanes share DesktopWorld
 coordinates, gestures, timing, and lifecycle rather than pretending to share
-one renderer. Additional native effects require reviewed AOS implementations
-and schemas; consumers cannot inject Metal or JavaScript into the native lane.
+one renderer. Consumers can revise supported compositions and bounded values
+without an AOS rebuild. Adding operators, geometry sources, render passes, or
+active input streams remains an AOS engine-contract change. Consumers cannot
+inject Metal or JavaScript into the native lane.
 
 Do not backfill an existing abstraction merely because it already exists. A
 layer is retained only when the unchanged native proof remains green and the
