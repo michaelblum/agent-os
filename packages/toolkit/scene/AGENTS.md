@@ -119,6 +119,10 @@ stage internals.
   Metal drawable presentation; attempts to present are not counted as visible
   output. Parameters, coordinates, pixels, native handles, and product state
   remain outside the snapshot.
+- Native-effect program identity uses the public
+  `aos.scene.native-effect-program-digest.v1` canonical binary contract in both
+  toolkit JavaScript and daemon Swift. Consumers call the toolkit digest helper;
+  they do not hash implementation-specific JSON serialization.
 - Trusted extensions may expose only the exact synchronous
   `inspectInteractionRoute()` contract to DesktopWorld DevTools. AOS validates
   and stamps these engine-defined route facts. Product state, text, audio,

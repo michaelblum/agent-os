@@ -5,6 +5,8 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 
+import { digestSceneNativeEffectProgram } from '../packages/toolkit/scene/authoring.js'
+
 const repoRoot = path.resolve(import.meta.dirname, '..')
 
 async function compileAndRun(name, sources, mainSource) {
@@ -45,6 +47,8 @@ const program = {
   outputs: { displacement: 'node.displacement', opacity: 'node.one' },
 }
 const programBase64 = Buffer.from(JSON.stringify(program)).toString('base64')
+const programDigest = await digestSceneNativeEffectProgram(program)
+assert.equal(programDigest, 'fdb45189fb10e8e4eee30d3bfec7cbb4a6cd952667ecb886bdf7f05e3dc91db7')
 const v2Program = {
   contract: 'aos.scene.native-effect-program.v2',
   schemaVersion: 2,
@@ -111,7 +115,7 @@ guard let instance = AOSDesktopWorldNativeEffectProgramContract.parse(
     for: instance.program
 ) else { preconditionFailure("program did not validate and compile") }
 precondition(instance.parameterValues == [24], "parameter override")
-precondition(instance.program.digest.count == 64, "digest")
+precondition(instance.program.digest == "${programDigest}", "digest parity")
 precondition(!source.contains("example.effect.wave"), "consumer identity leaked")
 precondition(source.contains("all(isfinite(displacement))"), "displacement guard")
 precondition(source.contains("isfinite(rawOpacity)"), "opacity guard")

@@ -59,6 +59,7 @@ const EXPECTED_EXPORTS = [
   'SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID',
   'SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID',
   'SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_IDS',
+  'SCENE_NATIVE_EFFECT_PROGRAM_DIGEST_CONTRACT_ID',
   'SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION',
   'SCENE_NATIVE_EFFECT_PROGRAM_LIMITS',
   'SCENE_NATIVE_EFFECT_PROGRAM_OPERATORS',
@@ -107,6 +108,7 @@ const EXPECTED_EXPORTS = [
   'createVisualObjectDescriptor',
   'createVisualObjectResourceLifecycleEvidence',
   'deriveOrthoCamera',
+  'digestSceneNativeEffectProgram',
   'disposeThreeObjectTree',
   'disposeThreeRenderer',
   'evaluateDesktopWorldPerformanceAcceptance',
@@ -198,6 +200,7 @@ test('scene package facade exposes only the reviewed scene-authoring contract', 
 test('focused scene entry points expose their owned contract families', () => {
   assert.equal(typeof authoringToolkit.validateSceneCartridge, 'function')
   assert.equal(typeof authoringToolkit.createSceneGestureArena, 'function')
+  assert.equal(typeof authoringToolkit.digestSceneNativeEffectProgram, 'function')
   assert.equal(Object.hasOwn(authoringToolkit, 'createDesktopWorldSceneSession'), false)
 
   assert.equal(typeof runtimeToolkit.createDesktopWorldSceneSession, 'function')

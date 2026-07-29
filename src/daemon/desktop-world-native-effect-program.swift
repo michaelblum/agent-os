@@ -73,6 +73,7 @@ struct AOSDesktopWorldNativeEffectProgramMaterial: Equatable {
 struct AOSDesktopWorldNativeEffectProgram: Equatable {
     static let contract = "aos.scene.native-effect-program.v1"
     static let contractV2 = "aos.scene.native-effect-program.v2"
+    static let digestContract = "aos.scene.native-effect-program-digest.v1"
     static let implementation = "aos.scene.effect.program"
     static let maximumConstantMagnitude = 1_000_000.0
     static let maximumDurationMilliseconds = 3_000
@@ -448,12 +449,70 @@ enum AOSDesktopWorldNativeEffectProgramContract {
     }
 
     private static func digest(_ value: [String: Any]) -> String? {
-        guard JSONSerialization.isValidJSONObject(value),
-              let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
-              data.count <= AOSDesktopWorldNativeEffectProgram.maximumSerializedBytes else {
+        var data = Data((AOSDesktopWorldNativeEffectProgram.digestContract + "\0").utf8)
+        guard appendDigestValue(value, to: &data),
+              data.count <= AOSDesktopWorldNativeEffectProgram.maximumSerializedBytes * 4 else {
             return nil
         }
         return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func appendDigestLength(_ value: Int, to data: inout Data) -> Bool {
+        guard value >= 0, value <= Int(UInt32.max) else { return false }
+        var encoded = UInt32(value).bigEndian
+        withUnsafeBytes(of: &encoded) { data.append(contentsOf: $0) }
+        return true
+    }
+
+    private static func appendDigestString(_ value: String, to data: inout Data) -> Bool {
+        let bytes = Array(value.utf8)
+        guard appendDigestLength(bytes.count, to: &data) else { return false }
+        data.append(contentsOf: bytes)
+        return true
+    }
+
+    private static func appendDigestValue(_ value: Any, to data: inout Data) -> Bool {
+        if value is NSNull {
+            data.append(0)
+            return true
+        }
+        if let number = value as? NSNumber {
+            if CFGetTypeID(number) == CFBooleanGetTypeID() {
+                data.append(number.boolValue ? 2 : 1)
+                return true
+            }
+            let scalar = number.doubleValue
+            guard scalar.isFinite else { return false }
+            data.append(3)
+            var bits = (scalar == 0 ? 0.0 : scalar).bitPattern.bigEndian
+            withUnsafeBytes(of: &bits) { data.append(contentsOf: $0) }
+            return true
+        }
+        if let string = value as? String {
+            data.append(4)
+            return appendDigestString(string, to: &data)
+        }
+        if let array = value as? [Any] {
+            data.append(5)
+            guard appendDigestLength(array.count, to: &data) else { return false }
+            return array.allSatisfy { appendDigestValue($0, to: &data) }
+        }
+        if let object = value as? [String: Any] {
+            let keys = object.keys.sorted {
+                Array($0.utf8).lexicographicallyPrecedes(Array($1.utf8))
+            }
+            data.append(6)
+            guard appendDigestLength(keys.count, to: &data) else { return false }
+            for key in keys {
+                guard appendDigestString(key, to: &data),
+                      let entry = object[key],
+                      appendDigestValue(entry, to: &data) else {
+                    return false
+                }
+            }
+            return true
+        }
+        return false
     }
 
     private static func transcendentalCount(
