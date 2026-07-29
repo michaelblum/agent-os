@@ -111,7 +111,6 @@ const EXPECTED_EXPORTS = [
   'digestSceneNativeEffectProgram',
   'disposeThreeObjectTree',
   'disposeThreeRenderer',
-  'encodeSceneNativeEffectProgramDigestInput',
   'evaluateDesktopWorldPerformanceAcceptance',
   'findVisualObjectFormDescriptor',
   'inspectSceneExtensionProjectionResources',

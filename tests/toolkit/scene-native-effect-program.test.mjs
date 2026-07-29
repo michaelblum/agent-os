@@ -11,7 +11,6 @@ import {
   createSceneNativeEffectProgram,
   compileSceneNativeEffectProgramGLSL,
   digestSceneNativeEffectProgram,
-  encodeSceneNativeEffectProgramDigestInput,
   validateSceneNativeEffectParameters,
   validateSceneNativeEffectProgram,
 } from '../../packages/toolkit/scene/authoring.js'
@@ -93,12 +92,7 @@ test('native effect program digests use one deterministic cross-language contrac
     id: parameter.id,
   }))
 
-  const encoded = encodeSceneNativeEffectProgramDigestInput(candidate)
-  assert.ok(encoded instanceof Uint8Array)
-  assert.equal(
-    new TextDecoder().decode(encoded.slice(0, SCENE_NATIVE_EFFECT_PROGRAM_DIGEST_CONTRACT_ID.length + 1)),
-    `${SCENE_NATIVE_EFFECT_PROGRAM_DIGEST_CONTRACT_ID}\0`,
-  )
+  assert.equal(SCENE_NATIVE_EFFECT_PROGRAM_DIGEST_CONTRACT_ID, 'aos.scene.native-effect-program-digest.v1')
   const digest = await digestSceneNativeEffectProgram(candidate)
   assert.equal(digest, '9ff0d850e0a5360cae8c3d4fb3691a565873e2f8e6ef589793ca7ed6f57a4a5c')
   assert.equal(await digestSceneNativeEffectProgram(reordered), digest)

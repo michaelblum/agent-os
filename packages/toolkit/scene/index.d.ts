@@ -742,9 +742,6 @@ export const SCENE_NATIVE_EFFECT_PROGRAM_LIMITS: Readonly<{
 }>;
 export const SCENE_NATIVE_EFFECT_PROGRAM_OPERATORS: readonly SceneNativeEffectProgramNode['op'][];
 export function validateSceneNativeEffectProgram(program: unknown): SceneValidationResult;
-export function encodeSceneNativeEffectProgramDigestInput(
-  program: SceneNativeEffectProgram,
-): Uint8Array;
 export function digestSceneNativeEffectProgram(
   program: SceneNativeEffectProgram,
 ): Promise<string>;

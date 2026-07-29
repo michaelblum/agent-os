@@ -102,7 +102,6 @@ export {
   createSceneNativeEffectProgram,
   compileSceneNativeEffectProgramGLSL,
   digestSceneNativeEffectProgram,
-  encodeSceneNativeEffectProgramDigestInput,
   validateSceneNativeEffectParameters,
   validateSceneNativeEffectProgram,
 } from './scene-native-effect-program.js'

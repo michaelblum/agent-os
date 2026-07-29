@@ -27,7 +27,6 @@ export {
   createSceneNativeEffectProgram,
   compileSceneNativeEffectProgramGLSL,
   digestSceneNativeEffectProgram,
-  encodeSceneNativeEffectProgramDigestInput,
   resolveSceneCartridge,
   validateSceneCartridge,
   validateSceneCartridgeManifest,

@@ -425,7 +425,7 @@ function appendDigestValue(bytes, value) {
   throw new TypeError('Native effect program digest input must contain only finite JSON values.')
 }
 
-export function encodeSceneNativeEffectProgramDigestInput(program) {
+function encodeSceneNativeEffectProgramDigestInput(program) {
   const validation = validateSceneNativeEffectProgram(program)
   if (!validation.ok) throw new TypeError(validation.errors[0]?.message ?? 'Invalid native effect program.')
   const bytes = [...digestDomain]
