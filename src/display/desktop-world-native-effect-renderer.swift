@@ -70,23 +70,15 @@ fragment float4 desktopWorldNativeRippleFragment(
 }
 """#
 
-private struct AOSDesktopWorldNativeRippleUniforms {
-    var origin: SIMD2<Float>
-    var segmentSize: SIMD2<Float>
-    var amplitude: Float
-    var decay: Float
-    var envelopeWidth: Float
-    var elapsed: Float
-    var frequency: Float
-    var radius: Float
-    var speed: Float
-}
-
-@MainActor
-final class AOSDesktopWorldNativeEffectGPUContext {
+final class AOSDesktopWorldNativeEffectGPUContext:
+    AOSDesktopWorldNativeEffectPreparation,
+    @unchecked Sendable
+{
     private(set) var commandQueue: MTLCommandQueue?
     private(set) var ripplePipeline: MTLRenderPipelineState?
     private(set) var textureCache: CVMetalTextureCache?
+    private let pixelFormat: MTLPixelFormat
+    private var programPipelines = AOSDesktopWorldNativeEffectPipelineCache<MTLRenderPipelineState>()
 
     init(device: MTLDevice, pixelFormat: MTLPixelFormat) throws {
         guard let commandQueue = device.makeCommandQueue() else {
@@ -125,32 +117,159 @@ final class AOSDesktopWorldNativeEffectGPUContext {
             throw DesktopWorldNativeSheetFailure.rendererUnavailable
         }
         self.commandQueue = commandQueue
+        self.pixelFormat = pixelFormat
         ripplePipeline = pipeline
         textureCache = cache
+    }
+
+    deinit {
+        dispose()
+    }
+
+    func prepare(
+        programs: [AOSDesktopWorldNativeEffectProgram]
+    ) throws {
+        do {
+            try programPipelines.reconcile(programs: programs) { [weak self] program in
+                guard let self else {
+                    throw DesktopWorldNativeSheetFailure.rendererUnavailable
+                }
+                return try self.makePipeline(for: program)
+            }
+        } catch {
+            throw DesktopWorldNativeSheetFailure.rendererUnavailable
+        }
+    }
+
+    func preparedPipeline(
+        for program: AOSDesktopWorldNativeEffectProgram
+    ) throws -> MTLRenderPipelineState {
+        guard let pipeline = programPipelines.pipeline(for: program.digest) else {
+            throw DesktopWorldNativeSheetFailure.rendererUnavailable
+        }
+        return pipeline
+    }
+
+    private func makePipeline(
+        for program: AOSDesktopWorldNativeEffectProgram
+    ) throws -> MTLRenderPipelineState {
+        guard let device = commandQueue?.device,
+              let source = AOSDesktopWorldNativeEffectProgramCompiler.source(
+                for: program
+              ) else {
+            throw DesktopWorldNativeSheetFailure.rendererUnavailable
+        }
+        let library = try device.makeLibrary(source: source, options: nil)
+        guard let vertex = library.makeFunction(
+            name: "desktopWorldNativeProgramVertex"
+        ),
+              let fragment = library.makeFunction(
+                name: "desktopWorldNativeProgramFragment"
+              ) else {
+            throw DesktopWorldNativeSheetFailure.rendererUnavailable
+        }
+        let descriptor = MTLRenderPipelineDescriptor()
+        descriptor.vertexFunction = vertex
+        descriptor.fragmentFunction = fragment
+        descriptor.colorAttachments[0].pixelFormat = pixelFormat
+        return try device.makeRenderPipelineState(descriptor: descriptor)
     }
 
     func dispose() {
         if let textureCache { CVMetalTextureCacheFlush(textureCache, 0) }
         textureCache = nil
         ripplePipeline = nil
+        programPipelines.removeAll()
         commandQueue = nil
     }
 
     var retainedResourceCount: Int {
         (commandQueue == nil ? 0 : 1)
             + (ripplePipeline == nil ? 0 : 1)
+            + programPipelines.count
             + (textureCache == nil ? 0 : 1)
     }
 }
 
+enum AOSDesktopWorldNativeEffectRenderPlan {
+    case program(AOSDesktopWorldNativeEffectProgramInstance)
+    case ripple(AOSDesktopWorldNativeRippleParameters)
+
+    init(definition: AOSDesktopWorldNativeEffectDefinition) {
+        switch definition {
+        case .program(let instance): self = .program(instance)
+        case .ripple(let parameters): self = .ripple(parameters)
+        }
+    }
+
+    var duration: TimeInterval {
+        switch self {
+        case .program(let instance):
+            return Double(instance.program.durationMilliseconds) / 1_000
+        case .ripple(let parameters):
+            return Double(parameters.durationMilliseconds) / 1_000
+        }
+    }
+
+    @MainActor
+    func pipeline(
+        context: AOSDesktopWorldNativeEffectGPUContext
+    ) throws -> MTLRenderPipelineState {
+        switch self {
+        case .program(let instance):
+            return try context.preparedPipeline(for: instance.program)
+        case .ripple:
+            guard let pipeline = context.ripplePipeline else {
+                throw DesktopWorldNativeSheetFailure.rendererUnavailable
+            }
+            return pipeline
+        }
+    }
+
+    var elapsedUniformIndex: Int {
+        switch self {
+        case .program: return 10
+        case .ripple: return 7
+        }
+    }
+
+    func makeUniformStorage(
+        inputs: AOSDesktopWorldNativeEffectInputs,
+        segmentSize: CGSize
+    ) -> [Float] {
+        switch self {
+        case .program(let instance):
+            return [
+                Float(inputs.origin.x), Float(inputs.origin.y),
+                Float(inputs.current.x), Float(inputs.current.y),
+                Float(inputs.delta.x), Float(inputs.delta.y),
+                Float(inputs.totalDelta.x), Float(inputs.totalDelta.y),
+                Float(segmentSize.width), Float(segmentSize.height),
+                0,
+            ] + instance.parameterValues.map(Float.init)
+        case .ripple(let parameters):
+            let envelopeWidth = min(180, max(24, parameters.radius * 0.08))
+            return [
+                Float(inputs.current.x), Float(inputs.current.y),
+                Float(segmentSize.width), Float(segmentSize.height),
+                Float(parameters.amplitude), Float(parameters.decay),
+                Float(envelopeWidth), 0,
+                Float(parameters.frequency), Float(parameters.radius),
+                Float(parameters.speed),
+            ]
+        }
+    }
+}
+
 @MainActor
-final class AOSDesktopWorldNativeRippleRenderer: NSObject, MTKViewDelegate {
+final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
     private let context: AOSDesktopWorldNativeEffectGPUContext
     private let duration: TimeInterval
-    private let envelopeWidth: Float
+    private let inputs: AOSDesktopWorldNativeEffectInputs
     private let mesh: DesktopWorldNativeSheetMesh
-    private let origin: CGPoint
-    private let parameters: AOSDesktopWorldNativeRippleParameters
+    private let pipeline: MTLRenderPipelineState
+    private let plan: AOSDesktopWorldNativeEffectRenderPlan
+    private var uniforms: [Float]
     private var completed = false
     private var retainedCVTexture: CVMetalTexture?
     private var retainedPixelBuffer: CVPixelBuffer?
@@ -166,17 +285,21 @@ final class AOSDesktopWorldNativeRippleRenderer: NSObject, MTKViewDelegate {
         context: AOSDesktopWorldNativeEffectGPUContext,
         mesh: DesktopWorldNativeSheetMesh,
         pixelBuffer: CVPixelBuffer,
-        origin: CGPoint,
-        parameters: AOSDesktopWorldNativeRippleParameters,
+        inputs: AOSDesktopWorldNativeEffectInputs,
+        plan: AOSDesktopWorldNativeEffectRenderPlan,
         startedAt: TimeInterval
     ) throws {
         self.context = context
-        self.duration = Double(parameters.durationMilliseconds) / 1_000
-        self.envelopeWidth = Float(Self.envelopeWidth(for: parameters.radius))
+        self.duration = plan.duration
+        self.inputs = inputs
         self.mesh = mesh
-        self.origin = origin
-        self.parameters = parameters
+        self.pipeline = try plan.pipeline(context: context)
+        self.plan = plan
         self.startedAt = startedAt
+        self.uniforms = plan.makeUniformStorage(
+            inputs: inputs,
+            segmentSize: mesh.worldBounds.size
+        )
         super.init()
 
         guard let textureCache = context.textureCache else {
@@ -246,7 +369,6 @@ final class AOSDesktopWorldNativeRippleRenderer: NSObject, MTKViewDelegate {
               let vertexBuffer = mesh.vertexBuffer,
               let indexBuffer = mesh.indexBuffer,
               let commandQueue = context.commandQueue,
-              let pipeline = context.ripplePipeline,
               let descriptor = view.currentRenderPassDescriptor,
               let drawable = view.currentDrawable,
               let commandBuffer = commandQueue.makeCommandBuffer(),
@@ -255,28 +377,19 @@ final class AOSDesktopWorldNativeRippleRenderer: NSObject, MTKViewDelegate {
               ) else {
             return
         }
-        var uniforms = AOSDesktopWorldNativeRippleUniforms(
-            origin: SIMD2(Float(origin.x), Float(origin.y)),
-            segmentSize: SIMD2(
-                Float(mesh.worldBounds.width),
-                Float(mesh.worldBounds.height)
-            ),
-            amplitude: Float(parameters.amplitude),
-            decay: Float(parameters.decay),
-            envelopeWidth: envelopeWidth,
-            elapsed: Float(elapsed),
-            frequency: Float(parameters.frequency),
-            radius: Float(parameters.radius),
-            speed: Float(parameters.speed)
-        )
+        uniforms[plan.elapsedUniformIndex] = Float(elapsed)
         encoder.setRenderPipelineState(pipeline)
         encoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
         encoder.setFragmentTexture(texture, index: 0)
-        encoder.setFragmentBytes(
-            &uniforms,
-            length: MemoryLayout<AOSDesktopWorldNativeRippleUniforms>.stride,
-            index: 0
-        )
+        uniforms.withUnsafeBytes { bytes in
+            if let address = bytes.baseAddress {
+                encoder.setFragmentBytes(
+                    address,
+                    length: bytes.count,
+                    index: 0
+                )
+            }
+        }
         encoder.drawIndexedPrimitives(
             type: .triangle,
             indexCount: mesh.indexCount,
@@ -302,10 +415,6 @@ final class AOSDesktopWorldNativeRippleRenderer: NSObject, MTKViewDelegate {
         commandBuffer.commit()
     }
 
-    private static func envelopeWidth(for radius: Double) -> Double {
-        min(180, max(24, radius * 0.08))
-    }
-
     private func markPresented() {
         guard !completed, !presentationReported else { return }
         presentationReported = true
@@ -327,9 +436,9 @@ final class AOSDesktopWorldNativeRippleRenderer: NSObject, MTKViewDelegate {
 }
 
 @MainActor
-final class AOSDesktopWorldNativeRippleRuntime {
+final class AOSDesktopWorldNativeEffectRuntime {
     private let context: AOSDesktopWorldNativeEffectGPUContext
-    private var renderers: [UInt32: AOSDesktopWorldNativeRippleRenderer] = [:]
+    private var renderers: [UInt32: AOSDesktopWorldNativeEffectRenderer] = [:]
     private let sheet: DesktopWorldNativeSheet
     private var disposed = false
 
@@ -337,8 +446,8 @@ final class AOSDesktopWorldNativeRippleRuntime {
         sheet: DesktopWorldNativeSheet,
         context: AOSDesktopWorldNativeEffectGPUContext,
         frames: AOSDesktopPixelFrameSet,
-        origin: CGPoint,
-        parameters: AOSDesktopWorldNativeRippleParameters
+        inputs: AOSDesktopWorldNativeEffectInputs,
+        definition: AOSDesktopWorldNativeEffectDefinition
     ) throws {
         let framesByDisplay = Dictionary(
             uniqueKeysWithValues: frames.frames.map { ($0.displayID, $0) }
@@ -349,19 +458,20 @@ final class AOSDesktopWorldNativeRippleRuntime {
         }
         self.context = context
         self.sheet = sheet
+        let plan = AOSDesktopWorldNativeEffectRenderPlan(definition: definition)
         let startedAt = ProcessInfo.processInfo.systemUptime
         do {
             for segment in sheet.segmentSheets {
                 guard let pixelBuffer = framesByDisplay[segment.displayID]?.pixelBuffer else {
                     throw DesktopWorldNativeSheetFailure.frameSetIncomplete
                 }
-                renderers[segment.displayID] = try AOSDesktopWorldNativeRippleRenderer(
+                renderers[segment.displayID] = try AOSDesktopWorldNativeEffectRenderer(
                     view: segment.host.view,
                     context: context,
                     mesh: segment.mesh,
                     pixelBuffer: pixelBuffer,
-                    origin: origin,
-                    parameters: parameters,
+                    inputs: inputs,
+                    plan: plan,
                     startedAt: startedAt
                 )
             }
@@ -415,6 +525,6 @@ final class AOSDesktopWorldNativeRippleRuntime {
     }
 }
 
-extension AOSDesktopWorldNativeRippleRuntime:
+extension AOSDesktopWorldNativeEffectRuntime:
     AOSDesktopWorldNativeFeedbackRuntime
 {}

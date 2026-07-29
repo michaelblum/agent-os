@@ -228,6 +228,8 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-world-native-effect-renderer.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-world-native-sheet-geometry.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-world-native-sheet-lease.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-world-native-effect-program-compiler.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-world-native-effect-pipeline-cache.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/shared/desktop-world-resource-identity.swift'));
   assert.ok(rules.get('desktop-pixel-native-baseline')?.patterns?.includes('src/display/desktop-world-surface.swift'));
   assert.ok(rules.get('desktop-pixel-native-baseline')?.patterns?.includes('src/daemon/desktop-pixel-capture-filter.swift'));
@@ -255,6 +257,10 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.match(
     rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-interaction-contract')?.command ?? '',
     /tests\/toolkit\/desktop-world-scene-interaction-runtime\.test\.mjs/u,
+  );
+  assert.match(
+    rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-interaction-contract')?.command ?? '',
+    /tests\/toolkit\/scene-native-effect-program\.test\.mjs/u,
   );
   assert.match(
     rules.get('desktop-world-scene-engine')?.commands?.find((step) => step.id === 'scene-core-contract')?.command ?? '',

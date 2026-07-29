@@ -376,6 +376,8 @@
         "src/display/desktop-world-native-sheet-lease.swift",
         "src/display/desktop-world-native-sheet.swift",
         "src/display/desktop-world-native-effect-renderer.swift",
+        "src/display/desktop-world-native-effect-program-compiler.swift",
+        "src/display/desktop-world-native-effect-pipeline-cache.swift",
         "src/shared/desktop-world-resource-identity.swift",
         "src/display/desktop-frame-texture.swift",
         "src/display/scene-extension-store.swift",
@@ -433,7 +435,7 @@
         },
         {
           "id": "scene-daemon-contract",
-          "command": "node --test tests/desktop-world-scene-event-routing.test.mjs tests/desktop-world-scene-framebuffer-proof-result.test.mjs tests/desktop-world-scene-native-feedback.test.mjs tests/desktop-world-scene-native-orchestration.test.mjs tests/desktop-world-scene-result-coordinator.test.mjs tests/desktop-world-scene-stage-readiness.test.mjs tests/daemon-desktop-world-devtools-contract.test.mjs tests/scene-follow-cli.test.mjs",
+          "command": "node --test tests/desktop-world-scene-event-routing.test.mjs tests/desktop-world-scene-framebuffer-proof-result.test.mjs tests/desktop-world-native-effect-program.test.mjs tests/desktop-world-scene-native-feedback.test.mjs tests/desktop-world-scene-native-feedback-lifecycle.test.mjs tests/desktop-world-scene-native-orchestration.test.mjs tests/desktop-world-scene-result-coordinator.test.mjs tests/desktop-world-scene-stage-readiness.test.mjs tests/daemon-desktop-world-devtools-contract.test.mjs tests/scene-follow-cli.test.mjs",
           "reason": "Verify canonical event routing diagnostics, atomic native-feedback authorization and disposal, the daemon scene lifecycle aggregate, all-segment barrier ownership, DevTools delegation, and bounded follow transport."
         },
         {
@@ -443,8 +445,8 @@
         },
         {
           "id": "scene-interaction-contract",
-          "command": "node --test tests/toolkit/scene-interaction.test.mjs tests/toolkit/scene-radial-menu.test.mjs tests/toolkit/scene-interaction-visual.test.mjs tests/toolkit/scene-historical-fast-travel-reference.test.mjs tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs tests/toolkit/desktop-world-scene-interaction-three.test.mjs tests/toolkit/desktop-world-scene-operation-coordinator.test.mjs tests/toolkit/desktop-world-scene-outlet.test.mjs tests/toolkit/desktop-world-scene-outlet-replacement.test.mjs",
-          "reason": "Verify gesture arbitration, native-region atomicity, generic responses, fixed-clock visuals, historical references, and bounded Three lifecycle."
+          "command": "node --test tests/toolkit/scene-native-effect-program.test.mjs tests/toolkit/scene-interaction.test.mjs tests/toolkit/scene-radial-menu.test.mjs tests/toolkit/scene-interaction-visual.test.mjs tests/toolkit/scene-historical-fast-travel-reference.test.mjs tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs tests/toolkit/desktop-world-scene-interaction-three.test.mjs tests/toolkit/desktop-world-scene-operation-coordinator.test.mjs tests/toolkit/desktop-world-scene-outlet.test.mjs tests/toolkit/desktop-world-scene-outlet-replacement.test.mjs",
+          "reason": "Verify bounded native effect programs, gesture arbitration, native-region atomicity, generic responses, fixed-clock visuals, historical references, and bounded Three lifecycle."
         },
         {
           "id": "scene-devtools-contract",

@@ -49,9 +49,72 @@ func interactions(
 }
 `
 
+const programmableRipple = {
+  contract: 'aos.scene.native-effect-program.v1',
+  schemaVersion: 1,
+  id: 'example.effect.ripple',
+  revision: 1,
+  durationMs: 1500,
+  parameters: [
+    { id: 'amplitude', default: 18, min: 0, max: 96 },
+    { id: 'alpha_gain', default: 1.5, min: 0.1, max: 4 },
+    { id: 'decay', default: 1.1, min: 0, max: 10 },
+    { id: 'distance_scale', default: 0.001, min: 0.00001, max: 0.01 },
+    { id: 'envelope_width', default: 180, min: 24, max: 400 },
+    { id: 'frequency', default: 0.045, min: 0.001, max: 0.25 },
+    { id: 'radius', default: 5000, min: 32, max: 5000 },
+    { id: 'speed', default: 3400, min: 10, max: 4000 },
+  ],
+  nodes: [
+    { id: 'delta', op: 'subtract', inputs: ['world.position', 'event.current'] },
+    { id: 'distance', op: 'length', inputs: ['node.delta'] },
+    { id: 'travel', op: 'multiply', inputs: ['clock.elapsed', 'parameter.speed'] },
+    { id: 'front', op: 'subtract', inputs: ['node.distance', 'node.travel'] },
+    { id: 'front_squared', op: 'multiply', inputs: ['node.front', 'node.front'] },
+    { id: 'envelope_squared', op: 'multiply', inputs: ['parameter.envelope_width', 'parameter.envelope_width'] },
+    { id: 'packet_ratio', op: 'divide', inputs: ['node.front_squared', 'node.envelope_squared'] },
+    { id: 'negative_packet_ratio', op: 'negate', inputs: ['node.packet_ratio'] },
+    { id: 'packet', op: 'exponential', inputs: ['node.negative_packet_ratio'] },
+    { id: 'distance_decay', op: 'multiply', inputs: ['parameter.decay', 'parameter.distance_scale'] },
+    { id: 'distance_scaled', op: 'multiply', inputs: ['node.distance', 'node.distance_decay'] },
+    { id: 'one', op: 'constant', value: 1 },
+    { id: 'distance_denominator', op: 'add', inputs: ['node.one', 'node.distance_scaled'] },
+    { id: 'distance_fade', op: 'divide', inputs: ['node.one', 'node.distance_denominator'] },
+    { id: 'time_decay', op: 'multiply', inputs: ['clock.elapsed', 'parameter.decay'] },
+    { id: 'negative_time_decay', op: 'negate', inputs: ['node.time_decay'] },
+    { id: 'time_fade', op: 'exponential', inputs: ['node.negative_time_decay'] },
+    { id: 'radius_start_scale', op: 'constant', value: 0.85 },
+    { id: 'radius_start', op: 'multiply', inputs: ['parameter.radius', 'node.radius_start_scale'] },
+    { id: 'radius_ramp', op: 'smoothstep', inputs: ['node.radius_start', 'parameter.radius', 'node.distance'] },
+    { id: 'radius_fade', op: 'one_minus', inputs: ['node.radius_ramp'] },
+    { id: 'phase', op: 'multiply', inputs: ['node.front', 'parameter.frequency'] },
+    { id: 'wave', op: 'cosine', inputs: ['node.phase'] },
+    { id: 'amplitude_wave', op: 'multiply', inputs: ['parameter.amplitude', 'node.wave'] },
+    { id: 'packet_wave', op: 'multiply', inputs: ['node.amplitude_wave', 'node.packet'] },
+    { id: 'distance_wave', op: 'multiply', inputs: ['node.packet_wave', 'node.distance_fade'] },
+    { id: 'time_wave', op: 'multiply', inputs: ['node.distance_wave', 'node.time_fade'] },
+    { id: 'displacement', op: 'multiply', inputs: ['node.time_wave', 'node.radius_fade'] },
+    { id: 'direction', op: 'normalize', inputs: ['node.delta'] },
+    { id: 'pixel_offset', op: 'multiply', inputs: ['node.direction', 'node.displacement'] },
+    { id: 'uv_offset', op: 'divide', inputs: ['node.pixel_offset', 'surface.size'] },
+    { id: 'alpha_packet', op: 'multiply', inputs: ['node.packet', 'node.radius_fade'] },
+    { id: 'alpha_time', op: 'multiply', inputs: ['node.alpha_packet', 'node.time_fade'] },
+    { id: 'alpha_gain', op: 'multiply', inputs: ['node.alpha_time', 'parameter.alpha_gain'] },
+    { id: 'opacity', op: 'clamp01', inputs: ['node.alpha_gain'] },
+  ],
+  outputs: { displacement: 'node.pixel_offset', opacity: 'node.opacity' },
+}
+const programmableRippleBase64 = Buffer.from(
+  JSON.stringify(programmableRipple),
+).toString('base64')
+
 test('native ripple Metal program compiles without AOS or live DesktopWorld', async () => {
   const source = await readFile(
     path.join(repoRoot, 'src/display/desktop-world-native-effect-renderer.swift'),
+    'utf8',
+  )
+  const hostSource = await readFile(
+    path.join(repoRoot, 'src/daemon/desktop-world-native-feedback-host.swift'),
     'utf8',
   )
   const match = source.match(/private let aosDesktopWorldNativeRippleShader = #"""([\s\S]*?)"""#/u)
@@ -61,6 +124,13 @@ test('native ripple Metal program compiles without AOS or live DesktopWorld', as
   assert.match(match[1], /discard_fragment\(\)/u)
   assert.match(match[1], /return float4\(color \* effectAlpha, effectAlpha\)/u)
   assert.doesNotMatch(match[1], /return float4\(desktop\.sample\([^\n]+, 1\.0\)/u)
+  assert.match(source, /private var uniforms: \[Float\]/u)
+  assert.match(source, /uniforms\[plan\.elapsedUniformIndex\] = Float\(elapsed\)/u)
+  assert.match(source, /deinit \{\s*dispose\(\)\s*\}/u)
+  assert.doesNotMatch(source, /func uniforms\(/u)
+  assert.doesNotMatch(source, /let uniforms = plan\./u)
+  assert.match(hostSource, /preparationQueue\.async/u)
+  assert.doesNotMatch(hostSource, /@MainActor func prepare\(/u)
   const root = await mkdtemp(path.join(os.tmpdir(), 'aos-native-ripple-metal-'))
   try {
     const metal = path.join(root, 'desktop-world-native-ripple.metal')
@@ -96,6 +166,7 @@ precondition(library.makeFunction(name: "desktopWorldNativeRippleFragment") != n
 test('native feedback contract rejects type drift and resolves bounded world coordinates', async () => {
   const output = await compileAndRun('native-feedback-contract', [
     'src/daemon/desktop-world-scene-stage-readiness.swift',
+    'src/daemon/desktop-world-native-effect-program.swift',
     'src/daemon/desktop-world-native-effect-contract.swift',
   ], `
 import Foundation
@@ -109,11 +180,19 @@ guard let binding = AOSDesktopWorldNativeEffectContract.parseBindings(
 }
 precondition(binding.affordanceID == "body")
 precondition(binding.trigger == .gesture(.start))
-precondition(binding.ripple.amplitude == 18)
-precondition(binding.ripple.durationMilliseconds == 900)
+guard case .ripple(let ripple) = binding.definition else {
+    preconditionFailure("legacy ripple definition changed")
+}
+precondition(ripple.amplitude == 18)
+precondition(ripple.durationMilliseconds == 900)
 precondition(AOSDesktopWorldNativeEffectContract.parseBindings(
     interactions(amplitude: true)
 ) == nil)
+for malformedCatalog: Any in [NSNull(), ["not": "an array"]] {
+    var malformed = interactions()
+    malformed["nativeEffectPrograms"] = malformedCatalog
+    precondition(AOSDesktopWorldNativeEffectContract.parseBindings(malformed) == nil)
+}
 
 var duplicate = interactions()
 var duplicateValues = duplicate["interactions"] as! [[String: Any]]
@@ -212,6 +291,52 @@ precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
     button: "right",
     point: CGPoint(x: 2100, y: 500)
 ) == nil)
+
+let programData = Data(base64Encoded: "${programmableRippleBase64}")!
+let program = try! JSONSerialization.jsonObject(with: programData) as! [String: Any]
+var invalidProgramID = program
+invalidProgramID["id"] = "example.effect-"
+precondition(AOSDesktopWorldNativeEffectProgramContract.parse(
+    program: invalidProgramID
+) == nil)
+for field in ["schemaVersion", "revision", "durationMs"] {
+    var booleanInteger = program
+    booleanInteger[field] = true
+    precondition(AOSDesktopWorldNativeEffectProgramContract.parse(
+        program: booleanInteger
+    ) == nil)
+}
+var programInteractions = interactions(trigger: ["input": "pointer_down"])
+programInteractions["nativeEffectPrograms"] = [program]
+var programValues = programInteractions["interactions"] as! [[String: Any]]
+var programValue = programValues[0]
+programValue["nativeEffect"] = [
+    "implementation": "aos.scene.effect.program",
+    "programId": "example.effect.ripple",
+    "trigger": ["input": "pointer_down"],
+    "parameters": ["amplitude": 24],
+]
+programValues[0] = programValue
+programInteractions["interactions"] = programValues
+guard let programBinding = AOSDesktopWorldNativeEffectContract.parseBindings(
+    programInteractions
+)?.first,
+      case .program(let programInstance) = programBinding.definition else {
+    preconditionFailure("program binding did not parse")
+}
+precondition(programBinding.durationMilliseconds == 1500)
+precondition(programInstance.parameterValues[0] == 24)
+let programRequest = AOSDesktopWorldNativeEffectContract.pointerRequest(
+    binding: programBinding,
+    authorization: (ownerID: "example.consumer", resourceID: "companion/main", revision: 9),
+    identity: identity,
+    affordanceID: "body",
+    phase: "down",
+    button: "left",
+    point: CGPoint(x: 2200, y: 700)
+)
+precondition(programRequest?.inputs.current.x == 2200)
+precondition(programRequest?.inputs.origin.x == 2200)
 print("PASS native feedback contract")
 `)
   assert.match(output, /PASS native feedback contract/u)
@@ -224,6 +349,7 @@ test('native feedback authorization commits atomically with scene operations', a
     'src/daemon/scene-lease-registry.swift',
     'src/daemon/desktop-world-scene-result-coordinator.swift',
     'src/daemon/desktop-world-scene-stage-readiness.swift',
+    'src/daemon/desktop-world-native-effect-program.swift',
     'src/daemon/desktop-world-native-effect-contract.swift',
     'src/daemon/desktop-world-scene-controller.swift',
     'src/daemon/scene-event.swift',
@@ -330,6 +456,55 @@ let authorization: [String: Any] = [
     "sceneAbi": "aos.scene.projection.v1",
     "threeRevision": "183",
 ]
+
+let programTemplateData = Data(base64Encoded: "${programmableRippleBase64}")!
+let programTemplate = try! JSONSerialization.jsonObject(
+    with: programTemplateData
+) as! [String: Any]
+func programInteractions(_ batch: Int) -> [String: Any] {
+    var programs: [[String: Any]] = []
+    var values: [[String: Any]] = []
+    for index in 0..<8 {
+        let id = "example.effect.batch\\(batch).program\\(index)"
+        var program = programTemplate
+        program["id"] = id
+        programs.append(program)
+        values.append([
+            "id": "interaction-\\(index)",
+            "affordanceId": "body-\\(index)",
+            "recognizer": [
+                "implementation": "aos.scene.gesture.tap",
+                "parameters": [:],
+            ],
+            "response": [
+                "implementation": "aos.scene.response.drop",
+                "parameters": [:],
+            ],
+            "nativeEffect": [
+                "implementation": "aos.scene.effect.program",
+                "programId": id,
+                "trigger": ["input": "pointer_down"],
+                "parameters": [:],
+            ],
+        ])
+    }
+    return [
+        "contract": "aos.scene.cartridge.interactions.v1",
+        "schemaVersion": 1,
+        "nativeEffectPrograms": programs,
+        "interactions": values,
+    ]
+}
+
+func admissionName(_ admission: AOSDesktopWorldSceneOperationAdmission) -> String {
+    switch admission {
+    case .accepted: return "accepted"
+    case .leaseBusy: return "lease_busy"
+    case .nativeEffectBudgetExceeded: return "native_effect_budget_exceeded"
+    case .operationPending: return "operation_pending"
+    case .stageUnavailable: return "stage_unavailable"
+    }
+}
 
 let (unauthorized, unauthorizedTopology) = readyController()
 guard case .stageUnavailable = unauthorized.admitOperation(
@@ -461,7 +636,10 @@ let transacted = controller.nativePointerEffectRequest(
     point: CGPoint(x: 900, y: 600)
 )
 precondition(transacted?.resourceRevision == 2)
-precondition(transacted?.binding.ripple.amplitude == 26)
+guard let transacted, case .ripple(let transactedRipple) = transacted.binding.definition else {
+    preconditionFailure("transacted legacy ripple definition changed")
+}
+precondition(transactedRipple.amplitude == 26)
 precondition(controller.nativePointerEffectRequest(
     ownerID: "example.consumer",
     resourceID: "companion/main",
@@ -537,387 +715,237 @@ precondition(failed.nativeEffectRequest(
     key: failedKey,
     event: requestEvent("start")
 ) == nil)
+
+let (budgetController, budgetTopology) = readyController()
+let budgetConnection = UUID()
+for batch in 0..<4 {
+    let resource = "companion/budget-\\(batch)"
+    let batchInteractions = programInteractions(batch)
+    precondition(
+        AOSDesktopWorldNativeEffectContract.parseBindings(batchInteractions)?.count == 8,
+        "batch \\(batch) fixture did not parse"
+    )
+    let admission = budgetController.admitOperation(
+        topology: budgetTopology,
+        key: budgetController.key(owner: "example.consumer", resource: resource),
+        owner: "example.consumer",
+        resource: resource,
+        operationName: "mount",
+        operation: ["op": "mount", "interactions": batchInteractions],
+        extensionAuthorization: authorization,
+        connectionID: budgetConnection,
+        ref: "budget-\\(batch)"
+    )
+    guard case .accepted(let action) = admission else {
+        preconditionFailure(
+            "bounded program aggregate batch \\(batch) was rejected: \\(admissionName(admission))"
+        )
+    }
+    _ = settleSuccess(budgetController, action)
+}
+precondition(
+    budgetController.nativeEffectPrograms().count ==
+        AOSDesktopWorldNativeEffectProgram.maximumPreparedPrograms
+)
+let overflowResource = "companion/budget-overflow"
+guard case .nativeEffectBudgetExceeded = budgetController.admitOperation(
+    topology: budgetTopology,
+    key: budgetController.key(
+        owner: "example.consumer",
+        resource: overflowResource
+    ),
+    owner: "example.consumer",
+    resource: overflowResource,
+    operationName: "mount",
+    operation: ["op": "mount", "interactions": programInteractions(4)],
+    extensionAuthorization: authorization,
+    connectionID: budgetConnection,
+    ref: "budget-overflow"
+) else { preconditionFailure("aggregate program overflow reached scene dispatch") }
+precondition(
+    budgetController.nativeEffectPrograms().count ==
+        AOSDesktopWorldNativeEffectProgram.maximumPreparedPrograms
+)
+
+let (reservationController, reservationTopology) = readyController()
+let reservationConnection = UUID()
+for batch in 0..<3 {
+    let resource = "companion/reservation-\\(batch)"
+    guard case .accepted(let action) = reservationController.admitOperation(
+        topology: reservationTopology,
+        key: reservationController.key(owner: "example.consumer", resource: resource),
+        owner: "example.consumer",
+        resource: resource,
+        operationName: "mount",
+        operation: ["op": "mount", "interactions": programInteractions(batch)],
+        extensionAuthorization: authorization,
+        connectionID: reservationConnection,
+        ref: "reservation-\\(batch)"
+    ) else { preconditionFailure("reservation fixture mount was rejected") }
+    _ = settleSuccess(reservationController, action)
+}
+let pendingResource = "companion/reservation-pending"
+guard case .accepted(let pendingReservation) = reservationController.admitOperation(
+    topology: reservationTopology,
+    key: reservationController.key(
+        owner: "example.consumer",
+        resource: pendingResource
+    ),
+    owner: "example.consumer",
+    resource: pendingResource,
+    operationName: "mount",
+    operation: ["op": "mount", "interactions": programInteractions(3)],
+    extensionAuthorization: authorization,
+    connectionID: reservationConnection,
+    ref: "reservation-pending"
+) else { preconditionFailure("bounded pending reservation was rejected") }
+precondition(reservationController.nativeEffectPrograms().count == 24)
+let competingResource = "companion/reservation-competing"
+guard case .operationPending = reservationController.admitOperation(
+    topology: reservationTopology,
+    key: reservationController.key(
+        owner: "example.consumer",
+        resource: competingResource
+    ),
+    owner: "example.consumer",
+    resource: competingResource,
+    operationName: "mount",
+    operation: ["op": "mount", "interactions": programInteractions(4)],
+    extensionAuthorization: authorization,
+    connectionID: reservationConnection,
+    ref: "reservation-competing"
+) else { preconditionFailure("program mutation bypassed aggregate serialization") }
+_ = settleSuccess(reservationController, pendingReservation)
+guard case .nativeEffectBudgetExceeded = reservationController.admitOperation(
+    topology: reservationTopology,
+    key: reservationController.key(
+        owner: "example.consumer",
+        resource: competingResource
+    ),
+    owner: "example.consumer",
+    resource: competingResource,
+    operationName: "mount",
+    operation: ["op": "mount", "interactions": programInteractions(4)],
+    extensionAuthorization: authorization,
+    connectionID: reservationConnection,
+    ref: "reservation-competing-overflow"
+) else { preconditionFailure("settled program aggregate exceeded its budget") }
+
+let (replacementController, replacementTopology) = readyController()
+let replacementConnection = UUID()
+for batch in 0..<4 {
+    let resource = "companion/replacement-\\(batch)"
+    guard case .accepted(let action) = replacementController.admitOperation(
+        topology: replacementTopology,
+        key: replacementController.key(owner: "example.consumer", resource: resource),
+        owner: "example.consumer",
+        resource: resource,
+        operationName: "mount",
+        operation: ["op": "mount", "interactions": programInteractions(batch)],
+        extensionAuthorization: authorization,
+        connectionID: replacementConnection,
+        ref: "replacement-\\(batch)"
+    ) else { preconditionFailure("replacement fixture mount was rejected") }
+    _ = settleSuccess(replacementController, action)
+}
+let replacementProgramCount = replacementController.nativeEffectPrograms().count
+precondition(
+    replacementProgramCount == AOSDesktopWorldNativeEffectProgram.maximumPreparedPrograms,
+    "replacement fixture committed \\(replacementProgramCount) programs"
+)
+func replacePrograms(_ resource: String, batch: Int, ref: String)
+    -> AOSDesktopWorldSceneOperationAdmission {
+    replacementController.admitOperation(
+        topology: replacementTopology,
+        key: replacementController.key(owner: "example.consumer", resource: resource),
+        owner: "example.consumer",
+        resource: resource,
+        operationName: "transact",
+        operation: [
+            "op": "transact",
+            "transaction": ["expectedRevision": 1],
+            "interactions": programInteractions(batch),
+        ],
+        connectionID: replacementConnection,
+        ref: ref
+    )
+}
+func mountDuplicatePrograms(_ ref: String) -> AOSDesktopWorldSceneOperationAdmission {
+    replacementController.admitOperation(
+        topology: replacementTopology,
+        key: replacementController.key(
+            owner: "example.consumer",
+            resource: "companion/duplicate-owner"
+        ),
+        owner: "example.consumer",
+        resource: "companion/duplicate-owner",
+        operationName: "mount",
+        operation: ["op": "mount", "interactions": programInteractions(0)],
+        extensionAuthorization: authorization,
+        connectionID: replacementConnection,
+        ref: ref
+    )
+}
+let firstReplacementAdmission = replacePrograms(
+    "companion/replacement-0", batch: 4, ref: "replacement-first"
+)
+guard case .accepted(let firstReplacement) = firstReplacementAdmission else {
+    preconditionFailure(
+        "first bounded replacement was rejected: \\(admissionName(firstReplacementAdmission))"
+    )
+}
+guard case .operationPending = mountDuplicatePrograms("duplicate-pending") else {
+    preconditionFailure("duplicate program ownership raced a pending replacement")
+}
+let genericConnection = UUID()
+guard case .accepted(let genericMount) = replacementController.admitOperation(
+    topology: replacementTopology,
+    key: replacementController.key(
+        owner: "example.consumer",
+        resource: "generic/parallel"
+    ),
+    owner: "example.consumer",
+    resource: "generic/parallel",
+    operationName: "mount",
+    operation: ["op": "mount"],
+    connectionID: genericConnection,
+    ref: "generic-parallel"
+) else { preconditionFailure("generic scene work was serialized with program catalogs") }
+_ = settleSuccess(replacementController, genericMount)
+guard case .operationPending = replacePrograms(
+    "companion/replacement-1", batch: 5, ref: "replacement-queued"
+) else { preconditionFailure("concurrent replacement reported false budget overflow") }
+_ = settleSuccess(replacementController, firstReplacement)
+guard case .nativeEffectBudgetExceeded = mountDuplicatePrograms("duplicate-overflow") else {
+    preconditionFailure("settled replacement admitted an oversized duplicate owner")
+}
+guard case .accepted(let secondReplacement) = replacePrograms(
+    "companion/replacement-1", batch: 5, ref: "replacement-second"
+) else { preconditionFailure("serialized replacement remained blocked") }
+_ = settleSuccess(replacementController, secondReplacement)
+precondition(
+    replacementController.nativeEffectPrograms().count ==
+        AOSDesktopWorldNativeEffectProgram.maximumPreparedPrograms
+)
+let disconnect = replacementController.beginDisconnect(
+    connectionID: replacementConnection,
+    topology: replacementTopology
+)
+precondition(disconnect.barrierActions.count == 4)
+let postDisconnectAdmission = replacementController.admitOperation(
+    topology: replacementTopology,
+    key: replacementController.key(owner: "example.consumer", resource: "companion/after-close"),
+    owner: "example.consumer", resource: "companion/after-close",
+    operationName: "mount", operation: ["op": "mount", "interactions": programInteractions(6)],
+    extensionAuthorization: authorization, connectionID: UUID(), ref: "after-close"
+)
+guard case .operationPending = postDisconnectAdmission else {
+    preconditionFailure(
+        "disconnect close did not retain program-catalog ownership: " +
+        admissionName(postDisconnectAdmission)
+    )
+}
 print("PASS native feedback authorization")
 `)
   assert.match(output, /PASS native feedback authorization/u)
-})
-
-test('native feedback lifecycle is bounded, single-flight, and fully disposable', async () => {
-  const output = await compileAndRun('native-feedback-lifecycle', [
-    'src/daemon/desktop-world-native-feedback-controller.swift',
-  ], `
-import Foundation
-
-enum AOSDesktopPixelLimits {
-    static let interactiveMaximumPixelsPerDisplay = 1_048_576
-}
-
-enum AOSDesktopFrameCaptureFailure: Error {
-    case captureFailed
-    var code: String { "DESKTOP_FRAME_CAPTURE_FAILED" }
-}
-
-enum DesktopWorldNativeSheetFailure: Error {
-    case frameSetIncomplete
-    case geometryAllocationFailed
-    case geometryBudgetExceeded
-    case invalidGeometry
-    case projectionOccupied
-    case rendererUnavailable
-    case textureUnavailable
-}
-
-protocol AOSDesktopFrameCancelling { func cancel() }
-final class AOSDesktopFrameCancellation: AOSDesktopFrameCancelling {
-    var canceled = false
-    func cancel() { canceled = true }
-}
-
-struct AOSDesktopFrameWarmConfiguration {
-    let canvasGeneration: UInt64
-    let displayIDs: [UInt32]
-    let excludingWindowIDs: [Int]
-    let maximumPixelsPerDisplay: Int
-    let topologyGeneration: UInt64
-}
-struct AOSDesktopPixelFrame { let displayID: UInt32 }
-struct AOSDesktopPixelFrameSet { let frames: [AOSDesktopPixelFrame] }
-protocol AOSDesktopPixelFrameSetCapturing: AnyObject {
-    func capturePrewarmedFrames(
-        _ configuration: AOSDesktopFrameWarmConfiguration,
-        completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void
-    ) -> AOSDesktopFrameCancelling
-}
-
-struct AOSDesktopWorldResourceIdentity: Equatable {
-    let ownerID: String
-    let resourceID: String
-}
-struct AOSDesktopWorldNativeRippleParameters: Equatable {
-    let amplitude: Double
-    let durationMilliseconds: Int
-}
-struct AOSDesktopWorldNativeEffectBinding: Equatable {
-    let ripple: AOSDesktopWorldNativeRippleParameters
-}
-struct AOSDesktopWorldNativeEffectRequest {
-    let binding: AOSDesktopWorldNativeEffectBinding
-    let canvasGeneration: UInt64
-    let desktopWorldOrigin: CGPoint
-    let ownerID: String
-    let resourceID: String
-    let resourceRevision: Int
-    let topologyGeneration: UInt64
-}
-
-enum PreparationFailure: Error { case unavailable }
-
-final class Capturer: AOSDesktopPixelFrameSetCapturing {
-    var pending: [(Result<AOSDesktopPixelFrameSet, Error>) -> Void] = []
-    var cancellations: [AOSDesktopFrameCancellation] = []
-    func capturePrewarmedFrames(
-        _ configuration: AOSDesktopFrameWarmConfiguration,
-        completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void
-    ) -> AOSDesktopFrameCancelling {
-        pending.append(completion)
-        let cancellation = AOSDesktopFrameCancellation()
-        cancellations.append(cancellation)
-        return cancellation
-    }
-    func completeNext() {
-        pending.removeFirst()(.success(AOSDesktopPixelFrameSet(
-            frames: [AOSDesktopPixelFrame(displayID: 7), AOSDesktopPixelFrame(displayID: 9)]
-        )))
-    }
-    func failNext() {
-        pending.removeFirst()(.failure(AOSDesktopFrameCaptureFailure.captureFailed))
-    }
-}
-
-@MainActor
-final class Runtime: AOSDesktopWorldNativeFeedbackRuntime {
-    var completion: (() -> Void)?
-    var disposed = false
-    var failure: ((String) -> Void)?
-    var presentation: (() -> Void)?
-    func present(
-        onPresented: @escaping () -> Void,
-        onFailure: @escaping (String) -> Void,
-        onComplete: @escaping () -> Void
-    ) {
-        presentation = onPresented
-        failure = onFailure
-        completion = onComplete
-    }
-    func dispose() {
-        disposed = true
-        completion = nil
-        failure = nil
-        presentation = nil
-    }
-    func complete() {
-        let presented = presentation
-        presentation = nil
-        presented?()
-        let value = completion
-        completion = nil
-        value?()
-    }
-    func completeWithoutPresentation() {
-        let value = completion
-        completion = nil
-        value?()
-    }
-}
-
-final class Host: AOSDesktopWorldNativeFeedbackHosting {
-    let context = AOSDesktopWorldNativeFeedbackCaptureContext(
-        canvasGeneration: 3,
-        displayIDs: [7, 9],
-        excludingWindowIDs: [101, 102],
-        topologyGeneration: 4
-    )
-    @MainActor var installCount = 0
-    @MainActor var installFailure: DesktopWorldNativeSheetFailure?
-    @MainActor var onInstall: (() -> Void)?
-    @MainActor var prepareCount = 0
-    @MainActor var prepareFails = false
-    @MainActor var releaseCount = 0
-    @MainActor var removeCount = 0
-    @MainActor var runtimes: [Runtime] = []
-    @MainActor var shutdownCount = 0
-    func captureContext() -> AOSDesktopWorldNativeFeedbackCaptureContext? { context }
-    @MainActor func prepare() throws {
-        prepareCount += 1
-        if prepareFails { throw PreparationFailure.unavailable }
-    }
-    @MainActor func install(
-        request: AOSDesktopWorldNativeEffectRequest,
-        frames: AOSDesktopPixelFrameSet
-    ) throws -> AOSDesktopWorldNativeFeedbackInstallation {
-        installCount += 1
-        if let installFailure { throw installFailure }
-        let runtime = Runtime()
-        runtimes.append(runtime)
-        onInstall?()
-        return AOSDesktopWorldNativeFeedbackInstallation(
-            identity: AOSDesktopWorldResourceIdentity(
-                ownerID: "aos.desktop-world",
-                resourceID: "native-sheet/main"
-            ),
-            runtime: runtime
-        )
-    }
-    @MainActor func remove(
-        canvasGeneration: UInt64,
-        topologyGeneration: UInt64,
-        identity: AOSDesktopWorldResourceIdentity
-    ) { removeCount += 1 }
-    @MainActor func releasePreparedResources() { releaseCount += 1 }
-    @MainActor func shutdown() { shutdownCount += 1 }
-}
-
-func pumpUntil(_ predicate: () -> Bool) {
-    let deadline = Date().addingTimeInterval(1)
-    while !predicate() && Date() < deadline {
-        RunLoop.current.run(until: Date().addingTimeInterval(0.002))
-    }
-    precondition(predicate())
-}
-
-let request = AOSDesktopWorldNativeEffectRequest(
-    binding: AOSDesktopWorldNativeEffectBinding(
-        ripple: AOSDesktopWorldNativeRippleParameters(
-            amplitude: 18,
-            durationMilliseconds: 900
-        )
-    ),
-    canvasGeneration: 3,
-    desktopWorldOrigin: CGPoint(x: 900, y: 600),
-    ownerID: "example.consumer",
-    resourceID: "companion/main",
-    resourceRevision: 1,
-    topologyGeneration: 4
-)
-var authorized = true
-let host = Host()
-let capturer = Capturer()
-var deadlines: [(delay: TimeInterval, item: DispatchWorkItem)] = []
-let controller = AOSDesktopWorldNativeFeedbackController(
-    host: host,
-    capturer: capturer,
-    scheduleDeadline: { deadlines.append(($0, $1)) },
-    authorize: { _ in authorized }
-)
-
-precondition(!controller.trigger(request))
-precondition(capturer.pending.isEmpty)
-var feedback = controller.snapshot()
-precondition(feedback.attemptedCount == 1)
-precondition(feedback.rejectedCount == 1)
-precondition(feedback.lastErrorCode == "NATIVE_EFFECT_UNAVAILABLE")
-precondition(feedback.state == "unavailable")
-controller.reconcileAvailability(true)
-pumpUntil { MainActor.assumeIsolated { host.prepareCount == 1 } }
-precondition(controller.snapshot().state == "ready")
-precondition(controller.trigger(request))
-precondition(!controller.trigger(request))
-feedback = controller.snapshot()
-precondition(feedback.acceptedCount == 1)
-precondition(feedback.rejectedCount == 2)
-precondition(feedback.lastErrorCode == "NATIVE_EFFECT_BUSY")
-capturer.completeNext()
-pumpUntil { MainActor.assumeIsolated { host.installCount == 1 } }
-MainActor.assumeIsolated { host.runtimes.last?.complete() }
-pumpUntil { MainActor.assumeIsolated { host.removeCount == 1 } }
-feedback = controller.snapshot()
-precondition(feedback.completedCount == 1)
-precondition(feedback.presentedCount == 1)
-precondition(feedback.lastErrorCode == nil)
-precondition(feedback.state == "ready")
-
-precondition(controller.trigger(request))
-capturer.completeNext()
-pumpUntil { MainActor.assumeIsolated { host.installCount == 2 } }
-MainActor.assumeIsolated { host.runtimes.last?.completeWithoutPresentation() }
-pumpUntil { MainActor.assumeIsolated { host.removeCount == 2 } }
-feedback = controller.snapshot()
-precondition(feedback.failedCount == 1)
-precondition(
-    feedback.lastErrorCode == "NATIVE_EFFECT_COMPLETED_WITHOUT_PRESENTATION"
-)
-
-MainActor.assumeIsolated {
-    host.onInstall = { controller.cancelAll() }
-}
-precondition(controller.trigger(request))
-capturer.completeNext()
-pumpUntil { MainActor.assumeIsolated { host.installCount == 3 } }
-pumpUntil { MainActor.assumeIsolated { host.removeCount == 3 } }
-precondition(MainActor.assumeIsolated { host.runtimes.last?.disposed == true })
-MainActor.assumeIsolated { host.onInstall = nil }
-
-controller.reconcileAvailability(false)
-controller.reconcileAvailability(true)
-pumpUntil { MainActor.assumeIsolated { host.prepareCount == 2 } }
-RunLoop.current.run(until: Date().addingTimeInterval(0.02))
-precondition(MainActor.assumeIsolated { host.releaseCount == 0 })
-
-for index in 0..<100 {
-    precondition(controller.trigger(request))
-    capturer.completeNext()
-    pumpUntil { MainActor.assumeIsolated { host.installCount == index + 4 } }
-    MainActor.assumeIsolated { host.runtimes.last?.complete() }
-    pumpUntil { MainActor.assumeIsolated { host.removeCount == index + 4 } }
-}
-precondition(MainActor.assumeIsolated {
-    host.runtimes.allSatisfy(\\.disposed)
-})
-
-precondition(controller.trigger(request))
-capturer.completeNext()
-pumpUntil { MainActor.assumeIsolated { host.installCount == 104 } }
-precondition(deadlines.last?.delay == 1.15)
-deadlines.last?.item.perform()
-feedback = controller.snapshot()
-precondition(feedback.failedCount == 2)
-precondition(feedback.lastErrorCode == "NATIVE_EFFECT_PRESENT_TIMEOUT")
-precondition(!controller.trigger(request))
-pumpUntil { MainActor.assumeIsolated { host.removeCount == 104 } }
-pumpUntil { controller.snapshot().state == "ready" }
-
-precondition(controller.trigger(request))
-let timeoutCapture = capturer.cancellations.last!
-precondition(deadlines.last?.delay == 0.75)
-deadlines.last?.item.perform()
-precondition(timeoutCapture.canceled)
-capturer.completeNext()
-RunLoop.current.run(until: Date().addingTimeInterval(0.02))
-precondition(MainActor.assumeIsolated { host.installCount == 104 })
-pumpUntil { controller.snapshot().state == "ready" }
-feedback = controller.snapshot()
-precondition(feedback.failedCount == 3)
-precondition(feedback.lastErrorCode == "NATIVE_EFFECT_CAPTURE_TIMEOUT")
-
-precondition(controller.trigger(request))
-let unauthorizedCapture = capturer.cancellations.last!
-authorized = false
-controller.reconcileAuthorization()
-precondition(unauthorizedCapture.canceled)
-capturer.completeNext()
-RunLoop.current.run(until: Date().addingTimeInterval(0.02))
-precondition(MainActor.assumeIsolated { host.installCount == 104 })
-precondition(!controller.trigger(request))
-
-authorized = true
-controller.reconcileAvailability(false)
-pumpUntil { MainActor.assumeIsolated { host.releaseCount == 1 } }
-precondition(!controller.trigger(request))
-controller.shutdown()
-precondition(MainActor.assumeIsolated { host.shutdownCount == 1 })
-precondition(MainActor.assumeIsolated { host.installCount == host.removeCount })
-precondition(!controller.trigger(request))
-
-let failedHost = Host()
-MainActor.assumeIsolated { failedHost.prepareFails = true }
-let failedCapturer = Capturer()
-let failedController = AOSDesktopWorldNativeFeedbackController(
-    host: failedHost,
-    capturer: failedCapturer,
-    scheduleDeadline: { _, _ in },
-    authorize: { _ in true }
-)
-failedController.reconcileAvailability(true)
-pumpUntil { MainActor.assumeIsolated { failedHost.prepareCount == 1 } }
-precondition(!failedController.trigger(request))
-precondition(failedCapturer.pending.isEmpty)
-let failedSnapshot = failedController.snapshot()
-precondition(failedSnapshot.failedCount == 1)
-precondition(failedSnapshot.lastErrorCode == "NATIVE_EFFECT_NOT_PREPARED")
-precondition(failedSnapshot.state == "unavailable")
-failedController.shutdown()
-
-let captureFailureHost = Host()
-let captureFailureCapturer = Capturer()
-let captureFailureController = AOSDesktopWorldNativeFeedbackController(
-    host: captureFailureHost,
-    capturer: captureFailureCapturer,
-    scheduleDeadline: { _, _ in },
-    authorize: { _ in true }
-)
-captureFailureController.reconcileAvailability(true)
-pumpUntil { MainActor.assumeIsolated { captureFailureHost.prepareCount == 1 } }
-precondition(captureFailureController.trigger(request))
-captureFailureCapturer.failNext()
-pumpUntil { captureFailureController.snapshot().state == "ready" }
-precondition(
-    captureFailureController.snapshot().lastErrorCode ==
-        "DESKTOP_FRAME_CAPTURE_FAILED"
-)
-captureFailureController.shutdown()
-
-let installFailureHost = Host()
-MainActor.assumeIsolated {
-    installFailureHost.installFailure = .textureUnavailable
-}
-let installFailureCapturer = Capturer()
-let installFailureController = AOSDesktopWorldNativeFeedbackController(
-    host: installFailureHost,
-    capturer: installFailureCapturer,
-    scheduleDeadline: { _, _ in },
-    authorize: { _ in true }
-)
-installFailureController.reconcileAvailability(true)
-pumpUntil { MainActor.assumeIsolated { installFailureHost.prepareCount == 1 } }
-precondition(installFailureController.trigger(request))
-installFailureCapturer.completeNext()
-pumpUntil { installFailureController.snapshot().state == "ready" }
-precondition(
-    installFailureController.snapshot().lastErrorCode ==
-        "NATIVE_EFFECT_TEXTURE_UNAVAILABLE"
-)
-installFailureController.shutdown()
-print("PASS native feedback lifecycle")
-`)
-  assert.match(output, /PASS native feedback lifecycle/u)
 })

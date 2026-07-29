@@ -28,6 +28,17 @@ canvas I/O, extension admission, barrier timing, and bounded stage readiness
 wait around that state aggregate. `UnifiedDaemon` only delegates transport
 events and emits response envelopes. Do not recreate parallel scene ownership,
 subscription maps, or transport orchestration in the connection handler.
+Native-effect program catalogs are part of that scene authorization aggregate.
+Program-changing operations are serialized globally, validated against the
+committed cumulative pipeline budget before all-display dispatch, and published
+only after the scene operation settles. `desktop-world-native-feedback-host.swift`
+prepares complete candidate Metal contexts on its dedicated serial queue;
+`desktop-world-native-feedback-controller.swift` serializes availability
+generation and the bounded main-actor context swap so stale candidates cannot
+publish. Input remains closed during preparation. A preparation failure leaves
+the browser scene usable and retains at most the previous prepared context;
+context replacement, authorization loss, and shutdown deterministically release
+the displaced GPU resources when their last active runtime lease ends.
 DesktopWorld event-routing failures remain reason-coded and observable through
 bounded daemon diagnostics; never log scene payloads, gesture coordinates,
 labels, or product data to diagnose delivery.

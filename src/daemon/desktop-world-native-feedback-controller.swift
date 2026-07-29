@@ -22,6 +22,8 @@ protocol AOSDesktopWorldNativeFeedbackRuntime: AnyObject {
     )
 }
 
+protocol AOSDesktopWorldNativeEffectPreparation: AnyObject, Sendable {}
+
 struct AOSDesktopWorldNativeFeedbackInstallation {
     let identity: AOSDesktopWorldResourceIdentity
     let runtime: AOSDesktopWorldNativeFeedbackRuntime
@@ -52,8 +54,19 @@ struct AOSDesktopWorldNativeFeedbackSnapshot: Equatable {
 protocol AOSDesktopWorldNativeFeedbackHosting: AnyObject {
     func captureContext() -> AOSDesktopWorldNativeFeedbackCaptureContext?
 
+    func prepare(
+        programs: [AOSDesktopWorldNativeEffectProgram],
+        completion: @escaping @Sendable (
+            Result<AOSDesktopWorldNativeEffectPreparation, Error>
+        ) -> Void
+    )
+
+    /// Publishes one already-prepared context with a bounded, nonblocking
+    /// pointer swap. Implementations must not reenter this controller.
     @MainActor
-    func prepare() throws
+    func activate(
+        preparation: AOSDesktopWorldNativeEffectPreparation
+    ) throws
 
     @MainActor
     func install(
@@ -76,6 +89,13 @@ protocol AOSDesktopWorldNativeFeedbackHosting: AnyObject {
 }
 
 final class AOSDesktopWorldNativeFeedbackController {
+    private enum PreparationCompletion {
+        case failed
+        case ready
+        case retry([AOSDesktopWorldNativeEffectProgram])
+        case stale
+    }
+
     private struct Active {
         enum Phase: Hashable {
             case capturing
@@ -101,6 +121,7 @@ final class AOSDesktopWorldNativeFeedbackController {
     private var attemptedCount = 0
     private let capturer: AOSDesktopPixelFrameSetCapturing
     private var completedCount = 0
+    private var desiredPrograms: [AOSDesktopWorldNativeEffectProgram] = []
     private var failedCount = 0
     private let host: AOSDesktopWorldNativeFeedbackHosting
     private var lastErrorCode: String?
@@ -109,6 +130,8 @@ final class AOSDesktopWorldNativeFeedbackController {
     private var available = false
     private var nextGeneration: UInt64 = 0
     private var prepared = false
+    private var preparedProgramDigests = Set<String>()
+    private let preparationTransitionLock = NSLock()
     private var preparing = false
     private var presentedCount = 0
     private var rejectedCount = 0
@@ -244,7 +267,12 @@ final class AOSDesktopWorldNativeFeedbackController {
         if let request, !authorize(request) { cancelAll() }
     }
 
-    func reconcileAvailability(_ nextAvailable: Bool) {
+    func reconcileAvailability(
+        _ nextAvailable: Bool,
+        programs: [AOSDesktopWorldNativeEffectProgram] = []
+    ) {
+        preparationTransitionLock.lock()
+        defer { preparationTransitionLock.unlock() }
         lock.lock()
         guard !stopped else {
             lock.unlock()
@@ -255,36 +283,35 @@ final class AOSDesktopWorldNativeFeedbackController {
             if availabilityGeneration == 0 { availabilityGeneration = 1 }
             available = false
             prepared = false
+            desiredPrograms = []
+            preparedProgramDigests.removeAll(keepingCapacity: false)
             preparing = false
             lock.unlock()
             cancelAll(releasePreparedResources: true)
             return
         }
         available = true
-        guard !prepared, !preparing else {
+        desiredPrograms = programs
+        let requestedDigests = Set(programs.map(\.digest))
+        guard !preparing,
+              !prepared || requestedDigests != preparedProgramDigests else {
             lock.unlock()
             return
         }
         availabilityGeneration &+= 1
         if availabilityGeneration == 0 { availabilityGeneration = 1 }
         let generation = availabilityGeneration
+        prepared = false
         preparing = true
         lock.unlock()
 
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            let errorCode: String?
-            do {
-                try self.host.prepare()
-                errorCode = nil
-            } catch {
-                errorCode = Self.failureCode(
-                    error,
-                    fallback: "NATIVE_EFFECT_PREPARATION_FAILED"
+        host.prepare(programs: programs) { [weak self] result in
+            Task { @MainActor [weak self] in
+                self?.preparationCompleted(
+                    generation: generation,
+                    programs: programs,
+                    result: result
                 )
-            }
-            if !self.finishPreparation(generation: generation, errorCode: errorCode) {
-                self.host.releasePreparedResources()
             }
         }
     }
@@ -316,13 +343,17 @@ final class AOSDesktopWorldNativeFeedbackController {
     }
 
     func shutdown() {
+        preparationTransitionLock.lock()
         lock.lock()
         stopped = true
         available = false
         prepared = false
+        desiredPrograms = []
+        preparedProgramDigests.removeAll(keepingCapacity: false)
         preparing = false
         availabilityGeneration &+= 1
         lock.unlock()
+        preparationTransitionLock.unlock()
         cancelAll()
         if Thread.isMainThread {
             MainActor.assumeIsolated { shutdownOnMain() }
@@ -492,7 +523,7 @@ final class AOSDesktopWorldNativeFeedbackController {
             }
             installDeadline(cleanup, generation: generation)
             scheduleDeadline(
-                Double(request.binding.ripple.durationMilliseconds) / 1_000
+                Double(request.binding.durationMilliseconds) / 1_000
                     + Self.effectCleanupGrace,
                 cleanup
             )
@@ -603,19 +634,79 @@ final class AOSDesktopWorldNativeFeedbackController {
 
     private func finishPreparation(
         generation: UInt64,
+        preparedPrograms: [AOSDesktopWorldNativeEffectProgram],
         errorCode: String?
-    ) -> Bool {
+    ) -> PreparationCompletion {
         lock.lock()
         defer { lock.unlock() }
         guard !stopped, available,
               availabilityGeneration == generation,
               preparing else {
-            return false
+            return .stale
         }
         preparing = false
-        prepared = errorCode == nil
-        if let errorCode { recordFailureLocked(errorCode) }
-        return true
+        if let errorCode {
+            prepared = false
+            preparedProgramDigests.removeAll(keepingCapacity: false)
+            recordFailureLocked(errorCode)
+            return .failed
+        }
+        preparedProgramDigests = Set(preparedPrograms.map(\.digest))
+        let desiredDigests = Set(desiredPrograms.map(\.digest))
+        prepared = desiredDigests == preparedProgramDigests
+        return prepared ? .ready : .retry(desiredPrograms)
+    }
+
+    @MainActor
+    private func preparationCompleted(
+        generation: UInt64,
+        programs: [AOSDesktopWorldNativeEffectProgram],
+        result: Result<AOSDesktopWorldNativeEffectPreparation, Error>
+    ) {
+        preparationTransitionLock.lock()
+        guard isCurrentPreparation(generation: generation) else {
+            preparationTransitionLock.unlock()
+            return
+        }
+        let errorCode: String?
+        switch result {
+        case .success(let preparation):
+            do {
+                try host.activate(preparation: preparation)
+                errorCode = nil
+            } catch {
+                errorCode = Self.failureCode(
+                    error,
+                    fallback: "NATIVE_EFFECT_PREPARATION_FAILED"
+                )
+            }
+        case .failure(let error):
+            errorCode = Self.failureCode(
+                error,
+                fallback: "NATIVE_EFFECT_PREPARATION_FAILED"
+            )
+        }
+        let completion = finishPreparation(
+            generation: generation,
+            preparedPrograms: programs,
+            errorCode: errorCode
+        )
+        preparationTransitionLock.unlock()
+        switch completion {
+        case .failed, .ready, .stale:
+            break
+        case .retry(let followUp):
+            reconcileAvailability(true, programs: followUp)
+        }
+    }
+
+    private func isCurrentPreparation(generation: UInt64) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return !stopped
+            && available
+            && availabilityGeneration == generation
+            && preparing
     }
 
     private func finishRuntimeRetirement() {

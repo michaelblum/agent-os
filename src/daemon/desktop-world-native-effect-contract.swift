@@ -19,6 +19,50 @@ struct AOSDesktopWorldNativeRippleParameters: Equatable {
     let speed: Double
 }
 
+enum AOSDesktopWorldNativeEffectDefinition: Equatable {
+    case program(AOSDesktopWorldNativeEffectProgramInstance)
+    case ripple(AOSDesktopWorldNativeRippleParameters)
+
+    var durationMilliseconds: Int {
+        switch self {
+        case .program(let instance):
+            return instance.program.durationMilliseconds
+        case .ripple(let parameters):
+            return parameters.durationMilliseconds
+        }
+    }
+}
+
+struct AOSDesktopWorldNativeEffectInputs: Equatable {
+    let current: CGPoint
+    let delta: CGPoint
+    let origin: CGPoint
+    let totalDelta: CGPoint
+
+    static func == (
+        lhs: AOSDesktopWorldNativeEffectInputs,
+        rhs: AOSDesktopWorldNativeEffectInputs
+    ) -> Bool {
+        lhs.current.x == rhs.current.x
+            && lhs.current.y == rhs.current.y
+            && lhs.delta.x == rhs.delta.x
+            && lhs.delta.y == rhs.delta.y
+            && lhs.origin.x == rhs.origin.x
+            && lhs.origin.y == rhs.origin.y
+            && lhs.totalDelta.x == rhs.totalDelta.x
+            && lhs.totalDelta.y == rhs.totalDelta.y
+    }
+
+    static func pointer(_ point: CGPoint) -> Self {
+        Self(
+            current: point,
+            delta: CGPoint(x: 0, y: 0),
+            origin: point,
+            totalDelta: CGPoint(x: 0, y: 0)
+        )
+    }
+}
+
 struct AOSDesktopWorldNativeEffectBinding: Equatable {
     static let capability = "aos.scene.native_sheet_effect"
     static let desktopRippleImplementation = "aos.scene.effect.desktop-ripple"
@@ -34,16 +78,22 @@ struct AOSDesktopWorldNativeEffectBinding: Equatable {
     }
 
     let affordanceID: String
+    let definition: AOSDesktopWorldNativeEffectDefinition
     let implementation: String
     let interactionID: String
-    let ripple: AOSDesktopWorldNativeRippleParameters
     let trigger: Trigger
+
+    var durationMilliseconds: Int { definition.durationMilliseconds }
+    var program: AOSDesktopWorldNativeEffectProgram? {
+        guard case .program(let instance) = definition else { return nil }
+        return instance.program
+    }
 }
 
 struct AOSDesktopWorldNativeEffectRequest: Equatable {
     let binding: AOSDesktopWorldNativeEffectBinding
     let canvasGeneration: UInt64
-    let desktopWorldOrigin: CGPoint
+    let inputs: AOSDesktopWorldNativeEffectInputs
     let ownerID: String
     let resourceID: String
     let resourceRevision: Int
@@ -55,30 +105,53 @@ struct AOSDesktopWorldNativeEffectRequest: Equatable {
     ) -> Bool {
         lhs.binding == rhs.binding
             && lhs.canvasGeneration == rhs.canvasGeneration
-            && lhs.desktopWorldOrigin.x == rhs.desktopWorldOrigin.x
-            && lhs.desktopWorldOrigin.y == rhs.desktopWorldOrigin.y
+            && lhs.inputs == rhs.inputs
             && lhs.ownerID == rhs.ownerID
             && lhs.resourceID == rhs.resourceID
             && lhs.resourceRevision == rhs.resourceRevision
             && lhs.topologyGeneration == rhs.topologyGeneration
     }
+
+    var desktopWorldOrigin: CGPoint { inputs.current }
 }
 
 enum AOSDesktopWorldNativeEffectContract {
     private static let maximumInteractions = 256
+    private static let maximumPrograms = 8
 
     static func parseBindings(
         _ interactions: [String: Any]?
     ) -> [AOSDesktopWorldNativeEffectBinding]? {
         guard let interactions else { return [] }
         guard Set(interactions.keys).isSubset(of: Set([
-            "affordances", "contract", "interactions", "schemaVersion",
+            "affordances", "contract", "interactions", "nativeEffectPrograms",
+            "schemaVersion",
         ])),
               interactions["contract"] as? String == "aos.scene.cartridge.interactions.v1",
-              interactions["schemaVersion"] as? Int == 1,
+              integer(interactions["schemaVersion"]) == 1,
               let values = interactions["interactions"] as? [[String: Any]],
               values.count <= maximumInteractions else {
             return nil
+        }
+
+        let rawPrograms: [[String: Any]]
+        if interactions.keys.contains("nativeEffectPrograms") {
+            guard let declared = interactions["nativeEffectPrograms"] as? [[String: Any]] else {
+                return nil
+            }
+            rawPrograms = declared
+        } else {
+            rawPrograms = []
+        }
+        guard rawPrograms.count <= maximumPrograms else { return nil }
+        var programs: [String: AOSDesktopWorldNativeEffectProgram] = [:]
+        for raw in rawPrograms {
+            guard let program = AOSDesktopWorldNativeEffectProgramContract.parse(
+                program: raw
+            ), programs[program.id] == nil else {
+                return nil
+            }
+            programs[program.id] = program
         }
 
         var bindings: [AOSDesktopWorldNativeEffectBinding] = []
@@ -93,24 +166,26 @@ enum AOSDesktopWorldNativeEffectContract {
                 return nil
             }
             guard let effect = value["nativeEffect"] else { continue }
-            guard
-                  let dictionary = effect as? [String: Any],
-                  Set(dictionary.keys) == Set(["implementation", "parameters", "trigger"]),
-                  dictionary["implementation"] as? String ==
-                    AOSDesktopWorldNativeEffectBinding.desktopRippleImplementation,
+            guard let dictionary = effect as? [String: Any],
+                  let implementation = dictionary["implementation"] as? String,
                   let trigger = dictionary["trigger"] as? [String: Any],
                   let parsedTrigger = nativeTrigger(trigger),
                   let parameters = dictionary["parameters"] as? [String: Any],
-                  let ripple = rippleParameters(parameters) else {
+                  let definition = effectDefinition(
+                    implementation: implementation,
+                    dictionary: dictionary,
+                    parameters: parameters,
+                    programs: programs
+                  ) else {
                 return nil
             }
             let triggerKey = "\(affordanceID):\(nativeTriggerKey(parsedTrigger))"
             guard nativeTriggerKeys.insert(triggerKey).inserted else { return nil }
             bindings.append(AOSDesktopWorldNativeEffectBinding(
                 affordanceID: affordanceID,
-                implementation: AOSDesktopWorldNativeEffectBinding.desktopRippleImplementation,
+                definition: definition,
+                implementation: implementation,
                 interactionID: interactionID,
-                ripple: ripple,
                 trigger: parsedTrigger
             ))
         }
@@ -129,15 +204,13 @@ enum AOSDesktopWorldNativeEffectContract {
               let gesture = event["gesture"] as? [String: Any],
               gesture["phase"] as? String == phase.rawValue,
               let coordinates = event["coordinates"] as? [String: Any],
-              let point = coordinates["desktopWorld"] as? [String: Any],
-              let x = finiteDouble(point["x"]),
-              let y = finiteDouble(point["y"]) else {
+              let inputs = effectInputs(coordinates) else {
             return nil
         }
         return AOSDesktopWorldNativeEffectRequest(
             binding: binding,
             canvasGeneration: identity.canvasGeneration,
-            desktopWorldOrigin: CGPoint(x: x, y: y),
+            inputs: inputs,
             ownerID: authorization.ownerID,
             resourceID: authorization.resourceID,
             resourceRevision: authorization.revision,
@@ -192,7 +265,7 @@ enum AOSDesktopWorldNativeEffectContract {
         return AOSDesktopWorldNativeEffectRequest(
             binding: binding,
             canvasGeneration: identity.canvasGeneration,
-            desktopWorldOrigin: point,
+            inputs: .pointer(point),
             ownerID: authorization.ownerID,
             resourceID: authorization.resourceID,
             resourceRevision: authorization.revision,
@@ -294,6 +367,68 @@ enum AOSDesktopWorldNativeEffectContract {
         }
     }
 
+    private static func effectDefinition(
+        implementation: String,
+        dictionary: [String: Any],
+        parameters: [String: Any],
+        programs: [String: AOSDesktopWorldNativeEffectProgram]
+    ) -> AOSDesktopWorldNativeEffectDefinition? {
+        if implementation == AOSDesktopWorldNativeEffectBinding
+            .desktopRippleImplementation {
+            guard Set(dictionary.keys) == Set([
+                "implementation", "parameters", "trigger",
+            ]),
+                  let ripple = rippleParameters(parameters) else {
+                return nil
+            }
+            return .ripple(ripple)
+        }
+        if implementation == AOSDesktopWorldNativeEffectProgram.implementation {
+            guard Set(dictionary.keys) == Set([
+                "implementation", "parameters", "programId", "trigger",
+            ]),
+                  let programID = dictionary["programId"] as? String,
+                  let program = programs[programID],
+                  let instance = AOSDesktopWorldNativeEffectProgramContract.instantiate(
+                    program: program,
+                    parameters: parameters
+                  ) else {
+                return nil
+            }
+            return .program(instance)
+        }
+        return nil
+    }
+
+    private static func effectInputs(
+        _ coordinates: [String: Any]
+    ) -> AOSDesktopWorldNativeEffectInputs? {
+        guard let current = point(coordinates["current"])
+            ?? point(coordinates["desktopWorld"]) else {
+            return nil
+        }
+        let origin = point(coordinates["origin"]) ?? current
+        let delta = point(coordinates["delta"])
+            ?? CGPoint(x: current.x - origin.x, y: current.y - origin.y)
+        let totalDelta = point(coordinates["totalDelta"]) ?? delta
+        return .init(
+            current: current,
+            delta: delta,
+            origin: origin,
+            totalDelta: totalDelta
+        )
+    }
+
+    private static func point(_ value: Any?) -> CGPoint? {
+        guard let dictionary = value as? [String: Any],
+              Set(dictionary.keys) == Set(["x", "y"]),
+              let x = finiteDouble(dictionary["x"]),
+              let y = finiteDouble(dictionary["y"]) else {
+            return nil
+        }
+        return CGPoint(x: x, y: y)
+    }
+
     private static func rippleParameters(
         _ value: [String: Any]
     ) -> AOSDesktopWorldNativeRippleParameters? {
@@ -335,6 +470,19 @@ enum AOSDesktopWorldNativeEffectContract {
               CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
         let result = number.doubleValue
         return result.isFinite ? result : nil
+    }
+
+    private static func integer(_ value: Any?) -> Int? {
+        guard let number = value as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
+        let result = number.doubleValue
+        guard result.isFinite,
+              result.rounded(.towardZero) == result,
+              result >= Double(Int.min),
+              result <= Double(Int.max) else {
+            return nil
+        }
+        return Int(result)
     }
 
     private static func canonicalID(_ value: String) -> Bool {

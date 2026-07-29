@@ -7,6 +7,10 @@ final class AOSDesktopWorldNativeFeedbackHost:
     private let canvasID: String
     private let canvasManager: CanvasManager
     @MainActor private var context: AOSDesktopWorldNativeEffectGPUContext?
+    private let preparationQueue = DispatchQueue(
+        label: "io.agent-os.desktop-world.native-effect-preparation",
+        qos: .userInitiated
+    )
 
     init(
         canvasManager: CanvasManager,
@@ -30,8 +34,36 @@ final class AOSDesktopWorldNativeFeedbackHost:
         )
     }
 
-    @MainActor func prepare() throws {
-        _ = try preparedContext()
+    func prepare(
+        programs: [AOSDesktopWorldNativeEffectProgram],
+        completion: @escaping @Sendable (
+            Result<AOSDesktopWorldNativeEffectPreparation, Error>
+        ) -> Void
+    ) {
+        preparationQueue.async {
+            do {
+                guard let device = MTLCreateSystemDefaultDevice() else {
+                    throw DesktopWorldNativeSheetFailure.rendererUnavailable
+                }
+                let prepared = try AOSDesktopWorldNativeEffectGPUContext(
+                    device: device,
+                    pixelFormat: .bgra8Unorm
+                )
+                try prepared.prepare(programs: programs)
+                completion(.success(prepared))
+            } catch {
+                completion(.failure(error))
+            }
+        }
+    }
+
+    @MainActor func activate(
+        preparation: AOSDesktopWorldNativeEffectPreparation
+    ) throws {
+        guard let prepared = preparation as? AOSDesktopWorldNativeEffectGPUContext else {
+            throw DesktopWorldNativeSheetFailure.rendererUnavailable
+        }
+        context = prepared
     }
 
     @MainActor func install(
@@ -51,12 +83,12 @@ final class AOSDesktopWorldNativeFeedbackHost:
             device: device
         )
         do {
-            let runtime = try AOSDesktopWorldNativeRippleRuntime(
+            let runtime = try AOSDesktopWorldNativeEffectRuntime(
                 sheet: sheet,
                 context: context,
                 frames: frames,
-                origin: request.desktopWorldOrigin,
-                parameters: request.binding.ripple
+                inputs: request.inputs,
+                definition: request.binding.definition
             )
             return AOSDesktopWorldNativeFeedbackInstallation(
                 identity: sheet.identity,
@@ -95,17 +127,4 @@ final class AOSDesktopWorldNativeFeedbackHost:
         context = nil
     }
 
-    @MainActor private func preparedContext()
-        throws -> AOSDesktopWorldNativeEffectGPUContext {
-        if let context { return context }
-        guard let device = MTLCreateSystemDefaultDevice() else {
-            throw DesktopWorldNativeSheetFailure.rendererUnavailable
-        }
-        let prepared = try AOSDesktopWorldNativeEffectGPUContext(
-            device: device,
-            pixelFormat: .bgra8Unorm
-        )
-        context = prepared
-        return prepared
-    }
 }
