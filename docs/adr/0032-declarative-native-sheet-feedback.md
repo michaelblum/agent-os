@@ -63,6 +63,13 @@ telemetry, files, or consumer processes. Existing image-product adapters may
 derive encoded or cropped outputs from the same broker only at their own
 bounded boundary.
 
+The native sheet remains transparent outside the moving effect envelope. A
+bounded capture texture may therefore be sampled where displacement is visible
+without replacing an unaffected display with a lower-resolution copy. Every
+display segment evaluates the same DesktopWorld origin and clock, so a
+consumer-supplied radius, speed, and duration can carry one continuous wave
+across display boundaries rather than restarting per display.
+
 One native effect may be active per DesktopWorld stage. Concurrent triggers are
 rejected rather than queued. Once a committed scene declares the two required
 capabilities, AOS prepares the trusted Metal library, pipeline, command queue,
