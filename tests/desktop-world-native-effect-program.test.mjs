@@ -169,6 +169,16 @@ let positionSource = String(source[positionStart..<fragmentStart])
 let fragmentSource = String(source[fragmentStart..<deformationStart])
 precondition(positionSource.contains("cos("), "position dependency graph missing")
 precondition(!fragmentSource.contains("cos("), "fragment compiled unused position graph")
+var unlitObject = object
+var unlitMaterial = unlitObject["material"] as! [String: Any]
+unlitMaterial["lighting"] = "unlit"
+unlitObject["material"] = unlitMaterial
+guard let unlitProgram = AOSDesktopWorldNativeEffectProgramContract.parse(
+    program: unlitObject
+), let unlitSource = AOSDesktopWorldNativeEffectProgramCompiler.source(
+    for: unlitProgram
+) else { preconditionFailure("unlit program did not compile") }
+precondition(!unlitSource.contains("float3 tangentX"), "unlit material sampled normals")
 let uniforms = AOSDesktopWorldNativeEffectProgramCompiler.uniformStorage(
     for: instance,
     eventCurrent: CGPoint(x: 40, y: 50),

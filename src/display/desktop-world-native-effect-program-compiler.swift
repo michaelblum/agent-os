@@ -193,6 +193,22 @@ fragment float4 desktopWorldNativeProgramFragment(
         let lighting = material.lighting == .unlit
             ? "1.0"
             : "clamp(\(scalar(material.ambient)) + \(scalar(material.diffuse)) * max(dot(safeNormalize(input.normal), safeNormalize(float3(\(lightDirection.joined(separator: ", "))))), 0.0), 0.0, 2.0)"
+        let normalComputation = material.lighting == .unlit
+            ? "    float3 surfaceNormal = float3(0.0, 0.0, 1.0);"
+            : #"""
+    float sampleDistance = \#(scalar(material.normalSampleDistance));
+    float3 tangentX = deformedPosition(
+        worldPosition + float2(sampleDistance, 0.0), uniforms
+    ) - deformedPosition(
+        worldPosition - float2(sampleDistance, 0.0), uniforms
+    );
+    float3 tangentY = deformedPosition(
+        worldPosition + float2(0.0, sampleDistance), uniforms
+    ) - deformedPosition(
+        worldPosition - float2(0.0, sampleDistance), uniforms
+    );
+    float3 surfaceNormal = safeNormalize(cross(tangentX, tangentY));
+"""#
         return #"""
 #include <metal_stdlib>
 using namespace metal;
@@ -274,17 +290,7 @@ vertex NativeEffectVertexOut desktopWorldNativeProgramVertex(
     NativeSheetVertex sheetVertex = vertices[vertexID];
     float2 worldPosition = sheetVertex.worldAndUV.xy;
     float3 deformed = deformedPosition(worldPosition, uniforms);
-    float sampleDistance = \#(scalar(material.normalSampleDistance));
-    float3 tangentX = deformedPosition(
-        worldPosition + float2(sampleDistance, 0.0), uniforms
-    ) - deformedPosition(
-        worldPosition - float2(sampleDistance, 0.0), uniforms
-    );
-    float3 tangentY = deformedPosition(
-        worldPosition + float2(0.0, sampleDistance), uniforms
-    ) - deformedPosition(
-        worldPosition - float2(0.0, sampleDistance), uniforms
-    );
+\#(normalComputation)
     float2 globalOrigin = float2(uniforms[13], uniforms[14]);
     float2 globalSize = max(float2(uniforms[15], uniforms[16]), float2(1.0));
     float2 globalCenter = globalOrigin + globalSize * 0.5;
@@ -307,7 +313,7 @@ vertex NativeEffectVertexOut desktopWorldNativeProgramVertex(
     );
     output.textureUV = sheetVertex.worldAndUV.zw;
     output.worldPosition = worldPosition;
-    output.normal = safeNormalize(cross(tangentX, tangentY));
+    output.normal = surfaceNormal;
     return output;
 }
 

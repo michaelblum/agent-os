@@ -483,6 +483,17 @@ float aosPointSegmentDistance(vec2 point, vec2 start, vec2 end) {
   float denominator = max(dot(segment, segment), 0.000001);
   float amount = clamp(dot(point - start, segment) / denominator, 0.0, 1.0);
   return length(point - (start + segment * amount));
+}
+bool aosFinite(float value) {
+  return value == value && abs(value) <= 3.402823e38;
+}
+bool aosFinite(vec2 value) {
+  return all(equal(value, value))
+    && all(lessThanEqual(abs(value), vec2(3.402823e38)));
+}
+bool aosFinite(vec3 value) {
+  return all(equal(value, value))
+    && all(lessThanEqual(abs(value), vec3(3.402823e38)));
 }`.trim()
 
 export function compileSceneNativeEffectProgramGLSL(program) {
@@ -548,13 +559,16 @@ AosNativeEffectEvaluation aosEvaluateNativeEffect(
 ) {
 ${statements.join('\n')}
   AosNativeEffectEvaluation result;
-  result.positionOffset = clamp(${positionOffset}, vec3(-${maxPositionOffset}), vec3(${maxPositionOffset}));
+  vec3 aosRawPositionOffset = ${positionOffset};
+  result.positionOffset = aosFinite(aosRawPositionOffset) ? aosRawPositionOffset : vec3(0.0);
   float aosPositionLength = length(result.positionOffset);
   if (aosPositionLength > ${maxPositionOffset}) result.positionOffset *= ${maxPositionOffset} / aosPositionLength;
-  result.textureDisplacement = clamp(${textureDisplacement}, vec2(-${maxTextureDisplacement}), vec2(${maxTextureDisplacement}));
+  vec2 aosRawTextureDisplacement = ${textureDisplacement};
+  result.textureDisplacement = aosFinite(aosRawTextureDisplacement) ? aosRawTextureDisplacement : vec2(0.0);
   float aosDisplacementLength = length(result.textureDisplacement);
   if (aosDisplacementLength > ${maxTextureDisplacement}) result.textureDisplacement *= ${maxTextureDisplacement} / aosDisplacementLength;
-  result.opacity = clamp(${opacity}, 0.0, 1.0);
+  float aosRawOpacity = ${opacity};
+  result.opacity = aosFinite(aosRawOpacity) ? clamp(aosRawOpacity, 0.0, 1.0) : 0.0;
   return result;
 }`
   return freeze({

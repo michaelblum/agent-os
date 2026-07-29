@@ -72,8 +72,9 @@ aos scene cartridge validate ./scene-work/companion --json
 ```
 
 `event.origin`, `event.current`, `event.delta`, and `event.total_delta` use the
-global DesktopWorld coordinate plane. `clock.elapsed` starts at zero for the
-effect instance. In V2, `world.position`, `surface.position`, `surface.size`,
+global DesktopWorld coordinate plane. `clock.elapsed` is measured in seconds
+and starts at zero for the effect instance. In V2, `world.position`,
+`surface.position`, `surface.size`,
 and `surface.uv` use the logical global sheet. AOS converts the result into each
 native display segment and samples that segment's captured texture internally.
 
