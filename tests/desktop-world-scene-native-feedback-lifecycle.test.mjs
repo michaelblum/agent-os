@@ -581,6 +581,64 @@ pumpUntil { deferredReplacementController.snapshot().state == "ready" }
 precondition(deferredReplacementController.snapshot().acceptedCount == 2)
 deferredReplacementController.shutdown()
 
+let canceledReplacementHost = Host()
+let canceledReplacementCapturer = Capturer()
+let canceledReplacementController = AOSDesktopWorldNativeFeedbackController(
+    host: canceledReplacementHost,
+    capturer: canceledReplacementCapturer,
+    scheduleDeadline: { _, _ in },
+    authorize: { _ in true }
+)
+canceledReplacementController.reconcileAvailability(
+    true,
+    programs: deferredPrograms
+)
+pumpUntil { canceledReplacementController.snapshot().state == "ready" }
+precondition(canceledReplacementController.trigger(gestureRequest))
+canceledReplacementCapturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { canceledReplacementHost.installCount == 1 } }
+MainActor.assumeIsolated { canceledReplacementHost.deferPreparations = true }
+canceledReplacementController.reconcileAvailability(
+    true,
+    programs: deferredPrograms + [
+        AOSDesktopWorldNativeEffectProgram(
+            digest: "canceled-refresh-digest",
+            id: "example.canceled-refresh",
+            revision: 1
+        ),
+    ]
+)
+pumpUntil { MainActor.assumeIsolated { canceledReplacementHost.prepareCount == 2 } }
+canceledReplacementController.handleGesture(
+    endEvent,
+    replacement: replacementRequest
+)
+pumpUntil { MainActor.assumeIsolated { canceledReplacementHost.removeCount == 1 } }
+precondition(canceledReplacementController.snapshot().state == "retiring")
+precondition(canceledReplacementCapturer.pending.isEmpty)
+canceledReplacementController.reconcileAvailability(false)
+pumpUntil { canceledReplacementController.snapshot().state == "unavailable" }
+pumpUntil { MainActor.assumeIsolated { canceledReplacementHost.releaseCount == 1 } }
+precondition(canceledReplacementCapturer.pending.isEmpty)
+
+MainActor.assumeIsolated { canceledReplacementHost.deferPreparations = false }
+canceledReplacementController.reconcileAvailability(
+    true,
+    programs: deferredPrograms
+)
+pumpUntil { MainActor.assumeIsolated { canceledReplacementHost.prepareCount == 3 } }
+pumpUntil { canceledReplacementController.snapshot().state == "ready" }
+MainActor.assumeIsolated { canceledReplacementHost.completePreparation(at: 0) }
+RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+precondition(canceledReplacementController.snapshot().state == "ready")
+precondition(canceledReplacementCapturer.pending.isEmpty)
+precondition(canceledReplacementController.trigger(request))
+canceledReplacementCapturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { canceledReplacementHost.installCount == 2 } }
+MainActor.assumeIsolated { canceledReplacementHost.runtimes.last?.complete() }
+pumpUntil { canceledReplacementController.snapshot().state == "ready" }
+canceledReplacementController.shutdown()
+
 let retryingReplacementHost = Host()
 let retryingReplacementCapturer = Capturer()
 var retryingRetirementItems: [DispatchWorkItem] = []

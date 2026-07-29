@@ -274,6 +274,8 @@ final class AOSDesktopWorldNativeFeedbackAdmission {
         pendingReplacement = nil
         if retired != nil {
             retirementPhase = .disposing
+        } else if retirementPhase == .replacementReady {
+            retirementPhase = .idle
         }
         return Cancellation(
             retired: retired,

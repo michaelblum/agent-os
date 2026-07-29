@@ -113,6 +113,7 @@ struct AOSInputRegionRoute: Equatable {
     let phase: String
     let captured: Bool
     let captureID: String?
+    let pointerSessionID: String
     let shouldConsume: Bool
 }
 
@@ -200,17 +201,15 @@ struct AOSInputRegionRoutedInput {
         }
 
         let canonicalSequenceValue = (sourceSequence?.isEmpty == false ? sourceSequence : nil) ?? descriptor.type
-        let fallbackIdentity = "\(descriptor.type):\(route.region.id)"
-        let canonicalGestureID = (gestureID?.isEmpty == false ? gestureID : nil) ?? fallbackIdentity
         guard !canonicalSequenceValue.isEmpty,
-              aosValidPointerSessionID(canonicalGestureID) else { return nil }
+              aosValidPointerSessionID(route.pointerSessionID) else { return nil }
 
         self.eventKind = descriptor.kind
         self.type = descriptor.type
         self.phase = phase
         self.deliveryRole = deliveryRole
         self.sequenceValue = canonicalSequenceValue
-        self.gestureID = canonicalGestureID
+        self.gestureID = route.pointerSessionID
         self.desktopWorld = desktopWorld
         self.native = event.nativePoint
         self.sourceEvent = canonicalSequenceValue
@@ -434,6 +433,7 @@ final class AOSInputRegionRegistry {
     private var captureRegionID: String?
     private var captureID: String?
     private var captureDesktopWorld: CGPoint?
+    private var capturePointerSessionID: String?
 
     var allRegions: [AOSInputRegionRecord] {
         regions.values.sorted(by: sortRegions)
@@ -496,6 +496,7 @@ final class AOSInputRegionRegistry {
             captureRegionID = nil
             captureID = nil
             captureDesktopWorld = nil
+            capturePointerSessionID = nil
         }
         return regions.removeValue(forKey: id)
     }
@@ -544,6 +545,7 @@ final class AOSInputRegionRegistry {
         captureRegionID = nil
         captureID = nil
         captureDesktopWorld = nil
+        capturePointerSessionID = nil
     }
 
     func route(
@@ -556,16 +558,23 @@ final class AOSInputRegionRegistry {
         guard let phase = event.phase else { return nil }
 
         if let capturedID = captureRegionID, let capturedRegion = regions[capturedID] {
+            let stablePointerSessionID = capturePointerSessionID
+                ?? Self.pointerSessionID(
+                    eventType: event.type,
+                    regionID: capturedRegion.id,
+                    gestureID: gestureID
+                )
             let stableCaptureID = captureID ?? AOSInputRegionRegistry.defaultCaptureID(
                 regionID: capturedRegion.id,
                 sourceSequence: sourceSequence,
-                gestureID: gestureID
+                gestureID: stablePointerSessionID
             )
             let route = AOSInputRegionRoute(
                 region: capturedRegion,
                 phase: phase.rawValue,
                 captured: true,
                 captureID: stableCaptureID,
+                pointerSessionID: stablePointerSessionID,
                 shouldConsume: capturedRegion.shouldConsume(phase: phase, captured: true)
             )
             if event.isTerminal {
@@ -578,15 +587,21 @@ final class AOSInputRegionRegistry {
 
         guard let point,
               let region = pickRegion(at: point) else { return nil }
+        let pointerSessionID = Self.pointerSessionID(
+            eventType: event.type,
+            regionID: region.id,
+            gestureID: gestureID
+        )
 
         if event.isDown, region.shouldConsumeOnDown {
             captureRegionID = region.id
             captureID = AOSInputRegionRegistry.defaultCaptureID(
                 regionID: region.id,
                 sourceSequence: sourceSequence,
-                gestureID: gestureID
+                gestureID: pointerSessionID
             )
             captureDesktopWorld = desktopWorld
+            capturePointerSessionID = pointerSessionID
         }
 
         return AOSInputRegionRoute(
@@ -594,6 +609,7 @@ final class AOSInputRegionRegistry {
             phase: phase.rawValue,
             captured: false,
             captureID: captureID,
+            pointerSessionID: pointerSessionID,
             shouldConsume: region.shouldConsume(phase: phase, captured: false)
         )
     }
@@ -640,6 +656,12 @@ final class AOSInputRegionRegistry {
             clearCapture()
             return .failOpen
         }
+        let pointerSessionID = capturePointerSessionID
+            ?? Self.pointerSessionID(
+                eventType: event.descriptor.type,
+                regionID: region.id,
+                gestureID: gestureID
+            )
         let route = AOSInputRegionRoute(
             region: region,
             phase: AOSInputEventPhase.cancel.rawValue,
@@ -647,8 +669,9 @@ final class AOSInputRegionRegistry {
             captureID: captureID ?? AOSInputRegionRegistry.defaultCaptureID(
                 regionID: region.id,
                 sourceSequence: sourceSequence,
-                gestureID: gestureID
+                gestureID: pointerSessionID
             ),
+            pointerSessionID: pointerSessionID,
             shouldConsume: region.shouldConsume(phase: .cancel, captured: true)
         )
         clearCapture()
@@ -657,8 +680,17 @@ final class AOSInputRegionRegistry {
             route: route,
             desktopWorld: desktopWorld,
             sourceSequence: sourceSequence,
-            gestureID: gestureID
+            gestureID: pointerSessionID
         )
+    }
+
+    private static func pointerSessionID(
+        eventType: String,
+        regionID: String,
+        gestureID: String?
+    ) -> String {
+        (gestureID?.isEmpty == false ? gestureID : nil)
+            ?? "\(eventType):\(regionID)"
     }
 
     static func defaultCaptureID(

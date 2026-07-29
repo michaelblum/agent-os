@@ -336,6 +336,8 @@ if case .deliver(let delivery)? = escaped {
     assert(routed?["event_kind"] as? String == "cancel", "Escape must emit a routed cancel event")
     assert(routed?["cancel_reason"] as? String == "escape", "Escape cancellation must retain its reason")
     assert(routed?["capture_id"] as? String == "daemon:10:high-region", "Escape cancellation must retain the pointer-session capture")
+    assert(routed?["gesture_id"] as? String == "g-escape", "Escape cancellation must retain the originating pointer-session identity")
+    assert(delivery.pointerSessionID == "g-escape", "Escape delivery must retain the originating pointer-session identity")
     let routedPoint = routed?["desktop_world"] as? [String: Any]
     assert((routedPoint?["x"] as? Double) == 125, "Escape cancellation must retain the last DesktopWorld x coordinate")
 } else {
@@ -596,6 +598,7 @@ let ownedPointer = AOSInputRegionRoute(
     phase: "down",
     captured: false,
     captureID: "daemon:1:contract-region",
+    pointerSessionID: "left_mouse_down:contract-region",
     shouldConsume: true
 )
 let desktopWorld = CGPoint(x: 232, y: 25)
@@ -638,6 +641,7 @@ let capturedWithoutID = AOSInputRegionRoute(
     phase: "drag",
     captured: true,
     captureID: nil,
+    pointerSessionID: "g-missing-capture",
     shouldConsume: true
 )
 let canonicalDrag = AOSCanonicalInputEvent(type: "left_mouse_dragged", x: 25, y: 25)
@@ -654,6 +658,7 @@ let scrollRoute = AOSInputRegionRoute(
     phase: "scroll",
     captured: false,
     captureID: nil,
+    pointerSessionID: "scroll_wheel:contract-region",
     shouldConsume: true
 )
 let canonicalScroll = AOSCanonicalInputEvent(canonicalData: rawScroll)
@@ -676,6 +681,7 @@ let cancelRoute = AOSInputRegionRoute(
     phase: "cancel",
     captured: true,
     captureID: "daemon:4:contract-region",
+    pointerSessionID: "pointer_cancel:contract-region",
     shouldConsume: true
 )
 let canonicalCancel = AOSCanonicalInputEvent(canonicalData: rawCancel)
