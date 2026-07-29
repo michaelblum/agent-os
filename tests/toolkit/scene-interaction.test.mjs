@@ -3,7 +3,9 @@ import test from 'node:test'
 
 import {
   SCENE_EVENT_CONTRACT_ID,
+  SCENE_NATIVE_EFFECT_BINDING_LIMITS,
   SCENE_NATIVE_EFFECT_IMPLEMENTATIONS,
+  SCENE_NATIVE_EFFECT_LIFECYCLES,
   createSceneEventEnvelope,
   createSceneGestureArena,
   resolveSceneAffordanceFrame,
@@ -232,6 +234,83 @@ test('scene native feedback accepts only bounded declarative ripple parameters',
   gesturePhase.interactions[0].nativeEffect.trigger = { phase: 'end' }
   assert.equal(validateSceneInteractionDocument(gesturePhase, { scene: document }).ok, true)
 
+  const gestureOwned = structuredClone(candidate)
+  gestureOwned.interactions[0].nativeEffect.trigger = { phase: 'start' }
+  gestureOwned.interactions[0].nativeEffect.lifecycle = {
+    kind: SCENE_NATIVE_EFFECT_LIFECYCLES.gesture,
+  }
+  assert.equal(validateSceneInteractionDocument(gestureOwned, { scene: document }).ok, true)
+
+  for (const trigger of [{ input: 'pointer_down' }, { phase: 'end' }]) {
+    const invalidLifecycle = structuredClone(gestureOwned)
+    invalidLifecycle.interactions[0].nativeEffect.trigger = trigger
+    assert.ok(validateSceneInteractionDocument(invalidLifecycle, { scene: document }).errors.some(
+      (error) => error.code === 'invalid_native_effect_lifecycle',
+    ))
+  }
+
+  const multiple = structuredClone(candidate)
+  const pointerEffect = multiple.interactions[0].nativeEffect
+  delete multiple.interactions[0].nativeEffect
+  multiple.interactions[0].nativeEffects = [
+    pointerEffect,
+    { ...structuredClone(pointerEffect), trigger: { phase: 'end' } },
+  ]
+  assert.deepEqual(validateSceneInteractionDocument(multiple, { scene: document }), {
+    ok: true,
+    errors: [],
+  })
+
+  const mixed = structuredClone(multiple)
+  mixed.interactions[0].nativeEffect = structuredClone(pointerEffect)
+  assert.ok(validateSceneInteractionDocument(mixed, { scene: document }).errors.some(
+    (error) => error.code === 'native_effect_binding_shape',
+  ))
+
+  const empty = structuredClone(multiple)
+  empty.interactions[0].nativeEffects = []
+  assert.ok(validateSceneInteractionDocument(empty, { scene: document }).errors.some(
+    (error) => error.code === 'native_effect_binding_count',
+  ))
+
+  const overflow = structuredClone(multiple)
+  overflow.interactions[0].nativeEffects = Array.from(
+    { length: SCENE_NATIVE_EFFECT_BINDING_LIMITS.maxBindingsPerInteraction + 1 },
+    () => structuredClone(pointerEffect),
+  )
+  assert.ok(validateSceneInteractionDocument(overflow, { scene: document }).errors.some(
+    (error) => error.code === 'native_effect_binding_count',
+  ))
+
+  const duplicateArrayTrigger = structuredClone(multiple)
+  duplicateArrayTrigger.interactions[0].nativeEffects[1].trigger = { input: 'pointer_down' }
+  assert.ok(validateSceneInteractionDocument(duplicateArrayTrigger, { scene: document }).errors.some(
+    (error) => error.code === 'duplicate_native_effect_trigger',
+  ))
+
+  const boundedDocument = structuredClone(candidate)
+  boundedDocument.affordances = Array.from({ length: 256 }, (_, index) => ({
+    ...structuredClone(affordance),
+    id: `body-${index}`,
+  }))
+  boundedDocument.interactions = boundedDocument.affordances.map((entry, index) => ({
+    ...structuredClone(candidate.interactions[0]),
+    id: `effect-${index}`,
+    affordanceId: entry.id,
+  }))
+  assert.equal(validateSceneInteractionDocument(boundedDocument, { scene: document }).ok, true)
+
+  const aggregateOverflow = structuredClone(boundedDocument)
+  const firstEffect = aggregateOverflow.interactions[0].nativeEffect
+  delete aggregateOverflow.interactions[0].nativeEffect
+  aggregateOverflow.interactions[0].nativeEffects = [
+    firstEffect,
+    { ...structuredClone(firstEffect), trigger: { phase: 'end' } },
+  ]
+  assert.ok(validateSceneInteractionDocument(aggregateOverflow, { scene: document }).errors.some(
+    (error) => error.code === 'native_effect_binding_count',
+  ))
+
   const invalidButton = structuredClone(candidate)
   invalidButton.interactions[0].nativeEffect.trigger.button = 'other'
   const invalidButtonResult = validateSceneInteractionDocument(invalidButton, { scene: document })
@@ -288,6 +367,7 @@ test('gesture arena deterministically claims drag and coalesces updates without 
   })
 
   arena.handle(pointer('left_mouse_down', 100, 200), { now: 0 })
+  assert.equal(arena.snapshot().pointerSessionId, 'gesture-1')
   arena.handle(pointer('left_mouse_dragged', 110, 200, 2), { now: 10 })
   arena.handle(pointer('left_mouse_dragged', 140, 220, 3), { now: 12 })
   assert.equal(callbacks.length, 1)
@@ -412,7 +492,7 @@ test('scene event envelopes carry stable lease identity without product semantic
   })
   assert.equal(envelope.contract, SCENE_EVENT_CONTRACT_ID)
   assert.equal(envelope.ownerId, 'example.consumer')
-  assert.equal(envelope.gesture.pointerSessionId, 'c1')
+  assert.equal(envelope.gesture.pointerSessionId, 'g1')
   assert.deepEqual(envelope.coordinates.totalDelta, { x: 4, y: 4 })
   assert.equal(JSON.stringify(envelope).includes('Sigil'), false)
 })

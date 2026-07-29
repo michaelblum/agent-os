@@ -354,6 +354,14 @@ function validateInteractions(value, scene, budgets, knownImplementations, error
         addError(errors, 'unknown_implementation', `interactions.interactions.${index}.${field}.implementation`, 'Interaction implementation is not registered.')
       }
     }
+    const nativeEffects = Array.isArray(interaction?.nativeEffects)
+      ? interaction.nativeEffects
+      : []
+    for (const [effectIndex, effect] of nativeEffects.entries()) {
+      if (effect?.implementation && !knownImplementations.has(effect.implementation)) {
+        addError(errors, 'unknown_implementation', `interactions.interactions.${index}.nativeEffects.${effectIndex}.implementation`, 'Interaction implementation is not registered.')
+      }
+    }
   }
 }
 
@@ -369,6 +377,9 @@ function requiredImplementationEntries(scene, interactions) {
     interactionKinds.set(interaction.response.implementation, 'response')
     if (interaction.nativeEffect) {
       interactionKinds.set(interaction.nativeEffect.implementation, 'effect')
+    }
+    for (const effect of Array.isArray(interaction.nativeEffects) ? interaction.nativeEffects : []) {
+      interactionKinds.set(effect.implementation, 'effect')
     }
   }
   return [...new Map([...sceneKinds, ...interactionKinds]).entries()]

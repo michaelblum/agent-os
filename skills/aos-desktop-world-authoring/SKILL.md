@@ -108,12 +108,14 @@ ID-only events to product actions.
 
 ## Bind Native Sheet Feedback
 
-Use a data-only native effect program when an interaction needs immediate
-AOS-owned desktop feedback. Put the program in the interaction document's
-`nativeEffectPrograms` catalog, then bind it by `programId`. The reviewed
-extension must declare `aos.scene.desktop_frame_texture` and
-`aos.scene.native_sheet_effect`. Follow the complete, validated
-[`aos.scene.effect.program` recipe](references/native-effect-program.md).
+Put data-only native programs in `nativeEffectPrograms` and bind them by
+`programId`. Use bounded `nativeEffects` for separate pointer and gesture-phase
+feedback; singular `nativeEffect` remains compatibility-only and cannot coexist.
+Use `lifecycle: { kind: "gesture" }` only with a gesture-start binding when the
+same installed native sheet must follow canonical drag updates until end or
+cancel. Pair it with an end-phase timed binding for a release animation.
+The reviewed extension must declare `aos.scene.desktop_frame_texture` and
+`aos.scene.native_sheet_effect`; follow the validated [`aos.scene.effect.program` recipe](references/native-effect-program.md).
 
 AOS owns pixels, Metal, topology, clocks, validation, compilation, budgets, and
 disposal. Consumers own the bounded graph, trigger, and parameter values. Use

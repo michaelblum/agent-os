@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 import test from 'node:test'
 
 import * as sceneToolkit from '../../packages/toolkit/scene/index.js'
@@ -7,6 +9,8 @@ import * as authoringToolkit from '../../packages/toolkit/scene/authoring.js'
 import * as devtoolsToolkit from '../../packages/toolkit/scene/devtools.js'
 import * as extensionToolkit from '../../packages/toolkit/scene/extensions.js'
 import * as runtimeToolkit from '../../packages/toolkit/scene/runtime.js'
+
+const repoRoot = path.resolve(import.meta.dirname, '../..')
 
 const EXPECTED_EXPORTS = [
   'DEFAULT_SCENE_HOST_BUDGETS',
@@ -49,7 +53,9 @@ const EXPECTED_EXPORTS = [
   'SCENE_INTERACTIONS_CONTRACT_ID',
   'SCENE_INTERACTION_VISUAL_LIMITS',
   'SCENE_LEASE_CONTRACT_ID',
+  'SCENE_NATIVE_EFFECT_BINDING_LIMITS',
   'SCENE_NATIVE_EFFECT_IMPLEMENTATIONS',
+  'SCENE_NATIVE_EFFECT_LIFECYCLES',
   'SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID',
   'SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID',
   'SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_IDS',
@@ -207,6 +213,47 @@ test('focused scene entry points expose their owned contract families', () => {
   assert.equal(typeof devtoolsToolkit.createDesktopWorldDevToolsView, 'function')
   assert.equal(typeof devtoolsToolkit.replayDesktopWorldSceneEvents, 'function')
   assert.equal(Object.hasOwn(devtoolsToolkit, 'createLocalSceneViewportHost'), false)
+})
+
+test('scene declarations bound native effects and discriminate gesture ownership', async () => {
+  const declarations = await readFile(
+    new URL('../../packages/toolkit/scene/index.d.ts', import.meta.url),
+    'utf8',
+  )
+
+  assert.match(
+    declarations,
+    /type SceneGestureNativeEffectBinding = \{\s*trigger: \{ phase: 'start' \};\s*lifecycle: SceneGestureNativeEffectLifecycle;/,
+  )
+  assert.match(
+    declarations,
+    /interface SceneTimedNativeEffectLifecycle \{\s*kind: 'timed';/,
+  )
+  assert.match(
+    declarations,
+    /interface SceneGestureNativeEffectLifecycle \{\s*kind: 'gesture';/,
+  )
+  assert.match(
+    declarations,
+    /export type SceneNativeEffectDescriptorList =\s*\| \[SceneNativeEffectDescriptor\][\s\S]*\| \[SceneNativeEffectDescriptor, SceneNativeEffectDescriptor, SceneNativeEffectDescriptor, SceneNativeEffectDescriptor, SceneNativeEffectDescriptor\];/,
+  )
+  assert.doesNotMatch(declarations, /nativeEffects: \[SceneNativeEffectDescriptor, \.\.\.SceneNativeEffectDescriptor\[\]\]/)
+})
+
+test('scene native-effect declarations enforce lifecycle and tuple bounds in TypeScript', () => {
+  execFileSync(
+    path.join(repoRoot, 'packages/toolkit/node_modules/.bin/tsc'),
+    [
+      '--noEmit',
+      '--strict',
+      '--target', 'ES2022',
+      '--module', 'NodeNext',
+      '--moduleResolution', 'NodeNext',
+      '--skipLibCheck',
+      path.join(repoRoot, 'tests/fixtures/types/scene-native-effect-bindings.ts'),
+    ],
+    { cwd: repoRoot, stdio: 'pipe' },
+  )
 })
 
 test('scene facade drives descriptor, form, and renderer synchronization without product policy', () => {

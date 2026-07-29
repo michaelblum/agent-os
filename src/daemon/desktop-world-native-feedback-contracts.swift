@@ -19,6 +19,7 @@ protocol AOSDesktopWorldNativeFeedbackRuntime: AnyObject {
         onFailure: @escaping (String) -> Void,
         onComplete: @escaping () -> Void
     )
+    func update(inputs: AOSDesktopWorldNativeEffectInputs)
 }
 
 protocol AOSDesktopWorldNativeEffectPreparation: AnyObject, Sendable {}

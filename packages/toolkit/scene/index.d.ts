@@ -530,13 +530,17 @@ export interface SceneCartridgeInteractionImplementation {
   parameters: Record<string, SceneJsonValue>;
 }
 
-export interface SceneCartridgeInteraction {
+interface SceneCartridgeInteractionBase {
   id: string;
   affordanceId: string;
   recognizer: SceneCartridgeInteractionImplementation;
   response: SceneCartridgeInteractionImplementation;
-  nativeEffect?: SceneNativeEffectDescriptor;
 }
+
+export type SceneCartridgeInteraction = SceneCartridgeInteractionBase & (
+  | { nativeEffect?: SceneNativeEffectDescriptor; nativeEffects?: never }
+  | { nativeEffect?: never; nativeEffects: SceneNativeEffectDescriptorList }
+);
 
 export interface SceneNativeEffectProgramParameter {
   id: string;
@@ -636,13 +640,53 @@ export type SceneNativeEffectProgram =
   | SceneNativeEffectProgramV1
   | SceneNativeEffectProgramV2;
 
+export type SceneNativeEffectPointerDownTrigger = {
+  input: 'pointer_down';
+  button?: 'left' | 'middle' | 'right';
+};
+export type SceneNativeEffectGestureTrigger = { phase: 'start' | 'end' };
 export type SceneNativeEffectTrigger =
-  | { input: 'pointer_down'; button?: 'left' | 'middle' | 'right' }
-  | { phase: 'start' | 'end' };
+  | SceneNativeEffectPointerDownTrigger
+  | SceneNativeEffectGestureTrigger;
 
-export type SceneNativeEffectDescriptor = {
-  implementation: 'aos.scene.effect.desktop-ripple';
+export interface SceneTimedNativeEffectLifecycle {
+  kind: 'timed';
+}
+
+export interface SceneGestureNativeEffectLifecycle {
+  kind: 'gesture';
+}
+
+export type SceneNativeEffectLifecycle =
+  | SceneTimedNativeEffectLifecycle
+  | SceneGestureNativeEffectLifecycle;
+
+export const SCENE_NATIVE_EFFECT_BINDING_LIMITS: Readonly<{
+  maxBindingsPerDocument: 256;
+  maxBindingsPerInteraction: 5;
+}>;
+
+export const SCENE_NATIVE_EFFECT_LIFECYCLES: Readonly<{
+  gesture: 'gesture';
+  timed: 'timed';
+}>;
+
+type SceneTimedNativeEffectBinding = {
   trigger: SceneNativeEffectTrigger;
+  lifecycle?: SceneTimedNativeEffectLifecycle;
+};
+
+type SceneGestureNativeEffectBinding = {
+  trigger: { phase: 'start' };
+  lifecycle: SceneGestureNativeEffectLifecycle;
+};
+
+type SceneNativeEffectBinding =
+  | SceneTimedNativeEffectBinding
+  | SceneGestureNativeEffectBinding;
+
+type SceneDesktopRippleNativeEffect = {
+  implementation: 'aos.scene.effect.desktop-ripple';
   parameters: {
     amplitude?: number;
     decay?: number;
@@ -651,12 +695,25 @@ export type SceneNativeEffectDescriptor = {
     radius?: number;
     speed?: number;
   };
-} | {
+};
+
+type SceneProgramNativeEffect = {
   implementation: 'aos.scene.effect.program';
   programId: string;
-  trigger: SceneNativeEffectTrigger;
   parameters: Record<string, number>;
 };
+
+export type SceneNativeEffectDescriptor = SceneNativeEffectBinding & (
+  | SceneDesktopRippleNativeEffect
+  | SceneProgramNativeEffect
+);
+
+export type SceneNativeEffectDescriptorList =
+  | [SceneNativeEffectDescriptor]
+  | [SceneNativeEffectDescriptor, SceneNativeEffectDescriptor]
+  | [SceneNativeEffectDescriptor, SceneNativeEffectDescriptor, SceneNativeEffectDescriptor]
+  | [SceneNativeEffectDescriptor, SceneNativeEffectDescriptor, SceneNativeEffectDescriptor, SceneNativeEffectDescriptor]
+  | [SceneNativeEffectDescriptor, SceneNativeEffectDescriptor, SceneNativeEffectDescriptor, SceneNativeEffectDescriptor, SceneNativeEffectDescriptor];
 
 export const SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID: 'aos.scene.native-effect-program.v1';
 export const SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID: 'aos.scene.native-effect-program.v2';

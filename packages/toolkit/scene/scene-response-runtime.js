@@ -120,7 +120,7 @@ export function createSceneEventEnvelope({ identity, frame, response, sequence, 
       id: frame.gesture_id,
       kind: frame.gesture_type,
       phase: frame.phase,
-      pointerSessionId: frame.pointer?.capture_id ?? null,
+      pointerSessionId: frame.gesture_id,
       cancellationReason: canonicalCancellationReason(frame.cancelReason),
     }),
     coordinates: Object.freeze({

@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-07-28
 - Supersedes: the complete-effect registry requirement in ADR 0032
-- Extended by: ADR 0034
+- Extended by: ADRs 0034 and 0035
 
 ## Context
 

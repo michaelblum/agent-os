@@ -196,6 +196,12 @@ class UnifiedDaemon {
         nativeFeedback: { [weak self] request in
             self?.triggerNativeSheetEffect(request)
         },
+        nativeGestureFeedback: { [weak self] event, replacement in
+            self?.updateNativeSheetEffect(
+                event,
+                replacement: replacement
+            )
+        },
         resolveContentURL: { [weak self] value in self?.resolveContentURL(value) ?? value },
         clearReadyManifest: { [weak self] in
             guard let self else { return }
@@ -367,9 +373,17 @@ class UnifiedDaemon {
     private func triggerNativeSheetEffect(
         _ request: AOSDesktopWorldNativeEffectRequest
     ) {
-        DispatchQueue.main.async { [weak self] in
-            _ = self?.desktopWorldNativeFeedback.trigger(request)
-        }
+        _ = desktopWorldNativeFeedback.trigger(request)
+    }
+
+    private func updateNativeSheetEffect(
+        _ event: AOSDesktopWorldNativeEffectGestureEvent,
+        replacement: AOSDesktopWorldNativeEffectRequest?
+    ) {
+        desktopWorldNativeFeedback.handleGesture(
+            event,
+            replacement: replacement
+        )
     }
 
     private func desktopFrameAuthorizationChanged() {
@@ -4678,11 +4692,13 @@ class UnifiedDaemon {
             return false
         case .deliver(let delivery):
             if let desktopWorld,
+               let pointerSessionID = delivery.pointerSessionID,
                let request = desktopWorldSceneTransport.nativePointerEffectRequest(
                 region: delivery.region,
                 phase: delivery.phase,
                 button: delivery.button,
                 desktopWorld: desktopWorld,
+                pointerSessionID: pointerSessionID,
                 triggeredAt: triggeredAt
                ) {
                 triggerNativeSheetEffect(request)

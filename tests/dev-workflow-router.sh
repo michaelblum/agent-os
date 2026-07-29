@@ -325,7 +325,7 @@ else
     fail "dev recommend desktop-frame owner routing drifted"
 fi
 
-if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files packages/toolkit/scene/scene-native-effect-program.js src/daemon/desktop-world-devtools-native-stage-facts.swift src/daemon/desktop-world-native-effect-contract.swift src/daemon/desktop-world-native-effect-program.swift src/daemon/desktop-world-native-feedback-contracts.swift src/daemon/desktop-world-native-feedback-controller.swift src/daemon/desktop-world-native-feedback-host.swift src/display/desktop-world-native-effect-program-compiler.swift src/display/desktop-world-native-effect-pipeline-cache.swift src/display/desktop-world-native-effect-renderer.swift tests/desktop-world-native-effect-program.test.mjs tests/desktop-world-scene-native-feedback.test.mjs tests/desktop-world-scene-native-feedback-lifecycle.test.mjs tests/toolkit/scene-native-effect-program.test.mjs 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files packages/toolkit/scene/scene-native-effect-program.js src/daemon/desktop-world-devtools-native-stage-facts.swift src/daemon/desktop-world-native-effect-contract.swift src/daemon/desktop-world-native-effect-program.swift src/daemon/desktop-world-native-feedback-contracts.swift src/daemon/desktop-world-native-feedback-controller.swift src/daemon/desktop-world-native-feedback-admission.swift src/daemon/desktop-world-native-feedback-host.swift src/display/desktop-world-native-effect-program-compiler.swift src/display/desktop-world-native-effect-pipeline-cache.swift src/display/desktop-world-native-effect-renderer.swift tests/desktop-world-native-effect-program.test.mjs tests/desktop-world-scene-native-feedback.test.mjs tests/desktop-world-scene-native-feedback-lifecycle.test.mjs tests/toolkit/scene-native-effect-program.test.mjs 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -343,6 +343,7 @@ expected_paths = {
     "src/daemon/desktop-world-native-effect-program.swift",
     "src/daemon/desktop-world-native-feedback-contracts.swift",
     "src/daemon/desktop-world-native-feedback-controller.swift",
+    "src/daemon/desktop-world-native-feedback-admission.swift",
     "src/daemon/desktop-world-native-feedback-host.swift",
     "src/display/desktop-world-native-effect-program-compiler.swift",
     "src/display/desktop-world-native-effect-pipeline-cache.swift",

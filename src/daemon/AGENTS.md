@@ -39,6 +39,9 @@ publish. Input remains closed during preparation. A preparation failure leaves
 the browser scene usable and retains at most the previous prepared context;
 context replacement, authorization loss, and shutdown deterministically release
 the displaced GPU resources when their last active runtime lease ends.
+Program preparation and runtime retirement are independent gates for queued
+native-effect replacements. Reopening either gate must converge the same
+pending request, and no replacement may start before both gates have settled.
 DesktopWorld event-routing failures remain reason-coded and observable through
 bounded daemon diagnostics; never log scene payloads, gesture coordinates,
 labels, or product data to diagnose delivery.
@@ -210,6 +213,9 @@ Allowed daemon-side surface work:
   owner-generation key leases may opt into canonical non-printable Escape
   cancellation; delivery is deduplicated, redacted, and always passes through
   to macOS, and no other key or text may reach the lease owner;
+- pointer-session identity is derived independently from pointer consumption;
+  `consumePolicy: never` may deliver a pointer-down native effect without
+  creating native capture or changing pass-through behavior;
 - lifecycle parentage, cascade cleanup, ownership checks, and recovery;
 - platform events that toolkit and external consumers can subscribe to.
 

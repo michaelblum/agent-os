@@ -109,6 +109,8 @@ When native pointer input routes to a region, the owner canvas receives exactly
 `delivery_role`, stable `capture_id` for captured drags, `region_id`,
 `owner_canvas_id`, bounded string `source_event`, canonical `sequence`, `source_origin`,
 `desktop_world`, optional explicit `native`, and `coordinate_authority`.
+The routed `gesture_id` is the pointer-session identity even when no capture
+lease exists; `capture_id` remains absent unless native capture is active.
 Daemon input-region pointer and scroll delivery includes both coordinate
 spaces. Consumers must not infer native coordinates from DesktopWorld aliases.
 `input_region.event` is the bridge message type. `routed_schema_version: 1` is

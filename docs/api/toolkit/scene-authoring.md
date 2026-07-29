@@ -101,13 +101,25 @@ Responses are independent:
 - `signal_graph` emits bounded numeric signals.
 - `radial_menu` opens an AOS-owned transient menu lease with bounded items.
 
-An interaction may also declare a `nativeEffect`. This optional visual response
-does not replace its semantic response or public gesture event. New effects use
-the generic `aos.scene.effect.program` implementation and select a declaration
-from the interaction document's `nativeEffectPrograms` catalog by `programId`.
+An interaction may also declare a `nativeEffects` array. These optional visual
+responses do not replace its semantic response or public gesture event. Each
+array is bounded to five unique triggers and the document to 256; one affordance may
+declare at most one effect for each pointer-button or gesture-phase trigger. New effects use the
+generic `aos.scene.effect.program` implementation and select declarations from
+the interaction document's `nativeEffectPrograms` catalog by `programId`.
+The singular `nativeEffect` field remains accepted for compatibility; an
+interaction must never declare both forms. A binding is timed by default. A
+gesture-start binding may declare `"lifecycle": { "kind": "gesture" }` to
+remain active and receive canonical drag updates until end or cancellation.
+Gesture updates reuse the installed sheet and captured textures; they do not
+recapture the desktop. A matching end-phase binding atomically replaces the
+gesture-owned effect after cleanup. AOS retains a non-configurable emergency
+watchdog for lost terminal input.
 Each declaration is a bounded, typed, forward-only scalar/`vec2` graph. It may
 read the shared clock, global DesktopWorld fragment position, surface size/UV,
-and the recognized event's frozen origin, current point, delta, and total delta.
+and the recognized event's origin, current point, delta, and total delta. Those
+event values are frozen for timed effects and updated in place for a
+gesture-owned effect.
 It outputs a DesktopWorld-point displacement and opacity.
 
 Programs contain data only. They cannot contain JavaScript, Metal source,

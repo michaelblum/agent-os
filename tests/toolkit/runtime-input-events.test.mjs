@@ -356,7 +356,7 @@ test('createCanvasOriginInputEvent builds stable child canvas source identity', 
     value: 'example-hit-control:example-control:9:left',
   })
   assert.equal(event.gesture_id, 'canvas:example-hit-control:example-control:9:left')
-  assert.equal(event.capture_id, 'canvas:example-hit-control:example-control:9:left:capture')
+  assert.equal(Object.hasOwn(event, 'capture_id'), false)
   assert.deepEqual(event.desktop_world, { x: 300, y: 410 })
   assert.deepEqual(event.native, { x: 112, y: 118 })
   assert.equal(Object.hasOwn(event, 'child_local'), false)

@@ -131,6 +131,34 @@ test('cartridge manifests declare native feedback as an effect implementation', 
   assert.ok(invalid.errors.some((error) => error.code === 'implementation_declarations'))
 })
 
+test('cartridge manifests derive effect implementations from multiple native bindings', async () => {
+  const cartridge = await example('conventional-drag')
+  cartridge.interactions.interactions[0].nativeEffects = [
+    {
+      implementation: 'aos.scene.effect.desktop-ripple',
+      trigger: { input: 'pointer_down' },
+      parameters: {},
+    },
+    {
+      implementation: 'aos.scene.effect.desktop-ripple',
+      trigger: { phase: 'end' },
+      parameters: {},
+    },
+  ]
+  cartridge.manifest.implementations.push({
+    id: 'aos.scene.effect.desktop-ripple',
+    kind: 'effect',
+  })
+  cartridge.manifest.implementations.sort((left, right) => left.id.localeCompare(right.id))
+
+  assert.deepEqual(validateSceneCartridge(cartridge), { ok: true, errors: [] })
+
+  cartridge.interactions.interactions[0].nativeEffects[1].implementation = 'example.unknown-effect'
+  const invalid = validateSceneCartridge(cartridge)
+  assert.equal(invalid.ok, false)
+  assert.ok(invalid.errors.some((error) => error.code === 'unknown_implementation'))
+})
+
 test('cartridges admit a bounded consumer-authored native effect program', async () => {
   const cartridge = await example('conventional-drag')
   cartridge.interactions.nativeEffectPrograms = [{

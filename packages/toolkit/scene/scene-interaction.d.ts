@@ -4,12 +4,14 @@ import type {
   SceneCartridgeInteractions,
   SceneDocument,
   SceneNativeEffectDescriptor,
+  SceneNativeEffectLifecycle,
   SceneValidationResult,
 } from './index.js';
 
 export type GestureRecognizerDescriptor = SceneCartridgeInteractionImplementation;
 export type GestureResponseDescriptor = SceneCartridgeInteractionImplementation;
 export type SceneNativeFeedbackDescriptor = SceneNativeEffectDescriptor;
+export type SceneNativeFeedbackLifecycle = SceneNativeEffectLifecycle;
 
 export interface SceneAffordanceDescriptor {
   id: string;
@@ -220,6 +222,14 @@ export const SCENE_GESTURE_PHASES: Readonly<{
 export const SCENE_NATIVE_EFFECT_IMPLEMENTATIONS: Readonly<{
   desktopRipple: 'aos.scene.effect.desktop-ripple';
   program: 'aos.scene.effect.program';
+}>;
+export const SCENE_NATIVE_EFFECT_BINDING_LIMITS: Readonly<{
+  maxBindingsPerDocument: 256;
+  maxBindingsPerInteraction: 5;
+}>;
+export const SCENE_NATIVE_EFFECT_LIFECYCLES: Readonly<{
+  gesture: 'gesture';
+  timed: 'timed';
 }>;
 export const SCENE_GESTURE_CANCELLATION_REASONS: readonly SceneGestureCancellationReason[];
 export const SCENE_AFFORDANCE_LIMITS: Readonly<{

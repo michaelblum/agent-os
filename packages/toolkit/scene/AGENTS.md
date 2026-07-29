@@ -67,6 +67,15 @@ stage internals.
   otherwise usable committed browser scene. Failed trusted
   projection-extension preparation still leaves the active document and
   projection unchanged.
+- One interaction may bind multiple native-effect programs through the bounded
+  `nativeEffects` array so pointer feedback and a later gesture phase can share
+  one recognizer. Trigger identity remains unique per affordance. The singular
+  `nativeEffect` field is compatibility-only, and both forms may not coexist.
+- Native effects are timed unless a gesture-start binding explicitly declares
+  `lifecycle.kind: gesture`. Gesture-owned effects reuse one captured frame set,
+  sheet, mesh, and pipeline while canonical event uniforms update. End may
+  replace the effect with the same interaction's timed end binding; cancel and
+  lost ownership dispose it. Product effect names never enter this contract.
 - Scene cartridges use the canonical `cartridge.json`, `scene.json`,
   `animations.json`, `interactions.json`, and `assets/` layout. Payload files
   and local assets are digest-bound, budgets are explicit, and the filesystem

@@ -138,12 +138,33 @@ let neverRegion = AOSInputRegionRecord(
     consumePolicy: "never"
 )
 registry.register(neverRegion)
-if let route = registry.route(event: descriptor("left_mouse_down"), point: CGPoint(x: 210, y: 210)) {
-    assert(route.region.id == "never-region", "never-consume region should still receive events")
-    assert(!route.shouldConsume, "never policy must not consume")
+let neverPoint = CGPoint(x: 210, y: 210)
+let neverDown = AOSCanonicalInputEvent(
+    type: "left_mouse_down",
+    x: neverPoint.x,
+    y: neverPoint.y
+)!
+let neverDelivery = registry.resolveDelivery(
+    descriptor: neverDown.descriptor,
+    event: neverDown,
+    point: neverPoint,
+    desktopWorld: neverPoint,
+    sourceSequence: "daemon:never",
+    gestureID: "gesture-never"
+)
+if case .deliver(let delivery)? = neverDelivery {
+    assert(delivery.regionID == "never-region", "never-consume region should still receive events")
+    assert(!delivery.consume, "never policy must not consume")
+    assert(
+        delivery.pointerSessionID == "gesture-never",
+        "pointer-session identity must not depend on native capture"
+    )
+    assert(registry.activeCaptureSnapshot() == nil, "never policy must not establish native capture")
 } else {
-    assert(false, "expected never-consume region route")
+    assert(false, "expected never-consume region delivery")
 }
+assert(!aosValidPointerSessionID(String(repeating: "x", count: 257)), "pointer-session identity must be bounded")
+assert(!aosValidPointerSessionID("unsafe\u{202E}session"), "pointer-session identity must reject format controls")
 
 let removedOnSuspend = registry.removeOwned(by: "stage", includeSuspendRetained: false)
 assert(removedOnSuspend.map(\.id).sorted() == ["high-region", "low-region", "never-region"], "owner suspend should remove default regions")
@@ -315,6 +336,8 @@ if case .deliver(let delivery)? = escaped {
     assert(routed?["event_kind"] as? String == "cancel", "Escape must emit a routed cancel event")
     assert(routed?["cancel_reason"] as? String == "escape", "Escape cancellation must retain its reason")
     assert(routed?["capture_id"] as? String == "daemon:10:high-region", "Escape cancellation must retain the pointer-session capture")
+    assert(routed?["gesture_id"] as? String == "g-escape", "Escape cancellation must retain the originating pointer-session identity")
+    assert(delivery.pointerSessionID == "g-escape", "Escape delivery must retain the originating pointer-session identity")
     let routedPoint = routed?["desktop_world"] as? [String: Any]
     assert((routedPoint?["x"] as? Double) == 125, "Escape cancellation must retain the last DesktopWorld x coordinate")
 } else {
@@ -575,6 +598,7 @@ let ownedPointer = AOSInputRegionRoute(
     phase: "down",
     captured: false,
     captureID: "daemon:1:contract-region",
+    pointerSessionID: "left_mouse_down:contract-region",
     shouldConsume: true
 )
 let desktopWorld = CGPoint(x: 232, y: 25)
@@ -594,6 +618,7 @@ assert(routedPointer["routed_schema_version"] as? Int == 1, "complete routed poi
 assert(routedPointer["source_event"] as? String == "daemon:1", "typed routed pointer should use bounded string source identity")
 assert(routedPointer["coordinate_authority"] as? String == "daemon", "typed routed pointer should own coordinate authority")
 assert(routedPointer["source_origin"] as? String == "daemon", "typed routed pointer should own source origin")
+assert(routedPointer["capture_id"] as? String == "daemon:1:contract-region", "owned pointer down must publish the exact pointer-session capture")
 let routedPointerNative = routedPointer["native"] as? [String: Double]
 let routedPointerDesktopWorld = routedPointer["desktop_world"] as? [String: Double]
 assert(routedPointerNative?["x"] == 25 && routedPointerNative?["y"] == 25, "typed routed pointer should preserve native coordinates")
@@ -616,6 +641,7 @@ let capturedWithoutID = AOSInputRegionRoute(
     phase: "drag",
     captured: true,
     captureID: nil,
+    pointerSessionID: "g-missing-capture",
     shouldConsume: true
 )
 let canonicalDrag = AOSCanonicalInputEvent(type: "left_mouse_dragged", x: 25, y: 25)
@@ -632,6 +658,7 @@ let scrollRoute = AOSInputRegionRoute(
     phase: "scroll",
     captured: false,
     captureID: nil,
+    pointerSessionID: "scroll_wheel:contract-region",
     shouldConsume: true
 )
 let canonicalScroll = AOSCanonicalInputEvent(canonicalData: rawScroll)
@@ -654,6 +681,7 @@ let cancelRoute = AOSInputRegionRoute(
     phase: "cancel",
     captured: true,
     captureID: "daemon:4:contract-region",
+    pointerSessionID: "pointer_cancel:contract-region",
     shouldConsume: true
 )
 let canonicalCancel = AOSCanonicalInputEvent(canonicalData: rawCancel)

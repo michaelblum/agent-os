@@ -213,6 +213,99 @@ duplicateTriggerValues.append(secondTrigger)
 duplicateTrigger["interactions"] = duplicateTriggerValues
 precondition(AOSDesktopWorldNativeEffectContract.parseBindings(duplicateTrigger) == nil)
 
+var multiple = interactions(trigger: ["input": "pointer_down"])
+var multipleValues = multiple["interactions"] as! [[String: Any]]
+var multipleValue = multipleValues[0]
+let pointerEffect = multipleValue.removeValue(forKey: "nativeEffect") as! [String: Any]
+var endEffect = pointerEffect
+endEffect["trigger"] = ["phase": "end"]
+multipleValue["nativeEffects"] = [pointerEffect, endEffect]
+multipleValues[0] = multipleValue
+multiple["interactions"] = multipleValues
+guard let multipleBindings = AOSDesktopWorldNativeEffectContract.parseBindings(multiple),
+      multipleBindings.count == 2,
+      multipleBindings[0].trigger == .pointerDown(button: "left"),
+      multipleBindings[1].trigger == .gesture(.end) else {
+    preconditionFailure("multiple native effect bindings did not parse")
+}
+
+var gestureOwned = interactions(trigger: ["phase": "start"])
+var gestureOwnedValues = gestureOwned["interactions"] as! [[String: Any]]
+var gestureOwnedEffect = gestureOwnedValues[0]["nativeEffect"] as! [String: Any]
+gestureOwnedEffect["lifecycle"] = ["kind": "gesture"]
+gestureOwnedValues[0]["nativeEffect"] = gestureOwnedEffect
+gestureOwned["interactions"] = gestureOwnedValues
+guard let gestureBinding = AOSDesktopWorldNativeEffectContract.parseBindings(
+    gestureOwned
+)?.first,
+      gestureBinding.lifecycle == .gesture else {
+    preconditionFailure("gesture-owned native effect did not parse")
+}
+for invalidTrigger: [String: Any] in [
+    ["input": "pointer_down"],
+    ["phase": "end"],
+] {
+    var invalidLifecycle = gestureOwned
+    var invalidValues = invalidLifecycle["interactions"] as! [[String: Any]]
+    var invalidEffect = invalidValues[0]["nativeEffect"] as! [String: Any]
+    invalidEffect["trigger"] = invalidTrigger
+    invalidValues[0]["nativeEffect"] = invalidEffect
+    invalidLifecycle["interactions"] = invalidValues
+    precondition(
+        AOSDesktopWorldNativeEffectContract.parseBindings(invalidLifecycle) == nil
+    )
+}
+
+var boundedValues: [[String: Any]] = []
+for index in 0..<256 {
+    var entry: [String: Any] = [
+        "id": "effect-\\(index)",
+        "affordanceId": "body-\\(index)",
+    ]
+    if index == 0 {
+        entry["nativeEffects"] = [pointerEffect, endEffect]
+    } else if index > 1 {
+        entry["nativeEffect"] = pointerEffect
+    }
+    boundedValues.append(entry)
+}
+var boundedDocument = interactions()
+boundedDocument["interactions"] = boundedValues
+let boundedBindingCount = AOSDesktopWorldNativeEffectContract.parseBindings(
+    boundedDocument
+)?.count
+precondition(
+    boundedBindingCount == 256,
+    "expected 256 mixed bindings, got \(String(describing: boundedBindingCount))"
+)
+boundedValues[1]["nativeEffect"] = pointerEffect
+boundedDocument["interactions"] = boundedValues
+precondition(AOSDesktopWorldNativeEffectContract.parseBindings(boundedDocument) == nil)
+
+var mixedBindings = multiple
+var mixedValues = mixedBindings["interactions"] as! [[String: Any]]
+mixedValues[0]["nativeEffect"] = pointerEffect
+mixedBindings["interactions"] = mixedValues
+precondition(AOSDesktopWorldNativeEffectContract.parseBindings(mixedBindings) == nil)
+
+var emptyBindings = multiple
+var emptyValues = emptyBindings["interactions"] as! [[String: Any]]
+emptyValues[0]["nativeEffects"] = [[String: Any]]()
+emptyBindings["interactions"] = emptyValues
+precondition(AOSDesktopWorldNativeEffectContract.parseBindings(emptyBindings) == nil)
+
+var overflowBindings = multiple
+var overflowValues = overflowBindings["interactions"] as! [[String: Any]]
+overflowValues[0]["nativeEffects"] = Array(repeating: pointerEffect, count: 9)
+overflowBindings["interactions"] = overflowValues
+precondition(AOSDesktopWorldNativeEffectContract.parseBindings(overflowBindings) == nil)
+
+var duplicateArrayTrigger = multiple
+var duplicateArrayValues = duplicateArrayTrigger["interactions"] as! [[String: Any]]
+duplicateArrayValues[0]["nativeEffects"] = [pointerEffect, pointerEffect]
+duplicateArrayTrigger["interactions"] = duplicateArrayValues
+precondition(AOSDesktopWorldNativeEffectContract.parseBindings(duplicateArrayTrigger) == nil)
+
 var fractionalDuration = interactions()
 var values = fractionalDuration["interactions"] as! [[String: Any]]
 var value = values[0]
@@ -229,26 +322,83 @@ let identity = AOSDesktopWorldSceneStageIdentity(
     canvasGeneration: 3,
     topologyGeneration: 4
 )
-let request = AOSDesktopWorldNativeEffectContract.request(
-    binding: binding,
-    authorization: (ownerID: "example.consumer", resourceID: "companion/main", revision: 7),
+let lifecycleEvent = AOSDesktopWorldNativeEffectContract.gestureLifecycleEvent(
+    bindings: [gestureBinding],
+    capabilities: [
+        AOSDesktopWorldNativeEffectBinding.capability,
+        "aos.scene.desktop_frame_texture",
+    ],
+    ownerID: "example.consumer",
+    resourceID: "example/object",
+    resourceRevision: 7,
     identity: identity,
     event: [
+        "sequence": 2,
         "interactionId": "tap-ripple",
-        "gesture": ["phase": "start"],
+        "gesture": [
+            "phase": "update",
+            "pointerSessionId": "pointer-1",
+        ],
+        "coordinates": [
+            "current": ["x": 1_950, "y": 650],
+            "delta": ["x": 50, "y": 30],
+            "origin": ["x": 1_900, "y": 620],
+            "totalDelta": ["x": 50, "y": 30],
+        ],
+    ]
+)
+precondition(lifecycleEvent?.phase == .update)
+precondition(lifecycleEvent?.request.eventSequence == 2)
+precondition(lifecycleEvent?.request.pointerSessionID == "pointer-1")
+precondition(lifecycleEvent?.request.inputs.current.x == 1_950)
+precondition(lifecycleEvent?.request.inputs.origin.y == 620)
+precondition(AOSDesktopWorldNativeEffectContract.gestureLifecycleEvent(
+    bindings: [gestureBinding],
+    capabilities: [AOSDesktopWorldNativeEffectBinding.capability],
+    ownerID: "example.consumer",
+    resourceID: "example/object",
+    resourceRevision: 7,
+    identity: identity,
+    event: [
+        "sequence": 2,
+        "interactionId": "tap-ripple",
+        "gesture": [
+            "phase": "update",
+            "pointerSessionId": "pointer-1",
+        ],
+        "coordinates": ["desktopWorld": ["x": 1_950, "y": 650]],
+    ]
+) == nil)
+let request = AOSDesktopWorldNativeEffectContract.request(
+    binding: binding,
+    authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 7),
+    identity: identity,
+    event: [
+        "sequence": 1,
+        "interactionId": "tap-ripple",
+        "gesture": [
+            "phase": "start",
+            "pointerSessionId": "pointer-1",
+        ],
         "coordinates": ["desktopWorld": ["x": 1900, "y": 620]],
     ]
 )
 precondition(request?.desktopWorldOrigin.x == 1900)
 precondition(request?.desktopWorldOrigin.y == 620)
 precondition(request?.resourceRevision == 7)
+precondition(request?.eventSequence == 1)
+precondition(request?.pointerSessionID == "pointer-1")
 precondition(AOSDesktopWorldNativeEffectContract.request(
     binding: binding,
-    authorization: (ownerID: "example.consumer", resourceID: "companion/main", revision: 7),
+    authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 7),
     identity: identity,
     event: [
+        "sequence": 3,
         "interactionId": "tap-ripple",
-        "gesture": ["phase": "end"],
+        "gesture": [
+            "phase": "end",
+            "pointerSessionId": "pointer-1",
+        ],
         "coordinates": ["desktopWorld": ["x": 1900, "y": 620]],
     ]
 ) == nil)
@@ -264,32 +414,46 @@ precondition(AOSDesktopWorldNativeEffectContract.parseBindings(
 ) == nil)
 let pointerRequest = AOSDesktopWorldNativeEffectContract.pointerRequest(
     binding: pointerBinding,
-    authorization: (ownerID: "example.consumer", resourceID: "companion/main", revision: 8),
+    authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 8),
     identity: identity,
     affordanceID: "body",
     phase: "down",
     button: "left",
-    point: CGPoint(x: 2100, y: 500)
+    point: CGPoint(x: 2100, y: 500),
+    pointerSessionID: "pointer-1"
 )
 precondition(pointerRequest?.desktopWorldOrigin.x == 2100)
 precondition(pointerRequest?.resourceRevision == 8)
+precondition(pointerRequest?.pointerSessionID == "pointer-1")
 precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
     binding: pointerBinding,
-    authorization: (ownerID: "example.consumer", resourceID: "companion/main", revision: 8),
+    authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 8),
+    identity: identity,
+    affordanceID: "body",
+    phase: "down",
+    button: "left",
+    point: CGPoint(x: 2100, y: 500),
+    pointerSessionID: ""
+) == nil)
+precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
+    binding: pointerBinding,
+    authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 8),
     identity: identity,
     affordanceID: "body",
     phase: "up",
     button: "left",
-    point: CGPoint(x: 2100, y: 500)
+    point: CGPoint(x: 2100, y: 500),
+    pointerSessionID: "pointer-1"
 ) == nil)
 precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
     binding: pointerBinding,
-    authorization: (ownerID: "example.consumer", resourceID: "companion/main", revision: 8),
+    authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 8),
     identity: identity,
     affordanceID: "body",
     phase: "down",
     button: "right",
-    point: CGPoint(x: 2100, y: 500)
+    point: CGPoint(x: 2100, y: 500),
+    pointerSessionID: "pointer-1"
 ) == nil)
 
 let programData = Data(base64Encoded: "${programmableRippleBase64}")!
@@ -328,12 +492,13 @@ precondition(programBinding.durationMilliseconds == 1500)
 precondition(programInstance.parameterValues[0] == 24)
 let programRequest = AOSDesktopWorldNativeEffectContract.pointerRequest(
     binding: programBinding,
-    authorization: (ownerID: "example.consumer", resourceID: "companion/main", revision: 9),
+    authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 9),
     identity: identity,
     affordanceID: "body",
     phase: "down",
     button: "left",
-    point: CGPoint(x: 2200, y: 700)
+    point: CGPoint(x: 2200, y: 700),
+    pointerSessionID: "pointer-2"
 )
 precondition(programRequest?.inputs.current.x == 2200)
 precondition(programRequest?.inputs.origin.x == 2200)
@@ -352,6 +517,7 @@ test('native feedback authorization commits atomically with scene operations', a
     'src/daemon/desktop-world-native-effect-program.swift',
     'src/daemon/desktop-world-native-effect-contract.swift',
     'src/daemon/desktop-world-scene-controller.swift',
+    'src/daemon/desktop-world-scene-native-effects.swift',
     'src/daemon/scene-event.swift',
     'src/daemon/desktop-world-scene-event-router.swift',
   ], `
@@ -435,12 +601,30 @@ func settleSuccess(
     }
 }
 
-func requestEvent(_ phase: String) -> [String: Any] {
+func requestEvent(
+    _ phase: String,
+    sequence: Int = 1,
+    pointerSessionID: String = "pointer-1"
+) -> [String: Any] {
     [
+        "sequence": sequence,
         "interactionId": "tap-ripple",
-        "gesture": ["phase": phase],
+        "gesture": [
+            "phase": phase,
+            "pointerSessionId": pointerSessionID,
+        ],
         "coordinates": ["desktopWorld": ["x": 900, "y": 600]],
     ]
+}
+
+func gestureInteractions() -> [String: Any] {
+    var document = interactions()
+    var values = document["interactions"] as! [[String: Any]]
+    var effect = values[0]["nativeEffect"] as! [String: Any]
+    effect["lifecycle"] = ["kind": "gesture"]
+    values[0]["nativeEffect"] = effect
+    document["interactions"] = values
+    return document
 }
 
 let authorization: [String: Any] = [
@@ -449,7 +633,7 @@ let authorization: [String: Any] = [
         "aos.scene.native_sheet_effect",
     ],
     "digest": String(repeating: "a", count: 64),
-    "extensionId": "companion",
+    "extensionId": "example.extension",
     "framebufferProofIds": [],
     "ownerId": "example.consumer",
     "resourceRevision": 1,
@@ -509,9 +693,9 @@ func admissionName(_ admission: AOSDesktopWorldSceneOperationAdmission) -> Strin
 let (unauthorized, unauthorizedTopology) = readyController()
 guard case .stageUnavailable = unauthorized.admitOperation(
     topology: unauthorizedTopology,
-    key: unauthorized.key(owner: "example.consumer", resource: "companion/main"),
+    key: unauthorized.key(owner: "example.consumer", resource: "example/object"),
     owner: "example.consumer",
-    resource: "companion/main",
+    resource: "example/object",
     operationName: "mount",
     operation: ["op": "mount", "interactions": interactions()],
     connectionID: UUID(),
@@ -519,15 +703,15 @@ guard case .stageUnavailable = unauthorized.admitOperation(
 ) else { preconditionFailure("native feedback mount borrowed missing authority") }
 
 let (controller, topology) = readyController()
-let key = controller.key(owner: "example.consumer", resource: "companion/main")
+let key = controller.key(owner: "example.consumer", resource: "example/object")
 let connection = UUID()
 guard case .accepted(let mount) = controller.admitOperation(
     topology: topology,
     key: key,
     owner: "example.consumer",
-    resource: "companion/main",
+    resource: "example/object",
     operationName: "mount",
-    operation: ["op": "mount", "interactions": interactions()],
+    operation: ["op": "mount", "interactions": gestureInteractions()],
     extensionAuthorization: authorization,
     connectionID: connection,
     ref: "mount"
@@ -545,6 +729,15 @@ let mounted = controller.nativeEffectRequest(
 )
 precondition(mounted?.resourceRevision == 1)
 precondition(mounted.map(controller.authorizesNativeEffect) == true)
+guard case .accepted(let subscribedEvents) = controller.updateSubscriptions(
+    key: key,
+    connectionID: connection,
+    ref: "events",
+    adding: ["gesture"],
+    removing: [],
+    removeAll: false
+) else { preconditionFailure("gesture subscription rejected") }
+precondition(subscribedEvents == ["gesture"])
 
 let canonicalEvent: [String: Any] = [
     "contract": "aos.scene.event.v1",
@@ -553,7 +746,7 @@ let canonicalEvent: [String: Any] = [
     "sequence": 1,
     "stageId": "desktop-world/main",
     "ownerId": "example.consumer",
-    "resourceId": "companion/main",
+    "resourceId": "example/object",
     "affordanceId": "body",
     "interactionId": "tap-ripple",
     "gesture": [
@@ -583,12 +776,23 @@ let canonicalEvent: [String: Any] = [
     "at": 1000,
 ]
 var nativeRequests: [AOSDesktopWorldNativeEffectRequest] = []
+var nativeGestureEvents: [AOSDesktopWorldNativeEffectGestureEvent] = []
 var publicEvents = 0
+var deliveryOrder: [String] = []
 let router = AOSDesktopWorldSceneEventRouter(
     scene: controller,
-    nativeFeedback: { nativeRequests.append($0) }
+    nativeFeedback: {
+        deliveryOrder.append("native-start")
+        nativeRequests.append($0)
+    },
+    nativeGestureFeedback: { event, replacement in
+        precondition(replacement == nil)
+        deliveryOrder.append("native-" + event.phase.rawValue)
+        nativeGestureEvents.append(event)
+    }
 ) { _, _, _ in
     publicEvents += 1
+    deliveryOrder.append("public-" + String(publicEvents))
     return true
 }
 router.handle(identity: topology.identity, payload: [
@@ -596,17 +800,56 @@ router.handle(identity: topology.identity, payload: [
     "event_type": "gesture",
     "event": canonicalEvent,
 ])
-precondition(nativeRequests.count == 1)
-precondition(publicEvents == 0)
+precondition(nativeRequests.count == 1, "native request route")
+var updateEvent = canonicalEvent
+updateEvent["sequence"] = 2
+updateEvent["gesture"] = [
+    "id": "gesture-1",
+    "kind": "drag",
+    "phase": "update",
+    "pointerSessionId": "pointer-1",
+    "cancellationReason": NSNull(),
+]
+updateEvent["coordinates"] = [
+    "origin": ["x": 900, "y": 600],
+    "previous": ["x": 900, "y": 600],
+    "current": ["x": 1_100, "y": 720],
+    "desktopWorld": ["x": 1_100, "y": 720],
+    "native": ["x": 1_100, "y": 360],
+    "delta": ["x": 200, "y": 120],
+    "totalDelta": ["x": 200, "y": 120],
+]
+router.handle(identity: topology.identity, payload: [
+    "lease_key": key,
+    "event_type": "gesture",
+    "event": updateEvent,
+])
+precondition(nativeGestureEvents.count == 1, "native gesture route")
+precondition(nativeGestureEvents[0].phase == .update, "native gesture phase")
 precondition(
-    (router.snapshot()["by_outcome"] as? [String: Int])?["unsubscribed"] == 1
+    nativeGestureEvents[0].request.inputs.current.x == 1_100,
+    "native gesture inputs"
+)
+precondition(publicEvents == 2, "public gesture delivery count")
+precondition(
+    deliveryOrder == [
+        "native-start",
+        "public-1",
+        "native-update",
+        "public-2",
+    ],
+    "native admission must precede public event delivery: \\(deliveryOrder)"
+)
+precondition(
+    (router.snapshot()["by_outcome"] as? [String: Int])?["enqueued"] == 2,
+    "enqueued route count"
 )
 
 guard case .accepted(let transaction) = controller.admitOperation(
     topology: topology,
     key: key,
     owner: "example.consumer",
-    resource: "companion/main",
+    resource: "example/object",
     operationName: "transact",
     operation: [
         "op": "transact",
@@ -627,13 +870,14 @@ precondition(controller.nativeEffectRequest(
 ) == nil)
 let transacted = controller.nativePointerEffectRequest(
     ownerID: "example.consumer",
-    resourceID: "companion/main",
+    resourceID: "example/object",
     resourceRevision: 2,
     affordanceID: "body",
     canvasGeneration: topology.identity.canvasGeneration,
     phase: "down",
     button: "left",
-    point: CGPoint(x: 900, y: 600)
+    point: CGPoint(x: 900, y: 600),
+    pointerSessionID: "pointer-2"
 )
 precondition(transacted?.resourceRevision == 2)
 guard let transacted, case .ripple(let transactedRipple) = transacted.binding.definition else {
@@ -642,20 +886,21 @@ guard let transacted, case .ripple(let transactedRipple) = transacted.binding.de
 precondition(transactedRipple.amplitude == 26)
 precondition(controller.nativePointerEffectRequest(
     ownerID: "example.consumer",
-    resourceID: "companion/main",
+    resourceID: "example/object",
     resourceRevision: 1,
     affordanceID: "body",
     canvasGeneration: topology.identity.canvasGeneration,
     phase: "down",
     button: "left",
-    point: CGPoint(x: 900, y: 600)
+    point: CGPoint(x: 900, y: 600),
+    pointerSessionID: "pointer-2"
 ) == nil)
 
 guard case .stageUnavailable = controller.admitOperation(
     topology: topology,
     key: key,
     owner: "example.consumer",
-    resource: "companion/main",
+    resource: "example/object",
     operationName: "transact",
     operation: ["op": "transact", "transaction": ["expectedRevision": 1]],
     connectionID: connection,
@@ -666,7 +911,7 @@ guard case .accepted(let remove) = controller.admitOperation(
     topology: topology,
     key: key,
     owner: "example.consumer",
-    resource: "companion/main",
+    resource: "example/object",
     operationName: "remove",
     operation: ["op": "remove"],
     connectionID: connection,
@@ -680,12 +925,12 @@ precondition(controller.nativeEffectRequest(
 ) == nil)
 
 let (failed, failedTopology) = readyController()
-let failedKey = failed.key(owner: "example.consumer", resource: "companion/main")
+let failedKey = failed.key(owner: "example.consumer", resource: "example/object")
 guard case .accepted(let failedMountAction) = failed.admitOperation(
     topology: failedTopology,
     key: failedKey,
     owner: "example.consumer",
-    resource: "companion/main",
+    resource: "example/object",
     operationName: "mount",
     operation: ["op": "mount", "interactions": interactions()],
     extensionAuthorization: authorization,
@@ -719,7 +964,7 @@ precondition(failed.nativeEffectRequest(
 let (budgetController, budgetTopology) = readyController()
 let budgetConnection = UUID()
 for batch in 0..<4 {
-    let resource = "companion/budget-\\(batch)"
+    let resource = "example/budget-\\(batch)"
     let batchInteractions = programInteractions(batch)
     precondition(
         AOSDesktopWorldNativeEffectContract.parseBindings(batchInteractions)?.count == 8,
@@ -747,7 +992,7 @@ precondition(
     budgetController.nativeEffectPrograms().count ==
         AOSDesktopWorldNativeEffectProgram.maximumPreparedPrograms
 )
-let overflowResource = "companion/budget-overflow"
+let overflowResource = "example/budget-overflow"
 guard case .nativeEffectBudgetExceeded = budgetController.admitOperation(
     topology: budgetTopology,
     key: budgetController.key(
@@ -770,7 +1015,7 @@ precondition(
 let (reservationController, reservationTopology) = readyController()
 let reservationConnection = UUID()
 for batch in 0..<3 {
-    let resource = "companion/reservation-\\(batch)"
+    let resource = "example/reservation-\\(batch)"
     guard case .accepted(let action) = reservationController.admitOperation(
         topology: reservationTopology,
         key: reservationController.key(owner: "example.consumer", resource: resource),
@@ -784,7 +1029,7 @@ for batch in 0..<3 {
     ) else { preconditionFailure("reservation fixture mount was rejected") }
     _ = settleSuccess(reservationController, action)
 }
-let pendingResource = "companion/reservation-pending"
+let pendingResource = "example/reservation-pending"
 guard case .accepted(let pendingReservation) = reservationController.admitOperation(
     topology: reservationTopology,
     key: reservationController.key(
@@ -800,7 +1045,7 @@ guard case .accepted(let pendingReservation) = reservationController.admitOperat
     ref: "reservation-pending"
 ) else { preconditionFailure("bounded pending reservation was rejected") }
 precondition(reservationController.nativeEffectPrograms().count == 24)
-let competingResource = "companion/reservation-competing"
+let competingResource = "example/reservation-competing"
 guard case .operationPending = reservationController.admitOperation(
     topology: reservationTopology,
     key: reservationController.key(
@@ -834,7 +1079,7 @@ guard case .nativeEffectBudgetExceeded = reservationController.admitOperation(
 let (replacementController, replacementTopology) = readyController()
 let replacementConnection = UUID()
 for batch in 0..<4 {
-    let resource = "companion/replacement-\\(batch)"
+    let resource = "example/replacement-\\(batch)"
     guard case .accepted(let action) = replacementController.admitOperation(
         topology: replacementTopology,
         key: replacementController.key(owner: "example.consumer", resource: resource),
@@ -875,10 +1120,10 @@ func mountDuplicatePrograms(_ ref: String) -> AOSDesktopWorldSceneOperationAdmis
         topology: replacementTopology,
         key: replacementController.key(
             owner: "example.consumer",
-            resource: "companion/duplicate-owner"
+            resource: "example/duplicate-owner"
         ),
         owner: "example.consumer",
-        resource: "companion/duplicate-owner",
+        resource: "example/duplicate-owner",
         operationName: "mount",
         operation: ["op": "mount", "interactions": programInteractions(0)],
         extensionAuthorization: authorization,
@@ -887,7 +1132,7 @@ func mountDuplicatePrograms(_ ref: String) -> AOSDesktopWorldSceneOperationAdmis
     )
 }
 let firstReplacementAdmission = replacePrograms(
-    "companion/replacement-0", batch: 4, ref: "replacement-first"
+    "example/replacement-0", batch: 4, ref: "replacement-first"
 )
 guard case .accepted(let firstReplacement) = firstReplacementAdmission else {
     preconditionFailure(
@@ -913,14 +1158,14 @@ guard case .accepted(let genericMount) = replacementController.admitOperation(
 ) else { preconditionFailure("generic scene work was serialized with program catalogs") }
 _ = settleSuccess(replacementController, genericMount)
 guard case .operationPending = replacePrograms(
-    "companion/replacement-1", batch: 5, ref: "replacement-queued"
+    "example/replacement-1", batch: 5, ref: "replacement-queued"
 ) else { preconditionFailure("concurrent replacement reported false budget overflow") }
 _ = settleSuccess(replacementController, firstReplacement)
 guard case .nativeEffectBudgetExceeded = mountDuplicatePrograms("duplicate-overflow") else {
     preconditionFailure("settled replacement admitted an oversized duplicate owner")
 }
 guard case .accepted(let secondReplacement) = replacePrograms(
-    "companion/replacement-1", batch: 5, ref: "replacement-second"
+    "example/replacement-1", batch: 5, ref: "replacement-second"
 ) else { preconditionFailure("serialized replacement remained blocked") }
 _ = settleSuccess(replacementController, secondReplacement)
 precondition(
@@ -934,8 +1179,8 @@ let disconnect = replacementController.beginDisconnect(
 precondition(disconnect.barrierActions.count == 4)
 let postDisconnectAdmission = replacementController.admitOperation(
     topology: replacementTopology,
-    key: replacementController.key(owner: "example.consumer", resource: "companion/after-close"),
-    owner: "example.consumer", resource: "companion/after-close",
+    key: replacementController.key(owner: "example.consumer", resource: "example/after-close"),
+    owner: "example.consumer", resource: "example/after-close",
     operationName: "mount", operation: ["op": "mount", "interactions": programInteractions(6)],
     extensionAuthorization: authorization, connectionID: UUID(), ref: "after-close"
 )

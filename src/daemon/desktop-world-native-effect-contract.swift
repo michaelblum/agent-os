@@ -77,10 +77,16 @@ struct AOSDesktopWorldNativeEffectBinding: Equatable {
         case pointerDown(button: String)
     }
 
+    enum Lifecycle: String, Equatable {
+        case gesture
+        case timed
+    }
+
     let affordanceID: String
     let definition: AOSDesktopWorldNativeEffectDefinition
     let implementation: String
     let interactionID: String
+    let lifecycle: Lifecycle
     let trigger: Trigger
 
     var durationMilliseconds: Int { definition.durationMilliseconds }
@@ -93,8 +99,10 @@ struct AOSDesktopWorldNativeEffectBinding: Equatable {
 struct AOSDesktopWorldNativeEffectRequest: Equatable {
     let binding: AOSDesktopWorldNativeEffectBinding
     let canvasGeneration: UInt64
+    let eventSequence: Int?
     let inputs: AOSDesktopWorldNativeEffectInputs
     let ownerID: String
+    let pointerSessionID: String?
     let resourceID: String
     let resourceRevision: Int
     let topologyGeneration: UInt64
@@ -106,8 +114,10 @@ struct AOSDesktopWorldNativeEffectRequest: Equatable {
     ) -> Bool {
         lhs.binding == rhs.binding
             && lhs.canvasGeneration == rhs.canvasGeneration
+            && lhs.eventSequence == rhs.eventSequence
             && lhs.inputs == rhs.inputs
             && lhs.ownerID == rhs.ownerID
+            && lhs.pointerSessionID == rhs.pointerSessionID
             && lhs.resourceID == rhs.resourceID
             && lhs.resourceRevision == rhs.resourceRevision
             && lhs.topologyGeneration == rhs.topologyGeneration
@@ -117,8 +127,21 @@ struct AOSDesktopWorldNativeEffectRequest: Equatable {
     var desktopWorldOrigin: CGPoint { inputs.current }
 }
 
+struct AOSDesktopWorldNativeEffectGestureEvent: Equatable {
+    enum Phase: String, Equatable {
+        case cancel
+        case end
+        case update
+    }
+
+    let phase: Phase
+    let request: AOSDesktopWorldNativeEffectRequest
+}
+
 enum AOSDesktopWorldNativeEffectContract {
     private static let maximumInteractions = 256
+    private static let maximumBindings = 256
+    private static let maximumBindingsPerInteraction = 5
     private static let maximumPrograms = 8
 
     static func parseBindings(
@@ -167,29 +190,55 @@ enum AOSDesktopWorldNativeEffectContract {
                   interactionIDs.insert(interactionID).inserted else {
                 return nil
             }
-            guard let effect = value["nativeEffect"] else { continue }
-            guard let dictionary = effect as? [String: Any],
-                  let implementation = dictionary["implementation"] as? String,
-                  let trigger = dictionary["trigger"] as? [String: Any],
-                  let parsedTrigger = nativeTrigger(trigger),
-                  let parameters = dictionary["parameters"] as? [String: Any],
-                  let definition = effectDefinition(
-                    implementation: implementation,
-                    dictionary: dictionary,
-                    parameters: parameters,
-                    programs: programs
-                  ) else {
+            guard !(value.keys.contains("nativeEffect")
+                && value.keys.contains("nativeEffects")) else {
                 return nil
             }
-            let triggerKey = "\(affordanceID):\(nativeTriggerKey(parsedTrigger))"
-            guard nativeTriggerKeys.insert(triggerKey).inserted else { return nil }
-            bindings.append(AOSDesktopWorldNativeEffectBinding(
-                affordanceID: affordanceID,
-                definition: definition,
-                implementation: implementation,
-                interactionID: interactionID,
-                trigger: parsedTrigger
-            ))
+            let rawEffects: [[String: Any]]
+            if value.keys.contains("nativeEffects") {
+                guard let declared = value["nativeEffects"] as? [[String: Any]],
+                      !declared.isEmpty,
+                      declared.count <= maximumBindingsPerInteraction else {
+                    return nil
+                }
+                rawEffects = declared
+            } else if value.keys.contains("nativeEffect") {
+                guard let declared = value["nativeEffect"] as? [String: Any] else {
+                    return nil
+                }
+                rawEffects = [declared]
+            } else {
+                rawEffects = []
+            }
+            guard bindings.count + rawEffects.count <= maximumBindings else { return nil }
+            for dictionary in rawEffects {
+                guard let implementation = dictionary["implementation"] as? String,
+                      let trigger = dictionary["trigger"] as? [String: Any],
+                      let parsedTrigger = nativeTrigger(trigger),
+                      let lifecycle = nativeLifecycle(
+                        dictionary["lifecycle"],
+                        trigger: parsedTrigger
+                      ),
+                      let parameters = dictionary["parameters"] as? [String: Any],
+                      let definition = effectDefinition(
+                        implementation: implementation,
+                        dictionary: dictionary,
+                        parameters: parameters,
+                        programs: programs
+                      ) else {
+                    return nil
+                }
+                let triggerKey = "\(affordanceID):\(nativeTriggerKey(parsedTrigger))"
+                guard nativeTriggerKeys.insert(triggerKey).inserted else { return nil }
+                bindings.append(AOSDesktopWorldNativeEffectBinding(
+                    affordanceID: affordanceID,
+                    definition: definition,
+                    implementation: implementation,
+                    interactionID: interactionID,
+                    lifecycle: lifecycle,
+                    trigger: parsedTrigger
+                ))
+            }
         }
         return bindings
     }
@@ -206,6 +255,10 @@ enum AOSDesktopWorldNativeEffectContract {
               interactionID == binding.interactionID,
               let gesture = event["gesture"] as? [String: Any],
               gesture["phase"] as? String == phase.rawValue,
+              let pointerSessionID = gesture["pointerSessionId"] as? String,
+              canonicalPointerSessionID(pointerSessionID),
+              let eventSequence = integer(event["sequence"]),
+              eventSequence > 0,
               let coordinates = event["coordinates"] as? [String: Any],
               let inputs = effectInputs(coordinates) else {
             return nil
@@ -213,8 +266,10 @@ enum AOSDesktopWorldNativeEffectContract {
         return AOSDesktopWorldNativeEffectRequest(
             binding: binding,
             canvasGeneration: identity.canvasGeneration,
+            eventSequence: eventSequence,
             inputs: inputs,
             ownerID: authorization.ownerID,
+            pointerSessionID: pointerSessionID,
             resourceID: authorization.resourceID,
             resourceRevision: authorization.revision,
             topologyGeneration: identity.topologyGeneration,
@@ -251,6 +306,59 @@ enum AOSDesktopWorldNativeEffectContract {
         return nil
     }
 
+    static func gestureLifecycleEvent(
+        bindings: [AOSDesktopWorldNativeEffectBinding],
+        capabilities: Set<String>,
+        ownerID: String,
+        resourceID: String,
+        resourceRevision: Int,
+        identity: AOSDesktopWorldSceneStageIdentity,
+        event: [String: Any],
+        triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
+    ) -> AOSDesktopWorldNativeEffectGestureEvent? {
+        guard authorized(capabilities),
+              let interactionID = event["interactionId"] as? String,
+              let gesture = event["gesture"] as? [String: Any],
+              let rawPhase = gesture["phase"] as? String,
+              let pointerSessionID = gesture["pointerSessionId"] as? String,
+              canonicalPointerSessionID(pointerSessionID),
+              let eventSequence = integer(event["sequence"]),
+              eventSequence > 0,
+              let phase = AOSDesktopWorldNativeEffectGestureEvent.Phase(
+                rawValue: rawPhase
+              ),
+              let binding = bindings.first(where: {
+                $0.interactionID == interactionID
+                    && $0.lifecycle == .gesture
+              }) else {
+            return nil
+        }
+        let inputs: AOSDesktopWorldNativeEffectInputs
+        if let coordinates = event["coordinates"] as? [String: Any],
+           let parsed = effectInputs(coordinates) {
+            inputs = parsed
+        } else if phase == .cancel {
+            inputs = .pointer(CGPoint(x: 0, y: 0))
+        } else {
+            return nil
+        }
+        return AOSDesktopWorldNativeEffectGestureEvent(
+            phase: phase,
+            request: AOSDesktopWorldNativeEffectRequest(
+                binding: binding,
+                canvasGeneration: identity.canvasGeneration,
+                eventSequence: eventSequence,
+                inputs: inputs,
+                ownerID: ownerID,
+                pointerSessionID: pointerSessionID,
+                resourceID: resourceID,
+                resourceRevision: resourceRevision,
+                topologyGeneration: identity.topologyGeneration,
+                triggeredAt: triggeredAt
+            )
+        )
+    }
+
     static func pointerRequest(
         binding: AOSDesktopWorldNativeEffectBinding,
         authorization: (ownerID: String, resourceID: String, revision: Int),
@@ -259,12 +367,14 @@ enum AOSDesktopWorldNativeEffectContract {
         phase: String,
         button: String,
         point: CGPoint,
+        pointerSessionID: String,
         triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> AOSDesktopWorldNativeEffectRequest? {
         guard case .pointerDown(let expectedButton) = binding.trigger,
               phase == "down",
               button == expectedButton,
               binding.affordanceID == affordanceID,
+              canonicalPointerSessionID(pointerSessionID),
               point.x.isFinite,
               point.y.isFinite else {
             return nil
@@ -272,8 +382,10 @@ enum AOSDesktopWorldNativeEffectContract {
         return AOSDesktopWorldNativeEffectRequest(
             binding: binding,
             canvasGeneration: identity.canvasGeneration,
+            eventSequence: nil,
             inputs: .pointer(point),
             ownerID: authorization.ownerID,
+            pointerSessionID: pointerSessionID,
             resourceID: authorization.resourceID,
             resourceRevision: authorization.revision,
             topologyGeneration: identity.topologyGeneration,
@@ -292,6 +404,7 @@ enum AOSDesktopWorldNativeEffectContract {
         phase: String,
         button: String,
         point: CGPoint,
+        pointerSessionID: String,
         triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> AOSDesktopWorldNativeEffectRequest? {
         guard authorized(capabilities) else { return nil }
@@ -308,6 +421,7 @@ enum AOSDesktopWorldNativeEffectContract {
                 phase: phase,
                 button: button,
                 point: point,
+                pointerSessionID: pointerSessionID,
                 triggeredAt: triggeredAt
             ) {
                 return request
@@ -366,6 +480,25 @@ enum AOSDesktopWorldNativeEffectContract {
         return nil
     }
 
+    private static func nativeLifecycle(
+        _ value: Any?,
+        trigger: AOSDesktopWorldNativeEffectBinding.Trigger
+    ) -> AOSDesktopWorldNativeEffectBinding.Lifecycle? {
+        guard let value else { return .timed }
+        guard let dictionary = value as? [String: Any],
+              Set(dictionary.keys) == Set(["kind"]),
+              let rawKind = dictionary["kind"] as? String,
+              let lifecycle = AOSDesktopWorldNativeEffectBinding.Lifecycle(
+                rawValue: rawKind
+              ) else {
+            return nil
+        }
+        if lifecycle == .gesture {
+            guard case .gesture(.start) = trigger else { return nil }
+        }
+        return lifecycle
+    }
+
     private static func nativeTriggerKey(
         _ value: AOSDesktopWorldNativeEffectBinding.Trigger
     ) -> String {
@@ -387,6 +520,8 @@ enum AOSDesktopWorldNativeEffectContract {
             .desktopRippleImplementation {
             guard Set(dictionary.keys) == Set([
                 "implementation", "parameters", "trigger",
+            ]) || Set(dictionary.keys) == Set([
+                "implementation", "lifecycle", "parameters", "trigger",
             ]),
                   let ripple = rippleParameters(parameters) else {
                 return nil
@@ -396,6 +531,9 @@ enum AOSDesktopWorldNativeEffectContract {
         if implementation == AOSDesktopWorldNativeEffectProgram.implementation {
             guard Set(dictionary.keys) == Set([
                 "implementation", "parameters", "programId", "trigger",
+            ]) || Set(dictionary.keys) == Set([
+                "implementation", "lifecycle", "parameters", "programId",
+                "trigger",
             ]),
                   let programID = dictionary["programId"] as? String,
                   let program = programs[programID],
@@ -504,5 +642,9 @@ enum AOSDesktopWorldNativeEffectContract {
             if index == 0 { return alphanumeric }
             return alphanumeric || [0x2d, 0x2e, 0x2f, 0x5f].contains(byte)
         }
+    }
+
+    private static func canonicalPointerSessionID(_ value: String) -> Bool {
+        !value.isEmpty && value.utf8.count <= 256
     }
 }
