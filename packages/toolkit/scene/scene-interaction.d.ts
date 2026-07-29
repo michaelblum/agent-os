@@ -219,6 +219,7 @@ export const SCENE_GESTURE_PHASES: Readonly<{
 }>;
 export const SCENE_NATIVE_EFFECT_IMPLEMENTATIONS: Readonly<{
   desktopRipple: 'aos.scene.effect.desktop-ripple';
+  program: 'aos.scene.effect.program';
 }>;
 export const SCENE_GESTURE_CANCELLATION_REASONS: readonly SceneGestureCancellationReason[];
 export const SCENE_AFFORDANCE_LIMITS: Readonly<{

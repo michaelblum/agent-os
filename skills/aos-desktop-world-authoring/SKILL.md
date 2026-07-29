@@ -108,23 +108,20 @@ ID-only events to product actions.
 
 ## Bind Native Sheet Feedback
 
-Use a data-only `nativeEffect` when an interaction needs immediate AOS-owned
-desktop feedback. The reviewed extension must declare
-`aos.scene.desktop_frame_texture` and `aos.scene.native_sheet_effect`:
+Use a data-only native effect program when an interaction needs immediate
+AOS-owned desktop feedback. Put the program in the interaction document's
+`nativeEffectPrograms` catalog, then bind it by `programId`. The reviewed
+extension must declare `aos.scene.desktop_frame_texture` and
+`aos.scene.native_sheet_effect`. Follow the complete, validated
+[`aos.scene.effect.program` recipe](references/native-effect-program.md).
 
-```json
-{
-  "nativeEffect": {
-    "implementation": "aos.scene.effect.desktop-ripple",
-    "trigger": { "input": "pointer_down", "button": "left" },
-    "parameters": { "amplitude": 18, "decay": 2.4, "durationMs": 900, "frequency": 0.045, "radius": 1200, "speed": 850 }
-  }
-}
-```
-
-AOS owns pixels, Metal, topology, clocks, and disposal. Consumers choose only
-the registered implementation, trigger, and bounded parameters. Native effects
-are best-effort visuals; never depend on one for product state or authority.
+AOS owns pixels, Metal, topology, clocks, validation, compilation, budgets, and
+disposal. Consumers own the bounded graph, trigger, and parameter values. Use
+only the operators and limits exported by `@agent-os/toolkit/scene/authoring`.
+Programs cannot contain source code or read pixels. The legacy
+`aos.scene.effect.desktop-ripple` ID is decode-only compatibility; do not use it
+for new authoring. Native effects are best-effort visuals; never depend on one
+for product state or authority.
 
 ## Scaffold And Review An Extension
 

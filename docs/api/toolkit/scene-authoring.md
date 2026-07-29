@@ -102,18 +102,36 @@ Responses are independent:
 - `radial_menu` opens an AOS-owned transient menu lease with bounded items.
 
 An interaction may also declare a `nativeEffect`. This optional visual response
-does not replace its semantic response or public gesture event. V1 accepts only
-`aos.scene.effect.desktop-ripple`, either
-`trigger: { input: "pointer_down", button: "left" }` (with `button` optional
-and defaulting to `left`) or a `start`/`end` gesture-phase trigger, and bounded
-`amplitude`, `decay`, `durationMs`, `frequency`, `radius`, and `speed`
-parameters. Native pointer-down is resolved against the committed hit-region
+does not replace its semantic response or public gesture event. New effects use
+the generic `aos.scene.effect.program` implementation and select a declaration
+from the interaction document's `nativeEffectPrograms` catalog by `programId`.
+Each declaration is a bounded, typed, forward-only scalar/`vec2` graph. It may
+read the shared clock, global DesktopWorld fragment position, surface size/UV,
+and the recognized event's frozen origin, current point, delta, and total delta.
+It outputs a DesktopWorld-point displacement and opacity.
+
+Programs contain data only. They cannot contain JavaScript, Metal source,
+branches, loops, draw commands, resources, remote assets, or pixel reads. AOS
+validates the graph independently, generates Metal from trusted templates,
+prewarms a digest-keyed pipeline before accepting input, clamps displacement
+and opacity, and disposes each transient texture and sheet instance. The public
+authoring exports include `createSceneNativeEffectProgram()`,
+`validateSceneNativeEffectProgram()`, the supported operator list, and exact
+budgets.
+
+A binding may use `trigger: { input: "pointer_down", button: "left" }` (with
+`button` optional and defaulting to `left`) or a `start`/`end` gesture-phase
+trigger. Native pointer-down is resolved against the committed hit-region
 generation before tap-versus-drag arbitration; a gesture-phase trigger waits
-for its recognizer. The extension must declare
+for its recognizer. Parameter overrides must be declared by the selected
+program and remain inside its bounds. The extension must declare
 `aos.scene.desktop_frame_texture` and
 `aos.scene.native_sheet_effect`; the cartridge manifest declares the
-implementation with kind `effect`. AOS owns the compiled Metal program,
-desktop pixels, topology, clock, and disposal. A cartridge supplies data only.
+generic implementation with kind `effect`. AOS owns Metal execution, desktop
+pixels, topology, clocks, budgets, and disposal. The cartridge owns the visual
+program, values, and trigger. The legacy `aos.scene.effect.desktop-ripple` ID
+is decode-only compatibility for already reviewed cartridges and must not be
+used for new authoring.
 
 Cartridges may supply bounded item labels for native accessibility and exact
 semantic inspection. AOS validates those labels when it creates native hit

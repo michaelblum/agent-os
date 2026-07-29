@@ -1,6 +1,6 @@
 # ADR 0032: Declarative Native Sheet Feedback
 
-- Status: Accepted
+- Status: Partially superseded by ADR 0033
 - Date: 2026-07-28
 
 ## Context
@@ -31,7 +31,7 @@ Scene interactions may include one optional declarative `nativeEffect` with:
   or `end`; and
 - an exact bounded parameter object.
 
-V1 registers only `aos.scene.effect.desktop-ripple`. Its parameters control
+The initial implementation registers only `aos.scene.effect.desktop-ripple`. Its parameters control
 amplitude, decay, duration, frequency, radius, and speed. The effect is a
 product-neutral rendering primitive, not Sigil state or behavior. A consumer
 cartridge chooses the interaction, trigger phase, and values. AOS compiles and
@@ -92,8 +92,8 @@ DesktopWorld behavior.
   capture or native rendering authority.
 - AOS gains one reviewed native material primitive, not a general arbitrary-code
   extension ABI or a second scene engine.
-- Additional native effects require separately reviewed implementation IDs,
-  parameter schemas, resource budgets, and lifecycle proofs.
+- New consumer effects use the bounded effect-program contract in ADR 0033.
+  The complete-effect registry remains a compatibility path during migration.
 - Three.js and Metal remain distinct renderers coordinated through the same
   DesktopWorld identity, coordinates, events, clocks, and lifecycle.
 - Continuous backdrop capture, native-handle export, and consumer-authored Metal

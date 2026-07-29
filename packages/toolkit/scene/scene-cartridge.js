@@ -18,6 +18,9 @@ import {
   validateSceneInteractionDocument,
 } from './scene-interaction.js'
 import {
+  SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION,
+} from './scene-native-effect-program.js'
+import {
   hasCanonicalScenePathSegments,
   isSceneRecord as isRecord,
   matchesSceneIdSyntax,
@@ -37,6 +40,7 @@ export const SCENE_CARTRIDGE_IMPLEMENTATIONS = Object.freeze({
   radialMenuResponse: 'aos.scene.response.radial-menu',
   signalGraphResponse: 'aos.scene.response.signal-graph',
   translateResponse: 'aos.scene.response.translate',
+  nativeEffectProgram: SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION,
   desktopRippleEffect: 'aos.scene.effect.desktop-ripple',
 })
 

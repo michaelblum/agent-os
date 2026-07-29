@@ -239,6 +239,44 @@ test('scene native feedback accepts only bounded declarative ripple parameters',
   assert.ok(invalidButtonResult.errors.some((error) => error.code === 'invalid_native_effect_trigger'))
 })
 
+test('scene native feedback admits a bounded consumer effect program', () => {
+  const program = {
+    contract: 'aos.scene.native-effect-program.v1',
+    schemaVersion: 1,
+    id: 'example.effect.lens',
+    revision: 1,
+    durationMs: 900,
+    parameters: [{ id: 'amplitude', default: 12, min: 0, max: 96 }],
+    nodes: [
+      { id: 'delta', op: 'subtract', inputs: ['world.position', 'event.current'] },
+      { id: 'direction', op: 'normalize', inputs: ['node.delta'] },
+      { id: 'offset', op: 'multiply', inputs: ['node.direction', 'parameter.amplitude'] },
+      { id: 'uv', op: 'divide', inputs: ['node.offset', 'surface.size'] },
+      { id: 'one', op: 'constant', value: 1 },
+    ],
+    outputs: { displacement: 'node.offset', opacity: 'node.one' },
+  }
+  const candidate = {
+    contract: 'aos.scene.cartridge.interactions.v1',
+    schemaVersion: 1,
+    affordances: [affordance],
+    nativeEffectPrograms: [program],
+    interactions: [{
+      ...interaction('tap-program', 'aos.scene.gesture.tap', 'aos.scene.response.drop'),
+      nativeEffect: {
+        implementation: SCENE_NATIVE_EFFECT_IMPLEMENTATIONS.program,
+        programId: program.id,
+        trigger: { input: 'pointer_down' },
+        parameters: { amplitude: 24 },
+      },
+    }],
+  }
+  assert.deepEqual(validateSceneInteractionDocument(candidate, { scene: document }), { ok: true, errors: [] })
+
+  candidate.interactions[0].nativeEffect.parameters.amplitude = 97
+  assert.ok(validateSceneInteractionDocument(candidate, { scene: document }).errors.some((entry) => entry.code === 'invalid_native_effect_parameter'))
+})
+
 test('gesture arena deterministically claims drag and coalesces updates without dropping terminal frames', () => {
   const callbacks = []
   const frames = []

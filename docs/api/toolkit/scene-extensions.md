@@ -74,8 +74,12 @@ An optional sorted `capabilities` array is part of the same digest authority.
 The current capability registry contains:
 
 ```json
-["aos.scene.desktop_frame_texture", "aos.scene.framebuffer_proof"]
+["aos.scene.desktop_frame_texture", "aos.scene.framebuffer_proof", "aos.scene.native_sheet_effect"]
 ```
+
+`aos.scene.native_sheet_effect` authorizes a committed cartridge to use the
+bounded native effect-program lane described in the authoring guide. The
+program remains cartridge data and is not part of the extension body.
 
 An extension declaring `aos.scene.framebuffer_proof` may also declare up to
 four uniquely sorted `framebufferProofs`. Each proof fixes one normalized
