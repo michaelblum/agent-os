@@ -208,6 +208,7 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/commands/serve.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-world-scene-*.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-world-native-*.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-world-devtools-*.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-frame-capture-consent.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-frame-capture-adapter.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-frame-capture-controller.swift'));
@@ -243,6 +244,7 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/scene-extension-store.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/shared/scene-extension-identifier.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('tests/desktop-world-scene-*.test.mjs'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('tests/desktop-world-native-effect-program.test.mjs'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('tests/fixtures/desktop-world-framebuffer-proof-identifiers.json'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('scripts/lib/scene-extension/module-inspector.mjs'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('packages/toolkit/components/desktop-world-stage/**'));

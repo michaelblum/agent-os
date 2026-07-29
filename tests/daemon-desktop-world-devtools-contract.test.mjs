@@ -15,6 +15,7 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'u
 test('daemon routes bounded stage snapshots and every revisioned session action', () => {
   const unified = read('src/daemon/unified.swift')
   const controller = read('src/daemon/desktop-world-devtools-controller.swift')
+  const nativeFacts = read('src/daemon/desktop-world-devtools-native-stage-facts.swift')
   const session = read('src/daemon/desktop-world-devtools-session.swift')
 
   assert.match(unified, /case "desktop_world_stage\.devtools\.snapshot":\s*if canvasID == self\.sceneStageCanvasID/)
@@ -39,6 +40,9 @@ test('daemon routes bounded stage snapshots and every revisioned session action'
   assert.match(session, /struct AOSDesktopWorldDevToolsUpdateRequest/)
   assert.match(session, /"stageSnapshotRevision": stageSnapshotRevision/)
   assert.match(session, /"stageSnapshotReady": state\.stageRequestID == nil \|\| state\.stageRequestCompletedRevision != nil/)
+  assert.match(nativeFacts, /struct AOSDesktopWorldDevToolsNativeStageFacts/)
+  assert.match(nativeFacts, /"lastExecution": lastExecution/)
+  assert.doesNotMatch(nativeFacts, /pixels|coordinates|parameters|frameTimestamp/)
   assert.doesNotMatch(session, /String\?\?/)
   assert.match(unified, /let hadSceneMonitor = subscribers\[connectionID\]\?\.sceneMonitorResource != nil/)
   assert.match(unified, /guard connection\.sceneMonitorReady/)

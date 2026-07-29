@@ -158,13 +158,28 @@ function stageSnapshot(overrides = {}) {
         state: 'ready',
       },
       nativeEffect: {
+        activeInstanceCount: 0,
+        activeSheetCount: 0,
         acceptedCount: 2,
         attemptedCount: 3,
         completedCount: 1,
+        disposedCount: 1,
         failedCount: 1,
         lastErrorCode: 'NATIVE_EFFECT_CAPTURE_TIMEOUT',
+        lastExecution: {
+          ownerId: 'example.consumer',
+          programDigest: 'a'.repeat(64),
+          programId: 'example.ripple',
+          programRevision: 1,
+          resourceId: 'companion/main',
+          resourceRevision: 3,
+        },
+        lastPresentationLatencyMs: 31,
         presentedCount: 1,
         rejectedCount: 1,
+        retainedBufferCount: 0,
+        retainedTextureCount: 0,
+        retainedViewCount: 0,
         state: 'ready',
       },
     },
@@ -222,13 +237,28 @@ test('DesktopWorld DevTools stage normalization is strict, bounded, and content-
     state: 'ready',
   });
   assert.deepEqual(normalized.native.nativeEffect, {
+    activeInstanceCount: 0,
+    activeSheetCount: 0,
     acceptedCount: 2,
     attemptedCount: 3,
     completedCount: 1,
+    disposedCount: 1,
     failedCount: 1,
     lastErrorCode: 'NATIVE_EFFECT_CAPTURE_TIMEOUT',
+    lastExecution: {
+      ownerId: 'example.consumer',
+      programDigest: 'a'.repeat(64),
+      programId: 'example.ripple',
+      programRevision: 1,
+      resourceId: 'companion/main',
+      resourceRevision: 3,
+    },
+    lastPresentationLatencyMs: 31,
     presentedCount: 1,
     rejectedCount: 1,
+    retainedBufferCount: 0,
+    retainedTextureCount: 0,
+    retainedViewCount: 0,
     state: 'ready',
   });
 });
@@ -244,14 +274,29 @@ test('DesktopWorld DevTools bounds native warm status without exposing capture c
         pixels: 'not allowed',
       },
       nativeEffect: {
+        activeInstanceCount: 99,
+        activeSheetCount: -1,
         acceptedCount: -1,
         attemptedCount: 1e12,
         completedCount: 2,
+        disposedCount: 1e12,
         failedCount: 3,
         lastErrorCode: 'y'.repeat(100),
+        lastExecution: {
+          ownerId: 'owner',
+          programDigest: 'z'.repeat(100),
+          programId: 'program',
+          programRevision: -1,
+          resourceId: 'resource',
+          resourceRevision: 3e9,
+        },
+        lastPresentationLatencyMs: -1,
         parameters: 'not allowed',
         presentedCount: 4,
         rejectedCount: 5,
+        retainedBufferCount: 99,
+        retainedTextureCount: 99,
+        retainedViewCount: 99,
         state: 'unknown',
       },
       frame: 'not allowed',
@@ -266,16 +311,38 @@ test('DesktopWorld DevTools bounds native warm status without exposing capture c
       state: 'idle',
     },
     nativeEffect: {
+      activeInstanceCount: 1,
+      activeSheetCount: 0,
       acceptedCount: 0,
       attemptedCount: 1e9,
       completedCount: 2,
+      disposedCount: 1e9,
       failedCount: 3,
       lastErrorCode: 'y'.repeat(64),
+      lastExecution: null,
+      lastPresentationLatencyMs: 0,
       presentedCount: 4,
       rejectedCount: 5,
+      retainedBufferCount: 32,
+      retainedTextureCount: 16,
+      retainedViewCount: 16,
       state: 'unavailable',
     },
   });
+});
+
+test('DesktopWorld DevTools rejects noncanonical native-effect execution identity', () => {
+  const malformed = stageSnapshot();
+  malformed.native.nativeEffect.lastExecution = {
+    ownerId: '../consumer',
+    programDigest: 'A'.repeat(64),
+    programId: 'example.effect',
+    programRevision: 1,
+    resourceId: 'companion/main',
+    resourceRevision: 3,
+  };
+  const normalized = normalizeDesktopWorldDevToolsStageSnapshot(malformed);
+  assert.equal(normalized.native.nativeEffect.lastExecution, null);
 });
 
 test('browser-authored stage snapshots do not invent daemon-owned native state', () => {

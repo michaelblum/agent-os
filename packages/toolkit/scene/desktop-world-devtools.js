@@ -50,6 +50,48 @@ function boundedString(value, fallback = '', limit = DESKTOP_WORLD_DEVTOOLS_LIMI
   return typeof value === 'string' ? value.slice(0, limit) : fallback
 }
 
+function canonicalSceneIdentifier(value) {
+  if (typeof value !== 'string' || value.length < 1 || value.length > 256) return null
+  if (!/^[a-z0-9](?:[a-z0-9._/-]{0,254}[a-z0-9])?$/u.test(value)) return null
+  if (value.includes('//') || value.split('/').some((segment) => segment === '.' || segment === '..')) {
+    return null
+  }
+  return value
+}
+
+function lowercaseSHA256(value) {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value) ? value : null
+}
+
+function normalizeNativeEffectExecution(value) {
+  if (!value || typeof value !== 'object') return null
+  const ownerId = canonicalSceneIdentifier(value.ownerId)
+  const resourceId = canonicalSceneIdentifier(value.resourceId)
+  const resourceRevision = boundedInteger(value.resourceRevision, 0, 1, 2_147_483_647)
+  const builtIn = value.programId == null
+    && value.programRevision == null
+    && value.programDigest == null
+  const programId = builtIn ? null : canonicalSceneIdentifier(value.programId)
+  const programRevision = builtIn
+    ? null
+    : boundedInteger(value.programRevision, 0, 1, 2_147_483_647)
+  const programDigest = builtIn ? null : lowercaseSHA256(value.programDigest)
+  if (
+    ownerId === null
+    || resourceId === null
+    || resourceRevision === 0
+    || (!builtIn && (programId === null || programRevision === 0 || programDigest === null))
+  ) return null
+  return Object.freeze({
+    ownerId,
+    programDigest,
+    programId,
+    programRevision,
+    resourceId,
+    resourceRevision,
+  })
+}
+
 function finite(value, fallback = null, min = -1e9, max = 1e9) {
   if (value == null || value === '') return fallback
   const number = Number(value)
@@ -240,6 +282,7 @@ function normalizeNativeState(value = {}) {
     'capturing', 'installing', 'preparing', 'presenting', 'ready',
     'retiring', 'stopped', 'unavailable',
   ]
+  const lastExecution = normalizeNativeEffectExecution(nativeEffect.lastExecution)
   const warmStates = ['failed', 'idle', 'ready', 'retiring', 'warming']
   return Object.freeze({
     desktopFrameWarm: Object.freeze({
@@ -251,15 +294,25 @@ function normalizeNativeState(value = {}) {
       state: warmStates.includes(desktopFrameWarm.state) ? desktopFrameWarm.state : 'idle',
     }),
     nativeEffect: Object.freeze({
+      activeInstanceCount: boundedInteger(nativeEffect.activeInstanceCount, 0, 0, 1),
+      activeSheetCount: boundedInteger(nativeEffect.activeSheetCount, 0, 0, 1),
       acceptedCount: boundedInteger(nativeEffect.acceptedCount, 0, 0, 1e9),
       attemptedCount: boundedInteger(nativeEffect.attemptedCount, 0, 0, 1e9),
       completedCount: boundedInteger(nativeEffect.completedCount, 0, 0, 1e9),
+      disposedCount: boundedInteger(nativeEffect.disposedCount, 0, 0, 1e9),
       failedCount: boundedInteger(nativeEffect.failedCount, 0, 0, 1e9),
       lastErrorCode: nativeEffect.lastErrorCode == null
         ? null
         : boundedString(nativeEffect.lastErrorCode, '', 64),
+      lastExecution,
+      lastPresentationLatencyMs: nativeEffect.lastPresentationLatencyMs == null
+        ? null
+        : boundedInteger(nativeEffect.lastPresentationLatencyMs, 0, 0, 1e9),
       presentedCount: boundedInteger(nativeEffect.presentedCount, 0, 0, 1e9),
       rejectedCount: boundedInteger(nativeEffect.rejectedCount, 0, 0, 1e9),
+      retainedBufferCount: boundedInteger(nativeEffect.retainedBufferCount, 0, 0, 32),
+      retainedTextureCount: boundedInteger(nativeEffect.retainedTextureCount, 0, 0, 16),
+      retainedViewCount: boundedInteger(nativeEffect.retainedViewCount, 0, 0, 16),
       state: effectStates.includes(nativeEffect.state) ? nativeEffect.state : 'unavailable',
     }),
   })

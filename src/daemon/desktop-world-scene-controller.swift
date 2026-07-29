@@ -669,7 +669,8 @@ final class AOSDesktopWorldSceneController {
     func nativeEffectRequest(
         identity: AOSDesktopWorldSceneStageIdentity,
         key: String,
-        event: [String: Any]
+        event: [String: Any],
+        triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> AOSDesktopWorldNativeEffectRequest? {
         withLock {
             guard retirement == nil,
@@ -685,7 +686,8 @@ final class AOSDesktopWorldSceneController {
                 resourceID: resourceIdentity.resource,
                 resourceRevision: authorization.resourceRevision,
                 identity: identity,
-                event: event
+                event: event,
+                triggeredAt: triggeredAt
             )
         }
     }
@@ -698,7 +700,8 @@ final class AOSDesktopWorldSceneController {
         canvasGeneration: UInt64,
         phase: String,
         button: String,
-        point: CGPoint
+        point: CGPoint,
+        triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> AOSDesktopWorldNativeEffectRequest? {
         withLock {
             guard retirement == nil,
@@ -723,7 +726,8 @@ final class AOSDesktopWorldSceneController {
                 affordanceID: affordanceID,
                 phase: phase,
                 button: button,
-                point: point
+                point: point,
+                triggeredAt: triggeredAt
             )
         }
     }

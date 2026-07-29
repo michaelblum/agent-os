@@ -22,13 +22,28 @@ export interface DesktopWorldDevToolsStageSnapshot {
       state: 'failed' | 'idle' | 'ready' | 'retiring' | 'warming';
     }>;
     nativeEffect: Readonly<{
+      activeInstanceCount: number;
+      activeSheetCount: number;
       acceptedCount: number;
       attemptedCount: number;
       completedCount: number;
+      disposedCount: number;
       failedCount: number;
       lastErrorCode: string | null;
+      lastExecution: Readonly<{
+        ownerId: string;
+        programDigest: string | null;
+        programId: string | null;
+        programRevision: number | null;
+        resourceId: string;
+        resourceRevision: number;
+      }> | null;
+      lastPresentationLatencyMs: number | null;
       presentedCount: number;
       rejectedCount: number;
+      retainedBufferCount: number;
+      retainedTextureCount: number;
+      retainedViewCount: number;
       state: 'capturing' | 'installing' | 'preparing' | 'presenting' | 'ready' | 'retiring' | 'stopped' | 'unavailable';
     }>;
   }>;

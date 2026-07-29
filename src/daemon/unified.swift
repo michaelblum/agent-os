@@ -230,13 +230,27 @@ class UnifiedDaemon {
                 displayCount: status?.displayCount ?? 0,
                 errorCode: status?.errorCode,
                 generation: status?.generation ?? 0,
+                nativeEffectActiveInstanceCount: nativeEffect.activeInstanceCount,
+                nativeEffectActiveSheetCount: nativeEffect.activeSheetCount,
                 nativeEffectAcceptedCount: nativeEffect.acceptedCount,
                 nativeEffectAttemptedCount: nativeEffect.attemptedCount,
                 nativeEffectCompletedCount: nativeEffect.completedCount,
+                nativeEffectDisposedCount: nativeEffect.disposedCount,
                 nativeEffectFailedCount: nativeEffect.failedCount,
                 nativeEffectLastErrorCode: nativeEffect.lastErrorCode,
+                nativeEffectLastOwnerID: nativeEffect.lastOwnerID,
+                nativeEffectLastPresentationLatencyMilliseconds:
+                    nativeEffect.lastPresentationLatencyMilliseconds,
+                nativeEffectLastProgramDigest: nativeEffect.lastProgramDigest,
+                nativeEffectLastProgramID: nativeEffect.lastProgramID,
+                nativeEffectLastProgramRevision: nativeEffect.lastProgramRevision,
+                nativeEffectLastResourceID: nativeEffect.lastResourceID,
+                nativeEffectLastResourceRevision: nativeEffect.lastResourceRevision,
                 nativeEffectPresentedCount: nativeEffect.presentedCount,
                 nativeEffectRejectedCount: nativeEffect.rejectedCount,
+                nativeEffectRetainedBufferCount: nativeEffect.retainedBufferCount,
+                nativeEffectRetainedTextureCount: nativeEffect.retainedTextureCount,
+                nativeEffectRetainedViewCount: nativeEffect.retainedViewCount,
                 nativeEffectState: nativeEffect.state,
                 state: status?.state.rawValue ?? "idle"
             )
@@ -4631,6 +4645,7 @@ class UnifiedDaemon {
     }
 
     private func routeInputRegionEvent(event: String, data: [String: Any]) -> Bool? {
+        let triggeredAt = ProcessInfo.processInfo.systemUptime
         guard let descriptor = AOSInputEventDescriptor(type: event) else { return nil }
         let parsedEvent = AOSCanonicalInputEvent(canonicalData: data)
         let canonicalEvent = parsedEvent?.descriptor == descriptor ? parsedEvent : nil
@@ -4667,7 +4682,8 @@ class UnifiedDaemon {
                 region: delivery.region,
                 phase: delivery.phase,
                 button: delivery.button,
-                desktopWorld: desktopWorld
+                desktopWorld: desktopWorld,
+                triggeredAt: triggeredAt
                ) {
                 triggerNativeSheetEffect(request)
             }

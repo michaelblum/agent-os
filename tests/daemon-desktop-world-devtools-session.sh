@@ -184,13 +184,26 @@ nativeWarmState = AOSDesktopWorldDevToolsNativeStageFacts(
     displayCount: 1,
     errorCode: nil,
     generation: 3,
+    nativeEffectActiveInstanceCount: 0,
+    nativeEffectActiveSheetCount: 0,
     nativeEffectAcceptedCount: 2,
     nativeEffectAttemptedCount: 3,
     nativeEffectCompletedCount: 1,
+    nativeEffectDisposedCount: 1,
     nativeEffectFailedCount: 1,
     nativeEffectLastErrorCode: "NATIVE_EFFECT_CAPTURE_TIMEOUT",
+    nativeEffectLastOwnerID: "example.consumer",
+    nativeEffectLastPresentationLatencyMilliseconds: 31,
+    nativeEffectLastProgramDigest: String(repeating: "a", count: 64),
+    nativeEffectLastProgramID: "example.ripple",
+    nativeEffectLastProgramRevision: 1,
+    nativeEffectLastResourceID: "companion/main",
+    nativeEffectLastResourceRevision: 3,
     nativeEffectPresentedCount: 1,
     nativeEffectRejectedCount: 1,
+    nativeEffectRetainedBufferCount: 0,
+    nativeEffectRetainedTextureCount: 0,
+    nativeEffectRetainedViewCount: 0,
     nativeEffectState: "ready",
     state: "ready"
 )
@@ -213,9 +226,23 @@ require(nativeEffect["attemptedCount"] as? Int == 3, "native effect attempts wer
 require(nativeEffect["acceptedCount"] as? Int == 2, "native effect accepts were lost")
 require(nativeEffect["presentedCount"] as? Int == 1, "native effect presentations were lost")
 require(nativeEffect["completedCount"] as? Int == 1, "native effect completions were lost")
+require(nativeEffect["disposedCount"] as? Int == 1, "native effect disposals were lost")
+require(nativeEffect["activeInstanceCount"] as? Int == 0, "native effect runtime count was lost")
+require(nativeEffect["activeSheetCount"] as? Int == 0, "native effect sheet count was lost")
+require(nativeEffect["retainedBufferCount"] as? Int == 0, "native effect buffer count was lost")
+require(nativeEffect["retainedTextureCount"] as? Int == 0, "native effect texture count was lost")
+require(nativeEffect["retainedViewCount"] as? Int == 0, "native effect view count was lost")
 require(nativeEffect["rejectedCount"] as? Int == 1, "native effect rejections were lost")
 require(nativeEffect["failedCount"] as? Int == 1, "native effect failures were lost")
 require(nativeEffect["lastErrorCode"] as? String == "NATIVE_EFFECT_CAPTURE_TIMEOUT", "native effect error was lost")
+require(nativeEffect["lastPresentationLatencyMs"] as? Int == 31, "native effect latency was lost")
+let lastExecution = nativeEffect["lastExecution"] as! [String: Any]
+require(lastExecution["ownerId"] as? String == "example.consumer", "native effect owner identity was lost")
+require(lastExecution["resourceId"] as? String == "companion/main", "native effect resource identity was lost")
+require(lastExecution["resourceRevision"] as? Int == 3, "native effect resource revision was lost")
+require(lastExecution["programId"] as? String == "example.ripple", "native effect program identity was lost")
+require(lastExecution["programRevision"] as? Int == 1, "native effect program revision was lost")
+require(lastExecution["programDigest"] as? String == String(repeating: "a", count: 64), "native effect program digest was lost")
 require(nativeEffect["parameters"] == nil, "native effect parameters crossed the diagnostics boundary")
 let canonicalWorld = stage["world"] as! [String: Any]
 let canonicalDisplay = (canonicalWorld["displays"] as! [[String: Any]])[0]
@@ -262,5 +289,8 @@ print("PASS DesktopWorld DevTools daemon session")
 SWIFT
 
 CLANG_MODULE_CACHE_PATH="$TMP/cache" SWIFT_MODULECACHE_PATH="$TMP/cache" \
-    swiftc "$ROOT/src/daemon/desktop-world-devtools-session.swift" "$TMP/main.swift" -o "$TMP/test"
+    swiftc \
+      "$ROOT/src/daemon/desktop-world-devtools-native-stage-facts.swift" \
+      "$ROOT/src/daemon/desktop-world-devtools-session.swift" \
+      "$TMP/main.swift" -o "$TMP/test"
 "$TMP/test"
