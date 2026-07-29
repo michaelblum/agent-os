@@ -129,7 +129,10 @@ prewarms a digest-keyed pipeline before accepting input, clamps displacement
 and opacity, and disposes each transient texture and sheet instance. The public
 authoring exports include `createSceneNativeEffectProgram()`,
 `validateSceneNativeEffectProgram()`, the supported operator list, and exact
-budgets.
+budgets. `digestSceneNativeEffectProgram()` applies the public
+`aos.scene.native-effect-program-digest.v1` contract. Consumers use that helper
+when correlating prepared or executed programs; they must not hash JSON text or
+depend on a language-specific serializer.
 
 A binding may use `trigger: { input: "pointer_down", button: "left" }` (with
 `button` optional and defaulting to `left`) or a `start`/`end` gesture-phase

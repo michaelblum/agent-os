@@ -3,12 +3,15 @@ import test from 'node:test'
 
 import {
   SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID,
+  SCENE_NATIVE_EFFECT_PROGRAM_DIGEST_CONTRACT_ID,
   SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID,
   SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION,
   SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID,
   SCENE_NATIVE_EFFECT_PROGRAM_OPERATORS,
   createSceneNativeEffectProgram,
   compileSceneNativeEffectProgramGLSL,
+  digestSceneNativeEffectProgram,
+  encodeSceneNativeEffectProgramDigestInput,
   validateSceneNativeEffectParameters,
   validateSceneNativeEffectProgram,
 } from '../../packages/toolkit/scene/authoring.js'
@@ -78,6 +81,33 @@ test('native effect authoring accepts a bounded typed graph and freezes its copy
   assert.equal(Object.isFrozen(created.nodes), true)
   assert.equal(SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION, 'aos.scene.effect.program')
   assert.ok(SCENE_NATIVE_EFFECT_PROGRAM_OPERATORS.includes('constant'))
+})
+
+test('native effect program digests use one deterministic cross-language contract', async () => {
+  const candidate = program()
+  const reordered = Object.fromEntries(Object.entries(candidate).reverse())
+  reordered.parameters = candidate.parameters.map((parameter) => ({
+    max: parameter.max,
+    min: parameter.min,
+    default: parameter.default,
+    id: parameter.id,
+  }))
+
+  const encoded = encodeSceneNativeEffectProgramDigestInput(candidate)
+  assert.ok(encoded instanceof Uint8Array)
+  assert.equal(
+    new TextDecoder().decode(encoded.slice(0, SCENE_NATIVE_EFFECT_PROGRAM_DIGEST_CONTRACT_ID.length + 1)),
+    `${SCENE_NATIVE_EFFECT_PROGRAM_DIGEST_CONTRACT_ID}\0`,
+  )
+  const digest = await digestSceneNativeEffectProgram(candidate)
+  assert.equal(digest, '9ff0d850e0a5360cae8c3d4fb3691a565873e2f8e6ef589793ca7ed6f57a4a5c')
+  assert.equal(await digestSceneNativeEffectProgram(reordered), digest)
+
+  const negativeZero = program()
+  negativeZero.nodes.at(-1).value = -0
+  const positiveZero = program()
+  positiveZero.nodes.at(-1).value = 0
+  assert.equal(await digestSceneNativeEffectProgram(negativeZero), await digestSceneNativeEffectProgram(positiveZero))
 })
 
 test('native effect graphs reject forward references, type drift, source, and excess work', () => {

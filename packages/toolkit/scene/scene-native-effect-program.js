@@ -11,6 +11,7 @@ export const SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_IDS = Object.freeze([
 ])
 export const SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION = 'aos.scene.effect.program'
 export const SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID = 'aos.scene.native-effect-glsl.v1'
+export const SCENE_NATIVE_EFFECT_PROGRAM_DIGEST_CONTRACT_ID = 'aos.scene.native-effect-program-digest.v1'
 
 export const SCENE_NATIVE_EFFECT_PROGRAM_LIMITS = Object.freeze({
   maxConstantMagnitude: 1_000_000,
@@ -347,6 +348,99 @@ export function validateSceneNativeEffectProgram(program) {
   }
   if (allowVector3) validateMaterial(program.material, errors)
   return { ok: errors.length === 0, errors }
+}
+
+const digestEncoder = new TextEncoder()
+const digestDomain = digestEncoder.encode(`${SCENE_NATIVE_EFFECT_PROGRAM_DIGEST_CONTRACT_ID}\0`)
+
+function appendDigestLength(bytes, value) {
+  if (!Number.isInteger(value) || value < 0 || value > 0xffff_ffff) {
+    throw new TypeError('Native effect program digest input exceeds its bounded length.')
+  }
+  bytes.push(
+    (value >>> 24) & 0xff,
+    (value >>> 16) & 0xff,
+    (value >>> 8) & 0xff,
+    value & 0xff,
+  )
+}
+
+function appendDigestBytes(bytes, value) {
+  for (const byte of value) bytes.push(byte)
+}
+
+function appendDigestString(bytes, value) {
+  const encoded = digestEncoder.encode(value)
+  appendDigestLength(bytes, encoded.byteLength)
+  appendDigestBytes(bytes, encoded)
+}
+
+function compareDigestKeys(left, right) {
+  const leftBytes = digestEncoder.encode(left)
+  const rightBytes = digestEncoder.encode(right)
+  const length = Math.min(leftBytes.length, rightBytes.length)
+  for (let index = 0; index < length; index += 1) {
+    if (leftBytes[index] !== rightBytes[index]) return leftBytes[index] - rightBytes[index]
+  }
+  return leftBytes.length - rightBytes.length
+}
+
+function appendDigestValue(bytes, value) {
+  if (value === null) {
+    bytes.push(0)
+    return
+  }
+  if (typeof value === 'boolean') {
+    bytes.push(value ? 2 : 1)
+    return
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    bytes.push(3)
+    const buffer = new ArrayBuffer(8)
+    new DataView(buffer).setFloat64(0, Object.is(value, -0) ? 0 : value, false)
+    appendDigestBytes(bytes, new Uint8Array(buffer))
+    return
+  }
+  if (typeof value === 'string') {
+    bytes.push(4)
+    appendDigestString(bytes, value)
+    return
+  }
+  if (Array.isArray(value)) {
+    bytes.push(5)
+    appendDigestLength(bytes, value.length)
+    value.forEach((entry) => appendDigestValue(bytes, entry))
+    return
+  }
+  if (isSceneRecord(value)) {
+    const keys = Object.keys(value).sort(compareDigestKeys)
+    bytes.push(6)
+    appendDigestLength(bytes, keys.length)
+    for (const key of keys) {
+      appendDigestString(bytes, key)
+      appendDigestValue(bytes, value[key])
+    }
+    return
+  }
+  throw new TypeError('Native effect program digest input must contain only finite JSON values.')
+}
+
+export function encodeSceneNativeEffectProgramDigestInput(program) {
+  const validation = validateSceneNativeEffectProgram(program)
+  if (!validation.ok) throw new TypeError(validation.errors[0]?.message ?? 'Invalid native effect program.')
+  const bytes = [...digestDomain]
+  appendDigestValue(bytes, program)
+  if (bytes.length > SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxSerializedBytes * 4) {
+    throw new TypeError('Native effect program digest input exceeds its bounded size.')
+  }
+  return Uint8Array.from(bytes)
+}
+
+export async function digestSceneNativeEffectProgram(program) {
+  const subtle = globalThis.crypto?.subtle
+  if (!subtle) throw new TypeError('Native effect program digest requires Web Crypto.')
+  const digest = await subtle.digest('SHA-256', encodeSceneNativeEffectProgramDigestInput(program))
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
 export function validateSceneNativeEffectParameters(program, values, path = 'parameters') {

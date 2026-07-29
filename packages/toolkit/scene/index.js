@@ -96,10 +96,13 @@ export {
   SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID,
   SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION,
   SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID,
+  SCENE_NATIVE_EFFECT_PROGRAM_DIGEST_CONTRACT_ID,
   SCENE_NATIVE_EFFECT_PROGRAM_LIMITS,
   SCENE_NATIVE_EFFECT_PROGRAM_OPERATORS,
   createSceneNativeEffectProgram,
   compileSceneNativeEffectProgramGLSL,
+  digestSceneNativeEffectProgram,
+  encodeSceneNativeEffectProgramDigestInput,
   validateSceneNativeEffectParameters,
   validateSceneNativeEffectProgram,
 } from './scene-native-effect-program.js'

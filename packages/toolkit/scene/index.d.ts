@@ -723,6 +723,7 @@ export const SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_IDS: readonly [
 ];
 export const SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION: 'aos.scene.effect.program';
 export const SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID: 'aos.scene.native-effect-glsl.v1';
+export const SCENE_NATIVE_EFFECT_PROGRAM_DIGEST_CONTRACT_ID: 'aos.scene.native-effect-program-digest.v1';
 export const SCENE_NATIVE_EFFECT_PROGRAM_LIMITS: Readonly<{
   maxConstantMagnitude: 1000000;
   maxDurationMs: 3000;
@@ -741,6 +742,12 @@ export const SCENE_NATIVE_EFFECT_PROGRAM_LIMITS: Readonly<{
 }>;
 export const SCENE_NATIVE_EFFECT_PROGRAM_OPERATORS: readonly SceneNativeEffectProgramNode['op'][];
 export function validateSceneNativeEffectProgram(program: unknown): SceneValidationResult;
+export function encodeSceneNativeEffectProgramDigestInput(
+  program: SceneNativeEffectProgram,
+): Uint8Array;
+export function digestSceneNativeEffectProgram(
+  program: SceneNativeEffectProgram,
+): Promise<string>;
 export function validateSceneNativeEffectParameters(
   program: SceneNativeEffectProgram,
   values: unknown,
