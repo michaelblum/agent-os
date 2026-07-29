@@ -35,7 +35,7 @@ function regionPayload(entry, descriptor, frame) {
       scene_owner: entry.owner,
       scene_resource: entry.resource,
       scene_affordance: descriptor.id,
-      scene_revision: entry.document.revision,
+      scene_revision: String(entry.document.revision),
     },
   }
 }
