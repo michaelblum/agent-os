@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-07-28
 - Supersedes: the complete-effect registry requirement in ADR 0032
+- Extended by: ADR 0034
 
 ## Context
 
@@ -80,9 +81,10 @@ parameters.
 - Sigil can own and revise Ripple, Wake-like segment effects, and future bounded
   desktop distortions without rebuilding AOS for each composition or preset.
 - AOS remains the only capture, GPU, topology, clock, budget, and disposal owner.
-- The initial program model is one texture-deformation/compositing pass. New
-  geometry sources, bounded multipass programs, or active input streams require
-  separately reviewed generic contract additions.
+- V1 remains one texture-deformation/compositing pass. ADR 0034 adds bounded
+  deformation of the existing tessellated sheet; new geometry sources,
+  topology mutation, bounded multipass programs, or active input streams still
+  require separately reviewed generic contract additions.
 - A continuously updated pointer wake is not implied by the frozen-event V1
   contract. A segment wake can use the recognized origin and current point.
 - Raw consumer shaders, native handles, public pixels, and a second scene or

@@ -21,11 +21,15 @@ export {
   validateSceneInteractionDocument,
 } from './scene-interaction-contract.js'
 export {
+  SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_IDS,
   SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID,
+  SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID,
   SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION,
+  SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID,
   SCENE_NATIVE_EFFECT_PROGRAM_LIMITS,
   SCENE_NATIVE_EFFECT_PROGRAM_OPERATORS,
   createSceneNativeEffectProgram,
+  compileSceneNativeEffectProgramGLSL,
   validateSceneNativeEffectParameters,
   validateSceneNativeEffectProgram,
 } from './scene-native-effect-program.js'

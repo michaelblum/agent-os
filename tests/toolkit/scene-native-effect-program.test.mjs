@@ -3,9 +3,12 @@ import test from 'node:test'
 
 import {
   SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID,
+  SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID,
   SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION,
+  SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID,
   SCENE_NATIVE_EFFECT_PROGRAM_OPERATORS,
   createSceneNativeEffectProgram,
+  compileSceneNativeEffectProgramGLSL,
   validateSceneNativeEffectParameters,
   validateSceneNativeEffectProgram,
 } from '../../packages/toolkit/scene/authoring.js'
@@ -27,6 +30,41 @@ function program() {
       { id: 'one', op: 'constant', value: 1 },
     ],
     outputs: { displacement: 'node.displacement', opacity: 'node.one' },
+  }
+}
+
+function v2Program() {
+  return {
+    contract: SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID,
+    schemaVersion: 2,
+    id: 'example.effect.sheet-wave',
+    revision: 1,
+    durationMs: 1_400,
+    parameters: [{ id: 'amplitude', default: 18, min: 0, max: 96 }],
+    nodes: [
+      { id: 'delta', op: 'subtract', inputs: ['world.position', 'event.current'] },
+      { id: 'distance', op: 'length', inputs: ['node.delta'] },
+      { id: 'phase', op: 'add', inputs: ['node.distance', 'clock.elapsed'] },
+      { id: 'wave', op: 'cosine', inputs: ['node.phase'] },
+      { id: 'height', op: 'multiply', inputs: ['node.wave', 'parameter.amplitude'] },
+      { id: 'zero', op: 'constant', value: 0 },
+      { id: 'position', op: 'compose3', inputs: ['node.zero', 'node.zero', 'node.height'] },
+      { id: 'texture', op: 'constant', value: [0, 0] },
+      { id: 'one', op: 'constant', value: 1 },
+    ],
+    outputs: {
+      positionOffset: 'node.position',
+      textureDisplacement: 'node.texture',
+      opacity: 'node.one',
+    },
+    material: {
+      lighting: 'lambert',
+      ambient: 0.65,
+      diffuse: 0.45,
+      lightDirection: [-0.35, -0.45, 0.82],
+      normalSampleDistance: 2,
+      perspectiveDistance: 2_400,
+    },
   }
 }
 
@@ -86,4 +124,49 @@ test('native effect parameter overrides are schema-bound', () => {
   for (const values of [{ amplitude: 97 }, { amplitude: true }, { unknown: 1 }]) {
     assert.equal(validateSceneNativeEffectParameters(program(), values).ok, false)
   }
+})
+
+test('v2 native effects express bounded 3D sheet deformation and material state', () => {
+  const candidate = v2Program()
+  assert.deepEqual(validateSceneNativeEffectProgram(candidate), { ok: true, errors: [] })
+  const created = createSceneNativeEffectProgram(candidate)
+  assert.equal(created.outputs.positionOffset, 'node.position')
+  assert.equal(created.material.lighting, 'lambert')
+
+  const v1Vector = program()
+  v1Vector.nodes.splice(-1, 0, { id: 'vector3', op: 'constant', value: [0, 0, 1] })
+  assert.equal(validateSceneNativeEffectProgram(v1Vector).ok, false)
+
+  const v1Composition = program()
+  v1Composition.nodes.push({ id: 'composed', op: 'compose2', inputs: ['node.one', 'node.one'] })
+  assert.equal(validateSceneNativeEffectProgram(v1Composition).ok, false)
+
+  for (const mutate of [
+    (value) => { value.outputs.positionOffset = 'node.texture' },
+    (value) => { value.material.lightDirection = [0, 0, 0] },
+    (value) => { value.material.normalSampleDistance = 65 },
+    (value) => { value.material.perspectiveDistance = 128 },
+  ]) {
+    const invalid = v2Program()
+    mutate(invalid)
+    assert.equal(validateSceneNativeEffectProgram(invalid).ok, false)
+  }
+})
+
+test('the same v2 graph compiles to a bounded Three.js-compatible GLSL function', () => {
+  const candidate = v2Program()
+  const compiled = compileSceneNativeEffectProgramGLSL(candidate)
+  const repeated = compileSceneNativeEffectProgramGLSL(candidate)
+  assert.equal(compiled.contract, SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID)
+  assert.equal(compiled.source, repeated.source)
+  assert.deepEqual(compiled.parameterIds, ['amplitude'])
+  assert.equal(compiled.material.lighting, 'lambert')
+  assert.match(compiled.source, /AosNativeEffectEvaluation aosEvaluateNativeEffect/u)
+  assert.match(compiled.source, /result\.positionOffset = clamp\(aosNode6/u)
+  assert.match(compiled.source, /aosPositionLength > 512\.0/u)
+  assert.match(compiled.source, /aosDisplacementLength > 96\.0/u)
+  assert.match(compiled.source, /uniform float aosEffectParameters\[1\]/u)
+  assert.doesNotMatch(compiled.source, /example\.effect\.sheet-wave/u)
+  assert.equal(Object.isFrozen(compiled), true)
+  assert.equal(Object.isFrozen(compiled.parameterIds), true)
 })
