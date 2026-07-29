@@ -165,7 +165,7 @@ test('stage interaction runtime registers one owner-scoped region and applies th
     scene_owner: 'example.consumer',
     scene_resource: 'companion/main',
     scene_affordance: 'body-hit',
-    scene_revision: 1,
+    scene_revision: '1',
   })
   runtime.handleInput(routed(regionId, 'left_mouse_down', 100, 200, 1))
   runtime.handleInput(routed(regionId, 'left_mouse_dragged', 140, 230, 2))
