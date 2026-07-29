@@ -46,15 +46,35 @@
           }
         },
         "nativeEffect": {
-          "type": "object", "required": ["acceptedCount", "attemptedCount", "completedCount", "failedCount", "lastErrorCode", "presentedCount", "rejectedCount", "state"], "additionalProperties": false,
+          "type": "object", "required": ["activeInstanceCount", "activeSheetCount", "acceptedCount", "attemptedCount", "completedCount", "disposedCount", "failedCount", "lastErrorCode", "lastExecution", "lastPresentationLatencyMs", "presentedCount", "rejectedCount", "retainedBufferCount", "retainedTextureCount", "retainedViewCount", "state"], "additionalProperties": false,
           "properties": {
+            "activeInstanceCount": { "type": "integer", "minimum": 0, "maximum": 1 },
+            "activeSheetCount": { "type": "integer", "minimum": 0, "maximum": 1 },
             "acceptedCount": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
             "attemptedCount": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
             "completedCount": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
+            "disposedCount": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
             "failedCount": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
             "lastErrorCode": { "type": ["string", "null"], "maxLength": 64 },
+            "lastExecution": {
+              "type": ["object", "null"],
+              "required": ["ownerId", "programDigest", "programId", "programRevision", "resourceId", "resourceRevision"],
+              "additionalProperties": false,
+              "properties": {
+                "ownerId": { "$ref": "#/$defs/Identifier" },
+                "programDigest": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+                "programId": { "type": ["string", "null"], "maxLength": 256 },
+                "programRevision": { "type": ["integer", "null"], "minimum": 1, "maximum": 2147483647 },
+                "resourceId": { "$ref": "#/$defs/Identifier" },
+                "resourceRevision": { "type": "integer", "minimum": 1, "maximum": 2147483647 }
+              }
+            },
+            "lastPresentationLatencyMs": { "type": ["integer", "null"], "minimum": 0, "maximum": 1000000000 },
             "presentedCount": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
             "rejectedCount": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
+            "retainedBufferCount": { "type": "integer", "minimum": 0, "maximum": 32 },
+            "retainedTextureCount": { "type": "integer", "minimum": 0, "maximum": 16 },
+            "retainedViewCount": { "type": "integer", "minimum": 0, "maximum": 16 },
             "state": { "enum": ["capturing", "installing", "preparing", "presenting", "ready", "retiring", "stopped", "unavailable"] }
           }
         }

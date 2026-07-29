@@ -185,7 +185,8 @@ final class AOSDesktopWorldSceneTransportController {
         region: AOSInputRegionRecord,
         phase: AOSInputEventPhase,
         button: AOSInputButton?,
-        desktopWorld: CGPoint
+        desktopWorld: CGPoint,
+        triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> AOSDesktopWorldNativeEffectRequest? {
         guard region.ownerCanvasID == Self.stageCanvasID,
               phase == .down,
@@ -206,7 +207,8 @@ final class AOSDesktopWorldSceneTransportController {
             canvasGeneration: region.ownerCanvasGeneration.value,
             phase: phase.rawValue,
             button: button.rawValue,
-            point: desktopWorld
+            point: desktopWorld,
+            triggeredAt: triggeredAt
         )
     }
 

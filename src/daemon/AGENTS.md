@@ -174,11 +174,16 @@ they must not add another sampler or survive their owning connection.
 At inspection read time, the daemon decorates canonical stage snapshots with
 the native desktop-frame warm pool's state, display count, generation, and
 redacted error code, plus bounded native-effect admission, presentation,
-completion, rejection, and failure counters with one redacted error code.
+completion, disposal, rejection, and failure counters, active runtime/sheet and
+retained buffer/texture/view counts, native trigger-to-presentation latency,
+canonical last-execution
+owner/resource/program identity and digest, and one redacted error code.
 Browser snapshots do not own or cache those facts, and bounded warm lifecycle
 transitions republish to active DevTools hosts without polling. DevTools never
 includes pixels, handles, paths, frame timestamps, effect parameters,
-coordinates, product state, or captured desktop facts.
+coordinates, product state, or captured desktop facts. Successful runtime
+disposal is recorded only after the runtime reports zero retained buffers,
+textures, and views and the exact native sheet removal succeeds.
 
 Use generic nouns in daemon contracts. Prefer `canvas`, `surface`,
 `input_region`, `binding`, `channel`, and `lifecycle` over product names such as

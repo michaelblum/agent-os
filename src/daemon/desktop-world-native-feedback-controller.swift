@@ -5,89 +5,6 @@ private let aosDesktopWorldNativeFeedbackDeadlineQueue = DispatchQueue(
     qos: .userInitiated
 )
 
-struct AOSDesktopWorldNativeFeedbackCaptureContext: Equatable {
-    let canvasGeneration: UInt64
-    let displayIDs: [UInt32]
-    let excludingWindowIDs: [Int]
-    let topologyGeneration: UInt64
-}
-
-@MainActor
-protocol AOSDesktopWorldNativeFeedbackRuntime: AnyObject {
-    func dispose()
-    func present(
-        onPresented: @escaping () -> Void,
-        onFailure: @escaping (String) -> Void,
-        onComplete: @escaping () -> Void
-    )
-}
-
-protocol AOSDesktopWorldNativeEffectPreparation: AnyObject, Sendable {}
-
-struct AOSDesktopWorldNativeFeedbackInstallation {
-    let identity: AOSDesktopWorldResourceIdentity
-    let runtime: AOSDesktopWorldNativeFeedbackRuntime
-}
-
-struct AOSDesktopWorldNativeFeedbackSnapshot: Equatable {
-    let acceptedCount: Int
-    let attemptedCount: Int
-    let completedCount: Int
-    let failedCount: Int
-    let lastErrorCode: String?
-    let presentedCount: Int
-    let rejectedCount: Int
-    let state: String
-
-    static let idle = AOSDesktopWorldNativeFeedbackSnapshot(
-        acceptedCount: 0,
-        attemptedCount: 0,
-        completedCount: 0,
-        failedCount: 0,
-        lastErrorCode: nil,
-        presentedCount: 0,
-        rejectedCount: 0,
-        state: "unavailable"
-    )
-}
-
-protocol AOSDesktopWorldNativeFeedbackHosting: AnyObject {
-    func captureContext() -> AOSDesktopWorldNativeFeedbackCaptureContext?
-
-    func prepare(
-        programs: [AOSDesktopWorldNativeEffectProgram],
-        completion: @escaping @Sendable (
-            Result<AOSDesktopWorldNativeEffectPreparation, Error>
-        ) -> Void
-    )
-
-    /// Publishes one already-prepared context with a bounded, nonblocking
-    /// pointer swap. Implementations must not reenter this controller.
-    @MainActor
-    func activate(
-        preparation: AOSDesktopWorldNativeEffectPreparation
-    ) throws
-
-    @MainActor
-    func install(
-        request: AOSDesktopWorldNativeEffectRequest,
-        frames: AOSDesktopPixelFrameSet
-    ) throws -> AOSDesktopWorldNativeFeedbackInstallation
-
-    @MainActor
-    func remove(
-        canvasGeneration: UInt64,
-        topologyGeneration: UInt64,
-        identity: AOSDesktopWorldResourceIdentity
-    )
-
-    @MainActor
-    func releasePreparedResources()
-
-    @MainActor
-    func shutdown()
-}
-
 final class AOSDesktopWorldNativeFeedbackController {
     private enum PreparationCompletion {
         case failed
@@ -104,6 +21,7 @@ final class AOSDesktopWorldNativeFeedbackController {
         }
 
         var capture: AOSDesktopFrameCancelling
+        let triggeredAt: TimeInterval
         var deadline: DispatchWorkItem
         let generation: UInt64
         var phase: Phase
@@ -113,18 +31,29 @@ final class AOSDesktopWorldNativeFeedbackController {
 
     private static let captureTimeout: TimeInterval = 0.75
     private static let effectCleanupGrace: TimeInterval = 0.25
+    private static let retirementRetryDelay: TimeInterval = 0.05
     private static let maximumDiagnosticCount = 1_000_000_000
 
     private var active: Active?
+    private var activeInstanceCount = 0
+    private var activeSheetCount = 0
     private var acceptedCount = 0
     private let authorize: (AOSDesktopWorldNativeEffectRequest) -> Bool
     private var attemptedCount = 0
     private let capturer: AOSDesktopPixelFrameSetCapturing
     private var completedCount = 0
+    private var disposedCount = 0
     private var desiredPrograms: [AOSDesktopWorldNativeEffectProgram] = []
     private var failedCount = 0
     private let host: AOSDesktopWorldNativeFeedbackHosting
     private var lastErrorCode: String?
+    private var lastOwnerID: String?
+    private var lastPresentationLatencyMilliseconds: Int?
+    private var lastProgramDigest: String?
+    private var lastProgramID: String?
+    private var lastProgramRevision: Int?
+    private var lastResourceID: String?
+    private var lastResourceRevision: Int?
     private let lock = NSLock()
     private var availabilityGeneration: UInt64 = 0
     private var available = false
@@ -135,6 +64,9 @@ final class AOSDesktopWorldNativeFeedbackController {
     private var preparing = false
     private var presentedCount = 0
     private var rejectedCount = 0
+    private var retainedBufferCount = 0
+    private var retainedTextureCount = 0
+    private var retainedViewCount = 0
     private var retirementPending = false
     private let scheduleDeadline: (TimeInterval, DispatchWorkItem) -> Void
     private var stopped = false
@@ -144,6 +76,9 @@ final class AOSDesktopWorldNativeFeedbackController {
         topologyGeneration: UInt64,
         sheet: AOSDesktopWorldResourceIdentity
     )?
+    @MainActor private var retirementAttemptCount = 0
+    @MainActor private var retirementRetryDeadline: DispatchWorkItem?
+    @MainActor private var retirementTerminal = false
 
     init(
         host: AOSDesktopWorldNativeFeedbackHosting,
@@ -218,6 +153,7 @@ final class AOSDesktopWorldNativeFeedbackController {
         let generation = nextGeneration
         active = Active(
             capture: AOSDesktopFrameCancellation(),
+            triggeredAt: request.triggeredAt,
             deadline: deadline,
             generation: generation,
             phase: .capturing,
@@ -225,6 +161,13 @@ final class AOSDesktopWorldNativeFeedbackController {
             request: request
         )
         acceptedCount = Self.increment(acceptedCount)
+        lastOwnerID = request.ownerID
+        lastPresentationLatencyMilliseconds = nil
+        lastProgramDigest = request.binding.program?.digest
+        lastProgramID = request.binding.program?.id
+        lastProgramRevision = request.binding.program?.revision
+        lastResourceID = request.resourceID
+        lastResourceRevision = request.resourceRevision
         lastErrorCode = nil
         lock.unlock()
 
@@ -249,13 +192,27 @@ final class AOSDesktopWorldNativeFeedbackController {
         lock.lock()
         defer { lock.unlock() }
         return AOSDesktopWorldNativeFeedbackSnapshot(
+            activeInstanceCount: activeInstanceCount,
+            activeSheetCount: activeSheetCount,
             acceptedCount: acceptedCount,
             attemptedCount: attemptedCount,
             completedCount: completedCount,
+            disposedCount: disposedCount,
             failedCount: failedCount,
             lastErrorCode: lastErrorCode,
+            lastOwnerID: lastOwnerID,
+            lastPresentationLatencyMilliseconds:
+                lastPresentationLatencyMilliseconds,
+            lastProgramDigest: lastProgramDigest,
+            lastProgramID: lastProgramID,
+            lastProgramRevision: lastProgramRevision,
+            lastResourceID: lastResourceID,
+            lastResourceRevision: lastResourceRevision,
             presentedCount: presentedCount,
             rejectedCount: rejectedCount,
+            retainedBufferCount: retainedBufferCount,
+            retainedTextureCount: retainedTextureCount,
+            retainedViewCount: retainedViewCount,
             state: stateLocked()
         )
     }
@@ -318,21 +275,26 @@ final class AOSDesktopWorldNativeFeedbackController {
 
     func cancelAll(releasePreparedResources: Bool = false) {
         lock.lock()
+        guard !stopped else {
+            lock.unlock()
+            return
+        }
         nextGeneration &+= 1
         let retired = active
         active = nil
         if retired != nil { retirementPending = true }
+        let shouldRetireRuntime = retired != nil || retirementPending
         let resourceReleaseGeneration = releasePreparedResources
             ? availabilityGeneration
             : nil
         lock.unlock()
         retired?.capture.cancel()
         retired?.deadline.cancel()
-        guard retired != nil || releasePreparedResources else { return }
+        guard shouldRetireRuntime || releasePreparedResources else { return }
         Task { @MainActor [weak self] in
             guard let self else { return }
-            self.disposeRuntime()
-            self.finishRuntimeRetirement()
+            guard !self.retirementTerminal else { return }
+            self.requestRuntimeRetirement()
             if let resourceReleaseGeneration,
                self.shouldReleasePreparedResources(
                 generation: resourceReleaseGeneration
@@ -345,6 +307,11 @@ final class AOSDesktopWorldNativeFeedbackController {
     func shutdown() {
         preparationTransitionLock.lock()
         lock.lock()
+        guard !stopped else {
+            lock.unlock()
+            preparationTransitionLock.unlock()
+            return
+        }
         stopped = true
         available = false
         prepared = false
@@ -352,9 +319,14 @@ final class AOSDesktopWorldNativeFeedbackController {
         preparedProgramDigests.removeAll(keepingCapacity: false)
         preparing = false
         availabilityGeneration &+= 1
+        nextGeneration &+= 1
+        let retired = active
+        active = nil
+        if retired != nil { retirementPending = true }
         lock.unlock()
         preparationTransitionLock.unlock()
-        cancelAll()
+        retired?.capture.cancel()
+        retired?.deadline.cancel()
         if Thread.isMainThread {
             MainActor.assumeIsolated { shutdownOnMain() }
         } else {
@@ -366,7 +338,14 @@ final class AOSDesktopWorldNativeFeedbackController {
 
     @MainActor
     private func shutdownOnMain() {
-        disposeRuntime()
+        guard !retirementTerminal else { return }
+        retirementTerminal = true
+        retirementRetryDeadline?.cancel()
+        retirementRetryDeadline = nil
+        if retirementAttemptCount < 2 {
+            retirementAttemptCount += 1
+            _ = disposeRuntime()
+        }
         host.shutdown()
     }
 
@@ -410,8 +389,7 @@ final class AOSDesktopWorldNativeFeedbackController {
         recordFailure("NATIVE_EFFECT_CAPTURE_TIMEOUT")
         retired.capture.cancel()
         Task { @MainActor [weak self] in
-            self?.disposeRuntime()
-            self?.finishRuntimeRetirement()
+            self?.requestRuntimeRetirement()
         }
     }
 
@@ -484,21 +462,41 @@ final class AOSDesktopWorldNativeFeedbackController {
             to: .installing
         ) else { return }
         do {
-            let installation = try host.install(
+            let outcome = try host.install(
                 request: request,
                 frames: frames
             )
-            guard transitionActive(
-                generation: generation,
-                from: .installing,
-                to: .presenting
-            ) else {
-                installation.runtime.dispose()
-                host.remove(
-                    canvasGeneration: request.canvasGeneration,
-                    topologyGeneration: request.topologyGeneration,
-                    identity: installation.identity
+            retirementAttemptCount = 0
+            retirementRetryDeadline?.cancel()
+            retirementRetryDeadline = nil
+            let installation: AOSDesktopWorldNativeFeedbackInstallation
+            switch outcome {
+            case .installed(let value):
+                installation = value
+            case .rollbackRequired(let identity, let error):
+                runtimeIdentity = (
+                    request.canvasGeneration,
+                    request.topologyGeneration,
+                    identity
                 )
+                lock.lock()
+                activeInstanceCount = 0
+                activeSheetCount = 1
+                retainedBufferCount = 0
+                retainedTextureCount = 0
+                retainedViewCount = 0
+                lock.unlock()
+                recordFailure(Self.failureCode(
+                    error,
+                    fallback: "NATIVE_EFFECT_INSTALL_FAILED"
+                ))
+                if retireActive(
+                    generation: generation,
+                    allowedPhases: [.installing],
+                    requiresRuntimeDisposal: true
+                ) != nil {
+                    requestRuntimeRetirement()
+                }
                 return
             }
             runtimeIdentity = (
@@ -507,6 +505,30 @@ final class AOSDesktopWorldNativeFeedbackController {
                 installation.identity
             )
             runtime = installation.runtime
+            lock.lock()
+            activeInstanceCount = 1
+            activeSheetCount = 1
+            retainedBufferCount = min(
+                max(installation.runtime.retainedBufferCount, 0),
+                Self.maximumDiagnosticCount
+            )
+            retainedTextureCount = min(
+                max(installation.runtime.retainedTextureCount, 0),
+                Self.maximumDiagnosticCount
+            )
+            retainedViewCount = min(
+                max(installation.runtime.retainedViewCount, 0),
+                Self.maximumDiagnosticCount
+            )
+            lock.unlock()
+            guard transitionActive(
+                generation: generation,
+                from: .installing,
+                to: .presenting
+            ) else {
+                requestRuntimeRetirement()
+                return
+            }
             installation.runtime.present(
                 onPresented: { [weak self] in
                     self?.effectPresented(generation: generation)
@@ -537,8 +559,7 @@ final class AOSDesktopWorldNativeFeedbackController {
                 allowedPhases: [.installing],
                 requiresRuntimeDisposal: true
             ) != nil {
-                disposeRuntime()
-                finishRuntimeRetirement()
+                requestRuntimeRetirement()
             }
         }
     }
@@ -556,6 +577,12 @@ final class AOSDesktopWorldNativeFeedbackController {
         current.presented = true
         active = current
         presentedCount = Self.increment(presentedCount)
+        lastPresentationLatencyMilliseconds = min(
+            max(Int(
+                (ProcessInfo.processInfo.systemUptime - current.triggeredAt) * 1_000
+            ), 0),
+            Self.maximumDiagnosticCount
+        )
         lock.unlock()
     }
 
@@ -567,8 +594,7 @@ final class AOSDesktopWorldNativeFeedbackController {
             requiresRuntimeDisposal: true
         ) != nil else { return }
         recordFailure(code)
-        disposeRuntime()
-        finishRuntimeRetirement()
+        requestRuntimeRetirement()
     }
 
     @MainActor
@@ -594,8 +620,7 @@ final class AOSDesktopWorldNativeFeedbackController {
         completedCount = Self.increment(completedCount)
         lastErrorCode = nil
         lock.unlock()
-        disposeRuntime()
-        finishRuntimeRetirement()
+        requestRuntimeRetirement()
     }
 
     private func effectTimedOut(generation: UInt64) {
@@ -607,23 +632,100 @@ final class AOSDesktopWorldNativeFeedbackController {
         recordFailure("NATIVE_EFFECT_PRESENT_TIMEOUT")
         retired.capture.cancel()
         Task { @MainActor [weak self] in
-            self?.disposeRuntime()
-            self?.finishRuntimeRetirement()
+            self?.requestRuntimeRetirement()
         }
     }
 
     @MainActor
-    private func disposeRuntime() {
-        runtime?.dispose()
-        runtime = nil
-        if let identity = runtimeIdentity {
-            host.remove(
+    private func disposeRuntime() -> Bool {
+        let retiredRuntime = runtime
+        retiredRuntime?.dispose()
+        let retiredIdentity = runtimeIdentity
+        var sheetRemoved = true
+        if let identity = retiredIdentity {
+            sheetRemoved = host.remove(
                 canvasGeneration: identity.canvasGeneration,
                 topologyGeneration: identity.topologyGeneration,
                 identity: identity.sheet
             )
         }
-        runtimeIdentity = nil
+        if sheetRemoved { runtimeIdentity = nil }
+        let retainedBuffers = min(
+            max(retiredRuntime?.retainedBufferCount ?? 0, 0),
+            Self.maximumDiagnosticCount
+        )
+        let retainedTextures = min(
+            max(retiredRuntime?.retainedTextureCount ?? 0, 0),
+            Self.maximumDiagnosticCount
+        )
+        let retainedViews = min(
+            max(retiredRuntime?.retainedViewCount ?? 0, 0),
+            Self.maximumDiagnosticCount
+        )
+        lock.lock()
+        activeInstanceCount = 0
+        activeSheetCount = retiredIdentity != nil && !sheetRemoved ? 1 : 0
+        retainedBufferCount = retainedBuffers
+        retainedTextureCount = retainedTextures
+        retainedViewCount = retainedViews
+        let cleanupOwned = retiredRuntime != nil || retiredIdentity != nil
+        let cleanupComplete = retainedBuffers == 0
+            && retainedTextures == 0
+            && retainedViews == 0
+            && sheetRemoved
+        if cleanupOwned && cleanupComplete {
+            if retiredRuntime != nil {
+                disposedCount = Self.increment(disposedCount)
+            }
+            runtime = nil
+        } else if cleanupOwned {
+            recordFailureLocked(
+                !sheetRemoved
+                    ? "NATIVE_EFFECT_SHEET_REMOVE_FAILED"
+                    : "NATIVE_EFFECT_RESOURCE_DISPOSAL_FAILED"
+            )
+        }
+        lock.unlock()
+        return !cleanupOwned || cleanupComplete
+    }
+
+    @MainActor
+    private func requestRuntimeRetirement() {
+        guard !retirementTerminal,
+              retirementRetryDeadline == nil,
+              retirementAttemptCount < 2 else {
+            return
+        }
+        retirementAttemptCount += 1
+        guard disposeRuntime() else {
+            if retirementAttemptCount == 1 {
+                scheduleRuntimeRetirementRetry()
+            }
+            return
+        }
+        retirementRetryDeadline?.cancel()
+        retirementRetryDeadline = nil
+        retirementAttemptCount = 0
+        finishRuntimeRetirement()
+    }
+
+    @MainActor
+    private func scheduleRuntimeRetirementRetry() {
+        guard !retirementTerminal,
+              retirementAttemptCount == 1,
+              retirementRetryDeadline == nil else { return }
+        let retry = DispatchWorkItem { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard !self.retirementTerminal,
+                      self.retirementRetryDeadline != nil,
+                      self.retirementAttemptCount == 1 else { return }
+                self.retirementRetryDeadline = nil
+                self.requestRuntimeRetirement()
+            }
+        }
+        retirementRetryDeadline = retry
+        scheduleDeadline(Self.retirementRetryDelay, retry)
     }
 
     private func isActive(generation: UInt64) -> Bool {

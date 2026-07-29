@@ -61,16 +61,26 @@ scene parameters, and desktop content are excluded.
 At each inspection read, the daemon adds `native.desktopFrameWarm` and
 `native.nativeEffect`. Warm state contains only `state`, `displayCount`,
 `generation`, and a redacted `errorCode`. Native-effect state contains only its
-lifecycle state, bounded attempt/admission/presentation/completion/failure
-counters, and one redacted error code. The browser does not author or cache
-these native facts. A consumer that needs low-latency desktop textures should
-wait for warm `state: "ready"` before triggering an effect. Reading these facts
-does not start capture or request permission, and the snapshot never contains
-pixels, handles, paths, parameters, frame timestamps, or desktop facts.
+lifecycle state, bounded attempt/admission/presentation/completion/disposal/
+failure counters, active runtime/sheet/texture counts, the last native
+trigger-to-presentation latency, retained buffer/texture/view counts, and the canonical owner/resource/program
+identity and digest of the last admitted execution. The browser does not author
+or cache these native facts. A consumer that needs low-latency desktop textures
+should wait for warm `state: "ready"` before triggering an effect. Reading these
+facts does not start capture or request permission, and the snapshot never
+contains pixels, handles, paths, parameters, coordinates, frame timestamps, or
+desktop facts.
 Browser-authored snapshots omit the native field until the daemon adds
 authoritative facts. `presentedCount` advances only after every display segment
 reports an actual Metal drawable presentation, not when presentation is merely
 requested.
+
+`lastExecution` is `null` until an effect is admitted. Data-only programs report
+their canonical program ID, revision, and digest; built-in compatibility effects
+leave those three program fields `null`. After a completed disposal,
+`activeInstanceCount`, `activeSheetCount`, `retainedBufferCount`,
+`retainedTextureCount`, and `retainedViewCount` are zero,
+while `disposedCount` advances exactly once.
 
 Displays include DesktopWorld-local `bounds` and optional native global
 `nativeBounds`. Native input translation must require `nativeBounds`; it must

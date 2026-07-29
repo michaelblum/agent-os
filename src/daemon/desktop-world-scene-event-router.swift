@@ -75,6 +75,7 @@ final class AOSDesktopWorldSceneEventRouter {
         identity: AOSDesktopWorldSceneStageIdentity,
         payload: [String: Any]
     ) {
+        let triggeredAt = ProcessInfo.processInfo.systemUptime
         guard let key = payload["lease_key"] as? String,
               let eventType = payload["event_type"] as? String,
               let event = payload["event"] as? [String: Any],
@@ -93,7 +94,8 @@ final class AOSDesktopWorldSceneEventRouter {
         if let request = scene.nativeEffectRequest(
             identity: identity,
             key: key,
-            event: canonicalEvent
+            event: canonicalEvent,
+            triggeredAt: triggeredAt
         ) {
             nativeFeedback(request)
         }

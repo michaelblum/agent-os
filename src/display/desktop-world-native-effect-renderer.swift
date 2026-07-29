@@ -523,6 +523,12 @@ final class AOSDesktopWorldNativeEffectRuntime {
     var retainedTextureCount: Int {
         renderers.values.reduce(0) { $0 + $1.retainedTextureCount }
     }
+
+    var retainedBufferCount: Int { sheet.retainedGeometryBufferCount }
+
+    var retainedViewCount: Int {
+        sheet.segmentSheets.reduce(0) { $0 + $1.host.retainedViewCount }
+    }
 }
 
 extension AOSDesktopWorldNativeEffectRuntime:

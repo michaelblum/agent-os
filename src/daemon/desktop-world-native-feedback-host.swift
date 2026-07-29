@@ -69,7 +69,7 @@ final class AOSDesktopWorldNativeFeedbackHost:
     @MainActor func install(
         request: AOSDesktopWorldNativeEffectRequest,
         frames: AOSDesktopPixelFrameSet
-    ) throws -> AOSDesktopWorldNativeFeedbackInstallation {
+    ) throws -> AOSDesktopWorldNativeFeedbackInstallationOutcome {
         guard let context else {
             throw DesktopWorldNativeSheetFailure.rendererUnavailable
         }
@@ -90,18 +90,17 @@ final class AOSDesktopWorldNativeFeedbackHost:
                 inputs: request.inputs,
                 definition: request.binding.definition
             )
-            return AOSDesktopWorldNativeFeedbackInstallation(
-                identity: sheet.identity,
-                runtime: runtime
+            return .installed(
+                AOSDesktopWorldNativeFeedbackInstallation(
+                    identity: sheet.identity,
+                    runtime: runtime
+                )
             )
         } catch {
-            _ = canvasManager.removeDesktopWorldNativeSheet(
-                canvasID: canvasID,
-                canvasGeneration: request.canvasGeneration,
-                topologyGeneration: request.topologyGeneration,
-                identity: sheet.identity
+            return .rollbackRequired(
+                identity: sheet.identity,
+                error: error
             )
-            throw error
         }
     }
 
@@ -109,8 +108,8 @@ final class AOSDesktopWorldNativeFeedbackHost:
         canvasGeneration: UInt64,
         topologyGeneration: UInt64,
         identity: AOSDesktopWorldResourceIdentity
-    ) {
-        _ = canvasManager.removeDesktopWorldNativeSheet(
+    ) -> Bool {
+        canvasManager.removeDesktopWorldNativeSheet(
             canvasID: canvasID,
             canvasGeneration: canvasGeneration,
             topologyGeneration: topologyGeneration,

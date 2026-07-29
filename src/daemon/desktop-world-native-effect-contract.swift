@@ -98,6 +98,7 @@ struct AOSDesktopWorldNativeEffectRequest: Equatable {
     let resourceID: String
     let resourceRevision: Int
     let topologyGeneration: UInt64
+    let triggeredAt: TimeInterval
 
     static func == (
         lhs: AOSDesktopWorldNativeEffectRequest,
@@ -110,6 +111,7 @@ struct AOSDesktopWorldNativeEffectRequest: Equatable {
             && lhs.resourceID == rhs.resourceID
             && lhs.resourceRevision == rhs.resourceRevision
             && lhs.topologyGeneration == rhs.topologyGeneration
+            && lhs.triggeredAt == rhs.triggeredAt
     }
 
     var desktopWorldOrigin: CGPoint { inputs.current }
@@ -196,7 +198,8 @@ enum AOSDesktopWorldNativeEffectContract {
         binding: AOSDesktopWorldNativeEffectBinding,
         authorization: (ownerID: String, resourceID: String, revision: Int),
         identity: AOSDesktopWorldSceneStageIdentity,
-        event: [String: Any]
+        event: [String: Any],
+        triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> AOSDesktopWorldNativeEffectRequest? {
         guard case .gesture(let phase) = binding.trigger else { return nil }
         guard let interactionID = event["interactionId"] as? String,
@@ -214,7 +217,8 @@ enum AOSDesktopWorldNativeEffectContract {
             ownerID: authorization.ownerID,
             resourceID: authorization.resourceID,
             resourceRevision: authorization.revision,
-            topologyGeneration: identity.topologyGeneration
+            topologyGeneration: identity.topologyGeneration,
+            triggeredAt: triggeredAt
         )
     }
 
@@ -225,7 +229,8 @@ enum AOSDesktopWorldNativeEffectContract {
         resourceID: String,
         resourceRevision: Int,
         identity: AOSDesktopWorldSceneStageIdentity,
-        event: [String: Any]
+        event: [String: Any],
+        triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> AOSDesktopWorldNativeEffectRequest? {
         guard authorized(capabilities) else { return nil }
         for binding in bindings {
@@ -237,7 +242,8 @@ enum AOSDesktopWorldNativeEffectContract {
                     revision: resourceRevision
                 ),
                 identity: identity,
-                event: event
+                event: event,
+                triggeredAt: triggeredAt
             ) {
                 return request
             }
@@ -252,7 +258,8 @@ enum AOSDesktopWorldNativeEffectContract {
         affordanceID: String,
         phase: String,
         button: String,
-        point: CGPoint
+        point: CGPoint,
+        triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> AOSDesktopWorldNativeEffectRequest? {
         guard case .pointerDown(let expectedButton) = binding.trigger,
               phase == "down",
@@ -269,7 +276,8 @@ enum AOSDesktopWorldNativeEffectContract {
             ownerID: authorization.ownerID,
             resourceID: authorization.resourceID,
             resourceRevision: authorization.revision,
-            topologyGeneration: identity.topologyGeneration
+            topologyGeneration: identity.topologyGeneration,
+            triggeredAt: triggeredAt
         )
     }
 
@@ -283,7 +291,8 @@ enum AOSDesktopWorldNativeEffectContract {
         affordanceID: String,
         phase: String,
         button: String,
-        point: CGPoint
+        point: CGPoint,
+        triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> AOSDesktopWorldNativeEffectRequest? {
         guard authorized(capabilities) else { return nil }
         for binding in bindings {
@@ -298,7 +307,8 @@ enum AOSDesktopWorldNativeEffectContract {
                 affordanceID: affordanceID,
                 phase: phase,
                 button: button,
-                point: point
+                point: point,
+                triggeredAt: triggeredAt
             ) {
                 return request
             }
