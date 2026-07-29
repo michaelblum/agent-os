@@ -56,6 +56,11 @@ test('native ripple Metal program compiles without AOS or live DesktopWorld', as
   )
   const match = source.match(/private let aosDesktopWorldNativeRippleShader = #"""([\s\S]*?)"""#/u)
   assert.ok(match, 'native ripple shader source marker is missing')
+  assert.match(match[1], /input\.worldPosition - uniforms\.origin/u)
+  assert.match(match[1], /float effectAlpha = clamp\(/u)
+  assert.match(match[1], /discard_fragment\(\)/u)
+  assert.match(match[1], /return float4\(color \* effectAlpha, effectAlpha\)/u)
+  assert.doesNotMatch(match[1], /return float4\(desktop\.sample\([^\n]+, 1\.0\)/u)
   const root = await mkdtemp(path.join(os.tmpdir(), 'aos-native-ripple-metal-'))
   try {
     const metal = path.join(root, 'desktop-world-native-ripple.metal')

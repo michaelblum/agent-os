@@ -22,6 +22,7 @@ struct RippleUniforms {
     float2 segmentSize;
     float amplitude;
     float decay;
+    float envelopeWidth;
     float elapsed;
     float frequency;
     float radius;
@@ -49,8 +50,10 @@ fragment float4 desktopWorldNativeRippleFragment(
     float2 delta = input.worldPosition - uniforms.origin;
     float distanceFromOrigin = length(delta);
     float waveFront = distanceFromOrigin - uniforms.elapsed * uniforms.speed;
-    float envelopeWidth = max(24.0, 0.16 * uniforms.radius);
-    float packet = exp(-(waveFront * waveFront) / (envelopeWidth * envelopeWidth));
+    float packet = exp(
+        -(waveFront * waveFront)
+            / (uniforms.envelopeWidth * uniforms.envelopeWidth)
+    );
     float distanceFade = 1.0 / (1.0 + distanceFromOrigin * uniforms.decay * 0.001);
     float timeFade = exp(-uniforms.elapsed * uniforms.decay);
     float radiusFade = 1.0 - smoothstep(uniforms.radius * 0.85, uniforms.radius, distanceFromOrigin);
@@ -58,7 +61,12 @@ fragment float4 desktopWorldNativeRippleFragment(
     float2 direction = distanceFromOrigin > 0.001 ? delta / distanceFromOrigin : float2(0.0);
     float displacement = uniforms.amplitude * wave * packet * distanceFade * timeFade * radiusFade;
     float2 uv = input.uv + direction * displacement / max(uniforms.segmentSize, float2(1.0));
-    return float4(desktop.sample(sampleFilter, uv).rgb, 1.0);
+    float effectAlpha = clamp(packet * radiusFade * timeFade * 1.5, 0.0, 1.0);
+    if (effectAlpha < 0.001) {
+        discard_fragment();
+    }
+    float3 color = desktop.sample(sampleFilter, uv).rgb;
+    return float4(color * effectAlpha, effectAlpha);
 }
 """#
 
@@ -67,6 +75,7 @@ private struct AOSDesktopWorldNativeRippleUniforms {
     var segmentSize: SIMD2<Float>
     var amplitude: Float
     var decay: Float
+    var envelopeWidth: Float
     var elapsed: Float
     var frequency: Float
     var radius: Float
@@ -138,6 +147,7 @@ final class AOSDesktopWorldNativeEffectGPUContext {
 final class AOSDesktopWorldNativeRippleRenderer: NSObject, MTKViewDelegate {
     private let context: AOSDesktopWorldNativeEffectGPUContext
     private let duration: TimeInterval
+    private let envelopeWidth: Float
     private let mesh: DesktopWorldNativeSheetMesh
     private let origin: CGPoint
     private let parameters: AOSDesktopWorldNativeRippleParameters
@@ -162,6 +172,7 @@ final class AOSDesktopWorldNativeRippleRenderer: NSObject, MTKViewDelegate {
     ) throws {
         self.context = context
         self.duration = Double(parameters.durationMilliseconds) / 1_000
+        self.envelopeWidth = Float(Self.envelopeWidth(for: parameters.radius))
         self.mesh = mesh
         self.origin = origin
         self.parameters = parameters
@@ -252,6 +263,7 @@ final class AOSDesktopWorldNativeRippleRenderer: NSObject, MTKViewDelegate {
             ),
             amplitude: Float(parameters.amplitude),
             decay: Float(parameters.decay),
+            envelopeWidth: envelopeWidth,
             elapsed: Float(elapsed),
             frequency: Float(parameters.frequency),
             radius: Float(parameters.radius),
@@ -288,6 +300,10 @@ final class AOSDesktopWorldNativeRippleRenderer: NSObject, MTKViewDelegate {
         }
         commandBuffer.present(drawable)
         commandBuffer.commit()
+    }
+
+    private static func envelopeWidth(for radius: Double) -> Double {
+        min(180, max(24, radius * 0.08))
     }
 
     private func markPresented() {
