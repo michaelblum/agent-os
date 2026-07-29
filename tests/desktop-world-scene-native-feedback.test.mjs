@@ -213,6 +213,99 @@ duplicateTriggerValues.append(secondTrigger)
 duplicateTrigger["interactions"] = duplicateTriggerValues
 precondition(AOSDesktopWorldNativeEffectContract.parseBindings(duplicateTrigger) == nil)
 
+var multiple = interactions(trigger: ["input": "pointer_down"])
+var multipleValues = multiple["interactions"] as! [[String: Any]]
+var multipleValue = multipleValues[0]
+let pointerEffect = multipleValue.removeValue(forKey: "nativeEffect") as! [String: Any]
+var endEffect = pointerEffect
+endEffect["trigger"] = ["phase": "end"]
+multipleValue["nativeEffects"] = [pointerEffect, endEffect]
+multipleValues[0] = multipleValue
+multiple["interactions"] = multipleValues
+guard let multipleBindings = AOSDesktopWorldNativeEffectContract.parseBindings(multiple),
+      multipleBindings.count == 2,
+      multipleBindings[0].trigger == .pointerDown(button: "left"),
+      multipleBindings[1].trigger == .gesture(.end) else {
+    preconditionFailure("multiple native effect bindings did not parse")
+}
+
+var gestureOwned = interactions(trigger: ["phase": "start"])
+var gestureOwnedValues = gestureOwned["interactions"] as! [[String: Any]]
+var gestureOwnedEffect = gestureOwnedValues[0]["nativeEffect"] as! [String: Any]
+gestureOwnedEffect["lifecycle"] = ["kind": "gesture"]
+gestureOwnedValues[0]["nativeEffect"] = gestureOwnedEffect
+gestureOwned["interactions"] = gestureOwnedValues
+guard let gestureBinding = AOSDesktopWorldNativeEffectContract.parseBindings(
+    gestureOwned
+)?.first,
+      gestureBinding.lifecycle == .gesture else {
+    preconditionFailure("gesture-owned native effect did not parse")
+}
+for invalidTrigger: [String: Any] in [
+    ["input": "pointer_down"],
+    ["phase": "end"],
+] {
+    var invalidLifecycle = gestureOwned
+    var invalidValues = invalidLifecycle["interactions"] as! [[String: Any]]
+    var invalidEffect = invalidValues[0]["nativeEffect"] as! [String: Any]
+    invalidEffect["trigger"] = invalidTrigger
+    invalidValues[0]["nativeEffect"] = invalidEffect
+    invalidLifecycle["interactions"] = invalidValues
+    precondition(
+        AOSDesktopWorldNativeEffectContract.parseBindings(invalidLifecycle) == nil
+    )
+}
+
+var boundedValues: [[String: Any]] = []
+for index in 0..<256 {
+    var entry: [String: Any] = [
+        "id": "effect-\\(index)",
+        "affordanceId": "body-\\(index)",
+    ]
+    if index == 0 {
+        entry["nativeEffects"] = [pointerEffect, endEffect]
+    } else if index > 1 {
+        entry["nativeEffect"] = pointerEffect
+    }
+    boundedValues.append(entry)
+}
+var boundedDocument = interactions()
+boundedDocument["interactions"] = boundedValues
+let boundedBindingCount = AOSDesktopWorldNativeEffectContract.parseBindings(
+    boundedDocument
+)?.count
+precondition(
+    boundedBindingCount == 256,
+    "expected 256 mixed bindings, got \(String(describing: boundedBindingCount))"
+)
+boundedValues[1]["nativeEffect"] = pointerEffect
+boundedDocument["interactions"] = boundedValues
+precondition(AOSDesktopWorldNativeEffectContract.parseBindings(boundedDocument) == nil)
+
+var mixedBindings = multiple
+var mixedValues = mixedBindings["interactions"] as! [[String: Any]]
+mixedValues[0]["nativeEffect"] = pointerEffect
+mixedBindings["interactions"] = mixedValues
+precondition(AOSDesktopWorldNativeEffectContract.parseBindings(mixedBindings) == nil)
+
+var emptyBindings = multiple
+var emptyValues = emptyBindings["interactions"] as! [[String: Any]]
+emptyValues[0]["nativeEffects"] = [[String: Any]]()
+emptyBindings["interactions"] = emptyValues
+precondition(AOSDesktopWorldNativeEffectContract.parseBindings(emptyBindings) == nil)
+
+var overflowBindings = multiple
+var overflowValues = overflowBindings["interactions"] as! [[String: Any]]
+overflowValues[0]["nativeEffects"] = Array(repeating: pointerEffect, count: 9)
+overflowBindings["interactions"] = overflowValues
+precondition(AOSDesktopWorldNativeEffectContract.parseBindings(overflowBindings) == nil)
+
+var duplicateArrayTrigger = multiple
+var duplicateArrayValues = duplicateArrayTrigger["interactions"] as! [[String: Any]]
+duplicateArrayValues[0]["nativeEffects"] = [pointerEffect, pointerEffect]
+duplicateArrayTrigger["interactions"] = duplicateArrayValues
+precondition(AOSDesktopWorldNativeEffectContract.parseBindings(duplicateArrayTrigger) == nil)
+
 var fractionalDuration = interactions()
 var values = fractionalDuration["interactions"] as! [[String: Any]]
 var value = values[0]
@@ -229,26 +322,83 @@ let identity = AOSDesktopWorldSceneStageIdentity(
     canvasGeneration: 3,
     topologyGeneration: 4
 )
+let lifecycleEvent = AOSDesktopWorldNativeEffectContract.gestureLifecycleEvent(
+    bindings: [gestureBinding],
+    capabilities: [
+        AOSDesktopWorldNativeEffectBinding.capability,
+        "aos.scene.desktop_frame_texture",
+    ],
+    ownerID: "example.consumer",
+    resourceID: "companion/main",
+    resourceRevision: 7,
+    identity: identity,
+    event: [
+        "sequence": 2,
+        "interactionId": "tap-ripple",
+        "gesture": [
+            "phase": "update",
+            "pointerSessionId": "pointer-1",
+        ],
+        "coordinates": [
+            "current": ["x": 1_950, "y": 650],
+            "delta": ["x": 50, "y": 30],
+            "origin": ["x": 1_900, "y": 620],
+            "totalDelta": ["x": 50, "y": 30],
+        ],
+    ]
+)
+precondition(lifecycleEvent?.phase == .update)
+precondition(lifecycleEvent?.request.eventSequence == 2)
+precondition(lifecycleEvent?.request.pointerSessionID == "pointer-1")
+precondition(lifecycleEvent?.request.inputs.current.x == 1_950)
+precondition(lifecycleEvent?.request.inputs.origin.y == 620)
+precondition(AOSDesktopWorldNativeEffectContract.gestureLifecycleEvent(
+    bindings: [gestureBinding],
+    capabilities: [AOSDesktopWorldNativeEffectBinding.capability],
+    ownerID: "example.consumer",
+    resourceID: "companion/main",
+    resourceRevision: 7,
+    identity: identity,
+    event: [
+        "sequence": 2,
+        "interactionId": "tap-ripple",
+        "gesture": [
+            "phase": "update",
+            "pointerSessionId": "pointer-1",
+        ],
+        "coordinates": ["desktopWorld": ["x": 1_950, "y": 650]],
+    ]
+) == nil)
 let request = AOSDesktopWorldNativeEffectContract.request(
     binding: binding,
     authorization: (ownerID: "example.consumer", resourceID: "companion/main", revision: 7),
     identity: identity,
     event: [
+        "sequence": 1,
         "interactionId": "tap-ripple",
-        "gesture": ["phase": "start"],
+        "gesture": [
+            "phase": "start",
+            "pointerSessionId": "pointer-1",
+        ],
         "coordinates": ["desktopWorld": ["x": 1900, "y": 620]],
     ]
 )
 precondition(request?.desktopWorldOrigin.x == 1900)
 precondition(request?.desktopWorldOrigin.y == 620)
 precondition(request?.resourceRevision == 7)
+precondition(request?.eventSequence == 1)
+precondition(request?.pointerSessionID == "pointer-1")
 precondition(AOSDesktopWorldNativeEffectContract.request(
     binding: binding,
     authorization: (ownerID: "example.consumer", resourceID: "companion/main", revision: 7),
     identity: identity,
     event: [
+        "sequence": 3,
         "interactionId": "tap-ripple",
-        "gesture": ["phase": "end"],
+        "gesture": [
+            "phase": "end",
+            "pointerSessionId": "pointer-1",
+        ],
         "coordinates": ["desktopWorld": ["x": 1900, "y": 620]],
     ]
 ) == nil)
@@ -269,10 +419,22 @@ let pointerRequest = AOSDesktopWorldNativeEffectContract.pointerRequest(
     affordanceID: "body",
     phase: "down",
     button: "left",
-    point: CGPoint(x: 2100, y: 500)
+    point: CGPoint(x: 2100, y: 500),
+    pointerSessionID: "pointer-1"
 )
 precondition(pointerRequest?.desktopWorldOrigin.x == 2100)
 precondition(pointerRequest?.resourceRevision == 8)
+precondition(pointerRequest?.pointerSessionID == "pointer-1")
+precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
+    binding: pointerBinding,
+    authorization: (ownerID: "example.consumer", resourceID: "companion/main", revision: 8),
+    identity: identity,
+    affordanceID: "body",
+    phase: "down",
+    button: "left",
+    point: CGPoint(x: 2100, y: 500),
+    pointerSessionID: ""
+) == nil)
 precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
     binding: pointerBinding,
     authorization: (ownerID: "example.consumer", resourceID: "companion/main", revision: 8),
@@ -280,7 +442,8 @@ precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
     affordanceID: "body",
     phase: "up",
     button: "left",
-    point: CGPoint(x: 2100, y: 500)
+    point: CGPoint(x: 2100, y: 500),
+    pointerSessionID: "pointer-1"
 ) == nil)
 precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
     binding: pointerBinding,
@@ -289,7 +452,8 @@ precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
     affordanceID: "body",
     phase: "down",
     button: "right",
-    point: CGPoint(x: 2100, y: 500)
+    point: CGPoint(x: 2100, y: 500),
+    pointerSessionID: "pointer-1"
 ) == nil)
 
 let programData = Data(base64Encoded: "${programmableRippleBase64}")!
@@ -333,7 +497,8 @@ let programRequest = AOSDesktopWorldNativeEffectContract.pointerRequest(
     affordanceID: "body",
     phase: "down",
     button: "left",
-    point: CGPoint(x: 2200, y: 700)
+    point: CGPoint(x: 2200, y: 700),
+    pointerSessionID: "pointer-2"
 )
 precondition(programRequest?.inputs.current.x == 2200)
 precondition(programRequest?.inputs.origin.x == 2200)
@@ -435,12 +600,30 @@ func settleSuccess(
     }
 }
 
-func requestEvent(_ phase: String) -> [String: Any] {
+func requestEvent(
+    _ phase: String,
+    sequence: Int = 1,
+    pointerSessionID: String = "pointer-1"
+) -> [String: Any] {
     [
+        "sequence": sequence,
         "interactionId": "tap-ripple",
-        "gesture": ["phase": phase],
+        "gesture": [
+            "phase": phase,
+            "pointerSessionId": pointerSessionID,
+        ],
         "coordinates": ["desktopWorld": ["x": 900, "y": 600]],
     ]
+}
+
+func gestureInteractions() -> [String: Any] {
+    var document = interactions()
+    var values = document["interactions"] as! [[String: Any]]
+    var effect = values[0]["nativeEffect"] as! [String: Any]
+    effect["lifecycle"] = ["kind": "gesture"]
+    values[0]["nativeEffect"] = effect
+    document["interactions"] = values
+    return document
 }
 
 let authorization: [String: Any] = [
@@ -527,7 +710,7 @@ guard case .accepted(let mount) = controller.admitOperation(
     owner: "example.consumer",
     resource: "companion/main",
     operationName: "mount",
-    operation: ["op": "mount", "interactions": interactions()],
+    operation: ["op": "mount", "interactions": gestureInteractions()],
     extensionAuthorization: authorization,
     connectionID: connection,
     ref: "mount"
@@ -583,10 +766,15 @@ let canonicalEvent: [String: Any] = [
     "at": 1000,
 ]
 var nativeRequests: [AOSDesktopWorldNativeEffectRequest] = []
+var nativeGestureEvents: [AOSDesktopWorldNativeEffectGestureEvent] = []
 var publicEvents = 0
 let router = AOSDesktopWorldSceneEventRouter(
     scene: controller,
-    nativeFeedback: { nativeRequests.append($0) }
+    nativeFeedback: { nativeRequests.append($0) },
+    nativeGestureFeedback: { event, replacement in
+        precondition(replacement == nil)
+        nativeGestureEvents.append(event)
+    }
 ) { _, _, _ in
     publicEvents += 1
     return true
@@ -596,10 +784,40 @@ router.handle(identity: topology.identity, payload: [
     "event_type": "gesture",
     "event": canonicalEvent,
 ])
-precondition(nativeRequests.count == 1)
-precondition(publicEvents == 0)
+precondition(nativeRequests.count == 1, "native request route")
+var updateEvent = canonicalEvent
+updateEvent["sequence"] = 2
+updateEvent["gesture"] = [
+    "id": "gesture-1",
+    "kind": "drag",
+    "phase": "update",
+    "pointerSessionId": "pointer-1",
+    "cancellationReason": NSNull(),
+]
+updateEvent["coordinates"] = [
+    "origin": ["x": 900, "y": 600],
+    "previous": ["x": 900, "y": 600],
+    "current": ["x": 1_100, "y": 720],
+    "desktopWorld": ["x": 1_100, "y": 720],
+    "native": ["x": 1_100, "y": 360],
+    "delta": ["x": 200, "y": 120],
+    "totalDelta": ["x": 200, "y": 120],
+]
+router.handle(identity: topology.identity, payload: [
+    "lease_key": key,
+    "event_type": "gesture",
+    "event": updateEvent,
+])
+precondition(nativeGestureEvents.count == 1, "native gesture route")
+precondition(nativeGestureEvents[0].phase == .update, "native gesture phase")
 precondition(
-    (router.snapshot()["by_outcome"] as? [String: Int])?["unsubscribed"] == 1
+    nativeGestureEvents[0].request.inputs.current.x == 1_100,
+    "native gesture inputs"
+)
+precondition(publicEvents == 0, "public route should remain unsubscribed")
+precondition(
+    (router.snapshot()["by_outcome"] as? [String: Int])?["unsubscribed"] == 2,
+    "unsubscribed route count"
 )
 
 guard case .accepted(let transaction) = controller.admitOperation(
@@ -633,7 +851,8 @@ let transacted = controller.nativePointerEffectRequest(
     canvasGeneration: topology.identity.canvasGeneration,
     phase: "down",
     button: "left",
-    point: CGPoint(x: 900, y: 600)
+    point: CGPoint(x: 900, y: 600),
+    pointerSessionID: "pointer-2"
 )
 precondition(transacted?.resourceRevision == 2)
 guard let transacted, case .ripple(let transactedRipple) = transacted.binding.definition else {
@@ -648,7 +867,8 @@ precondition(controller.nativePointerEffectRequest(
     canvasGeneration: topology.identity.canvasGeneration,
     phase: "down",
     button: "left",
-    point: CGPoint(x: 900, y: 600)
+    point: CGPoint(x: 900, y: 600),
+    pointerSessionID: "pointer-2"
 ) == nil)
 
 guard case .stageUnavailable = controller.admitOperation(

@@ -32,6 +32,16 @@ export const SCENE_NATIVE_EFFECT_IMPLEMENTATIONS = Object.freeze({
   program: SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION,
 })
 
+export const SCENE_NATIVE_EFFECT_BINDING_LIMITS = Object.freeze({
+  maxBindingsPerDocument: 256,
+  maxBindingsPerInteraction: 5,
+})
+
+export const SCENE_NATIVE_EFFECT_LIFECYCLES = Object.freeze({
+  gesture: 'gesture',
+  timed: 'timed',
+})
+
 export const SCENE_GESTURE_CANCELLATION_REASONS = Object.freeze([
   'escape',
   'owner_disconnected',
@@ -148,8 +158,8 @@ function validateNativeEffect(value, path, errors, programs) {
   }
   const programEffect = value.implementation === SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION
   exactKeys(value, programEffect
-    ? new Set(['implementation', 'parameters', 'programId', 'trigger'])
-    : new Set(['implementation', 'parameters', 'trigger']), path, errors)
+    ? new Set(['implementation', 'lifecycle', 'parameters', 'programId', 'trigger'])
+    : new Set(['implementation', 'lifecycle', 'parameters', 'trigger']), path, errors)
   if (!Object.values(SCENE_NATIVE_EFFECT_IMPLEMENTATIONS).includes(value.implementation)) {
     errors.push({ code: 'unknown_implementation', path: `${path}.implementation`, message: 'Scene native effect implementation is not registered.' })
   }
@@ -170,6 +180,19 @@ function validateNativeEffect(value, path, errors, programs) {
     } else if (pointerInput && value.trigger.button !== undefined
       && !['left', 'middle', 'right'].includes(value.trigger.button)) {
       errors.push({ code: 'invalid_native_effect_trigger', path: `${path}.trigger.button`, message: 'Scene native pointer effects require a supported button.' })
+    }
+  }
+  if (value.lifecycle !== undefined) {
+    if (!isRecord(value.lifecycle)) {
+      errors.push({ code: 'invalid_native_effect_lifecycle', path: `${path}.lifecycle`, message: 'Scene native effect lifecycle must be an object.' })
+    } else {
+      exactKeys(value.lifecycle, new Set(['kind']), `${path}.lifecycle`, errors)
+      if (!Object.values(SCENE_NATIVE_EFFECT_LIFECYCLES).includes(value.lifecycle.kind)) {
+        errors.push({ code: 'invalid_native_effect_lifecycle', path: `${path}.lifecycle.kind`, message: 'Scene native effect lifecycle kind is unsupported.' })
+      } else if (value.lifecycle.kind === SCENE_NATIVE_EFFECT_LIFECYCLES.gesture
+        && value.trigger?.phase !== 'start') {
+        errors.push({ code: 'invalid_native_effect_lifecycle', path: `${path}.lifecycle`, message: 'Gesture-owned native effects must trigger on gesture start.' })
+      }
     }
   }
   if (!isRecord(value.parameters)) {
@@ -427,13 +450,14 @@ export function validateSceneInteractionDocument(value, options = {}) {
   }
   const ids = new Set()
   const nativeTriggerKeys = new Set()
+  let nativeBindingCount = 0
   for (const [index, interaction] of value.interactions.entries()) {
     const path = `interactions.interactions.${index}`
     if (!isRecord(interaction)) {
       errors.push({ code: 'invalid_interaction', path, message: 'Scene interactions must be objects.' })
       continue
     }
-    exactKeys(interaction, new Set(['affordanceId', 'id', 'nativeEffect', 'recognizer', 'response']), path, errors)
+    exactKeys(interaction, new Set(['affordanceId', 'id', 'nativeEffect', 'nativeEffects', 'recognizer', 'response']), path, errors)
     if (!validId(interaction.id)) errors.push({ code: 'invalid_id', path: `${path}.id`, message: 'Scene interaction ID is invalid.' })
     if (!validId(interaction.affordanceId)) errors.push({ code: 'invalid_id', path: `${path}.affordanceId`, message: 'Scene interaction affordance ID is invalid.' })
     if (ids.has(interaction.id)) errors.push({ code: 'duplicate_interaction', path: `${path}.id`, message: 'Scene interaction IDs must be unique.' })
@@ -443,16 +467,35 @@ export function validateSceneInteractionDocument(value, options = {}) {
     validateInteractionImplementation(interaction.response, `${path}.response`, errors, new Set(RESPONSE_KINDS.keys()))
     validateRecognizerParameters(interaction.recognizer, `${path}.recognizer`, errors)
     validateResponseParameters(interaction.response, `${path}.response`, errors)
-    if (interaction.nativeEffect !== undefined) {
-      validateNativeEffect(interaction.nativeEffect, `${path}.nativeEffect`, errors, programs)
-      const trigger = interaction.nativeEffect?.trigger
+    if (interaction.nativeEffect !== undefined && interaction.nativeEffects !== undefined) {
+      errors.push({ code: 'native_effect_binding_shape', path, message: 'Scene interactions cannot declare both nativeEffect and nativeEffects.' })
+    }
+    const nativeEffects = interaction.nativeEffects !== undefined
+      ? interaction.nativeEffects
+      : interaction.nativeEffect !== undefined
+        ? [interaction.nativeEffect]
+        : []
+    if (!Array.isArray(nativeEffects) || nativeEffects.length > SCENE_NATIVE_EFFECT_BINDING_LIMITS.maxBindingsPerInteraction || (interaction.nativeEffects !== undefined && nativeEffects.length < 1)) {
+      errors.push({ code: 'native_effect_binding_count', path: `${path}.nativeEffects`, message: 'Scene interaction native effects must be a non-empty bounded array.' })
+      continue
+    }
+    nativeBindingCount += nativeEffects.length
+    if (nativeBindingCount > SCENE_NATIVE_EFFECT_BINDING_LIMITS.maxBindingsPerDocument) {
+      errors.push({ code: 'native_effect_binding_count', path: `${path}.nativeEffects`, message: 'Scene interaction document native effects exceed the engine limit.' })
+    }
+    for (const [effectIndex, nativeEffect] of nativeEffects.entries()) {
+      const effectPath = interaction.nativeEffects !== undefined
+        ? `${path}.nativeEffects.${effectIndex}`
+        : `${path}.nativeEffect`
+      validateNativeEffect(nativeEffect, effectPath, errors, programs)
+      const trigger = nativeEffect?.trigger
       const triggerKey = trigger?.input === 'pointer_down'
         ? `${interaction.affordanceId}:input:pointer_down:${trigger.button ?? 'left'}`
         : ['end', 'start'].includes(trigger?.phase)
           ? `${interaction.affordanceId}:gesture:${trigger.phase}`
           : null
       if (triggerKey && nativeTriggerKeys.has(triggerKey)) {
-        errors.push({ code: 'duplicate_native_effect_trigger', path: `${path}.nativeEffect.trigger`, message: 'An affordance may declare only one native effect for each trigger.' })
+        errors.push({ code: 'duplicate_native_effect_trigger', path: `${effectPath}.trigger`, message: 'An affordance may declare only one native effect for each trigger.' })
       } else if (triggerKey) nativeTriggerKeys.add(triggerKey)
     }
   }

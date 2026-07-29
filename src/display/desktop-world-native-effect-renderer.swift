@@ -268,13 +268,34 @@ enum AOSDesktopWorldNativeEffectRenderPlan {
             ]
         }
     }
+
+    func updateUniformStorage(
+        _ storage: inout [Float],
+        inputs: AOSDesktopWorldNativeEffectInputs
+    ) {
+        switch self {
+        case .program:
+            guard storage.count >= 8 else { return }
+            storage[0] = Float(inputs.origin.x)
+            storage[1] = Float(inputs.origin.y)
+            storage[2] = Float(inputs.current.x)
+            storage[3] = Float(inputs.current.y)
+            storage[4] = Float(inputs.delta.x)
+            storage[5] = Float(inputs.delta.y)
+            storage[6] = Float(inputs.totalDelta.x)
+            storage[7] = Float(inputs.totalDelta.y)
+        case .ripple:
+            guard storage.count >= 2 else { return }
+            storage[0] = Float(inputs.current.x)
+            storage[1] = Float(inputs.current.y)
+        }
+    }
 }
 
 @MainActor
 final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
     private let context: AOSDesktopWorldNativeEffectGPUContext
-    private let duration: TimeInterval
-    private let inputs: AOSDesktopWorldNativeEffectInputs
+    private let duration: TimeInterval?
     private let mesh: DesktopWorldNativeSheetMesh
     private let pipeline: MTLRenderPipelineState
     private let plan: AOSDesktopWorldNativeEffectRenderPlan
@@ -296,12 +317,12 @@ final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
         pixelBuffer: CVPixelBuffer,
         inputs: AOSDesktopWorldNativeEffectInputs,
         plan: AOSDesktopWorldNativeEffectRenderPlan,
+        lifecycle: AOSDesktopWorldNativeEffectBinding.Lifecycle,
         globalBounds: CGRect,
         startedAt: TimeInterval
     ) throws {
         self.context = context
-        self.duration = plan.duration
-        self.inputs = inputs
+        self.duration = lifecycle == .gesture ? nil : plan.duration
         self.mesh = mesh
         self.pipeline = try plan.pipeline(context: context)
         self.plan = plan
@@ -354,6 +375,11 @@ final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
         retainedPixelBuffer = nil
     }
 
+    func update(inputs: AOSDesktopWorldNativeEffectInputs) {
+        guard !completed else { return }
+        plan.updateUniformStorage(&uniforms, inputs: inputs)
+    }
+
     var retainedTextureCount: Int {
         texture == nil && retainedCVTexture == nil && retainedPixelBuffer == nil ? 0 : 1
     }
@@ -362,7 +388,7 @@ final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
 
     func draw(in view: MTKView) {
         let elapsed = max(0, ProcessInfo.processInfo.systemUptime - startedAt)
-        if elapsed >= duration {
+        if let duration, elapsed >= duration {
             view.isPaused = true
             if !completed {
                 completed = true
@@ -465,7 +491,8 @@ final class AOSDesktopWorldNativeEffectRuntime {
         context: AOSDesktopWorldNativeEffectGPUContext,
         frames: AOSDesktopPixelFrameSet,
         inputs: AOSDesktopWorldNativeEffectInputs,
-        definition: AOSDesktopWorldNativeEffectDefinition
+        definition: AOSDesktopWorldNativeEffectDefinition,
+        lifecycle: AOSDesktopWorldNativeEffectBinding.Lifecycle
     ) throws {
         let framesByDisplay = Dictionary(
             uniqueKeysWithValues: frames.frames.map { ($0.displayID, $0) }
@@ -498,6 +525,7 @@ final class AOSDesktopWorldNativeEffectRuntime {
                     pixelBuffer: pixelBuffer,
                     inputs: inputs,
                     plan: plan,
+                    lifecycle: lifecycle,
                     globalBounds: globalBounds,
                     startedAt: startedAt
                 )
@@ -545,6 +573,13 @@ final class AOSDesktopWorldNativeEffectRuntime {
         }
         renderers.removeAll(keepingCapacity: false)
         sheet.suspend()
+    }
+
+    func update(inputs: AOSDesktopWorldNativeEffectInputs) {
+        guard !disposed else { return }
+        for renderer in renderers.values {
+            renderer.update(inputs: inputs)
+        }
     }
 
     var retainedTextureCount: Int {

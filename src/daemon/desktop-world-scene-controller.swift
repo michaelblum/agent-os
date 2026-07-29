@@ -692,6 +692,32 @@ final class AOSDesktopWorldSceneController {
         }
     }
 
+    func nativeEffectGestureEvent(
+        identity: AOSDesktopWorldSceneStageIdentity,
+        key: String,
+        event: [String: Any],
+        triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
+    ) -> AOSDesktopWorldNativeEffectGestureEvent? {
+        withLock {
+            guard retirement == nil,
+                  readiness.isReady(for: identity),
+                  let authorization = resourceAuthorizations[key],
+                  let resourceIdentity = leaseIdentity(from: key) else {
+                return nil
+            }
+            return AOSDesktopWorldNativeEffectContract.gestureLifecycleEvent(
+                bindings: authorization.nativeEffects,
+                capabilities: authorization.capabilities,
+                ownerID: resourceIdentity.owner,
+                resourceID: resourceIdentity.resource,
+                resourceRevision: authorization.resourceRevision,
+                identity: identity,
+                event: event,
+                triggeredAt: triggeredAt
+            )
+        }
+    }
+
     func nativePointerEffectRequest(
         ownerID: String,
         resourceID: String,
@@ -701,6 +727,7 @@ final class AOSDesktopWorldSceneController {
         phase: String,
         button: String,
         point: CGPoint,
+        pointerSessionID: String,
         triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> AOSDesktopWorldNativeEffectRequest? {
         withLock {
@@ -727,6 +754,7 @@ final class AOSDesktopWorldSceneController {
                 phase: phase,
                 button: button,
                 point: point,
+                pointerSessionID: pointerSessionID,
                 triggeredAt: triggeredAt
             )
         }

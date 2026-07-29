@@ -164,7 +164,7 @@ struct AOSInputRegionRoutedInput {
             guard let candidate = route.captureID, !candidate.isEmpty else { return nil }
             captureID = candidate
         } else {
-            captureID = nil
+            captureID = route.captureID
         }
 
         let button: String?
@@ -256,6 +256,7 @@ struct AOSInputRegionDelivery {
     let phase: AOSInputEventPhase
     let region: AOSInputRegionRecord
     let regionID: String
+    let pointerSessionID: String?
     let consume: Bool
     private let routedInput: AOSInputRegionRoutedInput
 
@@ -271,6 +272,7 @@ struct AOSInputRegionDelivery {
         self.phase = phase
         self.region = route.region
         self.regionID = route.region.id
+        self.pointerSessionID = route.captureID
         self.consume = route.shouldConsume
         self.routedInput = routedInput
     }

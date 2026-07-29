@@ -594,6 +594,7 @@ assert(routedPointer["routed_schema_version"] as? Int == 1, "complete routed poi
 assert(routedPointer["source_event"] as? String == "daemon:1", "typed routed pointer should use bounded string source identity")
 assert(routedPointer["coordinate_authority"] as? String == "daemon", "typed routed pointer should own coordinate authority")
 assert(routedPointer["source_origin"] as? String == "daemon", "typed routed pointer should own source origin")
+assert(routedPointer["capture_id"] as? String == "daemon:1:contract-region", "owned pointer down must publish the exact pointer-session capture")
 let routedPointerNative = routedPointer["native"] as? [String: Double]
 let routedPointerDesktopWorld = routedPointer["desktop_world"] as? [String: Double]
 assert(routedPointerNative?["x"] == 25 && routedPointerNative?["y"] == 25, "typed routed pointer should preserve native coordinates")

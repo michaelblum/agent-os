@@ -88,7 +88,8 @@ final class AOSDesktopWorldNativeFeedbackHost:
                 context: context,
                 frames: frames,
                 inputs: request.inputs,
-                definition: request.binding.definition
+                definition: request.binding.definition,
+                lifecycle: request.binding.lifecycle
             )
             return .installed(
                 AOSDesktopWorldNativeFeedbackInstallation(

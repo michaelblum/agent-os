@@ -55,15 +55,38 @@ and its reviewed extension must grant `aos.scene.desktop_frame_texture` and
     "affordanceId": "body",
     "recognizer": { "implementation": "aos.scene.gesture.tap", "parameters": {} },
     "response": { "implementation": "aos.scene.response.drop", "parameters": {} },
-    "nativeEffect": {
+    "nativeEffects": [{
       "implementation": "aos.scene.effect.program",
       "programId": "example.pointer-wave",
       "trigger": { "input": "pointer_down", "button": "left" },
       "parameters": { "amplitude": 24 }
-    }
+    }]
   }]
 }
 ```
+
+One interaction may carry up to five `nativeEffects`. Each binding must have a
+unique trigger for its affordance. Use this to pair immediate pointer feedback
+with a separate `start` or `end` gesture effect without introducing another
+recognizer. The singular `nativeEffect` field remains decode-compatible, but it
+cannot be combined with `nativeEffects`.
+
+For a continuous drag deformation, declare the start binding as gesture-owned:
+
+```json
+{
+  "implementation": "aos.scene.effect.program",
+  "programId": "example.drag-surface",
+  "trigger": { "phase": "start" },
+  "lifecycle": { "kind": "gesture" },
+  "parameters": { "amplitude": 24 }
+}
+```
+
+AOS updates `event.current`, `event.delta`, and `event.total_delta` in the
+installed program without recapturing pixels or rebuilding geometry. Gesture
+end may select a separate timed binding; cancellation disposes the active
+effect. Do not simulate this by inflating `durationMs`.
 
 Validate the complete cartridge before mounting it:
 

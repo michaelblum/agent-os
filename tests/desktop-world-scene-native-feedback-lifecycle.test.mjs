@@ -29,6 +29,7 @@ test('native feedback lifecycle is bounded, single-flight, and fully disposable'
   const output = await compileAndRun('native-feedback-lifecycle', [
     'src/daemon/desktop-world-native-feedback-contracts.swift',
     'src/daemon/desktop-world-native-feedback-controller.swift',
+    'src/daemon/desktop-world-native-feedback-admission.swift',
   ], `
 import Foundation
 
@@ -91,20 +92,51 @@ struct AOSDesktopWorldNativeEffectProgram: Equatable {
         self.revision = revision
     }
 }
+struct AOSDesktopWorldNativeEffectInputs: Equatable {
+    let current: CGPoint
+    let delta: CGPoint
+    let origin: CGPoint
+    let totalDelta: CGPoint
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.current.x == rhs.current.x
+            && lhs.current.y == rhs.current.y
+            && lhs.delta.x == rhs.delta.x
+            && lhs.delta.y == rhs.delta.y
+            && lhs.origin.x == rhs.origin.x
+            && lhs.origin.y == rhs.origin.y
+            && lhs.totalDelta.x == rhs.totalDelta.x
+            && lhs.totalDelta.y == rhs.totalDelta.y
+    }
+    static func pointer(_ point: CGPoint) -> Self {
+        let zero = CGPoint(x: 0, y: 0)
+        return Self(current: point, delta: zero, origin: point, totalDelta: zero)
+    }
+}
 struct AOSDesktopWorldNativeEffectBinding: Equatable {
+    enum Lifecycle: Equatable { case gesture, timed }
+    let interactionID: String
+    let lifecycle: Lifecycle
     let program: AOSDesktopWorldNativeEffectProgram?
     let ripple: AOSDesktopWorldNativeRippleParameters
+    let trigger: String
     var durationMilliseconds: Int { ripple.durationMilliseconds }
 }
-struct AOSDesktopWorldNativeEffectRequest {
+struct AOSDesktopWorldNativeEffectRequest: Equatable {
     let binding: AOSDesktopWorldNativeEffectBinding
     let canvasGeneration: UInt64
-    let desktopWorldOrigin: CGPoint
+    let eventSequence: Int?
+    let inputs: AOSDesktopWorldNativeEffectInputs
     let ownerID: String
+    let pointerSessionID: String?
     let resourceID: String
     let resourceRevision: Int
     let topologyGeneration: UInt64
     let triggeredAt: TimeInterval
+}
+struct AOSDesktopWorldNativeEffectGestureEvent {
+    enum Phase { case cancel, end, update }
+    let phase: Phase
+    let request: AOSDesktopWorldNativeEffectRequest
 }
 
 enum PreparationFailure: Error { case unavailable }
@@ -142,6 +174,7 @@ final class Runtime: AOSDesktopWorldNativeFeedbackRuntime {
     var disposed = false
     var failure: ((String) -> Void)?
     var presentation: (() -> Void)?
+    var updates: [AOSDesktopWorldNativeEffectInputs] = []
     var retainsTexturesAfterDisposal = false
     var retainedBufferCount: Int { disposed ? 0 : 4 }
     var retainedTextureCount: Int {
@@ -162,6 +195,9 @@ final class Runtime: AOSDesktopWorldNativeFeedbackRuntime {
         completion = nil
         failure = nil
         presentation = nil
+    }
+    func update(inputs: AOSDesktopWorldNativeEffectInputs) {
+        updates.append(inputs)
     }
     func complete() {
         let presented = presentation
@@ -195,6 +231,7 @@ final class Host: AOSDesktopWorldNativeFeedbackHosting {
     @MainActor var activationCount = 0
     @MainActor var deferPreparations = false
     @MainActor var onActivate: (() -> Void)?
+    var onCaptureContext: (() -> Void)?
     @MainActor var onInstall: (() -> Void)?
     @MainActor var onPrepare: (() -> Void)?
     @MainActor var prepareCount = 0
@@ -210,7 +247,10 @@ final class Host: AOSDesktopWorldNativeFeedbackHosting {
     @MainActor var runtimeRetainsTexturesAfterDisposal = false
     @MainActor var runtimes: [Runtime] = []
     @MainActor var shutdownCount = 0
-    func captureContext() -> AOSDesktopWorldNativeFeedbackCaptureContext? { context }
+    func captureContext() -> AOSDesktopWorldNativeFeedbackCaptureContext? {
+        onCaptureContext?()
+        return context
+    }
     func prepare(
         programs: [AOSDesktopWorldNativeEffectProgram],
         completion: @escaping @Sendable (
@@ -293,20 +333,293 @@ func pumpUntil(_ predicate: () -> Bool) {
 
 let request = AOSDesktopWorldNativeEffectRequest(
     binding: AOSDesktopWorldNativeEffectBinding(
+        interactionID: "surface-drag",
+        lifecycle: .timed,
         program: AOSDesktopWorldNativeEffectProgram(digest: "program-digest"),
         ripple: AOSDesktopWorldNativeRippleParameters(
             amplitude: 18,
             durationMilliseconds: 900
-        )
+        ),
+        trigger: "pointer_down"
     ),
     canvasGeneration: 3,
-    desktopWorldOrigin: CGPoint(x: 900, y: 600),
+    eventSequence: nil,
+    inputs: .pointer(CGPoint(x: 900, y: 600)),
     ownerID: "example.consumer",
-    resourceID: "companion/main",
+    pointerSessionID: "pointer-session-1",
+    resourceID: "surface/main",
     resourceRevision: 1,
     topologyGeneration: 4,
     triggeredAt: ProcessInfo.processInfo.systemUptime
 )
+
+let replacementRequest = AOSDesktopWorldNativeEffectRequest(
+    binding: AOSDesktopWorldNativeEffectBinding(
+        interactionID: request.binding.interactionID,
+        lifecycle: .timed,
+        program: AOSDesktopWorldNativeEffectProgram(
+            digest: "replacement-digest",
+            id: "example.release-transition",
+            revision: 2
+        ),
+        ripple: AOSDesktopWorldNativeRippleParameters(
+            amplitude: 24,
+            durationMilliseconds: 1_500
+        ),
+        trigger: "end"
+    ),
+    canvasGeneration: request.canvasGeneration,
+    eventSequence: 3,
+    inputs: .pointer(CGPoint(x: 1_600, y: 900)),
+    ownerID: request.ownerID,
+    pointerSessionID: request.pointerSessionID,
+    resourceID: request.resourceID,
+    resourceRevision: request.resourceRevision,
+    topologyGeneration: request.topologyGeneration,
+    triggeredAt: ProcessInfo.processInfo.systemUptime
+)
+
+let gestureRequest = AOSDesktopWorldNativeEffectRequest(
+    binding: AOSDesktopWorldNativeEffectBinding(
+        interactionID: request.binding.interactionID,
+        lifecycle: .gesture,
+        program: request.binding.program,
+        ripple: request.binding.ripple,
+        trigger: "start"
+    ),
+    canvasGeneration: request.canvasGeneration,
+    eventSequence: 1,
+    inputs: request.inputs,
+    ownerID: request.ownerID,
+    pointerSessionID: request.pointerSessionID,
+    resourceID: request.resourceID,
+    resourceRevision: request.resourceRevision,
+    topologyGeneration: request.topologyGeneration,
+    triggeredAt: ProcessInfo.processInfo.systemUptime
+)
+
+let replacementHost = Host()
+let replacementCapturer = Capturer()
+let replacementController = AOSDesktopWorldNativeFeedbackController(
+    host: replacementHost,
+    capturer: replacementCapturer,
+    scheduleDeadline: { _, _ in },
+    authorize: { _ in true }
+)
+replacementController.reconcileAvailability(
+    true,
+    programs: [
+        AOSDesktopWorldNativeEffectProgram(digest: "program-digest"),
+        AOSDesktopWorldNativeEffectProgram(
+            digest: "replacement-digest",
+            id: "example.release-transition",
+            revision: 2
+        ),
+    ]
+)
+pumpUntil { replacementController.snapshot().state == "ready" }
+precondition(replacementController.trigger(gestureRequest))
+replacementCapturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { replacementHost.installCount == 1 } }
+precondition(replacementController.snapshot().state == "presenting")
+let updatedInputs = AOSDesktopWorldNativeEffectInputs(
+    current: CGPoint(x: 1_200, y: 700),
+    delta: CGPoint(x: 300, y: 100),
+    origin: gestureRequest.inputs.origin,
+    totalDelta: CGPoint(x: 300, y: 100)
+)
+let updateEvent = AOSDesktopWorldNativeEffectGestureEvent(
+    phase: .update,
+    request: AOSDesktopWorldNativeEffectRequest(
+        binding: gestureRequest.binding,
+        canvasGeneration: gestureRequest.canvasGeneration,
+        eventSequence: 2,
+        inputs: updatedInputs,
+        ownerID: gestureRequest.ownerID,
+        pointerSessionID: gestureRequest.pointerSessionID,
+        resourceID: gestureRequest.resourceID,
+        resourceRevision: gestureRequest.resourceRevision,
+        topologyGeneration: gestureRequest.topologyGeneration,
+        triggeredAt: ProcessInfo.processInfo.systemUptime
+    )
+)
+replacementController.handleGesture(updateEvent, replacement: nil)
+pumpUntil {
+    MainActor.assumeIsolated {
+        replacementHost.runtimes[0].updates.last == updatedInputs
+    }
+}
+let staleSessionEvent = AOSDesktopWorldNativeEffectGestureEvent(
+    phase: .cancel,
+    request: AOSDesktopWorldNativeEffectRequest(
+        binding: gestureRequest.binding,
+        canvasGeneration: gestureRequest.canvasGeneration,
+        eventSequence: 99,
+        inputs: .pointer(CGPoint(x: 40, y: 50)),
+        ownerID: gestureRequest.ownerID,
+        pointerSessionID: "pointer-session-stale",
+        resourceID: gestureRequest.resourceID,
+        resourceRevision: gestureRequest.resourceRevision,
+        topologyGeneration: gestureRequest.topologyGeneration,
+        triggeredAt: ProcessInfo.processInfo.systemUptime
+    )
+)
+replacementController.handleGesture(staleSessionEvent, replacement: nil)
+precondition(replacementController.snapshot().state == "presenting")
+let duplicateSequenceEvent = AOSDesktopWorldNativeEffectGestureEvent(
+    phase: .update,
+    request: AOSDesktopWorldNativeEffectRequest(
+        binding: gestureRequest.binding,
+        canvasGeneration: gestureRequest.canvasGeneration,
+        eventSequence: 2,
+        inputs: .pointer(CGPoint(x: 70, y: 80)),
+        ownerID: gestureRequest.ownerID,
+        pointerSessionID: gestureRequest.pointerSessionID,
+        resourceID: gestureRequest.resourceID,
+        resourceRevision: gestureRequest.resourceRevision,
+        topologyGeneration: gestureRequest.topologyGeneration,
+        triggeredAt: ProcessInfo.processInfo.systemUptime
+    )
+)
+replacementController.handleGesture(duplicateSequenceEvent, replacement: nil)
+RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+precondition(MainActor.assumeIsolated {
+    replacementHost.runtimes[0].updates.last == updatedInputs
+})
+let endEvent = AOSDesktopWorldNativeEffectGestureEvent(
+    phase: .end,
+    request: AOSDesktopWorldNativeEffectRequest(
+        binding: gestureRequest.binding,
+        canvasGeneration: gestureRequest.canvasGeneration,
+        eventSequence: 3,
+        inputs: updatedInputs,
+        ownerID: gestureRequest.ownerID,
+        pointerSessionID: gestureRequest.pointerSessionID,
+        resourceID: gestureRequest.resourceID,
+        resourceRevision: gestureRequest.resourceRevision,
+        topologyGeneration: gestureRequest.topologyGeneration,
+        triggeredAt: ProcessInfo.processInfo.systemUptime
+    )
+)
+replacementController.handleGesture(
+    endEvent,
+    replacement: replacementRequest
+)
+pumpUntil { MainActor.assumeIsolated { replacementHost.removeCount == 1 } }
+pumpUntil {
+    replacementController.snapshot().state == "capturing"
+        && replacementCapturer.pending.count == 1
+}
+precondition(MainActor.assumeIsolated {
+    replacementHost.runtimes[0].disposed
+})
+replacementCapturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { replacementHost.installCount == 2 } }
+MainActor.assumeIsolated { replacementHost.runtimes.last?.complete() }
+pumpUntil { replacementController.snapshot().state == "ready" }
+let replacementSnapshot = replacementController.snapshot()
+precondition(replacementSnapshot.acceptedCount == 2)
+precondition(replacementSnapshot.rejectedCount == 0)
+precondition(replacementSnapshot.completedCount == 1)
+precondition(replacementSnapshot.disposedCount == 2)
+precondition(replacementSnapshot.lastProgramID == "example.release-transition")
+replacementController.shutdown()
+
+let reservedHost = Host()
+let reservedCapturer = Capturer()
+let reservedController = AOSDesktopWorldNativeFeedbackController(
+    host: reservedHost,
+    capturer: reservedCapturer,
+    scheduleDeadline: { _, _ in },
+    authorize: { _ in true }
+)
+reservedController.reconcileAvailability(
+    true,
+    programs: [
+        AOSDesktopWorldNativeEffectProgram(digest: "program-digest"),
+        AOSDesktopWorldNativeEffectProgram(
+            digest: "replacement-digest",
+            id: "example.release-transition",
+            revision: 2
+        ),
+    ]
+)
+pumpUntil { reservedController.snapshot().state == "ready" }
+precondition(reservedController.trigger(gestureRequest))
+reservedCapturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { reservedHost.installCount == 1 } }
+let unrelatedRequest = AOSDesktopWorldNativeEffectRequest(
+    binding: AOSDesktopWorldNativeEffectBinding(
+        interactionID: "unrelated-interaction",
+        lifecycle: .timed,
+        program: request.binding.program,
+        ripple: request.binding.ripple,
+        trigger: "pointer_down"
+    ),
+    canvasGeneration: request.canvasGeneration,
+    eventSequence: nil,
+    inputs: request.inputs,
+    ownerID: request.ownerID,
+    pointerSessionID: "pointer-session-2",
+    resourceID: request.resourceID,
+    resourceRevision: request.resourceRevision,
+    topologyGeneration: request.topologyGeneration,
+    triggeredAt: ProcessInfo.processInfo.systemUptime
+)
+var competingAdmission: Bool?
+reservedHost.onCaptureContext = {
+    reservedHost.onCaptureContext = nil
+    competingAdmission = reservedController.trigger(unrelatedRequest)
+}
+reservedController.handleGesture(endEvent, replacement: replacementRequest)
+pumpUntil {
+    reservedController.snapshot().state == "capturing"
+        && reservedCapturer.pending.count == 1
+}
+precondition(competingAdmission == false)
+precondition(reservedController.snapshot().rejectedCount == 1)
+reservedCapturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { reservedHost.installCount == 2 } }
+MainActor.assumeIsolated { reservedHost.runtimes.last?.complete() }
+pumpUntil { reservedController.snapshot().state == "ready" }
+reservedController.shutdown()
+
+let fastReleaseHost = Host()
+let fastReleaseCapturer = Capturer()
+let fastReleaseController = AOSDesktopWorldNativeFeedbackController(
+    host: fastReleaseHost,
+    capturer: fastReleaseCapturer,
+    scheduleDeadline: { _, _ in },
+    authorize: { _ in true }
+)
+fastReleaseController.reconcileAvailability(
+    true,
+    programs: [
+        AOSDesktopWorldNativeEffectProgram(digest: "program-digest"),
+        AOSDesktopWorldNativeEffectProgram(
+            digest: "replacement-digest",
+            id: "example.release-transition",
+            revision: 2
+        ),
+    ]
+)
+pumpUntil { fastReleaseController.snapshot().state == "ready" }
+precondition(fastReleaseController.trigger(request))
+fastReleaseCapturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { fastReleaseHost.installCount == 1 } }
+precondition(fastReleaseController.trigger(gestureRequest))
+fastReleaseController.handleGesture(endEvent, replacement: replacementRequest)
+pumpUntil {
+    fastReleaseController.snapshot().state == "capturing"
+        && fastReleaseCapturer.pending.count == 1
+}
+fastReleaseCapturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { fastReleaseHost.installCount == 2 } }
+precondition(fastReleaseController.snapshot().lastProgramID == "example.release-transition")
+MainActor.assumeIsolated { fastReleaseHost.runtimes.last?.complete() }
+pumpUntil { fastReleaseController.snapshot().state == "ready" }
+precondition(fastReleaseController.snapshot().acceptedCount == 3)
+fastReleaseController.shutdown()
 
 let supersededHost = Host()
 MainActor.assumeIsolated { supersededHost.deferPreparations = true }
@@ -464,7 +777,7 @@ precondition(feedback.retainedBufferCount == 0)
 precondition(feedback.retainedTextureCount == 0)
 precondition(feedback.retainedViewCount == 0)
 precondition(feedback.lastOwnerID == "example.consumer")
-precondition(feedback.lastResourceID == "companion/main")
+precondition(feedback.lastResourceID == "surface/main")
 precondition(feedback.lastResourceRevision == 1)
 precondition(feedback.lastProgramID == "example.ripple")
 precondition(feedback.lastProgramRevision == 1)
@@ -568,8 +881,10 @@ pumpUntil { latencyController.snapshot().state == "ready" }
 let delayedRequest = AOSDesktopWorldNativeEffectRequest(
     binding: request.binding,
     canvasGeneration: request.canvasGeneration,
-    desktopWorldOrigin: request.desktopWorldOrigin,
+    eventSequence: request.eventSequence,
+    inputs: request.inputs,
     ownerID: request.ownerID,
+    pointerSessionID: request.pointerSessionID,
     resourceID: request.resourceID,
     resourceRevision: request.resourceRevision,
     topologyGeneration: request.topologyGeneration,

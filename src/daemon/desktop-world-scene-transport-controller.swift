@@ -25,6 +25,10 @@ final class AOSDesktopWorldSceneTransportController {
         extensionStore: AOSSceneExtensionStore,
         eventDiagnostics: AOSDesktopWorldSceneEventRouteDiagnostics = AOSDesktopWorldSceneEventRouteDiagnostics(),
         nativeFeedback: @escaping (AOSDesktopWorldNativeEffectRequest) -> Void = { _ in },
+        nativeGestureFeedback: @escaping (
+            AOSDesktopWorldNativeEffectGestureEvent,
+            AOSDesktopWorldNativeEffectRequest?
+        ) -> Void = { _, _ in },
         resolveContentURL: @escaping (String) -> String,
         clearReadyManifest: @escaping () -> Void,
         authorizationChanged: @escaping () -> Void = {},
@@ -41,6 +45,7 @@ final class AOSDesktopWorldSceneTransportController {
             scene: scene,
             diagnostics: eventDiagnostics,
             nativeFeedback: nativeFeedback,
+            nativeGestureFeedback: nativeGestureFeedback,
             emit: emit
         )
     }
@@ -186,6 +191,7 @@ final class AOSDesktopWorldSceneTransportController {
         phase: AOSInputEventPhase,
         button: AOSInputButton?,
         desktopWorld: CGPoint,
+        pointerSessionID: String,
         triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> AOSDesktopWorldNativeEffectRequest? {
         guard region.ownerCanvasID == Self.stageCanvasID,
@@ -208,6 +214,7 @@ final class AOSDesktopWorldSceneTransportController {
             phase: phase.rawValue,
             button: button.rawValue,
             point: desktopWorld,
+            pointerSessionID: pointerSessionID,
             triggeredAt: triggeredAt
         )
     }

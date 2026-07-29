@@ -54,16 +54,25 @@ final class AOSDesktopWorldSceneEventRouter {
     private let emit: (AOSSceneLeaseRoute, String, [String: Any]) -> Bool
     private let diagnostics: AOSDesktopWorldSceneEventRouteDiagnostics
     private let nativeFeedback: (AOSDesktopWorldNativeEffectRequest) -> Void
+    private let nativeGestureFeedback: (
+        AOSDesktopWorldNativeEffectGestureEvent,
+        AOSDesktopWorldNativeEffectRequest?
+    ) -> Void
 
     init(
         scene: AOSDesktopWorldSceneController,
         diagnostics: AOSDesktopWorldSceneEventRouteDiagnostics = AOSDesktopWorldSceneEventRouteDiagnostics(),
         nativeFeedback: @escaping (AOSDesktopWorldNativeEffectRequest) -> Void = { _ in },
+        nativeGestureFeedback: @escaping (
+            AOSDesktopWorldNativeEffectGestureEvent,
+            AOSDesktopWorldNativeEffectRequest?
+        ) -> Void = { _, _ in },
         emit: @escaping (AOSSceneLeaseRoute, String, [String: Any]) -> Bool
     ) {
         self.scene = scene
         self.diagnostics = diagnostics
         self.nativeFeedback = nativeFeedback
+        self.nativeGestureFeedback = nativeGestureFeedback
         self.emit = emit
     }
 
@@ -91,12 +100,20 @@ final class AOSDesktopWorldSceneEventRouter {
             diagnostics.record(.identityMismatch)
             return
         }
-        if let request = scene.nativeEffectRequest(
+        let request = scene.nativeEffectRequest(
+            identity: identity,
+            key: key,
+            event: canonicalEvent,
+            triggeredAt: triggeredAt
+        )
+        if let lifecycleEvent = scene.nativeEffectGestureEvent(
             identity: identity,
             key: key,
             event: canonicalEvent,
             triggeredAt: triggeredAt
         ) {
+            nativeGestureFeedback(lifecycleEvent, request)
+        } else if let request {
             nativeFeedback(request)
         }
         diagnostics.record(scene.withEventRoute(identity: identity, key: key, event: eventType) { route in

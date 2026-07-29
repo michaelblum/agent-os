@@ -80,4 +80,15 @@ test('DesktopWorld native orchestration pins lease refs and serializes topology 
     'removing the native stage must retire the exact scene generation and its leases',
   )
   assert.match(transport, /eventRouter\.handle\(identity: stageIdentity\(topology\), payload: payload\)/u)
+
+  const triggerBody = daemon.match(
+    /private func triggerNativeSheetEffect\([\s\S]*?\n    \}/u,
+  )?.[0] ?? ''
+  const gestureBody = daemon.match(
+    /private func updateNativeSheetEffect\([\s\S]*?\n    \}/u,
+  )?.[0] ?? ''
+  assert.match(triggerBody, /desktopWorldNativeFeedback\.trigger\(request\)/u)
+  assert.match(gestureBody, /desktopWorldNativeFeedback\.handleGesture\(/u)
+  assert.doesNotMatch(triggerBody, /DispatchQueue\.main\.async/u)
+  assert.doesNotMatch(gestureBody, /DispatchQueue\.main\.async/u)
 })
