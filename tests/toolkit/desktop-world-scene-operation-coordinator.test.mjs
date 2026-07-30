@@ -71,6 +71,7 @@ function harness({
   deferRegistrationNumber = null,
   failAffordance = null,
   rejectPlay = false,
+  rejectReplacementCommit = false,
   rejectResume = false,
   remove = async () => {},
   scheduleTimer = undefined,
@@ -83,6 +84,7 @@ function harness({
   const emittedEvents = []
   const removalAttempts = new Map()
   let registrationCount = 0
+  let replacementCommitCount = 0
   let releaseRegistration = null
   let markRegistrationStarted = null
   let markUpdateStarted = null
@@ -161,12 +163,16 @@ function harness({
         },
         commit() {
           this.assertCurrent()
+          replacementCommitCount += 1
           resources.set(key, {
             document,
             extension: message.payload.operation.extension ?? previous?.extension ?? null,
             playGeneration: previous?.playGeneration ?? 0,
             suspended: false,
           })
+          if (rejectReplacementCommit && replacementCommitCount > 1) {
+            throw new Error('fixture replacement commit failure')
+          }
           pending = false
           return true
         },
@@ -310,6 +316,12 @@ function mount(key, document, interactions, extension = null) {
   }
 }
 
+function transact(key, document, interactions) {
+  const message = mount(key, document, interactions)
+  message.payload.operation.op = 'transact'
+  return message
+}
+
 function suspendOrResume(key, op) {
   return {
     type: 'desktop_world_stage.scene.operation',
@@ -377,6 +389,42 @@ test('failed resume recovery remounts the exact trusted projection extension', a
 
   assert.deepEqual(fixture.outlet.configuration(key).extension, extension)
   assert.equal(fixture.outlet.document(key).id, 'extension-scene')
+})
+
+test('visual-only transactions retain the live input generation without native region churn', async () => {
+  const key = 'example.consumer::companion/main'
+  const fixture = harness()
+  await fixture.coordinator.apply(mount(key, scene('old-scene', 'body'), interaction('body')))
+  const originalRegion = regionIdFor(fixture.regions, 'body-hit')
+  const nativeCallsBefore = fixture.calls.filter(([kind]) => (
+    kind === 'register' || kind === 'replace-activate' || kind === 'replace-retire' || kind === 'remove'
+  )).length
+
+  await fixture.coordinator.apply(transact(key, scene('next-visual-scene', 'body'), interaction('body')))
+
+  assert.equal(fixture.outlet.document(key).id, 'next-visual-scene')
+  assert.deepEqual([...fixture.regions.keys()], [originalRegion])
+  assert.equal(fixture.interactions.handleInput(pointerDown(originalRegion)), true)
+  assert.equal(fixture.interactions.handleInput(pointerDrag(originalRegion)), true)
+  assert.equal(fixture.dispatchedScenes.at(-1), 'next-visual-scene')
+  assert.equal(fixture.calls.filter(([kind]) => (
+    kind === 'register' || kind === 'replace-activate' || kind === 'replace-retire' || kind === 'remove'
+  )).length, nativeCallsBefore)
+})
+
+test('failed visual-only commit retires the retained input generation with the scene', async () => {
+  const key = 'example.consumer::companion/main'
+  const fixture = harness({ rejectReplacementCommit: true })
+  await fixture.coordinator.apply(mount(key, scene('old-scene', 'body'), interaction('body')))
+
+  await assert.rejects(
+    fixture.coordinator.apply(transact(key, scene('next-visual-scene', 'body'), interaction('body'))),
+    /fixture replacement commit failure/u,
+  )
+
+  assert.equal(fixture.outlet.document(key), null)
+  assert.equal(fixture.interactions.configuration(key), null)
+  assert.deepEqual([...fixture.regions.keys()], [])
 })
 
 test('stage fault retirement closes visual and input ownership as one aggregate', async () => {

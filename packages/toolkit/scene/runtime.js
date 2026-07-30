@@ -3,6 +3,7 @@ export {
   DesktopWorldSurfaceThree,
   deriveOrthoCamera,
 } from '../runtime/desktop-world-surface-three.js'
+export { derivePerspectiveResourceCamera } from './scene-render-pass.js'
 export {
   canvasGeometryCanvasID,
   canvasLifecycleCanvasID,

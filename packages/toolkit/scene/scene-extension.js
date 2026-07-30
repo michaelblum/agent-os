@@ -378,35 +378,39 @@ function callSynchronousProjectionHook(projection, method, args = []) {
   )
 }
 
-export function inspectSceneExtensionProjectionResources(object) {
-  if (!object || object.isObject3D !== true || typeof object.traverse !== 'function') {
-    throw new TypeError('Scene extension projection requires a Three Object3D subtree.')
+function inspectProjectionResourceRoots(roots) {
+  for (const object of roots) {
+    if (!object || object.isObject3D !== true || typeof object.traverse !== 'function') {
+      throw new TypeError('Scene extension projection requires a Three Object3D subtree.')
+    }
   }
   const geometries = new Set()
   const materials = new Set()
   const textures = new Set()
   let drawCalls = 0
-  let objects = 0
+  let objectCount = 0
   let triangles = 0
   let geometryBytes = 0
   const workingStorage = new Set()
-  object.traverse((entry) => {
-    objects += 1
-    if (entry?.geometry) geometries.add(entry.geometry)
-    const entries = Array.isArray(entry?.material) ? entry.material : [entry?.material]
-    for (const material of entries) if (material) materials.add(material)
-    drawCalls += drawCallsFor(entry)
-    if (entry?.geometry && entry.visible !== false) {
-      const instances = entry.isInstancedMesh === true
-        ? Math.max(0, Math.floor(Number(entry.count) || 0))
-        : 1
-      triangles += geometryMetrics(entry.geometry, new Set(), 0).triangles * instances
-    }
-    if (entry?.isInstancedMesh === true) {
-      geometryBytes = addWorkingStorage(attributeArray(entry.instanceMatrix), workingStorage, geometryBytes)
-      geometryBytes = addWorkingStorage(attributeArray(entry.instanceColor), workingStorage, geometryBytes)
-    }
-  })
+  for (const object of roots) {
+    object.traverse((entry) => {
+      objectCount += 1
+      if (entry?.geometry) geometries.add(entry.geometry)
+      const entries = Array.isArray(entry?.material) ? entry.material : [entry?.material]
+      for (const material of entries) if (material) materials.add(material)
+      drawCalls += drawCallsFor(entry)
+      if (entry?.geometry && entry.visible !== false) {
+        const instances = entry.isInstancedMesh === true
+          ? Math.max(0, Math.floor(Number(entry.count) || 0))
+          : 1
+        triangles += geometryMetrics(entry.geometry, new Set(), 0).triangles * instances
+      }
+      if (entry?.isInstancedMesh === true) {
+        geometryBytes = addWorkingStorage(attributeArray(entry.instanceMatrix), workingStorage, geometryBytes)
+        geometryBytes = addWorkingStorage(attributeArray(entry.instanceColor), workingStorage, geometryBytes)
+      }
+    })
+  }
   const visited = new Set()
   for (const material of materials) collectTextures(material, textures, visited)
   for (const geometry of geometries) {
@@ -420,7 +424,7 @@ export function inspectSceneExtensionProjectionResources(object) {
   return Object.freeze({
     drawCalls,
     geometryBytes,
-    objects,
+    objects: objectCount,
     resources: geometries.size + materials.size + textures.size,
     textureBytes: measuredTextureBytes,
     triangles,
@@ -428,8 +432,18 @@ export function inspectSceneExtensionProjectionResources(object) {
   })
 }
 
-function assertProjectionBudgets(object, budgets) {
-  const metrics = inspectSceneExtensionProjectionResources(object)
+export function inspectSceneExtensionProjectionResources(object) {
+  return inspectProjectionResourceRoots([object])
+}
+
+function projectionResourceRoots(projection) {
+  return projection.overlayObject
+    ? [projection.object, projection.overlayObject]
+    : [projection.object]
+}
+
+function assertProjectionBudgets(projection, budgets) {
+  const metrics = inspectProjectionResourceRoots(projectionResourceRoots(projection))
   const checks = [
     ['drawCalls', 'maxDrawCalls'],
     ['objects', 'maxObjects'],
@@ -630,6 +644,19 @@ export function validateSceneExtensionProjection(projection) {
   if (!projection.object || projection.object.isObject3D !== true || typeof projection.object.traverse !== 'function') {
     addError(errors, 'invalid_projection_object', 'projection.object', 'Scene extension projection requires a Three Object3D subtree.')
   }
+  if (projection.overlayObject !== undefined) {
+    if (!projection.overlayObject
+        || projection.overlayObject === projection.object
+        || projection.overlayObject.isObject3D !== true
+        || typeof projection.overlayObject.traverse !== 'function') {
+      addError(
+        errors,
+        'invalid_projection_overlay_object',
+        'projection.overlayObject',
+        'Scene extension overlayObject must be a distinct Three Object3D subtree.',
+      )
+    }
+  }
   for (const method of PROJECTION_METHODS) {
     if (typeof projection[method] !== 'function') {
       addError(errors, 'missing_projection_method', `projection.${method}`, `Scene extension projection requires ${method}().`)
@@ -736,7 +763,7 @@ export function createTrustedSceneExtensionRegistry(input = {}) {
             const projectionValidation = validateSceneExtensionProjection(projection)
             if (!projectionValidation.ok) throw new TypeError(projectionValidation.errors[0].message)
             const effectiveBudgets = Object.freeze({ ...context.budgets })
-            let currentMetrics = assertProjectionBudgets(projection.object, effectiveBudgets)
+            let currentMetrics = assertProjectionBudgets(projection, effectiveBudgets)
             let ticksSinceResourceAudit = 0
             let disposed = false
             const disposeProjection = () => {
@@ -747,12 +774,13 @@ export function createTrustedSceneExtensionRegistry(input = {}) {
             }
             const callLifecycleHook = (name, args = []) => {
               const result = callSynchronousProjectionHook(projection, name, args)
-              currentMetrics = assertProjectionBudgets(projection.object, effectiveBudgets)
+              currentMetrics = assertProjectionBudgets(projection, effectiveBudgets)
               ticksSinceResourceAudit = 0
               return result
             }
             return Object.freeze({
               object: projection.object,
+              overlayObject: projection.overlayObject,
               activate: typeof projection.activate === 'function'
                 ? (...args) => callLifecycleHook('activate', args)
                 : undefined,
@@ -780,7 +808,7 @@ export function createTrustedSceneExtensionRegistry(input = {}) {
                   const result = callSynchronousProjectionHook(projection, 'tick', args)
                   ticksSinceResourceAudit += 1
                   if (ticksSinceResourceAudit >= SCENE_EXTENSION_RESOURCE_AUDIT_INTERVAL_TICKS) {
-                    currentMetrics = assertProjectionBudgets(projection.object, effectiveBudgets)
+                    currentMetrics = assertProjectionBudgets(projection, effectiveBudgets)
                     ticksSinceResourceAudit = 0
                   }
                   return result

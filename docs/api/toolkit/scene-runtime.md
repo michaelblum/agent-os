@@ -85,9 +85,11 @@ line/rate/stderr overflow, and consumer failures are terminal protocol faults.
 ## One Global Coordinate Plane
 
 Scene positions and scales use the global DesktopWorld coordinate plane. AOS
-segments that plane across physical displays and derives one clipped
-orthographic camera per segment. A resource can straddle displays or animate
-between them without the author reconciling display-local coordinates.
+segments that plane across physical displays. Orthographic overlays receive a
+clipped camera per segment; perspective resources receive complementary view
+offsets from one global consumer-declared camera profile. A resource can
+straddle displays or animate between them without the author reconciling
+display-local coordinates or creating per-display copies.
 
 Every segment applies the same operation and reports an origin-attributed
 internal result. The daemon accepts only the current canvas and topology
@@ -122,8 +124,15 @@ per-display-segment pixel ceiling to 2,097,152.
 
 `DesktopWorldSurfaceThree` (alias `DesktopWorldSurface3D`) adds segment-aware
 camera and viewport refresh. `deriveOrthoCamera()` is the pure segment-to-frustum
-projection. Use `manageViewport: false` when `createThreeRenderLifecycle()` is
+projection. `derivePerspectiveResourceCamera()` derives one global camera and
+the current display's bounded view offset. Use `manageViewport: false` when `createThreeRenderLifecycle()` is
 the sole resize owner.
+
+The singleton DesktopWorld outlet renders perspective resources first and its
+orthographic overlay last through the existing renderer and frame loop. A
+trusted extension may supply a distinct `overlayObject` for screen-aligned
+interaction art; both subtrees share one resource budget and one projection
+disposal lifecycle.
 
 `DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS` and
 `evaluateDesktopWorldPerformanceAcceptance()` provide the content-free engine

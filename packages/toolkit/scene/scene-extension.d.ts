@@ -119,6 +119,7 @@ export interface TrustedSceneExtensionFactoryContext
  */
 export interface SceneExtensionProjection {
   object: SceneExtensionObject3D;
+  overlayObject?: SceneExtensionObject3D;
   activate?(): void;
   /**
    * Optional product-owned visual response hook. Gesture recognition,

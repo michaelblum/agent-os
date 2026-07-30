@@ -54,6 +54,28 @@ references, finite JSON parameters, per-resource asset limits, and aggregate
 budgets. `sceneDocumentRequiredImplementations()` returns the trusted
 implementation IDs needed by the document.
 
+Scene documents default to `renderPass: { kind: "orthographic_overlay" }`.
+Trusted 3D resources may instead declare one bounded global perspective
+profile:
+
+```json
+{
+  "renderPass": {
+    "kind": "perspective_resource",
+    "camera": {
+      "fovYDegrees": 36,
+      "near": 0.1,
+      "far": 10000,
+      "targetZ": 0
+    }
+  }
+}
+```
+
+The profile defines framing only. Geometry, materials, lights, and apparent
+scale remain consumer-owned projection data. AOS derives complementary views
+for every display and does not create product-authored per-display copies.
+
 `validateSceneTransaction()` validates the revisioned operation envelope.
 `applySceneTransaction()` additionally checks the active lease, applies the
 operations to an isolated candidate, validates the complete candidate, and

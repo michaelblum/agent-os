@@ -627,6 +627,38 @@ test('host-lowered budgets govern admission and sampled runtime growth', () => {
   assert.throws(() => dynamic.tick(16), /exceeded maxObjects/u)
 })
 
+test('perspective and overlay projection subtrees share one admission and audit budget', () => {
+  const object = {
+    isObject3D: true,
+    traverse(visitor) { visitor(this) },
+  }
+  const overlayObject = {
+    isObject3D: true,
+    traverse(visitor) { visitor(this) },
+  }
+  const registry = createTrustedSceneExtensionRegistry({
+    factories: [{
+      manifest: manifest({ budgets: budgets({ maxObjects: 2 }) }),
+      createProjection: () => projection({ object, overlayObject }),
+    }],
+  })
+  const handle = registry.resolve(reference())
+
+  assert.throws(
+    () => handle.createProjection(context({ budgets: budgets({ maxObjects: 1 }) })),
+    /exceeded maxObjects/u,
+  )
+  const admitted = handle.createProjection(context({ budgets: budgets({ maxObjects: 2 }) }))
+  assert.equal(admitted.overlayObject, overlayObject)
+  assert.equal(admitted.resourceMetrics().objects, 2)
+})
+
+test('projection overlay subtree must be a distinct Three object', () => {
+  const object = projection().object
+  const invalid = validateSceneExtensionProjection(projection({ object, overlayObject: object }))
+  assert.equal(errorCodes(invalid).has('invalid_projection_overlay_object'), true)
+})
+
 test('runtime resource audits are sampled instead of allocating a tree walk every frame', () => {
   let traversals = 0
   const object = {

@@ -3,6 +3,7 @@ import {
   canonicalizeSceneDocument,
   createSceneAnimationController,
   createSceneSignalController,
+  resolveSceneRenderPass,
 } from '../../scene/index.js'
 import { createSceneAnimationInteractionState } from './scene-animation-interaction-state.js'
 import { createDesktopWorldSceneProjection } from './scene-extension-projection.js'
@@ -24,7 +25,7 @@ export function sameSceneExtensionReference(left, right) {
 
 export function disposeDesktopWorldSceneMountedResource(
   mounted,
-  { scene, preserveInteractionOrigins = false, onFailure = () => {} } = {},
+  { removeProjection, scene, preserveInteractionOrigins = false, onFailure = () => {} } = {},
 ) {
   const cleanup = mounted.cleanup ??= {
     animations: false,
@@ -34,7 +35,10 @@ export function disposeDesktopWorldSceneMountedResource(
     signals: false,
   }
   const operations = [
-    ['removed', () => scene.remove(mounted.projection.object)],
+    ['removed', () => {
+      if (typeof removeProjection === 'function') removeProjection(mounted)
+      else scene.remove(mounted.projection.object)
+    }],
     ['animations', () => mounted.animations.dispose()],
     ['signals', () => mounted.signals.dispose()],
     ['interactionVisuals', () => mounted.interactionVisuals?.dispose()],
@@ -125,6 +129,8 @@ export function createDesktopWorldSceneMountedResource({
       })
       : null,
     document,
+    renderPass: resolveSceneRenderPass(document),
+    rendering: null,
     projection,
     signals,
     animations,

@@ -110,6 +110,7 @@ function extensionProjectionAdapter(
   const proofDescriptors = new Map(framebufferProofs.map((proof) => [proof.id, proof]))
   return {
     object: projection.object,
+    overlayObject: projection.overlayObject,
     activate: (...args) => projection.activate?.apply(projection, args),
     applyInteraction: typeof projection.applyInteraction === 'function'
       ? (event) => interactionResult(projection.applyInteraction.call(projection, immutableInteractionEvent(event)))

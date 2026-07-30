@@ -40,7 +40,7 @@ function fixture({ limits, previous, retireMounted = () => true } = {}) {
     faults,
     prepare(candidate, captureBudgets = () => {}) {
       return prepareDesktopWorldSceneOutletReplacement({
-        addToScene: (object) => added.push(object),
+        attachCandidate: (mounted) => added.push(mounted),
         createCandidate: (budgets) => {
           captureBudgets(budgets)
           return candidate
@@ -87,7 +87,7 @@ test('outlet replacement commits a rich projection with post-commit headroom', (
   assert.equal(replacement.commit(), true)
   assert.equal(subject.resources.get('companion/main'), candidate)
   assert.deepEqual(retired, [previous])
-  assert.deepEqual(subject.added, [candidate.projection.object])
+  assert.deepEqual(subject.added, [candidate])
   assert.equal(previous.metricsAccounted, false)
   assert.equal(candidate.metricsAccounted, true)
   assert.equal(subject.budget.snapshot().resources, richMetrics.resources)

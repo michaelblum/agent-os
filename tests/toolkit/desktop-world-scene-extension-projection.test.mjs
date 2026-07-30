@@ -146,6 +146,23 @@ test('DesktopWorld selects an exact owner-matched extension projection', () => {
   assert.deepEqual(result.projection.objectPosition('companion/main'), [90, 40, 2])
 })
 
+test('DesktopWorld preserves the trusted extension orthographic overlay subtree', () => {
+  const overlayObject = projectionObject()
+  const extension = factory({}, { overlayObject })
+  const registry = createTrustedSceneExtensionRegistry({ factories: [extension] })
+  const result = createDesktopWorldSceneProjection({
+    THREE: { REVISION: SCENE_EXTENSION_THREE_REVISION },
+    document: scene(),
+    expectedOwner: ownerId,
+    extensionReference: reference(),
+    extensionRegistry: registry,
+  })
+
+  assert.equal(result.projection.overlayObject, overlayObject)
+  assert.equal(result.projection.resourceMetrics().objects, 4)
+  result.projection.dispose()
+})
+
 test('DesktopWorld resolves only digest-bound named framebuffer proof descriptors', () => {
   const proof = framebufferProof()
   const capabilities = ['aos.scene.framebuffer_proof']

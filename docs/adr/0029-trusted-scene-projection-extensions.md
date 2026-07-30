@@ -98,6 +98,10 @@ The extension synchronously returns one bounded Object3D subtree plus
 synchronous `applySignal`, `applyAnimation`, `tick`, `suspend`, `resume`,
 `contextLost`, `contextRestored`, and `dispose` operations. Optional activation is synchronous as
 well. Promise-like factory, lifecycle, update, or disposal results are rejected.
+A perspective projection may additionally return one distinct `overlayObject`
+subtree for orthographic interaction art. AOS accounts both subtrees under the
+same declared and segment budgets, renders them through the existing renderer,
+and relies on the single projection disposal hook for their resources.
 A projection may also implement synchronous `applyInteraction(event)` for
 consumer-owned arrow, route, radial-menu, and other visual treatment. AOS still
 owns gesture recognition, capture, native regions, placement commits, event

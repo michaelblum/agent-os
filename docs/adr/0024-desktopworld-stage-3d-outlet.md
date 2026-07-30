@@ -66,6 +66,13 @@ The existing `desktop_world_stage.layer.*` messages remain supported and render
 through the 2D/HUD outlet. Existing standalone `DesktopWorldSurfaceThree`
 consumers remain compatible while they migrate to shared-stage leases.
 
+The shared 3D outlet has two product-neutral passes on the same canvas,
+renderer, clock, and lifecycle. Existing documents use the orthographic overlay
+pass. A document may opt into a perspective resource pass with a bounded global
+camera profile; AOS derives complementary per-display view offsets so one
+resource remains continuous across display bezels. The consumer owns its
+geometry, apparent scale, lights, materials, and effects.
+
 Shared-stage documents are declarative. They may reference validated shader
 assets and registered effect implementations, but they may not execute arbitrary
 consumer JavaScript. An untrusted executable extension host or cross-process
