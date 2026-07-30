@@ -399,30 +399,16 @@ final class AOSDesktopWorldSceneTransportController {
         }
 
         let key = scene.key(owner: owner, resource: resource)
-        if op == "subscribe" || op == "unsubscribe" {
-            let requested = Set(requestedSceneEvents)
-            switch scene.updateSubscriptions(
+        if op == "unsubscribe" {
+            return updateSubscriptions(
+                operation: op,
+                events: Set(requestedSceneEvents),
                 key: key,
                 connectionID: connectionID,
                 ref: ref,
-                adding: op == "subscribe" ? requested : [],
-                removing: op == "unsubscribe" ? requested : [],
-                removeAll: op == "unsubscribe" && requested.isEmpty
-            ) {
-            case .stageUnavailable:
-                return response(error: "DesktopWorld scene stage is retiring", code: "SCENE_STAGE_UNAVAILABLE")
-            case .busy:
-                return response(error: "Scene resource already has an active lease", code: "SCENE_LEASE_BUSY")
-            case .accepted(let events):
-                return AOSDesktopWorldSceneFollowResponse(payload: [
-                    "status": "ok",
-                    "operation": op,
-                    "resource": resource,
-                    "events": events.sorted(),
-                ])
-            }
+                resource: resource
+            )
         }
-
         guard let topology = ensureStage() else {
             return response(error: "DesktopWorld scene stage is unavailable", code: "SCENE_STAGE_UNAVAILABLE")
         }
@@ -431,6 +417,16 @@ final class AOSDesktopWorldSceneTransportController {
               current.generation == topology.generation,
               current.segments == topology.segments else {
             return response(error: "DesktopWorld scene segments are unavailable", code: "SCENE_STAGE_UNAVAILABLE")
+        }
+        if op == "subscribe" {
+            return updateSubscriptions(
+                operation: op,
+                events: Set(requestedSceneEvents),
+                key: key,
+                connectionID: connectionID,
+                ref: ref,
+                resource: resource
+            )
         }
         switch scene.admitOperation(
             topology: topologyDescriptor(topology),
@@ -460,6 +456,36 @@ final class AOSDesktopWorldSceneTransportController {
                 "status": "ok",
                 "operation": op,
                 "resource": resource,
+            ])
+        }
+    }
+
+    private func updateSubscriptions(
+        operation: String,
+        events: Set<String>,
+        key: String,
+        connectionID: UUID,
+        ref: String?,
+        resource: String
+    ) -> AOSDesktopWorldSceneFollowResponse {
+        switch scene.updateSubscriptions(
+            key: key,
+            connectionID: connectionID,
+            ref: ref,
+            adding: operation == "subscribe" ? events : [],
+            removing: operation == "unsubscribe" ? events : [],
+            removeAll: operation == "unsubscribe" && events.isEmpty
+        ) {
+        case .stageUnavailable:
+            return response(error: "DesktopWorld scene stage is retiring", code: "SCENE_STAGE_UNAVAILABLE")
+        case .busy:
+            return response(error: "Scene resource already has an active lease", code: "SCENE_LEASE_BUSY")
+        case .accepted(let acceptedEvents):
+            return AOSDesktopWorldSceneFollowResponse(payload: [
+                "status": "ok",
+                "operation": operation,
+                "resource": resource,
+                "events": acceptedEvents.sorted(),
             ])
         }
     }
