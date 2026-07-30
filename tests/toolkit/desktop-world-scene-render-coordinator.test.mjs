@@ -93,6 +93,36 @@ test('perspective resources use identical global cameras and complementary segme
   assert.notDeepEqual(left.rendering.cameraProjection.viewOffset, right.rendering.cameraProjection.viewOffset)
 })
 
+test('an existing perspective resource rejects an incompatible topology change', () => {
+  const coordinator = createDesktopWorldSceneRenderCoordinator({ THREE, renderer: renderer() })
+  const topology = [{ display_id: 1, dw_bounds: [0, 0, 1_440, 900] }]
+  assert.equal(coordinator.updateSegment(topology[0], topology), true)
+  const resource = mounted('companion/main', perspective)
+  coordinator.attach(resource)
+  const resources = new Map([[resource.key, resource]])
+
+  const movedTopology = [{ display_id: 2, dw_bounds: [1_440, 0, 1_920, 1_080] }]
+  assert.equal(coordinator.updateSegment(topology[0], movedTopology), true)
+  assert.equal(coordinator.refresh(resources), false)
+  assert.deepEqual(resource.rendering.cameraProjection.worldBounds, [0, 0, 1_440, 900])
+})
+
+test('initial perspective admission reports a render-pass configuration failure', () => {
+  const coordinator = createDesktopWorldSceneRenderCoordinator({ THREE, renderer: renderer() })
+  const topology = [{ display_id: 1, dw_bounds: [0, 0, 1_440, 900] }]
+  assert.equal(coordinator.updateSegment(topology[0], topology), true)
+  const clipped = mounted('companion/main', {
+    kind: 'perspective_resource',
+    camera: { far: 10, fovYDegrees: 36, near: 0.1, targetZ: 0 },
+  })
+
+  assert.throws(
+    () => coordinator.attach(clipped),
+    (error) => error?.code === 'SCENE_RENDER_PASS_CONFIGURATION_FAILED',
+  )
+  assert.equal(clipped.rendering, null)
+})
+
 test('one hundred perspective attachment cycles leave no pass-owned object behind', () => {
   const host = renderer()
   const coordinator = createDesktopWorldSceneRenderCoordinator({ THREE, renderer: host })
