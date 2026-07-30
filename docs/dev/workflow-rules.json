@@ -372,6 +372,7 @@
         "src/daemon/unified.swift",
         "src/display/canvas.swift",
         "src/display/desktop-world-surface.swift",
+        "src/display/desktop-world-native-projection-manager.swift",
         "src/display/desktop-world-native-projection.swift",
         "src/display/desktop-world-native-sheet-geometry.swift",
         "src/display/desktop-world-native-sheet-lease.swift",

@@ -231,6 +231,7 @@ final class AOSDesktopPixelNativeBaselineDesktopWorldHost: AOSDesktopPixelNative
         }
         let sheet: DesktopWorldNativeSheet
         do {
+            try canvas.prepareNativeProjectionHosts(device: device)
             sheet = try canvas.installNativeSheet(device: device)
         } catch {
             context.dispose()

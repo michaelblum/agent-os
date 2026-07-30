@@ -51,6 +51,8 @@ final class DesktopWorldNativeProjectionHost {
         precondition(Thread.isMainThread, "native projection detachment must run on the main thread")
         guard !finalized else { return }
         suspend()
+        view.isPaused = true
+        view.enableSetNeedsDisplay = true
         view.delegate = nil
     }
 
@@ -66,5 +68,13 @@ final class DesktopWorldNativeProjectionHost {
 
     var retainedViewCount: Int {
         finalized || view.superview == nil ? 0 : 1
+    }
+
+    var isDormant: Bool {
+        !finalized
+            && view.superview != nil
+            && view.isHidden
+            && view.isPaused
+            && view.delegate == nil
     }
 }

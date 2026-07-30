@@ -1,6 +1,25 @@
 import Foundation
 import Metal
 
+private final class AOSDesktopWorldNativeFeedbackHostPreparation:
+    AOSDesktopWorldNativeEffectPreparation,
+    @unchecked Sendable
+{
+    let canvasGeneration: UInt64
+    let context: AOSDesktopWorldNativeEffectGPUContext
+    let topologyGeneration: UInt64
+
+    init(
+        canvasGeneration: UInt64,
+        context: AOSDesktopWorldNativeEffectGPUContext,
+        topologyGeneration: UInt64
+    ) {
+        self.canvasGeneration = canvasGeneration
+        self.context = context
+        self.topologyGeneration = topologyGeneration
+    }
+}
+
 final class AOSDesktopWorldNativeFeedbackHost:
     AOSDesktopWorldNativeFeedbackHosting
 {
@@ -40,6 +59,10 @@ final class AOSDesktopWorldNativeFeedbackHost:
             Result<AOSDesktopWorldNativeEffectPreparation, Error>
         ) -> Void
     ) {
+        guard let captureContext = captureContext() else {
+            completion(.failure(DesktopWorldNativeSheetFailure.rendererUnavailable))
+            return
+        }
         preparationQueue.async {
             do {
                 guard let device = MTLCreateSystemDefaultDevice() else {
@@ -50,7 +73,11 @@ final class AOSDesktopWorldNativeFeedbackHost:
                     pixelFormat: .bgra8Unorm
                 )
                 try prepared.prepare(programs: programs)
-                completion(.success(prepared))
+                completion(.success(AOSDesktopWorldNativeFeedbackHostPreparation(
+                    canvasGeneration: captureContext.canvasGeneration,
+                    context: prepared,
+                    topologyGeneration: captureContext.topologyGeneration
+                )))
             } catch {
                 completion(.failure(error))
             }
@@ -60,10 +87,17 @@ final class AOSDesktopWorldNativeFeedbackHost:
     @MainActor func activate(
         preparation: AOSDesktopWorldNativeEffectPreparation
     ) throws {
-        guard let prepared = preparation as? AOSDesktopWorldNativeEffectGPUContext else {
+        guard let prepared = preparation as? AOSDesktopWorldNativeFeedbackHostPreparation,
+              let device = prepared.context.commandQueue?.device else {
             throw DesktopWorldNativeSheetFailure.rendererUnavailable
         }
-        context = prepared
+        try canvasManager.prepareDesktopWorldNativeProjectionHosts(
+            canvasID: canvasID,
+            canvasGeneration: prepared.canvasGeneration,
+            topologyGeneration: prepared.topologyGeneration,
+            device: device
+        )
+        context = prepared.context
     }
 
     @MainActor func install(
@@ -120,6 +154,7 @@ final class AOSDesktopWorldNativeFeedbackHost:
 
     @MainActor func shutdown() {
         releasePreparedResources()
+        canvasManager.finalizeDesktopWorldNativeProjectionHosts(canvasID: canvasID)
     }
 
     @MainActor func releasePreparedResources() {

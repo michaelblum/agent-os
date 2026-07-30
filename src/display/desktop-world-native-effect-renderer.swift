@@ -589,7 +589,7 @@ final class AOSDesktopWorldNativeEffectRuntime {
     var retainedBufferCount: Int { sheet.retainedGeometryBufferCount }
 
     var retainedViewCount: Int {
-        sheet.segmentSheets.reduce(0) { $0 + $1.host.retainedViewCount }
+        renderers.count
     }
 }
 

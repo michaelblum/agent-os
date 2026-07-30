@@ -163,6 +163,32 @@ precondition(library.makeFunction(name: "desktopWorldNativeRippleFragment") != n
   }
 })
 
+test('native feedback prepares exact-generation segment hosts before admission', async () => {
+  const [hostSource, managerSource, sheetSource, surfaceSource, rendererSource] = await Promise.all([
+    readFile(path.join(repoRoot, 'src/daemon/desktop-world-native-feedback-host.swift'), 'utf8'),
+    readFile(path.join(repoRoot, 'src/display/desktop-world-native-projection-manager.swift'), 'utf8'),
+    readFile(path.join(repoRoot, 'src/display/desktop-world-native-sheet.swift'), 'utf8'),
+    readFile(path.join(repoRoot, 'src/display/desktop-world-surface.swift'), 'utf8'),
+    readFile(path.join(repoRoot, 'src/display/desktop-world-native-effect-renderer.swift'), 'utf8'),
+  ])
+  assert.match(hostSource, /let captureContext = captureContext\(\)/u)
+  assert.match(hostSource, /canvasGeneration: captureContext\.canvasGeneration/u)
+  assert.match(hostSource, /topologyGeneration: captureContext\.topologyGeneration/u)
+  const preparationCall = hostSource.indexOf('prepareDesktopWorldNativeProjectionHosts(')
+  const contextPublication = hostSource.indexOf('context = prepared.context')
+  assert.ok(preparationCall >= 0 && contextPublication > preparationCall)
+  assert.match(
+    managerSource,
+    /surface\.lifecycleGeneration == canvasGeneration,[\s\S]{0,120}surface\.topologyGeneration == topologyGeneration/u,
+  )
+  assert.match(surfaceSource, /func prepareNativeProjectionHosts\(device: MTLDevice\) throws/u)
+  assert.match(surfaceSource, /created\.forEach \{ segment, host in\s*segment\.removeNativeProjectionHost\(host\)/u)
+  assert.match(sheetSource, /segment\.preparedNativeProjectionHost\(device: device\)/u)
+  assert.doesNotMatch(sheetSource, /removeNativeProjectionHost/u)
+  assert.match(rendererSource, /var retainedViewCount: Int \{\s*renderers\.count\s*\}/u)
+  assert.match(hostSource, /func shutdown\(\)[\s\S]{0,160}finalizeDesktopWorldNativeProjectionHosts/u)
+})
+
 test('native feedback contract rejects type drift and resolves bounded world coordinates', async () => {
   const output = await compileAndRun('native-feedback-contract', [
     'src/daemon/desktop-world-scene-stage-readiness.swift',

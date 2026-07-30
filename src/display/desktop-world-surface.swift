@@ -183,6 +183,17 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             return host
         }
 
+        func preparedNativeProjectionHost(
+            device: MTLDevice
+        ) throws -> DesktopWorldNativeProjectionHost {
+            precondition(Thread.isMainThread, "native projection lookup must run on the main thread")
+            guard let nativeProjectionHost,
+                  nativeProjectionHost.view.device?.registryID == device.registryID else {
+                throw DesktopWorldNativeSheetFailure.rendererUnavailable
+            }
+            return nativeProjectionHost
+        }
+
         func removeNativeProjectionHost(_ expected: DesktopWorldNativeProjectionHost) {
             precondition(Thread.isMainThread, "native projection removal must run on the main thread")
             guard nativeProjectionHost === expected else { return }
@@ -393,6 +404,40 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         } catch {
             DesktopWorldNativeSheetProcessLease.shared.release(lease)
             throw error
+        }
+    }
+
+    func prepareNativeProjectionHosts(device: MTLDevice) throws {
+        precondition(Thread.isMainThread, "native projection preparation must run on the main thread")
+        guard !segments.isEmpty, !retirementQuiesced, !retirementFinalized else {
+            throw DesktopWorldNativeSheetFailure.rendererUnavailable
+        }
+        var created: [(Segment, DesktopWorldNativeProjectionHost)] = []
+        do {
+            for segment in segments {
+                let existing = segment.nativeProjectionHost
+                let host = try segment.ensureNativeProjectionHost(device: device)
+                if existing == nil {
+                    created.append((segment, host))
+                    guard host.isDormant else {
+                        throw DesktopWorldNativeSheetFailure.rendererUnavailable
+                    }
+                }
+            }
+        } catch {
+            created.forEach { segment, host in
+                segment.removeNativeProjectionHost(host)
+            }
+            throw error
+        }
+    }
+
+    func finalizeNativeProjectionHosts() {
+        precondition(Thread.isMainThread, "native projection finalization must run on the main thread")
+        discardNativeSheetImmediately()
+        for segment in segments {
+            guard let host = segment.nativeProjectionHost else { continue }
+            segment.removeNativeProjectionHost(host)
         }
     }
 

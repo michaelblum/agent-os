@@ -1,6 +1,6 @@
 import Foundation
 
-struct AOSDesktopWorldNativeFeedbackCaptureContext: Equatable {
+struct AOSDesktopWorldNativeFeedbackCaptureContext: Equatable, Sendable {
     let canvasGeneration: UInt64
     let displayIDs: [UInt32]
     let excludingWindowIDs: [Int]
@@ -95,8 +95,9 @@ protocol AOSDesktopWorldNativeFeedbackHosting: AnyObject {
         ) -> Void
     )
 
-    /// Publishes one already-prepared context with a bounded, nonblocking
-    /// pointer swap. Implementations must not reenter the controller.
+    /// Atomically prepares the current DesktopWorld segment hosts and publishes
+    /// one already-compiled context before effect admission opens.
+    /// Implementations must not reenter the controller.
     @MainActor
     func activate(
         preparation: AOSDesktopWorldNativeEffectPreparation
