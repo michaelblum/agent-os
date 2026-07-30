@@ -35,7 +35,10 @@ stage internals.
   documents default to the orthographic overlay pass; a bounded perspective
   resource pass uses one consumer-declared global camera profile with disjoint
   per-display view offsets. Both passes share the existing renderer, canvas,
-  clock, budgets, and lifecycle.
+  budgets, lifecycle, and one absolute stage clock derived from each display
+  WebView's time origin. The stage clock is continuous across resource
+  replacement and explicit play; per-resource playback clocks remain
+  independently pausable for declarative animations.
   Every segment applies the same declarative operation and reports an
   origin-attributed internal result. The daemon accepts results only from the
   exact current canvas and topology generation, settles the all-segment

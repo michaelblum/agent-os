@@ -10,6 +10,7 @@ import {
   sceneStageShouldRender,
 } from '../../packages/toolkit/components/desktop-world-stage/scene-outlet.js'
 import { createScenePlaybackClock } from '../../packages/toolkit/components/desktop-world-stage/scene-playback-clock.js'
+import { createDesktopWorldStageClock } from '../../packages/toolkit/components/desktop-world-stage/scene-stage-clock.js'
 import {
   createSceneOutletDevToolsSnapshot,
   emitSceneOutletRouteStartedSnapshot,
@@ -151,6 +152,22 @@ test('scene playback clock excludes operation, visibility, and context suspensio
   assert.equal(clock.suspend(2_000), true)
   assert.equal(clock.resume(5_000), true)
   assert.equal(clock.elapsed(5_100), 100)
+})
+
+test('DesktopWorld stage clock remains continuous across playbacks and display time origins', () => {
+  const left = createDesktopWorldStageClock({ timeOrigin: 1_000 })
+  const right = createDesktopWorldStageClock({ timeOrigin: 1_125 })
+
+  assert.equal(left.at(500), 1_500)
+  assert.equal(right.at(375), 1_500)
+  assert.equal(left.at(700), 1_700)
+  assert.equal(right.at(575), 1_700)
+  assert.equal(left.at(650), 1_700)
+  assert.deepEqual(left.snapshot(), { latest: 1_700, timeOrigin: 1_000 })
+  assert.throws(
+    () => createDesktopWorldStageClock({ timeOrigin: -1 }),
+    /finite non-negative number/u,
+  )
 })
 
 test('resource resume cannot reactivate a route while the stage remains suspended', () => {
@@ -786,10 +803,10 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(renderCoordinator, /renderer\.render\(overlayScene, overlayCamera\)/u)
   assert.match(outlet, /projection: 'desktop-world-mixed'/u)
   assert.match(outlet, /createDesktopWorldSceneMountedResource/u)
+  assert.match(outlet, /mounted\.projection\.tick\?\.\(elapsed, stageAt\)/u)
   assert.match(mountedResource, /createSceneAnimationController\(document/u)
   assert.match(mountedResource, /createSceneSignalController\(document/u)
   assert.match(outlet, /mounted\.animations\.tick\(elapsed\)/u)
-  assert.match(outlet, /mounted\.projection\.tick\?\.\(elapsed\)/u)
   assert.match(outlet, /emitSceneOutletRouteStartedSnapshot\(devtoolsProbe, visual\)/u)
   assert.match(outlet, /finally \{[\s\S]*if \(!stageFault\) scheduleRender\(\)/u)
   assert.match(outlet, /sceneStageShouldRender\(resources, hidden, contextLost, stageSuspended, Boolean\(stageFault\)\)/u)

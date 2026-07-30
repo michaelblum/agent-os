@@ -45,6 +45,12 @@ and `applySignal`, `applyAnimation`, `tick`, `suspend`, `resume`,
 `contextLost`, `contextRestored`, and `dispose` methods. Promise-like hook results fail admission
 or the active operation.
 
+`tick(playbackElapsedMs, stageClockMs)` receives two distinct AOS-owned clocks.
+The first restarts on explicit `play` and pauses with the resource. The second
+is absolute, comparable across display segments, and continuous across
+replacement and `play`; use it for ambient motion that must not reset or split
+at a display bezel.
+
 An optional synchronous `applyInteraction(event)` hook may render
 consumer-specific aim, route, and radial-menu visuals. Return `true` or
 `{ handled: true }` after applying a visual update. A committed route may also

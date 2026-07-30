@@ -31,6 +31,7 @@ import {
   sceneResourceCanRun,
   sceneStageShouldRender,
 } from './scene-outlet-run-state.js'
+import { createDesktopWorldStageClock } from './scene-stage-clock.js'
 
 export {
   DESKTOP_WORLD_SCENE_RENDER_LIMITS,
@@ -52,6 +53,7 @@ export function createDesktopWorldSceneOutlet({
   canvas,
   desktopFrameSourceFactory = null,
   extensionRegistry,
+  stageClock = createDesktopWorldStageClock(),
   window: hostWindow = window,
 } = {}) {
   if (!canvas) throw new TypeError('DesktopWorld scene outlet requires a canvas.')
@@ -516,12 +518,13 @@ export function createDesktopWorldSceneOutlet({
     const updateStartedAt = trackPerformance ? performance.now() : 0
     try {
       if (!hidden && !contextLost && !stageSuspended && !stageFault) {
+        const stageAt = stageClock.at(at)
         for (const mounted of resources.values()) {
           if (mounted.suspended) continue
           try {
             const elapsed = mounted.playClock.elapsed(at)
             mounted.animations.tick(elapsed)
-            mounted.projection.tick?.(elapsed)
+            mounted.projection.tick?.(elapsed, stageAt)
             segmentBudget.refresh(mounted)
             if (mounted.interactionState.takeDirty()) {
               notifyInteractionGeometry(mounted.key, mounted.playGeneration)
