@@ -4,14 +4,15 @@ import Metal
 extension CanvasManager {
     func prepareDesktopWorldNativeProjectionHosts(
         canvasID: String,
-        canvasGeneration: UInt64,
-        topologyGeneration: UInt64,
+        generation: DesktopWorldNativeProjectionGeneration,
         device: MTLDevice
     ) throws {
         let prepare = { [weak self] () throws in
             guard let surface = self?.canvas(forID: canvasID) as? DesktopWorldSurfaceCanvas,
-                  surface.lifecycleGeneration == canvasGeneration,
-                  surface.topologyGeneration == topologyGeneration else {
+                  generation.matches(
+                    canvas: surface.lifecycleGeneration,
+                    topology: surface.topologyGeneration
+                  ) else {
                 throw DesktopWorldNativeSheetFailure.invalidGeometry
             }
             try surface.prepareNativeProjectionHosts(device: device)

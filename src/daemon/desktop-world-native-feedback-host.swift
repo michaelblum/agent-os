@@ -5,18 +5,15 @@ private final class AOSDesktopWorldNativeFeedbackHostPreparation:
     AOSDesktopWorldNativeEffectPreparation,
     @unchecked Sendable
 {
-    let canvasGeneration: UInt64
     let context: AOSDesktopWorldNativeEffectGPUContext
-    let topologyGeneration: UInt64
+    let generation: DesktopWorldNativeProjectionGeneration
 
     init(
-        canvasGeneration: UInt64,
         context: AOSDesktopWorldNativeEffectGPUContext,
-        topologyGeneration: UInt64
+        generation: DesktopWorldNativeProjectionGeneration
     ) {
-        self.canvasGeneration = canvasGeneration
         self.context = context
-        self.topologyGeneration = topologyGeneration
+        self.generation = generation
     }
 }
 
@@ -74,9 +71,11 @@ final class AOSDesktopWorldNativeFeedbackHost:
                 )
                 try prepared.prepare(programs: programs)
                 completion(.success(AOSDesktopWorldNativeFeedbackHostPreparation(
-                    canvasGeneration: captureContext.canvasGeneration,
                     context: prepared,
-                    topologyGeneration: captureContext.topologyGeneration
+                    generation: DesktopWorldNativeProjectionGeneration(
+                        canvas: captureContext.canvasGeneration,
+                        topology: captureContext.topologyGeneration
+                    )
                 )))
             } catch {
                 completion(.failure(error))
@@ -93,8 +92,7 @@ final class AOSDesktopWorldNativeFeedbackHost:
         }
         try canvasManager.prepareDesktopWorldNativeProjectionHosts(
             canvasID: canvasID,
-            canvasGeneration: prepared.canvasGeneration,
-            topologyGeneration: prepared.topologyGeneration,
+            generation: prepared.generation,
             device: device
         )
         context = prepared.context

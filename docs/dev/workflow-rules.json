@@ -318,6 +318,7 @@
         "tests/desktop-pixel-native-baseline-typecheck.sh",
         "tests/lib/desktop-pixel-native-baseline-lifecycle-tests.swift",
         "tests/lib/desktop-pixel-metal-pipeline-tests.swift",
+        "tests/lib/desktop-world-native-projection-lifecycle-tests.swift",
         "tests/lib/desktop-world-native-sheet-lease-tests.swift",
         "tests/lib/desktop-world-native-sheet-geometry-tests.swift"
       ],
@@ -372,6 +373,7 @@
         "src/daemon/unified.swift",
         "src/display/canvas.swift",
         "src/display/desktop-world-surface.swift",
+        "src/display/desktop-world-native-projection-lifecycle.swift",
         "src/display/desktop-world-native-projection-manager.swift",
         "src/display/desktop-world-native-projection.swift",
         "src/display/desktop-world-native-sheet-geometry.swift",

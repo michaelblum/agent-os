@@ -4,7 +4,7 @@ import MetalKit
 /// Lazily hosts one native Metal projection beneath a DesktopWorld segment's
 /// transparent WebKit layer. Rendering and product semantics remain owned by
 /// the caller; this type owns only view placement and deterministic teardown.
-final class DesktopWorldNativeProjectionHost {
+final class DesktopWorldNativeProjectionHost: DesktopWorldNativeProjectionHostLifecycle {
     let view: MTKView
     private weak var containerView: NSView?
     private var finalized = false
@@ -68,6 +68,10 @@ final class DesktopWorldNativeProjectionHost {
 
     var retainedViewCount: Int {
         finalized || view.superview == nil ? 0 : 1
+    }
+
+    var nativeProjectionDeviceRegistryID: UInt64? {
+        view.device?.registryID
     }
 
     var isDormant: Bool {

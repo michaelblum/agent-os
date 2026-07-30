@@ -12,6 +12,7 @@ const commandSource = read('src/commands/desktop-pixel-native-baseline.swift');
 const captureSource = read('src/commands/desktop-pixel-native-baseline-capture.swift');
 const hostSource = read('src/commands/desktop-pixel-native-baseline-host.swift');
 const metalSource = read('src/commands/desktop-pixel-native-baseline-metal.swift');
+const projectionLifecycleSource = read('src/display/desktop-world-native-projection-lifecycle.swift');
 const projectionSource = read('src/display/desktop-world-native-projection.swift');
 const geometrySource = read('src/display/desktop-world-native-sheet-geometry.swift');
 const leaseSource = read('src/display/desktop-world-native-sheet-lease.swift');
@@ -26,6 +27,7 @@ const nativeSources = [
   captureSource,
   hostSource,
   metalSource,
+  projectionLifecycleSource,
   projectionSource,
   geometrySource,
   leaseSource,
@@ -102,7 +104,8 @@ test('DesktopWorld host reuses the canonical segmented surface and existing wind
   assert.match(sheetSource, /segment\.preparedNativeProjectionHost\(device: device\)/);
   assert.match(hostSource, /canvas\.show\(\)/);
   assert.doesNotMatch(desktopHost, /NSScreen\.screens|NSWindow\(/);
-  assert.match(surfaceSource, /private\(set\) var nativeProjectionHost: DesktopWorldNativeProjectionHost\?/);
+  assert.match(surfaceSource, /let nativeProjectionHostSlot =\s*DesktopWorldNativeProjectionHostSlot<DesktopWorldNativeProjectionHost>\(\)/);
+  assert.match(surfaceSource, /var nativeProjectionHost: DesktopWorldNativeProjectionHost\? \{\s*nativeProjectionHostSlot\.host/);
   assert.match(surfaceSource, /existing\.nativeProjectionHost\?\.resize\(\)/);
   assert.match(surfaceSource, /if topologyWillChange \{[^}]*discardNativeSheetImmediately\(\)/);
   assert.doesNotMatch(surfaceSource, /reconcileNativeSheetForCurrentTopology/);
@@ -139,16 +142,18 @@ test('DesktopWorld native sheet is AOS-owned and addressable through the existin
 
 test('DesktopWorld projection hosts belong to segments and remain dormant between effects', () => {
   assert.match(surfaceSource, /func prepareNativeProjectionHosts\(device: MTLDevice\) throws/);
-  assert.match(surfaceSource, /let existing = segment\.nativeProjectionHost/);
-  assert.match(surfaceSource, /if existing == nil \{[\s\S]{0,120}created\.append\(\(segment, host\)\)/);
-  assert.match(surfaceSource, /created\.forEach \{ segment, host in\s*segment\.removeNativeProjectionHost\(host\)/);
+  assert.match(surfaceSource, /DesktopWorldNativeProjectionHostBatch\.prepare\(/);
+  assert.match(surfaceSource, /slot: \{ \$0\.nativeProjectionHostSlot \}/);
+  assert.match(projectionLifecycleSource, /final class DesktopWorldNativeProjectionHostSlot/);
+  assert.match(projectionLifecycleSource, /if result\.created \{\s*created\.append\(\(owner, result\.host\)\)/);
+  assert.match(projectionLifecycleSource, /for \(owner, host\) in created\.reversed\(\) \{\s*owner\.remove\(host\)/);
   assert.match(surfaceSource, /func preparedNativeProjectionHost/);
   assert.match(projectionSource, /var isDormant: Bool/);
   assert.match(projectionSource, /view\.isPaused = true\s*view\.enableSetNeedsDisplay = true\s*view\.delegate = nil/);
-  assert.match(surfaceSource, /func finalizeRetirement\(\)[\s\S]*nativeProjectionHost\?\.finalize\(\)/);
+  assert.match(surfaceSource, /func finalizeRetirement\(\)[\s\S]*nativeProjectionHostSlot\.finalize\(\)/);
   assert.match(
     surfaceSource,
-    /func finalizeNativeProjectionHosts\(\) \{[\s\S]{0,180}discardNativeSheetImmediately\(\)[\s\S]{0,180}segment\.removeNativeProjectionHost\(host\)/,
+    /func finalizeNativeProjectionHosts\(\) \{[\s\S]{0,180}discardNativeSheetImmediately\(\)[\s\S]{0,180}segment\.nativeProjectionHostSlot\.finalize\(\)/,
   );
   assert.match(surfaceSource, /existing\.nativeProjectionHost\?\.resize\(\)/);
   assert.doesNotMatch(sheetSource, /removeNativeProjectionHost/);
