@@ -25,12 +25,13 @@ export function createSceneAnimationRegionTransitionRuntime({
   }
   if (!outlet) throw new TypeError('DesktopWorld animation-region transitions require a scene outlet.')
 
-  async function quiesce(key, generation) {
+  async function quiesce(key, generation, regionGeneration = null) {
     const entry = entryFor(key)
     if (!entry || entry.disposed || !Number.isInteger(generation) || generation < 1) {
       return false
     }
     entry.animationGeneration = generation
+    entry.animationRegionGeneration = regionGeneration
     entry.animationQuiesced = true
     entry.animationReady = false
     entry.generation += 1
@@ -68,6 +69,7 @@ export function createSceneAnimationRegionTransitionRuntime({
       }
     }
     entry.animationGeneration = null
+    entry.animationRegionGeneration = null
     entry.animationQuiesced = false
     return true
   }
@@ -96,6 +98,7 @@ export function createSceneAnimationRegionTransitionRuntime({
         document,
         interactions: previous.interactions,
         animationGeneration: generation,
+        regionGeneration: previous.animationRegionGeneration ?? `animation-${generation}`,
       })
       await replacement.activate()
       replacement.commit(() => {})

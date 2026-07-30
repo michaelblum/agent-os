@@ -46,7 +46,9 @@ stage interactive by default. ADR 0024 owns the 3D outlet boundary.
 One-shot spatial animation temporarily quiesces affected native interaction
 regions and settles the terminal pose through a fresh staged generation. Keep
 the authored scene revision stable and do not synchronize native hit geometry
-per frame.
+per frame. All display segments must derive replacement and terminal-animation
+input-region generations from the daemon's shared scene operation identity;
+segment-local counters are not authoritative cross-display identities.
 DesktopWorld registers one owner-lifecycle Escape key lease before declaring
 the stage ready. Stock radial menus consume that exact redacted event; item hit
 regions remain pointer-only, and Escape continues through to macOS.

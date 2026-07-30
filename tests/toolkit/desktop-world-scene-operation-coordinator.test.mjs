@@ -435,11 +435,12 @@ test('stage suspension keeps mounts inert until visual and input state resume to
   )
 })
 
-function play(key) {
+function play(key, operationId = null) {
   return {
     type: 'desktop_world_stage.scene.operation',
     payload: {
       lease_key: key,
+      ...(operationId === null ? {} : { operation_id: operationId }),
       operation: { op: 'play', animationId: 'entrance' },
     },
   }
@@ -459,6 +460,18 @@ test('spatial play quiesces native input before visual animation starts', async 
   assert.equal(fixture.regions.has(regionId), false)
   assert.equal(fixture.interactions.snapshot(key).leases[0].animationGeneration, 1)
   assert.equal(fixture.interactions.snapshot(key).leases[0].animationQuiesced, true)
+})
+
+test('spatial play reuses its shared operation identity for terminal input geometry', async () => {
+  const key = 'example.consumer::companion/main'
+  const fixture = harness({ spatialAnimation: true })
+  await fixture.coordinator.apply(mount(key, scene('animated-scene', 'body'), interaction('body')))
+
+  await fixture.coordinator.apply(play(key, 'shared-play-operation'))
+  assert.equal(await fixture.interactions.settleAnimationGeometry(key, 1), true)
+
+  const terminalRegion = regionIdFor(fixture.regions, 'body-hit')
+  assert.match(terminalRegion, /:generation:shared-play-operation$/u)
 })
 
 test('nonspatial play leaves native input active', async () => {
@@ -758,6 +771,7 @@ test('two-phase replacement keeps the old aggregate authoritative until commit',
   )
   const candidateRegion = regionIdFor(fixture.regions, 'next-body-hit')
   assert.equal(typeof prepared.candidateFingerprint, 'string')
+  assert.match(candidateRegion, /:generation:replacement-one$/u)
   assert.equal(fixture.outlet.document(key).id, 'old-scene')
   assert.equal(fixture.coordinator.handleInput(pointerDown(candidateRegion)), true)
   assert.equal(fixture.dispatchedScenes.includes('next-scene'), false)

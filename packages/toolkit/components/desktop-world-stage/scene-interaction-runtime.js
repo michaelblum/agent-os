@@ -181,6 +181,7 @@ export function createDesktopWorldSceneInteractionRuntime({
     interactions,
     regionGeneration = null,
     animationGeneration = null,
+    animationRegionGeneration = null,
     animationQuiesced = false,
     animationReady = false,
   }) {
@@ -201,6 +202,7 @@ export function createDesktopWorldSceneInteractionRuntime({
       regionSync: Promise.resolve(),
       regionSyncErrorCode: null,
       animationGeneration,
+      animationRegionGeneration,
       animationQuiesced,
       animationReady,
       sequence: leases.get(key)?.sequence ?? 0,
@@ -392,6 +394,7 @@ export function createDesktopWorldSceneInteractionRuntime({
     document,
     interactions = undefined,
     animationGeneration = null,
+    regionGeneration = null,
   }) {
     if (preparations.has(key)) throw new TypeError('DesktopWorld scene interaction replacement is already pending.')
     const previous = leases.get(key) ?? null
@@ -409,7 +412,7 @@ export function createDesktopWorldSceneInteractionRuntime({
       resource,
       document,
       interactions: validated,
-      regionGeneration: `r${++nextRegionGeneration}`,
+      regionGeneration: regionGeneration ?? `r${++nextRegionGeneration}`,
       animationGeneration,
     }) : null
     const preparation = {
