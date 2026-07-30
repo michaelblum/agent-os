@@ -362,6 +362,7 @@ test('scene-follow initializes and verifies the stage before admitting subscript
   const ensure = body.indexOf('guard let topology = ensureStage()')
   const verify = body.indexOf('desktopWorldSceneBarrierTopology')
   const subscribe = body.indexOf('if op == "subscribe"', ensure)
+  const subscribeIdentity = body.indexOf('identity: topologyDescriptor(topology).identity', subscribe)
 
   assert.ok(validate >= 0, 'subscription validation is missing')
   assert.ok(unsubscribe > validate, 'unsubscription must retain its existing state-only path')
@@ -369,4 +370,5 @@ test('scene-follow initializes and verifies the stage before admitting subscript
   assert.ok(ensure > validate, 'invalid subscriptions must fail before creating the stage')
   assert.ok(verify > ensure, 'subscription admission must verify exact segment readiness')
   assert.ok(subscribe > verify, 'subscription admission must occur only after stage readiness')
+  assert.ok(subscribeIdentity > subscribe, 'subscription admission must carry the verified stage identity')
 })

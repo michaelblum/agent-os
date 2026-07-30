@@ -90,13 +90,12 @@ precondition(aosCanonicalSceneEvent(event) != nil)
 let (controller, identity) = readyController()
 let connection = UUID()
 let key = controller.key(owner: "example.consumer", resource: "companion/main")
-guard case .accepted = controller.updateSubscriptions(
+guard case .accepted = controller.subscribe(
+    identity: identity,
     key: key,
     connectionID: connection,
     ref: "follow-ref",
-    adding: Set(["gesture"]),
-    removing: [],
-    removeAll: false
+    events: Set(["gesture"])
 ) else { preconditionFailure("subscription rejected") }
 
 let diagnostics = AOSDesktopWorldSceneEventRouteDiagnostics(now: { 1234 })

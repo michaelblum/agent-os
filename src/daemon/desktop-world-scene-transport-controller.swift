@@ -400,12 +400,15 @@ final class AOSDesktopWorldSceneTransportController {
 
         let key = scene.key(owner: owner, resource: resource)
         if op == "unsubscribe" {
-            return updateSubscriptions(
+            return subscriptionResponse(
+                scene.unsubscribe(
+                    key: key,
+                    connectionID: connectionID,
+                    ref: ref,
+                    events: Set(requestedSceneEvents),
+                    removeAll: requestedSceneEvents.isEmpty
+                ),
                 operation: op,
-                events: Set(requestedSceneEvents),
-                key: key,
-                connectionID: connectionID,
-                ref: ref,
                 resource: resource
             )
         }
@@ -419,12 +422,15 @@ final class AOSDesktopWorldSceneTransportController {
             return response(error: "DesktopWorld scene segments are unavailable", code: "SCENE_STAGE_UNAVAILABLE")
         }
         if op == "subscribe" {
-            return updateSubscriptions(
+            return subscriptionResponse(
+                scene.subscribe(
+                    identity: topologyDescriptor(topology).identity,
+                    key: key,
+                    connectionID: connectionID,
+                    ref: ref,
+                    events: Set(requestedSceneEvents)
+                ),
                 operation: op,
-                events: Set(requestedSceneEvents),
-                key: key,
-                connectionID: connectionID,
-                ref: ref,
                 resource: resource
             )
         }
@@ -460,22 +466,12 @@ final class AOSDesktopWorldSceneTransportController {
         }
     }
 
-    private func updateSubscriptions(
+    private func subscriptionResponse(
+        _ outcome: AOSDesktopWorldSceneSubscriptionOutcome,
         operation: String,
-        events: Set<String>,
-        key: String,
-        connectionID: UUID,
-        ref: String?,
         resource: String
     ) -> AOSDesktopWorldSceneFollowResponse {
-        switch scene.updateSubscriptions(
-            key: key,
-            connectionID: connectionID,
-            ref: ref,
-            adding: operation == "subscribe" ? events : [],
-            removing: operation == "unsubscribe" ? events : [],
-            removeAll: operation == "unsubscribe" && events.isEmpty
-        ) {
+        switch outcome {
         case .stageUnavailable:
             return response(error: "DesktopWorld scene stage is retiring", code: "SCENE_STAGE_UNAVAILABLE")
         case .busy:
