@@ -122,4 +122,36 @@ test('perspective derivation rejects incomplete topology without inventing a vie
     { dw_bounds: [0, 0, 0, 100] },
     camera,
   ), null)
+  assert.equal(derivePerspectiveResourceCamera(
+    [
+      { display_id: 1, dw_bounds: [0, 0, 100, 100] },
+      { display_id: 2, dw_bounds: [100, 0, 0, 100] },
+    ],
+    { display_id: 1, dw_bounds: [0, 0, 100, 100] },
+    camera,
+  ), null)
+  assert.equal(derivePerspectiveResourceCamera(
+    [{ display_id: 1, dw_bounds: [0, 0, 100, 100] }],
+    { display_id: 2, dw_bounds: [0, 0, 100, 100] },
+    camera,
+  ), null)
+  assert.equal(derivePerspectiveResourceCamera(
+    [{ display_id: 1, dw_bounds: [0, 0, 100, 100] }],
+    { display_id: 1, dw_bounds: [1, 0, 100, 100] },
+    camera,
+  ), null)
+})
+
+test('perspective derivation rejects a target plane outside the camera frustum', () => {
+  const topology = [{ display_id: 1, dw_bounds: [0, 0, 1_200, 900] }]
+  assert.equal(derivePerspectiveResourceCamera(
+    topology,
+    topology[0],
+    { ...camera, far: 1_000 },
+  ), null)
+  assert.equal(derivePerspectiveResourceCamera(
+    [{ display_id: 1, dw_bounds: [0, 0, 10, 10] }],
+    { display_id: 1, dw_bounds: [0, 0, 10, 10] },
+    { ...camera, near: 20 },
+  ), null)
 })

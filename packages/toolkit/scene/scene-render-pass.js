@@ -111,14 +111,40 @@ function segmentBounds(segment) {
   return finiteBounds(segment?.dw_bounds ?? segment?.dwBounds ?? segment)
 }
 
+function segmentIdentity(segment) {
+  if (!isSceneRecord(segment)) return null
+  for (const key of ['display_id', 'displayId', 'id']) {
+    const value = segment[key]
+    if (typeof value === 'string' || typeof value === 'number') {
+      return `${typeof value}:${value}`
+    }
+  }
+  return null
+}
+
+function sameBounds(left, right) {
+  return left.length === right.length && left.every((value, index) => value === right[index])
+}
+
 export function derivePerspectiveResourceCamera(topology, segment, profile) {
   const renderPass = resolveSceneRenderPass({ renderPass: {
     kind: 'perspective_resource',
     camera: profile,
   } })
-  const segments = Array.isArray(topology) ? topology.map(segmentBounds).filter(Boolean) : []
+  if (!Array.isArray(topology) || topology.length === 0) return null
+  const segments = topology.map(segmentBounds)
   const active = segmentBounds(segment)
-  if (!active || segments.length === 0) return null
+  if (!active || segments.some((bounds) => bounds === null)) return null
+  const activeIdentity = segmentIdentity(segment)
+  const activeMembers = topology.filter((candidate, index) => {
+    const bounds = segments[index]
+    if (!bounds || !sameBounds(bounds, active)) return false
+    const candidateIdentity = segmentIdentity(candidate)
+    return activeIdentity === null
+      ? candidateIdentity === null
+      : candidateIdentity === activeIdentity
+  })
+  if (activeMembers.length !== 1) return null
   const left = Math.min(...segments.map((bounds) => bounds[0]))
   const top = Math.min(...segments.map((bounds) => bounds[1]))
   const right = Math.max(...segments.map((bounds) => bounds[0] + bounds[2]))
@@ -128,6 +154,7 @@ export function derivePerspectiveResourceCamera(topology, segment, profile) {
   if (!(width > 0) || !(height > 0)) return null
   const fovRadians = renderPass.camera.fovYDegrees * Math.PI / 180
   const distance = height / (2 * Math.tan(fovRadians / 2))
+  if (distance <= renderPass.camera.near || distance >= renderPass.camera.far) return null
   const centerX = left + width / 2
   const centerY = top + height / 2
   return Object.freeze({
