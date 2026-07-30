@@ -11,6 +11,8 @@ private func require(_ condition: @autoclosure () -> Bool, _ message: String) {
 @main
 private struct AOSDaemonAppKitReadinessTests {
     static func main() {
+        proveIdleTimerLinearization()
+
         var scheduled: [() -> Void] = []
         var starts = 0
         let lifecycle = AOSDaemonApplicationLifecycle(
@@ -33,5 +35,31 @@ private struct AOSDaemonAppKitReadinessTests {
         require(starts == 1, "settled daemon launch started twice")
 
         print("daemon AppKit readiness harness passed")
+    }
+
+    private static func proveIdleTimerLinearization() {
+        let queue = DispatchQueue(label: "io.agent-os.tests.idle-timer")
+        let timer = AOSDaemonIdleTimer(queue: queue)
+
+        DispatchQueue.concurrentPerform(iterations: 2_000) { iteration in
+            if iteration.isMultiple(of: 2) {
+                timer.schedule(after: 60) {}
+            } else {
+                timer.cancel()
+            }
+        }
+        timer.cancel()
+        require(!timer.isScheduled, "concurrent cancellation left an idle timer scheduled")
+
+        let fired = DispatchSemaphore(value: 0)
+        timer.schedule(after: 0.01) {
+            fired.signal()
+        }
+        require(
+            fired.wait(timeout: .now() + 1) == .success,
+            "idle timer did not remain usable after concurrent replacement"
+        )
+        timer.cancel()
+        require(!timer.isScheduled, "final idle timer cancellation did not settle")
     }
 }
