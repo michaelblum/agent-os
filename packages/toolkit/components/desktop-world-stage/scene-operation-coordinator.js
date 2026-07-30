@@ -156,6 +156,7 @@ export function createDesktopWorldSceneOperationCoordinator({ outlet, interactio
     let interactionReplacement = null
     try {
       interactionReplacement = await interactions.prepareReplacement({
+        allowProjectionReuse: op === 'transact',
         key: payload.lease_key,
         owner: payload.owner,
         resource: payload.resource,

@@ -3,7 +3,6 @@ import {
   applySceneTransaction,
   canonicalizeSceneDocument,
   createDesktopWorldGpuTimer,
-  deriveOrthoCamera,
   resolveThreeRenderMetrics,
 } from '../../scene/index.js'
 import { createDesktopWorldSceneInteractionThree } from './scene-interaction-three.js'
@@ -17,6 +16,7 @@ import {
   emitSceneOutletRouteStartedSnapshot,
 } from './scene-outlet-devtools.js'
 import { prepareDesktopWorldSceneOutletReplacement } from './scene-outlet-replacement.js'
+import { createDesktopWorldSceneRenderCoordinator } from './scene-render-coordinator.js'
 import {
   DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS,
   createSceneSegmentResourceBudget,
@@ -57,13 +57,7 @@ export function createDesktopWorldSceneOutlet({
   if (!canvas) throw new TypeError('DesktopWorld scene outlet requires a canvas.')
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, canvas, powerPreference: 'low-power' })
   renderer.setClearColor(0x000000, 0)
-  const scene = new THREE.Scene()
-  const camera = new THREE.OrthographicCamera(0, 1, 0, 1, -1000, 1000)
-  camera.position.set(0, 0, 7)
-  scene.add(new THREE.AmbientLight(0xffffff, 1.8))
-  const keyLight = new THREE.DirectionalLight(0xd8ccff, 3)
-  keyLight.position.set(3, 4, 5)
-  scene.add(keyLight)
+  const renderCoordinator = createDesktopWorldSceneRenderCoordinator({ THREE, renderer })
   const resources = new Map()
   const cleanupFailures = new Map()
   const pendingResourceKeys = new Set()
@@ -92,17 +86,10 @@ export function createDesktopWorldSceneOutlet({
     }
   }
 
-  const updateSegment = (nextSegment) => {
-    const projection = deriveOrthoCamera(nextSegment)
-    if (!projection.width || !projection.height) return false
+  const updateSegment = (nextSegment, topology) => {
+    if (!renderCoordinator.updateSegment(nextSegment, topology)) return false
     segment = nextSegment
-    camera.left = projection.left
-    camera.right = projection.right
-    camera.top = projection.top
-    camera.bottom = projection.bottom
-    camera.near = projection.near
-    camera.far = projection.far
-    camera.updateProjectionMatrix()
+    renderCoordinator.refresh(resources)
     return true
   }
 
@@ -117,8 +104,7 @@ export function createDesktopWorldSceneOutlet({
     renderer.setPixelRatio(metrics.effectiveDevicePixelRatio)
     renderer.setSize(metrics.cssWidth, metrics.cssHeight, false)
     renderer.clear(true, true, true)
-    camera.aspect = metrics.cssWidth / metrics.cssHeight
-    camera.updateProjectionMatrix()
+    renderCoordinator.refresh(resources)
     return true
   }
 
@@ -130,7 +116,7 @@ export function createDesktopWorldSceneOutlet({
     return disposeDesktopWorldSceneMountedResource(mounted, {
       onFailure: recordResourceFailure,
       preserveInteractionOrigins,
-      scene,
+      removeProjection: renderCoordinator.detach,
     })
   }
 
@@ -265,7 +251,7 @@ export function createDesktopWorldSceneOutlet({
       }
     }
     return prepareDesktopWorldSceneOutletReplacement({
-      addToScene: (object) => scene.add(object),
+      attachCandidate: renderCoordinator.attach,
       createCandidate: (budgets) => prepareMounted(
         key,
         document,
@@ -389,7 +375,11 @@ export function createDesktopWorldSceneOutlet({
 
   const ensureInteractionVisuals = (mounted) => {
     if (!mounted.interactionVisuals) {
-      mounted.interactionVisuals = createDesktopWorldSceneInteractionThree({ THREE, scene, projection: mounted.projection })
+      mounted.interactionVisuals = createDesktopWorldSceneInteractionThree({
+        THREE,
+        scene: renderCoordinator.overlayScene,
+        projection: mounted.projection,
+      })
     }
     return mounted.interactionVisuals
   }
@@ -551,7 +541,7 @@ export function createDesktopWorldSceneOutlet({
           gpuTimer = null
         }
         gpuTimer?.begin()
-        renderer.render(scene, camera)
+        renderCoordinator.render(resources)
         const gpuMs = gpuTimer?.end() ?? null
         if (trackPerformance) {
           const renderEndedAt = performance.now()
@@ -760,10 +750,9 @@ export function createDesktopWorldSceneOutlet({
         return Object.freeze({
           ...proveDesktopWorldSceneFramebuffer({
             admit: () => framebufferProofRateLimiter.admit(),
-            camera,
             descriptor,
             renderer,
-            scene,
+            renderFrame: () => renderCoordinator.render(resources),
           }),
           extension_digest: expectedDigest,
           resource_revision: expectedRevision,
@@ -791,7 +780,8 @@ export function createDesktopWorldSceneOutlet({
         hidden,
         maxResources: MAX_RESOURCES,
         maxResourceMetrics: { ...DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS },
-        projection: 'desktop-world-orthographic',
+        projection: 'desktop-world-mixed',
+        renderPasses: renderCoordinator.snapshot(resources),
         renderer: 'three',
         resourceMetrics: segmentBudget.snapshot(),
         resources: resources.size,

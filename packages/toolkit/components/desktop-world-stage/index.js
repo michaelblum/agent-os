@@ -427,13 +427,13 @@ wireBridge((message) => {
 })
 
 surface.start({
-  onInit: ({ segment }) => {
-    sceneOutlet.updateSegment(segment)
+  onInit: ({ segment, topology }) => {
+    sceneOutlet.updateSegment(segment, topology)
     render()
   },
-  onTopologyChange: ({ segment }) => {
+  onTopologyChange: ({ segment, topology }) => {
     void enqueueSceneWork(async () => {
-      sceneOutlet.updateSegment(segment)
+      sceneOutlet.updateSegment(segment, topology)
       devtoolsProbe.recordEvent({ kind: 'topology.changed' })
       await sceneInteractions.topologyChanged()
       render()

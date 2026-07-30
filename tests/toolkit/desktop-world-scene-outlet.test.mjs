@@ -28,6 +28,7 @@ import {
 } from '../../packages/toolkit/scene/index.js'
 
 const outletURL = new URL('../../packages/toolkit/components/desktop-world-stage/scene-outlet.js', import.meta.url)
+const renderCoordinatorURL = new URL('../../packages/toolkit/components/desktop-world-stage/scene-render-coordinator.js', import.meta.url)
 const outletRunStateURL = new URL('../../packages/toolkit/components/desktop-world-stage/scene-outlet-run-state.js', import.meta.url)
 const mountedResourceURL = new URL('../../packages/toolkit/components/desktop-world-stage/scene-mounted-resource.js', import.meta.url)
 const devtoolsSnapshotURL = new URL('../../packages/toolkit/components/desktop-world-stage/scene-outlet-devtools.js', import.meta.url)
@@ -762,8 +763,9 @@ test('scene outlet emits an immediate snapshot only after a route actually start
 })
 
 test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop', async () => {
-  const [outlet, runState, mountedResource, devtoolsSnapshot, stage, three, threeCore] = await Promise.all([
+  const [outlet, renderCoordinator, runState, mountedResource, devtoolsSnapshot, stage, three, threeCore] = await Promise.all([
     readFile(outletURL, 'utf8'),
+    readFile(renderCoordinatorURL, 'utf8'),
     readFile(outletRunStateURL, 'utf8'),
     readFile(mountedResourceURL, 'utf8'),
     readFile(devtoolsSnapshotURL, 'utf8'),
@@ -775,10 +777,14 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.equal((outlet.match(/new THREE\.WebGLRenderer/gu) ?? []).length, 1)
   assert.match(outlet, /renderer\.setClearColor\(0x000000, 0\)/u)
   assert.match(outlet, /renderer\.setSize\(metrics\.cssWidth, metrics\.cssHeight, false\)[\s\S]*renderer\.clear\(true, true, true\)/u)
-  assert.match(outlet, /new THREE\.OrthographicCamera/u)
-  assert.doesNotMatch(outlet, /new THREE\.PerspectiveCamera/u)
-  assert.match(outlet, /deriveOrthoCamera\(nextSegment\)/u)
-  assert.match(outlet, /projection: 'desktop-world-orthographic'/u)
+  assert.match(renderCoordinator, /new THREE\.OrthographicCamera/u)
+  assert.match(renderCoordinator, /new THREE\.PerspectiveCamera/u)
+  assert.match(renderCoordinator, /deriveOrthoCamera\(nextSegment\)/u)
+  assert.match(renderCoordinator, /derivePerspectiveResourceCamera/u)
+  assert.match(renderCoordinator, /renderer\.autoClear = false/u)
+  assert.match(renderCoordinator, /renderer\.render\(mounted\.rendering\.scene, mounted\.rendering\.camera\)/u)
+  assert.match(renderCoordinator, /renderer\.render\(overlayScene, overlayCamera\)/u)
+  assert.match(outlet, /projection: 'desktop-world-mixed'/u)
   assert.match(outlet, /createDesktopWorldSceneMountedResource/u)
   assert.match(mountedResource, /createSceneAnimationController\(document/u)
   assert.match(mountedResource, /createSceneSignalController\(document/u)
@@ -849,7 +855,7 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.equal((stage.match(/stageLifecycleState === 'active'\) sceneOperations\.handleInput\(message\)/gu) ?? []).length, 2)
   assert.match(stage, /stageLifecycleState = 'closing'[\s\S]*enqueueSceneWork\(async \(\) => \{[\s\S]*await disposeStage\(\)/u)
   assert.match(stage, /replaceRegionGeneration: replaceInputRegionGeneration/u)
-  assert.match(stage, /sceneOutlet\.updateSegment\(segment\)/u)
+  assert.equal((stage.match(/sceneOutlet\.updateSegment\(segment, topology\)/gu) ?? []).length, 2)
   assert.match(stage, /enqueueSceneWork\(async \(\) => \{[\s\S]*settleAnimationGeometry\(key, generation\)/u)
   assert.doesNotMatch(stage, /animationGeometryChanged/u)
   assert.match(stage, /registerInputKeyLease\(\{ id: escapeKeyLeaseId, key: 'Escape' \}\)/u)

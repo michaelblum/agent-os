@@ -3,6 +3,7 @@ import {
   isSceneRecord as isRecord,
   matchesSceneIdSyntax,
 } from './scene-contract-primitives.js'
+import { sceneRenderPassValidationErrors } from './scene-render-pass.js'
 
 export const SCENE_DOCUMENT_CONTRACT_ID = 'aos.scene.document.v1'
 export const SCENE_TRANSACTION_CONTRACT_ID = 'aos.scene.transaction.v1'
@@ -294,6 +295,7 @@ export function validateSceneDocument(document) {
   }
   validateExactKeys(document, new Set([
     'contract', 'schemaVersion', 'id', 'revision', 'rootObjectId', 'objects', 'resources', 'metadata',
+    'renderPass',
   ]), 'document', errors)
   if (document.contract !== SCENE_DOCUMENT_CONTRACT_ID) {
     addError(errors, 'contract_id', 'contract', `Scene document contract must be ${SCENE_DOCUMENT_CONTRACT_ID}.`)
@@ -314,6 +316,9 @@ export function validateSceneDocument(document) {
     addError(errors, 'invalid_metadata', 'metadata', 'Scene metadata must be an object.')
   } else {
     validateParameters(document.metadata, 'metadata', errors)
+  }
+  if (Object.hasOwn(document, 'renderPass')) {
+    errors.push(...sceneRenderPassValidationErrors(document.renderPass))
   }
   if (
     Array.isArray(document.objects)

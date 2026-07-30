@@ -5,7 +5,7 @@ function sceneOutletReplacementError(code, message) {
 }
 
 export function prepareDesktopWorldSceneOutletReplacement({
-  addToScene,
+  attachCandidate,
   createCandidate,
   faultSceneSegment,
   key,
@@ -18,7 +18,7 @@ export function prepareDesktopWorldSceneOutletReplacement({
   stageSuspended,
 } = {}) {
   if (
-    typeof addToScene !== 'function'
+    typeof attachCandidate !== 'function'
     || typeof createCandidate !== 'function'
     || typeof faultSceneSegment !== 'function'
     || typeof reconcileRenderLoop !== 'function'
@@ -78,7 +78,7 @@ export function prepareDesktopWorldSceneOutletReplacement({
       candidate.resourceMetrics = measured.metrics
       candidate.resourceMetricsSource = measured.source
       segmentBudget.updateReservation(resourceReservation, candidate)
-      addToScene(candidate.projection.object)
+      attachCandidate(candidate)
       if (previous && !retireMounted(previous, { preserveInteractionOrigins: true })) {
         const candidateClean = retireMounted(candidate, { preserveInteractionOrigins: true })
         releaseReservation()

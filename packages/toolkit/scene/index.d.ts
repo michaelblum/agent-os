@@ -406,7 +406,48 @@ export interface SceneDocument {
   objects: SceneObjectDescriptor[];
   resources: SceneResourceDescriptor[];
   metadata: Record<string, SceneJsonValue>;
+  renderPass?: SceneRenderPassDescriptor;
 }
+
+export interface ScenePerspectiveCameraProfile {
+  fovYDegrees: number;
+  near: number;
+  far: number;
+  targetZ: number;
+}
+
+export type SceneRenderPassDescriptor =
+  | { kind: 'orthographic_overlay' }
+  | { kind: 'perspective_resource'; camera: ScenePerspectiveCameraProfile };
+
+export interface PerspectiveResourceCameraProjection {
+  aspect: number;
+  far: number;
+  fovYDegrees: number;
+  near: number;
+  position: readonly [number, number, number];
+  target: readonly [number, number, number];
+  up: readonly [number, number, number];
+  viewOffset: Readonly<{
+    fullWidth: number;
+    fullHeight: number;
+    offsetX: number;
+    offsetY: number;
+    width: number;
+    height: number;
+  }>;
+  worldBounds: readonly [number, number, number, number];
+}
+
+export const SCENE_RENDER_PASS_KINDS: readonly ['orthographic_overlay', 'perspective_resource'];
+export const DEFAULT_SCENE_RENDER_PASS: Readonly<{ kind: 'orthographic_overlay' }>;
+export function validateSceneRenderPass(value: unknown): SceneValidationResult;
+export function resolveSceneRenderPass(document: Pick<SceneDocument, 'renderPass'>): Readonly<SceneRenderPassDescriptor>;
+export function derivePerspectiveResourceCamera(
+  topology: readonly DesktopWorldSegment[],
+  segment: DesktopWorldSegment,
+  profile: ScenePerspectiveCameraProfile,
+): Readonly<PerspectiveResourceCameraProjection> | null;
 
 export interface SceneValidationError {
   code: string;

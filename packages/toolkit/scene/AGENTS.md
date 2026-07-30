@@ -31,7 +31,11 @@ stage internals.
   persisted definitions, semantic state mappings, visual recipes, and editor UX
   remain in the consuming product.
 - The daemon-backed stage projects object transforms in global DesktopWorld
-  coordinates through one orthographic camera per physical display segment.
+  coordinates through one segmented camera view per physical display. Scene
+  documents default to the orthographic overlay pass; a bounded perspective
+  resource pass uses one consumer-declared global camera profile with disjoint
+  per-display view offsets. Both passes share the existing renderer, canvas,
+  clock, budgets, and lifecycle.
   Every segment applies the same declarative operation and reports an
   origin-attributed internal result. The daemon accepts results only from the
   exact current canvas and topology generation, settles the all-segment
@@ -162,6 +166,15 @@ stage internals.
   segment. Runtime extension audits are sampled on a bounded cadence and reuse
   cached metrics between audits; do not add a per-frame scene-tree allocation
   pass.
+- A perspective trusted projection may return one separate `overlayObject`
+  subtree for screen-aligned interaction art. AOS renders the perspective
+  subtree first and the orthographic overlay last, audits both subtrees under
+  one aggregate budget, and disposes them through the projection's single
+  lifecycle. Extensions must not create a renderer, canvas, context, or RAF.
+- Visual-only transactions whose interaction descriptors and transform
+  projection are unchanged retain the live native input generation. Any
+  hierarchy, transform, affordance, recognizer, or response change continues
+  through atomic generation replacement.
 - Trusted extension factories receive AOS's canonical synchronous
   factory-scoped `inspectProjectionResources(object)` callback for adaptive
   pool admission. V1 extension source treats the capability as optional for

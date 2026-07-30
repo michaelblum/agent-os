@@ -11,6 +11,12 @@ export {
   validateSceneTransaction,
 } from './scene-document.js'
 export {
+  DEFAULT_SCENE_RENDER_PASS,
+  SCENE_RENDER_PASS_KINDS,
+  resolveSceneRenderPass,
+  validateSceneRenderPass,
+} from './scene-render-pass.js'
+export {
   SCENE_CARTRIDGE_ANIMATIONS_CONTRACT_ID,
   SCENE_CARTRIDGE_CONTRACT_ID,
   SCENE_CARTRIDGE_IMPLEMENTATIONS,

@@ -61,6 +61,7 @@ export function proveDesktopWorldSceneFramebuffer({
   descriptor,
   now = () => performance.now(),
   renderer,
+  renderFrame = null,
   scene,
 } = {}) {
   if (typeof admit !== 'function' || !admit()) {
@@ -93,7 +94,8 @@ export function proveDesktopWorldSceneFramebuffer({
   }
 
   const startedAt = now()
-  renderer.render(scene, camera)
+  if (typeof renderFrame === 'function') renderFrame()
+  else renderer.render(scene, camera)
   const [sampleWidth, sampleHeight] = descriptor.sampleSize
   const pixels = new Uint8Array(sampleWidth * sampleHeight * 4)
   pixels.fill(0xa5)

@@ -13,6 +13,7 @@ import * as runtimeToolkit from '../../packages/toolkit/scene/runtime.js'
 const repoRoot = path.resolve(import.meta.dirname, '../..')
 
 const EXPECTED_EXPORTS = [
+  'DEFAULT_SCENE_RENDER_PASS',
   'DEFAULT_SCENE_HOST_BUDGETS',
   'DEFAULT_THREE_RENDER_LIMITS',
   'DESKTOP_WORLD_SCENE_REPLAY_LIMITS',
@@ -65,6 +66,7 @@ const EXPECTED_EXPORTS = [
   'SCENE_NATIVE_EFFECT_PROGRAM_OPERATORS',
   'SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID',
   'SCENE_RADIAL_MENU_LIMITS',
+  'SCENE_RENDER_PASS_KINDS',
   'SCENE_SIGNAL_BINDING_IMPLEMENTATION_ID',
   'SCENE_TRANSACTION_CONTRACT_ID',
   'VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID',
@@ -108,6 +110,7 @@ const EXPECTED_EXPORTS = [
   'createVisualObjectDescriptor',
   'createVisualObjectResourceLifecycleEvidence',
   'deriveOrthoCamera',
+  'derivePerspectiveResourceCamera',
   'digestSceneNativeEffectProgram',
   'disposeThreeObjectTree',
   'disposeThreeRenderer',
@@ -132,6 +135,7 @@ const EXPECTED_EXPORTS = [
   'resolveSceneRadialMenuLayout',
   'resolveSceneRadialMenuResponse',
   'resolveSceneRadialVisualStyle',
+  'resolveSceneRenderPass',
   'resolveThreeRenderMetrics',
   'replayDesktopWorldSceneEvents',
   'sceneDocumentRequiredImplementations',
@@ -149,6 +153,7 @@ const EXPECTED_EXPORTS = [
   'validateSceneNativeEffectProgram',
   'validateSceneInteractionDocument',
   'validateSceneRadialMenuParameters',
+  'validateSceneRenderPass',
   'validateSceneTransaction',
   'validateVisualObjectDescriptor',
   'validateVisualObjectDescriptors',
@@ -199,6 +204,7 @@ test('scene package facade exposes only the reviewed scene-authoring contract', 
 
 test('focused scene entry points expose their owned contract families', () => {
   assert.equal(typeof authoringToolkit.validateSceneCartridge, 'function')
+  assert.equal(typeof authoringToolkit.validateSceneRenderPass, 'function')
   assert.equal(typeof authoringToolkit.createSceneGestureArena, 'function')
   assert.equal(typeof authoringToolkit.digestSceneNativeEffectProgram, 'function')
   assert.equal(Object.hasOwn(authoringToolkit, 'createDesktopWorldSceneSession'), false)
@@ -206,6 +212,7 @@ test('focused scene entry points expose their owned contract families', () => {
   assert.equal(typeof runtimeToolkit.createDesktopWorldSceneSession, 'function')
   assert.equal(typeof runtimeToolkit.normalizeDesktopWorldSceneResultErrorCode, 'function')
   assert.equal(typeof runtimeToolkit.createLocalSceneViewportHost, 'function')
+  assert.equal(typeof runtimeToolkit.derivePerspectiveResourceCamera, 'function')
   assert.equal(Object.hasOwn(runtimeToolkit, 'validateSceneExtensionManifest'), false)
 
   assert.equal(typeof extensionToolkit.validateSceneExtensionManifest, 'function')

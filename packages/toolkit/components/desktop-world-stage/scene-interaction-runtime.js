@@ -4,6 +4,10 @@ import {
 } from '../../scene/index.js'
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
 import { createSceneAnimationRegionTransitionRuntime } from './scene-animation-region-transition.js'
+import {
+  prepareRetainedSceneInteractionReplacement,
+  sceneInteractionProjectionKey,
+} from './scene-interaction-projection.js'
 import { createDesktopWorldSceneRadialMenuRuntime } from './scene-radial-menu-runtime.js'
 
 const MAX_LEASES = 32
@@ -193,6 +197,7 @@ export function createDesktopWorldSceneInteractionRuntime({
       stageCanvasId,
       regionGeneration,
       interactions,
+      interactionProjectionKey: sceneInteractionProjectionKey(document, interactions),
       controller: null,
       regionIds: new Map(),
       registeredIds: new Set(),
@@ -388,6 +393,7 @@ export function createDesktopWorldSceneInteractionRuntime({
   }
 
   async function prepareReplacement({
+    allowProjectionReuse = false,
     key,
     owner,
     resource,
@@ -405,6 +411,24 @@ export function createDesktopWorldSceneInteractionRuntime({
     }
     if (validated && !previous && leases.size >= MAX_LEASES) {
       throw new RangeError('DesktopWorld scene interaction lease budget exceeded.')
+    }
+    const nextInteractionProjectionKey = sceneInteractionProjectionKey(document, validated)
+    const retainsInteractionProjection = Boolean(
+      allowProjectionReuse
+      && previous
+      && validated
+      && previous.interactionProjectionKey === nextInteractionProjectionKey,
+    )
+    if (retainsInteractionProjection) {
+      return prepareRetainedSceneInteractionReplacement({
+        document,
+        failClosed: () => release(key, 'resource_changed'),
+        key,
+        leases,
+        nextProjectionKey: nextInteractionProjectionKey,
+        preparations,
+        previous,
+      })
     }
     const candidate = validated ? createEntry({
       key,
