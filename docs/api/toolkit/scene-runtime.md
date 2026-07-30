@@ -114,6 +114,12 @@ delay, duration, easing, and once/loop/ping-pong playback. The controller owns
 no scheduler and allocates no event object per binding per tick. A completed
 one-shot remains complete until an explicit restart.
 
+Trusted projections receive both that resource-local playback time and AOS's
+absolute DesktopWorld stage time. The stage time is derived from the browser
+time origin, is comparable across display segments, and does not restart when
+a resource is replaced or receives `play`. Continuous product motion uses the
+stage time; bounded declarative transitions use the pausable playback time.
+
 ## Renderer Lifecycle
 
 `createThreeRenderLifecycle()` owns resize observation, DPR and backing-pixel

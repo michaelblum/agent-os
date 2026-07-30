@@ -146,7 +146,7 @@ export interface SceneExtensionProjection {
   inspectInteractionRoute?(): Readonly<SceneExtensionInteractionRouteState> | null;
   applySignal(binding: Readonly<SceneSignalBinding>, value: number): void;
   applyAnimation(binding: Readonly<SceneAnimationBinding>, value: number): void;
-  tick(elapsedMs: number): void;
+  tick(playbackElapsedMs: number, stageClockMs: number): void;
   suspend(): void;
   resume(): void;
   contextLost(): void;
