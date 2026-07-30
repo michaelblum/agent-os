@@ -361,6 +361,7 @@
         "src/daemon/desktop-frame-capture-consent.swift",
         "src/daemon/desktop-frame-capture-controller.swift",
         "src/daemon/desktop-frame-warm-pool.swift",
+        "src/daemon/daemon-idle-timer.swift",
         "src/daemon/desktop-pixel-broker.swift",
         "src/daemon/desktop-pixel-capture-filter.swift",
         "src/daemon/desktop-pixel-native.swift",

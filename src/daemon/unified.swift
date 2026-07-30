@@ -314,7 +314,7 @@ class UnifiedDaemon {
 
     // Idle management
     var idleTimeout: TimeInterval
-    var idleTimer: DispatchSourceTimer?
+    private let idleShutdownTimer = AOSDaemonIdleTimer()
 
     // Coalesce display_geometry rebroadcasts — didChangeScreenParameters can
     // storm during display reconfig; we only need one broadcast per quiet burst.
@@ -4842,28 +4842,23 @@ class UnifiedDaemon {
             fputs("aos daemon invalid idle timeout (must be finite)\n", stderr)
             exit(1)
         }
-        idleTimer?.cancel()
-        let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + idleTimeout)
-        timer.setEventHandler { [weak self] in
+        idleShutdownTimer.schedule(after: idleTimeout) { [weak self] in
             guard let self = self else { return }
             if self.canvasManager.isEmpty && !self.hasSubscribers {
                 self.shutdown()
             }
         }
-        timer.resume()
-        idleTimer = timer
     }
 
     private func cancelIdleTimer() {
-        idleTimer?.cancel()
-        idleTimer = nil
+        idleShutdownTimer.cancel()
     }
 
     func shutdown(reason: String = "idle") {
         guard !isShuttingDown else { return }
         isShuttingDown = true
         fputs("aos daemon shutting down (\(reason))\n", stderr)
+        idleShutdownTimer.cancel()
         voiceTransport.shutdown()
         annotationSelection.shutdown()
         desktopFrameCaptureConsent.shutdown()
