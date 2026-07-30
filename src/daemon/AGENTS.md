@@ -32,13 +32,21 @@ Native-effect program catalogs are part of that scene authorization aggregate.
 Program-changing operations are serialized globally, validated against the
 committed cumulative pipeline budget before all-display dispatch, and published
 only after the scene operation settles. `desktop-world-native-feedback-host.swift`
-prepares complete candidate Metal contexts on its dedicated serial queue;
+prepares complete candidate Metal contexts on its dedicated serial queue, then
+atomically provisions one dormant Metal projection host for every segment in
+the exact canvas and topology generation before effect admission opens;
 `desktop-world-native-feedback-controller.swift` serializes availability
 generation and the bounded main-actor context swap so stale candidates cannot
 publish. Input remains closed during preparation. A preparation failure leaves
 the browser scene usable and retains at most the previous prepared context;
 context replacement, authorization loss, and shutdown deterministically release
 the displaced GPU resources when their last active runtime lease ends.
+Physical projection hosts belong to DesktopWorld segments, remain hidden,
+paused, and delegate-free between effects, and are finalized only with their
+segment, stage, or daemon. Effect sheets borrow those hosts and own only
+transient mesh, renderer, texture, and captured-frame resources. Disposal
+diagnostics count attached effect renderers rather than dormant stage
+infrastructure.
 Program preparation and runtime retirement are independent gates for queued
 native-effect replacements. Reopening either gate must converge the same
 pending request, and no replacement may start before both gates have settled.

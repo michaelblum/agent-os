@@ -163,6 +163,34 @@ precondition(library.makeFunction(name: "desktopWorldNativeRippleFragment") != n
   }
 })
 
+test('native feedback prepares exact-generation segment hosts before admission', async () => {
+  const [hostSource, managerSource, lifecycleSource, sheetSource, surfaceSource, rendererSource] = await Promise.all([
+    readFile(path.join(repoRoot, 'src/daemon/desktop-world-native-feedback-host.swift'), 'utf8'),
+    readFile(path.join(repoRoot, 'src/display/desktop-world-native-projection-manager.swift'), 'utf8'),
+    readFile(path.join(repoRoot, 'src/display/desktop-world-native-projection-lifecycle.swift'), 'utf8'),
+    readFile(path.join(repoRoot, 'src/display/desktop-world-native-sheet.swift'), 'utf8'),
+    readFile(path.join(repoRoot, 'src/display/desktop-world-surface.swift'), 'utf8'),
+    readFile(path.join(repoRoot, 'src/display/desktop-world-native-effect-renderer.swift'), 'utf8'),
+  ])
+  assert.match(hostSource, /let captureContext = captureContext\(\)/u)
+  assert.match(hostSource, /canvas: captureContext\.canvasGeneration/u)
+  assert.match(hostSource, /topology: captureContext\.topologyGeneration/u)
+  const preparationCall = hostSource.indexOf('prepareDesktopWorldNativeProjectionHosts(')
+  const contextPublication = hostSource.indexOf('context = prepared.context')
+  assert.ok(preparationCall >= 0 && contextPublication > preparationCall)
+  assert.match(
+    managerSource,
+    /generation\.matches\([\s\S]{0,120}canvas: surface\.lifecycleGeneration,[\s\S]{0,120}topology: surface\.topologyGeneration/u,
+  )
+  assert.match(surfaceSource, /func prepareNativeProjectionHosts\(device: MTLDevice\) throws/u)
+  assert.match(surfaceSource, /DesktopWorldNativeProjectionHostBatch\.prepare\(/u)
+  assert.match(lifecycleSource, /for \(owner, host\) in created\.reversed\(\) \{\s*owner\.remove\(host\)/u)
+  assert.match(sheetSource, /segment\.preparedNativeProjectionHost\(device: device\)/u)
+  assert.doesNotMatch(sheetSource, /removeNativeProjectionHost/u)
+  assert.match(rendererSource, /var retainedViewCount: Int \{\s*renderers\.count\s*\}/u)
+  assert.match(hostSource, /func shutdown\(\)[\s\S]{0,160}finalizeDesktopWorldNativeProjectionHosts/u)
+})
+
 test('native feedback contract rejects type drift and resolves bounded world coordinates', async () => {
   const output = await compileAndRun('native-feedback-contract', [
     'src/daemon/desktop-world-scene-stage-readiness.swift',

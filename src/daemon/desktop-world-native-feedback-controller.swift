@@ -780,7 +780,6 @@ final class AOSDesktopWorldNativeFeedbackController {
             case .geometryBudgetExceeded:
                 return "NATIVE_EFFECT_GEOMETRY_BUDGET_EXCEEDED"
             case .invalidGeometry: return "NATIVE_EFFECT_GEOMETRY_INVALID"
-            case .projectionOccupied: return "NATIVE_EFFECT_PROJECTION_OCCUPIED"
             case .rendererUnavailable: return "NATIVE_EFFECT_RENDERER_UNAVAILABLE"
             case .textureUnavailable: return "NATIVE_EFFECT_TEXTURE_UNAVAILABLE"
             }

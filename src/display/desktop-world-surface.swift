@@ -138,9 +138,14 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         let webView: WKWebView
         let messageHandler: CanvasMessageHandler
         let nativeRetirementID: String
-        private(set) var nativeProjectionHost: DesktopWorldNativeProjectionHost?
+        let nativeProjectionHostSlot =
+            DesktopWorldNativeProjectionHostSlot<DesktopWorldNativeProjectionHost>()
         private var retirementQuiesced = false
         private var retirementFinalized = false
+
+        var nativeProjectionHost: DesktopWorldNativeProjectionHost? {
+            nativeProjectionHostSlot.host
+        }
 
         init(displayID: UInt32, index: Int, nativeBounds: CGRect, dwBounds: CGRect,
              window: CanvasWindow, webView: WKWebView, messageHandler: CanvasMessageHandler,
@@ -155,18 +160,8 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             self.nativeRetirementID = nativeRetirementID
         }
 
-        func ensureNativeProjectionHost(device: MTLDevice) throws -> DesktopWorldNativeProjectionHost {
-            precondition(Thread.isMainThread, "native projection installation must run on the main thread")
-            if let nativeProjectionHost {
-                guard nativeProjectionHost.view.device?.registryID == device.registryID else {
-                    throw NSError(
-                        domain: "DesktopWorldNativeProjection",
-                        code: 1,
-                        userInfo: [NSLocalizedDescriptionKey: "native projection device mismatch"]
-                    )
-                }
-                return nativeProjectionHost
-            }
+        func makeNativeProjectionHost(device: MTLDevice) throws -> DesktopWorldNativeProjectionHost {
+            precondition(Thread.isMainThread, "native projection creation must run on the main thread")
             guard !retirementQuiesced, !retirementFinalized, let contentView = window.contentView else {
                 throw NSError(
                     domain: "DesktopWorldNativeProjection",
@@ -174,20 +169,20 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
                     userInfo: [NSLocalizedDescriptionKey: "desktop-world segment is retiring"]
                 )
             }
-            let host = DesktopWorldNativeProjectionHost(
+            return DesktopWorldNativeProjectionHost(
                 containerView: contentView,
                 below: webView,
                 device: device
             )
-            nativeProjectionHost = host
-            return host
         }
 
-        func removeNativeProjectionHost(_ expected: DesktopWorldNativeProjectionHost) {
-            precondition(Thread.isMainThread, "native projection removal must run on the main thread")
-            guard nativeProjectionHost === expected else { return }
-            expected.finalize()
-            nativeProjectionHost = nil
+        func preparedNativeProjectionHost(
+            device: MTLDevice
+        ) throws -> DesktopWorldNativeProjectionHost {
+            precondition(Thread.isMainThread, "native projection lookup must run on the main thread")
+            return try nativeProjectionHostSlot.prepared(
+                deviceRegistryID: device.registryID
+            )
         }
 
         func quiesceForRetirement() {
@@ -210,8 +205,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             webView.configuration.userContentController.removeScriptMessageHandler(forName: "headsup")
             webView.navigationDelegate = nil
             webView.uiDelegate = nil
-            nativeProjectionHost?.finalize()
-            nativeProjectionHost = nil
+            nativeProjectionHostSlot.finalize()
             webView.removeFromSuperview()
             window.contentView = nil
             window.close()
@@ -393,6 +387,27 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         } catch {
             DesktopWorldNativeSheetProcessLease.shared.release(lease)
             throw error
+        }
+    }
+
+    func prepareNativeProjectionHosts(device: MTLDevice) throws {
+        precondition(Thread.isMainThread, "native projection preparation must run on the main thread")
+        guard !segments.isEmpty, !retirementQuiesced, !retirementFinalized else {
+            throw DesktopWorldNativeSheetFailure.rendererUnavailable
+        }
+        try DesktopWorldNativeProjectionHostBatch.prepare(
+            segments: segments,
+            deviceRegistryID: device.registryID,
+            slot: { $0.nativeProjectionHostSlot },
+            create: { try $0.makeNativeProjectionHost(device: device) }
+        )
+    }
+
+    func finalizeNativeProjectionHosts() {
+        precondition(Thread.isMainThread, "native projection finalization must run on the main thread")
+        discardNativeSheetImmediately()
+        for segment in segments {
+            segment.nativeProjectionHostSlot.finalize()
         }
     }
 

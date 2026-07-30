@@ -15,6 +15,11 @@ needs, but public command policy and product UI policy belong above it:
 
 - canvas lifecycle, native frames, display topology, content serving, input
   streams, and lifecycle routing belong here;
+- DesktopWorld's per-display Metal projection hosts are generation-bound stage
+  infrastructure. They are prepared before native-effect admission, stay
+  dormant between effects, and retire only with their display segment, stage,
+  or daemon;
+  consumer effects own no native view lifecycle;
 - the owner-scoped native status-item lease, exact-revision compare-and-swap,
   AppKit-derived anchor facts, and native activation/menu bridge live in
   `display/status-item*.swift`; the successful installation anchor is also the

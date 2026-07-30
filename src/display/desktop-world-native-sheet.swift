@@ -44,31 +44,22 @@ final class DesktopWorldNativeSheet {
         var created: [SegmentSheet] = []
         do {
             for segment in segments {
-                guard segment.nativeProjectionHost == nil else {
-                    throw DesktopWorldNativeSheetFailure.projectionOccupied
-                }
-                let host = try segment.ensureNativeProjectionHost(device: device)
-                do {
-                    let mesh = try DesktopWorldNativeSheetMesh(
-                        descriptor: geometryDescriptor,
-                        device: device,
-                        worldBounds: segment.dwBounds
-                    )
-                    created.append(SegmentSheet(
-                        displayID: segment.displayID,
-                        host: host,
-                        mesh: mesh,
-                        segment: segment
-                    ))
-                } catch {
-                    segment.removeNativeProjectionHost(host)
-                    throw error
-                }
+                let host = try segment.preparedNativeProjectionHost(device: device)
+                let mesh = try DesktopWorldNativeSheetMesh(
+                    descriptor: geometryDescriptor,
+                    device: device,
+                    worldBounds: segment.dwBounds
+                )
+                created.append(SegmentSheet(
+                    displayID: segment.displayID,
+                    host: host,
+                    mesh: mesh,
+                    segment: segment
+                ))
             }
         } catch {
             created.forEach {
                 $0.mesh.dispose()
-                $0.segment.removeNativeProjectionHost($0.host)
             }
             throw error
         }
@@ -96,7 +87,6 @@ final class DesktopWorldNativeSheet {
         segmentSheets.forEach {
             $0.host.detachRenderer()
             $0.mesh.dispose()
-            $0.segment.removeNativeProjectionHost($0.host)
         }
         segmentSheets = []
     }

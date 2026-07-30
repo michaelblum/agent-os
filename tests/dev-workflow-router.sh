@@ -214,7 +214,7 @@ else
     fail "dev recommend semantic target selection routing drifted"
 fi
 
-if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/commands/desktop-pixel-native-baseline.swift src/daemon/desktop-pixel-capture-filter.swift src/daemon/desktop-pixel-native-operation.swift src/daemon/desktop-pixel-stream-lifecycle.swift src/display/desktop-world-native-sheet-geometry.swift src/display/desktop-world-native-sheet-lease.swift src/display/desktop-world-native-sheet.swift src/display/desktop-world-surface.swift src/shared/desktop-pixel-sample-admission.swift src/shared/desktop-world-resource-identity.swift scripts/aos-runtime-desktop-pixel-baseline.mjs tests/desktop-pixel-native-baseline.test.mjs tests/desktop-pixel-native-baseline-typecheck.sh tests/lib/desktop-pixel-native-baseline-lifecycle-tests.swift tests/lib/desktop-pixel-metal-pipeline-tests.swift tests/lib/desktop-world-native-sheet-geometry-tests.swift tests/lib/desktop-world-native-sheet-lease-tests.swift 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/commands/desktop-pixel-native-baseline.swift src/daemon/desktop-pixel-capture-filter.swift src/daemon/desktop-pixel-native-operation.swift src/daemon/desktop-pixel-stream-lifecycle.swift src/display/desktop-world-native-projection-lifecycle.swift src/display/desktop-world-native-projection-manager.swift src/display/desktop-world-native-sheet-geometry.swift src/display/desktop-world-native-sheet-lease.swift src/display/desktop-world-native-sheet.swift src/display/desktop-world-surface.swift src/shared/desktop-pixel-sample-admission.swift src/shared/desktop-world-resource-identity.swift scripts/aos-runtime-desktop-pixel-baseline.mjs tests/desktop-pixel-native-baseline.test.mjs tests/desktop-pixel-native-baseline-typecheck.sh tests/lib/desktop-pixel-native-baseline-lifecycle-tests.swift tests/lib/desktop-pixel-metal-pipeline-tests.swift tests/lib/desktop-world-native-projection-lifecycle-tests.swift tests/lib/desktop-world-native-sheet-geometry-tests.swift tests/lib/desktop-world-native-sheet-lease-tests.swift 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -231,6 +231,8 @@ expected_paths = {
     "src/daemon/desktop-pixel-capture-filter.swift",
     "src/daemon/desktop-pixel-native-operation.swift",
     "src/daemon/desktop-pixel-stream-lifecycle.swift",
+    "src/display/desktop-world-native-projection-lifecycle.swift",
+    "src/display/desktop-world-native-projection-manager.swift",
     "src/display/desktop-world-native-sheet-geometry.swift",
     "src/display/desktop-world-native-sheet-lease.swift",
     "src/display/desktop-world-native-sheet.swift",
@@ -242,6 +244,7 @@ expected_paths = {
     "tests/desktop-pixel-native-baseline-typecheck.sh",
     "tests/lib/desktop-pixel-native-baseline-lifecycle-tests.swift",
     "tests/lib/desktop-pixel-metal-pipeline-tests.swift",
+    "tests/lib/desktop-world-native-projection-lifecycle-tests.swift",
     "tests/lib/desktop-world-native-sheet-geometry-tests.swift",
     "tests/lib/desktop-world-native-sheet-lease-tests.swift",
 }
@@ -251,6 +254,8 @@ native_paths = {
     "src/daemon/desktop-pixel-capture-filter.swift",
     "src/daemon/desktop-pixel-native-operation.swift",
     "src/daemon/desktop-pixel-stream-lifecycle.swift",
+    "src/display/desktop-world-native-projection-lifecycle.swift",
+    "src/display/desktop-world-native-projection-manager.swift",
     "src/display/desktop-world-native-sheet-geometry.swift",
     "src/display/desktop-world-native-sheet-lease.swift",
     "src/display/desktop-world-native-sheet.swift",
@@ -264,6 +269,12 @@ for path in native_paths - {"src/commands/desktop-pixel-native-baseline.swift"}:
     assert "desktop-world-scene-engine" in files[path]["rules"], files[path]
 for path in expected_paths - native_paths:
     assert "desktop-pixel-native-baseline-command" in files[path]["rules"], files[path]
+commands = {item["command"] for item in summary["commands"]}
+assert (
+    "node --test tests/desktop-pixel-native-baseline.test.mjs "
+    "&& bash tests/desktop-pixel-native-baseline-typecheck.sh "
+    "&& bash tests/command-manifest-generation.sh"
+) in commands, data
 PY
 then
     pass "dev recommend routes native desktop-pixel baseline owners to focused static proof"
@@ -325,7 +336,7 @@ else
     fail "dev recommend desktop-frame owner routing drifted"
 fi
 
-if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files packages/toolkit/scene/scene-native-effect-program.js src/daemon/desktop-world-devtools-native-stage-facts.swift src/daemon/desktop-world-native-effect-contract.swift src/daemon/desktop-world-native-effect-program.swift src/daemon/desktop-world-native-feedback-contracts.swift src/daemon/desktop-world-native-feedback-controller.swift src/daemon/desktop-world-native-feedback-admission.swift src/daemon/desktop-world-native-feedback-host.swift src/display/desktop-world-native-effect-program-compiler.swift src/display/desktop-world-native-effect-pipeline-cache.swift src/display/desktop-world-native-effect-renderer.swift tests/desktop-world-native-effect-program.test.mjs tests/desktop-world-scene-native-feedback.test.mjs tests/desktop-world-scene-native-feedback-lifecycle.test.mjs tests/toolkit/scene-native-effect-program.test.mjs 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files packages/toolkit/scene/scene-native-effect-program.js src/daemon/desktop-world-devtools-native-stage-facts.swift src/daemon/desktop-world-native-effect-contract.swift src/daemon/desktop-world-native-effect-program.swift src/daemon/desktop-world-native-feedback-contracts.swift src/daemon/desktop-world-native-feedback-controller.swift src/daemon/desktop-world-native-feedback-admission.swift src/daemon/desktop-world-native-feedback-host.swift src/display/desktop-world-native-projection-lifecycle.swift src/display/desktop-world-native-projection-manager.swift src/display/desktop-world-native-effect-program-compiler.swift src/display/desktop-world-native-effect-pipeline-cache.swift src/display/desktop-world-native-effect-renderer.swift tests/desktop-world-native-effect-program.test.mjs tests/desktop-world-scene-native-feedback.test.mjs tests/desktop-world-scene-native-feedback-lifecycle.test.mjs tests/toolkit/scene-native-effect-program.test.mjs 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -345,6 +356,8 @@ expected_paths = {
     "src/daemon/desktop-world-native-feedback-controller.swift",
     "src/daemon/desktop-world-native-feedback-admission.swift",
     "src/daemon/desktop-world-native-feedback-host.swift",
+    "src/display/desktop-world-native-projection-lifecycle.swift",
+    "src/display/desktop-world-native-projection-manager.swift",
     "src/display/desktop-world-native-effect-program-compiler.swift",
     "src/display/desktop-world-native-effect-pipeline-cache.swift",
     "src/display/desktop-world-native-effect-renderer.swift",

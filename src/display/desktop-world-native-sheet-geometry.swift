@@ -177,7 +177,6 @@ enum DesktopWorldNativeSheetFailure: Error {
     case geometryAllocationFailed
     case geometryBudgetExceeded
     case invalidGeometry
-    case projectionOccupied
     case rendererUnavailable
     case textureUnavailable
 }

@@ -47,7 +47,6 @@ enum DesktopWorldNativeSheetFailure: Error {
     case geometryAllocationFailed
     case geometryBudgetExceeded
     case invalidGeometry
-    case projectionOccupied
     case rendererUnavailable
     case textureUnavailable
 }
@@ -229,6 +228,8 @@ final class Host: AOSDesktopWorldNativeFeedbackHosting {
     @MainActor var installFailure: DesktopWorldNativeSheetFailure?
     @MainActor var installRollbackFailure: DesktopWorldNativeSheetFailure?
     @MainActor var activationCount = 0
+    @MainActor var physicalHostCount = 0
+    @MainActor var physicalHostCreationCount = 0
     @MainActor var deferPreparations = false
     @MainActor var onActivate: (() -> Void)?
     var onCaptureContext: (() -> Void)?
@@ -282,12 +283,17 @@ final class Host: AOSDesktopWorldNativeFeedbackHosting {
         }
         onActivate?()
         activationCount += 1
+        if physicalHostCount == 0 {
+            physicalHostCount = context.displayIDs.count
+            physicalHostCreationCount += physicalHostCount
+        }
         preparedProgramDigests = preparation.digests
     }
     @MainActor func install(
         request: AOSDesktopWorldNativeEffectRequest,
         frames: AOSDesktopPixelFrameSet
     ) throws -> AOSDesktopWorldNativeFeedbackInstallationOutcome {
+        precondition(physicalHostCount == context.displayIDs.count)
         installCount += 1
         if let installFailure { throw installFailure }
         let identity = AOSDesktopWorldResourceIdentity(
@@ -320,7 +326,10 @@ final class Host: AOSDesktopWorldNativeFeedbackHosting {
         return removeSucceeds
     }
     @MainActor func releasePreparedResources() { releaseCount += 1 }
-    @MainActor func shutdown() { shutdownCount += 1 }
+    @MainActor func shutdown() {
+        shutdownCount += 1
+        physicalHostCount = 0
+    }
 }
 
 func pumpUntil(_ predicate: () -> Bool) {
@@ -888,6 +897,8 @@ pumpUntil { MainActor.assumeIsolated { host.prepareCount == 1 } }
 pumpUntil { controller.snapshot().state == "ready" }
 precondition(MainActor.assumeIsolated {
     host.preparedProgramDigests == ["program-digest"]
+        && host.physicalHostCount == 2
+        && host.physicalHostCreationCount == 2
 })
 controller.reconcileAvailability(
     true,
@@ -994,6 +1005,8 @@ for index in 0..<100 {
 }
 precondition(MainActor.assumeIsolated {
     host.runtimes.allSatisfy(\\.disposed)
+        && host.physicalHostCount == 2
+        && host.physicalHostCreationCount == 2
 })
 
 precondition(controller.trigger(request))
@@ -1037,6 +1050,7 @@ pumpUntil { MainActor.assumeIsolated { host.releaseCount == 1 } }
 precondition(!controller.trigger(request))
 controller.shutdown()
 precondition(MainActor.assumeIsolated { host.shutdownCount == 1 })
+precondition(MainActor.assumeIsolated { host.physicalHostCount == 0 })
 precondition(MainActor.assumeIsolated { host.installCount == host.removeCount })
 precondition(!controller.trigger(request))
 
