@@ -269,13 +269,20 @@ precondition(controller.recordReady(topology: topology, displayID: 9, index: 1, 
 
 let connection = UUID()
 let key = controller.key(owner: "owner", resource: "main")
-guard case .accepted(let events) = controller.updateSubscriptions(
+let staleIdentity = AOSDesktopWorldSceneStageIdentity(canvasGeneration: 3, topologyGeneration: 3)
+guard case .stageUnavailable = controller.subscribe(
+    identity: staleIdentity,
+    key: key,
+    connectionID: UUID(),
+    ref: "stale-ref",
+    events: Set(["gesture"])
+) else { preconditionFailure("stale-stage subscription admitted") }
+guard case .accepted(let events) = controller.subscribe(
+    identity: identity,
     key: key,
     connectionID: connection,
     ref: "ref-1",
-    adding: Set(["gesture"]),
-    removing: [],
-    removeAll: false
+    events: Set(["gesture"])
 ) else { preconditionFailure("subscription rejected") }
 precondition(events == Set(["gesture"]))
 var routed = false
@@ -591,26 +598,24 @@ let atomic = AOSDesktopWorldSceneController()
 let atomicTopology = readyController(atomic)
 let atomicConnection = UUID()
 let atomicKey = atomic.key(owner: "atomic", resource: "main")
-guard case .accepted = atomic.updateSubscriptions(
+guard case .accepted = atomic.subscribe(
+    identity: atomicTopology.identity,
     key: atomicKey,
     connectionID: atomicConnection,
     ref: "atomic-ref",
-    adding: Set(["gesture"]),
-    removing: [],
-    removeAll: false
+    events: Set(["gesture"])
 ) else { preconditionFailure("atomic subscription rejected") }
 
 let eventAtomic = AOSDesktopWorldSceneController()
 let eventAtomicTopology = readyController(eventAtomic)
 let eventAtomicConnection = UUID()
 let eventAtomicKey = eventAtomic.key(owner: "event-atomic", resource: "main")
-guard case .accepted = eventAtomic.updateSubscriptions(
+guard case .accepted = eventAtomic.subscribe(
+    identity: eventAtomicTopology.identity,
     key: eventAtomicKey,
     connectionID: eventAtomicConnection,
     ref: "event-atomic-ref",
-    adding: Set(["gesture"]),
-    removing: [],
-    removeAll: false
+    events: Set(["gesture"])
 ) else { preconditionFailure("event atomic subscription rejected") }
 let eventEnteredEnqueue = DispatchSemaphore(value: 0)
 let releaseEventEnqueue = DispatchSemaphore(value: 0)
@@ -742,13 +747,12 @@ let superseding = AOSDesktopWorldSceneController()
 let supersededTopology = readyController(superseding)
 let supersedingConnection = UUID()
 let supersedingKey = superseding.key(owner: "superseding", resource: "main")
-guard case .accepted = superseding.updateSubscriptions(
+guard case .accepted = superseding.subscribe(
+    identity: supersededTopology.identity,
     key: supersedingKey,
     connectionID: supersedingConnection,
     ref: "superseding-ref",
-    adding: Set(["gesture"]),
-    removing: [],
-    removeAll: false
+    events: Set(["gesture"])
 ) else { preconditionFailure("superseding subscription rejected") }
 guard case .retire(let supersededRetirement)? = superseding.invalidateStage(
     identity: supersededTopology.identity,
@@ -826,13 +830,12 @@ let failedRetirement = AOSDesktopWorldSceneController()
 let failedTopology = readyController(failedRetirement)
 let failedConnection = UUID()
 let failedKey = failedRetirement.key(owner: "failed", resource: "main")
-guard case .accepted = failedRetirement.updateSubscriptions(
+guard case .accepted = failedRetirement.subscribe(
+    identity: failedTopology.identity,
     key: failedKey,
     connectionID: failedConnection,
     ref: "failed-ref",
-    adding: Set(["gesture"]),
-    removing: [],
-    removeAll: false
+    events: Set(["gesture"])
 ) else { preconditionFailure("failed-retirement subscription rejected") }
 guard case .retire(let failureRequest)? = failedRetirement.invalidateStage(
     identity: failedTopology.identity,
@@ -861,13 +864,12 @@ let disconnected = AOSDesktopWorldSceneController()
 let disconnectedTopology = readyController(disconnected)
 let disconnectedConnection = UUID()
 let disconnectedKey = disconnected.key(owner: "disconnect", resource: "main")
-guard case .accepted = disconnected.updateSubscriptions(
+guard case .accepted = disconnected.subscribe(
+    identity: disconnectedTopology.identity,
     key: disconnectedKey,
     connectionID: disconnectedConnection,
     ref: "disconnect-ref",
-    adding: Set(["gesture"]),
-    removing: [],
-    removeAll: false
+    events: Set(["gesture"])
 ) else { preconditionFailure("disconnect subscription rejected") }
 let disconnectPlan = disconnected.beginDisconnect(
     connectionID: disconnectedConnection,

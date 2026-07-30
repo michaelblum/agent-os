@@ -729,13 +729,12 @@ let mounted = controller.nativeEffectRequest(
 )
 precondition(mounted?.resourceRevision == 1)
 precondition(mounted.map(controller.authorizesNativeEffect) == true)
-guard case .accepted(let subscribedEvents) = controller.updateSubscriptions(
+guard case .accepted(let subscribedEvents) = controller.subscribe(
+    identity: topology.identity,
     key: key,
     connectionID: connection,
     ref: "events",
-    adding: ["gesture"],
-    removing: [],
-    removeAll: false
+    events: ["gesture"]
 ) else { preconditionFailure("gesture subscription rejected") }
 precondition(subscribedEvents == ["gesture"])
 

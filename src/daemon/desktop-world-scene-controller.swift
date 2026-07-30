@@ -411,7 +411,48 @@ final class AOSDesktopWorldSceneController {
         }
     }
 
-    func updateSubscriptions(
+    func subscribe(
+        identity: AOSDesktopWorldSceneStageIdentity,
+        key: String,
+        connectionID: UUID,
+        ref: String?,
+        events: Set<String>
+    ) -> AOSDesktopWorldSceneSubscriptionOutcome {
+        withLock {
+            guard retirement == nil,
+                  readiness.isReady(for: identity) else { return .stageUnavailable }
+            return updateSubscriptions(
+                key: key,
+                connectionID: connectionID,
+                ref: ref,
+                adding: events,
+                removing: [],
+                removeAll: false
+            )
+        }
+    }
+
+    func unsubscribe(
+        key: String,
+        connectionID: UUID,
+        ref: String?,
+        events: Set<String>,
+        removeAll: Bool
+    ) -> AOSDesktopWorldSceneSubscriptionOutcome {
+        withLock {
+            guard retirement == nil else { return .stageUnavailable }
+            return updateSubscriptions(
+                key: key,
+                connectionID: connectionID,
+                ref: ref,
+                adding: [],
+                removing: events,
+                removeAll: removeAll
+            )
+        }
+    }
+
+    private func updateSubscriptions(
         key: String,
         connectionID: UUID,
         ref: String?,
@@ -419,20 +460,17 @@ final class AOSDesktopWorldSceneController {
         removing: Set<String>,
         removeAll: Bool
     ) -> AOSDesktopWorldSceneSubscriptionOutcome {
-        withLock {
-            guard retirement == nil else { return .stageUnavailable }
-            let acquisition = leases.acquire(key: key, connectionID: connectionID, ref: ref)
-            guard case .acquired(let token, let isNewLease) = acquisition else { return .busy }
-            let events = leases.updateSubscriptions(
-                token: token,
-                adding: adding,
-                removing: removing,
-                removeAll: removeAll
-            )
-            if events == nil, isNewLease { _ = leases.release(token) }
-            guard let events else { return .busy }
-            return .accepted(events)
-        }
+        let acquisition = leases.acquire(key: key, connectionID: connectionID, ref: ref)
+        guard case .acquired(let token, let isNewLease) = acquisition else { return .busy }
+        let events = leases.updateSubscriptions(
+            token: token,
+            adding: adding,
+            removing: removing,
+            removeAll: removeAll
+        )
+        if events == nil, isNewLease { _ = leases.release(token) }
+        guard let events else { return .busy }
+        return .accepted(events)
     }
 
     func admitOperation(
