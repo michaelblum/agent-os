@@ -53,6 +53,7 @@ function harness({
   now = () => Date.now(),
   onEmit = null,
   scheduleTimer = (callback, delay) => setTimeout(callback, delay),
+  topologySnapshot = { displays: [{ displayId: 1, index: 0, bounds: [0, 0, 1000, 800] }] },
 } = {}) {
   const calls = []
   const responses = []
@@ -75,7 +76,7 @@ function harness({
   const runtime = createDesktopWorldSceneInteractionRuntime({
     outlet,
     isPrimary: () => primary,
-    topology: () => ({ displays: [{ displayId: 1, index: 0, bounds: [0, 0, 1000, 800] }] }),
+    topology: () => topologySnapshot,
     registerRegion: async (payload) => { calls.push(['register', payload.id]); await register(payload) },
     updateRegion: async (payload) => {
       calls.push(['update', payload.id])
@@ -274,6 +275,51 @@ test('secondary segments build the same region index without mutating daemon reg
   assert.deepEqual(pointerEvents.map(({ event }) => event.phase), ['down', 'up'])
 })
 
+test('shared operation generations keep cross-display input routable after divergent local histories', async () => {
+  const topologySnapshot = {
+    displays: [
+      { displayId: 1, index: 0, bounds: [207, 0, 1512, 982] },
+      { displayId: 2, index: 1, bounds: [0, 982, 1920, 1080] },
+    ],
+  }
+  const primary = harness({ topologySnapshot })
+  const secondary = harness({ primary: false, topologySnapshot })
+  const key = 'example.consumer::companion/main'
+
+  const replace = async (fixture, revision, regionGeneration = null) => {
+    const replacement = await fixture.runtime.prepareReplacement({
+      key,
+      owner: 'example.consumer',
+      resource: 'companion/main',
+      document: { ...document, revision },
+      interactions,
+      ...(regionGeneration === null ? {} : { regionGeneration }),
+    })
+    await replacement.activate()
+    replacement.commit(() => {})
+    assert.equal(await replacement.settle(), true)
+  }
+
+  await primary.runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions })
+  await secondary.runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions })
+  await replace(primary, 2)
+  await replace(secondary, 2)
+  await replace(secondary, 3)
+  await replace(primary, 4, 'shared-operation-42')
+  await replace(secondary, 4, 'shared-operation-42')
+
+  const primaryRegion = primary.runtime.snapshot(key).leases[0].regions[0]
+  const secondaryRegion = secondary.runtime.snapshot(key).leases[0].regions[0]
+  assert.equal(primaryRegion, secondaryRegion)
+  assert.match(primaryRegion, /:generation:shared-operation-42$/u)
+
+  for (const fixture of [primary, secondary]) {
+    assert.equal(fixture.runtime.handleInput(routed(primaryRegion, 'left_mouse_down', 900, 900, 1)), true)
+    assert.equal(fixture.runtime.handleInput(routed(primaryRegion, 'left_mouse_dragged', 900, 1_100, 2)), true)
+    assert.deepEqual(fixture.responses.map(({ frame }) => frame.phase), ['start', 'update'])
+  }
+})
+
 test('stage resume keeps input admission closed until every region is restored', async () => {
   const secondRegistration = deferred()
   let resumeMode = false
@@ -442,7 +488,7 @@ test('completed spatial animation settles a fresh native-region generation at th
 
   const terminalRegionId = fixture.runtime.snapshot(key).leases[0].regions[0]
   assert.notEqual(terminalRegionId, oldRegionId)
-  assert.match(terminalRegionId, /:generation:r\d+$/u)
+  assert.match(terminalRegionId, /:generation:animation-1$/u)
   assert.deepEqual(fixture.regionUpdates.at(-1).frame, [420, 340, 160, 120])
   assert.deepEqual(fixture.runtime.devtoolsSnapshot().hitRegions[0].frame, [420, 340, 160, 120])
   fixture.runtime.handleInput(routed(terminalRegionId, 'left_mouse_down', 500, 400, 1))

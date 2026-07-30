@@ -161,6 +161,7 @@ export function createDesktopWorldSceneOperationCoordinator({ outlet, interactio
         resource: payload.resource,
         document: outletReplacement.document,
         interactions: op === 'mount' ? operation.interactions ?? null : operation.interactions,
+        regionGeneration: operationId,
       })
       outletReplacement.assertCurrent()
       interactionReplacement.assertCurrent()
@@ -242,7 +243,7 @@ export function createDesktopWorldSceneOperationCoordinator({ outlet, interactio
   }
 
   async function replace(message, op) {
-    const operationId = `direct-${++directReplacementGeneration}`
+    const operationId = message?.payload?.operation_id ?? `direct-${++directReplacementGeneration}`
     await prepareReplacement(operationId, message, op)
     return commitReplacement(operationId)
   }
@@ -253,7 +254,8 @@ export function createDesktopWorldSceneOperationCoordinator({ outlet, interactio
       : null
     let quiesced = false
     if (Number.isInteger(generation)) {
-      quiesced = await interactions.quiesceAnimation(key, generation)
+      const operationId = message?.payload?.operation_id ?? `direct-play-${generation}`
+      quiesced = await interactions.quiesceAnimation(key, generation, operationId)
     }
 
     let applied
