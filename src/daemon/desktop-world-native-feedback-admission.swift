@@ -506,6 +506,7 @@ extension AOSDesktopWorldNativeFeedbackController {
         _ event: AOSDesktopWorldNativeEffectGestureEvent,
         replacement: AOSDesktopWorldNativeEffectRequest?
     ) {
+        if replacement != nil { recordAttempt() }
         guard authorize(event.request), replacement.map(authorize) ?? true else {
             recordFailure("NATIVE_EFFECT_UNAUTHORIZED")
             return

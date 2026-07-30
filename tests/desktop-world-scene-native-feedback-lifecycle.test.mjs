@@ -518,6 +518,7 @@ pumpUntil { MainActor.assumeIsolated { replacementHost.installCount == 2 } }
 MainActor.assumeIsolated { replacementHost.runtimes.last?.complete() }
 pumpUntil { replacementController.snapshot().state == "ready" }
 let replacementSnapshot = replacementController.snapshot()
+precondition(replacementSnapshot.attemptedCount == 2)
 precondition(replacementSnapshot.acceptedCount == 2)
 precondition(replacementSnapshot.rejectedCount == 0)
 precondition(replacementSnapshot.completedCount == 1)
@@ -789,6 +790,7 @@ precondition(fastReleaseController.snapshot().lastProgramID == "example.release-
 MainActor.assumeIsolated { fastReleaseHost.runtimes.last?.complete() }
 pumpUntil { fastReleaseController.snapshot().state == "ready" }
 precondition(fastReleaseController.snapshot().acceptedCount == 3)
+precondition(fastReleaseController.snapshot().attemptedCount == 3)
 fastReleaseController.shutdown()
 
 let supersededHost = Host()
