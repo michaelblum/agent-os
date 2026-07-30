@@ -796,6 +796,10 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /renderLoopActive: frame !== null/u)
   assert.match(outlet, /faultSceneSegment\(code, mounted\)/u)
   assert.match(outlet, /setFaultObserver\(observer\)/u)
+  assert.match(
+    outlet,
+    /renderCoordinator\.refresh\(resources\)[\s\S]*faultSceneSegment\('SCENE_RENDER_PASS_CONFIGURATION_FAILED'\)/u,
+  )
   assert.match(outlet, /SCENE_EXTENSION_CONTEXT_LOST_FAILED/u)
   assert.match(outlet, /mounted\.projection\.contextRestored\?\.\(\)/u)
   assert.match(outlet, /SCENE_EXTENSION_CONTEXT_RESTORED_FAILED/u)

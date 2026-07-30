@@ -89,7 +89,10 @@ export function createDesktopWorldSceneOutlet({
   const updateSegment = (nextSegment, topology) => {
     if (!renderCoordinator.updateSegment(nextSegment, topology)) return false
     segment = nextSegment
-    renderCoordinator.refresh(resources)
+    if (!renderCoordinator.refresh(resources)) {
+      faultSceneSegment('SCENE_RENDER_PASS_CONFIGURATION_FAILED')
+      return false
+    }
     return true
   }
 

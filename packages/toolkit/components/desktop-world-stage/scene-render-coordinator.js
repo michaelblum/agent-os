@@ -3,6 +3,14 @@ import {
   derivePerspectiveResourceCamera,
 } from '../../scene/index.js'
 
+function perspectiveConfigurationError() {
+  const error = new Error(
+    'Perspective resource pass is incompatible with the active DesktopWorld topology or camera profile.',
+  )
+  error.code = 'SCENE_RENDER_PASS_CONFIGURATION_FAILED'
+  return error
+}
+
 function sortedPerspectiveResources(resources) {
   return [...resources.values()]
     .filter((mounted) => mounted.renderPass.kind === 'perspective_resource' && !mounted.suspended)
@@ -66,7 +74,7 @@ export function createDesktopWorldSceneRenderCoordinator({ THREE, renderer } = {
         if (!configurePerspective(mounted)) {
           scene.remove(mounted.projection.object)
           mounted.rendering = null
-          throw new TypeError('Perspective resource pass requires a settled DesktopWorld topology.')
+          throw perspectiveConfigurationError()
         }
       } else {
         overlayScene.add(mounted.projection.object)
