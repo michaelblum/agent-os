@@ -76,6 +76,17 @@ test('scene agent tooling uses headless snapshots and a bounded monitor stream',
         else if (request.action === 'devtools_status') reply(request.data.session ? { status: 'ok', session: snapshot() } : { status: 'ok', sessions: [snapshot()] })
         else if (request.action === 'devtools_update' || request.action === 'devtools_transfer') reply({ status: 'ok', session: snapshot() })
         else if (request.action === 'devtools_close') reply({ status: 'ok', session: request.data.session, closed: true })
+        else if (request.action === 'effect_trigger') {
+          reply({
+            status: 'ok',
+            contract: 'aos.scene.effect-trigger.v1',
+            ...request.data,
+            resource_revision: request.data.expected_revision,
+            program: request.data.expected_program,
+            binding_validated: true,
+            accepted: request.data.dry_run !== true,
+          })
+        }
         else if (request.action === 'devtools_monitor') {
           socket.write(`${JSON.stringify({
             v: 1, service: 'scene', event: 'monitor', ref: request.ref, ts: 1,
@@ -93,6 +104,28 @@ test('scene agent tooling uses headless snapshots and a bounded monitor stream',
       [['list', '--json'], (value) => assert.equal(value.resources[0].id, 'companion/main')],
       [['inspect', '--resource', 'companion/main', '--json'], (value) => assert.equal(value.resources.length, 1)],
       [['perf', '--resource', 'companion/main', '--json'], (value) => assert.equal(value.performance.currentFps, 60)],
+      [[
+        'effect', 'trigger',
+        '--owner', 'example',
+        '--resource', 'companion/main',
+        '--affordance', 'companion-body',
+        '--interaction', 'companion-fast-travel',
+        '--phase', 'pointer_down',
+        '--origin', '400,300',
+        '--current', '400,300',
+        '--pointer-session', 'proof-1',
+        '--sequence', '1',
+        '--expected-revision', '2',
+        '--expected-program', 'example.effect.ripple',
+        '--expected-program-revision', '1',
+        '--expected-program-digest', 'a'.repeat(64),
+        '--dry-run',
+        '--json',
+      ], (value) => {
+        assert.equal(value.contract, 'aos.scene.effect-trigger.v1')
+        assert.equal(value.binding_validated, true)
+        assert.equal(value.accepted, false)
+      }],
       [['devtools', 'open', '--resource', 'companion/main', '--json'], (value) => assert.equal(value.session.session.id, 'devtools-test')],
       [['devtools', 'status', '--json'], (value) => assert.equal(value.sessions.length, 1)],
       [['devtools', 'update', '--session', 'devtools-test', '--expected-revision', '1', '--tab', 'performance', '--query', 'companion', '--event-kinds', 'gesture,error', '--errors-only', 'on', '--recording', 'on', '--json'], (value) => assert.equal(value.session.session.id, 'devtools-test')],
@@ -125,6 +158,24 @@ test('scene agent tooling uses headless snapshots and a bounded monitor stream',
     })
     assert.deepEqual(received.find((entry) => entry.action === 'devtools_transfer')?.data, {
       session: 'devtools-test', expected_revision: 1, host: { kind: 'external', id: 'sigil/companion-studio' },
+    })
+    assert.deepEqual(received.find((entry) => entry.action === 'effect_trigger')?.data, {
+      owner: 'example',
+      resource: 'companion/main',
+      affordance: 'companion-body',
+      interaction: 'companion-fast-travel',
+      phase: 'pointer_down',
+      origin: { x: 400, y: 300 },
+      current: { x: 400, y: 300 },
+      pointer_session: 'proof-1',
+      sequence: 1,
+      expected_revision: 2,
+      expected_program: {
+        id: 'example.effect.ripple',
+        revision: 1,
+        digest: 'a'.repeat(64),
+      },
+      dry_run: true,
     })
   } finally {
     await new Promise((resolve) => server.close(resolve))
@@ -192,6 +243,24 @@ test('scene tooling rejects missing machine mode and duplicate identity flags be
     [['devtools', 'update', '--session', 'one', '--expected-revision', '1', '--query', 'x'.repeat(129), '--json'], 'INVALID_DEVTOOLS_FILTER'],
     [['devtools', 'transfer', '--session', 'one', '--expected-revision', '1', '--host-kind', 'browser', '--host-id', 'host', '--json'], 'INVALID_DEVTOOLS_HOST_KIND'],
     [['devtools', 'transfer', '--session', 'one', '--expected-revision', '1', '--host-kind', 'external', '--host-id', 'host/', '--json'], 'INVALID_DEVTOOLS_HOST'],
+    [['effect', 'trigger', '--json'], 'MISSING_ARG'],
+    [[
+      'effect', 'trigger',
+      '--owner', 'example',
+      '--resource', 'companion/main',
+      '--affordance', 'companion-body',
+      '--interaction', 'companion-fast-travel',
+      '--phase', 'pointer_down',
+      '--origin', 'bad',
+      '--current', '400,300',
+      '--pointer-session', 'proof-1',
+      '--sequence', '1',
+      '--expected-revision', '2',
+      '--expected-program', 'example.effect.ripple',
+      '--expected-program-revision', '1',
+      '--expected-program-digest', 'a'.repeat(64),
+      '--json',
+    ], 'INVALID_SCENE_EFFECT_POINT'],
   ]) {
     const result = await run(args, { AOS_STATE_ROOT: path.join(os.tmpdir(), 'must-not-connect') })
     assert.equal(result.code, 1)

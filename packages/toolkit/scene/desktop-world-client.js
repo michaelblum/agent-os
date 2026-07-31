@@ -7,6 +7,8 @@ export const DESKTOP_WORLD_SCENE_REPLAY_LIMITS = Object.freeze({ events: 10_000,
 
 const RESOURCE_ID = /^[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)*$/u
 const OWNER_ID = /^[a-z0-9][a-z0-9._-]{0,127}$/u
+const EFFECT_TRIGGER_PHASES = new Set(['pointer_down', 'start', 'update', 'end', 'cancel'])
+const SHA256_DIGEST = /^[a-f0-9]{64}$/u
 const GESTURE_PHASES = new Set(['start', 'update', 'end', 'cancel'])
 const GESTURE_KINDS = new Set(['tap', 'drag', 'long_press', 'radial'])
 const CANCELLATION_REASONS = new Set([
@@ -28,6 +30,74 @@ function resourceId(value, optional = false) {
     fail('INVALID_SCENE_RESOURCE', 'DesktopWorld resource identifier is invalid.')
   }
   return value
+}
+
+function ownerId(value) {
+  if (typeof value !== 'string' || !OWNER_ID.test(value)) {
+    fail('INVALID_SCENE_OWNER', 'DesktopWorld scene owner identifier is invalid.')
+  }
+  return value
+}
+
+function effectPoint(value, label) {
+  if (!hasExactKeys(value, ['x', 'y']) || !Number.isFinite(value.x) || !Number.isFinite(value.y)) {
+    fail('INVALID_SCENE_EFFECT_POINT', `DesktopWorld scene effect ${label} is invalid.`)
+  }
+  return Object.freeze({ x: value.x, y: value.y })
+}
+
+function effectRevision(value, label, minimum = 0) {
+  if (!Number.isInteger(value) || value < minimum || value > 0x7fffffff) {
+    fail('INVALID_SCENE_EFFECT_REVISION', `DesktopWorld scene effect ${label} is invalid.`)
+  }
+  return value
+}
+
+function effectProgram(value) {
+  if (!hasExactKeys(value, ['id', 'revision', 'digest'])
+      || typeof value.digest !== 'string' || !SHA256_DIGEST.test(value.digest)) {
+    fail('INVALID_SCENE_EFFECT_PROGRAM', 'DesktopWorld scene effect program identity is invalid.')
+  }
+  return Object.freeze({
+    id: resourceId(value.id),
+    revision: effectRevision(value.revision, 'program revision', 1),
+    digest: value.digest,
+  })
+}
+
+function effectTriggerInput(value) {
+  if (!hasExactKeys(value, [
+    'owner', 'resource', 'affordance', 'interaction', 'phase', 'origin',
+    'current', 'pointerSession', 'sequence', 'expectedRevision',
+    'expectedProgram',
+  ], ['dryRun'])) {
+    fail('INVALID_SCENE_EFFECT_TRIGGER', 'DesktopWorld scene effect trigger input is invalid.')
+  }
+  if (!EFFECT_TRIGGER_PHASES.has(value.phase)
+      || typeof value.pointerSession !== 'string'
+      || value.pointerSession.length < 1
+      || new TextEncoder().encode(value.pointerSession).byteLength > 128
+      || /[\p{Cc}\p{Cf}]/u.test(value.pointerSession)
+      || !Number.isInteger(value.sequence)
+      || value.sequence < 1
+      || value.sequence > 0x7fffffff
+      || (value.dryRun != null && typeof value.dryRun !== 'boolean')) {
+    fail('INVALID_SCENE_EFFECT_TRIGGER', 'DesktopWorld scene effect trigger input is invalid.')
+  }
+  return Object.freeze({
+    owner: ownerId(value.owner),
+    resource: resourceId(value.resource),
+    affordance: resourceId(value.affordance),
+    interaction: resourceId(value.interaction),
+    phase: value.phase,
+    origin: effectPoint(value.origin, 'origin'),
+    current: effectPoint(value.current, 'current point'),
+    pointer_session: value.pointerSession,
+    sequence: value.sequence,
+    expected_revision: effectRevision(value.expectedRevision, 'resource revision'),
+    expected_program: effectProgram(value.expectedProgram),
+    dry_run: value.dryRun === true,
+  })
 }
 
 function sessionId(value) {
@@ -378,6 +448,9 @@ export function createDesktopWorldSceneClient({ request, subscribe } = {}) {
       if (typeof subscribe !== 'function') throw new TypeError('DesktopWorld scene client requires a subscription transport.')
       return subscribe({ ...options, service: 'scene', action: 'devtools_monitor', data: { resource: resourceId(resource) } })
     },
+    effect: Object.freeze({
+      trigger: (input) => call('effect_trigger', effectTriggerInput(input)),
+    }),
     replay: replayDesktopWorldSceneEvents,
     devtools: Object.freeze({
       open: ({ resource = null, host = null, headless = false } = {}) => call('devtools_open', {

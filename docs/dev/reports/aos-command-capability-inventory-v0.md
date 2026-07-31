@@ -18,14 +18,14 @@ current command tree before public CLI and self-hosting boundary changes.
 
 ## Summary
 
-- Command paths: 66
-- Concrete forms: 230
-- Consumer-discoverable forms: 221
+- Command paths: 67
+- Concrete forms: 231
+- Consumer-discoverable forms: 222
 - Internal/transitional command paths: 1
-- Mutating or conditionally mutating forms: 129
+- Mutating or conditionally mutating forms: 130
 - Forms with unspecified mutability metadata: 0
-- Forms with JSON output path: 225
-- Forms with dry-run support: 37
+- Forms with JSON output path: 226
+- Forms with dry-run support: 38
 
 ## Capability Group Counts
 
@@ -43,7 +43,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | Diagnostics/debug | 6 |
 | Operator input | 8 |
 | Operator messaging | 10 |
-| Overlay/display | 37 |
+| Overlay/display | 38 |
 | Pointer and keyboard | 9 |
 | Runtime/service | 17 |
 | Saved workspace | 6 |
@@ -106,6 +106,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `scene extension scaffold` | 1 | Overlay/display | yes | mutates | --json | `manifests/commands/source/aos/39-scene.json` | `node $AOS_REPO_ROOT/scripts/aos-scene.mjs extension scaffold` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene extension install` | 1 | Overlay/display | yes | mutates | --json | `manifests/commands/source/aos/39-scene.json` | `node $AOS_REPO_ROOT/scripts/aos-scene.mjs extension install` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene extension list` | 1 | Overlay/display | yes | read-only | --json | `manifests/commands/source/aos/39-scene.json` | `node $AOS_REPO_ROOT/scripts/aos-scene.mjs extension list` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `scene effect trigger` | 1 | Overlay/display | yes | mutates | --json | `manifests/commands/source/aos/39-scene.json` | `node $AOS_REPO_ROOT/scripts/aos-scene.mjs effect trigger` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene list` | 1 | Overlay/display | yes | read-only | --json | `manifests/commands/source/aos/39-scene.json` | `node $AOS_REPO_ROOT/scripts/aos-scene.mjs list` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene inspect` | 1 | Overlay/display | yes | read-only | --json | `manifests/commands/source/aos/39-scene.json` | `node $AOS_REPO_ROOT/scripts/aos-scene.mjs inspect` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene monitor` | 1 | Overlay/display | yes | read-only | --json | `manifests/commands/source/aos/39-scene.json` | `node $AOS_REPO_ROOT/scripts/aos-scene.mjs monitor` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
@@ -342,6 +343,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `scene extension scaffold` | `scene-extension-scaffold` | Overlay/display | yes | mutates | --json | no | `manifests/commands/source/aos/39-scene.json` | `node $AOS_REPO_ROOT/scripts/aos-scene.mjs extension scaffold` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene extension install` | `scene-extension-install` | Overlay/display | yes | mutates | --json | no | `manifests/commands/source/aos/39-scene.json` | `node $AOS_REPO_ROOT/scripts/aos-scene.mjs extension install` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene extension list` | `scene-extension-list` | Overlay/display | yes | read-only | --json | no | `manifests/commands/source/aos/39-scene.json` | `node $AOS_REPO_ROOT/scripts/aos-scene.mjs extension list` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `scene effect trigger` | `scene-effect-trigger` | Overlay/display | yes | mutates | --json | yes | `manifests/commands/source/aos/39-scene.json` | `node $AOS_REPO_ROOT/scripts/aos-scene.mjs effect trigger` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene list` | `scene-list` | Overlay/display | yes | read-only | --json | no | `manifests/commands/source/aos/39-scene.json` | `node $AOS_REPO_ROOT/scripts/aos-scene.mjs list` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene inspect` | `scene-inspect` | Overlay/display | yes | read-only | --json | no | `manifests/commands/source/aos/39-scene.json` | `node $AOS_REPO_ROOT/scripts/aos-scene.mjs inspect` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene monitor` | `scene-monitor` | Overlay/display | yes | read-only | --json | no | `manifests/commands/source/aos/39-scene.json` | `node $AOS_REPO_ROOT/scripts/aos-scene.mjs monitor` | `docs/api/aos.md, docs/api/aos-capabilities.md` |

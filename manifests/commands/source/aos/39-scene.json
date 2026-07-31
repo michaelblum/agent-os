@@ -115,6 +115,34 @@
       "examples":["aos scene extension list --json"]
     }]
   }, {
+    "path": ["scene", "effect", "trigger"],
+    "summary": "Trigger one reviewed consumer effect without posting system input",
+    "forms": [{
+      "id": "scene-effect-trigger",
+      "usage": "aos scene effect trigger --owner <id> --resource <id> --affordance <id> --interaction <id> --phase <phase> --origin <x,y> --current <x,y> --pointer-session <id> --sequence <n> --expected-revision <n> --expected-program <id> --expected-program-revision <n> --expected-program-digest <sha256> [--dry-run] --json",
+      "args": [
+        {"id":"owner","kind":"flag","token":"--owner","value_type":"string","required":true,"summary":"Exact scene owner identifier"},
+        {"id":"resource","kind":"flag","token":"--resource","value_type":"string","required":true,"summary":"Exact owner-scoped scene resource identifier"},
+        {"id":"affordance","kind":"flag","token":"--affordance","value_type":"string","required":true,"summary":"Exact active affordance identifier"},
+        {"id":"interaction","kind":"flag","token":"--interaction","value_type":"string","required":true,"summary":"Exact consumer interaction identifier"},
+        {"id":"phase","kind":"flag","token":"--phase","value_type":"string","required":true,"summary":"Pointer_down, start, update, end, or cancel"},
+        {"id":"origin","kind":"flag","token":"--origin","value_type":"string","required":true,"summary":"DesktopWorld origin as x,y"},
+        {"id":"current","kind":"flag","token":"--current","value_type":"string","required":true,"summary":"DesktopWorld current point as x,y"},
+        {"id":"pointer_session","kind":"flag","token":"--pointer-session","value_type":"string","required":true,"summary":"Bounded proof pointer-session identifier"},
+        {"id":"sequence","kind":"flag","token":"--sequence","value_type":"int","required":true,"summary":"Positive event sequence"},
+        {"id":"expected_revision","kind":"flag","token":"--expected-revision","value_type":"int","required":true,"summary":"Exact committed resource revision"},
+        {"id":"expected_program","kind":"flag","token":"--expected-program","value_type":"string","required":true,"summary":"Exact reviewed effect program identifier"},
+        {"id":"expected_program_revision","kind":"flag","token":"--expected-program-revision","value_type":"int","required":true,"summary":"Exact reviewed effect program revision"},
+        {"id":"expected_program_digest","kind":"flag","token":"--expected-program-digest","value_type":"string","required":true,"summary":"Exact reviewed effect program SHA-256"},
+        {"id":"dry_run","kind":"flag","token":"--dry-run","value_type":"bool","required":false,"summary":"Validate the exact reviewed effect binding without triggering it"},
+        {"id":"json","kind":"flag","token":"--json","value_type":"bool","required":true,"summary":"Emit a bounded content-free result"}
+      ],
+      "stdin":{"supported":false,"content_type":null,"used_when":"never"},
+      "output":{"default_mode":"json","error_mode":"json_stderr","streaming":false,"supports_json_flag":true},
+      "execution":{"auto_starts_daemon":true,"interactive":false,"mutates_state":true,"read_only":false,"requires_permissions":true,"streaming":false,"supports_dry_run":true},
+      "examples":["aos scene effect trigger --owner example.consumer --resource companion/main --affordance companion-body --interaction companion-fast-travel --phase pointer_down --origin 400,300 --current 400,300 --pointer-session proof-1 --sequence 1 --expected-revision 2 --expected-program example.effect.ripple --expected-program-revision 1 --expected-program-digest aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --dry-run --json"]
+    }]
+  }, {
     "path": ["scene", "list"],
     "summary": "List bounded DesktopWorld scene resources",
     "forms": [{

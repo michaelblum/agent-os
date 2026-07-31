@@ -29,6 +29,17 @@ struct AOSDesktopWorldNativeFeedbackInstallation {
     let runtime: AOSDesktopWorldNativeFeedbackRuntime
 }
 
+enum AOSDesktopWorldNativeFeedbackPreparedAdmission {
+    case gesture(
+        AOSDesktopWorldNativeEffectGestureEvent,
+        replacement: AOSDesktopWorldNativeEffectRequest?
+    )
+    case trigger(
+        AOSDesktopWorldNativeEffectRequest,
+        configuration: AOSDesktopFrameWarmConfiguration
+    )
+}
+
 enum AOSDesktopWorldNativeFeedbackInstallationOutcome {
     case installed(AOSDesktopWorldNativeFeedbackInstallation)
     case rollbackRequired(
