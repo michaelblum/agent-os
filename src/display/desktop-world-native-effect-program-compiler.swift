@@ -6,6 +6,8 @@ enum AOSDesktopWorldNativeEffectProgramCompiler {
     static let uniformPrefixCountV2 = 17
 
     private struct ExpressionContext {
+        let stateGradient: String?
+        let stateHeight: String?
         let surfacePosition: String?
         let surfaceSize: String
         let surfaceUV: String
@@ -23,7 +25,7 @@ enum AOSDesktopWorldNativeEffectProgramCompiler {
     ) -> String? {
         switch program.version {
         case .v1: return sourceV1(for: program)
-        case .v2: return sourceV2(for: program)
+        case .v2, .v3: return sourceV2OrV3(for: program)
         }
     }
 
@@ -45,7 +47,7 @@ enum AOSDesktopWorldNativeEffectProgramCompiler {
             0,
         ]
         let geometry: [Float]
-        if instance.program.version == .v2 {
+        if instance.program.version != .v1 {
             geometry = [
                 Float(segmentBounds.origin.x), Float(segmentBounds.origin.y),
                 Float(globalBounds.origin.x), Float(globalBounds.origin.y),
@@ -62,6 +64,8 @@ enum AOSDesktopWorldNativeEffectProgramCompiler {
     ) -> String? {
         let parameterIndexes = parameterIndexes(for: program)
         let context = ExpressionContext(
+            stateGradient: nil,
+            stateHeight: nil,
             surfacePosition: nil,
             surfaceSize: "float2(uniforms[8], uniforms[9])",
             surfaceUV: "input.uv",
@@ -142,7 +146,7 @@ fragment float4 desktopWorldNativeProgramFragment(
 """#
     }
 
-    private static func sourceV2(
+    private static func sourceV2OrV3(
         for program: AOSDesktopWorldNativeEffectProgram
     ) -> String? {
         guard let material = program.material,
@@ -150,7 +154,24 @@ fragment float4 desktopWorldNativeProgramFragment(
             return nil
         }
         let parameterIndexes = parameterIndexes(for: program)
+        let stateful = program.version == .v3
+        let stateFunctionParameter = stateful
+            ? ", texture2d<float> stateTexture"
+            : ""
+        let stateFunctionArgument = stateful ? ", stateTexture" : ""
+        let stateVertexParameter = stateful
+            ? ", texture2d<float> stateTexture [[texture(0)]]"
+            : ""
+        let stateFragmentParameter = stateful
+            ? ", texture2d<float> stateTexture [[texture(1)]]"
+            : ""
         let context = ExpressionContext(
+            stateGradient: stateful
+                ? "sampleNativeEffectStateGradient(surfaceUV, stateTexture, float2(uniforms[15], uniforms[16]))"
+                : nil,
+            stateHeight: stateful
+                ? "sampleNativeEffectStateHeight(surfaceUV, stateTexture)"
+                : nil,
             surfacePosition: "surfacePosition",
             surfaceSize: "float2(uniforms[15], uniforms[16])",
             surfaceUV: "surfaceUV",
@@ -226,22 +247,48 @@ safeNormalize(input.normal).xy * \#(scalar(material.refraction)) / segmentSize
             : #"""
     float sampleDistance = \#(scalar(material.normalSampleDistance));
     float3 tangentX = deformedPosition(
-        worldPosition + float2(sampleDistance, 0.0), uniforms
+        worldPosition + float2(sampleDistance, 0.0), uniforms\#(stateFunctionArgument)
     ) - deformedPosition(
-        worldPosition - float2(sampleDistance, 0.0), uniforms
+        worldPosition - float2(sampleDistance, 0.0), uniforms\#(stateFunctionArgument)
     );
     float3 tangentY = deformedPosition(
-        worldPosition + float2(0.0, sampleDistance), uniforms
+        worldPosition + float2(0.0, sampleDistance), uniforms\#(stateFunctionArgument)
     ) - deformedPosition(
-        worldPosition - float2(0.0, sampleDistance), uniforms
+        worldPosition - float2(0.0, sampleDistance), uniforms\#(stateFunctionArgument)
     );
     float3 surfaceNormal = safeNormalize(cross(tangentX, tangentY));
 """#
+        let stateHelpers = stateful ? #"""
+constexpr sampler stateSampleFilter(address::clamp_to_edge, filter::linear);
+
+float sampleNativeEffectStateHeight(
+    float2 surfaceUV,
+    texture2d<float> stateTexture
+) {
+    return stateTexture.sample(stateSampleFilter, clamp(surfaceUV, 0.0, 1.0)).r;
+}
+
+float2 sampleNativeEffectStateGradient(
+    float2 surfaceUV,
+    texture2d<float> stateTexture,
+    float2 surfaceSize
+) {
+    float2 dimensions = max(float2(stateTexture.get_width(), stateTexture.get_height()), float2(1.0));
+    float2 texel = 1.0 / dimensions;
+    float2 worldTexel = max(surfaceSize / dimensions, float2(0.0001));
+    float left = sampleNativeEffectStateHeight(surfaceUV - float2(texel.x, 0.0), stateTexture);
+    float right = sampleNativeEffectStateHeight(surfaceUV + float2(texel.x, 0.0), stateTexture);
+    float top = sampleNativeEffectStateHeight(surfaceUV - float2(0.0, texel.y), stateTexture);
+    float bottom = sampleNativeEffectStateHeight(surfaceUV + float2(0.0, texel.y), stateTexture);
+    return float2(right - left, bottom - top) / (2.0 * worldTexel);
+}
+"""# : ""
         return #"""
 #include <metal_stdlib>
 using namespace metal;
 
 \#(commonMetalSource)
+\#(stateHelpers)
 
 struct NativeEffectFragmentEvaluation {
     float opacity;
@@ -265,7 +312,7 @@ float3 evaluateNativePositionOffset(
     float2 worldPosition,
     float2 surfaceUV,
     float3 surfacePosition,
-    constant float *uniforms
+    constant float *uniforms\#(stateFunctionParameter)
 ) {
 \#(positionGraph.statements)
     float3 output = \#(positionOffset);
@@ -283,7 +330,7 @@ NativeEffectFragmentEvaluation evaluateNativeFragment(
     float2 worldPosition,
     float2 surfaceUV,
     float3 surfacePosition,
-    constant float *uniforms
+    constant float *uniforms\#(stateFunctionParameter)
 ) {
 \#(fragmentGraph.statements)
     NativeEffectFragmentEvaluation output;
@@ -300,24 +347,28 @@ NativeEffectFragmentEvaluation evaluateNativeFragment(
     return output;
 }
 
-float3 deformedPosition(float2 worldPosition, constant float *uniforms) {
+float3 deformedPosition(
+    float2 worldPosition,
+    constant float *uniforms\#(stateFunctionParameter)
+) {
     float3 basePosition = float3(worldPosition, 0.0);
     return basePosition + evaluateNativePositionOffset(
         worldPosition,
         globalSurfaceUV(worldPosition, uniforms),
         basePosition,
-        uniforms
+        uniforms\#(stateFunctionArgument)
     );
 }
 
 vertex NativeEffectVertexOut desktopWorldNativeProgramVertex(
     const device NativeSheetVertex *vertices [[buffer(0)]],
     constant float *uniforms [[buffer(1)]],
+    \#(stateVertexParameter.isEmpty ? "" : String(stateVertexParameter.dropFirst(2)) + ",")
     uint vertexID [[vertex_id]]
 ) {
     NativeSheetVertex sheetVertex = vertices[vertexID];
     float2 worldPosition = sheetVertex.worldAndUV.xy;
-    float3 deformed = deformedPosition(worldPosition, uniforms);
+    float3 deformed = deformedPosition(worldPosition, uniforms\#(stateFunctionArgument));
 \#(normalComputation)
     float2 globalOrigin = float2(uniforms[13], uniforms[14]);
     float2 globalSize = max(float2(uniforms[15], uniforms[16]), float2(1.0));
@@ -348,6 +399,7 @@ vertex NativeEffectVertexOut desktopWorldNativeProgramVertex(
 fragment float4 desktopWorldNativeProgramFragment(
     NativeEffectVertexOut input [[stage_in]],
     texture2d<float> desktop [[texture(0)]],
+    \#(stateFragmentParameter.isEmpty ? "" : String(stateFragmentParameter.dropFirst(2)) + ",")
     constant float *uniforms [[buffer(0)]]
 ) {
     constexpr sampler sampleFilter(address::clamp_to_edge, filter::linear);
@@ -356,7 +408,7 @@ fragment float4 desktopWorldNativeProgramFragment(
         input.worldPosition,
         globalSurfaceUV(input.worldPosition, uniforms),
         surfacePosition,
-        uniforms
+        uniforms\#(stateFunctionArgument)
     );
     if (evaluation.opacity < 0.001) {
         discard_fragment();
@@ -495,6 +547,8 @@ fragment float4 desktopWorldNativeProgramFragment(
         case "event.delta": return "float2(uniforms[4], uniforms[5])"
         case "event.origin": return "float2(uniforms[0], uniforms[1])"
         case "event.total_delta": return "float2(uniforms[6], uniforms[7])"
+        case "state.gradient": return context.stateGradient
+        case "state.height": return context.stateHeight
         case "surface.position": return context.surfacePosition
         case "surface.size": return context.surfaceSize
         case "surface.uv": return context.surfaceUV
@@ -515,10 +569,11 @@ fragment float4 desktopWorldNativeProgramFragment(
         if reference.hasPrefix("parameter.") || reference == "clock.elapsed" {
             return .scalar
         }
+        if reference == "state.height" { return .scalar }
         if reference == "surface.position" { return .vector3 }
         if [
             "event.current", "event.delta", "event.origin", "event.total_delta",
-            "surface.size", "surface.uv", "world.position",
+            "state.gradient", "surface.size", "surface.uv", "world.position",
         ].contains(reference) {
             return .vector2
         }

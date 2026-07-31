@@ -703,9 +703,47 @@ export interface SceneNativeEffectProgramV2 {
   material: SceneNativeEffectProgramMaterial;
 }
 
+export interface SceneNativeEffectHeightFieldLobe {
+  offsetRadiusScale: number;
+  radiusScale: number;
+  strengthScale: number;
+}
+
+export interface SceneNativeEffectHeightFieldState {
+  kind: 'damped_height_field';
+  maxDimension: number;
+  minDimension: number;
+  fixedStepHz: number;
+  maxSubsteps: number;
+  edgeAbsorptionCells: number;
+  dampingParameter: string;
+  propagationParameter: string;
+  surfaceTensionParameter: string;
+  emitter: {
+    kind: 'swept_brush';
+    durationParameter: string;
+    pressureParameter: string;
+    radiusParameter: string;
+    leadParameter: string;
+    spacingRadiusScale: number;
+    speedReference: number;
+    speedScaleMin: number;
+    speedScaleMax: number;
+    lobes: SceneNativeEffectHeightFieldLobe[];
+  };
+}
+
+export interface SceneNativeEffectProgramV3
+  extends Omit<SceneNativeEffectProgramV2, 'contract' | 'schemaVersion'> {
+  contract: 'aos.scene.native-effect-program.v3';
+  schemaVersion: 3;
+  state: SceneNativeEffectHeightFieldState;
+}
+
 export type SceneNativeEffectProgram =
   | SceneNativeEffectProgramV1
-  | SceneNativeEffectProgramV2;
+  | SceneNativeEffectProgramV2
+  | SceneNativeEffectProgramV3;
 
 export type SceneNativeEffectPointerDownTrigger = {
   input: 'pointer_down';
@@ -784,9 +822,11 @@ export type SceneNativeEffectDescriptorList =
 
 export const SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID: 'aos.scene.native-effect-program.v1';
 export const SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID: 'aos.scene.native-effect-program.v2';
+export const SCENE_NATIVE_EFFECT_PROGRAM_V3_CONTRACT_ID: 'aos.scene.native-effect-program.v3';
 export const SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_IDS: readonly [
   typeof SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID,
   typeof SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID,
+  typeof SCENE_NATIVE_EFFECT_PROGRAM_V3_CONTRACT_ID,
 ];
 export const SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION: 'aos.scene.effect.program';
 export const SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID: 'aos.scene.native-effect-glsl.v1';
@@ -796,7 +836,10 @@ export const SCENE_NATIVE_EFFECT_PROGRAM_LIMITS: Readonly<{
   maxDurationMs: 3000;
   maxGeometryCellSize: 64;
   maxGeometryPadding: 512;
-  maxGeometryRadius: 2048;
+  maxHeightFieldDimension: 256;
+  maxHeightFieldLobes: 4;
+  maxHeightFieldSubsteps: 4;
+  maxGeometryExtent: 5000;
   maxNodes: 64;
   maxNormalSampleDistance: 64;
   maxParameters: 16;
@@ -808,6 +851,7 @@ export const SCENE_NATIVE_EFFECT_PROGRAM_LIMITS: Readonly<{
   maxTranscendentalOperations: 16;
   minDurationMs: 100;
   minGeometryCellSize: 2;
+  minHeightFieldDimension: 32;
   minNormalSampleDistance: 0.25;
   minPerspectiveDistance: 256;
 }>;

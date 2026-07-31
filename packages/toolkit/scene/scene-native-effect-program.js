@@ -5,9 +5,11 @@ import {
 
 export const SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID = 'aos.scene.native-effect-program.v1'
 export const SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID = 'aos.scene.native-effect-program.v2'
+export const SCENE_NATIVE_EFFECT_PROGRAM_V3_CONTRACT_ID = 'aos.scene.native-effect-program.v3'
 export const SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_IDS = Object.freeze([
   SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID,
   SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID,
+  SCENE_NATIVE_EFFECT_PROGRAM_V3_CONTRACT_ID,
 ])
 export const SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION = 'aos.scene.effect.program'
 export const SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID = 'aos.scene.native-effect-glsl.v1'
@@ -18,6 +20,9 @@ export const SCENE_NATIVE_EFFECT_PROGRAM_LIMITS = Object.freeze({
   maxGeometryCellSize: 64,
   maxGeometryExtent: 5_000,
   maxGeometryPadding: 512,
+  maxHeightFieldDimension: 256,
+  maxHeightFieldLobes: 4,
+  maxHeightFieldSubsteps: 4,
   maxDurationMs: 3_000,
   maxNodes: 64,
   maxNormalSampleDistance: 64,
@@ -30,6 +35,7 @@ export const SCENE_NATIVE_EFFECT_PROGRAM_LIMITS = Object.freeze({
   maxTranscendentalOperations: 16,
   minDurationMs: 100,
   minGeometryCellSize: 2,
+  minHeightFieldDimension: 32,
   minNormalSampleDistance: 0.25,
   minPerspectiveDistance: 256,
 })
@@ -336,6 +342,118 @@ function validateGeometry(geometry, errors) {
   }
 }
 
+function validateHeightFieldParameter(value, path, types, errors) {
+  if (typeof value !== 'string' || types.get(`parameter.${value}`) !== 'scalar') {
+    addError(errors, 'invalid_native_effect_height_field_parameter', path, 'Height-field controls must reference declared scalar parameters.')
+  }
+}
+
+function validateHeightFieldParameterRange(value, path, parameters, minimum, maximum, errors) {
+  const parameter = parameters.get(value)
+  if (!parameter || parameter.min < minimum || parameter.max > maximum) {
+    addError(errors, 'invalid_native_effect_height_field_parameter_range', path, 'Height-field parameter bounds exceed the engine model.')
+  }
+}
+
+function validateHeightField(state, types, parameters, errors) {
+  const path = 'program.state'
+  if (!isSceneRecord(state)) {
+    addError(errors, 'invalid_native_effect_state', path, 'V3 native effect programs require a bounded state declaration.')
+    return
+  }
+  exactKeys(state, new Set([
+    'dampingParameter', 'edgeAbsorptionCells', 'emitter', 'fixedStepHz',
+    'kind', 'maxDimension', 'maxSubsteps', 'minDimension',
+    'propagationParameter', 'surfaceTensionParameter',
+  ]), path, errors)
+  if (state.kind !== 'damped_height_field') {
+    addError(errors, 'invalid_native_effect_state_kind', `${path}.kind`, 'Native effect state kind is unsupported.')
+  }
+  if (!Number.isInteger(state.maxDimension)
+      || state.maxDimension < SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.minHeightFieldDimension
+      || state.maxDimension > SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxHeightFieldDimension
+      || !Number.isInteger(state.minDimension)
+      || state.minDimension < SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.minHeightFieldDimension
+      || state.minDimension > state.maxDimension) {
+    addError(errors, 'invalid_native_effect_height_field_dimensions', path, 'Height-field dimensions must stay within the engine bounds.')
+  }
+  if (!Number.isInteger(state.fixedStepHz) || state.fixedStepHz < 30 || state.fixedStepHz > 120) {
+    addError(errors, 'invalid_native_effect_height_field_rate', `${path}.fixedStepHz`, 'Height-field fixed-step rate must be between 30 and 120 Hz.')
+  }
+  if (!Number.isInteger(state.maxSubsteps)
+      || state.maxSubsteps < 1
+      || state.maxSubsteps > SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxHeightFieldSubsteps) {
+    addError(errors, 'invalid_native_effect_height_field_substeps', `${path}.maxSubsteps`, 'Height-field substeps exceed the engine limit.')
+  }
+  if (!Number.isInteger(state.edgeAbsorptionCells)
+      || state.edgeAbsorptionCells < 0
+      || state.edgeAbsorptionCells > 32) {
+    addError(errors, 'invalid_native_effect_height_field_edge', `${path}.edgeAbsorptionCells`, 'Height-field edge absorption is outside the engine bounds.')
+  }
+  for (const field of ['dampingParameter', 'propagationParameter', 'surfaceTensionParameter']) {
+    validateHeightFieldParameter(state[field], `${path}.${field}`, types, errors)
+  }
+  validateHeightFieldParameterRange(state.dampingParameter, `${path}.dampingParameter`, parameters, 0.01, 8, errors)
+  validateHeightFieldParameterRange(state.propagationParameter, `${path}.propagationParameter`, parameters, 0.01, 0.36, errors)
+  validateHeightFieldParameterRange(state.surfaceTensionParameter, `${path}.surfaceTensionParameter`, parameters, 0, 0.04, errors)
+
+  const emitter = state.emitter
+  const emitterPath = `${path}.emitter`
+  if (!isSceneRecord(emitter)) {
+    addError(errors, 'invalid_native_effect_height_field_emitter', emitterPath, 'Height-field programs require one bounded swept-brush emitter.')
+    return
+  }
+  exactKeys(emitter, new Set([
+    'durationParameter', 'kind', 'leadParameter', 'lobes', 'pressureParameter',
+    'radiusParameter', 'spacingRadiusScale', 'speedReference', 'speedScaleMax',
+    'speedScaleMin',
+  ]), emitterPath, errors)
+  if (emitter.kind !== 'swept_brush') {
+    addError(errors, 'invalid_native_effect_height_field_emitter_kind', `${emitterPath}.kind`, 'Height-field emitter kind is unsupported.')
+  }
+  for (const field of ['durationParameter', 'leadParameter', 'pressureParameter', 'radiusParameter']) {
+    validateHeightFieldParameter(emitter[field], `${emitterPath}.${field}`, types, errors)
+  }
+  validateHeightFieldParameterRange(emitter.durationParameter, `${emitterPath}.durationParameter`, parameters, 0.05, 3, errors)
+  validateHeightFieldParameterRange(emitter.leadParameter, `${emitterPath}.leadParameter`, parameters, 0, 4, errors)
+  validateHeightFieldParameterRange(emitter.pressureParameter, `${emitterPath}.pressureParameter`, parameters, 0, 4, errors)
+  validateHeightFieldParameterRange(emitter.radiusParameter, `${emitterPath}.radiusParameter`, parameters, 4, 512, errors)
+  for (const [field, minimum, maximum] of [
+    ['spacingRadiusScale', 0.05, 2],
+    ['speedReference', 0.01, 10_000],
+    ['speedScaleMin', 0, 8],
+    ['speedScaleMax', 0, 8],
+  ]) {
+    if (!finiteScalar(emitter[field]) || emitter[field] < minimum || emitter[field] > maximum) {
+      addError(errors, 'invalid_native_effect_height_field_emitter_scalar', `${emitterPath}.${field}`, 'Height-field emitter scalar is outside the engine bounds.')
+    }
+  }
+  if (finiteScalar(emitter.speedScaleMin)
+      && finiteScalar(emitter.speedScaleMax)
+      && emitter.speedScaleMin > emitter.speedScaleMax) {
+    addError(errors, 'invalid_native_effect_height_field_speed_scale', emitterPath, 'Height-field emitter speed scale bounds are reversed.')
+  }
+  if (!Array.isArray(emitter.lobes)
+      || emitter.lobes.length < 1
+      || emitter.lobes.length > SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxHeightFieldLobes) {
+    addError(errors, 'invalid_native_effect_height_field_lobes', `${emitterPath}.lobes`, 'Height-field emitter lobe count is outside the engine bounds.')
+    return
+  }
+  emitter.lobes.forEach((lobe, index) => {
+    const lobePath = `${emitterPath}.lobes.${index}`
+    if (!isSceneRecord(lobe)) {
+      addError(errors, 'invalid_native_effect_height_field_lobe', lobePath, 'Height-field emitter lobes must be bounded declarations.')
+      return
+    }
+    exactKeys(lobe, new Set(['offsetRadiusScale', 'radiusScale', 'strengthScale']), lobePath, errors)
+    if (!finiteScalar(lobe.offsetRadiusScale) || Math.abs(lobe.offsetRadiusScale) > 4
+        || !finiteScalar(lobe.radiusScale) || lobe.radiusScale <= 0 || lobe.radiusScale > 4
+        || !finiteScalar(lobe.strengthScale) || Math.abs(lobe.strengthScale) > 4) {
+      addError(errors, 'invalid_native_effect_height_field_lobe', lobePath, 'Height-field emitter lobe values are outside the engine bounds.')
+    }
+  })
+}
+
 export function validateSceneNativeEffectProgram(program) {
   const errors = []
   if (!isSceneRecord(program)) {
@@ -350,10 +468,14 @@ export function validateSceneNativeEffectProgram(program) {
   }
   const version = program.contract === SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID
     ? 1
-    : program.contract === SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID ? 2 : null
-  const allowVector3 = version === 2
+    : program.contract === SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID
+      ? 2
+      : program.contract === SCENE_NATIVE_EFFECT_PROGRAM_V3_CONTRACT_ID ? 3 : null
+  const allowVector3 = version === 2 || version === 3
+  const stateful = version === 3
   exactKeys(program, new Set([
     'contract', 'durationMs', 'id', ...(allowVector3 ? ['geometry', 'material'] : []),
+    ...(stateful ? ['state'] : []),
     'nodes', 'outputs', 'parameters', 'revision', 'schemaVersion',
   ]), 'program', errors)
   if (!version) addError(errors, 'invalid_native_effect_program_contract', 'program.contract', 'Native effect program contract is unsupported.')
@@ -367,11 +489,21 @@ export function validateSceneNativeEffectProgram(program) {
   }
 
   const types = new Map(BUILTIN_TYPES)
+  const parameterDeclarations = new Map()
   if (!allowVector3) types.delete('surface.position')
+  if (stateful) {
+    types.set('state.gradient', 'vec2')
+    types.set('state.height', 'scalar')
+  }
   if (!Array.isArray(program.parameters) || program.parameters.length > SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxParameters) {
     addError(errors, 'invalid_native_effect_parameter_count', 'program.parameters', 'Native effect programs exceed the parameter limit.')
   } else {
-    program.parameters.forEach((entry, index) => validateParameter(entry, index, types, errors))
+    program.parameters.forEach((entry, index) => {
+      validateParameter(entry, index, types, errors)
+      if (isSceneRecord(entry) && typeof entry.id === 'string') {
+        parameterDeclarations.set(entry.id, entry)
+      }
+    })
   }
   if (!Array.isArray(program.nodes) || program.nodes.length < 1 || program.nodes.length > SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxNodes) {
     addError(errors, 'invalid_native_effect_node_count', 'program.nodes', 'Native effect programs require a bounded node graph.')
@@ -404,6 +536,7 @@ export function validateSceneNativeEffectProgram(program) {
     if (program.geometry !== undefined) validateGeometry(program.geometry, errors)
     validateMaterial(program.material, errors)
   }
+  if (stateful) validateHeightField(program.state, types, parameterDeclarations, errors)
   return { ok: errors.length === 0, errors }
 }
 
@@ -552,6 +685,8 @@ function glslReference(reference, variables, parameterIndexes) {
     'surface.position': 'surfacePosition',
     'surface.size': 'aosEffectSurfaceSize',
     'surface.uv': 'surfaceUV',
+    'state.gradient': 'aosEffectStateGradient',
+    'state.height': 'aosEffectStateHeight',
     'world.position': 'worldPosition',
   }
   if (builtins[reference]) return builtins[reference]
@@ -653,6 +788,10 @@ export function compileSceneNativeEffectProgramGLSL(program) {
   const version = program.schemaVersion
   const types = new Map(BUILTIN_TYPES)
   if (version === 1) types.delete('surface.position')
+  if (version === 3) {
+    types.set('state.gradient', 'vec2')
+    types.set('state.height', 'scalar')
+  }
   const parameterIndexes = new Map(program.parameters.map((entry, index) => [entry.id, index]))
   program.parameters.forEach((entry) => types.set(`parameter.${entry.id}`, 'scalar'))
   const variables = new Map()
@@ -661,8 +800,8 @@ export function compileSceneNativeEffectProgramGLSL(program) {
     const reference = `node.${node.id}`
     const inputTypes = node.op === 'constant' ? [] : node.inputs.map((entry) => types.get(entry))
     const type = node.op === 'constant'
-      ? constantType(node.value, version === 2)
-      : inferOperatorType(node.op, inputTypes, version === 2)
+      ? constantType(node.value, version >= 2)
+      : inferOperatorType(node.op, inputTypes, version >= 2)
     const inputs = node.op === 'constant'
       ? []
       : node.inputs.map((entry) => glslReference(entry, variables, parameterIndexes))
@@ -675,11 +814,11 @@ export function compileSceneNativeEffectProgramGLSL(program) {
     variables.set(reference, variable)
     types.set(reference, type)
   })
-  const positionOffset = version === 2
+  const positionOffset = version >= 2
     ? glslReference(program.outputs.positionOffset, variables, parameterIndexes)
     : 'vec3(0.0)'
   const textureDisplacement = glslReference(
-    version === 2 ? program.outputs.textureDisplacement : program.outputs.displacement,
+    version >= 2 ? program.outputs.textureDisplacement : program.outputs.displacement,
     variables,
     parameterIndexes,
   )
@@ -696,6 +835,7 @@ uniform vec2 aosEffectEventOrigin;
 uniform vec2 aosEffectEventTotalDelta;
 uniform vec2 aosEffectSurfaceSize;
 uniform float aosEffectParameters[${parameterCount}];
+${version === 3 ? 'uniform sampler2D aosEffectStateTexture;' : ''}
 
 struct AosNativeEffectEvaluation {
   vec3 positionOffset;
@@ -708,6 +848,18 @@ AosNativeEffectEvaluation aosEvaluateNativeEffect(
   vec2 surfaceUV,
   vec3 surfacePosition
 ) {
+${version === 3 ? `  vec2 aosEffectStateTexel = 1.0 / vec2(textureSize(aosEffectStateTexture, 0));
+  vec2 aosEffectStateWorldTexel = max(
+    aosEffectSurfaceSize / vec2(textureSize(aosEffectStateTexture, 0)),
+    vec2(0.0001)
+  );
+  float aosEffectStateHeight = texture(aosEffectStateTexture, surfaceUV).r;
+  vec2 aosEffectStateGradient = vec2(
+    texture(aosEffectStateTexture, surfaceUV + vec2(aosEffectStateTexel.x, 0.0)).r
+      - texture(aosEffectStateTexture, surfaceUV - vec2(aosEffectStateTexel.x, 0.0)).r,
+    texture(aosEffectStateTexture, surfaceUV + vec2(0.0, aosEffectStateTexel.y)).r
+      - texture(aosEffectStateTexture, surfaceUV - vec2(0.0, aosEffectStateTexel.y)).r
+  ) / (2.0 * aosEffectStateWorldTexel);` : ''}
 ${statements.join('\n')}
   AosNativeEffectEvaluation result;
   vec3 aosRawPositionOffset = ${positionOffset};
@@ -724,9 +876,9 @@ ${statements.join('\n')}
 }`
   return freeze({
     contract: SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID,
-    geometry: version === 2 && program.geometry ? clone(program.geometry) : null,
+    geometry: version >= 2 && program.geometry ? clone(program.geometry) : null,
     schemaVersion: 1,
-    material: version === 2 ? clone(program.material) : null,
+    material: version >= 2 ? clone(program.material) : null,
     parameterIds: program.parameters.map((entry) => entry.id),
     source,
   })

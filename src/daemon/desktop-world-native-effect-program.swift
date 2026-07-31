@@ -54,6 +54,7 @@ struct AOSDesktopWorldNativeEffectProgramNode: Equatable {
 enum AOSDesktopWorldNativeEffectProgramVersion: Int, Equatable {
     case v1 = 1
     case v2 = 2
+    case v3 = 3
 }
 
 struct AOSDesktopWorldNativeEffectProgramMaterial: Equatable {
@@ -89,9 +90,40 @@ struct AOSDesktopWorldNativeEffectProgramGeometry: Equatable {
     let padding: Double
 }
 
+struct AOSDesktopWorldNativeEffectHeightFieldLobe: Equatable {
+    let offsetRadiusScale: Double
+    let radiusScale: Double
+    let strengthScale: Double
+}
+
+struct AOSDesktopWorldNativeEffectHeightFieldState: Equatable {
+    struct Emitter: Equatable {
+        let durationParameter: String
+        let leadParameter: String
+        let lobes: [AOSDesktopWorldNativeEffectHeightFieldLobe]
+        let pressureParameter: String
+        let radiusParameter: String
+        let spacingRadiusScale: Double
+        let speedReference: Double
+        let speedScaleMaximum: Double
+        let speedScaleMinimum: Double
+    }
+
+    let dampingParameter: String
+    let edgeAbsorptionCells: Int
+    let emitter: Emitter
+    let fixedStepHz: Int
+    let maximumDimension: Int
+    let maximumSubsteps: Int
+    let minimumDimension: Int
+    let propagationParameter: String
+    let surfaceTensionParameter: String
+}
+
 struct AOSDesktopWorldNativeEffectProgram: Equatable {
     static let contract = "aos.scene.native-effect-program.v1"
     static let contractV2 = "aos.scene.native-effect-program.v2"
+    static let contractV3 = "aos.scene.native-effect-program.v3"
     static let digestContract = "aos.scene.native-effect-program-digest.v1"
     static let implementation = "aos.scene.effect.program"
     static let maximumConstantMagnitude = 1_000_000.0
@@ -99,6 +131,9 @@ struct AOSDesktopWorldNativeEffectProgram: Equatable {
     static let maximumGeometryCellSize = 64.0
     static let maximumGeometryExtent = 5_000.0
     static let maximumGeometryPadding = 512.0
+    static let maximumHeightFieldDimension = 256
+    static let maximumHeightFieldLobes = 4
+    static let maximumHeightFieldSubsteps = 4
     static let maximumNodes = 64
     static let maximumNormalSampleDistance = 64.0
     static let maximumParameters = 16
@@ -110,12 +145,14 @@ struct AOSDesktopWorldNativeEffectProgram: Equatable {
     static let maximumTranscendentalOperations = 16
     static let minimumDurationMilliseconds = 100
     static let minimumGeometryCellSize = 2.0
+    static let minimumHeightFieldDimension = 32
     static let minimumNormalSampleDistance = 0.25
     static let minimumPerspectiveDistance = 256.0
 
     let digest: String
     let durationMilliseconds: Int
     let geometry: AOSDesktopWorldNativeEffectProgramGeometry?
+    let heightFieldState: AOSDesktopWorldNativeEffectHeightFieldState?
     let id: String
     let material: AOSDesktopWorldNativeEffectProgramMaterial?
     let nodes: [AOSDesktopWorldNativeEffectProgramNode]
@@ -162,18 +199,21 @@ enum AOSDesktopWorldNativeEffectProgramContract {
             version = .v1
         case AOSDesktopWorldNativeEffectProgram.contractV2:
             version = .v2
+        case AOSDesktopWorldNativeEffectProgram.contractV3:
+            version = .v3
         default:
             return nil
         }
         let expectedKeys = Set([
             "contract", "durationMs", "id", "nodes", "outputs", "parameters",
             "revision", "schemaVersion",
-        ] + (version == .v2 ? ["geometry", "material"] : []))
+        ] + (version == .v1 ? [] : ["geometry", "material"])
+          + (version == .v3 ? ["state"] : []))
         let actualKeys = Set(value.keys)
-        let requiredKeys = version == .v2
+        let requiredKeys = version != .v1
             ? expectedKeys.subtracting(["geometry"])
             : expectedKeys
-        let expectedOutputKeys = version == .v2
+        let expectedOutputKeys = version != .v1
             ? Set(["opacity", "positionOffset", "textureDisplacement"])
             : Set(["displacement", "opacity"])
         guard requiredKeys.isSubset(of: actualKeys),
@@ -195,7 +235,7 @@ enum AOSDesktopWorldNativeEffectProgramContract {
               let outputs = value["outputs"] as? [String: Any],
               Set(outputs.keys) == expectedOutputKeys,
               let displacementOutput = outputs[
-                version == .v2 ? "textureDisplacement" : "displacement"
+                version != .v1 ? "textureDisplacement" : "displacement"
               ] as? String,
               let opacityOutput = outputs["opacity"] as? String,
               transcendentalCount(rawNodes)
@@ -204,8 +244,12 @@ enum AOSDesktopWorldNativeEffectProgramContract {
         }
 
         var types = builtins
-        if version == .v2 {
+        if version != .v1 {
             types["surface.position"] = .vector3
+        }
+        if version == .v3 {
+            types["state.gradient"] = .vector2
+            types["state.height"] = .scalar
         }
         var parameters: [AOSDesktopWorldNativeEffectProgramParameter] = []
         for raw in rawParameters {
@@ -237,18 +281,26 @@ enum AOSDesktopWorldNativeEffectProgramContract {
             guard let node = parseNode(
                 raw,
                 types: &types,
-                allowVector3: version == .v2
+                allowVector3: version != .v1
             ) else { return nil }
             nodes.append(node)
         }
         let positionOffsetOutput = outputs["positionOffset"] as? String
-        let geometry = version == .v2 ? parseGeometry(value["geometry"]) : nil
-        let material = version == .v2 ? parseMaterial(value["material"]) : nil
+        let geometry = version != .v1 ? parseGeometry(value["geometry"]) : nil
+        let material = version != .v1 ? parseMaterial(value["material"]) : nil
+        let heightFieldState = version == .v3
+            ? parseHeightFieldState(
+                value["state"],
+                parameterTypes: types,
+                parameters: parameters
+            )
+            : nil
         guard types[opacityOutput] == .scalar,
               types[displacementOutput] == .vector2,
-              version != .v2 || types[positionOffsetOutput ?? ""] == .vector3,
-              version != .v2 || value["geometry"] == nil || geometry != nil,
-              version != .v2 || material != nil,
+              version == .v1 || types[positionOffsetOutput ?? ""] == .vector3,
+              version == .v1 || value["geometry"] == nil || geometry != nil,
+              version == .v1 || material != nil,
+              version != .v3 || heightFieldState != nil,
               let digest = digest(value) else {
             return nil
         }
@@ -257,6 +309,7 @@ enum AOSDesktopWorldNativeEffectProgramContract {
             digest: digest,
             durationMilliseconds: duration,
             geometry: geometry,
+            heightFieldState: heightFieldState,
             id: id,
             material: material,
             nodes: nodes,
@@ -503,6 +556,175 @@ enum AOSDesktopWorldNativeEffectProgramContract {
             roughness: roughness,
             specular: specular
         )
+    }
+
+    private static func parseHeightFieldState(
+        _ value: Any?,
+        parameterTypes: [String: AOSDesktopWorldNativeEffectValueType],
+        parameters: [AOSDesktopWorldNativeEffectProgramParameter]
+    ) -> AOSDesktopWorldNativeEffectHeightFieldState? {
+        guard let state = value as? [String: Any],
+              Set(state.keys) == Set([
+                "dampingParameter", "edgeAbsorptionCells", "emitter", "fixedStepHz",
+                "kind", "maxDimension", "maxSubsteps", "minDimension",
+                "propagationParameter", "surfaceTensionParameter",
+              ]),
+              state["kind"] as? String == "damped_height_field",
+              let maximumDimension = integer(state["maxDimension"]),
+              maximumDimension >= AOSDesktopWorldNativeEffectProgram.minimumHeightFieldDimension,
+              maximumDimension <= AOSDesktopWorldNativeEffectProgram.maximumHeightFieldDimension,
+              let minimumDimension = integer(state["minDimension"]),
+              minimumDimension >= AOSDesktopWorldNativeEffectProgram.minimumHeightFieldDimension,
+              minimumDimension <= maximumDimension,
+              let fixedStepHz = integer(state["fixedStepHz"]),
+              (30...120).contains(fixedStepHz),
+              let maximumSubsteps = integer(state["maxSubsteps"]),
+              (1...AOSDesktopWorldNativeEffectProgram.maximumHeightFieldSubsteps)
+                .contains(maximumSubsteps),
+              let edgeAbsorptionCells = integer(state["edgeAbsorptionCells"]),
+              (0...32).contains(edgeAbsorptionCells),
+              let dampingParameter = scalarParameter(
+                state["dampingParameter"], types: parameterTypes
+              ),
+              boundedParameter(
+                dampingParameter, parameters: parameters, range: 0.01...8
+              ),
+              let propagationParameter = scalarParameter(
+                state["propagationParameter"], types: parameterTypes
+              ),
+              boundedParameter(
+                propagationParameter, parameters: parameters, range: 0.01...0.36
+              ),
+              let surfaceTensionParameter = scalarParameter(
+                state["surfaceTensionParameter"], types: parameterTypes
+              ),
+              boundedParameter(
+                surfaceTensionParameter, parameters: parameters, range: 0...0.04
+              ),
+              let emitter = parseHeightFieldEmitter(
+                state["emitter"],
+                parameterTypes: parameterTypes,
+                parameters: parameters
+              ) else {
+            return nil
+        }
+        return .init(
+            dampingParameter: dampingParameter,
+            edgeAbsorptionCells: edgeAbsorptionCells,
+            emitter: emitter,
+            fixedStepHz: fixedStepHz,
+            maximumDimension: maximumDimension,
+            maximumSubsteps: maximumSubsteps,
+            minimumDimension: minimumDimension,
+            propagationParameter: propagationParameter,
+            surfaceTensionParameter: surfaceTensionParameter
+        )
+    }
+
+    private static func parseHeightFieldEmitter(
+        _ value: Any?,
+        parameterTypes: [String: AOSDesktopWorldNativeEffectValueType],
+        parameters: [AOSDesktopWorldNativeEffectProgramParameter]
+    ) -> AOSDesktopWorldNativeEffectHeightFieldState.Emitter? {
+        guard let emitter = value as? [String: Any],
+              Set(emitter.keys) == Set([
+                "durationParameter", "kind", "leadParameter", "lobes",
+                "pressureParameter", "radiusParameter", "spacingRadiusScale",
+                "speedReference", "speedScaleMax", "speedScaleMin",
+              ]),
+              emitter["kind"] as? String == "swept_brush",
+              let durationParameter = scalarParameter(
+                emitter["durationParameter"], types: parameterTypes
+              ),
+              boundedParameter(
+                durationParameter, parameters: parameters, range: 0.05...3
+              ),
+              let leadParameter = scalarParameter(
+                emitter["leadParameter"], types: parameterTypes
+              ),
+              boundedParameter(
+                leadParameter, parameters: parameters, range: 0...4
+              ),
+              let pressureParameter = scalarParameter(
+                emitter["pressureParameter"], types: parameterTypes
+              ),
+              boundedParameter(
+                pressureParameter, parameters: parameters, range: 0...4
+              ),
+              let radiusParameter = scalarParameter(
+                emitter["radiusParameter"], types: parameterTypes
+              ),
+              boundedParameter(
+                radiusParameter, parameters: parameters, range: 4...512
+              ),
+              let spacingRadiusScale = finiteDouble(emitter["spacingRadiusScale"]),
+              (0.05...2).contains(spacingRadiusScale),
+              let speedReference = finiteDouble(emitter["speedReference"]),
+              (0.01...10_000).contains(speedReference),
+              let speedScaleMinimum = finiteDouble(emitter["speedScaleMin"]),
+              (0...8).contains(speedScaleMinimum),
+              let speedScaleMaximum = finiteDouble(emitter["speedScaleMax"]),
+              (0...8).contains(speedScaleMaximum),
+              speedScaleMinimum <= speedScaleMaximum,
+              let rawLobes = emitter["lobes"] as? [[String: Any]],
+              !rawLobes.isEmpty,
+              rawLobes.count <= AOSDesktopWorldNativeEffectProgram.maximumHeightFieldLobes else {
+            return nil
+        }
+        var lobes: [AOSDesktopWorldNativeEffectHeightFieldLobe] = []
+        for raw in rawLobes {
+            guard Set(raw.keys) == Set([
+                "offsetRadiusScale", "radiusScale", "strengthScale",
+            ]),
+                  let offset = finiteDouble(raw["offsetRadiusScale"]),
+                  abs(offset) <= 4,
+                  let radius = finiteDouble(raw["radiusScale"]),
+                  radius > 0,
+                  radius <= 4,
+                  let strength = finiteDouble(raw["strengthScale"]),
+                  abs(strength) <= 4 else {
+                return nil
+            }
+            lobes.append(.init(
+                offsetRadiusScale: offset,
+                radiusScale: radius,
+                strengthScale: strength
+            ))
+        }
+        return .init(
+            durationParameter: durationParameter,
+            leadParameter: leadParameter,
+            lobes: lobes,
+            pressureParameter: pressureParameter,
+            radiusParameter: radiusParameter,
+            spacingRadiusScale: spacingRadiusScale,
+            speedReference: speedReference,
+            speedScaleMaximum: speedScaleMaximum,
+            speedScaleMinimum: speedScaleMinimum
+        )
+    }
+
+    private static func scalarParameter(
+        _ value: Any?,
+        types: [String: AOSDesktopWorldNativeEffectValueType]
+    ) -> String? {
+        guard let id = value as? String,
+              types["parameter.\(id)"] == .scalar else {
+            return nil
+        }
+        return id
+    }
+
+    private static func boundedParameter(
+        _ id: String,
+        parameters: [AOSDesktopWorldNativeEffectProgramParameter],
+        range: ClosedRange<Double>
+    ) -> Bool {
+        guard let parameter = parameters.first(where: { $0.id == id }) else {
+            return false
+        }
+        return parameter.minimum >= range.lowerBound
+            && parameter.maximum <= range.upperBound
     }
 
     private static func parseGeometry(

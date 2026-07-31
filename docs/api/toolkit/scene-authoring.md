@@ -143,7 +143,12 @@ and the recognized event's origin, current point, delta, and total delta. Those
 event values are frozen for timed effects and updated in place for a
 gesture-owned effect.
 It outputs a DesktopWorld-point displacement and opacity. V2 adds a bounded
-`vec3` position offset, optional effect-local geometry, and a material:
+`vec3` position offset, optional effect-local geometry, and a material. V3
+retains those outputs and may add one bounded `damped_height_field`; its graph
+can read `state.height` and `state.gradient`, while AOS owns fixed stepping,
+swept emission, shared cross-display state, and disposal. `state.gradient` is
+expressed as a world-space derivative, so changing field resolution does not
+change consumer-authored refraction or displacement:
 
 ```js
 const routeSurface = createSceneNativeEffectProgram({
@@ -184,6 +189,12 @@ const routeSurface = createSceneNativeEffectProgram({
   },
 })
 ```
+
+The complete V3 field and signed swept-lobe recipe is in the
+[`aos-desktop-world-authoring` native-effect reference](../../../skills/aos-desktop-world-authoring/references/native-effect-program.md#stateful-height-field).
+The emitter transit may end before the program duration so fast movement leaves
+a settling surface. Display segments sample one global field; bezels do not
+split simulation state or create absorbing edges.
 
 `event_point` centers one patch at `event.current`; `event_segment` surrounds
 the origin-to-current route; `event_endpoints` creates patches at both ends;

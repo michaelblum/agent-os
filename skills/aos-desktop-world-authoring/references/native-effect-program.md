@@ -108,6 +108,99 @@ points, and one scalar opacity. Use only the operators and limits exported by
 graph executes. A trusted Three.js preview can compile this same artifact with
 `compileSceneNativeEffectProgramGLSL()`; do not hand-maintain a second effect.
 
+## Stateful Height Field
+
+Use V3 when an effect needs persistent height and velocity history instead of
+an analytic value at the current clock time. This complete program emits a
+positive leading pressure lobe and a negative trailing trough while an event
+travels from its origin to its current point:
+
+```json
+{
+  "contract": "aos.scene.native-effect-program.v3",
+  "schemaVersion": 3,
+  "id": "example.fluid-trail",
+  "revision": 1,
+  "durationMs": 1800,
+  "parameters": [
+    { "id": "displacement", "default": 72, "min": 8, "max": 256 },
+    { "id": "damping", "default": 1.35, "min": 0.2, "max": 4 },
+    { "id": "transit", "default": 0.22, "min": 0.1, "max": 1 },
+    { "id": "lead", "default": 1, "min": 0.2, "max": 2 },
+    { "id": "pressure", "default": 1.15, "min": 0.2, "max": 3 },
+    { "id": "propagation", "default": 0.18, "min": 0.05, "max": 0.35 },
+    { "id": "radius", "default": 44, "min": 12, "max": 160 },
+    { "id": "tension", "default": 0.012, "min": 0, "max": 0.04 }
+  ],
+  "nodes": [
+    { "id": "height", "op": "multiply", "inputs": ["state.height", "parameter.displacement"] },
+    { "id": "zero", "op": "constant", "value": 0 },
+    { "id": "position", "op": "compose3", "inputs": ["node.zero", "node.zero", "node.height"] },
+    { "id": "texture", "op": "multiply", "inputs": ["state.gradient", "parameter.displacement"] },
+    { "id": "one", "op": "constant", "value": 1 }
+  ],
+  "outputs": {
+    "positionOffset": "node.position",
+    "textureDisplacement": "node.texture",
+    "opacity": "node.one"
+  },
+  "geometry": {
+    "kind": "event_segment",
+    "cellSize": 6,
+    "width": 640,
+    "padding": 192
+  },
+  "material": {
+    "lighting": "standard",
+    "ambient": 0.65,
+    "diffuse": 0.45,
+    "fresnel": 0.24,
+    "lightDirection": [-0.35, -0.45, 0.82],
+    "normalSampleDistance": 2,
+    "perspectiveDistance": 2400,
+    "refraction": 12,
+    "roughness": 0.55,
+    "specular": 0.72
+  },
+  "state": {
+    "kind": "damped_height_field",
+    "maxDimension": 192,
+    "minDimension": 64,
+    "fixedStepHz": 60,
+    "maxSubsteps": 3,
+    "edgeAbsorptionCells": 8,
+    "dampingParameter": "damping",
+    "propagationParameter": "propagation",
+    "surfaceTensionParameter": "tension",
+    "emitter": {
+      "kind": "swept_brush",
+      "durationParameter": "transit",
+      "pressureParameter": "pressure",
+      "radiusParameter": "radius",
+      "leadParameter": "lead",
+      "spacingRadiusScale": 0.38,
+      "speedReference": 1400,
+      "speedScaleMin": 0.3,
+      "speedScaleMax": 1.65,
+      "lobes": [
+        { "offsetRadiusScale": 1, "radiusScale": 1, "strengthScale": 1 },
+        { "offsetRadiusScale": -0.42, "radiusScale": 0.82, "strengthScale": -0.72 }
+      ]
+    }
+  }
+}
+```
+
+AOS allocates one logical field for the complete global DesktopWorld plane.
+Every display samples the same immutable field generation; a bezel is not an
+absorbing boundary, and GPU completion gates buffered texture reuse.
+`state.gradient` is a derivative in global DesktopWorld units rather than raw
+texture-cell units, so field resolution does not retune the graph.
+The emitter transit may be shorter than `durationMs`, allowing the surface to
+settle after fast movement. Field dimensions, substeps, lobe count, brush work,
+and referenced parameter ranges are engine-bounded. V3 still accepts no source,
+loops, kernels, allocation commands, pixels, or native handles.
+
 ## Semantic Effect Trigger
 
 Exercise one exact consumer-authored native effect without posting a global

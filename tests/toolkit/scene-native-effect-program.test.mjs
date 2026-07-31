@@ -5,6 +5,7 @@ import {
   SCENE_NATIVE_EFFECT_PROGRAM_CONTRACT_ID,
   SCENE_NATIVE_EFFECT_PROGRAM_DIGEST_CONTRACT_ID,
   SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID,
+  SCENE_NATIVE_EFFECT_PROGRAM_V3_CONTRACT_ID,
   SCENE_NATIVE_EFFECT_PROGRAM_IMPLEMENTATION,
   SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID,
   SCENE_NATIVE_EFFECT_PROGRAM_OPERATORS,
@@ -78,6 +79,63 @@ function v2Program() {
       specular: 0.72,
     },
   }
+}
+
+function v3Program() {
+  const candidate = v2Program()
+  candidate.contract = SCENE_NATIVE_EFFECT_PROGRAM_V3_CONTRACT_ID
+  candidate.schemaVersion = 3
+  candidate.id = 'example.effect.fluid-trail'
+  candidate.parameters.push(
+    { id: 'damping', default: 1.35, min: 0.2, max: 4 },
+    { id: 'duration', default: 0.22, min: 0.1, max: 3 },
+    { id: 'lead', default: 1, min: 0.2, max: 2 },
+    { id: 'pressure', default: 1.15, min: 0.2, max: 3 },
+    { id: 'propagation', default: 0.18, min: 0.05, max: 0.35 },
+    { id: 'radius', default: 42, min: 8, max: 160 },
+    { id: 'surface_tension', default: 0.012, min: 0, max: 0.04 },
+  )
+  candidate.nodes = [
+    { id: 'zero', op: 'constant', value: 0 },
+    { id: 'height', op: 'multiply', inputs: ['state.height', 'parameter.amplitude'] },
+    { id: 'position', op: 'compose3', inputs: ['node.zero', 'node.zero', 'node.height'] },
+    { id: 'texture', op: 'multiply', inputs: ['state.gradient', 'parameter.amplitude'] },
+    { id: 'gradient_length', op: 'length', inputs: ['state.gradient'] },
+    { id: 'opacity', op: 'clamp01', inputs: ['node.gradient_length'] },
+  ]
+  candidate.outputs = {
+    positionOffset: 'node.position',
+    textureDisplacement: 'node.texture',
+    opacity: 'node.opacity',
+  }
+  candidate.geometry = { kind: 'event_segment', cellSize: 6, padding: 192, width: 640 }
+  candidate.state = {
+    kind: 'damped_height_field',
+    maxDimension: 192,
+    minDimension: 64,
+    fixedStepHz: 60,
+    maxSubsteps: 3,
+    edgeAbsorptionCells: 8,
+    dampingParameter: 'damping',
+    propagationParameter: 'propagation',
+    surfaceTensionParameter: 'surface_tension',
+    emitter: {
+      kind: 'swept_brush',
+      durationParameter: 'duration',
+      pressureParameter: 'pressure',
+      radiusParameter: 'radius',
+      leadParameter: 'lead',
+      spacingRadiusScale: 0.38,
+      speedReference: 1_400,
+      speedScaleMin: 0.3,
+      speedScaleMax: 1.65,
+      lobes: [
+        { offsetRadiusScale: 1, radiusScale: 1, strengthScale: 1 },
+        { offsetRadiusScale: -0.42, radiusScale: 0.82, strengthScale: -0.72 },
+      ],
+    },
+  }
+  return candidate
 }
 
 test('native effect authoring accepts a bounded typed graph and freezes its copy', () => {
@@ -210,4 +268,57 @@ test('the same v2 graph compiles to a bounded Three.js-compatible GLSL function'
   assert.doesNotMatch(compiled.source, /example\.effect\.sheet-wave/u)
   assert.equal(Object.isFrozen(compiled), true)
   assert.equal(Object.isFrozen(compiled.parameterIds), true)
+})
+
+test('v3 native effects add a bounded stateful height field without executable source', () => {
+  const candidate = v3Program()
+  assert.deepEqual(validateSceneNativeEffectProgram(candidate), { ok: true, errors: [] })
+  const created = createSceneNativeEffectProgram(candidate)
+  assert.equal(created.state.kind, 'damped_height_field')
+  assert.equal(created.state.emitter.lobes.length, 2)
+
+  const compiled = compileSceneNativeEffectProgramGLSL(candidate)
+  assert.match(compiled.source, /uniform sampler2D aosEffectStateTexture/u)
+  assert.match(compiled.source, /aosEffectStateHeight/u)
+  assert.match(compiled.source, /aosEffectStateGradient/u)
+  assert.match(
+    compiled.source,
+    /aosEffectSurfaceSize \/ vec2\(textureSize\(aosEffectStateTexture, 0\)\)/u,
+  )
+  assert.match(compiled.source, /\) \/ \(2\.0 \* aosEffectStateWorldTexel\)/u)
+  assert.match(
+    compiled.source,
+    /texture\(aosEffectStateTexture, surfaceUV \+ vec2\(aosEffectStateTexel\.x, 0\.0\)\)\.r\s+- texture\(aosEffectStateTexture, surfaceUV - vec2\(aosEffectStateTexel\.x, 0\.0\)\)\.r/u,
+  )
+  assert.match(
+    compiled.source,
+    /texture\(aosEffectStateTexture, surfaceUV \+ vec2\(0\.0, aosEffectStateTexel\.y\)\)\.r\s+- texture\(aosEffectStateTexture, surfaceUV - vec2\(0\.0, aosEffectStateTexel\.y\)\)\.r/u,
+  )
+
+  const surfaceSize = [30, 60]
+  const textureSize = [3, 3]
+  const worldTexel = surfaceSize.map((size, index) => size / textureSize[index])
+  const gradient = [4 - 1, 7 - 3].map(
+    (difference, index) => difference / (2 * worldTexel[index]),
+  )
+  assert.ok(Math.abs(gradient[0] - 0.15) < 0.000_001)
+  assert.ok(Math.abs(gradient[1] - 0.10) < 0.000_001)
+
+  for (const mutate of [
+    (value) => { value.state.maxDimension = 257 },
+    (value) => { value.state.fixedStepHz = 121 },
+    (value) => { value.state.emitter.pressureParameter = 'missing' },
+    (value) => { value.state.emitter.lobes = [] },
+    (value) => { value.state.emitter.lobes[0].radiusScale = 0 },
+    (value) => { value.parameters.find((entry) => entry.id === 'radius').max = 513 },
+    (value) => { value.nodes[1].inputs[0] = 'state.missing' },
+  ]) {
+    const invalid = v3Program()
+    mutate(invalid)
+    assert.equal(validateSceneNativeEffectProgram(invalid).ok, false)
+  }
+
+  const leaked = v2Program()
+  leaked.nodes[0].inputs[0] = 'state.gradient'
+  assert.equal(validateSceneNativeEffectProgram(leaked).ok, false)
 })

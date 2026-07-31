@@ -58,6 +58,10 @@ segment, stage, or daemon. Effect sheets borrow those hosts and own only
 transient mesh, renderer, texture, and captured-frame resources. Disposal
 diagnostics count attached effect renderers rather than dormant stage
 infrastructure.
+V3 native-effect height fields are one shared effect-instance resource across
+all display renderers. The engine owns fixed stepping, bounded swept emission,
+aggregate work admission, immutable buffered state snapshots, backlog dropping,
+and disposal; product names and effect presets remain outside the daemon.
 Program preparation and runtime retirement are independent gates for queued
 native-effect replacements. Reopening either gate must converge the same
 pending request, and no replacement may start before both gates have settled.

@@ -235,9 +235,17 @@ enum AOSDesktopWorldNativeEffectRenderPlan {
 
     var usesVertexUniforms: Bool {
         switch self {
-        case .program(let instance): return instance.program.version == .v2
+        case .program(let instance): return instance.program.version != .v1
         case .ripple: return false
         }
+    }
+
+    var statefulInstance: AOSDesktopWorldNativeEffectProgramInstance? {
+        guard case .program(let instance) = self,
+              instance.program.version == .v3 else {
+            return nil
+        }
+        return instance
     }
 
     func makeUniformStorage(
@@ -295,10 +303,12 @@ enum AOSDesktopWorldNativeEffectRenderPlan {
 @MainActor
 final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
     private let context: AOSDesktopWorldNativeEffectGPUContext
+    private let displayID: UInt32
     private let duration: TimeInterval?
     private let mesh: DesktopWorldNativeSheetMesh
     private let pipeline: MTLRenderPipelineState
     private let plan: AOSDesktopWorldNativeEffectRenderPlan
+    private let state: AOSDesktopWorldNativeEffectHeightField?
     private var uniforms: [Float]
     private var completed = false
     private var retainedCVTexture: CVMetalTexture?
@@ -312,20 +322,24 @@ final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
 
     init(
         view: MTKView,
+        displayID: UInt32,
         context: AOSDesktopWorldNativeEffectGPUContext,
         mesh: DesktopWorldNativeSheetMesh,
         pixelBuffer: CVPixelBuffer,
         inputs: AOSDesktopWorldNativeEffectInputs,
         plan: AOSDesktopWorldNativeEffectRenderPlan,
+        state: AOSDesktopWorldNativeEffectHeightField?,
         lifecycle: AOSDesktopWorldNativeEffectBinding.Lifecycle,
         globalBounds: CGRect,
         startedAt: TimeInterval
     ) throws {
         self.context = context
+        self.displayID = displayID
         self.duration = lifecycle == .gesture ? nil : plan.duration
         self.mesh = mesh
         self.pipeline = try plan.pipeline(context: context)
         self.plan = plan
+        self.state = state
         self.startedAt = startedAt
         self.uniforms = plan.makeUniformStorage(
             inputs: inputs,
@@ -414,10 +428,23 @@ final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
               ) else {
             return
         }
+        let stateLease = state?.acquireTexture(
+            displayID: displayID,
+            elapsed: elapsed
+        )
+        if plan.statefulInstance != nil, stateLease == nil {
+            encoder.endEncoding()
+            fail("NATIVE_EFFECT_STATE_TEXTURE_UNAVAILABLE", view: view)
+            return
+        }
         uniforms[plan.elapsedUniformIndex] = Float(elapsed)
         encoder.setRenderPipelineState(pipeline)
         encoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
         encoder.setFragmentTexture(texture, index: 0)
+        if let stateTexture = stateLease?.texture {
+            encoder.setVertexTexture(stateTexture, index: 0)
+            encoder.setFragmentTexture(stateTexture, index: 1)
+        }
         uniforms.withUnsafeBytes { bytes in
             if let address = bytes.baseAddress {
                 if plan.usesVertexUniforms {
@@ -449,10 +476,12 @@ final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
                 }
             }
         }
-        commandBuffer.addCompletedHandler { [weak self] completedBuffer in
-            guard completedBuffer.status == .error else { return }
+        commandBuffer.addCompletedHandler { [weak self, state, stateLease] completedBuffer in
             DispatchQueue.main.async {
-                self?.fail("NATIVE_EFFECT_COMMAND_BUFFER_FAILED", view: view)
+                if let stateLease { state?.complete(stateLease) }
+                if completedBuffer.status == .error {
+                    self?.fail("NATIVE_EFFECT_COMMAND_BUFFER_FAILED", view: view)
+                }
             }
         }
         commandBuffer.present(drawable)
@@ -484,6 +513,7 @@ final class AOSDesktopWorldNativeEffectRuntime {
     private let context: AOSDesktopWorldNativeEffectGPUContext
     private var renderers: [UInt32: AOSDesktopWorldNativeEffectRenderer] = [:]
     private let sheet: DesktopWorldNativeSheet
+    private var state: AOSDesktopWorldNativeEffectHeightField?
     private var disposed = false
 
     init(
@@ -512,17 +542,31 @@ final class AOSDesktopWorldNativeEffectRuntime {
             throw DesktopWorldNativeSheetFailure.invalidGeometry
         }
         do {
+            if let instance = plan.statefulInstance {
+                guard let device = context.commandQueue?.device else {
+                    throw DesktopWorldNativeSheetFailure.rendererUnavailable
+                }
+                state = try AOSDesktopWorldNativeEffectHeightField(
+                    device: device,
+                    instance: instance,
+                    inputs: inputs,
+                    bounds: globalBounds,
+                    displayIDs: sheetDisplays
+                )
+            }
             for segment in sheet.segmentSheets {
                 guard let pixelBuffer = framesByDisplay[segment.displayID]?.pixelBuffer else {
                     throw DesktopWorldNativeSheetFailure.frameSetIncomplete
                 }
                 renderers[segment.displayID] = try AOSDesktopWorldNativeEffectRenderer(
                     view: segment.host.view,
+                    displayID: segment.displayID,
                     context: context,
                     mesh: segment.mesh,
                     pixelBuffer: pixelBuffer,
                     inputs: inputs,
                     plan: plan,
+                    state: state,
                     lifecycle: lifecycle,
                     globalBounds: globalBounds,
                     startedAt: startedAt
@@ -570,11 +614,14 @@ final class AOSDesktopWorldNativeEffectRuntime {
             renderers[segment.displayID]?.dispose(view: segment.host.view)
         }
         renderers.removeAll(keepingCapacity: false)
+        state?.dispose()
+        state = nil
         sheet.suspend()
     }
 
     func update(inputs: AOSDesktopWorldNativeEffectInputs) {
         guard !disposed else { return }
+        state?.update(inputs: inputs)
         for renderer in renderers.values {
             renderer.update(inputs: inputs)
         }
@@ -582,6 +629,7 @@ final class AOSDesktopWorldNativeEffectRuntime {
 
     var retainedTextureCount: Int {
         renderers.values.reduce(0) { $0 + $1.retainedTextureCount }
+            + (state?.retainedTextureCount ?? 0)
     }
 
     var retainedBufferCount: Int { sheet.retainedGeometryBufferCount }

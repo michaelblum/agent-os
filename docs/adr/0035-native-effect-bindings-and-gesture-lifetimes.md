@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-07-29
 - Extends: ADRs 0032, 0033, and 0034
-- Extended by: ADR 0036
+- Extended by: ADRs 0036 and 0037
 
 ## Context
 
@@ -70,6 +70,5 @@ consumer failure, or transport loss. The watchdog is not consumer-configurable.
   the underlying desktop and unrelated applications are not assumed frozen.
 - AOS still exposes no pixels, native handles, shader source, or arbitrary
   executable extension code.
-- Stateful history such as a many-sample wake still requires either a bounded
-  declarative representation or a later reviewed engine primitive; this ADR
-  does not authorize consumer loops or mutable GPU buffers.
+- Stateful history uses only the bounded V3 height-field primitive accepted by
+  ADR 0037; this ADR does not authorize consumer loops or mutable GPU buffers.

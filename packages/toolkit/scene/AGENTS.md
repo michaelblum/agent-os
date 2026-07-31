@@ -66,7 +66,12 @@ stage internals.
   parameter presets, geometry locality, and event bindings. V2 may deform an
   AOS-owned tessellated sheet, select a bounded surface, point, route, or
   endpoint geometry region, and declare bounded unlit, Lambert, or standard
-  material facts. The toolkit may
+  material facts. V3 may add one engine-owned, fixed-step damped height field
+  with bounded signed swept-brush lobes. Its logical state is shared across the
+  union DesktopWorld plane; display segments sample one immutable generation,
+  GPU completion gates texture-slot reuse, gradients use global DesktopWorld
+  units, and every field texture and CPU buffer retires with its effect instance.
+  The toolkit may
   compile the same validated graph into a Three.js-compatible GLSL evaluation
   function for trusted previews. Consumers never create geometry directly;
   AOS resolves the declaration, allocates the bounded mesh, and owns its

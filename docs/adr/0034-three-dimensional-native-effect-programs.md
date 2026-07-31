@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-07-29
 - Extends: ADR 0033
-- Extended by: ADRs 0035 and 0036
+- Extended by: ADRs 0035, 0036, and 0037
 
 ## Context
 
@@ -59,9 +59,9 @@ capture pixels, mount a scene, grant authority, or replace AOS's Metal backend.
   renderer instead of maintaining a second hand-authored visual definition.
 - AOS remains the game engine and privileged renderer; consumers own the art,
   presets, and event bindings.
-- Stateful pulse arrays, continuous wake emission, fragmenting or tearing the
-  sheet, multipass desktop reconstruction, and topology-changing sinkholes need
-  separately reviewed generic capabilities. V2 does not claim parity for them.
+- Stateful height and velocity history is added only through the bounded V3
+  primitive in ADR 0037. Fragmenting or tearing the sheet, arbitrary multipass
+  desktop reconstruction, and topology-changing sinkholes remain separate work.
 - Satin, RealityKit, and unrestricted Three.js shader APIs are not dependencies
   or extension ABIs.
 
