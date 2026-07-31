@@ -2,6 +2,21 @@ import CoreGraphics
 import Foundation
 import Metal
 
+enum AOSDesktopWorldNativeEffectEmitterTrajectory {
+    static func progress(
+        _ value: Double,
+        easing: AOSDesktopWorldNativeEffectHeightFieldState.Emitter.TrajectoryEasing
+    ) -> Double {
+        let linear = min(1, max(0, value))
+        switch easing {
+        case .easeOutQuart:
+            return 1 - pow(1 - linear, 4)
+        case .linear:
+            return linear
+        }
+    }
+}
+
 @MainActor
 struct AOSDesktopWorldNativeEffectHeightFieldLease {
     let generation: Int
@@ -452,7 +467,10 @@ final class AOSDesktopWorldNativeEffectHeightField {
         inputs: AOSDesktopWorldNativeEffectInputs
     ) -> CGPoint {
         let elapsed = Double(tick + 1) / Double(descriptor.fixedStepHz)
-        let progress = min(1, max(0, elapsed / duration))
+        let progress = AOSDesktopWorldNativeEffectEmitterTrajectory.progress(
+            elapsed / duration,
+            easing: descriptor.emitter.trajectoryEasing
+        )
         return CGPoint(
             x: inputs.origin.x + inputs.totalDelta.x * progress,
             y: inputs.origin.y + inputs.totalDelta.y * progress

@@ -24,6 +24,8 @@ needs, but public command policy and product UI policy belong above it:
   instance in the global DesktopWorld plane. Per-display renderers sample one
   immutable generation, GPU completion gates slot reuse, and no display may own
   an independent simulation clock or treat a bezel as a field boundary.
+  Swept-emitter trajectory easing is engine-owned so route-aligned effects can
+  remain coincident with their consumer-owned bodies.
 - DesktopWorld WebViews share one non-persistent data store per logical surface,
   and `aos://` proxy responses retain the original request identity with
   no-store policy so a new AOS runtime cannot execute stale toolkit modules.

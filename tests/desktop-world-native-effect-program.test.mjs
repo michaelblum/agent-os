@@ -148,6 +148,7 @@ const v3Program = {
       speedReference: 1_400,
       speedScaleMin: 0.3,
       speedScaleMax: 1.65,
+      trajectoryEasing: 'ease_out_quart',
       lobes: [
         { offsetRadiusScale: 1, radiusScale: 1, strengthScale: 1 },
         { offsetRadiusScale: -0.42, radiusScale: 0.82, strengthScale: -0.72 },
@@ -343,6 +344,60 @@ guard let instance = AOSDesktopWorldNativeEffectProgramContract.parse(
 precondition(instance.program.version == .v3)
 precondition(instance.program.digest == "${v3ProgramDigest}", "v3 digest parity")
 precondition(instance.program.heightFieldState?.emitter.lobes.count == 2)
+precondition(
+    instance.program.heightFieldState?.emitter.trajectoryEasing == .easeOutQuart
+)
+var compatibleObject = object
+var compatibleState = compatibleObject["state"] as! [String: Any]
+var compatibleEmitter = compatibleState["emitter"] as! [String: Any]
+compatibleEmitter.removeValue(forKey: "trajectoryEasing")
+compatibleState["emitter"] = compatibleEmitter
+compatibleObject["state"] = compatibleState
+precondition(
+    AOSDesktopWorldNativeEffectProgramContract.parse(
+        program: compatibleObject,
+        parameters: [:]
+    )?.program.heightFieldState?.emitter.trajectoryEasing == .linear,
+    "missing emitter easing did not preserve linear compatibility"
+)
+compatibleEmitter["trajectoryEasing"] = "linear"
+compatibleState["emitter"] = compatibleEmitter
+compatibleObject["state"] = compatibleState
+precondition(
+    AOSDesktopWorldNativeEffectProgramContract.parse(
+        program: compatibleObject,
+        parameters: [:]
+    )?.program.heightFieldState?.emitter.trajectoryEasing == .linear,
+    "explicit linear emitter easing was rejected"
+)
+for malformed in [NSNull(), 1, true, "bounce"] as [Any] {
+    var invalidObject = object
+    var invalidState = invalidObject["state"] as! [String: Any]
+    var invalidEmitter = invalidState["emitter"] as! [String: Any]
+    invalidEmitter["trajectoryEasing"] = malformed
+    invalidState["emitter"] = invalidEmitter
+    invalidObject["state"] = invalidState
+    precondition(
+        AOSDesktopWorldNativeEffectProgramContract.parse(
+            program: invalidObject,
+            parameters: [:]
+        ) == nil,
+        "malformed emitter easing was accepted"
+    )
+}
+precondition(
+    abs(AOSDesktopWorldNativeEffectEmitterTrajectory.progress(0.25, easing: .linear) - 0.25)
+        < 0.000_001
+)
+precondition(
+    abs(
+        AOSDesktopWorldNativeEffectEmitterTrajectory.progress(
+            0.25,
+            easing: .easeOutQuart
+        ) - 0.683_593_75
+    ) < 0.000_001,
+    "emitter trajectory drifted from route easing"
+)
 precondition(source.contains("texture2d<float> stateTexture"))
 precondition(source.contains("sampleNativeEffectStateHeight"))
 precondition(source.contains("sampleNativeEffectStateGradient"))

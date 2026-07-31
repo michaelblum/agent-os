@@ -98,6 +98,11 @@ struct AOSDesktopWorldNativeEffectHeightFieldLobe: Equatable {
 
 struct AOSDesktopWorldNativeEffectHeightFieldState: Equatable {
     struct Emitter: Equatable {
+        enum TrajectoryEasing: String, Equatable {
+            case easeOutQuart = "ease_out_quart"
+            case linear
+        }
+
         let durationParameter: String
         let leadParameter: String
         let lobes: [AOSDesktopWorldNativeEffectHeightFieldLobe]
@@ -107,6 +112,7 @@ struct AOSDesktopWorldNativeEffectHeightFieldState: Equatable {
         let speedReference: Double
         let speedScaleMaximum: Double
         let speedScaleMinimum: Double
+        let trajectoryEasing: TrajectoryEasing
     }
 
     let dampingParameter: String
@@ -626,12 +632,14 @@ enum AOSDesktopWorldNativeEffectProgramContract {
         parameterTypes: [String: AOSDesktopWorldNativeEffectValueType],
         parameters: [AOSDesktopWorldNativeEffectProgramParameter]
     ) -> AOSDesktopWorldNativeEffectHeightFieldState.Emitter? {
-        guard let emitter = value as? [String: Any],
-              Set(emitter.keys) == Set([
+        let requiredKeys = Set([
                 "durationParameter", "kind", "leadParameter", "lobes",
                 "pressureParameter", "radiusParameter", "spacingRadiusScale",
                 "speedReference", "speedScaleMax", "speedScaleMin",
-              ]),
+              ])
+        guard let emitter = value as? [String: Any],
+              Set(emitter.keys) == requiredKeys
+                || Set(emitter.keys) == requiredKeys.union(["trajectoryEasing"]),
               emitter["kind"] as? String == "swept_brush",
               let durationParameter = scalarParameter(
                 emitter["durationParameter"], types: parameterTypes
@@ -671,6 +679,18 @@ enum AOSDesktopWorldNativeEffectProgramContract {
               rawLobes.count <= AOSDesktopWorldNativeEffectProgram.maximumHeightFieldLobes else {
             return nil
         }
+        let trajectoryEasing: AOSDesktopWorldNativeEffectHeightFieldState
+            .Emitter.TrajectoryEasing
+        if let rawTrajectoryEasing = emitter["trajectoryEasing"] {
+            guard let name = rawTrajectoryEasing as? String,
+                  let parsed = AOSDesktopWorldNativeEffectHeightFieldState
+                    .Emitter.TrajectoryEasing(rawValue: name) else {
+                return nil
+            }
+            trajectoryEasing = parsed
+        } else {
+            trajectoryEasing = .linear
+        }
         var lobes: [AOSDesktopWorldNativeEffectHeightFieldLobe] = []
         for raw in rawLobes {
             guard Set(raw.keys) == Set([
@@ -700,7 +720,8 @@ enum AOSDesktopWorldNativeEffectProgramContract {
             spacingRadiusScale: spacingRadiusScale,
             speedReference: speedReference,
             speedScaleMaximum: speedScaleMaximum,
-            speedScaleMinimum: speedScaleMinimum
+            speedScaleMinimum: speedScaleMinimum,
+            trajectoryEasing: trajectoryEasing
         )
     }
 

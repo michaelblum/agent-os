@@ -729,6 +729,7 @@ export interface SceneNativeEffectHeightFieldState {
     speedReference: number;
     speedScaleMin: number;
     speedScaleMax: number;
+    trajectoryEasing?: 'ease_out_quart' | 'linear';
     lobes: SceneNativeEffectHeightFieldLobe[];
   };
 }

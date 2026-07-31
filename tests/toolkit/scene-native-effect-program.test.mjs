@@ -129,6 +129,7 @@ function v3Program() {
       speedReference: 1_400,
       speedScaleMin: 0.3,
       speedScaleMax: 1.65,
+      trajectoryEasing: 'ease_out_quart',
       lobes: [
         { offsetRadiusScale: 1, radiusScale: 1, strengthScale: 1 },
         { offsetRadiusScale: -0.42, radiusScale: 0.82, strengthScale: -0.72 },
@@ -276,6 +277,19 @@ test('v3 native effects add a bounded stateful height field without executable s
   const created = createSceneNativeEffectProgram(candidate)
   assert.equal(created.state.kind, 'damped_height_field')
   assert.equal(created.state.emitter.lobes.length, 2)
+  assert.equal(created.state.emitter.trajectoryEasing, 'ease_out_quart')
+
+  const compatible = v3Program()
+  delete compatible.state.emitter.trajectoryEasing
+  assert.deepEqual(validateSceneNativeEffectProgram(compatible), { ok: true, errors: [] })
+  const explicitLinear = v3Program()
+  explicitLinear.state.emitter.trajectoryEasing = 'linear'
+  assert.deepEqual(validateSceneNativeEffectProgram(explicitLinear), { ok: true, errors: [] })
+  for (const malformed of ['bounce', null, 1, true, undefined]) {
+    const invalid = v3Program()
+    invalid.state.emitter.trajectoryEasing = malformed
+    assert.equal(validateSceneNativeEffectProgram(invalid).ok, false)
+  }
 
   const compiled = compileSceneNativeEffectProgramGLSL(candidate)
   assert.match(compiled.source, /uniform sampler2D aosEffectStateTexture/u)
