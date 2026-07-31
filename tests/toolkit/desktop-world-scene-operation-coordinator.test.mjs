@@ -575,7 +575,7 @@ test('spatial play quiesces native input before visual animation starts', async 
   assert.equal(fixture.interactions.snapshot(key).leases[0].animationQuiesced, true)
 })
 
-test('spatial play reuses its shared operation identity for terminal input geometry', async () => {
+test('spatial play preserves its shared input identity through signals and terminal geometry', async () => {
   const key = 'example.consumer::companion/main'
   const fixture = harness({ spatialAnimation: true })
   await fixture.coordinator.apply(mount(key, scene('animated-scene', 'body'), interaction('body')))
@@ -585,6 +585,11 @@ test('spatial play reuses its shared operation identity for terminal input geome
     inputGeneration: 'shared-play-operation',
     op: 'play',
   })
+  const signaled = await fixture.coordinator.apply({
+    type: 'desktop_world_stage.scene.operation',
+    payload: { lease_key: key, operation: { op: 'signal', signalId: 'presence', value: 0.5 } },
+  })
+  assert.equal(signaled.inputGeneration, 'shared-play-operation')
   assert.equal(await fixture.interactions.settleAnimationGeometry(key, 1), true)
 
   const terminalRegion = regionIdFor(fixture.regions, 'body-hit')
@@ -593,6 +598,11 @@ test('spatial play reuses its shared operation identity for terminal input geome
     fixture.regions.get(terminalRegion).metadata.scene_input_generation,
     'shared-play-operation',
   )
+  assert.equal(fixture.interactions.handleInput(pointerDown(terminalRegion)), true)
+  assert.equal(fixture.interactions.handleInput(pointerDrag(terminalRegion)), true)
+  assert.ok(fixture.emittedEvents.length > 0 && fixture.emittedEvents.every((event) => (
+    event.input_generation === 'shared-play-operation'
+  )))
 })
 
 test('nonspatial play leaves native input active', async () => {
