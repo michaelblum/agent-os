@@ -182,6 +182,18 @@ final class AOSDesktopWorldSceneTransportController {
         scene.hasNativeEffectAuthorization()
     }
 
+    func executeNativeEffectTrigger<PreparedAdmission>(
+        _ input: AOSDesktopWorldSceneEffectTriggerInput,
+        prepare: (AOSDesktopWorldSceneEffectTriggerOperation) -> PreparedAdmission?,
+        admit: (PreparedAdmission) -> Bool
+    ) -> AOSDesktopWorldSceneEffectTriggerPreparation {
+        scene.executeNativeEffectTrigger(
+            input,
+            prepare: prepare,
+            admit: admit
+        )
+    }
+
     func nativeEffectPrograms() -> [AOSDesktopWorldNativeEffectProgram] {
         scene.nativeEffectPrograms()
     }

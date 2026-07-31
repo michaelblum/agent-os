@@ -198,6 +198,90 @@ function parseEventKinds(value) {
   return [...new Set(values)]
 }
 
+function parseEffectInteger(value, token, minimum = 0) {
+  if (!/^(?:0|[1-9][0-9]*)$/u.test(value ?? '')) fail('INVALID_SCENE_EFFECT_INTEGER', `${token} requires a non-negative integer`)
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > 0x7fffffff) {
+    fail('INVALID_SCENE_EFFECT_INTEGER', `${token} is outside the supported range`)
+  }
+  return parsed
+}
+
+function parseEffectPoint(value, token) {
+  const parts = value?.split(',') ?? []
+  if (parts.length !== 2 || parts.some((part) => part.trim() === '')) {
+    fail('INVALID_SCENE_EFFECT_POINT', `${token} requires x,y`)
+  }
+  const point = parts.map(Number)
+  if (!point.every(Number.isFinite)) fail('INVALID_SCENE_EFFECT_POINT', `${token} requires finite x,y`)
+  return { x: point[0], y: point[1] }
+}
+
+function parseEffectArgs(args) {
+  if (args[0] !== 'trigger') fail('UNKNOWN_SUBCOMMAND', 'scene effect requires trigger')
+  const allowed = new Set([
+    '--owner', '--resource', '--affordance', '--interaction', '--phase',
+    '--origin', '--current', '--pointer-session', '--sequence',
+    '--expected-revision', '--expected-program', '--expected-program-revision',
+    '--expected-program-digest', '--dry-run',
+  ])
+  const values = new Map()
+  for (let index = 1; index < args.length; index += 1) {
+    const token = args[index]
+    if (!allowed.has(token)) fail('UNKNOWN_FLAG', `Unknown scene effect flag: ${token}`)
+    if (values.has(token)) fail('DUPLICATE_FLAG', `${token} may be supplied once`)
+    if (token === '--dry-run') {
+      values.set(token, true)
+      continue
+    }
+    const value = args[index + 1]
+    if (value == null || value.startsWith('--')) fail('MISSING_ARG', `${token} requires a value`)
+    values.set(token, value)
+    index += 1
+  }
+  for (const token of [...allowed].filter((entry) => entry !== '--dry-run')) {
+    if (!values.has(token)) fail('MISSING_ARG', `scene effect trigger requires ${token}`)
+  }
+  const phase = values.get('--phase')
+  if (!['pointer_down', 'start', 'update', 'end', 'cancel'].includes(phase)) {
+    fail('INVALID_SCENE_EFFECT_PHASE', '--phase must be pointer_down, start, update, end, or cancel')
+  }
+  const pointerSession = values.get('--pointer-session')
+  if (Buffer.byteLength(pointerSession) > 128 || /[\p{Cc}\p{Cf}]/u.test(pointerSession)) {
+    fail('INVALID_SCENE_EFFECT_POINTER_SESSION', '--pointer-session is invalid')
+  }
+  const digest = values.get('--expected-program-digest')
+  if (!/^[a-f0-9]{64}$/u.test(digest)) {
+    fail('INVALID_SCENE_EFFECT_PROGRAM', '--expected-program-digest must be a lowercase SHA-256 digest')
+  }
+  return {
+    command: 'effect',
+    action: 'trigger',
+    input: {
+      owner: values.get('--owner'),
+      resource: validateResource(values.get('--resource')),
+      affordance: validateResource(values.get('--affordance')),
+      interaction: validateResource(values.get('--interaction')),
+      phase,
+      origin: parseEffectPoint(values.get('--origin'), '--origin'),
+      current: parseEffectPoint(values.get('--current'), '--current'),
+      pointerSession,
+      sequence: parseEffectInteger(values.get('--sequence'), '--sequence', 1),
+      expectedRevision: parseEffectInteger(values.get('--expected-revision'), '--expected-revision'),
+      expectedProgram: {
+        id: validateResource(values.get('--expected-program')),
+        revision: parseEffectInteger(
+          values.get('--expected-program-revision'),
+          '--expected-program-revision',
+          1,
+        ),
+        digest,
+      },
+      dryRun: values.has('--dry-run'),
+    },
+  }
+}
+
 function parseDevToolsArgs(action, args) {
   if (!['open', 'status', 'update', 'transfer', 'close'].includes(action)) {
     fail('UNKNOWN_SUBCOMMAND', 'scene devtools requires open, status, update, transfer, or close')
@@ -271,7 +355,7 @@ function parseToolArgs(args) {
   const json = tail.includes('--json')
   if (tail.filter((value) => value === '--json').length > 1) fail('DUPLICATE_FLAG', '--json may be supplied once')
   const withoutJson = tail.filter((value) => value !== '--json')
-  if (['list', 'inspect', 'monitor', 'perf', 'replay', 'devtools'].includes(command) && !json) {
+  if (['list', 'inspect', 'monitor', 'perf', 'replay', 'devtools', 'effect'].includes(command) && !json) {
     fail('MISSING_ARG', `scene ${command} requires --json`)
   }
   if (command === 'list') {
@@ -304,6 +388,7 @@ function parseToolArgs(args) {
     const action = withoutJson[0]
     return { command, json, ...parseDevToolsArgs(action, withoutJson.slice(1)) }
   }
+  if (command === 'effect') return { ...parseEffectArgs(withoutJson), json }
   return null
 }
 
@@ -458,6 +543,9 @@ async function runToolCommand(options) {
     if (options.command === 'list') result = await client.list()
     else if (options.command === 'inspect') result = await client.inspect(options.resource)
     else if (options.command === 'perf') result = await client.perf(options.resource)
+    else if (options.command === 'effect' && options.action === 'trigger') {
+      result = await client.effect.trigger(options.input)
+    }
     else if (options.command === 'devtools' && options.action === 'open') result = await client.devtools.open({ resource: options.resource })
     else if (options.command === 'devtools' && options.action === 'status') result = await client.devtools.status(options.session)
     else if (options.command === 'devtools' && options.action === 'update') result = await client.devtools.update(options.session, options.expectedRevision, options.changes)

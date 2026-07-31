@@ -81,6 +81,7 @@
       "id": "desktop-world-native-feedback-contract",
       "path_patterns": [
         "tests/desktop-world-native-effect-program.test.mjs",
+        "tests/desktop-world-scene-effect-trigger.test.mjs",
         "tests/desktop-world-scene-native-feedback.test.mjs",
         "tests/desktop-world-scene-native-feedback-lifecycle.test.mjs",
         "tests/toolkit/scene-native-effect-program.test.mjs"
@@ -89,9 +90,9 @@
       "owner": "desktop-world-rendering",
       "harness_level": "model_unit",
       "proof_kind": "desktop_world_native_feedback_contract",
-      "contract": "A committed capability-authorized scene interaction may trigger one bounded consumer-authored native effect program over the exact DesktopWorld topology. V1 texture displacement remains compatible; V2 may deform the existing tessellated sheet with bounded material lighting and compile the same graph for a trusted Three.js preview. Invalid graphs, failed preparation, stale revisions, authorization loss, timeout, overlap, and teardown retain no active effect, sheet, texture, or stale program pipeline.",
-      "worth": "This proves consumers can own bounded native-sheet compositions without exposing pixels or native handles, injecting source code, compiling on input, depending on a public event subscriber, invoking ScreenCaptureKit from interaction, or requiring live TCC and GPU surfaces during routine validation.",
-      "command": "node --test tests/toolkit/scene-native-effect-program.test.mjs tests/desktop-world-native-effect-program.test.mjs tests/desktop-world-scene-native-feedback.test.mjs tests/desktop-world-scene-native-feedback-lifecycle.test.mjs",
+      "contract": "A committed capability-authorized scene interaction or exact revision-bound semantic command may trigger one bounded consumer-authored native effect program over the exact DesktopWorld topology without posting operating-system input. V1 texture displacement remains compatible; V2 may deform the existing tessellated sheet with bounded material lighting and compile the same graph for a trusted Three.js preview. Invalid graphs, failed preparation, stale revisions, authorization loss, timeout, overlap, and teardown retain no active effect, sheet, texture, or stale program pipeline.",
+      "worth": "This proves consumers can own bounded native-sheet compositions and agents can exercise an exact reviewed binding without exposing pixels or native handles, injecting source code, compiling on input, posting a global pointer or key event, invoking ScreenCaptureKit from interaction, or requiring live TCC and GPU surfaces during routine validation.",
+      "command": "node --test tests/toolkit/scene-native-effect-program.test.mjs tests/desktop-world-native-effect-program.test.mjs tests/desktop-world-scene-effect-trigger.test.mjs tests/desktop-world-scene-native-feedback.test.mjs tests/desktop-world-scene-native-feedback-lifecycle.test.mjs",
       "replaces": [],
       "guard": "disposable Swift contract, local Metal-library compilation, and fake-host lifecycle executables only; no AOS binary, daemon socket, GUI, TCC, ScreenCaptureKit invocation, Metal surface, or live DesktopWorld",
       "status": "active"

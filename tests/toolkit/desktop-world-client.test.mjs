@@ -137,6 +137,24 @@ test('transport-injected client emits familiar scene actions without owning a so
   await client.list()
   await client.inspect('companion/main')
   await client.perf('companion/main')
+  await client.effect.trigger({
+    owner: 'example',
+    resource: 'companion/main',
+    affordance: 'companion-body',
+    interaction: 'companion-fast-travel',
+    phase: 'pointer_down',
+    origin: { x: 400, y: 300 },
+    current: { x: 400, y: 300 },
+    pointerSession: 'proof-1',
+    sequence: 1,
+    expectedRevision: 2,
+    expectedProgram: {
+      id: 'example.effect.ripple',
+      revision: 1,
+      digest: 'a'.repeat(64),
+    },
+    dryRun: true,
+  })
   client.monitor('companion/main', { follow: true, action: 'must-not-win', data: {} })
   await client.devtools.open({ resource: 'companion/main' })
   await client.devtools.update('devtools-1', 2, { recording: true })
@@ -146,10 +164,72 @@ test('transport-injected client emits familiar scene actions without owning a so
     'devtools_open', 'devtools_status', 'devtools_close',
     'devtools_open', 'devtools_status', 'devtools_close',
     'devtools_open', 'devtools_status', 'devtools_close',
+    'effect_trigger',
     'devtools_open', 'devtools_update', 'devtools_close',
   ])
+  assert.deepEqual(requests.find((entry) => entry.action === 'effect_trigger')?.data, {
+    owner: 'example',
+    resource: 'companion/main',
+    affordance: 'companion-body',
+    interaction: 'companion-fast-travel',
+    phase: 'pointer_down',
+    origin: { x: 400, y: 300 },
+    current: { x: 400, y: 300 },
+    pointer_session: 'proof-1',
+    sequence: 1,
+    expected_revision: 2,
+    expected_program: {
+      id: 'example.effect.ripple',
+      revision: 1,
+      digest: 'a'.repeat(64),
+    },
+    dry_run: true,
+  })
   assert.equal(subscriptions[0].action, 'devtools_monitor')
   assert.equal(subscriptions[0].data.resource, 'companion/main')
+})
+
+test('scene effect trigger rejects malformed identities before transport', () => {
+  let calls = 0
+  const client = createDesktopWorldSceneClient({
+    request() {
+      calls += 1
+      return {}
+    },
+  })
+  const valid = {
+    owner: 'example',
+    resource: 'companion/main',
+    affordance: 'companion-body',
+    interaction: 'companion-fast-travel',
+    phase: 'pointer_down',
+    origin: { x: 400, y: 300 },
+    current: { x: 400, y: 300 },
+    pointerSession: 'proof-1',
+    sequence: 1,
+    expectedRevision: 2,
+    expectedProgram: {
+      id: 'example.effect.ripple',
+      revision: 1,
+      digest: 'a'.repeat(64),
+    },
+  }
+  assert.throws(
+    () => client.effect.trigger({ ...valid, expectedRevision: -1 }),
+    { code: 'INVALID_SCENE_EFFECT_REVISION' },
+  )
+  assert.throws(
+    () => client.effect.trigger({
+      ...valid,
+      expectedProgram: { ...valid.expectedProgram, digest: 'not-a-digest' },
+    }),
+    { code: 'INVALID_SCENE_EFFECT_PROGRAM' },
+  )
+  assert.throws(
+    () => client.effect.trigger({ ...valid, pointerSession: 'bad\nsession' }),
+    { code: 'INVALID_SCENE_EFFECT_TRIGGER' },
+  )
+  assert.equal(calls, 0)
 })
 
 test('headless inspection waits for its correlated refresh independent of other receipts and stage-local sequence', async () => {

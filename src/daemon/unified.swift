@@ -166,6 +166,52 @@ class UnifiedDaemon {
                 self?.authorizeNativeSheetEffect(request) ?? false
             }
         )
+    private lazy var desktopWorldSceneEffectTrigger =
+        AOSDesktopWorldSceneEffectTriggerCommandController(
+            execute: { [weak self] input in
+                guard let self else {
+                    return .failure(
+                        code: "SCENE_EFFECT_TRIGGER_STAGE_UNAVAILABLE",
+                        message: "DesktopWorld scene stage is unavailable"
+                    )
+                }
+                return self.desktopWorldSceneTransport.executeNativeEffectTrigger(
+                    input,
+                    prepare: {
+                        operation -> AOSDesktopWorldNativeFeedbackPreparedAdmission? in
+                        switch operation {
+                        case .trigger(let request):
+                            guard let configuration = self.desktopWorldNativeFeedback
+                                .prepareTriggerAfterSceneAuthorization(request) else {
+                                return nil
+                            }
+                            return AOSDesktopWorldNativeFeedbackPreparedAdmission
+                                .trigger(request, configuration: configuration)
+                        case .gesture(let event, let replacement):
+                            return AOSDesktopWorldNativeFeedbackPreparedAdmission
+                                .gesture(event, replacement: replacement)
+                        }
+                    },
+                    admit: {
+                        (prepared: AOSDesktopWorldNativeFeedbackPreparedAdmission) in
+                        switch prepared {
+                        case .trigger(let request, let configuration):
+                            return self.desktopWorldNativeFeedback
+                                .admitPreparedTriggerAfterSceneAuthorization(
+                                    request,
+                                    configuration: configuration
+                                )
+                        case .gesture(let event, let replacement):
+                            return self.desktopWorldNativeFeedback
+                                .handleGestureAfterSceneAuthorization(
+                                    event,
+                                    replacement: replacement
+                                )
+                        }
+                    }
+                )
+            }
+        )
     private lazy var desktopFrameSchemeHandler = AOSDesktopFrameSchemeHandler(
         store: desktopFrameStore,
         authorize: { [weak self] authorization in
@@ -3277,6 +3323,7 @@ class UnifiedDaemon {
         case ("scene", "devtools_transfer"):  return "scene-devtools-transfer"
         case ("scene", "devtools_close"):     return "scene-devtools-close"
         case ("scene", "devtools_monitor"):   return "scene-devtools-monitor"
+        case ("scene", "effect_trigger"):     return "scene-effect-trigger"
         case ("system", "ping"):              return "ping"
         // Content server actions
         case ("content", "status"):           return "content_status"
@@ -3445,6 +3492,14 @@ class UnifiedDaemon {
                 json: json,
                 connectionID: connectionID,
                 outbound: outbound,
+                envelopeActive: envelopeActive,
+                envelopeRef: envelopeRef
+            )
+
+        case "scene-effect-trigger":
+            sendResponseJSON(
+                to: outbound,
+                desktopWorldSceneEffectTrigger.handle(json),
                 envelopeActive: envelopeActive,
                 envelopeRef: envelopeRef
             )

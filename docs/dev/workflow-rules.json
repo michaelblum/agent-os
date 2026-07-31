@@ -441,8 +441,8 @@
         },
         {
           "id": "scene-daemon-contract",
-          "command": "node --test tests/desktop-world-scene-event-routing.test.mjs tests/desktop-world-scene-framebuffer-proof-result.test.mjs tests/desktop-world-native-effect-program.test.mjs tests/desktop-world-scene-native-feedback.test.mjs tests/desktop-world-scene-native-feedback-lifecycle.test.mjs tests/desktop-world-scene-native-orchestration.test.mjs tests/desktop-world-scene-result-coordinator.test.mjs tests/desktop-world-scene-stage-readiness.test.mjs tests/daemon-desktop-world-devtools-contract.test.mjs tests/scene-follow-cli.test.mjs",
-          "reason": "Verify canonical event routing diagnostics, atomic native-feedback authorization and disposal, the daemon scene lifecycle aggregate, all-segment barrier ownership, DevTools delegation, and bounded follow transport."
+          "command": "node --test tests/desktop-world-scene-effect-trigger.test.mjs tests/desktop-world-scene-event-routing.test.mjs tests/desktop-world-scene-framebuffer-proof-result.test.mjs tests/desktop-world-native-effect-program.test.mjs tests/desktop-world-scene-native-feedback.test.mjs tests/desktop-world-scene-native-feedback-lifecycle.test.mjs tests/desktop-world-scene-native-orchestration.test.mjs tests/desktop-world-scene-result-coordinator.test.mjs tests/desktop-world-scene-stage-readiness.test.mjs tests/daemon-desktop-world-devtools-contract.test.mjs tests/scene-follow-cli.test.mjs",
+          "reason": "Verify semantic effect triggering without system input, canonical event routing diagnostics, atomic native-feedback authorization and disposal, the daemon scene lifecycle aggregate, all-segment barrier ownership, DevTools delegation, and bounded follow transport."
         },
         {
           "id": "scene-core-contract",

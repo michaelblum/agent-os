@@ -87,6 +87,8 @@ final class AOSDesktopWorldSceneController {
     private let leases = AOSSceneLeaseRegistry()
     private let results = AOSDesktopWorldSceneResultCoordinator()
     let readiness = AOSDesktopWorldSceneStageReadiness()
+    private let effectTriggerReservations =
+        AOSDesktopWorldSceneEffectTriggerReservationRegistry()
     private var operationTokens: [String: AOSSceneLeaseToken] = [:]
     private var operationAuthorizationMutations: [
         String: AOSDesktopWorldScenePendingAuthorizationMutation
@@ -235,11 +237,15 @@ final class AOSDesktopWorldSceneController {
             var actions: [AOSDesktopWorldSceneBarrierAction] = []
             for token in leases.beginDisconnect(connectionID: connectionID) {
                 let leaseKey = token.key
+                effectTriggerReservations.cancel(key: leaseKey)
                 let mutation = AOSDesktopWorldSceneAuthorizationMutation.replace(nil)
                 let changesNativeEffectPrograms = mutationChangesNativeEffectProgramsLocked(
                     key: leaseKey,
                     mutation: mutation
                 )
+                if changesNativeEffectPrograms {
+                    effectTriggerReservations.cancelAll()
+                }
                 resourceProjectionAuthorities.removeValue(forKey: leaseKey)
                 let cleanup = results.ownerDisconnected(leaseKey: leaseKey)
                 if changesNativeEffectPrograms {
@@ -499,6 +505,9 @@ final class AOSDesktopWorldSceneController {
         return withLock {
             guard retirement == nil,
                   readiness.isReady(for: topology.identity) else { return .stageUnavailable }
+            guard !effectTriggerReservations.contains(key: key) else {
+                return .operationPending
+            }
             if let transactionRevision,
                let authorization = resourceProjectionAuthorities[key]?.authorization,
                authorization.resourceRevision != transactionRevision.expected {
@@ -553,6 +562,9 @@ final class AOSDesktopWorldSceneController {
                 key: key,
                 mutation: authorizationMutation
             )
+            if changesNativeEffectPrograms, !effectTriggerReservations.isEmpty {
+                return .operationPending
+            }
             if changesNativeEffectPrograms,
                operationAuthorizationMutations.values.contains(where: {
                    $0.changesNativeEffectPrograms
@@ -738,13 +750,16 @@ final class AOSDesktopWorldSceneController {
         for action in actions {
             switch action {
             case .broadcast(let broadcast) where broadcast.phase == .release:
+                effectTriggerReservations.cancel(key: broadcast.leaseKey)
                 resourceProjectionAuthorities.removeValue(forKey: broadcast.leaseKey)
             case .complete(let completion)
                 where completion.payload["projection_released"] as? Bool == true:
                 if let key = completion.payload["lease_key"] as? String {
+                    effectTriggerReservations.cancel(key: key)
                     resourceProjectionAuthorities.removeValue(forKey: key)
                 }
             case .retire:
+                effectTriggerReservations.cancelAll()
                 resourceProjectionAuthorities.removeAll(keepingCapacity: false)
             default:
                 break
@@ -858,6 +873,7 @@ final class AOSDesktopWorldSceneController {
             }
         }
         if releaseLease || payload["projection_released"] as? Bool == true {
+            effectTriggerReservations.cancel(key: key)
             resourceProjectionAuthorities.removeValue(forKey: key)
         }
         return AOSDesktopWorldSceneDelivery(payload: payload, route: route)
@@ -884,6 +900,7 @@ final class AOSDesktopWorldSceneController {
     ) -> AOSDesktopWorldSceneInvalidationPlan? {
         let invalidated = leases.invalidateAll()
         results.cancelAll()
+        effectTriggerReservations.cancelAll()
         operationTokens.removeAll(keepingCapacity: false)
         operationAuthorizationMutations.removeAll(keepingCapacity: false)
         resourceProjectionAuthorities.removeAll(keepingCapacity: false)
@@ -945,6 +962,27 @@ final class AOSDesktopWorldSceneController {
         let parts = leaseKey.split(separator: "::", maxSplits: 1, omittingEmptySubsequences: false)
         guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else { return nil }
         return (String(parts[0]), String(parts[1]))
+    }
+
+    func beginEffectTriggerReservationLocked(
+        key: String
+    ) -> AOSDesktopWorldSceneEffectTriggerReservation? {
+        effectTriggerReservations.begin(
+            key: key,
+            operationPending: results.hasPending(leaseKey: key),
+            programMutationPending:
+                operationAuthorizationMutations.values.contains(where: {
+                    $0.changesNativeEffectPrograms
+                })
+        )
+    }
+
+    func releaseEffectTriggerReservation(
+        _ reservation: AOSDesktopWorldSceneEffectTriggerReservation
+    ) {
+        withLock {
+            effectTriggerReservations.release(reservation)
+        }
     }
 
     func withLock<T>(_ body: () -> T) -> T {

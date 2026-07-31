@@ -127,6 +127,16 @@ test('generated command manifests advertise source provenance', async () => {
   });
 });
 
+test('scene effect dry run describes binding validation without claiming admission', async () => {
+  const registry = await loadJson(registryPath);
+  const command = registry.commands.find(
+    ({ path: commandPath }) => commandPath.join(' ') === 'scene effect trigger',
+  );
+  const dryRun = command?.forms?.[0]?.args?.find(({ id }) => id === 'dry_run');
+  assert.match(dryRun?.summary ?? '', /effect binding/u);
+  assert.doesNotMatch(dryRun?.summary ?? '', /admission/u);
+});
+
 test('external command manifest executable targets exist', async () => {
   const manifest = await loadJson(manifestPath);
   for (const command of manifest.commands) {

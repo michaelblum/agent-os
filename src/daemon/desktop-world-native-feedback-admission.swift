@@ -460,16 +460,41 @@ extension AOSDesktopWorldNativeFeedbackController {
             recordRejection("NATIVE_EFFECT_UNAUTHORIZED")
             return false
         }
+        return triggerAfterSceneAuthorization(request, recordAttempt: false)
+    }
+
+    @discardableResult
+    func triggerAfterSceneAuthorization(
+        _ request: AOSDesktopWorldNativeEffectRequest,
+        recordAttempt shouldRecordAttempt: Bool = true
+    ) -> Bool {
+        guard let configuration = prepareTriggerAfterSceneAuthorization(
+            request,
+            recordAttempt: shouldRecordAttempt
+        ) else {
+            return false
+        }
+        return admitPreparedTriggerAfterSceneAuthorization(
+            request,
+            configuration: configuration
+        )
+    }
+
+    func prepareTriggerAfterSceneAuthorization(
+        _ request: AOSDesktopWorldNativeEffectRequest,
+        recordAttempt shouldRecordAttempt: Bool = true
+    ) -> AOSDesktopFrameWarmConfiguration? {
+        if shouldRecordAttempt { recordAttempt() }
         guard let captureContext = host.captureContext() else {
             recordRejection("NATIVE_EFFECT_CAPTURE_CONTEXT_UNAVAILABLE")
-            return false
+            return nil
         }
         guard captureContext.canvasGeneration == request.canvasGeneration,
               captureContext.topologyGeneration == request.topologyGeneration else {
             recordRejection("NATIVE_EFFECT_GENERATION_MISMATCH")
-            return false
+            return nil
         }
-        let configuration = AOSDesktopFrameWarmConfiguration(
+        return AOSDesktopFrameWarmConfiguration(
             canvasGeneration: captureContext.canvasGeneration,
             displayIDs: captureContext.displayIDs,
             excludingWindowIDs: captureContext.excludingWindowIDs,
@@ -477,6 +502,13 @@ extension AOSDesktopWorldNativeFeedbackController {
                 AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay,
             topologyGeneration: captureContext.topologyGeneration
         )
+    }
+
+    @discardableResult
+    func admitPreparedTriggerAfterSceneAuthorization(
+        _ request: AOSDesktopWorldNativeEffectRequest,
+        configuration: AOSDesktopFrameWarmConfiguration
+    ) -> Bool {
         switch admission.trigger(request) {
         case .rejected(let code):
             recordRejection(code)
@@ -503,15 +535,30 @@ extension AOSDesktopWorldNativeFeedbackController {
         }
     }
 
+    @discardableResult
     func handleGesture(
         _ event: AOSDesktopWorldNativeEffectGestureEvent,
         replacement: AOSDesktopWorldNativeEffectRequest?
-    ) {
+    ) -> Bool {
         if replacement != nil { recordAttempt() }
         guard authorize(event.request), replacement.map(authorize) ?? true else {
             recordFailure("NATIVE_EFFECT_UNAUTHORIZED")
-            return
+            return false
         }
+        return handleGestureAfterSceneAuthorization(
+            event,
+            replacement: replacement,
+            recordAttempt: false
+        )
+    }
+
+    @discardableResult
+    func handleGestureAfterSceneAuthorization(
+        _ event: AOSDesktopWorldNativeEffectGestureEvent,
+        replacement: AOSDesktopWorldNativeEffectRequest?,
+        recordAttempt shouldRecordAttempt: Bool = true
+    ) -> Bool {
+        if shouldRecordAttempt, replacement != nil { recordAttempt() }
         let intent: AOSDesktopWorldNativeFeedbackAdmission.GestureIntent
         switch event.phase {
         case .update:
@@ -526,20 +573,22 @@ extension AOSDesktopWorldNativeFeedbackController {
         }
         switch intent {
         case .ignored:
-            return
+            return false
         case .queued:
             if let replacement { recordAcceptance(replacement) }
-            return
+            return true
         case .update(let generation):
             Task { @MainActor [weak self] in
                 self?.updateRuntime(generation: generation)
             }
+            return true
         case .retire(let retired):
             retired.capture.cancel()
             retired.deadline.cancel()
             Task { @MainActor [weak self] in
                 self?.requestRuntimeRetirement()
             }
+            return true
         }
     }
 

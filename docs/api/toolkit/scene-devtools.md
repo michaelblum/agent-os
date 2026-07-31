@@ -26,6 +26,41 @@ Replay requires monotonic owner/resource sequences and complete gesture
 lifecycles. It reports counts, resource IDs, and final numeric positions only.
 It performs no rendering, stage mutation, or live TCC input.
 
+## Trigger A Reviewed Effect Without System Input
+
+Use the exact committed resource revision and reviewed program identity to
+exercise a consumer-authored native-effect binding without posting a macOS
+pointer or keyboard event:
+
+```bash
+aos scene effect trigger \
+  --owner example.consumer \
+  --resource companion/main \
+  --affordance companion-body \
+  --interaction companion-fast-travel \
+  --phase pointer_down \
+  --origin 400,300 \
+  --current 400,300 \
+  --pointer-session proof-1 \
+  --sequence 1 \
+  --expected-revision 2 \
+  --expected-program example.effect.ripple \
+  --expected-program-revision 1 \
+  --expected-program-digest aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  --dry-run \
+  --json
+```
+
+Remove `--dry-run` only after the exact binding readback is trusted. The daemon
+resolves the current input generation and fails closed if the stage, resource
+revision, affordance, interaction, or program identity changed. Start, update,
+end, and cancel phases share the supplied pointer-session identity.
+
+This command triggers the native-effect lifecycle only. It does not synthesize
+macOS input, move the pointer, press Escape, change scene placement, or prove
+the operating system's physical-input path. Do not substitute `aos do click`,
+`aos do drag`, or `aos do key` in unattended scene-effect tests.
+
 ## Detachable Inspector
 
 ```bash

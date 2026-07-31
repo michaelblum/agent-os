@@ -588,6 +588,7 @@ test('native feedback authorization commits atomically with scene operations', a
     'src/daemon/scene-lease-registry.swift',
     'src/daemon/desktop-world-scene-result-coordinator.swift',
     'src/daemon/desktop-world-scene-stage-readiness.swift',
+    'src/daemon/desktop-world-scene-effect-trigger-reservation.swift',
     'src/daemon/desktop-world-native-effect-program.swift',
     'src/daemon/desktop-world-native-effect-contract.swift',
     'src/daemon/desktop-world-scene-authorization.swift',

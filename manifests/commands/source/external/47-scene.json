@@ -71,6 +71,18 @@
       "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
     }
   }, {
+    "path": ["scene", "effect", "trigger"],
+    "summary": "Trigger one reviewed consumer scene effect without system input",
+    "executable": "/usr/bin/env",
+    "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-scene.mjs", "effect", "trigger"],
+    "cwd": "repo",
+    "stdio": "inherit",
+    "env": {
+      "AOS_PATH": "$AOS_PATH",
+      "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+      "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+    }
+  }, {
     "path": ["scene", "list"],
     "summary": "List bounded DesktopWorld scene resources",
     "executable": "/usr/bin/env",

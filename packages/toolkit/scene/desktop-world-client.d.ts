@@ -90,11 +90,59 @@ export interface DesktopWorldSceneMonitorOptions {
   follow?: boolean;
 }
 
+export type DesktopWorldSceneEffectTriggerPhase =
+  | 'pointer_down'
+  | 'start'
+  | 'update'
+  | 'end'
+  | 'cancel';
+
+export interface DesktopWorldSceneEffectProgramIdentity {
+  id: string;
+  revision: number;
+  digest: string;
+}
+
+export interface DesktopWorldSceneEffectTriggerInput {
+  owner: string;
+  resource: string;
+  affordance: string;
+  interaction: string;
+  phase: DesktopWorldSceneEffectTriggerPhase;
+  origin: Readonly<{ x: number; y: number }>;
+  current: Readonly<{ x: number; y: number }>;
+  pointerSession: string;
+  sequence: number;
+  expectedRevision: number;
+  expectedProgram: Readonly<DesktopWorldSceneEffectProgramIdentity>;
+  dryRun?: boolean;
+}
+
+export interface DesktopWorldSceneEffectTriggerResult {
+  status: 'ok';
+  contract: 'aos.scene.effect-trigger.v1';
+  owner: string;
+  resource: string;
+  affordance: string;
+  interaction: string;
+  phase: DesktopWorldSceneEffectTriggerPhase;
+  resource_revision: number;
+  program: Readonly<DesktopWorldSceneEffectProgramIdentity>;
+  dry_run: boolean;
+  binding_validated: true;
+  accepted: boolean;
+}
+
 export interface DesktopWorldSceneClient<TSubscription = unknown> {
   list(): Promise<Readonly<DesktopWorldSceneResourceList>>;
   inspect(resource: string): Promise<DesktopWorldDevToolsStageSnapshot>;
   perf(resource: string): Promise<Readonly<DesktopWorldScenePerformanceSnapshot>>;
   monitor(resource: string, options?: DesktopWorldSceneMonitorOptions): TSubscription;
+  effect: Readonly<{
+    trigger(
+      input: DesktopWorldSceneEffectTriggerInput,
+    ): DesktopWorldSceneMaybePromise<Readonly<DesktopWorldSceneEffectTriggerResult>>;
+  }>;
   replay: typeof replayDesktopWorldSceneEvents;
   devtools: Readonly<{
     open(options?: {

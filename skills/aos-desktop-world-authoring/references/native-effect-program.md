@@ -107,3 +107,38 @@ points, and one scalar opacity. Use only the operators and limits exported by
 `@agent-os/toolkit/scene/authoring`; AOS clamps every output even after a valid
 graph executes. A trusted Three.js preview can compile this same artifact with
 `compileSceneNativeEffectProgramGLSL()`; do not hand-maintain a second effect.
+
+## Semantic Effect Trigger
+
+Exercise one exact consumer-authored native effect without posting a global
+macOS pointer or keyboard event:
+
+```bash
+aos scene effect trigger \
+  --owner example.consumer \
+  --resource companion/main \
+  --affordance companion-body \
+  --interaction companion-fast-travel \
+  --phase pointer_down \
+  --origin 400,300 \
+  --current 400,300 \
+  --pointer-session proof-1 \
+  --sequence 1 \
+  --expected-revision 2 \
+  --expected-program example.effect.ripple \
+  --expected-program-revision 1 \
+  --expected-program-digest aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  --dry-run \
+  --json
+```
+
+Read the exact resource revision and reviewed program identity from the
+consumer artifact and current inspection evidence. Remove `--dry-run` only
+after they agree. Use the same pointer-session identity with `start`, `update`,
+`end`, or `cancel` for gesture-lifecycle effects.
+
+This command resolves the current scene input generation and invokes only the
+native-effect lifecycle. It does not move the pointer, press Escape, reposition
+the scene object, or prove the operating system's physical-input path. Do not
+use `aos do click`, `aos do drag`, or `aos do key` as an unattended substitute
+for this semantic proof.
