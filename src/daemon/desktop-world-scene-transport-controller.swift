@@ -200,15 +200,15 @@ final class AOSDesktopWorldSceneTransportController {
               let ownerID = region.metadata["scene_owner"],
               let resourceID = region.metadata["scene_resource"],
               let affordanceID = region.metadata["scene_affordance"],
-              let revisionValue = region.metadata["scene_revision"],
-              let resourceRevision = Int(revisionValue),
-              resourceRevision > 0 else {
+              let regionGeneration = region.metadata["scene_input_generation"],
+              !regionGeneration.isEmpty,
+              regionGeneration.utf8.count <= 128 else {
             return nil
         }
         return scene.nativePointerEffectRequest(
             ownerID: ownerID,
             resourceID: resourceID,
-            resourceRevision: resourceRevision,
+            regionGeneration: regionGeneration,
             affordanceID: affordanceID,
             canvasGeneration: region.ownerCanvasGeneration.value,
             phase: phase.rawValue,
@@ -501,7 +501,9 @@ final class AOSDesktopWorldSceneTransportController {
 
     private func deliver(_ delivery: AOSDesktopWorldSceneDelivery) {
         var data = delivery.payload
+        data.removeValue(forKey: "input_generation")
         data.removeValue(forKey: "lease_key")
+        data.removeValue(forKey: "projection_released")
         data.removeValue(forKey: "release_lease")
         _ = emit(delivery.route, "result", data)
     }
@@ -548,6 +550,18 @@ final class AOSDesktopWorldSceneTransportController {
         _ actions: [AOSDesktopWorldSceneBarrierAction],
         operationID: String? = nil
     ) {
+        if actions.contains(where: { action in
+            switch action {
+            case .broadcast(let broadcast):
+                return broadcast.phase == .release
+            case .complete(let completion):
+                return completion.payload["projection_released"] as? Bool == true
+            case .retire:
+                return true
+            }
+        }) {
+            authorizationChanged()
+        }
         for action in actions {
             switch action {
             case .broadcast(let broadcast):

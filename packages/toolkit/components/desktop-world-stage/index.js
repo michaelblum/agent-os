@@ -341,14 +341,15 @@ async function applySceneMessage(message) {
       error.code = 'SCENE_STAGE_DISPOSED'
       throw error
     }
-    const { applied, candidateFingerprint = null, proof = null } = await applyDesktopWorldSceneOperation({
+    const result = await applyDesktopWorldSceneOperation({
       extensionLoader: sceneExtensionLoader,
       message,
       operations: sceneOperations,
     })
+    const { applied, candidateFingerprint = null, proof = null } = result
     window.__desktopWorldSceneOutlet = sceneOutlet.snapshot()
     window.__desktopWorldSceneInteractions = sceneInteractions.snapshot()
-    emit('desktop_world_stage.scene.result', {
+    const response = {
       lease_key: key,
       operation_id: operationId,
       barrier_phase: barrierPhase,
@@ -360,7 +361,11 @@ async function applySceneMessage(message) {
       status: applied ? 'ok' : 'ignored',
       snapshot: sceneOutlet.snapshot(),
       ...(proof === null ? {} : { proof }),
-    })
+    }
+    if (Object.hasOwn(result, 'inputGeneration')) {
+      response.input_generation = result.inputGeneration ?? null
+    }
+    emit('desktop_world_stage.scene.result', response)
     devtoolsProbe.recordEvent({ kind: `scene.${op}`, resourceId: payload.resource ?? null })
     lastSceneError = null
   } catch (error) {

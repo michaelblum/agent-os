@@ -6,6 +6,7 @@ enum AOSDesktopWorldSceneEventRouteOutcome: String, CaseIterable {
     case identityMismatch = "identity_mismatch"
     case invalidEvent = "invalid_event"
     case stageUnavailable = "stage_unavailable"
+    case staleInputGeneration = "stale_input_generation"
     case staleTopology = "stale_topology"
     case unsubscribed
 }
@@ -62,44 +63,6 @@ enum AOSDesktopWorldSceneOperationAdmission {
     case stageUnavailable
 }
 
-struct AOSDesktopWorldSceneCapabilityAuthorization: Equatable {
-    let capabilities: Set<String>
-    let digest: String
-    let extensionID: String
-    let framebufferProofIDs: Set<String>
-    let ownerID: String
-    let nativeEffects: [AOSDesktopWorldNativeEffectBinding]
-    let resourceRevision: Int
-    let sceneABI: String
-    let threeRevision: String
-
-    func advancingResourceRevision(
-        to revision: Int,
-        nativeEffects replacementEffects: [AOSDesktopWorldNativeEffectBinding]? = nil
-    ) -> Self {
-        Self(
-            capabilities: capabilities,
-            digest: digest,
-            extensionID: extensionID,
-            framebufferProofIDs: framebufferProofIDs,
-            ownerID: ownerID,
-            nativeEffects: replacementEffects ?? nativeEffects,
-            resourceRevision: revision,
-            sceneABI: sceneABI,
-            threeRevision: threeRevision
-        )
-    }
-
-    func replacingNativeEffects(
-        _ nativeEffects: [AOSDesktopWorldNativeEffectBinding]
-    ) -> Self {
-        advancingResourceRevision(
-            to: resourceRevision,
-            nativeEffects: nativeEffects
-        )
-    }
-}
-
 private enum AOSDesktopWorldSceneAuthorizationMutation {
     case unchanged
     case replace(AOSDesktopWorldSceneCapabilityAuthorization?)
@@ -128,8 +91,8 @@ final class AOSDesktopWorldSceneController {
     private var operationAuthorizationMutations: [
         String: AOSDesktopWorldScenePendingAuthorizationMutation
     ] = [:]
-    private(set) var resourceAuthorizations: [
-        String: AOSDesktopWorldSceneCapabilityAuthorization
+    private(set) var resourceProjectionAuthorities: [
+        String: AOSDesktopWorldSceneCommittedProjectionAuthority
     ] = [:]
     private var blockedIdentity: AOSDesktopWorldSceneStageIdentity?
     private var nextRetirementToken: UInt64 = 0
@@ -277,7 +240,7 @@ final class AOSDesktopWorldSceneController {
                     key: leaseKey,
                     mutation: mutation
                 )
-                resourceAuthorizations.removeValue(forKey: leaseKey)
+                resourceProjectionAuthorities.removeValue(forKey: leaseKey)
                 let cleanup = results.ownerDisconnected(leaseKey: leaseKey)
                 if changesNativeEffectPrograms {
                     let pendingOperationIDs = operationAuthorizationMutations.compactMap {
@@ -364,7 +327,9 @@ final class AOSDesktopWorldSceneController {
     ) -> [AOSDesktopWorldSceneBarrierAction] {
         withLock {
             guard readiness.isCurrent(identity) else { return [] }
-            return results.accept(payload)
+            let actions = results.accept(payload)
+            revokeReleasedProjectionAuthorizationLocked(actions)
+            return actions
         }
     }
 
@@ -374,11 +339,13 @@ final class AOSDesktopWorldSceneController {
         topologyGeneration: UInt64?
     ) -> [AOSDesktopWorldSceneBarrierAction] {
         withLock {
-            results.expire(
+            let actions = results.expire(
                 operationID: operationID,
                 phase: phase,
                 topologyGeneration: topologyGeneration
             )
+            revokeReleasedProjectionAuthorizationLocked(actions)
+            return actions
         }
     }
 
@@ -401,12 +368,16 @@ final class AOSDesktopWorldSceneController {
         identity: AOSDesktopWorldSceneStageIdentity,
         key: String,
         event: String,
+        inputGeneration: String,
         enqueue: (AOSSceneLeaseRoute) -> Bool
     ) -> AOSDesktopWorldSceneEventRouteOutcome {
         withLock {
             guard retirement == nil,
                   readiness.isReady(for: identity) else { return .stageUnavailable }
             guard let route = leases.routeEvent(key: key, event: event) else { return .unsubscribed }
+            guard resourceProjectionAuthorities[key]?.inputGeneration == inputGeneration else {
+                return .staleInputGeneration
+            }
             return enqueue(route) ? .enqueued : .enqueueFailed
         }
     }
@@ -529,14 +500,14 @@ final class AOSDesktopWorldSceneController {
             guard retirement == nil,
                   readiness.isReady(for: topology.identity) else { return .stageUnavailable }
             if let transactionRevision,
-               let authorization = resourceAuthorizations[key],
+               let authorization = resourceProjectionAuthorities[key]?.authorization,
                authorization.resourceRevision != transactionRevision.expected {
                 return .stageUnavailable
             }
             if let nativeEffects, !nativeEffects.isEmpty {
                 let authorization = operationName == "mount"
                     ? parsedAuthorization
-                    : parsedAuthorization ?? resourceAuthorizations[key]
+                    : parsedAuthorization ?? resourceProjectionAuthorities[key]?.authorization
                 guard authorization?.capabilities.contains(
                     AOSDesktopWorldNativeEffectBinding.capability
                 ) == true,
@@ -548,7 +519,7 @@ final class AOSDesktopWorldSceneController {
             }
             var admittedOperation = operation
             if let proofRequest {
-                guard let authorization = resourceAuthorizations[key],
+                guard let authorization = resourceProjectionAuthorities[key]?.authorization,
                       authorization.resourceRevision == proofRequest.revision,
                       authorization.capabilities.contains("aos.scene.framebuffer_proof"),
                       authorization.framebufferProofIDs.contains(proofRequest.id) else {
@@ -564,7 +535,7 @@ final class AOSDesktopWorldSceneController {
                     }
                 )
             } else if operationName == "transact" {
-                if resourceAuthorizations[key] != nil, let transactionRevision {
+                if resourceProjectionAuthorities[key]?.authorization != nil, let transactionRevision {
                     authorizationMutation = .advanceRevision(
                         expected: transactionRevision.expected,
                         next: transactionRevision.next,
@@ -621,6 +592,14 @@ final class AOSDesktopWorldSceneController {
                 key: key,
                 mutation: authorizationMutation
             )
+            if operationName == "suspend"
+                || operationName == "remove"
+                || operationName == "close" {
+                if var projection = resourceProjectionAuthorities[key] {
+                    projection.inputGeneration = nil
+                    resourceProjectionAuthorities[key] = projection
+                }
+            }
             return .accepted(action)
         }
     }
@@ -674,7 +653,7 @@ final class AOSDesktopWorldSceneController {
         withLock {
             guard retirement == nil,
                   readiness.isReady(for: identity),
-                  let authorization = resourceAuthorizations[key],
+                  let authorization = resourceProjectionAuthorities[key]?.authorization,
                   authorization.digest == extensionDigest,
                   authorization.extensionID == extensionID,
                   authorization.ownerID == extensionOwnerID,
@@ -698,8 +677,8 @@ final class AOSDesktopWorldSceneController {
         return withLock {
             retirement == nil
                 && readiness.isReady(for: identity)
-                && resourceAuthorizations.values.contains {
-                    $0.capabilities.contains(capability)
+                && resourceProjectionAuthorities.values.contains {
+                    $0.authorization?.capabilities.contains(capability) == true
                 }
         }
     }
@@ -708,7 +687,7 @@ final class AOSDesktopWorldSceneController {
         key: String,
         mutation: AOSDesktopWorldSceneAuthorizationMutation
     ) -> [AOSDesktopWorldNativeEffectProgram]? {
-        var candidate = resourceAuthorizations
+        var candidate = resourceAuthorizationSnapshotLocked()
         guard applyAuthorizationMutationLocked(
             mutation,
             key: key,
@@ -728,8 +707,10 @@ final class AOSDesktopWorldSceneController {
         key: String,
         mutation: AOSDesktopWorldSceneAuthorizationMutation
     ) -> Bool {
-        let current = nativeEffectProgramDigests(in: resourceAuthorizations[key])
-        var candidate = resourceAuthorizations
+        let current = nativeEffectProgramDigests(
+            in: resourceProjectionAuthorities[key]?.authorization
+        )
+        var candidate = resourceAuthorizationSnapshotLocked()
         guard applyAuthorizationMutationLocked(
             mutation,
             key: key,
@@ -749,6 +730,26 @@ final class AOSDesktopWorldSceneController {
                 capabilities: authorization.capabilities
               ) else { return [] }
         return Set(authorization.nativeEffects.compactMap { $0.program?.digest })
+    }
+
+    private func revokeReleasedProjectionAuthorizationLocked(
+        _ actions: [AOSDesktopWorldSceneBarrierAction]
+    ) {
+        for action in actions {
+            switch action {
+            case .broadcast(let broadcast) where broadcast.phase == .release:
+                resourceProjectionAuthorities.removeValue(forKey: broadcast.leaseKey)
+            case .complete(let completion)
+                where completion.payload["projection_released"] as? Bool == true:
+                if let key = completion.payload["lease_key"] as? String {
+                    resourceProjectionAuthorities.removeValue(forKey: key)
+                }
+            case .retire:
+                resourceProjectionAuthorities.removeAll(keepingCapacity: false)
+            default:
+                break
+            }
+        }
     }
 
     private func applyAuthorizationMutationLocked(
@@ -773,6 +774,12 @@ final class AOSDesktopWorldSceneController {
             )
             return true
         }
+    }
+
+    private func resourceAuthorizationSnapshotLocked() -> [String: AOSDesktopWorldSceneCapabilityAuthorization] {
+        Dictionary(uniqueKeysWithValues: resourceProjectionAuthorities.compactMap { key, value in
+            value.authorization.map { (key, $0) }
+        })
     }
 
     func nativeEffectProgramsLocked(
@@ -812,25 +819,46 @@ final class AOSDesktopWorldSceneController {
             || payload["release_lease"] as? Bool == true
         guard let route = leases.completeOperation(token, releaseLease: releaseLease) else { return nil }
         if payload["status"] as? String == "ok" {
+            var projection = resourceProjectionAuthorities[key]
+                ?? AOSDesktopWorldSceneCommittedProjectionAuthority(
+                    authorization: nil,
+                    inputGeneration: nil
+                )
+            var projectionMutationValid = true
             switch authorizationMutation {
             case .unchanged:
                 break
             case .replace(let authorization):
-                resourceAuthorizations[key] = authorization
+                projection.authorization = authorization
             case .advanceRevision(let expected, let next, let nativeEffects):
-                guard let authorization = resourceAuthorizations[key],
+                guard let authorization = projection.authorization,
                       authorization.resourceRevision == expected else {
-                    resourceAuthorizations.removeValue(forKey: key)
+                    resourceProjectionAuthorities.removeValue(forKey: key)
+                    projectionMutationValid = false
                     break
                 }
-                resourceAuthorizations[key] = authorization.advancingResourceRevision(
+                projection.authorization = authorization.advancingResourceRevision(
                     to: next,
                     nativeEffects: nativeEffects
                 )
             }
+            if projectionMutationValid {
+                if let inputGeneration = payload["input_generation"] as? String,
+                   !inputGeneration.isEmpty,
+                   inputGeneration.utf8.count <= 128 {
+                    projection.inputGeneration = inputGeneration
+                } else if payload["input_generation"] is NSNull {
+                    projection.inputGeneration = nil
+                }
+                if projection.authorization == nil && projection.inputGeneration == nil {
+                    resourceProjectionAuthorities.removeValue(forKey: key)
+                } else {
+                    resourceProjectionAuthorities[key] = projection
+                }
+            }
         }
-        if releaseLease {
-            resourceAuthorizations.removeValue(forKey: key)
+        if releaseLease || payload["projection_released"] as? Bool == true {
+            resourceProjectionAuthorities.removeValue(forKey: key)
         }
         return AOSDesktopWorldSceneDelivery(payload: payload, route: route)
     }
@@ -858,7 +886,7 @@ final class AOSDesktopWorldSceneController {
         results.cancelAll()
         operationTokens.removeAll(keepingCapacity: false)
         operationAuthorizationMutations.removeAll(keepingCapacity: false)
-        resourceAuthorizations.removeAll(keepingCapacity: false)
+        resourceProjectionAuthorities.removeAll(keepingCapacity: false)
         let primaryKey = primaryCompletion?.payload["lease_key"] as? String
         let deliveries = invalidated.map { invalidation -> AOSDesktopWorldSceneDelivery in
             let payload: [String: Any]

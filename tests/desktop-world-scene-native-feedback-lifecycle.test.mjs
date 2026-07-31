@@ -124,6 +124,7 @@ struct AOSDesktopWorldNativeEffectRequest: Equatable {
     let binding: AOSDesktopWorldNativeEffectBinding
     let canvasGeneration: UInt64
     let eventSequence: Int?
+    let inputGeneration: String
     let inputs: AOSDesktopWorldNativeEffectInputs
     let ownerID: String
     let pointerSessionID: String?
@@ -332,12 +333,14 @@ final class Host: AOSDesktopWorldNativeFeedbackHosting {
     }
 }
 
+var pumpCount = 0
 func pumpUntil(_ predicate: () -> Bool) {
+    pumpCount += 1
     let deadline = Date().addingTimeInterval(1)
     while !predicate() && Date() < deadline {
         RunLoop.current.run(until: Date().addingTimeInterval(0.002))
     }
-    precondition(predicate())
+    precondition(predicate(), "pump #\\(pumpCount) timed out")
 }
 
 let request = AOSDesktopWorldNativeEffectRequest(
@@ -353,6 +356,7 @@ let request = AOSDesktopWorldNativeEffectRequest(
     ),
     canvasGeneration: 3,
     eventSequence: nil,
+    inputGeneration: "input-generation",
     inputs: .pointer(CGPoint(x: 900, y: 600)),
     ownerID: "example.consumer",
     pointerSessionID: "pointer-session-1",
@@ -379,6 +383,7 @@ let replacementRequest = AOSDesktopWorldNativeEffectRequest(
     ),
     canvasGeneration: request.canvasGeneration,
     eventSequence: 3,
+    inputGeneration: request.inputGeneration,
     inputs: .pointer(CGPoint(x: 1_600, y: 900)),
     ownerID: request.ownerID,
     pointerSessionID: request.pointerSessionID,
@@ -398,6 +403,7 @@ let gestureRequest = AOSDesktopWorldNativeEffectRequest(
     ),
     canvasGeneration: request.canvasGeneration,
     eventSequence: 1,
+    inputGeneration: request.inputGeneration,
     inputs: request.inputs,
     ownerID: request.ownerID,
     pointerSessionID: request.pointerSessionID,
@@ -443,6 +449,7 @@ let updateEvent = AOSDesktopWorldNativeEffectGestureEvent(
         binding: gestureRequest.binding,
         canvasGeneration: gestureRequest.canvasGeneration,
         eventSequence: 2,
+        inputGeneration: gestureRequest.inputGeneration,
         inputs: updatedInputs,
         ownerID: gestureRequest.ownerID,
         pointerSessionID: gestureRequest.pointerSessionID,
@@ -464,6 +471,7 @@ let staleSessionEvent = AOSDesktopWorldNativeEffectGestureEvent(
         binding: gestureRequest.binding,
         canvasGeneration: gestureRequest.canvasGeneration,
         eventSequence: 99,
+        inputGeneration: gestureRequest.inputGeneration,
         inputs: .pointer(CGPoint(x: 40, y: 50)),
         ownerID: gestureRequest.ownerID,
         pointerSessionID: "pointer-session-stale",
@@ -481,6 +489,7 @@ let duplicateSequenceEvent = AOSDesktopWorldNativeEffectGestureEvent(
         binding: gestureRequest.binding,
         canvasGeneration: gestureRequest.canvasGeneration,
         eventSequence: 2,
+        inputGeneration: gestureRequest.inputGeneration,
         inputs: .pointer(CGPoint(x: 70, y: 80)),
         ownerID: gestureRequest.ownerID,
         pointerSessionID: gestureRequest.pointerSessionID,
@@ -501,6 +510,7 @@ let endEvent = AOSDesktopWorldNativeEffectGestureEvent(
         binding: gestureRequest.binding,
         canvasGeneration: gestureRequest.canvasGeneration,
         eventSequence: 3,
+        inputGeneration: gestureRequest.inputGeneration,
         inputs: updatedInputs,
         ownerID: gestureRequest.ownerID,
         pointerSessionID: gestureRequest.pointerSessionID,
@@ -738,6 +748,7 @@ let unrelatedRequest = AOSDesktopWorldNativeEffectRequest(
     ),
     canvasGeneration: request.canvasGeneration,
     eventSequence: nil,
+    inputGeneration: request.inputGeneration,
     inputs: request.inputs,
     ownerID: request.ownerID,
     pointerSessionID: "pointer-session-2",
@@ -1068,6 +1079,7 @@ let delayedRequest = AOSDesktopWorldNativeEffectRequest(
     binding: request.binding,
     canvasGeneration: request.canvasGeneration,
     eventSequence: request.eventSequence,
+    inputGeneration: request.inputGeneration,
     inputs: request.inputs,
     ownerID: request.ownerID,
     pointerSessionID: request.pointerSessionID,

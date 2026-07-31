@@ -200,7 +200,12 @@ export function createDesktopWorldSceneOperationCoordinator({ outlet, interactio
       committed = true
       const settled = await pending.interactionReplacement.settle()
       if (!settled) throw new Error('DesktopWorld scene input-region settlement failed.')
-      return { applied: true, candidateFingerprint: pending.fingerprint, op: pending.op }
+      return {
+        applied: true,
+        candidateFingerprint: pending.fingerprint,
+        inputGeneration: interactions.inputGeneration(pending.key),
+        op: pending.op,
+      }
     } catch (error) {
       const failures = []
       if (committed || pending.interactionReplacement.activationAttempted()) {
@@ -253,10 +258,12 @@ export function createDesktopWorldSceneOperationCoordinator({ outlet, interactio
     const generation = outlet.hasInteractionAnimation?.(key)
       ? outlet.nextAnimationGeneration?.(key) ?? null
       : null
+    let inputGeneration = interactions.inputGeneration(key)
     let quiesced = false
     if (Number.isInteger(generation)) {
       const operationId = message?.payload?.operation_id ?? `direct-play-${generation}`
       quiesced = await interactions.quiesceAnimation(key, generation, operationId)
+      if (quiesced) inputGeneration = operationId
     }
 
     let applied
@@ -281,7 +288,11 @@ export function createDesktopWorldSceneOperationCoordinator({ outlet, interactio
         )
       }
     }
-    return { applied, op: 'play' }
+    return {
+      applied,
+      inputGeneration: applied ? inputGeneration : interactions.inputGeneration(key),
+      op: 'play',
+    }
   }
 
   async function apply(message) {
@@ -316,7 +327,11 @@ export function createDesktopWorldSceneOperationCoordinator({ outlet, interactio
 
     try {
       if (op === 'remove' || op === 'close' || op === 'release') {
-        return { applied: await retireResource(key, payload.reason ?? 'resource_removed'), op }
+        return {
+          applied: await retireResource(key, payload.reason ?? 'resource_removed'),
+          inputGeneration: interactions.inputGeneration(key),
+          op,
+        }
       }
 
       if (op === 'suspend') await interactions.suspend(key)
@@ -325,7 +340,7 @@ export function createDesktopWorldSceneOperationCoordinator({ outlet, interactio
       if (op === 'resume') {
         await interactions.resume(key)
       }
-      return { applied, op }
+      return { applied, inputGeneration: interactions.inputGeneration(key), op }
     } catch (error) {
       if (op === 'resume') {
         return rollback(key, previous, error)

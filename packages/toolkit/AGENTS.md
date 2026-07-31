@@ -49,6 +49,13 @@ the authored scene revision stable and do not synchronize native hit geometry
 per frame. All display segments must derive replacement and terminal-animation
 input-region generations from the daemon's shared scene operation identity;
 segment-local counters are not authoritative cross-display identities.
+Native pointer-effect regions carry the scene operation's input-generation ID.
+Visual-only changes retain that generation without native region churn;
+interaction changes advance it through atomic generation replacement. Every
+display reports the resulting generation before daemon authorization commits.
+Spatial play publishes its shared operation ID as the next input generation;
+old regions reject immediately and terminal regions adopt that same ID when the
+animation settles.
 DesktopWorld registers one owner-lifecycle Escape key lease before declaring
 the stage ready. Stock radial menus consume that exact redacted event; item hit
 regions remain pointer-only, and Escape continues through to macOS.

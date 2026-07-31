@@ -100,6 +100,7 @@ struct AOSDesktopWorldNativeEffectRequest: Equatable {
     let binding: AOSDesktopWorldNativeEffectBinding
     let canvasGeneration: UInt64
     let eventSequence: Int?
+    let inputGeneration: String
     let inputs: AOSDesktopWorldNativeEffectInputs
     let ownerID: String
     let pointerSessionID: String?
@@ -115,6 +116,7 @@ struct AOSDesktopWorldNativeEffectRequest: Equatable {
         lhs.binding == rhs.binding
             && lhs.canvasGeneration == rhs.canvasGeneration
             && lhs.eventSequence == rhs.eventSequence
+            && lhs.inputGeneration == rhs.inputGeneration
             && lhs.inputs == rhs.inputs
             && lhs.ownerID == rhs.ownerID
             && lhs.pointerSessionID == rhs.pointerSessionID
@@ -246,11 +248,13 @@ enum AOSDesktopWorldNativeEffectContract {
     static func request(
         binding: AOSDesktopWorldNativeEffectBinding,
         authorization: (ownerID: String, resourceID: String, revision: Int),
+        inputGeneration: String,
         identity: AOSDesktopWorldSceneStageIdentity,
         event: [String: Any],
         triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> AOSDesktopWorldNativeEffectRequest? {
-        guard case .gesture(let phase) = binding.trigger else { return nil }
+        guard validInputGeneration(inputGeneration),
+              case .gesture(let phase) = binding.trigger else { return nil }
         guard let interactionID = event["interactionId"] as? String,
               interactionID == binding.interactionID,
               let gesture = event["gesture"] as? [String: Any],
@@ -267,6 +271,7 @@ enum AOSDesktopWorldNativeEffectContract {
             binding: binding,
             canvasGeneration: identity.canvasGeneration,
             eventSequence: eventSequence,
+            inputGeneration: inputGeneration,
             inputs: inputs,
             ownerID: authorization.ownerID,
             pointerSessionID: pointerSessionID,
@@ -283,6 +288,7 @@ enum AOSDesktopWorldNativeEffectContract {
         ownerID: String,
         resourceID: String,
         resourceRevision: Int,
+        inputGeneration: String,
         identity: AOSDesktopWorldSceneStageIdentity,
         event: [String: Any],
         triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
@@ -296,6 +302,7 @@ enum AOSDesktopWorldNativeEffectContract {
                     resourceID: resourceID,
                     revision: resourceRevision
                 ),
+                inputGeneration: inputGeneration,
                 identity: identity,
                 event: event,
                 triggeredAt: triggeredAt
@@ -312,11 +319,13 @@ enum AOSDesktopWorldNativeEffectContract {
         ownerID: String,
         resourceID: String,
         resourceRevision: Int,
+        inputGeneration: String,
         identity: AOSDesktopWorldSceneStageIdentity,
         event: [String: Any],
         triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> AOSDesktopWorldNativeEffectGestureEvent? {
         guard authorized(capabilities),
+              validInputGeneration(inputGeneration),
               let interactionID = event["interactionId"] as? String,
               let gesture = event["gesture"] as? [String: Any],
               let rawPhase = gesture["phase"] as? String,
@@ -348,6 +357,7 @@ enum AOSDesktopWorldNativeEffectContract {
                 binding: binding,
                 canvasGeneration: identity.canvasGeneration,
                 eventSequence: eventSequence,
+                inputGeneration: inputGeneration,
                 inputs: inputs,
                 ownerID: ownerID,
                 pointerSessionID: pointerSessionID,
@@ -362,6 +372,7 @@ enum AOSDesktopWorldNativeEffectContract {
     static func pointerRequest(
         binding: AOSDesktopWorldNativeEffectBinding,
         authorization: (ownerID: String, resourceID: String, revision: Int),
+        inputGeneration: String,
         identity: AOSDesktopWorldSceneStageIdentity,
         affordanceID: String,
         phase: String,
@@ -370,7 +381,8 @@ enum AOSDesktopWorldNativeEffectContract {
         pointerSessionID: String,
         triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> AOSDesktopWorldNativeEffectRequest? {
-        guard case .pointerDown(let expectedButton) = binding.trigger,
+        guard validInputGeneration(inputGeneration),
+              case .pointerDown(let expectedButton) = binding.trigger,
               phase == "down",
               button == expectedButton,
               binding.affordanceID == affordanceID,
@@ -383,6 +395,7 @@ enum AOSDesktopWorldNativeEffectContract {
             binding: binding,
             canvasGeneration: identity.canvasGeneration,
             eventSequence: nil,
+            inputGeneration: inputGeneration,
             inputs: .pointer(point),
             ownerID: authorization.ownerID,
             pointerSessionID: pointerSessionID,
@@ -399,6 +412,7 @@ enum AOSDesktopWorldNativeEffectContract {
         ownerID: String,
         resourceID: String,
         resourceRevision: Int,
+        inputGeneration: String,
         identity: AOSDesktopWorldSceneStageIdentity,
         affordanceID: String,
         phase: String,
@@ -416,6 +430,7 @@ enum AOSDesktopWorldNativeEffectContract {
                     resourceID: resourceID,
                     revision: resourceRevision
                 ),
+                inputGeneration: inputGeneration,
                 identity: identity,
                 affordanceID: affordanceID,
                 phase: phase,
@@ -436,12 +451,12 @@ enum AOSDesktopWorldNativeEffectContract {
         capabilities: Set<String>,
         ownerID: String,
         resourceID: String,
-        resourceRevision: Int
+        inputGeneration: String
     ) -> Bool {
         authorized(capabilities)
             && ownerID == request.ownerID
             && resourceID == request.resourceID
-            && resourceRevision == request.resourceRevision
+            && inputGeneration == request.inputGeneration
             && bindings.contains(request.binding)
     }
 
@@ -455,6 +470,10 @@ enum AOSDesktopWorldNativeEffectContract {
     private static func authorized(_ capabilities: Set<String>) -> Bool {
         capabilities.contains(AOSDesktopWorldNativeEffectBinding.capability)
             && capabilities.contains("aos.scene.desktop_frame_texture")
+    }
+
+    private static func validInputGeneration(_ value: String) -> Bool {
+        !value.isEmpty && value.utf8.count <= 128
     }
 
     private static func nativeTrigger(

@@ -62,6 +62,23 @@ function interaction(objectId) {
   return interactionsForObjects([objectId])
 }
 
+function pointerEffectInteraction(objectId) {
+  const value = interaction(objectId)
+  value.interactions[0].nativeEffect = {
+    implementation: 'aos.scene.effect.desktop-ripple',
+    trigger: { input: 'pointer_down' },
+    parameters: {
+      amplitude: 24,
+      decay: 2.5,
+      durationMs: 900,
+      frequency: 0.04,
+      radius: 1_800,
+      speed: 900,
+    },
+  }
+  return value
+}
+
 function harness({
   applyThenRejectAffordance = null,
   applyThenRejectUpdateAffordance = null,
@@ -72,6 +89,7 @@ function harness({
   failAffordance = null,
   rejectPlay = false,
   rejectReplacementCommit = false,
+  rejectDisableAffordance = null,
   rejectResume = false,
   remove = async () => {},
   scheduleTimer = undefined,
@@ -202,6 +220,10 @@ function harness({
       }
     },
     updateRegion: async (payload) => {
+      if (payload.enabled === false
+        && payload.metadata.scene_affordance === rejectDisableAffordance) {
+        throw new Error('disable acknowledgement unavailable')
+      }
       regions.set(payload.id, payload)
       if (payload.metadata.scene_affordance === applyThenRejectUpdateAffordance) {
         throw new Error('update acknowledgement unavailable')
@@ -412,6 +434,45 @@ test('visual-only transactions retain the live input generation without native r
   )).length, nativeCallsBefore)
 })
 
+test('visual-only pointer-effect revisions retain regions while canonical authorization advances', async () => {
+  const key = 'example.consumer::companion/main'
+  const fixture = harness()
+  const interactions = pointerEffectInteraction('body')
+  const mounted = await fixture.coordinator.apply(mount(
+    key,
+    { ...scene('old-scene', 'body'), revision: 1 },
+    interactions,
+  ))
+  const originalRegion = regionIdFor(fixture.regions, 'body-hit')
+  assert.equal(fixture.regions.get(originalRegion).metadata.scene_revision, '1')
+  assert.equal(fixture.regions.get(originalRegion).metadata.scene_input_generation, mounted.inputGeneration)
+  const nativeCallsBefore = fixture.calls.filter(([kind]) => (
+    kind === 'register' || kind === 'replace-activate' || kind === 'replace-retire' || kind === 'remove'
+  )).length
+
+  const transacted = await fixture.coordinator.apply(transact(
+    key,
+    { ...scene('next-visual-scene', 'body'), revision: 2 },
+    interactions,
+  ))
+
+  const currentRegion = regionIdFor(fixture.regions, 'body-hit')
+  assert.equal(currentRegion, originalRegion)
+  assert.equal(fixture.regions.get(currentRegion).metadata.scene_revision, '1')
+  assert.equal(transacted.inputGeneration, mounted.inputGeneration)
+  assert.equal(fixture.calls.filter(([kind]) => (
+    kind === 'register' || kind === 'replace-activate' || kind === 'replace-retire' || kind === 'remove'
+  )).length, nativeCallsBefore)
+  assert.equal(fixture.interactions.handleInput(pointerDown(currentRegion)), true)
+  assert.equal(fixture.interactions.handleInput(pointerDrag(currentRegion)), true)
+  assert.equal(fixture.dispatchedScenes.at(-1), 'next-visual-scene')
+  assert.equal(fixture.emittedEvents.length, 2)
+  assert.ok(fixture.emittedEvents.every((event) => (
+    event.input_generation === mounted.inputGeneration
+    && event.event.input_generation === undefined
+  )))
+})
+
 test('failed visual-only commit retires the retained input generation with the scene', async () => {
   const key = 'example.consumer::companion/main'
   const fixture = harness({ rejectReplacementCommit: true })
@@ -500,7 +561,11 @@ test('spatial play quiesces native input before visual animation starts', async 
   await fixture.coordinator.apply(mount(key, scene('animated-scene', 'body'), interaction('body')))
   const regionId = regionIdFor(fixture.regions, 'body-hit')
 
-  assert.deepEqual(await fixture.coordinator.apply(play(key)), { applied: true, op: 'play' })
+  assert.deepEqual(await fixture.coordinator.apply(play(key)), {
+    applied: true,
+    inputGeneration: 'direct-play-1',
+    op: 'play',
+  })
 
   const removalIndex = fixture.calls.findIndex(([kind, id]) => kind === 'remove' && id === regionId)
   const playIndex = fixture.calls.findIndex(([kind, op]) => kind === 'outlet' && op === 'play')
@@ -515,20 +580,34 @@ test('spatial play reuses its shared operation identity for terminal input geome
   const fixture = harness({ spatialAnimation: true })
   await fixture.coordinator.apply(mount(key, scene('animated-scene', 'body'), interaction('body')))
 
-  await fixture.coordinator.apply(play(key, 'shared-play-operation'))
+  assert.deepEqual(await fixture.coordinator.apply(play(key, 'shared-play-operation')), {
+    applied: true,
+    inputGeneration: 'shared-play-operation',
+    op: 'play',
+  })
   assert.equal(await fixture.interactions.settleAnimationGeometry(key, 1), true)
 
   const terminalRegion = regionIdFor(fixture.regions, 'body-hit')
   assert.match(terminalRegion, /:generation:shared-play-operation$/u)
+  assert.equal(
+    fixture.regions.get(terminalRegion).metadata.scene_input_generation,
+    'shared-play-operation',
+  )
 })
 
 test('nonspatial play leaves native input active', async () => {
   const key = 'example.consumer::companion/main'
   const fixture = harness()
-  await fixture.coordinator.apply(mount(key, scene('material-scene', 'body'), interaction('body')))
+  const mounted = await fixture.coordinator.apply(
+    mount(key, scene('material-scene', 'body'), interaction('body')),
+  )
   const regionId = regionIdFor(fixture.regions, 'body-hit')
 
-  assert.deepEqual(await fixture.coordinator.apply(play(key)), { applied: true, op: 'play' })
+  assert.deepEqual(await fixture.coordinator.apply(play(key)), {
+    applied: true,
+    inputGeneration: mounted.inputGeneration,
+    op: 'play',
+  })
 
   assert.equal(fixture.calls.some(([kind, id]) => kind === 'remove' && id === regionId), false)
   assert.equal(fixture.regions.has(regionId), true)
@@ -793,7 +872,7 @@ test('failed retired-region settlement rejects and retries cleanup from a fail-c
 
   await assert.rejects(
     fixture.coordinator.apply(mount(key, scene('next-scene', 'next-body'), interaction('next-body'))),
-    /retired region unavailable/u,
+    /cleanup both failed/u,
   )
 
   assert.equal(fixture.outlet.document(key), null)
@@ -805,6 +884,27 @@ test('failed retired-region settlement rejects and retries cleanup from a fail-c
   blockOldRemoval = false
   await scheduledCleanup.shift()()
   assert.deepEqual([...fixture.regions.keys()], [])
+})
+
+test('fail-closed rejects when a retired native region cannot be disabled or removed', async () => {
+  const key = 'example.consumer::companion/main'
+  const fixture = harness({
+    rejectDisableAffordance: 'body-hit',
+    remove: async () => { throw new Error('region removal unavailable') },
+  })
+  await fixture.coordinator.apply(mount(key, scene('old-scene', 'body'), interaction('body')))
+  const regionId = regionIdFor(fixture.regions, 'body-hit')
+
+  await assert.rejects(
+    fixture.coordinator.failClosed('SCENE_SEGMENT_FAILED'),
+    /cleanup errors/u,
+  )
+
+  assert.equal(fixture.regions.get(regionId).enabled, true)
+  assert.notEqual(fixture.interactions.configuration(key), null)
+  const dispatches = fixture.dispatchedScenes.length
+  assert.equal(fixture.coordinator.handleInput(pointerDown(regionId)), false)
+  assert.equal(fixture.dispatchedScenes.length, dispatches)
 })
 
 test('two-phase replacement keeps the old aggregate authoritative until commit', async () => {

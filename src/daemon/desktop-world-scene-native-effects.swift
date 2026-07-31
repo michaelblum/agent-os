@@ -4,13 +4,16 @@ extension AOSDesktopWorldSceneController {
     func nativeEffectRequest(
         identity: AOSDesktopWorldSceneStageIdentity,
         key: String,
+        inputGeneration: String,
         event: [String: Any],
         triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> AOSDesktopWorldNativeEffectRequest? {
         withLock {
             guard retirement == nil,
                   readiness.isReady(for: identity),
-                  let authorization = resourceAuthorizations[key],
+                  let projection = resourceProjectionAuthorities[key],
+                  let authorization = projection.authorization,
+                  projection.inputGeneration == inputGeneration,
                   let resourceIdentity = leaseIdentity(from: key) else {
                 return nil
             }
@@ -20,6 +23,7 @@ extension AOSDesktopWorldSceneController {
                 ownerID: resourceIdentity.owner,
                 resourceID: resourceIdentity.resource,
                 resourceRevision: authorization.resourceRevision,
+                inputGeneration: inputGeneration,
                 identity: identity,
                 event: event,
                 triggeredAt: triggeredAt
@@ -30,13 +34,16 @@ extension AOSDesktopWorldSceneController {
     func nativeEffectGestureEvent(
         identity: AOSDesktopWorldSceneStageIdentity,
         key: String,
+        inputGeneration: String,
         event: [String: Any],
         triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> AOSDesktopWorldNativeEffectGestureEvent? {
         withLock {
             guard retirement == nil,
                   readiness.isReady(for: identity),
-                  let authorization = resourceAuthorizations[key],
+                  let projection = resourceProjectionAuthorities[key],
+                  let authorization = projection.authorization,
+                  projection.inputGeneration == inputGeneration,
                   let resourceIdentity = leaseIdentity(from: key) else {
                 return nil
             }
@@ -46,6 +53,7 @@ extension AOSDesktopWorldSceneController {
                 ownerID: resourceIdentity.owner,
                 resourceID: resourceIdentity.resource,
                 resourceRevision: authorization.resourceRevision,
+                inputGeneration: inputGeneration,
                 identity: identity,
                 event: event,
                 triggeredAt: triggeredAt
@@ -56,7 +64,7 @@ extension AOSDesktopWorldSceneController {
     func nativePointerEffectRequest(
         ownerID: String,
         resourceID: String,
-        resourceRevision: Int,
+        regionGeneration: String,
         affordanceID: String,
         canvasGeneration: UInt64,
         phase: String,
@@ -65,17 +73,16 @@ extension AOSDesktopWorldSceneController {
         pointerSessionID: String,
         triggeredAt: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> AOSDesktopWorldNativeEffectRequest? {
-        withLock {
+        let resourceKey = key(owner: ownerID, resource: resourceID)
+        return withLock {
             guard retirement == nil,
                   let identity = readiness.currentIdentity(),
                   identity.canvasGeneration == canvasGeneration,
                   readiness.isReady(for: identity),
-                  let authorization = resourceAuthorizations[key(
-                    owner: ownerID,
-                    resource: resourceID
-                  )],
+                  let projection = resourceProjectionAuthorities[resourceKey],
+                  let authorization = projection.authorization,
                   authorization.ownerID == ownerID,
-                  authorization.resourceRevision == resourceRevision else {
+                  projection.inputGeneration == regionGeneration else {
                 return nil
             }
             return AOSDesktopWorldNativeEffectContract.pointerRequest(
@@ -83,7 +90,8 @@ extension AOSDesktopWorldSceneController {
                 capabilities: authorization.capabilities,
                 ownerID: ownerID,
                 resourceID: resourceID,
-                resourceRevision: resourceRevision,
+                resourceRevision: authorization.resourceRevision,
+                inputGeneration: regionGeneration,
                 identity: identity,
                 affordanceID: affordanceID,
                 phase: phase,
@@ -102,14 +110,16 @@ extension AOSDesktopWorldSceneController {
             canvasGeneration: request.canvasGeneration,
             topologyGeneration: request.topologyGeneration
         )
+        let resourceKey = key(
+            owner: request.ownerID,
+            resource: request.resourceID
+        )
         return withLock {
             guard retirement == nil,
                   readiness.isReady(for: identity),
-                  let authorization = resourceAuthorizations[key(
-                    owner: request.ownerID,
-                    resource: request.resourceID
-                  )],
-                  authorization.resourceRevision == request.resourceRevision else {
+                  let projection = resourceProjectionAuthorities[resourceKey],
+                  let authorization = projection.authorization,
+                  let inputGeneration = projection.inputGeneration else {
                 return false
             }
             return AOSDesktopWorldNativeEffectContract.authorizes(
@@ -118,17 +128,18 @@ extension AOSDesktopWorldSceneController {
                 capabilities: authorization.capabilities,
                 ownerID: authorization.ownerID,
                 resourceID: request.resourceID,
-                resourceRevision: authorization.resourceRevision
+                inputGeneration: inputGeneration
             )
         }
     }
 
     func hasNativeEffectAuthorization() -> Bool {
         withLock {
-            retirement == nil && resourceAuthorizations.values.contains {
-                AOSDesktopWorldNativeEffectContract.available(
-                    bindings: $0.nativeEffects,
-                    capabilities: $0.capabilities
+            retirement == nil && resourceProjectionAuthorities.values.contains {
+                guard let authorization = $0.authorization else { return false }
+                return AOSDesktopWorldNativeEffectContract.available(
+                    bindings: authorization.nativeEffects,
+                    capabilities: authorization.capabilities
                 )
             }
         }
@@ -136,7 +147,11 @@ extension AOSDesktopWorldSceneController {
 
     func nativeEffectPrograms() -> [AOSDesktopWorldNativeEffectProgram] {
         withLock {
-            nativeEffectProgramsLocked(in: resourceAuthorizations)
+            nativeEffectProgramsLocked(in: Dictionary(uniqueKeysWithValues:
+                resourceProjectionAuthorities.compactMap { key, value in
+                    value.authorization.map { (key, $0) }
+                }
+            ))
         }
     }
 }

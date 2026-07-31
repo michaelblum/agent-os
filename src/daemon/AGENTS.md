@@ -28,6 +28,9 @@ canvas I/O, extension admission, barrier timing, and bounded stage readiness
 wait around that state aggregate. `UnifiedDaemon` only delegates transport
 events and emits response envelopes. Do not recreate parallel scene ownership,
 subscription maps, or transport orchestration in the connection handler.
+`desktop-world-scene-authorization.swift` defines the capability and committed
+input-generation authority aggregate; keep those values coupled rather than
+reintroducing independent mutable maps.
 Native-effect program catalogs are part of that scene authorization aggregate.
 Program-changing operations are serialized globally, validated against the
 committed cumulative pipeline budget before all-display dispatch, and published
@@ -41,6 +44,14 @@ publish. Input remains closed during preparation. A preparation failure leaves
 the browser scene usable and retains at most the previous prepared context;
 context replacement, authorization loss, and shutdown deterministically release
 the displaced GPU resources when their last active runtime lease ends.
+Native pointer admission requires the exact all-display-committed input
+generation for the resource. Visual-only scene revisions retain that generation;
+interaction replacements remain unavailable until every display commits. Effect
+requests retain that generation through capture and presentation, so interaction
+replacement revokes in-flight work while visual-only revisions do not. Effect
+reauthorization also compares the exact committed binding rather than unrelated
+scene revision numbers, and release-phase failure revokes projection authority
+before cleanup I/O.
 Physical projection hosts belong to DesktopWorld segments, remain hidden,
 paused, and delegate-free between effects, and are finalized only with their
 segment, stage, or daemon. Effect sheets borrow those hosts and own only
