@@ -406,7 +406,7 @@ function validateHeightField(state, types, parameters, errors) {
   exactKeys(emitter, new Set([
     'durationParameter', 'kind', 'leadParameter', 'lobes', 'pressureParameter',
     'radiusParameter', 'spacingRadiusScale', 'speedReference', 'speedScaleMax',
-    'speedScaleMin',
+    'speedScaleMin', 'trajectoryEasing',
   ]), emitterPath, errors)
   if (emitter.kind !== 'swept_brush') {
     addError(errors, 'invalid_native_effect_height_field_emitter_kind', `${emitterPath}.kind`, 'Height-field emitter kind is unsupported.')
@@ -432,6 +432,10 @@ function validateHeightField(state, types, parameters, errors) {
       && finiteScalar(emitter.speedScaleMax)
       && emitter.speedScaleMin > emitter.speedScaleMax) {
     addError(errors, 'invalid_native_effect_height_field_speed_scale', emitterPath, 'Height-field emitter speed scale bounds are reversed.')
+  }
+  if (Object.hasOwn(emitter, 'trajectoryEasing')
+      && !['ease_out_quart', 'linear'].includes(emitter.trajectoryEasing)) {
+    addError(errors, 'invalid_native_effect_height_field_emitter_easing', `${emitterPath}.trajectoryEasing`, 'Height-field emitter trajectory easing is unsupported.')
   }
   if (!Array.isArray(emitter.lobes)
       || emitter.lobes.length < 1

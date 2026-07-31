@@ -193,7 +193,9 @@ const routeSurface = createSceneNativeEffectProgram({
 The complete V3 field and signed swept-lobe recipe is in the
 [`aos-desktop-world-authoring` native-effect reference](../../../skills/aos-desktop-world-authoring/references/native-effect-program.md#stateful-height-field).
 The emitter transit may end before the program duration so fast movement leaves
-a settling surface. Display segments sample one global field; bezels do not
+a settling surface. Swept emitters default to linear transit and may select the
+bounded `ease_out_quart` trajectory when they must remain synchronized with a
+route using that easing. Display segments sample one global field; bezels do not
 split simulation state or create absorbing edges.
 
 `event_point` centers one patch at `event.current`; `event_segment` surrounds

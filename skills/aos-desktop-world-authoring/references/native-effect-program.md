@@ -182,6 +182,7 @@ travels from its origin to its current point:
       "speedReference": 1400,
       "speedScaleMin": 0.3,
       "speedScaleMax": 1.65,
+      "trajectoryEasing": "ease_out_quart",
       "lobes": [
         { "offsetRadiusScale": 1, "radiusScale": 1, "strengthScale": 1 },
         { "offsetRadiusScale": -0.42, "radiusScale": 0.82, "strengthScale": -0.72 }
@@ -197,7 +198,9 @@ absorbing boundary, and GPU completion gates buffered texture reuse.
 `state.gradient` is a derivative in global DesktopWorld units rather than raw
 texture-cell units, so field resolution does not retune the graph.
 The emitter transit may be shorter than `durationMs`, allowing the surface to
-settle after fast movement. Field dimensions, substeps, lobe count, brush work,
+settle after fast movement. `trajectoryEasing` is optional and defaults to
+`linear`; select `ease_out_quart` when the swept emitter must remain coincident
+with a route using that easing. Field dimensions, substeps, lobe count, brush work,
 and referenced parameter ranges are engine-bounded. V3 still accepts no source,
 loops, kernels, allocation commands, pixels, or native handles.
 

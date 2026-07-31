@@ -23,6 +23,7 @@ bounded parameters. AOS owns:
 - aspect-preserving bounded field dimensions;
 - fixed-step integration, substep limits, backlog dropping, and edge absorption;
 - a bounded swept-brush emitter with signed lobes;
+- an optional bounded trajectory easing, defaulting to linear for compatibility;
 - immutable, all-segment Metal state snapshots with GPU-completion-gated reuse;
   and
 - texture, array, renderer, and sheet disposal.
@@ -46,7 +47,10 @@ buffers using that slot have completed.
 
 Timed effect duration and emitter transit duration are independent. A consumer
 may move an emitter quickly and allow the resulting surface to settle for the
-remaining bounded effect lifetime. Gesture-owned effects retain the existing
+remaining bounded effect lifetime. A consumer may select `ease_out_quart` when
+the visual emitter must remain coincident with an aim-and-commit route that uses
+the same easing; unsupported trajectory functions fail validation.
+Gesture-owned effects retain the existing
 lease and watchdog rules from ADR 0035.
 
 ## Consequences

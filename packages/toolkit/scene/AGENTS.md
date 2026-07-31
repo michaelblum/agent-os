@@ -71,6 +71,9 @@ stage internals.
   union DesktopWorld plane; display segments sample one immutable generation,
   GPU completion gates texture-slot reuse, gradients use global DesktopWorld
   units, and every field texture and CPU buffer retires with its effect instance.
+  Swept emitters default to linear transit and may opt into the engine's bounded
+  `ease_out_quart` trajectory to stay synchronized with a route using the same
+  easing. A coincident consumer body must use the same easing and duration.
   The toolkit may
   compile the same validated graph into a Three.js-compatible GLSL evaluation
   function for trusted previews. Consumers never create geometry directly;
