@@ -15,6 +15,13 @@ test('normalizeRenderSample accepts common frame timing aliases', () => {
     renderMs: 8,
     calls: 42,
     backingPixels: 2073600,
+    backingWidth: 1920,
+    backingHeight: 1080,
+    damagedPixelPercentage: 12.5,
+    effectiveDevicePixelRatio: 2,
+    estimatedBackingBytes: 66_355_200,
+    msaaSamples: 4,
+    requestedDevicePixelRatio: 2,
     memory: { usedJSHeapSize: 1024 },
   }, { now: 1000 });
 
@@ -24,6 +31,13 @@ test('normalizeRenderSample accepts common frame timing aliases', () => {
   assert.equal(sample.renderMs, 8);
   assert.equal(sample.drawCalls, 42);
   assert.equal(sample.backingPixels, 2073600);
+  assert.equal(sample.backingWidth, 1920);
+  assert.equal(sample.backingHeight, 1080);
+  assert.equal(sample.damagedPixelPercentage, 12.5);
+  assert.equal(sample.effectiveDevicePixelRatio, 2);
+  assert.equal(sample.estimatedBackingBytes, 66_355_200);
+  assert.equal(sample.msaaSamples, 4);
+  assert.equal(sample.requestedDevicePixelRatio, 2);
   assert.equal(sample.heapUsed, 1024);
   assert.equal(sample.ts, 1000);
 });
@@ -71,13 +85,14 @@ test('summarizeRenderPerformance reports fps, p95, budget pressure, and drops', 
 
 test('summarizeRenderPerformance carries renderer-side coarse timing averages', () => {
   const summary = summarizeRenderPerformance([
-    { ts: 1000, frameMs: 16, renderMs: 4, updateMs: 2, gpuMs: 5 },
-    { ts: 1016, frameMs: 16, renderMs: 6, updateMs: 4, gpuMs: 7 },
+    { ts: 1000, frameMs: 16, renderMs: 4, updateMs: 2, gpuMs: 5, damagedPixelPercentage: 10 },
+    { ts: 1016, frameMs: 16, renderMs: 6, updateMs: 4, gpuMs: 7, damagedPixelPercentage: 20 },
   ], { now: 1200 });
 
   assert.equal(summary.avgRenderMs, 5);
   assert.equal(summary.avgUpdateMs, 3);
   assert.equal(summary.avgGpuMs, 6);
+  assert.equal(summary.avgDamagedPixelPercentage, 15);
 });
 
 test('summarizeRenderPerformance preserves source-provided current fps', () => {

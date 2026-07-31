@@ -65,6 +65,13 @@ export function normalizeRenderSample(input = {}, options = {}) {
     textures: finiteNumber(input.textures),
     programs: finiteNumber(input.programs),
     backingPixels: finiteNumber(input.backingPixels),
+    backingWidth: finiteNumber(input.backingWidth),
+    backingHeight: finiteNumber(input.backingHeight),
+    damagedPixelPercentage: finiteNumber(input.damagedPixelPercentage),
+    effectiveDevicePixelRatio: finiteNumber(input.effectiveDevicePixelRatio),
+    estimatedBackingBytes: finiteNumber(input.estimatedBackingBytes),
+    msaaSamples: finiteNumber(input.msaaSamples),
+    requestedDevicePixelRatio: finiteNumber(input.requestedDevicePixelRatio),
     heapUsed: finiteNumber(input.heapUsed ?? memory.usedJSHeapSize),
     heapLimit: finiteNumber(input.heapLimit ?? memory.jsHeapSizeLimit),
     label: typeof input.label === 'string' ? input.label : '',
@@ -109,6 +116,9 @@ export function summarizeRenderPerformance(samples = [], options = {}) {
   const renderValues = usable.map((sample) => sample.renderMs).filter(Number.isFinite);
   const updateValues = usable.map((sample) => sample.updateMs).filter(Number.isFinite);
   const gpuValues = usable.map((sample) => sample.gpuMs).filter(Number.isFinite);
+  const damageValues = usable
+    .map((sample) => sample.damagedPixelPercentage)
+    .filter(Number.isFinite);
 
   return {
     sampleCount: samples.length,
@@ -128,6 +138,9 @@ export function summarizeRenderPerformance(samples = [], options = {}) {
     avgRenderMs: renderValues.length ? renderValues.reduce((a, b) => a + b, 0) / renderValues.length : null,
     avgUpdateMs: updateValues.length ? updateValues.reduce((a, b) => a + b, 0) / updateValues.length : null,
     avgGpuMs: gpuValues.length ? gpuValues.reduce((a, b) => a + b, 0) / gpuValues.length : null,
+    avgDamagedPixelPercentage: damageValues.length
+      ? damageValues.reduce((a, b) => a + b, 0) / damageValues.length
+      : null,
     latest,
     state: classifyPerformance({ currentFps, p95FrameMs, budgetMs, overBudgetPct: frameValues.length ? (overBudget / frameValues.length) * 100 : null }),
   };

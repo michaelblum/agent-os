@@ -684,6 +684,14 @@ export function validateSceneExtensionProjection(projection) {
       'Scene extension projection applyPointerVisual must be a function when provided.',
     )
   }
+  if (projection.renderDamage !== undefined && typeof projection.renderDamage !== 'function') {
+    addError(
+      errors,
+      'invalid_projection_method',
+      'projection.renderDamage',
+      'Scene extension projection renderDamage must be a function when provided.',
+    )
+  }
   return { ok: errors.length === 0, errors }
 }
 
@@ -799,6 +807,9 @@ export function createTrustedSceneExtensionRegistry(input = {}) {
                 ? () => normalizeSceneExtensionInteractionRouteState(
                   callSynchronousProjectionHook(projection, 'inspectInteractionRoute'),
                 )
+                : undefined,
+              renderDamage: typeof projection.renderDamage === 'function'
+                ? () => callSynchronousProjectionHook(projection, 'renderDamage')
                 : undefined,
               resourceMetrics: () => currentMetrics,
               resume: (...args) => callLifecycleHook('resume', args),

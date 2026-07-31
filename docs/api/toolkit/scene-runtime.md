@@ -125,8 +125,12 @@ stage time; bounded declarative transitions use the pausable playback time.
 `createThreeRenderLifecycle()` owns resize observation, DPR and backing-pixel
 limits, visibility and context-loss suspension, the caller-supplied render
 callback, and idempotent disposal. Default DPR is capped at 2, backing
-dimensions at 4096, and backing pixels at 4,194,304. DesktopWorld lowers its
-per-display-segment pixel ceiling to 2,097,152.
+dimensions at 4096, and backing pixels at 4,194,304. The singleton DesktopWorld
+renderer instead uses each display segment's native scale factor exactly. It
+fails closed when the resulting backing dimensions exceed the active WebGL
+device limits rather than silently lowering quality. DevTools reports requested
+and effective DPR, backing dimensions and pixels, MSAA samples, estimated
+backing bytes, and damaged-pixel percentage for measured acceptance.
 
 `DesktopWorldSurfaceThree` (alias `DesktopWorldSurface3D`) adds segment-aware
 camera and viewport refresh. `deriveOrthoCamera()` is the pure segment-to-frustum
@@ -138,7 +142,10 @@ The singleton DesktopWorld outlet renders perspective resources first and its
 orthographic overlay last through the existing renderer and frame loop. A
 trusted extension may supply a distinct `overlayObject` for screen-aligned
 interaction art; both subtrees share one resource budget and one projection
-disposal lifecycle.
+disposal lifecycle. Its transparent drawing buffer is retained between frames
+so extension-declared global damage regions can clear and redraw only their
+per-display intersection. Full-stage effects remain explicit temporary
+workloads and return to bounded damage after disposal.
 
 `DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS` and
 `evaluateDesktopWorldPerformanceAcceptance()` provide the content-free engine

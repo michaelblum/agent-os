@@ -51,6 +51,16 @@ is absolute, comparable across display segments, and continuous across
 replacement and `play`; use it for ambient motion that must not reset or split
 at a display bezel.
 
+An optional synchronous `renderDamage()` hook may return `full_stage` or up to
+eight bounded rectangles in the global DesktopWorld coordinate plane plus at
+most 512 points of padding. AOS unions the current and previous bounds, clips
+that one global damage region independently into each display segment, and
+uses WebGL scissoring for clear and render. Missing, malformed, or throwing
+hooks fall back to a full-stage frame so an optimization can never leave stale
+pixels. Consumer effects that intentionally affect the desktop may request
+`full_stage` for their bounded lifetime; ordinary ambient projections should
+report conservative object, aura, and effect bounds.
+
 An optional synchronous `applyInteraction(event)` hook may render
 consumer-specific aim, route, and radial-menu visuals. Return `true` or
 `{ handled: true }` after applying a visual update. A committed route may also

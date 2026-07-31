@@ -174,6 +174,12 @@ stage internals.
   subtree first and the orthographic overlay last, audits both subtrees under
   one aggregate budget, and disposes them through the projection's single
   lifecycle. Extensions must not create a renderer, canvas, context, or RAF.
+- Trusted projections may expose one synchronous `renderDamage()` optimization
+  in global DesktopWorld coordinates. AOS unions current and prior bounds,
+  intersects them with each display segment, and owns scissored clear/render.
+  Invalid or absent declarations render the full stage. Full-stage declarations
+  are for explicit bounded effects; ordinary continuous projection should
+  conservatively include geometry, aura, and effect padding.
 - Visual-only transactions whose interaction descriptors and transform
   projection are unchanged retain the live native input generation. Any
   hierarchy, transform, affordance, recognizer, or response change continues

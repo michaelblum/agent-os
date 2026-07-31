@@ -15,8 +15,8 @@ class StubAdapter extends DesktopWorldSurfaceAdapter {
 }
 
 const segments = [
-  { display_id: 10, index: 0, dw_bounds: [0, 0, 100, 100], native_bounds: [-20, 0, 100, 100] },
-  { display_id: 11, index: 1, dw_bounds: [100, 0, 100, 100], native_bounds: [80, 0, 100, 100] },
+  { display_id: 10, index: 0, dw_bounds: [0, 0, 100, 100], native_bounds: [-20, 0, 100, 100], scale_factor: 2 },
+  { display_id: 11, index: 1, dw_bounds: [100, 0, 100, 100], native_bounds: [80, 0, 100, 100], scale_factor: 1 },
 ]
 
 function encodeBridgeMessage(message) {
@@ -63,6 +63,8 @@ test('start ignores other surfaces and resolves on matching topology', async () 
   await started
 
   assert.equal(adapter.segment.display_id, 10)
+  assert.equal(adapter.segment.scale_factor, 2)
+  assert.equal(adapter.topology[0].scale_factor, 2)
 })
 
 test('topology changes call re-election callbacks after initial boot', async () => {

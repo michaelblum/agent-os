@@ -19,6 +19,8 @@ function renderer() {
     clear(...args) { calls.push({ args, kind: 'clear' }) },
     clearDepth() { calls.push({ kind: 'clearDepth' }) },
     render(scene, camera) { calls.push({ camera, kind: 'render', scene }) },
+    setScissor(...args) { calls.push({ args, kind: 'setScissor' }) },
+    setScissorTest(value) { calls.push({ kind: 'setScissorTest', value }) },
   }
 }
 
@@ -142,4 +144,40 @@ test('one hundred perspective attachment cycles leave no pass-owned object behin
   }
 
   assert.equal(coordinator.overlayScene.children.length, baselineOverlayChildren)
+})
+
+test('bounded damage clears and renders only its segment-local scissor', () => {
+  const host = renderer()
+  const coordinator = createDesktopWorldSceneRenderCoordinator({ THREE, renderer: host })
+  const topology = [
+    { display_id: 1, dw_bounds: [0, 0, 1_000, 800] },
+    { display_id: 2, dw_bounds: [1_000, -100, 1_200, 900] },
+  ]
+  coordinator.updateSegment(topology[1], topology)
+  const overlay = mounted('annotation/main', { kind: 'orthographic_overlay' })
+  coordinator.attach(overlay)
+
+  assert.equal(coordinator.render(new Map([[overlay.key, overlay]]), {
+    kind: 'bounded',
+    localBounds: [20, 30, 400, 200],
+  }), true)
+
+  const scissor = host.calls.find((entry) => entry.kind === 'setScissor')
+  assert.deepEqual(scissor.args, [20, 670, 400, 200])
+  assert.deepEqual(
+    host.calls.filter((entry) => entry.kind === 'setScissorTest').map((entry) => entry.value),
+    [true, false],
+  )
+  assert.equal(host.calls.filter((entry) => entry.kind === 'clear').length, 1)
+})
+
+test('empty damage performs no clear or draw', () => {
+  const host = renderer()
+  const coordinator = createDesktopWorldSceneRenderCoordinator({ THREE, renderer: host })
+  const topology = [{ display_id: 1, dw_bounds: [0, 0, 1_000, 800] }]
+  coordinator.updateSegment(topology[0], topology)
+
+  assert.equal(coordinator.render(new Map(), { kind: 'none' }), false)
+  assert.equal(host.calls.some((entry) => entry.kind === 'clear'), false)
+  assert.equal(host.calls.some((entry) => entry.kind === 'render'), false)
 })

@@ -144,6 +144,14 @@ export interface SceneExtensionProjection {
    * enabled.
    */
   inspectInteractionRoute?(): Readonly<SceneExtensionInteractionRouteState> | null;
+  /**
+   * Optional global DesktopWorld damage declaration. A missing declaration
+   * preserves correctness by rendering the full display segment.
+   */
+  renderDamage?(): Readonly<
+    | { kind: 'full_stage' }
+    | { kind: 'bounded'; regions: ReadonlyArray<readonly [number, number, number, number]>; padding?: number }
+  >;
   applySignal(binding: Readonly<SceneSignalBinding>, value: number): void;
   applyAnimation(binding: Readonly<SceneAnimationBinding>, value: number): void;
   tick(playbackElapsedMs: number, stageClockMs: number): void;

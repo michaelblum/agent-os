@@ -57,8 +57,15 @@ struct DesktopWorldSurfaceSegment: Codable, Equatable {
     let index: Int                 // position in the ordered topology
     let dwBounds: [CGFloat]        // [x, y, w, h] in DesktopWorld coords
     let nativeBounds: [CGFloat]    // [x, y, w, h] in native CG coords
+    let scaleFactor: CGFloat       // native backing pixels per logical point
 
-    init(displayID: UInt32, index: Int, dwBounds: [CGFloat], nativeBounds: [CGFloat]) {
+    init(
+        displayID: UInt32,
+        index: Int,
+        dwBounds: [CGFloat],
+        nativeBounds: [CGFloat],
+        scaleFactor: CGFloat = 1
+    ) {
         precondition(dwBounds.count == 4,
                      "dwBounds must have exactly 4 elements [x, y, w, h]")
         precondition(nativeBounds.count == 4,
@@ -67,6 +74,7 @@ struct DesktopWorldSurfaceSegment: Codable, Equatable {
         self.index = index
         self.dwBounds = dwBounds
         self.nativeBounds = nativeBounds
+        self.scaleFactor = max(1, scaleFactor)
     }
 
     enum CodingKeys: String, CodingKey {
@@ -74,6 +82,7 @@ struct DesktopWorldSurfaceSegment: Codable, Equatable {
         case index
         case dwBounds = "dw_bounds"
         case nativeBounds = "native_bounds"
+        case scaleFactor = "scale_factor"
     }
 
     init(from decoder: Decoder) throws {
@@ -82,6 +91,7 @@ struct DesktopWorldSurfaceSegment: Codable, Equatable {
         let index        = try c.decode(Int.self,       forKey: .index)
         let dwBounds     = try c.decode([CGFloat].self, forKey: .dwBounds)
         let nativeBounds = try c.decode([CGFloat].self, forKey: .nativeBounds)
+        let scaleFactor  = try c.decodeIfPresent(CGFloat.self, forKey: .scaleFactor) ?? 1
         guard dwBounds.count == 4 else {
             throw DecodingError.dataCorruptedError(
                 forKey: .dwBounds,
@@ -96,8 +106,13 @@ struct DesktopWorldSurfaceSegment: Codable, Equatable {
                 debugDescription: "native_bounds must have exactly 4 elements [x, y, w, h]"
             )
         }
-        self.init(displayID: displayID, index: index,
-                  dwBounds: dwBounds, nativeBounds: nativeBounds)
+        self.init(
+            displayID: displayID,
+            index: index,
+            dwBounds: dwBounds,
+            nativeBounds: nativeBounds,
+            scaleFactor: scaleFactor
+        )
     }
 }
 
@@ -117,8 +132,13 @@ func orderSegments(_ unordered: [DesktopWorldSurfaceSegment]) -> [DesktopWorldSu
         return a.displayID < b.displayID
     }
     return sorted.enumerated().map { (i, s) in
-        DesktopWorldSurfaceSegment(displayID: s.displayID, index: i,
-                                    dwBounds: s.dwBounds, nativeBounds: s.nativeBounds)
+        DesktopWorldSurfaceSegment(
+            displayID: s.displayID,
+            index: i,
+            dwBounds: s.dwBounds,
+            nativeBounds: s.nativeBounds,
+            scaleFactor: s.scaleFactor
+        )
     }
 }
 
@@ -134,6 +154,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         var index: Int
         var nativeBounds: CGRect
         var dwBounds: CGRect
+        var scaleFactor: CGFloat
         let window: CanvasWindow
         let webView: WKWebView
         let messageHandler: CanvasMessageHandler
@@ -148,12 +169,14 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         }
 
         init(displayID: UInt32, index: Int, nativeBounds: CGRect, dwBounds: CGRect,
+             scaleFactor: CGFloat,
              window: CanvasWindow, webView: WKWebView, messageHandler: CanvasMessageHandler,
              nativeRetirementID: String) {
             self.displayID = displayID
             self.index = index
             self.nativeBounds = nativeBounds
             self.dwBounds = dwBounds
+            self.scaleFactor = scaleFactor
             self.window = window
             self.webView = webView
             self.messageHandler = messageHandler
@@ -569,7 +592,8 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
                     display.bounds.minY,
                     display.bounds.width,
                     display.bounds.height,
-                ]
+                ],
+                scaleFactor: display.scaleFactor
             )
         }
         return applyOrderedSegments(orderSegments(unordered))
@@ -620,10 +644,12 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             if let existing = byDisplay.removeValue(forKey: meta.displayID) {
                 let changedBounds = existing.nativeBounds != nativeRect || existing.dwBounds != dwRect
                 let changedIndex = existing.index != meta.index
-                if changedBounds || changedIndex {
+                let changedScale = existing.scaleFactor != meta.scaleFactor
+                if changedBounds || changedIndex || changedScale {
                     existing.index = meta.index
                     existing.nativeBounds = nativeRect
                     existing.dwBounds = dwRect
+                    existing.scaleFactor = meta.scaleFactor
                     existing.window.setFrame(canvasScreenFrame(nativeRect), display: true)
                     existing.nativeProjectionHost?.resize()
                     changed.append(segmentMetadata(existing))
@@ -729,6 +755,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             index: meta.index,
             nativeBounds: nativeRect,
             dwBounds: dwRect,
+            scaleFactor: meta.scaleFactor,
             window: window,
             webView: webView,
             messageHandler: messageHandler,
@@ -794,7 +821,8 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
                 segment.nativeBounds.minY,
                 segment.nativeBounds.width,
                 segment.nativeBounds.height,
-            ]
+            ],
+            scaleFactor: segment.scaleFactor
         )
     }
 

@@ -12,6 +12,10 @@ import {
 import { createScenePlaybackClock } from '../../packages/toolkit/components/desktop-world-stage/scene-playback-clock.js'
 import { createDesktopWorldStageClock } from '../../packages/toolkit/components/desktop-world-stage/scene-stage-clock.js'
 import {
+  DESKTOP_WORLD_NATIVE_RENDER_LIMITS,
+  resolveDesktopWorldNativeRenderMetrics,
+} from '../../packages/toolkit/components/desktop-world-stage/scene-render-budget.js'
+import {
   createSceneOutletDevToolsSnapshot,
   emitSceneOutletRouteStartedSnapshot,
 } from '../../packages/toolkit/components/desktop-world-stage/scene-outlet-devtools.js'
@@ -221,9 +225,8 @@ test('resource resume cannot reactivate a route while the stage remains suspende
 
 test('DesktopWorld render loop runs only while at least one visible resource is active', () => {
   assert.deepEqual(DESKTOP_WORLD_SCENE_RENDER_LIMITS, {
-    maxDevicePixelRatio: 2,
-    maxBackingDimension: 4096,
-    maxBackingPixels: 2_097_152,
+    maxDisplaySegments: 16,
+    maxNativeDevicePixelRatio: 4,
   })
   const resources = new Map()
   assert.equal(sceneStageShouldRender(resources, false, false), false)
@@ -235,6 +238,86 @@ test('DesktopWorld render loop runs only while at least one visible resource is 
   assert.equal(sceneStageShouldRender(resources, false, true), false)
   assert.equal(sceneStageShouldRender(resources, false, false, true), false)
   assert.equal(sceneStageShouldRender(resources, false, false, false, true), false)
+  assert.equal(sceneStageShouldRender(new Map(), false, false, false, false, true), true)
+})
+
+test('DesktopWorld native render metrics preserve each display DPR and total topology cost', () => {
+  const context = {
+    MAX_RENDERBUFFER_SIZE: 'max-renderbuffer',
+    MAX_VIEWPORT_DIMS: 'max-viewport',
+    SAMPLES: 'samples',
+    getParameter(key) {
+      if (key === 'max-renderbuffer') return 16_384
+      if (key === 'max-viewport') return [16_384, 16_384]
+      if (key === 'samples') return 4
+      return null
+    },
+  }
+  const topology = [
+    { display_id: 1, dw_bounds: [0, 0, 1512, 982], scale_factor: 2 },
+    { display_id: 2, dw_bounds: [1512, 0, 1920, 1080], scale_factor: 1 },
+  ]
+  const metrics = resolveDesktopWorldNativeRenderMetrics({
+    context,
+    devicePixelRatio: 1,
+    height: 982,
+    segment: topology[0],
+    topology,
+    width: 1512,
+  })
+
+  assert.equal(metrics.effectiveDevicePixelRatio, 2)
+  assert.equal(metrics.constrained, false)
+  assert.equal(metrics.backingWidth, 3024)
+  assert.equal(metrics.backingHeight, 1964)
+  assert.equal(metrics.backingPixels, 5_939_136)
+  assert.equal(metrics.topologyBackingPixels, 8_012_736)
+  assert.equal(metrics.msaaSamples, 4)
+  assert.equal(metrics.estimatedBackingBytes, 237_565_440)
+  assert.equal(metrics.estimatedTopologyBackingBytes, 320_509_440)
+  assert.deepEqual(DESKTOP_WORLD_NATIVE_RENDER_LIMITS, {
+    maxDisplaySegments: 16,
+    maxNativeDevicePixelRatio: 4,
+  })
+})
+
+test('DesktopWorld native render metrics fail rather than silently reduce unsupported DPR', () => {
+  const context = {
+    MAX_RENDERBUFFER_SIZE: 'max-renderbuffer',
+    MAX_VIEWPORT_DIMS: 'max-viewport',
+    SAMPLES: 'samples',
+    getParameter(key) {
+      if (key === 'max-renderbuffer') return 2048
+      if (key === 'max-viewport') return [2048, 2048]
+      if (key === 'samples') return 0
+      return null
+    },
+  }
+  assert.equal(resolveDesktopWorldNativeRenderMetrics({
+    context,
+    height: 982,
+    segment: { display_id: 1, dw_bounds: [0, 0, 1512, 982], scale_factor: 2 },
+    topology: [{ display_id: 1, dw_bounds: [0, 0, 1512, 982], scale_factor: 2 }],
+    width: 1512,
+  }), null)
+
+  assert.equal(resolveDesktopWorldNativeRenderMetrics({
+    context: {
+      MAX_RENDERBUFFER_SIZE: 'max-renderbuffer',
+      MAX_VIEWPORT_DIMS: 'max-viewport',
+      SAMPLES: 'samples',
+      getParameter(key) {
+        if (key === 'max-renderbuffer') return 16_384
+        if (key === 'max-viewport') return [16_384, 16_384]
+        if (key === 'samples') return 0
+        return null
+      },
+    },
+    height: 100,
+    segment: { display_id: 1, dw_bounds: [0, 0, 100, 100], scale_factor: 5 },
+    topology: [{ display_id: 1, dw_bounds: [0, 0, 100, 100], scale_factor: 5 }],
+    width: 100,
+  }), null)
 })
 
 test('DesktopWorld segment resource budgets aggregate every mounted projection', () => {
@@ -809,7 +892,7 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /mounted\.animations\.tick\(elapsed\)/u)
   assert.match(outlet, /emitSceneOutletRouteStartedSnapshot\(devtoolsProbe, visual\)/u)
   assert.match(outlet, /finally \{[\s\S]*if \(!stageFault\) scheduleRender\(\)/u)
-  assert.match(outlet, /sceneStageShouldRender\(resources, hidden, contextLost, stageSuspended, Boolean\(stageFault\)\)/u)
+  assert.match(outlet, /sceneStageShouldRender\([\s\S]*damageTracker\.hasPendingCleanup\(resources\)[\s\S]*\)/u)
   assert.match(outlet, /renderLoopActive: frame !== null/u)
   assert.match(outlet, /faultSceneSegment\(code, mounted\)/u)
   assert.match(outlet, /setFaultObserver\(observer\)/u)
@@ -850,9 +933,15 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /MAX_RESOURCES = 32/u)
   assert.match(outlet, /resources\.size \+ pendingResourceKeys\.size >= MAX_RESOURCES/u)
   assert.match(outlet, /MAX_SIGNALS_PER_SECOND = 30/u)
-  assert.match(outlet, /resolveThreeRenderMetrics/u)
-  assert.match(outlet, /\.\.\.DESKTOP_WORLD_SCENE_RENDER_LIMITS/u)
+  assert.match(outlet, /resolveDesktopWorldNativeRenderMetrics/u)
+  assert.match(outlet, /context: renderer\.getContext\(\)/u)
+  assert.match(outlet, /segment,[\s\S]*topology,/u)
   assert.match(outlet, /effectiveDevicePixelRatio/u)
+  assert.match(outlet, /estimatedTopologyBackingBytes/u)
+  assert.match(outlet, /SCENE_NATIVE_DPR_UNSUPPORTED/u)
+  assert.match(outlet, /preserveDrawingBuffer: true/u)
+  assert.match(outlet, /damageTracker\.frame\(resources\)/u)
+  assert.match(outlet, /damagedPixelPercentage/u)
   assert.match(outlet, /backingPixels/u)
   assert.match(outlet, /devtoolsProbe\?\.isEnabled\(\) === true/u)
   assert.match(outlet, /createDesktopWorldGpuTimer\(renderer\.getContext\(\)\)/u)

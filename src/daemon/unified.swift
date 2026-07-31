@@ -967,6 +967,7 @@ class UnifiedDaemon {
                     "index": segment.index,
                     "dw_bounds": segment.dwBounds,
                     "native_bounds": segment.nativeBounds,
+                    "scale_factor": segment.scaleFactor,
                 ] as [String: Any]
             }
         }

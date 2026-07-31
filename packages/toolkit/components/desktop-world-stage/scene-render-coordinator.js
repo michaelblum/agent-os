@@ -36,6 +36,22 @@ export function createDesktopWorldSceneRenderCoordinator({ THREE, renderer } = {
   let segment = null
   let topology = []
 
+  const applyDamage = (damage) => {
+    if (damage?.kind === 'none') return false
+    if (damage?.kind !== 'bounded') {
+      renderer.setScissorTest?.(false)
+      return true
+    }
+    const [x, y, width, height] = damage.localBounds
+    const segmentHeight = Number(segment?.dw_bounds?.[3] ?? segment?.dwBounds?.[3])
+    if (![x, y, width, height, segmentHeight].every(Number.isFinite) || width <= 0 || height <= 0) {
+      return false
+    }
+    renderer.setScissorTest?.(true)
+    renderer.setScissor?.(x, segmentHeight - y - height, width, height)
+    return true
+  }
+
   const configurePerspective = (mounted) => {
     const projection = derivePerspectiveResourceCamera(topology, segment, mounted.renderPass.camera)
     if (!projection || !mounted.rendering?.camera) return false
@@ -96,17 +112,22 @@ export function createDesktopWorldSceneRenderCoordinator({ THREE, renderer } = {
       return true
     },
     overlayScene,
-    render(resources) {
+    render(resources, damage = null) {
+      if (!applyDamage(damage)) return false
       renderer.info?.reset?.()
-      renderer.clear(true, true, true)
-      for (const mounted of sortedPerspectiveResources(resources)) {
-        if (!mounted.rendering?.camera) continue
+      try {
+        renderer.clear(true, true, true)
+        for (const mounted of sortedPerspectiveResources(resources)) {
+          if (!mounted.rendering?.camera) continue
+          renderer.clearDepth?.()
+          renderer.render(mounted.rendering.scene, mounted.rendering.camera)
+        }
         renderer.clearDepth?.()
-        renderer.render(mounted.rendering.scene, mounted.rendering.camera)
+        renderer.render(overlayScene, overlayCamera)
+        return true
+      } finally {
+        renderer.setScissorTest?.(false)
       }
-      renderer.clearDepth?.()
-      renderer.render(overlayScene, overlayCamera)
-      return true
     },
     updateSegment(nextSegment, nextTopology = []) {
       const projection = deriveOrthoCamera(nextSegment)

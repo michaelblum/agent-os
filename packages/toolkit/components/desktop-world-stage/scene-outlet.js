@@ -3,7 +3,6 @@ import {
   applySceneTransaction,
   canonicalizeSceneDocument,
   createDesktopWorldGpuTimer,
-  resolveThreeRenderMetrics,
 } from '../../scene/index.js'
 import { createDesktopWorldSceneInteractionThree } from './scene-interaction-three.js'
 import {
@@ -17,6 +16,8 @@ import {
 } from './scene-outlet-devtools.js'
 import { prepareDesktopWorldSceneOutletReplacement } from './scene-outlet-replacement.js'
 import { createDesktopWorldSceneRenderCoordinator } from './scene-render-coordinator.js'
+import { resolveDesktopWorldNativeRenderMetrics } from './scene-render-budget.js'
+import { createDesktopWorldRenderDamageTracker } from './scene-render-damage.js'
 import {
   DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS,
   createSceneSegmentResourceBudget,
@@ -26,7 +27,6 @@ import {
   proveDesktopWorldSceneFramebuffer,
 } from './scene-framebuffer-proof.js'
 import {
-  DESKTOP_WORLD_SCENE_RENDER_LIMITS,
   reconcileSceneStageRunState,
   sceneResourceCanRun,
   sceneStageShouldRender,
@@ -57,13 +57,20 @@ export function createDesktopWorldSceneOutlet({
   window: hostWindow = window,
 } = {}) {
   if (!canvas) throw new TypeError('DesktopWorld scene outlet requires a canvas.')
-  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, canvas, powerPreference: 'low-power' })
+  const renderer = new THREE.WebGLRenderer({
+    alpha: true,
+    antialias: true,
+    canvas,
+    powerPreference: 'low-power',
+    preserveDrawingBuffer: true,
+  })
   renderer.setClearColor(0x000000, 0)
   const renderCoordinator = createDesktopWorldSceneRenderCoordinator({ THREE, renderer })
   const resources = new Map()
   const cleanupFailures = new Map()
   const pendingResourceKeys = new Set()
   const segmentBudget = createSceneSegmentResourceBudget()
+  const damageTracker = createDesktopWorldRenderDamageTracker()
   let frame = null
   let disposed = false
   let disposeResult = null
@@ -72,6 +79,8 @@ export function createDesktopWorldSceneOutlet({
   let stageSuspended = false
   let stageFault = null
   let segment = null
+  let topology = []
+  let renderMetrics = null
   let devtoolsProbe = null
   let faultObserver = null
   let gpuTimer = null
@@ -88,28 +97,36 @@ export function createDesktopWorldSceneOutlet({
     }
   }
 
-  const updateSegment = (nextSegment, topology) => {
-    if (!renderCoordinator.updateSegment(nextSegment, topology)) return false
+  const updateSegment = (nextSegment, nextTopology) => {
+    if (!renderCoordinator.updateSegment(nextSegment, nextTopology)) return false
     segment = nextSegment
+    topology = Array.isArray(nextTopology) ? [...nextTopology] : []
+    if (!damageTracker.updateSegment(nextSegment)) return false
+    return resize()
+  }
+
+  const resize = () => {
+    const metrics = resolveDesktopWorldNativeRenderMetrics({
+      context: renderer.getContext(),
+      width: canvas.clientWidth || hostWindow.innerWidth,
+      height: canvas.clientHeight || hostWindow.innerHeight,
+      devicePixelRatio: hostWindow.devicePixelRatio,
+      segment,
+      topology,
+    })
+    if (!metrics) {
+      faultSceneSegment('SCENE_NATIVE_DPR_UNSUPPORTED')
+      return false
+    }
+    renderMetrics = metrics
+    renderer.setPixelRatio(metrics.effectiveDevicePixelRatio)
+    renderer.setSize(metrics.cssWidth, metrics.cssHeight, false)
+    renderer.clear(true, true, true)
+    damageTracker.invalidate()
     if (!renderCoordinator.refresh(resources)) {
       faultSceneSegment('SCENE_RENDER_PASS_CONFIGURATION_FAILED')
       return false
     }
-    return true
-  }
-
-  const resize = () => {
-    const metrics = resolveThreeRenderMetrics({
-      width: canvas.clientWidth || hostWindow.innerWidth,
-      height: canvas.clientHeight || hostWindow.innerHeight,
-      devicePixelRatio: hostWindow.devicePixelRatio,
-      ...DESKTOP_WORLD_SCENE_RENDER_LIMITS,
-    })
-    if (!metrics) return false
-    renderer.setPixelRatio(metrics.effectiveDevicePixelRatio)
-    renderer.setSize(metrics.cssWidth, metrics.cssHeight, false)
-    renderer.clear(true, true, true)
-    renderCoordinator.refresh(resources)
     return true
   }
 
@@ -491,7 +508,14 @@ export function createDesktopWorldSceneOutlet({
     if (
       frame !== null
       || disposed
-      || !sceneStageShouldRender(resources, hidden, contextLost, stageSuspended, Boolean(stageFault))
+      || !sceneStageShouldRender(
+        resources,
+        hidden,
+        contextLost,
+        stageSuspended,
+        Boolean(stageFault),
+        damageTracker.hasPendingCleanup(resources),
+      )
     ) return false
     frame = hostWindow.requestAnimationFrame(render)
     return true
@@ -505,7 +529,14 @@ export function createDesktopWorldSceneOutlet({
   }
 
   const reconcileRenderLoop = () => (
-    sceneStageShouldRender(resources, hidden, contextLost, stageSuspended, Boolean(stageFault))
+    sceneStageShouldRender(
+      resources,
+      hidden,
+      contextLost,
+      stageSuspended,
+      Boolean(stageFault),
+      damageTracker.hasPendingCleanup(resources),
+    )
       ? scheduleRender()
       : cancelRender()
   )
@@ -546,19 +577,27 @@ export function createDesktopWorldSceneOutlet({
           gpuTimer.dispose()
           gpuTimer = null
         }
+        const damage = damageTracker.frame(resources)
         gpuTimer?.begin()
-        renderCoordinator.render(resources)
+        renderCoordinator.render(resources, damage)
         const gpuMs = gpuTimer?.end() ?? null
         if (trackPerformance) {
           const renderEndedAt = performance.now()
           const info = renderer.info
           devtoolsProbe.sampleFrame({
             backingPixels: renderer.domElement.width * renderer.domElement.height,
+            backingHeight: renderMetrics?.backingHeight,
+            backingWidth: renderMetrics?.backingWidth,
+            damagedPixelPercentage: damage.damagedPixelPercentage,
             drawCalls: info.render.calls,
             frameMs: lastRenderAt === null ? null : Math.max(0, at - lastRenderAt),
             geometries: info.memory.geometries,
             gpuMs,
+            effectiveDevicePixelRatio: renderMetrics?.effectiveDevicePixelRatio,
+            estimatedBackingBytes: renderMetrics?.estimatedBackingBytes,
+            msaaSamples: renderMetrics?.msaaSamples,
             programs: info.programs?.length ?? null,
+            requestedDevicePixelRatio: renderMetrics?.requestedDevicePixelRatio,
             renderEndedAt,
             renderMs: Math.max(0, renderEndedAt - renderStartedAt),
             textures: info.memory.textures,
@@ -793,6 +832,15 @@ export function createDesktopWorldSceneOutlet({
         resources: resources.size,
         interactionVisuals: [...resources.values()].filter((entry) => entry.interactionVisuals && !entry.suspended).length,
         backingPixels: renderer.domElement.width * renderer.domElement.height,
+        backingHeight: renderMetrics?.backingHeight ?? renderer.domElement.height,
+        backingWidth: renderMetrics?.backingWidth ?? renderer.domElement.width,
+        effectiveDevicePixelRatio: renderMetrics?.effectiveDevicePixelRatio ?? null,
+        estimatedBackingBytes: renderMetrics?.estimatedBackingBytes ?? null,
+        estimatedTopologyBackingBytes: renderMetrics?.estimatedTopologyBackingBytes ?? null,
+        msaaSamples: renderMetrics?.msaaSamples ?? null,
+        requestedDevicePixelRatio: renderMetrics?.requestedDevicePixelRatio ?? null,
+        topologyBackingPixels: renderMetrics?.topologyBackingPixels ?? null,
+        renderDamage: damageTracker.snapshot(),
         renderLoopActive: frame !== null,
         stageSuspended,
       }

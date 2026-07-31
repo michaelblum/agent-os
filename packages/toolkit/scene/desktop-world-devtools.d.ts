@@ -53,6 +53,7 @@ export interface DesktopWorldDevToolsStageSnapshot {
       index: number;
       bounds: readonly [number, number, number, number];
       nativeBounds?: readonly [number, number, number, number];
+      scaleFactor: number;
     }>>;
     nodes: ReadonlyArray<Readonly<{ id: string; resourceId: string; parentId: string | null; kind: string; implementation: string | null; position: readonly [number, number, number]; visible: boolean }>>;
     hitRegions: ReadonlyArray<Readonly<{ id: string; resourceId: string; affordanceId: string; frame: readonly [number, number, number, number]; registered: boolean }>>;
@@ -105,6 +106,14 @@ export interface DesktopWorldDevToolsStageSnapshot {
     textures: number | null;
     programs: number | null;
     backingPixels: number | null;
+    backingWidth: number | null;
+    backingHeight: number | null;
+    damagedPixelPercentage: number | null;
+    avgDamagedPixelPercentage: number | null;
+    requestedDevicePixelRatio: number | null;
+    effectiveDevicePixelRatio: number | null;
+    estimatedBackingBytes: number | null;
+    msaaSamples: number | null;
     state: 'hot' | 'idle' | 'stable' | 'warn';
   }>;
   counters: Readonly<Record<'displays' | 'resources' | 'nodes' | 'hitRegions' | 'affordances' | 'activeGestures' | 'activeRoutes' | 'errors', number>>;
@@ -152,7 +161,6 @@ export const DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS: Readonly<{
   minFrameSamples: 120;
   p95FrameBudgetMultiplier: 1.1;
   maxSteadyFrameMs: 100;
-  maxBackingPixelsPerSegment: 2097152;
   maxCrossDisplayGapFrames: 2;
   stabilityCycles: 100;
   maxWarmCycleRssGrowthBytes: 16777216;
@@ -165,7 +173,7 @@ export type DesktopWorldPerformanceAcceptanceCheckId =
   | 'input_to_visual_p95'
   | 'frame_p95'
   | 'frame_max'
-  | 'backing_pixels_per_segment'
+  | 'native_device_pixel_ratio'
   | 'cross_display_gap'
   | 'stability_cycles'
   | 'warm_cycle_rss_growth'
@@ -180,6 +188,12 @@ export interface DesktopWorldPerformanceAcceptanceInput {
   inputToVisualSamplesMs: readonly number[];
   frameSamplesMs: readonly number[];
   backingPixelsPerSegment: readonly number[];
+  backingDimensionsPerSegment: ReadonlyArray<readonly [number, number]>;
+  requestedDevicePixelRatios: readonly number[];
+  effectiveDevicePixelRatios: readonly number[];
+  estimatedBackingBytesPerSegment: readonly number[];
+  msaaSamplesPerSegment: readonly number[];
+  damagedPixelPercentages: readonly number[];
   crossDisplayGapFrames: number;
   warmCycleCount: number;
   warmCycleRssDeltaBytes: number;
@@ -208,6 +222,15 @@ export interface DesktopWorldPerformanceAcceptanceObserved {
   frameP95Ms: number;
   maxFrameMs: number;
   maxBackingPixelsPerSegment: number;
+  backingDimensionsPerSegment: ReadonlyArray<readonly [number, number]>;
+  requestedDevicePixelRatios: readonly number[];
+  effectiveDevicePixelRatios: readonly number[];
+  nativeDevicePixelRatioExact: boolean;
+  estimatedBackingBytesPerSegment: readonly number[];
+  estimatedTopologyBackingBytes: number;
+  msaaSamplesPerSegment: readonly number[];
+  avgDamagedPixelPercentage: number;
+  maxDamagedPixelPercentage: number;
   crossDisplayGapFrames: number;
   warmCycleCount: number;
   warmCycleRssDeltaBytes: number;
@@ -242,6 +265,7 @@ export function buildDesktopWorldMinimapLayout(
     index: number;
     bounds: readonly [number, number, number, number];
     nativeBounds?: readonly [number, number, number, number];
+    scaleFactor: number;
     frame: readonly number[];
   }>>;
   nodes: ReadonlyArray<Readonly<Record<string, unknown>>>;
