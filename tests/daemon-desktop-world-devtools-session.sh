@@ -33,16 +33,24 @@ func stageSnapshot() -> [String: Any] {
                 "nativeBounds": [0.0, 0.0, 1440.0, 900.0],
             ]],
             "nodes": [["id": "body", "resourceId": "companion/main", "parentId": NSNull(), "kind": "mesh", "implementation": "aos.scene.geometry.primitive", "position": [100.0, 200.0, 0.0], "visible": true]],
-            "hitRegions": [], "affordances": [], "gestures": [], "routes": [],
+            "hitRegions": [], "affordances": [], "gestures": [[
+                "id": "gesture-1", "resourceId": "companion/main", "affordanceId": "body",
+                "interactionId": "travel", "kind": "drag", "phase": "cancel",
+                "pointerSessionId": NSNull(),
+            ]], "routes": [],
         ],
         "resources": [[
             "id": "companion/main", "owner": "example.consumer", "sceneId": "scene", "revision": 1,
             "suspended": false, "objectCount": 1, "descriptorCount": 2, "animationCount": 1,
-            "signalCount": 1, "interactionCount": 0, "implementations": ["aos.scene.geometry.primitive"],
+            "signalCount": 1, "interactionCount": 1, "implementations": ["aos.scene.geometry.primitive"],
             "allocations": ["geometries": 1, "materials": 1, "textures": 0, "programs": 1],
             "lifecycle": "active", "errorCode": NSNull(),
         ]],
-        "interactions": [],
+        "interactions": [[
+            "id": "travel", "resourceId": "companion/main", "owner": "example.consumer",
+            "active": false, "suspended": false, "recognizers": ["drag"],
+            "regionCount": 0, "errorCode": NSNull(),
+        ]],
         "performance": [
             "enabled": true, "recording": false, "sampleCount": 1,
             "targetFps": 60.0, "budgetMs": 16.6667,
@@ -60,7 +68,7 @@ func stageSnapshot() -> [String: Any] {
             "displays": 1, "resources": 1, "nodes": 1, "hitRegions": 0,
             "affordances": 0, "activeGestures": 0, "activeRoutes": 0, "errors": 0,
         ],
-        "events": [["sequence": 1, "kind": "scene.mount", "resourceId": "companion/main", "code": NSNull(), "at": 100.0]],
+        "events": [["sequence": 1, "kind": "scene.mount", "resourceId": NSNull(), "code": NSNull(), "at": 100.0]],
         "lastError": NSNull(),
     ]
 }
@@ -220,6 +228,7 @@ let canonicalSession = canonical["session"] as! [String: Any]
 require(canonicalSession["stageSnapshotReady"] as? Bool == true, "interactive session reported pending freshness")
 let stage = canonical["stage"] as! [String: Any]
 require(stage["transcript"] == nil, "unknown renderer content crossed the daemon boundary")
+require(stage["lastError"] is NSNull, "canonical stage omitted required null lastError")
 let native = stage["native"] as! [String: Any]
 let warm = native["desktopFrameWarm"] as! [String: Any]
 require(warm["displayCount"] as? Int == 1, "native warm display count was lost")
@@ -256,7 +265,16 @@ let canonicalDisplay = (canonicalWorld["displays"] as! [[String: Any]])[0]
 require(canonicalDisplay["bounds"] as? [Double] == [200.0, 0.0, 1440.0, 900.0], "DesktopWorld display bounds drifted")
 require(canonicalDisplay["nativeBounds"] as? [Double] == [0.0, 0.0, 1440.0, 900.0], "native display bounds were lost")
 require(canonicalDisplay["scaleFactor"] as? Double == 2.0, "native display scale was lost")
+let canonicalNode = (canonicalWorld["nodes"] as! [[String: Any]])[0]
+require(canonicalNode["parentId"] is NSNull, "canonical node omitted required null parentId")
+let canonicalGesture = (canonicalWorld["gestures"] as! [[String: Any]])[0]
+require(canonicalGesture["pointerSessionId"] is NSNull, "canonical gesture omitted required null pointerSessionId")
+let canonicalResource = (stage["resources"] as! [[String: Any]])[0]
+require(canonicalResource["errorCode"] is NSNull, "canonical resource omitted required null errorCode")
+let canonicalInteraction = (stage["interactions"] as! [[String: Any]])[0]
+require(canonicalInteraction["errorCode"] is NSNull, "canonical interaction omitted required null errorCode")
 let canonicalPerformance = stage["performance"] as! [String: Any]
+require(canonicalPerformance["avgGpuMs"] is NSNull, "canonical performance omitted a required null metric")
 require(canonicalPerformance["backingWidth"] as? Double == 2_880.0, "backing width was lost")
 require(canonicalPerformance["backingHeight"] as? Double == 1_800.0, "backing height was lost")
 require(canonicalPerformance["damagedPixelPercentage"] as? Double == 12.5, "damage percentage was lost")
@@ -265,6 +283,9 @@ require(canonicalPerformance["effectiveDevicePixelRatio"] as? Double == 2.0, "ef
 require(canonicalPerformance["requestedDevicePixelRatio"] as? Double == 2.0, "requested DPR was lost")
 require(canonicalPerformance["estimatedBackingBytes"] as? Double == 207_360_000.0, "backing byte estimate was lost")
 require(canonicalPerformance["msaaSamples"] as? Double == 4.0, "MSAA sample count was lost")
+let canonicalEvent = (stage["events"] as! [[String: Any]])[0]
+require(canonicalEvent["resourceId"] is NSNull, "canonical event omitted required null resourceId")
+require(canonicalEvent["code"] is NSNull, "canonical event omitted required null code")
 require((canonical["contract"] as? String) == aosDesktopWorldDevToolsSnapshotContract, "session snapshot contract mismatch")
 let selectedStage = registry.stageSnapshot(resourceID: "companion/main")!
 let selectedResources = selectedStage["resources"] as! [[String: Any]]
@@ -292,6 +313,12 @@ var performance = invalidMetric["performance"] as! [String: Any]
 performance["avgFrameMs"] = -1.0
 invalidMetric["performance"] = performance
 require(!registry.recordStageSnapshot(invalidMetric), "negative performance metric was accepted")
+
+var missingRequiredNull = stageSnapshot()
+performance = missingRequiredNull["performance"] as! [String: Any]
+performance.removeValue(forKey: "avgGpuMs")
+missingRequiredNull["performance"] = performance
+require(!registry.recordStageSnapshot(missingRequiredNull), "missing required nullable metric was accepted")
 
 var invalidDpr = stageSnapshot()
 performance = invalidDpr["performance"] as! [String: Any]
