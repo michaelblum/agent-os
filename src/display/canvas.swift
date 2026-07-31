@@ -64,7 +64,9 @@ class AosSchemeHandler: NSObject, WKURLSchemeHandler {
 
         fputs("[aos-scheme] \(url.absoluteString) → \(resolvedString)\n", stderr)
 
-        URLSession.shared.dataTask(with: resolvedURL) { [weak self] data, response, error in
+        var request = URLRequest(url: resolvedURL)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else { return }
             self.lock.lock()
             let wasStopped = self.stopped.remove(taskID) != nil
@@ -75,7 +77,9 @@ class AosSchemeHandler: NSObject, WKURLSchemeHandler {
                 urlSchemeTask.didFailWithError(error)
                 return
             }
-            if let response = response { urlSchemeTask.didReceive(response) }
+            if let response = response {
+                urlSchemeTask.didReceive(aosSchemeOriginalURLResponse(response, requestURL: url))
+            }
             if let data = data { urlSchemeTask.didReceive(data) }
             urlSchemeTask.didFinish()
         }.resume()

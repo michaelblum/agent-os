@@ -85,8 +85,8 @@ export class DesktopWorldSurfaceAdapter {
     this._appHandlers = appHandlers
     if (this._startPromise) return this._startPromise
     if (this._started) return this
-    const firstSettled = new Promise((resolve) => {
-      this._firstSettled = resolve
+    const firstSettled = new Promise((resolve, reject) => {
+      this._firstSettled = { reject, resolve }
     })
     this._startPromise = firstSettled
     if (!this._started) {
@@ -150,12 +150,17 @@ export class DesktopWorldSurfaceAdapter {
 
     const isNowPrimary = this.isPrimary
     if (firstSettled) {
-      this._appHandlers.onInit?.({
-        segment: this.segment,
-        topology: this.topology,
-        surface: this,
-      })
-      firstSettled(this)
+      try {
+        this._appHandlers.onInit?.({
+          segment: this.segment,
+          topology: this.topology,
+          surface: this,
+        })
+        firstSettled.resolve(this)
+      } catch (error) {
+        this.stop()
+        firstSettled.reject(error)
+      }
       return
     }
 

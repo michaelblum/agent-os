@@ -14,6 +14,7 @@ import { applyDesktopWorldSceneOperation } from './scene-extension-operation.js'
 import { createDesktopWorldSceneOutlet } from './scene-outlet.js'
 import { createDesktopWorldSceneInteractionRuntime } from './scene-interaction-runtime.js'
 import { createDesktopWorldSceneOperationCoordinator } from './scene-operation-coordinator.js'
+import { requireDesktopWorldSceneSegment } from './scene-segment-setup.js'
 import {
   projectDesktopWorldDevToolsTopology,
   projectSceneEventTopology,
@@ -433,26 +434,31 @@ wireBridge((message) => {
 
 surface.start({
   onInit: ({ segment, topology }) => {
-    sceneOutlet.updateSegment(segment, topology)
+    requireDesktopWorldSceneSegment(sceneOutlet, segment, topology)
     render()
   },
   onTopologyChange: ({ segment, topology }) => {
     void enqueueSceneWork(async () => {
-      sceneOutlet.updateSegment(segment, topology)
+      requireDesktopWorldSceneSegment(sceneOutlet, segment, topology)
       devtoolsProbe.recordEvent({ kind: 'topology.changed' })
       await sceneInteractions.topologyChanged()
       render()
-    }).catch(() => {})
+    }).catch((error) => {
+      const code = error?.code ?? 'SCENE_SEGMENT_CONFIGURATION_FAILED'
+      lastSceneError = { at: Date.now(), code }
+      devtoolsProbe.recordEvent({ code, kind: 'topology.failed', resourceId: null })
+    })
   },
 }).then(async () => {
   await registerInputKeyLease({ id: escapeKeyLeaseId, key: 'Escape' })
   render()
   installVisualObjectLiveProof()
   emitReady()
-}).catch(() => {
-  const code = 'INPUT_KEY_LEASE_FAILED'
+}).catch((error) => {
+  const code = error?.code ?? 'INPUT_KEY_LEASE_FAILED'
+  if (stageLifecycleState === 'active') stageLifecycleState = 'faulted'
   lastSceneError = { at: Date.now(), code }
-  devtoolsProbe.recordEvent({ code, kind: 'input.key_lease.failed', resourceId: null })
+  devtoolsProbe.recordEvent({ code, kind: 'stage.startup.failed', resourceId: null })
 })
 
 window.addEventListener('pagehide', () => {

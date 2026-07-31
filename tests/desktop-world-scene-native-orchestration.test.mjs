@@ -5,6 +5,17 @@ import test from 'node:test'
 
 const repoRoot = path.resolve(import.meta.dirname, '..')
 
+test('DesktopWorld hosts use current non-persistent source', async () => {
+  const [surface, scheme] = await Promise.all([
+    readFile(path.join(repoRoot, 'src/display/desktop-world-surface.swift'), 'utf8'),
+    readFile(path.join(repoRoot, 'src/display/canvas.swift'), 'utf8'),
+  ])
+  assert.match(surface, /private let websiteDataStore = WKWebsiteDataStore\.nonPersistent\(\)/u)
+  assert.match(surface, /config\.websiteDataStore = websiteDataStore/u)
+  assert.match(scheme, /request\.cachePolicy = \.reloadIgnoringLocalCacheData/u)
+  assert.match(scheme, /aosSchemeOriginalURLResponse\(response, requestURL: url\)/u)
+})
+
 test('DesktopWorld stage results are origin-attributed and controller-coordinated', async () => {
   const [stage, daemon, controller, transport, surface] = await Promise.all([
     readFile(path.join(repoRoot, 'packages/toolkit/components/desktop-world-stage/index.js'), 'utf8'),

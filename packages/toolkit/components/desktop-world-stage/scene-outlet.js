@@ -98,10 +98,16 @@ export function createDesktopWorldSceneOutlet({
   }
 
   const updateSegment = (nextSegment, nextTopology) => {
-    if (!renderCoordinator.updateSegment(nextSegment, nextTopology)) return false
+    if (!renderCoordinator.updateSegment(nextSegment, nextTopology)) {
+      faultSceneSegment('SCENE_SEGMENT_CONFIGURATION_FAILED')
+      return false
+    }
     segment = nextSegment
     topology = Array.isArray(nextTopology) ? [...nextTopology] : []
-    if (!damageTracker.updateSegment(nextSegment)) return false
+    if (!damageTracker.updateSegment(nextSegment)) {
+      faultSceneSegment('SCENE_SEGMENT_CONFIGURATION_FAILED')
+      return false
+    }
     return resize()
   }
 

@@ -10,6 +10,7 @@ import {
   sceneStageShouldRender,
 } from '../../packages/toolkit/components/desktop-world-stage/scene-outlet.js'
 import { createScenePlaybackClock } from '../../packages/toolkit/components/desktop-world-stage/scene-playback-clock.js'
+import { requireDesktopWorldSceneSegment } from '../../packages/toolkit/components/desktop-world-stage/scene-segment-setup.js'
 import { createDesktopWorldStageClock } from '../../packages/toolkit/components/desktop-world-stage/scene-stage-clock.js'
 import {
   DESKTOP_WORLD_NATIVE_RENDER_LIMITS,
@@ -318,6 +319,26 @@ test('DesktopWorld native render metrics fail rather than silently reduce unsupp
     topology: [{ display_id: 1, dw_bounds: [0, 0, 100, 100], scale_factor: 5 }],
     width: 100,
   }), null)
+})
+
+test('DesktopWorld segment setup preserves the authoritative fault code', () => {
+  const calls = []
+  const outlet = {
+    snapshot: () => ({ faultCode: 'SCENE_NATIVE_DPR_UNSUPPORTED' }),
+    updateSegment(segment, topology) {
+      calls.push({ segment, topology })
+      return false
+    },
+  }
+  const segment = { display_id: 1 }
+  const topology = [segment]
+
+  assert.throws(
+    () => requireDesktopWorldSceneSegment(outlet, segment, topology),
+    (error) => error.code === 'SCENE_NATIVE_DPR_UNSUPPORTED',
+  )
+  assert.deepEqual(calls, [{ segment, topology }])
+  assert.equal(requireDesktopWorldSceneSegment({ updateSegment: () => true }, segment, topology), true)
 })
 
 test('DesktopWorld segment resource budgets aggregate every mounted projection', () => {
@@ -965,7 +986,8 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.equal((stage.match(/stageLifecycleState === 'active'\) sceneOperations\.handleInput\(message\)/gu) ?? []).length, 2)
   assert.match(stage, /stageLifecycleState = 'closing'[\s\S]*enqueueSceneWork\(async \(\) => \{[\s\S]*await disposeStage\(\)/u)
   assert.match(stage, /replaceRegionGeneration: replaceInputRegionGeneration/u)
-  assert.equal((stage.match(/sceneOutlet\.updateSegment\(segment, topology\)/gu) ?? []).length, 2)
+  assert.equal((stage.match(/requireDesktopWorldSceneSegment\(sceneOutlet, segment, topology\)/gu) ?? []).length, 2)
+  assert.match(stage, /catch\(\(error\) => \{[\s\S]*error\?\.code \?\? 'SCENE_SEGMENT_CONFIGURATION_FAILED'/u)
   assert.match(stage, /enqueueSceneWork\(async \(\) => \{[\s\S]*settleAnimationGeometry\(key, generation\)/u)
   assert.doesNotMatch(stage, /animationGeometryChanged/u)
   assert.match(stage, /registerInputKeyLease\(\{ id: escapeKeyLeaseId, key: 'Escape' \}\)/u)
