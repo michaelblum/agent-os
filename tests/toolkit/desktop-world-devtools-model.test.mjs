@@ -23,7 +23,6 @@ test('DesktopWorld acceptance thresholds are hardware-independent and bounded', 
     minFrameSamples: 120,
     p95FrameBudgetMultiplier: 1.1,
     maxSteadyFrameMs: 100,
-    maxBackingPixelsPerSegment: 2_097_152,
     maxCrossDisplayGapFrames: 2,
     stabilityCycles: 100,
     maxWarmCycleRssGrowthBytes: 16 * 1024 * 1024,
@@ -43,6 +42,12 @@ function performanceAcceptanceInput(overrides = {}) {
       () => 18,
     ),
     backingPixelsPerSegment: [1_440_000, 2_073_600],
+    backingDimensionsPerSegment: [[1200, 1200], [1920, 1080]],
+    requestedDevicePixelRatios: [2, 1],
+    effectiveDevicePixelRatios: [2, 1],
+    estimatedBackingBytesPerSegment: [57_600_000, 82_944_000],
+    msaaSamplesPerSegment: [4, 4],
+    damagedPixelPercentages: [12, 18, 24],
     crossDisplayGapFrames: 1,
     warmCycleCount: 100,
     warmCycleRssDeltaBytes: 8 * 1024 * 1024,
@@ -59,6 +64,9 @@ test('DesktopWorld performance acceptance evaluates current public thresholds', 
   assert.equal(result.observed.inputToVisualP95Ms, 42);
   assert.equal(result.observed.frameP95Ms, 18);
   assert.equal(result.observed.maxBackingPixelsPerSegment, 2_073_600);
+  assert.equal(result.observed.nativeDevicePixelRatioExact, true);
+  assert.equal(result.observed.estimatedTopologyBackingBytes, 140_544_000);
+  assert.equal(result.observed.avgDamagedPixelPercentage, 18);
   assert.ok(result.checks.every((check) => check.ok));
   assert.equal(Object.isFrozen(result), true);
   assert.equal(Object.isFrozen(result.observed), true);
@@ -77,7 +85,8 @@ test('DesktopWorld performance acceptance reports every failed bounded invariant
       { length: DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS.minFrameSamples },
       () => 101,
     ),
-    backingPixelsPerSegment: [2_097_153],
+    requestedDevicePixelRatios: [2, 1],
+    effectiveDevicePixelRatios: [1, 1],
     crossDisplayGapFrames: 3,
     warmCycleCount: 100,
     warmCycleRssDeltaBytes: 16 * 1024 * 1024 + 1,
@@ -94,7 +103,7 @@ test('DesktopWorld performance acceptance reports every failed bounded invariant
       'input_to_visual_p95',
       'frame_p95',
       'frame_max',
-      'backing_pixels_per_segment',
+      'native_device_pixel_ratio',
       'cross_display_gap',
       'warm_cycle_rss_growth',
       'resource_geometries_growth',
@@ -124,6 +133,12 @@ test('DesktopWorld performance acceptance fails closed on malformed or unbounded
     performanceAcceptanceInput({ inputToVisualSamplesMs: sparseInputSamples }),
     performanceAcceptanceInput({ frameSamplesMs: nonFiniteFrameSamples }),
     performanceAcceptanceInput({ backingPixelsPerSegment: [1.5] }),
+    performanceAcceptanceInput({ backingDimensionsPerSegment: [[1200, 0], [1920, 1080]] }),
+    performanceAcceptanceInput({ requestedDevicePixelRatios: [2] }),
+    performanceAcceptanceInput({ effectiveDevicePixelRatios: [2, 0] }),
+    performanceAcceptanceInput({ estimatedBackingBytesPerSegment: [1] }),
+    performanceAcceptanceInput({ msaaSamplesPerSegment: [4.5, 4] }),
+    performanceAcceptanceInput({ damagedPixelPercentages: [101] }),
     performanceAcceptanceInput({ warmCycleCount: 99 }),
     performanceAcceptanceInput({ resourceDeltas: { geometries: 0, materials: 0, programs: 0 } }),
     performanceAcceptanceInput({ transcript: 'must not be accepted' }),
@@ -185,8 +200,8 @@ function stageSnapshot(overrides = {}) {
     },
     world: {
       displays: [
-        { id: 'left', index: 0, bounds: [0, 0, 1920, 1080], nativeBounds: [-1920, 0, 1920, 1080] },
-        { id: 'main', index: 1, bounds: [1920, 0, 2560, 1440], nativeBounds: [0, 0, 2560, 1440] },
+        { id: 'left', index: 0, bounds: [0, 0, 1920, 1080], nativeBounds: [-1920, 0, 1920, 1080], scaleFactor: 1 },
+        { id: 'main', index: 1, bounds: [1920, 0, 2560, 1440], nativeBounds: [0, 0, 2560, 1440], scaleFactor: 2 },
       ],
       nodes: [{ id: 'node', resourceId: 'resource', position: [1280, 720, 0] }],
       hitRegions: [{ id: 'hit', resourceId: 'resource', affordanceId: 'drag', frame: [1200, 640, 160, 160], registered: true }],
@@ -230,6 +245,8 @@ test('DesktopWorld DevTools stage normalization is strict, bounded, and content-
   assert.equal(normalized.counters.activeGestures, 1);
   assert.equal(normalized.counters.activeRoutes, 1);
   assert.deepEqual(normalized.world.displays[0].nativeBounds, [-1920, 0, 1920, 1080]);
+  assert.equal(normalized.world.displays[0].scaleFactor, 1);
+  assert.equal(normalized.world.displays[1].scaleFactor, 2);
   assert.deepEqual(normalized.native.desktopFrameWarm, {
     displayCount: 2,
     errorCode: null,
@@ -362,6 +379,7 @@ test('DesktopWorld DevTools keeps older display facts readable without inventing
     id: 'main',
     index: 0,
     bounds: [0, 0, 1440, 900],
+    scaleFactor: 1,
   });
   assert.equal('nativeBounds' in normalized.world.displays[0], false);
 });
@@ -484,15 +502,45 @@ test('DesktopWorld DevTools probe throttles idle samples and records bounded tel
 
   probe.configure({ enabled: true });
   probe.recordEvent({ kind: 'scene.mounted', resourceId: 'resource' });
-  probe.sampleFrame({ frameMs: 16, renderMs: 4, backingPixels: 2073600 });
+  probe.sampleFrame({
+    frameMs: 16,
+    renderMs: 4,
+    backingPixels: 2073600,
+    backingWidth: 1920,
+    backingHeight: 1080,
+    damagedPixelPercentage: 10,
+    requestedDevicePixelRatio: 1,
+    effectiveDevicePixelRatio: 1,
+    estimatedBackingBytes: 82_944_000,
+    msaaSamples: 4,
+  });
   clock = 100;
   probe.sampleFrame({ frameMs: 17, renderMs: 5, backingPixels: 2073600 });
   assert.equal(probe.state().sampleCount, 1);
 
   clock = 600;
-  probe.sampleFrame({ frameMs: 18, renderMs: 6, backingPixels: 2073600 });
+  probe.sampleFrame({
+    frameMs: 18,
+    renderMs: 6,
+    backingPixels: 2073600,
+    backingWidth: 1920,
+    backingHeight: 1080,
+    damagedPixelPercentage: 20,
+    requestedDevicePixelRatio: 1,
+    effectiveDevicePixelRatio: 1,
+    estimatedBackingBytes: 82_944_000,
+    msaaSamples: 4,
+  });
   assert.equal(probe.state().sampleCount, 2);
   assert.equal(emitted.at(-1).snapshot.performance.backingPixels, 2073600);
+  assert.equal(emitted.at(-1).snapshot.performance.backingWidth, 1920);
+  assert.equal(emitted.at(-1).snapshot.performance.backingHeight, 1080);
+  assert.equal(emitted.at(-1).snapshot.performance.damagedPixelPercentage, 20);
+  assert.equal(emitted.at(-1).snapshot.performance.avgDamagedPixelPercentage, 15);
+  assert.equal(emitted.at(-1).snapshot.performance.requestedDevicePixelRatio, 1);
+  assert.equal(emitted.at(-1).snapshot.performance.effectiveDevicePixelRatio, 1);
+  assert.equal(emitted.at(-1).snapshot.performance.estimatedBackingBytes, 82_944_000);
+  assert.equal(emitted.at(-1).snapshot.performance.msaaSamples, 4);
   assert.equal(emitted.at(-1).snapshot.performance.targetFps, 60);
   assert.ok(emitted.at(-1).snapshot.performance.budgetMs > 16);
   assert.equal(emitted.at(-1).snapshot.performance.maxFrameMs, 18);

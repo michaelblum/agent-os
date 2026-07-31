@@ -20,6 +20,7 @@ function normalizeSegment(segment) {
     index: Number(segment.index ?? 0),
     dw_bounds: segment.dw_bounds ?? segment.dwBounds ?? segment.desktop_world_bounds,
     native_bounds: segment.native_bounds ?? segment.nativeBounds,
+    scale_factor: Number(segment.scale_factor ?? segment.scaleFactor ?? 1),
   }
 }
 
@@ -59,6 +60,7 @@ function displayFromSegment(segment) {
     id: segment.display_id,
     display_id: segment.display_id,
     native_bounds: { x: native[0], y: native[1], w: native[2], h: native[3] },
+    scale_factor: segment.scale_factor,
     bounds: Array.isArray(dw) && dw.length >= 4
       ? { x: dw[0], y: dw[1], w: dw[2], h: dw[3] }
       : { x: native[0], y: native[1], w: native[2], h: native[3] },

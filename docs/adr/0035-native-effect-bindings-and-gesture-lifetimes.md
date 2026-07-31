@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-07-29
 - Extends: ADRs 0032, 0033, and 0034
+- Extended by: ADR 0036
 
 ## Context
 

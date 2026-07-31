@@ -163,6 +163,26 @@ test('DesktopWorld preserves the trusted extension orthographic overlay subtree'
   result.projection.dispose()
 })
 
+test('DesktopWorld preserves a bounded synchronous extension damage declaration', () => {
+  const damage = Object.freeze({
+    kind: 'bounded',
+    padding: 24,
+    regions: Object.freeze([Object.freeze([400, 300, 160, 120])]),
+  })
+  const extension = factory({}, { renderDamage: () => damage })
+  const registry = createTrustedSceneExtensionRegistry({ factories: [extension] })
+  const result = createDesktopWorldSceneProjection({
+    THREE: { REVISION: SCENE_EXTENSION_THREE_REVISION },
+    document: scene(),
+    expectedOwner: ownerId,
+    extensionReference: reference(),
+    extensionRegistry: registry,
+  })
+
+  assert.equal(result.projection.renderDamage(), damage)
+  result.projection.dispose()
+})
+
 test('DesktopWorld resolves only digest-bound named framebuffer proof descriptors', () => {
   const proof = framebufferProof()
   const capabilities = ['aos.scene.framebuffer_proof']

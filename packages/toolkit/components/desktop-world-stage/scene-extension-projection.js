@@ -156,6 +156,9 @@ function extensionProjectionAdapter(
     inspectInteractionRoute: typeof projection.inspectInteractionRoute === 'function'
       ? () => projection.inspectInteractionRoute()
       : undefined,
+    renderDamage: typeof projection.renderDamage === 'function'
+      ? () => projection.renderDamage()
+      : undefined,
     resume: (...args) => projection.resume.apply(projection, args),
     suspend: (...args) => projection.suspend.apply(projection, args),
     tick: (...args) => projection.tick.apply(projection, args),

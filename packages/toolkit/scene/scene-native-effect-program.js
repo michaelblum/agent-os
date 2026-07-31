@@ -15,6 +15,9 @@ export const SCENE_NATIVE_EFFECT_PROGRAM_DIGEST_CONTRACT_ID = 'aos.scene.native-
 
 export const SCENE_NATIVE_EFFECT_PROGRAM_LIMITS = Object.freeze({
   maxConstantMagnitude: 1_000_000,
+  maxGeometryCellSize: 64,
+  maxGeometryExtent: 5_000,
+  maxGeometryPadding: 512,
   maxDurationMs: 3_000,
   maxNodes: 64,
   maxNormalSampleDistance: 64,
@@ -26,6 +29,7 @@ export const SCENE_NATIVE_EFFECT_PROGRAM_LIMITS = Object.freeze({
   maxTextureDisplacement: 96,
   maxTranscendentalOperations: 16,
   minDurationMs: 100,
+  minGeometryCellSize: 2,
   minNormalSampleDistance: 0.25,
   minPerspectiveDistance: 256,
 })
@@ -251,12 +255,14 @@ function validateMaterial(material, errors) {
     addError(errors, 'invalid_native_effect_material', path, 'V2 native effect programs require a bounded material declaration.')
     return
   }
+  const standard = material.lighting === 'standard'
   exactKeys(material, new Set([
     'ambient', 'diffuse', 'lightDirection', 'lighting',
     'normalSampleDistance', 'perspectiveDistance',
+    ...(standard ? ['fresnel', 'refraction', 'roughness', 'specular'] : []),
   ]), path, errors)
-  if (!['lambert', 'unlit'].includes(material.lighting)) {
-    addError(errors, 'invalid_native_effect_lighting', `${path}.lighting`, 'Native effect materials support only unlit or Lambert lighting.')
+  if (!['lambert', 'standard', 'unlit'].includes(material.lighting)) {
+    addError(errors, 'invalid_native_effect_lighting', `${path}.lighting`, 'Native effect materials support unlit, Lambert, or standard lighting.')
   }
   for (const field of ['ambient', 'diffuse']) {
     if (!finiteScalar(material[field]) || material[field] < 0 || material[field] > 2) {
@@ -280,6 +286,54 @@ function validateMaterial(material, errors) {
       || material.perspectiveDistance > SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxPerspectiveDistance) {
     addError(errors, 'invalid_native_effect_perspective_distance', `${path}.perspectiveDistance`, 'Native effect perspective distance must stay within the engine bounds.')
   }
+  if (standard) {
+    for (const [field, minimum, maximum] of [
+      ['fresnel', 0, 1],
+      ['refraction', 0, SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxTextureDisplacement],
+      ['roughness', 0.02, 1],
+      ['specular', 0, 2],
+    ]) {
+      if (!finiteScalar(material[field]) || material[field] < minimum || material[field] > maximum) {
+        addError(errors, 'invalid_native_effect_material_scalar', `${path}.${field}`, `Native effect material ${field} is outside the engine bounds.`)
+      }
+    }
+  }
+}
+
+function validateGeometry(geometry, errors) {
+  const path = 'program.geometry'
+  if (!isSceneRecord(geometry)) {
+    addError(errors, 'invalid_native_effect_geometry', path, 'Native effect geometry must be a bounded declaration.')
+    return
+  }
+  const kind = geometry.kind
+  const allowed = kind === 'surface'
+    ? new Set(['cellSize', 'kind'])
+    : kind === 'event_segment'
+      ? new Set(['cellSize', 'kind', 'padding', 'width'])
+      : new Set(['cellSize', 'kind', 'padding', 'radius'])
+  exactKeys(geometry, allowed, path, errors)
+  if (!['event_endpoints', 'event_point', 'event_segment', 'surface'].includes(kind)) {
+    addError(errors, 'invalid_native_effect_geometry_kind', `${path}.kind`, 'Native effect geometry kind is unsupported.')
+  }
+  if (!finiteScalar(geometry.cellSize)
+      || geometry.cellSize < SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.minGeometryCellSize
+      || geometry.cellSize > SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxGeometryCellSize) {
+    addError(errors, 'invalid_native_effect_geometry_cell_size', `${path}.cellSize`, 'Native effect geometry cell size is outside the engine bounds.')
+  }
+  if (kind !== 'surface') {
+    if (!finiteScalar(geometry.padding)
+        || geometry.padding < 0
+        || geometry.padding > SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxGeometryPadding) {
+      addError(errors, 'invalid_native_effect_geometry_padding', `${path}.padding`, 'Native effect geometry padding is outside the engine bounds.')
+    }
+    const extentField = kind === 'event_segment' ? 'width' : 'radius'
+    if (!finiteScalar(geometry[extentField])
+        || geometry[extentField] < geometry.cellSize
+        || geometry[extentField] > SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxGeometryExtent) {
+      addError(errors, 'invalid_native_effect_geometry_extent', `${path}.${extentField}`, 'Native effect geometry extent is outside the engine bounds.')
+    }
+  }
 }
 
 export function validateSceneNativeEffectProgram(program) {
@@ -299,7 +353,7 @@ export function validateSceneNativeEffectProgram(program) {
     : program.contract === SCENE_NATIVE_EFFECT_PROGRAM_V2_CONTRACT_ID ? 2 : null
   const allowVector3 = version === 2
   exactKeys(program, new Set([
-    'contract', 'durationMs', 'id', ...(allowVector3 ? ['material'] : []),
+    'contract', 'durationMs', 'id', ...(allowVector3 ? ['geometry', 'material'] : []),
     'nodes', 'outputs', 'parameters', 'revision', 'schemaVersion',
   ]), 'program', errors)
   if (!version) addError(errors, 'invalid_native_effect_program_contract', 'program.contract', 'Native effect program contract is unsupported.')
@@ -346,7 +400,10 @@ export function validateSceneNativeEffectProgram(program) {
       addError(errors, 'invalid_native_effect_output_type', 'program.outputs.positionOffset', 'V2 native effect position offset must reference a vec3 value.')
     }
   }
-  if (allowVector3) validateMaterial(program.material, errors)
+  if (allowVector3) {
+    if (program.geometry !== undefined) validateGeometry(program.geometry, errors)
+    validateMaterial(program.material, errors)
+  }
   return { ok: errors.length === 0, errors }
 }
 
@@ -667,6 +724,7 @@ ${statements.join('\n')}
 }`
   return freeze({
     contract: SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID,
+    geometry: version === 2 && program.geometry ? clone(program.geometry) : null,
     schemaVersion: 1,
     material: version === 2 ? clone(program.material) : null,
     parameterIds: program.parameters.map((entry) => entry.id),

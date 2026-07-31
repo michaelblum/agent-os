@@ -266,6 +266,7 @@ test('projection validation requires one object subtree and the complete lifecyc
     applySignal: null,
     contextRestored: undefined,
     inspectInteractionRoute: 'invalid',
+    renderDamage: 'invalid',
   })
   const codes = errorCodes(validateSceneExtensionProjection(invalid))
   assert.equal(codes.has('invalid_projection_object'), true)
@@ -366,6 +367,7 @@ test('factory and projection hooks reject Promise-like results from the synchron
     'contextRestored',
     'dispose',
     'inspectInteractionRoute',
+    'renderDamage',
     'resume',
     'suspend',
     'tick',

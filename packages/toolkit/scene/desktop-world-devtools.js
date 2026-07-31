@@ -26,7 +26,6 @@ export const DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS = Object.freeze({
   minFrameSamples: 120,
   p95FrameBudgetMultiplier: 1.1,
   maxSteadyFrameMs: 100,
-  maxBackingPixelsPerSegment: 2_097_152,
   maxCrossDisplayGapFrames: 2,
   stabilityCycles: 100,
   maxWarmCycleRssGrowthBytes: 16 * 1024 * 1024,
@@ -127,6 +126,7 @@ function normalizeDisplay(value = {}, index = 0) {
     id: boundedString(value.id ?? value.displayId, `display-${index}`),
     index: boundedInteger(value.index, index, 0, 31),
     bounds: Object.freeze(bounds),
+    scaleFactor: finite(value.scaleFactor ?? value.scale_factor, 1, 1, 4),
     ...(nativeBounds && nativeBounds[2] > 0 && nativeBounds[3] > 0
       ? { nativeBounds: Object.freeze(nativeBounds) }
       : {}),
@@ -267,6 +267,14 @@ function normalizePerformance(value = {}) {
     textures: metric('textures'),
     programs: metric('programs'),
     backingPixels: metric('backingPixels'),
+    backingWidth: metric('backingWidth'),
+    backingHeight: metric('backingHeight'),
+    damagedPixelPercentage: metric('damagedPixelPercentage', 0, 100),
+    avgDamagedPixelPercentage: metric('avgDamagedPixelPercentage', 0, 100),
+    effectiveDevicePixelRatio: metric('effectiveDevicePixelRatio', 0, 4),
+    estimatedBackingBytes: metric('estimatedBackingBytes', 0, 1e12),
+    msaaSamples: metric('msaaSamples', 0, 64),
+    requestedDevicePixelRatio: metric('requestedDevicePixelRatio', 0, 4),
     state: ['hot', 'idle', 'stable', 'warn'].includes(value.state) ? value.state : 'idle',
   })
 }
@@ -363,12 +371,18 @@ function percentile95(samples) {
 
 function performanceAcceptanceInputIsValid(input) {
   const keys = [
+    'backingDimensionsPerSegment',
     'backingPixelsPerSegment',
     'crossDisplayGapFrames',
+    'damagedPixelPercentages',
+    'effectiveDevicePixelRatios',
+    'estimatedBackingBytesPerSegment',
     'frameSamplesMs',
     'inputToVisualSamplesMs',
+    'msaaSamplesPerSegment',
     'prewarmedTransitionStartMs',
     'projectionReadyMs',
+    'requestedDevicePixelRatios',
     'resourceDeltas',
     'warmCycleCount',
     'warmCycleRssDeltaBytes',
@@ -381,6 +395,29 @@ function performanceAcceptanceInputIsValid(input) {
   if (!boundedNumberSamples(input.frameSamplesMs, thresholds.minFrameSamples, PERFORMANCE_ACCEPTANCE_INPUT_LIMITS.samples, PERFORMANCE_ACCEPTANCE_INPUT_LIMITS.durationMs)) return false
   if (!boundedNumberSamples(input.backingPixelsPerSegment, 1, PERFORMANCE_ACCEPTANCE_INPUT_LIMITS.segments, Number.MAX_SAFE_INTEGER)) return false
   if (!input.backingPixelsPerSegment.every(Number.isSafeInteger)) return false
+  const segmentCount = input.backingPixelsPerSegment.length
+  if (
+    !Array.isArray(input.backingDimensionsPerSegment)
+    || input.backingDimensionsPerSegment.length !== segmentCount
+    || !input.backingDimensionsPerSegment.every((dimensions) => (
+      boundedNumberSamples(dimensions, 2, 2, Number.MAX_SAFE_INTEGER)
+      && dimensions.every(Number.isSafeInteger)
+      && dimensions.every((value) => value > 0)
+    ))
+  ) return false
+  for (const key of [
+    'requestedDevicePixelRatios',
+    'effectiveDevicePixelRatios',
+    'estimatedBackingBytesPerSegment',
+    'msaaSamplesPerSegment',
+  ]) {
+    if (!boundedNumberSamples(input[key], segmentCount, segmentCount, Number.MAX_SAFE_INTEGER)) return false
+  }
+  if (!input.requestedDevicePixelRatios.every((value) => value > 0 && value <= 4)) return false
+  if (!input.effectiveDevicePixelRatios.every((value) => value > 0 && value <= 4)) return false
+  if (!input.estimatedBackingBytesPerSegment.every(Number.isSafeInteger)) return false
+  if (!input.msaaSamplesPerSegment.every(Number.isSafeInteger)) return false
+  if (!boundedNumberSamples(input.damagedPixelPercentages, 1, PERFORMANCE_ACCEPTANCE_INPUT_LIMITS.samples, 100)) return false
   if (!boundedFiniteNumber(input.crossDisplayGapFrames, { integer: true, max: PERFORMANCE_ACCEPTANCE_INPUT_LIMITS.samples })) return false
   if (!boundedFiniteNumber(input.warmCycleCount, {
     integer: true,
@@ -419,6 +456,17 @@ export function evaluateDesktopWorldPerformanceAcceptance(input) {
   const frameP95Ms = percentile95(input.frameSamplesMs)
   const maxFrameMs = Math.max(...input.frameSamplesMs)
   const maxBackingPixelsPerSegment = Math.max(...input.backingPixelsPerSegment)
+  const nativeDevicePixelRatioExact = input.requestedDevicePixelRatios.every(
+    (value, index) => value === input.effectiveDevicePixelRatios[index],
+  )
+  const estimatedTopologyBackingBytes = input.estimatedBackingBytesPerSegment.reduce(
+    (total, value) => total + value,
+    0,
+  )
+  const damagedPixelPercentageTotal = input.damagedPixelPercentages.reduce(
+    (total, value) => total + value,
+    0,
+  )
   const frameP95LimitMs = (1000 / thresholds.targetFps) * thresholds.p95FrameBudgetMultiplier
   const resourceDeltas = Object.freeze(Object.fromEntries(
     PERFORMANCE_RESOURCE_KEYS.map((key) => [key, input.resourceDeltas[key]]),
@@ -432,6 +480,15 @@ export function evaluateDesktopWorldPerformanceAcceptance(input) {
     frameP95Ms,
     maxFrameMs,
     maxBackingPixelsPerSegment,
+    backingDimensionsPerSegment: Object.freeze(input.backingDimensionsPerSegment.map((value) => Object.freeze([...value]))),
+    requestedDevicePixelRatios: Object.freeze([...input.requestedDevicePixelRatios]),
+    effectiveDevicePixelRatios: Object.freeze([...input.effectiveDevicePixelRatios]),
+    nativeDevicePixelRatioExact,
+    estimatedBackingBytesPerSegment: Object.freeze([...input.estimatedBackingBytesPerSegment]),
+    estimatedTopologyBackingBytes,
+    msaaSamplesPerSegment: Object.freeze([...input.msaaSamplesPerSegment]),
+    avgDamagedPixelPercentage: damagedPixelPercentageTotal / input.damagedPixelPercentages.length,
+    maxDamagedPixelPercentage: Math.max(...input.damagedPixelPercentages),
     crossDisplayGapFrames: input.crossDisplayGapFrames,
     warmCycleCount: input.warmCycleCount,
     warmCycleRssDeltaBytes: input.warmCycleRssDeltaBytes,
@@ -444,7 +501,7 @@ export function evaluateDesktopWorldPerformanceAcceptance(input) {
     performanceCheck('input_to_visual_p95', observed.inputToVisualP95Ms, thresholds.inputToVisualP95Ms, 'lte', observed.inputToVisualP95Ms <= thresholds.inputToVisualP95Ms),
     performanceCheck('frame_p95', observed.frameP95Ms, frameP95LimitMs, 'lte', observed.frameP95Ms <= frameP95LimitMs),
     performanceCheck('frame_max', observed.maxFrameMs, thresholds.maxSteadyFrameMs, 'lte', observed.maxFrameMs <= thresholds.maxSteadyFrameMs),
-    performanceCheck('backing_pixels_per_segment', observed.maxBackingPixelsPerSegment, thresholds.maxBackingPixelsPerSegment, 'lte', observed.maxBackingPixelsPerSegment <= thresholds.maxBackingPixelsPerSegment),
+    performanceCheck('native_device_pixel_ratio', observed.nativeDevicePixelRatioExact ? 1 : 0, 1, 'eq', observed.nativeDevicePixelRatioExact),
     performanceCheck('cross_display_gap', observed.crossDisplayGapFrames, thresholds.maxCrossDisplayGapFrames, 'lte', observed.crossDisplayGapFrames <= thresholds.maxCrossDisplayGapFrames),
     performanceCheck('stability_cycles', observed.warmCycleCount, thresholds.stabilityCycles, 'gte', observed.warmCycleCount >= thresholds.stabilityCycles),
     performanceCheck('warm_cycle_rss_growth', observed.warmCycleRssDeltaBytes, thresholds.maxWarmCycleRssGrowthBytes, 'lte', observed.warmCycleRssDeltaBytes <= thresholds.maxWarmCycleRssGrowthBytes),
@@ -734,6 +791,14 @@ export function createDesktopWorldDevToolsStageProbe({
       textures: latest.textures,
       programs: latest.programs,
       backingPixels: latest.backingPixels,
+      backingWidth: latest.backingWidth,
+      backingHeight: latest.backingHeight,
+      damagedPixelPercentage: latest.damagedPixelPercentage,
+      avgDamagedPixelPercentage: summary.avgDamagedPixelPercentage,
+      effectiveDevicePixelRatio: latest.effectiveDevicePixelRatio,
+      estimatedBackingBytes: latest.estimatedBackingBytes,
+      msaaSamples: latest.msaaSamples,
+      requestedDevicePixelRatio: latest.requestedDevicePixelRatio,
       state: summary.state,
     }
   }
@@ -780,6 +845,13 @@ export function createDesktopWorldDevToolsStageProbe({
         textures: value.textures,
         programs: value.programs,
         backingPixels: value.backingPixels,
+        backingWidth: value.backingWidth,
+        backingHeight: value.backingHeight,
+        damagedPixelPercentage: value.damagedPixelPercentage,
+        effectiveDevicePixelRatio: value.effectiveDevicePixelRatio,
+        estimatedBackingBytes: value.estimatedBackingBytes,
+        msaaSamples: value.msaaSamples,
+        requestedDevicePixelRatio: value.requestedDevicePixelRatio,
       }, { limit: DESKTOP_WORLD_DEVTOOLS_LIMITS.performanceSamples, now: Date.now(), source: 'desktop-world' })
       lastSampleAt = at
     }

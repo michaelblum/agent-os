@@ -137,12 +137,61 @@ Gesture updates reuse the installed sheet and captured textures; they do not
 recapture the desktop. A matching end-phase binding atomically replaces the
 gesture-owned effect after cleanup. AOS retains a non-configurable emergency
 watchdog for lost terminal input.
-Each declaration is a bounded, typed, forward-only scalar/`vec2` graph. It may
+Each V1 declaration is a bounded, typed, forward-only scalar/`vec2` graph. It may
 read the shared clock, global DesktopWorld fragment position, surface size/UV,
 and the recognized event's origin, current point, delta, and total delta. Those
 event values are frozen for timed effects and updated in place for a
 gesture-owned effect.
-It outputs a DesktopWorld-point displacement and opacity.
+It outputs a DesktopWorld-point displacement and opacity. V2 adds a bounded
+`vec3` position offset, optional effect-local geometry, and a material:
+
+```js
+const routeSurface = createSceneNativeEffectProgram({
+  contract: 'aos.scene.native-effect-program.v2',
+  schemaVersion: 2,
+  id: 'example.route-surface',
+  revision: 1,
+  durationMs: 1_200,
+  geometry: {
+    kind: 'event_segment',
+    cellSize: 8,
+    width: 720,
+    padding: 96,
+  },
+  material: {
+    lighting: 'standard',
+    ambient: 0.6,
+    diffuse: 0.55,
+    lightDirection: [-0.35, -0.45, 0.82],
+    normalSampleDistance: 2,
+    perspectiveDistance: 2_400,
+    fresnel: 0.2,
+    refraction: 10,
+    roughness: 0.38,
+    specular: 0.7,
+  },
+  parameters: [],
+  nodes: [
+    { id: 'zero', op: 'constant', value: 0 },
+    { id: 'position', op: 'compose3', inputs: ['node.zero', 'node.zero', 'node.zero'] },
+    { id: 'texture', op: 'constant', value: [0, 0] },
+    { id: 'one', op: 'constant', value: 1 },
+  ],
+  outputs: {
+    positionOffset: 'node.position',
+    textureDisplacement: 'node.texture',
+    opacity: 'node.one',
+  },
+})
+```
+
+`event_point` centers one patch at `event.current`; `event_segment` surrounds
+the origin-to-current route; `event_endpoints` creates patches at both ends;
+and `surface` explicitly requests full affected-display geometry. AOS clips
+every declaration into the existing global DesktopWorld segments and rejects
+aggregate geometry-budget overflow. Geometry is fixed for an effect instance,
+so a gesture-owned effect that needs to follow an unbounded moving endpoint
+should use `surface`; timed release effects should prefer a local declaration.
 
 Programs contain data only. They cannot contain JavaScript, Metal source,
 branches, loops, draw commands, resources, remote assets, or pixel reads. AOS

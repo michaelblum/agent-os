@@ -47,6 +47,7 @@ test('daemon routes bounded stage snapshots and every revisioned session action'
   assert.match(unified, /let hadSceneMonitor = subscribers\[connectionID\]\?\.sceneMonitorResource != nil/)
   assert.match(unified, /guard connection\.sceneMonitorReady/)
   assert.match(unified, /event: "monitor"/)
+  assert.match(unified, /"scale_factor": segment\.scaleFactor/)
 })
 
 test('stock panel closes before first telemetry and declares no status-item owner', () => {
@@ -74,19 +75,19 @@ test('stage probe is configured inside the existing DesktopWorld render lifecycl
 
 test('stage topology keeps native geometry in DevTools and out of strict scene events', () => {
   const segments = [
-    { display_id: 1, index: 0, dw_bounds: [0, 200, 1440, 900], native_bounds: [-1440, 0, 1440, 900] },
-    { display_id: 2, index: 1, dw_bounds: [1440, 0, 1920, 1080], native_bounds: [0, -200, 1920, 1080] },
+    { display_id: 1, index: 0, dw_bounds: [0, 200, 1440, 900], native_bounds: [-1440, 0, 1440, 900], scale_factor: 2 },
+    { display_id: 2, index: 1, dw_bounds: [1440, 0, 1920, 1080], native_bounds: [0, -200, 1920, 1080], scale_factor: 1 },
   ]
   const scene = projectSceneEventTopology(segments)
   const devtools = projectDesktopWorldDevToolsTopology(segments)
 
   assert.deepEqual(scene.displays, [
-    { displayId: 1, index: 0, bounds: [0, 200, 1440, 900] },
-    { displayId: 2, index: 1, bounds: [1440, 0, 1920, 1080] },
+    { displayId: 1, index: 0, bounds: [0, 200, 1440, 900], scaleFactor: 2 },
+    { displayId: 2, index: 1, bounds: [1440, 0, 1920, 1080], scaleFactor: 1 },
   ])
   assert.deepEqual(devtools.displays, [
-    { displayId: 1, index: 0, bounds: [0, 200, 1440, 900], nativeBounds: [-1440, 0, 1440, 900] },
-    { displayId: 2, index: 1, bounds: [1440, 0, 1920, 1080], nativeBounds: [0, -200, 1920, 1080] },
+    { displayId: 1, index: 0, bounds: [0, 200, 1440, 900], scaleFactor: 2, nativeBounds: [-1440, 0, 1440, 900] },
+    { displayId: 2, index: 1, bounds: [1440, 0, 1920, 1080], scaleFactor: 1, nativeBounds: [0, -200, 1920, 1080] },
   ])
   assert.equal(scene.displays.some((display) => Object.hasOwn(display, 'nativeBounds')), false)
 })

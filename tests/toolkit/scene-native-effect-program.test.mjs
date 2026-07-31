@@ -59,13 +59,23 @@ function v2Program() {
       textureDisplacement: 'node.texture',
       opacity: 'node.one',
     },
+    geometry: {
+      kind: 'event_point',
+      cellSize: 6,
+      padding: 96,
+      radius: 480,
+    },
     material: {
-      lighting: 'lambert',
+      lighting: 'standard',
       ambient: 0.65,
       diffuse: 0.45,
+      fresnel: 0.24,
       lightDirection: [-0.35, -0.45, 0.82],
       normalSampleDistance: 2,
       perspectiveDistance: 2_400,
+      refraction: 12,
+      roughness: 0.38,
+      specular: 0.72,
     },
   }
 }
@@ -155,7 +165,8 @@ test('v2 native effects express bounded 3D sheet deformation and material state'
   assert.deepEqual(validateSceneNativeEffectProgram(candidate), { ok: true, errors: [] })
   const created = createSceneNativeEffectProgram(candidate)
   assert.equal(created.outputs.positionOffset, 'node.position')
-  assert.equal(created.material.lighting, 'lambert')
+  assert.equal(created.material.lighting, 'standard')
+  assert.equal(created.geometry.kind, 'event_point')
 
   const v1Vector = program()
   v1Vector.nodes.splice(-1, 0, { id: 'vector3', op: 'constant', value: [0, 0, 1] })
@@ -170,6 +181,9 @@ test('v2 native effects express bounded 3D sheet deformation and material state'
     (value) => { value.material.lightDirection = [0, 0, 0] },
     (value) => { value.material.normalSampleDistance = 65 },
     (value) => { value.material.perspectiveDistance = 128 },
+    (value) => { value.geometry.cellSize = 1 },
+    (value) => { value.geometry.radius = 5_001 },
+    (value) => { value.material.roughness = 0 },
   ]) {
     const invalid = v2Program()
     mutate(invalid)
@@ -184,7 +198,8 @@ test('the same v2 graph compiles to a bounded Three.js-compatible GLSL function'
   assert.equal(compiled.contract, SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID)
   assert.equal(compiled.source, repeated.source)
   assert.deepEqual(compiled.parameterIds, ['amplitude'])
-  assert.equal(compiled.material.lighting, 'lambert')
+  assert.equal(compiled.material.lighting, 'standard')
+  assert.equal(compiled.geometry.kind, 'event_point')
   assert.match(compiled.source, /AosNativeEffectEvaluation aosEvaluateNativeEffect/u)
   assert.match(compiled.source, /vec3 aosRawPositionOffset = aosNode6/u)
   assert.match(compiled.source, /aosFinite\(aosRawPositionOffset\)/u)

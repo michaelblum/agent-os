@@ -1,7 +1,6 @@
 export const DESKTOP_WORLD_SCENE_RENDER_LIMITS = Object.freeze({
-  maxDevicePixelRatio: 2,
-  maxBackingDimension: 4096,
-  maxBackingPixels: 2_097_152,
+  maxDisplaySegments: 16,
+  maxNativeDevicePixelRatio: 4,
 })
 
 export function sceneResourceCanRun(resourceSuspended, stageHidden, contextLost) {
@@ -14,8 +13,10 @@ export function sceneStageShouldRender(
   contextLost,
   stageSuspended = false,
   faulted = false,
+  pendingDamage = false,
 ) {
   if (stageHidden || contextLost || stageSuspended || faulted) return false
+  if (pendingDamage) return true
   for (const mounted of resources.values()) {
     if (!mounted.suspended) return true
   }

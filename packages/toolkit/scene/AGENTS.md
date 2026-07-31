@@ -63,11 +63,15 @@ stage internals.
 - A cartridge may carry a bounded data-only native-effect program. AOS owns its
   finite graph vocabulary, validation, trusted Metal templates, compilation,
   capture textures, budgets, and disposal; the consumer owns graph composition,
-  parameter presets, and event bindings. V2 may deform the existing tessellated
-  sheet and declare bounded unlit or Lambert material facts. The toolkit may
+  parameter presets, geometry locality, and event bindings. V2 may deform an
+  AOS-owned tessellated sheet, select a bounded surface, point, route, or
+  endpoint geometry region, and declare bounded unlit, Lambert, or standard
+  material facts. The toolkit may
   compile the same validated graph into a Three.js-compatible GLSL evaluation
-  function for trusted previews. Neither form accepts consumer source, creates
-  geometry, mutates topology, or grants capture authority. Unknown operators
+  function for trusted previews. Consumers never create geometry directly;
+  AOS resolves the declaration, allocates the bounded mesh, and owns its
+  lifecycle. Neither form accepts consumer source, mutates topology, or grants
+  capture authority. Unknown operators
   and aggregate program-budget overflow reject before scene dispatch.
   Environmental Metal preparation failure keeps native input admission closed
   and retains the prior prepared pipeline set. It does not invalidate an
@@ -174,6 +178,12 @@ stage internals.
   subtree first and the orthographic overlay last, audits both subtrees under
   one aggregate budget, and disposes them through the projection's single
   lifecycle. Extensions must not create a renderer, canvas, context, or RAF.
+- Trusted projections may expose one synchronous `renderDamage()` optimization
+  in global DesktopWorld coordinates. AOS unions current and prior bounds,
+  intersects them with each display segment, and owns scissored clear/render.
+  Invalid or absent declarations render the full stage. Full-stage declarations
+  are for explicit bounded effects; ordinary continuous projection should
+  conservatively include geometry, aura, and effect padding.
 - Visual-only transactions whose interaction descriptors and transform
   projection are unchanged retain the live native input generation. Any
   hierarchy, transform, affordance, recognizer, or response change continues
