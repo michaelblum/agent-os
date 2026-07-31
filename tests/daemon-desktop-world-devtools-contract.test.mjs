@@ -82,12 +82,14 @@ test('stage topology keeps native geometry in DevTools and out of strict scene e
   const devtools = projectDesktopWorldDevToolsTopology(segments)
 
   assert.deepEqual(scene.displays, [
-    { displayId: 1, index: 0, bounds: [0, 200, 1440, 900], scaleFactor: 2 },
-    { displayId: 2, index: 1, bounds: [1440, 0, 1920, 1080], scaleFactor: 1 },
+    { displayId: 1, index: 0, bounds: [0, 200, 1440, 900] },
+    { displayId: 2, index: 1, bounds: [1440, 0, 1920, 1080] },
   ])
   assert.deepEqual(devtools.displays, [
     { displayId: 1, index: 0, bounds: [0, 200, 1440, 900], scaleFactor: 2, nativeBounds: [-1440, 0, 1440, 900] },
     { displayId: 2, index: 1, bounds: [1440, 0, 1920, 1080], scaleFactor: 1, nativeBounds: [0, -200, 1920, 1080] },
   ])
-  assert.equal(scene.displays.some((display) => Object.hasOwn(display, 'nativeBounds')), false)
+  assert.equal(scene.displays.some((display) => (
+    Object.hasOwn(display, 'nativeBounds') || Object.hasOwn(display, 'scaleFactor')
+  )), false)
 })

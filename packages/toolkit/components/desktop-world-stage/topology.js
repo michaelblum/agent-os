@@ -7,7 +7,6 @@ function sceneDisplay(segment) {
     displayId: segment?.display_id ?? null,
     index: segment?.index ?? null,
     bounds: Array.isArray(segment?.dw_bounds) ? segment.dw_bounds.slice(0, 4) : null,
-    scaleFactor: Number(segment?.scale_factor ?? segment?.scaleFactor ?? 1),
   }
 }
 
@@ -21,6 +20,7 @@ export function projectDesktopWorldDevToolsTopology(segments) {
   return {
     displays: boundedSegments(segments).map((segment) => ({
       ...sceneDisplay(segment),
+      scaleFactor: Number(segment?.scale_factor ?? segment?.scaleFactor ?? 1),
       nativeBounds: Array.isArray(segment?.native_bounds) ? segment.native_bounds.slice(0, 4) : null,
     })),
   }
