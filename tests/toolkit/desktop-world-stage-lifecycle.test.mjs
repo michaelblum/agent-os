@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   createDesktopWorldStageDisposer,
   createDesktopWorldStageFaultRetirement,
+  createDesktopWorldStageStartupGate,
   handleDesktopWorldStageLifecycle,
 } from '../../packages/toolkit/components/desktop-world-stage/lifecycle.js'
 
@@ -131,4 +132,23 @@ test('DesktopWorld stage fault retirement still cleans up when publication fails
     /fault retirement failed/u,
   )
   assert.equal(cleaned, true)
+})
+
+test('DesktopWorld stage startup cannot publish ready after a deferred fault', async () => {
+  let generation = 0
+  let state = 'active'
+  let releaseRegistration
+  const registration = new Promise((resolve) => { releaseRegistration = resolve })
+  const isCurrent = createDesktopWorldStageStartupGate(() => ({ generation, state }))
+  const emitted = []
+  const startup = (async () => {
+    await registration
+    if (isCurrent()) emitted.push('ready')
+  })()
+
+  generation += 1
+  state = 'faulted'
+  releaseRegistration()
+  await startup
+  assert.deepEqual(emitted, [])
 })

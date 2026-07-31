@@ -60,6 +60,16 @@ export function createDesktopWorldStageFaultRetirement({
   }
 }
 
+export function createDesktopWorldStageStartupGate(readLifecycle) {
+  requireFunction(readLifecycle, 'lifecycle state')
+  const admitted = readLifecycle()
+  return function isDesktopWorldStageStartupCurrent() {
+    const current = readLifecycle()
+    return current?.state === 'active'
+      && current?.generation === admitted?.generation
+  }
+}
+
 export function handleDesktopWorldStageLifecycle(message, complete, outlet = null) {
   if (message?.type !== 'lifecycle' || !LIFECYCLE_ACTIONS.has(message.action)) {
     return false

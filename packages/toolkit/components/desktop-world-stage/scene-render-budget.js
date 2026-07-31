@@ -15,24 +15,35 @@ function bounds(value) {
   return result.every(Number.isFinite) && result[2] > 0 && result[3] > 0 ? result : null
 }
 
-function scaleFactor(segment, fallback = 1) {
-  const value = positiveFinite(segment?.scale_factor ?? segment?.scaleFactor, fallback)
-  return value !== null && value <= MAX_NATIVE_DEVICE_PIXEL_RATIO ? value : null
+function rejected(code) {
+  return Object.freeze({ code, ok: false })
+}
+
+function evaluateScaleFactor(segment, fallback = 1) {
+  const declared = segment?.scale_factor ?? segment?.scaleFactor
+  const value = positiveFinite(declared === undefined ? fallback : declared)
+  if (value === null) return rejected('SCENE_SEGMENT_CONFIGURATION_FAILED')
+  if (value > MAX_NATIVE_DEVICE_PIXEL_RATIO) return rejected('SCENE_NATIVE_DPR_UNSUPPORTED')
+  return Object.freeze({ ok: true, value })
 }
 
 function segmentBackingMetrics(segment, fallbackScale = 1) {
   const frame = bounds(segment?.dw_bounds ?? segment?.dwBounds)
-  if (!frame) return null
-  const nativeScale = scaleFactor(segment, fallbackScale)
-  if (nativeScale === null) return null
+  if (!frame) return rejected('SCENE_SEGMENT_CONFIGURATION_FAILED')
+  const scale = evaluateScaleFactor(segment, fallbackScale)
+  if (!scale.ok) return scale
+  const nativeScale = scale.value
   const backingWidth = Math.max(1, Math.round(frame[2] * nativeScale))
   const backingHeight = Math.max(1, Math.round(frame[3] * nativeScale))
   return Object.freeze({
-    backingHeight,
-    backingPixels: backingWidth * backingHeight,
-    backingWidth,
-    displayId: segment?.display_id ?? segment?.displayId ?? segment?.displayID ?? null,
-    nativeScale,
+    metrics: Object.freeze({
+      backingHeight,
+      backingPixels: backingWidth * backingHeight,
+      backingWidth,
+      displayId: segment?.display_id ?? segment?.displayId ?? segment?.displayID ?? null,
+      nativeScale,
+    }),
+    ok: true,
   })
 }
 
@@ -65,7 +76,7 @@ function estimatedBackingBytes(backingPixels, msaaSamples) {
   return resolvedBytes + multisampleBytes
 }
 
-export function resolveDesktopWorldNativeRenderMetrics({
+export function evaluateDesktopWorldNativeRenderMetrics({
   context = null,
   devicePixelRatio = 1,
   height,
@@ -75,10 +86,13 @@ export function resolveDesktopWorldNativeRenderMetrics({
 } = {}) {
   const cssWidth = positiveFinite(width)
   const cssHeight = positiveFinite(height)
-  if (cssWidth === null || cssHeight === null) return null
+  if (cssWidth === null || cssHeight === null) {
+    return rejected('SCENE_SEGMENT_CONFIGURATION_FAILED')
+  }
 
-  const requestedDevicePixelRatio = scaleFactor(segment, positiveFinite(devicePixelRatio, 1))
-  if (requestedDevicePixelRatio === null) return null
+  const requestedScale = evaluateScaleFactor(segment, devicePixelRatio)
+  if (!requestedScale.ok) return requestedScale
+  const requestedDevicePixelRatio = requestedScale.value
   const backingWidth = Math.max(1, Math.round(cssWidth * requestedDevicePixelRatio))
   const backingHeight = Math.max(1, Math.round(cssHeight * requestedDevicePixelRatio))
   const maxRenderbufferSize = contextInteger(
@@ -92,36 +106,43 @@ export function resolveDesktopWorldNativeRenderMetrics({
     || backingHeight > maxRenderbufferSize
     || backingWidth > maxViewportDimensions[0]
     || backingHeight > maxViewportDimensions[1]
-  ) return null
+  ) return rejected('SCENE_RENDER_PASS_CONFIGURATION_FAILED')
 
-  if (Array.isArray(topology) && topology.length > MAX_DISPLAY_SEGMENTS) return null
+  if (!Array.isArray(topology) || topology.length > MAX_DISPLAY_SEGMENTS) {
+    return rejected('SCENE_SEGMENT_CONFIGURATION_FAILED')
+  }
   const segments = Array.isArray(topology) && topology.length > 0
     ? topology
     : [{ dw_bounds: [0, 0, cssWidth, cssHeight], scale_factor: requestedDevicePixelRatio }]
-  const displayMetrics = segments.map((entry) => (
+  const displayResults = segments.map((entry) => (
     segmentBackingMetrics(entry, requestedDevicePixelRatio)
   ))
-  if (displayMetrics.some((entry) => entry === null)) return null
+  const rejectedDisplay = displayResults.find((entry) => !entry.ok)
+  if (rejectedDisplay) return rejectedDisplay
+  const displayMetrics = displayResults.map((entry) => entry.metrics)
   const topologyBackingPixels = displayMetrics.reduce((total, entry) => total + entry.backingPixels, 0)
   const backingPixels = backingWidth * backingHeight
   const msaaSamples = contextInteger(context, 'SAMPLES', 0)
 
   return Object.freeze({
-    backingHeight,
-    backingPixels,
-    backingWidth,
-    constrained: false,
-    cssHeight,
-    cssWidth,
-    displayMetrics: Object.freeze(displayMetrics),
-    effectiveDevicePixelRatio: requestedDevicePixelRatio,
-    estimatedBackingBytes: estimatedBackingBytes(backingPixels, msaaSamples),
-    estimatedTopologyBackingBytes: estimatedBackingBytes(topologyBackingPixels, msaaSamples),
-    maxRenderbufferSize,
-    maxViewportDimensions: Object.freeze(maxViewportDimensions),
-    msaaSamples,
-    requestedDevicePixelRatio,
-    topologyBackingPixels,
+    metrics: Object.freeze({
+      backingHeight,
+      backingPixels,
+      backingWidth,
+      constrained: false,
+      cssHeight,
+      cssWidth,
+      displayMetrics: Object.freeze(displayMetrics),
+      effectiveDevicePixelRatio: requestedDevicePixelRatio,
+      estimatedBackingBytes: estimatedBackingBytes(backingPixels, msaaSamples),
+      estimatedTopologyBackingBytes: estimatedBackingBytes(topologyBackingPixels, msaaSamples),
+      maxRenderbufferSize,
+      maxViewportDimensions: Object.freeze(maxViewportDimensions),
+      msaaSamples,
+      requestedDevicePixelRatio,
+      topologyBackingPixels,
+    }),
+    ok: true,
   })
 }
 

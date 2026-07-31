@@ -7,6 +7,7 @@ import { normalizeDesktopWorldSceneResultErrorCode } from '../../scene/scene-res
 import {
   createDesktopWorldStageDisposer,
   createDesktopWorldStageFaultRetirement,
+  createDesktopWorldStageStartupGate,
   handleDesktopWorldStageLifecycle,
 } from './lifecycle.js'
 import { createDesktopWorldSceneExtensionLoader } from './scene-extension-loader.js'
@@ -68,6 +69,7 @@ let sceneInteractions = null
 let sceneOperations = null
 let lastSceneError = null
 let stageLifecycleState = 'active'
+let stageLifecycleGeneration = 0
 
 function sceneTopologySnapshot() {
   return projectSceneEventTopology(surface.topology)
@@ -186,7 +188,10 @@ const retireStageFault = createDesktopWorldStageFaultRetirement({
     snapshot: sceneOutlet.snapshot(),
   }),
   record: (fault) => {
-    if (stageLifecycleState === 'active') stageLifecycleState = 'faulted'
+    if (stageLifecycleState === 'active') {
+      stageLifecycleGeneration += 1
+      stageLifecycleState = 'faulted'
+    }
     lastSceneError = { at: Date.now(), code: fault.code }
     devtoolsProbe.recordEvent({
       code: fault.code,
@@ -212,6 +217,10 @@ sceneOutlet.setFaultObserver((fault) => {
     resource: fault.resource,
   })
 })
+const stageStartupIsCurrent = createDesktopWorldStageStartupGate(() => ({
+  generation: stageLifecycleGeneration,
+  state: stageLifecycleState,
+}))
 
 function render() {
   if (!root) return
@@ -477,6 +486,7 @@ surface.start({
   },
 }).then(async () => {
   await registerInputKeyLease({ id: escapeKeyLeaseId, key: 'Escape' })
+  if (!stageStartupIsCurrent()) return
   render()
   installVisualObjectLiveProof()
   emitReady()
@@ -486,6 +496,7 @@ surface.start({
 
 window.addEventListener('pagehide', () => {
   if (['closing', 'disposed'].includes(stageLifecycleState)) return
+  stageLifecycleGeneration += 1
   stageLifecycleState = 'closing'
   void enqueueSceneWork(async () => {
     try {
