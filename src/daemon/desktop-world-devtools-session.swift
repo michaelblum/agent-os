@@ -133,20 +133,44 @@ enum AOSDesktopWorldDevToolsTransferResult {
     case invalid
 }
 
+@propertyWrapper
+private struct AOSDesktopWorldRequiredNullable<Value: Codable>: Codable {
+    var wrappedValue: Value?
+
+    init(wrappedValue: Value?) {
+        self.wrappedValue = wrappedValue
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        wrappedValue = container.decodeNil() ? nil : try container.decode(Value.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        if let wrappedValue {
+            try container.encode(wrappedValue)
+        } else {
+            try container.encodeNil()
+        }
+    }
+}
+
 private struct AOSDesktopWorldDevToolsStageSnapshot: Codable {
     struct Display: Codable {
         let id: String
         let index: Int
         let bounds: [Double]
+        let scaleFactor: Double
         let nativeBounds: [Double]?
     }
 
     struct Node: Codable {
         let id: String
         let resourceId: String
-        let parentId: String?
+        @AOSDesktopWorldRequiredNullable var parentId: String?
         let kind: String
-        let implementation: String?
+        @AOSDesktopWorldRequiredNullable var implementation: String?
         let position: [Double]
         let visible: Bool
     }
@@ -174,7 +198,7 @@ private struct AOSDesktopWorldDevToolsStageSnapshot: Codable {
         let interactionId: String
         let kind: String
         let phase: String
-        let pointerSessionId: String?
+        @AOSDesktopWorldRequiredNullable var pointerSessionId: String?
     }
 
     struct Route: Codable {
@@ -216,7 +240,7 @@ private struct AOSDesktopWorldDevToolsStageSnapshot: Codable {
         let implementations: [String]
         let allocations: Allocations
         let lifecycle: String
-        let errorCode: String?
+        @AOSDesktopWorldRequiredNullable var errorCode: String?
     }
 
     struct Interaction: Codable {
@@ -227,33 +251,44 @@ private struct AOSDesktopWorldDevToolsStageSnapshot: Codable {
         let suspended: Bool
         let recognizers: [String]
         let regionCount: Int
-        let errorCode: String?
+        @AOSDesktopWorldRequiredNullable var errorCode: String?
     }
 
     struct Performance: Codable {
         let enabled: Bool
         let recording: Bool
         let sampleCount: Int
-        let currentFps: Double?
-        let p95FrameMs: Double?
-        let avgFrameMs: Double?
-        let avgRenderMs: Double?
-        let avgUpdateMs: Double?
-        let avgGpuMs: Double?
-        let drawCalls: Double?
-        let triangles: Double?
-        let geometries: Double?
-        let textures: Double?
-        let programs: Double?
-        let backingPixels: Double?
+        @AOSDesktopWorldRequiredNullable var targetFps: Double?
+        @AOSDesktopWorldRequiredNullable var budgetMs: Double?
+        @AOSDesktopWorldRequiredNullable var currentFps: Double?
+        @AOSDesktopWorldRequiredNullable var p95FrameMs: Double?
+        @AOSDesktopWorldRequiredNullable var maxFrameMs: Double?
+        @AOSDesktopWorldRequiredNullable var avgFrameMs: Double?
+        @AOSDesktopWorldRequiredNullable var avgRenderMs: Double?
+        @AOSDesktopWorldRequiredNullable var avgUpdateMs: Double?
+        @AOSDesktopWorldRequiredNullable var avgGpuMs: Double?
+        @AOSDesktopWorldRequiredNullable var drawCalls: Double?
+        @AOSDesktopWorldRequiredNullable var triangles: Double?
+        @AOSDesktopWorldRequiredNullable var geometries: Double?
+        @AOSDesktopWorldRequiredNullable var textures: Double?
+        @AOSDesktopWorldRequiredNullable var programs: Double?
+        @AOSDesktopWorldRequiredNullable var backingPixels: Double?
+        @AOSDesktopWorldRequiredNullable var backingWidth: Double?
+        @AOSDesktopWorldRequiredNullable var backingHeight: Double?
+        @AOSDesktopWorldRequiredNullable var damagedPixelPercentage: Double?
+        @AOSDesktopWorldRequiredNullable var avgDamagedPixelPercentage: Double?
+        @AOSDesktopWorldRequiredNullable var effectiveDevicePixelRatio: Double?
+        @AOSDesktopWorldRequiredNullable var estimatedBackingBytes: Double?
+        @AOSDesktopWorldRequiredNullable var msaaSamples: Double?
+        @AOSDesktopWorldRequiredNullable var requestedDevicePixelRatio: Double?
         let state: String
     }
 
     struct Event: Codable {
         let sequence: Int
         let kind: String
-        let resourceId: String?
-        let code: String?
+        @AOSDesktopWorldRequiredNullable var resourceId: String?
+        @AOSDesktopWorldRequiredNullable var code: String?
         let at: Double
     }
 
@@ -271,7 +306,7 @@ private struct AOSDesktopWorldDevToolsStageSnapshot: Codable {
     let performance: Performance
     let counters: [String: Int]
     let events: [Event]
-    let lastError: LastError?
+    @AOSDesktopWorldRequiredNullable var lastError: LastError?
 
     func isValid() -> Bool {
         guard contract == aosDesktopWorldDevToolsStageContract,
@@ -292,7 +327,10 @@ private struct AOSDesktopWorldDevToolsStageSnapshot: Codable {
               counters.keys.allSatisfy({ Self.counterKeys.contains($0) }),
               counters.values.allSatisfy({ $0 >= 0 && $0 <= 100_000 }),
               Self.validMetric(performance.currentFps, maximum: 1_000),
+              Self.validMetric(performance.targetFps, maximum: 1_000),
+              Self.validMetric(performance.budgetMs),
               Self.validMetric(performance.p95FrameMs),
+              Self.validMetric(performance.maxFrameMs),
               Self.validMetric(performance.avgFrameMs),
               Self.validMetric(performance.avgRenderMs),
               Self.validMetric(performance.avgUpdateMs),
@@ -303,11 +341,20 @@ private struct AOSDesktopWorldDevToolsStageSnapshot: Codable {
               Self.validMetric(performance.textures),
               Self.validMetric(performance.programs),
               Self.validMetric(performance.backingPixels),
+              Self.validMetric(performance.backingWidth),
+              Self.validMetric(performance.backingHeight),
+              Self.validMetric(performance.damagedPixelPercentage, maximum: 100),
+              Self.validMetric(performance.avgDamagedPixelPercentage, maximum: 100),
+              Self.validPositiveMetric(performance.effectiveDevicePixelRatio, maximum: 4),
+              Self.validMetric(performance.estimatedBackingBytes, maximum: 1_000_000_000_000),
+              Self.validMetric(performance.msaaSamples, maximum: 64),
+              Self.validPositiveMetric(performance.requestedDevicePixelRatio, maximum: 4),
               lastError == nil || (Self.validString(lastError!.code, limit: 64)
                 && lastError!.at.isFinite && lastError!.at >= 0) else { return false }
         guard world.displays.allSatisfy({
             Self.validString($0.id) && $0.bounds.count == 4 && $0.bounds.allSatisfy({ $0.isFinite })
                 && $0.bounds[2] > 0 && $0.bounds[3] > 0 && $0.index >= 0 && $0.index <= 31
+                && $0.scaleFactor.isFinite && $0.scaleFactor > 0 && $0.scaleFactor <= 4
                 && ($0.nativeBounds.map({ bounds in
                     bounds.count == 4 && bounds.allSatisfy({ $0.isFinite })
                         && bounds[2] > 0 && bounds[3] > 0
@@ -375,6 +422,10 @@ private struct AOSDesktopWorldDevToolsStageSnapshot: Codable {
 
     private static func validMetric(_ value: Double?, maximum: Double = 1_000_000_000) -> Bool {
         value == nil || (value!.isFinite && value! >= 0 && value! <= maximum)
+    }
+
+    private static func validPositiveMetric(_ value: Double?, maximum: Double) -> Bool {
+        value == nil || (value!.isFinite && value! > 0 && value! <= maximum)
     }
 }
 
@@ -740,10 +791,15 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
             "interactions": [],
             "performance": [
                 "enabled": false, "recording": false, "sampleCount": 0,
-                "currentFps": NSNull(), "p95FrameMs": NSNull(), "avgFrameMs": NSNull(),
+                "targetFps": NSNull(), "budgetMs": NSNull(), "currentFps": NSNull(),
+                "p95FrameMs": NSNull(), "maxFrameMs": NSNull(), "avgFrameMs": NSNull(),
                 "avgRenderMs": NSNull(), "avgUpdateMs": NSNull(), "avgGpuMs": NSNull(),
                 "drawCalls": NSNull(), "triangles": NSNull(), "geometries": NSNull(),
                 "textures": NSNull(), "programs": NSNull(), "backingPixels": NSNull(),
+                "backingWidth": NSNull(), "backingHeight": NSNull(),
+                "damagedPixelPercentage": NSNull(), "avgDamagedPixelPercentage": NSNull(),
+                "effectiveDevicePixelRatio": NSNull(), "estimatedBackingBytes": NSNull(),
+                "msaaSamples": NSNull(), "requestedDevicePixelRatio": NSNull(),
                 "state": "idle",
             ],
             "counters": [
