@@ -111,6 +111,8 @@ precondition(unknownFailure.accept(result("unknown-failure", "abort", 7, 0, "ok"
 let unknownAborted = completion(unknownFailure.accept(result("unknown-failure", "abort", 9, 1, "ok", fingerprint: nil)))
 precondition(unknownAborted?.payload["status"] as? String == "error")
 precondition(unknownAborted?.payload["code"] as? String == "SCENE_SEGMENT_FAILED")
+precondition(aosCanonicalDesktopWorldSceneResultErrorCode("SCENE_NATIVE_DPR_UNSUPPORTED", fallback: "SCENE_SEGMENT_FAILED") == "SCENE_NATIVE_DPR_UNSUPPORTED")
+precondition(aosCanonicalDesktopWorldSceneResultErrorCode("SCENE_SEGMENT_CONFIGURATION_FAILED", fallback: "SCENE_SEGMENT_FAILED") == "SCENE_SEGMENT_CONFIGURATION_FAILED")
 
 let commitFailure = AOSDesktopWorldSceneResultCoordinator()
 _ = commitFailure.begin(operationID: "commit-failure", leaseKey: "owner::main", owner: "owner", operation: "mount", operationPayload: operation, resource: "main", canvasGeneration: 3, topologyGeneration: 4, segments: segments)

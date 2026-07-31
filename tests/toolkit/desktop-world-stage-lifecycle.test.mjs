@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import {
   createDesktopWorldStageDisposer,
+  createDesktopWorldStageFaultRetirement,
   handleDesktopWorldStageLifecycle,
 } from '../../packages/toolkit/components/desktop-world-stage/lifecycle.js'
 
@@ -83,4 +84,51 @@ test('DesktopWorld stage disposal is idempotent and reports unsettled cleanup', 
   assert.equal(dispose(), first)
   await assert.rejects(first, /stage disposal failed/u)
   assert.deepEqual(calls, ['operations', 'surface', 'devtools', 'cancel', 'interactions'])
+})
+
+test('DesktopWorld stage fault retirement publishes once and serializes complete cleanup', async () => {
+  const calls = []
+  let releaseCleanup
+  const cleanupGate = new Promise((resolve) => { releaseCleanup = resolve })
+  const retire = createDesktopWorldStageFaultRetirement({
+    cleanup: async (fault) => {
+      calls.push(`cleanup:${fault.code}`)
+      await cleanupGate
+    },
+    publish: (fault) => calls.push(`publish:${fault.code}`),
+    record: (fault) => calls.push(`record:${fault.code}`),
+    schedule: (work) => {
+      calls.push('schedule')
+      return Promise.resolve().then(work)
+    },
+  })
+
+  const first = retire({ code: 'SCENE_NATIVE_DPR_UNSUPPORTED' })
+  assert.equal(retire({ code: 'SCENE_SEGMENT_FAILED' }), first)
+  await Promise.resolve()
+  assert.deepEqual(calls, [
+    'record:SCENE_NATIVE_DPR_UNSUPPORTED',
+    'schedule',
+    'publish:SCENE_NATIVE_DPR_UNSUPPORTED',
+    'cleanup:SCENE_NATIVE_DPR_UNSUPPORTED',
+  ])
+
+  releaseCleanup()
+  assert.equal(await first, true)
+})
+
+test('DesktopWorld stage fault retirement still cleans up when publication fails', async () => {
+  let cleaned = false
+  const retire = createDesktopWorldStageFaultRetirement({
+    cleanup: async () => { cleaned = true },
+    publish: () => { throw new Error('bridge unavailable') },
+    record: () => {},
+    schedule: (work) => Promise.resolve().then(work),
+  })
+
+  await assert.rejects(
+    retire({ code: 'SCENE_SEGMENT_CONFIGURATION_FAILED' }),
+    /fault retirement failed/u,
+  )
+  assert.equal(cleaned, true)
 })

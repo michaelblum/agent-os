@@ -4,7 +4,11 @@ import { declareManifest, emitLifecycleComplete, emitReady } from '../../runtime
 import { createVisualObjectDescriptor } from '../../workbench/visual-object-contract.js'
 import { createTrustedSceneExtensionRegistry } from '../../scene/scene-extension.js'
 import { normalizeDesktopWorldSceneResultErrorCode } from '../../scene/scene-result-codes.js'
-import { createDesktopWorldStageDisposer, handleDesktopWorldStageLifecycle } from './lifecycle.js'
+import {
+  createDesktopWorldStageDisposer,
+  createDesktopWorldStageFaultRetirement,
+  handleDesktopWorldStageLifecycle,
+} from './lifecycle.js'
 import { createDesktopWorldSceneExtensionLoader } from './scene-extension-loader.js'
 import {
   createDesktopFrameRequestClient,
@@ -109,27 +113,6 @@ const devtoolsProbe = createDesktopWorldDevToolsStageProbe({
   },
 })
 sceneOutlet.setDevToolsProbe(devtoolsProbe)
-sceneOutlet.setFaultObserver((fault) => {
-  const code = normalizeDesktopWorldSceneResultErrorCode(fault.code, 'SCENE_SEGMENT_FAILED')
-  if (stageLifecycleState === 'active') stageLifecycleState = 'faulted'
-  lastSceneError = { at: Date.now(), code }
-  void enqueueSceneWork(async () => {
-    try {
-      await sceneOperations?.failClosed(code)
-    } catch {
-      lastSceneError = { at: Date.now(), code: 'SCENE_STAGE_RETIRE_FAILED' }
-    }
-    emit('desktop_world_stage.scene.fault', {
-      code,
-      lease_key: fault.leaseKey,
-      owner: fault.owner,
-      resource: fault.resource,
-      segment_display_id: window.__aosSegmentDisplayId ?? null,
-      segment_index: surface.segment?.index ?? null,
-      snapshot: sceneOutlet.snapshot(),
-    })
-  }).catch(() => {})
-})
 
 sceneInteractions = createDesktopWorldSceneInteractionRuntime({
   stageCanvasId: canvasId,
@@ -183,6 +166,51 @@ const disposeStage = createDesktopWorldStageDisposer({
   operations: sceneOperations,
   outlet: sceneOutlet,
   surface,
+})
+const retireStageFault = createDesktopWorldStageFaultRetirement({
+  cleanup: async ({ code }) => {
+    const failures = []
+    try { await sceneOperations?.failClosed(code) } catch (error) { failures.push(error) }
+    try { await disposeStage() } catch (error) { failures.push(error) }
+    if (failures.length > 0) {
+      throw new AggregateError(failures, 'DesktopWorld stage cleanup did not settle.')
+    }
+  },
+  publish: (fault) => emit('desktop_world_stage.scene.fault', {
+    code: fault.code,
+    lease_key: fault.leaseKey ?? null,
+    owner: fault.owner ?? null,
+    resource: fault.resource ?? null,
+    segment_display_id: window.__aosSegmentDisplayId ?? null,
+    segment_index: surface.segment?.index ?? null,
+    snapshot: sceneOutlet.snapshot(),
+  }),
+  record: (fault) => {
+    if (stageLifecycleState === 'active') stageLifecycleState = 'faulted'
+    lastSceneError = { at: Date.now(), code: fault.code }
+    devtoolsProbe.recordEvent({
+      code: fault.code,
+      kind: fault.kind,
+      resourceId: fault.resource ?? null,
+    })
+  },
+  schedule: enqueueSceneWork,
+})
+
+function retireStage(error, fallback, kind, metadata = {}) {
+  const code = normalizeDesktopWorldSceneResultErrorCode(error?.code, fallback)
+  void retireStageFault({ code, kind, ...metadata }).then(
+    () => { stageLifecycleState = 'disposed' },
+    () => { lastSceneError = { at: Date.now(), code: 'SCENE_STAGE_RETIRE_FAILED' } },
+  )
+}
+
+sceneOutlet.setFaultObserver((fault) => {
+  retireStage(fault, 'SCENE_SEGMENT_FAILED', 'scene.segment.failed', {
+    leaseKey: fault.leaseKey,
+    owner: fault.owner,
+    resource: fault.resource,
+  })
 })
 
 function render() {
@@ -444,9 +472,7 @@ surface.start({
       await sceneInteractions.topologyChanged()
       render()
     }).catch((error) => {
-      const code = error?.code ?? 'SCENE_SEGMENT_CONFIGURATION_FAILED'
-      lastSceneError = { at: Date.now(), code }
-      devtoolsProbe.recordEvent({ code, kind: 'topology.failed', resourceId: null })
+      retireStage(error, 'SCENE_SEGMENT_CONFIGURATION_FAILED', 'topology.failed')
     })
   },
 }).then(async () => {
@@ -455,10 +481,7 @@ surface.start({
   installVisualObjectLiveProof()
   emitReady()
 }).catch((error) => {
-  const code = error?.code ?? 'INPUT_KEY_LEASE_FAILED'
-  if (stageLifecycleState === 'active') stageLifecycleState = 'faulted'
-  lastSceneError = { at: Date.now(), code }
-  devtoolsProbe.recordEvent({ code, kind: 'stage.startup.failed', resourceId: null })
+  retireStage(error, 'SCENE_PROJECTION_FAILED', 'stage.startup.failed')
 })
 
 window.addEventListener('pagehide', () => {

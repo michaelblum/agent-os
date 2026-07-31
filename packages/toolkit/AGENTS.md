@@ -46,6 +46,9 @@ stage interactive by default. ADR 0024 owns the 3D outlet boundary.
 DesktopWorld segment setup must accept the topology-derived native backing scale
 before the stage emits ready; initial setup failures reject and unsubscribe the
 surface adapter instead of continuing with WebKit defaults.
+Initial and topology segment failures publish one canonical scene fault and
+retire the complete stage through the serialized fail-closed lifecycle; they
+must not leave a reusable canvas waiting permanently for readiness.
 One-shot spatial animation temporarily quiesces affected native interaction
 regions and settles the terminal pose through a fresh staged generation. Keep
 the authored scene revision stable and do not synchronize native hit geometry
