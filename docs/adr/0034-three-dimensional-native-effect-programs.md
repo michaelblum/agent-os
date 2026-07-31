@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-07-29
 - Extends: ADR 0033
-- Extended by: ADR 0035
+- Extended by: ADRs 0035 and 0036
 
 ## Context
 
@@ -64,3 +64,7 @@ capture pixels, mount a scene, grant authority, or replace AOS's Metal backend.
   separately reviewed generic capabilities. V2 does not claim parity for them.
 - Satin, RealityKit, and unrestricted Three.js shader APIs are not dependencies
   or extension ABIs.
+
+ADR 0036 extends this contract with optional effect-local geometry and a
+bounded standard material. Programs that omit those additions retain the
+behavior decided here.

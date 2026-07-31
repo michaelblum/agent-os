@@ -190,9 +190,37 @@ fragment float4 desktopWorldNativeProgramFragment(
             return nil
         }
         let lightDirection = material.lightDirection.map(scalar)
-        let lighting = material.lighting == .unlit
-            ? "1.0"
-            : "clamp(\(scalar(material.ambient)) + \(scalar(material.diffuse)) * max(dot(safeNormalize(input.normal), safeNormalize(float3(\(lightDirection.joined(separator: ", "))))), 0.0), 0.0, 2.0)"
+        let materialEvaluation: String
+        let refractionOffset: String
+        switch material.lighting {
+        case .unlit:
+            refractionOffset = "float2(0.0)"
+            materialEvaluation = "    float3 shadedColor = color;"
+        case .lambert:
+            refractionOffset = "float2(0.0)"
+            materialEvaluation = #"""
+    float light = clamp(\#(scalar(material.ambient)) + \#(scalar(material.diffuse)) * max(dot(safeNormalize(input.normal), safeNormalize(float3(\#(lightDirection.joined(separator: ", "))))), 0.0), 0.0, 2.0);
+    float3 shadedColor = color * light;
+"""#
+        case .standard:
+            refractionOffset = #"""
+safeNormalize(input.normal).xy * \#(scalar(material.refraction)) / segmentSize
+"""#
+            materialEvaluation = #"""
+    float3 normal = safeNormalize(input.normal);
+    float3 lightDirection = safeNormalize(float3(\#(lightDirection.joined(separator: ", "))));
+    float3 viewDirection = float3(0.0, 0.0, 1.0);
+    float diffuseTerm = max(dot(normal, lightDirection), 0.0);
+    float3 halfDirection = safeNormalize(lightDirection + viewDirection);
+    float shininess = mix(128.0, 4.0, \#(scalar(material.roughness)));
+    float specularTerm = pow(max(dot(normal, halfDirection), 0.0), shininess)
+        * \#(scalar(material.specular));
+    float fresnelTerm = pow(1.0 - max(dot(normal, viewDirection), 0.0), 5.0)
+        * \#(scalar(material.fresnel));
+    float baseLight = clamp(\#(scalar(material.ambient)) + \#(scalar(material.diffuse)) * diffuseTerm, 0.0, 2.0);
+    float3 shadedColor = color * baseLight + float3(specularTerm + fresnelTerm);
+"""#
+        }
         let normalComputation = material.lighting == .unlit
             ? "    float3 surfaceNormal = float3(0.0, 0.0, 1.0);"
             : #"""
@@ -334,10 +362,11 @@ fragment float4 desktopWorldNativeProgramFragment(
         discard_fragment();
     }
     float2 segmentSize = max(float2(uniforms[8], uniforms[9]), float2(1.0));
-    float2 uvOffset = safeVectorDivide(evaluation.textureDisplacement, segmentSize);
+    float2 uvOffset = safeVectorDivide(evaluation.textureDisplacement, segmentSize)
+        + \#(refractionOffset);
     float3 color = desktop.sample(sampleFilter, input.textureUV + uvOffset).rgb;
-    float light = \#(lighting);
-    return float4(color * light * evaluation.opacity, evaluation.opacity);
+\#(materialEvaluation)
+    return float4(shadedColor * evaluation.opacity, evaluation.opacity);
 }
 """#
     }

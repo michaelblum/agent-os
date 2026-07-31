@@ -1496,7 +1496,8 @@ class CanvasManager {
         canvasID: String,
         canvasGeneration: UInt64,
         topologyGeneration: UInt64,
-        device: MTLDevice
+        device: MTLDevice,
+        geometryRequest: DesktopWorldNativeSheetGeometryRequest = .standard
     ) throws -> DesktopWorldNativeSheet {
         let install = { [weak self] () throws -> DesktopWorldNativeSheet in
             guard let surface = self?.canvases[canvasID] as? DesktopWorldSurfaceCanvas,
@@ -1504,7 +1505,10 @@ class CanvasManager {
                   surface.topologyGeneration == topologyGeneration else {
                 throw DesktopWorldNativeSheetFailure.invalidGeometry
             }
-            return try surface.installNativeSheet(device: device)
+            return try surface.installNativeSheet(
+                device: device,
+                geometryRequest: geometryRequest
+            )
         }
         if Thread.isMainThread { return try install() }
         return try DispatchQueue.main.sync(execute: install)

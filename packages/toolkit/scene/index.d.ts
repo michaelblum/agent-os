@@ -652,14 +652,39 @@ export interface SceneNativeEffectProgramV1 {
   };
 }
 
-export interface SceneNativeEffectProgramMaterial {
-  lighting: 'lambert' | 'unlit';
+type SceneNativeEffectProgramMaterialBase = {
   ambient: number;
   diffuse: number;
   lightDirection: [number, number, number];
   normalSampleDistance: number;
   perspectiveDistance: number;
-}
+};
+
+export type SceneNativeEffectProgramMaterial = SceneNativeEffectProgramMaterialBase & (
+  | { lighting: 'lambert' | 'unlit' }
+  | {
+      lighting: 'standard';
+      fresnel: number;
+      refraction: number;
+      roughness: number;
+      specular: number;
+    }
+);
+
+export type SceneNativeEffectProgramGeometry =
+  | { kind: 'surface'; cellSize: number }
+  | {
+      kind: 'event_point' | 'event_endpoints';
+      cellSize: number;
+      padding: number;
+      radius: number;
+    }
+  | {
+      kind: 'event_segment';
+      cellSize: number;
+      padding: number;
+      width: number;
+    };
 
 export interface SceneNativeEffectProgramV2 {
   contract: 'aos.scene.native-effect-program.v2';
@@ -674,6 +699,7 @@ export interface SceneNativeEffectProgramV2 {
     textureDisplacement: SceneNativeEffectProgramReference;
     opacity: SceneNativeEffectProgramReference;
   };
+  geometry?: SceneNativeEffectProgramGeometry;
   material: SceneNativeEffectProgramMaterial;
 }
 
@@ -768,6 +794,9 @@ export const SCENE_NATIVE_EFFECT_PROGRAM_DIGEST_CONTRACT_ID: 'aos.scene.native-e
 export const SCENE_NATIVE_EFFECT_PROGRAM_LIMITS: Readonly<{
   maxConstantMagnitude: 1000000;
   maxDurationMs: 3000;
+  maxGeometryCellSize: 64;
+  maxGeometryPadding: 512;
+  maxGeometryRadius: 2048;
   maxNodes: 64;
   maxNormalSampleDistance: 64;
   maxParameters: 16;
@@ -778,6 +807,7 @@ export const SCENE_NATIVE_EFFECT_PROGRAM_LIMITS: Readonly<{
   maxTextureDisplacement: 96;
   maxTranscendentalOperations: 16;
   minDurationMs: 100;
+  minGeometryCellSize: 2;
   minNormalSampleDistance: 0.25;
   minPerspectiveDistance: 256;
 }>;
@@ -795,6 +825,7 @@ export function createSceneNativeEffectProgram(program: SceneNativeEffectProgram
 export interface SceneNativeEffectGLSLProgram {
   contract: typeof SCENE_NATIVE_EFFECT_GLSL_CONTRACT_ID;
   schemaVersion: 1;
+  geometry: Readonly<SceneNativeEffectProgramGeometry> | null;
   material: Readonly<SceneNativeEffectProgramMaterial> | null;
   parameterIds: readonly string[];
   source: string;

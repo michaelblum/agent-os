@@ -108,11 +108,28 @@ final class AOSDesktopWorldNativeFeedbackHost:
         guard let device = context.commandQueue?.device else {
             throw DesktopWorldNativeSheetFailure.rendererUnavailable
         }
+        let geometryRequest: DesktopWorldNativeSheetGeometryRequest
+        switch request.binding.definition {
+        case .program(let instance):
+            geometryRequest = AOSDesktopWorldNativeEffectGeometryResolver.request(
+                program: instance.program,
+                origin: request.inputs.origin,
+                current: request.inputs.current
+            )
+        case .ripple(let parameters):
+            geometryRequest = AOSDesktopWorldNativeEffectGeometryResolver.point(
+                cellSize: 8,
+                center: request.inputs.current,
+                radius: parameters.radius,
+                padding: parameters.amplitude
+            )
+        }
         let sheet = try canvasManager.installDesktopWorldNativeSheet(
             canvasID: canvasID,
             canvasGeneration: request.canvasGeneration,
             topologyGeneration: request.topologyGeneration,
-            device: device
+            device: device,
+            geometryRequest: geometryRequest
         )
         do {
             let runtime = try AOSDesktopWorldNativeEffectRuntime(

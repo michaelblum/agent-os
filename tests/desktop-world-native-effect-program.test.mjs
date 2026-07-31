@@ -74,13 +74,23 @@ const v2Program = {
     textureDisplacement: 'node.texture',
     opacity: 'node.one',
   },
+  geometry: {
+    kind: 'event_point',
+    cellSize: 6,
+    padding: 96,
+    radius: 480,
+  },
   material: {
-    lighting: 'lambert',
+    lighting: 'standard',
     ambient: 0.65,
     diffuse: 0.45,
+    fresnel: 0.24,
     lightDirection: [-0.35, -0.45, 0.82],
     normalSampleDistance: 2,
     perspectiveDistance: 2_400,
+    refraction: 12,
+    roughness: 0.38,
+    specular: 0.72,
   },
 }
 const v2ProgramBase64 = Buffer.from(JSON.stringify(v2Program)).toString('base64')
@@ -145,7 +155,9 @@ print("PASS native effect program Metal")
 test('v2 native effect program compiles bounded 3D deformation and material lighting', async () => {
   const output = await compileAndRun('native-effect-program-v2-metal', [
     'src/daemon/desktop-world-native-effect-program.swift',
+    'src/daemon/desktop-world-native-effect-geometry.swift',
     'src/display/desktop-world-native-effect-program-compiler.swift',
+    'src/display/desktop-world-native-sheet-geometry.swift',
   ], `
 import Foundation
 import Metal
@@ -161,11 +173,14 @@ guard let instance = AOSDesktopWorldNativeEffectProgramContract.parse(
 ) else { preconditionFailure("v2 program did not validate and compile") }
 precondition(instance.program.version == .v2)
 precondition(instance.program.positionOffsetOutput == "node.position")
+precondition(instance.program.geometry?.kind == .eventPoint)
 precondition(!source.contains("example.effect.sheet-wave"))
 precondition(source.contains("deformedPosition"))
 precondition(source.contains("cross(tangentX, tangentY)"))
 precondition(source.contains("perspectiveScale"))
-precondition(source.contains("float light = clamp"))
+precondition(source.contains("float shininess = mix"))
+precondition(source.contains("float fresnelTerm"))
+precondition(source.contains("safeNormalize(input.normal).xy"))
 let positionStart = source.range(of: "float3 evaluateNativePositionOffset")!.lowerBound
 let fragmentStart = source.range(of: "NativeEffectFragmentEvaluation evaluateNativeFragment")!.lowerBound
 let deformationStart = source.range(of: "float3 deformedPosition")!.lowerBound
@@ -176,6 +191,9 @@ precondition(!fragmentSource.contains("cos("), "fragment compiled unused positio
 var unlitObject = object
 var unlitMaterial = unlitObject["material"] as! [String: Any]
 unlitMaterial["lighting"] = "unlit"
+for key in ["fresnel", "refraction", "roughness", "specular"] {
+    unlitMaterial.removeValue(forKey: key)
+}
 unlitObject["material"] = unlitMaterial
 guard let unlitProgram = AOSDesktopWorldNativeEffectProgramContract.parse(
     program: unlitObject
@@ -183,6 +201,14 @@ guard let unlitProgram = AOSDesktopWorldNativeEffectProgramContract.parse(
     for: unlitProgram
 ) else { preconditionFailure("unlit program did not compile") }
 precondition(!unlitSource.contains("float3 tangentX"), "unlit material sampled normals")
+var invalidGeometry = object
+var invalidGeometryValue = invalidGeometry["geometry"] as! [String: Any]
+invalidGeometryValue["cellSize"] = 1
+invalidGeometry["geometry"] = invalidGeometryValue
+precondition(
+    AOSDesktopWorldNativeEffectProgramContract.parse(program: invalidGeometry) == nil,
+    "invalid geometry silently fell back to the full surface"
+)
 let uniforms = AOSDesktopWorldNativeEffectProgramCompiler.uniformStorage(
     for: instance,
     eventCurrent: CGPoint(x: 40, y: 50),
@@ -195,6 +221,20 @@ let uniforms = AOSDesktopWorldNativeEffectProgramCompiler.uniformStorage(
 precondition(uniforms.count == 18)
 precondition(Array(uniforms[11...16]) == [0, 0, -1440, -120, 4000, 1560])
 precondition(uniforms[17] == 18)
+let geometryRequest = AOSDesktopWorldNativeEffectGeometryResolver.request(
+    program: instance.program,
+    origin: CGPoint(x: 1_200, y: 450),
+    current: CGPoint(x: 1_500, y: 450)
+)
+let leftPlan = try! geometryRequest.plan(
+    segmentBounds: CGRect(x: 0, y: 0, width: 1_440, height: 900)
+)
+let rightPlan = try! geometryRequest.plan(
+    segmentBounds: CGRect(x: 1_440, y: 0, width: 2_560, height: 1_440)
+)
+precondition(leftPlan != nil && rightPlan != nil, "event geometry did not cross displays")
+precondition(leftPlan!.patches[0].bounds.maxX == 1_440)
+precondition(rightPlan!.patches[0].bounds.minX == 1_440)
 guard let device = MTLCreateSystemDefaultDevice() else {
     preconditionFailure("Metal device is unavailable")
 }

@@ -96,7 +96,9 @@ The current capability registry contains:
 `aos.scene.native_sheet_effect` authorizes a committed cartridge to use the
 bounded native effect-program lane described in the authoring guide. The
 program remains cartridge data and is not part of the extension body.
-V2 programs may deform AOS's existing tessellated native sheet. Trusted browser
+V2 programs may select a bounded surface, event-point, event-segment, or
+event-endpoint geometry policy and deform the resulting AOS-owned native sheet.
+They may use unlit, Lambert, or bounded standard material lighting. Trusted browser
 previews can use the toolkit's deterministic GLSL compiler for the same graph;
 the extension still receives no desktop pixels or native graphics handles.
 

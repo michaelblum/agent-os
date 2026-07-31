@@ -12,8 +12,8 @@ struct DesktopWorldNativeSheetGeometryMetrics: Equatable {
 
 struct DesktopWorldNativeSheetGeometryDescriptor: Equatable {
     static let standard = DesktopWorldNativeSheetGeometryDescriptor(columns: 64, rows: 64)
-    static let maximumColumns = 128
-    static let maximumRows = 128
+    static let maximumColumns = 512
+    static let maximumRows = 512
     static let maximumSegments = 8
     static let maximumGeometryBytes = 16 * 1024 * 1024
     static let maximumTriangles = 262_144
@@ -74,66 +74,203 @@ struct DesktopWorldNativeSheetGeometryDescriptor: Equatable {
     }
 }
 
+struct DesktopWorldNativeSheetGeometryPatch: Equatable {
+    let bounds: CGRect
+    let descriptor: DesktopWorldNativeSheetGeometryDescriptor
+}
+
+struct DesktopWorldNativeSheetGeometryPlan: Equatable {
+    let metrics: DesktopWorldNativeSheetGeometryMetrics
+    let patches: [DesktopWorldNativeSheetGeometryPatch]
+    let segmentBounds: CGRect
+}
+
+enum DesktopWorldNativeSheetGeometryRequest: Equatable {
+    static let maximumPatchesPerSegment = 8
+    static let maximumCellSize: CGFloat = 64
+    static let minimumCellSize: CGFloat = 2
+
+    case adaptive(cellSize: CGFloat, regions: [CGRect]?)
+    case fixed(DesktopWorldNativeSheetGeometryDescriptor)
+
+    static let standard = Self.fixed(.standard)
+
+    func plan(segmentBounds: CGRect) throws -> DesktopWorldNativeSheetGeometryPlan? {
+        guard Self.valid(segmentBounds) else {
+            throw DesktopWorldNativeSheetFailure.invalidGeometry
+        }
+        switch self {
+        case .fixed(let descriptor):
+            return DesktopWorldNativeSheetGeometryPlan(
+                metrics: try descriptor.metrics(segmentCount: 1),
+                patches: [.init(bounds: segmentBounds, descriptor: descriptor)],
+                segmentBounds: segmentBounds
+            )
+        case .adaptive(let cellSize, let requestedRegions):
+            guard cellSize.isFinite,
+                  cellSize >= Self.minimumCellSize,
+                  cellSize <= Self.maximumCellSize else {
+                throw DesktopWorldNativeSheetFailure.invalidGeometry
+            }
+            let regions = try Self.mergedRegions(
+                requestedRegions ?? [segmentBounds]
+            ).compactMap { region -> CGRect? in
+                let intersection = region.intersection(segmentBounds)
+                return intersection.isNull || intersection.isEmpty ? nil : intersection
+            }
+            guard !regions.isEmpty else { return nil }
+            guard regions.count <= Self.maximumPatchesPerSegment else {
+                throw DesktopWorldNativeSheetFailure.geometryBudgetExceeded
+            }
+            var patches: [DesktopWorldNativeSheetGeometryPatch] = []
+            var metrics: [DesktopWorldNativeSheetGeometryMetrics] = []
+            for bounds in regions {
+                let descriptor = DesktopWorldNativeSheetGeometryDescriptor(
+                    columns: max(1, Int(ceil(bounds.width / cellSize))),
+                    rows: max(1, Int(ceil(bounds.height / cellSize)))
+                )
+                patches.append(.init(bounds: bounds, descriptor: descriptor))
+                metrics.append(try descriptor.metrics(segmentCount: 1))
+            }
+            return DesktopWorldNativeSheetGeometryPlan(
+                metrics: try Self.aggregate(metrics, segmentCount: 1),
+                patches: patches,
+                segmentBounds: segmentBounds
+            )
+        }
+    }
+
+    static func aggregate(
+        _ metrics: [DesktopWorldNativeSheetGeometryMetrics],
+        segmentCount: Int
+    ) throws -> DesktopWorldNativeSheetGeometryMetrics {
+        guard segmentCount > 0,
+              segmentCount <= DesktopWorldNativeSheetGeometryDescriptor.maximumSegments else {
+            throw DesktopWorldNativeSheetFailure.invalidGeometry
+        }
+        let result = DesktopWorldNativeSheetGeometryMetrics(
+            geometryBytes: metrics.reduce(0) { $0 + $1.geometryBytes },
+            indexCount: metrics.reduce(0) { $0 + $1.indexCount },
+            segmentCount: segmentCount,
+            triangleCount: metrics.reduce(0) { $0 + $1.triangleCount },
+            vertexCount: metrics.reduce(0) { $0 + $1.vertexCount }
+        )
+        guard result.vertexCount <= DesktopWorldNativeSheetGeometryDescriptor.maximumVertices,
+              result.triangleCount <= DesktopWorldNativeSheetGeometryDescriptor.maximumTriangles,
+              result.geometryBytes <= DesktopWorldNativeSheetGeometryDescriptor.maximumGeometryBytes else {
+            throw DesktopWorldNativeSheetFailure.geometryBudgetExceeded
+        }
+        return result
+    }
+
+    private static func mergedRegions(_ regions: [CGRect]) throws -> [CGRect] {
+        guard !regions.isEmpty,
+              regions.count <= maximumPatchesPerSegment,
+              regions.allSatisfy(valid) else {
+            throw DesktopWorldNativeSheetFailure.invalidGeometry
+        }
+        var merged: [CGRect] = []
+        for region in regions.sorted(by: regionOrder) {
+            if let index = merged.firstIndex(where: { $0.intersects(region) }) {
+                merged[index] = merged[index].union(region)
+            } else {
+                merged.append(region)
+            }
+        }
+        return merged.sorted(by: regionOrder)
+    }
+
+    private static func regionOrder(_ left: CGRect, _ right: CGRect) -> Bool {
+        if left.minY != right.minY { return left.minY < right.minY }
+        if left.minX != right.minX { return left.minX < right.minX }
+        if left.height != right.height { return left.height < right.height }
+        return left.width < right.width
+    }
+
+    private static func valid(_ bounds: CGRect) -> Bool {
+        !bounds.isNull
+            && !bounds.isInfinite
+            && !bounds.isEmpty
+            && bounds.minX.isFinite
+            && bounds.minY.isFinite
+            && bounds.width.isFinite
+            && bounds.height.isFinite
+    }
+}
+
 struct DesktopWorldNativeSheetVertex {
     var clipPosition: SIMD4<Float>
     var worldAndUV: SIMD4<Float>
 }
 
 final class DesktopWorldNativeSheetMesh {
-    let descriptor: DesktopWorldNativeSheetGeometryDescriptor
     let indexCount: Int
     let metrics: DesktopWorldNativeSheetGeometryMetrics
+    let patchBounds: [CGRect]
+    let segmentBounds: CGRect
     let worldBounds: CGRect
     private(set) var indexBuffer: MTLBuffer?
     private(set) var vertexBuffer: MTLBuffer?
 
-    init(
+    convenience init(
         descriptor: DesktopWorldNativeSheetGeometryDescriptor,
         device: MTLDevice,
         worldBounds: CGRect
     ) throws {
-        guard worldBounds.width > 0,
-              worldBounds.height > 0,
-              worldBounds.width.isFinite,
-              worldBounds.height.isFinite,
-              worldBounds.minX.isFinite,
-              worldBounds.minY.isFinite else {
-            throw DesktopWorldNativeSheetFailure.invalidGeometry
-        }
-        self.descriptor = descriptor
-        self.worldBounds = worldBounds
-        metrics = try descriptor.metrics(segmentCount: 1)
+        let plan = try DesktopWorldNativeSheetGeometryRequest.fixed(descriptor)
+            .plan(segmentBounds: worldBounds)
+        guard let plan else { throw DesktopWorldNativeSheetFailure.invalidGeometry }
+        try self.init(plan: plan, device: device)
+    }
+
+    init(
+        plan: DesktopWorldNativeSheetGeometryPlan,
+        device: MTLDevice
+    ) throws {
+        segmentBounds = plan.segmentBounds
+        worldBounds = plan.segmentBounds
+        patchBounds = plan.patches.map(\.bounds)
+        metrics = plan.metrics
 
         var vertices: [DesktopWorldNativeSheetVertex] = []
         vertices.reserveCapacity(metrics.vertexCount)
-        for row in 0...descriptor.rows {
-            let vertical = Float(row) / Float(descriptor.rows)
-            let clipY = 1 - (2 * vertical)
-            let worldY = Float(worldBounds.minY) + vertical * Float(worldBounds.height)
-            for column in 0...descriptor.columns {
-                let horizontal = Float(column) / Float(descriptor.columns)
-                let clipX = (2 * horizontal) - 1
-                let worldX = Float(worldBounds.minX) + horizontal * Float(worldBounds.width)
-                vertices.append(DesktopWorldNativeSheetVertex(
-                    clipPosition: SIMD4<Float>(clipX, clipY, 0, 1),
-                    worldAndUV: SIMD4<Float>(worldX, worldY, horizontal, vertical)
-                ))
-            }
-        }
-
         var indices: [UInt32] = []
         indices.reserveCapacity(metrics.indexCount)
-        let stride = descriptor.columns + 1
-        for row in 0..<descriptor.rows {
-            for column in 0..<descriptor.columns {
-                let topLeft = UInt32((row * stride) + column)
-                let topRight = topLeft + 1
-                let bottomLeft = UInt32(((row + 1) * stride) + column)
-                let bottomRight = bottomLeft + 1
-                indices.append(contentsOf: [
-                    topLeft, bottomLeft, topRight,
-                    topRight, bottomLeft, bottomRight,
-                ])
+        for patch in plan.patches {
+            let baseVertex = UInt32(vertices.count)
+            let descriptor = patch.descriptor
+            for row in 0...descriptor.rows {
+                let vertical = Float(row) / Float(descriptor.rows)
+                let worldY = Float(patch.bounds.minY) + vertical * Float(patch.bounds.height)
+                for column in 0...descriptor.columns {
+                    let horizontal = Float(column) / Float(descriptor.columns)
+                    let worldX = Float(patch.bounds.minX) + horizontal * Float(patch.bounds.width)
+                    let segmentU = Float(
+                        (CGFloat(worldX) - plan.segmentBounds.minX) / plan.segmentBounds.width
+                    )
+                    let segmentV = Float(
+                        (CGFloat(worldY) - plan.segmentBounds.minY) / plan.segmentBounds.height
+                    )
+                    let clipX = (2 * segmentU) - 1
+                    let clipY = 1 - (2 * segmentV)
+                    vertices.append(DesktopWorldNativeSheetVertex(
+                        clipPosition: SIMD4<Float>(clipX, clipY, 0, 1),
+                        worldAndUV: SIMD4<Float>(worldX, worldY, segmentU, segmentV)
+                    ))
+                }
+            }
+            let stride = descriptor.columns + 1
+            for row in 0..<descriptor.rows {
+                for column in 0..<descriptor.columns {
+                    let topLeft = baseVertex + UInt32((row * stride) + column)
+                    let topRight = topLeft + 1
+                    let bottomLeft = baseVertex + UInt32(((row + 1) * stride) + column)
+                    let bottomRight = bottomLeft + 1
+                    indices.append(contentsOf: [
+                        topLeft, bottomLeft, topRight,
+                        topRight, bottomLeft, bottomRight,
+                    ])
+                }
             }
         }
         let vertexBuffer = vertices.withUnsafeBufferPointer { buffer in

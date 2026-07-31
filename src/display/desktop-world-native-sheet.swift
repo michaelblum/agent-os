@@ -20,17 +20,18 @@ final class DesktopWorldNativeSheet {
         case disposed
     }
 
-    let geometryDescriptor: DesktopWorldNativeSheetGeometryDescriptor
+    let geometryRequest: DesktopWorldNativeSheetGeometryRequest
     let identity: AOSDesktopWorldResourceIdentity
     let metrics: DesktopWorldNativeSheetGeometryMetrics
     private(set) var segmentSheets: [SegmentSheet]
     private(set) var state: State = .registered
     let topologyGeneration: UInt64
+    let worldBounds: CGRect
 
     init(
         segments: [DesktopWorldSurfaceCanvas.Segment],
         device: MTLDevice,
-        geometryDescriptor: DesktopWorldNativeSheetGeometryDescriptor,
+        geometryRequest: DesktopWorldNativeSheetGeometryRequest,
         topologyGeneration: UInt64
     ) throws {
         precondition(Thread.isMainThread, "native sheet creation must run on the main thread")
@@ -38,17 +39,35 @@ final class DesktopWorldNativeSheet {
             ownerID: Self.ownerID,
             resourceID: Self.resourceID
         )
-        self.geometryDescriptor = geometryDescriptor
+        self.geometryRequest = geometryRequest
         self.topologyGeneration = topologyGeneration
-        metrics = try geometryDescriptor.metrics(segmentCount: segments.count)
+        worldBounds = segments.reduce(CGRect.null) { $0.union($1.dwBounds) }
+        guard !worldBounds.isNull, !worldBounds.isEmpty else {
+            throw DesktopWorldNativeSheetFailure.invalidGeometry
+        }
+        let planned = try segments.compactMap { segment -> (
+            DesktopWorldSurfaceCanvas.Segment,
+            DesktopWorldNativeSheetGeometryPlan
+        )? in
+            guard let plan = try geometryRequest.plan(segmentBounds: segment.dwBounds) else {
+                return nil
+            }
+            return (segment, plan)
+        }
+        guard !planned.isEmpty else {
+            throw DesktopWorldNativeSheetFailure.invalidGeometry
+        }
+        metrics = try DesktopWorldNativeSheetGeometryRequest.aggregate(
+            planned.map { $0.1.metrics },
+            segmentCount: planned.count
+        )
         var created: [SegmentSheet] = []
         do {
-            for segment in segments {
+            for (segment, plan) in planned {
                 let host = try segment.preparedNativeProjectionHost(device: device)
                 let mesh = try DesktopWorldNativeSheetMesh(
-                    descriptor: geometryDescriptor,
-                    device: device,
-                    worldBounds: segment.dwBounds
+                    plan: plan,
+                    device: device
                 )
                 created.append(SegmentSheet(
                     displayID: segment.displayID,

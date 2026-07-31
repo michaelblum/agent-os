@@ -159,13 +159,15 @@ test('DesktopWorld projection hosts belong to segments and remain dormant betwee
   assert.doesNotMatch(sheetSource, /removeNativeProjectionHost/);
 });
 
-test('native sheet uses one bounded tessellated geometry model across display segments', () => {
+test('native sheet uses bounded fixed and effect-local geometry across display segments', () => {
   assert.match(geometrySource, /standard = DesktopWorldNativeSheetGeometryDescriptor\(columns: 64, rows: 64\)/);
-  assert.match(geometrySource, /maximumColumns = 128/);
-  assert.match(geometrySource, /maximumRows = 128/);
+  assert.match(geometrySource, /maximumColumns = 512/);
+  assert.match(geometrySource, /maximumRows = 512/);
   assert.match(geometrySource, /maximumSegments = 8/);
   assert.match(geometrySource, /maximumGeometryBytes = 16 \* 1024 \* 1024/);
-  assert.match(geometrySource, /worldAndUV: SIMD4<Float>\(worldX, worldY, horizontal, vertical\)/);
+  assert.match(geometrySource, /case adaptive\(cellSize: CGFloat, regions: \[CGRect\]\?\)/);
+  assert.match(geometrySource, /intersection = region\.intersection\(segmentBounds\)/);
+  assert.match(geometrySource, /worldAndUV: SIMD4<Float>\(worldX, worldY, segmentU, segmentV\)/);
   assert.match(geometrySource, /device\.makeBuffer\(/);
   assert.match(metalSource, /final class AOSDesktopPixelNativeBaselineGPUContext/);
   assert.match(hostSource, /context: context/);

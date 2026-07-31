@@ -498,16 +498,14 @@ final class AOSDesktopWorldNativeEffectRuntime {
             uniqueKeysWithValues: frames.frames.map { ($0.displayID, $0) }
         )
         let sheetDisplays = Set(sheet.segmentSheets.map(\.displayID))
-        guard Set(framesByDisplay.keys) == sheetDisplays else {
+        guard sheetDisplays.isSubset(of: Set(framesByDisplay.keys)) else {
             throw DesktopWorldNativeSheetFailure.frameSetIncomplete
         }
         self.context = context
         self.sheet = sheet
         let plan = AOSDesktopWorldNativeEffectRenderPlan(definition: definition)
         let startedAt = ProcessInfo.processInfo.systemUptime
-        let globalBounds = sheet.segmentSheets.reduce(CGRect.null) {
-            $0.union($1.mesh.worldBounds)
-        }
+        let globalBounds = sheet.worldBounds
         guard !globalBounds.isNull,
               globalBounds.size.width > 0,
               globalBounds.size.height > 0 else {

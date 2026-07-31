@@ -389,7 +389,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
 
     func installNativeSheet(
         device: MTLDevice,
-        geometryDescriptor: DesktopWorldNativeSheetGeometryDescriptor = .standard
+        geometryRequest: DesktopWorldNativeSheetGeometryRequest = .standard
     ) throws -> DesktopWorldNativeSheet {
         precondition(Thread.isMainThread, "native sheet installation must run on the main thread")
         guard installedNativeSheet == nil else { throw NativeSheetError.occupied }
@@ -401,7 +401,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             let sheet = try DesktopWorldNativeSheet(
                 segments: segments,
                 device: device,
-                geometryDescriptor: geometryDescriptor,
+                geometryRequest: geometryRequest,
                 topologyGeneration: topologyGeneration
             )
             nativeSheetLease = lease

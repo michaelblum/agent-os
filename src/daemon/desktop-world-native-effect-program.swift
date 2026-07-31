@@ -59,15 +59,34 @@ enum AOSDesktopWorldNativeEffectProgramVersion: Int, Equatable {
 struct AOSDesktopWorldNativeEffectProgramMaterial: Equatable {
     enum Lighting: String, Equatable {
         case lambert
+        case standard
         case unlit
     }
 
     let ambient: Double
     let diffuse: Double
+    let fresnel: Double
     let lightDirection: [Double]
     let lighting: Lighting
     let normalSampleDistance: Double
     let perspectiveDistance: Double
+    let refraction: Double
+    let roughness: Double
+    let specular: Double
+}
+
+struct AOSDesktopWorldNativeEffectProgramGeometry: Equatable {
+    enum Kind: String, Equatable {
+        case eventEndpoints = "event_endpoints"
+        case eventPoint = "event_point"
+        case eventSegment = "event_segment"
+        case surface
+    }
+
+    let cellSize: Double
+    let extent: Double
+    let kind: Kind
+    let padding: Double
 }
 
 struct AOSDesktopWorldNativeEffectProgram: Equatable {
@@ -77,6 +96,9 @@ struct AOSDesktopWorldNativeEffectProgram: Equatable {
     static let implementation = "aos.scene.effect.program"
     static let maximumConstantMagnitude = 1_000_000.0
     static let maximumDurationMilliseconds = 3_000
+    static let maximumGeometryCellSize = 64.0
+    static let maximumGeometryPadding = 512.0
+    static let maximumGeometryRadius = 2_048.0
     static let maximumNodes = 64
     static let maximumNormalSampleDistance = 64.0
     static let maximumParameters = 16
@@ -87,11 +109,13 @@ struct AOSDesktopWorldNativeEffectProgram: Equatable {
     static let maximumTextureDisplacement = 96.0
     static let maximumTranscendentalOperations = 16
     static let minimumDurationMilliseconds = 100
+    static let minimumGeometryCellSize = 2.0
     static let minimumNormalSampleDistance = 0.25
     static let minimumPerspectiveDistance = 256.0
 
     let digest: String
     let durationMilliseconds: Int
+    let geometry: AOSDesktopWorldNativeEffectProgramGeometry?
     let id: String
     let material: AOSDesktopWorldNativeEffectProgramMaterial?
     let nodes: [AOSDesktopWorldNativeEffectProgramNode]
@@ -144,11 +168,16 @@ enum AOSDesktopWorldNativeEffectProgramContract {
         let expectedKeys = Set([
             "contract", "durationMs", "id", "nodes", "outputs", "parameters",
             "revision", "schemaVersion",
-        ] + (version == .v2 ? ["material"] : []))
+        ] + (version == .v2 ? ["geometry", "material"] : []))
+        let actualKeys = Set(value.keys)
+        let requiredKeys = version == .v2
+            ? expectedKeys.subtracting(["geometry"])
+            : expectedKeys
         let expectedOutputKeys = version == .v2
             ? Set(["opacity", "positionOffset", "textureDisplacement"])
             : Set(["displacement", "opacity"])
-        guard Set(value.keys) == expectedKeys,
+        guard requiredKeys.isSubset(of: actualKeys),
+              actualKeys.isSubset(of: expectedKeys),
               integer(value["schemaVersion"]) == version.rawValue,
               let id = value["id"] as? String,
               canonicalID(id),
@@ -213,10 +242,12 @@ enum AOSDesktopWorldNativeEffectProgramContract {
             nodes.append(node)
         }
         let positionOffsetOutput = outputs["positionOffset"] as? String
+        let geometry = version == .v2 ? parseGeometry(value["geometry"]) : nil
         let material = version == .v2 ? parseMaterial(value["material"]) : nil
         guard types[opacityOutput] == .scalar,
               types[displacementOutput] == .vector2,
               version != .v2 || types[positionOffsetOutput ?? ""] == .vector3,
+              version != .v2 || value["geometry"] == nil || geometry != nil,
               version != .v2 || material != nil,
               let digest = digest(value) else {
             return nil
@@ -225,6 +256,7 @@ enum AOSDesktopWorldNativeEffectProgramContract {
         return AOSDesktopWorldNativeEffectProgram(
             digest: digest,
             durationMilliseconds: duration,
+            geometry: geometry,
             id: id,
             material: material,
             nodes: nodes,
@@ -405,14 +437,20 @@ enum AOSDesktopWorldNativeEffectProgramContract {
         _ value: Any?
     ) -> AOSDesktopWorldNativeEffectProgramMaterial? {
         guard let material = value as? [String: Any],
-              Set(material.keys) == Set([
-                "ambient", "diffuse", "lightDirection", "lighting",
-                "normalSampleDistance", "perspectiveDistance",
-              ]),
               let lightingValue = material["lighting"] as? String,
               let lighting = AOSDesktopWorldNativeEffectProgramMaterial.Lighting(
                 rawValue: lightingValue
-              ),
+              ) else {
+            return nil
+        }
+        let commonKeys = Set([
+                "ambient", "diffuse", "lightDirection", "lighting",
+                "normalSampleDistance", "perspectiveDistance",
+              ])
+        let expectedKeys = lighting == .standard
+            ? commonKeys.union(["fresnel", "refraction", "roughness", "specular"])
+            : commonKeys
+        guard Set(material.keys) == expectedKeys,
               let ambient = finiteDouble(material["ambient"]),
               (0...2).contains(ambient),
               let diffuse = finiteDouble(material["diffuse"]),
@@ -438,14 +476,61 @@ enum AOSDesktopWorldNativeEffectProgramContract {
                 <= AOSDesktopWorldNativeEffectProgram.maximumPerspectiveDistance else {
             return nil
         }
+        let fresnel = lighting == .standard ? finiteDouble(material["fresnel"]) : 0
+        let refraction = lighting == .standard ? finiteDouble(material["refraction"]) : 0
+        let roughness = lighting == .standard ? finiteDouble(material["roughness"]) : 1
+        let specular = lighting == .standard ? finiteDouble(material["specular"]) : 0
+        guard let fresnel,
+              (0...1).contains(fresnel),
+              let refraction,
+              (0...AOSDesktopWorldNativeEffectProgram.maximumTextureDisplacement)
+                .contains(refraction),
+              let roughness,
+              (0.02...1).contains(roughness),
+              let specular,
+              (0...2).contains(specular) else {
+            return nil
+        }
         return .init(
             ambient: ambient,
             diffuse: diffuse,
+            fresnel: fresnel,
             lightDirection: lightDirection,
             lighting: lighting,
             normalSampleDistance: normalSampleDistance,
-            perspectiveDistance: perspectiveDistance
+            perspectiveDistance: perspectiveDistance,
+            refraction: refraction,
+            roughness: roughness,
+            specular: specular
         )
+    }
+
+    private static func parseGeometry(
+        _ value: Any?
+    ) -> AOSDesktopWorldNativeEffectProgramGeometry? {
+        guard let value else { return nil }
+        guard let geometry = value as? [String: Any],
+              let kindValue = geometry["kind"] as? String,
+              let kind = AOSDesktopWorldNativeEffectProgramGeometry.Kind(rawValue: kindValue),
+              let cellSize = finiteDouble(geometry["cellSize"]),
+              cellSize >= AOSDesktopWorldNativeEffectProgram.minimumGeometryCellSize,
+              cellSize <= AOSDesktopWorldNativeEffectProgram.maximumGeometryCellSize else {
+            return nil
+        }
+        if kind == .surface {
+            guard Set(geometry.keys) == Set(["cellSize", "kind"]) else { return nil }
+            return .init(cellSize: cellSize, extent: 0, kind: kind, padding: 0)
+        }
+        let extentKey = kind == .eventSegment ? "width" : "radius"
+        guard Set(geometry.keys) == Set(["cellSize", "kind", "padding", extentKey]),
+              let padding = finiteDouble(geometry["padding"]),
+              (0...AOSDesktopWorldNativeEffectProgram.maximumGeometryPadding).contains(padding),
+              let extent = finiteDouble(geometry[extentKey]),
+              extent >= cellSize,
+              extent <= AOSDesktopWorldNativeEffectProgram.maximumGeometryRadius else {
+            return nil
+        }
+        return .init(cellSize: cellSize, extent: extent, kind: kind, padding: padding)
     }
 
     private static func digest(_ value: [String: Any]) -> String? {
