@@ -61,7 +61,8 @@ interaction changes advance it through atomic generation replacement. Every
 display reports the resulting generation before daemon authorization commits.
 Spatial play publishes its shared operation ID as the next input generation;
 old regions reject immediately and terminal regions adopt that same ID when the
-animation settles.
+animation settles. Signals received while the animation is quiesced preserve
+that reserved terminal generation rather than clearing daemon event authority.
 DesktopWorld registers one owner-lifecycle Escape key lease before declaring
 the stage ready. Stock radial menus consume that exact redacted event; item hit
 regions remain pointer-only, and Escape continues through to macOS.

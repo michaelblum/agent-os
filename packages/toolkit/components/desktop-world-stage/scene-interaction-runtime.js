@@ -925,7 +925,9 @@ export function createDesktopWorldSceneInteractionRuntime({
 
   function inputGeneration(key) {
     const entry = leases.get(key)
-    if (!entry || entryBlocked(entry) || entry.animationQuiesced || entry.regionIds.size === 0) return null
+    if (!entry || entryBlocked(entry)) return null
+    if (entry.animationQuiesced) return entry.animationRegionGeneration
+    if (entry.regionIds.size === 0) return null
     return entry.regionGeneration
   }
 
