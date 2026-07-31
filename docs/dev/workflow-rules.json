@@ -372,6 +372,7 @@
         "src/daemon/scene-event.swift",
         "src/daemon/scene-lease-registry.swift",
         "src/daemon/unified.swift",
+        "src/display/aos-scheme-response.swift",
         "src/display/canvas.swift",
         "src/display/desktop-world-surface.swift",
         "src/display/desktop-world-native-projection-lifecycle.swift",
@@ -402,6 +403,7 @@
         "tests/desktop-world-scene-result-coordinator.test.mjs",
         "tests/desktop-frame-texture-native.test.mjs",
         "tests/daemon-appkit-readiness.test.mjs",
+        "tests/daemon/aos-scheme-handler-nonblocking.test.mjs",
         "tests/desktop-pixel-broker-contract.test.mjs",
         "tests/lib/desktop-frame-warm-pool-tests.swift",
         "tests/lib/daemon-appkit-readiness-tests.swift",
@@ -441,7 +443,7 @@
         },
         {
           "id": "scene-daemon-contract",
-          "command": "node --test tests/desktop-world-scene-effect-trigger.test.mjs tests/desktop-world-scene-event-routing.test.mjs tests/desktop-world-scene-framebuffer-proof-result.test.mjs tests/desktop-world-native-effect-program.test.mjs tests/desktop-world-scene-native-feedback.test.mjs tests/desktop-world-scene-native-feedback-lifecycle.test.mjs tests/desktop-world-scene-native-orchestration.test.mjs tests/desktop-world-scene-result-coordinator.test.mjs tests/desktop-world-scene-stage-readiness.test.mjs tests/daemon-desktop-world-devtools-contract.test.mjs tests/scene-follow-cli.test.mjs",
+          "command": "node --test tests/desktop-world-scene-effect-trigger.test.mjs tests/desktop-world-scene-event-routing.test.mjs tests/desktop-world-scene-framebuffer-proof-result.test.mjs tests/desktop-world-native-effect-program.test.mjs tests/desktop-world-scene-native-feedback.test.mjs tests/desktop-world-scene-native-feedback-lifecycle.test.mjs tests/desktop-world-scene-native-orchestration.test.mjs tests/desktop-world-scene-result-coordinator.test.mjs tests/desktop-world-scene-stage-readiness.test.mjs tests/daemon/aos-scheme-handler-nonblocking.test.mjs tests/daemon-desktop-world-devtools-contract.test.mjs tests/scene-follow-cli.test.mjs",
           "reason": "Verify semantic effect triggering without system input, canonical event routing diagnostics, atomic native-feedback authorization and disposal, the daemon scene lifecycle aggregate, all-segment barrier ownership, DevTools delegation, and bounded follow transport."
         },
         {

@@ -282,7 +282,7 @@ else
     fail "dev recommend native desktop-pixel baseline routing drifted"
 fi
 
-if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/display/canvas.swift src/display/scene-extension-store.swift src/commands/daemon-application-lifecycle.swift src/commands/direct-screen-capture-permission.swift src/commands/serve.swift src/daemon/desktop-frame-capture-consent.swift src/daemon/desktop-frame-warm-pool.swift src/daemon/desktop-pixel-capture-filter.swift src/daemon/desktop-pixel-native-operation.swift src/daemon/desktop-pixel-retirement.swift src/daemon/desktop-pixel-stream-lifecycle.swift src/shared/desktop-frame-capture-consent-contract.swift src/shared/desktop-pixel-sample-admission.swift src/shared/scene-extension-identifier.swift scripts/lib/scene-extension/module-inspector.mjs tests/daemon-appkit-readiness.test.mjs tests/lib/daemon-appkit-readiness-tests.swift tests/lib/desktop-frame-warm-pool-tests.swift tests/lib/desktop-pixel-capture-filter-tests.swift tests/lib/desktop-pixel-native-lifecycle-tests.swift tests/lib/desktop-pixel-terminal-startup-tests.swift tests/lib/desktop-pixel-startup-callback-tests.swift tests/lib/desktop-pixel-warm-open-operation-tests.swift 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/display/aos-scheme-response.swift src/display/canvas.swift src/display/scene-extension-store.swift src/commands/daemon-application-lifecycle.swift src/commands/direct-screen-capture-permission.swift src/commands/serve.swift src/daemon/desktop-frame-capture-consent.swift src/daemon/desktop-frame-warm-pool.swift src/daemon/desktop-pixel-capture-filter.swift src/daemon/desktop-pixel-native-operation.swift src/daemon/desktop-pixel-retirement.swift src/daemon/desktop-pixel-stream-lifecycle.swift src/shared/desktop-frame-capture-consent-contract.swift src/shared/desktop-pixel-sample-admission.swift src/shared/scene-extension-identifier.swift scripts/lib/scene-extension/module-inspector.mjs tests/daemon/aos-scheme-handler-nonblocking.test.mjs tests/daemon-appkit-readiness.test.mjs tests/desktop-world-scene-native-orchestration.test.mjs tests/lib/daemon-appkit-readiness-tests.swift tests/lib/desktop-frame-warm-pool-tests.swift tests/lib/desktop-pixel-capture-filter-tests.swift tests/lib/desktop-pixel-native-lifecycle-tests.swift tests/lib/desktop-pixel-terminal-startup-tests.swift tests/lib/desktop-pixel-startup-callback-tests.swift tests/lib/desktop-pixel-warm-open-operation-tests.swift 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -293,6 +293,7 @@ assert "unclassified" not in summary["rule_ids"], data
 files = {item["path"]: item for item in data["files"]}
 commands = {item["command"] for item in summary["commands"]}
 expected_paths = {
+    "src/display/aos-scheme-response.swift",
     "src/display/canvas.swift",
     "src/display/scene-extension-store.swift",
     "src/commands/daemon-application-lifecycle.swift",
@@ -308,7 +309,9 @@ expected_paths = {
     "src/shared/desktop-pixel-sample-admission.swift",
     "src/shared/scene-extension-identifier.swift",
     "scripts/lib/scene-extension/module-inspector.mjs",
+    "tests/daemon/aos-scheme-handler-nonblocking.test.mjs",
     "tests/daemon-appkit-readiness.test.mjs",
+    "tests/desktop-world-scene-native-orchestration.test.mjs",
     "tests/lib/daemon-appkit-readiness-tests.swift",
     "tests/lib/desktop-frame-warm-pool-tests.swift",
     "tests/lib/desktop-pixel-capture-filter-tests.swift",
@@ -327,6 +330,8 @@ for path in {
     assert "status-item-contract" in files[path]["rules"], files[path]
 assert "bash tests/swift-runtime-typecheck.sh" in commands, data
 assert "node --test tests/daemon-appkit-readiness.test.mjs" in commands, data
+assert any("tests/daemon/aos-scheme-handler-nonblocking.test.mjs" in command for command in commands), data
+assert any("tests/desktop-world-scene-native-orchestration.test.mjs" in command for command in commands), data
 assert "node --test tests/status-item-contract.test.mjs" in commands, data
 assert any("tests/aos-permissions-microphone-authority.test.mjs" in command for command in commands), data
 PY

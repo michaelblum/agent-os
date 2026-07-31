@@ -20,6 +20,9 @@ needs, but public command policy and product UI policy belong above it:
   dormant between effects, and retire only with their display segment, stage,
   or daemon;
   consumer effects own no native view lifecycle;
+- DesktopWorld WebViews share one non-persistent data store per logical surface,
+  and `aos://` proxy responses retain the original request identity with
+  no-store policy so a new AOS runtime cannot execute stale toolkit modules.
 - the owner-scoped native status-item lease, exact-revision compare-and-swap,
   AppKit-derived anchor facts, and native activation/menu bridge live in
   `display/status-item*.swift`; the successful installation anchor is also the

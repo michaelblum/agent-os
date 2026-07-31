@@ -10,10 +10,11 @@ import {
   sceneStageShouldRender,
 } from '../../packages/toolkit/components/desktop-world-stage/scene-outlet.js'
 import { createScenePlaybackClock } from '../../packages/toolkit/components/desktop-world-stage/scene-playback-clock.js'
+import { requireDesktopWorldSceneSegment } from '../../packages/toolkit/components/desktop-world-stage/scene-segment-setup.js'
 import { createDesktopWorldStageClock } from '../../packages/toolkit/components/desktop-world-stage/scene-stage-clock.js'
 import {
   DESKTOP_WORLD_NATIVE_RENDER_LIMITS,
-  resolveDesktopWorldNativeRenderMetrics,
+  evaluateDesktopWorldNativeRenderMetrics,
 } from '../../packages/toolkit/components/desktop-world-stage/scene-render-budget.js'
 import {
   createSceneOutletDevToolsSnapshot,
@@ -257,7 +258,7 @@ test('DesktopWorld native render metrics preserve each display DPR and total top
     { display_id: 1, dw_bounds: [0, 0, 1512, 982], scale_factor: 2 },
     { display_id: 2, dw_bounds: [1512, 0, 1920, 1080], scale_factor: 1 },
   ]
-  const metrics = resolveDesktopWorldNativeRenderMetrics({
+  const resolution = evaluateDesktopWorldNativeRenderMetrics({
     context,
     devicePixelRatio: 1,
     height: 982,
@@ -265,6 +266,8 @@ test('DesktopWorld native render metrics preserve each display DPR and total top
     topology,
     width: 1512,
   })
+  assert.equal(resolution.ok, true)
+  const metrics = resolution.metrics
 
   assert.equal(metrics.effectiveDevicePixelRatio, 2)
   assert.equal(metrics.constrained, false)
@@ -281,7 +284,7 @@ test('DesktopWorld native render metrics preserve each display DPR and total top
   })
 })
 
-test('DesktopWorld native render metrics fail rather than silently reduce unsupported DPR', () => {
+test('DesktopWorld native render metrics classify DPR, GPU, and segment failures', () => {
   const context = {
     MAX_RENDERBUFFER_SIZE: 'max-renderbuffer',
     MAX_VIEWPORT_DIMS: 'max-viewport',
@@ -293,15 +296,15 @@ test('DesktopWorld native render metrics fail rather than silently reduce unsupp
       return null
     },
   }
-  assert.equal(resolveDesktopWorldNativeRenderMetrics({
+  assert.deepEqual(evaluateDesktopWorldNativeRenderMetrics({
     context,
     height: 982,
     segment: { display_id: 1, dw_bounds: [0, 0, 1512, 982], scale_factor: 2 },
     topology: [{ display_id: 1, dw_bounds: [0, 0, 1512, 982], scale_factor: 2 }],
     width: 1512,
-  }), null)
+  }), { code: 'SCENE_RENDER_PASS_CONFIGURATION_FAILED', ok: false })
 
-  assert.equal(resolveDesktopWorldNativeRenderMetrics({
+  assert.deepEqual(evaluateDesktopWorldNativeRenderMetrics({
     context: {
       MAX_RENDERBUFFER_SIZE: 'max-renderbuffer',
       MAX_VIEWPORT_DIMS: 'max-viewport',
@@ -317,7 +320,54 @@ test('DesktopWorld native render metrics fail rather than silently reduce unsupp
     segment: { display_id: 1, dw_bounds: [0, 0, 100, 100], scale_factor: 5 },
     topology: [{ display_id: 1, dw_bounds: [0, 0, 100, 100], scale_factor: 5 }],
     width: 100,
-  }), null)
+  }), { code: 'SCENE_NATIVE_DPR_UNSUPPORTED', ok: false })
+
+  assert.deepEqual(evaluateDesktopWorldNativeRenderMetrics({
+    context,
+    height: 0,
+    width: 100,
+  }), { code: 'SCENE_SEGMENT_CONFIGURATION_FAILED', ok: false })
+
+  assert.deepEqual(evaluateDesktopWorldNativeRenderMetrics({
+    context,
+    height: 100,
+    topology: [{ dw_bounds: [0, 0, 0, 100], scale_factor: 1 }],
+    width: 100,
+  }), { code: 'SCENE_SEGMENT_CONFIGURATION_FAILED', ok: false })
+
+  assert.deepEqual(evaluateDesktopWorldNativeRenderMetrics({
+    context,
+    height: 100,
+    topology: [{ dw_bounds: [0, 0, 100, 100], scale_factor: 0 }],
+    width: 100,
+  }), { code: 'SCENE_SEGMENT_CONFIGURATION_FAILED', ok: false })
+
+  assert.deepEqual(evaluateDesktopWorldNativeRenderMetrics({
+    context,
+    height: 100,
+    topology: {},
+    width: 100,
+  }), { code: 'SCENE_SEGMENT_CONFIGURATION_FAILED', ok: false })
+})
+
+test('DesktopWorld segment setup preserves the authoritative fault code', () => {
+  const calls = []
+  const outlet = {
+    snapshot: () => ({ faultCode: 'SCENE_NATIVE_DPR_UNSUPPORTED' }),
+    updateSegment(segment, topology) {
+      calls.push({ segment, topology })
+      return false
+    },
+  }
+  const segment = { display_id: 1 }
+  const topology = [segment]
+
+  assert.throws(
+    () => requireDesktopWorldSceneSegment(outlet, segment, topology),
+    (error) => error.code === 'SCENE_NATIVE_DPR_UNSUPPORTED',
+  )
+  assert.deepEqual(calls, [{ segment, topology }])
+  assert.equal(requireDesktopWorldSceneSegment({ updateSegment: () => true }, segment, topology), true)
 })
 
 test('DesktopWorld segment resource budgets aggregate every mounted projection', () => {
@@ -933,12 +983,12 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /MAX_RESOURCES = 32/u)
   assert.match(outlet, /resources\.size \+ pendingResourceKeys\.size >= MAX_RESOURCES/u)
   assert.match(outlet, /MAX_SIGNALS_PER_SECOND = 30/u)
-  assert.match(outlet, /resolveDesktopWorldNativeRenderMetrics/u)
+  assert.match(outlet, /evaluateDesktopWorldNativeRenderMetrics/u)
   assert.match(outlet, /context: renderer\.getContext\(\)/u)
   assert.match(outlet, /segment,[\s\S]*topology,/u)
   assert.match(outlet, /effectiveDevicePixelRatio/u)
   assert.match(outlet, /estimatedTopologyBackingBytes/u)
-  assert.match(outlet, /SCENE_NATIVE_DPR_UNSUPPORTED/u)
+  assert.match(outlet, /faultSceneSegment\(resolution\.code\)/u)
   assert.match(outlet, /preserveDrawingBuffer: true/u)
   assert.match(outlet, /damageTracker\.frame\(resources\)/u)
   assert.match(outlet, /damagedPixelPercentage/u)
@@ -959,16 +1009,20 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.doesNotMatch(outlet, /https?:\/\//u)
   assert.match(stage, /desktop_world_stage\.scene\.operation/u)
   assert.equal((stage.match(/emit\('desktop_world_stage\.scene\.result'/gu) ?? []).length, 2)
-  assert.match(stage, /emit\('desktop_world_stage\.scene\.fault'/u)
-  assert.match(stage, /await sceneOperations\?\.failClosed\(code\)/u)
+  assert.match(stage, /createDesktopWorldStageFaultRetirement/u)
+  assert.match(stage, /publish: \(fault\) => emit\('desktop_world_stage\.scene\.fault'/u)
+  assert.match(stage, /cleanup: async \(\{ code \}\)[\s\S]*sceneOperations\?\.failClosed\(code\)[\s\S]*disposeStage\(\)/u)
   assert.match(stage, /message\?\.type === 'lifecycle'[\s\S]*enqueueSceneWork\(\(\) => handleDesktopWorldStageLifecycle/u)
   assert.equal((stage.match(/stageLifecycleState === 'active'\) sceneOperations\.handleInput\(message\)/gu) ?? []).length, 2)
   assert.match(stage, /stageLifecycleState = 'closing'[\s\S]*enqueueSceneWork\(async \(\) => \{[\s\S]*await disposeStage\(\)/u)
   assert.match(stage, /replaceRegionGeneration: replaceInputRegionGeneration/u)
-  assert.equal((stage.match(/sceneOutlet\.updateSegment\(segment, topology\)/gu) ?? []).length, 2)
+  assert.equal((stage.match(/requireDesktopWorldSceneSegment\(sceneOutlet, segment, topology\)/gu) ?? []).length, 2)
+  assert.match(stage, /catch\(\(error\) => \{[\s\S]*retireStage\(error, 'SCENE_SEGMENT_CONFIGURATION_FAILED', 'topology\.failed'\)/u)
+  assert.match(stage, /\.catch\(\(error\) => \{[\s\S]*retireStage\(error, 'SCENE_PROJECTION_FAILED', 'stage\.startup\.failed'\)/u)
   assert.match(stage, /enqueueSceneWork\(async \(\) => \{[\s\S]*settleAnimationGeometry\(key, generation\)/u)
   assert.doesNotMatch(stage, /animationGeometryChanged/u)
   assert.match(stage, /registerInputKeyLease\(\{ id: escapeKeyLeaseId, key: 'Escape' \}\)/u)
+  assert.match(stage, /await registerInputKeyLease[\s\S]*if \(!stageStartupIsCurrent\(\)\) return[\s\S]*emitReady\(\)/u)
   assert.match(stage, /input_schema_version === 2[\s\S]*event_kind === 'key'[\s\S]*sceneOperations\.handleInput\(message\)/u)
   assert.match(stage, /\.then\(async \(\) => \{[\s\S]*registerInputKeyLease[\s\S]*emitReady\(\)/u)
   assert.doesNotMatch(stage, /\ninstallVisualObjectLiveProof\(\)\nemitReady\(\)\s*$/u)

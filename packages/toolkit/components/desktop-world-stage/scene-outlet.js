@@ -16,7 +16,7 @@ import {
 } from './scene-outlet-devtools.js'
 import { prepareDesktopWorldSceneOutletReplacement } from './scene-outlet-replacement.js'
 import { createDesktopWorldSceneRenderCoordinator } from './scene-render-coordinator.js'
-import { resolveDesktopWorldNativeRenderMetrics } from './scene-render-budget.js'
+import { evaluateDesktopWorldNativeRenderMetrics } from './scene-render-budget.js'
 import { createDesktopWorldRenderDamageTracker } from './scene-render-damage.js'
 import {
   DESKTOP_WORLD_SCENE_SEGMENT_RESOURCE_LIMITS,
@@ -98,15 +98,21 @@ export function createDesktopWorldSceneOutlet({
   }
 
   const updateSegment = (nextSegment, nextTopology) => {
-    if (!renderCoordinator.updateSegment(nextSegment, nextTopology)) return false
+    if (!renderCoordinator.updateSegment(nextSegment, nextTopology)) {
+      faultSceneSegment('SCENE_SEGMENT_CONFIGURATION_FAILED')
+      return false
+    }
     segment = nextSegment
     topology = Array.isArray(nextTopology) ? [...nextTopology] : []
-    if (!damageTracker.updateSegment(nextSegment)) return false
+    if (!damageTracker.updateSegment(nextSegment)) {
+      faultSceneSegment('SCENE_SEGMENT_CONFIGURATION_FAILED')
+      return false
+    }
     return resize()
   }
 
   const resize = () => {
-    const metrics = resolveDesktopWorldNativeRenderMetrics({
+    const resolution = evaluateDesktopWorldNativeRenderMetrics({
       context: renderer.getContext(),
       width: canvas.clientWidth || hostWindow.innerWidth,
       height: canvas.clientHeight || hostWindow.innerHeight,
@@ -114,10 +120,11 @@ export function createDesktopWorldSceneOutlet({
       segment,
       topology,
     })
-    if (!metrics) {
-      faultSceneSegment('SCENE_NATIVE_DPR_UNSUPPORTED')
+    if (!resolution.ok) {
+      faultSceneSegment(resolution.code)
       return false
     }
+    const metrics = resolution.metrics
     renderMetrics = metrics
     renderer.setPixelRatio(metrics.effectiveDevicePixelRatio)
     renderer.setSize(metrics.cssWidth, metrics.cssHeight, false)

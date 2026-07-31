@@ -161,3 +161,23 @@ test('concurrent starts share the first topology settlement', async () => {
   assert.deepEqual(calls, ['init:second'])
   assert.equal(adapter.segment.display_id, 10)
 })
+
+test('initial topology callback failures reject startup', async () => {
+  const callbacks = []
+  const adapter = new StubAdapter({
+    canvasId: 'avatar',
+    host: {
+      subscribe: () => ({ on: (handler) => callbacks.push(handler) }),
+    },
+  })
+  const failure = Object.assign(new Error('segment setup failed'), {
+    code: 'SCENE_SEGMENT_CONFIGURATION_FAILED',
+  })
+
+  const started = adapter.start({ onInit: () => { throw failure } })
+  callbacks[0]({ type: 'canvas_lifecycle', event: 'canvas_topology_settled', canvas_id: 'avatar', segments })
+
+  await assert.rejects(started, (error) => error === failure)
+  assert.equal(adapter._started, false)
+  adapter.stop()
+})

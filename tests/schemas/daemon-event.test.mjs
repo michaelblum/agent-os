@@ -253,8 +253,11 @@ test('scene result errors are derived from the runtime emitter contract', async 
     repoRoot,
     'packages/toolkit/components/desktop-world-stage/index.js',
   ), 'utf8');
-  assert.match(stage, /normalizeDesktopWorldSceneResultErrorCode\(fault\.code/u);
-  assert.match(stage, /normalizeDesktopWorldSceneResultErrorCode\(\s*error\?\.code/u);
+  assert.match(
+    stage,
+    /function retireStage\(error,[\s\S]*normalizeDesktopWorldSceneResultErrorCode\(error\?\.code/u,
+  );
+  assert.match(stage, /setFaultObserver\(\(fault\) => \{[\s\S]*retireStage\(fault/u);
 
   const coordinator = await fs.readFile(path.join(
     repoRoot,

@@ -279,6 +279,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     private var ttlTimer: DispatchSourceTimer?
     private var ttlDeadline: Date?
     private let aosSchemeHandler: WKURLSchemeHandler?
+    private let websiteDataStore = WKWebsiteDataStore.nonPersistent()
     private let lifecycleCoordinator: CanvasLifecycleCoordinator
     private var htmlContent: String?
     private var urlString: String?
@@ -722,6 +723,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         window.collectionBehavior = collectionBehavior
 
         let config = WKWebViewConfiguration()
+        config.websiteDataStore = websiteDataStore
         if let handler = aosSchemeHandler {
             config.setURLSchemeHandler(handler, forURLScheme: "aos")
         }

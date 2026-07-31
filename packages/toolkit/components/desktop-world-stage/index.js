@@ -4,7 +4,12 @@ import { declareManifest, emitLifecycleComplete, emitReady } from '../../runtime
 import { createVisualObjectDescriptor } from '../../workbench/visual-object-contract.js'
 import { createTrustedSceneExtensionRegistry } from '../../scene/scene-extension.js'
 import { normalizeDesktopWorldSceneResultErrorCode } from '../../scene/scene-result-codes.js'
-import { createDesktopWorldStageDisposer, handleDesktopWorldStageLifecycle } from './lifecycle.js'
+import {
+  createDesktopWorldStageDisposer,
+  createDesktopWorldStageFaultRetirement,
+  createDesktopWorldStageStartupGate,
+  handleDesktopWorldStageLifecycle,
+} from './lifecycle.js'
 import { createDesktopWorldSceneExtensionLoader } from './scene-extension-loader.js'
 import {
   createDesktopFrameRequestClient,
@@ -14,6 +19,7 @@ import { applyDesktopWorldSceneOperation } from './scene-extension-operation.js'
 import { createDesktopWorldSceneOutlet } from './scene-outlet.js'
 import { createDesktopWorldSceneInteractionRuntime } from './scene-interaction-runtime.js'
 import { createDesktopWorldSceneOperationCoordinator } from './scene-operation-coordinator.js'
+import { requireDesktopWorldSceneSegment } from './scene-segment-setup.js'
 import {
   projectDesktopWorldDevToolsTopology,
   projectSceneEventTopology,
@@ -63,6 +69,7 @@ let sceneInteractions = null
 let sceneOperations = null
 let lastSceneError = null
 let stageLifecycleState = 'active'
+let stageLifecycleGeneration = 0
 
 function sceneTopologySnapshot() {
   return projectSceneEventTopology(surface.topology)
@@ -108,27 +115,6 @@ const devtoolsProbe = createDesktopWorldDevToolsStageProbe({
   },
 })
 sceneOutlet.setDevToolsProbe(devtoolsProbe)
-sceneOutlet.setFaultObserver((fault) => {
-  const code = normalizeDesktopWorldSceneResultErrorCode(fault.code, 'SCENE_SEGMENT_FAILED')
-  if (stageLifecycleState === 'active') stageLifecycleState = 'faulted'
-  lastSceneError = { at: Date.now(), code }
-  void enqueueSceneWork(async () => {
-    try {
-      await sceneOperations?.failClosed(code)
-    } catch {
-      lastSceneError = { at: Date.now(), code: 'SCENE_STAGE_RETIRE_FAILED' }
-    }
-    emit('desktop_world_stage.scene.fault', {
-      code,
-      lease_key: fault.leaseKey,
-      owner: fault.owner,
-      resource: fault.resource,
-      segment_display_id: window.__aosSegmentDisplayId ?? null,
-      segment_index: surface.segment?.index ?? null,
-      snapshot: sceneOutlet.snapshot(),
-    })
-  }).catch(() => {})
-})
 
 sceneInteractions = createDesktopWorldSceneInteractionRuntime({
   stageCanvasId: canvasId,
@@ -183,6 +169,58 @@ const disposeStage = createDesktopWorldStageDisposer({
   outlet: sceneOutlet,
   surface,
 })
+const retireStageFault = createDesktopWorldStageFaultRetirement({
+  cleanup: async ({ code }) => {
+    const failures = []
+    try { await sceneOperations?.failClosed(code) } catch (error) { failures.push(error) }
+    try { await disposeStage() } catch (error) { failures.push(error) }
+    if (failures.length > 0) {
+      throw new AggregateError(failures, 'DesktopWorld stage cleanup did not settle.')
+    }
+  },
+  publish: (fault) => emit('desktop_world_stage.scene.fault', {
+    code: fault.code,
+    lease_key: fault.leaseKey ?? null,
+    owner: fault.owner ?? null,
+    resource: fault.resource ?? null,
+    segment_display_id: window.__aosSegmentDisplayId ?? null,
+    segment_index: surface.segment?.index ?? null,
+    snapshot: sceneOutlet.snapshot(),
+  }),
+  record: (fault) => {
+    if (stageLifecycleState === 'active') {
+      stageLifecycleGeneration += 1
+      stageLifecycleState = 'faulted'
+    }
+    lastSceneError = { at: Date.now(), code: fault.code }
+    devtoolsProbe.recordEvent({
+      code: fault.code,
+      kind: fault.kind,
+      resourceId: fault.resource ?? null,
+    })
+  },
+  schedule: enqueueSceneWork,
+})
+
+function retireStage(error, fallback, kind, metadata = {}) {
+  const code = normalizeDesktopWorldSceneResultErrorCode(error?.code, fallback)
+  void retireStageFault({ code, kind, ...metadata }).then(
+    () => { stageLifecycleState = 'disposed' },
+    () => { lastSceneError = { at: Date.now(), code: 'SCENE_STAGE_RETIRE_FAILED' } },
+  )
+}
+
+sceneOutlet.setFaultObserver((fault) => {
+  retireStage(fault, 'SCENE_SEGMENT_FAILED', 'scene.segment.failed', {
+    leaseKey: fault.leaseKey,
+    owner: fault.owner,
+    resource: fault.resource,
+  })
+})
+const stageStartupIsCurrent = createDesktopWorldStageStartupGate(() => ({
+  generation: stageLifecycleGeneration,
+  state: stageLifecycleState,
+}))
 
 function render() {
   if (!root) return
@@ -433,30 +471,32 @@ wireBridge((message) => {
 
 surface.start({
   onInit: ({ segment, topology }) => {
-    sceneOutlet.updateSegment(segment, topology)
+    requireDesktopWorldSceneSegment(sceneOutlet, segment, topology)
     render()
   },
   onTopologyChange: ({ segment, topology }) => {
     void enqueueSceneWork(async () => {
-      sceneOutlet.updateSegment(segment, topology)
+      requireDesktopWorldSceneSegment(sceneOutlet, segment, topology)
       devtoolsProbe.recordEvent({ kind: 'topology.changed' })
       await sceneInteractions.topologyChanged()
       render()
-    }).catch(() => {})
+    }).catch((error) => {
+      retireStage(error, 'SCENE_SEGMENT_CONFIGURATION_FAILED', 'topology.failed')
+    })
   },
 }).then(async () => {
   await registerInputKeyLease({ id: escapeKeyLeaseId, key: 'Escape' })
+  if (!stageStartupIsCurrent()) return
   render()
   installVisualObjectLiveProof()
   emitReady()
-}).catch(() => {
-  const code = 'INPUT_KEY_LEASE_FAILED'
-  lastSceneError = { at: Date.now(), code }
-  devtoolsProbe.recordEvent({ code, kind: 'input.key_lease.failed', resourceId: null })
+}).catch((error) => {
+  retireStage(error, 'SCENE_PROJECTION_FAILED', 'stage.startup.failed')
 })
 
 window.addEventListener('pagehide', () => {
   if (['closing', 'disposed'].includes(stageLifecycleState)) return
+  stageLifecycleGeneration += 1
   stageLifecycleState = 'closing'
   void enqueueSceneWork(async () => {
     try {

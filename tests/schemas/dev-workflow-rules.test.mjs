@@ -224,7 +224,9 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('tests/lib/desktop-pixel-capture-filter-tests.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('tests/lib/desktop-frame-warm-pool-tests.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('tests/lib/desktop-pixel-startup-callback-tests.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/aos-scheme-response.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/canvas.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('tests/daemon/aos-scheme-handler-nonblocking.test.mjs'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-world-native-sheet.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-world-native-effect-renderer.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/display/desktop-world-native-sheet-geometry.swift'));
