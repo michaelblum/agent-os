@@ -6,6 +6,7 @@ import path from 'node:path'
 import test from 'node:test'
 
 import { createSceneEventEnvelope } from '../packages/toolkit/scene/scene-response-runtime.js'
+import { projectSceneEventTopology } from '../packages/toolkit/components/desktop-world-stage/topology.js'
 
 const repoRoot = path.resolve(import.meta.dirname, '..')
 
@@ -47,9 +48,15 @@ function aimCommitEvent() {
       route: 'line',
     },
     sequence: 7,
-    topology: {
-      displays: [{ bounds: [0, 0, 1920, 1080], displayId: 7, index: 0 }],
-    },
+    topology: projectSceneEventTopology([
+      {
+        display_id: 7,
+        dw_bounds: [0, 0, 1920, 1080],
+        index: 0,
+        native_bounds: [0, 0, 1920, 1080],
+        scale_factor: 2,
+      },
+    ]),
     at: 1_721_000_000_000,
   })
 }
