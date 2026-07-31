@@ -19,7 +19,15 @@ async function compileAndRun(name, sources, mainSource) {
       main,
       '-o', executable,
     ], { cwd: repoRoot, stdio: 'pipe' })
-    return execFileSync(executable, [], { cwd: repoRoot, encoding: 'utf8' })
+    try {
+      return execFileSync(executable, [], { cwd: repoRoot, encoding: 'utf8' })
+    } catch (error) {
+      const match = String(error?.stderr ?? '').match(/main\.swift:(\d+):/u)
+      const line = Number(match?.[1] ?? 0)
+      const source = mainSource.split('\n')
+      const context = line > 0 ? source.slice(Math.max(0, line - 2), line + 1) : []
+      throw new Error(`${error.message}\nGenerated Swift context:\n${context.join('\n')}`, { cause: error })
+    }
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -350,6 +358,7 @@ let identity = AOSDesktopWorldSceneStageIdentity(
     canvasGeneration: 3,
     topologyGeneration: 4
 )
+let inputGeneration = "input-generation"
 let lifecycleEvent = AOSDesktopWorldNativeEffectContract.gestureLifecycleEvent(
     bindings: [gestureBinding],
     capabilities: [
@@ -359,6 +368,7 @@ let lifecycleEvent = AOSDesktopWorldNativeEffectContract.gestureLifecycleEvent(
     ownerID: "example.consumer",
     resourceID: "example/object",
     resourceRevision: 7,
+    inputGeneration: inputGeneration,
     identity: identity,
     event: [
         "sequence": 2,
@@ -386,6 +396,7 @@ precondition(AOSDesktopWorldNativeEffectContract.gestureLifecycleEvent(
     ownerID: "example.consumer",
     resourceID: "example/object",
     resourceRevision: 7,
+    inputGeneration: inputGeneration,
     identity: identity,
     event: [
         "sequence": 2,
@@ -400,6 +411,7 @@ precondition(AOSDesktopWorldNativeEffectContract.gestureLifecycleEvent(
 let request = AOSDesktopWorldNativeEffectContract.request(
     binding: binding,
     authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 7),
+    inputGeneration: inputGeneration,
     identity: identity,
     event: [
         "sequence": 1,
@@ -414,11 +426,13 @@ let request = AOSDesktopWorldNativeEffectContract.request(
 precondition(request?.desktopWorldOrigin.x == 1900)
 precondition(request?.desktopWorldOrigin.y == 620)
 precondition(request?.resourceRevision == 7)
+precondition(request?.inputGeneration == inputGeneration)
 precondition(request?.eventSequence == 1)
 precondition(request?.pointerSessionID == "pointer-1")
 precondition(AOSDesktopWorldNativeEffectContract.request(
     binding: binding,
     authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 7),
+    inputGeneration: inputGeneration,
     identity: identity,
     event: [
         "sequence": 3,
@@ -443,6 +457,7 @@ precondition(AOSDesktopWorldNativeEffectContract.parseBindings(
 let pointerRequest = AOSDesktopWorldNativeEffectContract.pointerRequest(
     binding: pointerBinding,
     authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 8),
+    inputGeneration: inputGeneration,
     identity: identity,
     affordanceID: "body",
     phase: "down",
@@ -452,10 +467,38 @@ let pointerRequest = AOSDesktopWorldNativeEffectContract.pointerRequest(
 )
 precondition(pointerRequest?.desktopWorldOrigin.x == 2100)
 precondition(pointerRequest?.resourceRevision == 8)
+precondition(pointerRequest?.inputGeneration == inputGeneration)
 precondition(pointerRequest?.pointerSessionID == "pointer-1")
+precondition(pointerRequest.map {
+    AOSDesktopWorldNativeEffectContract.authorizes(
+        $0,
+        bindings: [pointerBinding],
+        capabilities: [
+            AOSDesktopWorldNativeEffectBinding.capability,
+            "aos.scene.desktop_frame_texture",
+        ],
+        ownerID: "example.consumer",
+        resourceID: "example/object",
+        inputGeneration: inputGeneration
+    )
+} == true)
+precondition(pointerRequest.map {
+    AOSDesktopWorldNativeEffectContract.authorizes(
+        $0,
+        bindings: [pointerBinding],
+        capabilities: [
+            AOSDesktopWorldNativeEffectBinding.capability,
+            "aos.scene.desktop_frame_texture",
+        ],
+        ownerID: "example.consumer",
+        resourceID: "example/object",
+        inputGeneration: "stale-input-generation"
+    )
+} == false)
 precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
     binding: pointerBinding,
     authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 8),
+    inputGeneration: inputGeneration,
     identity: identity,
     affordanceID: "body",
     phase: "down",
@@ -466,6 +509,7 @@ precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
 precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
     binding: pointerBinding,
     authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 8),
+    inputGeneration: inputGeneration,
     identity: identity,
     affordanceID: "body",
     phase: "up",
@@ -476,6 +520,7 @@ precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
 precondition(AOSDesktopWorldNativeEffectContract.pointerRequest(
     binding: pointerBinding,
     authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 8),
+    inputGeneration: inputGeneration,
     identity: identity,
     affordanceID: "body",
     phase: "down",
@@ -521,6 +566,7 @@ precondition(programInstance.parameterValues[0] == 24)
 let programRequest = AOSDesktopWorldNativeEffectContract.pointerRequest(
     binding: programBinding,
     authorization: (ownerID: "example.consumer", resourceID: "example/object", revision: 9),
+    inputGeneration: inputGeneration,
     identity: identity,
     affordanceID: "body",
     phase: "down",
@@ -544,6 +590,7 @@ test('native feedback authorization commits atomically with scene operations', a
     'src/daemon/desktop-world-scene-stage-readiness.swift',
     'src/daemon/desktop-world-native-effect-program.swift',
     'src/daemon/desktop-world-native-effect-contract.swift',
+    'src/daemon/desktop-world-scene-authorization.swift',
     'src/daemon/desktop-world-scene-controller.swift',
     'src/daemon/desktop-world-scene-native-effects.swift',
     'src/daemon/scene-event.swift',
@@ -577,19 +624,26 @@ func broadcast(_ action: AOSDesktopWorldSceneBarrierAction) -> AOSDesktopWorldSc
     return broadcast
 }
 
-func result(_ broadcast: AOSDesktopWorldSceneBarrierBroadcast, status: String = "ok") -> [String: Any] {
+func result(
+    _ broadcast: AOSDesktopWorldSceneBarrierBroadcast,
+    status: String = "ok",
+    inputGeneration: Any? = nil,
+    displayID: UInt32 = 7,
+    segmentIndex: Int = 0
+) -> [String: Any] {
     var value: [String: Any] = [
         "operation_id": broadcast.operationID,
         "barrier_phase": broadcast.phase.rawValue,
         "canvas_generation": broadcast.canvasGeneration,
         "topology_generation": broadcast.topologyGeneration,
-        "segment_display_id": 7,
-        "segment_index": 0,
+        "segment_display_id": displayID,
+        "segment_index": segmentIndex,
         "status": status,
     ]
     if broadcast.phase == .prepare || broadcast.phase == .commit {
         value["candidate_fingerprint"] = "candidate"
     }
+    if let inputGeneration { value["input_generation"] = inputGeneration }
     if status == "error" { value["code"] = "SCENE_EXTENSION_IMPORT_FAILED" }
     return value
 }
@@ -597,7 +651,8 @@ func result(_ broadcast: AOSDesktopWorldSceneBarrierBroadcast, status: String = 
 @discardableResult
 func settleSuccess(
     _ controller: AOSDesktopWorldSceneController,
-    _ admitted: AOSDesktopWorldSceneBarrierAction
+    _ admitted: AOSDesktopWorldSceneBarrierAction,
+    inputGeneration: Any? = nil
 ) -> AOSDesktopWorldSceneDelivery {
     var current = broadcast(admitted)
     while true {
@@ -606,7 +661,16 @@ func settleSuccess(
                 canvasGeneration: current.canvasGeneration,
                 topologyGeneration: current.topologyGeneration
             ),
-            payload: result(current)
+            payload: result(
+                current,
+                inputGeneration: inputGeneration ?? {
+                    let operation = current.operation["op"] as? String
+                    if operation == "close" || operation == "remove" || operation == "suspend" {
+                        return NSNull()
+                    }
+                    return current.operationID
+                }()
+            )
         )
         if let next = actions.compactMap({ action -> AOSDesktopWorldSceneBarrierBroadcast? in
             if case .broadcast(let value) = action { return value }
@@ -651,6 +715,21 @@ func gestureInteractions() -> [String: Any] {
     var effect = values[0]["nativeEffect"] as! [String: Any]
     effect["lifecycle"] = ["kind": "gesture"]
     values[0]["nativeEffect"] = effect
+    document["interactions"] = values
+    return document
+}
+
+func gestureInteractionsWithEndEffect() -> [String: Any] {
+    var document = gestureInteractions()
+    var values = document["interactions"] as! [[String: Any]]
+    var value = values[0]
+    let startEffect = value.removeValue(forKey: "nativeEffect") as! [String: Any]
+    var endEffect = startEffect
+    endEffect.removeValue(forKey: "lifecycle")
+    endEffect["trigger"] = ["phase": "end"]
+    endEffect["parameters"] = ["amplitude": 9]
+    value["nativeEffects"] = [startEffect, endEffect]
+    values[0] = value
     document["interactions"] = values
     return document
 }
@@ -739,20 +818,27 @@ guard case .accepted(let mount) = controller.admitOperation(
     owner: "example.consumer",
     resource: "example/object",
     operationName: "mount",
-    operation: ["op": "mount", "interactions": gestureInteractions()],
+    operation: ["op": "mount", "interactions": gestureInteractionsWithEndEffect()],
     extensionAuthorization: authorization,
     connectionID: connection,
     ref: "mount"
 ) else { preconditionFailure("mount rejected") }
+let mountGeneration = broadcast(mount).operationID
 precondition(controller.nativeEffectRequest(
     identity: topology.identity,
     key: key,
+    inputGeneration: mountGeneration,
     event: requestEvent("start")
 ) == nil)
-precondition(settleSuccess(controller, mount).payload["status"] as? String == "ok")
+precondition(settleSuccess(
+    controller,
+    mount,
+    inputGeneration: mountGeneration
+).payload["status"] as? String == "ok")
 let mounted = controller.nativeEffectRequest(
     identity: topology.identity,
     key: key,
+    inputGeneration: mountGeneration,
     event: requestEvent("start")
 )
 precondition(mounted?.resourceRevision == 1)
@@ -804,6 +890,7 @@ let canonicalEvent: [String: Any] = [
 ]
 var nativeRequests: [AOSDesktopWorldNativeEffectRequest] = []
 var nativeGestureEvents: [AOSDesktopWorldNativeEffectGestureEvent] = []
+var nativeReplacementRequests: [AOSDesktopWorldNativeEffectRequest] = []
 var publicEvents = 0
 var deliveryOrder: [String] = []
 let router = AOSDesktopWorldSceneEventRouter(
@@ -813,7 +900,7 @@ let router = AOSDesktopWorldSceneEventRouter(
         nativeRequests.append($0)
     },
     nativeGestureFeedback: { event, replacement in
-        precondition(replacement == nil)
+        if let replacement { nativeReplacementRequests.append(replacement) }
         deliveryOrder.append("native-" + event.phase.rawValue)
         nativeGestureEvents.append(event)
     }
@@ -825,6 +912,7 @@ let router = AOSDesktopWorldSceneEventRouter(
 router.handle(identity: topology.identity, payload: [
     "lease_key": key,
     "event_type": "gesture",
+    "input_generation": mountGeneration,
     "event": canonicalEvent,
 ])
 precondition(nativeRequests.count == 1, "native request route")
@@ -849,6 +937,7 @@ updateEvent["coordinates"] = [
 router.handle(identity: topology.identity, payload: [
     "lease_key": key,
     "event_type": "gesture",
+    "input_generation": mountGeneration,
     "event": updateEvent,
 ])
 precondition(nativeGestureEvents.count == 1, "native gesture route")
@@ -871,6 +960,45 @@ precondition(
     (router.snapshot()["by_outcome"] as? [String: Int])?["enqueued"] == 2,
     "enqueued route count"
 )
+router.handle(identity: topology.identity, payload: [
+    "lease_key": key,
+    "event_type": "gesture",
+    "input_generation": "candidate-not-committed",
+    "event": updateEvent,
+])
+precondition(nativeGestureEvents.count == 1, "stale native gesture rejected")
+precondition(nativeReplacementRequests.isEmpty, "stale replacement rejected")
+precondition(publicEvents == 2, "stale public gesture rejected")
+precondition(
+    (router.snapshot()["by_outcome"] as? [String: Int])?["stale_input_generation"] == 1,
+    "stale generation diagnostic"
+)
+
+var endEvent = updateEvent
+endEvent["sequence"] = 3
+endEvent["gesture"] = [
+    "id": "gesture-1",
+    "kind": "drag",
+    "phase": "end",
+    "pointerSessionId": "pointer-1",
+    "cancellationReason": NSNull(),
+]
+router.handle(identity: topology.identity, payload: [
+    "lease_key": key,
+    "event_type": "gesture",
+    "input_generation": mountGeneration,
+    "event": endEvent,
+])
+precondition(nativeGestureEvents.count == 2, "native end lifecycle route")
+precondition(nativeGestureEvents[1].phase == .end, "native end phase")
+precondition(nativeReplacementRequests.count == 1, "separate end binding route")
+precondition(
+    nativeGestureEvents[1].request.binding != nativeReplacementRequests[0].binding,
+    "start lifecycle and end replacement bindings remain distinct"
+)
+precondition(controller.authorizesNativeEffect(nativeGestureEvents[1].request))
+precondition(controller.authorizesNativeEffect(nativeReplacementRequests[0]))
+precondition(publicEvents == 3, "public end gesture delivery")
 
 guard case .accepted(let transaction) = controller.admitOperation(
     topology: topology,
@@ -889,16 +1017,33 @@ guard case .accepted(let transaction) = controller.admitOperation(
     connectionID: connection,
     ref: "transact"
 ) else { preconditionFailure("transaction rejected") }
-_ = settleSuccess(controller, transaction)
+let transactionGeneration = broadcast(transaction).operationID
+precondition(controller.nativePointerEffectRequest(
+    ownerID: "example.consumer",
+    resourceID: "example/object",
+    regionGeneration: transactionGeneration,
+    affordanceID: "body",
+    canvasGeneration: topology.identity.canvasGeneration,
+    phase: "down",
+    button: "left",
+    point: CGPoint(x: 900, y: 600),
+    pointerSessionID: "pointer-pending"
+) == nil, "a first pointer binding must not activate before commit")
+_ = settleSuccess(
+    controller,
+    transaction,
+    inputGeneration: transactionGeneration
+)
 precondition(controller.nativeEffectRequest(
     identity: topology.identity,
     key: key,
+    inputGeneration: transactionGeneration,
     event: requestEvent("start")
 ) == nil)
 let transacted = controller.nativePointerEffectRequest(
     ownerID: "example.consumer",
     resourceID: "example/object",
-    resourceRevision: 2,
+    regionGeneration: transactionGeneration,
     affordanceID: "body",
     canvasGeneration: topology.identity.canvasGeneration,
     phase: "down",
@@ -911,17 +1056,288 @@ guard let transacted, case .ripple(let transactedRipple) = transacted.binding.de
     preconditionFailure("transacted legacy ripple definition changed")
 }
 precondition(transactedRipple.amplitude == 26)
-precondition(controller.nativePointerEffectRequest(
+
+guard case .accepted(let visualUpdate) = controller.admitOperation(
+    topology: topology,
+    key: key,
+    owner: "example.consumer",
+    resource: "example/object",
+    operationName: "transact",
+    operation: [
+        "op": "transact",
+        "transaction": ["expectedRevision": 2],
+    ],
+    connectionID: connection,
+    ref: "visual-update"
+) else { preconditionFailure("visual update rejected") }
+let admittedBeforeVisualCommit = transacted
+_ = settleSuccess(
+    controller,
+    visualUpdate,
+    inputGeneration: transactionGeneration
+)
+precondition(
+    controller.authorizesNativeEffect(admittedBeforeVisualCommit),
+    "a visual-only revision must not invalidate an admitted native effect"
+)
+let retainedVisualRegion = controller.nativePointerEffectRequest(
     ownerID: "example.consumer",
     resourceID: "example/object",
-    resourceRevision: 1,
+    regionGeneration: transactionGeneration,
     affordanceID: "body",
     canvasGeneration: topology.identity.canvasGeneration,
     phase: "down",
     button: "left",
     point: CGPoint(x: 900, y: 600),
-    pointerSessionID: "pointer-2"
+    pointerSessionID: "pointer-retained-visual"
+)
+precondition(retainedVisualRegion?.resourceRevision == 3)
+
+guard case .accepted(let pointerUpdate) = controller.admitOperation(
+    topology: topology,
+    key: key,
+    owner: "example.consumer",
+    resource: "example/object",
+    operationName: "transact",
+    operation: [
+        "op": "transact",
+        "transaction": ["expectedRevision": 3],
+        "interactions": interactions(
+            trigger: ["input": "pointer_down"],
+            amplitude: 26
+        ),
+    ],
+    connectionID: connection,
+    ref: "pointer-update"
+) else { preconditionFailure("pointer update rejected") }
+let pointerUpdateGeneration = broadcast(pointerUpdate).operationID
+precondition(controller.nativePointerEffectRequest(
+    ownerID: "example.consumer",
+    resourceID: "example/object",
+    regionGeneration: pointerUpdateGeneration,
+    affordanceID: "body",
+    canvasGeneration: topology.identity.canvasGeneration,
+    phase: "down",
+    button: "left",
+    point: CGPoint(x: 900, y: 600),
+    pointerSessionID: "pointer-successor"
+) == nil, "a successor input generation must remain inactive before all-display commit")
+_ = settleSuccess(
+    controller,
+    pointerUpdate,
+    inputGeneration: pointerUpdateGeneration
+)
+precondition(
+    !controller.authorizesNativeEffect(admittedBeforeVisualCommit),
+    "an input-generation change must revoke an earlier admitted effect"
+)
+
+let retainedRegion = controller.nativePointerEffectRequest(
+    ownerID: "example.consumer",
+    resourceID: "example/object",
+    regionGeneration: pointerUpdateGeneration,
+    affordanceID: "body",
+    canvasGeneration: topology.identity.canvasGeneration,
+    phase: "down",
+    button: "left",
+    point: CGPoint(x: 900, y: 600),
+    pointerSessionID: "pointer-retained"
+)
+precondition(retainedRegion?.resourceRevision == 4)
+guard let retainedRegion,
+      case .ripple(let retainedRipple) = retainedRegion.binding.definition else {
+    preconditionFailure("retained region did not resolve current ripple")
+}
+precondition(retainedRipple.amplitude == 26)
+precondition(controller.nativePointerEffectRequest(
+    ownerID: "example.consumer",
+    resourceID: "example/object",
+    regionGeneration: "uncommitted-generation",
+    affordanceID: "body",
+    canvasGeneration: topology.identity.canvasGeneration,
+    phase: "down",
+    button: "left",
+    point: CGPoint(x: 900, y: 600),
+    pointerSessionID: "pointer-future"
 ) == nil)
+
+let multiDisplay = AOSDesktopWorldSceneController()
+let multiIdentity = AOSDesktopWorldSceneStageIdentity(
+    canvasGeneration: 30,
+    topologyGeneration: 40
+)
+let multiTopology = AOSDesktopWorldSceneTopologyDescriptor(
+    identity: multiIdentity,
+    segments: [
+        AOSDesktopWorldSceneStageSegment(displayID: 7, index: 0),
+        AOSDesktopWorldSceneStageSegment(displayID: 9, index: 1),
+    ]
+)
+precondition(multiDisplay.configureInitial(multiTopology))
+precondition(!multiDisplay.recordReady(
+    topology: multiTopology,
+    displayID: 7,
+    index: 0,
+    manifest: ["name": "desktop-world-stage"]
+))
+precondition(multiDisplay.recordReady(
+    topology: multiTopology,
+    displayID: 9,
+    index: 1,
+    manifest: ["name": "desktop-world-stage"]
+))
+let multiConnection = UUID()
+let multiKey = multiDisplay.key(owner: "example.consumer", resource: "multi/object")
+guard case .accepted(let multiMount) = multiDisplay.admitOperation(
+    topology: multiTopology,
+    key: multiKey,
+    owner: "example.consumer",
+    resource: "multi/object",
+    operationName: "mount",
+    operation: [
+        "op": "mount",
+        "interactions": interactions(
+            trigger: ["input": "pointer_down"],
+            amplitude: 26
+        ),
+    ],
+    extensionAuthorization: authorization,
+    connectionID: multiConnection,
+    ref: "multi-mount"
+) else { preconditionFailure("multi-display mount rejected") }
+let multiPrepare = broadcast(multiMount)
+precondition(multiDisplay.acceptResult(
+    identity: multiIdentity,
+    payload: result(multiPrepare, displayID: 7, segmentIndex: 0)
+).isEmpty)
+let multiCommitActions = multiDisplay.acceptResult(
+    identity: multiIdentity,
+    payload: result(multiPrepare, displayID: 9, segmentIndex: 1)
+)
+guard let multiCommit = multiCommitActions.compactMap({ action -> AOSDesktopWorldSceneBarrierBroadcast? in
+    if case .broadcast(let value) = action { return value }
+    return nil
+}).first else { preconditionFailure("multi-display commit missing") }
+precondition(multiDisplay.acceptResult(
+    identity: multiIdentity,
+    payload: result(
+        multiCommit,
+        inputGeneration: multiCommit.operationID,
+        displayID: 7,
+        segmentIndex: 0
+    )
+).isEmpty)
+precondition(multiDisplay.nativePointerEffectRequest(
+    ownerID: "example.consumer",
+    resourceID: "multi/object",
+    regionGeneration: multiCommit.operationID,
+    affordanceID: "body",
+    canvasGeneration: multiIdentity.canvasGeneration,
+    phase: "down",
+    button: "left",
+    point: CGPoint(x: 900, y: 600),
+    pointerSessionID: "multi-pending"
+) == nil, "one committed display must not activate native input")
+let multiCompleted = multiDisplay.acceptResult(
+    identity: multiIdentity,
+    payload: result(
+        multiCommit,
+        inputGeneration: multiCommit.operationID,
+        displayID: 9,
+        segmentIndex: 1
+    )
+)
+guard let multiCompletion = multiCompleted.compactMap({ action -> AOSDesktopWorldSceneResultCompletion? in
+    if case .complete(let value) = action { return value }
+    return nil
+}).first,
+      multiDisplay.complete(
+        multiCompletion,
+        operationID: multiCommit.operationID
+      ) != nil else {
+    preconditionFailure("multi-display mount did not complete")
+}
+let multiAdmitted = multiDisplay.nativePointerEffectRequest(
+    ownerID: "example.consumer",
+    resourceID: "multi/object",
+    regionGeneration: multiCommit.operationID,
+    affordanceID: "body",
+    canvasGeneration: multiIdentity.canvasGeneration,
+    phase: "down",
+    button: "left",
+    point: CGPoint(x: 900, y: 600),
+    pointerSessionID: "multi-active"
+)
+precondition(multiAdmitted != nil, "all displays must commit before native input activates")
+
+guard case .accepted(let failingUpdate) = multiDisplay.admitOperation(
+    topology: multiTopology,
+    key: multiKey,
+    owner: "example.consumer",
+    resource: "multi/object",
+    operationName: "transact",
+    operation: [
+        "op": "transact",
+        "transaction": ["expectedRevision": 1],
+        "interactions": interactions(
+            trigger: ["input": "pointer_down"],
+            amplitude: 28
+        ),
+    ],
+    connectionID: multiConnection,
+    ref: "multi-failure"
+) else { preconditionFailure("multi-display failure transaction rejected") }
+let failingPrepare = broadcast(failingUpdate)
+_ = multiDisplay.acceptResult(
+    identity: multiIdentity,
+    payload: result(failingPrepare, displayID: 7, segmentIndex: 0)
+)
+let failingCommitActions = multiDisplay.acceptResult(
+    identity: multiIdentity,
+    payload: result(failingPrepare, displayID: 9, segmentIndex: 1)
+)
+guard let failingCommit = failingCommitActions.compactMap({ action -> AOSDesktopWorldSceneBarrierBroadcast? in
+    if case .broadcast(let value) = action { return value }
+    return nil
+}).first else { preconditionFailure("multi-display failure commit missing") }
+_ = multiDisplay.acceptResult(
+    identity: multiIdentity,
+    payload: result(
+        failingCommit,
+        inputGeneration: failingCommit.operationID,
+        displayID: 7,
+        segmentIndex: 0
+    )
+)
+let releaseActions = multiDisplay.acceptResult(
+    identity: multiIdentity,
+    payload: result(
+        failingCommit,
+        status: "error",
+        inputGeneration: failingCommit.operationID,
+        displayID: 9,
+        segmentIndex: 1
+    )
+)
+precondition(releaseActions.contains { action in
+    if case .broadcast(let value) = action { return value.phase == .release }
+    return false
+})
+precondition(
+    multiAdmitted.map(multiDisplay.authorizesNativeEffect) == false,
+    "release admission must revoke native effects before uncertain region cleanup"
+)
+precondition(multiDisplay.nativePointerEffectRequest(
+    ownerID: "example.consumer",
+    resourceID: "multi/object",
+    regionGeneration: multiCommit.operationID,
+    affordanceID: "body",
+    canvasGeneration: multiIdentity.canvasGeneration,
+    phase: "down",
+    button: "left",
+    point: CGPoint(x: 900, y: 600),
+    pointerSessionID: "multi-stale-region"
+) == nil, "a stale region must fail closed as soon as release begins")
 
 guard case .stageUnavailable = controller.admitOperation(
     topology: topology,
@@ -948,6 +1364,7 @@ _ = settleSuccess(controller, remove)
 precondition(controller.nativeEffectRequest(
     identity: topology.identity,
     key: key,
+    inputGeneration: mountGeneration,
     event: requestEvent("start")
 ) == nil)
 
@@ -985,6 +1402,7 @@ _ = failed.complete(failedCompletion, operationID: abort.operationID)
 precondition(failed.nativeEffectRequest(
     identity: failedTopology.identity,
     key: failedKey,
+    inputGeneration: failedMount.operationID,
     event: requestEvent("start")
 ) == nil)
 

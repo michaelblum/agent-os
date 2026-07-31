@@ -39,6 +39,9 @@ function regionPayload(entry, descriptor, frame) {
       scene_owner: entry.owner,
       scene_resource: entry.resource,
       scene_affordance: descriptor.id,
+      ...(entry.regionGeneration === null
+        ? {}
+        : { scene_input_generation: String(entry.regionGeneration) }),
       scene_revision: String(entry.document.revision),
     },
   }
@@ -96,7 +99,14 @@ export function createDesktopWorldSceneInteractionRuntime({
   function emitEntryEvent(entry, event) {
     if (!isPrimary()) return
     entry.sequence += 1
-    emitEvent({ lease_key: entry.key, event_type: event.type, event: { ...event, sequence: entry.sequence } })
+    emitEvent({
+      lease_key: entry.key,
+      event_type: event.type,
+      ...(entry.regionGeneration === null
+        ? {}
+        : { input_generation: String(entry.regionGeneration) }),
+      event: { ...event, sequence: entry.sequence },
+    })
   }
 
   function publishEntryEvent(entry, event) {
@@ -244,7 +254,9 @@ export function createDesktopWorldSceneInteractionRuntime({
   async function retireAndRemoveRegions(entries) {
     const unique = new Map(entries)
     for (const [id, payload] of unique) retiredRegions.set(id, payload)
-    await Promise.allSettled([...unique.values()].map((payload) => updateRegion(inactiveRegionPayload(payload))))
+    await Promise.allSettled(
+      [...unique.values()].map((payload) => updateRegion(inactiveRegionPayload(payload))),
+    )
     return cleanupRetiredRegions([...unique.keys()])
   }
 
@@ -593,7 +605,12 @@ export function createDesktopWorldSceneInteractionRuntime({
           if (payload) entries.set(id, payload)
         }
         try { await radialMenus.settle(key, { requireClean: true }) } catch {}
-        await retireAndRemoveRegions(entries)
+        const clean = await retireAndRemoveRegions(entries)
+        const cleanupEntry = candidate ?? previous
+        if (!clean || (cleanupEntry && retiredRegionIdsForEntry(cleanupEntry).length > 0)) {
+          if (candidate) candidate.regionSyncErrorCode = 'INPUT_REGION_CLEANUP_FAILED'
+          throw new Error('DesktopWorld scene input-region fail-closed cleanup failed.')
+        }
         for (const id of candidate?.registeredIds ?? []) {
           if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
         }
@@ -906,6 +923,12 @@ export function createDesktopWorldSceneInteractionRuntime({
     })
   }
 
+  function inputGeneration(key) {
+    const entry = leases.get(key)
+    if (!entry || entryBlocked(entry) || entry.animationQuiesced || entry.regionIds.size === 0) return null
+    return entry.regionGeneration
+  }
+
   async function dispose(reason = 'stage_disposed') {
     const failures = []
     runtimeDisposed = true
@@ -958,6 +981,7 @@ export function createDesktopWorldSceneInteractionRuntime({
     handleInput,
     cancelAll,
     configuration,
+    inputGeneration,
     devtoolsSnapshot,
     snapshot,
     dispose,

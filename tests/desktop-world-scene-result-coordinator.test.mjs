@@ -26,7 +26,8 @@ func result(
     fingerprint: String? = "candidate",
     canvas: UInt64 = 3,
     topology: UInt64 = 4,
-    snapshot: [String: Any]? = nil
+    snapshot: [String: Any]? = nil,
+    inputGeneration: Any? = nil
 ) -> [String: Any] {
     var value: [String: Any] = [
         "operation_id": operationID,
@@ -40,6 +41,7 @@ func result(
     if let code { value["code"] = code }
     if let fingerprint { value["candidate_fingerprint"] = fingerprint }
     if let snapshot { value["snapshot"] = snapshot }
+    if let inputGeneration { value["input_generation"] = inputGeneration }
     return value
 }
 
@@ -86,10 +88,11 @@ precondition(success.accept(result("success", "prepare", 7, 0, "ok")).isEmpty)
 precondition(success.accept(result("success", "prepare", 7, 0, "ok")).isEmpty)
 let commit = broadcast(success.accept(result("success", "prepare", 9, 1, "ok")))
 precondition(commit?.phase == .commit)
-precondition(success.accept(result("success", "commit", 7, 0, "ok", snapshot: ["renderer": "three"])).isEmpty)
-let completed = completion(success.accept(result("success", "commit", 9, 1, "ok")))
+precondition(success.accept(result("success", "commit", 7, 0, "ok", snapshot: ["renderer": "three"], inputGeneration: "input-a")).isEmpty)
+let completed = completion(success.accept(result("success", "commit", 9, 1, "ok", inputGeneration: "input-a")))
 precondition(completed?.payload["status"] as? String == "ok")
 precondition((completed?.payload["snapshot"] as? [String: Any])?["renderer"] as? String == "three")
+precondition(completed?.payload["input_generation"] as? String == "input-a")
 precondition(success.hasPending(leaseKey: "owner::main") == false)
 
 let preparationFailure = AOSDesktopWorldSceneResultCoordinator()
@@ -119,6 +122,26 @@ precondition(release?.phase == .release)
 _ = commitFailure.accept(result("commit-failure", "release", 7, 0, "ok", fingerprint: nil))
 let released = completion(commitFailure.accept(result("commit-failure", "release", 9, 1, "ignored", fingerprint: nil)))
 precondition(released?.payload["status"] as? String == "error")
+precondition(released?.payload["projection_released"] as? Bool == true)
+
+let inputDivergence = AOSDesktopWorldSceneResultCoordinator()
+_ = inputDivergence.begin(operationID: "input-divergence", leaseKey: "owner::main", owner: "owner", operation: "mount", operationPayload: operation, resource: "main", canvasGeneration: 3, topologyGeneration: 4, segments: segments)
+_ = inputDivergence.accept(result("input-divergence", "prepare", 7, 0, "ok"))
+_ = inputDivergence.accept(result("input-divergence", "prepare", 9, 1, "ok"))
+_ = inputDivergence.accept(result("input-divergence", "commit", 7, 0, "ok", inputGeneration: "left"))
+precondition(broadcast(inputDivergence.accept(result("input-divergence", "commit", 9, 1, "ok", inputGeneration: "right")))?.phase == .release)
+
+let missingCommitGeneration = AOSDesktopWorldSceneResultCoordinator()
+_ = missingCommitGeneration.begin(operationID: "missing-commit-generation", leaseKey: "owner::main", owner: "owner", operation: "mount", operationPayload: operation, resource: "main", canvasGeneration: 3, topologyGeneration: 4, segments: segments)
+_ = missingCommitGeneration.accept(result("missing-commit-generation", "prepare", 7, 0, "ok"))
+_ = missingCommitGeneration.accept(result("missing-commit-generation", "prepare", 9, 1, "ok"))
+_ = missingCommitGeneration.accept(result("missing-commit-generation", "commit", 7, 0, "ok"))
+precondition(broadcast(missingCommitGeneration.accept(result("missing-commit-generation", "commit", 9, 1, "ok")))?.phase == .release)
+
+let missingApplyGeneration = AOSDesktopWorldSceneResultCoordinator()
+_ = missingApplyGeneration.begin(operationID: "missing-apply-generation", leaseKey: "owner::main", owner: "owner", operation: "play", operationPayload: ["op": "play"], resource: "main", canvasGeneration: 3, topologyGeneration: 4, segments: segments)
+_ = missingApplyGeneration.accept(result("missing-apply-generation", "apply", 7, 0, "ok", fingerprint: nil))
+precondition(broadcast(missingApplyGeneration.accept(result("missing-apply-generation", "apply", 9, 1, "ok", fingerprint: nil)))?.phase == .release)
 
 let releaseFailure = AOSDesktopWorldSceneResultCoordinator()
 _ = releaseFailure.begin(operationID: "release-failure", leaseKey: "owner::main", owner: "owner", operation: "mount", operationPayload: operation, resource: "main", canvasGeneration: 3, topologyGeneration: 4, segments: segments)
@@ -173,8 +196,10 @@ precondition(retires(timeout.expire(operationID: "timeout", phase: .abort, topol
 
 let direct = AOSDesktopWorldSceneResultCoordinator()
 precondition(broadcast(direct.begin(operationID: "play", leaseKey: "owner::main", owner: "owner", operation: "play", operationPayload: ["op": "play"], resource: "main", canvasGeneration: 3, topologyGeneration: 4, segments: segments))?.phase == .apply)
-precondition(direct.accept(result("play", "apply", 7, 0, "ok", fingerprint: nil)).isEmpty)
-precondition(completion(direct.accept(result("play", "apply", 9, 1, "ok", fingerprint: nil)))?.payload["status"] as? String == "ok")
+precondition(direct.accept(result("play", "apply", 7, 0, "ok", fingerprint: nil, inputGeneration: "play-generation")).isEmpty)
+let played = completion(direct.accept(result("play", "apply", 9, 1, "ok", fingerprint: nil, inputGeneration: "play-generation")))
+precondition(played?.payload["status"] as? String == "ok")
+precondition(played?.payload["input_generation"] as? String == "play-generation")
 `)
     execFileSync('swiftc', [
       '-module-cache-path', path.join(root, 'module-cache'),
@@ -217,6 +242,9 @@ func result(_ operationID: String, _ phase: String, _ displayID: Int, _ index: I
         "status": "ok",
     ]
     if let fingerprint { payload["candidate_fingerprint"] = fingerprint }
+    if phase == "apply" || phase == "commit" {
+        payload["input_generation"] = "generation-\\(operationID)"
+    }
     return payload
 }
 
@@ -227,6 +255,7 @@ func proofResult(
     _ passed: Bool
 ) -> [String: Any] {
     var payload = result(operationID, "apply", displayID, index, nil)
+    payload.removeValue(forKey: "input_generation")
     payload["snapshot"] = ["revision": 2]
     payload["proof"] = [
         "extension_digest": String(repeating: "a", count: 64),
@@ -253,6 +282,47 @@ func readyController(_ controller: AOSDesktopWorldSceneController) -> AOSDesktop
     precondition(controller.recordReady(topology: topology, displayID: 7, index: 0, manifest: manifest) == false)
     precondition(controller.recordReady(topology: topology, displayID: 9, index: 1, manifest: manifest))
     return topology
+}
+
+func mountProjection(
+    _ controller: AOSDesktopWorldSceneController,
+    topology: AOSDesktopWorldSceneTopologyDescriptor,
+    key: String,
+    owner: String,
+    resource: String,
+    connection: UUID
+) -> String {
+    guard case .accepted(let action) = controller.admitOperation(
+        topology: topology,
+        key: key,
+        owner: owner,
+        resource: resource,
+        operationName: "mount",
+        operation: ["op": "mount", "document": ["revision": 1]],
+        connectionID: connection,
+        ref: "mount-projection"
+    ), case .broadcast(let prepare) = action else {
+        preconditionFailure("projection mount rejected")
+    }
+    _ = controller.acceptResult(
+        identity: topology.identity,
+        payload: result(prepare.operationID, "prepare", 7, 0, "projection")
+    )
+    guard let commit = broadcast(controller.acceptResult(
+        identity: topology.identity,
+        payload: result(prepare.operationID, "prepare", 9, 1, "projection")
+    )) else { preconditionFailure("projection commit missing") }
+    _ = controller.acceptResult(
+        identity: topology.identity,
+        payload: result(commit.operationID, "commit", 7, 0, "projection")
+    )
+    guard let settled = completion(controller.acceptResult(
+        identity: topology.identity,
+        payload: result(commit.operationID, "commit", 9, 1, "projection")
+    )), controller.complete(settled, operationID: commit.operationID) != nil else {
+        preconditionFailure("projection mount did not settle")
+    }
+    return "generation-\\(commit.operationID)"
 }
 
 let controller = AOSDesktopWorldSceneController()
@@ -286,12 +356,17 @@ guard case .accepted(let events) = controller.subscribe(
 ) else { preconditionFailure("subscription rejected") }
 precondition(events == Set(["gesture"]))
 var routed = false
-let routedOutcome = controller.withEventRoute(identity: identity, key: key, event: "gesture") { route in
-    routed = route.connectionID == connection && route.ref == "ref-1"
+let routedOutcome = controller.withEventRoute(
+    identity: identity,
+    key: key,
+    event: "gesture",
+    inputGeneration: "uncommitted"
+) { route in
+    routed = route.connectionID == connection
     return true
 }
-precondition(routed)
-precondition(routedOutcome == .enqueued)
+precondition(!routed)
+precondition(routedOutcome == .staleInputGeneration)
 
 let operation: [String: Any] = ["op": "mount", "document": ["revision": 1]]
 let extensionAuthorization: [String: Any] = [
@@ -349,6 +424,21 @@ precondition(controller.authorizes(
     threeRevision: "183",
     capability: "aos.scene.desktop_frame_texture"
 ))
+let committedInputGeneration = "generation-\\(first.operationID)"
+let committedRouteOutcome = controller.withEventRoute(
+    identity: identity,
+    key: key,
+    event: "gesture",
+    inputGeneration: committedInputGeneration
+) { route in
+    routed = route.connectionID == connection
+    return true
+}
+precondition(
+    routed,
+    "committed event route failed: \\(committedRouteOutcome.rawValue) authority=\\(String(describing: controller.resourceProjectionAuthorities[key]?.inputGeneration)) expected=\\(committedInputGeneration)"
+)
+precondition(committedRouteOutcome == .enqueued)
 precondition(controller.hasAuthorizedCapability(
     identity: identity,
     capability: "aos.scene.desktop_frame_texture"
@@ -617,6 +707,14 @@ guard case .accepted = eventAtomic.subscribe(
     ref: "event-atomic-ref",
     events: Set(["gesture"])
 ) else { preconditionFailure("event atomic subscription rejected") }
+let eventAtomicGeneration = mountProjection(
+    eventAtomic,
+    topology: eventAtomicTopology,
+    key: eventAtomicKey,
+    owner: "event-atomic",
+    resource: "main",
+    connection: eventAtomicConnection
+)
 let eventEnteredEnqueue = DispatchSemaphore(value: 0)
 let releaseEventEnqueue = DispatchSemaphore(value: 0)
 let eventRouteFinished = DispatchSemaphore(value: 0)
@@ -629,7 +727,8 @@ DispatchQueue.global().async {
     let outcome = eventAtomic.withEventRoute(
         identity: eventAtomicTopology.identity,
         key: eventAtomicKey,
-        event: "gesture"
+        event: "gesture",
+        inputGeneration: eventAtomicGeneration
     ) { _ in
         eventEnteredEnqueue.signal()
         releaseEventEnqueue.wait()
@@ -720,7 +819,12 @@ guard case .retire(let atomicRetirement)? = retired else {
     preconditionFailure("atomic retirement request missing")
 }
 var postInvalidationEvent = false
-let postInvalidationOutcome = atomic.withEventRoute(identity: atomicTopology.identity, key: atomicKey, event: "gesture") { _ in
+let postInvalidationOutcome = atomic.withEventRoute(
+    identity: atomicTopology.identity,
+    key: atomicKey,
+    event: "gesture",
+    inputGeneration: "post-invalidation"
+) { _ in
     postInvalidationEvent = true
     return true
 }
@@ -898,7 +1002,8 @@ var disconnectedEvent = false
 let disconnectedEventOutcome = disconnected.withEventRoute(
     identity: disconnectedTopology.identity,
     key: disconnectedKey,
-    event: "gesture"
+    event: "gesture",
+    inputGeneration: "disconnected"
 ) { _ in disconnectedEvent = true; return true }
 precondition(disconnectedEvent == false)
 precondition(disconnectedEventOutcome == .unsubscribed)
@@ -959,6 +1064,7 @@ precondition(expired.complete(expiredCompletion, operationID: release.operationI
       path.join(repoRoot, 'src/daemon/desktop-world-scene-stage-readiness.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-native-effect-program.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-native-effect-contract.swift'),
+      path.join(repoRoot, 'src/daemon/desktop-world-scene-authorization.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-scene-controller.swift'),
       main,
       '-o', executable,

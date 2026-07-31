@@ -420,7 +420,7 @@ final class AOSDesktopWorldNativeFeedbackAdmission {
             && lhs.pointerSessionID == rhs.pointerSessionID
             && lhs.ownerID == rhs.ownerID
             && lhs.resourceID == rhs.resourceID
-            && lhs.resourceRevision == rhs.resourceRevision
+            && lhs.inputGeneration == rhs.inputGeneration
             && lhs.canvasGeneration == rhs.canvasGeneration
             && lhs.topologyGeneration == rhs.topologyGeneration
             && lhs.binding.interactionID == rhs.binding.interactionID
@@ -440,6 +440,7 @@ final class AOSDesktopWorldNativeFeedbackAdmission {
             binding: request.binding,
             canvasGeneration: request.canvasGeneration,
             eventSequence: event.eventSequence,
+            inputGeneration: request.inputGeneration,
             inputs: event.inputs,
             ownerID: request.ownerID,
             pointerSessionID: request.pointerSessionID,

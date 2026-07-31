@@ -87,6 +87,9 @@ final class AOSDesktopWorldSceneEventRouter {
         let triggeredAt = ProcessInfo.processInfo.systemUptime
         guard let key = payload["lease_key"] as? String,
               let eventType = payload["event_type"] as? String,
+              let inputGeneration = payload["input_generation"] as? String,
+              !inputGeneration.isEmpty,
+              inputGeneration.utf8.count <= 128,
               let event = payload["event"] as? [String: Any],
               let canonicalEvent = aosCanonicalSceneEvent(event),
               eventType == "gesture",
@@ -103,12 +106,14 @@ final class AOSDesktopWorldSceneEventRouter {
         let request = scene.nativeEffectRequest(
             identity: identity,
             key: key,
+            inputGeneration: inputGeneration,
             event: canonicalEvent,
             triggeredAt: triggeredAt
         )
         if let lifecycleEvent = scene.nativeEffectGestureEvent(
             identity: identity,
             key: key,
+            inputGeneration: inputGeneration,
             event: canonicalEvent,
             triggeredAt: triggeredAt
         ) {
@@ -116,7 +121,12 @@ final class AOSDesktopWorldSceneEventRouter {
         } else if let request {
             nativeFeedback(request)
         }
-        diagnostics.record(scene.withEventRoute(identity: identity, key: key, event: eventType) { route in
+        diagnostics.record(scene.withEventRoute(
+            identity: identity,
+            key: key,
+            event: eventType,
+            inputGeneration: inputGeneration
+        ) { route in
             emit(route, eventType, canonicalEvent)
         })
     }

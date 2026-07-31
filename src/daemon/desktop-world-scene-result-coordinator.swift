@@ -90,6 +90,27 @@ enum AOSDesktopWorldSceneBarrierAction {
 }
 
 final class AOSDesktopWorldSceneResultCoordinator {
+    private enum InputGeneration: Equatable {
+        case active(String)
+        case inactive
+    }
+
+    private enum InputGenerationConsensus {
+        case absent
+        case invalid
+        case value(InputGeneration)
+
+        var isInvalid: Bool {
+            if case .invalid = self { return true }
+            return false
+        }
+
+        var isValue: Bool {
+            if case .value = self { return true }
+            return false
+        }
+    }
+
     private struct ExpectedSegment {
         let displayID: UInt32
         let index: Int
@@ -320,9 +341,13 @@ final class AOSDesktopWorldSceneResultCoordinator {
         let fingerprints = Set(operation.results.values.compactMap { $0["candidate_fingerprint"] as? String })
         switch operation.phase {
         case .apply:
+            let inputGeneration = inputGenerationConsensus(operation)
             guard statuses.count == 1,
                   let status = statuses.first,
-                  status == "ok" || status == "ignored" else {
+                  status == "ok" || status == "ignored",
+                  operation.operation == "prove"
+                    ? !inputGeneration.isInvalid
+                    : inputGeneration.isValue else {
                 return transition(operationID, operation, to: .release, code: "SCENE_SEGMENT_DIVERGED")
             }
             if operation.operation == "prove", framebufferProofCompletion(operation) == nil {
@@ -338,9 +363,11 @@ final class AOSDesktopWorldSceneResultCoordinator {
             prepared.preparedFingerprint = fingerprints.first
             return transition(operationID, prepared, to: .commit, code: nil)
         case .commit:
+            let inputGeneration = inputGenerationConsensus(operation)
             guard statuses == Set(["ok"]),
                   let preparedFingerprint = operation.preparedFingerprint,
-                  fingerprints == Set([preparedFingerprint]) else {
+                  fingerprints == Set([preparedFingerprint]),
+                  inputGeneration.isValue else {
                 return transition(operationID, operation, to: .release, code: "SCENE_SEGMENT_DIVERGED")
             }
             _ = removePending(operationID)
@@ -361,7 +388,11 @@ final class AOSDesktopWorldSceneResultCoordinator {
                 )
             }
             _ = removePending(operationID)
-            return [.complete(completion(operation, status: "error", code: operation.errorCode ?? "SCENE_SEGMENT_FAILED"))]
+            return [.complete(completion(
+                operation,
+                status: "error",
+                code: operation.errorCode ?? "SCENE_SEGMENT_FAILED"
+            ))]
         case .release:
             guard operation.results.values.allSatisfy({
                 guard let status = $0["status"] as? String else { return false }
@@ -371,7 +402,12 @@ final class AOSDesktopWorldSceneResultCoordinator {
                 return [retirement(operation, code: "SCENE_SEGMENT_DIVERGED")]
             }
             _ = removePending(operationID)
-            return [.complete(completion(operation, status: "error", code: operation.errorCode ?? "SCENE_SEGMENT_FAILED"))]
+            return [.complete(completion(
+                operation,
+                status: "error",
+                code: operation.errorCode ?? "SCENE_SEGMENT_FAILED",
+                projectionReleased: true
+            ))]
         }
     }
 
@@ -408,7 +444,8 @@ final class AOSDesktopWorldSceneResultCoordinator {
     private func completion(
         _ operation: PendingOperation,
         status: String,
-        code: String?
+        code: String?,
+        projectionReleased: Bool = false
     ) -> AOSDesktopWorldSceneResultCompletion {
         var result: [String: Any] = [
             "lease_key": operation.leaseKey,
@@ -417,12 +454,23 @@ final class AOSDesktopWorldSceneResultCoordinator {
             "status": status,
         ]
         if let code { result["code"] = code }
+        if projectionReleased { result["projection_released"] = true }
         if operation.releaseLeaseOnCompletion { result["release_lease"] = true }
         if status == "ok",
            operation.operation != "prove",
            let primaryID = operation.expected.values.first(where: { $0.index == 0 })?.displayID,
            let snapshot = operation.results[primaryID]?["snapshot"] as? [String: Any] {
             result["snapshot"] = snapshot
+        }
+        if status == "ok" {
+            switch inputGenerationConsensus(operation) {
+            case .value(.active(let generation)):
+                result["input_generation"] = generation
+            case .value(.inactive):
+                result["input_generation"] = NSNull()
+            case .absent, .invalid:
+                break
+            }
         }
         if status == "ok", operation.operation == "prove" {
             guard let proof = framebufferProofCompletion(operation) else {
@@ -481,7 +529,12 @@ final class AOSDesktopWorldSceneResultCoordinator {
         code: String
     ) -> AOSDesktopWorldSceneBarrierAction {
         .retire(AOSDesktopWorldSceneStageRetirement(
-            completion: completion(operation, status: "error", code: code),
+            completion: completion(
+                operation,
+                status: "error",
+                code: code,
+                projectionReleased: true
+            ),
             canvasGeneration: operation.canvasGeneration,
             topologyGeneration: operation.topologyGeneration
         ))
@@ -491,6 +544,29 @@ final class AOSDesktopWorldSceneResultCoordinator {
         guard let operation = pending.removeValue(forKey: operationID) else { return nil }
         pendingLeaseKeys.remove(operation.leaseKey)
         return operation
+    }
+
+    private func inputGenerationConsensus(
+        _ operation: PendingOperation
+    ) -> InputGenerationConsensus {
+        var values: [InputGeneration] = []
+        var absent = 0
+        for payload in operation.results.values {
+            if let generation = payload["input_generation"] as? String {
+                guard !generation.isEmpty, generation.utf8.count <= 128 else { return .invalid }
+                values.append(.active(generation))
+            } else if payload["input_generation"] is NSNull {
+                values.append(.inactive)
+            } else if payload.keys.contains("input_generation") {
+                return .invalid
+            } else {
+                absent += 1
+            }
+        }
+        if absent == operation.results.count { return .absent }
+        guard absent == 0, let first = values.first,
+              values.allSatisfy({ $0 == first }) else { return .invalid }
+        return .value(first)
     }
 
     private func integer(_ value: Any?) -> Int? {

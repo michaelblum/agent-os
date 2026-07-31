@@ -81,6 +81,55 @@ func readyController() -> (AOSDesktopWorldSceneController, AOSDesktopWorldSceneS
     return (controller, identity)
 }
 
+func committedInputGeneration(
+    _ controller: AOSDesktopWorldSceneController,
+    identity: AOSDesktopWorldSceneStageIdentity,
+    key: String,
+    connection: UUID
+) -> String {
+    let topology = AOSDesktopWorldSceneTopologyDescriptor(
+        identity: identity,
+        segments: [AOSDesktopWorldSceneStageSegment(displayID: 7, index: 0)]
+    )
+    guard case .accepted(let action) = controller.admitOperation(
+        topology: topology,
+        key: key,
+        owner: "example.consumer",
+        resource: "companion/main",
+        operationName: "mount",
+        operation: ["op": "mount", "document": ["revision": 1]],
+        connectionID: connection,
+        ref: "follow-ref"
+    ), case .broadcast(let prepare) = action else {
+        preconditionFailure("scene projection mount rejected")
+    }
+    let prepareResult: [String: Any] = [
+        "operation_id": prepare.operationID,
+        "barrier_phase": "prepare",
+        "segment_display_id": 7,
+        "segment_index": 0,
+        "canvas_generation": 3,
+        "topology_generation": 4,
+        "status": "ok",
+        "candidate_fingerprint": "candidate",
+    ]
+    guard case .broadcast(let commit)? = controller.acceptResult(
+        identity: identity,
+        payload: prepareResult
+    ).first else { preconditionFailure("scene projection commit missing") }
+    let generation = commit.operationID
+    var commitResult = prepareResult
+    commitResult["barrier_phase"] = "commit"
+    commitResult["input_generation"] = generation
+    guard case .complete(let completion)? = controller.acceptResult(
+        identity: identity,
+        payload: commitResult
+    ).first, controller.complete(completion, operationID: commit.operationID) != nil else {
+        preconditionFailure("scene projection commit did not settle")
+    }
+    return generation
+}
+
 let bytes = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1]))
 guard let event = try JSONSerialization.jsonObject(with: bytes) as? [String: Any] else {
     preconditionFailure("event fixture did not decode")
@@ -97,6 +146,12 @@ guard case .accepted = controller.subscribe(
     ref: "follow-ref",
     events: Set(["gesture"])
 ) else { preconditionFailure("subscription rejected") }
+let inputGeneration = committedInputGeneration(
+    controller,
+    identity: identity,
+    key: key,
+    connection: connection
+)
 
 let diagnostics = AOSDesktopWorldSceneEventRouteDiagnostics(now: { 1234 })
 var delivered: [String: Any]?
@@ -113,6 +168,7 @@ let router = AOSDesktopWorldSceneEventRouter(
 router.handle(identity: identity, payload: [
     "lease_key": key,
     "event_type": "gesture",
+    "input_generation": inputGeneration,
     "event": event,
 ])
 precondition((delivered?["response"] as? [String: Any])?["kind"] as? String == "aim_commit")
@@ -122,11 +178,13 @@ wrongIdentity["ownerId"] = "different.consumer"
 router.handle(identity: identity, payload: [
     "lease_key": key,
     "event_type": "gesture",
+    "input_generation": inputGeneration,
     "event": wrongIdentity,
 ])
 router.handle(identity: identity, payload: [
     "lease_key": key,
     "event_type": "gesture",
+    "input_generation": inputGeneration,
     "event": ["contract": "invalid"],
 ])
 router.record(.staleTopology)
@@ -139,6 +197,7 @@ let failingRouter = AOSDesktopWorldSceneEventRouter(
 failingRouter.handle(identity: identity, payload: [
     "lease_key": key,
     "event_type": "gesture",
+    "input_generation": inputGeneration,
     "event": event,
 ])
 
@@ -151,6 +210,7 @@ _ = controller.stageRemoved(code: "SCENE_STAGE_REMOVED")
 stageRouter.handle(identity: identity, payload: [
     "lease_key": key,
     "event_type": "gesture",
+    "input_generation": inputGeneration,
     "event": event,
 ])
 
@@ -163,6 +223,7 @@ let unsubscribedRouter = AOSDesktopWorldSceneEventRouter(
 unsubscribedRouter.handle(identity: unsubscribedIdentity, payload: [
     "lease_key": unsubscribedController.key(owner: "example.consumer", resource: "companion/main"),
     "event_type": "gesture",
+    "input_generation": inputGeneration,
     "event": event,
 ])
 
@@ -231,6 +292,7 @@ print("PASS desktop world scene event routing")
       path.join(repoRoot, 'src/daemon/desktop-world-scene-stage-readiness.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-native-effect-program.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-native-effect-contract.swift'),
+      path.join(repoRoot, 'src/daemon/desktop-world-scene-authorization.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-scene-controller.swift'),
       path.join(repoRoot, 'src/daemon/desktop-world-scene-native-effects.swift'),
       path.join(repoRoot, 'src/daemon/scene-event.swift'),
