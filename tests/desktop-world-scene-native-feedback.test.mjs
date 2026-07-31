@@ -172,13 +172,14 @@ precondition(library.makeFunction(name: "desktopWorldNativeRippleFragment") != n
 })
 
 test('native feedback prepares exact-generation segment hosts before admission', async () => {
-  const [hostSource, managerSource, lifecycleSource, sheetSource, surfaceSource, rendererSource] = await Promise.all([
+  const [hostSource, managerSource, lifecycleSource, sheetSource, surfaceSource, rendererSource, heightFieldSource] = await Promise.all([
     readFile(path.join(repoRoot, 'src/daemon/desktop-world-native-feedback-host.swift'), 'utf8'),
     readFile(path.join(repoRoot, 'src/display/desktop-world-native-projection-manager.swift'), 'utf8'),
     readFile(path.join(repoRoot, 'src/display/desktop-world-native-projection-lifecycle.swift'), 'utf8'),
     readFile(path.join(repoRoot, 'src/display/desktop-world-native-sheet.swift'), 'utf8'),
     readFile(path.join(repoRoot, 'src/display/desktop-world-surface.swift'), 'utf8'),
     readFile(path.join(repoRoot, 'src/display/desktop-world-native-effect-renderer.swift'), 'utf8'),
+    readFile(path.join(repoRoot, 'src/display/desktop-world-native-effect-height-field.swift'), 'utf8'),
   ])
   assert.match(hostSource, /let captureContext = captureContext\(\)/u)
   assert.match(hostSource, /canvas: captureContext\.canvasGeneration/u)
@@ -196,6 +197,17 @@ test('native feedback prepares exact-generation segment hosts before admission',
   assert.match(sheetSource, /segment\.preparedNativeProjectionHost\(device: device\)/u)
   assert.doesNotMatch(sheetSource, /removeNativeProjectionHost/u)
   assert.match(rendererSource, /var retainedViewCount: Int \{\s*renderers\.count\s*\}/u)
+  assert.match(rendererSource, /private var state: AOSDesktopWorldNativeEffectHeightField\?/u)
+  assert.match(rendererSource, /state = try AOSDesktopWorldNativeEffectHeightField\(/u)
+  assert.doesNotMatch(rendererSource, /for segment[\s\S]{0,300}AOSDesktopWorldNativeEffectHeightField\(/u)
+  assert.match(heightFieldSource, /private var velocities: \[Float\]/u)
+  assert.match(heightFieldSource, /private static let bufferedTextureCount = 3/u)
+  assert.match(heightFieldSource, /private var pendingDisplayIDs: Set<UInt32>/u)
+  assert.match(heightFieldSource, /inFlightCount == 0/u)
+  assert.match(heightFieldSource, /maximumCellVisitsPerAdvance/u)
+  assert.match(heightFieldSource, /speedScaleMaximum/u)
+  assert.match(heightFieldSource, /swap\(&heights, &nextHeights\)/u)
+  assert.match(rendererSource, /state\?\.complete\(stateLease\)/u)
   assert.match(hostSource, /func shutdown\(\)[\s\S]{0,160}finalizeDesktopWorldNativeProjectionHosts/u)
 })
 

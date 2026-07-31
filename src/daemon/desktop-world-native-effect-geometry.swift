@@ -7,7 +7,7 @@ enum AOSDesktopWorldNativeEffectGeometryResolver {
         origin: CGPoint,
         current: CGPoint
     ) -> DesktopWorldNativeSheetGeometryRequest {
-        guard program.version == .v2,
+        guard program.version != .v1,
               let geometry = program.geometry else {
             return .standard
         }
