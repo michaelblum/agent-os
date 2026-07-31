@@ -29,6 +29,7 @@ func stageSnapshot() -> [String: Any] {
             "displays": [[
                 "id": "main", "index": 0,
                 "bounds": [200.0, 0.0, 1440.0, 900.0],
+                "scaleFactor": 2.0,
                 "nativeBounds": [0.0, 0.0, 1440.0, 900.0],
             ]],
             "nodes": [["id": "body", "resourceId": "companion/main", "parentId": NSNull(), "kind": "mesh", "implementation": "aos.scene.geometry.primitive", "position": [100.0, 200.0, 0.0], "visible": true]],
@@ -44,10 +45,16 @@ func stageSnapshot() -> [String: Any] {
         "interactions": [],
         "performance": [
             "enabled": true, "recording": false, "sampleCount": 1,
+            "targetFps": 60.0, "budgetMs": 16.6667,
             "currentFps": 60.0, "p95FrameMs": 16.0, "avgFrameMs": 16.0,
+            "maxFrameMs": 17.0,
             "avgRenderMs": 4.0, "avgUpdateMs": 2.0, "avgGpuMs": NSNull(),
             "drawCalls": 4.0, "triangles": 120.0, "geometries": 1.0, "textures": 0.0,
-            "programs": 1.0, "backingPixels": 1_296_000.0, "state": "stable",
+            "programs": 1.0, "backingPixels": 5_184_000.0,
+            "backingWidth": 2_880.0, "backingHeight": 1_800.0,
+            "damagedPixelPercentage": 12.5, "avgDamagedPixelPercentage": 10.0,
+            "effectiveDevicePixelRatio": 2.0, "estimatedBackingBytes": 207_360_000.0,
+            "msaaSamples": 4.0, "requestedDevicePixelRatio": 2.0, "state": "stable",
         ],
         "counters": [
             "displays": 1, "resources": 1, "nodes": 1, "hitRegions": 0,
@@ -248,6 +255,16 @@ let canonicalWorld = stage["world"] as! [String: Any]
 let canonicalDisplay = (canonicalWorld["displays"] as! [[String: Any]])[0]
 require(canonicalDisplay["bounds"] as? [Double] == [200.0, 0.0, 1440.0, 900.0], "DesktopWorld display bounds drifted")
 require(canonicalDisplay["nativeBounds"] as? [Double] == [0.0, 0.0, 1440.0, 900.0], "native display bounds were lost")
+require(canonicalDisplay["scaleFactor"] as? Double == 2.0, "native display scale was lost")
+let canonicalPerformance = stage["performance"] as! [String: Any]
+require(canonicalPerformance["backingWidth"] as? Double == 2_880.0, "backing width was lost")
+require(canonicalPerformance["backingHeight"] as? Double == 1_800.0, "backing height was lost")
+require(canonicalPerformance["damagedPixelPercentage"] as? Double == 12.5, "damage percentage was lost")
+require(canonicalPerformance["avgDamagedPixelPercentage"] as? Double == 10.0, "average damage percentage was lost")
+require(canonicalPerformance["effectiveDevicePixelRatio"] as? Double == 2.0, "effective DPR was lost")
+require(canonicalPerformance["requestedDevicePixelRatio"] as? Double == 2.0, "requested DPR was lost")
+require(canonicalPerformance["estimatedBackingBytes"] as? Double == 207_360_000.0, "backing byte estimate was lost")
+require(canonicalPerformance["msaaSamples"] as? Double == 4.0, "MSAA sample count was lost")
 require((canonical["contract"] as? String) == aosDesktopWorldDevToolsSnapshotContract, "session snapshot contract mismatch")
 let selectedStage = registry.stageSnapshot(resourceID: "companion/main")!
 let selectedResources = selectedStage["resources"] as! [[String: Any]]
@@ -275,6 +292,20 @@ var performance = invalidMetric["performance"] as! [String: Any]
 performance["avgFrameMs"] = -1.0
 invalidMetric["performance"] = performance
 require(!registry.recordStageSnapshot(invalidMetric), "negative performance metric was accepted")
+
+var invalidDpr = stageSnapshot()
+performance = invalidDpr["performance"] as! [String: Any]
+performance["requestedDevicePixelRatio"] = 5.0
+invalidDpr["performance"] = performance
+require(!registry.recordStageSnapshot(invalidDpr), "oversized requested DPR was accepted")
+
+var invalidDisplayScale = stageSnapshot()
+world = invalidDisplayScale["world"] as! [String: Any]
+var displays = world["displays"] as! [[String: Any]]
+displays[0]["scaleFactor"] = 0.0
+world["displays"] = displays
+invalidDisplayScale["world"] = world
+require(!registry.recordStageSnapshot(invalidDisplayScale), "zero display scale was accepted")
 
 switch registry.close(sessionID: first.id, expectedRevision: updated.revision) {
 case .success(let closed):

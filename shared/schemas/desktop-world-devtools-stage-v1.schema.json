@@ -85,11 +85,12 @@
     "Point3": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
     "Rect": { "type": "array", "minItems": 4, "maxItems": 4, "prefixItems": [{ "type": "number" }, { "type": "number" }, { "type": "number", "exclusiveMinimum": 0 }, { "type": "number", "exclusiveMinimum": 0 }], "items": false },
     "Display": {
-      "type": "object", "required": ["id", "index", "bounds"], "additionalProperties": false,
+      "type": "object", "required": ["id", "index", "bounds", "scaleFactor"], "additionalProperties": false,
       "properties": {
         "id": { "$ref": "#/$defs/Identifier" },
         "index": { "type": "integer", "minimum": 0, "maximum": 31 },
         "bounds": { "$ref": "#/$defs/Rect" },
+        "scaleFactor": { "type": "number", "exclusiveMinimum": 0, "maximum": 4 },
         "nativeBounds": { "$ref": "#/$defs/Rect" }
       }
     },
@@ -146,13 +147,20 @@
     },
     "NullableMetric": { "type": ["number", "null"], "minimum": 0, "maximum": 1000000000 },
     "Performance": {
-      "type": "object", "required": ["enabled", "recording", "sampleCount", "currentFps", "p95FrameMs", "avgFrameMs", "avgRenderMs", "avgUpdateMs", "avgGpuMs", "drawCalls", "triangles", "geometries", "textures", "programs", "backingPixels", "state"], "additionalProperties": false,
+      "type": "object", "required": ["enabled", "recording", "sampleCount", "targetFps", "budgetMs", "currentFps", "p95FrameMs", "maxFrameMs", "avgFrameMs", "avgRenderMs", "avgUpdateMs", "avgGpuMs", "drawCalls", "triangles", "geometries", "textures", "programs", "backingPixels", "backingWidth", "backingHeight", "damagedPixelPercentage", "avgDamagedPixelPercentage", "effectiveDevicePixelRatio", "estimatedBackingBytes", "msaaSamples", "requestedDevicePixelRatio", "state"], "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" }, "recording": { "type": "boolean" }, "sampleCount": { "type": "integer", "minimum": 0, "maximum": 240 },
-        "currentFps": { "type": ["number", "null"], "minimum": 0, "maximum": 1000 }, "p95FrameMs": { "$ref": "#/$defs/NullableMetric" }, "avgFrameMs": { "$ref": "#/$defs/NullableMetric" },
+        "targetFps": { "type": ["number", "null"], "minimum": 0, "maximum": 1000 }, "budgetMs": { "$ref": "#/$defs/NullableMetric" },
+        "currentFps": { "type": ["number", "null"], "minimum": 0, "maximum": 1000 }, "p95FrameMs": { "$ref": "#/$defs/NullableMetric" }, "maxFrameMs": { "$ref": "#/$defs/NullableMetric" }, "avgFrameMs": { "$ref": "#/$defs/NullableMetric" },
         "avgRenderMs": { "$ref": "#/$defs/NullableMetric" }, "avgUpdateMs": { "$ref": "#/$defs/NullableMetric" }, "avgGpuMs": { "$ref": "#/$defs/NullableMetric" },
         "drawCalls": { "$ref": "#/$defs/NullableMetric" }, "triangles": { "$ref": "#/$defs/NullableMetric" }, "geometries": { "$ref": "#/$defs/NullableMetric" },
         "textures": { "$ref": "#/$defs/NullableMetric" }, "programs": { "$ref": "#/$defs/NullableMetric" }, "backingPixels": { "$ref": "#/$defs/NullableMetric" },
+        "backingWidth": { "$ref": "#/$defs/NullableMetric" }, "backingHeight": { "$ref": "#/$defs/NullableMetric" },
+        "damagedPixelPercentage": { "type": ["number", "null"], "minimum": 0, "maximum": 100 }, "avgDamagedPixelPercentage": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+        "effectiveDevicePixelRatio": { "type": ["number", "null"], "exclusiveMinimum": 0, "maximum": 4 },
+        "estimatedBackingBytes": { "type": ["number", "null"], "minimum": 0, "maximum": 1000000000000 },
+        "msaaSamples": { "type": ["number", "null"], "minimum": 0, "maximum": 64 },
+        "requestedDevicePixelRatio": { "type": ["number", "null"], "exclusiveMinimum": 0, "maximum": 4 },
         "state": { "enum": ["hot", "idle", "stable", "warn"] }
       }
     },
