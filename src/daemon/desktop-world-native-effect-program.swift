@@ -97,8 +97,8 @@ struct AOSDesktopWorldNativeEffectProgram: Equatable {
     static let maximumConstantMagnitude = 1_000_000.0
     static let maximumDurationMilliseconds = 3_000
     static let maximumGeometryCellSize = 64.0
+    static let maximumGeometryExtent = 5_000.0
     static let maximumGeometryPadding = 512.0
-    static let maximumGeometryRadius = 2_048.0
     static let maximumNodes = 64
     static let maximumNormalSampleDistance = 64.0
     static let maximumParameters = 16
@@ -527,7 +527,7 @@ enum AOSDesktopWorldNativeEffectProgramContract {
               (0...AOSDesktopWorldNativeEffectProgram.maximumGeometryPadding).contains(padding),
               let extent = finiteDouble(geometry[extentKey]),
               extent >= cellSize,
-              extent <= AOSDesktopWorldNativeEffectProgram.maximumGeometryRadius else {
+              extent <= AOSDesktopWorldNativeEffectProgram.maximumGeometryExtent else {
             return nil
         }
         return .init(cellSize: cellSize, extent: extent, kind: kind, padding: padding)

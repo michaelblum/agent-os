@@ -330,7 +330,7 @@ final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
         self.uniforms = plan.makeUniformStorage(
             inputs: inputs,
             globalBounds: globalBounds,
-            segmentBounds: mesh.worldBounds
+            segmentBounds: mesh.segmentBounds
         )
         super.init()
 

@@ -182,7 +182,7 @@ test('v2 native effects express bounded 3D sheet deformation and material state'
     (value) => { value.material.normalSampleDistance = 65 },
     (value) => { value.material.perspectiveDistance = 128 },
     (value) => { value.geometry.cellSize = 1 },
-    (value) => { value.geometry.radius = 4_000 },
+    (value) => { value.geometry.radius = 5_001 },
     (value) => { value.material.roughness = 0 },
   ]) {
     const invalid = v2Program()

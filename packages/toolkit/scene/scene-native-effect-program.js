@@ -16,8 +16,8 @@ export const SCENE_NATIVE_EFFECT_PROGRAM_DIGEST_CONTRACT_ID = 'aos.scene.native-
 export const SCENE_NATIVE_EFFECT_PROGRAM_LIMITS = Object.freeze({
   maxConstantMagnitude: 1_000_000,
   maxGeometryCellSize: 64,
+  maxGeometryExtent: 5_000,
   maxGeometryPadding: 512,
-  maxGeometryRadius: 2_048,
   maxDurationMs: 3_000,
   maxNodes: 64,
   maxNormalSampleDistance: 64,
@@ -330,7 +330,7 @@ function validateGeometry(geometry, errors) {
     const extentField = kind === 'event_segment' ? 'width' : 'radius'
     if (!finiteScalar(geometry[extentField])
         || geometry[extentField] < geometry.cellSize
-        || geometry[extentField] > SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxGeometryRadius) {
+        || geometry[extentField] > SCENE_NATIVE_EFFECT_PROGRAM_LIMITS.maxGeometryExtent) {
       addError(errors, 'invalid_native_effect_geometry_extent', `${path}.${extentField}`, 'Native effect geometry extent is outside the engine bounds.')
     }
   }

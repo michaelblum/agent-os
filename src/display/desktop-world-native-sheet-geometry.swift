@@ -208,7 +208,6 @@ final class DesktopWorldNativeSheetMesh {
     let metrics: DesktopWorldNativeSheetGeometryMetrics
     let patchBounds: [CGRect]
     let segmentBounds: CGRect
-    let worldBounds: CGRect
     private(set) var indexBuffer: MTLBuffer?
     private(set) var vertexBuffer: MTLBuffer?
 
@@ -228,7 +227,6 @@ final class DesktopWorldNativeSheetMesh {
         device: MTLDevice
     ) throws {
         segmentBounds = plan.segmentBounds
-        worldBounds = plan.segmentBounds
         patchBounds = plan.patches.map(\.bounds)
         metrics = plan.metrics
 
