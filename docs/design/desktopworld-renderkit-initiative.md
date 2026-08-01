@@ -16,10 +16,7 @@ state or dependency.
 | --- | --- | --- | --- |
 | AOS architecture | RenderKit boundary merged | `2fd1b88e6d127342559cdcdd406e731cc4ba02d9` | PR [#725](https://github.com/michaelblum/agent-os/pull/725); includes cursor foundation merge `a1be9198` from PR [#724](https://github.com/michaelblum/agent-os/pull/724) |
 | Sigil architecture | Trusted-consumer boundary merged | `6c074ba430cab5e48bfc7a1f47adb4a7b25803de` | PR [#84](https://github.com/Ch-osctrl/sigil/pull/84) |
-| Sigil implementation | Pin and product cursor integration in draft | `06632eaef918955fd1338f86b6919658031ededd` | PR [#83](https://github.com/Ch-osctrl/sigil/pull/83); both pins target AOS `a1be9198`, one preallocated hover visual, captured fast travel uses no cursor art |
-
-The Sigil implementation revision is a PR head, not a merge revision. Replace
-it with the immutable merge commit when PR #83 closes.
+| Sigil implementation | Pin and product cursor integration merged | `f3f3fafe9199dc51b86c317c2fa180a2f54e86a2` | PR [#83](https://github.com/Ch-osctrl/sigil/pull/83); both pins target AOS `a1be9198`, one preallocated hover visual, captured fast travel uses no cursor art |
 
 ## Architecture Authority
 
@@ -33,7 +30,7 @@ it with the immutable merge commit when PR #83 closes.
 
 | ID | Milestone | Dependency | State | Completion evidence |
 | --- | --- | --- | --- | --- |
-| RK-0 | Phase-aware cursor foundation | None | AOS merged; Sigil draft | AOS `a1be9198`; Sigil PR #83 `06632eae` |
+| RK-0 | Phase-aware cursor foundation | None | Complete | AOS `a1be9198`; Sigil PR #83 merge `f3f3fafe` |
 | RK-1 | Durable architecture records | RK-0 AOS merge | Complete | AOS PR #725 merge `2fd1b88e`; Sigil PR #84 merge `6c074ba4`; ADRs and ledger cross-linked |
 | RK-2 | Existing-surface inventory | RK-1 | Pending | Three.js, native effects, capture, topology, damage, budgets, disposal, DevTools, docs, and skills classified as `reuse`, `generalize`, `replace`, or `retire` with file owners |
 | RK-3 | Neutral implementation spike | RK-2 | Pending | Framework and execution-location comparison; one neutral effect; cross-display, capability, telemetry, failure, and 100-cycle disposal evidence |
