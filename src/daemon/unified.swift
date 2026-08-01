@@ -293,6 +293,12 @@ class UnifiedDaemon {
                 nativeEffectLastOwnerID: nativeEffect.lastOwnerID,
                 nativeEffectLastPresentationLatencyMilliseconds:
                     nativeEffect.lastPresentationLatencyMilliseconds,
+                nativeEffectLastRenderBackingPixelCount:
+                    nativeEffect.lastRenderBackingPixelCount,
+                nativeEffectLastRenderBackingPixelPercentage:
+                    nativeEffect.lastRenderBackingPixelPercentage,
+                nativeEffectLastRenderTriangleCount:
+                    nativeEffect.lastRenderTriangleCount,
                 nativeEffectLastProgramDigest: nativeEffect.lastProgramDigest,
                 nativeEffectLastProgramID: nativeEffect.lastProgramID,
                 nativeEffectLastProgramRevision: nativeEffect.lastProgramRevision,

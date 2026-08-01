@@ -20,6 +20,11 @@ needs, but public command policy and product UI policy belong above it:
   dormant between effects, and retire only with their display segment, stage,
   or daemon;
   consumer effects own no native view lifecycle;
+- A native-effect projection may bound its existing Metal view to the union of
+  that segment's effect geometry. Mesh positions use that local projection
+  frame while texture coordinates retain the complete display segment in the
+  global DesktopWorld plane; bounding work may not create another window,
+  renderer, capture, topology, or coordinate system.
 - Stateful native-effect programs allocate one bounded height field per effect
   instance in the global DesktopWorld plane. Per-display renderers sample one
   immutable generation, GPU completion gates slot reuse, and no display may own

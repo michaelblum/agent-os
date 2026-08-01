@@ -205,6 +205,9 @@ completion, disposal, rejection, and failure counters, active runtime/sheet and
 retained buffer/texture/view counts, native trigger-to-presentation latency,
 canonical last-execution
 owner/resource/program identity and digest, and one redacted error code.
+The same snapshot may expose only content-free native render workload facts:
+the last backing-pixel count and percentage plus triangle count. It never
+includes geometry, coordinates, parameters, texture dimensions, or pixels.
 Browser snapshots do not own or cache those facts, and bounded warm lifecycle
 transitions republish to active DevTools hosts without polling. DevTools never
 includes pixels, handles, paths, frame timestamps, effect parameters,

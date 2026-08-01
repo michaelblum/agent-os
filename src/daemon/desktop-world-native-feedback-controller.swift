@@ -36,6 +36,9 @@ final class AOSDesktopWorldNativeFeedbackController {
     private var lastErrorCode: String?
     private var lastOwnerID: String?
     private var lastPresentationLatencyMilliseconds: Int?
+    private var lastRenderBackingPixelCount: Int?
+    private var lastRenderBackingPixelPercentage: Double?
+    private var lastRenderTriangleCount: Int?
     private var lastProgramDigest: String?
     private var lastProgramID: String?
     private var lastProgramRevision: Int?
@@ -88,6 +91,9 @@ final class AOSDesktopWorldNativeFeedbackController {
         acceptedCount = Self.increment(acceptedCount)
         lastOwnerID = request.ownerID
         lastPresentationLatencyMilliseconds = nil
+        lastRenderBackingPixelCount = nil
+        lastRenderBackingPixelPercentage = nil
+        lastRenderTriangleCount = nil
         lastProgramDigest = request.binding.program?.digest
         lastProgramID = request.binding.program?.id
         lastProgramRevision = request.binding.program?.revision
@@ -138,6 +144,9 @@ final class AOSDesktopWorldNativeFeedbackController {
             lastOwnerID: lastOwnerID,
             lastPresentationLatencyMilliseconds:
                 lastPresentationLatencyMilliseconds,
+            lastRenderBackingPixelCount: lastRenderBackingPixelCount,
+            lastRenderBackingPixelPercentage: lastRenderBackingPixelPercentage,
+            lastRenderTriangleCount: lastRenderTriangleCount,
             lastProgramDigest: lastProgramDigest,
             lastProgramID: lastProgramID,
             lastProgramRevision: lastProgramRevision,
@@ -438,6 +447,18 @@ final class AOSDesktopWorldNativeFeedbackController {
             )
             retainedViewCount = min(
                 max(installation.runtime.retainedViewCount, 0),
+                Self.maximumDiagnosticCount
+            )
+            lastRenderBackingPixelCount = min(
+                max(installation.runtime.renderBackingPixelCount, 0),
+                Self.maximumDiagnosticCount
+            )
+            lastRenderBackingPixelPercentage = min(
+                100,
+                max(0, installation.runtime.renderBackingPixelPercentage)
+            )
+            lastRenderTriangleCount = min(
+                max(installation.runtime.renderTriangleCount, 0),
                 Self.maximumDiagnosticCount
             )
             lock.unlock()

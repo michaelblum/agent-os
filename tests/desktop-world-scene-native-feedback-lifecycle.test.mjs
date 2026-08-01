@@ -181,6 +181,9 @@ final class Runtime: AOSDesktopWorldNativeFeedbackRuntime {
         disposed && !retainsTexturesAfterDisposal ? 0 : 2
     }
     var retainedViewCount: Int { disposed ? 0 : 2 }
+    var renderBackingPixelCount: Int { 480_000 }
+    var renderBackingPixelPercentage: Double { 8.25 }
+    var renderTriangleCount: Int { 12_000 }
     func present(
         onPresented: @escaping () -> Void,
         onFailure: @escaping (String) -> Void,
@@ -437,6 +440,10 @@ precondition(replacementController.trigger(gestureRequest))
 replacementCapturer.completeNext()
 pumpUntil { MainActor.assumeIsolated { replacementHost.installCount == 1 } }
 precondition(replacementController.snapshot().state == "presenting")
+let presentingSnapshot = replacementController.snapshot()
+precondition(presentingSnapshot.lastRenderBackingPixelCount == 480_000)
+precondition(presentingSnapshot.lastRenderBackingPixelPercentage == 8.25)
+precondition(presentingSnapshot.lastRenderTriangleCount == 12_000)
 let updatedInputs = AOSDesktopWorldNativeEffectInputs(
     current: CGPoint(x: 1_200, y: 700),
     delta: CGPoint(x: 300, y: 100),

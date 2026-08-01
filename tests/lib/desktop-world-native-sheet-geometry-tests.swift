@@ -31,9 +31,21 @@ struct DesktopWorldNativeSheetGeometryTests {
         precondition(leftPlan?.patches.map(\.bounds) == [
             CGRect(x: 1_200, y: 300, width: 240, height: 300),
         ])
+        precondition(leftPlan?.renderBounds == CGRect(
+            x: 1_200, y: 300, width: 240, height: 300
+        ))
+        precondition(try leftPlan?.localProjectionFrame(
+            containerBounds: CGRect(x: 0, y: 0, width: 1_440, height: 900)
+        ) == CGRect(x: 1_200, y: 300, width: 240, height: 300))
         precondition(rightPlan?.patches.map(\.bounds) == [
             CGRect(x: 1_440, y: 300, width: 760, height: 300),
         ])
+        precondition(rightPlan?.renderBounds == CGRect(
+            x: 1_440, y: 300, width: 760, height: 300
+        ))
+        precondition(try rightPlan?.localProjectionFrame(
+            containerBounds: CGRect(x: 0, y: 0, width: 2_560, height: 1_440)
+        ) == CGRect(x: 0, y: 840, width: 760, height: 300))
         let routeMetrics = try DesktopWorldNativeSheetGeometryRequest.aggregate(
             [leftPlan!.metrics, rightPlan!.metrics],
             segmentCount: 2
@@ -46,6 +58,11 @@ struct DesktopWorldNativeSheetGeometryTests {
             regions: [CGRect(x: 5_000, y: 0, width: 100, height: 100)]
         ).plan(segmentBounds: left)
         precondition(inactive == nil)
+
+        let scaledFrame = try leftPlan!.localProjectionFrame(
+            containerBounds: CGRect(x: 0, y: 0, width: 720, height: 450)
+        )
+        precondition(scaledFrame == CGRect(x: 600, y: 150, width: 120, height: 150))
 
         expectFailure(.invalidGeometry) {
             _ = try DesktopWorldNativeSheetGeometryDescriptor(columns: 0, rows: 64).metrics(segmentCount: 1)

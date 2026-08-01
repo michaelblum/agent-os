@@ -167,6 +167,10 @@ test('native sheet uses bounded fixed and effect-local geometry across display s
   assert.match(geometrySource, /maximumGeometryBytes = 16 \* 1024 \* 1024/);
   assert.match(geometrySource, /case adaptive\(cellSize: CGFloat, regions: \[CGRect\]\?\)/);
   assert.match(geometrySource, /intersection = region\.intersection\(segmentBounds\)/);
+  assert.match(geometrySource, /let renderBounds: CGRect/);
+  assert.match(geometrySource, /func localProjectionFrame\(containerBounds: CGRect\) throws/);
+  assert.match(sheetSource, /try host\.configure\(plan: plan\)/);
+  assert.match(projectionSource, /projectionFrame = try plan\.localProjectionFrame/);
   assert.match(geometrySource, /worldAndUV: SIMD4<Float>\(worldX, worldY, segmentU, segmentV\)/);
   assert.match(geometrySource, /device\.makeBuffer\(/);
   assert.match(metalSource, /final class AOSDesktopPixelNativeBaselineGPUContext/);

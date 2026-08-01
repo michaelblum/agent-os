@@ -22,6 +22,9 @@ struct AOSDesktopWorldDevToolsNativeStageFacts: Equatable {
     let nativeEffectLastErrorCode: String?
     let nativeEffectLastOwnerID: String?
     let nativeEffectLastPresentationLatencyMilliseconds: Int?
+    let nativeEffectLastRenderBackingPixelCount: Int?
+    let nativeEffectLastRenderBackingPixelPercentage: Double?
+    let nativeEffectLastRenderTriangleCount: Int?
     let nativeEffectLastProgramDigest: String?
     let nativeEffectLastProgramID: String?
     let nativeEffectLastProgramRevision: Int?
@@ -49,6 +52,9 @@ struct AOSDesktopWorldDevToolsNativeStageFacts: Equatable {
         nativeEffectLastErrorCode: String? = nil,
         nativeEffectLastOwnerID: String? = nil,
         nativeEffectLastPresentationLatencyMilliseconds: Int? = nil,
+        nativeEffectLastRenderBackingPixelCount: Int? = nil,
+        nativeEffectLastRenderBackingPixelPercentage: Double? = nil,
+        nativeEffectLastRenderTriangleCount: Int? = nil,
         nativeEffectLastProgramDigest: String? = nil,
         nativeEffectLastProgramID: String? = nil,
         nativeEffectLastProgramRevision: Int? = nil,
@@ -82,6 +88,12 @@ struct AOSDesktopWorldDevToolsNativeStageFacts: Equatable {
         self.nativeEffectLastOwnerID = Self.boundedID(nativeEffectLastOwnerID)
         self.nativeEffectLastPresentationLatencyMilliseconds =
             nativeEffectLastPresentationLatencyMilliseconds.map(Self.boundedCount)
+        self.nativeEffectLastRenderBackingPixelCount =
+            nativeEffectLastRenderBackingPixelCount.map(Self.boundedCount)
+        self.nativeEffectLastRenderBackingPixelPercentage =
+            nativeEffectLastRenderBackingPixelPercentage.flatMap(Self.percentage)
+        self.nativeEffectLastRenderTriangleCount =
+            nativeEffectLastRenderTriangleCount.map(Self.boundedCount)
         self.nativeEffectLastProgramDigest = Self.digest(nativeEffectLastProgramDigest)
         self.nativeEffectLastProgramID = Self.boundedID(nativeEffectLastProgramID)
         self.nativeEffectLastProgramRevision = nativeEffectLastProgramRevision.map {
@@ -135,6 +147,12 @@ struct AOSDesktopWorldDevToolsNativeStageFacts: Equatable {
                 "lastExecution": lastExecution,
                 "lastPresentationLatencyMs": nativeEffectLastPresentationLatencyMilliseconds
                     .map { $0 as Any } ?? NSNull(),
+                "lastRenderBackingPixelCount": nativeEffectLastRenderBackingPixelCount
+                    .map { $0 as Any } ?? NSNull(),
+                "lastRenderBackingPixelPercentage": nativeEffectLastRenderBackingPixelPercentage
+                    .map { $0 as Any } ?? NSNull(),
+                "lastRenderTriangleCount": nativeEffectLastRenderTriangleCount
+                    .map { $0 as Any } ?? NSNull(),
                 "presentedCount": nativeEffectPresentedCount,
                 "rejectedCount": nativeEffectRejectedCount,
                 "retainedBufferCount": nativeEffectRetainedBufferCount,
@@ -147,6 +165,11 @@ struct AOSDesktopWorldDevToolsNativeStageFacts: Equatable {
 
     private static func boundedCount(_ value: Int) -> Int {
         min(max(value, 0), maximumSafeCount)
+    }
+
+    private static func percentage(_ value: Double) -> Double? {
+        guard value.isFinite else { return nil }
+        return min(100, max(0, value))
     }
 
     private static func boundedID(_ value: String?) -> String? {

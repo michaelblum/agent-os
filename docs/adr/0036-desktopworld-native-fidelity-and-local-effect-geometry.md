@@ -52,6 +52,14 @@ instance, never per frame or pointer update, and is disposed with the existing
 native-sheet lease. Programs that omit geometry retain the prior fixed 64 by 64
 behavior.
 
+Each native projection host also sizes its existing Metal view to the union of
+that segment's effect geometry. Mesh clip coordinates are relative to this
+bounded render region, while captured-texture coordinates remain relative to
+the complete display segment. This reduces drawable and clear work for point,
+route, and endpoint effects without introducing another window, renderer,
+topology, coordinate plane, or capture. `surface` effects intentionally retain
+the full display-segment drawable for their bounded lifetime.
+
 V2 materials additionally support a bounded `standard` mode with roughness,
 specular, Fresnel, and captured-texture refraction parameters. AOS compiles only
 trusted shader templates. Consumers provide finite data declarations and event
