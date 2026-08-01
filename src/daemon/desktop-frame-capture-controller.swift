@@ -84,6 +84,8 @@ extension CanvasManager: AOSDesktopFrameCanvasProviding {}
 final class AOSDesktopFrameCaptureController {
     static let maximumPixelsPerDisplay =
         AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay
+    static let nativePresentationMaximumPixelsPerDisplay =
+        AOSDesktopPixelLimits.maximumPixelsPerDisplay
     static let requestLifetime: TimeInterval = 2
 
     typealias Authorizer = (
@@ -134,6 +136,7 @@ final class AOSDesktopFrameCaptureController {
     private let scheduleDeadline: DeadlineScheduler
     private let store: AOSDesktopFrameStore
     private var activeRequest: ActiveRequest?
+    private var nativePresentation = false
     private var nextGeneration: UInt64 = 0
 
     init(
@@ -192,20 +195,28 @@ final class AOSDesktopFrameCaptureController {
     }
 
     private func warmConfiguration(
-        _ context: AOSDesktopFrameCaptureContext
+        _ context: AOSDesktopFrameCaptureContext,
+        nativePresentation: Bool
     ) -> AOSDesktopFrameWarmConfiguration {
         AOSDesktopFrameWarmConfiguration(
             canvasGeneration: context.canvasGeneration,
             displayIDs: context.displayIDs,
             excludingWindowIDs: context.excludingWindowIDs,
-            maximumPixelsPerDisplay: Self.maximumPixelsPerDisplay,
+            maximumPixelsPerDisplay: nativePresentation
+                ? Self.nativePresentationMaximumPixelsPerDisplay
+                : Self.maximumPixelsPerDisplay,
+            sizingPolicy: nativePresentation ? .exactWithinBudget : .fitWithinBudget,
             topologyGeneration: context.topologyGeneration
         )
     }
 
     func reconcileWarm(
-        authorization: AOSDesktopFrameWarmAuthorization?
+        authorization: AOSDesktopFrameWarmAuthorization?,
+        nativePresentation: Bool = false
     ) {
+        lock.lock()
+        self.nativePresentation = nativePresentation
+        lock.unlock()
         guard let authorization, consent.snapshot().status == .ready else {
             capturer.reconcileWarm(nil)
             return
@@ -218,7 +229,10 @@ final class AOSDesktopFrameCaptureController {
             capturer.reconcileWarm(nil)
             return
         }
-        capturer.reconcileWarm(warmConfiguration(context))
+        capturer.reconcileWarm(warmConfiguration(
+            context,
+            nativePresentation: nativePresentation
+        ))
     }
 
     func warmStatus() -> AOSDesktopFrameWarmStatus? {
@@ -398,7 +412,10 @@ final class AOSDesktopFrameCaptureController {
         guard remainsActive(generation: generation) else { return }
 
         let captureTask = capturer.capturePrewarmed(
-            warmConfiguration(initialContext)
+            warmConfiguration(
+                initialContext,
+                nativePresentation: currentNativePresentation()
+            )
         ) { [weak self] result in
             guard let self else { return }
             do {
@@ -510,6 +527,12 @@ final class AOSDesktopFrameCaptureController {
             }
         }
         installCapture(captureTask, generation: generation)
+    }
+
+    private func currentNativePresentation() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return nativePresentation
     }
 
     func ready(callerCanvasID: String, payload: [String: Any]) -> ReadyResult {

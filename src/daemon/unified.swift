@@ -440,12 +440,14 @@ class UnifiedDaemon {
 
     private func desktopFrameAuthorizationChanged() {
         _ = desktopFrameCapture.cancelUnauthorized()
+        let nativePresentation = desktopWorldSceneTransport.hasNativeEffectAuthorization()
         desktopFrameCapture.reconcileWarm(
             authorization: desktopWorldSceneTransport
-                .desktopFrameTextureAuthorization()
+                .desktopFrameTextureAuthorization(),
+            nativePresentation: nativePresentation
         )
         desktopWorldNativeFeedback.reconcileAvailability(
-            desktopWorldSceneTransport.hasNativeEffectAuthorization(),
+            nativePresentation,
             programs: desktopWorldSceneTransport.nativeEffectPrograms()
         )
         desktopWorldNativeFeedback.reconcileAuthorization()

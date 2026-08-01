@@ -5,6 +5,7 @@ private struct AOSDesktopFrameWarmSourceIdentity: Equatable {
     let displayIDs: [UInt32]
     let excludingWindowIDs: [Int]
     let maximumPixelsPerDisplay: Int
+    let sizingPolicy: AOSDesktopPixelSizingPolicy
     let topologyGeneration: UInt64
 }
 
@@ -13,7 +14,24 @@ struct AOSDesktopFrameWarmConfiguration: Equatable {
     let displayIDs: [UInt32]
     let excludingWindowIDs: [Int]
     let maximumPixelsPerDisplay: Int
+    let sizingPolicy: AOSDesktopPixelSizingPolicy
     let topologyGeneration: UInt64
+
+    init(
+        canvasGeneration: UInt64,
+        displayIDs: [UInt32],
+        excludingWindowIDs: [Int],
+        maximumPixelsPerDisplay: Int,
+        sizingPolicy: AOSDesktopPixelSizingPolicy = .fitWithinBudget,
+        topologyGeneration: UInt64
+    ) {
+        self.canvasGeneration = canvasGeneration
+        self.displayIDs = displayIDs
+        self.excludingWindowIDs = excludingWindowIDs
+        self.maximumPixelsPerDisplay = maximumPixelsPerDisplay
+        self.sizingPolicy = sizingPolicy
+        self.topologyGeneration = topologyGeneration
+    }
 
     fileprivate var sourceIdentity: AOSDesktopFrameWarmSourceIdentity {
         AOSDesktopFrameWarmSourceIdentity(
@@ -21,6 +39,7 @@ struct AOSDesktopFrameWarmConfiguration: Equatable {
             displayIDs: displayIDs,
             excludingWindowIDs: Array(Set(excludingWindowIDs)).sorted(),
             maximumPixelsPerDisplay: maximumPixelsPerDisplay,
+            sizingPolicy: sizingPolicy,
             topologyGeneration: topologyGeneration
         )
     }
@@ -29,7 +48,8 @@ struct AOSDesktopFrameWarmConfiguration: Equatable {
         AOSDesktopPixelSnapshotRequest(
             displayIDs: displayIDs,
             excludingWindowIDs: excludingWindowIDs,
-            maximumPixelsPerDisplay: maximumPixelsPerDisplay
+            maximumPixelsPerDisplay: maximumPixelsPerDisplay,
+            sizingPolicy: sizingPolicy
         )
     }
 }

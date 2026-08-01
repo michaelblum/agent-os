@@ -499,7 +499,8 @@ extension AOSDesktopWorldNativeFeedbackController {
             displayIDs: captureContext.displayIDs,
             excludingWindowIDs: captureContext.excludingWindowIDs,
             maximumPixelsPerDisplay:
-                AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay,
+                AOSDesktopPixelLimits.maximumPixelsPerDisplay,
+            sizingPolicy: .exactWithinBudget,
             topologyGeneration: captureContext.topologyGeneration
         )
     }
@@ -633,7 +634,8 @@ extension AOSDesktopWorldNativeFeedbackController {
             displayIDs: captureContext.displayIDs,
             excludingWindowIDs: captureContext.excludingWindowIDs,
             maximumPixelsPerDisplay:
-                AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay,
+                AOSDesktopPixelLimits.maximumPixelsPerDisplay,
+            sizingPolicy: .exactWithinBudget,
             topologyGeneration: captureContext.topologyGeneration
         )
         switch admission.activatePending(request) {

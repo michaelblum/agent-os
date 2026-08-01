@@ -35,7 +35,10 @@ import Foundation
 
 enum AOSDesktopPixelLimits {
     static let interactiveMaximumPixelsPerDisplay = 1_048_576
+    static let maximumPixelsPerDisplay = 16_777_216
 }
+
+enum AOSDesktopPixelSizingPolicy { case exactWithinBudget }
 
 enum AOSDesktopFrameCaptureFailure: Error {
     case captureFailed
@@ -43,6 +46,7 @@ enum AOSDesktopFrameCaptureFailure: Error {
 }
 
 enum DesktopWorldNativeSheetFailure: Error {
+    case captureResolutionMismatch
     case frameSetIncomplete
     case geometryAllocationFailed
     case geometryBudgetExceeded
@@ -62,6 +66,7 @@ struct AOSDesktopFrameWarmConfiguration {
     let displayIDs: [UInt32]
     let excludingWindowIDs: [Int]
     let maximumPixelsPerDisplay: Int
+    let sizingPolicy: AOSDesktopPixelSizingPolicy
     let topologyGeneration: UInt64
 }
 struct AOSDesktopPixelFrame { let displayID: UInt32 }

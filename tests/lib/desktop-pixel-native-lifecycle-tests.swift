@@ -345,6 +345,41 @@ func runDesktopPixelNativeLifecycleTests() async throws {
             <= AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay,
         "aligned consent stream profile exceeded its pixel budget"
     )
+    require(
+        AOSDesktopPixelWarmStreamProfile(
+            sourceWidth: 1_920,
+            sourceHeight: 1_080,
+            maximumPixels: AOSDesktopPixelLimits.interactiveMaximumPixelsPerDisplay,
+            sizingPolicy: .exactWithinBudget
+        ) == nil,
+        "exact native presentation silently downscaled an over-budget display"
+    )
+    guard let exactProfile = AOSDesktopPixelWarmStreamProfile(
+        sourceWidth: 1_920,
+        sourceHeight: 1_080,
+        maximumPixels: AOSDesktopPixelLimits.maximumPixelsPerDisplay,
+        sizingPolicy: .exactWithinBudget
+    ) else {
+        require(false, "native-resolution stream profile was rejected within budget")
+        return
+    }
+    require(
+        exactProfile.width == 1_920 && exactProfile.height == 1_080,
+        "native presentation did not preserve exact display pixels"
+    )
+    guard let oddExactProfile = AOSDesktopPixelWarmStreamProfile(
+        sourceWidth: 1_919,
+        sourceHeight: 1_079,
+        maximumPixels: AOSDesktopPixelLimits.maximumPixelsPerDisplay,
+        sizingPolicy: .exactWithinBudget
+    ) else {
+        require(false, "odd native-resolution stream profile was rejected within budget")
+        return
+    }
+    require(
+        oddExactProfile.width == 1_919 && oddExactProfile.height == 1_079,
+        "exact native presentation rounded the source dimensions"
+    )
     guard let boundedProfile = AOSDesktopPixelWarmStreamProfile(
         sourceWidth: 64,
         sourceHeight: 64,
