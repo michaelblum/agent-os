@@ -7,6 +7,10 @@ import test from 'node:test'
 
 const repoRoot = path.resolve(import.meta.dirname, '..')
 const taskStateSource = path.join(repoRoot, 'src/display/scene-extension-scheme-task-state.swift')
+const displayGeometrySource = path.join(
+  repoRoot,
+  'src/shared/desktop-world-display-geometry.swift',
+)
 const storeSource = path.join(repoRoot, 'src/display/desktop-frame-texture.swift')
 const consentContractSource = path.join(repoRoot, 'src/shared/desktop-frame-capture-consent-contract.swift')
 const consentSource = path.join(repoRoot, 'src/daemon/desktop-frame-capture-consent.swift')
@@ -88,10 +92,16 @@ struct AOSSceneExtensionReference: Equatable {
 
 final class CanvasManager {
     var consumers: [AOSDesktopFrameConsumerIdentity]
+    var displayLayout: AOSDesktopWorldDisplayLayout
     var windows: [Int]
 
-    init(consumers: [AOSDesktopFrameConsumerIdentity], windows: [Int]) {
+    init(
+        consumers: [AOSDesktopFrameConsumerIdentity],
+        displayLayout: AOSDesktopWorldDisplayLayout,
+        windows: [Int]
+    ) {
         self.consumers = consumers
+        self.displayLayout = displayLayout
         self.windows = windows
     }
 
@@ -99,6 +109,7 @@ final class CanvasManager {
         AOSDesktopFrameCaptureContext(
             canvasID: canvasID,
             consumers: consumers,
+            displayLayout: displayLayout,
             excludingWindowIDs: windows
         )
     }
@@ -772,6 +783,25 @@ struct DesktopFrameProof {
             segmentIndex: 1,
             webViewID: ObjectIdentifier(stageB)
         )
+        guard let displayLayout = AOSDesktopWorldDisplayLayout(displays: [
+            AOSDesktopWorldDisplayGeometry(
+                displayID: 42,
+                index: 0,
+                desktopWorldBounds: CGRect(x: 0, y: 0, width: 1_512, height: 982),
+                nativePointBounds: CGRect(x: 0, y: 0, width: 1_512, height: 982),
+                pointPixelScale: 2
+            )!,
+            AOSDesktopWorldDisplayGeometry(
+                displayID: 43,
+                index: 1,
+                desktopWorldBounds: CGRect(x: 1_512, y: 0, width: 1_920, height: 1_080),
+                nativePointBounds: CGRect(x: 1_512, y: 0, width: 1_920, height: 1_080),
+                pointPixelScale: 1
+            )!,
+        ]) else {
+            require(false, "display layout fixture was rejected")
+            return
+        }
         let reference = AOSSceneExtensionReference(
             ownerID: "io.ch-osctrl.sigil",
             id: "companion-renderer",
@@ -983,6 +1013,7 @@ struct DesktopFrameProof {
         ]
         let canvas = CanvasManager(
             consumers: [consumerB, consumerA],
+            displayLayout: displayLayout,
             windows: [8, 7, 8]
         )
         let capturer = FakeCapturer()
@@ -1080,6 +1111,7 @@ struct DesktopFrameProof {
             capturer.lastWarmConfiguration == AOSDesktopFrameWarmConfiguration(
                 canvasGeneration: 7,
                 displayIDs: [42, 43],
+                displayLayout: displayLayout,
                 excludingWindowIDs: [7, 8],
                 maximumPixelsPerDisplay:
                     AOSDesktopFrameCaptureController.maximumPixelsPerDisplay,
@@ -1095,6 +1127,7 @@ struct DesktopFrameProof {
             capturer.lastWarmConfiguration == AOSDesktopFrameWarmConfiguration(
                 canvasGeneration: 7,
                 displayIDs: [42, 43],
+                displayLayout: displayLayout,
                 excludingWindowIDs: [7, 8],
                 maximumPixelsPerDisplay:
                     AOSDesktopFrameCaptureController.nativePresentationMaximumPixelsPerDisplay,
@@ -1337,6 +1370,7 @@ struct DesktopFrameProof {
   execFileSync('swiftc', [
     '-parse-as-library',
     taskStateSource,
+    displayGeometrySource,
     storeSource,
     consentContractSource,
     brokerSource,

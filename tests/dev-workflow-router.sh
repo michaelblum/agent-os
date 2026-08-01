@@ -214,7 +214,7 @@ else
     fail "dev recommend semantic target selection routing drifted"
 fi
 
-if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/commands/desktop-pixel-native-baseline.swift src/daemon/desktop-pixel-capture-filter.swift src/daemon/desktop-pixel-native-operation.swift src/daemon/desktop-pixel-stream-lifecycle.swift src/display/desktop-world-native-projection-lifecycle.swift src/display/desktop-world-native-projection-manager.swift src/display/desktop-world-native-sheet-geometry.swift src/display/desktop-world-native-sheet-lease.swift src/display/desktop-world-native-sheet.swift src/display/desktop-world-surface.swift src/shared/desktop-pixel-sample-admission.swift src/shared/desktop-world-resource-identity.swift scripts/aos-runtime-desktop-pixel-baseline.mjs tests/desktop-pixel-native-baseline.test.mjs tests/desktop-pixel-native-baseline-typecheck.sh tests/lib/desktop-pixel-native-baseline-lifecycle-tests.swift tests/lib/desktop-pixel-metal-pipeline-tests.swift tests/lib/desktop-world-native-projection-lifecycle-tests.swift tests/lib/desktop-world-native-sheet-geometry-tests.swift tests/lib/desktop-world-native-sheet-lease-tests.swift 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files src/commands/desktop-pixel-native-baseline.swift src/daemon/desktop-pixel-capture-filter.swift src/daemon/desktop-pixel-native-operation.swift src/daemon/desktop-pixel-stream-lifecycle.swift src/display/desktop-world-native-projection-lifecycle.swift src/display/desktop-world-native-projection-manager.swift src/display/desktop-world-native-sheet-geometry.swift src/display/desktop-world-native-sheet-lease.swift src/display/desktop-world-native-sheet.swift src/display/desktop-world-surface.swift src/shared/desktop-pixel-sample-admission.swift src/shared/desktop-world-display-geometry.swift src/shared/desktop-world-resource-identity.swift scripts/aos-runtime-desktop-pixel-baseline.mjs tests/desktop-pixel-native-baseline.test.mjs tests/desktop-pixel-native-baseline-typecheck.sh tests/lib/desktop-pixel-native-baseline-lifecycle-tests.swift tests/lib/desktop-pixel-metal-pipeline-tests.swift tests/lib/desktop-world-display-geometry-tests.swift tests/lib/desktop-world-native-projection-lifecycle-tests.swift tests/lib/desktop-world-native-sheet-geometry-tests.swift tests/lib/desktop-world-native-sheet-lease-tests.swift 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -238,12 +238,14 @@ expected_paths = {
     "src/display/desktop-world-native-sheet.swift",
     "src/display/desktop-world-surface.swift",
     "src/shared/desktop-pixel-sample-admission.swift",
+    "src/shared/desktop-world-display-geometry.swift",
     "src/shared/desktop-world-resource-identity.swift",
     "scripts/aos-runtime-desktop-pixel-baseline.mjs",
     "tests/desktop-pixel-native-baseline.test.mjs",
     "tests/desktop-pixel-native-baseline-typecheck.sh",
     "tests/lib/desktop-pixel-native-baseline-lifecycle-tests.swift",
     "tests/lib/desktop-pixel-metal-pipeline-tests.swift",
+    "tests/lib/desktop-world-display-geometry-tests.swift",
     "tests/lib/desktop-world-native-projection-lifecycle-tests.swift",
     "tests/lib/desktop-world-native-sheet-geometry-tests.swift",
     "tests/lib/desktop-world-native-sheet-lease-tests.swift",
@@ -261,7 +263,9 @@ native_paths = {
     "src/display/desktop-world-native-sheet.swift",
     "src/display/desktop-world-surface.swift",
     "src/shared/desktop-pixel-sample-admission.swift",
+    "src/shared/desktop-world-display-geometry.swift",
     "src/shared/desktop-world-resource-identity.swift",
+    "tests/lib/desktop-world-display-geometry-tests.swift",
 }
 for path in native_paths:
     assert "desktop-pixel-native-baseline" in files[path]["rules"], files[path]

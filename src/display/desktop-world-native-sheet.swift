@@ -22,6 +22,7 @@ final class DesktopWorldNativeSheet {
 
     let geometryRequest: DesktopWorldNativeSheetGeometryRequest
     let identity: AOSDesktopWorldResourceIdentity
+    let displayLayout: AOSDesktopWorldDisplayLayout
     let metrics: DesktopWorldNativeSheetGeometryMetrics
     let renderBackingPixelCount: Int
     let renderBackingPixelPercentage: Double
@@ -43,10 +44,19 @@ final class DesktopWorldNativeSheet {
         )
         self.geometryRequest = geometryRequest
         self.topologyGeneration = topologyGeneration
-        worldBounds = segments.reduce(CGRect.null) { $0.union($1.dwBounds) }
-        guard !worldBounds.isNull, !worldBounds.isEmpty else {
+        let geometries = segments.compactMap(\.displayGeometry)
+        guard geometries.count == segments.count,
+              let displayLayout = AOSDesktopWorldDisplayLayout(displays: geometries),
+              displayLayout.matches(indexedDisplays: segments.map {
+                  (displayID: $0.displayID, index: $0.index)
+              }) else {
             throw DesktopWorldNativeSheetFailure.invalidGeometry
         }
+        guard let totalBackingPixels = displayLayout.totalBackingPixelCount else {
+            throw DesktopWorldNativeSheetFailure.geometryBudgetExceeded
+        }
+        self.displayLayout = displayLayout
+        worldBounds = displayLayout.desktopWorldBounds
         let planned = try segments.compactMap { segment -> (
             DesktopWorldSurfaceCanvas.Segment,
             DesktopWorldNativeSheetGeometryPlan
@@ -63,17 +73,15 @@ final class DesktopWorldNativeSheet {
             planned.map { $0.1.metrics },
             segmentCount: planned.count
         )
-        let totalBackingPixels = segments.reduce(0) { total, segment in
-            total + Self.backingPixels(
-                bounds: segment.dwBounds,
-                scaleFactor: segment.scaleFactor
-            )
-        }
-        renderBackingPixelCount = planned.reduce(0) { total, entry in
-            total + Self.backingPixels(
-                bounds: entry.1.renderBounds,
-                scaleFactor: entry.0.scaleFactor
-            )
+        renderBackingPixelCount = try planned.reduce(0) { total, entry in
+            guard let pixels = displayLayout.geometry(
+                displayID: entry.0.displayID
+            )?.backingPixelCount(
+                intersectingDesktopWorld: entry.1.renderBounds
+            ), total <= Int.max - pixels else {
+                throw DesktopWorldNativeSheetFailure.geometryBudgetExceeded
+            }
+            return total + pixels
         }
         renderBackingPixelPercentage = totalBackingPixels > 0
             ? min(100, Double(renderBackingPixelCount) / Double(totalBackingPixels) * 100)
@@ -130,12 +138,5 @@ final class DesktopWorldNativeSheet {
 
     var retainedGeometryBufferCount: Int {
         segmentSheets.reduce(0) { $0 + $1.mesh.retainedBufferCount }
-    }
-
-    private static func backingPixels(bounds: CGRect, scaleFactor: CGFloat) -> Int {
-        let width = max(1, Int(ceil(bounds.width * scaleFactor)))
-        let height = max(1, Int(ceil(bounds.height * scaleFactor)))
-        let (pixels, overflow) = width.multipliedReportingOverflow(by: height)
-        return overflow ? Int.max : pixels
     }
 }

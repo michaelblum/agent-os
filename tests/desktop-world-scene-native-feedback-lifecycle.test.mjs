@@ -27,6 +27,7 @@ async function compileAndRun(name, sources, mainSource) {
 
 test('native feedback lifecycle is bounded, single-flight, and fully disposable', async () => {
   const output = await compileAndRun('native-feedback-lifecycle', [
+    'src/shared/desktop-world-display-geometry.swift',
     'src/daemon/desktop-world-native-feedback-contracts.swift',
     'src/daemon/desktop-world-native-feedback-controller.swift',
     'src/daemon/desktop-world-native-feedback-admission.swift',
@@ -64,6 +65,7 @@ final class AOSDesktopFrameCancellation: AOSDesktopFrameCancelling {
 struct AOSDesktopFrameWarmConfiguration {
     let canvasGeneration: UInt64
     let displayIDs: [UInt32]
+    let displayLayout: AOSDesktopWorldDisplayLayout?
     let excludingWindowIDs: [Int]
     let maximumPixelsPerDisplay: Int
     let sizingPolicy: AOSDesktopPixelSizingPolicy
@@ -227,9 +229,29 @@ final class Host: AOSDesktopWorldNativeFeedbackHosting {
         Result<AOSDesktopWorldNativeEffectPreparation, Error>
     ) -> Void
 
+    static let displayLayout: AOSDesktopWorldDisplayLayout = {
+        guard let first = AOSDesktopWorldDisplayGeometry(
+            displayID: 7,
+            index: 0,
+            desktopWorldBounds: CGRect(x: 0, y: 0, width: 1_512, height: 982),
+            nativePointBounds: CGRect(x: 0, y: 0, width: 1_512, height: 982),
+            pointPixelScale: 2
+        ), let second = AOSDesktopWorldDisplayGeometry(
+            displayID: 9,
+            index: 1,
+            desktopWorldBounds: CGRect(x: 1_512, y: 0, width: 1_920, height: 1_080),
+            nativePointBounds: CGRect(x: 1_512, y: 0, width: 1_920, height: 1_080),
+            pointPixelScale: 1
+        ), let layout = AOSDesktopWorldDisplayLayout(displays: [first, second]) else {
+            fatalError("display layout fixture was rejected")
+        }
+        return layout
+    }()
+
     let context = AOSDesktopWorldNativeFeedbackCaptureContext(
         canvasGeneration: 3,
         displayIDs: [7, 9],
+        displayLayout: Host.displayLayout,
         excludingWindowIDs: [101, 102],
         topologyGeneration: 4
     )

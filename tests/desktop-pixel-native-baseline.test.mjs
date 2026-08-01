@@ -18,6 +18,7 @@ const effectRendererSource = read('src/display/desktop-world-native-effect-rende
 const geometrySource = read('src/display/desktop-world-native-sheet-geometry.swift');
 const leaseSource = read('src/display/desktop-world-native-sheet-lease.swift');
 const sheetSource = read('src/display/desktop-world-native-sheet.swift');
+const displayGeometrySource = read('src/shared/desktop-world-display-geometry.swift');
 const identitySource = read('src/shared/desktop-world-resource-identity.swift');
 const sampleAdmissionSource = read('src/shared/desktop-pixel-sample-admission.swift');
 const nativeOperationSource = read('src/daemon/desktop-pixel-native-operation.swift');
@@ -33,6 +34,7 @@ const nativeSources = [
   geometrySource,
   leaseSource,
   sheetSource,
+  displayGeometrySource,
   identitySource,
 ].join('\n');
 
@@ -113,6 +115,11 @@ test('DesktopWorld host reuses the canonical segmented surface and existing wind
   assert.match(projectionSource, /addSubview\(view, positioned: \.below, relativeTo: webView\)/);
   assert.match(projectionSource, /view\.isHidden = true/);
   assert.match(surfaceSource, /collectionBehavior\.insert\(\.canJoinAllApplications\)/);
+  assert.match(surfaceSource, /func displayLayout\(\) -> AOSDesktopWorldDisplayLayout\?/);
+  assert.match(displayGeometrySource, /struct AOSDesktopWorldDisplayLayout/);
+  assert.match(displayGeometrySource, /func backingPixelPoint\(fromDesktopWorld point: CGPoint\)/);
+  assert.match(displayGeometrySource, /func desktopWorldPoint\(fromBackingPixel point: CGPoint\)/);
+  assert.match(displayGeometrySource, /func matches\([\s\S]*indexedDisplays:/);
 });
 
 test('DesktopWorld native sheet is AOS-owned and addressable through the existing resource scope', () => {
@@ -122,6 +129,7 @@ test('DesktopWorld native sheet is AOS-owned and addressable through the existin
   assert.match(identitySource, /"\\\(ownerID\)::\\\(resourceID\)"/);
   assert.match(sheetSource, /static let ownerID = "io\.agent-os"/);
   assert.match(sheetSource, /static let resourceID = "native-sheet\/main"/);
+  assert.match(sheetSource, /let displayLayout: AOSDesktopWorldDisplayLayout/);
   assert.match(surfaceSource, /private var installedNativeSheet: DesktopWorldNativeSheet\?/);
   assert.match(surfaceSource, /DesktopWorldNativeSheetProcessLease\.shared\.claim/);
   assert.match(leaseSource, /static let shared = DesktopWorldNativeSheetProcessLease\(\)/);
@@ -178,6 +186,8 @@ test('native sheet uses bounded fixed and effect-local geometry across display s
   assert.match(hostSource, /context: context/);
   assert.match(metalSource, /encoder\.drawIndexedPrimitives\(/);
   assert.match(effectRendererSource, /NATIVE_EFFECT_CAPTURE_RESOLUTION_MISMATCH|captureResolutionMismatch/);
+  assert.match(effectRendererSource, /sheet\.displayLayout\.geometry/);
+  assert.doesNotMatch(effectRendererSource, /dwBounds\.(?:width|height) \* .*scaleFactor/);
   assert.doesNotMatch(metalSource, /drawPrimitives\(type: \.triangle, vertexStart: 0, vertexCount: 3\)/);
   assert.match(commandSource, /sheetGeometryBytes: host\.geometryMetrics\.geometryBytes/);
   assert.match(commandSource, /cleanup\.retainedGeometryBuffers == 0/);

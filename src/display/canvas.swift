@@ -1554,9 +1554,11 @@ class CanvasManager {
             guard let surface = self?.canvases[canvasID] as? DesktopWorldSurfaceCanvas else {
                 return nil
             }
+            guard let displayLayout = surface.displayLayout() else { return nil }
             return AOSDesktopFrameCaptureContext(
                 canvasID: canvasID,
                 consumers: surface.desktopFrameConsumers(),
+                displayLayout: displayLayout,
                 excludingWindowIDs: surface.windowNumbers
             )
         }

@@ -280,7 +280,9 @@
         "src/daemon/desktop-pixel-native-operation.swift",
         "src/daemon/desktop-pixel-stream-lifecycle.swift",
         "src/shared/desktop-pixel-sample-admission.swift",
+        "src/shared/desktop-world-display-geometry.swift",
         "src/shared/desktop-world-resource-identity.swift",
+        "tests/lib/desktop-world-display-geometry-tests.swift",
         "src/main.swift"
       ],
       "classes": [
@@ -369,6 +371,7 @@
         "src/daemon/desktop-pixel-retirement.swift",
         "src/daemon/desktop-pixel-stream-lifecycle.swift",
         "src/shared/desktop-pixel-sample-admission.swift",
+        "src/shared/desktop-world-display-geometry.swift",
         "src/daemon/scene-event.swift",
         "src/daemon/scene-lease-registry.swift",
         "src/daemon/unified.swift",
@@ -414,6 +417,7 @@
         "tests/lib/desktop-pixel-terminal-startup-tests.swift",
         "tests/lib/desktop-pixel-startup-callback-tests.swift",
         "tests/lib/desktop-pixel-warm-open-operation-tests.swift",
+        "tests/lib/desktop-world-display-geometry-tests.swift",
         "tests/aos-permissions-microphone-authority.test.mjs",
         "tests/daemon-desktop-world-devtools-contract.test.mjs",
         "tests/toolkit/desktop-world-scene-*.test.mjs",

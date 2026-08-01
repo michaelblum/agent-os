@@ -561,16 +561,11 @@ final class AOSDesktopWorldNativeEffectRuntime {
                 guard let pixelBuffer = framesByDisplay[segment.displayID]?.pixelBuffer else {
                     throw DesktopWorldNativeSheetFailure.frameSetIncomplete
                 }
-                let expectedWidth = max(
-                    1,
-                    Int(ceil(segment.segment.dwBounds.width * segment.segment.scaleFactor))
-                )
-                let expectedHeight = max(
-                    1,
-                    Int(ceil(segment.segment.dwBounds.height * segment.segment.scaleFactor))
-                )
-                guard CVPixelBufferGetWidth(pixelBuffer) == expectedWidth,
-                      CVPixelBufferGetHeight(pixelBuffer) == expectedHeight else {
+                guard let geometry = sheet.displayLayout.geometry(
+                          displayID: segment.displayID
+                      ),
+                      CVPixelBufferGetWidth(pixelBuffer) == geometry.pixelDimensions.width,
+                      CVPixelBufferGetHeight(pixelBuffer) == geometry.pixelDimensions.height else {
                     throw DesktopWorldNativeSheetFailure.captureResolutionMismatch
                 }
                 renderers[segment.displayID] = try AOSDesktopWorldNativeEffectRenderer(

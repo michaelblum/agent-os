@@ -114,6 +114,26 @@ struct DesktopWorldSurfaceSegment: Codable, Equatable {
             scaleFactor: scaleFactor
         )
     }
+
+    var displayGeometry: AOSDesktopWorldDisplayGeometry? {
+        AOSDesktopWorldDisplayGeometry(
+            displayID: displayID,
+            index: index,
+            desktopWorldBounds: CGRect(
+                x: dwBounds[0],
+                y: dwBounds[1],
+                width: dwBounds[2],
+                height: dwBounds[3]
+            ),
+            nativePointBounds: CGRect(
+                x: nativeBounds[0],
+                y: nativeBounds[1],
+                width: nativeBounds[2],
+                height: nativeBounds[3]
+            ),
+            pointPixelScale: Double(scaleFactor)
+        )
+    }
 }
 
 struct DesktopWorldSceneBarrierTopology: Equatable {
@@ -166,6 +186,16 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
 
         var nativeProjectionHost: DesktopWorldNativeProjectionHost? {
             nativeProjectionHostSlot.host
+        }
+
+        var displayGeometry: AOSDesktopWorldDisplayGeometry? {
+            AOSDesktopWorldDisplayGeometry(
+                displayID: displayID,
+                index: index,
+                desktopWorldBounds: dwBounds,
+                nativePointBounds: nativeBounds,
+                pointPixelScale: Double(scaleFactor)
+            )
         }
 
         init(displayID: UInt32, index: Int, nativeBounds: CGRect, dwBounds: CGRect,
@@ -602,6 +632,12 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
 
     func segmentMetadata() -> [DesktopWorldSurfaceSegment] {
         segments.map(segmentMetadata)
+    }
+
+    func displayLayout() -> AOSDesktopWorldDisplayLayout? {
+        let geometries = segmentMetadata().compactMap(\.displayGeometry)
+        guard geometries.count == segments.count else { return nil }
+        return AOSDesktopWorldDisplayLayout(displays: geometries)
     }
 
     func sceneBarrierTopology() -> DesktopWorldSceneBarrierTopology {

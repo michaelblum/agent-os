@@ -86,6 +86,14 @@ explicit sizing policy for its admitted use. Ordinary encoded image products
 fit within a one-megapixel-per-display profile. Native DesktopWorld presentation
 instead preserves each display's exact backing dimensions within the native
 resource budget and fails closed when that exact surface cannot be admitted.
+ScreenCaptureKit reports `SCDisplay` dimensions in points, so the capture
+profile derives backing pixels from the admitted filter's `pointPixelScale`;
+using the point dimensions directly is not an exact native capture.
+The generation-bound `AOSDesktopWorldDisplayLayout` is the sole native mapping
+between physical display points, global DesktopWorld points, and backing
+pixels. Capture, Metal presentation, damage accounting, and future image
+adapters consume that mapping rather than reconciling display scale or
+coordinates independently.
 Explicit width and height bounds control the output surface; the warm stream
 retains ScreenCaptureKit's default capture-resolution mode without requesting a
 second resampling policy.

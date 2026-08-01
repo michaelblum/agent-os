@@ -3,6 +3,7 @@ import Foundation
 struct AOSDesktopWorldNativeFeedbackCaptureContext: Equatable, Sendable {
     let canvasGeneration: UInt64
     let displayIDs: [UInt32]
+    let displayLayout: AOSDesktopWorldDisplayLayout
     let excludingWindowIDs: [Int]
     let topologyGeneration: UInt64
 }

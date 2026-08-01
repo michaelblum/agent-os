@@ -3,6 +3,7 @@ import Foundation
 private struct AOSDesktopFrameWarmSourceIdentity: Equatable {
     let canvasGeneration: UInt64
     let displayIDs: [UInt32]
+    let displayLayout: AOSDesktopWorldDisplayLayout?
     let excludingWindowIDs: [Int]
     let maximumPixelsPerDisplay: Int
     let sizingPolicy: AOSDesktopPixelSizingPolicy
@@ -12,6 +13,7 @@ private struct AOSDesktopFrameWarmSourceIdentity: Equatable {
 struct AOSDesktopFrameWarmConfiguration: Equatable {
     let canvasGeneration: UInt64
     let displayIDs: [UInt32]
+    let displayLayout: AOSDesktopWorldDisplayLayout?
     let excludingWindowIDs: [Int]
     let maximumPixelsPerDisplay: Int
     let sizingPolicy: AOSDesktopPixelSizingPolicy
@@ -20,6 +22,7 @@ struct AOSDesktopFrameWarmConfiguration: Equatable {
     init(
         canvasGeneration: UInt64,
         displayIDs: [UInt32],
+        displayLayout: AOSDesktopWorldDisplayLayout? = nil,
         excludingWindowIDs: [Int],
         maximumPixelsPerDisplay: Int,
         sizingPolicy: AOSDesktopPixelSizingPolicy = .fitWithinBudget,
@@ -27,6 +30,7 @@ struct AOSDesktopFrameWarmConfiguration: Equatable {
     ) {
         self.canvasGeneration = canvasGeneration
         self.displayIDs = displayIDs
+        self.displayLayout = displayLayout
         self.excludingWindowIDs = excludingWindowIDs
         self.maximumPixelsPerDisplay = maximumPixelsPerDisplay
         self.sizingPolicy = sizingPolicy
@@ -37,6 +41,7 @@ struct AOSDesktopFrameWarmConfiguration: Equatable {
         AOSDesktopFrameWarmSourceIdentity(
             canvasGeneration: canvasGeneration,
             displayIDs: displayIDs,
+            displayLayout: displayLayout,
             excludingWindowIDs: Array(Set(excludingWindowIDs)).sorted(),
             maximumPixelsPerDisplay: maximumPixelsPerDisplay,
             sizingPolicy: sizingPolicy,
@@ -47,6 +52,7 @@ struct AOSDesktopFrameWarmConfiguration: Equatable {
     var request: AOSDesktopPixelSnapshotRequest {
         AOSDesktopPixelSnapshotRequest(
             displayIDs: displayIDs,
+            displayLayout: displayLayout,
             excludingWindowIDs: excludingWindowIDs,
             maximumPixelsPerDisplay: maximumPixelsPerDisplay,
             sizingPolicy: sizingPolicy

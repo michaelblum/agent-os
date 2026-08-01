@@ -10,12 +10,13 @@ async function source(relativePath) {
 }
 
 test('desktop pixel acquisition stays native, serialized, and artifact-free', async () => {
-  const [broker, retirement, nativeOperation, lifecycle, sampleAdmission, captureFilter, native, pool, adapter, daemon] = await Promise.all([
+  const [broker, retirement, nativeOperation, lifecycle, sampleAdmission, displayGeometry, captureFilter, native, pool, adapter, daemon] = await Promise.all([
     source('src/daemon/desktop-pixel-broker.swift'),
     source('src/daemon/desktop-pixel-retirement.swift'),
     source('src/daemon/desktop-pixel-native-operation.swift'),
     source('src/daemon/desktop-pixel-stream-lifecycle.swift'),
     source('src/shared/desktop-pixel-sample-admission.swift'),
+    source('src/shared/desktop-world-display-geometry.swift'),
     source('src/daemon/desktop-pixel-capture-filter.swift'),
     source('src/daemon/desktop-pixel-native.swift'),
     source('src/daemon/desktop-frame-warm-pool.swift'),
@@ -36,6 +37,9 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(native, /SCScreenshotManager\.captureImage/u)
   assert.match(native, /SCStream\(/u)
   assert.match(native, /AOSDesktopPixelWarmStreamProfile/u)
+  assert.match(displayGeometry, /struct AOSDesktopWorldDisplayLayout/u)
+  assert.match(native, /request\.displayLayout\?\.geometry\(displayID: display\.displayID\)/u)
+  assert.doesNotMatch(native, /display\.width\.multipliedReportingOverflow/u)
   assert.match(native, /static let queueDepth = 3/u)
   assert.match(warmNative, /onScreenWindowsOnly: false/u)
   assert.match(captureFilter, /aosDesktopPixelCaptureFilterSelection/u)

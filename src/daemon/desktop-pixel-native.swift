@@ -141,6 +141,33 @@ struct AOSDesktopPixelWarmStreamProfile: Equatable {
     }
 }
 
+@available(macOS 14.0, *)
+private func aosDesktopPixelSourceDimensions(
+    display: SCDisplay,
+    filter: SCContentFilter,
+    request: AOSDesktopPixelSnapshotRequest
+) throws -> AOSDesktopPixelDimensions {
+    if let geometry = request.displayLayout?.geometry(displayID: display.displayID) {
+        guard geometry.acceptsCaptureSource(
+            pointWidth: display.width,
+            pointHeight: display.height,
+            pointPixelScale: filter.pointPixelScale
+        ) else {
+            throw AOSDesktopFrameCaptureFailure.captureFailed
+        }
+        return geometry.pixelDimensions
+    }
+    guard request.sizingPolicy != .exactWithinBudget,
+          let dimensions = AOSDesktopPixelDimensions(
+            pointWidth: Double(display.width),
+            pointHeight: Double(display.height),
+            pointPixelScale: Double(filter.pointPixelScale)
+          ) else {
+        throw AOSDesktopFrameCaptureFailure.captureFailed
+    }
+    return dimensions
+}
+
 private actor AOSNativeDesktopPixelSnapshotActor {
     func snapshot(
         _ request: AOSDesktopPixelSnapshotRequest
@@ -178,18 +205,19 @@ private actor AOSNativeDesktopPixelSnapshotActor {
         ) { group in
             for display in displays {
                 group.addTask {
-                    let sourceWidth = max(1, display.width)
-                    let sourceHeight = max(1, display.height)
-                    let multiplied = sourceWidth.multipliedReportingOverflow(
-                        by: sourceHeight
+                    let filter = try aosDesktopPixelCaptureFilter(
+                        content: content,
+                        display: display,
+                        excludingWindowIDs: request.excludingWindowIDs
                     )
-                    guard !multiplied.overflow else {
-                        throw AOSDesktopFrameCaptureFailure.captureFailed
-                    }
-                    guard multiplied.partialValue > 0,
-                          let profile = AOSDesktopPixelWarmStreamProfile(
-                            sourceWidth: sourceWidth,
-                            sourceHeight: sourceHeight,
+                    let source = try aosDesktopPixelSourceDimensions(
+                        display: display,
+                        filter: filter,
+                        request: request
+                    )
+                    guard let profile = AOSDesktopPixelWarmStreamProfile(
+                            sourceWidth: source.width,
+                            sourceHeight: source.height,
                             maximumPixels: request.maximumPixelsPerDisplay,
                             sizingPolicy: request.sizingPolicy
                           ) else {
@@ -200,11 +228,6 @@ private actor AOSNativeDesktopPixelSnapshotActor {
                     configuration.height = profile.height
                     configuration.showsCursor = false
                     configuration.captureResolution = .best
-                    let filter = try aosDesktopPixelCaptureFilter(
-                        content: content,
-                        display: display,
-                        excludingWindowIDs: request.excludingWindowIDs
-                    )
                     let image: CGImage
                     do {
                         try Task.checkCancellation()
@@ -485,20 +508,22 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                 by: { $0.displayID < $1.displayID }
             ).enumerated() {
                 try Task.checkCancellation()
-                let sourceWidth = max(1, display.width)
-                let sourceHeight = max(1, display.height)
-                let multiplied = sourceWidth.multipliedReportingOverflow(
-                    by: sourceHeight
+                let filter = try aosDesktopPixelCaptureFilter(
+                    content: content,
+                    display: display,
+                    excludingWindowIDs: request.excludingWindowIDs
                 )
-                guard !multiplied.overflow else {
-                    throw AOSDesktopFrameCaptureFailure.captureFailed
-                }
+                let source = try aosDesktopPixelSourceDimensions(
+                    display: display,
+                    filter: filter,
+                    request: request
+                )
                 guard let profile = AOSDesktopPixelWarmStreamProfile(
-                    sourceWidth: sourceWidth,
-                    sourceHeight: sourceHeight,
-                    maximumPixels: request.maximumPixelsPerDisplay,
-                    sizingPolicy: request.sizingPolicy
-                ) else {
+                        sourceWidth: source.width,
+                        sourceHeight: source.height,
+                        maximumPixels: request.maximumPixelsPerDisplay,
+                        sizingPolicy: request.sizingPolicy
+                      ) else {
                     throw AOSDesktopFrameCaptureFailure.captureFailed
                 }
                 let configuration = SCStreamConfiguration()
@@ -511,11 +536,6 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                 // Two additional slots permit ScreenCaptureKit to advance.
                 configuration.queueDepth = AOSDesktopPixelWarmStreamProfile.queueDepth
                 configuration.pixelFormat = kCVPixelFormatType_32BGRA
-                let filter = try aosDesktopPixelCaptureFilter(
-                    content: content,
-                    display: display,
-                    excludingWindowIDs: request.excludingWindowIDs
-                )
                 let startupSignal = AOSDesktopPixelStartupSignal()
                 let startOperation = AOSDesktopPixelRetainedNativeOperation(
                     executionQueue: DispatchQueue.global(qos: .userInitiated)

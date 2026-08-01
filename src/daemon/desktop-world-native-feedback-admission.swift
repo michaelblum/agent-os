@@ -497,6 +497,7 @@ extension AOSDesktopWorldNativeFeedbackController {
         return AOSDesktopFrameWarmConfiguration(
             canvasGeneration: captureContext.canvasGeneration,
             displayIDs: captureContext.displayIDs,
+            displayLayout: captureContext.displayLayout,
             excludingWindowIDs: captureContext.excludingWindowIDs,
             maximumPixelsPerDisplay:
                 AOSDesktopPixelLimits.maximumPixelsPerDisplay,
@@ -632,6 +633,7 @@ extension AOSDesktopWorldNativeFeedbackController {
         let configuration = AOSDesktopFrameWarmConfiguration(
             canvasGeneration: captureContext.canvasGeneration,
             displayIDs: captureContext.displayIDs,
+            displayLayout: captureContext.displayLayout,
             excludingWindowIDs: captureContext.excludingWindowIDs,
             maximumPixelsPerDisplay:
                 AOSDesktopPixelLimits.maximumPixelsPerDisplay,
