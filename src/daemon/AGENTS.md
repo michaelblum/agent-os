@@ -126,8 +126,8 @@ capture pixels from the admitted `SCContentFilter.pointPixelScale` before
 applying either sizing policy. The admitted generation-bound
 `AOSDesktopWorldDisplayLayout` is authoritative for display identity, ordering,
 global DesktopWorld bounds, and point-to-backing-pixel conversion. Daemon
-capture adapters validate against that mapping; they may not maintain private
-display reconciliation or coordinate math.
+DesktopWorld capture adapters validate against that mapping; they may not
+maintain private display reconciliation or coordinate math.
 Warm source discovery includes off-screen windows so hidden or suspended stage
 windows retain stable identities for conservative source replacement and the
 exact-window fallback. Explicit dimensions enforce the applicable pixel budget,
