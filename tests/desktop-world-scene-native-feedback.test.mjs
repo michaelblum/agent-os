@@ -172,12 +172,22 @@ precondition(library.makeFunction(name: "desktopWorldNativeRippleFragment") != n
 })
 
 test('native feedback prepares exact-generation segment hosts before admission', async () => {
-  const [hostSource, managerSource, lifecycleSource, sheetSource, surfaceSource, rendererSource, heightFieldSource] = await Promise.all([
+  const [
+    hostSource,
+    managerSource,
+    lifecycleSource,
+    sheetSource,
+    surfaceSource,
+    clockSource,
+    rendererSource,
+    heightFieldSource,
+  ] = await Promise.all([
     readFile(path.join(repoRoot, 'src/daemon/desktop-world-native-feedback-host.swift'), 'utf8'),
     readFile(path.join(repoRoot, 'src/display/desktop-world-native-projection-manager.swift'), 'utf8'),
     readFile(path.join(repoRoot, 'src/display/desktop-world-native-projection-lifecycle.swift'), 'utf8'),
     readFile(path.join(repoRoot, 'src/display/desktop-world-native-sheet.swift'), 'utf8'),
     readFile(path.join(repoRoot, 'src/display/desktop-world-surface.swift'), 'utf8'),
+    readFile(path.join(repoRoot, 'src/display/desktop-world-native-effect-clock.swift'), 'utf8'),
     readFile(path.join(repoRoot, 'src/display/desktop-world-native-effect-renderer.swift'), 'utf8'),
     readFile(path.join(repoRoot, 'src/display/desktop-world-native-effect-height-field.swift'), 'utf8'),
   ])
@@ -200,6 +210,10 @@ test('native feedback prepares exact-generation segment hosts before admission',
   assert.match(rendererSource, /private var state: AOSDesktopWorldNativeEffectHeightField\?/u)
   assert.match(rendererSource, /state = try AOSDesktopWorldNativeEffectHeightField\(/u)
   assert.doesNotMatch(rendererSource, /for segment[\s\S]{0,300}AOSDesktopWorldNativeEffectHeightField\(/u)
+  assert.match(clockSource, /presentedDisplayIDs == expectedDisplayIDs/u)
+  assert.match(rendererSource, /let elapsed = clock\.elapsed/u)
+  assert.match(rendererSource, /clock\.markPresented\(displayID: displayID\)/u)
+  assert.doesNotMatch(rendererSource, /startedAt/u)
   assert.match(heightFieldSource, /private var velocities: \[Float\]/u)
   assert.match(heightFieldSource, /private static let bufferedTextureCount = 3/u)
   assert.match(heightFieldSource, /private var pendingDisplayIDs: Set<UInt32>/u)

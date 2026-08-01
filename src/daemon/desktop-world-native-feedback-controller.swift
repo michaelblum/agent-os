@@ -126,8 +126,9 @@ final class AOSDesktopWorldNativeFeedbackController {
         let timeout = DispatchWorkItem { [weak self] in
             self?.captureTimedOut(generation: generation)
         }
-        installDeadline(timeout, generation: generation)
-        scheduleDeadline(Self.captureTimeout, timeout)
+        if installDeadline(timeout, generation: generation) {
+            scheduleDeadline(Self.captureTimeout, timeout)
+        }
     }
 
     func snapshot() -> AOSDesktopWorldNativeFeedbackSnapshot {
@@ -300,18 +301,20 @@ final class AOSDesktopWorldNativeFeedbackController {
         }
     }
 
+    @discardableResult
     private func installDeadline(
         _ deadline: DispatchWorkItem,
         generation: UInt64
-    ) {
+    ) -> Bool {
         guard let previous = admission.installDeadline(
             deadline,
             generation: generation
         ) else {
             deadline.cancel()
-            return
+            return false
         }
         previous.cancel()
+        return true
     }
 
     private func captureTimedOut(generation: UInt64) {
@@ -474,7 +477,13 @@ final class AOSDesktopWorldNativeFeedbackController {
             let presentationDeadline = DispatchWorkItem { [weak self] in
                 self?.effectPresentationTimedOut(generation: generation)
             }
-            installDeadline(presentationDeadline, generation: generation)
+            guard installDeadline(
+                presentationDeadline,
+                generation: generation
+            ) else {
+                requestRuntimeRetirement()
+                return
+            }
             scheduleDeadline(
                 Self.effectPresentationTimeout,
                 presentationDeadline
@@ -526,7 +535,10 @@ final class AOSDesktopWorldNativeFeedbackController {
         let completionDeadline = DispatchWorkItem { [weak self] in
             self?.effectLifecycleTimedOut(generation: generation)
         }
-        installDeadline(completionDeadline, generation: generation)
+        guard installDeadline(
+            completionDeadline,
+            generation: generation
+        ) else { return }
         let lifetime = request.binding.lifecycle == .gesture
             ? Self.gestureEffectWatchdog
             : Double(request.binding.durationMilliseconds) / 1_000

@@ -384,6 +384,7 @@
         "src/display/desktop-world-native-sheet-geometry.swift",
         "src/display/desktop-world-native-sheet-lease.swift",
         "src/display/desktop-world-native-sheet.swift",
+        "src/display/desktop-world-native-effect-clock.swift",
         "src/display/desktop-world-native-effect-renderer.swift",
         "src/display/desktop-world-native-effect-height-field.swift",
         "src/display/desktop-world-native-effect-program-compiler.swift",
