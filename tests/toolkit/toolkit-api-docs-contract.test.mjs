@@ -102,6 +102,8 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
 
   assert.match(docs['docs/api/toolkit/scene-extensions.md'], /aos\.scene\.extension\.v1/);
   assert.match(docs['docs/api/toolkit/scene-extensions.md'], /serializeSceneExtensionDigestMaterial/);
+  assert.match(docs['docs/api/toolkit/scene-extensions.md'], /applyCursorPresentation\(event\)/);
+  assert.match(docs['docs/api/toolkit/scene-extensions.md'], /cannot change native cursor policy/);
   assert.match(docs['docs/api/toolkit/scene-devtools.md'], /createDesktopWorldDevToolsStageProbe/);
   assert.match(docs['docs/api/toolkit/scene-devtools.md'], /createDesktopWorldDevToolsView/);
   assert.match(docs['docs/api/toolkit/scene-devtools.md'], /buildDesktopWorldMinimapLayout/);

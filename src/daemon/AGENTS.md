@@ -260,7 +260,8 @@ Allowed daemon-side surface work:
   captured input region. Hover/capture transitions remain independent from
   consumption; hide/show return codes are checked, bounded retries never
   unbalance the process hide count, and successful suppression restores after
-  release, cancellation, fail-open, owner cleanup, permission loss, or shutdown;
+  release, cancellation, fail-open, owner cleanup, permission loss, the input
+  safety emergency exit, or orderly shutdown;
 - generation-bound cursor enter/move/leave delivery contains only region,
   phase, mode, and DesktopWorld point. It is admitted to trusted scene visuals
   only after native hiding succeeds and never grants input or window authority;

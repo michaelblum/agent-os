@@ -148,7 +148,7 @@ export interface SceneExtensionProjection {
     mode: 'hover' | 'captured';
     phase: 'enter' | 'move' | 'leave';
     point: Readonly<{ x: number; y: number }>;
-    visual: string | null;
+    visual: string;
   }>): void;
   /**
    * Optional bounded observability hook. It exposes only engine-defined

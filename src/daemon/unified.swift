@@ -4622,6 +4622,7 @@ class UnifiedDaemon {
         canvasManager.setInputPassthrough(true)
         teardownSpeechCancelTap()
         perception.stop()
+        restoreNativeCursorSuppressionForExit()
         fputs("AOS input safety escape hatch triggered; released input ownership and exiting daemon\n", stderr)
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(50)) {
             NSApp.terminate(nil)
