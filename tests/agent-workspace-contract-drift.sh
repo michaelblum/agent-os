@@ -236,7 +236,6 @@ const schemaDoc = fs.readFileSync('shared/schemas/aos-agent-workspace-v0.md', 'u
 const workRecordSchemaDoc = fs.readFileSync('shared/schemas/aos-work-record-v0.md', 'utf8');
 const apiDoc = fs.readFileSync('docs/api/aos.md', 'utf8');
 const readme = fs.readFileSync('README.md', 'utf8');
-const retiredWorkspaceSkill = fs.readFileSync('skills/aos-agent-workspace/SKILL.md', 'utf8');
 const savedWorkspaceSkill = fs.readFileSync('skills/aos-saved-workspace/SKILL.md', 'utf8');
 const desktopSkill = fs.readFileSync('skills/aos-desktop/SKILL.md', 'utf8');
 const canvasVisionSkill = fs.readFileSync('skills/aos-canvas-vision/SKILL.md', 'utf8');
@@ -388,7 +387,6 @@ assert.ok(
   'saved workspace skill description must trigger on saved capture/ref loops',
 );
 assert.ok(savedWorkspaceSkill.split(/\r?\n/).length < 180, 'saved workspace skill should stay within installable skill body budget');
-assert.match(retiredWorkspaceSkill, /retired/i, 'old broad workspace skill must remain a retirement tombstone');
 const skillReferencePaths = [...savedWorkspaceSkill.matchAll(/^- `([^`]+)`$/gm)].map((match) => match[1]);
 assert.deepEqual(
   skillReferencePaths,

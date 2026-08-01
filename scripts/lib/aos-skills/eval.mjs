@@ -83,14 +83,17 @@ function evaluateCase(testCase, response, context) {
   ));
 
   const missingSkills = asArray(testCase.expected_skills).filter((skill) => !selectedSkills.includes(skill));
-  const retiredSkills = selectedSkills.filter((skill) => context.retiredSkills.has(skill));
+  const forbiddenSkills = selectedSkills.filter((skill) => context.forbiddenSkills.has(skill));
+  const unknownSkills = selectedSkills.filter((skill) => (
+    !context.catalogSkills.has(skill) && !context.forbiddenSkills.has(skill)
+  ));
   checks.push(check(
-    missingSkills.length === 0 && retiredSkills.length === 0,
+    missingSkills.length === 0 && forbiddenSkills.length === 0 && unknownSkills.length === 0,
     'skill_selection',
-    'selected skills include required current skills and avoid retired skills',
+    'selected skills include required current skills and avoid forbidden or unknown skills',
     weights.skill_selection,
     weights.skill_selection,
-    { missing_skills: missingSkills, retired_skills: retiredSkills },
+    { missing_skills: missingSkills, forbidden_skills: forbiddenSkills, unknown_skills: unknownSkills },
   ));
 
   const commandFindings = commandManifestChecks(selectedCommands, context.forms);
@@ -205,9 +208,14 @@ export async function evaluateSkillEfficacy(fixture, options = {}) {
     : path.join(repoRoot, 'manifests/commands/aos-commands.json');
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
   const catalog = await loadSkillCatalog({ repoRoot });
-  const retiredSkills = new Set((catalog.registry.skills ?? [])
-    .filter((skill) => skill.status === 'retired')
-    .map((skill) => skill.name));
+  const catalogSkills = new Set((catalog.registry.skills ?? []).map((skill) => skill.name));
+  const forbiddenSkills = new Set(asArray(fixture.forbidden_skill_names));
+  const discoverableForbiddenSkills = [...forbiddenSkills].filter((skill) => catalogSkills.has(skill));
+  if (discoverableForbiddenSkills.length) {
+    throw new AosSkillsError('Forbidden eval skill names must not be discoverable product metadata', 'FORBIDDEN_SKILL_DISCOVERABLE', {
+      skills: discoverableForbiddenSkills.sort(),
+    });
+  }
   const cases = asArray(fixture.cases);
   const selectedCaseIds = new Set(asArray(options.caseIds));
   const selectedRunIds = new Set(asArray(options.runIds));
@@ -222,7 +230,8 @@ export async function evaluateSkillEfficacy(fixture, options = {}) {
   const context = {
     forms: manifestForms(manifest),
     passScore: options.passScore ?? fixture.pass_score ?? DEFAULT_PASS_SCORE,
-    retiredSkills,
+    catalogSkills,
+    forbiddenSkills,
   };
 
   const runs = activeRuns.map((run) => {

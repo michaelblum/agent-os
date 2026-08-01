@@ -171,11 +171,21 @@ test('playwright companion check treats AOS adapter Playwright text as candidate
   const target = await mkdtemp(path.join(os.tmpdir(), 'aos-skills-companion-aos-text-'));
   try {
     const cli = await fakePlaywrightCli(root, '0.1.15');
-    const skillRoot = path.join(target, 'browser-adapter');
+    const skillRoot = path.join(target, 'aos-browser-notes');
     await mkdir(skillRoot, { recursive: true });
     await writeFile(
       path.join(skillRoot, 'SKILL.md'),
-      await readFile(path.join(repoRoot, 'skills', 'browser-adapter', 'SKILL.md')),
+      [
+        '---',
+        'name: aos-browser-notes',
+        'description: AOS notes about Playwright CLI browser automation.',
+        '---',
+        '',
+        '# AOS browser notes',
+        '',
+        'Use Playwright CLI only for browser automation primitives AOS does not wrap.',
+        '',
+      ].join('\n'),
     );
     const payload = parseStdout(runAos([
       'skills',
@@ -194,7 +204,7 @@ test('playwright companion check treats AOS adapter Playwright text as candidate
     assert.equal(payload.status, 'success');
     assert.equal(payload.installation.state, 'candidate_detected');
     assert.deepEqual(payload.installation.detected_skills, []);
-    assert.equal(payload.installation.candidates[0].name, 'browser-adapter');
+    assert.equal(payload.installation.candidates[0].name, 'aos-browser-notes');
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(target, { recursive: true, force: true });

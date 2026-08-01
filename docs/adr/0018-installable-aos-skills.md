@@ -1,7 +1,11 @@
 # ADR 0018: Installable AOS Skills Product Surface
 
-**Status:** Accepted
+**Status:** Accepted; amended by ADR 0039
 **Date:** 2026-07-06
+
+ADR 0039 supersedes this ADR's former retired-skill tombstone policy. The root
+skill inventory now contains current packages only; superseded packages are
+deleted with their internal consumer migration.
 
 ## Decision
 
@@ -112,9 +116,6 @@ The registry source of truth is `skills/registry.json`.
 | `aos-work-records` | installable | Teaches Work Record read/verify/status/recovery and report-only defaults. |
 | `aos-recipes` | installable | Teaches source-backed recipe list/explain/dry-run/run through `aos recipe`. |
 | `aos-command-surface-maintenance` | installable | Teaches source manifest/help/docs/test synchronization for command-surface edits. |
-| `agent-sync` | retired | Keep tombstone. Do not install or recreate native Codex custom-agent sync. |
-| `aos-agent-workspace` | retired | Tombstone for the broad saved workspace skill; superseded by `aos-desktop`, `aos-saved-workspace`, `aos-canvas-vision`, `aos-focus-sessions`, and `aos-verification`. |
-| `browser-adapter` | retired | Tombstone for the broad browser adapter skill; superseded by `aos-browser`. |
 | `caveman` | retained_local | Local communication compression skill, outside the AOS installable skill product. |
 | `aos-maintainer-routing` | retained_local | Local maintainer validation-routing skill backed by `scripts/aos-dev-workflow.mjs`; outside the AOS installable skill product. |
 | `aos-repo-binary-build` | retained_local | Local maintainer repo-binary build skill backed by `scripts/aos-dev-build.mjs` and `build.sh`; outside the AOS installable skill product. |
@@ -130,18 +131,8 @@ The registry source of truth is `skills/registry.json`.
 | `aos ops` wording | Removal gate satisfied; retired from active command manifests, help, docs, skills, and tests. |
 | Markdown guides that say `Use this recipe` | Clean up in a terminology pass when they are not executable `aos recipe` packages. |
 | Wiki `workflow` page-kind/plugin labels | Clarify as wiki registry/page-kind behavior, not AOS Execution Model Workflow execution, unless a migration becomes feasible. |
-| `skills/aos-agent-workspace` | Retire as a tombstone; use the narrower installable desktop, saved workspace, canvas/vision, focus-session, and verification skills. |
-| `skills/browser-adapter` | Retire as a tombstone; use `aos-browser` plus upstream Playwright CLI skills for browser-only primitives. |
 | Downstream repo-local AOS wrapper facades | Demote in downstream docs during M6. Direct `./aos` plus installed skills is the target onboarding path. |
 | Playwright CLI skill content | External companion only. Do not vendor into AOS source. |
-
-Inventory commands used for the M0 baseline:
-
-```bash
-find skills -maxdepth 3 -type f -print | sort
-rg -n "aos-agent-workspace|browser-adapter|aos ops|# Recipe:|playbook|workflow" \
-  --glob '!docs/archive/**' --glob '!memory/**' --glob '!_dev/**' --glob '!*.json'
-```
 
 ## Consequences
 
@@ -156,9 +147,9 @@ rg -n "aos-agent-workspace|browser-adapter|aos ops|# Recipe:|playbook|workflow" 
 - Retained-local maintainer skills may teach repo workflow ergonomics without
   changing the installable AOS product pack. Their deterministic behavior
   belongs in repo scripts and tests, not in the skill body.
-- Retired broad root skills stay as short tombstones with replacement pointers;
-  installable skills must stay concise or explicitly split detailed references
-  out of `SKILL.md`.
+- Superseded root skills are removed from source and the registry in the same
+  change as internal consumers move to current packages. Installable skills
+  stay concise or explicitly split detailed references out of `SKILL.md`.
 - `aos skills` command forms must synchronize source manifests, generated
   manifests, help, docs, and tests.
 - Playwright CLI companion integration remains external and non-vendored; AOS
@@ -172,6 +163,7 @@ Changes to this product boundary should run:
 node scripts/aos-skills-validate.mjs --json
 node --test tests/aos-skills-registry.test.mjs
 node --test tests/aos-skills-command.test.mjs
+node --test tests/pre-release-compatibility-policy.test.mjs tests/schemas/aos-product-maturity-v0.test.mjs
 git diff --check
 ```
 

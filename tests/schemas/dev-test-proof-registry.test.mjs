@@ -295,6 +295,24 @@ test('proof-worth evaluator routes root skills command and forward proofs', asyn
   assert.ok(result.guarded.some((item) => item.entry === 'cross-backend-saved-ref-manual-proof'));
 });
 
+test('proof-worth evaluator routes pre-release product policy proofs', () => {
+  const registry = loadCanonicalRegistry();
+  const result = evaluateProofWorth({
+    changedFiles: [
+      'tests/pre-release-compatibility-policy.test.mjs',
+      'tests/schemas/aos-product-maturity-v0.test.mjs',
+    ],
+    repoRoot,
+    registry,
+    registryPath: 'docs/dev/test-proof-registry.json',
+  });
+
+  assert.equal(result.status, 'passed', result);
+  assert.deepEqual(result.commands.map((item) => item.command), [
+    'node --test tests/pre-release-compatibility-policy.test.mjs tests/schemas/aos-product-maturity-v0.test.mjs',
+  ]);
+});
+
 test('proof-worth evaluator routes voice proof family assets', async () => {
   const registry = loadCanonicalRegistry();
   const result = evaluateProofWorth({

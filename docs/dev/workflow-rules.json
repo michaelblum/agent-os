@@ -146,6 +146,41 @@
       "verification": []
     },
     {
+      "id": "pre-release-product-policy",
+      "summary": "Product maturity, compatibility exception policy, or retired-skill deletion enforcement changed.",
+      "patterns": [
+        "AGENTS.md",
+        "docs/adr/0018-installable-aos-skills.md",
+        "docs/adr/0019-retire-project-agent-orchestration.md",
+        "docs/adr/0039-pre-release-zero-installed-base-compatibility.md",
+        "docs/dev/product-maturity.json",
+        "docs/dev/residue-drift-ledger.md",
+        "shared/schemas/aos-product-maturity-v0.schema.json",
+        "tests/pre-release-compatibility-policy.test.mjs",
+        "tests/schemas/aos-product-maturity-v0.test.mjs"
+      ],
+      "classes": [
+        "product_policy",
+        "schema"
+      ],
+      "actions": [
+        "focused_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "pre-release-compatibility-policy-test",
+          "command": "node --test tests/pre-release-compatibility-policy.test.mjs tests/schemas/aos-product-maturity-v0.test.mjs",
+          "reason": "Validate zero-installed-base facts, evidence-backed exceptions, exact active-source markers, and retired-skill absence."
+        }
+      ],
+      "verification": [],
+      "notes": [
+        "Static only: scan the exact residue marker in active product/source roots and exclude archived evidence rather than grepping compatibility vocabulary broadly."
+      ]
+    },
+    {
       "id": "toolkit-components",
       "summary": "Reusable toolkit component or runtime browser code changed.",
       "patterns": [

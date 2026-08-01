@@ -18,7 +18,7 @@ const repoRoot = path.resolve(__dirname, '..');
 test('root skill registry covers current direct skill packages', async () => {
   const result = await validateSkillRegistry({ repoRoot });
   assert.equal(result.ok, true, JSON.stringify(result.errors, null, 2));
-  assert.equal(result.summary.skills, 23);
+  assert.equal(result.summary.skills, 20);
 
   const byName = new Map(result.skills.map((skill) => [skill.name, skill]));
   const installablePack = [
@@ -41,11 +41,6 @@ test('root skill registry covers current direct skill packages', async () => {
     assert.equal(byName.get(name)?.installable, true, name);
     assert.deepEqual(byName.get(name)?.target_support, ['agents', 'claude', 'codex', 'path'], name);
   }
-  assert.equal(byName.get('agent-sync')?.status, 'retired');
-  assert.equal(byName.get('aos-agent-workspace')?.status, 'retired');
-  assert.equal(byName.get('aos-agent-workspace')?.claims_durable_behavior, true);
-  assert.equal(byName.get('browser-adapter')?.status, 'retired');
-  assert.equal(byName.get('browser-adapter')?.claims_durable_behavior, true);
   for (const name of [
     'aos-maintainer-orientation',
     'aos-maintainer-routing',
@@ -121,13 +116,6 @@ test('installable browser and saved-workspace skills preserve split contracts', 
   assert.match(orientation, /Failed sources mean partial orientation/);
   assert.doesNotMatch(orientation, /\.\/aos dev/);
 
-  const retiredWorkspace = await readFile(path.join(repoRoot, 'skills', 'aos-agent-workspace', 'SKILL.md'), 'utf8');
-  assert.match(retiredWorkspace, /retired as installable guidance/);
-  assert.match(retiredWorkspace, /skills\/aos-desktop\/SKILL\.md/);
-
-  const retiredBrowser = await readFile(path.join(repoRoot, 'skills', 'browser-adapter', 'SKILL.md'), 'utf8');
-  assert.match(retiredBrowser, /retired as installable guidance/);
-  assert.match(retiredBrowser, /skills\/aos-browser\/SKILL\.md/);
 });
 
 test('frontmatter parser handles folded descriptions, booleans, and arrays', () => {
@@ -137,7 +125,7 @@ test('frontmatter parser handles folded descriptions, booleans, and arrays', () 
     'description: >',
     '  first line',
     '  second line',
-    'retired: true',
+    'disable-model-invocation: true',
     'authority:',
     '  - docs/adr/0019-retire-project-agent-orchestration.md',
     '  - .codex/AGENTS.md',
@@ -150,7 +138,7 @@ test('frontmatter parser handles folded descriptions, booleans, and arrays', () 
   const parsed = parseSkillPackage(raw, 'sample/SKILL.md');
   assert.equal(parsed.frontmatter.name, 'sample');
   assert.equal(parsed.frontmatter.description, 'first line second line');
-  assert.equal(parsed.frontmatter.retired, true);
+  assert.equal(parsed.frontmatter['disable-model-invocation'], true);
   assert.deepEqual(parsed.frontmatter.authority, [
     'docs/adr/0019-retire-project-agent-orchestration.md',
     '.codex/AGENTS.md',
@@ -175,7 +163,51 @@ test('CLI emits structured validation JSON', () => {
   const payload = JSON.parse(result.stdout);
   assert.equal(payload.schema_version, 'aos.skills.validation.v0');
   assert.equal(payload.ok, true);
-  assert.equal(payload.summary.skills, 23);
+  assert.equal(payload.summary.skills, 20);
+});
+
+test('validator rejects retired registry and package states', async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'aos-skills-retired-state-test-'));
+  try {
+    await mkdir(path.join(tmp, 'skills', 'legacy'), { recursive: true });
+    await writeFile(path.join(tmp, 'skills', 'legacy', 'SKILL.md'), [
+      '---',
+      'name: legacy',
+      'description: Legacy package.',
+      'retired: true',
+      '---',
+      '',
+      '# Legacy package',
+      '',
+    ].join('\n'));
+    await writeFile(path.join(tmp, 'skills', 'registry.json'), JSON.stringify({
+      schema_version: 'aos.root-skills.registry.v0',
+      body_line_budget: 180,
+      supported_targets: {},
+      skills: [{
+        name: 'legacy',
+        path: 'skills/legacy',
+        description: 'Legacy package.',
+        status: 'retired',
+        installable: false,
+        invocation: 'retired',
+        target_support: [],
+        ownership: 'Test fixture.',
+        references: [],
+        claims_durable_behavior: false,
+        backing: [],
+      }],
+    }, null, 2));
+
+    const result = await validateSkillRegistry({ repoRoot: tmp });
+    const codes = result.errors.map((error) => error.code);
+    assert.equal(result.ok, false);
+    assert.ok(codes.includes('UNKNOWN_STATUS'), JSON.stringify(result.errors, null, 2));
+    assert.ok(codes.includes('UNKNOWN_INVOCATION'), JSON.stringify(result.errors, null, 2));
+    assert.ok(codes.includes('RETIRED_FRONTMATTER_FORBIDDEN'), JSON.stringify(result.errors, null, 2));
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
 });
 
 test('validator rejects unsafe targets, missing durable backing, and untracked body bloat', async () => {

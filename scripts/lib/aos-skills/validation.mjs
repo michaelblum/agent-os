@@ -16,14 +16,12 @@ const ALLOWED_STATUSES = new Set([
   'installable',
   'needs_split',
   'retained_local',
-  'retired',
   'private_ignored',
 ]);
 
 const ALLOWED_INVOCATION = new Set([
   'enabled',
   'disabled',
-  'retired',
 ]);
 
 const DURABLE_BACKING_PREFIXES = [
@@ -289,27 +287,10 @@ function validateFrontmatter({ skill, parsed, errors }) {
 }
 
 function validateStateSemantics({ skill, parsed, errors }) {
-  const retired = parsed.frontmatter.retired === true;
   const disabled = parsed.frontmatter['disable-model-invocation'] === true;
 
-  if (retired && skill.status !== 'retired') {
-    errors.push(formatFinding('RETIRED_STATUS_MISMATCH', `${skill.name} has retired frontmatter but registry status is not retired`, {
-      skill: skill.name,
-      status: skill.status,
-    }));
-  }
-  if (skill.status === 'retired' && !retired) {
-    errors.push(formatFinding('RETIRED_FRONTMATTER_REQUIRED', `${skill.name} retired registry entries must set retired: true`, {
-      skill: skill.name,
-    }));
-  }
-  if (skill.status === 'retired' && (skill.installable || skill.target_support?.length)) {
-    errors.push(formatFinding('RETIRED_NOT_INSTALLABLE', `${skill.name} retired entries cannot be installable`, {
-      skill: skill.name,
-    }));
-  }
-  if (skill.status === 'retired' && !/retired/i.test(parsed.body)) {
-    errors.push(formatFinding('RETIRED_BODY_REQUIRED', `${skill.name} retired entries must explain retirement in body`, {
+  if (Object.hasOwn(parsed.frontmatter, 'retired')) {
+    errors.push(formatFinding('RETIRED_FRONTMATTER_FORBIDDEN', `${skill.name} must be deleted instead of retained as a retired package`, {
       skill: skill.name,
     }));
   }

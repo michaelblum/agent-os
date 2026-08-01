@@ -27,6 +27,9 @@ part of the installable AOS desktop product pack.
 - Installable AOS skills must be registered, concise or explicitly split into
   references, and backed by docs/API/schema/test authority when they claim
   durable repo behavior.
+- Root skill packages and registry rows describe only current packages. Delete
+  superseded skills in the same change as their internal consumer migration;
+  do not retain retired statuses, aliases, redirects, or tombstones.
 - Unknown install targets fail closed; writes to skill trees must go through the
   bounded `aos skills install --target ...` command surface.
 
@@ -51,15 +54,6 @@ part of the installable AOS desktop product pack.
   `aos-browser/`, `aos-verification/`, `aos-operator-annotations/`,
   `aos-work-records/`, `aos-recipes/`, and
   `aos-command-surface-maintenance/` are the installable AOS root skill pack.
-- `agent-sync/` is a fail-closed tombstone for ADR 0019. It must not
-  sync Codex native custom agents, mutate `~/.codex/config.toml`, or recreate
-  user-global agent registrations.
-- `aos-agent-workspace/` is a retired tombstone for the broad saved workspace
-  skill; installable guidance now lives in `aos-desktop/`,
-  `aos-saved-workspace/`, `aos-canvas-vision/`, `aos-focus-sessions/`, and
-  `aos-verification/`.
-- `browser-adapter/` is a retired tombstone for the broad browser adapter
-  skill; installable browser guidance now lives in `aos-browser/`.
 - `aos-maintainer-routing/`, `aos-repo-binary-build/`, and
   `aos-maintainer-orientation/` are retained local maintainer workflow skills
   backed by deterministic repo scripts; they are not installable AOS product

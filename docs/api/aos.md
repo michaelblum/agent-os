@@ -1223,9 +1223,9 @@ Recipes, Workflows, Work Records, or wiki plugins.
 The installable AOS skill pack covers core orientation, runtime readiness,
 desktop/app/window workflows, saved workspaces, canvas/vision fallback, focus
 sessions, browser workflows, verification loops, operator annotations, Work
-Records, recipes, and command-surface maintenance. Broad legacy skills such as
-`aos-agent-workspace` and `browser-adapter` are retired tombstones with
-replacement pointers, not current onboarding surfaces.
+Records, recipes, and command-surface maintenance. The registry contains only
+current installable or retained-local packages; superseded skills are removed
+instead of remaining discoverable as aliases or tombstones.
 
 The command surface supports read-only inventory, dry-run planning, and bounded
 installation:

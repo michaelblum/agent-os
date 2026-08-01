@@ -4,6 +4,22 @@
   "summary": "Proof-worth registry entries owned by agent-workspace.",
   "entries": [
     {
+      "id": "agent-workspace-contract-drift",
+      "path_patterns": [
+        "tests/agent-workspace-contract-drift.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "agent-workspace",
+      "harness_level": "model_unit",
+      "proof_kind": "saved_ref_contract",
+      "contract": "Saved workspace schemas, compact refs, current installable skills, command manifests, and action ownership remain aligned.",
+      "worth": "This prevents current saved-workspace guidance and schema/action contracts from drifting after legacy skill cleanup.",
+      "command": "bash tests/agent-workspace-contract-drift.sh",
+      "replaces": [],
+      "guard": "static Node contract inspection; does not execute ./aos or require daemon/TCC",
+      "status": "active"
+    },
+    {
       "id": "cross-backend-saved-ref-manual-proof",
       "path_patterns": [
         "tests/manual/cross-backend-saved-ref-regression-proof.sh"

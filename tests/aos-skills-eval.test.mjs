@@ -40,15 +40,25 @@ test('AOS skills efficacy fixture scores strong and weak model captures differen
   assert.ok(weak.average_score < 70);
 });
 
-test('AOS skills efficacy scorer catches unsupported flags and retired skill use', async () => {
+test('AOS skills efficacy scorer catches unsupported flags and fixture-owned forbidden skill use', async () => {
   const fixture = await loadEvalFixture(fixturePath);
-  const report = await evaluateSkillEfficacy(fixture, {
+  const forbiddenReport = await evaluateSkillEfficacy(fixture, {
+    repoRoot,
+    runIds: ['fixture-weak-low'],
+    caseIds: ['readiness-route'],
+  });
+  const forbiddenResult = forbiddenReport.runs[0].cases[0];
+  const skillCheck = forbiddenResult.checks.find((item) => item.id === 'skill_selection');
+  assert.equal(skillCheck.ok, false);
+  assert.deepEqual(skillCheck.forbidden_skills, ['aos-agent-workspace']);
+
+  const commandReport = await evaluateSkillEfficacy(fixture, {
     repoRoot,
     runIds: ['fixture-weak-low'],
     caseIds: ['desktop-window-control-inventory'],
   });
 
-  const result = report.runs[0].cases[0];
+  const result = commandReport.runs[0].cases[0];
   assert.equal(result.passed, false);
   const commandCheck = result.checks.find((item) => item.id === 'command_manifest');
   const boundaryCheck = result.checks.find((item) => item.id === 'boundary_avoidance');
