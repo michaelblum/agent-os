@@ -1223,9 +1223,9 @@ Recipes, Workflows, Work Records, or wiki plugins.
 The installable AOS skill pack covers core orientation, runtime readiness,
 desktop/app/window workflows, saved workspaces, canvas/vision fallback, focus
 sessions, browser workflows, verification loops, operator annotations, Work
-Records, recipes, and command-surface maintenance. Broad legacy skills such as
-`aos-agent-workspace` and `browser-adapter` are retired tombstones with
-replacement pointers, not current onboarding surfaces.
+Records, recipes, and command-surface maintenance. The registry contains only
+current installable or retained-local packages; superseded skills are removed
+instead of remaining discoverable as aliases or tombstones.
 
 The command surface supports read-only inventory, dry-run planning, and bounded
 installation:
@@ -2682,8 +2682,8 @@ Consumers:
   The process command line is either present as `command_line` or explicitly
   unavailable via `command_line_status` and
   `command_line_unavailable_reason`.
-- `aos status --json` exposes `runtime.input_tap` (full block) plus the
-  legacy flat `runtime.input_tap_status` / `runtime.input_tap_attempts`.
+- `aos status --json` exposes the current structured `runtime.input_tap`
+  block; there is no parallel flat input-tap response shape.
 - `aos status --json` also exposes top-level `readiness`, a compact projection
   of `runtime_verdict` with `ready`, `status`, `phase`, `diagnosis`,
   `ready_for_testing`, `ready_source`, `blocked_capabilities`, and any
@@ -2753,28 +2753,6 @@ When the readiness probe outcome is `.ok`, the `reason`, `recovery`, and
 the launchd-derived base state has unrelated divergences (e.g., plist
 binary path mismatch); discriminate `.ok` outcomes by absence of `reason`
 plus `input_tap.status == "active"`.
-
-### Legacy daemon interop
-
-A daemon binary that predates this contract emits only the flat
-`input_tap_status` / `input_tap_attempts` fields, with no structured
-`input_tap` or `permissions` block. The CLI parser falls back to those
-flat fields so `status` / `attempts` still propagate. Fields the legacy
-daemon doesn't expose — `input_tap.listen_access`, `input_tap.post_access`,
-`input_tap.last_error_at`, and `permissions.accessibility` — are
-**omitted** from CLI output rather than fabricated as `false`. Consumers
-should treat their absence as "unknown, not denied."
-
-In that mode, the source label depends on which side provides the decisive
-answer:
-
-- When the reachable legacy daemon reports `input_tap.status == "active"`,
-  `aos permissions check` and `aos doctor` fall back to
-  `ready_source: "cli"` because daemon accessibility is still unknown.
-- When the reachable legacy daemon reports `input_tap.status != "active"`,
-  `ready_for_testing` is forced to `false` and `ready_source: "daemon"`
-  because the daemon-owned tap status is sufficient to fail readiness
-  closed, even though daemon accessibility remains unknown.
 
 **See also:**
 - [`shared/schemas/daemon-ipc.md`](../../shared/schemas/daemon-ipc.md) for the canonical `system.ping` payload schema.

@@ -45,8 +45,10 @@
   packages. AOS must not vendor or claim Playwright companion skill content.
 - Skill efficacy scoring must validate direct `./aos` command shapes against
   the generated command manifest, including required args, required groups, and
-  conflicts. Treat retired skills, unsupported flags, raw daemon probes, and
-  project-local wrappers as measurable failures.
+  conflicts. Treat fixture-owned forbidden skill names, unknown skills,
+  unsupported flags, raw daemon probes, and project-local wrappers as
+  measurable failures. Forbidden historical names must not come from live
+  registry metadata.
 - Treat unmanaged install target content as blocking. Only exact AOS package
   files without a manifest are recoverable as interrupted AOS writes.
 - Staging paths are AOS-owned scratch state under the target root. Stale staging

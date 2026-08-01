@@ -434,7 +434,6 @@ function parseCapabilitiesOptions(args) {
   return parseCommon(args, {
     '--repo': 'repo path',
     '--manifest': 'manifest path',
-    '--role': 'role legacy compatibility filter',
     '--entry-path': 'entry-path entry path',
   });
 }
@@ -448,7 +447,6 @@ function loadCapabilityManifest(options) {
 
 function filterCapabilities(capabilities, options) {
   return capabilities.filter((capability) => {
-    if (options.role && (capability.roles || []).length && !(capability.roles || []).includes(options.role)) return false;
     if (options.entry_path && !(capability.entry_paths || []).includes(options.entry_path)) return false;
     return true;
   });
@@ -465,7 +463,6 @@ function capabilitiesCommand(action, args) {
       manifest: normalizeRepoRelative(loaded.path, loaded.repoRoot),
       manifest_id: loaded.manifest.id ?? null,
       manifest_schema_version: loaded.manifest.schema_version ?? null,
-      role: options.role ?? null,
       entry_path: options.entry_path ?? null,
       count: capabilities.length,
       capabilities: capabilities.map(compactCapability),
@@ -490,12 +487,6 @@ function capabilitiesCommand(action, args) {
     return;
   }
   error(`Unknown maintainer capabilities subcommand: ${action}`, 'UNKNOWN_SUBCOMMAND');
-}
-
-function subagentCommand(action, args) {
-  void action;
-  void args;
-  error("maintainer subagent is retired for agent-os; use repo-root sessions, DOX, and installable AOS skills instead", "RETIRED_SUBAGENT_COMMAND");
 }
 
 function claim(id, claimText, passed, expected, observed, evidence, next) {
@@ -646,10 +637,6 @@ if (subcommand === 'classify') {
   const [action, ...args] = rest;
   if (!action) error('maintainer capabilities requires a subcommand', 'MISSING_SUBCOMMAND');
   capabilitiesCommand(action, args);
-} else if (subcommand === 'subagent') {
-  const [action, ...args] = rest;
-  if (!action) error('maintainer subagent requires a subcommand', 'MISSING_SUBCOMMAND');
-  subagentCommand(action, args);
 } else {
   error(`Unknown maintainer workflow command: ${subcommand ?? ''}`, 'UNKNOWN_SUBCOMMAND');
 }

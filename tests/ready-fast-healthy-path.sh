@@ -67,7 +67,6 @@ assert "service_start" not in steps, trace
 assert "service_restart" not in steps, trace
 runtime = d.get("runtime", {})
 assert runtime.get("socket_reachable") is True, runtime
-assert runtime.get("input_tap_status") == "active", runtime
 assert runtime.get("ownership_state") in ("consistent", "unknown"), runtime
 assert runtime.get("ownership_kind") in ("foreground_dev", "unknown"), runtime
 tap = runtime.get("input_tap", {})
@@ -93,7 +92,6 @@ assert readiness.get("phase") == "ready", readiness
 assert readiness.get("diagnosis") == "ready", readiness
 assert readiness.get("ready_source") == "daemon", readiness
 assert runtime.get("socket_reachable") is True, runtime
-assert runtime.get("input_tap_status") == "active", runtime
 assert tap.get("status") == "active", tap
 assert tap.get("duplicate_tcc_rows_observable") is False, tap
 assert "unavailable" in tap.get("duplicate_tcc_rows_observability", ""), tap

@@ -137,8 +137,6 @@ test('active authority map points to existing runtime primitive contract owners'
     ['CONTEXT-MAP.md', 'skills/aos-focus-sessions/SKILL.md'],
     ['CONTEXT-MAP.md', 'skills/aos-browser/SKILL.md'],
     ['CONTEXT-MAP.md', 'skills/aos-verification/SKILL.md'],
-    ['CONTEXT-MAP.md', 'skills/aos-agent-workspace/SKILL.md'],
-    ['CONTEXT-MAP.md', 'skills/browser-adapter/SKILL.md'],
     ['CONTEXT-MAP.md', 'docs/design/'],
     ['README.md', 'docs/api/aos.md'],
     ['README.md', 'ARCHITECTURE.md'],
@@ -150,9 +148,9 @@ test('active authority map points to existing runtime primitive contract owners'
     ['docs/api/README.md', 'scripts/generate-command-manifests.mjs'],
     ['docs/api/README.md', 'tests/command-manifest-generation.sh'],
     ['docs/api/README.md', 'tests/help-contract.sh'],
-    ['skills/aos-agent-workspace/SKILL.md', 'docs/api/aos.md'],
-    ['skills/aos-agent-workspace/SKILL.md', 'shared/schemas/aos-agent-workspace-v0.md'],
-    ['skills/aos-agent-workspace/SKILL.md', 'tests/agent-workspace-saved-ref.sh'],
+    ['skills/aos-saved-workspace/SKILL.md', 'docs/api/aos.md'],
+    ['skills/aos-saved-workspace/SKILL.md', 'shared/schemas/aos-agent-workspace-v0.md'],
+    ['skills/aos-saved-workspace/SKILL.md', 'tests/agent-workspace-saved-ref.sh'],
   ];
 
   const targetPaths = [...new Set(requiredPointers.map(([, target]) => target))];

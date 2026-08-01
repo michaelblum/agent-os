@@ -1,0 +1,24 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof-worth registry entries owned by repository product policy.",
+  "entries": [
+    {
+      "id": "pre-release-compatibility-policy-proof",
+      "path_patterns": [
+        "tests/pre-release-compatibility-policy.test.mjs",
+        "tests/schemas/aos-product-maturity-v0.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "repository-policy",
+      "harness_level": "model_unit",
+      "proof_kind": "pre_release_compatibility_policy",
+      "contract": "Product maturity, evidence-backed compatibility exceptions, zero-installed-base deletion policy, active agent instructions, and non-discoverable retired skill surfaces remain current and machine-valid.",
+      "worth": "This prevents pre-release compatibility residue or retired agent guidance from returning without a real consumer or persisted-data dependency, named ownership, removal criteria, and focused proof.",
+      "command": "node --test tests/pre-release-compatibility-policy.test.mjs tests/schemas/aos-product-maturity-v0.test.mjs",
+      "replaces": [],
+      "guard": "static tracked-source and schema inspection; archived evidence is outside the scanned active surfaces",
+      "status": "active"
+    }
+  ]
+}

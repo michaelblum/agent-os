@@ -51,7 +51,7 @@ fifo_path = sys.argv[2]
 
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 s.connect(sock_path)
-s.sendall((json.dumps({"action": "subscribe"}) + "\n").encode())
+s.sendall((json.dumps({"v": 1, "service": "see", "action": "observe", "data": {}}) + "\n").encode())
 
 fifo = open(fifo_path, "w", buffering=1)
 ready_sent = False

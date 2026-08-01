@@ -111,9 +111,13 @@ sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 sock.settimeout(3)
 sock.connect(str(sock_path))
 sock.sendall(json.dumps({
-    "action": "subscribe",
-    "events": ["canvas_lifecycle"],
-    "snapshot": True,
+    "v": 1,
+    "service": "see",
+    "action": "observe",
+    "data": {
+        "events": ["canvas_lifecycle"],
+        "snapshot": True,
+    },
 }).encode() + b"\n")
 
 buffer = b""

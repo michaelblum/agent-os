@@ -35,9 +35,7 @@ source root. This file is a routing map, not a replacement for those sources.
   `skills/aos-canvas-vision/SKILL.md` for canvas and coordinate fallback,
   `skills/aos-focus-sessions/SKILL.md` for session/channel lifecycle,
   `skills/aos-browser/SKILL.md` for browser ref/proof workflows, and
-  `skills/aos-verification/SKILL.md` for act/recapture/assert loops. Retired
-  tombstones such as `skills/aos-agent-workspace/SKILL.md` and
-  `skills/browser-adapter/SKILL.md` exist only to point at current guidance.
+  `skills/aos-verification/SKILL.md` for act/recapture/assert loops.
 - Retained local maintainer skills are also registered in
   `skills/registry.json` but are not part of the installable AOS desktop
   product pack. Use `skills/aos-maintainer-orientation/SKILL.md`,
@@ -45,6 +43,9 @@ source root. This file is a routing map, not a replacement for those sources.
   `skills/aos-repo-binary-build/SKILL.md` for repo maintainer workflows backed
   by deterministic `scripts/aos-dev-*.mjs` commands.
 - AOS Execution Model V0: `docs/adr/0013-aos-execution-model-v0.md`.
+- Pre-release maturity and zero-installed-base compatibility policy:
+  `docs/adr/0039-pre-release-zero-installed-base-compatibility.md` and
+  `docs/dev/product-maturity.json`.
 - AOS TCC capability broker boundary:
   `docs/adr/0015-aos-tcc-capability-broker-boundary.md`.
 - Command-surface extraction contract: `docs/dev/command-surface.md`.

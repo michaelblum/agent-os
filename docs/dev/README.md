@@ -35,13 +35,21 @@ live Git/AOS state when the task allows runtime reads.
 retained compatibility residue. Check it before reintroducing an old command
 noun, skill package, or legacy compatibility path from historical reports.
 
+`product-maturity.json` is the machine-readable pre-release and compatibility
+policy declaration. It fixes the zero-installed-base facts, atomic internal
+migration rule, same-change deletion rule, and any approved compatibility
+exceptions. ADR 0039 owns the decision and
+`shared/schemas/aos-product-maturity-v0.schema.json` owns the declaration
+shape. Validate it with:
+
+```bash
+node --test tests/pre-release-compatibility-policy.test.mjs tests/schemas/aos-product-maturity-v0.test.mjs
+```
+
 `agent-capabilities.json` is the source of truth for typed developer
 capabilities exposed through repo-local maintainer scripts. It describes
 capability envelopes without selecting personas or launch profiles. Use
-`entry_paths` for current routing. The
-`node scripts/aos-dev-workflow.mjs capabilities --role` flag is accepted only
-as a legacy compatibility filter for old callers and must not be used to define
-new personas.
+`entry_paths` for current routing; there is no legacy persona-role filter.
 
 `command-surface.md` describes the external command manifest contract: what
 remains in Swift, what lives in hot-swappable manifests/scripts, and which tests

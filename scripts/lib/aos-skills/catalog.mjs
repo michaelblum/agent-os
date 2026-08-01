@@ -159,7 +159,6 @@ export async function listSkills(options = {}) {
       installable: skills.filter((skill) => skill.installable).length,
       needs_split: skills.filter((skill) => skill.status === 'needs_split').length,
       retained_local: skills.filter((skill) => skill.status === 'retained_local').length,
-      retired: skills.filter((skill) => skill.status === 'retired').length,
       private_ignored: skills.filter((skill) => skill.status === 'private_ignored').length,
     },
   };

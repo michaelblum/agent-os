@@ -132,6 +132,14 @@ export function enrichRuntimeOwnership(runtime) {
 }
 
 export function cleanReport() {
+  if (process.env.AOS_TEST_READY_MOCK_SERVICE_ACTIONS === '1'
+      && process.env.AOS_TEST_READY_CLEAN_REPORT_JSON) {
+    try {
+      return JSON.parse(process.env.AOS_TEST_READY_CLEAN_REPORT_JSON);
+    } catch {
+      return { status: 'unknown', foreground_dev_owners: [], stale_daemons: [], canvases: [], notes: ['test clean report JSON invalid'] };
+    }
+  }
   const result = runNodeScript('scripts/aos-clean.mjs', ['--dry-run', '--json']);
   if (result.exitCode === 0) {
     try {

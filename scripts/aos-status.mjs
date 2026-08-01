@@ -206,7 +206,7 @@ function printText(response) {
   const staleCanvasCount = response.stale_resources?.canvases?.length ?? 0;
   const tapValue = !response.runtime.socket_reachable
     ? 'unknown'
-    : response.runtime.input_tap_status ?? 'unknown';
+    : response.runtime.input_tap?.status ?? 'unknown';
   const daemonState = response.runtime.socket_reachable
     ? 'reachable'
     : (response.runtime.daemon_running ? 'running' : 'down');

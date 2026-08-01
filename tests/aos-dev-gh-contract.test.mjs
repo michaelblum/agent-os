@@ -216,7 +216,8 @@ test('GitHub helper direct help and capability metadata stay discoverable', () =
     assert.equal(data.capability.execution.raw_process, true);
   }
 
-  assertFailure(runNode(['scripts/aos-dev-workflow.mjs', 'capabilities', 'list', '--role', '--json']), /"code" : "MISSING_ARG"/);
+  assertFailure(runNode(['scripts/aos-dev-workflow.mjs', 'capabilities', 'list', '--role', 'maintainer', '--json']), /"code" : "UNKNOWN_FLAG"/);
+  assertFailure(runNode(['scripts/aos-dev-workflow.mjs', 'subagent', 'run', '--json']), /"code" : "UNKNOWN_SUBCOMMAND"/);
 });
 
 test('GitHub helper wraps issue, label, PR, CI, and review-comment commands through gh', (t) => {

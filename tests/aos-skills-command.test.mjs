@@ -42,11 +42,11 @@ function parseBlockedStdout(result) {
 test('aos skills list reports installable root skills with digests', () => {
   const payload = parseStdout(runAos(['skills', 'list', '--json']));
   assert.equal(payload.schema_version, 'aos.skills.list.v0');
-  assert.equal(payload.summary.total, 23);
+  assert.equal(payload.summary.total, 20);
   assert.equal(payload.summary.installable, 13);
   assert.equal(payload.summary.needs_split, 0);
   assert.equal(payload.summary.retained_local, 6);
-  assert.equal(payload.summary.retired, 3);
+  assert.equal(Object.hasOwn(payload.summary, 'retired'), false);
   assert.equal(payload.summary.private_ignored, 1);
   const orientation = payload.skills.find((skill) => skill.name === 'aos-core-orientation');
   assert.ok(orientation);
@@ -123,7 +123,7 @@ test('aos skills install writes the default installable pack', async () => {
 
     const checked = parseStdout(runAos(['skills', 'check', '--target', 'path', '--path', target, '--json']));
     assert.equal(checked.summary.ok, 13);
-    assert.equal(checked.summary.unsupported_target, 10);
+    assert.equal(checked.summary.unsupported_target, 7);
   } finally {
     await rm(target, { recursive: true, force: true });
   }
@@ -369,13 +369,13 @@ test('aos skills install blocks unsupported skill selections', async () => {
       '--path',
       target,
       '--skill',
-      'browser-adapter',
+      'not-a-skill',
       '--dry-run',
       '--json',
     ]));
     assert.equal(unsupported.schema_version, 'aos.skills.install.plan.v0');
     assert.equal(unsupported.status, 'blocked');
-    assert.equal(unsupported.blocked[0].skill, 'browser-adapter');
+    assert.equal(unsupported.blocked[0].skill, 'not-a-skill');
     assert.equal(unsupported.blocked[0].code, 'UNSUPPORTED_SKILL');
 
     const unsupportedInstall = parseBlockedStdout(runAos([
@@ -386,7 +386,7 @@ test('aos skills install blocks unsupported skill selections', async () => {
       '--path',
       target,
       '--skill',
-      'browser-adapter',
+      'not-a-skill',
       '--json',
     ]));
     assert.equal(unsupportedInstall.schema_version, 'aos.skills.install.v0');

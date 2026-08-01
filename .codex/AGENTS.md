@@ -18,7 +18,6 @@
 
 - Do not add `multi_agent_v2`, `[agents.*]`, or `.codex/agents/*.toml` as active
   Codex discovery surfaces.
-- Do not run `$agent-sync` or recreate global `~/.codex/agents` registrations.
 - Keep this file scoped to `.codex/` configuration. Repo-root session behavior
   is governed by root DOX plus the nearest `AGENTS.md` for the path being edited.
 

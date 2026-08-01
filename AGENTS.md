@@ -112,6 +112,10 @@ Default section order:
 ## Hard Invariants
 
 - Do not discard or overwrite user changes to satisfy workflow hygiene.
+- AOS is pre-release with no installed base or external compatibility
+  obligations. Migrate internal consumers atomically and delete superseded
+  implementation in the same change; compatibility residue requires an
+  approved machine-readable, evidence-backed exception.
 - Do not invent new scoping models for runtime resources.
 - Do not create or use linked git worktrees for agent-os agent work. The
   default repo runtime belongs to the primary checkout; runtime-coupled tests

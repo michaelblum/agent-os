@@ -22,7 +22,9 @@ Keep project-agent orchestration out of active AOS core.
 
 - Do not add repo-local agent launchers, agent registries, or runner command
   surfaces to AOS core.
-- Keep fail-closed scripts only when needed to block stale invocation paths.
+- Delete obsolete fail-closed scripts and redirects. Retain compatibility
+  residue only through an ADR 0039 exception backed by an actual external
+  consumer or persisted-data dependency.
 - Keep installable AOS skills as the agent-facing workflow guidance direction.
 - Keep development workflow profiles limited to git/review posture; they do not
   define agent runtime doctrine.
@@ -35,4 +37,5 @@ Agent-facing workflow ergonomics belong in installable skills and current CLI
 surfaces.
 
 Do not recreate project-agent registration, repo-local agent launchers, or
-runner surfaces in AOS core without a new ADR that supersedes this one.
+runner surfaces in AOS core without a new ADR that supersedes this one. ADR 0039
+owns the pre-release compatibility and deletion policy.

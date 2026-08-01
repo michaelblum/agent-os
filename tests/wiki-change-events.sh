@@ -50,8 +50,8 @@ fifo_path = sys.argv[2]
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 s.connect(sock_path)
 
-# Send subscribe request
-req = json.dumps({"action": "subscribe"}) + "\n"
+# Send current observe request
+req = json.dumps({"v": 1, "service": "see", "action": "observe", "data": {}}) + "\n"
 s.sendall(req.encode())
 
 # Open fifo in write mode (blocks until reader opens it)

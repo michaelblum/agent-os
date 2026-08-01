@@ -1128,8 +1128,5 @@
         "retry": "none"
       }
     }
-  ],
-  "metadata": {
-    "role_filter_compatibility": "--role is accepted by node scripts/aos-dev-workflow.mjs capabilities for legacy callers only; current capability routing uses entry_paths and explicit task context, not project-agent personas."
-  }
+  ]
 }

@@ -23,27 +23,28 @@ Newline-delimited JSON (ndjson) over Unix socket. One JSON object per line.
 
 ## Scope
 
-The envelope covers **pushed events only** — the subscriber stream. Request/response protocols (e.g. `{"action":"create",...}` → `{"status":"success",...}`) remain service-specific and are not enveloped.
-
-Why: requests and responses are internal to each daemon's API surface. Events are the shared public interface that any consumer can parse uniformly.
+The event envelope covers pushed messages on the subscriber stream. Requests
+and responses use the daemon request/response v1 envelopes documented in
+`daemon-ipc.md`.
 
 ## Subscribing
 
 Send on any daemon connection:
 ```json
-{"action":"subscribe"}
+{"v":1,"service":"see","action":"observe","data":{}}
 ```
 
-Response: `{"status":"success"}`. All subsequent events on that connection use the envelope format.
+Response: `{"v":1,"status":"success","data":{"channel_id":"..."}}`. All
+subsequent events on that connection use the event envelope format.
 
 Optional event filter (daemon may ignore if unsupported):
 ```json
-{"action":"subscribe","events":["cursor_moved","element_focused"]}
+{"v":1,"service":"see","action":"observe","data":{"events":["cursor_moved","element_focused"]}}
 ```
 
 Optional initial replay for snapshot-capable streams:
 ```json
-{"action":"subscribe","events":["display_geometry","canvas_lifecycle"],"snapshot":true}
+{"v":1,"service":"see","action":"observe","data":{"events":["display_geometry","canvas_lifecycle"],"snapshot":true}}
 ```
 
 Today `snapshot:true` replays current state for `display_geometry` and

@@ -137,13 +137,14 @@ test('cold-agent forward proof exercises the desktop Playwright skill pack', asy
   }
 });
 
-test('cold-agent forward proof avoids retired broad skill surfaces', async () => {
+test('cold-agent forward proof selects only current registry skills', async () => {
   const proof = await fixture();
-  const selected = [
+  const selected = new Set([
     ...proof.preflight.selected_skills,
     ...proof.scenarios.flatMap((scenario) => scenario.selected_skills),
-  ];
+  ]);
+  const registry = JSON.parse(await readFile(path.join(repoRoot, 'skills/registry.json'), 'utf8'));
+  const current = new Set(registry.skills.map((skill) => skill.name));
 
-  assert.equal(selected.includes('aos-agent-workspace'), false);
-  assert.equal(selected.includes('browser-adapter'), false);
+  assert.deepEqual([...selected].filter((skill) => !current.has(skill)), []);
 });

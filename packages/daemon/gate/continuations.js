@@ -21,6 +21,16 @@ export const GATE_SUBMIT_RESPONSE_SCHEMA_VERSION = 'aos.gate.submit.response.v1'
 const TERMINAL_STATES = new Set(['submitted', 'cancelled', 'expired']);
 const CONTINUATION_ID_RE = /^gate-cont-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const RESUME_EVENT_ID_RE = /^gate-resume-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const SESSION_KEYS = new Set([
+  'session_id',
+  'harness',
+  'provider',
+  'role',
+  'cwd',
+  'branch',
+  'head_sha',
+  'dirty_summary',
+]);
 
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -127,8 +137,9 @@ function assertCurrentGateContinuationRecord(record) {
   if (!isObject(record.session)) {
     throw new Error(`corrupt gate continuation ${id}: session must be an object`);
   }
-  if (Object.hasOwn(record.session, 'dock')) {
-    throw new Error(`corrupt gate continuation ${id}: session.dock is retired; current continuations must use session.role`);
+  const unknownSessionKeys = Object.keys(record.session).filter((key) => !SESSION_KEYS.has(key));
+  if (unknownSessionKeys.length) {
+    throw new Error(`corrupt gate continuation ${id}: unknown session fields: ${unknownSessionKeys.sort().join(', ')}`);
   }
   if (!Object.hasOwn(record.session, 'role')) {
     throw new Error(`corrupt gate continuation ${id}: session.role is required`);

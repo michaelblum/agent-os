@@ -37,6 +37,14 @@ AOS must not vendor, copy, or silently rewrite Playwright skill content. Do not
 run a Playwright skill install unless the user explicitly asks for companion
 installation, and use a temp target for tests.
 
+## Target Contract
+
+- `ref:<snapshot-id>:<ref>` — the preferred observe-act target for normal browser work.
+- Direct browser refs are volatile and remain diagnostic or provenance handles.
+- Direct browser `type` and `key` are current-host routes.
+- Saved-ref `type` and `key` are supported for text-compatible browser refs
+  after dry-run validation before dispatch.
+
 ## Stop
 
 Stop when the browser session is not local, the content rect or tab identity is

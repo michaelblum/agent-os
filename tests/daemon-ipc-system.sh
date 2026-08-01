@@ -85,17 +85,11 @@ assert isinstance(regions, dict), f"input region counters missing: {resources}"
 assert isinstance(regions.get("count"), int), f"input region count missing: {resources}"
 assert regions.get("active_capture") is None or isinstance(regions.get("active_capture"), dict), f"active capture invalid: {resources}"
 
-# Legacy flat fields preserved
-assert payload.get("input_tap_status") in ("active", "retrying", "unavailable"), f"input_tap_status missing: {d}"
-assert isinstance(payload.get("input_tap_attempts"), int), f"input_tap_attempts missing: {d}"
-
-# New nested input_tap block
+# Structured input_tap block
 tap = payload.get("input_tap")
 assert isinstance(tap, dict), f"input_tap block missing: {d}"
 assert tap.get("status") in ("active", "retrying", "unavailable"), f"input_tap.status missing: {d}"
-assert tap["status"] == payload["input_tap_status"], f"flat/nested mismatch: {d}"
 assert isinstance(tap.get("attempts"), int), f"input_tap.attempts missing: {d}"
-assert tap["attempts"] == payload["input_tap_attempts"], f"flat/nested mismatch: {d}"
 assert isinstance(tap.get("listen_access"), bool), f"input_tap.listen_access missing: {d}"
 assert isinstance(tap.get("post_access"), bool), f"input_tap.post_access missing: {d}"
 assert tap.get("last_error_at") is None or isinstance(tap.get("last_error_at"), str), f"input_tap.last_error_at must be string-or-null: {d}"

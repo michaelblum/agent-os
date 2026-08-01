@@ -126,10 +126,10 @@ PY
 echo "PASS: __runtime status-facts --json runtime facts"
 
 stop_mock
-start_mock active --legacy
+start_mock active
 
-LEGACY_HEALTH_JSON="$(./aos __daemon health --json)"
-python3 - "$LEGACY_HEALTH_JSON" <<'PY'
+HEALTH_JSON="$(./aos __daemon health --json)"
+python3 - "$HEALTH_JSON" <<'PY'
 import json
 import sys
 
@@ -138,11 +138,10 @@ assert d.get("reachable") is True, d
 tap = d.get("input_tap") or {}
 assert tap.get("status") == "active", tap
 assert tap.get("attempts") == 1, tap
-assert "listen_access" not in tap, tap
-assert "post_access" not in tap, tap
-assert "last_error_at" not in tap, tap
-assert d.get("permissions") == {}, d
+assert tap.get("listen_access") is True, tap
+assert tap.get("post_access") is True, tap
+assert d.get("permissions", {}).get("accessibility") is True, d
 PY
-echo "PASS: __daemon health --json legacy absent-field preservation"
+echo "PASS: __daemon health --json current structured health"
 
 echo "PASS"

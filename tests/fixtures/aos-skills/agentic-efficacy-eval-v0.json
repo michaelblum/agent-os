@@ -9,6 +9,11 @@
     "install_command": "./aos skills install --target path --path \"$AOS_SKILLS_TARGET\" --json"
   },
   "pass_score": 80,
+  "forbidden_skill_names": [
+    "agent-sync",
+    "aos-agent-workspace",
+    "browser-adapter"
+  ],
   "matrix": [
     {
       "id": "codex-gpt-5.4-mini-low",

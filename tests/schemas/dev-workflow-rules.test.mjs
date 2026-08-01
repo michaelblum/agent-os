@@ -140,6 +140,13 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
     ],
   );
   assert.ok(rules.get('root-skill-packages')?.patterns?.includes('skills/**'));
+  assert.deepEqual(
+    rules.get('pre-release-product-policy')?.commands?.map((step) => step.command),
+    ['node --test tests/pre-release-compatibility-policy.test.mjs tests/schemas/aos-product-maturity-v0.test.mjs'],
+  );
+  assert.ok(rules.get('pre-release-product-policy')?.patterns?.includes('docs/dev/product-maturity.json'));
+  assert.ok(rules.get('pre-release-product-policy')?.patterns?.includes('shared/schemas/aos-product-maturity-v0.schema.json'));
+  assert.equal(rules.get('pre-release-product-policy')?.tcc_identity_sensitive, false);
   assert.equal(
     rules.get('command-contract-docs')?.commands?.[0]?.command,
     'bash tests/help-contract.sh',

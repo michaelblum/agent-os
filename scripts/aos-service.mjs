@@ -384,13 +384,8 @@ function daemonHealthView(payload) {
   if (!payload) return null;
   const input = payload.input_tap && typeof payload.input_tap === 'object'
     ? payload.input_tap
-    : {
-        status: payload.input_tap_status,
-        attempts: payload.input_tap_attempts,
-        listen_access: payload.input_tap_listen_access,
-        post_access: payload.input_tap_post_access,
-      };
-  if (!input.status || input.attempts === undefined) return null;
+    : null;
+  if (!input?.status || input.attempts === undefined) return null;
   return {
     pid: Number.isInteger(payload.pid) ? payload.pid : undefined,
     mode: typeof payload.mode === 'string' ? payload.mode : undefined,

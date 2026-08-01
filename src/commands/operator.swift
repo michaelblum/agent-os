@@ -124,9 +124,9 @@ private struct RuntimeInputTapBlock: Encodable {
     let launchd_managed: Bool
     let installed_mode_socket_reachable: Bool
     let stale_input_tap_capable_daemons: Int
-    // Optional: a legacy daemon (lacking the structured `input_tap` block)
-    // doesn't expose these. Emit with encodeIfPresent so consumers see "field
-    // absent" rather than a fabricated `false`.
+    // Optional when the current health probe cannot resolve these live values.
+    // Emit with encodeIfPresent so consumers see "field absent" rather than a
+    // fabricated `false`.
     let listen_access: Bool?
     let post_access: Bool?
     let last_error_at: String?
@@ -177,8 +177,6 @@ private struct RuntimeState: Encodable {
     let other_mode_socket_reachable: Bool
     let uptime_seconds: Double?
     let event_tap_expected: Bool
-    let input_tap_status: String?
-    let input_tap_attempts: Int?
     let input_tap: RuntimeInputTapBlock?
     let installed_app_path: String
     let installed_app_exists: Bool
@@ -894,8 +892,8 @@ private func currentRuntimeState(
 
     let inputTapBlock: RuntimeInputTapBlock?
     if let status = health?.inputTapStatus, let attempts = health?.inputTapAttempts {
-        // listen/post may be nil when talking to a legacy daemon that doesn't
-        // expose them; preserve the unknown signal rather than coercing to false.
+        // Preserve unresolved listen/post facts as unknown rather than coercing
+        // them to false.
         inputTapBlock = RuntimeInputTapBlock(
             status: status,
             attempts: attempts,
@@ -934,8 +932,6 @@ private func currentRuntimeState(
         other_mode_socket_reachable: otherSocketReachable,
         uptime_seconds: health?.uptime,
         event_tap_expected: true,
-        input_tap_status: health?.inputTapStatus,
-        input_tap_attempts: health?.inputTapAttempts,
         input_tap: inputTapBlock,
         installed_app_path: aosInstallAppPath(),
         installed_app_exists: FileManager.default.fileExists(atPath: aosInstallAppPath()),

@@ -11,10 +11,6 @@ export const ANNOTATION_SESSION_ENTRY_SOURCES = new Set([
   'unknown',
 ])
 
-const LEGACY_ANNOTATION_SESSION_ENTRY_SOURCES = new Map([
-  ['sigil_radial', 'radial_menu'],
-])
-
 export const ANNOTATION_ANCHOR_STATUSES = new Set([
   'live',
   'stale',
@@ -33,14 +29,9 @@ function text(value, fallback = '') {
   return normalized || fallback
 }
 
-export function normalizeLegacyAnnotationEntrySource(value) {
-  const source = text(value)
-  return LEGACY_ANNOTATION_SESSION_ENTRY_SOURCES.get(source) || source
-}
-
 export function normalizeAnnotationSessionEntrySource(value) {
-  const canonical = normalizeLegacyAnnotationEntrySource(value)
-  return ANNOTATION_SESSION_ENTRY_SOURCES.has(canonical) ? canonical : 'unknown'
+  const source = text(value)
+  return ANNOTATION_SESSION_ENTRY_SOURCES.has(source) ? source : 'unknown'
 }
 
 function isoNow(now = Date.now()) {

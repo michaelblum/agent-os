@@ -90,22 +90,21 @@ test('context session can wrap an aos_annotation_session summary', () => {
   )
 })
 
-test('legacy annotation entry sources never re-emit from context sessions or persisted summaries', () => {
+test('unknown annotation entry sources normalize to the current unknown value', () => {
   const topLevel = createContextSession({
-    id: 'context-session:legacy-top-level',
-    entry_source: 'sigil_radial',
+    id: 'context-session:unknown-top-level',
+    entry_source: 'removed-source',
     updated_at: '2026-05-28T12:00:00.000Z',
   })
-  assert.equal(topLevel.entry_source, 'radial_menu')
-  assert.doesNotMatch(JSON.stringify(topLevel), /sigil_radial/)
+  assert.equal(topLevel.entry_source, 'unknown')
 
   const nested = createContextSession({
-    id: 'context-session:legacy-summary',
+    id: 'context-session:unknown-summary',
     source_annotation_session: {
       schema: 'aos_annotation_session',
       version: '0.1.0',
       active: false,
-      entry_source: 'sigil_radial',
+      entry_source: 'removed-source',
       updated_at: '2026-05-28T12:00:01.000Z',
       root_address: '',
       committed_scope_addresses: [],
@@ -116,9 +115,8 @@ test('legacy annotation entry sources never re-emit from context sessions or per
     },
     updated_at: '2026-05-28T12:00:02.000Z',
   })
-  assert.equal(nested.entry_source, 'radial_menu')
-  assert.equal(nested.source_annotation_session.entry_source, 'radial_menu')
-  assert.doesNotMatch(JSON.stringify(nested), /sigil_radial/)
+  assert.equal(nested.entry_source, 'unknown')
+  assert.equal(nested.source_annotation_session.entry_source, 'unknown')
 })
 
 test('context artifacts preserve root-to-leaf path and active leaf selection', () => {

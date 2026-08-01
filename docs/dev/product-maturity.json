@@ -1,0 +1,24 @@
+{
+  "$schema": "../../shared/schemas/aos-product-maturity-v0.schema.json",
+  "schema_version": "aos.product-maturity.v0",
+  "product": "agent-os",
+  "maturity": "pre_release",
+  "distribution": {
+    "ever_distributed": false,
+    "external_installed_base": false,
+    "external_compatibility_obligations": false
+  },
+  "migration_policy": {
+    "internal_consumers": "atomic",
+    "superseded_implementation": "delete_same_change"
+  },
+  "compatibility_policy": {
+    "default_action": "delete_superseded_same_change",
+    "allowed_evidence": [
+      "external_consumer",
+      "persisted_data_dependency"
+    ],
+    "residue_marker": "AOS_COMPATIBILITY_RESIDUE:"
+  },
+  "compatibility_exceptions": []
+}

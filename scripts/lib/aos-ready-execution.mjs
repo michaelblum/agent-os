@@ -107,7 +107,7 @@ export function postPermissionRecoveryAuthority(
 function liveInputTapConfirmed(response) {
   const tap = response.runtime?.input_tap;
   return response.ready_source === 'daemon'
-    && (tap?.status ?? response.runtime?.input_tap_status) === 'active'
+    && tap?.status === 'active'
     && tap?.listen_access === true
     && tap?.post_access === true;
 }
@@ -215,7 +215,7 @@ function nextPostPermissionRepairStep(response, authority) {
   }
 
   const tap = response.runtime?.input_tap;
-  const tapStatus = tap?.status ?? response.runtime?.input_tap_status;
+  const tapStatus = tap?.status;
   const needsLiveRefresh = authority.requires_restart === true
     || blockerIDs.has('post_permission_live_readiness_unconfirmed')
     || blockerIDs.has('input_tap_not_active')

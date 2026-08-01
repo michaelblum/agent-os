@@ -30,11 +30,9 @@ should follow it.
    any future "make it ready" lifecycle verb cannot exit 0 when a
    daemon-owned readiness check is reporting degraded.
 
-4. **Compatibility fields may be preserved, but new structured fields are
-   the forward contract.** Flat legacy fields (e.g. top-level
-   `input_tap_status`) can stay byte-for-byte for compatibility, but new
-   consumers should bind to the structured nested block (e.g. `input_tap.*`).
-   Don't expand the legacy flat surface.
+4. **Current structured fields are the only active contract.** With no external
+   installed base, producers and consumers migrate atomically to the nested
+   capability blocks. Do not retain parallel flat fields or read fallbacks.
 
 5. **Tests must cover both happy path and degraded daemon-reported state.**
    A single happy-path assertion is insufficient. Use the mock-daemon
