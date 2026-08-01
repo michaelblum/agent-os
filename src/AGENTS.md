@@ -68,7 +68,14 @@ needs, but public command policy and product UI policy belong above it:
   Native DesktopWorld effects capture each display at its exact backing
   dimensions within the native resource budget. Ordinary image products may
   use an explicitly bounded fit policy, but native presentation never silently
-  substitutes a lower-resolution texture. A flat native sheet is a neutral
+  substitutes a lower-resolution texture. Capture dimensions must convert
+  ScreenCaptureKit display points with the admitted filter's point-to-pixel
+  scale. For native DesktopWorld projection,
+  `src/shared/desktop-world-display-geometry.swift` owns the one
+  generation-bound mapping among physical points, global DesktopWorld points,
+  and backing pixels. Capture, rendering, and native-sheet damage modules in
+  that path consume the mapping and may not derive or reconcile display
+  coordinates or scale independently. A flat native sheet is a neutral
   pixel pass-through; material lighting and refraction apply only where the
   declared effect deforms the sheet.
   Both hosts must remain daemon-free, broker-free, prompt-free, content-free in

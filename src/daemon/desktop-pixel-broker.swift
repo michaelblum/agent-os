@@ -56,6 +56,12 @@ func aosDesktopPixelRequestIsValid(
           request.maximumPixelsPerDisplay <= AOSDesktopPixelLimits.maximumPixelsPerDisplay else {
         return false
     }
+    guard request.displayLayout == nil
+            || request.displayLayout?.matches(displayIDs: request.displayIDs) == true,
+          request.sizingPolicy != .exactWithinBudget
+            || request.displayLayout != nil else {
+        return false
+    }
     let total = request.maximumPixelsPerDisplay.multipliedReportingOverflow(
         by: request.displayIDs.count
     )
@@ -149,17 +155,20 @@ final class AOSDesktopFrameRetirementCancellation:
 
 struct AOSDesktopPixelSnapshotRequest: Equatable {
     let displayIDs: [UInt32]
+    let displayLayout: AOSDesktopWorldDisplayLayout?
     let excludingWindowIDs: [Int]
     let maximumPixelsPerDisplay: Int
     let sizingPolicy: AOSDesktopPixelSizingPolicy
 
     init(
         displayIDs: [UInt32],
+        displayLayout: AOSDesktopWorldDisplayLayout? = nil,
         excludingWindowIDs: [Int],
         maximumPixelsPerDisplay: Int,
         sizingPolicy: AOSDesktopPixelSizingPolicy = .fitWithinBudget
     ) {
         self.displayIDs = displayIDs
+        self.displayLayout = displayLayout
         self.excludingWindowIDs = excludingWindowIDs
         self.maximumPixelsPerDisplay = maximumPixelsPerDisplay
         self.sizingPolicy = sizingPolicy

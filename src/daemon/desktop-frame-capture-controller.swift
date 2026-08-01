@@ -201,6 +201,7 @@ final class AOSDesktopFrameCaptureController {
         AOSDesktopFrameWarmConfiguration(
             canvasGeneration: context.canvasGeneration,
             displayIDs: context.displayIDs,
+            displayLayout: context.displayLayout,
             excludingWindowIDs: context.excludingWindowIDs,
             maximumPixelsPerDisplay: nativePresentation
                 ? Self.nativePresentationMaximumPixelsPerDisplay

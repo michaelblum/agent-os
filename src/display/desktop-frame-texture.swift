@@ -14,12 +14,14 @@ struct AOSDesktopFrameCaptureContext: Equatable {
     let canvasGeneration: UInt64
     let canvasID: String
     let consumers: [AOSDesktopFrameConsumerIdentity]
+    let displayLayout: AOSDesktopWorldDisplayLayout
     let excludingWindowIDs: [Int]
     let topologyGeneration: UInt64
 
     init?(
         canvasID: String,
         consumers: [AOSDesktopFrameConsumerIdentity],
+        displayLayout: AOSDesktopWorldDisplayLayout,
         excludingWindowIDs: [Int]
     ) {
         let ordered = consumers.sorted { left, right in
@@ -31,6 +33,9 @@ struct AOSDesktopFrameCaptureContext: Equatable {
               let first = ordered.first,
               Set(ordered.map(\.displayID)).count == ordered.count,
               Set(ordered.map(\.segmentIndex)).count == ordered.count,
+              displayLayout.matches(indexedDisplays: ordered.map {
+                  (displayID: $0.displayID, index: $0.segmentIndex)
+              }),
               ordered.allSatisfy({
                   $0.canvasID == canvasID
                       && $0.canvasGeneration == first.canvasGeneration
@@ -41,6 +46,7 @@ struct AOSDesktopFrameCaptureContext: Equatable {
         self.canvasGeneration = first.canvasGeneration
         self.canvasID = canvasID
         self.consumers = ordered
+        self.displayLayout = displayLayout
         self.excludingWindowIDs = Array(Set(excludingWindowIDs)).sorted()
         self.topologyGeneration = first.topologyGeneration
     }

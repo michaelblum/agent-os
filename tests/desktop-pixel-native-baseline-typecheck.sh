@@ -8,6 +8,14 @@ trap 'rm -rf "$TMP"' EXIT
 "$ROOT/tests/swift-runtime-typecheck.sh"
 
 /usr/bin/xcrun swiftc -parse-as-library \
+  "$ROOT/src/shared/desktop-world-display-geometry.swift" \
+  "$ROOT/tests/lib/desktop-world-display-geometry-tests.swift" \
+  -framework CoreGraphics \
+  -framework Foundation \
+  -o "$TMP/desktop-world-display-geometry-tests"
+"$TMP/desktop-world-display-geometry-tests"
+
+/usr/bin/xcrun swiftc -parse-as-library \
   "$ROOT/src/display/desktop-world-native-sheet-geometry.swift" \
   "$ROOT/tests/lib/desktop-world-native-sheet-geometry-tests.swift" \
   -framework CoreGraphics \

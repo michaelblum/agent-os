@@ -45,6 +45,7 @@ final class AOSDesktopWorldNativeFeedbackHost:
         return AOSDesktopWorldNativeFeedbackCaptureContext(
             canvasGeneration: context.canvasGeneration,
             displayIDs: context.displayIDs,
+            displayLayout: context.displayLayout,
             excludingWindowIDs: context.excludingWindowIDs,
             topologyGeneration: context.topologyGeneration
         )

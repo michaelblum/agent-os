@@ -34,18 +34,24 @@ struct DesktopWorldNativeSheetGeometryTests {
         precondition(leftPlan?.renderBounds == CGRect(
             x: 1_200, y: 300, width: 240, height: 300
         ))
-        precondition(try leftPlan?.localProjectionFrame(
+        let leftProjectionFrame = try leftPlan?.localProjectionFrame(
             containerBounds: CGRect(x: 0, y: 0, width: 1_440, height: 900)
-        ) == CGRect(x: 1_200, y: 300, width: 240, height: 300))
+        )
+        precondition(leftProjectionFrame == CGRect(
+            x: 1_200, y: 300, width: 240, height: 300
+        ))
         precondition(rightPlan?.patches.map(\.bounds) == [
             CGRect(x: 1_440, y: 300, width: 760, height: 300),
         ])
         precondition(rightPlan?.renderBounds == CGRect(
             x: 1_440, y: 300, width: 760, height: 300
         ))
-        precondition(try rightPlan?.localProjectionFrame(
+        let rightProjectionFrame = try rightPlan?.localProjectionFrame(
             containerBounds: CGRect(x: 0, y: 0, width: 2_560, height: 1_440)
-        ) == CGRect(x: 0, y: 840, width: 760, height: 300))
+        )
+        precondition(rightProjectionFrame == CGRect(
+            x: 0, y: 840, width: 760, height: 300
+        ))
         let routeMetrics = try DesktopWorldNativeSheetGeometryRequest.aggregate(
             [leftPlan!.metrics, rightPlan!.metrics],
             segmentCount: 2
@@ -81,7 +87,7 @@ struct DesktopWorldNativeSheetGeometryTests {
         }
         expectFailure(.geometryBudgetExceeded) {
             let fullLeft = try DesktopWorldNativeSheetGeometryRequest.adaptive(
-                cellSize: 2,
+                cellSize: 4,
                 regions: nil
             ).plan(segmentBounds: left)!
             _ = try DesktopWorldNativeSheetGeometryRequest.aggregate(
