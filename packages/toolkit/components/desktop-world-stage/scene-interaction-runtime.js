@@ -1,8 +1,11 @@
-import {
-  createSceneInteractionController,
-  validateSceneInteractionDocument,
-} from '../../scene/index.js'
+import { createSceneInteractionController, validateSceneInteractionDocument } from '../../scene/index.js'
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
+import {
+  dispatchSceneCursorAwareInput,
+  dispatchSceneCursorPresentation,
+  routeSceneCursorAwareInput,
+  sceneCursorRegionMetadata,
+} from './scene-cursor-presentation-runtime.js'
 import { createSceneAnimationRegionTransitionRuntime } from './scene-animation-region-transition.js'
 import {
   prepareRetainedSceneInteractionReplacement,
@@ -39,7 +42,7 @@ function regionPayload(entry, descriptor, frame) {
       scene_owner: entry.owner,
       scene_resource: entry.resource,
       scene_affordance: descriptor.id,
-      ...(descriptor.cursor?.captured === 'none' ? { cursor_suppression: 'captured' } : {}),
+      ...sceneCursorRegionMetadata(descriptor),
       ...(entry.regionGeneration === null
         ? {}
         : { scene_input_generation: String(entry.regionGeneration) }),
@@ -182,7 +185,7 @@ export function createDesktopWorldSceneInteractionRuntime({
     const indexed = new Map()
     for (const { descriptor, frame } of entry.controller.affordances()) {
       const payload = regionPayload(entry, descriptor, frame)
-      indexed.set(payload.id, { affordanceId: descriptor.id, payload })
+      indexed.set(payload.id, { affordanceId: descriptor.id, descriptor, payload })
     }
     entry.regionIds = indexed
     return indexed
@@ -558,7 +561,7 @@ export function createDesktopWorldSceneInteractionRuntime({
         }
         preparation.state = 'replaying'
         for (const message of preparation.bufferedInputs.splice(0)) {
-          if (!dispatchInput(message)) {
+          if (!dispatchRoutedInput(message)) {
             if (candidate) candidate.regionSyncErrorCode = 'INPUT_REGION_ACTIVATION_FAILED'
             return false
           }
@@ -810,18 +813,19 @@ export function createDesktopWorldSceneInteractionRuntime({
     return false
   }
 
+  const dispatchCursorPresentation = (cursor) => dispatchSceneCursorPresentation({
+    cursor, inputAdmissionClosed, stageSuspended, runtimeDisposed, retiredRegions,
+    leases, entryBlocked, outlet, now,
+  })
+  const dispatchRoutedInput = (message) => dispatchSceneCursorAwareInput(
+    message, dispatchCursorPresentation, dispatchInput,
+  )
+
   function handleInput(message) {
-    const input = normalizeCanvasInputMessage(message)
-    const regionId = input?.regionId
-    const staged = regionId ? stagedRegionIds.get(regionId) : null
-    if (staged) {
-      if (['activating', 'activated', 'committed', 'replaying', 'publishing'].includes(staged.state)) {
-        if (staged.bufferedInputs.length < MAX_BUFFERED_GENERATION_INPUTS) staged.bufferedInputs.push(message)
-        else staged.inputOverflow = true
-      }
-      return true
-    }
-    return dispatchInput(message, input)
+    return routeSceneCursorAwareInput({
+      message, stagedRegionIds, maxBufferedInputs: MAX_BUFFERED_GENERATION_INPUTS,
+      dispatchCursor: dispatchCursorPresentation, dispatchInput,
+    })
   }
 
   function cancelAll(reason = 'stage_disposed') {

@@ -469,6 +469,12 @@ if ! sed -n '/private func activateInputSafetyEmergencyExit/,/private func handl
 fi
 
 if ! sed -n '/private func activateInputSafetyEmergencyExit/,/private func handleInputEvent/p' "$ROOT/src/daemon/unified.swift" |
+  rg -U -q '(?s)perception\.stop\(\).*restoreNativeCursorSuppressionForExit\(\)'; then
+  echo "FAIL: input safety escape hatch must restore AOS-owned cursor suppression after stopping input" >&2
+  exit 1
+fi
+
+if ! sed -n '/private func activateInputSafetyEmergencyExit/,/private func handleInputEvent/p' "$ROOT/src/daemon/unified.swift" |
   rg -q 'NSApp\.terminate\(nil\)'; then
   echo "FAIL: input safety escape hatch must terminate the daemon app" >&2
   exit 1

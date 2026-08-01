@@ -179,6 +179,17 @@ passive `down` notification for an admitted affordance. It may start a visual
 effect but cannot consume input, select a recognizer, publish a gesture, or
 commit state.
 
+An optional synchronous `applyCursorPresentation(event)` hook receives
+generation-bound `enter`, `move`, and `leave` events only for an affordance
+whose cursor declaration names custom visual art and while AOS has actually
+hidden the system cursor. The deeply frozen event contains the affordance ID,
+DesktopWorld point, hover-or-captured mode, phase, event timestamp, and declared
+visual ID. The hook may update extension-owned art in the existing projection;
+it cannot change native cursor policy, consume input, or create another window,
+renderer, or frame loop. AOS stops visual delivery and restores its successful
+native hide on release, cancellation, owner loss, permission loss, emergency
+exit, and cleanup.
+
 ## Review And Installation
 
 Validation parses the source as one strict function body and parses the exact

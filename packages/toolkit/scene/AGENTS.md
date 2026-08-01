@@ -119,10 +119,16 @@ stage internals.
 - A drag recognizer owns only `start`, `update`, `end`, and `cancel` lifecycle.
   Translation, aim-and-commit, drop, and signal graphs are separate declarative
   responses. A product meaning such as fast travel must remain in its cartridge.
-- An affordance may suppress the native cursor only for its captured pointer
-  session through the typed cursor policy. Hover remains pass-through, and AOS
-  restores suppression on every terminal, cancellation, ownership-loss, and
-  cleanup path.
+- An affordance may request `inherit` or `hidden` system-cursor presentation
+  independently for hover and captured pointer phases. AOS derives the active
+  region from its global input tap, checks every hide/show result, and restores
+  its successful hide exactly once on terminal, cancellation, permission loss,
+  ownership loss, and cleanup. Cursor presentation never changes event
+  consumption or makes a DesktopWorld window interactive.
+- Optional consumer cursor art is a reviewed trusted-extension visual keyed by
+  a canonical ID. AOS publishes generation-bound enter/move/leave facts only
+  while its native cursor hide is actually applied. Consumer art cannot consume
+  input, change cursor policy, or create another window, renderer, or frame loop.
 - Tap-open radial menus are AOS-owned transient leases. Their item hit regions,
   pointer-move focus/blur lifecycle, press/select lifecycle, Escape
   cancellation, suspension, topology cleanup, and stock rendering stay in the

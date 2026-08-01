@@ -684,6 +684,17 @@ export function validateSceneExtensionProjection(projection) {
       'Scene extension projection applyPointerVisual must be a function when provided.',
     )
   }
+  if (
+    projection.applyCursorPresentation !== undefined
+    && typeof projection.applyCursorPresentation !== 'function'
+  ) {
+    addError(
+      errors,
+      'invalid_projection_method',
+      'projection.applyCursorPresentation',
+      'Scene extension projection applyCursorPresentation must be a function when provided.',
+    )
+  }
   if (projection.renderDamage !== undefined && typeof projection.renderDamage !== 'function') {
     addError(
       errors,
@@ -797,6 +808,9 @@ export function createTrustedSceneExtensionRegistry(input = {}) {
                 : undefined,
               applyPointerVisual: typeof projection.applyPointerVisual === 'function'
                 ? (...args) => callSynchronousProjectionHook(projection, 'applyPointerVisual', args)
+                : undefined,
+              applyCursorPresentation: typeof projection.applyCursorPresentation === 'function'
+                ? (...args) => callSynchronousProjectionHook(projection, 'applyCursorPresentation', args)
                 : undefined,
               applyAnimation: (...args) => callSynchronousProjectionHook(projection, 'applyAnimation', args),
               applySignal: (...args) => callSynchronousProjectionHook(projection, 'applySignal', args),

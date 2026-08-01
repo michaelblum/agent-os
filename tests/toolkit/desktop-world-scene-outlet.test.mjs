@@ -1008,6 +1008,7 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /forceContextLoss/u)
   assert.doesNotMatch(outlet, /https?:\/\//u)
   assert.match(stage, /desktop_world_stage\.scene\.operation/u)
+  assert.match(stage, /message\?\.type === 'input_region\.cursor' \|\| message\?\.type === 'input_region\.event'/u)
   assert.equal((stage.match(/emit\('desktop_world_stage\.scene\.result'/gu) ?? []).length, 2)
   assert.match(stage, /createDesktopWorldStageFaultRetirement/u)
   assert.match(stage, /publish: \(fault\) => emit\('desktop_world_stage\.scene\.fault'/u)

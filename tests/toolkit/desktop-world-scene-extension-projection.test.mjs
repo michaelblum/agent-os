@@ -365,6 +365,39 @@ test('DesktopWorld gives trusted extensions a bounded deep-frozen interaction sn
   assert.deepEqual(event.topology.displays[0].bounds, [0, 0, 1000, 800])
 })
 
+test('DesktopWorld gives trusted extensions a deep-frozen cursor presentation', () => {
+  let observed = null
+  const extension = factory({}, {
+    applyCursorPresentation(event) {
+      observed = event
+      assert.throws(() => { event.point.x = 999 }, TypeError)
+    },
+  })
+  const registry = createTrustedSceneExtensionRegistry({ factories: [extension] })
+  const result = createDesktopWorldSceneProjection({
+    THREE: { REVISION: SCENE_EXTENSION_THREE_REVISION },
+    document: scene(),
+    expectedOwner: ownerId,
+    extensionReference: reference(),
+    extensionRegistry: registry,
+  })
+  const event = {
+    affordanceId: 'object-hit',
+    at: 7,
+    mode: 'hover',
+    phase: 'enter',
+    point: { x: 20, y: 30 },
+    visual: 'example.consumer.cursor.hover',
+  }
+
+  result.projection.applyCursorPresentation(event)
+
+  assert.notEqual(observed, event)
+  assert.equal(Object.isFrozen(observed), true)
+  assert.equal(Object.isFrozen(observed.point), true)
+  assert.deepEqual(event.point, { x: 20, y: 30 })
+})
+
 test('DesktopWorld clones special interaction keys as inert frozen data properties', () => {
   let observed = null
   const extension = factory({}, {

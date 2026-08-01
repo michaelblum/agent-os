@@ -346,6 +346,7 @@ declareManifest({
     'desktop_world_stage.scene.release',
     'desktop_world_stage.devtools.configure',
     'desktop_world_stage.devtools.request',
+    'input_region.cursor',
     'input_region.event',
     'key_down',
     'lifecycle',
@@ -454,7 +455,7 @@ wireBridge((message) => {
     devtoolsProbe.emitSnapshot('requested', undefined, requestId == null ? {} : { request_id: requestId })
     return
   }
-  if (message?.type === 'input_region.event') {
+  if (message?.type === 'input_region.cursor' || message?.type === 'input_region.event') {
     if (stageLifecycleState === 'active') sceneOperations.handleInput(message)
     return
   }

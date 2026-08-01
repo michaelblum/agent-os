@@ -118,6 +118,9 @@ function extensionProjectionAdapter(
     applyPointerVisual: typeof projection.applyPointerVisual === 'function'
       ? (event) => projection.applyPointerVisual.call(projection, immutableInteractionEvent(event))
       : undefined,
+    applyCursorPresentation: typeof projection.applyCursorPresentation === 'function'
+      ? (event) => projection.applyCursorPresentation.call(projection, immutableInteractionEvent(event))
+      : undefined,
     applyAnimation: (...args) => projection.applyAnimation.apply(projection, args),
     applySignal: (...args) => projection.applySignal.apply(projection, args),
     contextLost: (...args) => projection.contextLost.apply(projection, args),

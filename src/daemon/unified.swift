@@ -358,8 +358,7 @@ class UnifiedDaemon {
     private let inputRegionLock = NSLock()
     private var inputRegions = AOSInputRegionRegistry()
     private var inputKeyLeases = AOSInputKeyLeaseRegistry()
-    private let nativeCursorSuppressionLock = NSLock()
-    private let nativeCursorSuppressionReconciler = AOSNativeCursorSuppressionReconciler()
+    private let inputRegionCursorPresentation = AOSInputRegionCursorPresentationCoordinator()
 
     // Wiki FSEvents watcher
     private var wikiWatcher: WikiWatcher?
@@ -1512,16 +1511,19 @@ class UnifiedDaemon {
             let retargeted = self.canvasManager.retargetTrackedCanvases()
             self.canvasManager.syncCanvasFrames(excluding: retargeted)
             self.broadcastDisplayGeometry()
-            self.reconcileNativeCursorSuppressionAfterDisplayGeometryChange()
+            self.reconcileCursorPresentationAfterDisplayGeometryChange()
         }
     }
 
-    private func reconcileNativeCursorSuppressionAfterDisplayGeometryChange() {
+    private func reconcileCursorPresentationAfterDisplayGeometryChange() {
         inputRegionLock.lock()
-        let cursorSuppressionActive = inputRegions.nativeCursorSuppressionActive()
+        inputRegions.refreshPointerTarget()
+        let cursorResult = inputRegionCursorPresentation.reconcile(
+            target: inputRegions.cursorPresentationSnapshot(),
+            emitMove: false
+        )
         inputRegionLock.unlock()
-        guard cursorSuppressionActive else { return }
-        reconcileNativeCursorSuppression(active: cursorSuppressionActive)
+        publishInputRegionCursorPresentation(cursorResult)
     }
 
     /// Send an async response to a canvas that made a mutation request with a request_id.
@@ -2406,9 +2408,12 @@ class UnifiedDaemon {
             return
         }
         inputRegions.register(region)
-        let cursorSuppressionActive = inputRegions.nativeCursorSuppressionActive()
+        let cursorResult = inputRegionCursorPresentation.reconcile(
+            target: inputRegions.cursorPresentationSnapshot(),
+            emitMove: true
+        )
         inputRegionLock.unlock()
-        reconcileNativeCursorSuppression(active: cursorSuppressionActive)
+        publishInputRegionCursorPresentation(cursorResult)
 
         let action = existed ? "updated" : "registered"
         publishInputRegionStateEvent(action: action, region: region)
@@ -2530,14 +2535,19 @@ class UnifiedDaemon {
             retire: retiredIDs,
             owner: caller
         )
-        let cursorSuppressionActive = inputRegions.nativeCursorSuppressionActive()
+        let cursorResult = replacement.map { _ in
+            inputRegionCursorPresentation.reconcile(
+                target: inputRegions.cursorPresentationSnapshot(),
+                emitMove: true
+            )
+        }
         inputRegionLock.unlock()
-        guard let replacement else {
+        guard let replacement, let cursorResult else {
             dispatchCanvasResponse(to: callerID, requestID: requestID,
                 status: "error", code: "INPUT_REGION_GENERATION_CONFLICT", message: "input region generation could not be replaced atomically")
             return
         }
-        reconcileNativeCursorSuppression(active: cursorSuppressionActive)
+        publishInputRegionCursorPresentation(cursorResult)
         if !replacement.idempotent {
             for region in replacement.retired { publishInputRegionStateEvent(action: "removed", region: region) }
             for region in replacement.activated { publishInputRegionStateEvent(action: "updated", region: region) }
@@ -2566,9 +2576,12 @@ class UnifiedDaemon {
             return
         }
         let removed = inputRegions.remove(id: id)
-        let cursorSuppressionActive = inputRegions.nativeCursorSuppressionActive()
+        let cursorResult = inputRegionCursorPresentation.reconcile(
+            target: inputRegions.cursorPresentationSnapshot(),
+            emitMove: false
+        )
         inputRegionLock.unlock()
-        reconcileNativeCursorSuppression(active: cursorSuppressionActive)
+        publishInputRegionCursorPresentation(cursorResult)
 
         if let removed {
             publishInputRegionStateEvent(action: "removed", region: removed)
@@ -3949,6 +3962,9 @@ class UnifiedDaemon {
             let inputRegionSnapshot = inputRegions.snapshot()
             let activeInputCapture: Any = inputRegions.activeCaptureSnapshot() ?? NSNull()
             inputRegionLock.unlock()
+            let nativeCursorSnapshot = inputRegionCursorPresentation.snapshot()
+            let nativeCursorErrorCode: Any = nativeCursorSnapshot.errorCode
+                .map { NSNumber(value: $0) } ?? NSNull()
             let mode = aosCurrentRuntimeMode()
             let pid = Int(getpid())
             let startedAt = ISO8601DateFormatter().string(from: startTime)
@@ -4005,6 +4021,11 @@ class UnifiedDaemon {
                     "input_regions": [
                         "count": inputRegionSnapshot.count,
                         "active_capture": activeInputCapture,
+                        "native_cursor": [
+                            "requested_hidden": nativeCursorSnapshot.requestedHidden,
+                            "applied_hidden": nativeCursorSnapshot.appliedHidden,
+                            "error_code": nativeCursorErrorCode,
+                        ],
                     ],
                     "desktop_world_scene_event_routing": desktopWorldSceneEventRouting.snapshot(),
                     "surface_transport_probe": surfaceTransportProbeSnapshot(
@@ -4601,6 +4622,7 @@ class UnifiedDaemon {
         canvasManager.setInputPassthrough(true)
         teardownSpeechCancelTap()
         perception.stop()
+        restoreNativeCursorSuppressionForExit()
         fputs("AOS input safety escape hatch triggered; released input ownership and exiting daemon\n", stderr)
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(50)) {
             NSApp.terminate(nil)
@@ -4623,9 +4645,10 @@ class UnifiedDaemon {
     private func releaseInputRegionCaptureAfterPermissionLoss() {
         inputRegionLock.lock()
         let decision = inputRegions.cancelActiveCapture(reason: .osCancelled)
-        let cursorSuppressionActive = inputRegions.nativeCursorSuppressionActive()
+        inputRegions.clearPointerState()
+        let cursorResult = inputRegionCursorPresentation.reconcile(target: nil, emitMove: false)
         inputRegionLock.unlock()
-        reconcileNativeCursorSuppression(active: cursorSuppressionActive)
+        publishInputRegionCursorPresentation(cursorResult)
 
         guard case .deliver(let delivery) = decision else { return }
         canvasManager.postMessageAsync(
@@ -4670,9 +4693,12 @@ class UnifiedDaemon {
         let keyTargets = decision == nil
             ? inputKeyLeases.targets(logicalKey: "Escape")
             : []
-        let cursorSuppressionActive = inputRegions.nativeCursorSuppressionActive()
+        let cursorResult = inputRegionCursorPresentation.reconcile(
+            target: inputRegions.cursorPresentationSnapshot(),
+            emitMove: false
+        )
         inputRegionLock.unlock()
-        reconcileNativeCursorSuppression(active: cursorSuppressionActive)
+        publishInputRegionCursorPresentation(cursorResult)
         if let decision {
             switch decision {
             case .failOpen:
@@ -4764,9 +4790,12 @@ class UnifiedDaemon {
             sourceSequence: sourceSequence,
             gestureID: gestureID
         )
-        let cursorSuppressionActive = inputRegions.nativeCursorSuppressionActive()
+        let cursorResult = inputRegionCursorPresentation.reconcile(
+            target: inputRegions.cursorPresentationSnapshot(),
+            emitMove: point != nil
+        )
         inputRegionLock.unlock()
-        reconcileNativeCursorSuppression(active: cursorSuppressionActive)
+        publishInputRegionCursorPresentation(cursorResult)
         guard let decision else { return nil }
 
         switch decision {
@@ -4865,30 +4894,28 @@ class UnifiedDaemon {
         return CGPoint(x: point.x - origin.x, y: point.y - origin.y)
     }
 
-    private func reconcileNativeCursorSuppression(active: Bool) {
-        nativeCursorSuppressionLock.lock()
-        let result = nativeCursorSuppressionReconciler.reconcile(active: active)
-        nativeCursorSuppressionLock.unlock()
-        guard result.hideNativeCursor || result.showNativeCursor else { return }
-        DispatchQueue.main.async {
-            if result.showNativeCursor {
-                CGDisplayShowCursor(CGMainDisplayID())
-                aosSetNativeCursorSuppressionSignalActive(false)
-            }
-            if result.hideNativeCursor {
-                CGDisplayHideCursor(CGMainDisplayID())
-                aosSetNativeCursorSuppressionSignalActive(true)
-            }
+    private func publishInputRegionCursorPresentation(
+        _ result: AOSInputRegionCursorPresentationReconcileResult
+    ) {
+        if result.native.didHide { aosSetNativeCursorSuppressionSignalActive(true) }
+        if result.native.didShow { aosSetNativeCursorSuppressionSignalActive(false) }
+        for delivery in result.deliveries {
+            canvasManager.postMessageAsync(
+                to: delivery.ownerCanvasGeneration,
+                payload: delivery.payload
+            )
         }
     }
 
     private func restoreNativeCursorSuppressionForExit() {
-        nativeCursorSuppressionLock.lock()
-        let result = nativeCursorSuppressionReconciler.restore()
-        nativeCursorSuppressionLock.unlock()
-        guard result.showNativeCursor else { return }
-        CGDisplayShowCursor(CGMainDisplayID())
-        aosSetNativeCursorSuppressionSignalActive(false)
+        inputRegionLock.lock()
+        inputRegions.clearPointerState()
+        var result = inputRegionCursorPresentation.restore()
+        if result.native.appliedHidden {
+            result = inputRegionCursorPresentation.restore()
+        }
+        inputRegionLock.unlock()
+        publishInputRegionCursorPresentation(result)
     }
 
     private func removeInputRegionsOwned(by ownerCanvasID: String, includeSuspendRetained: Bool) {
@@ -4897,9 +4924,12 @@ class UnifiedDaemon {
         if includeSuspendRetained {
             _ = inputKeyLeases.removeOwned(by: ownerCanvasID)
         }
-        let cursorSuppressionActive = inputRegions.nativeCursorSuppressionActive()
+        let cursorResult = inputRegionCursorPresentation.reconcile(
+            target: inputRegions.cursorPresentationSnapshot(),
+            emitMove: false
+        )
         inputRegionLock.unlock()
-        reconcileNativeCursorSuppression(active: cursorSuppressionActive)
+        publishInputRegionCursorPresentation(cursorResult)
         for region in removed {
             publishInputRegionStateEvent(action: "removed", region: region)
         }
@@ -4950,8 +4980,8 @@ class UnifiedDaemon {
         _ = desktopFrameCapture.releaseAll(callerCanvasID: sceneStageCanvasID)
         desktopWorldNativeFeedback.shutdown()
         desktopPixelBroker.shutdown()
-        restoreNativeCursorSuppressionForExit()
         perception.stop()
+        restoreNativeCursorSuppressionForExit()
         spatial.stopPolling()
         unlink(socketPath)
         releaseDaemonLock()

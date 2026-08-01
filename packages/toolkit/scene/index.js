@@ -81,6 +81,7 @@ export {
 
 export {
   SCENE_AFFORDANCE_CURSOR_STYLES,
+  SCENE_AFFORDANCE_SYSTEM_CURSOR_STYLES,
   SCENE_AFFORDANCE_LIMITS,
   SCENE_EVENT_CONTRACT_ID,
   SCENE_INTERACTIONS_CONTRACT_ID,
@@ -94,6 +95,7 @@ export {
   createSceneGestureArena,
   createSceneInteractionController,
   resolveSceneAffordanceFrame,
+  resolveSceneAffordanceCursorPresentation,
   resolveSceneGestureResponse,
   validateSceneAffordanceDescriptor,
   validateSceneInteractionDocument,

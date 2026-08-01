@@ -9,6 +9,7 @@ import {
   createSceneEventEnvelope,
   createSceneGestureArena,
   resolveSceneAffordanceFrame,
+  resolveSceneAffordanceCursorPresentation,
   resolveSceneGestureResponse,
   validateSceneAffordanceDescriptor,
   validateSceneInteractionDocument,
@@ -86,17 +87,39 @@ test('scene affordances validate bounded owner-scoped geometry and resolve objec
   }
 })
 
-test('scene affordances accept only the bounded captured-cursor suppression policy', () => {
+test('scene affordances accept bounded phase-aware cursor presentation', () => {
   const cursorlessAim = {
     ...affordance,
-    cursor: { captured: 'none' },
+    cursor: {
+      hover: { system: 'hidden', visual: 'example.cursor.hover' },
+      captured: 'none',
+    },
   }
   assert.deepEqual(
     validateSceneAffordanceDescriptor(cursorlessAim, { objectIds: new Set(['root', 'body']) }),
     { ok: true, errors: [] },
   )
+  assert.deepEqual(resolveSceneAffordanceCursorPresentation(cursorlessAim, 'hover'), {
+    system: 'hidden',
+    visual: 'example.cursor.hover',
+  })
+  assert.deepEqual(resolveSceneAffordanceCursorPresentation(cursorlessAim, 'captured'), {
+    system: 'hidden',
+    visual: null,
+  })
+  assert.deepEqual(resolveSceneAffordanceCursorPresentation(affordance, 'hover'), {
+    system: 'inherit',
+    visual: null,
+  })
 
-  for (const cursor of [null, {}, { captured: 'hidden' }, { captured: 'none', hover: 'grab' }]) {
+  for (const cursor of [
+    null,
+    {},
+    { captured: 'hidden' },
+    { captured: 'none', hover: 'grab' },
+    { hover: { system: 'inherit', visual: 'example.cursor.hover' } },
+    { hover: { system: 'hidden', visual: '../cursor' } },
+  ]) {
     const result = validateSceneAffordanceDescriptor(
       { ...affordance, cursor },
       { objectIds: new Set(['root', 'body']) },
