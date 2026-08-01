@@ -201,6 +201,7 @@ let v1Uniforms = AOSDesktopWorldNativeEffectProgramCompiler.uniformStorage(
     eventOrigin: CGPoint(x: 3, y: 4),
     eventTotalDelta: CGPoint(x: 5, y: 6),
     globalBounds: CGRect(x: -100, y: 0, width: 3000, height: 1200),
+    renderBounds: CGRect(x: 0, y: 0, width: 1440, height: 900),
     segmentBounds: CGRect(x: 0, y: 0, width: 1440, height: 900)
 )
 precondition(v1Uniforms.count == 12)
@@ -242,6 +243,8 @@ precondition(!source.contains("example.effect.sheet-wave"))
 precondition(source.contains("deformedPosition"))
 precondition(source.contains("cross(tangentX, tangentY)"))
 precondition(source.contains("perspectiveScale"))
+precondition(source.contains("float2 renderOrigin = float2(uniforms[17], uniforms[18])"))
+precondition(source.contains("float2 renderSize = max(float2(uniforms[19], uniforms[20])"))
 precondition(source.contains("float shininess = mix"))
 precondition(source.contains("float fresnelTerm"))
 precondition(source.contains("safeNormalize(input.normal).xy"))
@@ -280,11 +283,13 @@ let uniforms = AOSDesktopWorldNativeEffectProgramCompiler.uniformStorage(
     eventOrigin: CGPoint(x: 30, y: 40),
     eventTotalDelta: CGPoint(x: 50, y: 60),
     globalBounds: CGRect(x: -1440, y: -120, width: 4000, height: 1560),
+    renderBounds: CGRect(x: 1200, y: 280, width: 600, height: 340),
     segmentBounds: CGRect(x: 0, y: 0, width: 2560, height: 1440)
 )
-precondition(uniforms.count == 18)
+precondition(uniforms.count == 22)
 precondition(Array(uniforms[11...16]) == [0, 0, -1440, -120, 4000, 1560])
-precondition(uniforms[17] == 18)
+precondition(Array(uniforms[17...20]) == [1200, 280, 600, 340])
+precondition(uniforms[21] == 18)
 let geometryRequest = AOSDesktopWorldNativeEffectGeometryResolver.request(
     program: instance.program,
     origin: CGPoint(x: 1_200, y: 450),

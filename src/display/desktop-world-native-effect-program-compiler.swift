@@ -3,7 +3,7 @@ import Foundation
 
 enum AOSDesktopWorldNativeEffectProgramCompiler {
     static let uniformPrefixCount = 11
-    static let uniformPrefixCountV2 = 17
+    static let uniformPrefixCountV2 = 21
 
     private struct ExpressionContext {
         let stateGradient: String?
@@ -36,6 +36,7 @@ enum AOSDesktopWorldNativeEffectProgramCompiler {
         eventOrigin: CGPoint,
         eventTotalDelta: CGPoint,
         globalBounds: CGRect,
+        renderBounds: CGRect,
         segmentBounds: CGRect
     ) -> [Float] {
         let common: [Float] = [
@@ -52,6 +53,8 @@ enum AOSDesktopWorldNativeEffectProgramCompiler {
                 Float(segmentBounds.origin.x), Float(segmentBounds.origin.y),
                 Float(globalBounds.origin.x), Float(globalBounds.origin.y),
                 Float(globalBounds.size.width), Float(globalBounds.size.height),
+                Float(renderBounds.origin.x), Float(renderBounds.origin.y),
+                Float(renderBounds.size.width), Float(renderBounds.size.height),
             ]
         } else {
             geometry = []
@@ -380,13 +383,13 @@ vertex NativeEffectVertexOut desktopWorldNativeProgramVertex(
         4.0
     );
     float2 projected = globalCenter + (deformed.xy - globalCenter) * perspectiveScale;
-    float2 segmentOrigin = float2(uniforms[11], uniforms[12]);
-    float2 segmentSize = max(float2(uniforms[8], uniforms[9]), float2(1.0));
-    float2 segmentUV = (projected - segmentOrigin) / segmentSize;
+    float2 renderOrigin = float2(uniforms[17], uniforms[18]);
+    float2 renderSize = max(float2(uniforms[19], uniforms[20]), float2(1.0));
+    float2 renderUV = (projected - renderOrigin) / renderSize;
     NativeEffectVertexOut output;
     output.position = float4(
-        segmentUV.x * 2.0 - 1.0,
-        1.0 - segmentUV.y * 2.0,
+        renderUV.x * 2.0 - 1.0,
+        1.0 - renderUV.y * 2.0,
         clamp(0.5 - deformed.z / (perspectiveDistance * 2.0), 0.0, 1.0),
         1.0
     );

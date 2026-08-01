@@ -8,6 +8,7 @@ final class DesktopWorldNativeProjectionHost: DesktopWorldNativeProjectionHostLi
     let view: MTKView
     private weak var containerView: NSView?
     private var finalized = false
+    private var projectionFrame: CGRect?
 
     init(containerView: NSView, below webView: NSView, device: MTLDevice) {
         precondition(Thread.isMainThread, "native projection creation must run on the main thread")
@@ -30,7 +31,18 @@ final class DesktopWorldNativeProjectionHost: DesktopWorldNativeProjectionHostLi
     func resize() {
         precondition(Thread.isMainThread, "native projection resize must run on the main thread")
         guard !finalized, let containerView else { return }
-        view.frame = containerView.bounds
+        view.frame = projectionFrame ?? containerView.bounds
+    }
+
+    func configure(plan: DesktopWorldNativeSheetGeometryPlan) throws {
+        precondition(Thread.isMainThread, "native projection configuration must run on the main thread")
+        guard !finalized, let containerView else {
+            throw DesktopWorldNativeSheetFailure.rendererUnavailable
+        }
+        projectionFrame = try plan.localProjectionFrame(
+            containerBounds: containerView.bounds
+        )
+        resize()
     }
 
     func present() {
@@ -63,6 +75,7 @@ final class DesktopWorldNativeProjectionHost: DesktopWorldNativeProjectionHostLi
         view.isHidden = true
         view.delegate = nil
         view.removeFromSuperview()
+        projectionFrame = nil
         containerView = nil
     }
 

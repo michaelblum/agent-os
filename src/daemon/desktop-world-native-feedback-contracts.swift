@@ -9,6 +9,9 @@ struct AOSDesktopWorldNativeFeedbackCaptureContext: Equatable, Sendable {
 
 @MainActor
 protocol AOSDesktopWorldNativeFeedbackRuntime: AnyObject {
+    var renderBackingPixelCount: Int { get }
+    var renderBackingPixelPercentage: Double { get }
+    var renderTriangleCount: Int { get }
     var retainedBufferCount: Int { get }
     var retainedTextureCount: Int { get }
     var retainedViewCount: Int { get }
@@ -59,6 +62,9 @@ struct AOSDesktopWorldNativeFeedbackSnapshot: Equatable {
     let lastErrorCode: String?
     let lastOwnerID: String?
     let lastPresentationLatencyMilliseconds: Int?
+    let lastRenderBackingPixelCount: Int?
+    let lastRenderBackingPixelPercentage: Double?
+    let lastRenderTriangleCount: Int?
     let lastProgramDigest: String?
     let lastProgramID: String?
     let lastProgramRevision: Int?
@@ -82,6 +88,9 @@ struct AOSDesktopWorldNativeFeedbackSnapshot: Equatable {
         lastErrorCode: nil,
         lastOwnerID: nil,
         lastPresentationLatencyMilliseconds: nil,
+        lastRenderBackingPixelCount: nil,
+        lastRenderBackingPixelPercentage: nil,
+        lastRenderTriangleCount: nil,
         lastProgramDigest: nil,
         lastProgramID: nil,
         lastProgramRevision: nil,

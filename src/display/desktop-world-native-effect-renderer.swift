@@ -251,6 +251,7 @@ enum AOSDesktopWorldNativeEffectRenderPlan {
     func makeUniformStorage(
         inputs: AOSDesktopWorldNativeEffectInputs,
         globalBounds: CGRect,
+        renderBounds: CGRect,
         segmentBounds: CGRect
     ) -> [Float] {
         switch self {
@@ -262,6 +263,7 @@ enum AOSDesktopWorldNativeEffectRenderPlan {
                 eventOrigin: inputs.origin,
                 eventTotalDelta: inputs.totalDelta,
                 globalBounds: globalBounds,
+                renderBounds: renderBounds,
                 segmentBounds: segmentBounds
             )
         case .ripple(let parameters):
@@ -344,6 +346,7 @@ final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
         self.uniforms = plan.makeUniformStorage(
             inputs: inputs,
             globalBounds: globalBounds,
+            renderBounds: mesh.renderBounds,
             segmentBounds: mesh.segmentBounds
         )
         super.init()
@@ -637,6 +640,12 @@ final class AOSDesktopWorldNativeEffectRuntime {
     var retainedViewCount: Int {
         renderers.count
     }
+
+    var renderBackingPixelCount: Int { sheet.renderBackingPixelCount }
+
+    var renderBackingPixelPercentage: Double { sheet.renderBackingPixelPercentage }
+
+    var renderTriangleCount: Int { sheet.metrics.triangleCount }
 }
 
 extension AOSDesktopWorldNativeEffectRuntime:

@@ -23,6 +23,8 @@ final class DesktopWorldNativeSheet {
     let geometryRequest: DesktopWorldNativeSheetGeometryRequest
     let identity: AOSDesktopWorldResourceIdentity
     let metrics: DesktopWorldNativeSheetGeometryMetrics
+    let renderBackingPixelCount: Int
+    let renderBackingPixelPercentage: Double
     private(set) var segmentSheets: [SegmentSheet]
     private(set) var state: State = .registered
     let topologyGeneration: UInt64
@@ -61,10 +63,26 @@ final class DesktopWorldNativeSheet {
             planned.map { $0.1.metrics },
             segmentCount: planned.count
         )
+        let totalBackingPixels = segments.reduce(0) { total, segment in
+            total + Self.backingPixels(
+                bounds: segment.dwBounds,
+                scaleFactor: segment.scaleFactor
+            )
+        }
+        renderBackingPixelCount = planned.reduce(0) { total, entry in
+            total + Self.backingPixels(
+                bounds: entry.1.renderBounds,
+                scaleFactor: entry.0.scaleFactor
+            )
+        }
+        renderBackingPixelPercentage = totalBackingPixels > 0
+            ? min(100, Double(renderBackingPixelCount) / Double(totalBackingPixels) * 100)
+            : 0
         var created: [SegmentSheet] = []
         do {
             for (segment, plan) in planned {
                 let host = try segment.preparedNativeProjectionHost(device: device)
+                try host.configure(plan: plan)
                 let mesh = try DesktopWorldNativeSheetMesh(
                     plan: plan,
                     device: device
@@ -112,5 +130,12 @@ final class DesktopWorldNativeSheet {
 
     var retainedGeometryBufferCount: Int {
         segmentSheets.reduce(0) { $0 + $1.mesh.retainedBufferCount }
+    }
+
+    private static func backingPixels(bounds: CGRect, scaleFactor: CGFloat) -> Int {
+        let width = max(1, Int(ceil(bounds.width * scaleFactor)))
+        let height = max(1, Int(ceil(bounds.height * scaleFactor)))
+        let (pixels, overflow) = width.multipliedReportingOverflow(by: height)
+        return overflow ? Int.max : pixels
     }
 }

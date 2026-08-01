@@ -82,7 +82,29 @@ struct DesktopWorldNativeSheetGeometryPatch: Equatable {
 struct DesktopWorldNativeSheetGeometryPlan: Equatable {
     let metrics: DesktopWorldNativeSheetGeometryMetrics
     let patches: [DesktopWorldNativeSheetGeometryPatch]
+    let renderBounds: CGRect
     let segmentBounds: CGRect
+
+    func localProjectionFrame(containerBounds: CGRect) throws -> CGRect {
+        guard DesktopWorldNativeSheetGeometryRequest.valid(containerBounds),
+              DesktopWorldNativeSheetGeometryRequest.valid(renderBounds),
+              DesktopWorldNativeSheetGeometryRequest.valid(segmentBounds),
+              segmentBounds.contains(renderBounds) else {
+            throw DesktopWorldNativeSheetFailure.invalidGeometry
+        }
+        let scaleX = containerBounds.width / segmentBounds.width
+        let scaleY = containerBounds.height / segmentBounds.height
+        let width = renderBounds.width * scaleX
+        let height = renderBounds.height * scaleY
+        return CGRect(
+            x: containerBounds.minX
+                + (renderBounds.minX - segmentBounds.minX) * scaleX,
+            y: containerBounds.minY
+                + (segmentBounds.maxY - renderBounds.maxY) * scaleY,
+            width: width,
+            height: height
+        )
+    }
 }
 
 enum DesktopWorldNativeSheetGeometryRequest: Equatable {
@@ -104,6 +126,7 @@ enum DesktopWorldNativeSheetGeometryRequest: Equatable {
             return DesktopWorldNativeSheetGeometryPlan(
                 metrics: try descriptor.metrics(segmentCount: 1),
                 patches: [.init(bounds: segmentBounds, descriptor: descriptor)],
+                renderBounds: segmentBounds,
                 segmentBounds: segmentBounds
             )
         case .adaptive(let cellSize, let requestedRegions):
@@ -135,6 +158,7 @@ enum DesktopWorldNativeSheetGeometryRequest: Equatable {
             return DesktopWorldNativeSheetGeometryPlan(
                 metrics: try Self.aggregate(metrics, segmentCount: 1),
                 patches: patches,
+                renderBounds: patches.reduce(CGRect.null) { $0.union($1.bounds) },
                 segmentBounds: segmentBounds
             )
         }
@@ -187,7 +211,7 @@ enum DesktopWorldNativeSheetGeometryRequest: Equatable {
         return left.width < right.width
     }
 
-    private static func valid(_ bounds: CGRect) -> Bool {
+    static func valid(_ bounds: CGRect) -> Bool {
         !bounds.isNull
             && !bounds.isInfinite
             && !bounds.isEmpty
@@ -207,6 +231,7 @@ final class DesktopWorldNativeSheetMesh {
     let indexCount: Int
     let metrics: DesktopWorldNativeSheetGeometryMetrics
     let patchBounds: [CGRect]
+    let renderBounds: CGRect
     let segmentBounds: CGRect
     private(set) var indexBuffer: MTLBuffer?
     private(set) var vertexBuffer: MTLBuffer?
@@ -228,6 +253,7 @@ final class DesktopWorldNativeSheetMesh {
     ) throws {
         segmentBounds = plan.segmentBounds
         patchBounds = plan.patches.map(\.bounds)
+        renderBounds = plan.renderBounds
         metrics = plan.metrics
 
         var vertices: [DesktopWorldNativeSheetVertex] = []
@@ -249,8 +275,14 @@ final class DesktopWorldNativeSheetMesh {
                     let segmentV = Float(
                         (CGFloat(worldY) - plan.segmentBounds.minY) / plan.segmentBounds.height
                     )
-                    let clipX = (2 * segmentU) - 1
-                    let clipY = 1 - (2 * segmentV)
+                    let renderU = Float(
+                        (CGFloat(worldX) - plan.renderBounds.minX) / plan.renderBounds.width
+                    )
+                    let renderV = Float(
+                        (CGFloat(worldY) - plan.renderBounds.minY) / plan.renderBounds.height
+                    )
+                    let clipX = (2 * renderU) - 1
+                    let clipY = 1 - (2 * renderV)
                     vertices.append(DesktopWorldNativeSheetVertex(
                         clipPosition: SIMD4<Float>(clipX, clipY, 0, 1),
                         worldAndUV: SIMD4<Float>(worldX, worldY, segmentU, segmentV)

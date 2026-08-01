@@ -209,6 +209,9 @@ nativeWarmState = AOSDesktopWorldDevToolsNativeStageFacts(
     nativeEffectLastErrorCode: "NATIVE_EFFECT_CAPTURE_TIMEOUT",
     nativeEffectLastOwnerID: "example.consumer",
     nativeEffectLastPresentationLatencyMilliseconds: 31,
+    nativeEffectLastRenderBackingPixelCount: 480_000,
+    nativeEffectLastRenderBackingPixelPercentage: 8.25,
+    nativeEffectLastRenderTriangleCount: 12_000,
     nativeEffectLastProgramDigest: String(repeating: "a", count: 64),
     nativeEffectLastProgramID: "example.ripple",
     nativeEffectLastProgramRevision: 1,
@@ -252,6 +255,9 @@ require(nativeEffect["rejectedCount"] as? Int == 1, "native effect rejections we
 require(nativeEffect["failedCount"] as? Int == 1, "native effect failures were lost")
 require(nativeEffect["lastErrorCode"] as? String == "NATIVE_EFFECT_CAPTURE_TIMEOUT", "native effect error was lost")
 require(nativeEffect["lastPresentationLatencyMs"] as? Int == 31, "native effect latency was lost")
+require(nativeEffect["lastRenderBackingPixelCount"] as? Int == 480_000, "native effect backing pixels were lost")
+require(nativeEffect["lastRenderBackingPixelPercentage"] as? Double == 8.25, "native effect backing percentage was lost")
+require(nativeEffect["lastRenderTriangleCount"] as? Int == 12_000, "native effect triangle count was lost")
 let lastExecution = nativeEffect["lastExecution"] as! [String: Any]
 require(lastExecution["ownerId"] as? String == "example.consumer", "native effect owner identity was lost")
 require(lastExecution["resourceId"] as? String == "companion/main", "native effect resource identity was lost")
