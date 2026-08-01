@@ -573,6 +573,7 @@ final class AOSDesktopWorldNativeFeedbackController {
         guard let retired = retireActive(
             generation: generation,
             allowedPhases: [.presenting],
+            expectedPresented: false,
             requiresRuntimeDisposal: true
         ) else { return }
         settleTimeout(retired, code: "NATIVE_EFFECT_PRESENT_TIMEOUT")
@@ -582,6 +583,7 @@ final class AOSDesktopWorldNativeFeedbackController {
         guard let retired = retireActive(
             generation: generation,
             allowedPhases: [.presenting],
+            expectedPresented: true,
             requiresRuntimeDisposal: true
         ) else { return }
         settleTimeout(
@@ -800,11 +802,13 @@ final class AOSDesktopWorldNativeFeedbackController {
     private func retireActive(
         generation: UInt64,
         allowedPhases: Set<Active.Phase>? = nil,
+        expectedPresented: Bool? = nil,
         requiresRuntimeDisposal: Bool
     ) -> Active? {
         admission.retire(
             generation: generation,
             allowedPhases: allowedPhases,
+            expectedPresented: expectedPresented,
             requiresRuntimeDisposal: requiresRuntimeDisposal
         )
     }

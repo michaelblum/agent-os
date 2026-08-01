@@ -402,6 +402,42 @@ let request = AOSDesktopWorldNativeEffectRequest(
     triggeredAt: ProcessInfo.processInfo.systemUptime
 )
 
+let deadlineRaceAdmission = AOSDesktopWorldNativeFeedbackAdmission()
+deadlineRaceAdmission.setGate(available: true, prepared: true)
+let deadlineRaceGeneration: UInt64
+switch deadlineRaceAdmission.trigger(request) {
+case .start(let generation):
+    deadlineRaceGeneration = generation
+default:
+    fatalError("deadline-race request was not admitted")
+}
+precondition(deadlineRaceAdmission.transition(
+    generation: deadlineRaceGeneration,
+    from: .capturing,
+    to: .installing
+))
+precondition(deadlineRaceAdmission.transition(
+    generation: deadlineRaceGeneration,
+    from: .installing,
+    to: .presenting
+))
+precondition(deadlineRaceAdmission.presentation(
+    generation: deadlineRaceGeneration,
+    markPresented: true
+).didPresent)
+precondition(deadlineRaceAdmission.retire(
+    generation: deadlineRaceGeneration,
+    allowedPhases: [.presenting],
+    expectedPresented: false,
+    requiresRuntimeDisposal: true
+) == nil)
+precondition(deadlineRaceAdmission.retire(
+    generation: deadlineRaceGeneration,
+    allowedPhases: [.presenting],
+    expectedPresented: true,
+    requiresRuntimeDisposal: true
+) != nil)
+
 let replacementRequest = AOSDesktopWorldNativeEffectRequest(
     binding: AOSDesktopWorldNativeEffectBinding(
         interactionID: request.binding.interactionID,

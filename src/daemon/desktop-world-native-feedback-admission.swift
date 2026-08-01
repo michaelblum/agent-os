@@ -255,13 +255,15 @@ final class AOSDesktopWorldNativeFeedbackAdmission {
     func retire(
         generation: UInt64,
         allowedPhases: Set<Active.Phase>? = nil,
+        expectedPresented: Bool? = nil,
         requiresRuntimeDisposal: Bool
     ) -> Active? {
         lock.lock()
         defer { lock.unlock() }
         guard let current = active,
               current.generation == generation,
-              allowedPhases?.contains(current.phase) ?? true else {
+              allowedPhases?.contains(current.phase) ?? true,
+              expectedPresented.map({ $0 == current.presented }) ?? true else {
             return nil
         }
         active = nil
