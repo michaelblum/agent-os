@@ -279,32 +279,36 @@ let cursorRegion = AOSInputRegionRecord(
     ownerCanvasGeneration: stageGeneration,
     nativeFrame: baseFrame,
     consumePolicy: "captured",
-    metadata: ["cursor_suppression": "captured"]
+    metadata: [
+        "cursor_hover_system": "hidden",
+        "cursor_captured_system": "hidden",
+    ]
 )
 cursorRegistry.register(cursorRegion)
-assert(!cursorRegistry.nativeCursorSuppressionActive(), "capture-scoped cursor suppression must stay inactive while merely hovering")
-_ = cursorRegistry.route(event: descriptor("mouse_moved"), point: point)
-assert(!cursorRegistry.nativeCursorSuppressionActive(), "pass-through pointer movement must not hide the native cursor")
-_ = cursorRegistry.route(event: descriptor("left_mouse_down"), point: point)
-assert(cursorRegistry.nativeCursorSuppressionActive(), "pointer capture must activate capture-scoped native cursor suppression")
-_ = cursorRegistry.route(event: descriptor("left_mouse_dragged"), point: CGPoint(x: 500, y: 500))
-assert(cursorRegistry.nativeCursorSuppressionActive(), "captured dragging outside the hit region must retain native cursor suppression")
-_ = cursorRegistry.route(event: descriptor("left_mouse_up"), point: CGPoint(x: 500, y: 500))
-assert(!cursorRegistry.nativeCursorSuppressionActive(), "pointer release must restore the native cursor")
+assert(cursorRegistry.cursorPresentationSnapshot() == nil, "cursor presentation requires an observed pointer location")
+_ = cursorRegistry.route(event: descriptor("mouse_moved"), point: point, desktopWorld: point)
+assert(cursorRegistry.cursorPresentationSnapshot()?.mode == .hover, "hover should activate the declared cursor presentation")
+_ = cursorRegistry.route(event: descriptor("left_mouse_down"), point: point, desktopWorld: point)
+assert(cursorRegistry.cursorPresentationSnapshot()?.mode == .captured, "pointer capture must transfer cursor presentation ownership")
+_ = cursorRegistry.route(event: descriptor("left_mouse_dragged"), point: CGPoint(x: 500, y: 500), desktopWorld: CGPoint(x: 500, y: 500))
+assert(cursorRegistry.cursorPresentationSnapshot()?.mode == .captured, "captured dragging outside the hit region must retain cursor presentation")
+_ = cursorRegistry.route(event: descriptor("left_mouse_up"), point: CGPoint(x: 500, y: 500), desktopWorld: CGPoint(x: 500, y: 500))
+assert(cursorRegistry.cursorPresentationSnapshot() == nil, "pointer release outside the hit region must restore inherited presentation")
 
-_ = cursorRegistry.route(event: descriptor("left_mouse_down"), point: point)
-assert(cursorRegistry.nativeCursorSuppressionActive(), "a second pointer capture must hide the native cursor again")
+_ = cursorRegistry.route(event: descriptor("left_mouse_down"), point: point, desktopWorld: point)
+assert(cursorRegistry.cursorPresentationSnapshot()?.mode == .captured, "a second pointer capture must enter captured presentation")
 _ = cursorRegistry.cancelActiveCapture(reason: .escape)
-assert(!cursorRegistry.nativeCursorSuppressionActive(), "Escape cancellation must restore the native cursor")
+assert(cursorRegistry.cursorPresentationSnapshot()?.mode == .hover, "Escape cancellation should restore hover presentation at the retained point")
 
 _ = cursorRegistry.route(
     event: AOSInputEventDescriptor(type: "left_mouse_down")!,
     point: CGPoint(x: 20, y: 20),
     desktopWorld: CGPoint(x: 20, y: 20)
 )
-assert(cursorRegistry.nativeCursorSuppressionActive(), "a permission-loss capture must begin with the cursor hidden")
+assert(cursorRegistry.cursorPresentationSnapshot()?.mode == .captured, "a permission-loss capture must begin in captured presentation")
 _ = cursorRegistry.cancelActiveCapture(reason: .osCancelled)
-assert(!cursorRegistry.nativeCursorSuppressionActive(), "input permission loss must restore the native cursor")
+cursorRegistry.clearPointerState()
+assert(cursorRegistry.cursorPresentationSnapshot() == nil, "input permission loss must clear all cursor presentation state")
 
 let failOpenRegistry = AOSInputRegionRegistry()
 failOpenRegistry.register(highRegion)
@@ -496,25 +500,25 @@ assert(AOSInputKeyLeaseDelivery(
 assert(Set(keyRegistry.removeOwned(by: "stage").map(\.id)) == Set(["stage:escape-primary", "stage:escape-secondary", "stage-replacement:escape"]), "owner cleanup must remove every generation-scoped key lease")
 assert(keyRegistry.targets(logicalKey: "Escape").isEmpty, "owner cleanup must leave no stale Escape target")
 
-let cursorReconciler = AOSNativeCursorSuppressionReconciler()
-let firstCursorSuppression = cursorReconciler.reconcile(active: true)
-assert(firstCursorSuppression.hideNativeCursor == true, "first cursor suppression should hide the process cursor once")
-assert(firstCursorSuppression.showNativeCursor == false, "first cursor suppression should not show")
-let unchangedCursorSuppression = cursorReconciler.reconcile(active: true)
-assert(unchangedCursorSuppression.hideNativeCursor == false, "unchanged cursor suppression should not double-hide")
-assert(unchangedCursorSuppression.showNativeCursor == false, "unchanged cursor suppression should not restore")
-let displayChangedCursorSuppression = cursorReconciler.reconcile(active: true)
-assert(displayChangedCursorSuppression.hideNativeCursor == false, "display change while active should not double-hide")
-assert(displayChangedCursorSuppression.showNativeCursor == false, "display change while active should not restore")
-let clearedCursorSuppression = cursorReconciler.reconcile(active: false)
-assert(clearedCursorSuppression.showNativeCursor == true, "last cursor suppression removal should restore once")
-let repeatedCleanup = cursorReconciler.restore()
-assert(repeatedCleanup.showNativeCursor == false, "repeated cursor cleanup should be idempotent")
+var hideCalls = 0
+var showCalls = 0
+let cursorPresentation = AOSNativeCursorPresentationController(
+    hide: { hideCalls += 1; return .success },
+    show: { showCalls += 1; return .success }
+)
+let firstCursorSuppression = cursorPresentation.reconcile(hidden: true)
+assert(firstCursorSuppression.didHide == true, "first cursor suppression should hide the process cursor once")
+let unchangedCursorSuppression = cursorPresentation.reconcile(hidden: true)
+assert(unchangedCursorSuppression.didHide == false && hideCalls == 1, "unchanged cursor suppression should not double-hide")
+let clearedCursorSuppression = cursorPresentation.reconcile(hidden: false)
+assert(clearedCursorSuppression.didShow == true && showCalls == 1, "last cursor suppression removal should restore once")
+let repeatedCleanup = cursorPresentation.restore()
+assert(repeatedCleanup.didShow == false && showCalls == 1, "repeated cursor cleanup should be idempotent")
 
 print("PASS daemon input surface ownership and input regions")
 SWIFT
 
-swiftc "$ROOT/src/display/canvas-generation.swift" "$ROOT/src/shared/input-event.swift" "$ROOT/src/daemon/input-surface-ownership.swift" "$TMP/main.swift" -o "$TMP/test-input-surface-ownership"
+swiftc "$ROOT/src/display/canvas-generation.swift" "$ROOT/src/shared/input-event.swift" "$ROOT/src/daemon/input-surface-ownership.swift" "$ROOT/src/daemon/input-region-cursor-presentation.swift" "$TMP/main.swift" -o "$TMP/test-input-surface-ownership"
 "$TMP/test-input-surface-ownership"
 
 cat >"$TMP/main.swift" <<'SWIFT'
@@ -757,6 +761,7 @@ swiftc \
   "$ROOT/src/perceive/models.swift" \
   "$ROOT/src/perceive/events.swift" \
   "$ROOT/src/daemon/input-surface-ownership.swift" \
+  "$ROOT/src/daemon/input-region-cursor-presentation.swift" \
   "$TMP/main.swift" \
   -o "$TMP/test-input-event-contract"
 "$TMP/test-input-event-contract" "$TMP"

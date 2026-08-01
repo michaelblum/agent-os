@@ -209,6 +209,12 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-world-scene-*.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-world-native-*.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-world-devtools-*.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/input-region-cursor-presentation.swift'));
+  assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/input-surface-ownership.swift'));
+  assert.ok(
+    rules.get('desktop-world-scene-engine')?.commands
+      ?.some((step) => step.id === 'scene-cursor-presentation-contract'),
+  );
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-frame-capture-consent.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-frame-capture-adapter.swift'));
   assert.ok(rules.get('desktop-world-scene-engine')?.patterns?.includes('src/daemon/desktop-frame-capture-controller.swift'));

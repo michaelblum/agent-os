@@ -26,9 +26,15 @@ export interface SceneAffordanceDescriptor {
   priority: number;
   consumePolicy: 'always' | 'captured' | 'down_only' | 'never';
   cursor?: {
-    captured: 'none';
+    hover?: SceneCursorPresentationDescriptor;
+    captured?: 'none' | SceneCursorPresentationDescriptor;
   };
   metadata: Record<string, string | number | boolean>;
+}
+
+export interface SceneCursorPresentationDescriptor {
+  system: 'inherit' | 'hidden';
+  visual?: string;
 }
 
 export type SceneGestureKind = 'tap' | 'drag' | 'long_press' | 'radial';
@@ -245,6 +251,15 @@ export const SCENE_AFFORDANCE_LIMITS: Readonly<{
 export const SCENE_AFFORDANCE_CURSOR_STYLES: Readonly<{
   none: 'none';
 }>;
+export const SCENE_AFFORDANCE_SYSTEM_CURSOR_STYLES: Readonly<{
+  hidden: 'hidden';
+  inherit: 'inherit';
+}>;
+
+export function resolveSceneAffordanceCursorPresentation(
+  descriptor: SceneAffordanceDescriptor,
+  phase: 'hover' | 'captured',
+): Readonly<{ system: 'inherit' | 'hidden'; visual: string | null }>;
 
 export function validateSceneAffordanceDescriptor(
   descriptor: unknown,

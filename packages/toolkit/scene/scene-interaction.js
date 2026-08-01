@@ -11,6 +11,7 @@ import {
 
 export {
   SCENE_AFFORDANCE_CURSOR_STYLES,
+  SCENE_AFFORDANCE_SYSTEM_CURSOR_STYLES,
   SCENE_AFFORDANCE_LIMITS,
   SCENE_EVENT_CONTRACT_ID,
   SCENE_GESTURE_CANCELLATION_REASONS,
@@ -20,6 +21,7 @@ export {
   SCENE_NATIVE_EFFECT_BINDING_LIMITS,
   SCENE_NATIVE_EFFECT_IMPLEMENTATIONS,
   SCENE_NATIVE_EFFECT_LIFECYCLES,
+  resolveSceneAffordanceCursorPresentation,
   validateSceneAffordanceDescriptor,
   validateSceneInteractionDocument,
 } from './scene-interaction-contract.js'

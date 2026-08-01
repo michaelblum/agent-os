@@ -49,6 +49,7 @@ function harness({
   update = async () => {},
   replace = null,
   applyResponse = (event) => ({ ...event.response, applied: true, revision: 1 }),
+  applyCursorPresentation = () => false,
   applyPointerVisual = () => false,
   now = () => Date.now(),
   onEmit = null,
@@ -71,6 +72,9 @@ function harness({
     },
     applyPointerVisual(key, event) {
       return applyPointerVisual(key, event)
+    },
+    applyCursorPresentation(key, event) {
+      return applyCursorPresentation(key, event)
     },
   }
   const runtime = createDesktopWorldSceneInteractionRuntime({
@@ -152,6 +156,19 @@ function escapeKey(sequenceValue) {
   }
 }
 
+function cursorPresentation(regionId, phase, mode, x, y) {
+  return {
+    type: 'input_region.cursor',
+    cursor_presentation: {
+      cursor_schema_version: 1,
+      phase,
+      mode,
+      region_id: regionId,
+      desktop_world: { x, y },
+    },
+  }
+}
+
 test('stage interaction runtime registers one owner-scoped region and applies the full drag lifecycle', async () => {
   const registered = []
   const { calls, events, responses, runtime } = harness({
@@ -198,16 +215,26 @@ test('stage interaction runtime registers one owner-scoped region and applies th
   assert.equal(runtime.snapshot(key).leases[0].registered, 1)
 })
 
-test('stage interaction runtime projects captured cursor suppression as reserved native metadata', async () => {
+test('stage interaction runtime projects phase-aware cursor policy and visual events', async () => {
   const registered = []
+  const cursorEvents = []
   const configured = structuredClone(interactions)
-  configured.affordances[0].cursor = { captured: 'none' }
+  configured.affordances[0].cursor = {
+    hover: { system: 'hidden', visual: 'example.cursor.hover' },
+    captured: { system: 'hidden' },
+  }
   const { runtime } = harness({
     register: async (payload) => { registered.push(structuredClone(payload)) },
+    applyCursorPresentation(key, event) {
+      cursorEvents.push({ key, event })
+      return true
+    },
   })
+  const key = 'example.consumer::companion/main'
+  const regionId = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
 
   await runtime.mount({
-    key: 'example.consumer::companion/main',
+    key,
     owner: 'example.consumer',
     resource: 'companion/main',
     document,
@@ -215,7 +242,55 @@ test('stage interaction runtime projects captured cursor suppression as reserved
   })
 
   assert.equal(registered.length, 1)
-  assert.equal(registered[0].metadata.cursor_suppression, 'captured')
+  assert.equal(registered[0].metadata.cursor_hover_system, 'hidden')
+  assert.equal(registered[0].metadata.cursor_hover_visual, 'true')
+  assert.equal(registered[0].metadata.cursor_captured_system, 'hidden')
+  assert.equal(registered[0].metadata.cursor_captured_visual, undefined)
+  runtime.handleInput(cursorPresentation(regionId, 'enter', 'hover', 100, 200))
+  runtime.handleInput(cursorPresentation(regionId, 'move', 'hover', 110, 210))
+  runtime.handleInput(cursorPresentation(regionId, 'leave', 'hover', 110, 210))
+  runtime.handleInput(cursorPresentation(regionId, 'enter', 'captured', 110, 210))
+  assert.deepEqual(cursorEvents, [
+    { key, event: { affordanceId: 'body-hit', at: cursorEvents[0].event.at, mode: 'hover', phase: 'enter', point: { x: 100, y: 200 }, visual: 'example.cursor.hover' } },
+    { key, event: { affordanceId: 'body-hit', at: cursorEvents[1].event.at, mode: 'hover', phase: 'move', point: { x: 110, y: 210 }, visual: 'example.cursor.hover' } },
+    { key, event: { affordanceId: 'body-hit', at: cursorEvents[2].event.at, mode: 'hover', phase: 'leave', point: { x: 110, y: 210 }, visual: 'example.cursor.hover' } },
+  ])
+})
+
+test('atomic replacement replays staged cursor presentation through the candidate projection', async () => {
+  const cursorEvents = []
+  const configured = structuredClone(interactions)
+  configured.affordances[0].cursor = { hover: { system: 'hidden', visual: 'example.cursor.hover' } }
+  const fixture = harness({
+    now: () => 7,
+    applyCursorPresentation(key, event) { cursorEvents.push({ key, event }); return true },
+  })
+  const key = 'example.consumer::companion/main'
+  await fixture.runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: configured })
+  const replacement = await fixture.runtime.prepareReplacement({
+    key,
+    owner: 'example.consumer',
+    resource: 'companion/main',
+    document: { ...document, revision: 2 },
+    interactions: configured,
+  })
+  await replacement.activate()
+  const candidateRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit', 'r1')
+  assert.equal(fixture.runtime.handleInput(cursorPresentation(candidateRegion, 'enter', 'hover', 120, 220)), true)
+  assert.deepEqual(cursorEvents, [])
+  replacement.commit(() => {})
+  assert.equal(await replacement.settle(), true)
+  assert.deepEqual(cursorEvents, [{
+    key,
+    event: {
+      affordanceId: 'body-hit',
+      at: 7,
+      mode: 'hover',
+      phase: 'enter',
+      point: { x: 120, y: 220 },
+      visual: 'example.cursor.hover',
+    },
+  }])
 })
 
 test('physical pointer down and up reach the projection as passive visual events before gesture arbitration', async () => {

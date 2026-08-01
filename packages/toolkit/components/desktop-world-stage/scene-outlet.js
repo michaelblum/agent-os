@@ -427,6 +427,13 @@ export function createDesktopWorldSceneOutlet({
     return true
   }
 
+  const applyCursorPresentation = (key, input) => {
+    const mounted = resources.get(key)
+    if (!mounted || typeof mounted.projection.applyCursorPresentation !== 'function') return false
+    mounted.projection.applyCursorPresentation(input)
+    return true
+  }
+
   const applyInteractionResponseUnsafe = (key, { frame, interaction, response, topology } = {}) => {
     const mounted = resources.get(key)
     if (!mounted || stageSuspended || stageFault || hidden || contextLost || !response?.kind || !frame?.interactionId) return null
@@ -740,6 +747,7 @@ export function createDesktopWorldSceneOutlet({
 
   return Object.freeze({
     apply,
+    applyCursorPresentation,
     applyInteractionResponse,
     applyPointerVisual,
     prepareReplacement,

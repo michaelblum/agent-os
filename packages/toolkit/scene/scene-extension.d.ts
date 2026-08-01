@@ -139,6 +139,18 @@ export interface SceneExtensionProjection {
     point: Readonly<{ x: number; y: number }>;
   }>): void;
   /**
+   * Optional product-owned cursor art. AOS remains authoritative for region
+   * arbitration and system-cursor visibility.
+   */
+  applyCursorPresentation?(event: Readonly<{
+    affordanceId: string;
+    at: number;
+    mode: 'hover' | 'captured';
+    phase: 'enter' | 'move' | 'leave';
+    point: Readonly<{ x: number; y: number }>;
+    visual: string | null;
+  }>): void;
+  /**
    * Optional bounded observability hook. It exposes only engine-defined
    * interaction facts and is sampled only while DesktopWorld inspection is
    * enabled.

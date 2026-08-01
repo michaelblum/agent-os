@@ -19,35 +19,6 @@ func aosValidPointerSessionID(_ value: String, maxUTF8Bytes: Int = 256) -> Bool 
     }
 }
 
-struct AOSNativeCursorSuppressionReconcileResult: Equatable {
-    let hideNativeCursor: Bool
-    let showNativeCursor: Bool
-    let active: Bool
-}
-
-final class AOSNativeCursorSuppressionReconciler {
-    private var active = false
-
-    func reconcile(active targetActive: Bool) -> AOSNativeCursorSuppressionReconcileResult {
-        let hide = targetActive && !active
-        let show = !targetActive && active
-        active = targetActive
-        return AOSNativeCursorSuppressionReconcileResult(
-            hideNativeCursor: hide,
-            showNativeCursor: show,
-            active: active
-        )
-    }
-
-    func restore() -> AOSNativeCursorSuppressionReconcileResult {
-        reconcile(active: false)
-    }
-
-    func snapshot() -> Bool {
-        active
-    }
-}
-
 struct AOSInputRegionRecord: Equatable {
     let id: String
     let ownerCanvasGeneration: CanvasLifecycleGeneration
@@ -94,8 +65,12 @@ struct AOSInputRegionRecord: Equatable {
         consumePolicy != "never"
     }
 
-    func shouldSuppressNativeCursor(captured: Bool) -> Bool {
+    func shouldSuppressNativeCursor(mode: AOSInputRegionCursorMode) -> Bool {
         guard enabled else { return false }
+        let phaseKey = mode == .hover ? "cursor_hover_system" : "cursor_captured_system"
+        if metadata[phaseKey]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "hidden" {
+            return true
+        }
         let value = metadata["cursor_suppression"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
@@ -104,10 +79,15 @@ struct AOSInputRegionRecord: Equatable {
         case "hide_native", "hidden", "true", "always":
             return true
         case "captured", "while_captured":
-            return captured
+            return mode == .captured
         default:
             return false
         }
+    }
+
+    func shouldPublishCursorVisual(mode: AOSInputRegionCursorMode) -> Bool {
+        let phaseKey = mode == .hover ? "cursor_hover_visual" : "cursor_captured_visual"
+        return metadata[phaseKey]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "true"
     }
 
     func shouldConsume(phase: AOSInputEventPhase, captured: Bool) -> Bool {
@@ -450,6 +430,9 @@ final class AOSInputRegionRegistry {
     private var captureID: String?
     private var captureDesktopWorld: CGPoint?
     private var capturePointerSessionID: String?
+    private var hoverRegionID: String?
+    private var lastNativePoint: CGPoint?
+    private var lastDesktopWorldPoint: CGPoint?
 
     var allRegions: [AOSInputRegionRecord] {
         regions.values.sorted(by: sortRegions)
@@ -457,6 +440,7 @@ final class AOSInputRegionRegistry {
 
     func register(_ region: AOSInputRegionRecord) {
         regions[region.id] = region
+        refreshPointerTarget()
     }
 
     /// Atomically activates one owner generation and retires its prior region
@@ -498,8 +482,9 @@ final class AOSInputRegionRegistry {
               }) ?? true,
               retiredExisting.count == retiredIDs.count else { return nil }
 
-        for id in retiredIDs { _ = remove(id: id) }
+        for id in retiredIDs { regions.removeValue(forKey: id) }
         for candidate in candidates { regions[candidate.id] = candidate }
+        refreshPointerTarget()
         return AOSInputRegionGenerationReplacement(
             activated: candidates.sorted(by: sortRegions),
             retired: retiredExisting.sorted(by: sortRegions),
@@ -508,13 +493,13 @@ final class AOSInputRegionRegistry {
     }
 
     func remove(id: String) -> AOSInputRegionRecord? {
+        let removed = regions.removeValue(forKey: id)
         if captureRegionID == id {
-            captureRegionID = nil
-            captureID = nil
-            captureDesktopWorld = nil
-            capturePointerSessionID = nil
+            clearCapture()
         }
-        return regions.removeValue(forKey: id)
+        if hoverRegionID == id { hoverRegionID = nil }
+        refreshPointerTarget()
+        return removed
     }
 
     @discardableResult
@@ -532,13 +517,20 @@ final class AOSInputRegionRegistry {
         allRegions.filter { ownerCanvasID == nil || $0.ownerCanvasID == ownerCanvasID }
     }
 
-    func nativeCursorSuppressionActive() -> Bool {
-        if regions.values.contains(where: { $0.shouldSuppressNativeCursor(captured: false) }) {
-            return true
+    func cursorPresentationSnapshot() -> AOSInputRegionCursorTarget? {
+        guard let desktopWorld = lastDesktopWorldPoint else { return nil }
+        if let captureRegionID, let region = regions[captureRegionID] {
+            guard region.shouldSuppressNativeCursor(mode: .captured) else { return nil }
+            return AOSInputRegionCursorTarget(
+                region: region,
+                mode: .captured,
+                desktopWorld: desktopWorld
+            )
         }
-        guard let captureRegionID,
-              let capturedRegion = regions[captureRegionID] else { return false }
-        return capturedRegion.shouldSuppressNativeCursor(captured: true)
+        guard let hoverRegionID,
+              let region = regions[hoverRegionID],
+              region.shouldSuppressNativeCursor(mode: .hover) else { return nil }
+        return AOSInputRegionCursorTarget(region: region, mode: .hover, desktopWorld: desktopWorld)
     }
 
     func activeCaptureSnapshot() -> [String: Any]? {
@@ -562,6 +554,17 @@ final class AOSInputRegionRegistry {
         capturePointerSessionID = nil
     }
 
+    func clearPointerState() {
+        clearCapture()
+        hoverRegionID = nil
+        lastNativePoint = nil
+        lastDesktopWorldPoint = nil
+    }
+
+    func refreshPointerTarget() {
+        hoverRegionID = lastNativePoint.flatMap { pickRegion(at: $0)?.id }
+    }
+
     func route(
         event: AOSInputEventDescriptor,
         point: CGPoint?,
@@ -570,6 +573,11 @@ final class AOSInputRegionRegistry {
         gestureID: String? = nil
     ) -> AOSInputRegionRoute? {
         guard let phase = event.phase else { return nil }
+        if let point {
+            lastNativePoint = point
+            if let desktopWorld { lastDesktopWorldPoint = desktopWorld }
+            refreshPointerTarget()
+        }
 
         if let capturedID = captureRegionID, let capturedRegion = regions[capturedID] {
             let stablePointerSessionID = capturePointerSessionID

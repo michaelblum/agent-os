@@ -88,8 +88,7 @@ across physical displays, derives the per-display cameras, settles all segment
 results, and emits one authoritative result. A resource may straddle displays
 or animate between them without display-local reconciliation in consumer code.
 
-Only advanced native-input and anchor operations expose explicit display or
-native geometry. Never infer native coordinates from DesktopWorld-local bounds.
+Only advanced native-input and anchor operations expose explicit display or native geometry. Never infer native coordinates from DesktopWorld-local bounds.
 
 ## Choose Gesture Semantics
 
@@ -105,6 +104,9 @@ The recognizer lifecycle is `start`, `update`, `end`, and `cancel`. Escape,
 pointer loss, topology change, and owner loss cancel through AOS. Cartridges
 provide bounded IDs, semantic labels, and visual data; consumers map resulting
 ID-only events to product actions.
+
+Declare hover and captured cursor presentation independently as `inherit` or `hidden`; a custom `visual` ID requires `hidden` and cannot alter input ownership.
+`captured: none` remains shorthand for hidden with no custom art. The full contract is in `docs/api/toolkit/scene-authoring.md`.
 
 ## Bind Native Sheet Feedback
 
@@ -156,8 +158,7 @@ aos scene extension install ./scene-work/renderer \
 aos scene extension list --json
 ```
 
-Validation does not execute the projection body. Install only the exact
-independently reviewed digest.
+Validation does not execute the projection body. Install only the exact independently reviewed digest.
 
 When an extension owns a line or wormhole interaction route, implement the
 exact synchronous `inspectInteractionRoute()` hook so AOS DevTools and

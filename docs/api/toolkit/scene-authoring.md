@@ -109,11 +109,31 @@ AOS resolves parent transforms into the global DesktopWorld plane and owns
 pointer capture, topology facts, arbitration, Escape cancellation, movement
 coalescing, and cleanup.
 
-An affordance may declare `"cursor": { "captured": "none" }`. AOS leaves the
-native cursor unchanged while the pointer merely hovers, hides it only after
-that affordance owns the pointer session, and restores it on release,
-cancellation, owner loss, or cleanup. Use this when an AOS-rendered aim line or
-other interaction visual replaces the cursor during capture.
+Cursor presentation is independent from event consumption. The compatibility
+shorthand `"cursor": { "captured": "none" }` hides the system cursor only
+while that affordance owns capture. New definitions may declare each phase:
+
+```json
+{
+  "cursor": {
+    "hover": {
+      "system": "hidden",
+      "visual": "example.consumer.cursor.hover"
+    },
+    "captured": {
+      "system": "hidden"
+    }
+  }
+}
+```
+
+`system` is exactly `inherit` or `hidden`. A custom `visual` requires `hidden`
+and names product-owned art implemented by a reviewed trusted extension. AOS
+owns region arbitration and checked native hide/show balance; the extension
+receives only generation-bound enter/move/leave facts after hiding succeeds.
+Cursor policy never changes input consumption, activates AOS, or makes a
+DesktopWorld window interactive. AOS restores its successful hide on release,
+cancellation, permission loss, owner loss, and cleanup.
 
 `createSceneGestureArena()` arbitrates tap, drag, long-press, and radial
 recognizers by explicit priority and stable ID order. Drag has only `start`,

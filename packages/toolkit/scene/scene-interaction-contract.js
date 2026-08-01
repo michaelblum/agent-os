@@ -65,8 +65,14 @@ export const SCENE_AFFORDANCE_CURSOR_STYLES = Object.freeze({
   none: 'none',
 })
 
+export const SCENE_AFFORDANCE_SYSTEM_CURSOR_STYLES = Object.freeze({
+  hidden: 'hidden',
+  inherit: 'inherit',
+})
+
 const CONSUME_POLICIES = new Set(['always', 'captured', 'down_only', 'never'])
 const CAPTURED_CURSOR_STYLES = new Set(Object.values(SCENE_AFFORDANCE_CURSOR_STYLES))
+const SYSTEM_CURSOR_STYLES = new Set(Object.values(SCENE_AFFORDANCE_SYSTEM_CURSOR_STYLES))
 const RECOGNIZER_KIND_BY_IMPLEMENTATION = new Map([
   ['aos.scene.gesture.drag', SCENE_GESTURE_KINDS.drag],
   ['aos.scene.gesture.long-press', SCENE_GESTURE_KINDS.longPress],
@@ -107,16 +113,50 @@ function validateAffordanceGeometry(value, path, errors) {
   }
 }
 
+function validateCursorPresentation(value, path, errors) {
+  if (!isRecord(value)) {
+    errors.push({ code: 'invalid_affordance_cursor', path, message: 'Scene cursor presentation must be an object.' })
+    return
+  }
+  exactKeys(value, new Set(['system', 'visual']), path, errors)
+  if (!SYSTEM_CURSOR_STYLES.has(value.system)) {
+    errors.push({ code: 'invalid_affordance_cursor', path: `${path}.system`, message: 'Scene system cursor policy is invalid.' })
+  }
+  if (value.visual !== undefined && !validId(value.visual)) {
+    errors.push({ code: 'invalid_affordance_cursor', path: `${path}.visual`, message: 'Scene cursor visual ID is invalid.' })
+  }
+  if (value.visual !== undefined && value.system !== SCENE_AFFORDANCE_SYSTEM_CURSOR_STYLES.hidden) {
+    errors.push({ code: 'invalid_affordance_cursor', path, message: 'Scene cursor visuals require the system cursor to be hidden.' })
+  }
+}
+
 function validateAffordanceCursor(value, path, errors) {
   if (value === undefined) return
   if (!isRecord(value)) {
     errors.push({ code: 'invalid_affordance_cursor', path, message: 'Scene affordance cursor policy must be an object.' })
     return
   }
-  exactKeys(value, new Set(['captured']), path, errors)
-  if (!CAPTURED_CURSOR_STYLES.has(value.captured)) {
-    errors.push({ code: 'invalid_affordance_cursor', path: `${path}.captured`, message: 'Scene affordance captured cursor style is invalid.' })
+  exactKeys(value, new Set(['captured', 'hover']), path, errors)
+  if (value.hover !== undefined) validateCursorPresentation(value.hover, `${path}.hover`, errors)
+  if (CAPTURED_CURSOR_STYLES.has(value.captured)) return
+  if (value.captured !== undefined) validateCursorPresentation(value.captured, `${path}.captured`, errors)
+  if (value.hover === undefined && value.captured === undefined) {
+    errors.push({ code: 'invalid_affordance_cursor', path, message: 'Scene affordance cursor policy must define hover or captured presentation.' })
   }
+}
+
+export function resolveSceneAffordanceCursorPresentation(descriptor, phase) {
+  const value = descriptor?.cursor?.[phase]
+  if (phase === 'captured' && CAPTURED_CURSOR_STYLES.has(value)) {
+    return Object.freeze({ system: SCENE_AFFORDANCE_SYSTEM_CURSOR_STYLES.hidden, visual: null })
+  }
+  if (!isRecord(value) || !SYSTEM_CURSOR_STYLES.has(value.system)) {
+    return Object.freeze({ system: SCENE_AFFORDANCE_SYSTEM_CURSOR_STYLES.inherit, visual: null })
+  }
+  return Object.freeze({
+    system: value.system,
+    visual: validId(value.visual) ? value.visual : null,
+  })
 }
 
 function validateFiniteData(value, path, errors, depth = 0) {

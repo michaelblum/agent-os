@@ -28,6 +28,8 @@ export {
 } from './scene-cartridge.js'
 export {
   SCENE_AFFORDANCE_LIMITS,
+  SCENE_AFFORDANCE_CURSOR_STYLES,
+  SCENE_AFFORDANCE_SYSTEM_CURSOR_STYLES,
   SCENE_EVENT_CONTRACT_ID,
   SCENE_GESTURE_CANCELLATION_REASONS,
   SCENE_GESTURE_KINDS,
@@ -40,6 +42,7 @@ export {
   createSceneGestureArena,
   createSceneInteractionController,
   resolveSceneAffordanceFrame,
+  resolveSceneAffordanceCursorPresentation,
   resolveSceneGestureResponse,
   validateSceneAffordanceDescriptor,
   validateSceneInteractionDocument,
