@@ -58,6 +58,11 @@ segment, stage, or daemon. Effect sheets borrow those hosts and own only
 transient mesh, renderer, texture, and captured-frame resources. Disposal
 diagnostics count attached effect renderers rather than dormant stage
 infrastructure.
+Native-effect presentation and lifecycle use separate bounded watchdogs. The
+timed effect duration and gesture watchdog begin only after the first frame is
+confirmed presented across every active display. All segment renderers share
+that presentation epoch; installation time and trigger-to-presentation latency
+may not consume the declared effect duration or its cleanup grace.
 V3 native-effect height fields are one shared effect-instance resource across
 all display renderers. The engine owns fixed stepping, bounded swept emission,
 aggregate work admission, immutable buffered state snapshots, backlog dropping,

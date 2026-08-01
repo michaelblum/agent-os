@@ -50,6 +50,7 @@ final class AOSDesktopWorldNativeFeedbackAdmission {
 
     struct Presentation {
         let didPresent: Bool
+        let request: AOSDesktopWorldNativeEffectRequest?
         let triggeredAt: TimeInterval?
     }
 
@@ -227,17 +228,26 @@ final class AOSDesktopWorldNativeFeedbackAdmission {
         guard var current = active,
               current.generation == generation,
               current.phase == .presenting else {
-            return Presentation(didPresent: false, triggeredAt: nil)
+            return Presentation(
+                didPresent: false,
+                request: nil,
+                triggeredAt: nil
+            )
         }
         if markPresented {
             guard !current.presented else {
-                return Presentation(didPresent: false, triggeredAt: nil)
+                return Presentation(
+                    didPresent: false,
+                    request: nil,
+                    triggeredAt: nil
+                )
             }
             current.presented = true
             active = current
         }
         return Presentation(
             didPresent: current.presented,
+            request: current.request,
             triggeredAt: current.triggeredAt
         )
     }
@@ -245,13 +255,15 @@ final class AOSDesktopWorldNativeFeedbackAdmission {
     func retire(
         generation: UInt64,
         allowedPhases: Set<Active.Phase>? = nil,
+        expectedPresented: Bool? = nil,
         requiresRuntimeDisposal: Bool
     ) -> Active? {
         lock.lock()
         defer { lock.unlock() }
         guard let current = active,
               current.generation == generation,
-              allowedPhases?.contains(current.phase) ?? true else {
+              allowedPhases?.contains(current.phase) ?? true,
+              expectedPresented.map({ $0 == current.presented }) ?? true else {
             return nil
         }
         active = nil

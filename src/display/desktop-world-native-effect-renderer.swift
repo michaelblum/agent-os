@@ -304,6 +304,7 @@ enum AOSDesktopWorldNativeEffectRenderPlan {
 
 @MainActor
 final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
+    private let clock: AOSDesktopWorldNativeEffectClock
     private let context: AOSDesktopWorldNativeEffectGPUContext
     private let displayID: UInt32
     private let duration: TimeInterval?
@@ -316,7 +317,6 @@ final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
     private var retainedCVTexture: CVMetalTexture?
     private var retainedPixelBuffer: CVPixelBuffer?
     private var presentationReported = false
-    private let startedAt: TimeInterval
     private var texture: MTLTexture?
     var onComplete: (() -> Void)?
     var onFailure: ((String) -> Void)?
@@ -325,6 +325,7 @@ final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
     init(
         view: MTKView,
         displayID: UInt32,
+        clock: AOSDesktopWorldNativeEffectClock,
         context: AOSDesktopWorldNativeEffectGPUContext,
         mesh: DesktopWorldNativeSheetMesh,
         pixelBuffer: CVPixelBuffer,
@@ -332,9 +333,9 @@ final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
         plan: AOSDesktopWorldNativeEffectRenderPlan,
         state: AOSDesktopWorldNativeEffectHeightField?,
         lifecycle: AOSDesktopWorldNativeEffectBinding.Lifecycle,
-        globalBounds: CGRect,
-        startedAt: TimeInterval
+        globalBounds: CGRect
     ) throws {
+        self.clock = clock
         self.context = context
         self.displayID = displayID
         self.duration = lifecycle == .gesture ? nil : plan.duration
@@ -342,7 +343,6 @@ final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
         self.pipeline = try plan.pipeline(context: context)
         self.plan = plan
         self.state = state
-        self.startedAt = startedAt
         self.uniforms = plan.makeUniformStorage(
             inputs: inputs,
             globalBounds: globalBounds,
@@ -404,7 +404,7 @@ final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
 
     func draw(in view: MTKView) {
-        let elapsed = max(0, ProcessInfo.processInfo.systemUptime - startedAt)
+        let elapsed = clock.elapsed
         if let duration, elapsed >= duration {
             view.isPaused = true
             if !completed {
@@ -514,6 +514,7 @@ final class AOSDesktopWorldNativeEffectRenderer: NSObject, MTKViewDelegate {
 @MainActor
 final class AOSDesktopWorldNativeEffectRuntime {
     private let context: AOSDesktopWorldNativeEffectGPUContext
+    private let clock: AOSDesktopWorldNativeEffectClock
     private var renderers: [UInt32: AOSDesktopWorldNativeEffectRenderer] = [:]
     private let sheet: DesktopWorldNativeSheet
     private var state: AOSDesktopWorldNativeEffectHeightField?
@@ -537,13 +538,14 @@ final class AOSDesktopWorldNativeEffectRuntime {
         self.context = context
         self.sheet = sheet
         let plan = AOSDesktopWorldNativeEffectRenderPlan(definition: definition)
-        let startedAt = ProcessInfo.processInfo.systemUptime
         let globalBounds = sheet.worldBounds
-        guard !globalBounds.isNull,
+        guard !sheetDisplays.isEmpty,
+              !globalBounds.isNull,
               globalBounds.size.width > 0,
               globalBounds.size.height > 0 else {
             throw DesktopWorldNativeSheetFailure.invalidGeometry
         }
+        clock = AOSDesktopWorldNativeEffectClock(displayIDs: sheetDisplays)
         do {
             if let instance = plan.statefulInstance {
                 guard let device = context.commandQueue?.device else {
@@ -571,6 +573,7 @@ final class AOSDesktopWorldNativeEffectRuntime {
                 renderers[segment.displayID] = try AOSDesktopWorldNativeEffectRenderer(
                     view: segment.host.view,
                     displayID: segment.displayID,
+                    clock: clock,
                     context: context,
                     mesh: segment.mesh,
                     pixelBuffer: pixelBuffer,
@@ -578,8 +581,7 @@ final class AOSDesktopWorldNativeEffectRuntime {
                     plan: plan,
                     state: state,
                     lifecycle: lifecycle,
-                    globalBounds: globalBounds,
-                    startedAt: startedAt
+                    globalBounds: globalBounds
                 )
             }
         } catch {
@@ -595,13 +597,13 @@ final class AOSDesktopWorldNativeEffectRuntime {
     ) {
         guard !disposed, !renderers.isEmpty else { return }
         var failed = false
-        var remainingPresentations = renderers.count
         var remaining = renderers.count
-        for renderer in renderers.values {
+        for (displayID, renderer) in renderers {
             renderer.onPresented = {
                 guard !failed else { return }
-                remainingPresentations -= 1
-                if remainingPresentations == 0 { onPresented() }
+                if self.clock.markPresented(displayID: displayID) {
+                    onPresented()
+                }
             }
             renderer.onFailure = { code in
                 guard !failed else { return }

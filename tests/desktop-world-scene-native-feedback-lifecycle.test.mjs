@@ -210,9 +210,15 @@ final class Runtime: AOSDesktopWorldNativeFeedbackRuntime {
         updates.append(inputs)
     }
     func complete() {
+        presentOnly()
+        completeAfterPresentation()
+    }
+    func presentOnly() {
         let presented = presentation
         presentation = nil
         presented?()
+    }
+    func completeAfterPresentation() {
         let value = completion
         completion = nil
         value?()
@@ -395,6 +401,42 @@ let request = AOSDesktopWorldNativeEffectRequest(
     topologyGeneration: 4,
     triggeredAt: ProcessInfo.processInfo.systemUptime
 )
+
+let deadlineRaceAdmission = AOSDesktopWorldNativeFeedbackAdmission()
+deadlineRaceAdmission.setGate(available: true, prepared: true)
+let deadlineRaceGeneration: UInt64
+switch deadlineRaceAdmission.trigger(request) {
+case .start(let generation):
+    deadlineRaceGeneration = generation
+default:
+    fatalError("deadline-race request was not admitted")
+}
+precondition(deadlineRaceAdmission.transition(
+    generation: deadlineRaceGeneration,
+    from: .capturing,
+    to: .installing
+))
+precondition(deadlineRaceAdmission.transition(
+    generation: deadlineRaceGeneration,
+    from: .installing,
+    to: .presenting
+))
+precondition(deadlineRaceAdmission.presentation(
+    generation: deadlineRaceGeneration,
+    markPresented: true
+).didPresent)
+precondition(deadlineRaceAdmission.retire(
+    generation: deadlineRaceGeneration,
+    allowedPhases: [.presenting],
+    expectedPresented: false,
+    requiresRuntimeDisposal: true
+) == nil)
+precondition(deadlineRaceAdmission.retire(
+    generation: deadlineRaceGeneration,
+    allowedPhases: [.presenting],
+    expectedPresented: true,
+    requiresRuntimeDisposal: true
+) != nil)
 
 let replacementRequest = AOSDesktopWorldNativeEffectRequest(
     binding: AOSDesktopWorldNativeEffectBinding(
@@ -1057,13 +1099,41 @@ precondition(MainActor.assumeIsolated {
 precondition(controller.trigger(request))
 capturer.completeNext()
 pumpUntil { MainActor.assumeIsolated { host.installCount == 104 } }
+let delayedPresentationDeadline = deadlines.last!
+precondition(delayedPresentationDeadline.delay == 1)
+MainActor.assumeIsolated { host.runtimes.last?.presentOnly() }
+precondition(delayedPresentationDeadline.item.isCancelled)
 precondition(deadlines.last?.delay == 1.15)
+let failedBeforeDelayedPresentation = controller.snapshot().failedCount
+delayedPresentationDeadline.item.perform()
+precondition(controller.snapshot().failedCount == failedBeforeDelayedPresentation)
+MainActor.assumeIsolated { host.runtimes.last?.completeAfterPresentation() }
+pumpUntil { MainActor.assumeIsolated { host.removeCount == 104 } }
+precondition(controller.snapshot().lastErrorCode == nil)
+
+precondition(controller.trigger(request))
+capturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { host.installCount == 105 } }
+precondition(deadlines.last?.delay == 1)
 deadlines.last?.item.perform()
 feedback = controller.snapshot()
 precondition(feedback.failedCount == 2)
 precondition(feedback.lastErrorCode == "NATIVE_EFFECT_PRESENT_TIMEOUT")
 precondition(!controller.trigger(request))
-pumpUntil { MainActor.assumeIsolated { host.removeCount == 104 } }
+pumpUntil { MainActor.assumeIsolated { host.removeCount == 105 } }
+pumpUntil { controller.snapshot().state == "ready" }
+
+precondition(controller.trigger(request))
+capturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { host.installCount == 106 } }
+MainActor.assumeIsolated { host.runtimes.last?.presentOnly() }
+precondition(deadlines.last?.delay == 1.15)
+deadlines.last?.item.perform()
+feedback = controller.snapshot()
+precondition(feedback.failedCount == 3)
+precondition(feedback.lastErrorCode == "NATIVE_EFFECT_COMPLETION_TIMEOUT")
+precondition(!controller.trigger(request))
+pumpUntil { MainActor.assumeIsolated { host.removeCount == 106 } }
 pumpUntil { controller.snapshot().state == "ready" }
 
 precondition(controller.trigger(request))
@@ -1073,10 +1143,10 @@ deadlines.last?.item.perform()
 precondition(timeoutCapture.canceled)
 capturer.completeNext()
 RunLoop.current.run(until: Date().addingTimeInterval(0.02))
-precondition(MainActor.assumeIsolated { host.installCount == 104 })
+precondition(MainActor.assumeIsolated { host.installCount == 106 })
 pumpUntil { controller.snapshot().state == "ready" }
 feedback = controller.snapshot()
-precondition(feedback.failedCount == 3)
+precondition(feedback.failedCount == 4)
 precondition(feedback.lastErrorCode == "NATIVE_EFFECT_CAPTURE_TIMEOUT")
 
 precondition(controller.trigger(request))
@@ -1086,7 +1156,7 @@ controller.reconcileAuthorization()
 precondition(unauthorizedCapture.canceled)
 capturer.completeNext()
 RunLoop.current.run(until: Date().addingTimeInterval(0.02))
-precondition(MainActor.assumeIsolated { host.installCount == 104 })
+precondition(MainActor.assumeIsolated { host.installCount == 106 })
 precondition(!controller.trigger(request))
 
 authorized = true
@@ -1335,6 +1405,224 @@ RunLoop.current.run(until: Date().addingTimeInterval(0.02))
 precondition(MainActor.assumeIsolated { shutdownHost.removeCount == 2 })
 shutdownController.cancelAll()
 precondition(MainActor.assumeIsolated { shutdownHost.removeCount == 2 })
+
+let presentationRaceHost = Host()
+let presentationRaceCapturer = Capturer()
+var presentationRaceDeadlines: [(delay: TimeInterval, item: DispatchWorkItem)] = []
+let presentationRaceController = AOSDesktopWorldNativeFeedbackController(
+    host: presentationRaceHost,
+    capturer: presentationRaceCapturer,
+    scheduleDeadline: { presentationRaceDeadlines.append(($0, $1)) },
+    authorize: { _ in true }
+)
+presentationRaceController.reconcileAvailability(true)
+pumpUntil { presentationRaceController.snapshot().state == "ready" }
+precondition(presentationRaceController.trigger(request))
+presentationRaceCapturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { presentationRaceHost.installCount == 1 } }
+let presentationRaceRuntime = MainActor.assumeIsolated {
+    presentationRaceHost.runtimes.last!
+}
+let latePresentation = MainActor.assumeIsolated {
+    presentationRaceRuntime.presentation!
+}
+let lateCompletion = MainActor.assumeIsolated {
+    presentationRaceRuntime.completion!
+}
+let presentationRaceDeadline = presentationRaceDeadlines.last!.item
+let presentationRaceGate = DispatchSemaphore(value: 0)
+let presentationRaceGroup = DispatchGroup()
+presentationRaceGroup.enter()
+DispatchQueue.main.async {
+    presentationRaceGate.wait()
+    latePresentation()
+    presentationRaceGroup.leave()
+}
+presentationRaceGroup.enter()
+DispatchQueue.global(qos: .userInitiated).async {
+    presentationRaceGate.wait()
+    presentationRaceDeadline.perform()
+    presentationRaceGroup.leave()
+}
+presentationRaceGate.signal()
+presentationRaceGate.signal()
+pumpUntil { presentationRaceGroup.wait(timeout: .now()) == .success }
+let presentationRaceSnapshot = presentationRaceController.snapshot()
+precondition(
+    (presentationRaceSnapshot.presentedCount == 1
+        && presentationRaceSnapshot.failedCount == 0)
+    || (presentationRaceSnapshot.presentedCount == 0
+        && presentationRaceSnapshot.failedCount == 1
+        && presentationRaceSnapshot.lastErrorCode == "NATIVE_EFFECT_PRESENT_TIMEOUT")
+)
+if presentationRaceSnapshot.presentedCount == 1 {
+    MainActor.assumeIsolated { presentationRaceRuntime.completeAfterPresentation() }
+}
+pumpUntil { MainActor.assumeIsolated { presentationRaceHost.removeCount == 1 } }
+pumpUntil { presentationRaceController.snapshot().state == "ready" }
+let presentationRaceSettled = presentationRaceController.snapshot()
+precondition(presentationRaceSettled.disposedCount == 1)
+let presentationRaceTerminalCounts = (
+    presentationRaceSettled.completedCount,
+    presentationRaceSettled.failedCount,
+    presentationRaceSettled.presentedCount
+)
+latePresentation()
+lateCompletion()
+for deadline in presentationRaceDeadlines { deadline.item.perform() }
+RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+let presentationRaceAfterLateCallbacks = presentationRaceController.snapshot()
+precondition(MainActor.assumeIsolated { presentationRaceHost.removeCount == 1 })
+precondition(presentationRaceAfterLateCallbacks.disposedCount == 1)
+precondition(
+    presentationRaceTerminalCounts
+        == (
+            presentationRaceAfterLateCallbacks.completedCount,
+            presentationRaceAfterLateCallbacks.failedCount,
+            presentationRaceAfterLateCallbacks.presentedCount
+        )
+)
+presentationRaceController.shutdown()
+
+let completionRaceHost = Host()
+let completionRaceCapturer = Capturer()
+var completionRaceDeadlines: [(delay: TimeInterval, item: DispatchWorkItem)] = []
+let completionRaceController = AOSDesktopWorldNativeFeedbackController(
+    host: completionRaceHost,
+    capturer: completionRaceCapturer,
+    scheduleDeadline: { completionRaceDeadlines.append(($0, $1)) },
+    authorize: { _ in true }
+)
+completionRaceController.reconcileAvailability(true)
+pumpUntil { completionRaceController.snapshot().state == "ready" }
+precondition(completionRaceController.trigger(request))
+completionRaceCapturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { completionRaceHost.installCount == 1 } }
+let completionRaceRuntime = MainActor.assumeIsolated {
+    completionRaceHost.runtimes.last!
+}
+MainActor.assumeIsolated { completionRaceRuntime.presentOnly() }
+let lateCompletionRaceCallback = MainActor.assumeIsolated {
+    completionRaceRuntime.completion!
+}
+let completionRaceDeadline = completionRaceDeadlines.last!.item
+let completionRaceGate = DispatchSemaphore(value: 0)
+let completionRaceGroup = DispatchGroup()
+completionRaceGroup.enter()
+DispatchQueue.main.async {
+    completionRaceGate.wait()
+    lateCompletionRaceCallback()
+    completionRaceGroup.leave()
+}
+completionRaceGroup.enter()
+DispatchQueue.global(qos: .userInitiated).async {
+    completionRaceGate.wait()
+    completionRaceDeadline.perform()
+    completionRaceGroup.leave()
+}
+completionRaceGate.signal()
+completionRaceGate.signal()
+pumpUntil { completionRaceGroup.wait(timeout: .now()) == .success }
+pumpUntil { MainActor.assumeIsolated { completionRaceHost.removeCount == 1 } }
+pumpUntil { completionRaceController.snapshot().state == "ready" }
+let completionRaceSnapshot = completionRaceController.snapshot()
+precondition(completionRaceSnapshot.disposedCount == 1)
+precondition(completionRaceSnapshot.presentedCount == 1)
+precondition(
+    (completionRaceSnapshot.completedCount == 1
+        && completionRaceSnapshot.failedCount == 0
+        && completionRaceSnapshot.lastErrorCode == nil)
+    || (completionRaceSnapshot.completedCount == 0
+        && completionRaceSnapshot.failedCount == 1
+        && completionRaceSnapshot.lastErrorCode == "NATIVE_EFFECT_COMPLETION_TIMEOUT")
+)
+lateCompletionRaceCallback()
+completionRaceDeadline.perform()
+RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+let completionRaceAfterLateCallbacks = completionRaceController.snapshot()
+precondition(MainActor.assumeIsolated { completionRaceHost.removeCount == 1 })
+precondition(completionRaceAfterLateCallbacks.disposedCount == 1)
+precondition(
+    completionRaceAfterLateCallbacks.completedCount
+        == completionRaceSnapshot.completedCount
+)
+precondition(
+    completionRaceAfterLateCallbacks.failedCount
+        == completionRaceSnapshot.failedCount
+)
+completionRaceController.shutdown()
+
+let cancellationRaceHost = Host()
+let cancellationRaceCapturer = Capturer()
+var cancellationRaceDeadlines: [(delay: TimeInterval, item: DispatchWorkItem)] = []
+let cancellationRaceController = AOSDesktopWorldNativeFeedbackController(
+    host: cancellationRaceHost,
+    capturer: cancellationRaceCapturer,
+    scheduleDeadline: { cancellationRaceDeadlines.append(($0, $1)) },
+    authorize: { _ in true }
+)
+cancellationRaceController.reconcileAvailability(true)
+pumpUntil { cancellationRaceController.snapshot().state == "ready" }
+precondition(cancellationRaceController.trigger(request))
+cancellationRaceCapturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { cancellationRaceHost.installCount == 1 } }
+let cancellationRaceRuntime = MainActor.assumeIsolated {
+    cancellationRaceHost.runtimes.last!
+}
+let lateCancellationPresentation = MainActor.assumeIsolated {
+    cancellationRaceRuntime.presentation!
+}
+let lateCancellationCompletion = MainActor.assumeIsolated {
+    cancellationRaceRuntime.completion!
+}
+MainActor.assumeIsolated { cancellationRaceRuntime.presentOnly() }
+let cancellationRaceDeadline = cancellationRaceDeadlines.last!.item
+let cancellationRaceGate = DispatchSemaphore(value: 0)
+let cancellationRaceGroup = DispatchGroup()
+cancellationRaceGroup.enter()
+DispatchQueue.global(qos: .userInitiated).async {
+    cancellationRaceGate.wait()
+    cancellationRaceController.cancelAll()
+    cancellationRaceGroup.leave()
+}
+cancellationRaceGroup.enter()
+DispatchQueue.global(qos: .userInitiated).async {
+    cancellationRaceGate.wait()
+    cancellationRaceDeadline.perform()
+    cancellationRaceGroup.leave()
+}
+cancellationRaceGate.signal()
+cancellationRaceGate.signal()
+pumpUntil { cancellationRaceGroup.wait(timeout: .now()) == .success }
+pumpUntil { MainActor.assumeIsolated { cancellationRaceHost.removeCount == 1 } }
+pumpUntil { cancellationRaceController.snapshot().state == "ready" }
+let cancellationRaceSnapshot = cancellationRaceController.snapshot()
+precondition(cancellationRaceSnapshot.disposedCount == 1)
+precondition(cancellationRaceSnapshot.completedCount == 0)
+precondition(cancellationRaceSnapshot.presentedCount == 1)
+precondition(
+    (cancellationRaceSnapshot.failedCount == 0
+        && cancellationRaceSnapshot.lastErrorCode == nil)
+    || (cancellationRaceSnapshot.failedCount == 1
+        && cancellationRaceSnapshot.lastErrorCode == "NATIVE_EFFECT_COMPLETION_TIMEOUT")
+)
+lateCancellationPresentation()
+lateCancellationCompletion()
+for deadline in cancellationRaceDeadlines { deadline.item.perform() }
+RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+let cancellationRaceAfterLateCallbacks = cancellationRaceController.snapshot()
+precondition(MainActor.assumeIsolated { cancellationRaceHost.removeCount == 1 })
+precondition(cancellationRaceAfterLateCallbacks.disposedCount == 1)
+precondition(cancellationRaceAfterLateCallbacks.completedCount == 0)
+precondition(
+    cancellationRaceAfterLateCallbacks.failedCount
+        == cancellationRaceSnapshot.failedCount
+)
+precondition(
+    cancellationRaceAfterLateCallbacks.presentedCount
+        == cancellationRaceSnapshot.presentedCount
+)
+cancellationRaceController.shutdown()
 
 let textureFailureHost = Host()
 MainActor.assumeIsolated {

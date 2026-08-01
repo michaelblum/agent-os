@@ -159,6 +159,39 @@ const v3Program = {
 const v3ProgramBase64 = Buffer.from(JSON.stringify(v3Program)).toString('base64')
 const v3ProgramDigest = await digestSceneNativeEffectProgram(v3Program)
 
+test('native effect clock starts once after every display presents', async () => {
+  const output = await compileAndRun('native-effect-clock', [
+    'src/display/desktop-world-native-effect-clock.swift',
+  ], `
+import Foundation
+
+MainActor.assumeIsolated {
+    var uptime = 10.0
+    let clock = AOSDesktopWorldNativeEffectClock(
+        displayIDs: [1, 2],
+        uptime: { uptime }
+    )
+    precondition(clock.elapsed == 0)
+    precondition(!clock.markPresented(displayID: 99))
+    precondition(!clock.markPresented(displayID: 1))
+    uptime = 12
+    precondition(clock.elapsed == 0)
+    precondition(!clock.markPresented(displayID: 1))
+    precondition(clock.markPresented(displayID: 2))
+    precondition(clock.elapsed == 0)
+    uptime = 12.25
+    precondition(clock.elapsed == 0.25)
+    precondition(!clock.markPresented(displayID: 2))
+    uptime = 11.5
+    precondition(clock.elapsed == 0)
+    uptime = 13
+    precondition(clock.elapsed == 1)
+}
+print("PASS native effect all-display clock")
+`)
+  assert.match(output, /PASS native effect all-display clock/u)
+})
+
 test('consumer-authored native effect program validates and compiles to Metal', async () => {
   const output = await compileAndRun('native-effect-program-metal', [
     'src/daemon/desktop-world-native-effect-program.swift',

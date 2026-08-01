@@ -27,8 +27,9 @@ needs, but public command policy and product UI policy belong above it:
   renderer, capture, topology, or coordinate system.
 - Stateful native-effect programs allocate one bounded height field per effect
   instance in the global DesktopWorld plane. Per-display renderers sample one
-  immutable generation, GPU completion gates slot reuse, and no display may own
-  an independent simulation clock or treat a bezel as a field boundary.
+  immutable generation, share one clock that begins after every display first
+  presents, GPU completion gates slot reuse, and no display may own an
+  independent simulation clock or treat a bezel as a field boundary.
   Swept-emitter trajectory easing is engine-owned so route-aligned effects can
   remain coincident with their consumer-owned bodies.
 - DesktopWorld WebViews share one non-persistent data store per logical surface,
