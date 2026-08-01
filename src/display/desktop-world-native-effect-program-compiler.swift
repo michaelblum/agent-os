@@ -223,7 +223,11 @@ fragment float4 desktopWorldNativeProgramFragment(
         case .lambert:
             refractionOffset = "float2(0.0)"
             materialEvaluation = #"""
-    float light = clamp(\#(scalar(material.ambient)) + \#(scalar(material.diffuse)) * max(dot(safeNormalize(input.normal), safeNormalize(float3(\#(lightDirection.joined(separator: ", "))))), 0.0), 0.0, 2.0);
+    float3 normal = safeNormalize(input.normal);
+    float3 lightDirection = safeNormalize(float3(\#(lightDirection.joined(separator: ", "))));
+    float deformationInfluence = clamp(length(normal.xy), 0.0, 1.0);
+    float materialLight = clamp(\#(scalar(material.ambient)) + \#(scalar(material.diffuse)) * max(dot(normal, lightDirection), 0.0), 0.0, 2.0);
+    float light = mix(1.0, materialLight, deformationInfluence);
     float3 shadedColor = color * light;
 """#
         case .standard:
@@ -234,6 +238,7 @@ safeNormalize(input.normal).xy * \#(scalar(material.refraction)) / segmentSize
     float3 normal = safeNormalize(input.normal);
     float3 lightDirection = safeNormalize(float3(\#(lightDirection.joined(separator: ", "))));
     float3 viewDirection = float3(0.0, 0.0, 1.0);
+    float deformationInfluence = clamp(length(normal.xy), 0.0, 1.0);
     float diffuseTerm = max(dot(normal, lightDirection), 0.0);
     float3 halfDirection = safeNormalize(lightDirection + viewDirection);
     float shininess = mix(128.0, 4.0, \#(scalar(material.roughness)));
@@ -241,8 +246,10 @@ safeNormalize(input.normal).xy * \#(scalar(material.refraction)) / segmentSize
         * \#(scalar(material.specular));
     float fresnelTerm = pow(1.0 - max(dot(normal, viewDirection), 0.0), 5.0)
         * \#(scalar(material.fresnel));
-    float baseLight = clamp(\#(scalar(material.ambient)) + \#(scalar(material.diffuse)) * diffuseTerm, 0.0, 2.0);
-    float3 shadedColor = color * baseLight + float3(specularTerm + fresnelTerm);
+    float materialLight = clamp(\#(scalar(material.ambient)) + \#(scalar(material.diffuse)) * diffuseTerm, 0.0, 2.0);
+    float baseLight = mix(1.0, materialLight, deformationInfluence);
+    float highlight = (specularTerm + fresnelTerm) * deformationInfluence;
+    float3 shadedColor = color * baseLight + float3(highlight);
 """#
         }
         let normalComputation = material.lighting == .unlit

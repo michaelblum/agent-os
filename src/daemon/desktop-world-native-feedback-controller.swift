@@ -795,6 +795,8 @@ final class AOSDesktopWorldNativeFeedbackController {
         }
         if let failure = error as? DesktopWorldNativeSheetFailure {
             switch failure {
+            case .captureResolutionMismatch:
+                return "NATIVE_EFFECT_CAPTURE_RESOLUTION_MISMATCH"
             case .frameSetIncomplete: return "NATIVE_EFFECT_FRAME_SET_INCOMPLETE"
             case .geometryAllocationFailed:
                 return "NATIVE_EFFECT_GEOMETRY_ALLOCATION_FAILED"

@@ -98,7 +98,8 @@ struct AOSDesktopPixelWarmStreamProfile: Equatable {
     init?(
         sourceWidth: Int,
         sourceHeight: Int,
-        maximumPixels: Int
+        maximumPixels: Int,
+        sizingPolicy: AOSDesktopPixelSizingPolicy = .fitWithinBudget
     ) {
         guard sourceWidth >= 2,
               sourceHeight >= 2,
@@ -109,14 +110,25 @@ struct AOSDesktopPixelWarmStreamProfile: Equatable {
         let height = sourceHeight
         let multiplied = width.multipliedReportingOverflow(by: height)
         let sourcePixels = multiplied.overflow ? Int.max : multiplied.partialValue
-        let scale = sourcePixels > maximumPixels
+        if sizingPolicy == .exactWithinBudget, sourcePixels > maximumPixels {
+            return nil
+        }
+        let scale = sizingPolicy == .fitWithinBudget && sourcePixels > maximumPixels
             ? sqrt(Double(maximumPixels) / Double(sourcePixels))
             : 1
-        let scaledWidth = Int((Double(width) * scale).rounded(.down))
-        let scaledHeight = Int((Double(height) * scale).rounded(.down))
+        let scaledWidth = sizingPolicy == .exactWithinBudget
+            ? width
+            : Int((Double(width) * scale).rounded(.down))
+        let scaledHeight = sizingPolicy == .exactWithinBudget
+            ? height
+            : Int((Double(height) * scale).rounded(.down))
         guard scaledWidth >= 2, scaledHeight >= 2 else { return nil }
-        self.width = Self.alignedDimension(scaledWidth)
-        self.height = Self.alignedDimension(scaledHeight)
+        self.width = sizingPolicy == .exactWithinBudget
+            ? scaledWidth
+            : Self.alignedDimension(scaledWidth)
+        self.height = sizingPolicy == .exactWithinBudget
+            ? scaledHeight
+            : Self.alignedDimension(scaledHeight)
         let outputPixels = self.width.multipliedReportingOverflow(by: self.height)
         guard !outputPixels.overflow,
               outputPixels.partialValue <= maximumPixels else {
@@ -174,24 +186,18 @@ private actor AOSNativeDesktopPixelSnapshotActor {
                     guard !multiplied.overflow else {
                         throw AOSDesktopFrameCaptureFailure.captureFailed
                     }
-                    let sourcePixels = multiplied.partialValue
-                    let scale = sourcePixels > request.maximumPixelsPerDisplay
-                        ? sqrt(
-                            Double(request.maximumPixelsPerDisplay)
-                                / Double(sourcePixels)
-                        )
-                        : 1
-                    let width = max(
-                        1,
-                        Int((Double(sourceWidth) * scale).rounded(.down))
-                    )
-                    let height = max(
-                        1,
-                        Int((Double(sourceHeight) * scale).rounded(.down))
-                    )
+                    guard multiplied.partialValue > 0,
+                          let profile = AOSDesktopPixelWarmStreamProfile(
+                            sourceWidth: sourceWidth,
+                            sourceHeight: sourceHeight,
+                            maximumPixels: request.maximumPixelsPerDisplay,
+                            sizingPolicy: request.sizingPolicy
+                          ) else {
+                        throw AOSDesktopFrameCaptureFailure.captureFailed
+                    }
                     let configuration = SCStreamConfiguration()
-                    configuration.width = width
-                    configuration.height = height
+                    configuration.width = profile.width
+                    configuration.height = profile.height
                     configuration.showsCursor = false
                     configuration.captureResolution = .best
                     let filter = try aosDesktopPixelCaptureFilter(
@@ -490,7 +496,8 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                 guard let profile = AOSDesktopPixelWarmStreamProfile(
                     sourceWidth: sourceWidth,
                     sourceHeight: sourceHeight,
-                    maximumPixels: request.maximumPixelsPerDisplay
+                    maximumPixels: request.maximumPixelsPerDisplay,
+                    sizingPolicy: request.sizingPolicy
                 ) else {
                     throw AOSDesktopFrameCaptureFailure.captureFailed
                 }

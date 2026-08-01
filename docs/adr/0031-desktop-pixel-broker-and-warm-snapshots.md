@@ -81,11 +81,14 @@ If settlement wins before queue admission, the pending native closure is release
 immediately and the weakly owned queue block becomes a no-op.
 Caller cancellation does not cancel Apple's in-flight operation; the
 coordinator waits for authoritative startup or retirement evidence and
-compensates a late active start when required. Runtime warm capture uses a
-one-megapixel-per-display stream profile. Explicit width and height bounds
-control the output surface; the warm stream retains ScreenCaptureKit's default
-capture-resolution mode, matching the proven low-latency native path without
-requesting a second high-resolution resampling policy.
+compensates a late active start when required. Runtime warm capture selects an
+explicit sizing policy for its admitted use. Ordinary encoded image products
+fit within a one-megapixel-per-display profile. Native DesktopWorld presentation
+instead preserves each display's exact backing dimensions within the native
+resource budget and fails closed when that exact surface cannot be admitted.
+Explicit width and height bounds control the output surface; the warm stream
+retains ScreenCaptureKit's default capture-resolution mode without requesting a
+second resampling policy.
 Readiness requires a usable complete or started sample from every display,
 followed by a later producer callback with a
 numeric, monotonically advancing timestamp. The later callback may be idle

@@ -65,6 +65,12 @@ needs, but public command policy and product UI policy belong above it:
   generation. A display-topology change retires the whole sheet before segment
   mutation; consumers must remount capture, renderers, and diagnostics as one
   new generation instead of partially reconciling them.
+  Native DesktopWorld effects capture each display at its exact backing
+  dimensions within the native resource budget. Ordinary image products may
+  use an explicitly bounded fit policy, but native presentation never silently
+  substitutes a lower-resolution texture. A flat native sheet is a neutral
+  pixel pass-through; material lighting and refraction apply only where the
+  declared effect deforms the sheet.
   Both hosts must remain daemon-free, broker-free, prompt-free, content-free in
   output, and unavailable to product consumers. The public adapter and hidden
   primitive both require `AOS_ENABLE_DEVELOPMENT_PROBES=1` before any native

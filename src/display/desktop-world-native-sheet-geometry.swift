@@ -340,6 +340,7 @@ final class DesktopWorldNativeSheetMesh {
 }
 
 enum DesktopWorldNativeSheetFailure: Error {
+    case captureResolutionMismatch
     case frameSetIncomplete
     case geometryAllocationFailed
     case geometryBudgetExceeded

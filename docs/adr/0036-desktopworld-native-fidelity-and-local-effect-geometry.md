@@ -66,6 +66,13 @@ trusted shader templates. Consumers provide finite data declarations and event
 bindings; they do not provide Metal source, pixels, native handles, loops, or
 resource allocation instructions.
 
+Native effect capture preserves every admitted display's exact backing
+dimensions. AOS rejects an over-budget or mismatched frame instead of silently
+scaling it for presentation. The undeformed sheet is a neutral captured-pixel
+pass-through: lighting, highlights, Fresnel response, and refraction gain
+influence only where the effect changes the surface normal. This keeps effect
+teardown visually continuous with the real desktop.
+
 Full-desktop browser damage and `surface` native geometry are explicit,
 temporary workloads. Small effects should declare point, segment, or endpoint
 regions. AOS does not add tiled windows, another renderer, a second topology,

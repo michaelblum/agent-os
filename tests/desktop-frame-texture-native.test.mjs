@@ -1087,9 +1087,26 @@ struct DesktopFrameProof {
             ),
             "authorized controller did not configure one all-display warm pool"
         )
+        controller.reconcileWarm(
+            authorization: warmAuthorization,
+            nativePresentation: true
+        )
+        require(
+            capturer.lastWarmConfiguration == AOSDesktopFrameWarmConfiguration(
+                canvasGeneration: 7,
+                displayIDs: [42, 43],
+                excludingWindowIDs: [7, 8],
+                maximumPixelsPerDisplay:
+                    AOSDesktopFrameCaptureController.nativePresentationMaximumPixelsPerDisplay,
+                sizingPolicy: .exactWithinBudget,
+                topologyGeneration: 11
+            ),
+            "native presentation did not prewarm exact-resolution display frames"
+        )
+        controller.reconcileWarm(authorization: warmAuthorization)
         controller.reconcileWarm(authorization: nil)
         require(
-            capturer.warmReconcileCount == 3
+            capturer.warmReconcileCount == 5
                 && capturer.lastWarmConfiguration == nil,
             "authorization removal did not retire warm capture"
         )

@@ -14,6 +14,7 @@ const hostSource = read('src/commands/desktop-pixel-native-baseline-host.swift')
 const metalSource = read('src/commands/desktop-pixel-native-baseline-metal.swift');
 const projectionLifecycleSource = read('src/display/desktop-world-native-projection-lifecycle.swift');
 const projectionSource = read('src/display/desktop-world-native-projection.swift');
+const effectRendererSource = read('src/display/desktop-world-native-effect-renderer.swift');
 const geometrySource = read('src/display/desktop-world-native-sheet-geometry.swift');
 const leaseSource = read('src/display/desktop-world-native-sheet-lease.swift');
 const sheetSource = read('src/display/desktop-world-native-sheet.swift');
@@ -176,6 +177,7 @@ test('native sheet uses bounded fixed and effect-local geometry across display s
   assert.match(metalSource, /final class AOSDesktopPixelNativeBaselineGPUContext/);
   assert.match(hostSource, /context: context/);
   assert.match(metalSource, /encoder\.drawIndexedPrimitives\(/);
+  assert.match(effectRendererSource, /NATIVE_EFFECT_CAPTURE_RESOLUTION_MISMATCH|captureResolutionMismatch/);
   assert.doesNotMatch(metalSource, /drawPrimitives\(type: \.triangle, vertexStart: 0, vertexCount: 3\)/);
   assert.match(commandSource, /sheetGeometryBytes: host\.geometryMetrics\.geometryBytes/);
   assert.match(commandSource, /cleanup\.retainedGeometryBuffers == 0/);

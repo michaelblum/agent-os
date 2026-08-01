@@ -41,6 +41,11 @@ enum AOSDesktopPixelLimits {
     static let maximumTotalPixels = 67_108_864
 }
 
+enum AOSDesktopPixelSizingPolicy: Equatable {
+    case exactWithinBudget
+    case fitWithinBudget
+}
+
 func aosDesktopPixelRequestIsValid(
     _ request: AOSDesktopPixelSnapshotRequest
 ) -> Bool {
@@ -146,6 +151,19 @@ struct AOSDesktopPixelSnapshotRequest: Equatable {
     let displayIDs: [UInt32]
     let excludingWindowIDs: [Int]
     let maximumPixelsPerDisplay: Int
+    let sizingPolicy: AOSDesktopPixelSizingPolicy
+
+    init(
+        displayIDs: [UInt32],
+        excludingWindowIDs: [Int],
+        maximumPixelsPerDisplay: Int,
+        sizingPolicy: AOSDesktopPixelSizingPolicy = .fitWithinBudget
+    ) {
+        self.displayIDs = displayIDs
+        self.excludingWindowIDs = excludingWindowIDs
+        self.maximumPixelsPerDisplay = maximumPixelsPerDisplay
+        self.sizingPolicy = sizingPolicy
+    }
 }
 
 struct AOSDesktopPixelFrame: @unchecked Sendable {

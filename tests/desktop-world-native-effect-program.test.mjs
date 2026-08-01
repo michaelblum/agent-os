@@ -247,6 +247,9 @@ precondition(source.contains("float2 renderOrigin = float2(uniforms[17], uniform
 precondition(source.contains("float2 renderSize = max(float2(uniforms[19], uniforms[20])"))
 precondition(source.contains("float shininess = mix"))
 precondition(source.contains("float fresnelTerm"))
+precondition(source.contains("float deformationInfluence = clamp(length(normal.xy)"))
+precondition(source.contains("float baseLight = mix(1.0, materialLight, deformationInfluence)"))
+precondition(source.contains("float highlight = (specularTerm + fresnelTerm) * deformationInfluence"))
 precondition(source.contains("safeNormalize(input.normal).xy"))
 let positionStart = source.range(of: "float3 evaluateNativePositionOffset")!.lowerBound
 let fragmentStart = source.range(of: "NativeEffectFragmentEvaluation evaluateNativeFragment")!.lowerBound

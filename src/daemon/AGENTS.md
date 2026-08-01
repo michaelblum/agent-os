@@ -116,13 +116,15 @@ app-bundle host may exclude its complete AOS process; a raw or otherwise
 unqualified host must exclude the complete exact DesktopWorld surface-window set and fails before
 stream creation when any requested window is unresolved. Merely appearing in
 ScreenCaptureKit's application inventory does not qualify a raw process for app
-exclusion. It uses one bounded stream configuration with the same pixel ceiling
-for consent and runtime acquisition. Scaled stream surfaces round down to
-positive even dimensions without exceeding that ceiling; an impossible budget
-or aspect ratio fails before ScreenCaptureKit is invoked.
+exclusion. It uses bounded stream configurations selected by the admitted
+consumer. Ordinary image products may fit within their declared pixel ceiling
+and round down to positive even dimensions. Native DesktopWorld presentation
+preserves each display's exact backing dimensions within the native resource
+budget; it must fail before ScreenCaptureKit is invoked instead of silently
+scaling.
 Warm source discovery includes off-screen windows so hidden or suspended stage
 windows retain stable identities for conservative source replacement and the
-exact-window fallback. Explicit dimensions enforce the pixel budget,
+exact-window fallback. Explicit dimensions enforce the applicable pixel budget,
 and the stream keeps ScreenCaptureKit's default capture-resolution mode.
 A warm stream retains its latest complete or started native
 sample, so it uses a fixed queue depth of three and cannot become ready
