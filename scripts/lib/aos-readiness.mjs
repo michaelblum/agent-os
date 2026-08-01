@@ -150,8 +150,10 @@ export function passiveLiveViewsFor(daemon, cli) {
       post_access: daemon.inputTap.postAccess,
       microphone: daemon.permissions.microphone,
       microphone_state: daemonMicrophoneAuthorizationState(daemon),
-      input_tap_status: daemon.inputTap.status,
-      input_tap_attempts: daemon.inputTap.attempts,
+      input_tap: {
+        status: daemon.inputTap.status,
+        attempts: daemon.inputTap.attempts,
+      },
     } : undefined,
   };
 }
@@ -782,10 +784,6 @@ export function readyNotes({ runtime, daemon, permissions, setup, cleanReport },
   if (!worktreePolicy.allowed) {
     notes.push(`${worktreePolicy.message} worktree=${worktreePolicy.worktree?.repo_root ?? 'unknown'} git_dir=${worktreePolicy.worktree?.git_dir ?? 'unknown'} common_git_dir=${worktreePolicy.worktree?.git_common_dir ?? 'unknown'}.`);
   }
-  if (runtime.event_tap_expected && runtime.input_tap_status && runtime.input_tap_status !== 'active' && !runtime.input_tap) {
-    notes.push(`Perception input tap is not active (status=${runtime.input_tap_status}).`);
-  }
-
   if (daemon?.inputTap && daemon.inputTap.status !== 'active') {
     notes.push(inputTapRecoveryGuidance(daemon.inputTap.status, daemon.inputTap.attempts));
     if (daemon.inputTap.listenAccess === false || daemon.inputTap.postAccess === false) {

@@ -99,7 +99,7 @@
       "harness_level": "schema",
       "proof_kind": "context_session_contract",
       "contract": "Context sessions preserve ordered targets, artifacts, keyframes, and safe asset references independently of product capture UI.",
-      "worth": "This retains the persisted AOS context contract while isolating the one legacy entry-source token at its schema boundary.",
+      "worth": "This retains the persisted AOS context contract while keeping its entry-source vocabulary current and closed.",
       "command": "node --test tests/toolkit/context-session.test.mjs tests/schemas/aos-context-session-v0.test.mjs",
       "replaces": [
         "embedded product context recording renderer tests"

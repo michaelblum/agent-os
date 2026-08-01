@@ -48,25 +48,19 @@ def build_ping_payload(args: argparse.Namespace) -> dict[str, Any]:
         "started_at": "2026-04-24T00:00:00Z",
         "perception_channels": 0,
         "subscribers": 0,
-        # Legacy flat fields. A pre-input-tap-readiness-contract daemon emitted
-        # only these — newer daemons emit them alongside the structured blocks
-        # for compatibility (CONTRACT-GOVERNANCE rule 4).
-        "input_tap_status": tap_status,
-        "input_tap_attempts": args.attempts,
-    }
-    if not args.legacy:
-        payload["input_tap"] = {
+        "input_tap": {
             "status": tap_status,
             "attempts": args.attempts,
             "listen_access": parse_bool(args.listen_access),
             "post_access": parse_bool(args.post_access),
             "last_error_at": None if tap_status == "active" else "2026-04-24T00:00:00Z",
-        }
-        payload["permissions"] = {
+        },
+        "permissions": {
             "accessibility": parse_bool(args.accessibility),
             "microphone": args.microphone_state == "authorized",
             "microphone_state": args.microphone_state,
-        }
+        },
+    }
     return payload
 
 
@@ -148,10 +142,6 @@ def main() -> None:
     parser.add_argument("--microphone-state", default="authorized",
                         choices=("not_determined", "restricted", "denied",
                                  "authorized", "unknown"))
-    parser.add_argument("--legacy", action="store_true",
-                        help="Emit only legacy flat fields; omit the structured "
-                             "input_tap/permissions blocks (simulates a "
-                             "pre-readiness-contract daemon binary).")
     args = parser.parse_args()
     args.ping_count = 0
     args.ping_lock = threading.Lock()

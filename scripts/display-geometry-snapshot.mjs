@@ -54,7 +54,12 @@ client.on('data', (chunk) => {
   }
 });
 client.on('connect', () => {
-  client.write(JSON.stringify({ action: 'subscribe', events: ['display_geometry'], snapshot: true }) + '\n');
+  client.write(JSON.stringify({
+    v: 1,
+    service: 'see',
+    action: 'observe',
+    data: { events: ['display_geometry'], snapshot: true },
+  }) + '\n');
 });
 client.on('error', (err) => {
   console.error(err.message);

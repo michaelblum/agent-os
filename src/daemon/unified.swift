@@ -3289,9 +3289,9 @@ class UnifiedDaemon {
         )
     }
 
-    /// Map v1 envelope (service, action) to the legacy flat action string
-    /// used by the existing switch. Returns nil if the pair is not in the v1 catalog.
-    private func legacyActionName(service: String, action: String) -> String? {
+    /// Map a v1 envelope pair to the internal switch action. Returns nil when
+    /// the pair is outside the current v1 catalog.
+    private func internalActionName(service: String, action: String) -> String? {
         switch (service, action) {
         case ("see", "observe"):              return "subscribe"
         case ("show", "create"):              return "create"
@@ -3392,13 +3392,6 @@ class UnifiedDaemon {
     // MARK: - Request Routing
 
     /// Top-level request gatekeeper. Enforces the v1 envelope contract.
-    ///
-    /// Non-envelope requests return PARSE_ERROR, with one explicit transitional
-    /// carve-out: bare `{"action":"subscribe"}` is still accepted for streaming
-    /// event-bus consumers (`listen --follow`, `see observe`, `event-stream.swift`)
-    /// that hold a persistent socket and cannot use sendEnvelopeRequest's
-    /// one-shot API. This carve-out will be cleaned up when a `listen.subscribe`
-    /// v1 action is defined (tracked separately).
     private func handleRequest(
         json: [String: Any],
         connectionID: UUID,
@@ -3409,12 +3402,7 @@ class UnifiedDaemon {
             routeAction("", json: json, outbound: outbound, connectionID: connectionID)
             return
         }
-        // Non-envelope: allow only the explicit legacy carve-out for streaming subscribers.
-        if let action = json["action"] as? String, action == "subscribe" {
-            routeAction(action, json: json, outbound: outbound, connectionID: connectionID)
-            return
-        }
-        // All other non-envelope requests are rejected.
+        // Non-envelope requests are rejected.
         sendResponseJSON(to: outbound, [
             "error": "Request envelope required ({v:1, service, action, data}).",
             "code": "PARSE_ERROR"
@@ -3427,9 +3415,8 @@ class UnifiedDaemon {
         outbound: AOSConnectionOutboundWriter,
         connectionID: UUID
     ) {
-        // Envelope dispatch: translate (service, action) to the legacy flat action
-        // string and reshape `data` back into the top-level JSON the legacy
-        // handlers expect. This keeps handler bodies untouched.
+        // Envelope dispatch: translate (service, action) to the internal switch
+        // action and reshape `data` into the handler input dictionary.
         if isEnvelopeShape(json) {
             guard let env = parseEnvelope(json) else {
                 sendResponseJSON(to: outbound, envelopeError(
@@ -3449,8 +3436,8 @@ class UnifiedDaemon {
                 ))
                 return
             }
-            let legacyAction = legacyActionName(service: env.service, action: env.action)
-            guard let legacy = legacyAction else {
+            let internalAction = internalActionName(service: env.service, action: env.action)
+            guard let internalAction else {
                 sendResponseJSON(to: outbound, envelopeError(
                     error: "Unknown (service, action): (\(env.service), \(env.action))",
                     code: "UNKNOWN_ACTION",
@@ -3460,10 +3447,10 @@ class UnifiedDaemon {
             }
             // Reshape: merge `data` into a flat dict and set `action`.
             var flat = env.data
-            flat["action"] = legacy
+            flat["action"] = internalAction
             flat["__envelope_ref"] = env.ref ?? ""
             flat["__envelope_active"] = true
-            routeAction(legacy, json: flat, outbound: outbound, connectionID: connectionID)
+            routeAction(internalAction, json: flat, outbound: outbound, connectionID: connectionID)
             return
         }
 
@@ -3598,7 +3585,7 @@ class UnifiedDaemon {
             }
 
         // -- Post: canvas message delivery --
-        // Reachable only via the show.post -> "post" legacyActionName mapping,
+        // Reachable only via the show.post -> "post" internal action mapping,
         // which is exercised by sendHeadsupMessage / sendHeadsupMessageOneShot
         // in helpers.swift. Channel relay was removed; use tell.send for channels.
         case "post":
@@ -4032,17 +4019,14 @@ class UnifiedDaemon {
                         inputEventSubscriberCount: inputEventSubscriberCount
                     ),
                 ] as [String: Any],
-                // Legacy flat fields preserved
-                "input_tap_status": perception.inputTapStatus,
-                "input_tap_attempts": perception.inputTapAttempts,
-                // New nested input_tap block
+                // Structured daemon-owned input-tap state.
                 "input_tap": [
                     "status": perception.inputTapStatus,
                     "attempts": perception.inputTapAttempts,
                     "listen_access": perception.inputTapListenAccess,
                     "post_access": perception.inputTapPostAccess,
                     "last_error_at": lastErrorAt,
-                    // Compatibility fields: historically named panic_*.
+                    // Current input-safety state fields.
                     "panic_passthrough_active": safetyShortcutSnapshot.active,
                     "panic_passthrough_until": panicUntil,
                     "panic_trigger": panicTrigger,
@@ -4377,13 +4361,7 @@ class UnifiedDaemon {
     ) {
         let envelopeActive = (json["__envelope_active"] as? Bool) ?? false
         let envelopeRef = json["__envelope_ref"] as? String
-        // Accept audience as [String] array (v1 envelope) or comma-string (legacy).
-        let audiences: [String]
-        if let arr = json["audience"] as? [String], !arr.isEmpty {
-            audiences = arr
-        } else if let str = json["audience"] as? String, !str.isEmpty {
-            audiences = str.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-        } else {
+        guard let audiences = json["audience"] as? [String], !audiences.isEmpty else {
             sendResponseJSON(to: outbound, ["error": "audience required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }

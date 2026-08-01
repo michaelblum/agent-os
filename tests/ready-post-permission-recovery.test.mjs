@@ -36,7 +36,6 @@ test('post-permission repair requires live daemon tap facts and schedules one ma
       ownership_state: 'consistent',
       owner_launchd_managed: true,
       serving_pid: 51075,
-      input_tap_status: 'unavailable',
       input_tap: {
         status: 'unavailable',
         attempts: 1,
@@ -113,7 +112,6 @@ test('post-permission repair skips restart when fresh live tap facts are already
     mode: 'repo',
     ready_source: 'daemon',
     runtime: {
-      input_tap_status: 'active',
       input_tap: { status: 'active', listen_access: true, post_access: true },
     },
     blockers: [],
@@ -230,7 +228,11 @@ if (args.join(' ') === '__permissions facts --json') {
         input_tap: tap,
         permissions: { accessibility: true, microphone: true, microphone_state: 'authorized' },
       }
-    : { reachable: true };
+    : {
+        reachable: true,
+        input_tap: tap,
+        permissions: { accessibility: true, microphone: true, microphone_state: 'authorized' },
+      };
 } else if (args.join(' ') === '__runtime status-facts --json') {
   payload = {
     mode: 'repo',
@@ -244,8 +246,6 @@ if (args.join(' ') === '__permissions facts --json') {
     owner_pid: absent ? undefined : active ? 72167 : 51075,
     lock_owner_pid: absent ? undefined : active ? 72167 : 51075,
     service_pid: absent ? undefined : 51065,
-    input_tap_status: tap.status,
-    input_tap_attempts: tap.attempts,
     input_tap: tap,
     state_dir: process.env.AOS_STATE_ROOT + '/repo',
     socket_path: process.env.AOS_STATE_ROOT + '/repo/sock',
@@ -293,6 +293,14 @@ async function runCase({ absent = false, neverReady = false, ownership = 'consis
       AOS_TEST_READY_MOCK_SERVICE_ACTIONS: '1',
       AOS_TEST_READY_SERVICE_ACTION_LOG: actionLog,
       AOS_TEST_READY_SERVICE_STATUS_JSON: JSON.stringify(serviceStatus),
+      AOS_TEST_READY_CLEAN_REPORT_JSON: JSON.stringify({
+        status: 'clean',
+        foreground_dev_owners: [],
+        stale_daemons: [],
+        stale_locks: [],
+        canvases: [],
+        notes: [],
+      }),
       AOS_TEST_READY_WAIT_BUDGET_MS: '120',
       AOS_TEST_READY_WAIT_POLL_MS: '10',
     },
@@ -318,7 +326,7 @@ async function runCase({ absent = false, neverReady = false, ownership = 'consis
 
 test('post-permission repair performs one managed restart and requires fresh live tap facts', async () => {
   const result = await runCase();
-  assert.equal(result.exitCode, 0, result.stderr);
+  assert.equal(result.exitCode, 0, JSON.stringify(result));
   assert.deepEqual(result.actions, [{ action: 'restart', mode: 'repo' }]);
   assert.equal(result.response.ready, true);
   assert.equal(result.response.ready_source, 'daemon');
@@ -331,7 +339,7 @@ test('post-permission repair performs one managed restart and requires fresh liv
 
 test('post-permission repair restarts an exact-target service stopped by reset-runtime', async () => {
   const result = await runCase({ absent: true });
-  assert.equal(result.exitCode, 0, result.stderr);
+  assert.equal(result.exitCode, 0, JSON.stringify(result));
   assert.deepEqual(result.actions, [{ action: 'restart', mode: 'repo' }]);
   assert.equal(result.response.ready, true);
   assert.equal(result.response.ready_source, 'daemon');

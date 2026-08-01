@@ -71,11 +71,10 @@ test('neutral annotation session source does not export Surface Inspector adapte
   assert.doesNotMatch(annotationSessionSource, /pinToAnnotationAnchor/)
 })
 
-test('legacy radial entry input normalizes one-way to the canonical source', () => {
-  const session = createAnnotationSession({ entry_source: 'sigil_radial' })
+test('unknown annotation entry input stays outside the canonical source vocabulary', () => {
+  const session = createAnnotationSession({ entry_source: 'removed-source' })
 
-  assert.equal(session.entry_source, 'radial_menu')
-  assert.doesNotMatch(JSON.stringify(session), /sigil_radial/)
+  assert.equal(session.entry_source, 'unknown')
 })
 
 test('annotation subjects keep sparse projection evidence live but unprojectable', () => {

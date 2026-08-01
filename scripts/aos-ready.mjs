@@ -322,12 +322,12 @@ function printReadyHumanHandoff(response, mode, prefix) {
 
 function printText(response, mode, prefix) {
   if (response.ready) {
-    process.stdout.write(`ready=true mode=${mode} daemon=reachable tap=${response.runtime.input_tap_status ?? 'unknown'}\n`);
+    process.stdout.write(`ready=true mode=${mode} daemon=reachable tap=${response.runtime.input_tap?.status ?? 'unknown'}\n`);
     return;
   }
 
   const daemonState = response.runtime.socket_reachable ? 'reachable' : (response.runtime.daemon_running ? 'running' : 'down');
-  process.stdout.write(`ready=false phase=${response.phase} diagnosis=${response.diagnosis} mode=${mode} daemon=${daemonState} tap=${response.runtime.input_tap_status ?? 'unknown'} blocked=${response.blocked_capabilities.join(',')}\n`);
+  process.stdout.write(`ready=false phase=${response.phase} diagnosis=${response.diagnosis} mode=${mode} daemon=${daemonState} tap=${response.runtime.input_tap?.status ?? 'unknown'} blocked=${response.blocked_capabilities.join(',')}\n`);
   if (response.action_trace.length) {
     process.stdout.write('Action trace:\n');
     for (const step of response.action_trace) {

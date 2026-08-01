@@ -363,7 +363,7 @@ test('direct screen-capture prime rejects a malformed ready response', () => {
   });
 });
 
-test('legacy daemon without microphone state fails closed', () => {
+test('incomplete daemon health without microphone state fails closed', () => {
   const result = runCheck({ microphone: false });
 
   assert.equal(result.status, 0, result.stderr);

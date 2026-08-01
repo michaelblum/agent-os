@@ -39,7 +39,7 @@ function runtime(overrides = {}) {
     daemon_running: true,
     socket_reachable: true,
     ownership_state: 'managed',
-    input_tap_status: 'active',
+    input_tap: { status: 'active', attempts: 1 },
     ...overrides,
   };
 }
@@ -213,7 +213,7 @@ test('passive-green live-fail daemon input monitoring names post-rebuild stale T
     microphone: true,
   });
   assert.equal(verdict.tcc_staleness.daemon_live.listen_access, false);
-  assert.equal(verdict.tcc_staleness.daemon_live.input_tap_status, 'unavailable');
+  assert.equal(verdict.tcc_staleness.daemon_live.input_tap.status, 'unavailable');
   assert.equal(verdict.tcc_staleness.binary_identity.cdhash, 'abc123def456');
   assert.deepEqual(verdict.tcc_staleness.remedy.commands, [
     './aos ready --repair --post-permission',
@@ -338,17 +338,17 @@ test('linked-worktree runtime policy outranks stale-TCC terminal handoff', () =>
   assert.equal(rawActions.some((action) => action.type === 'manual_tcc_reset'), false);
 }));
 
-test('legacy daemon health without microphone state fails closed instead of trusting CLI microphone state', () => {
-  const legacyDaemon = daemon({
+test('incomplete daemon health without microphone state fails closed instead of trusting CLI microphone state', () => {
+  const incompleteDaemon = daemon({
     inputTap: { listenAccess: undefined, postAccess: undefined },
     permissions: { accessibility: undefined, microphone: undefined, microphoneState: undefined },
   });
   const cli = permissions({ accessibility: true, screen_recording: true });
-  const result = evaluateReadyForTesting(legacyDaemon, cli, setup());
+  const result = evaluateReadyForTesting(incompleteDaemon, cli, setup());
 
   assert.deepEqual(result, { readyForTesting: false, readySource: 'cli' });
-  assert.deepEqual(missingPermissionIDsFor(legacyDaemon, cli), ['microphone']);
-  assert.equal(disagreementFor(legacyDaemon, cli), undefined);
+  assert.deepEqual(missingPermissionIDsFor(incompleteDaemon, cli), ['microphone']);
+  assert.equal(disagreementFor(incompleteDaemon, cli), undefined);
 });
 
 test('ready_for_testing requires each capability permission independently', () => {

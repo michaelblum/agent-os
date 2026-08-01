@@ -368,7 +368,7 @@ async function listenFollow(channel, since) {
   const socket = connection?.socket ?? null;
   const daemon = connection?.daemon ?? null;
   if (!socket) error('Cannot connect to daemon', 'DAEMON_UNREACHABLE');
-  socket.write(`${JSON.stringify({ action: 'subscribe' })}\n`);
+  socket.write(`${JSON.stringify({ v: 1, service: 'see', action: 'observe', data: {} })}\n`);
   await readOneJSON(socket, 2000);
 
   if (since) {

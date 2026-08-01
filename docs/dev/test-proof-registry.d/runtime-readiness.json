@@ -215,7 +215,7 @@
       "owner": "runtime-readiness",
       "harness_level": "model_unit",
       "proof_kind": "daemon_health_fixture_contract",
-      "contract": "The shared mock daemon emits explicit Accessibility, input-tap, and daemon Microphone authorization facts while legacy mode omits unsupported structured fields.",
+      "contract": "The shared mock daemon emits the current structured Accessibility, input-tap, and daemon Microphone authorization facts without a retired health mode.",
       "worth": "This keeps isolated readiness proofs aligned with current health authority without launching the native AOS binary or daemon.",
       "command": "node --test tests/mock-daemon-health.test.mjs",
       "replaces": [],
@@ -492,6 +492,59 @@
       "command": "AOS_REAL_INPUT_OK=1 bash tests/canvas-lifecycle-concurrent-input.sh",
       "replaces": [],
       "guard": "requires explicit AOS_REAL_INPUT_OK=1, native input permissions, and an isolated AOS_STATE_ROOT; incidental user mouse or keyboard input is permitted",
+      "status": "manual_only"
+    },
+    {
+      "id": "gate-continuation-current-session-contract",
+      "path_patterns": [
+        "tests/daemon/gate-continuations.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "daemon-gate",
+      "harness_level": "model_unit",
+      "proof_kind": "gate_continuation_contract",
+      "contract": "Gate continuation records accept only the closed current session vocabulary and reject unknown historical fields generically.",
+      "worth": "This proves retired continuation fields cannot regain a field-specific compatibility path while preserving current defer, readback, and submit behavior.",
+      "command": "node --test tests/daemon/gate-continuations.test.mjs tests/schemas/aos-gate-continuation.test.mjs",
+      "replaces": [],
+      "guard": "disposable temporary state only; no native AOS binary or daemon",
+      "status": "active"
+    },
+    {
+      "id": "daemon-v1-subscriber-integration",
+      "path_patterns": [
+        "tests/canvas-owner-metadata.sh",
+        "tests/daemon-ipc-system.sh",
+        "tests/wiki-change-events.sh",
+        "tests/wiki-write-emits-event.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "daemon-ipc",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "daemon_subscription_contract",
+      "contract": "Isolated daemon subscribers use the current v1 see.observe envelope for canvas lifecycle and wiki event delivery.",
+      "worth": "This exercises persistent subscription and event fanout after the non-envelope request was deleted, including current metadata and wiki consumers.",
+      "command": "bash tests/daemon-ipc-system.sh && bash tests/canvas-owner-metadata.sh && bash tests/wiki-change-events.sh && bash tests/wiki-write-emits-event.sh",
+      "replaces": [],
+      "guard": "requires a current native ./aos and runs isolated daemons; do not run in no-build or no-./aos validation lanes",
+      "status": "manual_only"
+    },
+    {
+      "id": "structured-input-tap-health-integration",
+      "path_patterns": [
+        "tests/ready-fast-healthy-path.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "readiness_health_contract",
+      "contract": "The fast healthy readiness route reads the current structured daemon input-tap block without flat-field fallback.",
+      "worth": "This provides the isolated native acceptance check for the structured-only health cutover while model and fake-transport tests cover ordinary static validation.",
+      "command": "bash tests/ready-fast-healthy-path.sh",
+      "replaces": [
+        "flat input-tap health compatibility acceptance"
+      ],
+      "guard": "requires a current native ./aos and an isolated AOS_STATE_ROOT; do not run in no-build or no-./aos validation lanes",
       "status": "manual_only"
     },
     {

@@ -9,17 +9,15 @@ import Foundation
 struct InputTapHealth {
     let status: String           // "active", "retrying", "unavailable"
     let attempts: Int
-    // Optional: nil when the daemon is a legacy build that doesn't expose
-    // `input_tap.{listen,post}_access`. Callers MUST treat nil as "unknown"
-    // and fall back to the CLI view rather than fabricating a daemon answer.
+    // Optional when a current daemon cannot resolve the live value. Callers
+    // MUST treat nil as "unknown" rather than fabricating a daemon answer.
     let listenAccess: Bool?
     let postAccess: Bool?
     let lastErrorAt: String?
 }
 
 struct DaemonPermissions {
-    // Optional for the same reason as InputTapHealth's access fields: legacy
-    // daemons predating the structured `permissions` block don't expose this.
+    // Optional when the daemon cannot resolve the corresponding permission.
     let accessibility: Bool?
     let microphone: Bool?
     let microphoneState: String?
@@ -43,10 +41,8 @@ struct DaemonHealthView {
 /// Parse a `system.ping` response payload into a daemon health view.
 /// Accepts either the envelope-wrapped form (`{data: {...}}`) or the flat payload.
 ///
-/// Prefers the structured `input_tap` / `permissions` blocks. Falls back to the
-/// legacy flat `input_tap_status` / `input_tap_attempts` keys when the
-/// structured block is absent (older daemon binaries). Returns nil only when
-/// neither shape provides the minimum required fields (status + attempts).
+/// Requires the current structured `input_tap` block. Returns nil when the
+/// response does not provide the minimum required fields (status + attempts).
 func parseDaemonHealthView(from response: [String: Any]) -> DaemonHealthView? {
     let payload = (response["data"] as? [String: Any]) ?? response
 
@@ -56,25 +52,16 @@ func parseDaemonHealthView(from response: [String: Any]) -> DaemonHealthView? {
     let postAccess: Bool?
     let lastErrorAt: String?
 
-    if let tap = payload["input_tap"] as? [String: Any],
-       let s = tap["status"] as? String,
-       let a = tap["attempts"] as? Int {
-        status = s
-        attempts = a
-        listenAccess = tap["listen_access"] as? Bool
-        postAccess = tap["post_access"] as? Bool
-        lastErrorAt = tap["last_error_at"] as? String
-    } else if let s = payload["input_tap_status"] as? String,
-              let a = payload["input_tap_attempts"] as? Int {
-        // Legacy flat shape — listen/post/last_error_at not exposed.
-        status = s
-        attempts = a
-        listenAccess = nil
-        postAccess = nil
-        lastErrorAt = nil
-    } else {
+    guard let tap = payload["input_tap"] as? [String: Any],
+          let s = tap["status"] as? String,
+          let a = tap["attempts"] as? Int else {
         return nil
     }
+    status = s
+    attempts = a
+    listenAccess = tap["listen_access"] as? Bool
+    postAccess = tap["post_access"] as? Bool
+    lastErrorAt = tap["last_error_at"] as? String
 
     let perms = payload["permissions"] as? [String: Any]
     let accessibility = perms?["accessibility"] as? Bool
@@ -160,17 +147,16 @@ extension ServiceReadinessOutcome {
 ///
 /// 1. **Reachable-daemon tap status is authoritative.** If the daemon is
 ///    reachable and reports `input_tap.status != "active"`, readiness is
-///    `false` regardless of CLI fallbacks. This holds for legacy daemons
-///    (no `permissions` block) too — without this guard, a mixed-version
-///    setup where the legacy daemon's tap is broken but the CLI's TCC
-///    grants are fine would falsely report `ready_for_testing=true`.
+///    `false` regardless of CLI fallbacks. This also holds for an incomplete
+///    health payload with no `permissions` block; a broken daemon tap must not
+///    be overridden by healthy foreground-CLI TCC facts.
 /// 2. **Daemon microphone authorization is required.** Foreground CLI
 ///    microphone preflight is diagnostic only because the daemon owns capture.
 /// 3. **Otherwise, accessibility source determines `ready_source`:**
 ///    - Daemon reachable + tap active + `permissions.accessibility` known:
 ///      daemon-sourced (`ready_source="daemon"`).
-///    - Daemon unreachable, OR daemon reachable + tap active + legacy daemon
-///      (accessibility absent): CLI fallback (`ready_source="cli"`). No
+///    - Daemon unreachable, OR daemon reachable + tap active + unresolved
+///      accessibility: CLI fallback (`ready_source="cli"`). No
 ///      silent merging of a daemon-sourced tap status with a CLI-sourced
 ///      accessibility check — and the tap-inactive case has already been
 ///      handled above so this branch only runs when the tap is OK.
@@ -262,9 +248,9 @@ func inputTapRecoveryCommands(context: RecoveryGuidanceContext) -> [String] {
 /// Sub-guidance appended when the daemon reports listen_access or post_access
 /// as known-false. Points the operator at the System Settings pane and shows
 /// the resolved daemon binary path so they grant access to the right binary.
-/// `nil` arguments render as "unknown" and indicate the daemon didn't expose
-/// the field (legacy build); callers should generally only invoke this when
-/// at least one access field is known false.
+/// `nil` arguments render as "unknown" when a live value could not be resolved;
+/// callers should generally only invoke this when at least one access field is
+/// known false.
 func inputMonitoringSubGuidance(
     listenAccess: Bool?,
     postAccess: Bool?,

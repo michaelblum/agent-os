@@ -885,7 +885,7 @@ async function listenCommand(args) {
   });
   process.stdin.once('end', close);
 
-  socket.write(`${JSON.stringify({ action: 'subscribe' })}\n`);
+  socket.write(`${JSON.stringify({ v: 1, service: 'see', action: 'observe', data: {} })}\n`);
 }
 
 function installParentExitWatchdog(close, intervalMs = 250) {

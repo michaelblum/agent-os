@@ -3,7 +3,6 @@ import {
   ANNOTATION_SESSION_VERSION,
   createAnnotationSession,
   normalizeAnnotationAnchor,
-  normalizeLegacyAnnotationEntrySource,
   normalizeAnnotationSessionEntrySource,
   normalizeAnnotationSubjectAddress,
 } from './annotation-session.js'
@@ -393,9 +392,9 @@ export function createContextSession(input = {}) {
     created_at: createdAt,
     updated_at: updatedAt,
     active: Boolean(input.active),
-    entry_source: text(normalizeLegacyAnnotationEntrySource(
+    entry_source: normalizeAnnotationSessionEntrySource(
       text(input.entry_source, sourceAnnotationSession?.entry_source || 'unknown'),
-    ), 'unknown'),
+    ),
     source_annotation_session: sourceAnnotationSession,
     artifacts,
     active_artifact_id: text(input.active_artifact_id || artifacts[0]?.id),

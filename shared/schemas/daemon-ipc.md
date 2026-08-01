@@ -81,7 +81,7 @@ Error response:
 | `INVALID_ARG` | Field has unacceptable value. |
 | `UNKNOWN_ACTION` | `(service, action)` not in catalog. |
 | `UNKNOWN_SERVICE` | `service` is not one of the declared request namespaces. |
-| `PARSE_ERROR` | Request not JSON, schema violation, or legacy flat-string request. |
+| `PARSE_ERROR` | Request not JSON, schema violation, or non-envelope request. |
 | `SESSION_NOT_FOUND` | Referenced `session_id` is not registered. |
 | `MISSING_SESSION_ID` | Daemon could not resolve a session id for an action that requires one. |
 | `VOICE_NOT_FOUND` | `voice.bind` target URI does not exist in the registry snapshot, or the `voice.next` filtered pool resolved to zero voices. |
@@ -178,18 +178,16 @@ the response may include:
 - `canvas_perception_channels` (array) — daemon-owned perception attention
   channels created from canvas event subscriptions. Each item includes
   `canvas_id`, `channel_id`, `depth`, `scope`, and `rate`.
-- `input_tap_status` — `active`, `retrying`, or `unavailable`
-- `input_tap_attempts` — startup attempt count for the global input tap
 - `input_tap` (object) — daemon-sourced structured view of the global input tap. Always present.
-  - `status` — `active`, `retrying`, or `unavailable`. Mirrors the flat `input_tap_status` field.
-  - `attempts` — startup attempt count. Mirrors the flat `input_tap_attempts` field.
+  - `status` — `active`, `retrying`, or `unavailable`.
+  - `attempts` — startup attempt count.
   - `listen_access` (bool) — `CGPreflightListenEventAccess()` evaluated **inside the daemon process**. The CLI must not fabricate this from its own preflight.
   - `post_access` (bool) — `CGPreflightPostEventAccess()` evaluated inside the daemon.
   - `last_error_at` (string|null) — ISO 8601 timestamp of the most recent `CGEventTap` failure. `null` when no failure has occurred since daemon start.
-  - `panic_passthrough_active` (bool) — legacy compatibility field name for whether the Force Quit input safety passthrough window is active.
-  - `panic_passthrough_until` (string|null) — legacy compatibility field name for the input safety passthrough deadline.
-  - `panic_trigger` (string|null) — legacy compatibility field name for the last safety shortcut trigger, currently `"cmd_opt_escape"` when set.
-  - `panic_trigger_count` (int) — legacy compatibility field name for safety shortcut trigger count.
+  - `panic_passthrough_active` (bool) — whether the Force Quit input safety passthrough window is active.
+  - `panic_passthrough_until` (string|null) — input safety passthrough deadline.
+  - `panic_trigger` (string|null) — last safety shortcut trigger, currently `"cmd_opt_escape"` when set.
+  - `panic_trigger_count` (int) — input safety shortcut trigger count.
 - `permissions` (object) — daemon-sourced TCC view. Always present.
   - `accessibility` (bool) — `AXIsProcessTrusted()` evaluated inside the daemon.
   - `screen_capture_direct` (object) — content-free, process-lifetime direct
@@ -203,10 +201,6 @@ These fields are additive and intended for operator surfaces such as `status`,
 from ownership mismatch or perception degradation.
 
 Envelope `v` is an integer, currently `1`. Adding an action or an optional field does not bump `v`. Breaking wire changes bump `v`.
-
-## Transitional Carve-Outs
-
-Bare `{"action":"subscribe"}` (non-envelope format) is still accepted for backward compatibility with streaming consumers like `aos listen --follow`. This will be cleaned up in a follow-up spec as clients migrate to the v1 envelope.
 
 ## Event Envelope Note
 

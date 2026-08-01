@@ -67,7 +67,7 @@ test('defer returns immediately and writes one pending continuation with redacte
   assert.equal(stored.resume.auto_resume, false);
 });
 
-test('stale continuation records with session.dock fail closed instead of normalizing', async () => {
+test('continuation records with unknown historical session fields fail closed generically', async () => {
   const stateRoot = await mkdtemp(join(tmpdir(), 'aos-deferred-stale-dock-'));
   const store = new GateContinuationStore({ root: stateRoot, env: { AOS_RUNTIME_MODE: 'repo' } });
   const continuation = await store.create({
@@ -84,15 +84,15 @@ test('stale continuation records with session.dock fail closed instead of normal
 
   await assert.rejects(
     () => store.read(continuation.continuation_id),
-    /session\.dock is retired/,
+    /unknown session fields: dock/,
   );
   await assert.rejects(
     () => store.list({ id: continuation.continuation_id }),
-    /session\.dock is retired/,
+    /unknown session fields: dock/,
   );
   await assert.rejects(
     () => store.list(),
-    /session\.dock is retired/,
+    /unknown session fields: dock/,
   );
 
   const stdout = writable();
@@ -100,15 +100,15 @@ test('stale continuation records with session.dock fail closed instead of normal
   const code = await runGateContinuations(['--id', continuation.continuation_id, '--json'], { stdout, stderr, store });
   assert.equal(code, 1);
   assert.equal(stdout.text(), '');
-  assert.match(stderr.text(), /session\.dock is retired/);
+  assert.match(stderr.text(), /unknown session fields: dock/);
 
   await assert.rejects(
     () => store.submit({ continuationId: continuation.continuation_id, response: { decision: 'approve' } }),
-    /session\.dock is retired/,
+    /unknown session fields: dock/,
   );
 });
 
-test('mixed role and dock continuation records fail closed', async () => {
+test('mixed current and unknown continuation session fields fail closed', async () => {
   const stateRoot = await mkdtemp(join(tmpdir(), 'aos-deferred-mixed-dock-'));
   const store = new GateContinuationStore({ root: stateRoot, env: { AOS_RUNTIME_MODE: 'repo' } });
   const continuation = await store.create({
@@ -124,11 +124,11 @@ test('mixed role and dock continuation records fail closed', async () => {
 
   await assert.rejects(
     () => store.read(continuation.continuation_id),
-    /session\.dock is retired/,
+    /unknown session fields: dock/,
   );
   await assert.rejects(
     () => store.submit({ continuationId: continuation.continuation_id, response: { decision: 'approve' } }),
-    /session\.dock is retired/,
+    /unknown session fields: dock/,
   );
 });
 

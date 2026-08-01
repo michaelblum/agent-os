@@ -42,8 +42,9 @@ ownership = runtime.get('ownership_state')
 if ready and ownership not in (None, 'consistent', 'unknown'):
     ready = False
 tap_expected = bool(runtime.get('event_tap_expected'))
-tap_status = runtime.get('input_tap_status')
-if ready and tap_expected and tap_status not in (None, 'active'):
+tap_block = runtime.get('input_tap')
+tap_status = tap_block.get('status') if isinstance(tap_block, dict) else None
+if ready and tap_expected and tap_status != 'active':
     ready = False
 raise SystemExit(0 if ready else 1)
 " >/dev/null 2>&1
@@ -136,7 +137,7 @@ try:
     elif isinstance(tap_block, dict):
         tap_value = tap_block.get('status', 'unknown')
     else:
-        tap_value = runtime.get('input_tap_status', 'unknown')
+        tap_value = 'unknown'
     print(f'mode={mode} status={status} pid={pid} startup=${AOS_STARTUP_STATE} commit={commit} acc={\"ok\" if acc else \"NO\"} scr={\"ok\" if scr else \"NO\"} tap={tap_value}')
 except Exception:
     print('aos doctor failed to parse')
@@ -158,7 +159,7 @@ try:
     if not runtime.get('socket_reachable', False):
         sys.exit(0)
     tap_block = runtime.get('input_tap')
-    status = tap_block.get('status') if isinstance(tap_block, dict) else runtime.get('input_tap_status')
+    status = tap_block.get('status') if isinstance(tap_block, dict) else None
     if status and status != 'active':
         print(f\"input_tap inactive (status={status}) — run './aos service restart' (see './aos status' for full guidance)\")
 except Exception:

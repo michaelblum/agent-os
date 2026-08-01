@@ -17,9 +17,14 @@ const activeExactPaths = new Set([
   'ARCHITECTURE.md',
   'CONTEXT.md',
   'CONTEXT-MAP.md',
+  'CLAUDE.md',
+  'GEMINI.md',
   'README.md',
 ]);
 const activePrefixes = [
+  '.agents/',
+  '.claude/',
+  '.codex/',
   'apps/',
   'docs/',
   'experiences/',
@@ -39,7 +44,7 @@ const historicalPrefixes = [
 ];
 const textExtensions = new Set([
   '.c', '.cc', '.css', '.h', '.html', '.js', '.json', '.jsonc', '.md', '.mjs',
-  '.py', '.sh', '.swift', '.ts', '.tsx', '.yaml', '.yml',
+  '.py', '.sh', '.swift', '.toml', '.ts', '.tsx', '.yaml', '.yml',
 ]);
 
 async function json(relativePath) {
@@ -62,6 +67,25 @@ async function trackedActiveSources() {
     .split(/\r?\n/)
     .filter(Boolean)
     .filter(readableSource)
+    .filter((relativePath) => existsSync(path.join(repoRoot, relativePath)))
+    .sort();
+}
+
+function activeInstructionSurface(relativePath) {
+  if (relativePath.startsWith('tests/fixtures/')) return false;
+  if (historicalPrefixes.some((prefix) => relativePath.startsWith(prefix))) return false;
+  const basename = path.posix.basename(relativePath);
+  return ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md'].includes(basename)
+    || ['.agents/', '.claude/', '.codex/'].some((prefix) => relativePath.startsWith(prefix));
+}
+
+async function trackedActiveInstructionSurfaces() {
+  const { stdout } = await execFileAsync('git', ['ls-files'], { cwd: repoRoot });
+  return stdout
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .filter(activeInstructionSurface)
+    .filter((relativePath) => textExtensions.has(path.extname(relativePath)))
     .filter((relativePath) => existsSync(path.join(repoRoot, relativePath)))
     .sort();
 }
@@ -163,5 +187,52 @@ test('retired skills cannot remain discoverable product metadata or redirects', 
     for (const name of removedSkills) {
       assert.doesNotMatch(content, new RegExp(`skills/${name.replaceAll('-', '\\-')}(?:/|\\b)`));
     }
+  }
+});
+
+test('zero-exception ledger has no retained compatibility behavior in active sources', async () => {
+  const declaration = await json('docs/dev/product-maturity.json');
+  assert.deepEqual(declaration.compatibility_exceptions, []);
+
+  const ledger = await readFile(path.join(repoRoot, 'docs/dev/residue-drift-ledger.md'), 'utf8');
+  for (const surface of [
+    'Retired gate continuation session field',
+    'Non-envelope daemon subscription request',
+    'Flat daemon input-tap health shape',
+    'Retired annotation entry-source alias',
+  ]) {
+    assert.match(ledger, new RegExp(`\\| ${surface} \\| deleted \\|`));
+  }
+
+  const forbiddenExactTokens = [
+    'input_tap_status',
+    'input_tap_attempts',
+    'sigil_radial',
+    'session.dock',
+  ];
+  for (const relativePath of await trackedActiveSources()) {
+    const content = await readFile(path.join(repoRoot, relativePath), 'utf8');
+    for (const token of forbiddenExactTokens) {
+      assert.equal(content.includes(token), false, `${relativePath} retains retired token ${token}`);
+    }
+    assert.doesNotMatch(
+      content,
+      /["']action["']\s*:\s*["']subscribe["']/,
+      `${relativePath} retains a non-envelope subscribe request`,
+    );
+  }
+});
+
+test('active agent-instruction surfaces contain no retired agent-sync invocation', async () => {
+  const surfaces = await trackedActiveInstructionSurfaces();
+  for (const required of ['.codex/AGENTS.md', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md']) {
+    assert.ok(surfaces.includes(required), `missing active instruction surface ${required}`);
+  }
+  assert.ok(surfaces.some((relativePath) => relativePath.startsWith('.agents/')));
+  assert.ok(surfaces.some((relativePath) => relativePath.startsWith('.claude/')));
+
+  for (const relativePath of surfaces) {
+    const content = await readFile(path.join(repoRoot, relativePath), 'utf8');
+    assert.doesNotMatch(content, /\$agent-sync\b/, `${relativePath} retains retired agent-sync guidance`);
   }
 });

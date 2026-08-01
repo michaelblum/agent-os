@@ -45,7 +45,12 @@ class DaemonEventStream {
 
     init(
         socketPath: String = kDefaultSocketPath,
-        subscribeMessage: [String: Any] = ["action": "subscribe"],
+        subscribeMessage: [String: Any] = [
+            "v": 1,
+            "service": "see",
+            "action": "observe",
+            "data": [:],
+        ],
         initialBackoffSec: Double = 1.0,
         maxBackoffSec: Double = 10.0,
         connectTimeoutMs: Int32 = 1000

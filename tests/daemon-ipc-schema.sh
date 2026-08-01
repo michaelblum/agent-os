@@ -70,6 +70,7 @@ for r in good_requests:
     assert not errors, f"unexpected errors for {r}: {errors}"
 
 bad_requests = [
+    {"action":"subscribe"},  # non-envelope subscription requests are retired
     {"v":1,"service":"system","action":"ping"},  # missing data
     {"v":2,"service":"system","action":"ping","data":{}},  # wrong v
     {"v":1,"service":"system","action":"PING","data":{}},  # uppercase action

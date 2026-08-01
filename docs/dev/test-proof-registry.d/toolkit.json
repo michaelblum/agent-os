@@ -172,6 +172,22 @@
       "replaces": [],
       "guard": "requires live AOS readiness or explicit --allow-start; not part of broad default loops",
       "status": "manual_only"
+    },
+    {
+      "id": "annotation-entry-source-current-vocabulary",
+      "path_patterns": [
+        "tests/toolkit/annotation-session.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit",
+      "harness_level": "model_unit",
+      "proof_kind": "annotation_session_contract",
+      "contract": "Annotation and context sessions expose only the current entry-source vocabulary and project unrecognized input to unknown.",
+      "worth": "This prevents a retired annotation source alias from returning as live product metadata while preserving current session normalization.",
+      "command": "node --test tests/toolkit/annotation-session.test.mjs tests/toolkit/context-session.test.mjs",
+      "replaces": [],
+      "guard": "pure normalization units; no native AOS binary, daemon, or UI",
+      "status": "active"
     }
   ]
 }
