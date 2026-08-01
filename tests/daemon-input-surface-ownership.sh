@@ -273,6 +273,39 @@ assert(candidateCaptureRegistry.replaceGeneration(
 ) == nil, "a captured candidate ID collision must block in-place generation replacement")
 assert(candidateCaptureRegistry.snapshot().first(where: { $0.id == activeGenerationRegion.id })?.nativeFrame == activeGenerationRegion.nativeFrame, "blocked candidate collision must preserve the captured region")
 
+let cursorRegistry = AOSInputRegionRegistry()
+let cursorRegion = AOSInputRegionRecord(
+    id: "cursor-region",
+    ownerCanvasGeneration: stageGeneration,
+    nativeFrame: baseFrame,
+    consumePolicy: "captured",
+    metadata: ["cursor_suppression": "captured"]
+)
+cursorRegistry.register(cursorRegion)
+assert(!cursorRegistry.nativeCursorSuppressionActive(), "capture-scoped cursor suppression must stay inactive while merely hovering")
+_ = cursorRegistry.route(event: descriptor("mouse_moved"), point: point)
+assert(!cursorRegistry.nativeCursorSuppressionActive(), "pass-through pointer movement must not hide the native cursor")
+_ = cursorRegistry.route(event: descriptor("left_mouse_down"), point: point)
+assert(cursorRegistry.nativeCursorSuppressionActive(), "pointer capture must activate capture-scoped native cursor suppression")
+_ = cursorRegistry.route(event: descriptor("left_mouse_dragged"), point: CGPoint(x: 500, y: 500))
+assert(cursorRegistry.nativeCursorSuppressionActive(), "captured dragging outside the hit region must retain native cursor suppression")
+_ = cursorRegistry.route(event: descriptor("left_mouse_up"), point: CGPoint(x: 500, y: 500))
+assert(!cursorRegistry.nativeCursorSuppressionActive(), "pointer release must restore the native cursor")
+
+_ = cursorRegistry.route(event: descriptor("left_mouse_down"), point: point)
+assert(cursorRegistry.nativeCursorSuppressionActive(), "a second pointer capture must hide the native cursor again")
+_ = cursorRegistry.cancelActiveCapture(reason: .escape)
+assert(!cursorRegistry.nativeCursorSuppressionActive(), "Escape cancellation must restore the native cursor")
+
+_ = cursorRegistry.route(
+    event: AOSInputEventDescriptor(type: "left_mouse_down")!,
+    point: CGPoint(x: 20, y: 20),
+    desktopWorld: CGPoint(x: 20, y: 20)
+)
+assert(cursorRegistry.nativeCursorSuppressionActive(), "a permission-loss capture must begin with the cursor hidden")
+_ = cursorRegistry.cancelActiveCapture(reason: .osCancelled)
+assert(!cursorRegistry.nativeCursorSuppressionActive(), "input permission loss must restore the native cursor")
+
 let failOpenRegistry = AOSInputRegionRegistry()
 failOpenRegistry.register(highRegion)
 let canonicalDown = AOSCanonicalInputEvent(type: "left_mouse_down", x: 25, y: 25)!

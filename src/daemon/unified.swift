@@ -508,6 +508,9 @@ class UnifiedDaemon {
         perception.onInputSafetyHotkeyTriggered = { [weak self] deadline in
             self?.activateInputSafetyEmergencyExit(until: deadline)
         }
+        perception.onInputTapPermissionLost = { [weak self] in
+            self?.releaseInputRegionCaptureAfterPermissionLoss()
+        }
 
         // Wire canvas events -> broadcast
         canvasManager.onEvent = { [weak self] target, payload in
@@ -4617,6 +4620,20 @@ class UnifiedDaemon {
         return annotationConsumed || inspectorConsumed || genericConsumed
     }
 
+    private func releaseInputRegionCaptureAfterPermissionLoss() {
+        inputRegionLock.lock()
+        let decision = inputRegions.cancelActiveCapture(reason: .osCancelled)
+        let cursorSuppressionActive = inputRegions.nativeCursorSuppressionActive()
+        inputRegionLock.unlock()
+        reconcileNativeCursorSuppression(active: cursorSuppressionActive)
+
+        guard case .deliver(let delivery) = decision else { return }
+        canvasManager.postMessageAsync(
+            to: delivery.ownerCanvasGeneration,
+            payload: delivery.payload
+        )
+    }
+
     private func shouldConsumeGenericAOSInputEvent(event: String, data: [String: Any]) -> Bool {
         if let escapeConsumed = routeInputEscapeCancellation(event: event, data: data) {
             return escapeConsumed
@@ -4653,7 +4670,9 @@ class UnifiedDaemon {
         let keyTargets = decision == nil
             ? inputKeyLeases.targets(logicalKey: "Escape")
             : []
+        let cursorSuppressionActive = inputRegions.nativeCursorSuppressionActive()
         inputRegionLock.unlock()
+        reconcileNativeCursorSuppression(active: cursorSuppressionActive)
         if let decision {
             switch decision {
             case .failOpen:
@@ -4745,7 +4764,9 @@ class UnifiedDaemon {
             sourceSequence: sourceSequence,
             gestureID: gestureID
         )
+        let cursorSuppressionActive = inputRegions.nativeCursorSuppressionActive()
         inputRegionLock.unlock()
+        reconcileNativeCursorSuppression(active: cursorSuppressionActive)
         guard let decision else { return nil }
 
         switch decision {

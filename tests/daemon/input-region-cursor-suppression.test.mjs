@@ -7,6 +7,9 @@ import { spawnSync } from 'node:child_process'
 
 const registryPath = new URL('../../src/daemon/input-surface-ownership.swift', import.meta.url)
 const daemonPath = new URL('../../src/daemon/unified.swift', import.meta.url)
+const perceptionPath = new URL('../../src/perceive/daemon.swift', import.meta.url)
+const canvasGenerationPath = new URL('../../src/display/canvas-generation.swift', import.meta.url)
+const inputEventPath = new URL('../../src/shared/input-event.swift', import.meta.url)
 
 function swiftFunctionBody(source, signature) {
   const signatureIndex = source.indexOf(signature)
@@ -76,7 +79,14 @@ print("PASS cursor suppression reconciler lifecycle")
 `)
 
   try {
-    const compile = spawnSync('swiftc', [registryPath.pathname, mainPath, '-o', binPath], {
+    const compile = spawnSync('swiftc', [
+      canvasGenerationPath.pathname,
+      inputEventPath.pathname,
+      registryPath.pathname,
+      mainPath,
+      '-o',
+      binPath,
+    ], {
       encoding: 'utf8',
     })
     assert.equal(compile.status, 0, compile.stderr || compile.stdout)
@@ -91,14 +101,24 @@ print("PASS cursor suppression reconciler lifecycle")
 test('input-region native cursor suppression is wired to region lifecycle', () => {
   const registrySource = fs.readFileSync(registryPath, 'utf8')
   const daemonSource = fs.readFileSync(daemonPath, 'utf8')
+  const perceptionSource = fs.readFileSync(perceptionPath, 'utf8')
   const displayChangeBody = swiftFunctionBody(daemonSource, 'private func scheduleDisplayGeometryBroadcast()')
   const displayReconcileBody = swiftFunctionBody(
     daemonSource,
     'private func reconcileNativeCursorSuppressionAfterDisplayGeometryChange()',
   )
+  const regionRouteBody = swiftFunctionBody(daemonSource, 'private func routeInputRegionEvent')
+  const escapeRouteBody = swiftFunctionBody(daemonSource, 'private func routeInputEscapeCancellation')
+  const shutdownBody = swiftFunctionBody(daemonSource, 'func shutdown(reason: String = "idle")')
+  const signalHandlerBody = swiftFunctionBody(daemonSource, 'private func setupSignalHandlers()')
+  const permissionLossBody = swiftFunctionBody(
+    daemonSource,
+    'private func releaseInputRegionCaptureAfterPermissionLoss()',
+  )
 
   assert.match(registrySource, /func nativeCursorSuppressionActive\(\) -> Bool/)
   assert.match(registrySource, /metadata\["cursor_suppression"\]/)
+  assert.match(registrySource, /case "captured", "while_captured"/)
   assert.match(daemonSource, /reconcileNativeCursorSuppression\(active: cursorSuppressionActive\)/)
   assert.doesNotMatch(daemonSource, /activeDisplayIDsForCursorSuppression/)
   assert.doesNotMatch(daemonSource, /CGGetActiveDisplayList/)
@@ -107,11 +127,18 @@ test('input-region native cursor suppression is wired to region lifecycle', () =
   assert.match(daemonSource, /if result\.hideNativeCursor[\s\S]*CGDisplayHideCursor\(CGMainDisplayID\(\)\)/)
   assert.match(daemonSource, /if result\.showNativeCursor[\s\S]*CGDisplayShowCursor\(CGMainDisplayID\(\)\)/)
   assert.match(daemonSource, /removeInputRegionsOwned[\s\S]*nativeCursorSuppressionActive\(\)/)
-  assert.match(daemonSource, /func shutdown\(\)[\s\S]*restoreNativeCursorSuppressionForExit\(\)/)
-  assert.match(daemonSource, /setupSignalHandlers\(\)[\s\S]*aosRestoreNativeCursorSuppressionForSignalExit\(\)/)
+  assert.match(shutdownBody, /restoreNativeCursorSuppressionForExit\(\)/)
+  assert.match(signalHandlerBody, /shutdown\(reason: "signal"\)/)
   assert.match(displayChangeBody, /retargetTrackedCanvases\(\)[\s\S]*syncCanvasFrames\(excluding: retargeted\)[\s\S]*broadcastDisplayGeometry\(\)/)
   assert.match(displayChangeBody, /broadcastDisplayGeometry\(\)[\s\S]*reconcileNativeCursorSuppressionAfterDisplayGeometryChange\(\)/)
   assert.match(displayReconcileBody, /inputRegions\.nativeCursorSuppressionActive\(\)/)
   assert.match(displayReconcileBody, /guard cursorSuppressionActive else \{ return \}/)
   assert.match(displayReconcileBody, /reconcileNativeCursorSuppression\(active: cursorSuppressionActive\)/)
+  assert.match(regionRouteBody, /resolveDelivery[\s\S]*nativeCursorSuppressionActive\(\)[\s\S]*reconcileNativeCursorSuppression\(active: cursorSuppressionActive\)/)
+  assert.match(escapeRouteBody, /cancelActiveCapture[\s\S]*nativeCursorSuppressionActive\(\)[\s\S]*reconcileNativeCursorSuppression\(active: cursorSuppressionActive\)/)
+  assert.match(perceptionSource, /onInputTapPermissionLost: \(\(\) -> Void\)\?/)
+  assert.match(perceptionSource, /failOpenAfterInputTapPermissionLoss[\s\S]*onInputTapPermissionLost\?\(\)/)
+  assert.match(daemonSource, /perception\.onInputTapPermissionLost[\s\S]*releaseInputRegionCaptureAfterPermissionLoss\(\)/)
+  assert.match(permissionLossBody, /cancelActiveCapture\(reason: \.osCancelled\)/)
+  assert.match(permissionLossBody, /nativeCursorSuppressionActive\(\)[\s\S]*reconcileNativeCursorSuppression\(active: cursorSuppressionActive\)/)
 })

@@ -25,6 +25,9 @@ export interface SceneAffordanceDescriptor {
   enabled: boolean;
   priority: number;
   consumePolicy: 'always' | 'captured' | 'down_only' | 'never';
+  cursor?: {
+    captured: 'none';
+  };
   metadata: Record<string, string | number | boolean>;
 }
 
@@ -238,6 +241,9 @@ export const SCENE_AFFORDANCE_LIMITS: Readonly<{
   maxOffset: 1000000;
   maxPriority: 1000;
   maxRecognizersPerAffordance: 16;
+}>;
+export const SCENE_AFFORDANCE_CURSOR_STYLES: Readonly<{
+  none: 'none';
 }>;
 
 export function validateSceneAffordanceDescriptor(

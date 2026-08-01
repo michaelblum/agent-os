@@ -23,6 +23,9 @@ class PerceptionEngine {
     /// only its registered key chord without publishing unrelated key events.
     var onVoiceHotkeyInput: ((AOSVoiceHotkeyInput) -> Bool)?
     var onInputSafetyHotkeyTriggered: ((Date) -> Void)?
+    /// Called once when the event tap loses the authority required to retain
+    /// active input ownership.
+    var onInputTapPermissionLost: (() -> Void)?
 
     // Cursor state
     private var lastCursorPoint: CGPoint = .zero
@@ -326,6 +329,7 @@ class PerceptionEngine {
         guard firstDetection else { return }
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
+            self.onInputTapPermissionLost?()
             self.cancelInputTapPermissionMonitor()
             self.cancelEventTapRetry()
             self.teardownEventTap()
