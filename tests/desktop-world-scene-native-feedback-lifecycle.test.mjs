@@ -210,9 +210,15 @@ final class Runtime: AOSDesktopWorldNativeFeedbackRuntime {
         updates.append(inputs)
     }
     func complete() {
+        presentOnly()
+        completeAfterPresentation()
+    }
+    func presentOnly() {
         let presented = presentation
         presentation = nil
         presented?()
+    }
+    func completeAfterPresentation() {
         let value = completion
         completion = nil
         value?()
@@ -1057,13 +1063,41 @@ precondition(MainActor.assumeIsolated {
 precondition(controller.trigger(request))
 capturer.completeNext()
 pumpUntil { MainActor.assumeIsolated { host.installCount == 104 } }
+let delayedPresentationDeadline = deadlines.last!
+precondition(delayedPresentationDeadline.delay == 1)
+MainActor.assumeIsolated { host.runtimes.last?.presentOnly() }
+precondition(delayedPresentationDeadline.item.isCancelled)
 precondition(deadlines.last?.delay == 1.15)
+let failedBeforeDelayedPresentation = controller.snapshot().failedCount
+delayedPresentationDeadline.item.perform()
+precondition(controller.snapshot().failedCount == failedBeforeDelayedPresentation)
+MainActor.assumeIsolated { host.runtimes.last?.completeAfterPresentation() }
+pumpUntil { MainActor.assumeIsolated { host.removeCount == 104 } }
+precondition(controller.snapshot().lastErrorCode == nil)
+
+precondition(controller.trigger(request))
+capturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { host.installCount == 105 } }
+precondition(deadlines.last?.delay == 1)
 deadlines.last?.item.perform()
 feedback = controller.snapshot()
 precondition(feedback.failedCount == 2)
 precondition(feedback.lastErrorCode == "NATIVE_EFFECT_PRESENT_TIMEOUT")
 precondition(!controller.trigger(request))
-pumpUntil { MainActor.assumeIsolated { host.removeCount == 104 } }
+pumpUntil { MainActor.assumeIsolated { host.removeCount == 105 } }
+pumpUntil { controller.snapshot().state == "ready" }
+
+precondition(controller.trigger(request))
+capturer.completeNext()
+pumpUntil { MainActor.assumeIsolated { host.installCount == 106 } }
+MainActor.assumeIsolated { host.runtimes.last?.presentOnly() }
+precondition(deadlines.last?.delay == 1.15)
+deadlines.last?.item.perform()
+feedback = controller.snapshot()
+precondition(feedback.failedCount == 3)
+precondition(feedback.lastErrorCode == "NATIVE_EFFECT_COMPLETION_TIMEOUT")
+precondition(!controller.trigger(request))
+pumpUntil { MainActor.assumeIsolated { host.removeCount == 106 } }
 pumpUntil { controller.snapshot().state == "ready" }
 
 precondition(controller.trigger(request))
@@ -1073,10 +1107,10 @@ deadlines.last?.item.perform()
 precondition(timeoutCapture.canceled)
 capturer.completeNext()
 RunLoop.current.run(until: Date().addingTimeInterval(0.02))
-precondition(MainActor.assumeIsolated { host.installCount == 104 })
+precondition(MainActor.assumeIsolated { host.installCount == 106 })
 pumpUntil { controller.snapshot().state == "ready" }
 feedback = controller.snapshot()
-precondition(feedback.failedCount == 3)
+precondition(feedback.failedCount == 4)
 precondition(feedback.lastErrorCode == "NATIVE_EFFECT_CAPTURE_TIMEOUT")
 
 precondition(controller.trigger(request))
@@ -1086,7 +1120,7 @@ controller.reconcileAuthorization()
 precondition(unauthorizedCapture.canceled)
 capturer.completeNext()
 RunLoop.current.run(until: Date().addingTimeInterval(0.02))
-precondition(MainActor.assumeIsolated { host.installCount == 104 })
+precondition(MainActor.assumeIsolated { host.installCount == 106 })
 precondition(!controller.trigger(request))
 
 authorized = true

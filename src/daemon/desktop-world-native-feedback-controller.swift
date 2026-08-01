@@ -17,6 +17,7 @@ final class AOSDesktopWorldNativeFeedbackController {
 
     private static let captureTimeout: TimeInterval = 0.75
     private static let effectCleanupGrace: TimeInterval = 0.25
+    private static let effectPresentationTimeout: TimeInterval = 1
     private static let gestureEffectWatchdog: TimeInterval = 300
     private static let retirementRetryDelay: TimeInterval = 0.05
     private static let maximumDiagnosticCount = 1_000_000_000
@@ -470,6 +471,14 @@ final class AOSDesktopWorldNativeFeedbackController {
                 requestRuntimeRetirement()
                 return
             }
+            let presentationDeadline = DispatchWorkItem { [weak self] in
+                self?.effectPresentationTimedOut(generation: generation)
+            }
+            installDeadline(presentationDeadline, generation: generation)
+            scheduleDeadline(
+                Self.effectPresentationTimeout,
+                presentationDeadline
+            )
             installation.runtime.present(
                 onPresented: { [weak self] in
                     self?.effectPresented(generation: generation)
@@ -481,15 +490,6 @@ final class AOSDesktopWorldNativeFeedbackController {
                     self?.effectCompleted(generation: generation)
                 }
             )
-            let cleanup = DispatchWorkItem { [weak self] in
-                self?.effectTimedOut(generation: generation)
-            }
-            installDeadline(cleanup, generation: generation)
-            let lifetime = request.binding.lifecycle == .gesture
-                ? Self.gestureEffectWatchdog
-                : Double(request.binding.durationMilliseconds) / 1_000
-                    + Self.effectCleanupGrace
-            scheduleDeadline(lifetime, cleanup)
         } catch {
             recordFailure(Self.failureCode(
                 error,
@@ -512,6 +512,7 @@ final class AOSDesktopWorldNativeFeedbackController {
             markPresented: true
         )
         guard presentation.didPresent,
+              let request = presentation.request,
               let triggeredAt = presentation.triggeredAt else { return }
         lock.lock()
         presentedCount = Self.increment(presentedCount)
@@ -522,6 +523,15 @@ final class AOSDesktopWorldNativeFeedbackController {
             Self.maximumDiagnosticCount
         )
         lock.unlock()
+        let completionDeadline = DispatchWorkItem { [weak self] in
+            self?.effectLifecycleTimedOut(generation: generation)
+        }
+        installDeadline(completionDeadline, generation: generation)
+        let lifetime = request.binding.lifecycle == .gesture
+            ? Self.gestureEffectWatchdog
+            : Double(request.binding.durationMilliseconds) / 1_000
+                + Self.effectCleanupGrace
+        scheduleDeadline(lifetime, completionDeadline)
     }
 
     @MainActor
@@ -559,17 +569,31 @@ final class AOSDesktopWorldNativeFeedbackController {
         requestRuntimeRetirement()
     }
 
-    private func effectTimedOut(generation: UInt64) {
+    private func effectPresentationTimedOut(generation: UInt64) {
         guard let retired = retireActive(
             generation: generation,
             allowedPhases: [.presenting],
             requiresRuntimeDisposal: true
         ) else { return }
-        recordFailure(
-            retired.request.binding.lifecycle == .gesture
+        settleTimeout(retired, code: "NATIVE_EFFECT_PRESENT_TIMEOUT")
+    }
+
+    private func effectLifecycleTimedOut(generation: UInt64) {
+        guard let retired = retireActive(
+            generation: generation,
+            allowedPhases: [.presenting],
+            requiresRuntimeDisposal: true
+        ) else { return }
+        settleTimeout(
+            retired,
+            code: retired.request.binding.lifecycle == .gesture
                 ? "NATIVE_EFFECT_GESTURE_TIMEOUT"
-                : "NATIVE_EFFECT_PRESENT_TIMEOUT"
+                : "NATIVE_EFFECT_COMPLETION_TIMEOUT"
         )
+    }
+
+    private func settleTimeout(_ retired: Active, code: String) {
+        recordFailure(code)
         retired.capture.cancel()
         Task { @MainActor [weak self] in
             self?.requestRuntimeRetirement()
