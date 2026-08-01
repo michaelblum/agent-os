@@ -198,6 +198,26 @@ test('stage interaction runtime registers one owner-scoped region and applies th
   assert.equal(runtime.snapshot(key).leases[0].registered, 1)
 })
 
+test('stage interaction runtime projects captured cursor suppression as reserved native metadata', async () => {
+  const registered = []
+  const configured = structuredClone(interactions)
+  configured.affordances[0].cursor = { captured: 'none' }
+  const { runtime } = harness({
+    register: async (payload) => { registered.push(structuredClone(payload)) },
+  })
+
+  await runtime.mount({
+    key: 'example.consumer::companion/main',
+    owner: 'example.consumer',
+    resource: 'companion/main',
+    document,
+    interactions: configured,
+  })
+
+  assert.equal(registered.length, 1)
+  assert.equal(registered[0].metadata.cursor_suppression, 'captured')
+})
+
 test('physical pointer down and up reach the projection as passive visual events before gesture arbitration', async () => {
   const pointerEvents = []
   const { responses, runtime } = harness({

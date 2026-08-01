@@ -94,6 +94,22 @@ struct AOSInputRegionRecord: Equatable {
         consumePolicy != "never"
     }
 
+    func shouldSuppressNativeCursor(captured: Bool) -> Bool {
+        guard enabled else { return false }
+        let value = metadata["cursor_suppression"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+        switch value {
+        case "hide_native", "hidden", "true", "always":
+            return true
+        case "captured", "while_captured":
+            return captured
+        default:
+            return false
+        }
+    }
+
     func shouldConsume(phase: AOSInputEventPhase, captured: Bool) -> Bool {
         switch consumePolicy {
         case "never":
@@ -517,14 +533,12 @@ final class AOSInputRegionRegistry {
     }
 
     func nativeCursorSuppressionActive() -> Bool {
-        regions.values.contains { region in
-            guard region.enabled else { return false }
-            let value = region.metadata["cursor_suppression"]?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-                .replacingOccurrences(of: "-", with: "_")
-            return value == "hide_native" || value == "hidden" || value == "true"
+        if regions.values.contains(where: { $0.shouldSuppressNativeCursor(captured: false) }) {
+            return true
         }
+        guard let captureRegionID,
+              let capturedRegion = regions[captureRegionID] else { return false }
+        return capturedRegion.shouldSuppressNativeCursor(captured: true)
     }
 
     func activeCaptureSnapshot() -> [String: Any]? {

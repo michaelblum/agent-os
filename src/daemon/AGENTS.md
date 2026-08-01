@@ -256,6 +256,10 @@ Allowed daemon-side surface work:
 - pointer-session identity is derived independently from pointer consumption;
   `consumePolicy: never` may deliver a pointer-down native effect without
   creating native capture or changing pass-through behavior;
+- capture-scoped native cursor suppression is derived from the active input
+  region and reconciled after every capture transition. It must remain inactive
+  for hover and restore exactly once after release, cancellation, fail-open,
+  owner cleanup, permission loss, or shutdown;
 - lifecycle parentage, cascade cleanup, ownership checks, and recovery;
 - platform events that toolkit and external consumers can subscribe to.
 

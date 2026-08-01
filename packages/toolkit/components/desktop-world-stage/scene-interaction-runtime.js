@@ -39,6 +39,7 @@ function regionPayload(entry, descriptor, frame) {
       scene_owner: entry.owner,
       scene_resource: entry.resource,
       scene_affordance: descriptor.id,
+      ...(descriptor.cursor?.captured === 'none' ? { cursor_suppression: 'captured' } : {}),
       ...(entry.regionGeneration === null
         ? {}
         : { scene_input_generation: String(entry.regionGeneration) }),

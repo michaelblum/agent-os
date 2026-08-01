@@ -387,6 +387,22 @@
       "status": "active"
     },
     {
+      "id": "daemon-input-region-cursor-suppression-proof",
+      "path_patterns": [
+        "tests/daemon/input-region-cursor-suppression.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "model_unit",
+      "proof_kind": "input_region_cursor_contract",
+      "contract": "Native cursor suppression remains capture-scoped and balanced across pointer release, Escape, permission loss, owner cleanup, display changes, signal exit, and daemon shutdown.",
+      "worth": "This prevents a declarative scene affordance from leaving the process cursor hidden or exposing a duplicate cursor during a captured gesture.",
+      "command": "node --test tests/daemon/input-region-cursor-suppression.test.mjs",
+      "replaces": [],
+      "guard": "compiles shared Swift input models and inspects daemon wiring without launching the daemon or using native input",
+      "status": "active"
+    },
+    {
       "id": "canvas-lifecycle-generation-model-proof",
       "path_patterns": [
         "tests/canvas-close-callback-contract.test.mjs",

@@ -61,7 +61,12 @@ export const SCENE_AFFORDANCE_LIMITS = Object.freeze({
   maxRecognizersPerAffordance: 16,
 })
 
+export const SCENE_AFFORDANCE_CURSOR_STYLES = Object.freeze({
+  none: 'none',
+})
+
 const CONSUME_POLICIES = new Set(['always', 'captured', 'down_only', 'never'])
+const CAPTURED_CURSOR_STYLES = new Set(Object.values(SCENE_AFFORDANCE_CURSOR_STYLES))
 const RECOGNIZER_KIND_BY_IMPLEMENTATION = new Map([
   ['aos.scene.gesture.drag', SCENE_GESTURE_KINDS.drag],
   ['aos.scene.gesture.long-press', SCENE_GESTURE_KINDS.longPress],
@@ -99,6 +104,18 @@ function validateAffordanceGeometry(value, path, errors) {
   }
   if (!Array.isArray(value.offset) || value.offset.length !== 2 || value.offset.some((entry) => !Number.isFinite(entry) || Math.abs(entry) > SCENE_AFFORDANCE_LIMITS.maxOffset)) {
     errors.push({ code: 'invalid_affordance_offset', path: `${path}.offset`, message: 'Scene affordance offset must contain two bounded finite numbers.' })
+  }
+}
+
+function validateAffordanceCursor(value, path, errors) {
+  if (value === undefined) return
+  if (!isRecord(value)) {
+    errors.push({ code: 'invalid_affordance_cursor', path, message: 'Scene affordance cursor policy must be an object.' })
+    return
+  }
+  exactKeys(value, new Set(['captured']), path, errors)
+  if (!CAPTURED_CURSOR_STYLES.has(value.captured)) {
+    errors.push({ code: 'invalid_affordance_cursor', path: `${path}.captured`, message: 'Scene affordance captured cursor style is invalid.' })
   }
 }
 
@@ -506,11 +523,12 @@ export function validateSceneAffordanceDescriptor(value, options = {}) {
   const errors = []
   const path = options.path ?? 'affordance'
   if (!isRecord(value)) return { ok: false, errors: [{ code: 'invalid_affordance', path, message: 'Scene affordances must be objects.' }] }
-  exactKeys(value, new Set(['consumePolicy', 'enabled', 'geometry', 'id', 'metadata', 'objectId', 'priority']), path, errors)
+  exactKeys(value, new Set(['consumePolicy', 'cursor', 'enabled', 'geometry', 'id', 'metadata', 'objectId', 'priority']), path, errors)
   if (!validId(value.id)) errors.push({ code: 'invalid_id', path: `${path}.id`, message: 'Scene affordance ID is invalid.' })
   if (!validId(value.objectId)) errors.push({ code: 'invalid_id', path: `${path}.objectId`, message: 'Scene affordance object ID is invalid.' })
   if (options.objectIds && !options.objectIds.has(value.objectId)) errors.push({ code: 'unknown_affordance_object', path: `${path}.objectId`, message: 'Scene affordance references an unknown scene object.' })
   validateAffordanceGeometry(value.geometry, `${path}.geometry`, errors)
+  validateAffordanceCursor(value.cursor, `${path}.cursor`, errors)
   if (value.enabled !== undefined && typeof value.enabled !== 'boolean') errors.push({ code: 'invalid_affordance_enabled', path: `${path}.enabled`, message: 'Scene affordance enabled must be boolean.' })
   if (!Number.isInteger(value.priority) || Math.abs(value.priority) > SCENE_AFFORDANCE_LIMITS.maxPriority) errors.push({ code: 'invalid_affordance_priority', path: `${path}.priority`, message: 'Scene affordance priority must be a bounded integer.' })
   if (!CONSUME_POLICIES.has(value.consumePolicy)) errors.push({ code: 'invalid_consume_policy', path: `${path}.consumePolicy`, message: 'Scene affordance consume policy is invalid.' })

@@ -86,6 +86,28 @@ test('scene affordances validate bounded owner-scoped geometry and resolve objec
   }
 })
 
+test('scene affordances accept only the bounded captured-cursor suppression policy', () => {
+  const cursorlessAim = {
+    ...affordance,
+    cursor: { captured: 'none' },
+  }
+  assert.deepEqual(
+    validateSceneAffordanceDescriptor(cursorlessAim, { objectIds: new Set(['root', 'body']) }),
+    { ok: true, errors: [] },
+  )
+
+  for (const cursor of [null, {}, { captured: 'hidden' }, { captured: 'none', hover: 'grab' }]) {
+    const result = validateSceneAffordanceDescriptor(
+      { ...affordance, cursor },
+      { objectIds: new Set(['root', 'body']) },
+    )
+    assert.equal(result.ok, false)
+    assert.ok(result.errors.some((error) => (
+      error.code === 'invalid_affordance_cursor' || error.code === 'unknown_field'
+    )))
+  }
+})
+
 test('scene affordance frames and drag deltas honor nested world transforms', () => {
   const transformed = structuredClone(document)
   transformed.objects[0].transform = {
