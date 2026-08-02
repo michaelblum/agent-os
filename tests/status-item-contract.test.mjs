@@ -11,9 +11,12 @@ import {
   STATUS_ITEM_ANCHOR_SCHEMA_VERSION,
   STATUS_ITEM_DESCRIPTOR_SCHEMA_VERSION,
   STATUS_ITEM_EVENT_SCHEMA_VERSION,
+  STATUS_ITEM_INVOKE_ERROR_CODES,
   normalizeStatusItemAnchor,
   normalizeStatusItemDescriptor,
   normalizeStatusItemEvent,
+  normalizeStatusItemInvokeRequest,
+  normalizeStatusItemInvocationResult,
   normalizeStatusItemUpdateRequest,
 } from '../packages/toolkit/status-item/index.js'
 import { createStatusItemOutputWriter } from '../scripts/lib/status-item-output-writer.mjs'
@@ -22,20 +25,24 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const descriptorSchemaPath = path.join(repoRoot, 'shared/schemas/aos-status-item-descriptor-v1.schema.json')
 const eventSchemaPath = path.join(repoRoot, 'shared/schemas/aos-status-item-event-v1.schema.json')
 const anchorSchemaPath = path.join(repoRoot, 'shared/schemas/aos-status-item-anchor-v1.schema.json')
+const invocationResultSchemaPath = path.join(repoRoot, 'shared/schemas/aos-status-item-invocation-result-v1.schema.json')
 const hostContractPath = path.join(repoRoot, 'src/display/status-item-host-contract.swift')
 const hostControllerPath = path.join(repoRoot, 'src/display/status-item-host-controller.swift')
 const hostControllerHarnessPath = path.join(repoRoot, 'tests/fixtures/status-item-host-controller-harness.swift')
+const nativeHostPath = path.join(repoRoot, 'src/display/status-item.swift')
+const hostedProjectionPath = path.join(repoRoot, 'src/display/status-item-hosted.swift')
+const nativeMenuBindingHarnessPath = path.join(repoRoot, 'tests/fixtures/status-item-native-menu-binding-harness.swift')
 const anchorObservationPath = path.join(repoRoot, 'src/display/status-item-anchor-observation.swift')
 const anchorObservationHarnessPath = path.join(repoRoot, 'tests/fixtures/status-item-anchor-observation-harness.swift')
 
 const descriptor = {
   schema_version: STATUS_ITEM_DESCRIPTOR_SCHEMA_VERSION,
   owner: 'io.example.app',
-  item_id: 'companion',
+  item_id: 'tool',
   revision: 3,
-  label: 'Example Companion',
+  label: 'Example Tool',
   help_text: 'Example app status item',
-  primary_action_id: 'summon',
+  primary_action_id: 'activate',
   menu: [
     { kind: 'item', id: 'park', action_id: 'park', label: 'Park', enabled: true },
     { kind: 'separator' },
@@ -66,7 +73,7 @@ const bounds = {
 
 const anchor = {
   schema_version: STATUS_ITEM_ANCHOR_SCHEMA_VERSION,
-  anchor_id: 'native-status-item/io.example.app/companion',
+  anchor_id: 'native-status-item/io.example.app/tool',
   host: 'native_status_item',
   coordinate_space: 'global_display_top_left',
   visible: true,
@@ -83,10 +90,11 @@ const event = {
   schema_version: STATUS_ITEM_EVENT_SCHEMA_VERSION,
   type: 'menu_selection',
   owner: 'io.example.app',
-  item_id: 'companion',
+  item_id: 'tool',
   generation: 7,
   descriptor_revision: 3,
   sequence: 2,
+  action_sequence: 1,
   timestamp: '2026-07-19T20:00:00Z',
   source: 'status_item',
   action_id: 'park',
@@ -94,6 +102,19 @@ const event = {
   origin_x: 10,
   origin_y: 20,
   modifiers: [],
+  bounds,
+  anchor,
+}
+
+const invocationResult = {
+  status: 'ok',
+  owner: descriptor.owner,
+  item_id: descriptor.item_id,
+  action_id: descriptor.primary_action_id,
+  generation: 7,
+  descriptor_revision: descriptor.revision,
+  action_sequence: 1,
+  event_type: 'primary_activation',
   bounds,
   anchor,
 }
@@ -107,9 +128,15 @@ function validateWithSchema(schemaPath, value) {
 import json, sys
 from pathlib import Path
 from jsonschema import Draft202012Validator
+from referencing import Registry, Resource
 schema = json.loads(Path(sys.argv[1]).read_text())
 Draft202012Validator.check_schema(schema)
-errors = sorted(Draft202012Validator(schema).iter_errors(json.loads(sys.argv[2])), key=lambda e: list(e.path))
+registry = Registry()
+for candidate in Path(sys.argv[1]).parent.glob("*.json"):
+    document = json.loads(candidate.read_text())
+    if document.get("$id"):
+        registry = registry.with_resource(document["$id"], Resource.from_contents(document))
+errors = sorted(Draft202012Validator(schema, registry=registry).iter_errors(json.loads(sys.argv[2])), key=lambda e: list(e.path))
 if errors:
     raise SystemExit(errors[0].message)
 `,
@@ -214,6 +241,48 @@ test('status item descriptor, anchor, and observed event match public schemas', 
   assert.deepEqual(eventSchema.$defs.status_item_bounds, anchorSchema.$defs.status_item_bounds)
 })
 
+test('invocation success has one complete canonical runtime and schema contract', () => {
+  validateWithSchema(invocationResultSchemaPath, invocationResult)
+  assert.deepEqual(normalizeStatusItemInvocationResult(invocationResult), invocationResult)
+  const menuInvocationResult = {
+    ...invocationResult,
+    action_id: 'park',
+    event_type: 'menu_selection',
+    menu_item_id: 'park',
+  }
+  validateWithSchema(invocationResultSchemaPath, menuInvocationResult)
+  assert.deepEqual(normalizeStatusItemInvocationResult(menuInvocationResult), menuInvocationResult)
+  for (const malformed of [
+    { ...invocationResult, owner: undefined },
+    { ...invocationResult, event_type: 'menu_selection' },
+    { ...invocationResult, menu_item_id: 'menu/open' },
+    { ...invocationResult, unexpected: true },
+  ]) {
+    assert.throws(() => validateWithSchema(invocationResultSchemaPath, malformed))
+    assert.throws(
+      () => normalizeStatusItemInvocationResult(malformed),
+      (error) => error?.code === 'INVALID_STATUS_ITEM_INVOKE_RESULT',
+    )
+  }
+  assert.throws(
+    () => normalizeStatusItemInvocationResult({ ...invocationResult, bounds: { ...bounds, display_id: 2 } }),
+    (error) => error?.code === 'INVALID_STATUS_ITEM_INVOKE_RESULT',
+  )
+  assert.deepEqual(STATUS_ITEM_INVOKE_ERROR_CODES, [
+    'INVALID_STATUS_ITEM_INVOKE',
+    'STATUS_ITEM_NOT_FOUND',
+    'STATUS_ITEM_UNAVAILABLE',
+    'STATUS_ITEM_STALE_GENERATION',
+    'STATUS_ITEM_STALE_REVISION',
+    'STATUS_ITEM_STALE_ACTION_SEQUENCE',
+    'STATUS_ITEM_ACTION_NOT_FOUND',
+    'STATUS_ITEM_ACTION_DISABLED',
+    'STATUS_ITEM_ANCHOR_UNAVAILABLE',
+    'STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED',
+    'STATUS_ITEM_EVENT_UNAVAILABLE',
+  ])
+})
+
 test('descriptor schema and runtime agree on canonical Unicode character bounds', () => {
   const unicodeLabel = 'é'.repeat(128)
   const valid = { ...descriptor, label: unicodeLabel }
@@ -222,11 +291,11 @@ test('descriptor schema and runtime agree on canonical Unicode character bounds'
 
   for (const invalid of [
     { ...descriptor, label: 'é'.repeat(129) },
-    { ...descriptor, label: ' Example Companion' },
-    { ...descriptor, label: 'Example Companion ' },
-    { ...descriptor, label: '\tExample Companion' },
-    { ...descriptor, label: 'Example Companion\n' },
-    { ...descriptor, label: 'Example Companion\r\n' },
+    { ...descriptor, label: ' Example Tool' },
+    { ...descriptor, label: 'Example Tool ' },
+    { ...descriptor, label: '\tExample Tool' },
+    { ...descriptor, label: 'Example Tool\n' },
+    { ...descriptor, label: 'Example Tool\r\n' },
     { ...descriptor, label: '   ' },
     { ...descriptor, help_text: ' Help' },
     { ...descriptor, help_text: 'Help\n' },
@@ -295,7 +364,7 @@ test('toolkit normalizes the product-neutral descriptor and AOS-derived anchor e
   assert.equal(normalizedEvent.anchor.anchor_id, anchor.anchor_id)
   assert.equal(normalizedEvent.bounds.display_id, 1)
   assert.throws(
-    () => normalizeStatusItemAnchor({ ...anchor, anchor_id: 'native-status-item/io..example/companion' }),
+    () => normalizeStatusItemAnchor({ ...anchor, anchor_id: 'native-status-item/io..example/tool' }),
     /anchor_id is invalid/,
   )
 })
@@ -321,6 +390,35 @@ test('toolkit normalizes compare-and-swap updates and rejects stale or mismatche
   assert.match(types, /interface StatusItemUpdateRequest/)
   assert.match(types, /interface StatusItemUpdateResult/)
   assert.match(types, /normalizeStatusItemUpdateRequest/)
+})
+
+test('toolkit normalizes exact action-sequence invocation admission', () => {
+  const request = {
+    owner: descriptor.owner,
+    item_id: descriptor.item_id,
+    action_id: descriptor.primary_action_id,
+    generation: 7,
+    descriptor_revision: descriptor.revision,
+    action_sequence: 1,
+  }
+  assert.deepEqual(normalizeStatusItemInvokeRequest(request), request)
+  assert.throws(() => normalizeStatusItemInvokeRequest({ ...request, action_sequence: 0 }), /positive|safe integer/)
+  assert.throws(() => normalizeStatusItemInvokeRequest({ ...request, expected_action_sequence: 1 }), /unsupported/)
+  const types = fs.readFileSync(path.join(repoRoot, 'packages/toolkit/status-item/index.d.ts'), 'utf8')
+  assert.match(types, /interface StatusItemInvokeRequest/)
+  assert.match(types, /interface StatusItemInspectState/)
+  assert.match(types, /type StatusItemInvocationResult = StatusItemPrimaryInvocationResult \| StatusItemMenuInvocationResult/)
+  assert.match(types, /type StatusItemActionEvent = StatusItemPrimaryActivationEvent \| StatusItemSecondaryActivationEvent \| StatusItemMenuSelectionEvent/)
+  assert.match(types, /interface StatusItemMenuInvocationResult[\s\S]*event_type: 'menu_selection'[\s\S]*menu_item_id: string/)
+  assert.match(types, /interface StatusItemPrimaryInvocationResult[\s\S]*menu_item_id\?: never/)
+  assert.match(types, /interface StatusItemMenuSelectionEvent[\s\S]*menu_item_id: string/)
+  assert.match(types, /interface StatusItemPrimaryActivationEvent[\s\S]*menu_item_id\?: never/)
+  assert.match(types, /interface StatusItemSecondaryActivationEvent[\s\S]*action_id\?: never[\s\S]*menu_item_id\?: never/)
+  assert.match(types, /interface StatusItemLifecycleEventBase[\s\S]*action_sequence\?: never[\s\S]*action_id\?: never[\s\S]*menu_item_id\?: never/)
+  assert.match(types, /action_sequence: number/)
+  assert.match(types, /normalizeStatusItemInvokeRequest/)
+  assert.match(types, /normalizeStatusItemInvocationResult/)
+  assert.match(types, /STATUS_ITEM_INVOKE_ERROR_CODES/)
 })
 
 test('descriptor validation rejects visual paths, inert anchors, code, duplicate identities, and primary collisions', () => {
@@ -350,7 +448,7 @@ test('descriptor validation rejects visual paths, inert anchors, code, duplicate
   assert.throws(
     () => normalizeStatusItemDescriptor({
       ...descriptor,
-      menu: [{ kind: 'item', id: 'summon', action_id: 'summon', label: 'Summon' }],
+      menu: [{ kind: 'item', id: 'activate', action_id: 'activate', label: 'Activate' }],
     }),
     /primary/,
   )
@@ -365,12 +463,30 @@ test('descriptor validation rejects visual paths, inert anchors, code, duplicate
   )
 })
 
-test('event normalization rejects unsafe integers, incomplete actions, and contradictory anchor facts', () => {
+test('event normalization and schema enforce exact discriminated variants', () => {
   assert.throws(() => normalizeStatusItemEvent({ ...event, generation: Number.MAX_SAFE_INTEGER + 1 }), /safe integer/)
   assert.throws(() => normalizeStatusItemEvent({ ...event, timestamp: undefined }), /string/)
   const incomplete = { ...event }
   delete incomplete.action_id
-  assert.throws(() => normalizeStatusItemEvent(incomplete), /incomplete/)
+  assert.throws(() => normalizeStatusItemEvent(incomplete), /action_id must be a string/)
+  const missingAdmission = { ...event }
+  delete missingAdmission.action_sequence
+  assert.throws(() => normalizeStatusItemEvent(missingAdmission), /safe integer/)
+  const primary = { ...event, type: 'primary_activation', action_id: 'activate' }
+  delete primary.menu_item_id
+  assert.deepEqual(normalizeStatusItemEvent(primary), primary)
+  for (const malformed of [
+    { ...primary, menu_item_id: 'menu/open' },
+    { ...event, menu_item_id: undefined },
+  ]) {
+    assert.throws(() => validateWithSchema(eventSchemaPath, malformed))
+    assert.throws(() => normalizeStatusItemEvent(malformed))
+  }
+  const secondary = { ...primary, type: 'secondary_activation' }
+  delete secondary.action_id
+  assert.deepEqual(normalizeStatusItemEvent(secondary), secondary)
+  assert.throws(() => validateWithSchema(eventSchemaPath, { ...secondary, action_id: 'activate' }))
+  assert.throws(() => normalizeStatusItemEvent({ ...secondary, action_id: 'activate' }), /must not carry/)
   assert.throws(
     () => normalizeStatusItemEvent({ ...event, bounds: { ...bounds, display_id: 2 } }),
     /disagree/,
@@ -388,8 +504,11 @@ test('event normalization rejects unsafe integers, incomplete actions, and contr
     origin_y: undefined,
     modifiers: undefined,
   }
-  for (const key of ['action_id', 'menu_item_id', 'origin_x', 'origin_y', 'modifiers']) delete ready[key]
-  assert.throws(() => normalizeStatusItemEvent({ ...ready, action_id: null }), /string/)
+  for (const key of ['action_sequence', 'action_id', 'menu_item_id', 'origin_x', 'origin_y', 'modifiers']) delete ready[key]
+  for (const malformed of [{ ...ready, action_id: 'activate' }, { ...ready, action_sequence: 1 }]) {
+    assert.throws(() => validateWithSchema(eventSchemaPath, malformed))
+    assert.throws(() => normalizeStatusItemEvent(malformed), /must not carry/)
+  }
 })
 
 test('aos status-item validate is bounded, offline, and machine-readable', () => {
@@ -406,12 +525,20 @@ test('aos status-item validate is bounded, offline, and machine-readable', () =>
 })
 
 test('CLI rejects invalid exact lease identity before connecting', async () => {
-  const result = await runCLI([
+  const invalidGeneration = await runCLI([
     'inspect', '--owner', descriptor.owner, '--item', descriptor.item_id,
     '--generation', '-1', '--descriptor-revision', '3', '--json',
   ], { ...process.env, AOS_DISABLE_DAEMON_AUTOSTART: '1' })
-  assert.equal(result.code, 1)
-  assert.equal(JSON.parse(result.stderr).code, 'MISSING_ARG')
+  assert.equal(invalidGeneration.code, 1)
+  assert.equal(JSON.parse(invalidGeneration.stderr).code, 'MISSING_ARG')
+
+  const missingActionSequence = await runCLI([
+    'invoke', '--owner', descriptor.owner, '--item', descriptor.item_id,
+    '--action', descriptor.primary_action_id, '--generation', '7',
+    '--descriptor-revision', '3', '--json',
+  ], { ...process.env, AOS_DISABLE_DAEMON_AUTOSTART: '1' })
+  assert.equal(missingActionSequence.code, 1)
+  assert.equal(JSON.parse(missingActionSequence.stderr).code, 'MISSING_ARG')
 })
 
 test('documented register-follow, update, inspect, dry-run, and invoke use truthful multi-connection ownership', async () => {
@@ -420,12 +547,13 @@ test('documented register-follow, update, inspect, dry-run, and invoke use truth
   let leaseSocket = null
   let updateSocket = null
   let activeRevision = descriptor.revision
+  let activeActionSequence = 1
   const server = await listenFake(stateRoot, (socket, request) => {
     requests.push({ action: request.action, ref: request.ref, socket })
     if (request.action === 'register') {
       leaseSocket = socket
       socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: { owner: descriptor.owner, item_id: descriptor.item_id, generation: 7, descriptor_revision: 3, anchor } })}\n`)
-      socket.write(`${JSON.stringify({ v: 1, service: 'status_item', event: 'ready', ts: 1, ref: request.ref, data: { ...event, type: 'ready', sequence: 1, action_id: undefined, menu_item_id: undefined, origin_x: undefined, origin_y: undefined, modifiers: undefined } })}\n`)
+      socket.write(`${JSON.stringify({ v: 1, service: 'status_item', event: 'ready', ts: 1, ref: request.ref, data: { ...event, type: 'ready', sequence: 1, action_sequence: undefined, action_id: undefined, menu_item_id: undefined, origin_x: undefined, origin_y: undefined, modifiers: undefined } })}\n`)
     } else if (request.action === 'update') {
       updateSocket = socket
       assert.notEqual(socket, leaseSocket)
@@ -439,15 +567,19 @@ test('documented register-follow, update, inspect, dry-run, and invoke use truth
       activeRevision = updatedDescriptor.revision
       socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: { owner: descriptor.owner, item_id: descriptor.item_id, generation: 7, previous_descriptor_revision: 3, descriptor_revision: activeRevision, updated: true, anchor } })}\n`)
       socket.end()
-      leaseSocket.write(`${JSON.stringify({ v: 1, service: 'status_item', event: 'menu_selection', ts: 2, data: { ...event, descriptor_revision: activeRevision, sequence: 2 } })}\n`)
+      leaseSocket.write(`${JSON.stringify({ v: 1, service: 'status_item', event: 'menu_selection', ts: 2, data: { ...event, descriptor_revision: activeRevision, sequence: 2, action_sequence: activeActionSequence } })}\n`)
+      activeActionSequence += 1
     } else if (request.action === 'inspect') {
-      socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: { state: { owner: descriptor.owner, item_id: descriptor.item_id, generation: 7, descriptor_revision: activeRevision, anchor } } })}\n`)
+      socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: { state: { owner: descriptor.owner, item_id: descriptor.item_id, generation: 7, descriptor_revision: activeRevision, action_sequence: activeActionSequence, anchor } } })}\n`)
       socket.end()
     } else if (request.action === 'invoke_dry_run') {
-      socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'dry_run', data: { owner: descriptor.owner, item_id: descriptor.item_id, action_id: 'summon', generation: 7, descriptor_revision: activeRevision, anchor } })}\n`)
+      assert.equal(request.data.action_sequence, activeActionSequence)
+      socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'dry_run', data: { owner: descriptor.owner, item_id: descriptor.item_id, action_id: request.data.action_id, generation: 7, descriptor_revision: activeRevision, action_sequence: activeActionSequence, event_type: 'primary_activation', bounds, anchor } })}\n`)
       socket.end()
     } else if (request.action === 'invoke') {
-      socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: { owner: descriptor.owner, item_id: descriptor.item_id, action_id: 'summon', generation: 7, descriptor_revision: activeRevision, anchor } })}\n`)
+      assert.equal(request.data.action_sequence, activeActionSequence)
+      socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: { owner: descriptor.owner, item_id: descriptor.item_id, action_id: request.data.action_id, generation: 7, descriptor_revision: activeRevision, action_sequence: activeActionSequence, event_type: 'primary_activation', bounds, anchor } })}\n`)
+      activeActionSequence += 1
       socket.end()
     }
   })
@@ -491,12 +623,15 @@ test('documented register-follow, update, inspect, dry-run, and invoke use truth
     const inspect = await runCLI(['inspect', ...exact], env)
     assert.equal(inspect.code, 0, inspect.stderr)
     assert.equal(JSON.parse(inspect.stdout).status, 'ok')
-    const dryRun = await runCLI(['invoke', '--owner', descriptor.owner, '--item', descriptor.item_id, '--action', 'summon', '--generation', '7', '--descriptor-revision', '4', '--dry-run', '--json'], env)
+    assert.equal(JSON.parse(inspect.stdout).state.action_sequence, 2)
+    const dryRun = await runCLI(['invoke', '--owner', descriptor.owner, '--item', descriptor.item_id, '--action', descriptor.primary_action_id, '--generation', '7', '--descriptor-revision', '4', '--action-sequence', '2', '--dry-run', '--json'], env)
     assert.equal(dryRun.code, 0, dryRun.stderr)
     assert.equal(JSON.parse(dryRun.stdout).status, 'dry_run')
-    const invoke = await runCLI(['invoke', '--owner', descriptor.owner, '--item', descriptor.item_id, '--action', 'summon', '--generation', '7', '--descriptor-revision', '4', '--json'], env)
+    assert.equal(JSON.parse(dryRun.stdout).action_sequence, 2)
+    const invoke = await runCLI(['invoke', '--owner', descriptor.owner, '--item', descriptor.item_id, '--action', descriptor.primary_action_id, '--generation', '7', '--descriptor-revision', '4', '--action-sequence', '2', '--json'], env)
     assert.equal(invoke.code, 0, invoke.stderr)
     assert.equal(JSON.parse(invoke.stdout).status, 'ok')
+    assert.equal(JSON.parse(invoke.stdout).action_sequence, 2)
     assert.deepEqual(requests.map((request) => request.action), ['register', 'update', 'inspect', 'invoke_dry_run', 'invoke'])
     assert.ok(leaseSocket && !leaseSocket.destroyed)
     assert.ok(updateSocket && updateSocket.destroyed)
@@ -518,7 +653,7 @@ test('register bounds events that arrive before the registration result', async 
         service: 'status_item',
         event: 'ready',
         ts: sequence,
-        data: { ...event, type: 'ready', sequence, action_id: undefined, menu_item_id: undefined, origin_x: undefined, origin_y: undefined, modifiers: undefined },
+        data: { ...event, type: 'ready', sequence, action_sequence: undefined, action_id: undefined, menu_item_id: undefined, origin_x: undefined, origin_y: undefined, modifiers: undefined },
       })}\n`)
     }
     socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: { generation: 7, descriptor_revision: 3 } })}\n`)
@@ -731,6 +866,35 @@ test('CLI settles daemon error, malformed response, legacy success, and disconne
   }
 })
 
+test('CLI rejects incomplete or mismatched invoke success and unknown invoke error codes', async () => {
+  for (const scenario of ['incomplete_success', 'mismatched_success', 'unknown_error', 'known_error']) {
+    const stateRoot = fs.mkdtempSync(`/private/tmp/aos-status-item-invoke-${scenario}-`)
+    const server = await listenFake(stateRoot, (socket, request) => {
+      if (scenario.endsWith('_success')) {
+        const malformed = { ...invocationResult }
+        if (scenario === 'incomplete_success') delete malformed.bounds
+        else malformed.generation += 1
+        socket.end(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: malformed })}\n`)
+      } else {
+        const code = scenario === 'known_error' ? 'STATUS_ITEM_STALE_ACTION_SEQUENCE' : 'STATUS_ITEM_FUTURE_ERROR'
+        socket.end(`${JSON.stringify({ v: 1, ref: request.ref, status: 'error', code, error: 'test invoke error' })}\n`)
+      }
+    })
+    const env = { ...process.env, AOS_STATE_ROOT: stateRoot, AOS_RUNTIME_MODE: 'repo', AOS_DISABLE_DAEMON_AUTOSTART: '1' }
+    const result = await runCLI([
+      'invoke', '--owner', descriptor.owner, '--item', descriptor.item_id,
+      '--action', descriptor.primary_action_id, '--generation', '7',
+      '--descriptor-revision', '3', '--action-sequence', '1', '--json',
+    ], env)
+    assert.equal(result.code, 1, `${scenario}: ${result.stderr}`)
+    assert.equal(
+      JSON.parse(result.stderr).code,
+      scenario === 'known_error' ? 'STATUS_ITEM_STALE_ACTION_SEQUENCE' : 'STATUS_ITEM_DAEMON_PROTOCOL_ERROR',
+    )
+    await new Promise((resolve) => server.close(resolve))
+  }
+})
+
 test('source manifest exposes only the truthful lease command forms', () => {
   const source = JSON.parse(fs.readFileSync(path.join(repoRoot, 'manifests/commands/source/aos/40-status-item.json'), 'utf8'))
   const forms = source.commands.flatMap((command) => command.forms ?? [])
@@ -751,9 +915,28 @@ test('source manifest exposes only the truthful lease command forms', () => {
   assert.equal(inspect.args.find((arg) => arg.id === 'descriptor-revision')?.required, true)
   const invoke = forms.find((form) => form.id === 'status-item-invoke')
   assert.equal(invoke.execution.auto_starts_daemon, false)
+  assert.equal(invoke.args.find((arg) => arg.id === 'action-sequence')?.required, true)
   const generated = fs.readFileSync(path.join(repoRoot, 'manifests/commands/aos-commands.json'), 'utf8')
   assert(!generated.includes('status-item-cleanup'))
   assert(!generated.includes('status-item-subscribe'))
+  const generatedStatusItem = JSON.parse(generated).commands.filter((command) => command.path?.[0] === 'status-item')
+  for (const surface of [source, generatedStatusItem]) {
+    assert.doesNotMatch(JSON.stringify(surface), /\b(?:companion|summon|sigil|dogfood)\b/iu)
+  }
+})
+
+test('status item documentation states the exact request and discriminated response contracts', () => {
+  const toolkit = fs.readFileSync(path.join(repoRoot, 'docs/api/toolkit/status-item.md'), 'utf8')
+  const api = fs.readFileSync(path.join(repoRoot, 'docs/api/aos.md'), 'utf8')
+  const ipc = fs.readFileSync(path.join(repoRoot, 'shared/schemas/daemon-ipc.md'), 'utf8')
+  for (const document of [toolkit, api]) {
+    assert.match(document, /(?:menu selection|`menu_selection`) requires (?:`menu_item_id`|a menu-item\s+id)/)
+    assert.match(document, /(?:primary activation|`primary_activation`) forbids (?:it|one)/)
+  }
+  assert.match(toolkit, /original envelope `data` object before generic daemon\s+envelope shaping/)
+  assert.match(api, /caller-supplied `action`, `__envelope_ref`, or `__envelope_active` is rejected/)
+  assert.match(ipc, /original envelope `data` object[\s\S]*before generic envelope shaping/)
+  assert.match(ipc, /duplicate raw keys are therefore not independently detectable/)
 })
 
 test('native host controller enforces lease, CAS, failed-delivery, and disconnect lifecycle', () => {
@@ -817,11 +1000,46 @@ test('native anchor observation rebinds, deduplicates, restores, and stops', () 
   }
 })
 
+test('rendered native menu rows retain immutable lease and action identity', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-status-item-menu-binding-'))
+  const executable = path.join(tempRoot, 'status-item-menu-binding-harness')
+  const moduleCache = path.join(tempRoot, 'module-cache')
+  fs.mkdirSync(moduleCache)
+  try {
+    execFileSync('swiftc', [
+      '-parse-as-library',
+      '-module-cache-path', moduleCache,
+      hostContractPath,
+      anchorObservationPath,
+      nativeHostPath,
+      hostedProjectionPath,
+      nativeMenuBindingHarnessPath,
+      '-o', executable,
+    ], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        CLANG_MODULE_CACHE_PATH: moduleCache,
+        SWIFT_MODULECACHE_PATH: moduleCache,
+        TMPDIR: tempRoot,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    const output = execFileSync(executable, [], { cwd: repoRoot, encoding: 'utf8' })
+    assert.equal(output, 'status item native menu binding harness passed\n')
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true })
+  }
+})
+
 test('native ownership is focused and excludes superseded visual and lifecycle routes', () => {
   const manager = fs.readFileSync(path.join(repoRoot, 'src/display/status-item.swift'), 'utf8')
+  const admission = fs.readFileSync(hostContractPath, 'utf8')
   const observation = fs.readFileSync(anchorObservationPath, 'utf8')
   const hosted = fs.readFileSync(path.join(repoRoot, 'src/display/status-item-hosted.swift'), 'utf8')
   const controller = fs.readFileSync(path.join(repoRoot, 'src/display/status-item-host-controller.swift'), 'utf8')
+  const controllerHarness = fs.readFileSync(hostControllerHarnessPath, 'utf8')
   const daemon = fs.readFileSync(path.join(repoRoot, 'src/daemon/unified.swift'), 'utf8')
   const combined = `${manager}\n${observation}\n${hosted}\n${controller}`
   assert(!combined.includes('CryptoKit'))
@@ -830,6 +1048,13 @@ test('native ownership is focused and excludes superseded visual and lifecycle r
   assert.match(observation, /didMoveNotification/)
   assert.match(observation, /NSView\.frameDidChangeNotification/)
   assert.match(controller, /runOnMainSync/)
+  assert.match(admission, /final class AOSStatusItemActionAdmission/)
+  assert.match(admission, /func admit\([\s\S]*current \+= 1[\s\S]*deliver\(accepted\)/)
+  assert.match(hosted, /hostedActionAdmission\.admit/)
+  assert.match(controllerHarness, /AOSStatusItemActionAdmission/)
+  assert.match(controllerHarness, /actionAdmission\.admit/)
+  assert.doesNotMatch(controllerHarness, /actionAdmission\.(?:canReserve|reserve)/)
+  assert.match(manager, /emitHostedActionEvent/)
   assert.match(controller, /STATUS_ITEM_REVISION_NOT_ADVANCED/)
   assert.match(controller, /owner: current\.owner/)
   assert.match(controller, /let scalars = string\.unicodeScalars/)
@@ -861,6 +1086,17 @@ test('daemon admits status-item requests only after host installation and orders
   const response = daemon.indexOf('sendResponseJSON(to: outbound, result.response', dispatch)
   const afterResponse = daemon.indexOf('result.afterResponse?()', dispatch)
   assert.ok(dispatch >= 0 && response > dispatch && afterResponse > response)
+
+  const rawInvoke = daemon.indexOf('if internalAction == "status-item-invoke"')
+  const rawPayload = daemon.indexOf('payload: env.data', rawInvoke)
+  const reshape = daemon.indexOf('var flat = env.data', rawInvoke)
+  const rawReturn = daemon.indexOf('return', rawPayload)
+  assert.ok(rawInvoke >= 0 && rawPayload > rawInvoke && rawReturn > rawPayload && reshape > rawReturn)
+  const shapedStatusDispatch = daemon.slice(
+    daemon.indexOf('case "status-item-register"'),
+    daemon.indexOf('// -- Display actions', daemon.indexOf('case "status-item-register"')),
+  )
+  assert.doesNotMatch(shapedStatusDispatch, /status-item-invoke/)
 
   const controller = fs.readFileSync(path.join(repoRoot, 'src/display/status-item-host-controller.swift'), 'utf8')
   const handler = controller.indexOf('func handleCommand')

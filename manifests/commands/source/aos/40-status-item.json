@@ -74,7 +74,7 @@
             { "id": "current-revision", "kind": "flag", "token": "--current-revision", "required": true, "value_type": "integer", "summary": "Expected current descriptor revision" },
             { "id": "json", "kind": "flag", "token": "--json", "required": true, "value_type": "bool", "summary": "Emit machine-readable update result" }
           ],
-          "examples": ["aos status-item update --descriptor status-item-v4.json --owner io.example.app --item companion --generation 1 --current-revision 3 --json"],
+          "examples": ["aos status-item update --descriptor status-item-v4.json --owner io.example.app --item tool --generation 1 --current-revision 3 --json"],
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
@@ -102,7 +102,7 @@
             { "id": "descriptor-revision", "kind": "flag", "token": "--descriptor-revision", "required": true, "value_type": "integer", "summary": "Expected descriptor revision" },
             { "id": "json", "kind": "flag", "token": "--json", "required": true, "value_type": "bool", "summary": "Emit machine-readable inspect result" }
           ],
-          "examples": ["aos status-item inspect --owner io.example.app --item companion --generation 1 --descriptor-revision 3 --json"],
+          "examples": ["aos status-item inspect --owner io.example.app --item tool --generation 1 --descriptor-revision 3 --json"],
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
@@ -118,21 +118,22 @@
     },
     {
       "path": ["status-item", "invoke"],
-      "summary": "Dry-run or invoke a semantic status-item action by owner, item, and action id",
+      "summary": "Dry-run or atomically admit a semantic status-item action by exact lease identity and action sequence",
       "forms": [
         {
           "id": "status-item-invoke",
-          "usage": "aos status-item invoke --owner <owner> --item <item-id> --action <action-id> --generation <n> --descriptor-revision <n> --json [--dry-run]",
+          "usage": "aos status-item invoke --owner <owner> --item <item-id> --action <action-id> --generation <n> --descriptor-revision <n> --action-sequence <n> --json [--dry-run]",
           "args": [
             { "id": "owner", "kind": "flag", "token": "--owner", "required": true, "value_type": "string", "summary": "Status-item owner id" },
             { "id": "item", "kind": "flag", "token": "--item", "required": true, "value_type": "string", "summary": "Status-item item id" },
             { "id": "action", "kind": "flag", "token": "--action", "required": true, "value_type": "string", "summary": "Descriptor action id" },
             { "id": "generation", "kind": "flag", "token": "--generation", "required": true, "value_type": "integer", "summary": "Expected owner generation" },
             { "id": "descriptor-revision", "kind": "flag", "token": "--descriptor-revision", "required": true, "value_type": "integer", "summary": "Expected descriptor revision" },
+            { "id": "action-sequence", "kind": "flag", "token": "--action-sequence", "required": true, "value_type": "integer", "summary": "Expected current action admission sequence" },
             { "id": "json", "kind": "flag", "token": "--json", "required": true, "value_type": "bool", "summary": "Emit machine-readable invocation result" },
-            { "id": "dry-run", "kind": "flag", "token": "--dry-run", "required": false, "value_type": "bool", "summary": "Validate action identity without emitting an event" }
+            { "id": "dry-run", "kind": "flag", "token": "--dry-run", "required": false, "value_type": "bool", "summary": "Validate action identity and sequence without consuming admission or emitting an event" }
           ],
-          "examples": ["aos status-item invoke --owner io.example.app --item companion --action summon --generation 1 --descriptor-revision 3 --dry-run --json"],
+          "examples": ["aos status-item invoke --owner io.example.app --item status --action activate --generation 1 --descriptor-revision 3 --action-sequence 1 --dry-run --json"],
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,

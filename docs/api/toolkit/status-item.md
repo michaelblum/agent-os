@@ -20,6 +20,16 @@ to match the native host's identifier validation.
 `normalizeStatusItemUpdateRequest(value)` validates an exact
 owner/item/generation/current-revision compare-and-swap request and requires the
 descriptor revision to advance.
+`normalizeStatusItemInvokeRequest(value)` requires exact
+owner/item/action/generation/revision identity plus the current positive
+`action_sequence` obtained from inspect.
+`normalizeStatusItemInvocationResult(value)` validates the complete success or
+dry-run shape, including exact identity, accepted action sequence, event type,
+bounds, and anchor. `STATUS_ITEM_INVOKE_ERROR_CODES` is the closed set of
+daemon error codes accepted by the public invoke client; an incomplete success
+or an unknown error code is a daemon protocol failure. Invocation results are
+discriminated by `event_type`: `menu_selection` requires `menu_item_id`, while
+`primary_activation` forbids it.
 
 ## Anchor And Events
 
@@ -38,8 +48,13 @@ implemented event set is:
   native item.
 
 Every event requires safe-integer generation/revision/sequence, timestamp,
-source, bounds, and anchor. Activation events additionally require their
-action/origin/modifier facts. Top-level bounds must equal anchor bounds.
+source, bounds, and anchor. Action event variants require their exact
+action/origin/modifier facts and admitted `action_sequence`: menu selection
+requires `menu_item_id`, primary activation forbids it, and secondary activation
+forbids both action and menu identity. Lifecycle events reject all action-only
+fields. Top-level bounds must equal anchor bounds. The all-event
+`sequence` preserves stream order, while `(generation, action_sequence)` is the
+stable action replay identity.
 
 ## Lease Model
 
@@ -47,14 +62,28 @@ The CLI owner runs `aos status-item register --descriptor <file> --json
 --follow`; that one connection owns lease lifetime and receives events. Its
 registration result is delivered before the initial `ready` event. Separate
 update, inspect, and invoke calls must present exact owner/item/generation and
-current revision. Update requires a strictly newer descriptor and preserves the
-original lease/event connection. Closing the follow process releases the item.
+current revision. Inspect also returns the current action sequence. Effectful
+invoke must present that sequence and atomically consumes it before event
+delivery; dry-run validates and reports it without consuming. Native clicks
+and programmatic invokes share the allocator. Descriptor updates preserve the
+sequence, a new lease generation resets it, and failed delivery leaves the
+reserved sequence consumed. A rendered native menu row retains its generation,
+descriptor revision, item id, action id, and enabled state; selection is
+discarded without admission if any binding is stale or disabled. At sequence
+exhaustion, dry-run and effectful invoke return the same typed error without
+emitting or changing state. Closing the follow process releases the item.
 Standalone subscribe and cleanup commands do not exist.
+
+Invoke validates the original envelope `data` object before generic daemon
+envelope shaping. Its key set is exact; caller-supplied `action`,
+`__envelope_ref`, and `__envelope_active` are invalid invoke data and never
+reach action admission.
 
 The canonical daemon request schema types `register`, `update`, `inspect`,
 `invoke`, and `invoke_dry_run`; the canonical event schema validates the status
 item event payload and requires the envelope event name to match its `type`.
-Dry-run invocation uses the daemon response status `dry_run`.
+`aos-status-item-invocation-result-v1.schema.json` owns the complete invocation
+success payload. Dry-run invocation uses the daemon response status `dry_run`.
 
 The AOS-owned monochrome icon is a continuity fallback, not a consumer visual.
 Generic visual projection inside the real status-item button and the rich
@@ -65,12 +94,15 @@ status palette/popover are separate dependent contracts.
 - `STATUS_ITEM_DESCRIPTOR_SCHEMA_VERSION`
 - `STATUS_ITEM_ANCHOR_SCHEMA_VERSION`
 - `STATUS_ITEM_EVENT_SCHEMA_VERSION`
+- `STATUS_ITEM_INVOKE_ERROR_CODES`
 - `normalizeStatusItemDescriptor(value)`
 - `normalizeStatusItemUpdateRequest(value)`
+- `normalizeStatusItemInvokeRequest(value)`
+- `normalizeStatusItemInvocationResult(value)`
 - `normalizeStatusItemAnchor(value)`
 - `normalizeStatusItemEvent(value)`
-- TypeScript descriptor, update request/result, menu, rect, bounds, anchor, and
-  event interfaces
+- TypeScript descriptor, update/invoke request and result, inspect state, menu,
+  rect, bounds, anchor, and event interfaces
 
 Authoritative schemas live in `shared/schemas/aos-status-item-*-v1.schema.json`.
 Human-readable descriptor strings are canonical input: surrounding JSON

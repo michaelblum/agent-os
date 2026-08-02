@@ -12,6 +12,7 @@ from referencing import Registry, Resource
 schema_root = Path("shared/schemas")
 req_schema = json.loads((schema_root / "daemon-request.schema.json").read_text())
 resp_schema = json.loads((schema_root / "daemon-response.schema.json").read_text())
+invoke_result_schema = json.loads((schema_root / "aos-status-item-invocation-result-v1.schema.json").read_text())
 
 jsonschema.Draft202012Validator.check_schema(req_schema)
 jsonschema.Draft202012Validator.check_schema(resp_schema)
@@ -25,10 +26,10 @@ for candidate in schema_root.glob("*.json"):
 descriptor = {
     "schema_version": "aos.status_item.descriptor.v1",
     "owner": "io.example.app",
-    "item_id": "companion",
+    "item_id": "status",
     "revision": 3,
-    "label": "Example Companion",
-    "primary_action_id": "summon",
+    "label": "Example Status",
+    "primary_action_id": "activate",
     "menu": [
         {"kind": "item", "id": "park", "action_id": "park", "label": "Park"},
         {"kind": "separator"},
@@ -37,7 +38,7 @@ descriptor = {
 
 scene_extension = {
     "ownerId": "io.example.app",
-    "id": "companion-renderer",
+    "id": "panel-renderer",
     "digest": "a" * 64,
     "sceneAbi": "aos.scene.projection.v1",
     "threeRevision": "183",
@@ -56,13 +57,13 @@ good_requests = [
     {"v":1,"service":"permissions","action":"screen_capture_direct_status","data":{}},
     {"v":1,"service":"permissions","action":"screen_capture_direct_prime","data":{}},
     {"v":1,"service":"status_item","action":"register","data":{"descriptor":descriptor},"ref":"register-1"},
-    {"v":1,"service":"status_item","action":"update","data":{"owner":"io.example.app","item_id":"companion","generation":7,"current_revision":3,"descriptor":{**descriptor,"revision":4}}},
-    {"v":1,"service":"status_item","action":"inspect","data":{"owner":"io.example.app","item_id":"companion","generation":7,"descriptor_revision":3}},
-    {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"companion","action_id":"summon","generation":7,"descriptor_revision":3}},
-    {"v":1,"service":"status_item","action":"invoke_dry_run","data":{"owner":"io.example.app","item_id":"companion","action_id":"summon","generation":7,"descriptor_revision":3}},
-    {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"companion/main","operation":{"op":"mount","extension":scene_extension}}},
-    {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"companion/main","operation":{"op":"subscribe","events":["gesture"]}}},
-    {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"companion/main","operation":{"op":"unsubscribe","events":["gesture"]}}},
+    {"v":1,"service":"status_item","action":"update","data":{"owner":"io.example.app","item_id":"status","generation":7,"current_revision":3,"descriptor":{**descriptor,"revision":4}}},
+    {"v":1,"service":"status_item","action":"inspect","data":{"owner":"io.example.app","item_id":"status","generation":7,"descriptor_revision":3}},
+    {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"status","action_id":"activate","generation":7,"descriptor_revision":3,"action_sequence":1}},
+    {"v":1,"service":"status_item","action":"invoke_dry_run","data":{"owner":"io.example.app","item_id":"status","action_id":"activate","generation":7,"descriptor_revision":3,"action_sequence":1}},
+    {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"panel/main","operation":{"op":"mount","extension":scene_extension}}},
+    {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"panel/main","operation":{"op":"subscribe","events":["gesture"]}}},
+    {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"panel/main","operation":{"op":"unsubscribe","events":["gesture"]}}},
 ]
 validator = jsonschema.Draft202012Validator(req_schema, registry=registry)
 for r in good_requests:
@@ -88,19 +89,35 @@ bad_requests = [
     {"v":1,"service":"show","action":"post","data":{}},  # show.post missing required id
     {"v":1,"service":"status_item","action":"unknown","data":{}},  # status item action vocabulary is closed
     {"v":1,"service":"status_item","action":"register","data":{"descriptor":{**descriptor,"owner":"io..example"}}},  # runtime rejects dot-dot identifiers
-    {"v":1,"service":"status_item","action":"update","data":{"owner":"io.example.app","item_id":"companion","generation":7,"descriptor":{**descriptor,"revision":4}}},  # missing current revision
-    {"v":1,"service":"status_item","action":"inspect","data":{"owner":"io.example.app","item_id":"companion","generation":7,"descriptor_revision":3,"extra":True}},  # strict action data
-    {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"companion","action_id":"summon..now","generation":7,"descriptor_revision":3}},  # invalid action id
-    {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"companion/main","operation":{"op":"signal","extension":scene_extension}}},  # extensions are mount-only
+    {"v":1,"service":"status_item","action":"update","data":{"owner":"io.example.app","item_id":"status","generation":7,"descriptor":{**descriptor,"revision":4}}},  # missing current revision
+    {"v":1,"service":"status_item","action":"inspect","data":{"owner":"io.example.app","item_id":"status","generation":7,"descriptor_revision":3,"extra":True}},  # strict action data
+    {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"status","action_id":"activate","generation":7,"descriptor_revision":3}},  # missing action sequence
+    {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"status","action_id":"activate","generation":7,"descriptor_revision":3,"action_sequence":1,"unexpected":True}},  # invoke data key set is closed
+    {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"status","action_id":"activate","generation":7,"descriptor_revision":3,"action_sequence":1,"action":"status-item-invoke"}},  # transport action is not invoke data
+    {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"status","action_id":"activate","generation":7,"descriptor_revision":3,"action_sequence":1,"__envelope_ref":"attacker"}},  # envelope ref is not invoke data
+    {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"status","action_id":"activate","generation":7,"descriptor_revision":3,"action_sequence":1,"__envelope_active":True}},  # envelope state is not invoke data
+    {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"status","action_id":"activate..now","generation":7,"descriptor_revision":3,"action_sequence":1}},  # invalid action id
+    {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"panel/main","operation":{"op":"signal","extension":scene_extension}}},  # extensions are mount-only
 ]
 for r in bad_requests:
     errors = list(validator.iter_errors(r))
     assert errors, f"expected errors for {r} but got none"
 
 response_validator = jsonschema.Draft202012Validator(resp_schema, registry=registry)
+status_bounds = {"x":1,"y":2,"width":24,"height":24,"origin_x":13,"origin_y":14,"display_id":1}
+status_anchor = {
+    "schema_version":"aos.status_item.anchor.v1",
+    "anchor_id":"native-status-item/io.example.app/tool",
+    "host":"native_status_item",
+    "coordinate_space":"global_display_top_left",
+    "visible":True,
+    "bounds":status_bounds,
+    "display":{"id":1,"frame":{"x":0,"y":0,"width":1920,"height":1080,"origin_x":960,"origin_y":540},"visible_frame":{"x":0,"y":24,"width":1920,"height":1056,"origin_x":960,"origin_y":552}},
+    "topology":{"display_count":1,"display_ids":[1],"truncated":False},
+}
 good_responses = [
     {"v":1,"status":"success","data":{"generation":7},"ref":"register-1"},
-    {"v":1,"status":"dry_run","data":{"owner":"io.example.app","item_id":"companion","action_id":"summon"},"ref":"invoke-1"},
+    {"v":1,"status":"dry_run","data":{"owner":"io.example.app","item_id":"tool","action_id":"activate","generation":7,"descriptor_revision":3,"action_sequence":1,"event_type":"primary_activation","bounds":status_bounds,"anchor":status_anchor},"ref":"invoke-1"},
     {"v":1,"status":"error","error":"status item not found","code":"STATUS_ITEM_NOT_FOUND"},
     {"v":1,"status":"error","error":"invalid descriptor","code":"INVALID_STATUS_ITEM_DESCRIPTOR"},
     {"v":1,"status":"error","error":"bad argument","code":"INVALID_ARG"},
@@ -109,11 +126,23 @@ for response in good_responses:
     errors = list(response_validator.iter_errors(response))
     assert not errors, f"unexpected response errors for {response}: {errors}"
 
+ipc_doc = Path("shared/schemas/daemon-ipc.md").read_text()
+documented_dry_run = json.loads(
+    ipc_doc.split("Validated no-side-effect response:", 1)[1]
+    .split("```json", 1)[1]
+    .split("```", 1)[0]
+)
+assert not list(response_validator.iter_errors(documented_dry_run)), "documented dry-run envelope is invalid"
+documented_invoke_result = {**documented_dry_run["data"], "status": documented_dry_run["status"]}
+invoke_result_validator = jsonschema.Draft202012Validator(invoke_result_schema, registry=registry)
+assert not list(invoke_result_validator.iter_errors(documented_invoke_result)), "documented dry-run invocation result is invalid"
+
 bad_responses = [
     {"v":1,"status":"dry_run"},  # missing data
     {"v":1,"status":"dry_run","data":{},"extra":True},  # envelope remains closed
     {"v":1,"status":"error","error":"unknown","code":"SOME_NEW_ERROR"},  # unrelated error vocabulary remains closed
     {"v":1,"status":"error","error":"unknown","code":"STATUS_ITEM_"},  # status item code requires a suffix
+    {"v":1,"status":"error","error":"unknown","code":"STATUS_ITEM_FUTURE_ERROR"},  # status item error vocabulary is exact
 ]
 for response in bad_responses:
     errors = list(response_validator.iter_errors(response))

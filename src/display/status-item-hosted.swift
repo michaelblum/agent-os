@@ -4,11 +4,14 @@ import AppKit
 import Foundation
 
 extension StatusItemManager {
+    var hostedActionSequence: Int { hostedActionAdmission.current }
+
     var currentAccessibilityLabel: String {
         hostedDescriptor?.label ?? Self.defaultAccessibilityLabel
     }
 
     func installHostedDescriptor(_ descriptor: AOSHostedStatusItemDescriptor, generation: Int) -> [String: Any]? {
+        hostedActionAdmission.install(generation: generation)
         hostedDescriptor = descriptor
         hostedGeneration = generation
         statusMenuItems = descriptor.menuItems.compactMap(StatusItemMenuDescriptor.init(raw:))
@@ -49,6 +52,7 @@ extension StatusItemManager {
             payload["item_id"] = hosted.itemID
             payload["generation"] = hostedGeneration
             payload["descriptor_revision"] = hosted.revision
+            payload["action_sequence"] = hostedActionSequence
             payload["label"] = hosted.label
             payload["primary_action_id"] = hosted.primaryActionID
             payload["menu_item_count"] = statusMenuItems.filter { !$0.isSeparator }.count
@@ -59,12 +63,13 @@ extension StatusItemManager {
             payload["item_id"] = NSNull()
             payload["generation"] = NSNull()
             payload["descriptor_revision"] = NSNull()
+            payload["action_sequence"] = NSNull()
             payload["anchor"] = NSNull()
         }
         return payload
     }
 
-    func invokeHostedAction(owner: String, itemID: String, actionID: String, expectedGeneration: Int?, expectedRevision: Int?, dryRun: Bool) -> [String: Any] {
+    func invokeHostedAction(owner: String, itemID: String, actionID: String, expectedGeneration: Int?, expectedRevision: Int?, expectedActionSequence: Int, dryRun: Bool) -> [String: Any] {
         guard let hosted = hostedDescriptor,
               hosted.owner == owner,
               hosted.itemID == itemID else {
@@ -87,27 +92,46 @@ extension StatusItemManager {
         guard let anchor = statusItemAnchorPayload(owner: owner, itemID: itemID) else {
             return ["error": "status item native anchor is unavailable", "code": "STATUS_ITEM_ANCHOR_UNAVAILABLE"]
         }
+        let eventType = isPrimary ? "primary_activation" : "menu_selection"
+        let admission = hostedActionAdmission.admit(expected: expectedActionSequence, dryRun: dryRun) { actionSequence in
+            emitHostedEvent(
+                type: eventType,
+                actionID: actionID,
+                menuItemID: menuItem?.id,
+                modifiers: [],
+                origin: statusItemCGPosition(),
+                actionSequence: actionSequence
+            )
+        }
+        let acceptedActionSequence: Int
+        let status: String
+        switch admission {
+        case .stale:
+            return ["error": "status item action sequence is stale", "code": "STATUS_ITEM_STALE_ACTION_SEQUENCE"]
+        case .exhausted:
+            return ["error": "status item action sequence is exhausted", "code": "STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED"]
+        case .deliveryFailed:
+            return ["error": "status item event delivery is unavailable", "code": "STATUS_ITEM_EVENT_UNAVAILABLE"]
+        case .dryRun(let sequence):
+            acceptedActionSequence = sequence
+            status = "dry_run"
+        case .delivered(let sequence):
+            acceptedActionSequence = sequence
+            status = "ok"
+        }
         var payload: [String: Any] = [
-            "status": dryRun ? "dry_run" : "ok",
+            "status": status,
             "owner": owner,
             "item_id": itemID,
             "action_id": actionID,
             "generation": hostedGeneration,
             "descriptor_revision": hosted.revision,
-            "event_type": isPrimary ? "primary_activation" : "menu_selection",
+            "action_sequence": acceptedActionSequence,
+            "event_type": eventType,
             "bounds": anchor["bounds"] ?? NSNull(),
             "anchor": anchor,
         ]
         if let menuItem { payload["menu_item_id"] = menuItem.id }
-        if !dryRun, !emitHostedEvent(
-                type: isPrimary ? "primary_activation" : "menu_selection",
-                actionID: actionID,
-                menuItemID: menuItem?.id,
-                modifiers: [],
-                origin: statusItemCGPosition()
-            ) {
-            return ["error": "status item event delivery is unavailable", "code": "STATUS_ITEM_EVENT_UNAVAILABLE"]
-        }
         return payload
     }
 
@@ -169,7 +193,33 @@ extension StatusItemManager {
     }
 
     @discardableResult
-    func emitHostedEvent(type: String, actionID: String?, menuItemID: String?, modifiers: [String], origin: CGPoint) -> Bool {
+    func emitHostedActionEvent(
+        type: String,
+        actionID: String?,
+        menuItemID: String?,
+        modifiers: [String],
+        origin: CGPoint,
+        expectedActionSequence: Int? = nil
+    ) -> (actionSequence: Int, delivered: Bool)? {
+        let result = hostedActionAdmission.admit(expected: expectedActionSequence) { actionSequence in
+            emitHostedEvent(
+                type: type,
+                actionID: actionID,
+                menuItemID: menuItemID,
+                modifiers: modifiers,
+                origin: origin,
+                actionSequence: actionSequence
+            )
+        }
+        switch result {
+        case .delivered(let sequence): return (sequence, true)
+        case .deliveryFailed(let sequence): return (sequence, false)
+        case .stale, .exhausted, .dryRun: return nil
+        }
+    }
+
+    @discardableResult
+    func emitHostedEvent(type: String, actionID: String?, menuItemID: String?, modifiers: [String], origin: CGPoint, actionSequence: Int? = nil) -> Bool {
         guard let hosted = hostedDescriptor else { return false }
         guard let anchor = statusItemAnchorPayload(owner: hosted.owner, itemID: hosted.itemID) else { return false }
         var payload: [String: Any] = [
@@ -185,6 +235,7 @@ extension StatusItemManager {
             "bounds": anchor["bounds"] ?? NSNull(),
             "anchor": anchor,
         ]
+        if let actionSequence { payload["action_sequence"] = actionSequence }
         if let actionID { payload["action_id"] = actionID }
         if let menuItemID { payload["menu_item_id"] = menuItemID }
         return hostedEventSink?(payload) ?? false

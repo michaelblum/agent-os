@@ -1,5 +1,4 @@
 // status-item-host-controller.swift — Owner-scoped native status-item lease controller.
-
 import CoreFoundation
 import Foundation
 
@@ -251,41 +250,40 @@ final class AOSStatusItemHostController {
               current.itemID == identity.itemID else {
             return failure("STATUS_ITEM_NOT_FOUND", "status item lease was not found")
         }
-        guard current.generation == identity.generation,
-              current.revision == identity.revision else {
-            return failure("STATUS_ITEM_STALE_REVISION", "status item generation or descriptor revision is stale")
-        }
+        guard current.generation == identity.generation else { return failure("STATUS_ITEM_STALE_GENERATION", "status item generation is stale") }
+        guard current.revision == identity.revision else { return failure("STATUS_ITEM_STALE_REVISION", "status item descriptor revision is stale") }
         let state = manager.hostedInspectState()
         guard state["anchor"] is [String: Any] else {
             return failure("STATUS_ITEM_ANCHOR_UNAVAILABLE", "native status item anchor is unavailable")
         }
         return ["status": "ok", "state": state]
     }
-
     private func invoke(payload: [String: Any], dryRun: Bool) -> [String: Any] {
-        guard let identity = checkedIdentity(payload, actionRequired: true),
-              let actionID = identity.actionID else {
-            return failure("INVALID_STATUS_ITEM_INVOKE", "status item invoke requires owner, item_id, action_id, generation, and descriptor_revision")
+        guard Set(payload.keys) == Set(["owner", "item_id", "action_id", "generation", "descriptor_revision", "action_sequence"]) else {
+            return failure("INVALID_STATUS_ITEM_INVOKE", "status item invoke contains unsupported or missing fields")
+        }
+        guard let identity = checkedIdentity(payload, actionRequired: true, actionSequenceRequired: true),
+              let actionID = identity.actionID,
+              let actionSequence = identity.actionSequence else {
+            return failure("INVALID_STATUS_ITEM_INVOKE", "status item invoke requires owner, item_id, action_id, generation, descriptor_revision, and action_sequence")
         }
         guard let current = lease,
               current.ownerID == identity.owner,
               current.itemID == identity.itemID else {
             return failure("STATUS_ITEM_NOT_FOUND", "status item lease was not found")
         }
-        guard current.generation == identity.generation,
-              current.revision == identity.revision else {
-            return failure("STATUS_ITEM_STALE_REVISION", "status item generation or descriptor revision is stale")
-        }
+        guard current.generation == identity.generation else { return failure("STATUS_ITEM_STALE_GENERATION", "status item generation is stale") }
+        guard current.revision == identity.revision else { return failure("STATUS_ITEM_STALE_REVISION", "status item descriptor revision is stale") }
         return manager.invokeHostedAction(
             owner: identity.owner,
             itemID: identity.itemID,
             actionID: actionID,
             expectedGeneration: identity.generation,
             expectedRevision: identity.revision,
+            expectedActionSequence: actionSequence,
             dryRun: dryRun
         )
     }
-
     private func receiveHostedEvent(_ event: [String: Any]) -> Bool {
         runOnMainSync {
             guard var current = self.lease,
@@ -298,17 +296,18 @@ final class AOSStatusItemHostController {
             payload["schema_version"] = aosStatusItemEventSchema
             payload["sequence"] = current.sequence
             payload["timestamp"] = self.iso8601.string(from: Date())
-            guard self.emit(current.owner, event["type"] as? String ?? "event", payload, nil) else {
+            let delivered = self.emit(current.owner, event["type"] as? String ?? "event", payload, nil)
+            self.lease = current
+            guard delivered else {
+                if event["action_sequence"] != nil { return false }
                 self.manager.teardown()
                 self.lease = nil
                 self.terminate(current.owner, "status_item_event_delivery_failed")
                 return false
             }
-            self.lease = current
             return true
         }
     }
-
     private func emitReady(_ current: AOSStatusItemLease, anchor: [String: Any]) {
         runOnMainSync {
             _ = self.receiveHostedEvent([
@@ -323,7 +322,6 @@ final class AOSStatusItemHostController {
             ])
         }
     }
-
     private func parseDescriptor(_ payload: [String: Any]) -> AOSStatusItemDescriptorParseResult {
         let allowed = Set(["schema_version", "owner", "item_id", "revision", "label", "help_text", "primary_action_id", "menu"])
         guard !payload.keys.contains(where: { !allowed.contains($0) }) else {
@@ -420,7 +418,7 @@ final class AOSStatusItemHostController {
         return normalized
     }
 
-    private func checkedIdentity(_ payload: [String: Any], actionRequired: Bool) -> (owner: String, itemID: String, generation: Int, revision: Int, actionID: String?)? {
+    private func checkedIdentity(_ payload: [String: Any], actionRequired: Bool, actionSequenceRequired: Bool = false) -> (owner: String, itemID: String, generation: Int, revision: Int, actionID: String?, actionSequence: Int?)? {
         guard let owner = payload["owner"] as? String,
               let itemID = payload["item_id"] as? String,
               let generation = intValue(payload["generation"]), generation >= 1,
@@ -428,9 +426,11 @@ final class AOSStatusItemHostController {
               validateIdentifier(owner, allowSlash: false),
               validateIdentifier(itemID, allowSlash: false) else { return nil }
         let actionID = payload["action_id"] as? String
+        let actionSequence = intValue(payload["action_sequence"])
         if actionRequired, actionID == nil { return nil }
+        if actionSequenceRequired, (actionSequence ?? 0) < 1 { return nil }
         if let actionID, !validateIdentifier(actionID, allowSlash: true) { return nil }
-        return (owner, itemID, generation, revision, actionID)
+        return (owner, itemID, generation, revision, actionID, actionSequence)
     }
 
     private func checkedUpdateIdentity(_ payload: [String: Any]) -> (owner: String, itemID: String, generation: Int, currentRevision: Int)? {
@@ -475,7 +475,7 @@ final class AOSStatusItemHostController {
         let allowed = Set([
             "type", "owner", "item_id", "generation", "descriptor_revision",
             "source", "origin_x", "origin_y", "modifiers", "bounds", "anchor",
-            "action_id", "menu_item_id",
+            "action_id", "menu_item_id", "action_sequence",
         ])
         return event.filter { allowed.contains($0.key) }
     }

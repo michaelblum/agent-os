@@ -1,6 +1,19 @@
 export const STATUS_ITEM_DESCRIPTOR_SCHEMA_VERSION = 'aos.status_item.descriptor.v1'
 export const STATUS_ITEM_EVENT_SCHEMA_VERSION = 'aos.status_item.event.v1'
 export const STATUS_ITEM_ANCHOR_SCHEMA_VERSION = 'aos.status_item.anchor.v1'
+export const STATUS_ITEM_INVOKE_ERROR_CODES = Object.freeze([
+  'INVALID_STATUS_ITEM_INVOKE',
+  'STATUS_ITEM_NOT_FOUND',
+  'STATUS_ITEM_UNAVAILABLE',
+  'STATUS_ITEM_STALE_GENERATION',
+  'STATUS_ITEM_STALE_REVISION',
+  'STATUS_ITEM_STALE_ACTION_SEQUENCE',
+  'STATUS_ITEM_ACTION_NOT_FOUND',
+  'STATUS_ITEM_ACTION_DISABLED',
+  'STATUS_ITEM_ANCHOR_UNAVAILABLE',
+  'STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED',
+  'STATUS_ITEM_EVENT_UNAVAILABLE',
+])
 
 const ID_RE = /^[a-z0-9][a-z0-9._-]{0,127}$/u
 const PATH_ID_RE = /^[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)*$/u
@@ -14,6 +27,7 @@ const EVENT_TYPES = new Set([
   'secondary_activation',
   'menu_selection',
 ])
+const ACTION_EVENT_TYPES = new Set(['primary_activation', 'secondary_activation', 'menu_selection'])
 function hasOwn(value, key) {
   return Object.prototype.hasOwnProperty.call(value, key)
 }
@@ -187,6 +201,56 @@ export function normalizeStatusItemUpdateRequest(input) {
   return normalized
 }
 
+export function normalizeStatusItemInvokeRequest(input) {
+  const request = objectValue(input, 'invoke request', 'INVALID_STATUS_ITEM_INVOKE')
+  onlyKeys(request, new Set(['owner', 'item_id', 'action_id', 'generation', 'descriptor_revision', 'action_sequence']), 'invoke request', 'INVALID_STATUS_ITEM_INVOKE')
+  return {
+    owner: identifier(request.owner, 'owner', { code: 'INVALID_STATUS_ITEM_INVOKE' }),
+    item_id: identifier(request.item_id, 'item_id', { code: 'INVALID_STATUS_ITEM_INVOKE' }),
+    action_id: identifier(request.action_id, 'action_id', { slash: true, code: 'INVALID_STATUS_ITEM_INVOKE' }),
+    generation: safeInteger(request.generation, 'generation', { min: 1, code: 'INVALID_STATUS_ITEM_INVOKE' }),
+    descriptor_revision: safeInteger(request.descriptor_revision, 'descriptor_revision', { code: 'INVALID_STATUS_ITEM_INVOKE' }),
+    action_sequence: safeInteger(request.action_sequence, 'action_sequence', { min: 1, code: 'INVALID_STATUS_ITEM_INVOKE' }),
+  }
+}
+
+export function normalizeStatusItemInvocationResult(input) {
+  const code = 'INVALID_STATUS_ITEM_INVOKE_RESULT'
+  try {
+    const result = objectValue(input, 'invocation result', code)
+    onlyKeys(result, new Set(['status', 'owner', 'item_id', 'action_id', 'generation', 'descriptor_revision', 'action_sequence', 'event_type', 'menu_item_id', 'bounds', 'anchor']), 'invocation result', code)
+    if (!['ok', 'dry_run'].includes(result.status)) fail(code, 'invocation result status is unsupported')
+    if (!['primary_activation', 'menu_selection'].includes(result.event_type)) fail(code, 'invocation result event_type is unsupported')
+    const bounds = normalizeBounds(result.bounds)
+    const anchor = normalizeStatusItemAnchor(result.anchor)
+    if (JSON.stringify(bounds) !== JSON.stringify(anchor.bounds)) fail(code, 'invocation result bounds disagree with anchor bounds')
+    const normalized = {
+      status: result.status,
+      owner: identifier(result.owner, 'owner', { code }),
+      item_id: identifier(result.item_id, 'item_id', { code }),
+      action_id: identifier(result.action_id, 'action_id', { slash: true, code }),
+      generation: safeInteger(result.generation, 'generation', { min: 1, code }),
+      descriptor_revision: safeInteger(result.descriptor_revision, 'descriptor_revision', { code }),
+      action_sequence: safeInteger(result.action_sequence, 'action_sequence', { min: 1, code }),
+      event_type: result.event_type,
+      bounds,
+      anchor,
+    }
+    if (anchor.anchor_id !== `native-status-item/${normalized.owner}/${normalized.item_id}`) {
+      fail(code, 'invocation result owner and item disagree with anchor identity')
+    }
+    if (result.event_type === 'menu_selection') {
+      normalized.menu_item_id = identifier(result.menu_item_id, 'menu_item_id', { slash: true, code })
+    } else if (hasOwn(result, 'menu_item_id')) {
+      fail(code, 'primary invocation result must not carry menu_item_id')
+    }
+    return normalized
+  } catch (error) {
+    if (error?.code === code) throw error
+    fail(code, `invocation result is malformed: ${error?.message ?? 'invalid value'}`)
+  }
+}
+
 export function normalizeStatusItemAnchor(input) {
   const anchor = objectValue(input, 'anchor', 'INVALID_STATUS_ITEM_EVENT')
   onlyKeys(anchor, new Set(['schema_version', 'anchor_id', 'host', 'coordinate_space', 'visible', 'bounds', 'display', 'topology']), 'anchor', 'INVALID_STATUS_ITEM_EVENT')
@@ -230,7 +294,7 @@ export function normalizeStatusItemAnchor(input) {
 
 export function normalizeStatusItemEvent(input) {
   const event = objectValue(input, 'event', 'INVALID_STATUS_ITEM_EVENT')
-  onlyKeys(event, new Set(['schema_version', 'type', 'owner', 'item_id', 'generation', 'descriptor_revision', 'sequence', 'timestamp', 'source', 'action_id', 'menu_item_id', 'origin_x', 'origin_y', 'modifiers', 'bounds', 'anchor']), 'event', 'INVALID_STATUS_ITEM_EVENT')
+  onlyKeys(event, new Set(['schema_version', 'type', 'owner', 'item_id', 'generation', 'descriptor_revision', 'sequence', 'action_sequence', 'timestamp', 'source', 'action_id', 'menu_item_id', 'origin_x', 'origin_y', 'modifiers', 'bounds', 'anchor']), 'event', 'INVALID_STATUS_ITEM_EVENT')
   if (event.schema_version !== STATUS_ITEM_EVENT_SCHEMA_VERSION || !EVENT_TYPES.has(event.type)) fail('INVALID_STATUS_ITEM_EVENT', 'event schema or type is unsupported')
   if (event.source !== 'status_item') fail('INVALID_STATUS_ITEM_EVENT', 'source must be status_item')
   const bounds = normalizeBounds(event.bounds)
@@ -252,19 +316,23 @@ export function normalizeStatusItemEvent(input) {
   if (anchor.anchor_id !== `native-status-item/${normalized.owner}/${normalized.item_id}`) {
     fail('INVALID_STATUS_ITEM_EVENT', 'event owner and item disagree with anchor identity')
   }
-  if (hasOwn(event, 'action_id')) normalized.action_id = identifier(event.action_id, 'action_id', { slash: true, code: 'INVALID_STATUS_ITEM_EVENT' })
-  if (hasOwn(event, 'menu_item_id')) normalized.menu_item_id = identifier(event.menu_item_id, 'menu_item_id', { slash: true, code: 'INVALID_STATUS_ITEM_EVENT' })
-  if (hasOwn(event, 'origin_x')) normalized.origin_x = safeInteger(event.origin_x, 'origin_x', { min: Number.MIN_SAFE_INTEGER })
-  if (hasOwn(event, 'origin_y')) normalized.origin_y = safeInteger(event.origin_y, 'origin_y', { min: Number.MIN_SAFE_INTEGER })
-  if (hasOwn(event, 'modifiers')) normalized.modifiers = normalizeModifiers(event.modifiers)
-  if (event.type === 'primary_activation' && (!normalized.action_id || normalized.origin_x == null || normalized.origin_y == null || !normalized.modifiers)) {
-    fail('INVALID_STATUS_ITEM_EVENT', 'primary activation event is incomplete')
+  const actionFields = ['action_sequence', 'action_id', 'menu_item_id', 'origin_x', 'origin_y', 'modifiers']
+  if (!ACTION_EVENT_TYPES.has(event.type)) {
+    if (actionFields.some((key) => hasOwn(event, key))) fail('INVALID_STATUS_ITEM_EVENT', 'lifecycle event must not carry action fields')
+    return normalized
   }
-  if (event.type === 'secondary_activation' && (normalized.origin_x == null || normalized.origin_y == null || !normalized.modifiers)) {
-    fail('INVALID_STATUS_ITEM_EVENT', 'secondary activation event is incomplete')
-  }
-  if (event.type === 'menu_selection' && (!normalized.action_id || !normalized.menu_item_id || normalized.origin_x == null || normalized.origin_y == null || !normalized.modifiers)) {
-    fail('INVALID_STATUS_ITEM_EVENT', 'menu selection event is incomplete')
+  normalized.action_sequence = safeInteger(event.action_sequence, 'action_sequence', { min: 1 })
+  normalized.origin_x = safeInteger(event.origin_x, 'origin_x', { min: Number.MIN_SAFE_INTEGER })
+  normalized.origin_y = safeInteger(event.origin_y, 'origin_y', { min: Number.MIN_SAFE_INTEGER })
+  normalized.modifiers = normalizeModifiers(event.modifiers)
+  if (event.type === 'primary_activation') {
+    normalized.action_id = identifier(event.action_id, 'action_id', { slash: true, code: 'INVALID_STATUS_ITEM_EVENT' })
+    if (hasOwn(event, 'menu_item_id')) fail('INVALID_STATUS_ITEM_EVENT', 'primary activation event must not carry menu_item_id')
+  } else if (event.type === 'secondary_activation') {
+    if (hasOwn(event, 'action_id') || hasOwn(event, 'menu_item_id')) fail('INVALID_STATUS_ITEM_EVENT', 'secondary activation event must not carry action or menu identity')
+  } else {
+    normalized.action_id = identifier(event.action_id, 'action_id', { slash: true, code: 'INVALID_STATUS_ITEM_EVENT' })
+    normalized.menu_item_id = identifier(event.menu_item_id, 'menu_item_id', { slash: true, code: 'INVALID_STATUS_ITEM_EVENT' })
   }
   return normalized
 }

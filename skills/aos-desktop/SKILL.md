@@ -50,30 +50,37 @@ commands stay in the consumer after typed event receipt.
 ./aos status-item validate --descriptor ./status-item.json --json
 ./aos status-item register --descriptor ./status-item.json --json --follow
 ./aos status-item update --descriptor ./status-item-v4.json \
-  --owner io.example.app --item companion \
+  --owner io.example.app --item status \
   --generation 1 --current-revision 3 --json
-./aos status-item inspect --owner io.example.app --item companion \
+./aos status-item inspect --owner io.example.app --item status \
   --generation 1 --descriptor-revision 4 --json
-./aos status-item invoke --owner io.example.app --item companion \
-  --action summon --generation 1 --descriptor-revision 4 --dry-run --json
-./aos status-item invoke --owner io.example.app --item companion \
-  --action summon --generation 1 --descriptor-revision 4 --json
+./aos status-item invoke --owner io.example.app --item status \
+  --action activate --generation 1 --descriptor-revision 4 \
+  --action-sequence 1 --dry-run --json
+./aos status-item invoke --owner io.example.app --item status \
+  --action activate --generation 1 --descriptor-revision 4 \
+  --action-sequence 1 --json
 ```
 
 Keep `register --follow` alive as the lease owner and event stream. Its first
 line is the registration result and the initial `ready` event follows. Use its
 exact identity from separate update/inspect/invoke processes. Update requires
 the live generation/current revision and a strictly newer descriptor; use the
-returned revision afterward. Stale values fail closed. End the follow process
-to clean up the lease; there is no separate subscribe or cleanup command. Do
-not scrape AX menu extras or click coordinates when a hosted AOS status item
-exposes semantic identity.
+returned revision afterward. Inspect also returns the current action sequence.
+Dry-run reports it without consuming it; effectful invoke consumes it before
+delivery. Descriptor updates preserve the sequence, while a new generation
+resets it. Stale values fail closed. End the follow process to clean up the
+lease; there is no separate subscribe or cleanup command. Do not scrape AX menu
+extras or click coordinates when a hosted AOS status item exposes semantic
+identity.
 
 Events are limited to initial `ready`, observed `bounds_changed` and
 `topology_changed`, primary/secondary activation, and native menu selection.
-Every event carries the current AOS-derived anchor and bounds. The fallback
-icon is slot/AX continuity, not the consumer's final visual; status visual
-projection and a rich status palette/popover are separate dependent slices.
+Every event carries the current AOS-derived anchor and bounds. Action events
+also carry the admitted sequence; use generation plus action sequence for
+replay detection. The fallback icon is slot/AX continuity, not the consumer's
+final visual; status visual projection and a rich status palette/popover are
+separate dependent slices.
 
 ## Boundaries
 

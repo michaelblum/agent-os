@@ -25,25 +25,41 @@
         "error": { "type": "string" },
         "code": {
           "type": "string",
-          "anyOf": [
-            {
-              "enum": [
-                "MISSING_ARG",
-                "INVALID_ARG",
-                "UNKNOWN_ACTION",
-                "UNKNOWN_SERVICE",
-                "PARSE_ERROR",
-                "SESSION_NOT_FOUND",
-                "MISSING_SESSION_ID",
-                "VOICE_NOT_FOUND",
-                "VOICE_NOT_SPEAKABLE",
-                "VOICE_NOT_ALLOCATABLE",
-                "CANVAS_NOT_FOUND",
-                "PERMISSION_DENIED",
-                "INTERNAL"
-              ]
-            },
-            { "pattern": "^(?:INVALID_)?STATUS_ITEM_[A-Z0-9_]+$" }
+          "enum": [
+            "MISSING_ARG",
+            "INVALID_ARG",
+            "UNKNOWN_ACTION",
+            "UNKNOWN_SERVICE",
+            "PARSE_ERROR",
+            "SESSION_NOT_FOUND",
+            "MISSING_SESSION_ID",
+            "VOICE_NOT_FOUND",
+            "VOICE_NOT_SPEAKABLE",
+            "VOICE_NOT_ALLOCATABLE",
+            "CANVAS_NOT_FOUND",
+            "PERMISSION_DENIED",
+            "INTERNAL",
+            "INVALID_STATUS_ITEM_DESCRIPTOR",
+            "INVALID_STATUS_ITEM_INSPECT",
+            "INVALID_STATUS_ITEM_INVOKE",
+            "INVALID_STATUS_ITEM_MENU",
+            "INVALID_STATUS_ITEM_SCHEMA",
+            "INVALID_STATUS_ITEM_UPDATE",
+            "STATUS_ITEM_ACTION_DISABLED",
+            "STATUS_ITEM_ACTION_NOT_FOUND",
+            "STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED",
+            "STATUS_ITEM_ANCHOR_UNAVAILABLE",
+            "STATUS_ITEM_EVENT_UNAVAILABLE",
+            "STATUS_ITEM_IDENTITY_MISMATCH",
+            "STATUS_ITEM_LEASE_BUSY",
+            "STATUS_ITEM_NOT_FOUND",
+            "STATUS_ITEM_REVISION_CONFLICT",
+            "STATUS_ITEM_REVISION_NOT_ADVANCED",
+            "STATUS_ITEM_STALE_ACTION_SEQUENCE",
+            "STATUS_ITEM_STALE_GENERATION",
+            "STATUS_ITEM_STALE_REVISION",
+            "STATUS_ITEM_UNAVAILABLE",
+            "STATUS_ITEM_UPDATE_REQUIRED"
           ]
         },
         "ref": { "type": "string" }

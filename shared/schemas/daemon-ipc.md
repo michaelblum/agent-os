@@ -23,7 +23,35 @@ Success response:
 
 Validated no-side-effect response:
 ```json
-{"v":1,"status":"dry_run","data":{"owner":"io.example.app","item_id":"companion","action_id":"summon"},"ref":"r-43"}
+{
+  "v": 1,
+  "status": "dry_run",
+  "data": {
+    "owner": "io.example.app",
+    "item_id": "tool",
+    "action_id": "activate",
+    "generation": 7,
+    "descriptor_revision": 3,
+    "action_sequence": 1,
+    "event_type": "primary_activation",
+    "bounds": { "x": 1, "y": 2, "width": 24, "height": 24, "origin_x": 13, "origin_y": 14, "display_id": 1 },
+    "anchor": {
+      "schema_version": "aos.status_item.anchor.v1",
+      "anchor_id": "native-status-item/io.example.app/tool",
+      "host": "native_status_item",
+      "coordinate_space": "global_display_top_left",
+      "visible": true,
+      "bounds": { "x": 1, "y": 2, "width": 24, "height": 24, "origin_x": 13, "origin_y": 14, "display_id": 1 },
+      "display": {
+        "id": 1,
+        "frame": { "x": 0, "y": 0, "width": 1920, "height": 1080, "origin_x": 960, "origin_y": 540 },
+        "visible_frame": { "x": 0, "y": 24, "width": 1920, "height": 1056, "origin_x": 960, "origin_y": 552 }
+      },
+      "topology": { "display_count": 1, "display_ids": [1], "truncated": false }
+    }
+  },
+  "ref": "r-43"
+}
 ```
 
 Error response:
@@ -60,8 +88,8 @@ Error response:
 | `status_item.register` | Acquire a connection-scoped native status-item lease. | `descriptor` (`aos.status_item.descriptor.v1`). |
 | `status_item.update` | Compare-and-swap a lease descriptor. | `owner`, `item_id`, `generation`, `current_revision`, `descriptor`. |
 | `status_item.inspect` | Inspect an exact lease generation and descriptor revision. | `owner`, `item_id`, `generation`, `descriptor_revision`. |
-| `status_item.invoke` | Invoke a declared status-item action. | `owner`, `item_id`, `action_id`, `generation`, `descriptor_revision`. |
-| `status_item.invoke_dry_run` | Validate an invocation without activating it. | Same as `status_item.invoke`; returns a `dry_run` response envelope. |
+| `status_item.invoke` | Atomically admit and invoke a declared status-item action. | `owner`, `item_id`, `action_id`, `generation`, `descriptor_revision`, `action_sequence`. |
+| `status_item.invoke_dry_run` | Validate an invocation without reserving its action sequence. | Same as `status_item.invoke`; returns a `dry_run` response envelope. |
 | `system.ping` | Daemon health, identity, and uptime. | (none) |
 | `focus.list` | List focus channels. | (none) |
 | `focus.create` | Create a focus channel. | `id`, `window_id`. |
@@ -72,6 +100,15 @@ Error response:
 | `graph.deepen` | Expand a graph node. | `id`. |
 | `graph.collapse` | Collapse a graph node. | `id`. |
 | `content.status` | Query content server status (port + roots). | (none) |
+
+Status-item invoke data is validated from the original envelope `data` object
+at the typed request boundary, before generic envelope shaping or action
+admission. The field set is closed; caller-supplied `action`, `__envelope_ref`,
+and `__envelope_active` are rejected. The shared IPC parser uses
+`JSONSerialization` and materializes each JSON object as a dictionary before
+that boundary; duplicate raw keys are therefore not independently detectable
+or rejected there. This contract enforces the resulting typed key set, not raw
+duplicate-key occurrence.
 
 ## Error Codes
 
@@ -91,7 +128,27 @@ Error response:
 | `PERMISSION_DENIED` | macOS permission (Accessibility, Screen Recording) missing. |
 | `INPUT_TAP_NOT_ACTIVE` | Daemon is reachable but its global input tap is not active. Emitted by `do`-family preflight when the daemon's `system.ping` reports `input_tap.status != "active"`, and surfaced as `reason` in service install/start/restart responses when the tap-inactive branch is hit. |
 | `INTERNAL` | Unexpected daemon error. |
-| `STATUS_ITEM_*`, `INVALID_STATUS_ITEM_*` | Typed native status-item lease, descriptor, revision, anchor, or protocol failure. |
+| `INVALID_STATUS_ITEM_DESCRIPTOR` | Descriptor data is missing or malformed. |
+| `INVALID_STATUS_ITEM_INSPECT` | Inspect identity is missing or malformed. |
+| `INVALID_STATUS_ITEM_INVOKE` | Invoke data is missing, malformed, or contains an unsupported field. |
+| `INVALID_STATUS_ITEM_MENU` | Descriptor menu data is malformed. |
+| `INVALID_STATUS_ITEM_SCHEMA` | Descriptor schema version is unsupported. |
+| `INVALID_STATUS_ITEM_UPDATE` | Update identity or descriptor data is missing or malformed. |
+| `STATUS_ITEM_NOT_FOUND` | Requested status-item lease identity was not found. |
+| `STATUS_ITEM_UNAVAILABLE` | The native status-item lease is unavailable. |
+| `STATUS_ITEM_LEASE_BUSY` | Another connection owns the native status-item lease. |
+| `STATUS_ITEM_UPDATE_REQUIRED` | A live lease must advance through the update operation. |
+| `STATUS_ITEM_IDENTITY_MISMATCH` | Descriptor owner or item differs from the requested lease. |
+| `STATUS_ITEM_REVISION_CONFLICT` | One descriptor revision names conflicting content. |
+| `STATUS_ITEM_REVISION_NOT_ADVANCED` | An update descriptor did not advance the current revision. |
+| `STATUS_ITEM_STALE_GENERATION` | Requested status-item lease generation is no longer active. |
+| `STATUS_ITEM_STALE_REVISION` | Requested descriptor revision is no longer active within the lease generation. |
+| `STATUS_ITEM_STALE_ACTION_SEQUENCE` | Requested action admission was already consumed or is not the current sequence. |
+| `STATUS_ITEM_ACTION_NOT_FOUND` | Requested action is not declared by the active descriptor. |
+| `STATUS_ITEM_ACTION_DISABLED` | Requested menu action is currently disabled. |
+| `STATUS_ITEM_ANCHOR_UNAVAILABLE` | The native status-item anchor could not be derived. |
+| `STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED` | The active lease generation cannot allocate another action sequence. |
+| `STATUS_ITEM_EVENT_UNAVAILABLE` | Action admission was consumed, but event delivery failed; callers must not retry the consumed sequence. |
 
 ## Voice Payload Shapes
 

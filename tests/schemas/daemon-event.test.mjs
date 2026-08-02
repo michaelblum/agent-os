@@ -216,15 +216,15 @@ test('descriptor, event, and anchor identifier schemas reject dot-dot sequences'
   const descriptor = {
     schema_version: 'aos.status_item.descriptor.v1',
     owner: 'io..example',
-    item_id: 'companion',
+    item_id: 'tool',
     revision: 1,
-    label: 'Companion',
-    primary_action_id: 'summon',
+    label: 'Tool',
+    primary_action_id: 'activate',
   };
   const event = structuredClone(envelope.data);
-  event.item_id = 'companion..menu';
+  event.item_id = 'tool..menu';
   const anchor = structuredClone(envelope.data.anchor);
-  anchor.anchor_id = 'native-status-item/io..example/companion';
+  anchor.anchor_id = 'native-status-item/io..example/tool';
 
   for (const [targetSchemaPath, value] of [
     [descriptorSchemaPath, descriptor],

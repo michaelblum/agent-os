@@ -100,9 +100,10 @@ the action loop handoff before reusing refs from the same surface.
 Owner-scoped AOS status-item leases use the same preview-then-act shape.
 Register a descriptor with `aos status-item register`, compare-and-swap newer
 descriptor revisions with `aos status-item update`, inspect the lease, then
-dry-run and invoke a semantic action with `aos status-item invoke`. This covers
-only AOS-hosted status-item leases; it is not a third-party macOS menu-extra
-scraper.
+dry-run and invoke a semantic action with `aos status-item invoke`, supplying
+the current action sequence reported by inspect. Dry-run does not consume the
+sequence; effectful invocation atomically reserves it. This covers only
+AOS-hosted status-item leases; it is not a third-party macOS menu-extra scraper.
 
 ## Lightweight Verification
 
@@ -223,7 +224,7 @@ apps cannot safely reconstruct from the current JSON surfaces.
 | Capture and perception | Screenshots, window/region/canvas/channel capture, xray, labels, saved refs | `see capture`, `see capture --save`, `see snapshots`, `see refs` |
 | Saved workspace | Snapshot/ref storage, ref lookup, diffs, expectations, cleanup | `see workspaces`, `see workspace`, `see refs --diff --expect`, workspace prune/delete |
 | Desktop/native control | App activate/quit/hide/unhide, window raise/move/resize/close/minimize/maximize/restore, app menu invocation, explicit Apple Shortcut execution, and native AX press/focus/set-value | `do activate`, `do quit`, `do hide`, `do unhide`, `do raise`, `do move`, `do resize`, `do close`, `do minimize`, `do maximize`, `do restore`, `do menu`, `do press`, `do focus`, `do set-value`, `shortcut run` |
-| AOS-hosted status-item leases | Product-neutral native descriptor, observed anchor/events, exact compare-and-swap update/inspect/invoke, and disconnect cleanup | `status-item validate/register --follow/update/inspect/invoke` |
+| AOS-hosted status-item leases | Product-neutral native descriptor, observed anchor/events, exact compare-and-swap update, generation-scoped action admission, inspect/invoke, and disconnect cleanup | `status-item validate/register --follow/update/inspect/invoke` |
 | Pointer and keyboard | Mouse, keyboard, scrolling, dragging, text, browser ref actions | `do click`, `do hover`, `do drag`, `do scroll`, `do type`, `do key`, `do fill`, `do navigate` |
 | Canvas and vision | Canvas refs, regions, coordinates, labels, xray, visual proof | `see capture --canvas`, `see capture --region`, `see capture --xray --label`, `do click canvas:...`, coordinate actions |
 | Browser companion | AOS browser refs plus upstream Playwright CLI escape hatch | `focus create --target browser://...`, `see capture browser:<session> --save`, `do ... browser/ref`, `skills companion check --name playwright-cli` |
@@ -281,7 +282,7 @@ Status values:
 | Window minimize | first-class command | `aos do minimize --pid <pid> --window <id> --dry-run` before `aos do minimize --pid <pid> --window <id>` | native AX minimized state | Yes | Accessibility | Requires exact window id and readback confirmation | Keep |
 | Window maximize/restore | first-class command | `aos do maximize --pid <pid> --window <id> --dry-run` / `aos do restore --pid <pid> --window <id> --dry-run` before action | native AX frame/minimized state | Yes | Accessibility | Maximize stores previous frame under AOS state; restore fails closed without saved frame unless unminimizing | Keep |
 | Menu-item invocation | first-class command | `aos do menu --pid <pid> --path File,Save --dry-run` before action | native AX menu path traversal | Yes | Accessibility | Requires exact pid, unique menu path, enabled leaf, and AXPress support | Keep |
-| AOS-hosted status-item lease invocation | first-class command | Keep register-follow alive; use exact owner/item/generation/current revision for `aos status-item update`, then inspect and invoke with the returned revision, using `--dry-run` before live invoke | owner-scoped native status-item host lease | Yes | Runtime readiness for live post | Register-follow owns lifetime/events; update is compare-and-swap; invokes only actions declared by that exact active lease; not arbitrary third-party macOS menu extras | Keep |
+| AOS-hosted status-item lease invocation | first-class command | Keep register-follow alive; use exact owner/item/generation/current revision for `aos status-item update`, then inspect and invoke with the returned revision and action sequence, using `--dry-run` before live invoke | owner-scoped native status-item host lease | Yes | Runtime readiness for live post | Register-follow owns lifetime/events; update preserves the action sequence; effectful invoke atomically consumes it before delivery; native clicks share the allocator; new generations reset it; not arbitrary third-party macOS menu extras | Keep |
 | Window fullscreen | deferred follow-up | none | likely native/AX/key | No | Accessibility | Space transitions are risky | Add only with Space proof |
 | Space detection | unsupported | none | macOS Space state unavailable in public AOS command | No | Accessibility/Screen Recording likely | Current Space identity is not stable public evidence | Design primitive first |
 | Space switching | deferred follow-up | none | key/native Mission Control likely | No | Accessibility/Input Monitoring | Mutates global desktop context | Approval-gated design only |

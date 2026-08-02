@@ -6,8 +6,11 @@ import { randomUUID } from 'node:crypto'
 import { connectWithAutoStart, stopManagedDaemon } from './lib/aos-daemon-client.mjs'
 import { createStatusItemOutputWriter } from './lib/status-item-output-writer.mjs'
 import {
+  STATUS_ITEM_INVOKE_ERROR_CODES,
   normalizeStatusItemDescriptor,
   normalizeStatusItemEvent,
+  normalizeStatusItemInvokeRequest,
+  normalizeStatusItemInvocationResult,
   normalizeStatusItemUpdateRequest,
 } from '../packages/toolkit/status-item/index.js'
 
@@ -25,13 +28,18 @@ function emit(value) {
   process.stdout.write(`${JSON.stringify(value)}\n`)
 }
 
-function canonicalResponse(payload, makeError) {
+function canonicalResponse(payload, makeError, contract = null) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload) || payload.v !== 1) {
     throw makeError('STATUS_ITEM_DAEMON_PROTOCOL_ERROR', 'status item daemon response envelope is malformed')
   }
   if (payload.status === 'error') {
-    if (typeof payload.code !== 'string' || typeof payload.error !== 'string') {
+    if (typeof payload.code !== 'string'
+        || typeof payload.error !== 'string'
+        || (contract && Object.keys(payload).sort().join(',') !== 'code,error,ref,status,v')) {
       throw makeError('STATUS_ITEM_DAEMON_PROTOCOL_ERROR', 'status item daemon error envelope is malformed')
+    }
+    if (contract && !contract.errorCodes.has(payload.code)) {
+      throw makeError('STATUS_ITEM_DAEMON_PROTOCOL_ERROR', 'status item daemon returned an unknown invoke error code')
     }
     throw makeError(payload.code, payload.error)
   }
@@ -39,10 +47,22 @@ function canonicalResponse(payload, makeError) {
       || !payload.data
       || typeof payload.data !== 'object'
       || Array.isArray(payload.data)
-      || Object.prototype.hasOwnProperty.call(payload.data, 'status')) {
+      || Object.prototype.hasOwnProperty.call(payload.data, 'status')
+      || (contract && Object.keys(payload).sort().join(',') !== 'data,ref,status,v')) {
     throw makeError('STATUS_ITEM_DAEMON_PROTOCOL_ERROR', 'status item daemon success envelope is malformed')
   }
-  return { ...payload.data, status: payload.status === 'success' ? 'ok' : payload.status }
+  const result = { ...payload.data, status: payload.status === 'success' ? 'ok' : payload.status }
+  if (!contract) return result
+  try {
+    const normalized = normalizeStatusItemInvocationResult(result)
+    if (normalized.status !== contract.expectedStatus) throw new Error('invoke response status does not match the request')
+    for (const key of ['owner', 'item_id', 'action_id', 'generation', 'descriptor_revision', 'action_sequence']) {
+      if (normalized[key] !== contract.expectedResult[key]) throw new Error('invoke response identity does not match the request')
+    }
+    return normalized
+  } catch {
+    throw makeError('STATUS_ITEM_DAEMON_PROTOCOL_ERROR', 'status item daemon invocation result is malformed')
+  }
 }
 
 function safeError(error) {
@@ -74,13 +94,14 @@ function assertOnlyArgs(args, valueFlags, boolFlags = new Set()) {
   }
 }
 
-function parseIdentity(args, { actionRequired = false, revisionRequired = false } = {}) {
+function parseIdentity(args, { actionRequired = false, revisionRequired = false, actionSequenceRequired = false } = {}) {
   const owner = valueAfter(args, '--owner')
   const item = valueAfter(args, '--item')
   const identity = { owner, item_id: item }
   if (actionRequired) identity.action_id = valueAfter(args, '--action')
   if (args.includes('--generation')) identity.generation = Number(valueAfter(args, '--generation'))
   if (args.includes('--descriptor-revision')) identity.descriptor_revision = Number(valueAfter(args, '--descriptor-revision'))
+  if (args.includes('--action-sequence')) identity.action_sequence = Number(valueAfter(args, '--action-sequence'))
   if (revisionRequired && (
     !Number.isSafeInteger(identity.generation)
     || identity.generation < 1
@@ -88,6 +109,9 @@ function parseIdentity(args, { actionRequired = false, revisionRequired = false 
     || identity.descriptor_revision < 0
   )) {
     fail('MISSING_ARG', '--generation and --descriptor-revision are required')
+  }
+  if (actionSequenceRequired && (!Number.isSafeInteger(identity.action_sequence) || identity.action_sequence < 1)) {
+    fail('MISSING_ARG', '--action-sequence must be a positive safe integer')
   }
   return identity
 }
@@ -128,8 +152,8 @@ function parseArgs(argv) {
     return { command, ...parseIdentity(args, { revisionRequired: true }) }
   }
   if (command === 'invoke') {
-    assertOnlyArgs(args, new Set(['--owner', '--item', '--action', '--generation', '--descriptor-revision']), new Set(['--dry-run']))
-    return { command, dryRun: args.includes('--dry-run'), ...parseIdentity(args, { actionRequired: true, revisionRequired: true }) }
+    assertOnlyArgs(args, new Set(['--owner', '--item', '--action', '--generation', '--descriptor-revision', '--action-sequence']), new Set(['--dry-run']))
+    return { command, dryRun: args.includes('--dry-run'), ...parseIdentity(args, { actionRequired: true, revisionRequired: true, actionSequenceRequired: true }) }
   }
   fail('UNKNOWN_SUBCOMMAND', 'Usage: aos status-item <validate|register|update|inspect|invoke> --json')
 }
@@ -232,7 +256,7 @@ async function withDaemon(callback, onEvent = () => {}, { allowStart = true, sig
     pending.delete(payload.ref)
     clearTimeout(pendingRequest.timer)
     try {
-      pendingRequest.resolve(canonicalResponse(payload, makeError))
+      pendingRequest.resolve(canonicalResponse(payload, makeError, pendingRequest.contract))
     } catch (error) {
       pendingRequest.reject(error)
     }
@@ -260,7 +284,7 @@ async function withDaemon(callback, onEvent = () => {}, { allowStart = true, sig
     }
     closeResolve(terminalError)
   })
-  async function request(action, data = {}) {
+  async function request(action, data = {}, contract = null) {
     if (closed) fail('STATUS_ITEM_DAEMON_CLOSED', 'status item daemon connection closed')
     const ref = randomUUID()
     const response = new Promise((resolve, reject) => {
@@ -268,7 +292,7 @@ async function withDaemon(callback, onEvent = () => {}, { allowStart = true, sig
         pending.delete(ref)
         reject(makeError('STATUS_ITEM_DAEMON_TIMEOUT', 'status item daemon request timed out'))
       }, DEFAULT_TIMEOUT_MS)
-      pending.set(ref, { resolve, reject, timer })
+      pending.set(ref, { resolve, reject, timer, contract })
     })
     socket.write(`${JSON.stringify({ v: 1, service: 'status_item', action, data, ref })}\n`)
     return response
@@ -366,12 +390,18 @@ async function main() {
   if (args.command === 'invoke') {
     await withDaemon(async ({ request }) => {
       const action = args.dryRun ? 'invoke_dry_run' : 'invoke'
-      emit(await request(action, {
+      const invocation = normalizeStatusItemInvokeRequest({
         owner: args.owner,
         item_id: args.item_id,
         action_id: args.action_id,
         generation: args.generation,
         descriptor_revision: args.descriptor_revision,
+        action_sequence: args.action_sequence,
+      })
+      emit(await request(action, invocation, {
+        errorCodes: new Set(STATUS_ITEM_INVOKE_ERROR_CODES),
+        expectedResult: invocation,
+        expectedStatus: args.dryRun ? 'dry_run' : 'ok',
       }))
     }, undefined, { allowStart: false })
     return
