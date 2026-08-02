@@ -131,6 +131,7 @@ export default function RenderPerformance(options = {}) {
   let targetFps = Number.isFinite(options.targetFps) ? options.targetFps : 60;
   let desktopWorldSequence = -1;
   const sources = new Map();
+  const desktopWorldSources = new Set();
   const events = [];
   const bootAt = wallTime();
 
@@ -295,7 +296,15 @@ export default function RenderPerformance(options = {}) {
         const projection = projectDesktopWorldDevToolsPerformance(payload);
         if (projection.sequence <= desktopWorldSequence) return;
         desktopWorldSequence = projection.sequence;
-        appendSample(projection.sample, projection.sample.source);
+        const nextSources = new Set(projection.displays.map((display) => display.sample.source));
+        for (const source of desktopWorldSources) {
+          if (!nextSources.has(source)) sources.delete(source);
+        }
+        desktopWorldSources.clear();
+        for (const display of projection.displays) {
+          desktopWorldSources.add(display.sample.source);
+          appendSample(display.sample, display.sample.source);
+        }
         renderState();
         return;
       }
@@ -321,6 +330,7 @@ export default function RenderPerformance(options = {}) {
       }
       if (msg.type === 'reset') {
         sources.clear();
+        desktopWorldSources.clear();
         events.length = 0;
         desktopWorldSequence = -1;
         renderState();

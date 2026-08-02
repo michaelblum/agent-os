@@ -145,6 +145,9 @@ stage internals.
   the public view but never own or fork its telemetry. Each display segment
   reports its own render performance; the daemon publishes a topology-complete
   per-display set and does not sum rates, timings, DPR, or backing dimensions.
+  A segment sample window is bound to its exact canvas generation, topology
+  generation, display ID, and display index and resets synchronously whenever
+  any member of that identity changes.
 - Native-effect DevTools facts are content-free lifecycle state and bounded
   counters only. Presentation means every display segment reported an actual
   Metal drawable presentation; attempts to present are not counted as visible

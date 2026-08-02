@@ -36,7 +36,7 @@ final class AOSDesktopWorldDevToolsController {
     }
 
     @discardableResult
-    func handleStageSnapshot(_ payload: [String: Any]) -> Bool {
+    func handleStageSnapshot(_ payload: [String: Any]) -> AOSDesktopWorldDevToolsStageCommitResult {
         guard let topology = canvasManager.desktopWorldSceneBarrierTopology(
                   canvasID: sceneStageCanvasID
               ),
@@ -49,20 +49,21 @@ final class AOSDesktopWorldDevToolsController {
               topology.segments.contains(where: {
                   $0.displayID == displayID && $0.index == segmentIndex
               }),
-              let snapshot = payload["snapshot"] as? [String: Any],
-              sessions.recordStageSnapshot(
-                snapshot,
-                requestID: payload["request_id"] as? String,
-                segment: AOSDesktopWorldDevToolsStageSegmentIdentity(
-                    canvasGeneration: canvasGeneration,
-                    topologyGeneration: topologyGeneration,
-                    displayID: displayID,
-                    index: segmentIndex,
-                    expectedIndexes: Set(topology.segments.map(\.index))
-                )
-              ) else { return false }
+              let snapshot = payload["snapshot"] as? [String: Any] else { return .rejected }
+        let result = sessions.recordStageSnapshot(
+            snapshot,
+            requestID: payload["request_id"] as? String,
+            segment: AOSDesktopWorldDevToolsStageSegmentIdentity(
+                canvasGeneration: canvasGeneration,
+                topologyGeneration: topologyGeneration,
+                displayID: displayID,
+                index: segmentIndex,
+                expectedIndexes: Set(topology.segments.map(\.index))
+            )
+        )
+        guard result == .committed else { return result }
         publishSnapshots()
-        return true
+        return .committed
     }
 
     func publishSnapshots(hostID: String? = nil) {

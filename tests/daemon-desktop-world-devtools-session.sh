@@ -8,6 +8,101 @@ trap 'rm -rf "$TMP"' EXIT
 cat >"$TMP/main.swift" <<'SWIFT'
 import Foundation
 
+struct DesktopWorldSurfaceSegment {
+    let displayID: UInt32
+    let index: Int
+}
+
+struct DesktopWorldSceneBarrierTopology {
+    let canvasGeneration: UInt64
+    let generation: UInt64
+    let segments: [DesktopWorldSurfaceSegment]
+}
+
+struct CanvasOwnerInfo {
+    let consumerID: String
+    let harness: String
+    let pid: Int
+    let cwd: String
+    let worktreeRoot: String?
+    let runtimeMode: String
+}
+
+struct CanvasRequest {
+    let action: String
+    var id: String?
+    var at: [CGFloat]?
+    var url: String?
+    var interactive: Bool?
+    var windowLevel: String?
+    var focus: Bool?
+    var scope: String?
+    var cascade: Bool?
+    var owner: CanvasOwnerInfo?
+
+    init(
+        action: String,
+        id: String? = nil,
+        at: [CGFloat]? = nil,
+        url: String? = nil,
+        interactive: Bool? = nil,
+        focus: Bool? = nil,
+        scope: String? = nil,
+        owner: CanvasOwnerInfo? = nil
+    ) {
+        self.action = action
+        self.id = id
+        self.at = at
+        self.url = url
+        self.interactive = interactive
+        self.focus = focus
+        self.scope = scope
+        self.owner = owner
+    }
+}
+
+struct CanvasResponse {
+    let status: String?
+}
+
+enum FakeRuntimeMode: String {
+    case repo
+}
+
+func aosRepoRootFromBases(_ bases: [String]) -> String? { bases.first }
+func aosCurrentRuntimeMode() -> FakeRuntimeMode { .repo }
+
+final class CanvasManager {
+    var canvasIDs: Set<String> = []
+    var posts: [[String: Any]] = []
+    var topology = DesktopWorldSceneBarrierTopology(
+        canvasGeneration: 3,
+        generation: 4,
+        segments: [
+            DesktopWorldSurfaceSegment(displayID: 100, index: 0),
+            DesktopWorldSurfaceSegment(displayID: 101, index: 1),
+        ]
+    )
+
+    func desktopWorldSceneBarrierTopology(canvasID: String) -> DesktopWorldSceneBarrierTopology? {
+        canvasIDs.contains(canvasID) ? topology : nil
+    }
+
+    func postMessageToCurrentCanvasAsync(canvasID: String, payload: [String: Any]) {
+        posts.append(["canvasID": canvasID, "message": payload])
+    }
+
+    func hasCanvas(_ id: String) -> Bool { canvasIDs.contains(id) }
+
+    func handle(_ request: CanvasRequest) -> CanvasResponse {
+        if let id = request.id {
+            if request.action == "remove" { canvasIDs.remove(id) }
+            if request.action == "create" { canvasIDs.insert(id) }
+        }
+        return CanvasResponse(status: "success")
+    }
+}
+
 func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     if !condition() {
         FileHandle.standardError.write(Data("FAIL: \(message)\n".utf8))
@@ -170,11 +265,11 @@ let freshnessSession = created(freshnessRegistry.create(stageRequestID: freshnes
 let pendingFreshness = freshnessRegistry.snapshot(sessionID: freshnessSession.id)!
 let pendingFreshnessSession = pendingFreshness["session"] as! [String: Any]
 require(pendingFreshnessSession["stageSnapshotReady"] as? Bool == false, "headless session started fresh")
-require(!freshnessRegistry.recordStageSnapshot(
+require(freshnessRegistry.recordStageSnapshot(
     stageSnapshot(),
     requestID: "unrelated-request",
     segment: segmentIdentity(0)
-), "unknown request was accepted")
+) == .rejected, "unknown request was accepted")
 let unrelatedFreshness = freshnessRegistry.snapshot(sessionID: freshnessSession.id)!
 let unrelatedFreshnessSession = unrelatedFreshness["session"] as! [String: Any]
 require(unrelatedFreshnessSession["stageSnapshotReady"] as? Bool == false, "unrelated receipt satisfied headless freshness")
@@ -182,25 +277,25 @@ require(freshnessRegistry.recordStageSnapshot(
     stageSnapshot(),
     requestID: freshnessRequest,
     segment: segmentIdentity(0)
-), "primary correlated stage receipt failed")
+) == .pending, "primary correlated stage receipt did not remain pending")
 let missingSegmentFreshness = freshnessRegistry.snapshot(sessionID: freshnessSession.id)!
 let missingSegmentSession = missingSegmentFreshness["session"] as! [String: Any]
 require(missingSegmentSession["stageSnapshotReady"] as? Bool == false, "partial display receipt satisfied freshness")
-require(!freshnessRegistry.recordStageSnapshot(
-    stageSnapshot(),
-    requestID: freshnessRequest,
-    segment: segmentIdentity(0)
-), "duplicate display receipt was accepted")
 require(freshnessRegistry.recordStageSnapshot(
     stageSnapshot(),
     requestID: freshnessRequest,
     segment: segmentIdentity(0)
-), "replacement primary stage receipt failed")
+) == .rejected, "duplicate display receipt was accepted")
+require(freshnessRegistry.recordStageSnapshot(
+    stageSnapshot(),
+    requestID: freshnessRequest,
+    segment: segmentIdentity(0)
+) == .pending, "replacement primary stage receipt did not remain pending")
 require(freshnessRegistry.recordStageSnapshot(
     stageSnapshot(segmentIndex: 1),
     requestID: freshnessRequest,
     segment: segmentIdentity(1)
-), "secondary correlated stage receipt failed")
+) == .committed, "secondary correlated stage receipt did not commit")
 let completedFreshness = freshnessRegistry.snapshot(sessionID: freshnessSession.id)!
 let completedFreshnessSession = completedFreshness["session"] as! [String: Any]
 require(completedFreshnessSession["stageSnapshotReady"] as? Bool == true, "correlated receipt did not satisfy freshness")
@@ -212,12 +307,12 @@ require(freshnessRegistry.recordStageSnapshot(
     stageSnapshot(),
     requestID: topologyRequest,
     segment: segmentIdentity(0)
-), "pre-topology-change receipt failed")
-require(!freshnessRegistry.recordStageSnapshot(
+) == .pending, "pre-topology-change receipt did not remain pending")
+require(freshnessRegistry.recordStageSnapshot(
     stageSnapshot(segmentIndex: 1, topologyGeneration: 5),
     requestID: topologyRequest,
     segment: segmentIdentity(1, topologyGeneration: 5)
-), "topology change did not invalidate the partial receipt")
+) == .rejected, "topology change did not invalidate the partial receipt")
 let topologyPending = freshnessRegistry.snapshot(sessionID: topologySession.id)!
 let topologyPendingSession = topologyPending["session"] as! [String: Any]
 require(topologyPendingSession["stageSnapshotReady"] as? Bool == false, "stale topology receipt satisfied freshness")
@@ -288,7 +383,7 @@ default: fatalError("stale update was not rejected")
 var leaked = aggregateStageSnapshot()
 leaked["transcript"] = "secret"
 leaked["native"] = ["desktopFrameWarm": ["pixels": "secret"]]
-require(registry.recordStageSnapshot(leaked), "valid stage snapshot with unknown renderer field was rejected")
+require(registry.recordStageSnapshot(leaked) == .committed, "valid stage snapshot with unknown renderer field was rejected")
 nativeWarmState = AOSDesktopWorldDevToolsNativeStageFacts(
     displayCount: 1,
     errorCode: nil,
@@ -398,7 +493,7 @@ let selectedResources = selectedStage["resources"] as! [[String: Any]]
 require(selectedResources.count == 1 && selectedResources[0]["id"] as? String == "companion/main", "resource snapshot was not filtered")
 require(registry.stageSnapshot(resourceID: "missing/resource") == nil, "missing resource snapshot did not fail closed")
 
-require(registry.recordStageSnapshot(aggregateStageSnapshot()), "repeated stage sequence was rejected")
+require(registry.recordStageSnapshot(aggregateStageSnapshot()) == .committed, "repeated stage sequence was rejected")
 let repeatedSnapshot = registry.snapshot(sessionID: first.id)!
 require(repeatedSnapshot["stageSnapshotRevision"] as? Int == 2, "daemon receipt revision depended on stage-local sequence")
 
@@ -406,13 +501,13 @@ var oversized = aggregateStageSnapshot()
 var world = oversized["world"] as! [String: Any]
 world["nodes"] = Array(repeating: (world["nodes"] as! [[String: Any]])[0], count: 1_025)
 oversized["world"] = world
-require(!registry.recordStageSnapshot(oversized), "oversized stage snapshot was accepted")
+require(registry.recordStageSnapshot(oversized) == .rejected, "oversized stage snapshot was accepted")
 
 var oversizedError = aggregateStageSnapshot()
 var resources = oversizedError["resources"] as! [[String: Any]]
 resources[0]["errorCode"] = String(repeating: "x", count: 65)
 oversizedError["resources"] = resources
-require(!registry.recordStageSnapshot(oversizedError), "oversized resource error code was accepted")
+require(registry.recordStageSnapshot(oversizedError) == .rejected, "oversized resource error code was accepted")
 
 var invalidMetric = aggregateStageSnapshot()
 var displayPerformance = invalidMetric["displayPerformance"] as! [[String: Any]]
@@ -420,7 +515,7 @@ var performance = displayPerformance[0]["performance"] as! [String: Any]
 performance["avgFrameMs"] = -1.0
 displayPerformance[0]["performance"] = performance
 invalidMetric["displayPerformance"] = displayPerformance
-require(!registry.recordStageSnapshot(invalidMetric), "negative performance metric was accepted")
+require(registry.recordStageSnapshot(invalidMetric) == .rejected, "negative performance metric was accepted")
 
 var missingRequiredNull = aggregateStageSnapshot()
 displayPerformance = missingRequiredNull["displayPerformance"] as! [[String: Any]]
@@ -428,7 +523,7 @@ performance = displayPerformance[0]["performance"] as! [String: Any]
 performance.removeValue(forKey: "avgGpuMs")
 displayPerformance[0]["performance"] = performance
 missingRequiredNull["displayPerformance"] = displayPerformance
-require(!registry.recordStageSnapshot(missingRequiredNull), "missing required nullable metric was accepted")
+require(registry.recordStageSnapshot(missingRequiredNull) == .rejected, "missing required nullable metric was accepted")
 
 var invalidDpr = aggregateStageSnapshot()
 displayPerformance = invalidDpr["displayPerformance"] as! [[String: Any]]
@@ -436,7 +531,7 @@ performance = displayPerformance[0]["performance"] as! [String: Any]
 performance["requestedDevicePixelRatio"] = 5.0
 displayPerformance[0]["performance"] = performance
 invalidDpr["displayPerformance"] = displayPerformance
-require(!registry.recordStageSnapshot(invalidDpr), "oversized requested DPR was accepted")
+require(registry.recordStageSnapshot(invalidDpr) == .rejected, "oversized requested DPR was accepted")
 
 var invalidDisplayScale = aggregateStageSnapshot()
 world = invalidDisplayScale["world"] as! [String: Any]
@@ -444,7 +539,7 @@ var displays = world["displays"] as! [[String: Any]]
 displays[0]["scaleFactor"] = 0.0
 world["displays"] = displays
 invalidDisplayScale["world"] = world
-require(!registry.recordStageSnapshot(invalidDisplayScale), "zero display scale was accepted")
+require(registry.recordStageSnapshot(invalidDisplayScale) == .rejected, "zero display scale was accepted")
 
 switch registry.close(sessionID: first.id, expectedRevision: updated.revision) {
 case .success(let closed):
@@ -455,12 +550,76 @@ default: fatalError("session close failed")
 require(registry.snapshot(sessionID: first.id) == nil, "closed session remained visible")
 _ = registry.close(sessionID: second.id)
 require(!registry.instrumentationConfiguration().enabled, "closing the final session did not disable instrumentation")
+
+let fakeCanvas = CanvasManager()
+fakeCanvas.canvasIDs = ["aos-desktop-world-stage", "fake-devtools-host"]
+let controller = AOSDesktopWorldDevToolsController(
+    canvasManager: fakeCanvas,
+    sceneStageCanvasID: "aos-desktop-world-stage",
+    ensureSceneStage: { true },
+    hasSceneMonitor: { true },
+    resolveContentURL: { $0 }
+)
+let opened = controller.handleCommand(action: "scene-devtools-open", payload: [
+    "host": ["kind": "external", "id": "fake-devtools-host"],
+])
+require(opened["status"] as? String == "ok", "controller fake host did not open")
+
+var monitorPublications: [[String: Any]] = []
+func deliverControllerSnapshot(_ segmentIndex: Int, topologyGeneration: Int) -> AOSDesktopWorldDevToolsStageCommitResult {
+    let result = controller.handleStageSnapshot([
+        "canvas_generation": 3,
+        "topology_generation": topologyGeneration,
+        "segment_display_id": segmentIndex + 100,
+        "segment_index": segmentIndex,
+        "snapshot": stageSnapshot(segmentIndex: segmentIndex, topologyGeneration: topologyGeneration),
+    ])
+    if result == .committed {
+        monitorPublications.append(controller.stageSnapshot(resourceID: "companion/main")!)
+    }
+    return result
+}
+
+fakeCanvas.posts.removeAll()
+require(deliverControllerSnapshot(0, topologyGeneration: 4) == .pending, "seed receipt did not remain pending")
+require(deliverControllerSnapshot(1, topologyGeneration: 4) == .committed, "seed receipt did not commit")
+fakeCanvas.posts.removeAll()
+monitorPublications.removeAll()
+
+fakeCanvas.topology = DesktopWorldSceneBarrierTopology(
+    canvasGeneration: 3,
+    generation: 5,
+    segments: [
+        DesktopWorldSurfaceSegment(displayID: 100, index: 0),
+        DesktopWorldSurfaceSegment(displayID: 101, index: 1),
+    ]
+)
+require(deliverControllerSnapshot(0, topologyGeneration: 5) == .pending, "N+1 first receipt did not remain pending")
+let partialHostPublications = fakeCanvas.posts.filter { entry in
+    let message = entry["message"] as? [String: Any]
+    return message?["type"] as? String == "desktop_world_devtools.snapshot"
+}
+require(partialHostPublications.isEmpty, "N+1 partial receipt published to the host")
+require(monitorPublications.isEmpty, "N+1 partial receipt published to the monitor")
+
+require(deliverControllerSnapshot(1, topologyGeneration: 5) == .committed, "N+1 final receipt did not commit")
+let completeHostPublications = fakeCanvas.posts.filter { entry in
+    let message = entry["message"] as? [String: Any]
+    return message?["type"] as? String == "desktop_world_devtools.snapshot"
+}
+require(completeHostPublications.count == 1, "N+1 complete receipt did not publish exactly once to the host")
+require(monitorPublications.count == 1, "N+1 complete receipt did not publish exactly once to the monitor")
+let monitorPerformance = monitorPublications[0]["displayPerformance"] as! [[String: Any]]
+require(monitorPerformance.count == 2, "N+1 monitor publication was topology-incomplete")
+require(Set(monitorPerformance.compactMap { $0["displayIndex"] as? Int }) == [0, 1], "N+1 monitor publication lost display identity")
 print("PASS DesktopWorld DevTools daemon session")
 SWIFT
 
 CLANG_MODULE_CACHE_PATH="$TMP/cache" SWIFT_MODULECACHE_PATH="$TMP/cache" \
     swiftc \
       "$ROOT/src/daemon/desktop-world-devtools-native-stage-facts.swift" \
+      "$ROOT/src/daemon/desktop-world-devtools-stage.swift" \
       "$ROOT/src/daemon/desktop-world-devtools-session.swift" \
+      "$ROOT/src/daemon/desktop-world-devtools-controller.swift" \
       "$TMP/main.swift" -o "$TMP/test"
 "$TMP/test"

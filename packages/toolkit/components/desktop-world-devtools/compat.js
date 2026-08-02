@@ -8,26 +8,43 @@ function rectObject(frame) {
 
 export function projectDesktopWorldDevToolsPerformance(input, { now = Date.now() } = {}) {
   const snapshot = normalizeDesktopWorldDevToolsSnapshot(input);
-  const performance = snapshot.stage.displayPerformance.find((entry) => entry.displayIndex === 0)?.performance;
-  if (!performance) throw new TypeError('DesktopWorld primary stage-segment performance is unavailable');
+  const displayByIndex = new Map(snapshot.stage.world.displays.map((display) => [display.index, display]));
+  const displays = snapshot.stage.displayPerformance.map((entry) => {
+    const performance = entry.performance;
+    const display = displayByIndex.get(entry.displayIndex);
+    return Object.freeze({
+      displayId: entry.displayId,
+      displayIndex: entry.displayIndex,
+      scope: entry.scope,
+      sample: Object.freeze({
+        source: `desktop-world:${entry.displayIndex}:${entry.displayId}`,
+        ts: now,
+        fps: performance.currentFps,
+        frameMs: performance.currentFps ? 1000 / performance.currentFps : performance.avgFrameMs,
+        renderMs: performance.avgRenderMs,
+        updateMs: performance.avgUpdateMs,
+        gpuMs: performance.avgGpuMs,
+        drawCalls: performance.drawCalls,
+        triangles: performance.triangles,
+        geometries: performance.geometries,
+        textures: performance.textures,
+        programs: performance.programs,
+        backingPixels: performance.backingPixels,
+        backingWidth: performance.backingWidth,
+        backingHeight: performance.backingHeight,
+        effectiveDevicePixelRatio: performance.effectiveDevicePixelRatio,
+        requestedDevicePixelRatio: performance.requestedDevicePixelRatio,
+        displayScaleFactor: display?.scaleFactor ?? null,
+        displayId: entry.displayId,
+        displayIndex: entry.displayIndex,
+        label: `DesktopWorld display ${entry.displayId} (${entry.displayIndex})`,
+      }),
+    });
+  });
+  if (displays.length === 0) throw new TypeError('DesktopWorld stage-segment performance is unavailable');
   return Object.freeze({
     sequence: snapshot.stage.sequence,
-    sample: Object.freeze({
-      source: 'desktop-world',
-      ts: now,
-      fps: performance.currentFps,
-      frameMs: performance.currentFps ? 1000 / performance.currentFps : performance.avgFrameMs,
-      renderMs: performance.avgRenderMs,
-      updateMs: performance.avgUpdateMs,
-      gpuMs: performance.avgGpuMs,
-      drawCalls: performance.drawCalls,
-      triangles: performance.triangles,
-      geometries: performance.geometries,
-      textures: performance.textures,
-      programs: performance.programs,
-      backingPixels: performance.backingPixels,
-      label: 'DesktopWorld stage',
-    }),
+    displays: Object.freeze(displays),
   });
 }
 

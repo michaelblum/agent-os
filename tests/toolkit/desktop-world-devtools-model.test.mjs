@@ -575,3 +575,66 @@ test('DesktopWorld DevTools probe throttles idle samples and records bounded tel
   assert.equal(probe.dispose(), false);
   assert.equal(probe.sampleFrame({ frameMs: 16 }), false);
 });
+
+test('DesktopWorld DevTools probe rolls samples on exact display identity changes', () => {
+  let clock = 0;
+  let identity = {
+    canvasGeneration: 3,
+    topologyGeneration: 4,
+    displayId: 'left',
+    displayIndex: 0,
+  };
+  const facts = () => {
+    const value = stageSnapshot();
+    value.world = {
+      ...value.world,
+      displays: value.world.displays.map((display) => (
+        display.index === identity.displayIndex
+          ? { ...display, id: identity.displayId }
+          : display
+      )),
+    };
+    return value;
+  };
+  const probe = createDesktopWorldDevToolsStageProbe({
+    now: () => clock,
+    getStageFacts: facts,
+    getPerformanceDisplay: () => ({
+      displayId: identity.displayId,
+      displayIndex: identity.displayIndex,
+    }),
+    getStageIdentity: () => ({
+      canvasGeneration: identity.canvasGeneration,
+      topologyGeneration: identity.topologyGeneration,
+    }),
+  });
+
+  probe.configure({ enabled: true, recording: true });
+  probe.sampleFrame({ frameMs: 12, renderMs: 8, drawCalls: 9 });
+  assert.equal(probe.snapshot().displayPerformance[0].performance.sampleCount, 1);
+
+  identity = {
+    canvasGeneration: 3,
+    topologyGeneration: 5,
+    displayId: 'reassigned',
+    displayIndex: 0,
+  };
+  assert.equal(probe.recordEvent({ kind: 'topology.changed' }), true);
+  const rolled = probe.snapshot();
+  assert.equal(rolled.displayPerformance[0].displayId, 'reassigned');
+  assert.equal(rolled.displayPerformance[0].performance.sampleCount, 0);
+  assert.equal(rolled.displayPerformance[0].performance.currentFps, null);
+  assert.equal(rolled.displayPerformance[0].performance.avgFrameMs, null);
+  assert.equal(rolled.displayPerformance[0].performance.maxFrameMs, null);
+  assert.equal(rolled.displayPerformance[0].performance.drawCalls, null);
+
+  clock = 1;
+  probe.sampleFrame({ frameMs: 30, renderMs: 2, drawCalls: 2 });
+  const reassigned = probe.snapshot().displayPerformance[0];
+  assert.equal(reassigned.performance.sampleCount, 1);
+  assert.ok(Math.abs(reassigned.performance.currentFps - (1000 / 30)) < 0.001);
+  assert.equal(reassigned.performance.avgFrameMs, 30);
+  assert.equal(reassigned.performance.maxFrameMs, 30);
+  assert.equal(reassigned.performance.avgRenderMs, 2);
+  assert.equal(reassigned.performance.drawCalls, 2);
+});

@@ -781,6 +781,36 @@ export function createDesktopWorldDevToolsStageProbe({
   let eventSequence = 0
   let lastSampleAt = -Infinity
   let lastEmitAt = -Infinity
+  let sampleIdentity = null
+
+  function readSampleIdentity() {
+    const stage = getStageIdentity() ?? {}
+    const display = getPerformanceDisplay() ?? {}
+    const canvasGeneration = boundedInteger(stage.canvasGeneration, 0)
+    const topologyGeneration = boundedInteger(stage.topologyGeneration, 0)
+    const displayId = boundedString(display.displayId)
+    const displayIndex = boundedInteger(display.displayIndex, -1, -1, 31)
+    if (canvasGeneration < 1 || topologyGeneration < 1 || !displayId || displayIndex < 0) return null
+    return { canvasGeneration, topologyGeneration, displayId, displayIndex }
+  }
+
+  function sameSampleIdentity(left, right) {
+    return left?.canvasGeneration === right?.canvasGeneration
+      && left?.topologyGeneration === right?.topologyGeneration
+      && left?.displayId === right?.displayId
+      && left?.displayIndex === right?.displayIndex
+  }
+
+  function synchronizeSampleIdentity() {
+    const next = readSampleIdentity()
+    if (!sameSampleIdentity(sampleIdentity, next)) {
+      samples.length = 0
+      lastSampleAt = -Infinity
+      lastEmitAt = -Infinity
+      sampleIdentity = next
+    }
+    return next
+  }
 
   function configure(next = {}) {
     if (disposed) return false
@@ -791,12 +821,14 @@ export function createDesktopWorldDevToolsStageProbe({
       events.length = 0
       lastSampleAt = -Infinity
       lastEmitAt = -Infinity
+      sampleIdentity = null
     }
     return true
   }
 
   function recordEvent(value = {}) {
     if (!enabled || disposed) return false
+    synchronizeSampleIdentity()
     eventSequence += 1
     events.push(normalizeEvent({ ...value, sequence: eventSequence, at: finite(value.at, now()) }))
     while (events.length > DESKTOP_WORLD_DEVTOOLS_LIMITS.events) events.shift()
@@ -838,24 +870,26 @@ export function createDesktopWorldDevToolsStageProbe({
   }
 
   function snapshot(reason = 'snapshot') {
+    const identity = synchronizeSampleIdentity()
     const facts = getStageFacts() ?? {}
     const stagePerformance = performanceSnapshot()
-    const performanceDisplay = getPerformanceDisplay() ?? {}
-    const stageIdentity = getStageIdentity() ?? {}
-    const displayId = boundedString(performanceDisplay.displayId)
-    const displayIndex = boundedInteger(performanceDisplay.displayIndex, -1, -1, 31)
     sequence += 1
     return normalizeDesktopWorldDevToolsStageSnapshot({
       contract: DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID,
-      canvasGeneration: stageIdentity.canvasGeneration,
-      topologyGeneration: stageIdentity.topologyGeneration,
+      canvasGeneration: identity?.canvasGeneration,
+      topologyGeneration: identity?.topologyGeneration,
       sequence,
       status: facts.status ?? 'available',
       world: facts.world,
       resources: facts.resources,
       interactions: facts.interactions,
-      displayPerformance: displayId && displayIndex >= 0
-        ? [{ displayId, displayIndex, scope: 'stage-segment', performance: stagePerformance }]
+      displayPerformance: identity
+        ? [{
+            displayId: identity.displayId,
+            displayIndex: identity.displayIndex,
+            scope: 'stage-segment',
+            performance: stagePerformance,
+          }]
         : [],
       events,
       lastError: facts.lastError,
@@ -872,9 +906,10 @@ export function createDesktopWorldDevToolsStageProbe({
 
   function sampleFrame(value = {}) {
     if (!enabled || disposed) return false
+    const identity = synchronizeSampleIdentity()
     const at = finite(value.renderEndedAt, now())
     const sampleInterval = recording ? 0 : 500
-    if (at - lastSampleAt >= sampleInterval) {
+    if (identity && at - lastSampleAt >= sampleInterval) {
       appendRenderSample(samples, {
         ts: Date.now(),
         frameMs: finite(value.frameMs),
@@ -909,6 +944,7 @@ export function createDesktopWorldDevToolsStageProbe({
       disposed = true
       samples.length = 0
       events.length = 0
+      sampleIdentity = null
       return true
     },
     emitSnapshot,

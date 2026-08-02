@@ -114,19 +114,28 @@ function renderInteractions(snapshot) {
 }
 
 function renderPerformance(snapshot) {
-  const primary = snapshot.stage.displayPerformance.find((entry) => entry.displayIndex === 0)
-  if (!primary) return '<div class="dw-empty">Primary display performance is unavailable.</div>'
-  const p = primary.performance
-  const metrics = [
-    ['FPS', metric(p.currentFps)], ['Frame budget', `${metric(p.budgetMs)} ms`],
-    ['P95 frame', `${metric(p.p95FrameMs)} ms`], ['Max frame', `${metric(p.maxFrameMs)} ms`],
-    ['Avg frame', `${metric(p.avgFrameMs)} ms`], ['Render', `${metric(p.avgRenderMs)} ms`],
-    ['Update', `${metric(p.avgUpdateMs)} ms`], ['GPU', `${metric(p.avgGpuMs)} ms`],
-    ['Draw calls', metric(p.drawCalls, 0)], ['Triangles', metric(p.triangles, 0)],
-    ['Geometries', metric(p.geometries, 0)], ['Textures', metric(p.textures, 0)],
-    ['Programs', metric(p.programs, 0)], ['Backing pixels', metric(p.backingPixels, 0)],
-  ]
-  return `<div class="dw-performance"><header><strong class="dw-health ${esc(p.state)}">${esc(p.state)}</strong><span>${p.sampleCount} samples</span><span>${p.recording ? 'recording every frame' : '500 ms sampling'}</span></header><dl>${metrics.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}</dl></div>`
+  if (snapshot.stage.displayPerformance.length === 0) {
+    return '<div class="dw-empty">Display performance is unavailable.</div>'
+  }
+  const displayByIndex = new Map(snapshot.stage.world.displays.map((display) => [display.index, display]))
+  return snapshot.stage.displayPerformance.map((entry) => {
+    const p = entry.performance
+    const display = displayByIndex.get(entry.displayIndex)
+    const metrics = [
+      ['FPS', metric(p.currentFps)], ['Frame budget', `${metric(p.budgetMs)} ms`],
+      ['P95 frame', `${metric(p.p95FrameMs)} ms`], ['Max frame', `${metric(p.maxFrameMs)} ms`],
+      ['Avg frame', `${metric(p.avgFrameMs)} ms`], ['Render', `${metric(p.avgRenderMs)} ms`],
+      ['Update', `${metric(p.avgUpdateMs)} ms`], ['GPU', `${metric(p.avgGpuMs)} ms`],
+      ['Draw calls', metric(p.drawCalls, 0)], ['Triangles', metric(p.triangles, 0)],
+      ['Geometries', metric(p.geometries, 0)], ['Textures', metric(p.textures, 0)],
+      ['Programs', metric(p.programs, 0)], ['Backing pixels', metric(p.backingPixels, 0)],
+      ['Backing dimensions', `${metric(p.backingWidth, 0)} x ${metric(p.backingHeight, 0)}`],
+      ['Requested DPR', metric(p.requestedDevicePixelRatio, 2)],
+      ['Effective DPR', metric(p.effectiveDevicePixelRatio, 2)],
+      ['Display scale', metric(display?.scaleFactor, 2)],
+    ]
+    return `<section class="dw-performance" data-display-index="${entry.displayIndex}"><header><strong>${esc(entry.displayId)}</strong><span>display ${entry.displayIndex}</span><strong class="dw-health ${esc(p.state)}">${esc(p.state)}</strong><span>${p.sampleCount} samples</span><span>${p.recording ? 'recording every frame' : '500 ms sampling'}</span></header><dl>${metrics.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}</dl></section>`
+  }).join('')
 }
 
 function renderEvents(snapshot) {
