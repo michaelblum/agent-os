@@ -50,6 +50,7 @@ final class StatusItemManager {
     var statusMenuItems: [StatusItemMenuDescriptor] = []
     var hostedDescriptor: AOSHostedStatusItemDescriptor?
     var hostedGeneration: Int = 0
+    var hostedActionAdmission = AOSStatusItemActionSequenceAdmission()
     var hostedEventSink: (([String: Any]) -> Bool)?
 
     private var fallbackIcon: NSImage?
@@ -92,12 +93,12 @@ final class StatusItemManager {
         let origin = statusItemCGPosition()
 
         if event?.type == .rightMouseUp || event?.modifierFlags.contains(.option) == true {
-            emitHostedEvent(type: "secondary_activation", actionID: nil, menuItemID: nil, modifiers: modifiers, origin: origin)
+            emitHostedActionEvent(type: "secondary_activation", actionID: nil, menuItemID: nil, modifiers: modifiers, origin: origin)
             showContextMenu()
             return
         }
 
-        emitHostedEvent(type: "primary_activation", actionID: hosted.primaryActionID, menuItemID: nil, modifiers: modifiers, origin: origin)
+        emitHostedActionEvent(type: "primary_activation", actionID: hosted.primaryActionID, menuItemID: nil, modifiers: modifiers, origin: origin)
     }
 
     func updateIcon() {
@@ -139,7 +140,7 @@ final class StatusItemManager {
               let item = statusMenuItems.first(where: { !$0.isSeparator && $0.id == itemID }) else {
             return
         }
-        emitHostedEvent(
+        emitHostedActionEvent(
             type: "menu_selection",
             actionID: item.actionId,
             menuItemID: item.id,

@@ -40,9 +40,10 @@ private func exactIdentity(revision: Int, generation: Int = 1) -> [String: Any] 
     ]
 }
 
-private func invokePayload(revision: Int, generation: Int = 1) -> [String: Any] {
+private func invokePayload(revision: Int, generation: Int = 1, actionSequence: Int = 1) -> [String: Any] {
     var payload = exactIdentity(revision: revision, generation: generation)
     payload["action_id"] = "summon"
+    payload["action_sequence"] = actionSequence
     return payload
 }
 
@@ -53,6 +54,8 @@ private func responseCode(_ result: AOSStatusItemHostCommandResult) -> String? {
 private final class FakeStatusItemHost: AOSStatusItemHosting {
     private(set) var hostedDescriptor: AOSHostedStatusItemDescriptor?
     private(set) var hostedGeneration = 0
+    private var actionAdmission = AOSStatusItemActionSequenceAdmission()
+    var hostedActionSequence: Int { actionAdmission.current }
     var hostedEventSink: (([String: Any]) -> Bool)?
 
     var installOutcomes: [Bool] = []
@@ -67,6 +70,7 @@ private final class FakeStatusItemHost: AOSStatusItemHosting {
         generation: Int
     ) -> [String: Any]? {
         installCalls.append((descriptor.revision, generation))
+        actionAdmission.install(generation: generation)
         hostedDescriptor = descriptor
         hostedGeneration = generation
         let succeeds = installOutcomes.isEmpty ? true : installOutcomes.removeFirst()
@@ -97,6 +101,7 @@ private final class FakeStatusItemHost: AOSStatusItemHosting {
             "item_id": descriptor.itemID,
             "generation": hostedGeneration,
             "descriptor_revision": descriptor.revision,
+            "action_sequence": hostedActionSequence,
             "anchor": anchor(owner: descriptor.owner, itemID: descriptor.itemID),
         ]
     }
@@ -107,6 +112,7 @@ private final class FakeStatusItemHost: AOSStatusItemHosting {
         actionID: String,
         expectedGeneration: Int?,
         expectedRevision: Int?,
+        expectedActionSequence: Int,
         dryRun: Bool
     ) -> [String: Any] {
         guard let descriptor = hostedDescriptor,
@@ -114,34 +120,53 @@ private final class FakeStatusItemHost: AOSStatusItemHosting {
               descriptor.itemID == itemID else {
             return ["error": "status item lease is unavailable", "code": "STATUS_ITEM_UNAVAILABLE"]
         }
-        guard expectedGeneration == hostedGeneration,
-              expectedRevision == descriptor.revision else {
-            return ["error": "status item lease is stale", "code": "STATUS_ITEM_STALE_REVISION"]
+        guard expectedGeneration == hostedGeneration else {
+            return ["error": "status item generation is stale", "code": "STATUS_ITEM_STALE_GENERATION"]
+        }
+        guard expectedRevision == descriptor.revision else {
+            return ["error": "status item descriptor revision is stale", "code": "STATUS_ITEM_STALE_REVISION"]
         }
         guard actionID == descriptor.primaryActionID else {
             return ["error": "status item action is unknown", "code": "STATUS_ITEM_ACTION_NOT_FOUND"]
         }
-        if dryRun {
-            return ["status": "dry_run", "action_id": actionID]
+        guard expectedActionSequence == hostedActionSequence else {
+            return ["error": "status item action sequence is stale", "code": "STATUS_ITEM_STALE_ACTION_SEQUENCE"]
         }
-        let accepted = hostedEventSink?([
+        if dryRun {
+            return ["status": "dry_run", "action_id": actionID, "action_sequence": expectedActionSequence]
+        }
+        guard let acceptedSequence = actionAdmission.reserve(expected: expectedActionSequence) else {
+            return ["error": "status item action sequence is exhausted", "code": "STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED"]
+        }
+        let accepted = emitAction(actionID: actionID, actionSequence: acceptedSequence)
+        guard accepted else {
+            return ["error": "status item event delivery is unavailable", "code": "STATUS_ITEM_EVENT_UNAVAILABLE"]
+        }
+        return ["status": "ok", "action_id": actionID, "action_sequence": acceptedSequence]
+    }
+
+    func emitNativeAction() -> Bool {
+        guard let descriptor = hostedDescriptor,
+              let actionSequence = actionAdmission.reserve() else { return false }
+        return emitAction(actionID: descriptor.primaryActionID, actionSequence: actionSequence)
+    }
+
+    private func emitAction(actionID: String, actionSequence: Int) -> Bool {
+        hostedEventSink?([
             "type": "primary_activation",
-            "owner": owner,
-            "item_id": itemID,
+            "owner": hostedDescriptor?.owner ?? "",
+            "item_id": hostedDescriptor?.itemID ?? "",
             "generation": hostedGeneration,
-            "descriptor_revision": descriptor.revision,
+            "descriptor_revision": hostedDescriptor?.revision ?? 0,
+            "action_sequence": actionSequence,
             "source": "status_item",
             "action_id": actionID,
             "origin_x": 13,
             "origin_y": 14,
             "modifiers": [],
             "bounds": bounds(),
-            "anchor": anchor(owner: owner, itemID: itemID),
+            "anchor": anchor(owner: hostedDescriptor?.owner ?? "", itemID: hostedDescriptor?.itemID ?? ""),
         ]) ?? false
-        guard accepted else {
-            return ["error": "status item event delivery is unavailable", "code": "STATUS_ITEM_EVENT_UNAVAILABLE"]
-        }
-        return ["status": "ok", "action_id": actionID]
     }
 
     func statusItemAnchorPayload(owner: String, itemID: String) -> [String: Any]? {
@@ -184,12 +209,15 @@ private final class FakeStatusItemHost: AOSStatusItemHosting {
 
 private final class CallbackRecorder {
     var admitsEvents = true
-    private(set) var emittedEvents: [(owner: UUID, event: String)] = []
+    private(set) var attemptedEvents: [(owner: UUID, event: String, data: [String: Any])] = []
+    private(set) var emittedEvents: [(owner: UUID, event: String, data: [String: Any])] = []
     private(set) var terminations: [(owner: UUID, reason: String)] = []
 
     func emit(owner: UUID, event: String, data: [String: Any], ref: String?) -> Bool {
-        emittedEvents.append((owner, event))
-        return admitsEvents
+        attemptedEvents.append((owner, event, data))
+        guard admitsEvents else { return false }
+        emittedEvents.append((owner, event, data))
+        return true
     }
 
     func terminate(owner: UUID, reason: String) {
@@ -242,6 +270,47 @@ private func register(
     )
     if emitReady { result.afterResponse?() }
     return result
+}
+
+private func inspectActionSequence(
+    _ controller: AOSStatusItemHostController,
+    revision: Int,
+    generation: Int = 1
+) -> Int? {
+    let result = command(
+        controller,
+        action: "status-item-inspect",
+        payload: exactIdentity(revision: revision, generation: generation),
+        connectionID: UUID()
+    )
+    return (result.response["state"] as? [String: Any])?["action_sequence"] as? Int
+}
+
+private func actionEvents(_ recorder: CallbackRecorder) -> [(owner: UUID, event: String, data: [String: Any])] {
+    recorder.emittedEvents.filter { $0.data["action_sequence"] != nil }
+}
+
+private func runConcurrentCommands(
+    _ first: @escaping () -> AOSStatusItemHostCommandResult,
+    _ second: @escaping () -> AOSStatusItemHostCommandResult
+) -> [AOSStatusItemHostCommandResult] {
+    let group = DispatchGroup()
+    let lock = NSLock()
+    var results: [AOSStatusItemHostCommandResult] = []
+    for operation in [first, second] {
+        group.enter()
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = operation()
+            lock.lock()
+            results.append(result)
+            lock.unlock()
+            group.leave()
+        }
+    }
+    while group.wait(timeout: .now()) == .timedOut {
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.005))
+    }
+    return results
 }
 
 private func testLeaseBusyRegistration() {
@@ -323,9 +392,142 @@ private func testFailedInstallAndRestoreTerminatesOwner() {
     expect(responseCode(inspect) == "STATUS_ITEM_NOT_FOUND", "failed restoration left a live controller lease")
 }
 
-private func testRejectedInvokeEventFailsAndCleansLease() {
-    let (manager, recorder, controller) = makeController()
+private func testDryRunDoesNotConsumeActionSequence() {
+    let (_, recorder, controller) = makeController()
     let owner = UUID(uuidString: "55555555-5555-5555-5555-555555555555")!
+    expect(responseCode(register(controller, owner: owner)) == nil, "dry-run registration failed")
+
+    let dryRun = command(
+        controller,
+        action: "status-item-invoke-dry-run",
+        payload: invokePayload(revision: 3),
+        connectionID: UUID()
+    )
+    expect(responseCode(dryRun) == nil, "dry-run failed")
+    expect(dryRun.response["status"] as? String == "dry_run", "dry-run returned the wrong status")
+    expect(dryRun.response["action_sequence"] as? Int == 1, "dry-run returned the wrong action sequence")
+    expect(inspectActionSequence(controller, revision: 3) == 1, "dry-run consumed the action sequence")
+    expect(actionEvents(recorder).isEmpty, "dry-run emitted an action event")
+
+    let invoked = command(
+        controller,
+        action: "status-item-invoke",
+        payload: invokePayload(revision: 3),
+        connectionID: UUID()
+    )
+    expect(responseCode(invoked) == nil, "effectful invoke after dry-run failed")
+    expect(invoked.response["action_sequence"] as? Int == 1, "effectful invoke accepted the wrong sequence")
+    expect(inspectActionSequence(controller, revision: 3) == 2, "effectful invoke did not consume admission")
+}
+
+private func testConcurrentSameSequenceAdmitsExactlyOnce() {
+    let (_, recorder, controller) = makeController()
+    let owner = UUID(uuidString: "99999999-9999-9999-9999-999999999999")!
+    expect(responseCode(register(controller, owner: owner)) == nil, "concurrent registration failed")
+
+    let invoke = {
+        command(
+            controller,
+            action: "status-item-invoke",
+            payload: invokePayload(revision: 3),
+            connectionID: UUID()
+        )
+    }
+    let results = runConcurrentCommands(invoke, invoke)
+    let codes = results.map(responseCode)
+    expect(codes.filter { $0 == nil }.count == 1, "concurrent invokes did not produce exactly one success")
+    expect(codes.filter { $0 == "STATUS_ITEM_STALE_ACTION_SEQUENCE" }.count == 1, "concurrent invokes did not reject one stale sequence")
+    let events = actionEvents(recorder)
+    expect(events.count == 1, "concurrent invokes emitted duplicate events")
+    expect(events.first?.data["action_sequence"] as? Int == 1, "concurrent invoke event used the wrong sequence")
+    expect(inspectActionSequence(controller, revision: 3) == 2, "concurrent invokes consumed more than one admission")
+}
+
+private func testNativeAndProgrammaticRaceShareAllocator() {
+    let (manager, recorder, controller) = makeController()
+    let owner = UUID(uuidString: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")!
+    expect(responseCode(register(controller, owner: owner)) == nil, "native race registration failed")
+
+    let group = DispatchGroup()
+    let lock = NSLock()
+    var programResult: AOSStatusItemHostCommandResult?
+    group.enter()
+    DispatchQueue.global(qos: .userInitiated).async {
+        let result = command(
+            controller,
+            action: "status-item-invoke",
+            payload: invokePayload(revision: 3),
+            connectionID: UUID()
+        )
+        lock.lock()
+        programResult = result
+        lock.unlock()
+        group.leave()
+    }
+    group.enter()
+    DispatchQueue.global(qos: .userInitiated).async {
+        _ = DispatchQueue.main.sync { manager.emitNativeAction() }
+        group.leave()
+    }
+    while group.wait(timeout: .now()) == .timedOut {
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.005))
+    }
+
+    lock.lock()
+    let programCode = programResult.map(responseCode) ?? "missing"
+    lock.unlock()
+    expect(programCode == nil || programCode == "STATUS_ITEM_STALE_ACTION_SEQUENCE", "programmatic race returned the wrong result")
+    let sequences = actionEvents(recorder).compactMap { $0.data["action_sequence"] as? Int }.sorted()
+    expect(sequences == Array(1...sequences.count), "native/programmatic events did not receive unique monotonic sequences")
+    expect(inspectActionSequence(controller, revision: 3) == sequences.count + 1, "native/programmatic race left the wrong current sequence")
+    let replay = command(
+        controller,
+        action: "status-item-invoke",
+        payload: invokePayload(revision: 3),
+        connectionID: UUID()
+    )
+    expect(responseCode(replay) == "STATUS_ITEM_STALE_ACTION_SEQUENCE", "native/programmatic race allowed sequence reuse")
+}
+
+private func testDescriptorUpdatePreservesActionSequence() {
+    let (_, _, controller) = makeController()
+    let owner = UUID(uuidString: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")!
+    expect(responseCode(register(controller, owner: owner)) == nil, "preservation registration failed")
+    let invoked = command(controller, action: "status-item-invoke", payload: invokePayload(revision: 3), connectionID: UUID())
+    expect(responseCode(invoked) == nil, "preservation invoke failed")
+    let updated = command(
+        controller,
+        action: "status-item-update",
+        payload: updatePayload(revision: 4, currentRevision: 3),
+        connectionID: UUID()
+    )
+    expect(responseCode(updated) == nil, "preservation update failed")
+    expect(inspectActionSequence(controller, revision: 4) == 2, "descriptor update reset the action sequence")
+}
+
+private func testLeaseReplacementResetsSequenceAndKeepsReplayIdentityDistinct() {
+    let (_, recorder, controller) = makeController()
+    let firstOwner = UUID(uuidString: "cccccccc-cccc-cccc-cccc-cccccccccccc")!
+    let secondOwner = UUID(uuidString: "dddddddd-dddd-dddd-dddd-dddddddddddd")!
+    expect(responseCode(register(controller, owner: firstOwner)) == nil, "first generation registration failed")
+    expect(responseCode(command(controller, action: "status-item-invoke", payload: invokePayload(revision: 3), connectionID: UUID())) == nil, "first generation invoke failed")
+    controller.connectionClosed(firstOwner)
+
+    let replacement = register(controller, owner: secondOwner)
+    expect(replacement.response["generation"] as? Int == 2, "replacement did not install a new generation")
+    expect(inspectActionSequence(controller, revision: 3, generation: 2) == 1, "replacement did not reset the action sequence")
+    expect(responseCode(command(controller, action: "status-item-invoke", payload: invokePayload(revision: 3, generation: 2), connectionID: UUID())) == nil, "replacement invoke failed")
+    let replayKeys = actionEvents(recorder).compactMap { event -> String? in
+        guard let generation = event.data["generation"] as? Int,
+              let sequence = event.data["action_sequence"] as? Int else { return nil }
+        return "\(generation):\(sequence)"
+    }
+    expect(replayKeys == ["1:1", "2:1"], "generation plus action sequence did not identify replay domains")
+}
+
+private func testRejectedInvokeEventConsumesAdmissionWithoutDuplicate() {
+    let (manager, recorder, controller) = makeController()
+    let owner = UUID(uuidString: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")!
     expect(responseCode(register(controller, owner: owner)) == nil, "invoke registration failed")
     recorder.admitsEvents = false
 
@@ -336,18 +538,41 @@ private func testRejectedInvokeEventFailsAndCleansLease() {
         connectionID: UUID()
     )
     expect(responseCode(invoked) == "STATUS_ITEM_EVENT_UNAVAILABLE", "rejected invoke event returned success")
-    expect(manager.teardownCount == 1, "rejected invoke event did not tear down the host")
-    expect(recorder.terminations.count == 1, "rejected invoke event did not terminate the registration owner")
-    expect(recorder.terminations.first?.owner == owner, "rejected invoke event terminated the wrong owner")
-    expect(recorder.terminations.first?.reason == "status_item_event_delivery_failed", "rejected invoke event used the wrong termination reason")
+    expect(manager.hostedActionSequence == 2, "rejected invoke event rolled back its admission")
+    expect(manager.teardownCount == 0, "rejected invoke event discarded the consumed generation")
+    expect(recorder.terminations.isEmpty, "rejected invoke event terminated before reporting failure")
+    expect(actionEvents(recorder).isEmpty, "rejected invoke event was recorded as delivered")
 
-    let inspect = command(
+    recorder.admitsEvents = true
+    let replay = command(
         controller,
-        action: "status-item-inspect",
-        payload: exactIdentity(revision: 3),
+        action: "status-item-invoke",
+        payload: invokePayload(revision: 3),
         connectionID: UUID()
     )
-    expect(responseCode(inspect) == "STATUS_ITEM_NOT_FOUND", "rejected invoke event left a live controller lease")
+    expect(responseCode(replay) == "STATUS_ITEM_STALE_ACTION_SEQUENCE", "failed delivery allowed the consumed sequence to replay")
+    let next = command(
+        controller,
+        action: "status-item-invoke",
+        payload: invokePayload(revision: 3, actionSequence: 2),
+        connectionID: UUID()
+    )
+    expect(responseCode(next) == nil, "next sequence after failed delivery was not usable")
+    expect(actionEvents(recorder).count == 1, "failed delivery produced a duplicate event")
+    expect(actionEvents(recorder).first?.data["action_sequence"] as? Int == 2, "post-failure event reused the consumed sequence")
+}
+
+private func testStaleGenerationRevisionAndActionSequenceAreDistinct() {
+    let (_, _, controller) = makeController()
+    let owner = UUID(uuidString: "ffffffff-ffff-ffff-ffff-ffffffffffff")!
+    expect(responseCode(register(controller, owner: owner)) == nil, "stale-error registration failed")
+
+    let staleGeneration = command(controller, action: "status-item-invoke", payload: invokePayload(revision: 3, generation: 2), connectionID: UUID())
+    let staleRevision = command(controller, action: "status-item-invoke", payload: invokePayload(revision: 4), connectionID: UUID())
+    let staleAction = command(controller, action: "status-item-invoke", payload: invokePayload(revision: 3, actionSequence: 2), connectionID: UUID())
+    expect(responseCode(staleGeneration) == "STATUS_ITEM_STALE_GENERATION", "stale generation used the wrong error")
+    expect(responseCode(staleRevision) == "STATUS_ITEM_STALE_REVISION", "stale revision used the wrong error")
+    expect(responseCode(staleAction) == "STATUS_ITEM_STALE_ACTION_SEQUENCE", "stale action sequence used the wrong error")
 }
 
 private func testConnectionCloseClearsOnlyExactOwner() {
@@ -387,7 +612,13 @@ private struct StatusItemHostControllerHarness {
         testReadyUsesCommittedInstallationAnchor()
         testExactRevisionCAS()
         testFailedInstallAndRestoreTerminatesOwner()
-        testRejectedInvokeEventFailsAndCleansLease()
+        testDryRunDoesNotConsumeActionSequence()
+        testConcurrentSameSequenceAdmitsExactlyOnce()
+        testNativeAndProgrammaticRaceShareAllocator()
+        testDescriptorUpdatePreservesActionSequence()
+        testLeaseReplacementResetsSequenceAndKeepsReplayIdentityDistinct()
+        testRejectedInvokeEventConsumesAdmissionWithoutDuplicate()
+        testStaleGenerationRevisionAndActionSequenceAreDistinct()
         testConnectionCloseClearsOnlyExactOwner()
         print("status item host controller lifecycle harness passed")
     }
