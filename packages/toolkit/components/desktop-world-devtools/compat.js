@@ -8,6 +8,11 @@ function rectObject(frame) {
 
 export function projectDesktopWorldDevToolsPerformance(input, { now = Date.now() } = {}) {
   const snapshot = normalizeDesktopWorldDevToolsSnapshot(input);
+  const unavailableLifecycle = snapshot.stage.status === 'unavailable'
+    && Array.isArray(input?.stage?.world?.displays)
+    && input.stage.world.displays.length === 0
+    && Array.isArray(input?.stage?.displayPerformance)
+    && input.stage.displayPerformance.length === 0;
   const displayByIndex = new Map(snapshot.stage.world.displays.map((display) => [display.index, display]));
   const displays = snapshot.stage.displayPerformance.map((entry) => {
     const performance = entry.performance;
@@ -41,7 +46,9 @@ export function projectDesktopWorldDevToolsPerformance(input, { now = Date.now()
       }),
     });
   });
-  if (displays.length === 0) throw new TypeError('DesktopWorld stage-segment performance is unavailable');
+  if (displays.length === 0 && !unavailableLifecycle) {
+    throw new TypeError('DesktopWorld stage-segment performance is unavailable');
+  }
   return Object.freeze({
     canvasGeneration: snapshot.stage.canvasGeneration,
     topologyGeneration: snapshot.stage.topologyGeneration,

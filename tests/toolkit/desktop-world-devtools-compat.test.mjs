@@ -123,6 +123,41 @@ test('focused compatibility projections consume the canonical DesktopWorld snaps
   assert.deepEqual(resources.inputRegions[0].frame, [280, 200, 80, 80])
 })
 
+test('performance projection preserves an unavailable lifecycle with no display sources', () => {
+  const unavailable = snapshot()
+  unavailable.stage.canvasGeneration = 0
+  unavailable.stage.topologyGeneration = 0
+  unavailable.stage.sequence = 0
+  unavailable.stage.status = 'unavailable'
+  unavailable.stage.world.displays = []
+  unavailable.stage.displayPerformance = []
+
+  assert.deepEqual(projectDesktopWorldDevToolsPerformance(unavailable, { now: 1234 }), {
+    canvasGeneration: 0,
+    topologyGeneration: 0,
+    sequence: 0,
+    displays: [],
+  })
+})
+
+test('performance projection still fails closed on incomplete or malformed stage performance', () => {
+  const incomplete = snapshot()
+  incomplete.stage.displayPerformance = []
+
+  assert.throws(
+    () => projectDesktopWorldDevToolsPerformance(incomplete),
+    /DesktopWorld stage-segment performance is unavailable/,
+  )
+
+  const malformedUnavailable = snapshot()
+  malformedUnavailable.stage.status = 'unavailable'
+  malformedUnavailable.stage.world.displays = []
+  assert.throws(
+    () => projectDesktopWorldDevToolsPerformance(malformedUnavailable),
+    /DesktopWorld stage-segment performance is unavailable/,
+  )
+})
+
 test('compatibility projection does not fabricate native geometry for legacy snapshots', () => {
   const legacy = snapshot()
   legacy.stage.world.displays = [{ id: 'main', index: 0, bounds: [200, 0, 1440, 900] }]

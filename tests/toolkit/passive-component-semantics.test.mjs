@@ -128,6 +128,7 @@ function desktopWorldPerformanceSnapshot({
   canvasGeneration,
   displays,
   sequence,
+  status = 'available',
   topologyGeneration,
 }) {
   return {
@@ -140,7 +141,7 @@ function desktopWorldPerformanceSnapshot({
       canvasGeneration,
       topologyGeneration,
       sequence,
-      status: 'available',
+      status,
       world: {
         displays: displays.map(({ id, index }) => ({
           id, index, bounds: [index * 100, 0, 100, 100], scaleFactor: 1,
@@ -228,6 +229,38 @@ test('RenderPerformance accepts replacement lifecycle sequence restarts and reti
   assert.deepEqual(
     Object.keys(perf.serialize().sources).filter((source) => source.startsWith('desktop-world:')),
     ['desktop-world:0:new-a'],
+  )
+})
+
+test('RenderPerformance consumes an unavailable lifecycle and retires every DesktopWorld source', (t) => {
+  withFakeBrowser(t)
+
+  const perf = RenderPerformance()
+  perf.render(fakeHost())
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 3,
+      topologyGeneration: 4,
+      sequence: 10,
+      displays: [{ id: 'old-a', index: 0 }, { id: 'old-b', index: 1 }],
+    }),
+  })
+
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 0,
+      topologyGeneration: 0,
+      sequence: 0,
+      status: 'unavailable',
+      displays: [],
+    }),
+  })
+
+  assert.deepEqual(
+    Object.keys(perf.serialize().sources).filter((source) => source.startsWith('desktop-world:')),
+    [],
   )
 })
 
