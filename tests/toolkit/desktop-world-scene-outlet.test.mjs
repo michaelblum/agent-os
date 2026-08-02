@@ -881,11 +881,13 @@ test('scene outlet emits an immediate snapshot only after a route actually start
   let route = null
   const probe = createDesktopWorldDevToolsStageProbe({
     emit: (snapshot) => emitted.push(snapshot),
+    getPerformanceDisplay: () => ({ displayId: '100', displayIndex: 0 }),
+    getStageIdentity: () => ({ canvasGeneration: 3, topologyGeneration: 4 }),
     getStageFacts: () => ({
       status: 'available',
       world: {
         affordances: [],
-        displays: [],
+        displays: [{ id: '100', index: 0, bounds: [0, 0, 1920, 1080], scaleFactor: 1 }],
         gestures: [],
         hitRegions: [],
         nodes: [],
@@ -896,6 +898,9 @@ test('scene outlet emits an immediate snapshot only after a route actually start
     }),
   })
   probe.configure({ enabled: true })
+  probe.setIdentityReady({
+    canvasGeneration: 3, topologyGeneration: 4, displayId: '100', displayIndex: 0,
+  })
 
   assert.equal(emitSceneOutletRouteStartedSnapshot(probe, { routeStarted: false }), false)
   assert.equal(emitSceneOutletRouteStartedSnapshot(null, { routeStarted: true }), false)

@@ -96,6 +96,9 @@ test('DesktopWorld tooling schemas accept canonical content-free facts', () => {
           resourceRevision: 3,
         },
         lastPresentationLatencyMs: 31,
+        lastRenderBackingPixelCount: 480_000,
+        lastRenderBackingPixelPercentage: 8.25,
+        lastRenderTriangleCount: 12_000,
         presentedCount: 1,
         rejectedCount: 1,
         retainedBufferCount: 0,
@@ -147,6 +150,9 @@ test('DesktopWorld tooling schemas reject product content and unknown fields', (
         lastErrorCode: null,
         lastExecution: null,
         lastPresentationLatencyMs: null,
+        lastRenderBackingPixelCount: null,
+        lastRenderBackingPixelPercentage: null,
+        lastRenderTriangleCount: null,
         parameters: { amplitude: 18 },
         presentedCount: 0,
         rejectedCount: 0,
@@ -157,6 +163,26 @@ test('DesktopWorld tooling schemas reject product content and unknown fields', (
       },
     },
   }).status, 0)
+  const missingNativeEffect = stage()
+  missingNativeEffect.native = {
+    desktopFrameWarm: { displayCount: 0, errorCode: null, generation: 0, state: 'idle' },
+  }
+  assert.notEqual(validate('desktop-world-devtools-stage-v2.schema.json', missingNativeEffect).status, 0)
+  const invalidNativeRenderWork = stage()
+  invalidNativeRenderWork.native = {
+    desktopFrameWarm: { displayCount: 0, errorCode: null, generation: 0, state: 'idle' },
+    nativeEffect: {
+      activeInstanceCount: 0, activeSheetCount: 0, acceptedCount: 0, attemptedCount: 0,
+      completedCount: 0, disposedCount: 0, failedCount: 0, lastErrorCode: null,
+      lastExecution: null, lastPresentationLatencyMs: null,
+      lastRenderBackingPixelCount: 1_000_000_001,
+      lastRenderBackingPixelPercentage: 8.25,
+      lastRenderTriangleCount: 0, presentedCount: 0, rejectedCount: 0,
+      retainedBufferCount: 0, retainedTextureCount: 0, retainedViewCount: 0,
+      state: 'unavailable',
+    },
+  }
+  assert.notEqual(validate('desktop-world-devtools-stage-v2.schema.json', invalidNativeRenderWork).status, 0)
   assert.notEqual(validate('scene-replay-v1.schema.json', {
     status: 'ok', contract: 'aos.scene.replay.v1', eventCount: 0, resourceCount: 0,
     resources: [], completedGestures: 0, canceledGestures: 0, finalPositions: {}, prompt: 'secret',

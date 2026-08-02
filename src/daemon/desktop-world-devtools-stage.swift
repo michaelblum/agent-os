@@ -391,6 +391,7 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
                   snapshot.displayPerformance.count == 1,
                   let entry = snapshot.displayPerformance.first,
                   entry.displayIndex == identity.index,
+                  entry.displayId == String(identity.displayID),
                   displays.contains(where: {
                       $0.index == identity.index && $0.id == entry.displayId
                   }),

@@ -112,7 +112,8 @@ At each inspection read, the daemon adds `native.desktopFrameWarm` and
 `generation`, and a redacted `errorCode`. Native-effect state contains only its
 lifecycle state, bounded attempt/admission/presentation/completion/disposal/
 failure counters, active runtime/sheet/texture counts, the last native
-trigger-to-presentation latency, retained buffer/texture/view counts, and the canonical owner/resource/program
+trigger-to-presentation latency, last backing-pixel count and percentage, last
+triangle count, retained buffer/texture/view counts, and the canonical owner/resource/program
 identity and digest of the last admitted execution. The browser does not author
 or cache these native facts. A consumer that needs low-latency desktop textures
 should wait for warm `state: "ready"` before triggering an effect. Reading these
@@ -140,6 +141,11 @@ timer, RAF, or per-frame allocation. Enabled non-recording snapshots are
 throttled. Recording is opt-in and bounded to 240 performance samples and 256
 events. `createDesktopWorldGpuTimer()` reuses a four-query pool and returns
 `null` when GPU timing is unavailable.
+
+Topology receipt changes close the renderer telemetry identity synchronously.
+The probe accepts no frame or refresh snapshot until the queued segment camera,
+backing, interaction, and work configuration has settled for the new canvas,
+topology, display ID, and display index.
 
 `buildDesktopWorldMinimapLayout()` maps the global display topology, nodes, and
 hit regions into a bounded viewport. `createDesktopWorldDevToolsView()` renders

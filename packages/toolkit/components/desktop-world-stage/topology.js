@@ -20,6 +20,9 @@ export function projectDesktopWorldDevToolsTopology(segments) {
   return {
     displays: boundedSegments(segments).map((segment) => ({
       ...sceneDisplay(segment),
+      displayId: Number.isSafeInteger(segment?.display_id)
+        ? String(segment.display_id)
+        : (typeof segment?.display_id === 'string' ? segment.display_id : null),
       scaleFactor: Number(segment?.scale_factor ?? segment?.scaleFactor ?? 1),
       nativeBounds: Array.isArray(segment?.native_bounds) ? segment.native_bounds.slice(0, 4) : null,
     })),

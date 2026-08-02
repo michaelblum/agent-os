@@ -193,6 +193,9 @@ function stageSnapshot(overrides = {}) {
           resourceRevision: 3,
         },
         lastPresentationLatencyMs: 31,
+        lastRenderBackingPixelCount: 480_000,
+        lastRenderBackingPixelPercentage: 8.25,
+        lastRenderTriangleCount: 12_000,
         presentedCount: 1,
         rejectedCount: 1,
         retainedBufferCount: 0,
@@ -278,6 +281,9 @@ test('DesktopWorld DevTools stage normalization is strict, bounded, and content-
       resourceRevision: 3,
     },
     lastPresentationLatencyMs: 31,
+    lastRenderBackingPixelCount: 480_000,
+    lastRenderBackingPixelPercentage: 8.25,
+    lastRenderTriangleCount: 12_000,
     presentedCount: 1,
     rejectedCount: 1,
     retainedBufferCount: 0,
@@ -315,6 +321,9 @@ test('DesktopWorld DevTools bounds native warm status without exposing capture c
           resourceRevision: 3e9,
         },
         lastPresentationLatencyMs: -1,
+        lastRenderBackingPixelCount: 1e12,
+        lastRenderBackingPixelPercentage: 101,
+        lastRenderTriangleCount: -1,
         parameters: 'not allowed',
         presentedCount: 4,
         rejectedCount: 5,
@@ -345,6 +354,9 @@ test('DesktopWorld DevTools bounds native warm status without exposing capture c
       lastErrorCode: 'y'.repeat(64),
       lastExecution: null,
       lastPresentationLatencyMs: 0,
+      lastRenderBackingPixelCount: 1e9,
+      lastRenderBackingPixelPercentage: 100,
+      lastRenderTriangleCount: 0,
       presentedCount: 4,
       rejectedCount: 5,
       retainedBufferCount: 32,
@@ -389,6 +401,18 @@ test('DesktopWorld DevTools keeps older display facts readable without inventing
     scaleFactor: 1,
   });
   assert.equal('nativeBounds' in normalized.world.displays[0], false);
+});
+
+test('DesktopWorld DevTools preserves numeric physical display identity as a public string', () => {
+  const numeric = stageSnapshot();
+  numeric.world.displays[0].id = 69_733_382;
+  numeric.displayPerformance[0].displayId = 69_733_382;
+
+  const normalized = normalizeDesktopWorldDevToolsStageSnapshot(numeric);
+
+  assert.equal(normalized.world.displays[0].id, '69733382');
+  assert.equal(normalized.displayPerformance[0].displayId, '69733382');
+  assert.notEqual(normalized.world.displays[0].id, 'display-0');
 });
 
 test('DesktopWorld DevTools session normalization validates host and filters', () => {
@@ -512,6 +536,9 @@ test('DesktopWorld DevTools probe throttles idle samples and records bounded tel
   });
 
   probe.configure({ enabled: true });
+  probe.setIdentityReady({
+    canvasGeneration: 3, topologyGeneration: 4, displayId: 'left', displayIndex: 0,
+  });
   probe.recordEvent({ kind: 'scene.mounted', resourceId: 'resource' });
   probe.sampleFrame({
     frameMs: 16,
@@ -563,6 +590,9 @@ test('DesktopWorld DevTools probe throttles idle samples and records bounded tel
   assert.deepEqual(emitted.at(-1).metadata, { request_id: 'request-1' });
 
   probe.configure({ enabled: true, recording: true });
+  probe.setIdentityReady({
+    canvasGeneration: 3, topologyGeneration: 4, displayId: 'left', displayIndex: 0,
+  });
   clock = 601;
   probe.sampleFrame({ frameMs: 19 });
   assert.equal(probe.state().sampleCount, 3);
@@ -610,6 +640,7 @@ test('DesktopWorld DevTools probe rolls samples on exact display identity change
   });
 
   probe.configure({ enabled: true, recording: true });
+  probe.setIdentityReady(identity);
   probe.sampleFrame({ frameMs: 12, renderMs: 8, drawCalls: 9 });
   assert.equal(probe.snapshot().displayPerformance[0].performance.sampleCount, 1);
 
@@ -619,6 +650,7 @@ test('DesktopWorld DevTools probe rolls samples on exact display identity change
     displayId: 'reassigned',
     displayIndex: 0,
   };
+  probe.setIdentityReady(identity);
   assert.equal(probe.recordEvent({ kind: 'topology.changed' }), true);
   const rolled = probe.snapshot();
   assert.equal(rolled.displayPerformance[0].displayId, 'reassigned');
@@ -637,4 +669,64 @@ test('DesktopWorld DevTools probe rolls samples on exact display identity change
   assert.equal(reassigned.performance.maxFrameMs, 30);
   assert.equal(reassigned.performance.avgRenderMs, 2);
   assert.equal(reassigned.performance.drawCalls, 2);
+});
+
+test('DesktopWorld DevTools probe rejects intervening frames until same-size reassignment is ready', () => {
+  let identity = {
+    canvasGeneration: 3,
+    topologyGeneration: 4,
+    displayId: '100',
+    displayIndex: 0,
+  };
+  const probe = createDesktopWorldDevToolsStageProbe({
+    getStageFacts: () => {
+      const value = stageSnapshot();
+      value.world = {
+        ...value.world,
+        displays: value.world.displays.map((display) => (
+          display.index === 0 ? { ...display, id: identity.displayId } : display
+        )),
+      };
+      return value;
+    },
+    getPerformanceDisplay: () => ({
+      displayId: identity.displayId,
+      displayIndex: identity.displayIndex,
+    }),
+    getStageIdentity: () => ({
+      canvasGeneration: identity.canvasGeneration,
+      topologyGeneration: identity.topologyGeneration,
+    }),
+  });
+
+  probe.configure({ enabled: true, recording: true });
+  const originalIdentity = identity;
+  probe.setIdentityReady(originalIdentity);
+  assert.equal(probe.sampleFrame({ backingWidth: 1920, drawCalls: 1, frameMs: 16 }), true);
+
+  probe.setIdentityReady(false);
+  identity = {
+    canvasGeneration: 3,
+    topologyGeneration: 5,
+    displayId: '101',
+    displayIndex: 0,
+  };
+  assert.equal(probe.setIdentityReady(originalIdentity), true);
+  assert.equal(
+    probe.sampleFrame({ backingWidth: 1920, drawCalls: 99, frameMs: 16 }),
+    false,
+  );
+
+  probe.setIdentityReady(identity);
+  const ready = probe.snapshot().displayPerformance[0];
+  assert.equal(ready.displayId, '101');
+  assert.equal(ready.performance.sampleCount, 0);
+  assert.equal(ready.performance.drawCalls, null);
+  assert.equal(ready.performance.backingWidth, null);
+
+  assert.equal(probe.sampleFrame({ backingWidth: 1920, drawCalls: 2, frameMs: 17 }), true);
+  const reassigned = probe.snapshot().displayPerformance[0];
+  assert.equal(reassigned.performance.sampleCount, 1);
+  assert.equal(reassigned.performance.drawCalls, 2);
+  assert.equal(reassigned.performance.backingWidth, 1920);
 });

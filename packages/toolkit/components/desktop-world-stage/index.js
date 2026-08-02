@@ -79,6 +79,20 @@ function devtoolsTopologySnapshot() {
   return projectDesktopWorldDevToolsTopology(surface.topology)
 }
 
+function devtoolsDisplayId(value) {
+  if (Number.isSafeInteger(value)) return String(value)
+  return typeof value === 'string' ? value : null
+}
+
+function devtoolsSampleIdentity(segment = surface.segment) {
+  return {
+    canvasGeneration: surface.canvasGeneration,
+    topologyGeneration: surface.topologyGeneration,
+    displayId: devtoolsDisplayId(segment?.display_id),
+    displayIndex: segment?.index,
+  }
+}
+
 const devtoolsProbe = createDesktopWorldDevToolsStageProbe({
   emit: (snapshot, metadata = {}) => {
     emit('desktop_world_stage.devtools.snapshot', {
@@ -94,9 +108,7 @@ const devtoolsProbe = createDesktopWorldDevToolsStageProbe({
     const index = surface.segment?.index
     if (!Number.isInteger(index) || index < 0) return null
     return {
-      displayId: typeof surface.segment?.display_id === 'string'
-        ? surface.segment.display_id
-        : `display-${index}`,
+      displayId: devtoolsDisplayId(surface.segment?.display_id),
       displayIndex: index,
     }
   },
@@ -494,14 +506,18 @@ wireBridge((message) => {
 surface.start({
   onInit: ({ segment, topology }) => {
     requireDesktopWorldSceneSegment(sceneOutlet, segment, topology)
+    devtoolsProbe.setIdentityReady(devtoolsSampleIdentity(segment))
     render()
   },
   onTopologyChange: ({ segment, topology }) => {
+    const identity = devtoolsSampleIdentity(segment)
+    devtoolsProbe.setIdentityReady(false)
     void enqueueSceneWork(async () => {
       requireDesktopWorldSceneSegment(sceneOutlet, segment, topology)
-      devtoolsProbe.recordEvent({ kind: 'topology.changed' })
       await sceneInteractions.topologyChanged()
       render()
+      devtoolsProbe.setIdentityReady(identity)
+      devtoolsProbe.recordEvent({ kind: 'topology.changed' })
     }).catch((error) => {
       retireStage(error, 'SCENE_SEGMENT_CONFIGURATION_FAILED', 'topology.failed')
     })

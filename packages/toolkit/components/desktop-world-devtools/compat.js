@@ -43,6 +43,8 @@ export function projectDesktopWorldDevToolsPerformance(input, { now = Date.now()
   });
   if (displays.length === 0) throw new TypeError('DesktopWorld stage-segment performance is unavailable');
   return Object.freeze({
+    canvasGeneration: snapshot.stage.canvasGeneration,
+    topologyGeneration: snapshot.stage.topologyGeneration,
     sequence: snapshot.stage.sequence,
     displays: Object.freeze(displays),
   });

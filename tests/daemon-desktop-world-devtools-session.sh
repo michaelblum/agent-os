@@ -140,7 +140,7 @@ func performance(_ segmentIndex: Int) -> [String: Any] {
 
 func displayPerformance(_ segmentIndex: Int) -> [String: Any] {
     [
-        "displayId": "display-\(segmentIndex)",
+        "displayId": String(segmentIndex + 100),
         "displayIndex": segmentIndex,
         "scope": "stage-segment",
         "performance": performance(segmentIndex),
@@ -160,12 +160,12 @@ func stageSnapshot(
         "status": "available",
         "world": [
             "displays": [[
-                "id": "display-0", "index": 0,
+                "id": "100", "index": 0,
                 "bounds": [207.0, 0.0, 1512.0, 982.0],
                 "scaleFactor": 2.0,
                 "nativeBounds": [0.0, 0.0, 1512.0, 982.0],
             ], [
-                "id": "display-1", "index": 1,
+                "id": "101", "index": 1,
                 "bounds": [0.0, 982.0, 1920.0, 1080.0],
                 "scaleFactor": 1.0,
                 "nativeBounds": [-207.0, 982.0, 1920.0, 1080.0],
@@ -286,6 +286,15 @@ require(freshnessRegistry.recordStageSnapshot(
     requestID: freshnessRequest,
     segment: segmentIdentity(0)
 ) == .rejected, "duplicate display receipt was accepted")
+var aliasedDisplaySnapshot = stageSnapshot()
+var aliasedPerformance = aliasedDisplaySnapshot["displayPerformance"] as! [[String: Any]]
+aliasedPerformance[0]["displayId"] = "display-0"
+aliasedDisplaySnapshot["displayPerformance"] = aliasedPerformance
+require(freshnessRegistry.recordStageSnapshot(
+    aliasedDisplaySnapshot,
+    requestID: freshnessRequest,
+    segment: segmentIdentity(0)
+) == .rejected, "index-derived display alias was accepted as physical identity")
 require(freshnessRegistry.recordStageSnapshot(
     stageSnapshot(),
     requestID: freshnessRequest,

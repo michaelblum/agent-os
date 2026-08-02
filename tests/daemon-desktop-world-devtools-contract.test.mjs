@@ -87,6 +87,7 @@ test('stage probe is configured inside the existing DesktopWorld render lifecycl
   assert.match(stage, /segment_display_id: surface\.segment\?\.display_id/)
   assert.match(stage, /segment_index: surface\.segment\?\.index/)
   assert.match(stage, /devtoolsProbe\.recordEvent\(\{ kind: 'topology\.changed' \}\)/)
+  assert.match(stage, /onTopologyChange:[\s\S]{0,180}const identity = devtoolsSampleIdentity\(segment\)[\s\S]{0,100}devtoolsProbe\.setIdentityReady\(false\)[\s\S]*requireDesktopWorldSceneSegment[\s\S]{0,240}devtoolsProbe\.setIdentityReady\(identity\)/)
   assert.match(probe, /function recordEvent[\s\S]{0,180}synchronizeSampleIdentity\(\)/)
   assert.match(probe, /canvasGeneration[\s\S]*topologyGeneration[\s\S]*displayId[\s\S]*displayIndex/)
   assert.doesNotMatch(stage, /surface\.isPrimary[\s\S]{0,160}devtoolsProbe\.emitSnapshot/)
@@ -95,19 +96,19 @@ test('stage probe is configured inside the existing DesktopWorld render lifecycl
 
 test('stage topology keeps native geometry in DevTools and out of strict scene events', () => {
   const segments = [
-    { display_id: 1, index: 0, dw_bounds: [0, 200, 1440, 900], native_bounds: [-1440, 0, 1440, 900], scale_factor: 2 },
+    { display_id: 69_733_382, index: 0, dw_bounds: [0, 200, 1440, 900], native_bounds: [-1440, 0, 1440, 900], scale_factor: 2 },
     { display_id: 2, index: 1, dw_bounds: [1440, 0, 1920, 1080], native_bounds: [0, -200, 1920, 1080], scale_factor: 1 },
   ]
   const scene = projectSceneEventTopology(segments)
   const devtools = projectDesktopWorldDevToolsTopology(segments)
 
   assert.deepEqual(scene.displays, [
-    { displayId: 1, index: 0, bounds: [0, 200, 1440, 900] },
+    { displayId: 69_733_382, index: 0, bounds: [0, 200, 1440, 900] },
     { displayId: 2, index: 1, bounds: [1440, 0, 1920, 1080] },
   ])
   assert.deepEqual(devtools.displays, [
-    { displayId: 1, index: 0, bounds: [0, 200, 1440, 900], scaleFactor: 2, nativeBounds: [-1440, 0, 1440, 900] },
-    { displayId: 2, index: 1, bounds: [1440, 0, 1920, 1080], scaleFactor: 1, nativeBounds: [0, -200, 1920, 1080] },
+    { displayId: '69733382', index: 0, bounds: [0, 200, 1440, 900], scaleFactor: 2, nativeBounds: [-1440, 0, 1440, 900] },
+    { displayId: '2', index: 1, bounds: [1440, 0, 1920, 1080], scaleFactor: 1, nativeBounds: [0, -200, 1920, 1080] },
   ])
   assert.equal(scene.displays.some((display) => (
     Object.hasOwn(display, 'nativeBounds') || Object.hasOwn(display, 'scaleFactor')

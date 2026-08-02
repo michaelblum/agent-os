@@ -49,6 +49,11 @@ function boundedString(value, fallback = '', limit = DESKTOP_WORLD_DEVTOOLS_LIMI
   return typeof value === 'string' ? value.slice(0, limit) : fallback
 }
 
+function authoritativeDisplayId(value) {
+  if (typeof value === 'string') return boundedString(value)
+  return Number.isSafeInteger(value) && value >= 0 ? String(value) : ''
+}
+
 function canonicalSceneIdentifier(value) {
   if (typeof value !== 'string' || value.length < 1 || value.length > 256) return null
   if (!/^[a-z0-9](?:[a-z0-9._/-]{0,254}[a-z0-9])?$/u.test(value)) return null
@@ -121,9 +126,10 @@ function uniqueStrings(values, limit = 32) {
 function normalizeDisplay(value = {}, index = 0) {
   const bounds = point(value.bounds, 4)
   const nativeBounds = point(value.nativeBounds ?? value.native_bounds, 4)
-  if (!bounds || bounds[2] <= 0 || bounds[3] <= 0) return null
+  const id = authoritativeDisplayId(value.id ?? value.displayId)
+  if (!id || !bounds || bounds[2] <= 0 || bounds[3] <= 0) return null
   return Object.freeze({
-    id: boundedString(value.id ?? value.displayId, `display-${index}`),
+    id,
     index: boundedInteger(value.index, index, 0, 31),
     bounds: Object.freeze(bounds),
     scaleFactor: finite(value.scaleFactor ?? value.scale_factor, 1, 1, 4),
@@ -280,7 +286,7 @@ function normalizePerformance(value = {}) {
 }
 
 function normalizeDisplayPerformance(value = {}) {
-  const displayId = boundedString(value.displayId)
+  const displayId = authoritativeDisplayId(value.displayId)
   if (!displayId) return null
   return Object.freeze({
     displayId,
@@ -327,6 +333,15 @@ function normalizeNativeState(value = {}) {
       lastPresentationLatencyMs: nativeEffect.lastPresentationLatencyMs == null
         ? null
         : boundedInteger(nativeEffect.lastPresentationLatencyMs, 0, 0, 1e9),
+      lastRenderBackingPixelCount: nativeEffect.lastRenderBackingPixelCount == null
+        ? null
+        : boundedInteger(nativeEffect.lastRenderBackingPixelCount, 0, 0, 1e9),
+      lastRenderBackingPixelPercentage: nativeEffect.lastRenderBackingPixelPercentage == null
+        ? null
+        : finite(nativeEffect.lastRenderBackingPixelPercentage, 0, 0, 100),
+      lastRenderTriangleCount: nativeEffect.lastRenderTriangleCount == null
+        ? null
+        : boundedInteger(nativeEffect.lastRenderTriangleCount, 0, 0, 1e9),
       presentedCount: boundedInteger(nativeEffect.presentedCount, 0, 0, 1e9),
       rejectedCount: boundedInteger(nativeEffect.rejectedCount, 0, 0, 1e9),
       retainedBufferCount: boundedInteger(nativeEffect.retainedBufferCount, 0, 0, 32),
@@ -782,16 +797,23 @@ export function createDesktopWorldDevToolsStageProbe({
   let lastSampleAt = -Infinity
   let lastEmitAt = -Infinity
   let sampleIdentity = null
+  let readyIdentity = null
 
-  function readSampleIdentity() {
-    const stage = getStageIdentity() ?? {}
-    const display = getPerformanceDisplay() ?? {}
+  function normalizeSampleIdentity(stage = {}, display = {}) {
     const canvasGeneration = boundedInteger(stage.canvasGeneration, 0)
     const topologyGeneration = boundedInteger(stage.topologyGeneration, 0)
-    const displayId = boundedString(display.displayId)
+    const displayId = authoritativeDisplayId(display.displayId)
     const displayIndex = boundedInteger(display.displayIndex, -1, -1, 31)
     if (canvasGeneration < 1 || topologyGeneration < 1 || !displayId || displayIndex < 0) return null
     return { canvasGeneration, topologyGeneration, displayId, displayIndex }
+  }
+
+  function readSampleIdentity() {
+    const current = normalizeSampleIdentity(
+      getStageIdentity() ?? {},
+      getPerformanceDisplay() ?? {},
+    )
+    return sameSampleIdentity(readyIdentity, current) ? current : null
   }
 
   function sameSampleIdentity(left, right) {
@@ -827,8 +849,7 @@ export function createDesktopWorldDevToolsStageProbe({
   }
 
   function recordEvent(value = {}) {
-    if (!enabled || disposed) return false
-    synchronizeSampleIdentity()
+    if (!enabled || disposed || !synchronizeSampleIdentity()) return false
     eventSequence += 1
     events.push(normalizeEvent({ ...value, sequence: eventSequence, at: finite(value.at, now()) }))
     while (events.length > DESKTOP_WORLD_DEVTOOLS_LIMITS.events) events.shift()
@@ -898,7 +919,7 @@ export function createDesktopWorldDevToolsStageProbe({
   }
 
   function emitSnapshot(reason = 'snapshot', at = now(), metadata = {}) {
-    if (!enabled || disposed) return false
+    if (!enabled || disposed || !synchronizeSampleIdentity()) return false
     emit(snapshot(reason), metadata)
     lastEmitAt = at
     return true
@@ -907,6 +928,7 @@ export function createDesktopWorldDevToolsStageProbe({
   function sampleFrame(value = {}) {
     if (!enabled || disposed) return false
     const identity = synchronizeSampleIdentity()
+    if (!identity) return false
     const at = finite(value.renderEndedAt, now())
     const sampleInterval = recording ? 0 : 500
     if (identity && at - lastSampleAt >= sampleInterval) {
@@ -952,6 +974,14 @@ export function createDesktopWorldDevToolsStageProbe({
     isRecording() { return enabled && recording && !disposed },
     recordEvent,
     sampleFrame,
+    setIdentityReady(nextIdentity) {
+      if (disposed) return false
+      readyIdentity = nextIdentity && typeof nextIdentity === 'object'
+        ? normalizeSampleIdentity(nextIdentity, nextIdentity)
+        : null
+      synchronizeSampleIdentity()
+      return nextIdentity == null || nextIdentity === false || readyIdentity !== null
+    },
     snapshot,
     state() {
       return Object.freeze({

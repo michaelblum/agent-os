@@ -36,7 +36,7 @@
   "$defs": {
     "Identifier": { "type": "string", "minLength": 1, "maxLength": 256 },
     "Native": {
-      "type": "object", "required": ["desktopFrameWarm"], "additionalProperties": false,
+      "type": "object", "required": ["desktopFrameWarm", "nativeEffect"], "additionalProperties": false,
       "properties": {
         "desktopFrameWarm": {
           "type": "object", "required": ["displayCount", "errorCode", "generation", "state"], "additionalProperties": false,
@@ -48,7 +48,7 @@
           }
         },
         "nativeEffect": {
-          "type": "object", "required": ["activeInstanceCount", "activeSheetCount", "acceptedCount", "attemptedCount", "completedCount", "disposedCount", "failedCount", "lastErrorCode", "lastExecution", "lastPresentationLatencyMs", "presentedCount", "rejectedCount", "retainedBufferCount", "retainedTextureCount", "retainedViewCount", "state"], "additionalProperties": false,
+          "type": "object", "required": ["activeInstanceCount", "activeSheetCount", "acceptedCount", "attemptedCount", "completedCount", "disposedCount", "failedCount", "lastErrorCode", "lastExecution", "lastPresentationLatencyMs", "lastRenderBackingPixelCount", "lastRenderBackingPixelPercentage", "lastRenderTriangleCount", "presentedCount", "rejectedCount", "retainedBufferCount", "retainedTextureCount", "retainedViewCount", "state"], "additionalProperties": false,
           "properties": {
             "activeInstanceCount": { "type": "integer", "minimum": 0, "maximum": 1 },
             "activeSheetCount": { "type": "integer", "minimum": 0, "maximum": 1 },
@@ -72,6 +72,9 @@
               }
             },
             "lastPresentationLatencyMs": { "type": ["integer", "null"], "minimum": 0, "maximum": 1000000000 },
+            "lastRenderBackingPixelCount": { "type": ["integer", "null"], "minimum": 0, "maximum": 1000000000 },
+            "lastRenderBackingPixelPercentage": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+            "lastRenderTriangleCount": { "type": ["integer", "null"], "minimum": 0, "maximum": 1000000000 },
             "presentedCount": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
             "rejectedCount": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
             "retainedBufferCount": { "type": "integer", "minimum": 0, "maximum": 32 },

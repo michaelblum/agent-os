@@ -71,6 +71,9 @@ export interface DesktopWorldDevToolsStageSnapshot {
         resourceRevision: number;
       }> | null;
       lastPresentationLatencyMs: number | null;
+      lastRenderBackingPixelCount: number | null;
+      lastRenderBackingPixelPercentage: number | null;
+      lastRenderTriangleCount: number | null;
       presentedCount: number;
       rejectedCount: number;
       retainedBufferCount: number;

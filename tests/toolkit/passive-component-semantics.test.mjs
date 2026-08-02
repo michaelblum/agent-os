@@ -124,6 +124,44 @@ function fakeHost() {
   }
 }
 
+function desktopWorldPerformanceSnapshot({
+  canvasGeneration,
+  displays,
+  sequence,
+  topologyGeneration,
+}) {
+  return {
+    contract: 'aos.desktop-world.devtools.snapshot.v2',
+    schemaVersion: 2,
+    stageSnapshotRevision: 1,
+    session: {},
+    stage: {
+      contract: 'aos.desktop-world.devtools.stage.v2',
+      canvasGeneration,
+      topologyGeneration,
+      sequence,
+      status: 'available',
+      world: {
+        displays: displays.map(({ id, index }) => ({
+          id, index, bounds: [index * 100, 0, 100, 100], scaleFactor: 1,
+        })),
+        nodes: [], hitRegions: [], affordances: [], gestures: [], routes: [],
+      },
+      resources: [],
+      interactions: [],
+      displayPerformance: displays.map(({ id, index }) => ({
+        displayId: id,
+        displayIndex: index,
+        scope: 'stage-segment',
+        performance: { enabled: true, recording: false, currentFps: 60, avgFrameMs: 16 },
+      })),
+      counters: {},
+      events: [],
+      lastError: null,
+    },
+  }
+}
+
 test('InspectorPanel exposes a passive AX region', (t) => {
   withFakeBrowser(t)
 
@@ -157,6 +195,40 @@ test('RenderPerformance exposes root region and sparkline image semantics', (t) 
 
   window.__renderPerformanceDebug.sample({ source: 'debug', frameMs: 16, fps: 62 })
   assert.match(root.innerHTML, /class="perf-sparkline" role="img" aria-label="Frame-time sparkline"/)
+})
+
+test('RenderPerformance accepts replacement lifecycle sequence restarts and retires disappeared displays', (t) => {
+  withFakeBrowser(t)
+
+  const perf = RenderPerformance()
+  perf.render(fakeHost())
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 1,
+      topologyGeneration: 1,
+      sequence: 10,
+      displays: [{ id: 'old-a', index: 0 }, { id: 'old-b', index: 1 }],
+    }),
+  })
+  assert.deepEqual(
+    Object.keys(perf.serialize().sources).filter((source) => source.startsWith('desktop-world:')).sort(),
+    ['desktop-world:0:old-a', 'desktop-world:1:old-b'],
+  )
+
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 2,
+      topologyGeneration: 2,
+      sequence: 1,
+      displays: [{ id: 'new-a', index: 0 }],
+    }),
+  })
+  assert.deepEqual(
+    Object.keys(perf.serialize().sources).filter((source) => source.startsWith('desktop-world:')),
+    ['desktop-world:0:new-a'],
+  )
 })
 
 test('SpatialTelemetry exposes root region, labeled tables, and log semantics', (t) => {
