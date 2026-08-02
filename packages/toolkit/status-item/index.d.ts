@@ -120,7 +120,7 @@ export interface StatusItemInspectState {
   anchor: StatusItemAnchor
 }
 
-export interface StatusItemInvocationResult {
+export interface StatusItemInvocationResultBase {
   status: 'ok' | 'dry_run'
   owner: string
   item_id: string
@@ -128,11 +128,21 @@ export interface StatusItemInvocationResult {
   generation: number
   descriptor_revision: number
   action_sequence: number
-  event_type: 'primary_activation' | 'menu_selection'
-  menu_item_id?: string
   bounds: StatusItemBounds
   anchor: StatusItemAnchor
 }
+
+export interface StatusItemPrimaryInvocationResult extends StatusItemInvocationResultBase {
+  event_type: 'primary_activation'
+  menu_item_id?: never
+}
+
+export interface StatusItemMenuInvocationResult extends StatusItemInvocationResultBase {
+  event_type: 'menu_selection'
+  menu_item_id: string
+}
+
+export type StatusItemInvocationResult = StatusItemPrimaryInvocationResult | StatusItemMenuInvocationResult
 
 export interface StatusItemEventBase {
   schema_version: typeof STATUS_ITEM_EVENT_SCHEMA_VERSION
@@ -147,20 +157,55 @@ export interface StatusItemEventBase {
   anchor: StatusItemAnchor
 }
 
-export interface StatusItemLifecycleEvent extends StatusItemEventBase {
-  type: 'ready' | 'bounds_changed' | 'topology_changed'
+export interface StatusItemLifecycleEventBase extends StatusItemEventBase {
   action_sequence?: never
+  action_id?: never
+  menu_item_id?: never
+  origin_x?: never
+  origin_y?: never
+  modifiers?: never
 }
 
-export interface StatusItemActionEvent extends StatusItemEventBase {
-  type: 'primary_activation' | 'secondary_activation' | 'menu_selection'
+export interface StatusItemReadyEvent extends StatusItemLifecycleEventBase {
+  type: 'ready'
+}
+
+export interface StatusItemBoundsChangedEvent extends StatusItemLifecycleEventBase {
+  type: 'bounds_changed'
+}
+
+export interface StatusItemTopologyChangedEvent extends StatusItemLifecycleEventBase {
+  type: 'topology_changed'
+}
+
+export type StatusItemLifecycleEvent = StatusItemReadyEvent | StatusItemBoundsChangedEvent | StatusItemTopologyChangedEvent
+
+export interface StatusItemActionEventBase extends StatusItemEventBase {
   action_sequence: number
-  action_id?: string
-  menu_item_id?: string
   origin_x: number
   origin_y: number
   modifiers: Array<'command' | 'option' | 'control' | 'shift'>
 }
+
+export interface StatusItemPrimaryActivationEvent extends StatusItemActionEventBase {
+  type: 'primary_activation'
+  action_id: string
+  menu_item_id?: never
+}
+
+export interface StatusItemSecondaryActivationEvent extends StatusItemActionEventBase {
+  type: 'secondary_activation'
+  action_id?: never
+  menu_item_id?: never
+}
+
+export interface StatusItemMenuSelectionEvent extends StatusItemActionEventBase {
+  type: 'menu_selection'
+  action_id: string
+  menu_item_id: string
+}
+
+export type StatusItemActionEvent = StatusItemPrimaryActivationEvent | StatusItemSecondaryActivationEvent | StatusItemMenuSelectionEvent
 
 export type StatusItemEvent = StatusItemLifecycleEvent | StatusItemActionEvent
 

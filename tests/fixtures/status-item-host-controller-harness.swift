@@ -54,7 +54,7 @@ private func responseCode(_ result: AOSStatusItemHostCommandResult) -> String? {
 private final class FakeStatusItemHost: AOSStatusItemHosting {
     private(set) var hostedDescriptor: AOSHostedStatusItemDescriptor?
     private(set) var hostedGeneration = 0
-    private var actionAdmission = AOSStatusItemActionSequenceAdmission()
+    private var actionAdmission = AOSStatusItemActionAdmission()
     var hostedActionSequence: Int { actionAdmission.current }
     var hostedEventSink: (([String: Any]) -> Bool)?
 
@@ -64,6 +64,7 @@ private final class FakeStatusItemHost: AOSStatusItemHosting {
     private(set) var installCalls: [(revision: Int, generation: Int)] = []
     private(set) var clearCalls: [(owner: String, itemID: String, generation: Int)] = []
     private(set) var teardownCount = 0
+    private(set) var invokeCalls = 0
 
     func installHostedDescriptor(
         _ descriptor: AOSHostedStatusItemDescriptor,
@@ -115,6 +116,7 @@ private final class FakeStatusItemHost: AOSStatusItemHosting {
         expectedActionSequence: Int,
         dryRun: Bool
     ) -> [String: Any] {
+        invokeCalls += 1
         guard let descriptor = hostedDescriptor,
               descriptor.owner == owner,
               descriptor.itemID == itemID else {
@@ -129,33 +131,35 @@ private final class FakeStatusItemHost: AOSStatusItemHosting {
         guard actionID == descriptor.primaryActionID else {
             return ["error": "status item action is unknown", "code": "STATUS_ITEM_ACTION_NOT_FOUND"]
         }
-        guard expectedActionSequence == hostedActionSequence else {
+        let admission = actionAdmission.admit(expected: expectedActionSequence, dryRun: dryRun) { acceptedSequence in
+            self.emitAction(actionID: actionID, actionSequence: acceptedSequence)
+        }
+        switch admission {
+        case .stale:
             return ["error": "status item action sequence is stale", "code": "STATUS_ITEM_STALE_ACTION_SEQUENCE"]
-        }
-        guard actionAdmission.canReserve(expected: expectedActionSequence) else {
+        case .exhausted:
             return ["error": "status item action sequence is exhausted", "code": "STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED"]
-        }
-        let response = invocationResponse(status: dryRun ? "dry_run" : "ok", actionID: actionID, actionSequence: expectedActionSequence)
-        if dryRun { return response }
-        guard let acceptedSequence = actionAdmission.reserve(expected: expectedActionSequence) else {
-            return ["error": "status item action sequence is exhausted", "code": "STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED"]
-        }
-        let accepted = emitAction(actionID: actionID, actionSequence: acceptedSequence)
-        guard accepted else {
+        case .deliveryFailed:
             return ["error": "status item event delivery is unavailable", "code": "STATUS_ITEM_EVENT_UNAVAILABLE"]
+        case .dryRun(let sequence):
+            return invocationResponse(status: "dry_run", actionID: actionID, actionSequence: sequence)
+        case .delivered(let sequence):
+            return invocationResponse(status: "ok", actionID: actionID, actionSequence: sequence)
         }
-        return response
     }
 
     func forceActionSequenceExhaustion() {
-        actionAdmission = AOSStatusItemActionSequenceAdmission(maximumSequence: 1)
+        actionAdmission = AOSStatusItemActionAdmission(maximumSequence: 1)
         actionAdmission.install(generation: hostedGeneration)
     }
 
     func emitNativeAction() -> Bool {
-        guard let descriptor = hostedDescriptor,
-              let actionSequence = actionAdmission.reserve() else { return false }
-        return emitAction(actionID: descriptor.primaryActionID, actionSequence: actionSequence)
+        guard let descriptor = hostedDescriptor else { return false }
+        let admission = actionAdmission.admit { actionSequence in
+            self.emitAction(actionID: descriptor.primaryActionID, actionSequence: actionSequence)
+        }
+        if case .delivered = admission { return true }
+        return false
     }
 
     private func emitAction(actionID: String, actionSequence: Int) -> Bool {
@@ -458,8 +462,30 @@ private func testInvokeRejectsUnknownRequestFieldsBeforeAdmission() {
 
     let rejected = command(controller, action: "status-item-invoke", payload: payload, connectionID: UUID())
     expect(responseCode(rejected) == "INVALID_STATUS_ITEM_INVOKE", "unknown invoke field was not rejected")
+    expect(manager.invokeCalls == 0, "unknown invoke field reached the host action")
     expect(manager.hostedActionSequence == 1, "unknown invoke field consumed admission")
     expect(actionEvents(recorder).isEmpty, "unknown invoke field emitted an action event")
+}
+
+private func testInvokeRejectsTransportKeysBeforeHostAction() {
+    let reservedFields: [(String, Any)] = [
+        ("action", "status-item-invoke"),
+        ("__envelope_ref", "attacker-ref"),
+        ("__envelope_active", true),
+    ]
+    for (index, field) in reservedFields.enumerated() {
+        let (manager, recorder, controller) = makeController()
+        let owner = UUID(uuidString: "14141414-1414-1414-1414-14141414141\(index + 4)")!
+        expect(responseCode(register(controller, owner: owner)) == nil, "reserved-field registration failed")
+        var payload = invokePayload(revision: 3)
+        payload[field.0] = field.1
+
+        let rejected = command(controller, action: "status-item-invoke", payload: payload, connectionID: UUID())
+        expect(responseCode(rejected) == "INVALID_STATUS_ITEM_INVOKE", "reserved invoke field \(field.0) was not rejected")
+        expect(manager.invokeCalls == 0, "reserved invoke field \(field.0) reached the host action")
+        expect(manager.hostedActionSequence == 1, "reserved invoke field \(field.0) consumed admission")
+        expect(actionEvents(recorder).isEmpty, "reserved invoke field \(field.0) emitted an action event")
+    }
 }
 
 private func testDryRunAndEffectfulInvokeShareExhaustionChecks() {
@@ -670,6 +696,7 @@ private struct StatusItemHostControllerHarness {
         testFailedInstallAndRestoreTerminatesOwner()
         testDryRunDoesNotConsumeActionSequence()
         testInvokeRejectsUnknownRequestFieldsBeforeAdmission()
+        testInvokeRejectsTransportKeysBeforeHostAction()
         testDryRunAndEffectfulInvokeShareExhaustionChecks()
         testConcurrentSameSequenceAdmitsExactlyOnce()
         testNativeAndProgrammaticRaceShareAllocator()

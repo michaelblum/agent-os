@@ -244,9 +244,18 @@ test('status item descriptor, anchor, and observed event match public schemas', 
 test('invocation success has one complete canonical runtime and schema contract', () => {
   validateWithSchema(invocationResultSchemaPath, invocationResult)
   assert.deepEqual(normalizeStatusItemInvocationResult(invocationResult), invocationResult)
+  const menuInvocationResult = {
+    ...invocationResult,
+    action_id: 'park',
+    event_type: 'menu_selection',
+    menu_item_id: 'park',
+  }
+  validateWithSchema(invocationResultSchemaPath, menuInvocationResult)
+  assert.deepEqual(normalizeStatusItemInvocationResult(menuInvocationResult), menuInvocationResult)
   for (const malformed of [
     { ...invocationResult, owner: undefined },
     { ...invocationResult, event_type: 'menu_selection' },
+    { ...invocationResult, menu_item_id: 'menu/open' },
     { ...invocationResult, unexpected: true },
   ]) {
     assert.throws(() => validateWithSchema(invocationResultSchemaPath, malformed))
@@ -398,8 +407,14 @@ test('toolkit normalizes exact action-sequence invocation admission', () => {
   const types = fs.readFileSync(path.join(repoRoot, 'packages/toolkit/status-item/index.d.ts'), 'utf8')
   assert.match(types, /interface StatusItemInvokeRequest/)
   assert.match(types, /interface StatusItemInspectState/)
-  assert.match(types, /interface StatusItemInvocationResult/)
-  assert.match(types, /interface StatusItemActionEvent/)
+  assert.match(types, /type StatusItemInvocationResult = StatusItemPrimaryInvocationResult \| StatusItemMenuInvocationResult/)
+  assert.match(types, /type StatusItemActionEvent = StatusItemPrimaryActivationEvent \| StatusItemSecondaryActivationEvent \| StatusItemMenuSelectionEvent/)
+  assert.match(types, /interface StatusItemMenuInvocationResult[\s\S]*event_type: 'menu_selection'[\s\S]*menu_item_id: string/)
+  assert.match(types, /interface StatusItemPrimaryInvocationResult[\s\S]*menu_item_id\?: never/)
+  assert.match(types, /interface StatusItemMenuSelectionEvent[\s\S]*menu_item_id: string/)
+  assert.match(types, /interface StatusItemPrimaryActivationEvent[\s\S]*menu_item_id\?: never/)
+  assert.match(types, /interface StatusItemSecondaryActivationEvent[\s\S]*action_id\?: never[\s\S]*menu_item_id\?: never/)
+  assert.match(types, /interface StatusItemLifecycleEventBase[\s\S]*action_sequence\?: never[\s\S]*action_id\?: never[\s\S]*menu_item_id\?: never/)
   assert.match(types, /action_sequence: number/)
   assert.match(types, /normalizeStatusItemInvokeRequest/)
   assert.match(types, /normalizeStatusItemInvocationResult/)
@@ -448,15 +463,30 @@ test('descriptor validation rejects visual paths, inert anchors, code, duplicate
   )
 })
 
-test('event normalization rejects unsafe integers, incomplete actions, and contradictory anchor facts', () => {
+test('event normalization and schema enforce exact discriminated variants', () => {
   assert.throws(() => normalizeStatusItemEvent({ ...event, generation: Number.MAX_SAFE_INTEGER + 1 }), /safe integer/)
   assert.throws(() => normalizeStatusItemEvent({ ...event, timestamp: undefined }), /string/)
   const incomplete = { ...event }
   delete incomplete.action_id
-  assert.throws(() => normalizeStatusItemEvent(incomplete), /incomplete/)
+  assert.throws(() => normalizeStatusItemEvent(incomplete), /action_id must be a string/)
   const missingAdmission = { ...event }
   delete missingAdmission.action_sequence
   assert.throws(() => normalizeStatusItemEvent(missingAdmission), /safe integer/)
+  const primary = { ...event, type: 'primary_activation', action_id: 'activate' }
+  delete primary.menu_item_id
+  assert.deepEqual(normalizeStatusItemEvent(primary), primary)
+  for (const malformed of [
+    { ...primary, menu_item_id: 'menu/open' },
+    { ...event, menu_item_id: undefined },
+  ]) {
+    assert.throws(() => validateWithSchema(eventSchemaPath, malformed))
+    assert.throws(() => normalizeStatusItemEvent(malformed))
+  }
+  const secondary = { ...primary, type: 'secondary_activation' }
+  delete secondary.action_id
+  assert.deepEqual(normalizeStatusItemEvent(secondary), secondary)
+  assert.throws(() => validateWithSchema(eventSchemaPath, { ...secondary, action_id: 'activate' }))
+  assert.throws(() => normalizeStatusItemEvent({ ...secondary, action_id: 'activate' }), /must not carry/)
   assert.throws(
     () => normalizeStatusItemEvent({ ...event, bounds: { ...bounds, display_id: 2 } }),
     /disagree/,
@@ -475,8 +505,10 @@ test('event normalization rejects unsafe integers, incomplete actions, and contr
     modifiers: undefined,
   }
   for (const key of ['action_sequence', 'action_id', 'menu_item_id', 'origin_x', 'origin_y', 'modifiers']) delete ready[key]
-  assert.throws(() => normalizeStatusItemEvent({ ...ready, action_id: null }), /string/)
-  assert.throws(() => normalizeStatusItemEvent({ ...ready, action_sequence: 1 }), /non-action/)
+  for (const malformed of [{ ...ready, action_id: 'activate' }, { ...ready, action_sequence: 1 }]) {
+    assert.throws(() => validateWithSchema(eventSchemaPath, malformed))
+    assert.throws(() => normalizeStatusItemEvent(malformed), /must not carry/)
+  }
 })
 
 test('aos status-item validate is bounded, offline, and machine-readable', () => {
@@ -893,6 +925,20 @@ test('source manifest exposes only the truthful lease command forms', () => {
   }
 })
 
+test('status item documentation states the exact request and discriminated response contracts', () => {
+  const toolkit = fs.readFileSync(path.join(repoRoot, 'docs/api/toolkit/status-item.md'), 'utf8')
+  const api = fs.readFileSync(path.join(repoRoot, 'docs/api/aos.md'), 'utf8')
+  const ipc = fs.readFileSync(path.join(repoRoot, 'shared/schemas/daemon-ipc.md'), 'utf8')
+  for (const document of [toolkit, api]) {
+    assert.match(document, /(?:menu selection|`menu_selection`) requires (?:`menu_item_id`|a menu-item\s+id)/)
+    assert.match(document, /(?:primary activation|`primary_activation`) forbids (?:it|one)/)
+  }
+  assert.match(toolkit, /original envelope `data` object before generic daemon\s+envelope shaping/)
+  assert.match(api, /caller-supplied `action`, `__envelope_ref`, or `__envelope_active` is rejected/)
+  assert.match(ipc, /original envelope `data` object[\s\S]*before generic envelope shaping/)
+  assert.match(ipc, /duplicate raw keys are therefore not independently detectable/)
+})
+
 test('native host controller enforces lease, CAS, failed-delivery, and disconnect lifecycle', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-status-item-host-controller-'))
   const executable = path.join(tempRoot, 'status-item-host-controller-harness')
@@ -989,9 +1035,11 @@ test('rendered native menu rows retain immutable lease and action identity', () 
 
 test('native ownership is focused and excludes superseded visual and lifecycle routes', () => {
   const manager = fs.readFileSync(path.join(repoRoot, 'src/display/status-item.swift'), 'utf8')
+  const admission = fs.readFileSync(hostContractPath, 'utf8')
   const observation = fs.readFileSync(anchorObservationPath, 'utf8')
   const hosted = fs.readFileSync(path.join(repoRoot, 'src/display/status-item-hosted.swift'), 'utf8')
   const controller = fs.readFileSync(path.join(repoRoot, 'src/display/status-item-host-controller.swift'), 'utf8')
+  const controllerHarness = fs.readFileSync(hostControllerHarnessPath, 'utf8')
   const daemon = fs.readFileSync(path.join(repoRoot, 'src/daemon/unified.swift'), 'utf8')
   const combined = `${manager}\n${observation}\n${hosted}\n${controller}`
   assert(!combined.includes('CryptoKit'))
@@ -1000,7 +1048,12 @@ test('native ownership is focused and excludes superseded visual and lifecycle r
   assert.match(observation, /didMoveNotification/)
   assert.match(observation, /NSView\.frameDidChangeNotification/)
   assert.match(controller, /runOnMainSync/)
-  assert.match(hosted, /hostedActionAdmission\.reserve/)
+  assert.match(admission, /final class AOSStatusItemActionAdmission/)
+  assert.match(admission, /func admit\([\s\S]*current \+= 1[\s\S]*deliver\(accepted\)/)
+  assert.match(hosted, /hostedActionAdmission\.admit/)
+  assert.match(controllerHarness, /AOSStatusItemActionAdmission/)
+  assert.match(controllerHarness, /actionAdmission\.admit/)
+  assert.doesNotMatch(controllerHarness, /actionAdmission\.(?:canReserve|reserve)/)
   assert.match(manager, /emitHostedActionEvent/)
   assert.match(controller, /STATUS_ITEM_REVISION_NOT_ADVANCED/)
   assert.match(controller, /owner: current\.owner/)
@@ -1033,6 +1086,17 @@ test('daemon admits status-item requests only after host installation and orders
   const response = daemon.indexOf('sendResponseJSON(to: outbound, result.response', dispatch)
   const afterResponse = daemon.indexOf('result.afterResponse?()', dispatch)
   assert.ok(dispatch >= 0 && response > dispatch && afterResponse > response)
+
+  const rawInvoke = daemon.indexOf('if internalAction == "status-item-invoke"')
+  const rawPayload = daemon.indexOf('payload: env.data', rawInvoke)
+  const reshape = daemon.indexOf('var flat = env.data', rawInvoke)
+  const rawReturn = daemon.indexOf('return', rawPayload)
+  assert.ok(rawInvoke >= 0 && rawPayload > rawInvoke && rawReturn > rawPayload && reshape > rawReturn)
+  const shapedStatusDispatch = daemon.slice(
+    daemon.indexOf('case "status-item-register"'),
+    daemon.indexOf('// -- Display actions', daemon.indexOf('case "status-item-register"')),
+  )
+  assert.doesNotMatch(shapedStatusDispatch, /status-item-invoke/)
 
   const controller = fs.readFileSync(path.join(repoRoot, 'src/display/status-item-host-controller.swift'), 'utf8')
   const handler = controller.indexOf('func handleCommand')

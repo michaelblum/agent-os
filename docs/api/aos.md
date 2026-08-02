@@ -303,7 +303,13 @@ identify the current declaration, and `(generation, action_sequence)` identifies
 an action event for replay detection.
 The public CLI validates every invocation success field and accepts only the
 documented closed invoke error-code set; malformed successes and unknown error
-codes fail as `STATUS_ITEM_DAEMON_PROTOCOL_ERROR`.
+codes fail as `STATUS_ITEM_DAEMON_PROTOCOL_ERROR`. Invocation results and
+events are exact discriminated variants: menu selection requires a menu-item
+id, primary activation forbids one, secondary activation carries neither
+action nor menu identity, and lifecycle events carry no action-only fields.
+The daemon validates original invoke `data` before envelope shaping, so
+caller-supplied `action`, `__envelope_ref`, or `__envelope_active` is rejected
+without reaching the host or consuming an admission.
 
 The fallback visual reserves the slot and prevents an invisible failure; it is
 not the consumer's final visual. Two dependent slices are intentionally not in

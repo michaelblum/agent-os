@@ -23,7 +23,35 @@ Success response:
 
 Validated no-side-effect response:
 ```json
-{"v":1,"status":"dry_run","data":{"owner":"io.example.app","item_id":"tool","action_id":"activate"},"ref":"r-43"}
+{
+  "v": 1,
+  "status": "dry_run",
+  "data": {
+    "owner": "io.example.app",
+    "item_id": "tool",
+    "action_id": "activate",
+    "generation": 7,
+    "descriptor_revision": 3,
+    "action_sequence": 1,
+    "event_type": "primary_activation",
+    "bounds": { "x": 1, "y": 2, "width": 24, "height": 24, "origin_x": 13, "origin_y": 14, "display_id": 1 },
+    "anchor": {
+      "schema_version": "aos.status_item.anchor.v1",
+      "anchor_id": "native-status-item/io.example.app/tool",
+      "host": "native_status_item",
+      "coordinate_space": "global_display_top_left",
+      "visible": true,
+      "bounds": { "x": 1, "y": 2, "width": 24, "height": 24, "origin_x": 13, "origin_y": 14, "display_id": 1 },
+      "display": {
+        "id": 1,
+        "frame": { "x": 0, "y": 0, "width": 1920, "height": 1080, "origin_x": 960, "origin_y": 540 },
+        "visible_frame": { "x": 0, "y": 24, "width": 1920, "height": 1056, "origin_x": 960, "origin_y": 552 }
+      },
+      "topology": { "display_count": 1, "display_ids": [1], "truncated": false }
+    }
+  },
+  "ref": "r-43"
+}
 ```
 
 Error response:
@@ -73,8 +101,10 @@ Error response:
 | `graph.collapse` | Collapse a graph node. | `id`. |
 | `content.status` | Query content server status (port + roots). | (none) |
 
-Status-item invoke data is validated at the typed request boundary with a
-closed field set before action admission. The shared IPC parser uses
+Status-item invoke data is validated from the original envelope `data` object
+at the typed request boundary, before generic envelope shaping or action
+admission. The field set is closed; caller-supplied `action`, `__envelope_ref`,
+and `__envelope_active` are rejected. The shared IPC parser uses
 `JSONSerialization` and materializes each JSON object as a dictionary before
 that boundary; duplicate raw keys are therefore not independently detectable
 or rejected there. This contract enforces the resulting typed key set, not raw

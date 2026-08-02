@@ -12,6 +12,7 @@ from referencing import Registry, Resource
 schema_root = Path("shared/schemas")
 req_schema = json.loads((schema_root / "daemon-request.schema.json").read_text())
 resp_schema = json.loads((schema_root / "daemon-response.schema.json").read_text())
+invoke_result_schema = json.loads((schema_root / "aos-status-item-invocation-result-v1.schema.json").read_text())
 
 jsonschema.Draft202012Validator.check_schema(req_schema)
 jsonschema.Draft202012Validator.check_schema(resp_schema)
@@ -92,6 +93,9 @@ bad_requests = [
     {"v":1,"service":"status_item","action":"inspect","data":{"owner":"io.example.app","item_id":"status","generation":7,"descriptor_revision":3,"extra":True}},  # strict action data
     {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"status","action_id":"activate","generation":7,"descriptor_revision":3}},  # missing action sequence
     {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"status","action_id":"activate","generation":7,"descriptor_revision":3,"action_sequence":1,"unexpected":True}},  # invoke data key set is closed
+    {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"status","action_id":"activate","generation":7,"descriptor_revision":3,"action_sequence":1,"action":"status-item-invoke"}},  # transport action is not invoke data
+    {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"status","action_id":"activate","generation":7,"descriptor_revision":3,"action_sequence":1,"__envelope_ref":"attacker"}},  # envelope ref is not invoke data
+    {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"status","action_id":"activate","generation":7,"descriptor_revision":3,"action_sequence":1,"__envelope_active":True}},  # envelope state is not invoke data
     {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"status","action_id":"activate..now","generation":7,"descriptor_revision":3,"action_sequence":1}},  # invalid action id
     {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"panel/main","operation":{"op":"signal","extension":scene_extension}}},  # extensions are mount-only
 ]
@@ -121,6 +125,17 @@ good_responses = [
 for response in good_responses:
     errors = list(response_validator.iter_errors(response))
     assert not errors, f"unexpected response errors for {response}: {errors}"
+
+ipc_doc = Path("shared/schemas/daemon-ipc.md").read_text()
+documented_dry_run = json.loads(
+    ipc_doc.split("Validated no-side-effect response:", 1)[1]
+    .split("```json", 1)[1]
+    .split("```", 1)[0]
+)
+assert not list(response_validator.iter_errors(documented_dry_run)), "documented dry-run envelope is invalid"
+documented_invoke_result = {**documented_dry_run["data"], "status": documented_dry_run["status"]}
+invoke_result_validator = jsonschema.Draft202012Validator(invoke_result_schema, registry=registry)
+assert not list(invoke_result_validator.iter_errors(documented_invoke_result)), "documented dry-run invocation result is invalid"
 
 bad_responses = [
     {"v":1,"status":"dry_run"},  # missing data

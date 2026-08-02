@@ -27,7 +27,9 @@ owner/item/action/generation/revision identity plus the current positive
 dry-run shape, including exact identity, accepted action sequence, event type,
 bounds, and anchor. `STATUS_ITEM_INVOKE_ERROR_CODES` is the closed set of
 daemon error codes accepted by the public invoke client; an incomplete success
-or an unknown error code is a daemon protocol failure.
+or an unknown error code is a daemon protocol failure. Invocation results are
+discriminated by `event_type`: `menu_selection` requires `menu_item_id`, while
+`primary_activation` forbids it.
 
 ## Anchor And Events
 
@@ -46,9 +48,11 @@ implemented event set is:
   native item.
 
 Every event requires safe-integer generation/revision/sequence, timestamp,
-source, bounds, and anchor. Activation events additionally require their
-action/origin/modifier facts and admitted `action_sequence`; non-action events
-reject that field. Top-level bounds must equal anchor bounds. The all-event
+source, bounds, and anchor. Action event variants require their exact
+action/origin/modifier facts and admitted `action_sequence`: menu selection
+requires `menu_item_id`, primary activation forbids it, and secondary activation
+forbids both action and menu identity. Lifecycle events reject all action-only
+fields. Top-level bounds must equal anchor bounds. The all-event
 `sequence` preserves stream order, while `(generation, action_sequence)` is the
 stable action replay identity.
 
@@ -69,6 +73,11 @@ discarded without admission if any binding is stale or disabled. At sequence
 exhaustion, dry-run and effectful invoke return the same typed error without
 emitting or changing state. Closing the follow process releases the item.
 Standalone subscribe and cleanup commands do not exist.
+
+Invoke validates the original envelope `data` object before generic daemon
+envelope shaping. Its key set is exact; caller-supplied `action`,
+`__envelope_ref`, and `__envelope_active` are invalid invoke data and never
+reach action admission.
 
 The canonical daemon request schema types `register`, `update`, `inspect`,
 `invoke`, and `invoke_dry_run`; the canonical event schema validates the status

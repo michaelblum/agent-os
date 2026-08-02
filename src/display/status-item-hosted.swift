@@ -92,40 +92,46 @@ extension StatusItemManager {
         guard let anchor = statusItemAnchorPayload(owner: owner, itemID: itemID) else {
             return ["error": "status item native anchor is unavailable", "code": "STATUS_ITEM_ANCHOR_UNAVAILABLE"]
         }
-        guard expectedActionSequence == hostedActionSequence else {
-            return ["error": "status item action sequence is stale", "code": "STATUS_ITEM_STALE_ACTION_SEQUENCE"]
+        let eventType = isPrimary ? "primary_activation" : "menu_selection"
+        let admission = hostedActionAdmission.admit(expected: expectedActionSequence, dryRun: dryRun) { actionSequence in
+            emitHostedEvent(
+                type: eventType,
+                actionID: actionID,
+                menuItemID: menuItem?.id,
+                modifiers: [],
+                origin: statusItemCGPosition(),
+                actionSequence: actionSequence
+            )
         }
-        guard hostedActionAdmission.canReserve(expected: expectedActionSequence) else {
+        let acceptedActionSequence: Int
+        let status: String
+        switch admission {
+        case .stale:
+            return ["error": "status item action sequence is stale", "code": "STATUS_ITEM_STALE_ACTION_SEQUENCE"]
+        case .exhausted:
             return ["error": "status item action sequence is exhausted", "code": "STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED"]
+        case .deliveryFailed:
+            return ["error": "status item event delivery is unavailable", "code": "STATUS_ITEM_EVENT_UNAVAILABLE"]
+        case .dryRun(let sequence):
+            acceptedActionSequence = sequence
+            status = "dry_run"
+        case .delivered(let sequence):
+            acceptedActionSequence = sequence
+            status = "ok"
         }
         var payload: [String: Any] = [
-            "status": dryRun ? "dry_run" : "ok",
+            "status": status,
             "owner": owner,
             "item_id": itemID,
             "action_id": actionID,
             "generation": hostedGeneration,
             "descriptor_revision": hosted.revision,
-            "action_sequence": expectedActionSequence,
-            "event_type": isPrimary ? "primary_activation" : "menu_selection",
+            "action_sequence": acceptedActionSequence,
+            "event_type": eventType,
             "bounds": anchor["bounds"] ?? NSNull(),
             "anchor": anchor,
         ]
         if let menuItem { payload["menu_item_id"] = menuItem.id }
-        if !dryRun {
-            guard let admission = emitHostedActionEvent(
-                    type: isPrimary ? "primary_activation" : "menu_selection",
-                    actionID: actionID,
-                    menuItemID: menuItem?.id,
-                    modifiers: [],
-                    origin: statusItemCGPosition(),
-                    expectedActionSequence: expectedActionSequence
-                ) else {
-                return ["error": "status item action sequence is exhausted", "code": "STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED"]
-            }
-            guard admission.delivered else {
-                return ["error": "status item event delivery is unavailable", "code": "STATUS_ITEM_EVENT_UNAVAILABLE"]
-            }
-        }
         return payload
     }
 
@@ -195,16 +201,21 @@ extension StatusItemManager {
         origin: CGPoint,
         expectedActionSequence: Int? = nil
     ) -> (actionSequence: Int, delivered: Bool)? {
-        guard let actionSequence = hostedActionAdmission.reserve(expected: expectedActionSequence) else { return nil }
-        let delivered = emitHostedEvent(
-            type: type,
-            actionID: actionID,
-            menuItemID: menuItemID,
-            modifiers: modifiers,
-            origin: origin,
-            actionSequence: actionSequence
-        )
-        return (actionSequence, delivered)
+        let result = hostedActionAdmission.admit(expected: expectedActionSequence) { actionSequence in
+            emitHostedEvent(
+                type: type,
+                actionID: actionID,
+                menuItemID: menuItemID,
+                modifiers: modifiers,
+                origin: origin,
+                actionSequence: actionSequence
+            )
+        }
+        switch result {
+        case .delivered(let sequence): return (sequence, true)
+        case .deliveryFailed(let sequence): return (sequence, false)
+        case .stale, .exhausted, .dryRun: return nil
+        }
     }
 
     @discardableResult

@@ -41,11 +41,22 @@
   "allOf": [
     {
       "if": { "properties": { "type": { "const": "primary_activation" } }, "required": ["type"] },
-      "then": { "required": ["action_sequence", "action_id", "origin_x", "origin_y", "modifiers"] }
+      "then": {
+        "required": ["action_sequence", "action_id", "origin_x", "origin_y", "modifiers"],
+        "not": { "required": ["menu_item_id"] }
+      }
     },
     {
       "if": { "properties": { "type": { "const": "secondary_activation" } }, "required": ["type"] },
-      "then": { "required": ["action_sequence", "origin_x", "origin_y", "modifiers"] }
+      "then": {
+        "required": ["action_sequence", "origin_x", "origin_y", "modifiers"],
+        "not": {
+          "anyOf": [
+            { "required": ["action_id"] },
+            { "required": ["menu_item_id"] }
+          ]
+        }
+      }
     },
     {
       "if": { "properties": { "type": { "const": "menu_selection" } }, "required": ["type"] },
@@ -53,7 +64,18 @@
     },
     {
       "if": { "properties": { "type": { "enum": ["ready", "bounds_changed", "topology_changed"] } }, "required": ["type"] },
-      "then": { "not": { "required": ["action_sequence"] } }
+      "then": {
+        "not": {
+          "anyOf": [
+            { "required": ["action_sequence"] },
+            { "required": ["action_id"] },
+            { "required": ["menu_item_id"] },
+            { "required": ["origin_x"] },
+            { "required": ["origin_y"] },
+            { "required": ["modifiers"] }
+          ]
+        }
+      }
     }
   ],
   "$defs": {

@@ -3445,6 +3445,18 @@ class UnifiedDaemon {
                 ))
                 return
             }
+            if internalAction == "status-item-invoke" || internalAction == "status-item-invoke-dry-run" {
+                statusItemHostController.handleCommand(
+                    action: internalAction,
+                    payload: env.data,
+                    connectionID: connectionID,
+                    ref: env.ref
+                ) { result in
+                    sendResponseJSON(to: outbound, result.response, envelopeActive: true, envelopeRef: env.ref)
+                    result.afterResponse?()
+                }
+                return
+            }
             // Reshape: merge `data` into a flat dict and set `action`.
             var flat = env.data
             flat["action"] = internalAction
@@ -3516,8 +3528,7 @@ class UnifiedDaemon {
                 envelopeRef: envelopeRef
             )
 
-        case "status-item-register", "status-item-update", "status-item-inspect", "status-item-invoke",
-             "status-item-invoke-dry-run":
+        case "status-item-register", "status-item-update", "status-item-inspect":
             statusItemHostController.handleCommand(
                 action: action,
                 payload: json,

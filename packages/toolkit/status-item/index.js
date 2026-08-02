@@ -316,24 +316,23 @@ export function normalizeStatusItemEvent(input) {
   if (anchor.anchor_id !== `native-status-item/${normalized.owner}/${normalized.item_id}`) {
     fail('INVALID_STATUS_ITEM_EVENT', 'event owner and item disagree with anchor identity')
   }
-  if (ACTION_EVENT_TYPES.has(event.type)) {
-    normalized.action_sequence = safeInteger(event.action_sequence, 'action_sequence', { min: 1 })
-  } else if (hasOwn(event, 'action_sequence')) {
-    fail('INVALID_STATUS_ITEM_EVENT', 'non-action event must not carry action_sequence')
+  const actionFields = ['action_sequence', 'action_id', 'menu_item_id', 'origin_x', 'origin_y', 'modifiers']
+  if (!ACTION_EVENT_TYPES.has(event.type)) {
+    if (actionFields.some((key) => hasOwn(event, key))) fail('INVALID_STATUS_ITEM_EVENT', 'lifecycle event must not carry action fields')
+    return normalized
   }
-  if (hasOwn(event, 'action_id')) normalized.action_id = identifier(event.action_id, 'action_id', { slash: true, code: 'INVALID_STATUS_ITEM_EVENT' })
-  if (hasOwn(event, 'menu_item_id')) normalized.menu_item_id = identifier(event.menu_item_id, 'menu_item_id', { slash: true, code: 'INVALID_STATUS_ITEM_EVENT' })
-  if (hasOwn(event, 'origin_x')) normalized.origin_x = safeInteger(event.origin_x, 'origin_x', { min: Number.MIN_SAFE_INTEGER })
-  if (hasOwn(event, 'origin_y')) normalized.origin_y = safeInteger(event.origin_y, 'origin_y', { min: Number.MIN_SAFE_INTEGER })
-  if (hasOwn(event, 'modifiers')) normalized.modifiers = normalizeModifiers(event.modifiers)
-  if (event.type === 'primary_activation' && (!normalized.action_id || normalized.origin_x == null || normalized.origin_y == null || !normalized.modifiers)) {
-    fail('INVALID_STATUS_ITEM_EVENT', 'primary activation event is incomplete')
-  }
-  if (event.type === 'secondary_activation' && (normalized.origin_x == null || normalized.origin_y == null || !normalized.modifiers)) {
-    fail('INVALID_STATUS_ITEM_EVENT', 'secondary activation event is incomplete')
-  }
-  if (event.type === 'menu_selection' && (!normalized.action_id || !normalized.menu_item_id || normalized.origin_x == null || normalized.origin_y == null || !normalized.modifiers)) {
-    fail('INVALID_STATUS_ITEM_EVENT', 'menu selection event is incomplete')
+  normalized.action_sequence = safeInteger(event.action_sequence, 'action_sequence', { min: 1 })
+  normalized.origin_x = safeInteger(event.origin_x, 'origin_x', { min: Number.MIN_SAFE_INTEGER })
+  normalized.origin_y = safeInteger(event.origin_y, 'origin_y', { min: Number.MIN_SAFE_INTEGER })
+  normalized.modifiers = normalizeModifiers(event.modifiers)
+  if (event.type === 'primary_activation') {
+    normalized.action_id = identifier(event.action_id, 'action_id', { slash: true, code: 'INVALID_STATUS_ITEM_EVENT' })
+    if (hasOwn(event, 'menu_item_id')) fail('INVALID_STATUS_ITEM_EVENT', 'primary activation event must not carry menu_item_id')
+  } else if (event.type === 'secondary_activation') {
+    if (hasOwn(event, 'action_id') || hasOwn(event, 'menu_item_id')) fail('INVALID_STATUS_ITEM_EVENT', 'secondary activation event must not carry action or menu identity')
+  } else {
+    normalized.action_id = identifier(event.action_id, 'action_id', { slash: true, code: 'INVALID_STATUS_ITEM_EVENT' })
+    normalized.menu_item_id = identifier(event.menu_item_id, 'menu_item_id', { slash: true, code: 'INVALID_STATUS_ITEM_EVENT' })
   }
   return normalized
 }

@@ -58,7 +58,7 @@ final class StatusItemManager {
     var statusMenuItems: [StatusItemMenuDescriptor] = []
     var hostedDescriptor: AOSHostedStatusItemDescriptor?
     var hostedGeneration: Int = 0
-    var hostedActionAdmission = AOSStatusItemActionSequenceAdmission()
+    var hostedActionAdmission = AOSStatusItemActionAdmission()
     var hostedEventSink: (([String: Any]) -> Bool)?
 
     private var fallbackIcon: NSImage?

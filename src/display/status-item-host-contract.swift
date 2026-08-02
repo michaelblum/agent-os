@@ -2,36 +2,45 @@
 
 import Foundation
 
-struct AOSStatusItemActionSequenceAdmission {
+enum AOSStatusItemActionAdmissionResult {
+    case stale
+    case exhausted
+    case dryRun(Int)
+    case delivered(Int)
+    case deliveryFailed(Int)
+}
+
+final class AOSStatusItemActionAdmission {
     static let maximum = 9_007_199_254_740_991
 
     private(set) var generation = 0
     private(set) var current = 1
     private let maximumSequence: Int
 
-    init(maximumSequence: Int = Self.maximum) {
-        precondition((1...Self.maximum).contains(maximumSequence))
+    init(maximumSequence: Int = AOSStatusItemActionAdmission.maximum) {
+        precondition((1...AOSStatusItemActionAdmission.maximum).contains(maximumSequence))
         self.maximumSequence = maximumSequence
     }
 
-    mutating func install(generation: Int) {
+    func install(generation: Int) {
         precondition(Thread.isMainThread, "status item action admission must run on the main actor boundary")
         guard generation != self.generation else { return }
         self.generation = generation
         current = 1
     }
 
-    func canReserve(expected: Int? = nil) -> Bool {
+    func admit(
+        expected: Int? = nil,
+        dryRun: Bool = false,
+        deliver: (Int) -> Bool
+    ) -> AOSStatusItemActionAdmissionResult {
         precondition(Thread.isMainThread, "status item action admission must run on the main actor boundary")
-        if let expected, expected != current { return false }
-        return current < maximumSequence
-    }
-
-    mutating func reserve(expected: Int? = nil) -> Int? {
-        guard canReserve(expected: expected) else { return nil }
+        if let expected, expected != current { return .stale }
+        guard current < maximumSequence else { return .exhausted }
         let accepted = current
+        if dryRun { return .dryRun(accepted) }
         current += 1
-        return accepted
+        return deliver(accepted) ? .delivered(accepted) : .deliveryFailed(accepted)
     }
 }
 

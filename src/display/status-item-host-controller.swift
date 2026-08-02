@@ -259,8 +259,7 @@ final class AOSStatusItemHostController {
         return ["status": "ok", "state": state]
     }
     private func invoke(payload: [String: Any], dryRun: Bool) -> [String: Any] {
-        guard Set(payload.keys).subtracting(["action", "__envelope_ref", "__envelope_active"]) ==
-                Set(["owner", "item_id", "action_id", "generation", "descriptor_revision", "action_sequence"]) else {
+        guard Set(payload.keys) == Set(["owner", "item_id", "action_id", "generation", "descriptor_revision", "action_sequence"]) else {
             return failure("INVALID_STATUS_ITEM_INVOKE", "status item invoke contains unsupported or missing fields")
         }
         guard let identity = checkedIdentity(payload, actionRequired: true, actionSequenceRequired: true),
