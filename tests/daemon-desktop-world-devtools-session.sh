@@ -577,10 +577,10 @@ require(opened["status"] as? String == "ok", "controller fake host did not open"
 var monitorPublications: [[String: Any]] = []
 func deliverControllerSnapshot(_ segmentIndex: Int, topologyGeneration: Int) -> AOSDesktopWorldDevToolsStageCommitResult {
     let result = controller.handleStageSnapshot([
-        "canvas_generation": 3,
-        "topology_generation": topologyGeneration,
-        "segment_display_id": segmentIndex + 100,
-        "segment_index": segmentIndex,
+        "canvas_generation": NSNumber(value: UInt64(3)),
+        "topology_generation": NSNumber(value: UInt64(topologyGeneration)),
+        "segment_display_id": NSNumber(value: UInt32(segmentIndex + 100)),
+        "segment_index": NSNumber(value: segmentIndex),
         "snapshot": stageSnapshot(segmentIndex: segmentIndex, topologyGeneration: topologyGeneration),
     ])
     if result == .committed {
@@ -588,6 +588,58 @@ func deliverControllerSnapshot(_ segmentIndex: Int, topologyGeneration: Int) -> 
     }
     return result
 }
+
+func deliverMalformedControllerIdentity(_ key: String, value: Any) -> AOSDesktopWorldDevToolsStageCommitResult {
+    var payload: [String: Any] = [
+        "canvas_generation": NSNumber(value: UInt64(3)),
+        "topology_generation": NSNumber(value: UInt64(4)),
+        "segment_display_id": NSNumber(value: UInt32(100)),
+        "segment_index": NSNumber(value: 0),
+        "snapshot": stageSnapshot(),
+    ]
+    payload[key] = value
+    return controller.handleStageSnapshot(payload)
+}
+
+for key in ["canvas_generation", "topology_generation", "segment_display_id", "segment_index"] {
+    require(
+        deliverMalformedControllerIdentity(key, value: NSNumber(value: true)) == .rejected,
+        "controller admitted Boolean \(key)"
+    )
+    require(
+        deliverMalformedControllerIdentity(key, value: NSNumber(value: 1.5)) == .rejected,
+        "controller admitted fractional \(key)"
+    )
+    require(
+        deliverMalformedControllerIdentity(key, value: NSNumber(value: -1)) == .rejected,
+        "controller admitted negative \(key)"
+    )
+}
+require(
+    deliverMalformedControllerIdentity(
+        "canvas_generation",
+        value: NSNumber(value: Double.greatestFiniteMagnitude)
+    ) == .rejected,
+    "controller admitted out-of-range canvas_generation"
+)
+require(
+    deliverMalformedControllerIdentity(
+        "topology_generation",
+        value: NSNumber(value: Double.greatestFiniteMagnitude)
+    ) == .rejected,
+    "controller admitted out-of-range topology_generation"
+)
+require(
+    deliverMalformedControllerIdentity(
+        "segment_display_id",
+        value: NSNumber(value: UInt64(UInt32.max) + 1)
+    ) == .rejected,
+    "controller admitted out-of-range segment_display_id"
+)
+require(
+    deliverMalformedControllerIdentity("segment_index", value: NSNumber(value: 32)) == .rejected,
+    "controller admitted out-of-range segment_index"
+)
 
 fakeCanvas.posts.removeAll()
 require(deliverControllerSnapshot(0, topologyGeneration: 4) == .pending, "seed receipt did not remain pending")

@@ -129,8 +129,7 @@ export default function RenderPerformance(options = {}) {
   let lastFrameAt = null;
   let lastRenderAt = 0;
   let targetFps = Number.isFinite(options.targetFps) ? options.targetFps : 60;
-  let desktopWorldLifecycle = null;
-  let desktopWorldSequence = -1;
+  let desktopWorldPublication = null;
   const sources = new Map();
   const desktopWorldSources = new Set();
   const events = [];
@@ -153,6 +152,18 @@ export default function RenderPerformance(options = {}) {
   function appendEvent(type, text) {
     events.push({ ts: clockTime(wallTime()), type, text });
     while (events.length > 80) events.shift();
+  }
+
+  function isNewerDesktopWorldPublication(projection) {
+    if (!desktopWorldPublication) return true;
+    const sameLifecycle = projection.canvasGeneration === desktopWorldPublication.canvasGeneration
+      && projection.topologyGeneration === desktopWorldPublication.topologyGeneration;
+    if (!sameLifecycle) return true;
+    if (desktopWorldPublication.stageSnapshotRevision > 0) {
+      return projection.stageSnapshotRevision > desktopWorldPublication.stageSnapshotRevision;
+    }
+    if (projection.stageSnapshotRevision > 0) return true;
+    return projection.sequence > desktopWorldPublication.sequence;
   }
 
   function recordPanelFrame(ts) {
@@ -295,10 +306,13 @@ export default function RenderPerformance(options = {}) {
       const payload = msg.payload || msg;
       if (msg.type === 'desktop_world_devtools.snapshot') {
         const projection = projectDesktopWorldDevToolsPerformance(payload);
-        const lifecycle = `${projection.canvasGeneration}:${projection.topologyGeneration}`;
-        if (lifecycle === desktopWorldLifecycle && projection.sequence <= desktopWorldSequence) return;
-        desktopWorldLifecycle = lifecycle;
-        desktopWorldSequence = projection.sequence;
+        if (!isNewerDesktopWorldPublication(projection)) return;
+        desktopWorldPublication = {
+          canvasGeneration: projection.canvasGeneration,
+          topologyGeneration: projection.topologyGeneration,
+          sequence: projection.sequence,
+          stageSnapshotRevision: projection.stageSnapshotRevision,
+        };
         const nextSources = new Set(projection.displays.map((display) => display.sample.source));
         for (const source of desktopWorldSources) {
           if (!nextSources.has(source)) sources.delete(source);
@@ -334,9 +348,8 @@ export default function RenderPerformance(options = {}) {
       if (msg.type === 'reset') {
         sources.clear();
         desktopWorldSources.clear();
-        desktopWorldLifecycle = null;
+        desktopWorldPublication = null;
         events.length = 0;
-        desktopWorldSequence = -1;
         renderState();
       }
     },

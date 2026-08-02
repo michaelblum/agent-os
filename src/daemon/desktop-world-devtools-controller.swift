@@ -1,5 +1,38 @@
 import AppKit
+import CoreFoundation
 import Foundation
+
+private func aosDesktopWorldDevToolsExactUInt64(
+    _ value: Any?,
+    maximum: UInt64 = .max
+) -> UInt64? {
+    guard let number = value as? NSNumber,
+          CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
+    let scalar = number.doubleValue
+    guard scalar.isFinite,
+          scalar.rounded(.towardZero) == scalar,
+          number.compare(NSNumber(value: UInt64.zero)) != .orderedAscending,
+          number.compare(NSNumber(value: maximum)) != .orderedDescending else { return nil }
+    let result = number.uint64Value
+    return NSNumber(value: result).compare(number) == .orderedSame ? result : nil
+}
+
+private func aosDesktopWorldDevToolsExactInt(
+    _ value: Any?,
+    range: ClosedRange<Int>
+) -> Int? {
+    guard let number = value as? NSNumber,
+          CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
+    let scalar = number.doubleValue
+    guard scalar.isFinite,
+          scalar.rounded(.towardZero) == scalar,
+          number.compare(NSNumber(value: range.lowerBound)) != .orderedAscending,
+          number.compare(NSNumber(value: range.upperBound)) != .orderedDescending else { return nil }
+    let result = number.intValue
+    return range.contains(result) && NSNumber(value: result).compare(number) == .orderedSame
+        ? result
+        : nil
+}
 
 final class AOSDesktopWorldDevToolsController {
     private let canvasManager: CanvasManager
@@ -40,10 +73,21 @@ final class AOSDesktopWorldDevToolsController {
         guard let topology = canvasManager.desktopWorldSceneBarrierTopology(
                   canvasID: sceneStageCanvasID
               ),
-              let canvasGeneration = (payload["canvas_generation"] as? NSNumber)?.uint64Value,
-              let topologyGeneration = (payload["topology_generation"] as? NSNumber)?.uint64Value,
-              let displayID = (payload["segment_display_id"] as? NSNumber)?.uint32Value,
-              let segmentIndex = (payload["segment_index"] as? NSNumber)?.intValue,
+              let canvasGeneration = aosDesktopWorldDevToolsExactUInt64(
+                  payload["canvas_generation"]
+              ),
+              let topologyGeneration = aosDesktopWorldDevToolsExactUInt64(
+                  payload["topology_generation"]
+              ),
+              let displayIDValue = aosDesktopWorldDevToolsExactUInt64(
+                  payload["segment_display_id"],
+                  maximum: UInt64(UInt32.max)
+              ),
+              let displayID = UInt32(exactly: displayIDValue),
+              let segmentIndex = aosDesktopWorldDevToolsExactInt(
+                  payload["segment_index"],
+                  range: 0...31
+              ),
               canvasGeneration == topology.canvasGeneration,
               topologyGeneration == topology.generation,
               topology.segments.contains(where: {

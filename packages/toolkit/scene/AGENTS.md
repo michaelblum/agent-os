@@ -141,6 +141,9 @@ stage internals.
   visuals but may not supply executable render code.
 - DesktopWorld DevTools use the stage's existing frame loop. Disabled
   instrumentation creates no timer, RAF, stage read, or per-frame allocation.
+  `desktop-world-devtools-stage-probe.js` owns the segment-local sampling,
+  identity readiness, event retention, and publication lifecycle behind the
+  public `desktop-world-devtools.js` facade.
   The daemon owns revisioned session and host-lease state; consumers may host
   the public view but never own or fork its telemetry. Each display segment
   reports its own render performance; the daemon publishes a topology-complete

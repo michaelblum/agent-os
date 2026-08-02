@@ -74,7 +74,8 @@ test('stock panel closes before first telemetry and declares no status-item owne
 test('stage probe is configured inside the existing DesktopWorld render lifecycle', () => {
   const stage = read('packages/toolkit/components/desktop-world-stage/index.js')
   const outlet = read('packages/toolkit/components/desktop-world-stage/scene-outlet.js')
-  const probe = read('packages/toolkit/scene/desktop-world-devtools.js')
+  const probeFacade = read('packages/toolkit/scene/desktop-world-devtools.js')
+  const probe = read('packages/toolkit/scene/desktop-world-devtools-stage-probe.js')
 
   assert.match(stage, /sceneOutlet\.setDevToolsProbe\(devtoolsProbe\)/)
   assert.match(stage, /displays: devtoolsTopologySnapshot\(\)\.displays/)
@@ -90,6 +91,8 @@ test('stage probe is configured inside the existing DesktopWorld render lifecycl
   assert.match(stage, /onTopologyChange:[\s\S]{0,180}const identity = devtoolsSampleIdentity\(segment\)[\s\S]{0,100}devtoolsProbe\.setIdentityReady\(false\)[\s\S]*requireDesktopWorldSceneSegment[\s\S]{0,240}devtoolsProbe\.setIdentityReady\(identity\)/)
   assert.match(probe, /function recordEvent[\s\S]{0,180}synchronizeSampleIdentity\(\)/)
   assert.match(probe, /canvasGeneration[\s\S]*topologyGeneration[\s\S]*displayId[\s\S]*displayIndex/)
+  assert.match(probeFacade, /createDesktopWorldDevToolsStageProbeLifecycle/)
+  assert.ok(probeFacade.split('\n').length < 1_000)
   assert.doesNotMatch(stage, /surface\.isPrimary[\s\S]{0,160}devtoolsProbe\.emitSnapshot/)
   assert.doesNotMatch(probe, /requestAnimationFrame|setInterval|setTimeout/)
 })

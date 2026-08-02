@@ -53,6 +53,7 @@ export function projectDesktopWorldDevToolsPerformance(input, { now = Date.now()
     canvasGeneration: snapshot.stage.canvasGeneration,
     topologyGeneration: snapshot.stage.topologyGeneration,
     sequence: snapshot.stage.sequence,
+    stageSnapshotRevision: snapshot.stageSnapshotRevision,
     displays: Object.freeze(displays),
   });
 }

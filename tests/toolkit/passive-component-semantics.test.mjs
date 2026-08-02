@@ -128,13 +128,14 @@ function desktopWorldPerformanceSnapshot({
   canvasGeneration,
   displays,
   sequence,
+  stageSnapshotRevision = 1,
   status = 'available',
   topologyGeneration,
 }) {
   return {
     contract: 'aos.desktop-world.devtools.snapshot.v2',
     schemaVersion: 2,
-    stageSnapshotRevision: 1,
+    stageSnapshotRevision,
     session: {},
     stage: {
       contract: 'aos.desktop-world.devtools.stage.v2',
@@ -150,11 +151,11 @@ function desktopWorldPerformanceSnapshot({
       },
       resources: [],
       interactions: [],
-      displayPerformance: displays.map(({ id, index }) => ({
+      displayPerformance: displays.map(({ fps = 60, id, index }) => ({
         displayId: id,
         displayIndex: index,
         scope: 'stage-segment',
-        performance: { enabled: true, recording: false, currentFps: 60, avgFrameMs: 16 },
+        performance: { enabled: true, recording: false, currentFps: fps, avgFrameMs: 1000 / fps },
       })),
       counters: {},
       events: [],
@@ -230,6 +231,74 @@ test('RenderPerformance accepts replacement lifecycle sequence restarts and reti
     Object.keys(perf.serialize().sources).filter((source) => source.startsWith('desktop-world:')),
     ['desktop-world:0:new-a'],
   )
+})
+
+test('RenderPerformance admits newer daemon publications when a segment-local sequence repeats', (t) => {
+  withFakeBrowser(t)
+
+  const perf = RenderPerformance()
+  perf.render(fakeHost())
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 3,
+      topologyGeneration: 4,
+      sequence: 7,
+      stageSnapshotRevision: 10,
+      displays: [{ id: 'main', index: 0 }, { id: 'secondary', index: 1, fps: 60 }],
+    }),
+  })
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 3,
+      topologyGeneration: 4,
+      sequence: 7,
+      stageSnapshotRevision: 11,
+      displays: [{ id: 'main', index: 0 }, { id: 'secondary', index: 1, fps: 30 }],
+    }),
+  })
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 3,
+      topologyGeneration: 4,
+      sequence: 7,
+      stageSnapshotRevision: 11,
+      displays: [{ id: 'main', index: 0 }, { id: 'secondary', index: 1, fps: 15 }],
+    }),
+  })
+
+  const desktopWorldSources = Object.entries(perf.serialize().sources)
+    .filter(([source]) => source.startsWith('desktop-world:'))
+  assert.deepEqual(desktopWorldSources.map(([source]) => source).sort(), [
+    'desktop-world:0:main',
+    'desktop-world:1:secondary',
+  ])
+  assert.equal(desktopWorldSources
+    .find(([source]) => source === 'desktop-world:1:secondary')[1]
+    .samples.at(-1).fps, 30)
+})
+
+test('RenderPerformance retains segment-sequence fallback for local snapshots', (t) => {
+  withFakeBrowser(t)
+
+  const perf = RenderPerformance()
+  perf.render(fakeHost())
+  for (const [sequence, fps] of [[1, 60], [2, 45]]) {
+    perf.onMessage({
+      type: 'desktop_world_devtools.snapshot',
+      payload: desktopWorldPerformanceSnapshot({
+        canvasGeneration: 3,
+        topologyGeneration: 4,
+        sequence,
+        stageSnapshotRevision: 0,
+        displays: [{ id: 'main', index: 0, fps }],
+      }),
+    })
+  }
+
+  assert.equal(perf.serialize().sources['desktop-world:0:main'].samples.at(-1).fps, 45)
 })
 
 test('RenderPerformance consumes an unavailable lifecycle and retires every DesktopWorld source', (t) => {

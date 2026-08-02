@@ -17,6 +17,7 @@ function snapshot() {
   return {
     contract: 'aos.desktop-world.devtools.snapshot.v2',
     schemaVersion: 2,
+    stageSnapshotRevision: 11,
     session: {
       id: 'devtools-example', revision: 2, activeTab: 'world', selectedResource: null,
       filters: { query: '', eventKinds: [], errorsOnly: false }, recording: false,
@@ -75,6 +76,7 @@ function snapshot() {
 
 test('focused compatibility projections consume the canonical DesktopWorld snapshot', () => {
   const performance = projectDesktopWorldDevToolsPerformance(snapshot(), { now: 1234 })
+  assert.equal(performance.stageSnapshotRevision, 11)
   assert.equal(performance.sequence, 7)
   assert.deepEqual(performance.displays.map((entry) => ({
     displayId: entry.displayId,
@@ -136,6 +138,7 @@ test('performance projection preserves an unavailable lifecycle with no display 
     canvasGeneration: 0,
     topologyGeneration: 0,
     sequence: 0,
+    stageSnapshotRevision: 11,
     displays: [],
   })
 })
