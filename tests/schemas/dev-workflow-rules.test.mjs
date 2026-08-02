@@ -191,6 +191,9 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.equal(rules.get('desktop-annotation-selection')?.tcc_identity_sensitive, true);
   assert.ok(rules.get('status-item-contract')?.patterns?.includes('src/commands/daemon-application-lifecycle.swift'));
   assert.ok(rules.get('status-item-contract')?.patterns?.includes('src/commands/serve.swift'));
+  assert.ok(rules.get('status-item-contract')?.patterns?.includes('src/daemon/unified.swift'));
+  assert.ok(rules.get('status-item-contract')?.patterns?.includes('shared/schemas/daemon-ipc.md'));
+  assert.ok(rules.get('status-item-contract')?.patterns?.includes('tests/daemon-ipc-schema.sh'));
   assert.deepEqual(
     rules.get('legacy-sigil-test-fixture')?.commands?.map((step) => step.id),
     ['legacy-sigil-fixture-contract'],

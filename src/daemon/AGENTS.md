@@ -11,6 +11,10 @@ delivery, voice/communication routing, and cleanup.
 The public socket may begin accepting work only after AppKit's launch callback
 and one queued main-loop action. Native capability requests must never race a
 merely initialized `NSApplication` that has not entered its event loop.
+Status-item invoke and invoke-dry-run must pass the original envelope `data`
+object to their typed controller before generic envelope shaping. Reserved
+transport keys such as `action`, `__envelope_ref`, and `__envelope_active`
+remain invalid request data and may not be overwritten into acceptance.
 
 Scene transport owns only connection-scoped owner/resource leases and delivery
 to the singleton toolkit DesktopWorld stage. Declarative validation and render

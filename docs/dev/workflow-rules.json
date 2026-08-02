@@ -215,13 +215,16 @@
         "scripts/aos-status-item.mjs",
         "scripts/lib/status-item-output-writer.mjs",
         "shared/schemas/aos-status-item-*.schema.json",
+        "shared/schemas/daemon-ipc.md",
         "shared/schemas/daemon-request.schema.json",
         "shared/schemas/daemon-response.schema.json",
         "shared/schemas/daemon-event.schema.json",
         "shared/schemas/fixtures/daemon-event/**/status-item-*.json",
         "src/commands/daemon-application-lifecycle.swift",
         "src/commands/serve.swift",
+        "src/daemon/unified.swift",
         "src/display/status-item*.swift",
+        "tests/daemon-ipc-schema.sh",
         "tests/fixtures/status-item-*.swift",
         "tests/status-item-contract.test.mjs"
       ],
@@ -238,12 +241,12 @@
         {
           "id": "status-item-contract",
           "command": "node --test tests/status-item-contract.test.mjs",
-          "reason": "Status-item production sources must retain immutable rendered-menu identity, complete invocation validation, strict request keys, exhaustion parity, serialized generation-scoped action admission, native/programmatic race, failed-delivery, transport, and bounded follow-stream coverage."
+          "reason": "Status-item production sources must retain original-data request validation, immutable rendered-menu identity, exact discriminated invocation and event variants, production-owned serialized admission, exhaustion parity, native/programmatic race, failed-delivery, transport, and bounded follow-stream coverage."
         },
         {
           "id": "status-item-daemon-schemas",
           "command": "bash tests/daemon-ipc-schema.sh && node --test tests/schemas/daemon-event.test.mjs",
-          "reason": "Canonical request, response, invocation-result, and event envelopes must retain strict status-item wire validation and exact error codes."
+          "reason": "Canonical request, response, invocation-result, documented dry-run, and event envelopes must retain strict status-item wire validation, exact variants, and exact error codes."
         }
       ],
       "verification": []

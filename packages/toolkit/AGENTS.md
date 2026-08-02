@@ -26,7 +26,10 @@ Layer intent:
 - `status-item/`: product-neutral native status-item descriptor,
   compare-and-swap update, generation-scoped action admission, event, and
   validation helpers, including complete invocation results and the closed
-  invoke error-code set.
+  invoke error-code set. Invocation results and events are exact discriminated
+  unions: menu selection requires menu identity, while primary activation,
+  secondary activation, and lifecycle variants forbid identities or action
+  fields they do not own.
 - `scene/`: narrow external package facade over reviewed Three lifecycle,
   DesktopWorld, canvas lifecycle, and visual-object contracts.
 

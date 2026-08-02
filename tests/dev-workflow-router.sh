@@ -494,7 +494,7 @@ else
     fail "dev recommend external command wrapper routing drifted"
 fi
 
-if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --paths packages/toolkit/status-item/index.js scripts/aos-status-item.mjs scripts/lib/status-item-output-writer.mjs shared/schemas/daemon-request.schema.json src/commands/daemon-application-lifecycle.swift src/commands/serve.swift src/display/status-item-host-contract.swift src/display/status-item-host-controller.swift 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --paths packages/toolkit/status-item/index.js scripts/aos-status-item.mjs scripts/lib/status-item-output-writer.mjs shared/schemas/daemon-ipc.md shared/schemas/daemon-request.schema.json src/commands/daemon-application-lifecycle.swift src/commands/serve.swift src/daemon/unified.swift src/display/status-item-host-contract.swift src/display/status-item-host-controller.swift tests/daemon-ipc-schema.sh 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 

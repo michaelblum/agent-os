@@ -56,7 +56,8 @@ commands, runtime helpers, wiki tools, and command adapters.
   registration result must be emitted before buffered initial events.
   Effectful and dry-run invoke both require the current inspect-reported action
   sequence; only the effectful form consumes it. Invoke responses must validate
-  the complete canonical result and the closed stable error-code set. Validate
+  the complete canonical discriminated result and the closed stable error-code
+  set. Validate
   the complete daemon `status_item` event envelope, then expose only canonical
   `{event, data}` NDJSON to public consumers.
   The long-lived `status-item register --follow` external route must inherit

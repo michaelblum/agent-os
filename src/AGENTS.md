@@ -44,7 +44,10 @@ needs, but public command policy and product UI policy belong above it:
   and status-bar window across frame changes and AppKit rehosting; native clicks
   and programmatic invokes share the main-thread allocator, descriptor updates
   preserve it, new lease generations reset it, and failed delivery never rolls
-  it back; dry-run and effectful invocation share the same non-mutating
+  it back; `AOSStatusItemActionAdmission` owns the production compare,
+  exhaustion, non-consuming dry-run, reserve-before-delivery, and delivery
+  result transition used by the native manager and contract harness; dry-run
+  and effectful invocation share the same non-mutating
   exhaustion check; rendered menu rows carry immutable generation, revision,
   item, action, and enabled bindings and stale bindings never consume
   admission; consumer visuals and product actions do not;

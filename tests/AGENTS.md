@@ -50,9 +50,11 @@ tests.
   fixtures, model startup admission ordering, and prove registration output
   precedes initial events. Fake sockets must emit the complete daemon envelope
   and complete invocation result so tests also prove the CLI's canonical public
-  projection. A static AppKit harness may exercise production menu rendering
-  and callback binding without opening a status item; native menu-bar
-  acceptance remains a separate build/runtime gate.
+  projection. Concurrency, exhaustion, dry-run, and failed-delivery admission
+  proofs must exercise the focused production admission component used by the
+  native manager, not a copied fake allocator. A static AppKit harness may
+  exercise production menu rendering and callback binding without opening a
+  status item; native menu-bar acceptance remains a separate build/runtime gate.
 - `tests/dev-workflow-router.sh` runs its public `./aos` rejection checks by
   default. Use `AOS_SKIP_LIVE_CLI_CHECKS=1` only for explicit static-only
   validation while the repo artifact is absent or waiting at ADR 0023's human
