@@ -13935,11 +13935,11 @@
         "status-item",
         "invoke"
       ],
-      "summary" : "Dry-run or invoke a semantic status-item action by owner, item, and action id",
+      "summary" : "Dry-run or atomically admit a semantic status-item action by exact lease identity and action sequence",
       "forms" : [
         {
           "id" : "status-item-invoke",
-          "usage" : "aos status-item invoke --owner <owner> --item <item-id> --action <action-id> --generation <n> --descriptor-revision <n> --json [--dry-run]",
+          "usage" : "aos status-item invoke --owner <owner> --item <item-id> --action <action-id> --generation <n> --descriptor-revision <n> --action-sequence <n> --json [--dry-run]",
           "args" : [
             {
               "id" : "owner",
@@ -13982,6 +13982,14 @@
               "summary" : "Expected descriptor revision"
             },
             {
+              "id" : "action-sequence",
+              "kind" : "flag",
+              "token" : "--action-sequence",
+              "required" : true,
+              "value_type" : "integer",
+              "summary" : "Expected current action admission sequence"
+            },
+            {
               "id" : "json",
               "kind" : "flag",
               "token" : "--json",
@@ -13995,11 +14003,11 @@
               "token" : "--dry-run",
               "required" : false,
               "value_type" : "bool",
-              "summary" : "Validate action identity without emitting an event"
+              "summary" : "Validate action identity and sequence without consuming admission or emitting an event"
             }
           ],
           "examples" : [
-            "aos status-item invoke --owner io.example.app --item companion --action summon --generation 1 --descriptor-revision 3 --dry-run --json"
+            "aos status-item invoke --owner io.example.app --item status --action activate --generation 1 --descriptor-revision 3 --action-sequence 1 --dry-run --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,

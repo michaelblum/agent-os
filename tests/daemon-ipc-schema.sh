@@ -25,10 +25,10 @@ for candidate in schema_root.glob("*.json"):
 descriptor = {
     "schema_version": "aos.status_item.descriptor.v1",
     "owner": "io.example.app",
-    "item_id": "companion",
+    "item_id": "status",
     "revision": 3,
-    "label": "Example Companion",
-    "primary_action_id": "summon",
+    "label": "Example Status",
+    "primary_action_id": "activate",
     "menu": [
         {"kind": "item", "id": "park", "action_id": "park", "label": "Park"},
         {"kind": "separator"},
@@ -56,10 +56,10 @@ good_requests = [
     {"v":1,"service":"permissions","action":"screen_capture_direct_status","data":{}},
     {"v":1,"service":"permissions","action":"screen_capture_direct_prime","data":{}},
     {"v":1,"service":"status_item","action":"register","data":{"descriptor":descriptor},"ref":"register-1"},
-    {"v":1,"service":"status_item","action":"update","data":{"owner":"io.example.app","item_id":"companion","generation":7,"current_revision":3,"descriptor":{**descriptor,"revision":4}}},
-    {"v":1,"service":"status_item","action":"inspect","data":{"owner":"io.example.app","item_id":"companion","generation":7,"descriptor_revision":3}},
-    {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"companion","action_id":"summon","generation":7,"descriptor_revision":3}},
-    {"v":1,"service":"status_item","action":"invoke_dry_run","data":{"owner":"io.example.app","item_id":"companion","action_id":"summon","generation":7,"descriptor_revision":3}},
+    {"v":1,"service":"status_item","action":"update","data":{"owner":"io.example.app","item_id":"status","generation":7,"current_revision":3,"descriptor":{**descriptor,"revision":4}}},
+    {"v":1,"service":"status_item","action":"inspect","data":{"owner":"io.example.app","item_id":"status","generation":7,"descriptor_revision":3}},
+    {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"status","action_id":"activate","generation":7,"descriptor_revision":3,"action_sequence":1}},
+    {"v":1,"service":"status_item","action":"invoke_dry_run","data":{"owner":"io.example.app","item_id":"status","action_id":"activate","generation":7,"descriptor_revision":3,"action_sequence":1}},
     {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"companion/main","operation":{"op":"mount","extension":scene_extension}}},
     {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"companion/main","operation":{"op":"subscribe","events":["gesture"]}}},
     {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"companion/main","operation":{"op":"unsubscribe","events":["gesture"]}}},
@@ -88,9 +88,10 @@ bad_requests = [
     {"v":1,"service":"show","action":"post","data":{}},  # show.post missing required id
     {"v":1,"service":"status_item","action":"unknown","data":{}},  # status item action vocabulary is closed
     {"v":1,"service":"status_item","action":"register","data":{"descriptor":{**descriptor,"owner":"io..example"}}},  # runtime rejects dot-dot identifiers
-    {"v":1,"service":"status_item","action":"update","data":{"owner":"io.example.app","item_id":"companion","generation":7,"descriptor":{**descriptor,"revision":4}}},  # missing current revision
-    {"v":1,"service":"status_item","action":"inspect","data":{"owner":"io.example.app","item_id":"companion","generation":7,"descriptor_revision":3,"extra":True}},  # strict action data
-    {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"companion","action_id":"summon..now","generation":7,"descriptor_revision":3}},  # invalid action id
+    {"v":1,"service":"status_item","action":"update","data":{"owner":"io.example.app","item_id":"status","generation":7,"descriptor":{**descriptor,"revision":4}}},  # missing current revision
+    {"v":1,"service":"status_item","action":"inspect","data":{"owner":"io.example.app","item_id":"status","generation":7,"descriptor_revision":3,"extra":True}},  # strict action data
+    {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"status","action_id":"activate","generation":7,"descriptor_revision":3}},  # missing action sequence
+    {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"status","action_id":"activate..now","generation":7,"descriptor_revision":3,"action_sequence":1}},  # invalid action id
     {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"companion/main","operation":{"op":"signal","extension":scene_extension}}},  # extensions are mount-only
 ]
 for r in bad_requests:

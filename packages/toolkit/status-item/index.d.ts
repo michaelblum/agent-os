@@ -80,9 +80,49 @@ export interface StatusItemUpdateResult {
   lease: { status: 'active'; cleanup: 'connection_scoped' }
 }
 
-export interface StatusItemEvent {
+export interface StatusItemInvokeRequest {
+  owner: string
+  item_id: string
+  action_id: string
+  generation: number
+  descriptor_revision: number
+  action_sequence: number
+}
+
+export interface StatusItemInspectState {
+  schema_version: 'aos.status_item.inspect.v1'
+  host: 'native_status_item'
+  visible: boolean
+  accessibility_label: string
+  status: 'leased'
+  owner: string
+  item_id: string
+  generation: number
+  descriptor_revision: number
+  action_sequence: number
+  label: string
+  primary_action_id: string
+  menu_item_count: number
+  bounds: StatusItemBounds
+  anchor: StatusItemAnchor
+}
+
+export interface StatusItemInvocationResult {
+  status: 'ok' | 'dry_run'
+  owner: string
+  item_id: string
+  action_id: string
+  generation: number
+  descriptor_revision: number
+  action_sequence: number
+  event_type: 'primary_activation' | 'menu_selection'
+  menu_item_id?: string
+  bounds: StatusItemBounds
+  anchor: StatusItemAnchor
+}
+
+export interface StatusItemEventBase {
   schema_version: typeof STATUS_ITEM_EVENT_SCHEMA_VERSION
-  type: 'ready' | 'bounds_changed' | 'topology_changed' | 'primary_activation' | 'secondary_activation' | 'menu_selection'
   owner: string
   item_id: string
   generation: number
@@ -90,16 +130,29 @@ export interface StatusItemEvent {
   sequence: number
   timestamp: string
   source: 'status_item'
-  action_id?: string
-  menu_item_id?: string
-  origin_x?: number
-  origin_y?: number
-  modifiers?: Array<'command' | 'option' | 'control' | 'shift'>
   bounds: StatusItemBounds
   anchor: StatusItemAnchor
 }
 
+export interface StatusItemLifecycleEvent extends StatusItemEventBase {
+  type: 'ready' | 'bounds_changed' | 'topology_changed'
+  action_sequence?: never
+}
+
+export interface StatusItemActionEvent extends StatusItemEventBase {
+  type: 'primary_activation' | 'secondary_activation' | 'menu_selection'
+  action_sequence: number
+  action_id?: string
+  menu_item_id?: string
+  origin_x: number
+  origin_y: number
+  modifiers: Array<'command' | 'option' | 'control' | 'shift'>
+}
+
+export type StatusItemEvent = StatusItemLifecycleEvent | StatusItemActionEvent
+
 export function normalizeStatusItemDescriptor(input: unknown): StatusItemDescriptor
 export function normalizeStatusItemUpdateRequest(input: unknown): StatusItemUpdateRequest
+export function normalizeStatusItemInvokeRequest(input: unknown): StatusItemInvokeRequest
 export function normalizeStatusItemAnchor(input: unknown): StatusItemAnchor
 export function normalizeStatusItemEvent(input: unknown): StatusItemEvent

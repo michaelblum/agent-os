@@ -22,6 +22,7 @@
     "generation": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
     "descriptor_revision": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
     "sequence": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "action_sequence": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
     "timestamp": { "type": "string", "minLength": 1, "maxLength": 64 },
     "source": { "const": "status_item" },
     "action_id": { "$ref": "#/$defs/path_id" },
@@ -40,15 +41,19 @@
   "allOf": [
     {
       "if": { "properties": { "type": { "const": "primary_activation" } }, "required": ["type"] },
-      "then": { "required": ["action_id", "origin_x", "origin_y", "modifiers"] }
+      "then": { "required": ["action_sequence", "action_id", "origin_x", "origin_y", "modifiers"] }
     },
     {
       "if": { "properties": { "type": { "const": "secondary_activation" } }, "required": ["type"] },
-      "then": { "required": ["origin_x", "origin_y", "modifiers"] }
+      "then": { "required": ["action_sequence", "origin_x", "origin_y", "modifiers"] }
     },
     {
       "if": { "properties": { "type": { "const": "menu_selection" } }, "required": ["type"] },
-      "then": { "required": ["action_id", "menu_item_id", "origin_x", "origin_y", "modifiers"] }
+      "then": { "required": ["action_sequence", "action_id", "menu_item_id", "origin_x", "origin_y", "modifiers"] }
+    },
+    {
+      "if": { "properties": { "type": { "enum": ["ready", "bounds_changed", "topology_changed"] } }, "required": ["type"] },
+      "then": { "not": { "required": ["action_sequence"] } }
     }
   ],
   "$defs": {

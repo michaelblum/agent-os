@@ -14,6 +14,7 @@ import {
   normalizeStatusItemAnchor,
   normalizeStatusItemDescriptor,
   normalizeStatusItemEvent,
+  normalizeStatusItemInvokeRequest,
   normalizeStatusItemUpdateRequest,
 } from '../packages/toolkit/status-item/index.js'
 import { createStatusItemOutputWriter } from '../scripts/lib/status-item-output-writer.mjs'
@@ -87,6 +88,7 @@ const event = {
   generation: 7,
   descriptor_revision: 3,
   sequence: 2,
+  action_sequence: 1,
   timestamp: '2026-07-19T20:00:00Z',
   source: 'status_item',
   action_id: 'park',
@@ -323,6 +325,27 @@ test('toolkit normalizes compare-and-swap updates and rejects stale or mismatche
   assert.match(types, /normalizeStatusItemUpdateRequest/)
 })
 
+test('toolkit normalizes exact action-sequence invocation admission', () => {
+  const request = {
+    owner: descriptor.owner,
+    item_id: descriptor.item_id,
+    action_id: descriptor.primary_action_id,
+    generation: 7,
+    descriptor_revision: descriptor.revision,
+    action_sequence: 1,
+  }
+  assert.deepEqual(normalizeStatusItemInvokeRequest(request), request)
+  assert.throws(() => normalizeStatusItemInvokeRequest({ ...request, action_sequence: 0 }), /positive|safe integer/)
+  assert.throws(() => normalizeStatusItemInvokeRequest({ ...request, expected_action_sequence: 1 }), /unsupported/)
+  const types = fs.readFileSync(path.join(repoRoot, 'packages/toolkit/status-item/index.d.ts'), 'utf8')
+  assert.match(types, /interface StatusItemInvokeRequest/)
+  assert.match(types, /interface StatusItemInspectState/)
+  assert.match(types, /interface StatusItemInvocationResult/)
+  assert.match(types, /interface StatusItemActionEvent/)
+  assert.match(types, /action_sequence: number/)
+  assert.match(types, /normalizeStatusItemInvokeRequest/)
+})
+
 test('descriptor validation rejects visual paths, inert anchors, code, duplicate identities, and primary collisions', () => {
   for (const unsupported of [
     { icon: { kind: 'consumer_visual' } },
@@ -371,6 +394,9 @@ test('event normalization rejects unsafe integers, incomplete actions, and contr
   const incomplete = { ...event }
   delete incomplete.action_id
   assert.throws(() => normalizeStatusItemEvent(incomplete), /incomplete/)
+  const missingAdmission = { ...event }
+  delete missingAdmission.action_sequence
+  assert.throws(() => normalizeStatusItemEvent(missingAdmission), /safe integer/)
   assert.throws(
     () => normalizeStatusItemEvent({ ...event, bounds: { ...bounds, display_id: 2 } }),
     /disagree/,
@@ -388,8 +414,9 @@ test('event normalization rejects unsafe integers, incomplete actions, and contr
     origin_y: undefined,
     modifiers: undefined,
   }
-  for (const key of ['action_id', 'menu_item_id', 'origin_x', 'origin_y', 'modifiers']) delete ready[key]
+  for (const key of ['action_sequence', 'action_id', 'menu_item_id', 'origin_x', 'origin_y', 'modifiers']) delete ready[key]
   assert.throws(() => normalizeStatusItemEvent({ ...ready, action_id: null }), /string/)
+  assert.throws(() => normalizeStatusItemEvent({ ...ready, action_sequence: 1 }), /non-action/)
 })
 
 test('aos status-item validate is bounded, offline, and machine-readable', () => {
@@ -406,12 +433,20 @@ test('aos status-item validate is bounded, offline, and machine-readable', () =>
 })
 
 test('CLI rejects invalid exact lease identity before connecting', async () => {
-  const result = await runCLI([
+  const invalidGeneration = await runCLI([
     'inspect', '--owner', descriptor.owner, '--item', descriptor.item_id,
     '--generation', '-1', '--descriptor-revision', '3', '--json',
   ], { ...process.env, AOS_DISABLE_DAEMON_AUTOSTART: '1' })
-  assert.equal(result.code, 1)
-  assert.equal(JSON.parse(result.stderr).code, 'MISSING_ARG')
+  assert.equal(invalidGeneration.code, 1)
+  assert.equal(JSON.parse(invalidGeneration.stderr).code, 'MISSING_ARG')
+
+  const missingActionSequence = await runCLI([
+    'invoke', '--owner', descriptor.owner, '--item', descriptor.item_id,
+    '--action', descriptor.primary_action_id, '--generation', '7',
+    '--descriptor-revision', '3', '--json',
+  ], { ...process.env, AOS_DISABLE_DAEMON_AUTOSTART: '1' })
+  assert.equal(missingActionSequence.code, 1)
+  assert.equal(JSON.parse(missingActionSequence.stderr).code, 'MISSING_ARG')
 })
 
 test('documented register-follow, update, inspect, dry-run, and invoke use truthful multi-connection ownership', async () => {
@@ -420,12 +455,13 @@ test('documented register-follow, update, inspect, dry-run, and invoke use truth
   let leaseSocket = null
   let updateSocket = null
   let activeRevision = descriptor.revision
+  let activeActionSequence = 1
   const server = await listenFake(stateRoot, (socket, request) => {
     requests.push({ action: request.action, ref: request.ref, socket })
     if (request.action === 'register') {
       leaseSocket = socket
       socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: { owner: descriptor.owner, item_id: descriptor.item_id, generation: 7, descriptor_revision: 3, anchor } })}\n`)
-      socket.write(`${JSON.stringify({ v: 1, service: 'status_item', event: 'ready', ts: 1, ref: request.ref, data: { ...event, type: 'ready', sequence: 1, action_id: undefined, menu_item_id: undefined, origin_x: undefined, origin_y: undefined, modifiers: undefined } })}\n`)
+      socket.write(`${JSON.stringify({ v: 1, service: 'status_item', event: 'ready', ts: 1, ref: request.ref, data: { ...event, type: 'ready', sequence: 1, action_sequence: undefined, action_id: undefined, menu_item_id: undefined, origin_x: undefined, origin_y: undefined, modifiers: undefined } })}\n`)
     } else if (request.action === 'update') {
       updateSocket = socket
       assert.notEqual(socket, leaseSocket)
@@ -439,15 +475,19 @@ test('documented register-follow, update, inspect, dry-run, and invoke use truth
       activeRevision = updatedDescriptor.revision
       socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: { owner: descriptor.owner, item_id: descriptor.item_id, generation: 7, previous_descriptor_revision: 3, descriptor_revision: activeRevision, updated: true, anchor } })}\n`)
       socket.end()
-      leaseSocket.write(`${JSON.stringify({ v: 1, service: 'status_item', event: 'menu_selection', ts: 2, data: { ...event, descriptor_revision: activeRevision, sequence: 2 } })}\n`)
+      leaseSocket.write(`${JSON.stringify({ v: 1, service: 'status_item', event: 'menu_selection', ts: 2, data: { ...event, descriptor_revision: activeRevision, sequence: 2, action_sequence: activeActionSequence } })}\n`)
+      activeActionSequence += 1
     } else if (request.action === 'inspect') {
-      socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: { state: { owner: descriptor.owner, item_id: descriptor.item_id, generation: 7, descriptor_revision: activeRevision, anchor } } })}\n`)
+      socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: { state: { owner: descriptor.owner, item_id: descriptor.item_id, generation: 7, descriptor_revision: activeRevision, action_sequence: activeActionSequence, anchor } } })}\n`)
       socket.end()
     } else if (request.action === 'invoke_dry_run') {
-      socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'dry_run', data: { owner: descriptor.owner, item_id: descriptor.item_id, action_id: 'summon', generation: 7, descriptor_revision: activeRevision, anchor } })}\n`)
+      assert.equal(request.data.action_sequence, activeActionSequence)
+      socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'dry_run', data: { owner: descriptor.owner, item_id: descriptor.item_id, action_id: request.data.action_id, generation: 7, descriptor_revision: activeRevision, action_sequence: activeActionSequence, anchor } })}\n`)
       socket.end()
     } else if (request.action === 'invoke') {
-      socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: { owner: descriptor.owner, item_id: descriptor.item_id, action_id: 'summon', generation: 7, descriptor_revision: activeRevision, anchor } })}\n`)
+      assert.equal(request.data.action_sequence, activeActionSequence)
+      socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: { owner: descriptor.owner, item_id: descriptor.item_id, action_id: request.data.action_id, generation: 7, descriptor_revision: activeRevision, action_sequence: activeActionSequence, anchor } })}\n`)
+      activeActionSequence += 1
       socket.end()
     }
   })
@@ -491,12 +531,15 @@ test('documented register-follow, update, inspect, dry-run, and invoke use truth
     const inspect = await runCLI(['inspect', ...exact], env)
     assert.equal(inspect.code, 0, inspect.stderr)
     assert.equal(JSON.parse(inspect.stdout).status, 'ok')
-    const dryRun = await runCLI(['invoke', '--owner', descriptor.owner, '--item', descriptor.item_id, '--action', 'summon', '--generation', '7', '--descriptor-revision', '4', '--dry-run', '--json'], env)
+    assert.equal(JSON.parse(inspect.stdout).state.action_sequence, 2)
+    const dryRun = await runCLI(['invoke', '--owner', descriptor.owner, '--item', descriptor.item_id, '--action', descriptor.primary_action_id, '--generation', '7', '--descriptor-revision', '4', '--action-sequence', '2', '--dry-run', '--json'], env)
     assert.equal(dryRun.code, 0, dryRun.stderr)
     assert.equal(JSON.parse(dryRun.stdout).status, 'dry_run')
-    const invoke = await runCLI(['invoke', '--owner', descriptor.owner, '--item', descriptor.item_id, '--action', 'summon', '--generation', '7', '--descriptor-revision', '4', '--json'], env)
+    assert.equal(JSON.parse(dryRun.stdout).action_sequence, 2)
+    const invoke = await runCLI(['invoke', '--owner', descriptor.owner, '--item', descriptor.item_id, '--action', descriptor.primary_action_id, '--generation', '7', '--descriptor-revision', '4', '--action-sequence', '2', '--json'], env)
     assert.equal(invoke.code, 0, invoke.stderr)
     assert.equal(JSON.parse(invoke.stdout).status, 'ok')
+    assert.equal(JSON.parse(invoke.stdout).action_sequence, 2)
     assert.deepEqual(requests.map((request) => request.action), ['register', 'update', 'inspect', 'invoke_dry_run', 'invoke'])
     assert.ok(leaseSocket && !leaseSocket.destroyed)
     assert.ok(updateSocket && updateSocket.destroyed)
@@ -518,7 +561,7 @@ test('register bounds events that arrive before the registration result', async 
         service: 'status_item',
         event: 'ready',
         ts: sequence,
-        data: { ...event, type: 'ready', sequence, action_id: undefined, menu_item_id: undefined, origin_x: undefined, origin_y: undefined, modifiers: undefined },
+        data: { ...event, type: 'ready', sequence, action_sequence: undefined, action_id: undefined, menu_item_id: undefined, origin_x: undefined, origin_y: undefined, modifiers: undefined },
       })}\n`)
     }
     socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: { generation: 7, descriptor_revision: 3 } })}\n`)
@@ -751,6 +794,7 @@ test('source manifest exposes only the truthful lease command forms', () => {
   assert.equal(inspect.args.find((arg) => arg.id === 'descriptor-revision')?.required, true)
   const invoke = forms.find((form) => form.id === 'status-item-invoke')
   assert.equal(invoke.execution.auto_starts_daemon, false)
+  assert.equal(invoke.args.find((arg) => arg.id === 'action-sequence')?.required, true)
   const generated = fs.readFileSync(path.join(repoRoot, 'manifests/commands/aos-commands.json'), 'utf8')
   assert(!generated.includes('status-item-cleanup'))
   assert(!generated.includes('status-item-subscribe'))
@@ -830,6 +874,8 @@ test('native ownership is focused and excludes superseded visual and lifecycle r
   assert.match(observation, /didMoveNotification/)
   assert.match(observation, /NSView\.frameDidChangeNotification/)
   assert.match(controller, /runOnMainSync/)
+  assert.match(hosted, /hostedActionAdmission\.reserve/)
+  assert.match(manager, /emitHostedActionEvent/)
   assert.match(controller, /STATUS_ITEM_REVISION_NOT_ADVANCED/)
   assert.match(controller, /owner: current\.owner/)
   assert.match(controller, /let scalars = string\.unicodeScalars/)

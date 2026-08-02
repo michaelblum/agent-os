@@ -8,6 +8,7 @@ import { createStatusItemOutputWriter } from './lib/status-item-output-writer.mj
 import {
   normalizeStatusItemDescriptor,
   normalizeStatusItemEvent,
+  normalizeStatusItemInvokeRequest,
   normalizeStatusItemUpdateRequest,
 } from '../packages/toolkit/status-item/index.js'
 
@@ -74,13 +75,14 @@ function assertOnlyArgs(args, valueFlags, boolFlags = new Set()) {
   }
 }
 
-function parseIdentity(args, { actionRequired = false, revisionRequired = false } = {}) {
+function parseIdentity(args, { actionRequired = false, revisionRequired = false, actionSequenceRequired = false } = {}) {
   const owner = valueAfter(args, '--owner')
   const item = valueAfter(args, '--item')
   const identity = { owner, item_id: item }
   if (actionRequired) identity.action_id = valueAfter(args, '--action')
   if (args.includes('--generation')) identity.generation = Number(valueAfter(args, '--generation'))
   if (args.includes('--descriptor-revision')) identity.descriptor_revision = Number(valueAfter(args, '--descriptor-revision'))
+  if (args.includes('--action-sequence')) identity.action_sequence = Number(valueAfter(args, '--action-sequence'))
   if (revisionRequired && (
     !Number.isSafeInteger(identity.generation)
     || identity.generation < 1
@@ -88,6 +90,9 @@ function parseIdentity(args, { actionRequired = false, revisionRequired = false 
     || identity.descriptor_revision < 0
   )) {
     fail('MISSING_ARG', '--generation and --descriptor-revision are required')
+  }
+  if (actionSequenceRequired && (!Number.isSafeInteger(identity.action_sequence) || identity.action_sequence < 1)) {
+    fail('MISSING_ARG', '--action-sequence must be a positive safe integer')
   }
   return identity
 }
@@ -128,8 +133,8 @@ function parseArgs(argv) {
     return { command, ...parseIdentity(args, { revisionRequired: true }) }
   }
   if (command === 'invoke') {
-    assertOnlyArgs(args, new Set(['--owner', '--item', '--action', '--generation', '--descriptor-revision']), new Set(['--dry-run']))
-    return { command, dryRun: args.includes('--dry-run'), ...parseIdentity(args, { actionRequired: true, revisionRequired: true }) }
+    assertOnlyArgs(args, new Set(['--owner', '--item', '--action', '--generation', '--descriptor-revision', '--action-sequence']), new Set(['--dry-run']))
+    return { command, dryRun: args.includes('--dry-run'), ...parseIdentity(args, { actionRequired: true, revisionRequired: true, actionSequenceRequired: true }) }
   }
   fail('UNKNOWN_SUBCOMMAND', 'Usage: aos status-item <validate|register|update|inspect|invoke> --json')
 }
@@ -366,13 +371,14 @@ async function main() {
   if (args.command === 'invoke') {
     await withDaemon(async ({ request }) => {
       const action = args.dryRun ? 'invoke_dry_run' : 'invoke'
-      emit(await request(action, {
+      emit(await request(action, normalizeStatusItemInvokeRequest({
         owner: args.owner,
         item_id: args.item_id,
         action_id: args.action_id,
         generation: args.generation,
         descriptor_revision: args.descriptor_revision,
-      }))
+        action_sequence: args.action_sequence,
+      })))
     }, undefined, { allowStart: false })
     return
   }
