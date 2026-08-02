@@ -3,8 +3,8 @@ import {
   summarizeRenderPerformance,
 } from '../components/render-performance/model.js'
 
-export const DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID = 'aos.desktop-world.devtools.stage.v1'
-export const DESKTOP_WORLD_DEVTOOLS_SNAPSHOT_CONTRACT_ID = 'aos.desktop-world.devtools.snapshot.v1'
+export const DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID = 'aos.desktop-world.devtools.stage.v2'
+export const DESKTOP_WORLD_DEVTOOLS_SNAPSHOT_CONTRACT_ID = 'aos.desktop-world.devtools.snapshot.v2'
 
 export const DESKTOP_WORLD_DEVTOOLS_LIMITS = Object.freeze({
   events: 256,
@@ -276,6 +276,17 @@ function normalizePerformance(value = {}) {
     msaaSamples: metric('msaaSamples', 0, 64),
     requestedDevicePixelRatio: metric('requestedDevicePixelRatio', 0, 4),
     state: ['hot', 'idle', 'stable', 'warn'].includes(value.state) ? value.state : 'idle',
+  })
+}
+
+function normalizeDisplayPerformance(value = {}) {
+  const displayId = boundedString(value.displayId)
+  if (!displayId) return null
+  return Object.freeze({
+    displayId,
+    displayIndex: boundedInteger(value.displayIndex, 0, 0, 31),
+    scope: value.scope === 'stage-segment' ? value.scope : null,
+    performance: normalizePerformance(value.performance),
   })
 }
 
@@ -647,14 +658,35 @@ export function normalizeDesktopWorldDevToolsStageSnapshot(input = {}) {
   const routes = boundedNormalized(world.routes, DESKTOP_WORLD_DEVTOOLS_LIMITS.resources, normalizeRoute)
   const interactions = boundedNormalized(input.interactions, DESKTOP_WORLD_DEVTOOLS_LIMITS.interactions, normalizeInteraction)
   const displays = boundedNormalized(world.displays, 16, normalizeDisplay)
+  const displayByIndex = new Map(displays.map((display) => [display.index, display]))
+  const seenPerformanceDisplays = new Set()
+  const displayPerformance = boundedNormalized(
+    input.displayPerformance,
+    16,
+    normalizeDisplayPerformance,
+  ).filter((entry) => {
+    const display = displayByIndex.get(entry.displayIndex)
+    if (
+      !display
+      || display.id !== entry.displayId
+      || entry.scope !== 'stage-segment'
+      || seenPerformanceDisplays.has(entry.displayIndex)
+    ) {
+      return false
+    }
+    seenPerformanceDisplays.add(entry.displayIndex)
+    return true
+  })
   const snapshot = {
     contract: DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID,
+    canvasGeneration: boundedInteger(input.canvasGeneration, 0),
+    topologyGeneration: boundedInteger(input.topologyGeneration, 0),
     sequence: boundedInteger(input.sequence, 0),
     status: ['available', 'unavailable'].includes(input.status) ? input.status : 'unknown',
     world: Object.freeze({ displays, nodes, hitRegions, affordances, gestures, routes }),
     resources,
     interactions,
-    performance: normalizePerformance(input.performance),
+    displayPerformance: Object.freeze(displayPerformance),
     counters: Object.freeze({
       displays: displays.length,
       resources: resources.length,
@@ -689,7 +721,7 @@ export function normalizeDesktopWorldDevToolsSnapshot(input = {}) {
   const stage = normalizeDesktopWorldDevToolsStageSnapshot(input.stage)
   return Object.freeze({
     contract: DESKTOP_WORLD_DEVTOOLS_SNAPSHOT_CONTRACT_ID,
-    schemaVersion: 1,
+    schemaVersion: 2,
     stageSnapshotRevision: boundedInteger(input.stageSnapshotRevision, 0),
     session: Object.freeze({
       id: boundedString(session.id),
@@ -736,6 +768,8 @@ export function buildDesktopWorldMinimapLayout(snapshot, { width = 640, height =
 export function createDesktopWorldDevToolsStageProbe({
   now = () => performance.now(),
   emit = () => {},
+  getPerformanceDisplay = () => null,
+  getStageIdentity = () => ({}),
   getStageFacts = () => ({}),
 } = {}) {
   const samples = []
@@ -805,15 +839,24 @@ export function createDesktopWorldDevToolsStageProbe({
 
   function snapshot(reason = 'snapshot') {
     const facts = getStageFacts() ?? {}
+    const stagePerformance = performanceSnapshot()
+    const performanceDisplay = getPerformanceDisplay() ?? {}
+    const stageIdentity = getStageIdentity() ?? {}
+    const displayId = boundedString(performanceDisplay.displayId)
+    const displayIndex = boundedInteger(performanceDisplay.displayIndex, -1, -1, 31)
     sequence += 1
     return normalizeDesktopWorldDevToolsStageSnapshot({
       contract: DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID,
+      canvasGeneration: stageIdentity.canvasGeneration,
+      topologyGeneration: stageIdentity.topologyGeneration,
       sequence,
       status: facts.status ?? 'available',
       world: facts.world,
       resources: facts.resources,
       interactions: facts.interactions,
-      performance: performanceSnapshot(),
+      displayPerformance: displayId && displayIndex >= 0
+        ? [{ displayId, displayIndex, scope: 'stage-segment', performance: stagePerformance }]
+        : [],
       events,
       lastError: facts.lastError,
       reason,

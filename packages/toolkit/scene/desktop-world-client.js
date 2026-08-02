@@ -438,10 +438,14 @@ export function createDesktopWorldSceneClient({ request, subscribe } = {}) {
     inspect: (resource) => withHeadlessSnapshot(resource, (snapshot) => selectDesktopWorldResourceSnapshot(snapshot, resource)),
     perf: (resource) => withHeadlessSnapshot(resource, (snapshot) => {
       const stage = selectDesktopWorldResourceSnapshot(snapshot, resource)
+      if (stage.displayPerformance.length !== stage.world.displays.length) {
+        fail('SCENE_PERFORMANCE_INCOMPLETE', 'DesktopWorld display performance is incomplete.')
+      }
       return Object.freeze({
         status: 'ok',
+        scope: 'stage-segment',
         resource: stage.resources[0],
-        performance: stage.performance,
+        displays: stage.displayPerformance,
       })
     }),
     monitor(resource, options = {}) {

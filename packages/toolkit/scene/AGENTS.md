@@ -142,7 +142,9 @@ stage internals.
 - DesktopWorld DevTools use the stage's existing frame loop. Disabled
   instrumentation creates no timer, RAF, stage read, or per-frame allocation.
   The daemon owns revisioned session and host-lease state; consumers may host
-  the public view but never own or fork its telemetry.
+  the public view but never own or fork its telemetry. Each display segment
+  reports its own render performance; the daemon publishes a topology-complete
+  per-display set and does not sum rates, timings, DPR, or backing dimensions.
 - Native-effect DevTools facts are content-free lifecycle state and bounded
   counters only. Presentation means every display segment reported an actual
   Metal drawable presentation; attempts to present are not counted as visible

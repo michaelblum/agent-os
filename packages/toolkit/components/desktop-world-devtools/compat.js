@@ -8,7 +8,8 @@ function rectObject(frame) {
 
 export function projectDesktopWorldDevToolsPerformance(input, { now = Date.now() } = {}) {
   const snapshot = normalizeDesktopWorldDevToolsSnapshot(input);
-  const performance = snapshot.stage.performance;
+  const performance = snapshot.stage.displayPerformance.find((entry) => entry.displayIndex === 0)?.performance;
+  if (!performance) throw new TypeError('DesktopWorld primary stage-segment performance is unavailable');
   return Object.freeze({
     sequence: snapshot.stage.sequence,
     sample: Object.freeze({

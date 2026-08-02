@@ -81,8 +81,29 @@ function devtoolsTopologySnapshot() {
 
 const devtoolsProbe = createDesktopWorldDevToolsStageProbe({
   emit: (snapshot, metadata = {}) => {
-    if (surface.isPrimary) emit('desktop_world_stage.devtools.snapshot', { snapshot, ...metadata })
+    emit('desktop_world_stage.devtools.snapshot', {
+      snapshot,
+      canvas_generation: surface.canvasGeneration,
+      topology_generation: surface.topologyGeneration,
+      segment_display_id: surface.segment?.display_id ?? null,
+      segment_index: surface.segment?.index ?? null,
+      ...metadata,
+    })
   },
+  getPerformanceDisplay: () => {
+    const index = surface.segment?.index
+    if (!Number.isInteger(index) || index < 0) return null
+    return {
+      displayId: typeof surface.segment?.display_id === 'string'
+        ? surface.segment.display_id
+        : `display-${index}`,
+      displayIndex: index,
+    }
+  },
+  getStageIdentity: () => ({
+    canvasGeneration: surface.canvasGeneration,
+    topologyGeneration: surface.topologyGeneration,
+  }),
   getStageFacts: () => {
     const outlet = sceneOutlet.devtoolsSnapshot()
     const interaction = sceneInteractions?.devtoolsSnapshot() ?? {

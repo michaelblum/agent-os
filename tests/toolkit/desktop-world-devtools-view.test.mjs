@@ -9,15 +9,16 @@ const componentURL = new URL('../../packages/toolkit/components/desktop-world-de
 
 function snapshot(activeTab = 'world') {
   return {
-    contract: 'aos.desktop-world.devtools.snapshot.v1',
-    schemaVersion: 1,
+    contract: 'aos.desktop-world.devtools.snapshot.v2',
+    schemaVersion: 2,
     session: {
       id: 'session', revision: 4, activeTab, selectedResource: null,
       filters: { query: '', eventKinds: [], errorsOnly: false },
       recording: false, host: { kind: 'panel', id: 'panel', state: 'active' },
     },
     stage: {
-      contract: 'aos.desktop-world.devtools.stage.v1', sequence: 2, status: 'available',
+      contract: 'aos.desktop-world.devtools.stage.v2', canvasGeneration: 3,
+      topologyGeneration: 4, sequence: 2, status: 'available',
       world: {
         displays: [{ id: 'main', index: 0, bounds: [0, 0, 1440, 900] }],
         nodes: [{ id: 'body', resourceId: 'companion/main', parentId: null, kind: 'mesh', implementation: 'aos.scene.geometry.primitive', position: [200, 300, 0], visible: true }],
@@ -34,12 +35,14 @@ function snapshot(activeTab = 'world') {
         lifecycle: 'active', errorCode: null,
       }],
       interactions: [{ id: 'lease', resourceId: 'companion/main', owner: 'example.consumer', active: true, suspended: false, recognizers: ['aos.scene.gesture.drag'], regionCount: 1, errorCode: null }],
-      performance: {
+      displayPerformance: [{
+        displayId: 'main', displayIndex: 0, scope: 'stage-segment', performance: {
         enabled: true, recording: false, sampleCount: 4, currentFps: 60,
         p95FrameMs: 16, avgFrameMs: 16, avgRenderMs: 4, avgUpdateMs: 2,
         avgGpuMs: null, drawCalls: 4, triangles: 120, geometries: 1,
         textures: 0, programs: 1, backingPixels: 1296000, state: 'stable',
-      },
+        },
+      }],
       counters: { displays: 1, resources: 1, nodes: 1, hitRegions: 1, affordances: 1, activeGestures: 1, activeRoutes: 0, errors: 0 },
       events: [{ sequence: 1, kind: 'gesture.update', resourceId: 'companion/main', code: null, at: 100 }],
       lastError: null,

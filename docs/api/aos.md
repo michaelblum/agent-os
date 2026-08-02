@@ -956,6 +956,13 @@ instrumentation off when the final monitor disconnects. None of these commands
 return scene parameters, product text, prompts, audio, captures, or desktop
 content.
 
+`perf` confirms that the requested resource is mounted, then returns
+authoritative `scope: "stage-segment"` metrics for every current display.
+Those scalars describe each renderer segment, not the selected resource, and
+AOS does not sum rates, timings, DPR, or backing dimensions across displays.
+The daemon accepts them only after the exact request, canvas generation,
+topology generation, and complete display set converge.
+
 Open, inspect, and close the AOS-owned detachable inspector:
 
 ```bash

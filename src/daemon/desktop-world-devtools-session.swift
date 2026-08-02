@@ -1,7 +1,7 @@
 import Foundation
 
-let aosDesktopWorldDevToolsStageContract = "aos.desktop-world.devtools.stage.v1"
-let aosDesktopWorldDevToolsSnapshotContract = "aos.desktop-world.devtools.snapshot.v1"
+let aosDesktopWorldDevToolsStageContract = "aos.desktop-world.devtools.stage.v2"
+let aosDesktopWorldDevToolsSnapshotContract = "aos.desktop-world.devtools.snapshot.v2"
 
 enum AOSDesktopWorldDevToolsTab: String, Codable, CaseIterable {
     case world
@@ -116,6 +116,14 @@ struct AOSDesktopWorldDevToolsTransferPlan: Equatable {
     let next: AOSDesktopWorldDevToolsHost
 }
 
+struct AOSDesktopWorldDevToolsStageSegmentIdentity: Equatable {
+    let canvasGeneration: UInt64
+    let topologyGeneration: UInt64
+    let displayID: UInt32
+    let index: Int
+    let expectedIndexes: Set<Int>
+}
+
 enum AOSDesktopWorldDevToolsMutationResult {
     case success(AOSDesktopWorldDevToolsSessionState)
     case notFound
@@ -157,7 +165,7 @@ private struct AOSDesktopWorldRequiredNullable<Value: Codable>: Codable {
 }
 
 private struct AOSDesktopWorldDevToolsStageSnapshot: Codable {
-    struct Display: Codable {
+    struct Display: Codable, Equatable {
         let id: String
         let index: Int
         let bounds: [Double]
@@ -284,6 +292,13 @@ private struct AOSDesktopWorldDevToolsStageSnapshot: Codable {
         let state: String
     }
 
+    struct DisplayPerformance: Codable {
+        let displayId: String
+        let displayIndex: Int
+        let scope: String
+        let performance: Performance
+    }
+
     struct Event: Codable {
         let sequence: Int
         let kind: String
@@ -298,18 +313,21 @@ private struct AOSDesktopWorldDevToolsStageSnapshot: Codable {
     }
 
     let contract: String
+    let canvasGeneration: UInt64
+    let topologyGeneration: UInt64
     let sequence: Int
     let status: String
     let world: World
     let resources: [Resource]
     let interactions: [Interaction]
-    let performance: Performance
+    var displayPerformance: [DisplayPerformance]
     let counters: [String: Int]
     let events: [Event]
     @AOSDesktopWorldRequiredNullable var lastError: LastError?
 
     func isValid() -> Bool {
         guard contract == aosDesktopWorldDevToolsStageContract,
+              (status == "unavailable" || (canvasGeneration > 0 && topologyGeneration > 0)),
               sequence >= 0,
               ["available", "unavailable", "unknown"].contains(status),
               world.displays.count <= 16,
@@ -321,34 +339,10 @@ private struct AOSDesktopWorldDevToolsStageSnapshot: Codable {
               resources.count <= 32,
               interactions.count <= 256,
               events.count <= 256,
-              performance.sampleCount >= 0,
-              performance.sampleCount <= 240,
-              ["hot", "idle", "stable", "warn"].contains(performance.state),
+              displayPerformance.count <= 16,
               counters.keys.allSatisfy({ Self.counterKeys.contains($0) }),
               counters.values.allSatisfy({ $0 >= 0 && $0 <= 100_000 }),
-              Self.validMetric(performance.currentFps, maximum: 1_000),
-              Self.validMetric(performance.targetFps, maximum: 1_000),
-              Self.validMetric(performance.budgetMs),
-              Self.validMetric(performance.p95FrameMs),
-              Self.validMetric(performance.maxFrameMs),
-              Self.validMetric(performance.avgFrameMs),
-              Self.validMetric(performance.avgRenderMs),
-              Self.validMetric(performance.avgUpdateMs),
-              Self.validMetric(performance.avgGpuMs),
-              Self.validMetric(performance.drawCalls),
-              Self.validMetric(performance.triangles),
-              Self.validMetric(performance.geometries),
-              Self.validMetric(performance.textures),
-              Self.validMetric(performance.programs),
-              Self.validMetric(performance.backingPixels),
-              Self.validMetric(performance.backingWidth),
-              Self.validMetric(performance.backingHeight),
-              Self.validMetric(performance.damagedPixelPercentage, maximum: 100),
-              Self.validMetric(performance.avgDamagedPixelPercentage, maximum: 100),
-              Self.validPositiveMetric(performance.effectiveDevicePixelRatio, maximum: 4),
-              Self.validMetric(performance.estimatedBackingBytes, maximum: 1_000_000_000_000),
-              Self.validMetric(performance.msaaSamples, maximum: 64),
-              Self.validPositiveMetric(performance.requestedDevicePixelRatio, maximum: 4),
+              displayPerformance.allSatisfy({ Self.performanceIsValid($0.performance) }),
               lastError == nil || (Self.validString(lastError!.code, limit: 64)
                 && lastError!.at.isFinite && lastError!.at >= 0) else { return false }
         guard world.displays.allSatisfy({
@@ -383,7 +377,16 @@ private struct AOSDesktopWorldDevToolsStageSnapshot: Codable {
                 && $0.origin.count == 2 && $0.destination.count == 2
                 && $0.origin.allSatisfy({ $0.isFinite }) && $0.destination.allSatisfy({ $0.isFinite })
         }) else { return false }
-        guard resources.allSatisfy({ resource in
+        guard Set(world.displays.map(\.index)).count == world.displays.count,
+              Set(displayPerformance.map(\.displayIndex)).count == displayPerformance.count else { return false }
+        let displayByIndex = Dictionary(uniqueKeysWithValues: world.displays.map { ($0.index, $0) })
+        guard
+              displayPerformance.allSatisfy({ entry in
+                  guard let display = displayByIndex[entry.displayIndex],
+                        display.id == entry.displayId,
+                        entry.scope == "stage-segment" else { return false }
+                  return Self.performance(entry.performance, matches: display)
+              }), resources.allSatisfy({ resource in
             Self.validString(resource.id) && Self.validString(resource.owner)
                 && Self.validString(resource.sceneId) && resource.revision >= 0
                 && resource.implementations.count <= 128
@@ -427,11 +430,115 @@ private struct AOSDesktopWorldDevToolsStageSnapshot: Codable {
     private static func validPositiveMetric(_ value: Double?, maximum: Double) -> Bool {
         value == nil || (value!.isFinite && value! > 0 && value! <= maximum)
     }
+
+    private static func performanceIsValid(_ performance: Performance) -> Bool {
+        performance.sampleCount >= 0
+            && performance.sampleCount <= 240
+            && ["hot", "idle", "stable", "warn"].contains(performance.state)
+            && validMetric(performance.currentFps, maximum: 1_000)
+            && validMetric(performance.targetFps, maximum: 1_000)
+            && validMetric(performance.budgetMs)
+            && validMetric(performance.p95FrameMs)
+            && validMetric(performance.maxFrameMs)
+            && validMetric(performance.avgFrameMs)
+            && validMetric(performance.avgRenderMs)
+            && validMetric(performance.avgUpdateMs)
+            && validMetric(performance.avgGpuMs)
+            && validMetric(performance.drawCalls)
+            && validMetric(performance.triangles)
+            && validMetric(performance.geometries)
+            && validMetric(performance.textures)
+            && validMetric(performance.programs)
+            && validMetric(performance.backingPixels)
+            && validMetric(performance.backingWidth)
+            && validMetric(performance.backingHeight)
+            && validMetric(performance.damagedPixelPercentage, maximum: 100)
+            && validMetric(performance.avgDamagedPixelPercentage, maximum: 100)
+            && validPositiveMetric(performance.effectiveDevicePixelRatio, maximum: 4)
+            && validMetric(performance.estimatedBackingBytes, maximum: 1_000_000_000_000)
+            && validMetric(performance.msaaSamples, maximum: 64)
+            && validPositiveMetric(performance.requestedDevicePixelRatio, maximum: 4)
+    }
+
+    private static func performance(_ performance: Performance, matches display: Display) -> Bool {
+        guard performance.sampleCount > 0 else { return true }
+        guard let backingHeight = performance.backingHeight,
+              let backingPixels = performance.backingPixels,
+              let backingWidth = performance.backingWidth,
+              let effectiveDPR = performance.effectiveDevicePixelRatio,
+              let estimatedBackingBytes = performance.estimatedBackingBytes,
+              let msaaSamples = performance.msaaSamples,
+              let requestedDPR = performance.requestedDevicePixelRatio else { return false }
+        let expectedWidth = (display.bounds[2] * display.scaleFactor).rounded()
+        let expectedHeight = (display.bounds[3] * display.scaleFactor).rounded()
+        let expectedPixels = expectedWidth * expectedHeight
+        let resolvedBytes = expectedPixels * 8
+        let expectedBytes = resolvedBytes + (msaaSamples > 1 ? resolvedBytes * msaaSamples : 0)
+        return abs(requestedDPR - display.scaleFactor) <= 0.000_001
+            && abs(effectiveDPR - display.scaleFactor) <= 0.000_001
+            && backingWidth == expectedWidth
+            && backingHeight == expectedHeight
+            && backingPixels == expectedPixels
+            && estimatedBackingBytes == expectedBytes
+    }
 }
 
 final class AOSDesktopWorldDevToolsSessionRegistry {
     private struct PendingTransfer {
         let plan: AOSDesktopWorldDevToolsTransferPlan
+    }
+
+    private struct StageReceipt {
+        let canvasGeneration: UInt64
+        let displays: [AOSDesktopWorldDevToolsStageSnapshot.Display]
+        let expectedIndexes: Set<Int>
+        let topologyGeneration: UInt64
+        var primary: AOSDesktopWorldDevToolsStageSnapshot?
+        var performanceByIndex: [Int: AOSDesktopWorldDevToolsStageSnapshot.DisplayPerformance] = [:]
+
+        init(
+            _ snapshot: AOSDesktopWorldDevToolsStageSnapshot,
+            identity: AOSDesktopWorldDevToolsStageSegmentIdentity
+        ) {
+            canvasGeneration = identity.canvasGeneration
+            displays = snapshot.world.displays
+            expectedIndexes = identity.expectedIndexes
+            topologyGeneration = identity.topologyGeneration
+        }
+
+        mutating func record(
+            _ snapshot: AOSDesktopWorldDevToolsStageSnapshot,
+            identity: AOSDesktopWorldDevToolsStageSegmentIdentity,
+            rejectDuplicate: Bool
+        ) -> Bool {
+            guard identity.canvasGeneration == canvasGeneration,
+                  identity.topologyGeneration == topologyGeneration,
+                  identity.expectedIndexes == expectedIndexes,
+                  snapshot.canvasGeneration == canvasGeneration,
+                  snapshot.topologyGeneration == topologyGeneration,
+                  Set(snapshot.world.displays.map(\.index)) == expectedIndexes,
+                  snapshot.world.displays == displays,
+                  snapshot.displayPerformance.count == 1,
+                  let entry = snapshot.displayPerformance.first,
+                  entry.displayIndex == identity.index,
+                  displays.contains(where: {
+                      $0.index == identity.index && $0.id == entry.displayId
+                  }),
+                  !rejectDuplicate || performanceByIndex[identity.index] == nil else { return false }
+            performanceByIndex[identity.index] = entry
+            if identity.index == 0 { primary = snapshot }
+            return true
+        }
+
+        func aggregate() -> AOSDesktopWorldDevToolsStageSnapshot? {
+            guard var result = primary else { return nil }
+            guard expectedIndexes.count == displays.count,
+                  Set(performanceByIndex.keys) == expectedIndexes else { return nil }
+            result.displayPerformance = performanceByIndex.values.sorted {
+                $0.displayIndex < $1.displayIndex
+            }
+            return result
+        }
     }
 
     private let lock = NSLock()
@@ -441,6 +548,8 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
     private var hostOwners: [String: String] = [:]
     private var pendingBySession: [String: PendingTransfer] = [:]
     private var pendingByToken: [UUID: PendingTransfer] = [:]
+    private var currentStageReceipt: StageReceipt?
+    private var stageReceiptsByRequest: [String: StageReceipt] = [:]
     private var stageSnapshot: [String: Any] = AOSDesktopWorldDevToolsSessionRegistry.unavailableStageSnapshot()
     private var stageSnapshotRevision = 0
 
@@ -586,33 +695,96 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
         }
         if let host = state.host { hostOwners.removeValue(forKey: host.key) }
         sessions.removeValue(forKey: sessionID)
+        if let requestID = state.stageRequestID,
+           !sessions.values.contains(where: {
+               $0.stageRequestID == requestID && $0.stageRequestCompletedRevision == nil
+           }) {
+            stageReceiptsByRequest.removeValue(forKey: requestID)
+        }
         return .success(state)
     }
 
-    func recordStageSnapshot(_ raw: [String: Any], requestID: String? = nil) -> Bool {
+    func recordStageSnapshot(
+        _ raw: [String: Any],
+        requestID: String? = nil,
+        segment: AOSDesktopWorldDevToolsStageSegmentIdentity? = nil
+    ) -> Bool {
         guard requestID == nil || Self.validToken(requestID!, limit: 128),
               JSONSerialization.isValidJSONObject(raw),
               let input = try? JSONSerialization.data(withJSONObject: raw),
               input.count <= 512 * 1_024,
               let decoded = try? JSONDecoder().decode(AOSDesktopWorldDevToolsStageSnapshot.self, from: input),
-              decoded.isValid(),
-              let canonicalData = try? JSONEncoder().encode(decoded),
-              let canonical = try? JSONSerialization.jsonObject(with: canonicalData) as? [String: Any] else { return false }
+              decoded.isValid() else { return false }
         lock.lock()
+        defer { lock.unlock() }
+
+        let aggregate: AOSDesktopWorldDevToolsStageSnapshot?
+        if let segment {
+            if let requestID {
+                let hasPendingSession = sessions.values.contains(where: {
+                    $0.stageRequestID == requestID && $0.stageRequestCompletedRevision == nil
+                })
+                guard hasPendingSession else { return false }
+                var receipt = stageReceiptsByRequest[requestID] ?? StageReceipt(
+                    decoded,
+                    identity: segment
+                )
+                guard receipt.record(decoded, identity: segment, rejectDuplicate: true) else {
+                    stageReceiptsByRequest.removeValue(forKey: requestID)
+                    return false
+                }
+                stageReceiptsByRequest[requestID] = receipt
+                aggregate = receipt.aggregate()
+                if aggregate != nil {
+                    stageReceiptsByRequest.removeValue(forKey: requestID)
+                    currentStageReceipt = receipt
+                }
+            } else {
+                var receipt: StageReceipt
+                if let currentStageReceipt,
+                   currentStageReceipt.canvasGeneration == segment.canvasGeneration,
+                   currentStageReceipt.topologyGeneration == segment.topologyGeneration,
+                   currentStageReceipt.expectedIndexes == segment.expectedIndexes,
+                   currentStageReceipt.displays == decoded.world.displays {
+                    receipt = currentStageReceipt
+                } else {
+                    receipt = StageReceipt(decoded, identity: segment)
+                }
+                guard receipt.record(decoded, identity: segment, rejectDuplicate: false) else { return false }
+                currentStageReceipt = receipt
+                aggregate = receipt.aggregate()
+            }
+        } else {
+            let expected = Set(decoded.world.displays.map(\.index))
+            guard decoded.displayPerformance.count == decoded.world.displays.count,
+                  Set(decoded.displayPerformance.map(\.displayIndex)) == expected else { return false }
+            aggregate = decoded
+        }
+
+        guard let aggregate,
+              let canonical = Self.canonicalDictionary(aggregate) else { return true }
         stageSnapshot = canonical
         stageSnapshotRevision += 1
         if let requestID {
-            let matchingSessionIDs = sessions.compactMap { sessionID, state in
+            for sessionID in sessions.compactMap({ sessionID, state in
                 state.stageRequestID == requestID ? sessionID : nil
-            }
-            for sessionID in matchingSessionIDs {
+            }) {
                 guard var state = sessions[sessionID] else { continue }
                 state.stageRequestCompletedRevision = stageSnapshotRevision
                 sessions[sessionID] = state
             }
         }
-        lock.unlock()
         return true
+    }
+
+    private static func canonicalDictionary(
+        _ snapshot: AOSDesktopWorldDevToolsStageSnapshot
+    ) -> [String: Any]? {
+        guard let data = try? JSONEncoder().encode(snapshot),
+              data.count <= 512 * 1_024,
+              let dictionary = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        return dictionary
     }
 
     func snapshot(sessionID: String) -> [String: Any]? {
@@ -752,7 +924,7 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
         }
         return [
             "contract": aosDesktopWorldDevToolsSnapshotContract,
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "stageSnapshotRevision": stageSnapshotRevision,
             "session": session,
             "stage": stage,
@@ -781,6 +953,8 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
     private static func unavailableStageSnapshot() -> [String: Any] {
         [
             "contract": aosDesktopWorldDevToolsStageContract,
+            "canvasGeneration": 0,
+            "topologyGeneration": 0,
             "sequence": 0,
             "status": "unavailable",
             "world": [
@@ -789,19 +963,7 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
             ],
             "resources": [],
             "interactions": [],
-            "performance": [
-                "enabled": false, "recording": false, "sampleCount": 0,
-                "targetFps": NSNull(), "budgetMs": NSNull(), "currentFps": NSNull(),
-                "p95FrameMs": NSNull(), "maxFrameMs": NSNull(), "avgFrameMs": NSNull(),
-                "avgRenderMs": NSNull(), "avgUpdateMs": NSNull(), "avgGpuMs": NSNull(),
-                "drawCalls": NSNull(), "triangles": NSNull(), "geometries": NSNull(),
-                "textures": NSNull(), "programs": NSNull(), "backingPixels": NSNull(),
-                "backingWidth": NSNull(), "backingHeight": NSNull(),
-                "damagedPixelPercentage": NSNull(), "avgDamagedPixelPercentage": NSNull(),
-                "effectiveDevicePixelRatio": NSNull(), "estimatedBackingBytes": NSNull(),
-                "msaaSamples": NSNull(), "requestedDevicePixelRatio": NSNull(),
-                "state": "idle",
-            ],
+            "displayPerformance": [],
             "counters": [
                 "displays": 0, "resources": 0, "nodes": 0, "hitRegions": 0,
                 "affordances": 0, "activeGestures": 0, "activeRoutes": 0, "errors": 0,

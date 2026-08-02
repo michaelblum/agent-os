@@ -114,7 +114,9 @@ function renderInteractions(snapshot) {
 }
 
 function renderPerformance(snapshot) {
-  const p = snapshot.stage.performance
+  const primary = snapshot.stage.displayPerformance.find((entry) => entry.displayIndex === 0)
+  if (!primary) return '<div class="dw-empty">Primary display performance is unavailable.</div>'
+  const p = primary.performance
   const metrics = [
     ['FPS', metric(p.currentFps)], ['Frame budget', `${metric(p.budgetMs)} ms`],
     ['P95 frame', `${metric(p.p95FrameMs)} ms`], ['Max frame', `${metric(p.maxFrameMs)} ms`],

@@ -20,19 +20,62 @@ func created(_ result: AOSDesktopWorldDevToolsMutationResult) -> AOSDesktopWorld
     return state
 }
 
-func stageSnapshot() -> [String: Any] {
+func performance(_ segmentIndex: Int) -> [String: Any] {
+    let primary = segmentIndex == 0
+    let backingWidth = primary ? 3_024.0 : 1_920.0
+    let backingHeight = primary ? 1_964.0 : 1_080.0
+    let backingPixels = backingWidth * backingHeight
+    let scale = primary ? 2.0 : 1.0
+    let resolvedBytes = backingPixels * 8
+    return [
+        "enabled": true, "recording": false, "sampleCount": 1,
+        "targetFps": 60.0, "budgetMs": 16.6667,
+        "currentFps": 60.0, "p95FrameMs": 16.0, "avgFrameMs": 16.0,
+        "maxFrameMs": 17.0,
+        "avgRenderMs": 4.0, "avgUpdateMs": 2.0, "avgGpuMs": NSNull(),
+        "drawCalls": primary ? 0.0 : 4.0, "triangles": primary ? 0.0 : 120.0,
+        "geometries": 1.0, "textures": 0.0,
+        "programs": 1.0, "backingPixels": backingPixels,
+        "backingWidth": backingWidth, "backingHeight": backingHeight,
+        "damagedPixelPercentage": 12.5, "avgDamagedPixelPercentage": 10.0,
+        "effectiveDevicePixelRatio": scale, "estimatedBackingBytes": resolvedBytes * 5,
+        "msaaSamples": 4.0, "requestedDevicePixelRatio": scale, "state": "stable",
+    ]
+}
+
+func displayPerformance(_ segmentIndex: Int) -> [String: Any] {
+    [
+        "displayId": "display-\(segmentIndex)",
+        "displayIndex": segmentIndex,
+        "scope": "stage-segment",
+        "performance": performance(segmentIndex),
+    ]
+}
+
+func stageSnapshot(
+    segmentIndex: Int = 0,
+    canvasGeneration: Int = 3,
+    topologyGeneration: Int = 4
+) -> [String: Any] {
     [
         "contract": aosDesktopWorldDevToolsStageContract,
+        "canvasGeneration": canvasGeneration,
+        "topologyGeneration": topologyGeneration,
         "sequence": 1,
         "status": "available",
         "world": [
             "displays": [[
-                "id": "main", "index": 0,
-                "bounds": [200.0, 0.0, 1440.0, 900.0],
+                "id": "display-0", "index": 0,
+                "bounds": [207.0, 0.0, 1512.0, 982.0],
                 "scaleFactor": 2.0,
-                "nativeBounds": [0.0, 0.0, 1440.0, 900.0],
+                "nativeBounds": [0.0, 0.0, 1512.0, 982.0],
+            ], [
+                "id": "display-1", "index": 1,
+                "bounds": [0.0, 982.0, 1920.0, 1080.0],
+                "scaleFactor": 1.0,
+                "nativeBounds": [-207.0, 982.0, 1920.0, 1080.0],
             ]],
-            "nodes": [["id": "body", "resourceId": "companion/main", "parentId": NSNull(), "kind": "mesh", "implementation": "aos.scene.geometry.primitive", "position": [100.0, 200.0, 0.0], "visible": true]],
+            "nodes": [["id": "body", "resourceId": "companion/main", "parentId": NSNull(), "kind": "mesh", "implementation": "aos.scene.geometry.primitive", "position": [1498.0, 1166.0, 0.0], "visible": true]],
             "hitRegions": [], "affordances": [], "gestures": [[
                 "id": "gesture-1", "resourceId": "companion/main", "affordanceId": "body",
                 "interactionId": "travel", "kind": "drag", "phase": "cancel",
@@ -51,26 +94,34 @@ func stageSnapshot() -> [String: Any] {
             "active": false, "suspended": false, "recognizers": ["drag"],
             "regionCount": 0, "errorCode": NSNull(),
         ]],
-        "performance": [
-            "enabled": true, "recording": false, "sampleCount": 1,
-            "targetFps": 60.0, "budgetMs": 16.6667,
-            "currentFps": 60.0, "p95FrameMs": 16.0, "avgFrameMs": 16.0,
-            "maxFrameMs": 17.0,
-            "avgRenderMs": 4.0, "avgUpdateMs": 2.0, "avgGpuMs": NSNull(),
-            "drawCalls": 4.0, "triangles": 120.0, "geometries": 1.0, "textures": 0.0,
-            "programs": 1.0, "backingPixels": 5_184_000.0,
-            "backingWidth": 2_880.0, "backingHeight": 1_800.0,
-            "damagedPixelPercentage": 12.5, "avgDamagedPixelPercentage": 10.0,
-            "effectiveDevicePixelRatio": 2.0, "estimatedBackingBytes": 207_360_000.0,
-            "msaaSamples": 4.0, "requestedDevicePixelRatio": 2.0, "state": "stable",
-        ],
+        "displayPerformance": [displayPerformance(segmentIndex)],
         "counters": [
-            "displays": 1, "resources": 1, "nodes": 1, "hitRegions": 0,
+            "displays": 2, "resources": 1, "nodes": 1, "hitRegions": 0,
             "affordances": 0, "activeGestures": 0, "activeRoutes": 0, "errors": 0,
         ],
         "events": [["sequence": 1, "kind": "scene.mount", "resourceId": NSNull(), "code": NSNull(), "at": 100.0]],
         "lastError": NSNull(),
     ]
+}
+
+func aggregateStageSnapshot() -> [String: Any] {
+    var snapshot = stageSnapshot()
+    snapshot["displayPerformance"] = [displayPerformance(0), displayPerformance(1)]
+    return snapshot
+}
+
+func segmentIdentity(
+    _ index: Int,
+    canvasGeneration: UInt64 = 3,
+    topologyGeneration: UInt64 = 4
+) -> AOSDesktopWorldDevToolsStageSegmentIdentity {
+    AOSDesktopWorldDevToolsStageSegmentIdentity(
+        canvasGeneration: canvasGeneration,
+        topologyGeneration: topologyGeneration,
+        displayID: UInt32(index + 100),
+        index: index,
+        expectedIndexes: [0, 1]
+    )
 }
 
 var nativeWarmState = AOSDesktopWorldDevToolsNativeStageFacts(
@@ -119,15 +170,58 @@ let freshnessSession = created(freshnessRegistry.create(stageRequestID: freshnes
 let pendingFreshness = freshnessRegistry.snapshot(sessionID: freshnessSession.id)!
 let pendingFreshnessSession = pendingFreshness["session"] as! [String: Any]
 require(pendingFreshnessSession["stageSnapshotReady"] as? Bool == false, "headless session started fresh")
-require(freshnessRegistry.recordStageSnapshot(stageSnapshot(), requestID: "unrelated-request"), "unrelated stage receipt failed")
+require(!freshnessRegistry.recordStageSnapshot(
+    stageSnapshot(),
+    requestID: "unrelated-request",
+    segment: segmentIdentity(0)
+), "unknown request was accepted")
 let unrelatedFreshness = freshnessRegistry.snapshot(sessionID: freshnessSession.id)!
 let unrelatedFreshnessSession = unrelatedFreshness["session"] as! [String: Any]
 require(unrelatedFreshnessSession["stageSnapshotReady"] as? Bool == false, "unrelated receipt satisfied headless freshness")
-require(freshnessRegistry.recordStageSnapshot(stageSnapshot(), requestID: freshnessRequest), "correlated stage receipt failed")
+require(freshnessRegistry.recordStageSnapshot(
+    stageSnapshot(),
+    requestID: freshnessRequest,
+    segment: segmentIdentity(0)
+), "primary correlated stage receipt failed")
+let missingSegmentFreshness = freshnessRegistry.snapshot(sessionID: freshnessSession.id)!
+let missingSegmentSession = missingSegmentFreshness["session"] as! [String: Any]
+require(missingSegmentSession["stageSnapshotReady"] as? Bool == false, "partial display receipt satisfied freshness")
+require(!freshnessRegistry.recordStageSnapshot(
+    stageSnapshot(),
+    requestID: freshnessRequest,
+    segment: segmentIdentity(0)
+), "duplicate display receipt was accepted")
+require(freshnessRegistry.recordStageSnapshot(
+    stageSnapshot(),
+    requestID: freshnessRequest,
+    segment: segmentIdentity(0)
+), "replacement primary stage receipt failed")
+require(freshnessRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1),
+    requestID: freshnessRequest,
+    segment: segmentIdentity(1)
+), "secondary correlated stage receipt failed")
 let completedFreshness = freshnessRegistry.snapshot(sessionID: freshnessSession.id)!
 let completedFreshnessSession = completedFreshness["session"] as! [String: Any]
 require(completedFreshnessSession["stageSnapshotReady"] as? Bool == true, "correlated receipt did not satisfy freshness")
 _ = freshnessRegistry.close(sessionID: freshnessSession.id)
+
+let topologyRequest = "topology-change-request"
+let topologySession = created(freshnessRegistry.create(stageRequestID: topologyRequest))
+require(freshnessRegistry.recordStageSnapshot(
+    stageSnapshot(),
+    requestID: topologyRequest,
+    segment: segmentIdentity(0)
+), "pre-topology-change receipt failed")
+require(!freshnessRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, topologyGeneration: 5),
+    requestID: topologyRequest,
+    segment: segmentIdentity(1, topologyGeneration: 5)
+), "topology change did not invalidate the partial receipt")
+let topologyPending = freshnessRegistry.snapshot(sessionID: topologySession.id)!
+let topologyPendingSession = topologyPending["session"] as! [String: Any]
+require(topologyPendingSession["stageSnapshotReady"] as? Bool == false, "stale topology receipt satisfied freshness")
+_ = freshnessRegistry.close(sessionID: topologySession.id)
 
 let first = created(registry.create(selectedResource: "companion/main"))
 require(registry.instrumentationConfiguration().enabled, "created session did not enable instrumentation")
@@ -191,7 +285,7 @@ case .conflict(let current): require(current == updated.revision, "conflict retu
 default: fatalError("stale update was not rejected")
 }
 
-var leaked = stageSnapshot()
+var leaked = aggregateStageSnapshot()
 leaked["transcript"] = "secret"
 leaked["native"] = ["desktopFrameWarm": ["pixels": "secret"]]
 require(registry.recordStageSnapshot(leaked), "valid stage snapshot with unknown renderer field was rejected")
@@ -268,8 +362,8 @@ require(lastExecution["programDigest"] as? String == String(repeating: "a", coun
 require(nativeEffect["parameters"] == nil, "native effect parameters crossed the diagnostics boundary")
 let canonicalWorld = stage["world"] as! [String: Any]
 let canonicalDisplay = (canonicalWorld["displays"] as! [[String: Any]])[0]
-require(canonicalDisplay["bounds"] as? [Double] == [200.0, 0.0, 1440.0, 900.0], "DesktopWorld display bounds drifted")
-require(canonicalDisplay["nativeBounds"] as? [Double] == [0.0, 0.0, 1440.0, 900.0], "native display bounds were lost")
+require(canonicalDisplay["bounds"] as? [Double] == [207.0, 0.0, 1512.0, 982.0], "DesktopWorld display bounds drifted")
+require(canonicalDisplay["nativeBounds"] as? [Double] == [0.0, 0.0, 1512.0, 982.0], "native display bounds were lost")
 require(canonicalDisplay["scaleFactor"] as? Double == 2.0, "native display scale was lost")
 let canonicalNode = (canonicalWorld["nodes"] as! [[String: Any]])[0]
 require(canonicalNode["parentId"] is NSNull, "canonical node omitted required null parentId")
@@ -279,16 +373,22 @@ let canonicalResource = (stage["resources"] as! [[String: Any]])[0]
 require(canonicalResource["errorCode"] is NSNull, "canonical resource omitted required null errorCode")
 let canonicalInteraction = (stage["interactions"] as! [[String: Any]])[0]
 require(canonicalInteraction["errorCode"] is NSNull, "canonical interaction omitted required null errorCode")
-let canonicalPerformance = stage["performance"] as! [String: Any]
+let canonicalDisplayPerformance = stage["displayPerformance"] as! [[String: Any]]
+require(canonicalDisplayPerformance.count == 2, "per-display performance set was incomplete")
+require(canonicalDisplayPerformance[0]["scope"] as? String == "stage-segment", "performance scope was lost")
+let canonicalPerformance = canonicalDisplayPerformance[0]["performance"] as! [String: Any]
 require(canonicalPerformance["avgGpuMs"] is NSNull, "canonical performance omitted a required null metric")
-require(canonicalPerformance["backingWidth"] as? Double == 2_880.0, "backing width was lost")
-require(canonicalPerformance["backingHeight"] as? Double == 1_800.0, "backing height was lost")
+require(canonicalPerformance["backingWidth"] as? Double == 3_024.0, "backing width was lost")
+require(canonicalPerformance["backingHeight"] as? Double == 1_964.0, "backing height was lost")
 require(canonicalPerformance["damagedPixelPercentage"] as? Double == 12.5, "damage percentage was lost")
 require(canonicalPerformance["avgDamagedPixelPercentage"] as? Double == 10.0, "average damage percentage was lost")
 require(canonicalPerformance["effectiveDevicePixelRatio"] as? Double == 2.0, "effective DPR was lost")
 require(canonicalPerformance["requestedDevicePixelRatio"] as? Double == 2.0, "requested DPR was lost")
-require(canonicalPerformance["estimatedBackingBytes"] as? Double == 207_360_000.0, "backing byte estimate was lost")
+require(canonicalPerformance["estimatedBackingBytes"] as? Double == 237_565_440.0, "backing byte estimate was lost")
 require(canonicalPerformance["msaaSamples"] as? Double == 4.0, "MSAA sample count was lost")
+let externalPerformance = canonicalDisplayPerformance[1]["performance"] as! [String: Any]
+require(externalPerformance["drawCalls"] as? Double == 4.0, "external display draw calls were lost")
+require(externalPerformance["triangles"] as? Double == 120.0, "external display triangles were lost")
 let canonicalEvent = (stage["events"] as! [[String: Any]])[0]
 require(canonicalEvent["resourceId"] is NSNull, "canonical event omitted required null resourceId")
 require(canonicalEvent["code"] is NSNull, "canonical event omitted required null code")
@@ -298,41 +398,47 @@ let selectedResources = selectedStage["resources"] as! [[String: Any]]
 require(selectedResources.count == 1 && selectedResources[0]["id"] as? String == "companion/main", "resource snapshot was not filtered")
 require(registry.stageSnapshot(resourceID: "missing/resource") == nil, "missing resource snapshot did not fail closed")
 
-require(registry.recordStageSnapshot(stageSnapshot()), "repeated stage sequence was rejected")
+require(registry.recordStageSnapshot(aggregateStageSnapshot()), "repeated stage sequence was rejected")
 let repeatedSnapshot = registry.snapshot(sessionID: first.id)!
 require(repeatedSnapshot["stageSnapshotRevision"] as? Int == 2, "daemon receipt revision depended on stage-local sequence")
 
-var oversized = stageSnapshot()
+var oversized = aggregateStageSnapshot()
 var world = oversized["world"] as! [String: Any]
 world["nodes"] = Array(repeating: (world["nodes"] as! [[String: Any]])[0], count: 1_025)
 oversized["world"] = world
 require(!registry.recordStageSnapshot(oversized), "oversized stage snapshot was accepted")
 
-var oversizedError = stageSnapshot()
+var oversizedError = aggregateStageSnapshot()
 var resources = oversizedError["resources"] as! [[String: Any]]
 resources[0]["errorCode"] = String(repeating: "x", count: 65)
 oversizedError["resources"] = resources
 require(!registry.recordStageSnapshot(oversizedError), "oversized resource error code was accepted")
 
-var invalidMetric = stageSnapshot()
-var performance = invalidMetric["performance"] as! [String: Any]
+var invalidMetric = aggregateStageSnapshot()
+var displayPerformance = invalidMetric["displayPerformance"] as! [[String: Any]]
+var performance = displayPerformance[0]["performance"] as! [String: Any]
 performance["avgFrameMs"] = -1.0
-invalidMetric["performance"] = performance
+displayPerformance[0]["performance"] = performance
+invalidMetric["displayPerformance"] = displayPerformance
 require(!registry.recordStageSnapshot(invalidMetric), "negative performance metric was accepted")
 
-var missingRequiredNull = stageSnapshot()
-performance = missingRequiredNull["performance"] as! [String: Any]
+var missingRequiredNull = aggregateStageSnapshot()
+displayPerformance = missingRequiredNull["displayPerformance"] as! [[String: Any]]
+performance = displayPerformance[0]["performance"] as! [String: Any]
 performance.removeValue(forKey: "avgGpuMs")
-missingRequiredNull["performance"] = performance
+displayPerformance[0]["performance"] = performance
+missingRequiredNull["displayPerformance"] = displayPerformance
 require(!registry.recordStageSnapshot(missingRequiredNull), "missing required nullable metric was accepted")
 
-var invalidDpr = stageSnapshot()
-performance = invalidDpr["performance"] as! [String: Any]
+var invalidDpr = aggregateStageSnapshot()
+displayPerformance = invalidDpr["displayPerformance"] as! [[String: Any]]
+performance = displayPerformance[0]["performance"] as! [String: Any]
 performance["requestedDevicePixelRatio"] = 5.0
-invalidDpr["performance"] = performance
+displayPerformance[0]["performance"] = performance
+invalidDpr["displayPerformance"] = displayPerformance
 require(!registry.recordStageSnapshot(invalidDpr), "oversized requested DPR was accepted")
 
-var invalidDisplayScale = stageSnapshot()
+var invalidDisplayScale = aggregateStageSnapshot()
 world = invalidDisplayScale["world"] as! [String: Any]
 var displays = world["displays"] as! [[String: Any]]
 displays[0]["scaleFactor"] = 0.0

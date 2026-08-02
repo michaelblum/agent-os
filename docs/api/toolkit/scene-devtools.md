@@ -22,6 +22,13 @@ snapshot correlated to their own explicit refresh request, and close in
 `finally`. Concurrent inspectors and stage-local sequence resets cannot make a
 cached snapshot appear fresh.
 
+`scene perf` uses the resource only to confirm that the requested resource is
+mounted. Render metrics are not resource-attributed: the result has
+`scope: "stage-segment"` and one `displays[]` entry per authoritative display,
+each with `displayId`, `displayIndex`, `scope`, and its own scalar
+`performance` facts. Rates, timings, DPR, and backing dimensions are never
+summed across displays.
+
 Replay requires monotonic owner/resource sequences and complete gesture
 lifecycles. It reports counts, resource IDs, and final numeric positions only.
 It performs no rendering, stage mutation, or live TCC input.
@@ -88,10 +95,17 @@ aos scene devtools transfer --session devtools-example \
 ## Snapshot And Instrumentation
 
 `createDesktopWorldDevToolsStageProbe()` projects the existing render loop into
-`aos.desktop-world.devtools.stage.v1`. It reports bounded displays, resources,
+`aos.desktop-world.devtools.stage.v2`. It reports bounded displays, resources,
 nodes, hit regions, affordances, gestures, routes, allocations, interactions,
-performance, events, counters, and last-error facts. Text, prompts, audio,
-scene parameters, and desktop content are excluded.
+per-display stage-segment performance, events, counters, and last-error facts.
+There is no world-wide or resource-wide performance scalar. Text, prompts,
+audio, scene parameters, and desktop content are excluded.
+
+Every segment snapshot is bound to its exact `canvasGeneration`,
+`topologyGeneration`, display ID/index, and refresh `request_id`. The daemon
+rejects stale, unknown, or duplicate receipts and publishes a new snapshot only
+after the complete current display set converges. A topology change invalidates
+any partial receipt.
 
 At each inspection read, the daemon adds `native.desktopFrameWarm` and
 `native.nativeEffect`. Warm state contains only `state`, `displayCount`,

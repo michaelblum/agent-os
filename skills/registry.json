@@ -151,7 +151,7 @@
         "docs/api/aos.md",
         "packages/toolkit/scene/examples/session-lifecycle.mjs",
         "shared/schemas/scene-event-v1.schema.json",
-        "shared/schemas/desktop-world-devtools-stage-v1.schema.json"
+        "shared/schemas/desktop-world-devtools-stage-v2.schema.json"
       ],
       "claims_durable_behavior": true,
       "backing": [

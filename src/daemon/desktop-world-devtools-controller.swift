@@ -37,10 +37,29 @@ final class AOSDesktopWorldDevToolsController {
 
     @discardableResult
     func handleStageSnapshot(_ payload: [String: Any]) -> Bool {
-        guard let snapshot = payload["snapshot"] as? [String: Any],
+        guard let topology = canvasManager.desktopWorldSceneBarrierTopology(
+                  canvasID: sceneStageCanvasID
+              ),
+              let canvasGeneration = (payload["canvas_generation"] as? NSNumber)?.uint64Value,
+              let topologyGeneration = (payload["topology_generation"] as? NSNumber)?.uint64Value,
+              let displayID = (payload["segment_display_id"] as? NSNumber)?.uint32Value,
+              let segmentIndex = (payload["segment_index"] as? NSNumber)?.intValue,
+              canvasGeneration == topology.canvasGeneration,
+              topologyGeneration == topology.generation,
+              topology.segments.contains(where: {
+                  $0.displayID == displayID && $0.index == segmentIndex
+              }),
+              let snapshot = payload["snapshot"] as? [String: Any],
               sessions.recordStageSnapshot(
                 snapshot,
-                requestID: payload["request_id"] as? String
+                requestID: payload["request_id"] as? String,
+                segment: AOSDesktopWorldDevToolsStageSegmentIdentity(
+                    canvasGeneration: canvasGeneration,
+                    topologyGeneration: topologyGeneration,
+                    displayID: displayID,
+                    index: segmentIndex,
+                    expectedIndexes: Set(topology.segments.map(\.index))
+                )
               ) else { return false }
         publishSnapshots()
         return true

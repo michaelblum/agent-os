@@ -19,6 +19,15 @@ const segments = [
   { display_id: 11, index: 1, dw_bounds: [100, 0, 100, 100], native_bounds: [80, 0, 100, 100], scale_factor: 1 },
 ]
 
+const topologyEvent = {
+  type: 'canvas_lifecycle',
+  event: 'canvas_topology_settled',
+  canvas_id: 'avatar',
+  canvas_generation: 3,
+  topology_generation: 4,
+  segments,
+}
+
 function encodeBridgeMessage(message) {
   return Buffer.from(JSON.stringify(message), 'utf8').toString('base64')
 }
@@ -29,7 +38,12 @@ test('isPrimary reflects index === 0 and runOnPrimary gates work', async () => {
     host: {
       subscribe: () => ({
         on: (handler) => {
-          handler({ event: 'canvas_topology_settled', data: { canvas_id: 'avatar', segments } })
+          handler({
+            event: 'canvas_topology_settled',
+            data: {
+              canvas_id: 'avatar', canvas_generation: 3, topology_generation: 4, segments,
+            },
+          })
         },
       }),
     },
@@ -58,8 +72,8 @@ test('start ignores other surfaces and resolves on matching topology', async () 
   })
 
   const started = adapter.start({})
-  callbacks[0]({ type: 'canvas_lifecycle', event: 'canvas_topology_settled', canvas_id: 'other', segments })
-  callbacks[0]({ type: 'canvas_lifecycle', event: 'canvas_topology_settled', canvas_id: 'avatar', segments })
+  callbacks[0]({ ...topologyEvent, canvas_id: 'other' })
+  callbacks[0](topologyEvent)
   await started
 
   assert.equal(adapter.segment.display_id, 10)
@@ -83,11 +97,11 @@ test('topology changes call re-election callbacks after initial boot', async () 
     becamePrimary: () => calls.push('became'),
     lostPrimary: () => calls.push('lost'),
   })
-  callbacks[0]({ type: 'canvas_lifecycle', event: 'canvas_topology_settled', canvas_id: 'avatar', segments })
+  callbacks[0](topologyEvent)
   await started
 
   adapter.pickIndex = 0
-  callbacks[0]({ type: 'canvas_lifecycle', event: 'canvas_topology_settled', canvas_id: 'avatar', segments })
+  callbacks[0](topologyEvent)
 
   assert.deepEqual(calls, ['topology', 'became'])
 })
@@ -110,12 +124,7 @@ test('stop removes global bridge handler before restart', async () => {
   globalThis.window = { headsup: {} }
   const calls = []
   const adapter = new StubAdapter({ canvasId: 'avatar' })
-  const message = {
-    type: 'canvas_lifecycle',
-    event: 'canvas_topology_settled',
-    canvas_id: 'avatar',
-    segments,
-  }
+  const message = topologyEvent
 
   try {
     const firstStart = adapter.start({
@@ -154,7 +163,7 @@ test('concurrent starts share the first topology settlement', async () => {
 
   const firstStart = adapter.start({ onInit: () => calls.push('init:first') })
   const secondStart = adapter.start({ onInit: () => calls.push('init:second') })
-  callbacks[0]({ type: 'canvas_lifecycle', event: 'canvas_topology_settled', canvas_id: 'avatar', segments })
+  callbacks[0](topologyEvent)
 
   await Promise.all([firstStart, secondStart])
 
@@ -175,7 +184,7 @@ test('initial topology callback failures reject startup', async () => {
   })
 
   const started = adapter.start({ onInit: () => { throw failure } })
-  callbacks[0]({ type: 'canvas_lifecycle', event: 'canvas_topology_settled', canvas_id: 'avatar', segments })
+  callbacks[0](topologyEvent)
 
   await assert.rejects(started, (error) => error === failure)
   assert.equal(adapter._started, false)

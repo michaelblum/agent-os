@@ -15,15 +15,17 @@ import {
 
 function snapshot() {
   return {
-    contract: 'aos.desktop-world.devtools.snapshot.v1',
-    schemaVersion: 1,
+    contract: 'aos.desktop-world.devtools.snapshot.v2',
+    schemaVersion: 2,
     session: {
       id: 'devtools-example', revision: 2, activeTab: 'world', selectedResource: null,
       filters: { query: '', eventKinds: [], errorsOnly: false }, recording: false,
       host: { kind: 'compatibility', id: 'surface-inspector', state: 'active' },
     },
     stage: {
-      contract: 'aos.desktop-world.devtools.stage.v1',
+      contract: 'aos.desktop-world.devtools.stage.v2',
+      canvasGeneration: 3,
+      topologyGeneration: 4,
       sequence: 7,
       status: 'available',
       world: {
@@ -47,12 +49,14 @@ function snapshot() {
       },
       resources: [],
       interactions: [],
-      performance: {
+      displayPerformance: [{
+        displayId: 'main', displayIndex: 0, scope: 'stage-segment', performance: {
         enabled: true, recording: false, sampleCount: 4, currentFps: 50,
         avgFrameMs: 20, avgRenderMs: 6, avgUpdateMs: 2, avgGpuMs: 3,
         drawCalls: 8, triangles: 240, geometries: 2, textures: 1, programs: 2,
         backingPixels: 1296000, state: 'warn',
-      },
+        },
+      }],
       counters: {},
       events: [],
       lastError: null,

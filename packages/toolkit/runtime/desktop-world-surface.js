@@ -71,8 +71,10 @@ export class DesktopWorldSurfaceAdapter {
   constructor({ host = null, canvasId = defaultCanvasId() } = {}) {
     this.host = host
     this.canvasId = canvasId
+    this.canvasGeneration = null
     this.segment = null
     this.topology = []
+    this.topologyGeneration = null
     this._appHandlers = {}
     this._started = false
     this._firstSettled = null
@@ -112,6 +114,16 @@ export class DesktopWorldSurfaceAdapter {
     const payload = lifecyclePayload(message)
     if (!payload || payload.event !== 'canvas_topology_settled') return false
     if (this.canvasId && payload.canvas_id !== this.canvasId) return false
+    const canvasGeneration = Number(payload.canvas_generation)
+    const topologyGeneration = Number(payload.topology_generation)
+    if (
+      !Number.isSafeInteger(canvasGeneration)
+      || canvasGeneration < 1
+      || !Number.isSafeInteger(topologyGeneration)
+      || topologyGeneration < 1
+    ) return false
+    this.canvasGeneration = canvasGeneration
+    this.topologyGeneration = topologyGeneration
     this._applyTopology(payload.segments || [])
     return true
   }

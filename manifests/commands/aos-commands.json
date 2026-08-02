@@ -13196,7 +13196,7 @@
         "scene",
         "perf"
       ],
-      "summary" : "Read DesktopWorld render performance for one resource",
+      "summary" : "Read per-display DesktopWorld stage render performance",
       "forms" : [
         {
           "id" : "scene-perf",
@@ -13208,7 +13208,7 @@
               "token" : "--resource",
               "value_type" : "string",
               "required" : true,
-              "summary" : "Owner-scoped scene resource identifier"
+              "summary" : "Mounted resource identifier used to confirm stage membership"
             },
             {
               "id" : "json",
@@ -13216,7 +13216,7 @@
               "token" : "--json",
               "value_type" : "bool",
               "required" : true,
-              "summary" : "Emit machine-readable performance facts"
+              "summary" : "Emit per-display stage-segment performance facts"
             }
           ],
           "stdin" : {

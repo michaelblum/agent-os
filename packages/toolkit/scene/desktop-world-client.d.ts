@@ -29,8 +29,9 @@ export interface DesktopWorldSceneResourceList {
 
 export interface DesktopWorldScenePerformanceSnapshot {
   status: 'ok';
+  scope: 'stage-segment';
   resource: DesktopWorldDevToolsStageSnapshot['resources'][number];
-  performance: DesktopWorldDevToolsStageSnapshot['performance'];
+  displays: DesktopWorldDevToolsStageSnapshot['displayPerformance'];
 }
 
 export interface DesktopWorldSceneReplaySummary {

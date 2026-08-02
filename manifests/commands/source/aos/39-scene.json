@@ -187,13 +187,13 @@
     }]
   }, {
     "path": ["scene", "perf"],
-    "summary": "Read DesktopWorld render performance for one resource",
+    "summary": "Read per-display DesktopWorld stage render performance",
     "forms": [{
       "id": "scene-perf",
       "usage": "aos scene perf --resource <id> --json",
       "args": [
-        {"id":"resource","kind":"flag","token":"--resource","value_type":"string","required":true,"summary":"Owner-scoped scene resource identifier"},
-        {"id":"json","kind":"flag","token":"--json","value_type":"bool","required":true,"summary":"Emit machine-readable performance facts"}
+        {"id":"resource","kind":"flag","token":"--resource","value_type":"string","required":true,"summary":"Mounted resource identifier used to confirm stage membership"},
+        {"id":"json","kind":"flag","token":"--json","value_type":"bool","required":true,"summary":"Emit per-display stage-segment performance facts"}
       ],
       "stdin":{"supported":false,"content_type":null,"used_when":"never"},
       "output":{"default_mode":"json","error_mode":"json_stderr","streaming":false,"supports_json_flag":true},

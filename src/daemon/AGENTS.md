@@ -215,6 +215,12 @@ order; failure restores the previous host. The daemon may create the stock AOS
 panel but owns no DevTools layout or product policy. Connection-scoped scene
 monitors consume the same canonical stage snapshot and existing probe cadence;
 they must not add another sampler or survive their owning connection.
+Each renderer segment reports performance against its exact canvas generation,
+topology generation, and authoritative display ID/index. Refresh requests fail
+closed on stale, unknown, or duplicate receipts and become ready only after the
+complete expected display set converges; topology changes invalidate partial
+receipts. Published metrics remain per-display stage-segment scalars, never a
+resource attribution or a sum of rates, timings, DPR, or backing dimensions.
 At inspection read time, the daemon decorates canonical stage snapshots with
 the native desktop-frame warm pool's state, display count, generation, and
 redacted error code, plus bounded native-effect admission, presentation,
