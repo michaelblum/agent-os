@@ -24,7 +24,8 @@ Layer intent:
 - `components/`: reusable content units and stock surfaces built from the lower
   layers.
 - `status-item/`: product-neutral native status-item descriptor,
-  compare-and-swap update, event, and validation helpers.
+  compare-and-swap update, generation-scoped action admission, event, and
+  validation helpers.
 - `scene/`: narrow external package facade over reviewed Three lifecycle,
   DesktopWorld, canvas lifecycle, and visual-object contracts.
 

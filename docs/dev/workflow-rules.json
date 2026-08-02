@@ -207,7 +207,7 @@
     },
     {
       "id": "status-item-contract",
-      "summary": "Native status-item host, public toolkit, schema, or CLI transport changed.",
+      "summary": "Native status-item host/action admission, public toolkit, schema, or CLI transport changed.",
       "patterns": [
         "manifests/commands/source/aos/40-status-item.json",
         "manifests/commands/source/external/48-status-item.json",
@@ -236,7 +236,7 @@
         {
           "id": "status-item-contract",
           "command": "node --test tests/status-item-contract.test.mjs",
-          "reason": "Status-item production sources must retain schema, native host, transport, and bounded follow-stream coverage."
+          "reason": "Status-item production sources must retain schema, serialized generation-scoped action admission, native/programmatic race, failed-delivery, transport, and bounded follow-stream coverage."
         },
         {
           "id": "status-item-daemon-schemas",

@@ -60,8 +60,8 @@ Error response:
 | `status_item.register` | Acquire a connection-scoped native status-item lease. | `descriptor` (`aos.status_item.descriptor.v1`). |
 | `status_item.update` | Compare-and-swap a lease descriptor. | `owner`, `item_id`, `generation`, `current_revision`, `descriptor`. |
 | `status_item.inspect` | Inspect an exact lease generation and descriptor revision. | `owner`, `item_id`, `generation`, `descriptor_revision`. |
-| `status_item.invoke` | Invoke a declared status-item action. | `owner`, `item_id`, `action_id`, `generation`, `descriptor_revision`. |
-| `status_item.invoke_dry_run` | Validate an invocation without activating it. | Same as `status_item.invoke`; returns a `dry_run` response envelope. |
+| `status_item.invoke` | Atomically admit and invoke a declared status-item action. | `owner`, `item_id`, `action_id`, `generation`, `descriptor_revision`, `action_sequence`. |
+| `status_item.invoke_dry_run` | Validate an invocation without reserving its action sequence. | Same as `status_item.invoke`; returns a `dry_run` response envelope. |
 | `system.ping` | Daemon health, identity, and uptime. | (none) |
 | `focus.list` | List focus channels. | (none) |
 | `focus.create` | Create a focus channel. | `id`, `window_id`. |
@@ -91,7 +91,12 @@ Error response:
 | `PERMISSION_DENIED` | macOS permission (Accessibility, Screen Recording) missing. |
 | `INPUT_TAP_NOT_ACTIVE` | Daemon is reachable but its global input tap is not active. Emitted by `do`-family preflight when the daemon's `system.ping` reports `input_tap.status != "active"`, and surfaced as `reason` in service install/start/restart responses when the tap-inactive branch is hit. |
 | `INTERNAL` | Unexpected daemon error. |
-| `STATUS_ITEM_*`, `INVALID_STATUS_ITEM_*` | Typed native status-item lease, descriptor, revision, anchor, or protocol failure. |
+| `STATUS_ITEM_STALE_GENERATION` | Requested status-item lease generation is no longer active. |
+| `STATUS_ITEM_STALE_REVISION` | Requested descriptor revision is no longer active within the lease generation. |
+| `STATUS_ITEM_STALE_ACTION_SEQUENCE` | Requested action admission was already consumed or is not the current sequence. |
+| `STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED` | The active lease generation cannot allocate another action sequence. |
+| `STATUS_ITEM_EVENT_UNAVAILABLE` | Action admission was consumed, but event delivery failed; callers must not retry the consumed sequence. |
+| `STATUS_ITEM_*`, `INVALID_STATUS_ITEM_*` | Other typed native status-item lease, descriptor, anchor, or protocol failure. |
 
 ## Voice Payload Shapes
 

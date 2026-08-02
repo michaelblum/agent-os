@@ -79,8 +79,8 @@
         "^\\./aos do maximize --pid <pid> --window <window-id> --dry-run$",
         "^\\./aos do restore --pid <pid> --window <window-id> --dry-run$",
         "^\\./aos do menu --pid <pid> --path File,Save --dry-run$",
-        "^\\./aos status-item inspect --owner io.example.app --item companion --generation <n> --descriptor-revision <n> --json$",
-        "^\\./aos status-item invoke --owner io.example.app --item companion --action annotate-visible-target --generation <n> --descriptor-revision <n> --dry-run --json$"
+        "^\\./aos status-item inspect --owner io.example.app --item status --generation <n> --descriptor-revision <n> --json$",
+        "^\\./aos status-item invoke --owner io.example.app --item status --action activate --generation <n> --descriptor-revision <n> --action-sequence <n> --dry-run --json$"
       ],
       "expected_decision_terms": [
         "activate|quit|hide|unhide",
@@ -228,9 +228,9 @@
             "./aos do restore --pid <pid> --window <window-id> --dry-run",
             "./aos do restore --pid <pid> --window <window-id>",
             "./aos do menu --pid <pid> --path File,Save --dry-run",
-            "./aos status-item inspect --owner io.example.app --item companion --generation <n> --descriptor-revision <n> --json",
-            "./aos status-item invoke --owner io.example.app --item companion --action annotate-visible-target --generation <n> --descriptor-revision <n> --dry-run --json",
-            "./aos status-item invoke --owner io.example.app --item companion --action annotate-visible-target --generation <n> --descriptor-revision <n> --json"
+            "./aos status-item inspect --owner io.example.app --item status --generation <n> --descriptor-revision <n> --json",
+            "./aos status-item invoke --owner io.example.app --item status --action activate --generation <n> --descriptor-revision <n> --action-sequence <n> --dry-run --json",
+            "./aos status-item invoke --owner io.example.app --item status --action activate --generation <n> --descriptor-revision <n> --action-sequence <n> --json"
           ],
           "decision": "Use graph windows for inventory and dry-run first-class app lifecycle, raise, move, resize, close, minimize, maximize, restore, app menu, AOS-hosted status-item operator annotation lease, and native AX controls before action.",
           "stop_condition": "Stop on unsupported desktop boundaries such as window fullscreen, Mission Control, or Space switching instead of simulating them."

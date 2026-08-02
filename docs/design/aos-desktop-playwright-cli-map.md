@@ -69,7 +69,7 @@ the verbs that have graduated into first-class command truth.
 | --- | --- | --- |
 | Maintain semantic app lifecycle verbs | `aos do activate`, `quit`, `hide`, `unhide` | Dry-run must identify app, required permissions, and whether the action would affect the frontmost app. |
 | Maintain semantic window lifecycle verbs | `aos do close`, `minimize`, `maximize`, `restore`; future `fullscreen-window` remains deferred | Must require a resolved pid/window id and report minimized/off-Space ambiguity before mutation. |
-| Maintain menu item invocation | `aos do menu --pid <pid> --path File,Save`; `aos status-item invoke --owner <owner> --item <item-id> --action <action-id>` for AOS-hosted status-item entries | Must validate app menu path/enabled state or status-item lease generation/revision before dispatch. |
+| Maintain menu item invocation | `aos do menu --pid <pid> --path File,Save`; `aos status-item invoke --owner <owner> --item <item-id> --action <action-id> --generation <n> --descriptor-revision <n> --action-sequence <n>` for AOS-hosted status-item entries | Must validate app menu path/enabled state or atomically reserve the exact status-item lease generation/revision/action sequence before dispatch. |
 | Add Space readback before switching | `aos graph spaces` or `aos do switch-space --dry-run` | Must fail closed when macOS does not expose reliable current-Space identity. |
 | Add Mission Control readback before showing global UI modes | `aos do show-mission-control --dry-run`, `aos do show-app-windows --pid <pid> --dry-run` | Must prove target UI mode before/after and provide a restore path. |
 

@@ -195,6 +195,10 @@ The `status_item` namespace carries the typed
 `ready`, `bounds_changed`, `topology_changed`, `primary_activation`,
 `secondary_activation`, and `menu_selection`. See
 [`../../docs/api/toolkit/status-item.md`](../../docs/api/toolkit/status-item.md).
+Every activation or menu-selection payload includes the admitted
+`action_sequence`. That sequence is monotonic within one lease generation and
+independent of both descriptor revision and the all-event `sequence` field.
+Consumers identify action-event replay with `(generation, action_sequence)`.
 
 ## Shared Types
 

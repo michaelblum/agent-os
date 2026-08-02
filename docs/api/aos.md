@@ -119,7 +119,7 @@ The current top-level commands are:
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
 | `aos show` | Projection: canvas create/update/remove/list/eval/render |
 | `aos scene` | Connection-scoped declarative DesktopWorld scene and gesture stream |
-| `aos status-item` | Owner-scoped native status-item lease, compare-and-swap update, observed anchor/event, inspect, and invoke contract |
+| `aos status-item` | Owner-scoped native status-item lease, compare-and-swap update, observed anchor/event, inspect, and generation-scoped atomic action admission |
 | `aos focus` | Focus-channel management |
 | `aos gate` | Human input gates and local gate record readback |
 | `aos graph` | Display/window graph queries |
@@ -230,14 +230,16 @@ identity:
 
 ```bash
 aos status-item update --descriptor ./status-item-v4.json \
-  --owner io.example.app --item companion \
+  --owner io.example.app --item status \
   --generation 1 --current-revision 3 --json
-aos status-item inspect --owner io.example.app --item companion \
+aos status-item inspect --owner io.example.app --item status \
   --generation 1 --descriptor-revision 4 --json
-aos status-item invoke --owner io.example.app --item companion \
-  --action summon --generation 1 --descriptor-revision 4 --dry-run --json
-aos status-item invoke --owner io.example.app --item companion \
-  --action summon --generation 1 --descriptor-revision 4 --json
+aos status-item invoke --owner io.example.app --item status \
+  --action activate --generation 1 --descriptor-revision 4 \
+  --action-sequence 1 --dry-run --json
+aos status-item invoke --owner io.example.app --item status \
+  --action activate --generation 1 --descriptor-revision 4 \
+  --action-sequence 1 --json
 ```
 
 `register --follow` is the lease owner and event stream. Keep that process
@@ -248,17 +250,26 @@ must match the live lease, while the descriptor revision must advance. Ending
 the follow process closes its socket and removes the native item; there is no
 standalone cleanup or subscribe command.
 
+Inspect reports the next `action_sequence` for the active lease generation.
+Dry-run validates and returns that sequence without reserving it. Effectful
+invoke atomically compares and reserves it before event delivery; exactly one
+caller can consume a given value. Native clicks use the same allocator.
+Descriptor updates preserve the current sequence, while a new lease generation
+resets it to `1`. A failed delivery still consumes the reserved sequence, so
+do not automatically retry that action; any later independent action must use
+a fresh value from inspect.
+
 Minimal descriptor:
 
 ```json
 {
   "schema_version": "aos.status_item.descriptor.v1",
   "owner": "io.example.app",
-  "item_id": "companion",
+  "item_id": "status",
   "revision": 3,
-  "label": "Example Companion",
+  "label": "Example Status",
   "help_text": "Example app status item",
-  "primary_action_id": "summon",
+  "primary_action_id": "activate",
   "menu": [
     { "kind": "item", "id": "park", "action_id": "park", "label": "Park" }
   ]
@@ -279,8 +290,10 @@ AOS emits only `ready`, observed `bounds_changed` / `topology_changed`, native
 invoke responses, and every event include current `bounds` plus the AOS-derived
 `anchor`; the anchor names `native_status_item`, uses global display top-left
 coordinates, and carries current display frame, visible frame, and bounded
-topology facts. Coordinates are evidence, while owner/item/action plus exact
-generation/revision remain the semantic identity.
+topology facts. Action events and invocation results also carry the accepted
+`action_sequence`. Coordinates are evidence, owner/item/generation/revision
+identify the current declaration, and `(generation, action_sequence)` identifies
+an action event for replay detection.
 
 The fallback visual reserves the slot and prevents an invisible failure; it is
 not the consumer's final visual. Two dependent slices are intentionally not in

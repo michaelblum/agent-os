@@ -36,12 +36,15 @@ needs, but public command policy and product UI policy belong above it:
   and `aos://` proxy responses retain the original request identity with
   no-store policy so a new AOS runtime cannot execute stale toolkit modules.
 - the owner-scoped native status-item lease, exact-revision compare-and-swap,
-  AppKit-derived anchor facts, and native activation/menu bridge live in
+  generation-scoped atomic action admission, AppKit-derived anchor facts, and
+  native activation/menu bridge live in
   `display/status-item*.swift`; the successful installation anchor is also the
   committed registration/readiness anchor, so initial readiness may not depend
   on a second best-effort AppKit lookup; anchor updates track the current button
-  and status-bar window across frame changes and AppKit rehosting; consumer
-  visuals and product actions do not;
+  and status-bar window across frame changes and AppKit rehosting; native clicks
+  and programmatic invokes share the main-thread allocator, descriptor updates
+  preserve it, new lease generations reset it, and failed delivery never rolls
+  it back; consumer visuals and product actions do not;
 - permission status and request primitives belong to the process that owns the
   privileged capability; daemon-owned microphone capture therefore uses
   daemon-owned authorization rather than foreground CLI authorization;
