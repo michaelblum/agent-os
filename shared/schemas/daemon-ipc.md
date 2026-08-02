@@ -23,7 +23,7 @@ Success response:
 
 Validated no-side-effect response:
 ```json
-{"v":1,"status":"dry_run","data":{"owner":"io.example.app","item_id":"companion","action_id":"summon"},"ref":"r-43"}
+{"v":1,"status":"dry_run","data":{"owner":"io.example.app","item_id":"tool","action_id":"activate"},"ref":"r-43"}
 ```
 
 Error response:
@@ -73,6 +73,13 @@ Error response:
 | `graph.collapse` | Collapse a graph node. | `id`. |
 | `content.status` | Query content server status (port + roots). | (none) |
 
+Status-item invoke data is validated at the typed request boundary with a
+closed field set before action admission. The shared IPC parser uses
+`JSONSerialization` and materializes each JSON object as a dictionary before
+that boundary; duplicate raw keys are therefore not independently detectable
+or rejected there. This contract enforces the resulting typed key set, not raw
+duplicate-key occurrence.
+
 ## Error Codes
 
 | Code | Meaning |
@@ -91,12 +98,27 @@ Error response:
 | `PERMISSION_DENIED` | macOS permission (Accessibility, Screen Recording) missing. |
 | `INPUT_TAP_NOT_ACTIVE` | Daemon is reachable but its global input tap is not active. Emitted by `do`-family preflight when the daemon's `system.ping` reports `input_tap.status != "active"`, and surfaced as `reason` in service install/start/restart responses when the tap-inactive branch is hit. |
 | `INTERNAL` | Unexpected daemon error. |
+| `INVALID_STATUS_ITEM_DESCRIPTOR` | Descriptor data is missing or malformed. |
+| `INVALID_STATUS_ITEM_INSPECT` | Inspect identity is missing or malformed. |
+| `INVALID_STATUS_ITEM_INVOKE` | Invoke data is missing, malformed, or contains an unsupported field. |
+| `INVALID_STATUS_ITEM_MENU` | Descriptor menu data is malformed. |
+| `INVALID_STATUS_ITEM_SCHEMA` | Descriptor schema version is unsupported. |
+| `INVALID_STATUS_ITEM_UPDATE` | Update identity or descriptor data is missing or malformed. |
+| `STATUS_ITEM_NOT_FOUND` | Requested status-item lease identity was not found. |
+| `STATUS_ITEM_UNAVAILABLE` | The native status-item lease is unavailable. |
+| `STATUS_ITEM_LEASE_BUSY` | Another connection owns the native status-item lease. |
+| `STATUS_ITEM_UPDATE_REQUIRED` | A live lease must advance through the update operation. |
+| `STATUS_ITEM_IDENTITY_MISMATCH` | Descriptor owner or item differs from the requested lease. |
+| `STATUS_ITEM_REVISION_CONFLICT` | One descriptor revision names conflicting content. |
+| `STATUS_ITEM_REVISION_NOT_ADVANCED` | An update descriptor did not advance the current revision. |
 | `STATUS_ITEM_STALE_GENERATION` | Requested status-item lease generation is no longer active. |
 | `STATUS_ITEM_STALE_REVISION` | Requested descriptor revision is no longer active within the lease generation. |
 | `STATUS_ITEM_STALE_ACTION_SEQUENCE` | Requested action admission was already consumed or is not the current sequence. |
+| `STATUS_ITEM_ACTION_NOT_FOUND` | Requested action is not declared by the active descriptor. |
+| `STATUS_ITEM_ACTION_DISABLED` | Requested menu action is currently disabled. |
+| `STATUS_ITEM_ANCHOR_UNAVAILABLE` | The native status-item anchor could not be derived. |
 | `STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED` | The active lease generation cannot allocate another action sequence. |
 | `STATUS_ITEM_EVENT_UNAVAILABLE` | Action admission was consumed, but event delivery failed; callers must not retry the consumed sequence. |
-| `STATUS_ITEM_*`, `INVALID_STATUS_ITEM_*` | Other typed native status-item lease, descriptor, anchor, or protocol failure. |
 
 ## Voice Payload Shapes
 

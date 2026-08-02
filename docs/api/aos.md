@@ -257,7 +257,11 @@ caller can consume a given value. Native clicks use the same allocator.
 Descriptor updates preserve the current sequence, while a new lease generation
 resets it to `1`. A failed delivery still consumes the reserved sequence, so
 do not automatically retry that action; any later independent action must use
-a fresh value from inspect.
+a fresh value from inspect. Sequence exhaustion is checked identically by
+dry-run and effectful invocation; neither path emits or mutates at the maximum.
+Native menu rows retain the generation, descriptor revision, menu-item id,
+action id, and enabled state they were rendered from, so selecting a stale,
+remapped, or disabled row emits nothing and consumes no admission.
 
 Minimal descriptor:
 
@@ -285,6 +289,9 @@ Event schema:
 Anchor schema:
 `shared/schemas/aos-status-item-anchor-v1.schema.json`.
 
+Invocation result schema:
+`shared/schemas/aos-status-item-invocation-result-v1.schema.json`.
+
 AOS emits only `ready`, observed `bounds_changed` / `topology_changed`, native
 `primary_activation` / `secondary_activation`, and `menu_selection`. Inspect,
 invoke responses, and every event include current `bounds` plus the AOS-derived
@@ -294,6 +301,9 @@ topology facts. Action events and invocation results also carry the accepted
 `action_sequence`. Coordinates are evidence, owner/item/generation/revision
 identify the current declaration, and `(generation, action_sequence)` identifies
 an action event for replay detection.
+The public CLI validates every invocation success field and accepts only the
+documented closed invoke error-code set; malformed successes and unknown error
+codes fail as `STATUS_ITEM_DAEMON_PROTOCOL_ERROR`.
 
 The fallback visual reserves the slot and prevents an invisible failure; it is
 not the consumer's final visual. Two dependent slices are intentionally not in

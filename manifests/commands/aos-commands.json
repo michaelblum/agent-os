@@ -13837,7 +13837,7 @@
             }
           ],
           "examples" : [
-            "aos status-item update --descriptor status-item-v4.json --owner io.example.app --item companion --generation 1 --current-revision 3 --json"
+            "aos status-item update --descriptor status-item-v4.json --owner io.example.app --item tool --generation 1 --current-revision 3 --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -13910,7 +13910,7 @@
             }
           ],
           "examples" : [
-            "aos status-item inspect --owner io.example.app --item companion --generation 1 --descriptor-revision 3 --json"
+            "aos status-item inspect --owner io.example.app --item tool --generation 1 --descriptor-revision 3 --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,

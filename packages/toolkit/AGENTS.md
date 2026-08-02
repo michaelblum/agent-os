@@ -25,7 +25,8 @@ Layer intent:
   layers.
 - `status-item/`: product-neutral native status-item descriptor,
   compare-and-swap update, generation-scoped action admission, event, and
-  validation helpers.
+  validation helpers, including complete invocation results and the closed
+  invoke error-code set.
 - `scene/`: narrow external package facade over reviewed Three lifecycle,
   DesktopWorld, canvas lifecycle, and visual-object contracts.
 

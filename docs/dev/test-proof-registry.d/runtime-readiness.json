@@ -30,16 +30,17 @@
       ],
       "fixture_patterns": [
         "tests/fixtures/status-item-host-controller-harness.swift",
-        "tests/fixtures/status-item-anchor-observation-harness.swift"
+        "tests/fixtures/status-item-anchor-observation-harness.swift",
+        "tests/fixtures/status-item-native-menu-binding-harness.swift"
       ],
       "owner": "runtime-readiness",
       "harness_level": "model_unit",
       "proof_kind": "status_item_host_contract",
-      "contract": "The product-neutral status-item descriptor, canonical Unicode text limits, committed installation anchor, rebindable and deduplicated anchor observation, pre-listen host admission, registration-before-ready ordering, canonical daemon-to-public event projection, bounded follow-stream backpressure, exact-revision compare-and-swap update, serialized generation-scoped action admission across native and programmatic callers, non-consuming dry-run, failed-delivery consumption, replay identity, toolkit type surface, multi-connection fake transport, and file-size ownership ratchet stay schema-backed.",
+      "contract": "The product-neutral status-item descriptor, canonical Unicode text limits, committed installation anchor, rebindable and deduplicated anchor observation, immutable rendered-menu identity, pre-listen host admission, registration-before-ready ordering, canonical complete invocation and event projection, closed invoke error codes, strict request keys, bounded follow-stream backpressure, exact-revision compare-and-swap update, serialized generation-scoped action admission across native and programmatic callers, exhaustion parity, non-consuming dry-run, failed-delivery consumption, replay identity, toolkit type surface, multi-connection fake transport, and file-size ownership ratchet stay schema-backed.",
       "worth": "This protects the owner-scoped native host contract without requiring a live menu-bar item, TCC, or embedded product fixture.",
       "command": "node --test tests/status-item-contract.test.mjs",
       "replaces": [
-        "consumer-owned tray geometry as semantic status-item evidence"
+        "external tray geometry as semantic status-item evidence"
       ],
       "guard": "uses disposable in-process fake sockets only; does not execute ./aos or contact the live daemon",
       "status": "active"

@@ -345,7 +345,7 @@
       "owner": "daemon-ipc",
       "harness_level": "schema",
       "proof_kind": "daemon_ipc_contract",
-      "contract": "Canonical daemon request, response, and event schemas strictly type product-neutral status-item actions, dry-run and error responses, and matching event envelopes alongside existing services.",
+      "contract": "Canonical daemon request, response, invocation-result, and event schemas strictly type product-neutral status-item actions, closed request keys, dry-run and exact error responses, and matching event envelopes alongside existing services.",
       "worth": "This prevents the public daemon schemas from lagging behind the native host wire surface or weakening unrelated envelope validation.",
       "command": "bash tests/daemon-ipc-schema.sh && node --test tests/schemas/daemon-event.test.mjs",
       "replaces": [],

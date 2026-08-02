@@ -74,7 +74,7 @@
             { "id": "current-revision", "kind": "flag", "token": "--current-revision", "required": true, "value_type": "integer", "summary": "Expected current descriptor revision" },
             { "id": "json", "kind": "flag", "token": "--json", "required": true, "value_type": "bool", "summary": "Emit machine-readable update result" }
           ],
-          "examples": ["aos status-item update --descriptor status-item-v4.json --owner io.example.app --item companion --generation 1 --current-revision 3 --json"],
+          "examples": ["aos status-item update --descriptor status-item-v4.json --owner io.example.app --item tool --generation 1 --current-revision 3 --json"],
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
@@ -102,7 +102,7 @@
             { "id": "descriptor-revision", "kind": "flag", "token": "--descriptor-revision", "required": true, "value_type": "integer", "summary": "Expected descriptor revision" },
             { "id": "json", "kind": "flag", "token": "--json", "required": true, "value_type": "bool", "summary": "Emit machine-readable inspect result" }
           ],
-          "examples": ["aos status-item inspect --owner io.example.app --item companion --generation 1 --descriptor-revision 3 --json"],
+          "examples": ["aos status-item inspect --owner io.example.app --item tool --generation 1 --descriptor-revision 3 --json"],
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,

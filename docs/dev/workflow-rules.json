@@ -221,7 +221,9 @@
         "shared/schemas/fixtures/daemon-event/**/status-item-*.json",
         "src/commands/daemon-application-lifecycle.swift",
         "src/commands/serve.swift",
-        "src/display/status-item*.swift"
+        "src/display/status-item*.swift",
+        "tests/fixtures/status-item-*.swift",
+        "tests/status-item-contract.test.mjs"
       ],
       "classes": [
         "status_item",
@@ -236,12 +238,12 @@
         {
           "id": "status-item-contract",
           "command": "node --test tests/status-item-contract.test.mjs",
-          "reason": "Status-item production sources must retain schema, serialized generation-scoped action admission, native/programmatic race, failed-delivery, transport, and bounded follow-stream coverage."
+          "reason": "Status-item production sources must retain immutable rendered-menu identity, complete invocation validation, strict request keys, exhaustion parity, serialized generation-scoped action admission, native/programmatic race, failed-delivery, transport, and bounded follow-stream coverage."
         },
         {
           "id": "status-item-daemon-schemas",
           "command": "bash tests/daemon-ipc-schema.sh && node --test tests/schemas/daemon-event.test.mjs",
-          "reason": "Canonical request, response, and event envelopes must retain strict status-item wire validation."
+          "reason": "Canonical request, response, invocation-result, and event envelopes must retain strict status-item wire validation and exact error codes."
         }
       ],
       "verification": []
