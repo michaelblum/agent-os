@@ -43,6 +43,14 @@ struct StatusItemMenuDescriptor {
     }
 }
 
+struct AOSStatusItemMenuActionBinding {
+    let generation: Int
+    let descriptorRevision: Int
+    let menuItemID: String
+    let actionID: String
+    let enabled: Bool
+}
+
 final class StatusItemManager {
     static let defaultAccessibilityLabel = "AOS status item"
 
@@ -117,7 +125,16 @@ final class StatusItemManager {
 
     private func showContextMenu() {
         guard let button = statusItem?.button, !statusMenuItems.isEmpty else { return }
+        let menu = makeHostedContextMenu()
+        guard !menu.items.isEmpty else { return }
+        statusItem?.menu = menu
+        button.performClick(nil)
+        statusItem?.menu = nil
+    }
+
+    func makeHostedContextMenu() -> NSMenu {
         let menu = NSMenu()
+        guard let hosted = hostedDescriptor else { return menu }
         for item in statusMenuItems {
             if item.isSeparator {
                 menu.addItem(.separator())
@@ -125,25 +142,34 @@ final class StatusItemManager {
             }
             let menuItem = NSMenuItem(title: item.title, action: #selector(handleMenuItem(_:)), keyEquivalent: item.keyEquivalent)
             menuItem.target = self
-            menuItem.representedObject = item.id
+            menuItem.representedObject = AOSStatusItemMenuActionBinding(
+                generation: hostedGeneration,
+                descriptorRevision: hosted.revision,
+                menuItemID: item.id,
+                actionID: item.actionId,
+                enabled: item.enabled
+            )
             menuItem.isEnabled = item.enabled
             menuItem.state = item.state
             menu.addItem(menuItem)
         }
-        statusItem?.menu = menu
-        button.performClick(nil)
-        statusItem?.menu = nil
+        return menu
     }
 
-    @objc private func handleMenuItem(_ sender: NSMenuItem) {
-        guard let itemID = sender.representedObject as? String,
-              let item = statusMenuItems.first(where: { !$0.isSeparator && $0.id == itemID }) else {
-            return
-        }
+    @objc func handleMenuItem(_ sender: NSMenuItem) {
+        guard let binding = sender.representedObject as? AOSStatusItemMenuActionBinding,
+              sender.isEnabled,
+              binding.enabled,
+              let hosted = hostedDescriptor,
+              binding.generation == hostedGeneration,
+              binding.descriptorRevision == hosted.revision,
+              statusMenuItems.contains(where: {
+                  !$0.isSeparator && $0.id == binding.menuItemID && $0.actionId == binding.actionID && $0.enabled
+              }) else { return }
         emitHostedActionEvent(
             type: "menu_selection",
-            actionID: item.actionId,
-            menuItemID: item.id,
+            actionID: binding.actionID,
+            menuItemID: binding.menuItemID,
             modifiers: modifierNames(from: NSApp.currentEvent?.modifierFlags ?? []),
             origin: statusItemCGPosition()
         )

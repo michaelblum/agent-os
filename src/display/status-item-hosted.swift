@@ -95,6 +95,9 @@ extension StatusItemManager {
         guard expectedActionSequence == hostedActionSequence else {
             return ["error": "status item action sequence is stale", "code": "STATUS_ITEM_STALE_ACTION_SEQUENCE"]
         }
+        guard hostedActionAdmission.canReserve(expected: expectedActionSequence) else {
+            return ["error": "status item action sequence is exhausted", "code": "STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED"]
+        }
         var payload: [String: Any] = [
             "status": dryRun ? "dry_run" : "ok",
             "owner": owner,

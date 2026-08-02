@@ -7,7 +7,7 @@
     "schema_version": "aos.status_item.event.v1",
     "type": "ready",
     "owner": "io..example",
-    "item_id": "companion",
+    "item_id": "tool",
     "generation": 7,
     "descriptor_revision": 3,
     "sequence": 1,
@@ -16,7 +16,7 @@
     "bounds": { "x": 1, "y": 2, "width": 24, "height": 24, "origin_x": 13, "origin_y": 14, "display_id": 1 },
     "anchor": {
       "schema_version": "aos.status_item.anchor.v1",
-      "anchor_id": "native-status-item/io..example/companion",
+      "anchor_id": "native-status-item/io..example/tool",
       "host": "native_status_item",
       "coordinate_space": "global_display_top_left",
       "visible": true,

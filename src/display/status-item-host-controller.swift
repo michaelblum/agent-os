@@ -258,8 +258,11 @@ final class AOSStatusItemHostController {
         }
         return ["status": "ok", "state": state]
     }
-
     private func invoke(payload: [String: Any], dryRun: Bool) -> [String: Any] {
+        guard Set(payload.keys).subtracting(["action", "__envelope_ref", "__envelope_active"]) ==
+                Set(["owner", "item_id", "action_id", "generation", "descriptor_revision", "action_sequence"]) else {
+            return failure("INVALID_STATUS_ITEM_INVOKE", "status item invoke contains unsupported or missing fields")
+        }
         guard let identity = checkedIdentity(payload, actionRequired: true, actionSequenceRequired: true),
               let actionID = identity.actionID,
               let actionSequence = identity.actionSequence else {
@@ -282,7 +285,6 @@ final class AOSStatusItemHostController {
             dryRun: dryRun
         )
     }
-
     private func receiveHostedEvent(_ event: [String: Any]) -> Bool {
         runOnMainSync {
             guard var current = self.lease,
@@ -307,7 +309,6 @@ final class AOSStatusItemHostController {
             return true
         }
     }
-
     private func emitReady(_ current: AOSStatusItemLease, anchor: [String: Any]) {
         runOnMainSync {
             _ = self.receiveHostedEvent([
@@ -322,7 +323,6 @@ final class AOSStatusItemHostController {
             ])
         }
     }
-
     private func parseDescriptor(_ payload: [String: Any]) -> AOSStatusItemDescriptorParseResult {
         let allowed = Set(["schema_version", "owner", "item_id", "revision", "label", "help_text", "primary_action_id", "menu"])
         guard !payload.keys.contains(where: { !allowed.contains($0) }) else {

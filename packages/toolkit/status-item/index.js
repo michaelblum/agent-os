@@ -1,6 +1,19 @@
 export const STATUS_ITEM_DESCRIPTOR_SCHEMA_VERSION = 'aos.status_item.descriptor.v1'
 export const STATUS_ITEM_EVENT_SCHEMA_VERSION = 'aos.status_item.event.v1'
 export const STATUS_ITEM_ANCHOR_SCHEMA_VERSION = 'aos.status_item.anchor.v1'
+export const STATUS_ITEM_INVOKE_ERROR_CODES = Object.freeze([
+  'INVALID_STATUS_ITEM_INVOKE',
+  'STATUS_ITEM_NOT_FOUND',
+  'STATUS_ITEM_UNAVAILABLE',
+  'STATUS_ITEM_STALE_GENERATION',
+  'STATUS_ITEM_STALE_REVISION',
+  'STATUS_ITEM_STALE_ACTION_SEQUENCE',
+  'STATUS_ITEM_ACTION_NOT_FOUND',
+  'STATUS_ITEM_ACTION_DISABLED',
+  'STATUS_ITEM_ANCHOR_UNAVAILABLE',
+  'STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED',
+  'STATUS_ITEM_EVENT_UNAVAILABLE',
+])
 
 const ID_RE = /^[a-z0-9][a-z0-9._-]{0,127}$/u
 const PATH_ID_RE = /^[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)*$/u
@@ -198,6 +211,43 @@ export function normalizeStatusItemInvokeRequest(input) {
     generation: safeInteger(request.generation, 'generation', { min: 1, code: 'INVALID_STATUS_ITEM_INVOKE' }),
     descriptor_revision: safeInteger(request.descriptor_revision, 'descriptor_revision', { code: 'INVALID_STATUS_ITEM_INVOKE' }),
     action_sequence: safeInteger(request.action_sequence, 'action_sequence', { min: 1, code: 'INVALID_STATUS_ITEM_INVOKE' }),
+  }
+}
+
+export function normalizeStatusItemInvocationResult(input) {
+  const code = 'INVALID_STATUS_ITEM_INVOKE_RESULT'
+  try {
+    const result = objectValue(input, 'invocation result', code)
+    onlyKeys(result, new Set(['status', 'owner', 'item_id', 'action_id', 'generation', 'descriptor_revision', 'action_sequence', 'event_type', 'menu_item_id', 'bounds', 'anchor']), 'invocation result', code)
+    if (!['ok', 'dry_run'].includes(result.status)) fail(code, 'invocation result status is unsupported')
+    if (!['primary_activation', 'menu_selection'].includes(result.event_type)) fail(code, 'invocation result event_type is unsupported')
+    const bounds = normalizeBounds(result.bounds)
+    const anchor = normalizeStatusItemAnchor(result.anchor)
+    if (JSON.stringify(bounds) !== JSON.stringify(anchor.bounds)) fail(code, 'invocation result bounds disagree with anchor bounds')
+    const normalized = {
+      status: result.status,
+      owner: identifier(result.owner, 'owner', { code }),
+      item_id: identifier(result.item_id, 'item_id', { code }),
+      action_id: identifier(result.action_id, 'action_id', { slash: true, code }),
+      generation: safeInteger(result.generation, 'generation', { min: 1, code }),
+      descriptor_revision: safeInteger(result.descriptor_revision, 'descriptor_revision', { code }),
+      action_sequence: safeInteger(result.action_sequence, 'action_sequence', { min: 1, code }),
+      event_type: result.event_type,
+      bounds,
+      anchor,
+    }
+    if (anchor.anchor_id !== `native-status-item/${normalized.owner}/${normalized.item_id}`) {
+      fail(code, 'invocation result owner and item disagree with anchor identity')
+    }
+    if (result.event_type === 'menu_selection') {
+      normalized.menu_item_id = identifier(result.menu_item_id, 'menu_item_id', { slash: true, code })
+    } else if (hasOwn(result, 'menu_item_id')) {
+      fail(code, 'primary invocation result must not carry menu_item_id')
+    }
+    return normalized
+  } catch (error) {
+    if (error?.code === code) throw error
+    fail(code, `invocation result is malformed: ${error?.message ?? 'invalid value'}`)
   }
 }
 

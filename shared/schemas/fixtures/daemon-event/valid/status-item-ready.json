@@ -8,7 +8,7 @@
     "schema_version": "aos.status_item.event.v1",
     "type": "ready",
     "owner": "io.example.app",
-    "item_id": "companion",
+    "item_id": "tool",
     "generation": 7,
     "descriptor_revision": 3,
     "sequence": 1,
@@ -25,7 +25,7 @@
     },
     "anchor": {
       "schema_version": "aos.status_item.anchor.v1",
-      "anchor_id": "native-status-item/io.example.app/companion",
+      "anchor_id": "native-status-item/io.example.app/tool",
       "host": "native_status_item",
       "coordinate_space": "global_display_top_left",
       "visible": true,

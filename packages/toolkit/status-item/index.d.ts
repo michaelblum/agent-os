@@ -1,6 +1,19 @@
 export const STATUS_ITEM_DESCRIPTOR_SCHEMA_VERSION: 'aos.status_item.descriptor.v1'
 export const STATUS_ITEM_EVENT_SCHEMA_VERSION: 'aos.status_item.event.v1'
 export const STATUS_ITEM_ANCHOR_SCHEMA_VERSION: 'aos.status_item.anchor.v1'
+export const STATUS_ITEM_INVOKE_ERROR_CODES: readonly [
+  'INVALID_STATUS_ITEM_INVOKE',
+  'STATUS_ITEM_NOT_FOUND',
+  'STATUS_ITEM_UNAVAILABLE',
+  'STATUS_ITEM_STALE_GENERATION',
+  'STATUS_ITEM_STALE_REVISION',
+  'STATUS_ITEM_STALE_ACTION_SEQUENCE',
+  'STATUS_ITEM_ACTION_NOT_FOUND',
+  'STATUS_ITEM_ACTION_DISABLED',
+  'STATUS_ITEM_ANCHOR_UNAVAILABLE',
+  'STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED',
+  'STATUS_ITEM_EVENT_UNAVAILABLE',
+]
 
 export interface StatusItemMenuItem {
   kind: 'item'
@@ -154,5 +167,6 @@ export type StatusItemEvent = StatusItemLifecycleEvent | StatusItemActionEvent
 export function normalizeStatusItemDescriptor(input: unknown): StatusItemDescriptor
 export function normalizeStatusItemUpdateRequest(input: unknown): StatusItemUpdateRequest
 export function normalizeStatusItemInvokeRequest(input: unknown): StatusItemInvokeRequest
+export function normalizeStatusItemInvocationResult(input: unknown): StatusItemInvocationResult
 export function normalizeStatusItemAnchor(input: unknown): StatusItemAnchor
 export function normalizeStatusItemEvent(input: unknown): StatusItemEvent

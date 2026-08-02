@@ -13,10 +13,10 @@ private func descriptorPayload(revision: Int, label: String? = nil) -> [String: 
     [
         "schema_version": descriptorSchema,
         "owner": "io.example.app",
-        "item_id": "companion",
+        "item_id": "tool",
         "revision": revision,
-        "label": label ?? "Example Companion \(revision)",
-        "primary_action_id": "summon",
+        "label": label ?? "Example Tool \(revision)",
+        "primary_action_id": "activate",
         "menu": [],
     ]
 }
@@ -24,7 +24,7 @@ private func descriptorPayload(revision: Int, label: String? = nil) -> [String: 
 private func updatePayload(revision: Int, currentRevision: Int, generation: Int = 1) -> [String: Any] {
     [
         "owner": "io.example.app",
-        "item_id": "companion",
+        "item_id": "tool",
         "generation": generation,
         "current_revision": currentRevision,
         "descriptor": descriptorPayload(revision: revision),
@@ -34,7 +34,7 @@ private func updatePayload(revision: Int, currentRevision: Int, generation: Int 
 private func exactIdentity(revision: Int, generation: Int = 1) -> [String: Any] {
     [
         "owner": "io.example.app",
-        "item_id": "companion",
+        "item_id": "tool",
         "generation": generation,
         "descriptor_revision": revision,
     ]
@@ -42,7 +42,7 @@ private func exactIdentity(revision: Int, generation: Int = 1) -> [String: Any] 
 
 private func invokePayload(revision: Int, generation: Int = 1, actionSequence: Int = 1) -> [String: Any] {
     var payload = exactIdentity(revision: revision, generation: generation)
-    payload["action_id"] = "summon"
+    payload["action_id"] = "activate"
     payload["action_sequence"] = actionSequence
     return payload
 }
@@ -132,9 +132,11 @@ private final class FakeStatusItemHost: AOSStatusItemHosting {
         guard expectedActionSequence == hostedActionSequence else {
             return ["error": "status item action sequence is stale", "code": "STATUS_ITEM_STALE_ACTION_SEQUENCE"]
         }
-        if dryRun {
-            return ["status": "dry_run", "action_id": actionID, "action_sequence": expectedActionSequence]
+        guard actionAdmission.canReserve(expected: expectedActionSequence) else {
+            return ["error": "status item action sequence is exhausted", "code": "STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED"]
         }
+        let response = invocationResponse(status: dryRun ? "dry_run" : "ok", actionID: actionID, actionSequence: expectedActionSequence)
+        if dryRun { return response }
         guard let acceptedSequence = actionAdmission.reserve(expected: expectedActionSequence) else {
             return ["error": "status item action sequence is exhausted", "code": "STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED"]
         }
@@ -142,7 +144,12 @@ private final class FakeStatusItemHost: AOSStatusItemHosting {
         guard accepted else {
             return ["error": "status item event delivery is unavailable", "code": "STATUS_ITEM_EVENT_UNAVAILABLE"]
         }
-        return ["status": "ok", "action_id": actionID, "action_sequence": acceptedSequence]
+        return response
+    }
+
+    func forceActionSequenceExhaustion() {
+        actionAdmission = AOSStatusItemActionSequenceAdmission(maximumSequence: 1)
+        actionAdmission.install(generation: hostedGeneration)
     }
 
     func emitNativeAction() -> Bool {
@@ -167,6 +174,22 @@ private final class FakeStatusItemHost: AOSStatusItemHosting {
             "bounds": bounds(),
             "anchor": anchor(owner: hostedDescriptor?.owner ?? "", itemID: hostedDescriptor?.itemID ?? ""),
         ]) ?? false
+    }
+
+    private func invocationResponse(status: String, actionID: String, actionSequence: Int) -> [String: Any] {
+        let currentAnchor = anchor(owner: hostedDescriptor?.owner ?? "", itemID: hostedDescriptor?.itemID ?? "")
+        return [
+            "status": status,
+            "owner": hostedDescriptor?.owner ?? "",
+            "item_id": hostedDescriptor?.itemID ?? "",
+            "action_id": actionID,
+            "generation": hostedGeneration,
+            "descriptor_revision": hostedDescriptor?.revision ?? 0,
+            "action_sequence": actionSequence,
+            "event_type": "primary_activation",
+            "bounds": currentAnchor["bounds"] ?? NSNull(),
+            "anchor": currentAnchor,
+        ]
     }
 
     func statusItemAnchorPayload(owner: String, itemID: String) -> [String: Any]? {
@@ -203,6 +226,12 @@ private final class FakeStatusItemHost: AOSStatusItemHosting {
             "coordinate_space": "global_display_top_left",
             "visible": true,
             "bounds": bounds(),
+            "display": [
+                "id": 1,
+                "frame": ["x": 0.0, "y": 0.0, "width": 1920.0, "height": 1080.0, "origin_x": 960.0, "origin_y": 540.0],
+                "visible_frame": ["x": 0.0, "y": 24.0, "width": 1920.0, "height": 1056.0, "origin_x": 960.0, "origin_y": 552.0],
+            ],
+            "topology": ["display_count": 1, "display_ids": [1], "truncated": false],
         ]
     }
 }
@@ -420,6 +449,33 @@ private func testDryRunDoesNotConsumeActionSequence() {
     expect(inspectActionSequence(controller, revision: 3) == 2, "effectful invoke did not consume admission")
 }
 
+private func testInvokeRejectsUnknownRequestFieldsBeforeAdmission() {
+    let (manager, recorder, controller) = makeController()
+    let owner = UUID(uuidString: "12121212-1212-1212-1212-121212121212")!
+    expect(responseCode(register(controller, owner: owner)) == nil, "unknown-field registration failed")
+    var payload = invokePayload(revision: 3)
+    payload["unexpected"] = true
+
+    let rejected = command(controller, action: "status-item-invoke", payload: payload, connectionID: UUID())
+    expect(responseCode(rejected) == "INVALID_STATUS_ITEM_INVOKE", "unknown invoke field was not rejected")
+    expect(manager.hostedActionSequence == 1, "unknown invoke field consumed admission")
+    expect(actionEvents(recorder).isEmpty, "unknown invoke field emitted an action event")
+}
+
+private func testDryRunAndEffectfulInvokeShareExhaustionChecks() {
+    let (manager, recorder, controller) = makeController()
+    let owner = UUID(uuidString: "13131313-1313-1313-1313-131313131313")!
+    expect(responseCode(register(controller, owner: owner)) == nil, "exhaustion registration failed")
+    manager.forceActionSequenceExhaustion()
+
+    let dryRun = command(controller, action: "status-item-invoke-dry-run", payload: invokePayload(revision: 3), connectionID: UUID())
+    let effectful = command(controller, action: "status-item-invoke", payload: invokePayload(revision: 3), connectionID: UUID())
+    expect(responseCode(dryRun) == "STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED", "dry-run ignored sequence exhaustion")
+    expect(responseCode(effectful) == "STATUS_ITEM_ACTION_SEQUENCE_EXHAUSTED", "effectful invoke used a different exhaustion result")
+    expect(manager.hostedActionSequence == 1, "exhaustion mutated the action sequence")
+    expect(actionEvents(recorder).isEmpty, "exhaustion emitted an action event")
+}
+
 private func testConcurrentSameSequenceAdmitsExactlyOnce() {
     let (_, recorder, controller) = makeController()
     let owner = UUID(uuidString: "99999999-9999-9999-9999-999999999999")!
@@ -594,7 +650,7 @@ private func testConnectionCloseClearsOnlyExactOwner() {
     controller.connectionClosed(owner)
     expect(manager.clearCalls.count == 1, "owner disconnect did not clear the host")
     expect(manager.clearCalls.first?.owner == "io.example.app", "cleanup used the wrong semantic owner")
-    expect(manager.clearCalls.first?.itemID == "companion", "cleanup used the wrong item id")
+    expect(manager.clearCalls.first?.itemID == "tool", "cleanup used the wrong item id")
     expect(manager.clearCalls.first?.generation == 1, "cleanup used the wrong generation")
     let removed = command(
         controller,
@@ -613,6 +669,8 @@ private struct StatusItemHostControllerHarness {
         testExactRevisionCAS()
         testFailedInstallAndRestoreTerminatesOwner()
         testDryRunDoesNotConsumeActionSequence()
+        testInvokeRejectsUnknownRequestFieldsBeforeAdmission()
+        testDryRunAndEffectfulInvokeShareExhaustionChecks()
         testConcurrentSameSequenceAdmitsExactlyOnce()
         testNativeAndProgrammaticRaceShareAllocator()
         testDescriptorUpdatePreservesActionSequence()
