@@ -88,6 +88,9 @@ masking, blur, or redaction remain consumer recipes; never add their vocabulary
 to AOS capture or scene transport contracts. One request produces a coherent
 all-display epoch bound to exact stage/WebView generations. Keep backend choices
 such as one-shot capture or a future prewarmed stream behind that lease.
+Render Performance state transfer must preserve the exact DesktopWorld
+publication lifecycle and toolkit-attributed source set. Legacy or partial
+state must not infer DesktopWorld ownership from user-controlled source IDs.
 
 Legacy cross-display transfer outlines are superseded by One-World/union-backed
 surfaces. Do not grow that path. The AOS Surface System epic should replace

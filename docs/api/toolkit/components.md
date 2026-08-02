@@ -468,6 +468,13 @@ Accepted message types:
   classification.
 - `render-performance/reset` clears samples and marks.
 
+State transfer preserves the current DesktopWorld publication lifecycle and
+the exact source IDs attributed to that publication. After restore, duplicate
+publications remain suppressed and later replacement or unavailable
+publications retire only those attributed sources. Legacy or incomplete state
+restores its samples without inferring DesktopWorld ownership from source ID
+text.
+
 ### Integration Hub
 
 `integration-hub` is the reusable operator surface for chat-driven broker work.

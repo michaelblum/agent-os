@@ -333,6 +333,104 @@ test('RenderPerformance consumes an unavailable lifecycle and retires every Desk
   )
 })
 
+test('RenderPerformance restore preserves DesktopWorld publication ownership for retirement', (t) => {
+  withFakeBrowser(t)
+
+  const original = RenderPerformance()
+  original.render(fakeHost())
+  original.onMessage({
+    type: 'sample',
+    payload: { source: 'desktop-world:user-owned', fps: 30 },
+  })
+  original.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 3,
+      topologyGeneration: 4,
+      sequence: 10,
+      stageSnapshotRevision: 20,
+      displays: [{ id: 'old-a', index: 0 }, { id: 'old-b', index: 1 }],
+    }),
+  })
+
+  const serialized = original.serialize()
+  assert.deepEqual([...serialized.desktopWorld.sources].sort(), [
+    'desktop-world:0:old-a',
+    'desktop-world:1:old-b',
+  ])
+
+  const restored = RenderPerformance()
+  restored.render(fakeHost())
+  restored.restore(serialized)
+  restored.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 3,
+      topologyGeneration: 4,
+      sequence: 10,
+      stageSnapshotRevision: 20,
+      displays: [{ id: 'old-a', index: 0, fps: 15 }, { id: 'old-b', index: 1, fps: 15 }],
+    }),
+  })
+  assert.equal(restored.serialize().sources['desktop-world:0:old-a'].samples.at(-1).fps, 60)
+
+  restored.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 0,
+      topologyGeneration: 0,
+      sequence: 0,
+      stageSnapshotRevision: 21,
+      status: 'unavailable',
+      displays: [],
+    }),
+  })
+
+  assert.deepEqual(Object.keys(restored.serialize().sources).sort(), [
+    'desktop-world:user-owned',
+    'panel',
+  ])
+})
+
+test('RenderPerformance restore leaves legacy and partial source ownership unattributed', (t) => {
+  withFakeBrowser(t)
+
+  const source = 'desktop-world:0:user-provided'
+  const baseState = {
+    targetFps: 60,
+    sources: {
+      [source]: { samples: [{ source, ts: Date.now(), fps: 30, frameMs: 1000 / 30 }] },
+    },
+    events: [],
+  }
+  const partialDesktopWorld = {
+    version: 1,
+    publication: {
+      canvasGeneration: 3,
+      topologyGeneration: 4,
+      sequence: 10,
+    },
+    sources: [source],
+  }
+
+  for (const desktopWorld of [undefined, partialDesktopWorld]) {
+    const restored = RenderPerformance()
+    restored.render(fakeHost())
+    restored.restore({ ...baseState, ...(desktopWorld ? { desktopWorld } : {}) })
+    restored.onMessage({
+      type: 'desktop_world_devtools.snapshot',
+      payload: desktopWorldPerformanceSnapshot({
+        canvasGeneration: 0,
+        topologyGeneration: 0,
+        sequence: 0,
+        status: 'unavailable',
+        displays: [],
+      }),
+    })
+    assert.ok(restored.serialize().sources[source])
+  }
+})
+
 test('SpatialTelemetry exposes root region, labeled tables, and log semantics', (t) => {
   withFakeBrowser(t)
 

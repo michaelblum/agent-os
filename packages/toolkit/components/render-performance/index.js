@@ -10,6 +10,8 @@ import { projectDesktopWorldDevToolsPerformance } from '../desktop-world-devtool
 
 const BASE_TITLE = 'Render Performance';
 const DEFAULT_SOURCE = 'panel';
+const DESKTOP_WORLD_STATE_VERSION = 1;
+const MAX_DESKTOP_WORLD_SOURCES = 16;
 const SAMPLE_LIMIT = 360;
 const RENDER_INTERVAL_MS = 250;
 
@@ -120,6 +122,34 @@ function clockTime(ts) {
   return String(date.getHours()).padStart(2, '0') + ':'
     + String(date.getMinutes()).padStart(2, '0') + ':'
     + String(date.getSeconds()).padStart(2, '0');
+}
+
+function restoredDesktopWorldState(value, restoredSources) {
+  if (
+    !value
+    || typeof value !== 'object'
+    || Array.isArray(value)
+    || value.version !== DESKTOP_WORLD_STATE_VERSION
+    || !value.publication
+    || typeof value.publication !== 'object'
+    || Array.isArray(value.publication)
+    || !Array.isArray(value.sources)
+    || value.sources.length > MAX_DESKTOP_WORLD_SOURCES
+  ) return null;
+
+  const publication = {};
+  for (const field of ['canvasGeneration', 'topologyGeneration', 'sequence', 'stageSnapshotRevision']) {
+    const entry = value.publication[field];
+    if (!Number.isSafeInteger(entry) || entry < 0) return null;
+    publication[field] = entry;
+  }
+
+  const ownedSources = new Set();
+  for (const source of value.sources) {
+    if (typeof source !== 'string' || ownedSources.has(source) || !restoredSources.has(source)) return null;
+    ownedSources.add(source);
+  }
+  return { publication, sources: ownedSources };
 }
 
 export default function RenderPerformance(options = {}) {
@@ -257,6 +287,11 @@ export default function RenderPerformance(options = {}) {
           samples: samples.slice(-SAMPLE_LIMIT),
         },
       ])),
+      desktopWorld: desktopWorldPublication ? {
+        version: DESKTOP_WORLD_STATE_VERSION,
+        publication: { ...desktopWorldPublication },
+        sources: [...desktopWorldSources],
+      } : null,
       events: [...events],
     };
   }
@@ -363,6 +398,13 @@ export default function RenderPerformance(options = {}) {
       for (const [source, entry] of Object.entries(state.sources || {})) {
         const samples = Array.isArray(entry?.samples) ? entry.samples.slice(-SAMPLE_LIMIT) : [];
         sources.set(source, samples);
+      }
+      desktopWorldSources.clear();
+      desktopWorldPublication = null;
+      const restoredDesktopWorld = restoredDesktopWorldState(state.desktopWorld, sources);
+      if (restoredDesktopWorld) {
+        desktopWorldPublication = restoredDesktopWorld.publication;
+        for (const source of restoredDesktopWorld.sources) desktopWorldSources.add(source);
       }
       events.length = 0;
       if (Array.isArray(state.events)) events.push(...state.events.slice(-80));
