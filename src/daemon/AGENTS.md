@@ -235,13 +235,18 @@ request from correlated collection and bind its complete receipt set to the
 exact canvas, topology, and display identity. Subsequent identity-matched
 asynchronous receipts update that set until it is uniform; reusing the handled
 request ID is not a convergence mechanism. Each segment probe increments its
-producer-local snapshot sequence on every emission. If several request-bound
-sets converge on one asynchronous receipt, the newest monotonic request
-admission supplies the canonical snapshot. It may complete an older converged
-request only when its sequence is no lower at every display and higher at least
-once; the same proof gates replacement of a same-identity canonical snapshot.
-Request tokens carry no lexical ordering, and asynchronous receipts may update
-only display indexes already correlated to that request.
+producer-local snapshot sequence on every emission, so mutation of an existing
+display receipt requires a strictly greater sequence. Equal sequences may be
+shared across request receipts only when they came from the same admitted
+asynchronous payload event. Every same-identity publication must cover the
+current sequence at every display and advance at least one. Same-class
+incomparable receipts merge their freshest per-display components; receipts in
+different sampling classes wait until one complete vector postdates the other.
+If several request-bound sets converge, the newest monotonic request admission
+drives that publication, but only requests covered by the published vector
+complete. Request tokens carry no lexical ordering, and asynchronous receipts
+may update only display indexes already correlated to that request. Exact
+canvas, topology, or display-identity replacement starts a new sequence fence.
 At inspection read time, the daemon decorates canonical stage snapshots with
 the native desktop-frame warm pool's state, display count, generation, and
 redacted error code, plus bounded native-effect admission, presentation,
