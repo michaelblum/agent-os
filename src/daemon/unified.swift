@@ -1458,8 +1458,13 @@ class UnifiedDaemon {
     private func broadcastCanvasLifecycleSnapshot(to target: CanvasLifecycleGeneration) {
         let infos = canvasManager.handle(CanvasRequest(action: "list")).canvases ?? []
         for info in infos {
-            if let segments = info.segments {
-                var topology = canvasManager.topologySettledPayload(canvasID: info.id, segments: segments)
+            if let descriptor = canvasManager.desktopWorldSceneBarrierTopology(canvasID: info.id) {
+                var topology = canvasManager.topologySettledPayload(
+                    canvasID: info.id,
+                    segments: descriptor.segments,
+                    canvasGeneration: descriptor.canvasGeneration,
+                    topologyGeneration: descriptor.generation
+                )
                 topology["type"] = "canvas_lifecycle"
                 topology["event"] = "canvas_topology_settled"
                 canvasManager.postMessageAsync(to: target, payload: topology)
