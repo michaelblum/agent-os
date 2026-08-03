@@ -367,6 +367,12 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
         }
     }
 
+    private enum ReceiptRecordResult {
+        case accepted
+        case rejected
+        case samplingClassMismatch
+    }
+
     private struct Receipt {
         let canvasGeneration: UInt64
         let displays: [AOSDesktopWorldDevToolsStageSnapshot.Display]
@@ -412,8 +418,9 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
         mutating func record(
             _ snapshot: AOSDesktopWorldDevToolsStageSnapshot,
             identity: AOSDesktopWorldDevToolsStageSegmentIdentity,
-            rejectDuplicate: Bool
-        ) -> Bool {
+            rejectDuplicate: Bool,
+            allowSamplingClassTransition: Bool = false
+        ) -> ReceiptRecordResult {
             guard matches(snapshot, identity: identity),
                   snapshot.displayPerformance.count == 1,
                   let entry = snapshot.displayPerformance.first,
@@ -422,14 +429,17 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
                   displays.contains(where: {
                       $0.index == identity.index && $0.id == entry.displayId
                   }),
-                  samplingClass == nil
-                    || samplingClass == SamplingClass(
-                        sampleCount: entry.performance.sampleCount
-                    ),
-                  !rejectDuplicate || performanceByIndex[identity.index] == nil else { return false }
+                  !rejectDuplicate || performanceByIndex[identity.index] == nil else {
+                return .rejected
+            }
+            if !allowSamplingClassTransition,
+               let samplingClass,
+               samplingClass != SamplingClass(sampleCount: entry.performance.sampleCount) {
+                return .samplingClassMismatch
+            }
             performanceByIndex[identity.index] = entry
             if identity.index == 0 { primary = snapshot }
-            return true
+            return .accepted
         }
 
         mutating func remove(index: Int) {
@@ -440,7 +450,8 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
         func aggregate() -> AOSDesktopWorldDevToolsStageSnapshot? {
             guard var result = primary,
                   expectedIndexes.count == displays.count,
-                  Set(performanceByIndex.keys) == expectedIndexes else { return nil }
+                  Set(performanceByIndex.keys) == expectedIndexes,
+                  samplingClass != nil else { return nil }
             result.displayPerformance = performanceByIndex.values.sorted {
                 $0.displayIndex < $1.displayIndex
             }
@@ -450,9 +461,11 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
 
     private var currentReceipt: Receipt?
     private var pendingReceipt: Receipt?
+    private var convergenceReceiptsByRequest: [String: Receipt] = [:]
     private var receiptsByRequest: [String: Receipt] = [:]
 
     mutating func discard(requestID: String) {
+        convergenceReceiptsByRequest.removeValue(forKey: requestID)
         receiptsByRequest.removeValue(forKey: requestID)
     }
 
@@ -461,21 +474,42 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
         requestID: String?,
         segment: AOSDesktopWorldDevToolsStageSegmentIdentity?,
         requestIsPending: Bool
-    ) -> (result: AOSDesktopWorldDevToolsStageCommitResult, snapshot: [String: Any]?) {
+    ) -> (
+        result: AOSDesktopWorldDevToolsStageCommitResult,
+        snapshot: [String: Any]?,
+        completedRequestIDs: Set<String>
+    ) {
         guard JSONSerialization.isValidJSONObject(raw),
               let input = try? JSONSerialization.data(withJSONObject: raw),
               input.count <= 512 * 1_024,
               let decoded = try? JSONDecoder().decode(AOSDesktopWorldDevToolsStageSnapshot.self, from: input),
-              decoded.isValid() else { return (.rejected, nil) }
-        guard requestID == nil || requestIsPending else { return (.rejected, nil) }
+              decoded.isValid() else { return (.rejected, nil, []) }
+        guard requestID == nil || requestIsPending else { return (.rejected, nil, []) }
+        if let requestID, convergenceReceiptsByRequest[requestID] != nil {
+            return (.rejected, nil, [])
+        }
 
         let aggregate: AOSDesktopWorldDevToolsStageSnapshot?
+        var completedRequestIDs: Set<String> = []
         if let segment {
             if let requestID {
                 var receipt = receiptsByRequest[requestID] ?? Receipt(decoded, identity: segment)
-                guard receipt.record(decoded, identity: segment, rejectDuplicate: true) else {
+                switch receipt.record(decoded, identity: segment, rejectDuplicate: true) {
+                case .accepted:
+                    break
+                case .samplingClassMismatch:
                     receiptsByRequest.removeValue(forKey: requestID)
-                    return (.rejected, nil)
+                    guard case .accepted = receipt.record(
+                        decoded,
+                        identity: segment,
+                        rejectDuplicate: true,
+                        allowSamplingClassTransition: true
+                    ) else { return (.rejected, nil, []) }
+                    convergenceReceiptsByRequest[requestID] = receipt
+                    return (.pending, nil, [])
+                case .rejected:
+                    receiptsByRequest.removeValue(forKey: requestID)
+                    return (.rejected, nil, [])
                 }
                 receiptsByRequest[requestID] = receipt
                 aggregate = receipt.aggregate()
@@ -487,20 +521,49 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
             } else {
                 guard decoded.displayPerformance.count == 1,
                       let entry = decoded.displayPerformance.first else {
-                    return (.rejected, nil)
+                    return (.rejected, nil, [])
                 }
                 let incomingSamplingClass = SamplingClass(
                     sampleCount: entry.performance.sampleCount
                 )
 
-                if var currentReceipt,
+                var convergedReceipt: Receipt?
+                for candidateRequestID in convergenceReceiptsByRequest.keys.sorted() {
+                    guard var receipt = convergenceReceiptsByRequest[candidateRequestID],
+                          receipt.matches(decoded, identity: segment) else { continue }
+                    switch receipt.record(
+                        decoded,
+                        identity: segment,
+                        rejectDuplicate: false,
+                        allowSamplingClassTransition: true
+                    ) {
+                    case .accepted:
+                        if receipt.aggregate() != nil {
+                            convergenceReceiptsByRequest.removeValue(
+                                forKey: candidateRequestID
+                            )
+                            completedRequestIDs.insert(candidateRequestID)
+                            if convergedReceipt == nil { convergedReceipt = receipt }
+                        } else {
+                            convergenceReceiptsByRequest[candidateRequestID] = receipt
+                        }
+                    case .rejected, .samplingClassMismatch:
+                        continue
+                    }
+                }
+
+                if let convergedReceipt {
+                    currentReceipt = convergedReceipt
+                    pendingReceipt = nil
+                    aggregate = convergedReceipt.aggregate()
+                } else if var currentReceipt,
                    currentReceipt.matches(decoded, identity: segment),
                    currentReceipt.samplingClass == incomingSamplingClass {
-                    guard currentReceipt.record(
+                    guard case .accepted = currentReceipt.record(
                         decoded,
                         identity: segment,
                         rejectDuplicate: false
-                    ) else { return (.rejected, nil) }
+                    ) else { return (.rejected, nil, []) }
                     self.currentReceipt = currentReceipt
                     if var pendingReceipt,
                        pendingReceipt.matches(decoded, identity: segment) {
@@ -517,8 +580,12 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
                     } else {
                         receipt = Receipt(decoded, identity: segment)
                     }
-                    guard receipt.record(decoded, identity: segment, rejectDuplicate: false) else {
-                        return (.rejected, nil)
+                    guard case .accepted = receipt.record(
+                        decoded,
+                        identity: segment,
+                        rejectDuplicate: false
+                    ) else {
+                        return (.rejected, nil, [])
                     }
                     pendingReceipt = receipt
                     aggregate = receipt.aggregate()
@@ -535,19 +602,19 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
                   Set(decoded.displayPerformance.map {
                       SamplingClass(sampleCount: $0.performance.sampleCount)
                   }).count <= 1 else {
-                return (.rejected, nil)
+                return (.rejected, nil, [])
             }
             aggregate = decoded
             currentReceipt = nil
             pendingReceipt = nil
         }
 
-        guard let aggregate else { return (.pending, nil) }
+        guard let aggregate else { return (.pending, nil, []) }
         guard let data = try? JSONEncoder().encode(aggregate),
               data.count <= 512 * 1_024,
               let canonical = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return (.rejected, nil)
+            return (.rejected, nil, [])
         }
-        return (.committed, canonical)
+        return (.committed, canonical, completedRequestIDs)
     }
 }

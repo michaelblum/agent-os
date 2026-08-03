@@ -262,6 +262,15 @@ func canonicalSampleCounts(
     }
 }
 
+func stageSnapshotReady(
+    _ registry: AOSDesktopWorldDevToolsSessionRegistry,
+    sessionID: String
+) -> Bool {
+    let snapshot = registry.snapshot(sessionID: sessionID)!
+    let session = snapshot["session"] as! [String: Any]
+    return session["stageSnapshotReady"] as! Bool
+}
+
 var nativeWarmState = AOSDesktopWorldDevToolsNativeStageFacts(
     displayCount: 1,
     errorCode: nil,
@@ -386,26 +395,134 @@ require(requestClassRegistry.recordStageSnapshot(
     stageSnapshot(segmentIndex: 1, sampleCount: 0),
     requestID: requestClassID,
     segment: segmentIdentity(1)
-) == .rejected, "request admitted a mixed sampling class")
+) == .pending, "mixed request did not enter request-bound convergence")
 require(
     stageSnapshotRevision(requestClassRegistry, sessionID: requestClassSession.id) == 0,
     "mixed request receipt published a canonical revision"
+)
+require(
+    !stageSnapshotReady(requestClassRegistry, sessionID: requestClassSession.id),
+    "mixed request reported freshness before async convergence"
 )
 require(requestClassRegistry.recordStageSnapshot(
     stageSnapshot(sampleCount: 0),
     requestID: requestClassID,
     segment: segmentIdentity(0)
-) == .pending, "request did not restart cleanly after mixed-class rejection")
+) == .rejected, "handled request ID was accepted for an impossible resend")
 require(requestClassRegistry.recordStageSnapshot(
     stageSnapshot(segmentIndex: 1, sampleCount: 0),
-    requestID: requestClassID,
     segment: segmentIdentity(1)
-) == .committed, "uniform request sampling class did not commit")
+) == .pending, "same-class async receipt completed a mixed request")
+require(
+    !stageSnapshotReady(requestClassRegistry, sessionID: requestClassSession.id),
+    "mixed async receipts satisfied request freshness"
+)
+require(requestClassRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 0),
+    segment: segmentIdentity(0)
+) == .committed, "uniform async convergence did not complete request freshness")
 require(
     canonicalSampleCounts(requestClassRegistry, sessionID: requestClassSession.id) == [0, 0],
-    "request sampling class did not publish atomically"
+    "request-bound async convergence did not publish atomically"
+)
+require(
+    stageSnapshotReady(requestClassRegistry, sessionID: requestClassSession.id),
+    "uniform async convergence did not satisfy request freshness"
+)
+require(
+    requestClassRegistry.state(sessionID: requestClassSession.id)?.stageRequestCompletedRevision
+        == stageSnapshotRevision(requestClassRegistry, sessionID: requestClassSession.id),
+    "async convergence recorded the wrong completed revision"
 )
 _ = requestClassRegistry.close(sessionID: requestClassSession.id)
+
+let reverseRequestClassRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let reverseRequestClassID = "reverse-sampling-class-request"
+let reverseRequestClassSession = created(
+    reverseRequestClassRegistry.create(stageRequestID: reverseRequestClassID)
+)
+require(reverseRequestClassRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0),
+    requestID: reverseRequestClassID,
+    segment: segmentIdentity(1)
+) == .pending, "reverse request sampling-class seed did not remain pending")
+require(reverseRequestClassRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1),
+    requestID: reverseRequestClassID,
+    segment: segmentIdentity(0)
+) == .pending, "reverse mixed request did not enter convergence")
+require(reverseRequestClassRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1),
+    segment: segmentIdentity(0)
+) == .pending, "reverse convergence first async receipt did not remain pending")
+require(reverseRequestClassRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 1),
+    segment: segmentIdentity(1)
+) == .committed, "reverse sampled async convergence did not commit")
+require(
+    canonicalSampleCounts(
+        reverseRequestClassRegistry,
+        sessionID: reverseRequestClassSession.id
+    ) == [1, 1],
+    "reverse sampled convergence published a mixed class"
+)
+require(
+    stageSnapshotReady(
+        reverseRequestClassRegistry,
+        sessionID: reverseRequestClassSession.id
+    ),
+    "reverse sampled convergence did not satisfy request freshness"
+)
+require(
+    reverseRequestClassRegistry.state(sessionID: reverseRequestClassSession.id)?.stageRequestCompletedRevision
+        == stageSnapshotRevision(
+            reverseRequestClassRegistry,
+            sessionID: reverseRequestClassSession.id
+        ),
+    "reverse convergence recorded the wrong completed revision"
+)
+_ = reverseRequestClassRegistry.close(sessionID: reverseRequestClassSession.id)
+
+let staleConvergenceRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let staleConvergenceID = "stale-convergence-request"
+let staleConvergenceSession = created(
+    staleConvergenceRegistry.create(stageRequestID: staleConvergenceID)
+)
+require(staleConvergenceRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1),
+    requestID: staleConvergenceID,
+    segment: segmentIdentity(0)
+) == .pending, "stale convergence seed did not remain pending")
+require(staleConvergenceRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0),
+    requestID: staleConvergenceID,
+    segment: segmentIdentity(1)
+) == .pending, "stale convergence request did not bind")
+require(staleConvergenceRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, topologyGeneration: 5, sampleCount: 1),
+    segment: segmentIdentity(1, topologyGeneration: 5)
+) == .pending, "new topology first async receipt did not remain pending")
+require(staleConvergenceRegistry.recordStageSnapshot(
+    stageSnapshot(topologyGeneration: 5, sampleCount: 1),
+    segment: segmentIdentity(0, topologyGeneration: 5)
+) == .committed, "new topology async aggregate did not publish normally")
+require(
+    !stageSnapshotReady(
+        staleConvergenceRegistry,
+        sessionID: staleConvergenceSession.id
+    ),
+    "new topology receipts completed a stale request binding"
+)
+require(
+    staleConvergenceRegistry.state(sessionID: staleConvergenceSession.id)?.stageRequestCompletedRevision == nil,
+    "stale request binding recorded a completed revision"
+)
+_ = staleConvergenceRegistry.close(sessionID: staleConvergenceSession.id)
+require(staleConvergenceRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1),
+    requestID: staleConvergenceID,
+    segment: segmentIdentity(0)
+) == .rejected, "closed request binding accepted a late correlated receipt")
 
 let samplingRegistry = AOSDesktopWorldDevToolsSessionRegistry()
 let samplingSession = created(samplingRegistry.create())

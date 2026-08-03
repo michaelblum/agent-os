@@ -230,6 +230,11 @@ publish the new sampling class only after every expected display converges;
 partial receipts never cross canvas, topology, or display identity. Published
 metrics remain per-display stage-segment scalars, never a
 resource attribution or a sum of rates, timings, DPR, or backing dimensions.
+When a one-shot correlated refresh observes both sampling classes, retire that
+request from correlated collection and bind its complete receipt set to the
+exact canvas, topology, and display identity. Subsequent identity-matched
+asynchronous receipts update that set until it is uniform; reusing the handled
+request ID is not a convergence mechanism.
 At inspection read time, the daemon decorates canonical stage snapshots with
 the native desktop-frame warm pool's state, display count, generation, and
 redacted error code, plus bounded native-effect admission, presentation,
