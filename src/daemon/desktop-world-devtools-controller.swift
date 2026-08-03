@@ -41,6 +41,9 @@ final class AOSDesktopWorldDevToolsController {
     private let hasSceneMonitor: () -> Bool
     private let resolveContentURL: (String) -> String
     private let sessions: AOSDesktopWorldDevToolsSessionRegistry
+    private let stageConfigurationQueue = DispatchQueue(
+        label: "io.agent-os.desktop-world-devtools.stage-configuration"
+    )
 
     init(
         canvasManager: CanvasManager,
@@ -121,15 +124,27 @@ final class AOSDesktopWorldDevToolsController {
     }
 
     func configureStage(requestID: String? = nil) -> Bool {
+        if Thread.isMainThread {
+            stageConfigurationQueue.async { [weak self] in
+                _ = self?.configureStageOffMain(requestID: requestID)
+            }
+            return true
+        }
+        return stageConfigurationQueue.sync { [weak self] in
+            self?.configureStageOffMain(requestID: requestID) ?? false
+        }
+    }
+
+    private func configureStageOffMain(requestID: String?) -> Bool {
+        dispatchPrecondition(condition: .notOnQueue(.main))
         let configuration = sessions.instrumentationConfiguration()
         let enabled = configuration.enabled || hasSceneMonitor()
-        var stageExists = mutateCanvas { [weak self] in
+        let stageExists = mutateCanvas { [weak self] in
             guard let self else { return false }
             return self.canvasManager.hasCanvas(self.sceneStageCanvasID)
         }
-        if enabled && !stageExists {
-            guard !Thread.isMainThread, ensureSceneStage() else { return false }
-            stageExists = true
+        if enabled {
+            guard ensureSceneStage() else { return false }
         }
         if !enabled && !stageExists { return true }
         canvasManager.postMessageToCurrentCanvasAsync(canvasID: sceneStageCanvasID, payload: [

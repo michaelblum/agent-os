@@ -493,6 +493,36 @@ test('RenderPerformance rejects an equal daemon revision from a different lifecy
   assert.equal(state.sources['desktop-world:0:duplicate'], undefined)
 })
 
+test('RenderPerformance debug reset clears DesktopWorld ownership and admits equal revision replay', (t) => {
+  withFakeBrowser(t)
+
+  const perf = RenderPerformance()
+  perf.render(fakeHost())
+  const snapshot = desktopWorldPerformanceSnapshot({
+    canvasGeneration: 3,
+    topologyGeneration: 3,
+    sequence: 1,
+    stageSnapshotRevision: 10,
+    displays: [{ id: 'current', index: 0, fps: 60 }],
+  })
+  perf.onMessage({ type: 'desktop_world_devtools.snapshot', payload: snapshot })
+  perf.onMessage({ type: 'mark', payload: { type: 'before-reset', text: 'event' } })
+
+  window.__renderPerformanceDebug.reset()
+  let state = perf.serialize()
+  assert.equal(state.desktopWorld, null)
+  assert.deepEqual(state.events, [])
+  assert.equal(state.sources['desktop-world:0:current'], undefined)
+
+  perf.onMessage({ type: 'desktop_world_devtools.snapshot', payload: snapshot })
+  state = perf.serialize()
+  assert.equal(state.desktopWorld.publication.stageSnapshotRevision, 10)
+  assert.deepEqual(state.desktopWorld.bindings, [
+    { source: 'desktop-world:0:current', displayId: 'current', displayIndex: 0 },
+  ])
+  assert.equal(state.sources['desktop-world:0:current'].samples.at(-1).fps, 60)
+})
+
 test('RenderPerformance admits newer daemon publications when a segment-local sequence repeats', (t) => {
   withFakeBrowser(t)
 

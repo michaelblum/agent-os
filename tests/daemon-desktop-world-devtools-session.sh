@@ -562,10 +562,17 @@ require(!registry.instrumentationConfiguration().enabled, "closing the final ses
 
 let fakeCanvas = CanvasManager()
 fakeCanvas.canvasIDs = ["aos-desktop-world-stage", "fake-devtools-host"]
+let ensureStageLock = NSLock()
+var ensureStageCalls = 0
 let controller = AOSDesktopWorldDevToolsController(
     canvasManager: fakeCanvas,
     sceneStageCanvasID: "aos-desktop-world-stage",
-    ensureSceneStage: { true },
+    ensureSceneStage: {
+        ensureStageLock.lock()
+        ensureStageCalls += 1
+        ensureStageLock.unlock()
+        return true
+    },
     hasSceneMonitor: { true },
     resolveContentURL: { $0 }
 )
@@ -573,6 +580,36 @@ let opened = controller.handleCommand(action: "scene-devtools-open", payload: [
     "host": ["kind": "external", "id": "fake-devtools-host"],
 ])
 require(opened["status"] as? String == "ok", "controller fake host did not open")
+let existingStageConfigurationLock = NSLock()
+var existingStageConfigurationSettled = false
+DispatchQueue.global(qos: .userInitiated).async {
+    require(controller.configureStage(), "existing stage configuration failed")
+    existingStageConfigurationLock.lock()
+    existingStageConfigurationSettled = true
+    existingStageConfigurationLock.unlock()
+}
+let existingStageConfigurationDeadline = Date().addingTimeInterval(2)
+while Date() < existingStageConfigurationDeadline {
+    existingStageConfigurationLock.lock()
+    let settled = existingStageConfigurationSettled
+    existingStageConfigurationLock.unlock()
+    if settled { break }
+    RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+}
+existingStageConfigurationLock.lock()
+let didSettleExistingStageConfiguration = existingStageConfigurationSettled
+existingStageConfigurationLock.unlock()
+require(
+    didSettleExistingStageConfiguration,
+    "existing stage configuration did not settle"
+)
+ensureStageLock.lock()
+let observedEnsureStageCalls = ensureStageCalls
+ensureStageLock.unlock()
+require(
+    observedEnsureStageCalls >= 2,
+    "existing canvas bypassed the generation-bound readiness wait"
+)
 
 var monitorPublications: [[String: Any]] = []
 func deliverControllerSnapshot(_ segmentIndex: Int, topologyGeneration: Int) -> AOSDesktopWorldDevToolsStageCommitResult {

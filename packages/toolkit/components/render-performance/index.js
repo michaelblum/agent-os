@@ -214,6 +214,14 @@ export default function RenderPerformance(options = {}) {
     while (events.length > 80) events.shift();
   }
 
+  function resetState() {
+    sources.clear();
+    desktopWorldBindings.clear();
+    desktopWorldPublication = null;
+    events.length = 0;
+    renderState();
+  }
+
   function isNewerDesktopWorldPublication(projection) {
     if (!desktopWorldPublication) return true;
     if (
@@ -352,9 +360,7 @@ export default function RenderPerformance(options = {}) {
           if (appendGenericSample(normalizeRenderSample(payload, { source }), source)) renderState();
         },
         reset() {
-          sources.clear();
-          events.length = 0;
-          renderState();
+          resetState();
         },
       };
       document.addEventListener('visibilitychange', () => {
@@ -422,11 +428,7 @@ export default function RenderPerformance(options = {}) {
         return;
       }
       if (msg.type === 'reset') {
-        sources.clear();
-        desktopWorldBindings.clear();
-        desktopWorldPublication = null;
-        events.length = 0;
-        renderState();
+        resetState();
       }
     },
 

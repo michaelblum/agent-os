@@ -20,6 +20,7 @@ import { createDesktopWorldSceneOutlet } from './scene-outlet.js'
 import { createDesktopWorldSceneInteractionRuntime } from './scene-interaction-runtime.js'
 import { createDesktopWorldSceneOperationCoordinator } from './scene-operation-coordinator.js'
 import { requireDesktopWorldSceneSegment } from './scene-segment-setup.js'
+import { createDesktopWorldDevToolsRequestLifecycle } from './devtools-request-lifecycle.js'
 import {
   projectDesktopWorldDevToolsTopology,
   projectSceneEventTopology,
@@ -147,6 +148,10 @@ const devtoolsProbe = createDesktopWorldDevToolsStageProbe({
     }
   },
 })
+const devtoolsRequests = createDesktopWorldDevToolsRequestLifecycle({
+  getIdentity: devtoolsSampleIdentity,
+  probe: devtoolsProbe,
+})
 sceneOutlet.setDevToolsProbe(devtoolsProbe)
 
 sceneInteractions = createDesktopWorldSceneInteractionRuntime({
@@ -231,6 +236,7 @@ const retireStageFault = createDesktopWorldStageFaultRetirement({
       kind: fault.kind,
       resourceId: fault.resource ?? null,
     })
+    devtoolsRequests.retire()
   },
   schedule: enqueueSceneWork,
 })
@@ -477,6 +483,7 @@ wireBridge((message) => {
   }
   if (message?.type === 'desktop_world_stage.devtools.configure') {
     devtoolsProbe.configure(message.payload)
+    devtoolsRequests.configure(message.payload)
     if (message.payload?.enabled === true) devtoolsProbe.emitSnapshot('configured')
     return
   }
@@ -485,7 +492,7 @@ wireBridge((message) => {
       && /^[a-z0-9][a-z0-9._-]{0,127}$/u.test(message.payload.request_id)
       ? message.payload.request_id
       : null
-    devtoolsProbe.emitSnapshot('requested', undefined, requestId == null ? {} : { request_id: requestId })
+    devtoolsRequests.request(requestId)
     return
   }
   if (message?.type === 'input_region.cursor' || message?.type === 'input_region.event') {
@@ -506,18 +513,19 @@ wireBridge((message) => {
 surface.start({
   onInit: ({ segment, topology }) => {
     requireDesktopWorldSceneSegment(sceneOutlet, segment, topology)
-    devtoolsProbe.setIdentityReady(devtoolsSampleIdentity(segment))
+    devtoolsRequests.identityReady(devtoolsSampleIdentity(segment))
     render()
   },
   onTopologyChange: ({ segment, topology }) => {
     const identity = devtoolsSampleIdentity(segment)
-    devtoolsProbe.setIdentityReady(false)
+    devtoolsRequests.identityChanging(identity)
     void enqueueSceneWork(async () => {
       requireDesktopWorldSceneSegment(sceneOutlet, segment, topology)
       await sceneInteractions.topologyChanged()
       render()
-      devtoolsProbe.setIdentityReady(identity)
-      devtoolsProbe.recordEvent({ kind: 'topology.changed' })
+      devtoolsRequests.identityReady(identity, () => {
+        devtoolsProbe.recordEvent({ kind: 'topology.changed' })
+      })
     }).catch((error) => {
       retireStage(error, 'SCENE_SEGMENT_CONFIGURATION_FAILED', 'topology.failed')
     })
@@ -536,6 +544,7 @@ window.addEventListener('pagehide', () => {
   if (['closing', 'disposed'].includes(stageLifecycleState)) return
   stageLifecycleGeneration += 1
   stageLifecycleState = 'closing'
+  devtoolsRequests.dispose()
   void enqueueSceneWork(async () => {
     try {
       await disposeStage()
