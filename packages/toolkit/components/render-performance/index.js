@@ -9,6 +9,7 @@ import {
 import {
   canonicalDesktopWorldPerformanceSource,
   DESKTOP_WORLD_PERFORMANCE_IDENTITY_LIMITS,
+  isCanonicalDesktopWorldPerformanceSource,
   projectDesktopWorldDevToolsPerformance,
 } from '../desktop-world-devtools/compat.js';
 
@@ -202,6 +203,12 @@ export default function RenderPerformance(options = {}) {
     return normalized;
   }
 
+  function appendGenericSample(sample, source) {
+    if (isCanonicalDesktopWorldPerformanceSource(source)) return false;
+    appendSample(sample, source);
+    return true;
+  }
+
   function appendEvent(type, text) {
     events.push({ ts: clockTime(wallTime()), type, text });
     while (events.length > 80) events.shift();
@@ -342,8 +349,7 @@ export default function RenderPerformance(options = {}) {
       window.__renderPerformanceDebug = {
         sample(payload = {}) {
           const source = payload.source || 'debug';
-          appendSample(normalizeRenderSample(payload, { source }), source);
-          renderState();
+          if (appendGenericSample(normalizeRenderSample(payload, { source }), source)) renderState();
         },
         reset() {
           sources.clear();
@@ -367,12 +373,6 @@ export default function RenderPerformance(options = {}) {
       if (msg.type === 'desktop_world_devtools.snapshot') {
         const projection = projectDesktopWorldDevToolsPerformance(payload);
         if (!isNewerDesktopWorldPublication(projection)) return;
-        desktopWorldPublication = {
-          canvasGeneration: projection.canvasGeneration,
-          topologyGeneration: projection.topologyGeneration,
-          sequence: projection.sequence,
-          stageSnapshotRevision: projection.stageSnapshotRevision,
-        };
         const nextBindings = new Map(projection.displays.map((display) => [
           display.sample.source,
           {
@@ -381,6 +381,15 @@ export default function RenderPerformance(options = {}) {
             displayIndex: display.displayIndex,
           },
         ]));
+        for (const source of nextBindings.keys()) {
+          if (sources.has(source) && !desktopWorldBindings.has(source)) return;
+        }
+        desktopWorldPublication = {
+          canvasGeneration: projection.canvasGeneration,
+          topologyGeneration: projection.topologyGeneration,
+          sequence: projection.sequence,
+          stageSnapshotRevision: projection.stageSnapshotRevision,
+        };
         for (const source of desktopWorldBindings.keys()) {
           if (!nextBindings.has(source)) sources.delete(source);
         }
@@ -394,7 +403,7 @@ export default function RenderPerformance(options = {}) {
       }
       if (msg.type === 'sample' || msg.type === 'frame' || msg.type === 'metrics') {
         const source = payload.source || 'external';
-        appendSample(payload, source);
+        if (!appendGenericSample(payload, source)) return;
         if (msg.type === 'metrics' && !payload.frameMs && !payload.fps) {
           appendEvent('metrics', `updated ${source}`);
         }

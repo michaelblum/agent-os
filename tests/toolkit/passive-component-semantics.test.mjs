@@ -217,6 +217,172 @@ test('RenderPerformance exposes root region and sparkline image semantics', (t) 
   assert.match(root.innerHTML, /class="perf-sparkline" role="img" aria-label="Frame-time sparkline"/)
 })
 
+test('RenderPerformance reserves canonical DesktopWorld source IDs from generic ingress', (t) => {
+  withFakeBrowser(t)
+
+  const perf = RenderPerformance()
+  perf.render(fakeHost())
+  for (const [displayIndex, type] of ['sample', 'frame', 'metrics'].entries()) {
+    perf.onMessage({
+      type,
+      payload: { source: `desktop-world:${displayIndex}:${type}`, fps: 12 },
+    })
+  }
+  window.__renderPerformanceDebug.sample({ source: 'desktop-world:3:debug', fps: 12 })
+
+  assert.deepEqual(
+    Object.keys(perf.serialize().sources).filter((source) => source.startsWith('desktop-world:')),
+    [],
+  )
+
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 1,
+      topologyGeneration: 1,
+      sequence: 1,
+      stageSnapshotRevision: 1,
+      displays: [{ id: 'sample', index: 0, fps: 60 }],
+    }),
+  })
+  assert.equal(perf.serialize().sources['desktop-world:0:sample'].samples.length, 1)
+
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 0,
+      topologyGeneration: 0,
+      sequence: 0,
+      stageSnapshotRevision: 2,
+      status: 'unavailable',
+      displays: [],
+    }),
+  })
+  assert.equal(perf.serialize().sources['desktop-world:0:sample'], undefined)
+})
+
+test('RenderPerformance keeps noncanonical DesktopWorld-prefixed generic sources unowned', (t) => {
+  withFakeBrowser(t)
+
+  const perf = RenderPerformance()
+  perf.render(fakeHost())
+  perf.onMessage({
+    type: 'sample',
+    payload: { source: 'desktop-world:user-owned', fps: 30 },
+  })
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 1,
+      topologyGeneration: 1,
+      sequence: 1,
+      stageSnapshotRevision: 1,
+      displays: [{ id: 'main', index: 0 }],
+    }),
+  })
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 0,
+      topologyGeneration: 0,
+      sequence: 0,
+      stageSnapshotRevision: 2,
+      status: 'unavailable',
+      displays: [],
+    }),
+  })
+
+  assert.equal(perf.serialize().sources['desktop-world:user-owned'].samples.at(-1).fps, 30)
+})
+
+test('RenderPerformance never claims or retires a restored unowned canonical collision', (t) => {
+  withFakeBrowser(t)
+
+  const ownedSource = 'desktop-world:1:owned'
+  const source = 'desktop-world:0:legacy'
+  const original = RenderPerformance()
+  original.render(fakeHost())
+  original.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 2,
+      topologyGeneration: 2,
+      sequence: 9,
+      stageSnapshotRevision: 19,
+      displays: [{ id: 'owned', index: 1, fps: 45 }],
+    }),
+  })
+  const restoredState = original.serialize()
+  restoredState.sources[source] = {
+    samples: [{ source, ts: Date.now(), fps: 30, frameMs: 1000 / 30 }],
+  }
+
+  const perf = RenderPerformance()
+  perf.render(fakeHost())
+  perf.restore(restoredState)
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 3,
+      topologyGeneration: 4,
+      sequence: 10,
+      stageSnapshotRevision: 20,
+      displays: [{ id: 'legacy', index: 0, fps: 60 }],
+    }),
+  })
+
+  let state = perf.serialize()
+  assert.equal(state.desktopWorld.publication.stageSnapshotRevision, 19)
+  assert.equal(state.sources[ownedSource].samples.at(-1).fps, 45)
+  assert.deepEqual(state.sources[source].samples.map((sample) => sample.fps), [30])
+
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 0,
+      topologyGeneration: 0,
+      sequence: 0,
+      stageSnapshotRevision: 21,
+      status: 'unavailable',
+      displays: [],
+    }),
+  })
+  state = perf.serialize()
+  assert.equal(state.sources[ownedSource], undefined)
+  assert.ok(state.sources[source])
+  assert.deepEqual(state.desktopWorld.bindings, [])
+
+  perf.onMessage({ type: 'reset' })
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 3,
+      topologyGeneration: 4,
+      sequence: 10,
+      stageSnapshotRevision: 20,
+      displays: [{ id: 'legacy', index: 0, fps: 60 }],
+    }),
+  })
+  state = perf.serialize()
+  assert.deepEqual(state.desktopWorld.bindings, [
+    { source, displayId: 'legacy', displayIndex: 0 },
+  ])
+  assert.deepEqual(state.sources[source].samples.map((sample) => sample.fps), [60])
+
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 0,
+      topologyGeneration: 0,
+      sequence: 0,
+      stageSnapshotRevision: 21,
+      status: 'unavailable',
+      displays: [],
+    }),
+  })
+  assert.equal(perf.serialize().sources[source], undefined)
+})
+
 test('RenderPerformance accepts a higher daemon revision with a replacement lifecycle and retires disappeared displays', (t) => {
   withFakeBrowser(t)
 

@@ -23,6 +23,20 @@ export function canonicalDesktopWorldPerformanceSource(value) {
   return source.length <= DESKTOP_WORLD_PERFORMANCE_IDENTITY_LIMITS.source ? source : null;
 }
 
+export function isCanonicalDesktopWorldPerformanceSource(source) {
+  if (typeof source !== 'string') return false;
+  const prefix = 'desktop-world:';
+  if (!source.startsWith(prefix)) return false;
+  const separator = source.indexOf(':', prefix.length);
+  if (separator < 0) return false;
+  const displayIndexText = source.slice(prefix.length, separator);
+  if (!/^(0|[1-9]\d*)$/u.test(displayIndexText)) return false;
+  return canonicalDesktopWorldPerformanceSource({
+    displayId: source.slice(separator + 1),
+    displayIndex: Number(displayIndexText),
+  }) === source;
+}
+
 function rectObject(frame) {
   return { x: frame[0], y: frame[1], w: frame[2], h: frame[3] };
 }
