@@ -168,13 +168,16 @@ func stageSnapshot(
     canvasGeneration: Int = 3,
     topologyGeneration: Int = 4,
     sampleCount: Int = 1,
-    displayIDs: [UInt32] = [100, 101]
+    displayIDs: [UInt32] = [100, 101],
+    sequence: Int = 1,
+    nodeX: Double = 1_498.0,
+    resourceRevision: Int = 1
 ) -> [String: Any] {
     [
         "contract": aosDesktopWorldDevToolsStageContract,
         "canvasGeneration": canvasGeneration,
         "topologyGeneration": topologyGeneration,
-        "sequence": 1,
+        "sequence": sequence,
         "status": "available",
         "world": [
             "displays": [[
@@ -188,7 +191,7 @@ func stageSnapshot(
                 "scaleFactor": 1.0,
                 "nativeBounds": [-207.0, 982.0, 1920.0, 1080.0],
             ]],
-            "nodes": [["id": "body", "resourceId": "companion/main", "parentId": NSNull(), "kind": "mesh", "implementation": "aos.scene.geometry.primitive", "position": [1498.0, 1166.0, 0.0], "visible": true]],
+            "nodes": [["id": "body", "resourceId": "companion/main", "parentId": NSNull(), "kind": "mesh", "implementation": "aos.scene.geometry.primitive", "position": [nodeX, 1166.0, 0.0], "visible": true]],
             "hitRegions": [], "affordances": [], "gestures": [[
                 "id": "gesture-1", "resourceId": "companion/main", "affordanceId": "body",
                 "interactionId": "travel", "kind": "drag", "phase": "cancel",
@@ -196,7 +199,7 @@ func stageSnapshot(
             ]], "routes": [],
         ],
         "resources": [[
-            "id": "companion/main", "owner": "example.consumer", "sceneId": "scene", "revision": 1,
+            "id": "companion/main", "owner": "example.consumer", "sceneId": "scene", "revision": resourceRevision,
             "suspended": false, "objectCount": 1, "descriptorCount": 2, "animationCount": 1,
             "signalCount": 1, "interactionCount": 1, "implementations": ["aos.scene.geometry.primitive"],
             "allocations": ["geometries": 1, "materials": 1, "textures": 0, "programs": 1],
@@ -260,6 +263,38 @@ func canonicalSampleCounts(
         let performance = $0["performance"] as! [String: Any]
         return performance["sampleCount"] as! Int
     }
+}
+
+func canonicalStage(
+    _ registry: AOSDesktopWorldDevToolsSessionRegistry,
+    sessionID: String
+) -> [String: Any] {
+    registry.snapshot(sessionID: sessionID)!["stage"] as! [String: Any]
+}
+
+func canonicalSequence(
+    _ registry: AOSDesktopWorldDevToolsSessionRegistry,
+    sessionID: String
+) -> Int {
+    canonicalStage(registry, sessionID: sessionID)["sequence"] as! Int
+}
+
+func canonicalNodeX(
+    _ registry: AOSDesktopWorldDevToolsSessionRegistry,
+    sessionID: String
+) -> Double {
+    let world = canonicalStage(registry, sessionID: sessionID)["world"] as! [String: Any]
+    let nodes = world["nodes"] as! [[String: Any]]
+    let position = nodes[0]["position"] as! [Double]
+    return position[0]
+}
+
+func canonicalResourceRevision(
+    _ registry: AOSDesktopWorldDevToolsSessionRegistry,
+    sessionID: String
+) -> Int {
+    let resources = canonicalStage(registry, sessionID: sessionID)["resources"] as! [[String: Any]]
+    return resources[0]["revision"] as! Int
 }
 
 func stageSnapshotReady(
@@ -482,6 +517,326 @@ require(
     "reverse convergence recorded the wrong completed revision"
 )
 _ = reverseRequestClassRegistry.close(sessionID: reverseRequestClassSession.id)
+
+let concurrentRequestRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let concurrentOlderID = "a-older-request"
+let concurrentNewerID = "z-newer-request"
+let concurrentOlderSession = created(
+    concurrentRequestRegistry.create(stageRequestID: concurrentOlderID)
+)
+let concurrentNewerSession = created(
+    concurrentRequestRegistry.create(stageRequestID: concurrentNewerID)
+)
+require(concurrentRequestRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1, sequence: 10, nodeX: 100, resourceRevision: 10),
+    requestID: concurrentOlderID,
+    segment: segmentIdentity(0)
+) == .pending, "older concurrent request primary did not remain pending")
+require(concurrentRequestRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 2, sequence: 20, nodeX: 200, resourceRevision: 20),
+    requestID: concurrentNewerID,
+    segment: segmentIdentity(0)
+) == .pending, "newer concurrent request primary did not remain pending")
+require(concurrentRequestRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 10),
+    requestID: concurrentOlderID,
+    segment: segmentIdentity(1)
+) == .pending, "older concurrent request did not enter convergence")
+require(concurrentRequestRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 20),
+    requestID: concurrentNewerID,
+    segment: segmentIdentity(1)
+) == .pending, "newer concurrent request did not enter convergence")
+require(concurrentRequestRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 3, sequence: 21),
+    segment: segmentIdentity(1)
+) == .committed, "simultaneous request convergence did not commit")
+require(
+    canonicalSequence(concurrentRequestRegistry, sessionID: concurrentNewerSession.id) == 20,
+    "lexically first older request supplied the simultaneous canonical sequence"
+)
+require(
+    canonicalNodeX(concurrentRequestRegistry, sessionID: concurrentNewerSession.id) == 200,
+    "lexically first older request supplied the simultaneous canonical world"
+)
+require(
+    canonicalResourceRevision(
+        concurrentRequestRegistry,
+        sessionID: concurrentNewerSession.id
+    ) == 20,
+    "lexically first older request supplied the simultaneous canonical resources"
+)
+require(
+    canonicalSampleCounts(
+        concurrentRequestRegistry,
+        sessionID: concurrentNewerSession.id
+    ) == [2, 3],
+    "simultaneous convergence lost the newer request performance receipt"
+)
+let concurrentRevision = stageSnapshotRevision(
+    concurrentRequestRegistry,
+    sessionID: concurrentNewerSession.id
+)
+require(
+    stageSnapshotReady(concurrentRequestRegistry, sessionID: concurrentOlderSession.id)
+        && stageSnapshotReady(concurrentRequestRegistry, sessionID: concurrentNewerSession.id),
+    "newer canonical did not complete the co-converged older request"
+)
+require(
+    concurrentRequestRegistry.state(sessionID: concurrentOlderSession.id)?.stageRequestCompletedRevision
+        == concurrentRevision
+        && concurrentRequestRegistry.state(
+            sessionID: concurrentNewerSession.id
+        )?.stageRequestCompletedRevision == concurrentRevision,
+    "co-converged requests were not completed at the selected canonical revision"
+)
+_ = concurrentRequestRegistry.close(sessionID: concurrentOlderSession.id)
+_ = concurrentRequestRegistry.close(sessionID: concurrentNewerSession.id)
+
+let reverseConcurrentRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let reverseConcurrentOlderID = "z-reverse-older"
+let reverseConcurrentNewerID = "a-reverse-newer"
+let reverseConcurrentOlderSession = created(
+    reverseConcurrentRegistry.create(stageRequestID: reverseConcurrentOlderID)
+)
+let reverseConcurrentNewerSession = created(
+    reverseConcurrentRegistry.create(stageRequestID: reverseConcurrentNewerID)
+)
+require(reverseConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 0, sequence: 30, nodeX: 300, resourceRevision: 30),
+    requestID: reverseConcurrentOlderID,
+    segment: segmentIdentity(0)
+) == .pending, "reverse older concurrent request primary did not remain pending")
+require(reverseConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 0, sequence: 40, nodeX: 400, resourceRevision: 40),
+    requestID: reverseConcurrentNewerID,
+    segment: segmentIdentity(0)
+) == .pending, "reverse newer concurrent request primary did not remain pending")
+require(reverseConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 4, sequence: 30),
+    requestID: reverseConcurrentOlderID,
+    segment: segmentIdentity(1)
+) == .pending, "reverse older concurrent request did not enter convergence")
+require(reverseConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 5, sequence: 40),
+    requestID: reverseConcurrentNewerID,
+    segment: segmentIdentity(1)
+) == .pending, "reverse newer concurrent request did not enter convergence")
+require(reverseConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 41),
+    segment: segmentIdentity(1)
+) == .committed, "reverse simultaneous request convergence did not commit")
+require(
+    canonicalSequence(reverseConcurrentRegistry, sessionID: reverseConcurrentNewerSession.id) == 40
+        && canonicalNodeX(
+            reverseConcurrentRegistry,
+            sessionID: reverseConcurrentNewerSession.id
+        ) == 400
+        && canonicalResourceRevision(
+            reverseConcurrentRegistry,
+            sessionID: reverseConcurrentNewerSession.id
+        ) == 40,
+    "reverse simultaneous convergence did not select the newest admission"
+)
+require(
+    canonicalSampleCounts(
+        reverseConcurrentRegistry,
+        sessionID: reverseConcurrentNewerSession.id
+    ) == [0, 0],
+    "reverse simultaneous convergence published a mixed sampling class"
+)
+require(
+    stageSnapshotReady(
+        reverseConcurrentRegistry,
+        sessionID: reverseConcurrentOlderSession.id
+    ) && stageSnapshotReady(
+        reverseConcurrentRegistry,
+        sessionID: reverseConcurrentNewerSession.id
+    ),
+    "reverse newer canonical did not safely complete both requests"
+)
+_ = reverseConcurrentRegistry.close(sessionID: reverseConcurrentOlderSession.id)
+_ = reverseConcurrentRegistry.close(sessionID: reverseConcurrentNewerSession.id)
+
+let uncoveredConcurrentRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let uncoveredOlderID = "a-uncovered-older"
+let uncoveredNewerID = "z-uncovered-newer"
+let uncoveredOlderSession = created(
+    uncoveredConcurrentRegistry.create(stageRequestID: uncoveredOlderID)
+)
+let uncoveredNewerSession = created(
+    uncoveredConcurrentRegistry.create(stageRequestID: uncoveredNewerID)
+)
+require(uncoveredConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1, sequence: 70, nodeX: 700, resourceRevision: 70),
+    requestID: uncoveredOlderID,
+    segment: segmentIdentity(0)
+) == .pending, "uncovered older request primary did not remain pending")
+require(uncoveredConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 2, sequence: 60, nodeX: 600, resourceRevision: 60),
+    requestID: uncoveredNewerID,
+    segment: segmentIdentity(0)
+) == .pending, "uncovered newer request primary did not remain pending")
+require(uncoveredConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 70),
+    requestID: uncoveredOlderID,
+    segment: segmentIdentity(1)
+) == .pending, "uncovered older request did not enter convergence")
+require(uncoveredConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 60),
+    requestID: uncoveredNewerID,
+    segment: segmentIdentity(1)
+) == .pending, "uncovered newer request did not enter convergence")
+require(uncoveredConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 1, sequence: 59),
+    segment: segmentIdentity(1)
+) == .pending, "regressed producer sequence advanced concurrent convergence")
+require(
+    !stageSnapshotReady(uncoveredConcurrentRegistry, sessionID: uncoveredOlderSession.id)
+        && !stageSnapshotReady(uncoveredConcurrentRegistry, sessionID: uncoveredNewerSession.id),
+    "regressed producer sequence completed a concurrent request"
+)
+require(uncoveredConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 1, sequence: 71),
+    segment: segmentIdentity(1)
+) == .committed, "uncovered simultaneous request convergence did not commit")
+require(
+    stageSnapshotReady(uncoveredConcurrentRegistry, sessionID: uncoveredNewerSession.id),
+    "selected newer request did not complete against its canonical receipt"
+)
+require(
+    !stageSnapshotReady(uncoveredConcurrentRegistry, sessionID: uncoveredOlderSession.id)
+        && uncoveredConcurrentRegistry.state(
+            sessionID: uncoveredOlderSession.id
+        )?.stageRequestCompletedRevision == nil,
+    "older request completed without per-display freshness coverage"
+)
+require(
+    canonicalSequence(uncoveredConcurrentRegistry, sessionID: uncoveredNewerSession.id) == 60
+        && canonicalNodeX(
+            uncoveredConcurrentRegistry,
+            sessionID: uncoveredNewerSession.id
+        ) == 600,
+    "uncovered convergence published a non-selected canonical receipt"
+)
+require(uncoveredConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1, sequence: 72, nodeX: 720, resourceRevision: 72),
+    segment: segmentIdentity(0)
+) == .committed, "later coverage did not complete the retained older request")
+require(
+    stageSnapshotReady(uncoveredConcurrentRegistry, sessionID: uncoveredOlderSession.id)
+        && canonicalSequence(
+            uncoveredConcurrentRegistry,
+            sessionID: uncoveredOlderSession.id
+        ) == 72
+        && canonicalNodeX(
+            uncoveredConcurrentRegistry,
+            sessionID: uncoveredOlderSession.id
+        ) == 720,
+    "retained older request completed without a newer canonical receipt"
+)
+_ = uncoveredConcurrentRegistry.close(sessionID: uncoveredOlderSession.id)
+_ = uncoveredConcurrentRegistry.close(sessionID: uncoveredNewerSession.id)
+
+let closedConcurrentRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let closedConcurrentID = "a-closed-concurrent"
+let liveConcurrentID = "z-live-concurrent"
+let closedConcurrentSession = created(
+    closedConcurrentRegistry.create(stageRequestID: closedConcurrentID)
+)
+let liveConcurrentSession = created(
+    closedConcurrentRegistry.create(stageRequestID: liveConcurrentID)
+)
+require(closedConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1, sequence: 80, nodeX: 800, resourceRevision: 80),
+    requestID: closedConcurrentID,
+    segment: segmentIdentity(0)
+) == .pending, "closing concurrent request primary did not remain pending")
+require(closedConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 2, sequence: 90, nodeX: 900, resourceRevision: 90),
+    requestID: liveConcurrentID,
+    segment: segmentIdentity(0)
+) == .pending, "live concurrent request primary did not remain pending")
+require(closedConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 80),
+    requestID: closedConcurrentID,
+    segment: segmentIdentity(1)
+) == .pending, "closing concurrent request did not enter convergence")
+require(closedConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 90),
+    requestID: liveConcurrentID,
+    segment: segmentIdentity(1)
+) == .pending, "live concurrent request did not enter convergence")
+_ = closedConcurrentRegistry.close(sessionID: closedConcurrentSession.id)
+require(closedConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 1, sequence: 91),
+    segment: segmentIdentity(1)
+) == .committed, "live concurrent request did not survive peer close")
+require(
+    stageSnapshotReady(closedConcurrentRegistry, sessionID: liveConcurrentSession.id)
+        && canonicalNodeX(
+            closedConcurrentRegistry,
+            sessionID: liveConcurrentSession.id
+        ) == 900,
+    "closed concurrent request affected the surviving canonical receipt"
+)
+require(closedConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1, sequence: 92),
+    requestID: closedConcurrentID,
+    segment: segmentIdentity(0)
+) == .rejected, "closed concurrent request accepted a late correlated receipt")
+_ = closedConcurrentRegistry.close(sessionID: liveConcurrentSession.id)
+
+let staleConcurrentRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let staleConcurrentOlderID = "a-stale-concurrent"
+let staleConcurrentNewerID = "z-stale-concurrent"
+let staleConcurrentOlderSession = created(
+    staleConcurrentRegistry.create(stageRequestID: staleConcurrentOlderID)
+)
+let staleConcurrentNewerSession = created(
+    staleConcurrentRegistry.create(stageRequestID: staleConcurrentNewerID)
+)
+for (requestID, sequence) in [(staleConcurrentOlderID, 100), (staleConcurrentNewerID, 110)] {
+    require(staleConcurrentRegistry.recordStageSnapshot(
+        stageSnapshot(sampleCount: 1, sequence: sequence),
+        requestID: requestID,
+        segment: segmentIdentity(0)
+    ) == .pending, "stale concurrent request primary did not remain pending")
+    require(staleConcurrentRegistry.recordStageSnapshot(
+        stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: sequence),
+        requestID: requestID,
+        segment: segmentIdentity(1)
+    ) == .pending, "stale concurrent request did not enter convergence")
+}
+require(staleConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, topologyGeneration: 5, sampleCount: 1, sequence: 111),
+    segment: segmentIdentity(1, topologyGeneration: 5)
+) == .pending, "replacement topology first receipt did not remain pending")
+require(staleConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(topologyGeneration: 5, sampleCount: 1, sequence: 112),
+    segment: segmentIdentity(0, topologyGeneration: 5)
+) == .committed, "replacement topology did not publish normally")
+require(
+    !stageSnapshotReady(
+        staleConcurrentRegistry,
+        sessionID: staleConcurrentOlderSession.id
+    ) && !stageSnapshotReady(
+        staleConcurrentRegistry,
+        sessionID: staleConcurrentNewerSession.id
+    ),
+    "replacement topology completed stale simultaneous requests"
+)
+require(
+    staleConcurrentRegistry.state(
+        sessionID: staleConcurrentOlderSession.id
+    )?.stageRequestCompletedRevision == nil
+        && staleConcurrentRegistry.state(
+            sessionID: staleConcurrentNewerSession.id
+        )?.stageRequestCompletedRevision == nil,
+    "stale simultaneous requests recorded a replacement-topology revision"
+)
+_ = staleConcurrentRegistry.close(sessionID: staleConcurrentOlderSession.id)
+_ = staleConcurrentRegistry.close(sessionID: staleConcurrentNewerSession.id)
 
 let staleConvergenceRegistry = AOSDesktopWorldDevToolsSessionRegistry()
 let staleConvergenceID = "stale-convergence-request"

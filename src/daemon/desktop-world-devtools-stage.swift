@@ -380,6 +380,7 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
         let topologyGeneration: UInt64
         var primary: AOSDesktopWorldDevToolsStageSnapshot?
         var performanceByIndex: [Int: AOSDesktopWorldDevToolsStageSnapshot.DisplayPerformance] = [:]
+        var sequenceByIndex: [Int: Int] = [:]
 
         var samplingClass: SamplingClass? {
             let classes = Set(performanceByIndex.values.map {
@@ -419,7 +420,8 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
             _ snapshot: AOSDesktopWorldDevToolsStageSnapshot,
             identity: AOSDesktopWorldDevToolsStageSegmentIdentity,
             rejectDuplicate: Bool,
-            allowSamplingClassTransition: Bool = false
+            allowSamplingClassTransition: Bool = false,
+            rejectSequenceRegression: Bool = false
         ) -> ReceiptRecordResult {
             guard matches(snapshot, identity: identity),
                   snapshot.displayPerformance.count == 1,
@@ -429,7 +431,9 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
                   displays.contains(where: {
                       $0.index == identity.index && $0.id == entry.displayId
                   }),
-                  !rejectDuplicate || performanceByIndex[identity.index] == nil else {
+                  !rejectDuplicate || performanceByIndex[identity.index] == nil,
+                  !rejectSequenceRegression
+                    || sequenceByIndex[identity.index].map({ snapshot.sequence >= $0 }) != false else {
                 return .rejected
             }
             if !allowSamplingClassTransition,
@@ -438,19 +442,47 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
                 return .samplingClassMismatch
             }
             performanceByIndex[identity.index] = entry
+            sequenceByIndex[identity.index] = snapshot.sequence
             if identity.index == 0 { primary = snapshot }
             return .accepted
         }
 
         mutating func remove(index: Int) {
             performanceByIndex.removeValue(forKey: index)
+            sequenceByIndex.removeValue(forKey: index)
             if index == 0 { primary = nil }
+        }
+
+        func contains(index: Int) -> Bool {
+            performanceByIndex[index] != nil
+        }
+
+        func hasSameIdentity(as other: Receipt) -> Bool {
+            canvasGeneration == other.canvasGeneration
+                && topologyGeneration == other.topologyGeneration
+                && expectedIndexes == other.expectedIndexes
+                && displays == other.displays
+        }
+
+        func strictlyPostdates(_ other: Receipt) -> Bool {
+            guard hasSameIdentity(as: other),
+                  Set(sequenceByIndex.keys) == expectedIndexes,
+                  Set(other.sequenceByIndex.keys) == expectedIndexes else { return false }
+            var advanced = false
+            for index in expectedIndexes {
+                guard let sequence = sequenceByIndex[index],
+                      let otherSequence = other.sequenceByIndex[index],
+                      sequence >= otherSequence else { return false }
+                advanced = advanced || sequence > otherSequence
+            }
+            return advanced
         }
 
         func aggregate() -> AOSDesktopWorldDevToolsStageSnapshot? {
             guard var result = primary,
                   expectedIndexes.count == displays.count,
                   Set(performanceByIndex.keys) == expectedIndexes,
+                  Set(sequenceByIndex.keys) == expectedIndexes,
                   samplingClass != nil else { return nil }
             result.displayPerformance = performanceByIndex.values.sorted {
                 $0.displayIndex < $1.displayIndex
@@ -459,10 +491,16 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
         }
     }
 
+    private struct RequestReceipt {
+        let admissionOrder: UInt64
+        var receipt: Receipt
+    }
+
     private var currentReceipt: Receipt?
     private var pendingReceipt: Receipt?
-    private var convergenceReceiptsByRequest: [String: Receipt] = [:]
-    private var receiptsByRequest: [String: Receipt] = [:]
+    private var convergenceReceiptsByRequest: [String: RequestReceipt] = [:]
+    private var receiptsByRequest: [String: RequestReceipt] = [:]
+    private var nextRequestAdmissionOrder: UInt64 = 0
 
     mutating func discard(requestID: String) {
         convergenceReceiptsByRequest.removeValue(forKey: requestID)
@@ -485,37 +523,62 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
               let decoded = try? JSONDecoder().decode(AOSDesktopWorldDevToolsStageSnapshot.self, from: input),
               decoded.isValid() else { return (.rejected, nil, []) }
         guard requestID == nil || requestIsPending else { return (.rejected, nil, []) }
-        if let requestID, convergenceReceiptsByRequest[requestID] != nil {
-            return (.rejected, nil, [])
-        }
 
         let aggregate: AOSDesktopWorldDevToolsStageSnapshot?
         var completedRequestIDs: Set<String> = []
         if let segment {
             if let requestID {
-                var receipt = receiptsByRequest[requestID] ?? Receipt(decoded, identity: segment)
-                switch receipt.record(decoded, identity: segment, rejectDuplicate: true) {
+                if var requestReceipt = convergenceReceiptsByRequest[requestID] {
+                    guard !requestReceipt.receipt.contains(index: segment.index),
+                          case .accepted = requestReceipt.receipt.record(
+                            decoded,
+                            identity: segment,
+                            rejectDuplicate: true,
+                            allowSamplingClassTransition: true
+                          ) else { return (.rejected, nil, []) }
+                    convergenceReceiptsByRequest[requestID] = requestReceipt
+                    return (.pending, nil, [])
+                }
+
+                var requestReceipt: RequestReceipt
+                if let existing = receiptsByRequest[requestID] {
+                    requestReceipt = existing
+                } else {
+                    guard nextRequestAdmissionOrder < UInt64.max else {
+                        return (.rejected, nil, [])
+                    }
+                    nextRequestAdmissionOrder += 1
+                    requestReceipt = RequestReceipt(
+                        admissionOrder: nextRequestAdmissionOrder,
+                        receipt: Receipt(decoded, identity: segment)
+                    )
+                }
+                switch requestReceipt.receipt.record(
+                    decoded,
+                    identity: segment,
+                    rejectDuplicate: true
+                ) {
                 case .accepted:
                     break
                 case .samplingClassMismatch:
                     receiptsByRequest.removeValue(forKey: requestID)
-                    guard case .accepted = receipt.record(
+                    guard case .accepted = requestReceipt.receipt.record(
                         decoded,
                         identity: segment,
                         rejectDuplicate: true,
                         allowSamplingClassTransition: true
                     ) else { return (.rejected, nil, []) }
-                    convergenceReceiptsByRequest[requestID] = receipt
+                    convergenceReceiptsByRequest[requestID] = requestReceipt
                     return (.pending, nil, [])
                 case .rejected:
                     receiptsByRequest.removeValue(forKey: requestID)
                     return (.rejected, nil, [])
                 }
-                receiptsByRequest[requestID] = receipt
-                aggregate = receipt.aggregate()
+                receiptsByRequest[requestID] = requestReceipt
+                aggregate = requestReceipt.receipt.aggregate()
                 if aggregate != nil {
                     receiptsByRequest.removeValue(forKey: requestID)
-                    currentReceipt = receipt
+                    currentReceipt = requestReceipt.receipt
                     pendingReceipt = nil
                 }
             } else {
@@ -527,35 +590,58 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
                     sampleCount: entry.performance.sampleCount
                 )
 
-                var convergedReceipt: Receipt?
-                for candidateRequestID in convergenceReceiptsByRequest.keys.sorted() {
-                    guard var receipt = convergenceReceiptsByRequest[candidateRequestID],
-                          receipt.matches(decoded, identity: segment) else { continue }
-                    switch receipt.record(
+                for candidateRequestID in Array(convergenceReceiptsByRequest.keys) {
+                    guard var requestReceipt = convergenceReceiptsByRequest[candidateRequestID],
+                          requestReceipt.receipt.contains(index: segment.index),
+                          requestReceipt.receipt.matches(decoded, identity: segment) else { continue }
+                    switch requestReceipt.receipt.record(
                         decoded,
                         identity: segment,
                         rejectDuplicate: false,
-                        allowSamplingClassTransition: true
+                        allowSamplingClassTransition: true,
+                        rejectSequenceRegression: true
                     ) {
                     case .accepted:
-                        if receipt.aggregate() != nil {
-                            convergenceReceiptsByRequest.removeValue(
-                                forKey: candidateRequestID
-                            )
-                            completedRequestIDs.insert(candidateRequestID)
-                            if convergedReceipt == nil { convergedReceipt = receipt }
-                        } else {
-                            convergenceReceiptsByRequest[candidateRequestID] = receipt
-                        }
+                        convergenceReceiptsByRequest[candidateRequestID] = requestReceipt
                     case .rejected, .samplingClassMismatch:
                         continue
                     }
                 }
 
-                if let convergedReceipt {
-                    currentReceipt = convergedReceipt
+                let convergedRequests = convergenceReceiptsByRequest.compactMap {
+                    requestID, requestReceipt in
+                    requestReceipt.receipt.matches(decoded, identity: segment)
+                        && requestReceipt.receipt.aggregate() != nil
+                        ? (requestID: requestID, requestReceipt: requestReceipt)
+                        : nil
+                }
+                let selectedRequest = convergedRequests.max {
+                    $0.requestReceipt.admissionOrder < $1.requestReceipt.admissionOrder
+                }
+                let selectedCanPublish = selectedRequest.map { selected in
+                    guard let currentReceipt,
+                          currentReceipt.hasSameIdentity(as: selected.requestReceipt.receipt) else {
+                        return true
+                    }
+                    return selected.requestReceipt.receipt.strictlyPostdates(currentReceipt)
+                } ?? false
+
+                if let selectedRequest, selectedCanPublish {
+                    completedRequestIDs.insert(selectedRequest.requestID)
+                    for candidate in convergedRequests where
+                        candidate.requestReceipt.admissionOrder
+                            < selectedRequest.requestReceipt.admissionOrder
+                        && selectedRequest.requestReceipt.receipt.strictlyPostdates(
+                            candidate.requestReceipt.receipt
+                        ) {
+                        completedRequestIDs.insert(candidate.requestID)
+                    }
+                    for completedRequestID in completedRequestIDs {
+                        convergenceReceiptsByRequest.removeValue(forKey: completedRequestID)
+                    }
+                    currentReceipt = selectedRequest.requestReceipt.receipt
                     pendingReceipt = nil
-                    aggregate = convergedReceipt.aggregate()
+                    aggregate = selectedRequest.requestReceipt.receipt.aggregate()
                 } else if var currentReceipt,
                    currentReceipt.matches(decoded, identity: segment),
                    currentReceipt.samplingClass == incomingSamplingClass {

@@ -90,6 +90,26 @@ test('correlated stage request waits for queued topology reconfiguration and emi
   assert.equal(testHarness.emitted.length, 1, 'duplicate request ID emitted twice')
 })
 
+test('queued stage requests emit in admission order independent of lexical request IDs', () => {
+  const testHarness = harness()
+  const next = identity(5)
+  testHarness.setIdentity(next)
+  testHarness.requests.identityChanging(next)
+
+  assert.equal(testHarness.requests.request('z-older-request'), true)
+  assert.equal(testHarness.requests.request('a-newer-request'), true)
+  assert.equal(testHarness.requests.identityReady(next), true)
+  assert.deepEqual(testHarness.emitted.map(({ metadata }) => metadata.request_id), [
+    'z-older-request',
+    'a-newer-request',
+  ])
+  assert.deepEqual(testHarness.emitted.map(({ snapshot }) => snapshot.sequence), [1, 2])
+
+  assert.equal(testHarness.requests.request('z-older-request'), true)
+  assert.equal(testHarness.requests.request('a-newer-request'), true)
+  assert.equal(testHarness.emitted.length, 2, 'handled request IDs emitted more than once')
+})
+
 test('topology replacement retires pending requests bound to the superseded identity', () => {
   const testHarness = harness()
   const replaced = identity(5)

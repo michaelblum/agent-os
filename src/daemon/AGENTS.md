@@ -234,7 +234,14 @@ When a one-shot correlated refresh observes both sampling classes, retire that
 request from correlated collection and bind its complete receipt set to the
 exact canvas, topology, and display identity. Subsequent identity-matched
 asynchronous receipts update that set until it is uniform; reusing the handled
-request ID is not a convergence mechanism.
+request ID is not a convergence mechanism. Each segment probe increments its
+producer-local snapshot sequence on every emission. If several request-bound
+sets converge on one asynchronous receipt, the newest monotonic request
+admission supplies the canonical snapshot. It may complete an older converged
+request only when its sequence is no lower at every display and higher at least
+once; the same proof gates replacement of a same-identity canonical snapshot.
+Request tokens carry no lexical ordering, and asynchronous receipts may update
+only display indexes already correlated to that request.
 At inspection read time, the daemon decorates canonical stage snapshots with
 the native desktop-frame warm pool's state, display count, generation, and
 redacted error code, plus bounded native-effect admission, presentation,
