@@ -88,6 +88,19 @@ masking, blur, or redaction remain consumer recipes; never add their vocabulary
 to AOS capture or scene transport contracts. One request produces a coherent
 all-display epoch bound to exact stage/WebView generations. Keep backend choices
 such as one-shot capture or a future prewarmed stream behind that lease.
+Render Performance state transfer must preserve the exact DesktopWorld
+publication lifecycle and bounded canonical display-to-source bindings. Legacy,
+partial, or inconsistent state must not infer DesktopWorld ownership from
+user-controlled source IDs or grant source-deletion authority.
+Canonical `desktop-world:<displayIndex>:<displayId>` performance source IDs are
+component-reserved: generic sample ingress must reject that exact shape while
+leaving noncanonical prefixed IDs generic. A DesktopWorld publication may claim
+only an absent bucket or one already attributed to its current/restored binding;
+an unowned collision rejects the complete publication before mutation, and only
+an explicit reset may discard that bucket so a later publication can claim it.
+Nonzero daemon stage-snapshot revisions globally order Render Performance
+publications across lifecycle changes; absent or zero revisions retain the
+exact-lifecycle segment-sequence fallback for standalone/local snapshots.
 
 Legacy cross-display transfer outlines are superseded by One-World/union-backed
 surfaces. Do not grow that path. The AOS Surface System epic should replace

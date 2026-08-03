@@ -27,8 +27,19 @@ if errors:
 }
 
 function stage() {
+  const performance = {
+    enabled: true, recording: false, sampleCount: 1, targetFps: 60, budgetMs: 16.6667,
+    currentFps: 60, p95FrameMs: 16, maxFrameMs: 17, avgFrameMs: 16,
+    avgRenderMs: 4, avgUpdateMs: 2, avgGpuMs: null, drawCalls: 1,
+    triangles: 12, geometries: 1, textures: 0, programs: 1, backingPixels: 5184000,
+    backingWidth: 2880, backingHeight: 1800, damagedPixelPercentage: 12.5,
+    avgDamagedPixelPercentage: 10, effectiveDevicePixelRatio: 2,
+    estimatedBackingBytes: 207360000, msaaSamples: 4, requestedDevicePixelRatio: 2,
+    state: 'stable',
+  }
   return {
-    contract: 'aos.desktop-world.devtools.stage.v1', sequence: 1, status: 'available',
+    contract: 'aos.desktop-world.devtools.stage.v2', canvasGeneration: 3,
+    topologyGeneration: 4, sequence: 1, status: 'available',
     world: {
       displays: [{ id: 'main', index: 0, bounds: [200, 0, 1440, 900], scaleFactor: 2, nativeBounds: [0, 0, 1440, 900] }],
       nodes: [{ id: 'body', resourceId: 'companion/main', parentId: null, kind: 'mesh', implementation: 'aos.scene.geometry.primitive', position: [100, 200, 0], visible: true }],
@@ -48,24 +59,17 @@ function stage() {
       lifecycle: 'active', errorCode: null,
     }],
     interactions: [],
-    performance: {
-      enabled: true, recording: false, sampleCount: 1, targetFps: 60, budgetMs: 16.6667,
-      currentFps: 60, p95FrameMs: 16, maxFrameMs: 17, avgFrameMs: 16,
-      avgRenderMs: 4, avgUpdateMs: 2, avgGpuMs: null, drawCalls: 1,
-      triangles: 12, geometries: 1, textures: 0, programs: 1, backingPixels: 5184000,
-      backingWidth: 2880, backingHeight: 1800, damagedPixelPercentage: 12.5,
-      avgDamagedPixelPercentage: 10, effectiveDevicePixelRatio: 2,
-      estimatedBackingBytes: 207360000, msaaSamples: 4, requestedDevicePixelRatio: 2,
-      state: 'stable',
-    },
+    displayPerformance: [{
+      displayId: 'main', displayIndex: 0, scope: 'stage-segment', performance,
+    }],
     counters: { displays: 1, resources: 1, nodes: 1, hitRegions: 0, affordances: 0, activeGestures: 0, activeRoutes: 1, errors: 0 },
     events: [], lastError: null,
   }
 }
 
 test('DesktopWorld tooling schemas accept canonical content-free facts', () => {
-  assert.equal(validate('desktop-world-devtools-stage-v1.schema.json', stage()).status, 0)
-  assert.equal(validate('desktop-world-devtools-stage-v1.schema.json', {
+  assert.equal(validate('desktop-world-devtools-stage-v2.schema.json', stage()).status, 0)
+  assert.equal(validate('desktop-world-devtools-stage-v2.schema.json', {
     ...stage(),
     native: {
       desktopFrameWarm: {
@@ -92,6 +96,9 @@ test('DesktopWorld tooling schemas accept canonical content-free facts', () => {
           resourceRevision: 3,
         },
         lastPresentationLatencyMs: 31,
+        lastRenderBackingPixelCount: 480_000,
+        lastRenderBackingPixelPercentage: 8.25,
+        lastRenderTriangleCount: 12_000,
         presentedCount: 1,
         rejectedCount: 1,
         retainedBufferCount: 0,
@@ -109,20 +116,20 @@ test('DesktopWorld tooling schemas accept canonical content-free facts', () => {
 })
 
 test('DesktopWorld tooling schemas reject product content and unknown fields', () => {
-  assert.notEqual(validate('desktop-world-devtools-stage-v1.schema.json', { ...stage(), transcript: 'secret' }).status, 0)
+  assert.notEqual(validate('desktop-world-devtools-stage-v2.schema.json', { ...stage(), transcript: 'secret' }).status, 0)
   const malformedNativeBounds = stage()
   malformedNativeBounds.world.displays[0].nativeBounds = [0, 0, -1, 900]
-  assert.notEqual(validate('desktop-world-devtools-stage-v1.schema.json', malformedNativeBounds).status, 0)
+  assert.notEqual(validate('desktop-world-devtools-stage-v2.schema.json', malformedNativeBounds).status, 0)
   const malformedDisplayScale = stage()
   malformedDisplayScale.world.displays[0].scaleFactor = 0
-  assert.notEqual(validate('desktop-world-devtools-stage-v1.schema.json', malformedDisplayScale).status, 0)
+  assert.notEqual(validate('desktop-world-devtools-stage-v2.schema.json', malformedDisplayScale).status, 0)
   const malformedRenderDpr = stage()
-  malformedRenderDpr.performance.requestedDevicePixelRatio = 5
-  assert.notEqual(validate('desktop-world-devtools-stage-v1.schema.json', malformedRenderDpr).status, 0)
+  malformedRenderDpr.displayPerformance[0].performance.requestedDevicePixelRatio = 5
+  assert.notEqual(validate('desktop-world-devtools-stage-v2.schema.json', malformedRenderDpr).status, 0)
   const productRoute = stage()
   productRoute.world.routes[0].label = 'Fast travel to secret target'
-  assert.notEqual(validate('desktop-world-devtools-stage-v1.schema.json', productRoute).status, 0)
-  assert.notEqual(validate('desktop-world-devtools-stage-v1.schema.json', {
+  assert.notEqual(validate('desktop-world-devtools-stage-v2.schema.json', productRoute).status, 0)
+  assert.notEqual(validate('desktop-world-devtools-stage-v2.schema.json', {
     ...stage(),
     native: {
       desktopFrameWarm: {
@@ -143,6 +150,9 @@ test('DesktopWorld tooling schemas reject product content and unknown fields', (
         lastErrorCode: null,
         lastExecution: null,
         lastPresentationLatencyMs: null,
+        lastRenderBackingPixelCount: null,
+        lastRenderBackingPixelPercentage: null,
+        lastRenderTriangleCount: null,
         parameters: { amplitude: 18 },
         presentedCount: 0,
         rejectedCount: 0,
@@ -153,6 +163,26 @@ test('DesktopWorld tooling schemas reject product content and unknown fields', (
       },
     },
   }).status, 0)
+  const missingNativeEffect = stage()
+  missingNativeEffect.native = {
+    desktopFrameWarm: { displayCount: 0, errorCode: null, generation: 0, state: 'idle' },
+  }
+  assert.notEqual(validate('desktop-world-devtools-stage-v2.schema.json', missingNativeEffect).status, 0)
+  const invalidNativeRenderWork = stage()
+  invalidNativeRenderWork.native = {
+    desktopFrameWarm: { displayCount: 0, errorCode: null, generation: 0, state: 'idle' },
+    nativeEffect: {
+      activeInstanceCount: 0, activeSheetCount: 0, acceptedCount: 0, attemptedCount: 0,
+      completedCount: 0, disposedCount: 0, failedCount: 0, lastErrorCode: null,
+      lastExecution: null, lastPresentationLatencyMs: null,
+      lastRenderBackingPixelCount: 1_000_000_001,
+      lastRenderBackingPixelPercentage: 8.25,
+      lastRenderTriangleCount: 0, presentedCount: 0, rejectedCount: 0,
+      retainedBufferCount: 0, retainedTextureCount: 0, retainedViewCount: 0,
+      state: 'unavailable',
+    },
+  }
+  assert.notEqual(validate('desktop-world-devtools-stage-v2.schema.json', invalidNativeRenderWork).status, 0)
   assert.notEqual(validate('scene-replay-v1.schema.json', {
     status: 'ok', contract: 'aos.scene.replay.v1', eventCount: 0, resourceCount: 0,
     resources: [], completedGestures: 0, canceledGestures: 0, finalPositions: {}, prompt: 'secret',

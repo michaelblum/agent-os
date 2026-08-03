@@ -580,7 +580,7 @@
           "maxLength": 128,
           "pattern": "^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*$"
         },
-        "snapshot": { "$ref": "desktop-world-devtools-stage-v1.schema.json" }
+        "snapshot": { "$ref": "desktop-world-devtools-stage-v2.schema.json" }
       }
     },
     "Bounds": {

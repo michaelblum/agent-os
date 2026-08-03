@@ -12,6 +12,7 @@ import {
 import { createScenePlaybackClock } from '../../packages/toolkit/components/desktop-world-stage/scene-playback-clock.js'
 import { requireDesktopWorldSceneSegment } from '../../packages/toolkit/components/desktop-world-stage/scene-segment-setup.js'
 import { createDesktopWorldStageClock } from '../../packages/toolkit/components/desktop-world-stage/scene-stage-clock.js'
+import { createDesktopWorldSceneRenderTiming } from '../../packages/toolkit/components/desktop-world-stage/scene-render-timing.js'
 import {
   DESKTOP_WORLD_NATIVE_RENDER_LIMITS,
   evaluateDesktopWorldNativeRenderMetrics,
@@ -368,6 +369,49 @@ test('DesktopWorld segment setup preserves the authoritative fault code', () => 
   )
   assert.deepEqual(calls, [{ segment, topology }])
   assert.equal(requireDesktopWorldSceneSegment({ updateSegment: () => true }, segment, topology), true)
+})
+
+test('DesktopWorld scene render timing re-primes across segment identity rollover', () => {
+  const timing = createDesktopWorldSceneRenderTiming()
+  let identity = {
+    canvasGeneration: 3,
+    topologyGeneration: 4,
+    displayId: '100',
+    displayIndex: 0,
+  }
+  const probe = createDesktopWorldDevToolsStageProbe({
+    getPerformanceDisplay: () => ({
+      displayId: identity.displayId,
+      displayIndex: identity.displayIndex,
+    }),
+    getStageIdentity: () => ({
+      canvasGeneration: identity.canvasGeneration,
+      topologyGeneration: identity.topologyGeneration,
+    }),
+    getStageFacts: () => ({
+      status: 'available',
+      world: {
+        displays: [{ id: identity.displayId, index: identity.displayIndex, bounds: [0, 0, 100, 100] }],
+      },
+    }),
+  })
+  probe.configure({ enabled: true, recording: true })
+  probe.setIdentityReady(identity)
+
+  assert.equal(probe.sampleFrame({ frameMs: timing.record(100) }), true)
+  assert.equal(probe.sampleFrame({ frameMs: timing.record(116) }), true)
+
+  probe.setIdentityReady(false)
+  identity = { ...identity, topologyGeneration: 5, displayId: '101' }
+  timing.reset()
+  assert.equal(probe.sampleFrame({ frameMs: timing.record(1029) }), false)
+  probe.setIdentityReady(identity)
+  assert.equal(probe.sampleFrame({ frameMs: timing.record(1046) }), true)
+
+  const performance = probe.snapshot().displayPerformance[0].performance
+  assert.equal(performance.sampleCount, 1)
+  assert.equal(performance.avgFrameMs, 17)
+  assert.ok(Math.abs(performance.currentFps - (1000 / 17)) < 0.001)
 })
 
 test('DesktopWorld segment resource budgets aggregate every mounted projection', () => {
@@ -881,11 +925,13 @@ test('scene outlet emits an immediate snapshot only after a route actually start
   let route = null
   const probe = createDesktopWorldDevToolsStageProbe({
     emit: (snapshot) => emitted.push(snapshot),
+    getPerformanceDisplay: () => ({ displayId: '100', displayIndex: 0 }),
+    getStageIdentity: () => ({ canvasGeneration: 3, topologyGeneration: 4 }),
     getStageFacts: () => ({
       status: 'available',
       world: {
         affordances: [],
-        displays: [],
+        displays: [{ id: '100', index: 0, bounds: [0, 0, 1920, 1080], scaleFactor: 1 }],
         gestures: [],
         hitRegions: [],
         nodes: [],
@@ -896,6 +942,9 @@ test('scene outlet emits an immediate snapshot only after a route actually start
     }),
   })
   probe.configure({ enabled: true })
+  probe.setIdentityReady({
+    canvasGeneration: 3, topologyGeneration: 4, displayId: '100', displayIndex: 0,
+  })
 
   assert.equal(emitSceneOutletRouteStartedSnapshot(probe, { routeStarted: false }), false)
   assert.equal(emitSceneOutletRouteStartedSnapshot(null, { routeStarted: true }), false)
@@ -926,6 +975,9 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /new THREE\.WebGLRenderer/u)
   assert.equal((outlet.match(/new THREE\.WebGLRenderer/gu) ?? []).length, 1)
   assert.match(outlet, /renderer\.setClearColor\(0x000000, 0\)/u)
+  assert.match(outlet, /const updateSegment = \(nextSegment, nextTopology\) => \{\s*renderTiming\.reset\(\)/u)
+  assert.match(outlet, /frameMs: renderTiming\.record\(at\)/u)
+  assert.doesNotMatch(outlet, /lastRenderAt/u)
   assert.match(outlet, /renderer\.setSize\(metrics\.cssWidth, metrics\.cssHeight, false\)[\s\S]*renderer\.clear\(true, true, true\)/u)
   assert.match(renderCoordinator, /new THREE\.OrthographicCamera/u)
   assert.match(renderCoordinator, /new THREE\.PerspectiveCamera/u)

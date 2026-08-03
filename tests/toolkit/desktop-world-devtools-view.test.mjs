@@ -9,17 +9,21 @@ const componentURL = new URL('../../packages/toolkit/components/desktop-world-de
 
 function snapshot(activeTab = 'world') {
   return {
-    contract: 'aos.desktop-world.devtools.snapshot.v1',
-    schemaVersion: 1,
+    contract: 'aos.desktop-world.devtools.snapshot.v2',
+    schemaVersion: 2,
     session: {
       id: 'session', revision: 4, activeTab, selectedResource: null,
       filters: { query: '', eventKinds: [], errorsOnly: false },
       recording: false, host: { kind: 'panel', id: 'panel', state: 'active' },
     },
     stage: {
-      contract: 'aos.desktop-world.devtools.stage.v1', sequence: 2, status: 'available',
+      contract: 'aos.desktop-world.devtools.stage.v2', canvasGeneration: 3,
+      topologyGeneration: 4, sequence: 2, status: 'available',
       world: {
-        displays: [{ id: 'main', index: 0, bounds: [0, 0, 1440, 900] }],
+        displays: [
+          { id: 'main', index: 0, bounds: [207, 0, 1512, 982], scaleFactor: 2 },
+          { id: 'lower', index: 1, bounds: [0, 982, 1920, 1080], scaleFactor: 1 },
+        ],
         nodes: [{ id: 'body', resourceId: 'companion/main', parentId: null, kind: 'mesh', implementation: 'aos.scene.geometry.primitive', position: [200, 300, 0], visible: true }],
         hitRegions: [{ id: 'hit', resourceId: 'companion/main', affordanceId: 'body', frame: [160, 260, 80, 80], registered: true }],
         affordances: [{ id: 'body', resourceId: 'companion/main', objectId: 'body', enabled: true, priority: 100 }],
@@ -34,13 +38,26 @@ function snapshot(activeTab = 'world') {
         lifecycle: 'active', errorCode: null,
       }],
       interactions: [{ id: 'lease', resourceId: 'companion/main', owner: 'example.consumer', active: true, suspended: false, recognizers: ['aos.scene.gesture.drag'], regionCount: 1, errorCode: null }],
-      performance: {
+      displayPerformance: [{
+        displayId: 'main', displayIndex: 0, scope: 'stage-segment', performance: {
+        enabled: true, recording: false, sampleCount: 4, currentFps: 60,
+        p95FrameMs: 16, avgFrameMs: 16, avgRenderMs: 4, avgUpdateMs: 2,
+        avgGpuMs: null, drawCalls: 0, triangles: 0, geometries: 0,
+        textures: 0, programs: 0, backingPixels: 5939136,
+        backingWidth: 3024, backingHeight: 1964,
+        requestedDevicePixelRatio: 2, effectiveDevicePixelRatio: 2, state: 'stable',
+        },
+      }, {
+        displayId: 'lower', displayIndex: 1, scope: 'stage-segment', performance: {
         enabled: true, recording: false, sampleCount: 4, currentFps: 60,
         p95FrameMs: 16, avgFrameMs: 16, avgRenderMs: 4, avgUpdateMs: 2,
         avgGpuMs: null, drawCalls: 4, triangles: 120, geometries: 1,
-        textures: 0, programs: 1, backingPixels: 1296000, state: 'stable',
-      },
-      counters: { displays: 1, resources: 1, nodes: 1, hitRegions: 1, affordances: 1, activeGestures: 1, activeRoutes: 0, errors: 0 },
+        textures: 0, programs: 1, backingPixels: 2073600,
+        backingWidth: 1920, backingHeight: 1080,
+        requestedDevicePixelRatio: 1, effectiveDevicePixelRatio: 1, state: 'stable',
+        },
+      }],
+      counters: { displays: 2, resources: 1, nodes: 1, hitRegions: 1, affordances: 1, activeGestures: 1, activeRoutes: 0, errors: 0 },
       events: [{ sequence: 1, kind: 'gesture.update', resourceId: 'companion/main', code: null, at: 100 }],
       lastError: null,
     },
@@ -87,6 +104,17 @@ test('host-neutral DesktopWorld DevTools view renders every bounded tab without 
     assert.match(root.innerHTML, /50%/u)
     view.update(snapshot('resources'))
     assert.match(root.innerHTML, /aos\.scene\.geometry\.primitive/u)
+    view.update(snapshot('performance'))
+    assert.match(root.innerHTML, /main/u)
+    assert.match(root.innerHTML, /lower/u)
+    assert.match(root.innerHTML, /3024 x 1964/u)
+    assert.match(root.innerHTML, /1920 x 1080/u)
+    assert.match(root.innerHTML, /Draw calls<\/dt><dd>0/u)
+    assert.match(root.innerHTML, /Draw calls<\/dt><dd>4/u)
+    assert.match(root.innerHTML, /Effective DPR<\/dt><dd>2\.00/u)
+    assert.match(root.innerHTML, /Effective DPR<\/dt><dd>1\.00/u)
+    assert.match(root.innerHTML, /Requested DPR<\/dt><dd>2\.00/u)
+    assert.match(root.innerHTML, /Requested DPR<\/dt><dd>1\.00/u)
     assert.equal(view.dispose(), true)
     assert.equal(view.dispose(), false)
   } finally {

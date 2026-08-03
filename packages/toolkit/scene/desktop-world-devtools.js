@@ -1,10 +1,7 @@
-import {
-  appendRenderSample,
-  summarizeRenderPerformance,
-} from '../components/render-performance/model.js'
+import { createDesktopWorldDevToolsStageProbeLifecycle } from './desktop-world-devtools-stage-probe.js'
 
-export const DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID = 'aos.desktop-world.devtools.stage.v1'
-export const DESKTOP_WORLD_DEVTOOLS_SNAPSHOT_CONTRACT_ID = 'aos.desktop-world.devtools.snapshot.v1'
+export const DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID = 'aos.desktop-world.devtools.stage.v2'
+export const DESKTOP_WORLD_DEVTOOLS_SNAPSHOT_CONTRACT_ID = 'aos.desktop-world.devtools.snapshot.v2'
 
 export const DESKTOP_WORLD_DEVTOOLS_LIMITS = Object.freeze({
   events: 256,
@@ -47,6 +44,11 @@ const PERFORMANCE_RESOURCE_KEYS = Object.freeze(['geometries', 'materials', 'pro
 
 function boundedString(value, fallback = '', limit = DESKTOP_WORLD_DEVTOOLS_LIMITS.string) {
   return typeof value === 'string' ? value.slice(0, limit) : fallback
+}
+
+function authoritativeDisplayId(value) {
+  if (typeof value === 'string') return boundedString(value)
+  return Number.isSafeInteger(value) && value >= 0 ? String(value) : ''
 }
 
 function canonicalSceneIdentifier(value) {
@@ -121,9 +123,10 @@ function uniqueStrings(values, limit = 32) {
 function normalizeDisplay(value = {}, index = 0) {
   const bounds = point(value.bounds, 4)
   const nativeBounds = point(value.nativeBounds ?? value.native_bounds, 4)
-  if (!bounds || bounds[2] <= 0 || bounds[3] <= 0) return null
+  const id = authoritativeDisplayId(value.id ?? value.displayId)
+  if (!id || !bounds || bounds[2] <= 0 || bounds[3] <= 0) return null
   return Object.freeze({
-    id: boundedString(value.id ?? value.displayId, `display-${index}`),
+    id,
     index: boundedInteger(value.index, index, 0, 31),
     bounds: Object.freeze(bounds),
     scaleFactor: finite(value.scaleFactor ?? value.scale_factor, 1, 1, 4),
@@ -279,6 +282,17 @@ function normalizePerformance(value = {}) {
   })
 }
 
+function normalizeDisplayPerformance(value = {}) {
+  const displayId = authoritativeDisplayId(value.displayId)
+  if (!displayId) return null
+  return Object.freeze({
+    displayId,
+    displayIndex: boundedInteger(value.displayIndex, 0, 0, 31),
+    scope: value.scope === 'stage-segment' ? value.scope : null,
+    performance: normalizePerformance(value.performance),
+  })
+}
+
 function normalizeNativeState(value = {}) {
   const desktopFrameWarm = value.desktopFrameWarm && typeof value.desktopFrameWarm === 'object'
     ? value.desktopFrameWarm
@@ -316,6 +330,15 @@ function normalizeNativeState(value = {}) {
       lastPresentationLatencyMs: nativeEffect.lastPresentationLatencyMs == null
         ? null
         : boundedInteger(nativeEffect.lastPresentationLatencyMs, 0, 0, 1e9),
+      lastRenderBackingPixelCount: nativeEffect.lastRenderBackingPixelCount == null
+        ? null
+        : boundedInteger(nativeEffect.lastRenderBackingPixelCount, 0, 0, 1e9),
+      lastRenderBackingPixelPercentage: nativeEffect.lastRenderBackingPixelPercentage == null
+        ? null
+        : finite(nativeEffect.lastRenderBackingPixelPercentage, 0, 0, 100),
+      lastRenderTriangleCount: nativeEffect.lastRenderTriangleCount == null
+        ? null
+        : boundedInteger(nativeEffect.lastRenderTriangleCount, 0, 0, 1e9),
       presentedCount: boundedInteger(nativeEffect.presentedCount, 0, 0, 1e9),
       rejectedCount: boundedInteger(nativeEffect.rejectedCount, 0, 0, 1e9),
       retainedBufferCount: boundedInteger(nativeEffect.retainedBufferCount, 0, 0, 32),
@@ -647,14 +670,35 @@ export function normalizeDesktopWorldDevToolsStageSnapshot(input = {}) {
   const routes = boundedNormalized(world.routes, DESKTOP_WORLD_DEVTOOLS_LIMITS.resources, normalizeRoute)
   const interactions = boundedNormalized(input.interactions, DESKTOP_WORLD_DEVTOOLS_LIMITS.interactions, normalizeInteraction)
   const displays = boundedNormalized(world.displays, 16, normalizeDisplay)
+  const displayByIndex = new Map(displays.map((display) => [display.index, display]))
+  const seenPerformanceDisplays = new Set()
+  const displayPerformance = boundedNormalized(
+    input.displayPerformance,
+    16,
+    normalizeDisplayPerformance,
+  ).filter((entry) => {
+    const display = displayByIndex.get(entry.displayIndex)
+    if (
+      !display
+      || display.id !== entry.displayId
+      || entry.scope !== 'stage-segment'
+      || seenPerformanceDisplays.has(entry.displayIndex)
+    ) {
+      return false
+    }
+    seenPerformanceDisplays.add(entry.displayIndex)
+    return true
+  })
   const snapshot = {
     contract: DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID,
+    canvasGeneration: boundedInteger(input.canvasGeneration, 0),
+    topologyGeneration: boundedInteger(input.topologyGeneration, 0),
     sequence: boundedInteger(input.sequence, 0),
     status: ['available', 'unavailable'].includes(input.status) ? input.status : 'unknown',
     world: Object.freeze({ displays, nodes, hitRegions, affordances, gestures, routes }),
     resources,
     interactions,
-    performance: normalizePerformance(input.performance),
+    displayPerformance: Object.freeze(displayPerformance),
     counters: Object.freeze({
       displays: displays.length,
       resources: resources.length,
@@ -689,7 +733,7 @@ export function normalizeDesktopWorldDevToolsSnapshot(input = {}) {
   const stage = normalizeDesktopWorldDevToolsStageSnapshot(input.stage)
   return Object.freeze({
     contract: DESKTOP_WORLD_DEVTOOLS_SNAPSHOT_CONTRACT_ID,
-    schemaVersion: 1,
+    schemaVersion: 2,
     stageSnapshotRevision: boundedInteger(input.stageSnapshotRevision, 0),
     session: Object.freeze({
       id: boundedString(session.id),
@@ -733,156 +777,13 @@ export function buildDesktopWorldMinimapLayout(snapshot, { width = 640, height =
   })
 }
 
-export function createDesktopWorldDevToolsStageProbe({
-  now = () => performance.now(),
-  emit = () => {},
-  getStageFacts = () => ({}),
-} = {}) {
-  const samples = []
-  const events = []
-  let enabled = false
-  let recording = false
-  let disposed = false
-  let sequence = 0
-  let eventSequence = 0
-  let lastSampleAt = -Infinity
-  let lastEmitAt = -Infinity
-
-  function configure(next = {}) {
-    if (disposed) return false
-    enabled = next.enabled === true
-    recording = enabled && next.recording === true
-    if (!enabled) {
-      samples.length = 0
-      events.length = 0
-      lastSampleAt = -Infinity
-      lastEmitAt = -Infinity
-    }
-    return true
-  }
-
-  function recordEvent(value = {}) {
-    if (!enabled || disposed) return false
-    eventSequence += 1
-    events.push(normalizeEvent({ ...value, sequence: eventSequence, at: finite(value.at, now()) }))
-    while (events.length > DESKTOP_WORLD_DEVTOOLS_LIMITS.events) events.shift()
-    return true
-  }
-
-  function performanceSnapshot() {
-    const summary = summarizeRenderPerformance(samples, { now: Date.now() })
-    const latest = summary.latest ?? {}
-    return {
-      enabled,
-      recording,
-      sampleCount: samples.length,
-      targetFps: summary.targetFps,
-      budgetMs: summary.budgetMs,
-      currentFps: summary.currentFps,
-      p95FrameMs: summary.p95FrameMs,
-      maxFrameMs: summary.maxFrameMs,
-      avgFrameMs: summary.avgFrameMs,
-      avgRenderMs: summary.avgRenderMs,
-      avgUpdateMs: summary.avgUpdateMs,
-      avgGpuMs: summary.avgGpuMs,
-      drawCalls: latest.drawCalls,
-      triangles: latest.triangles,
-      geometries: latest.geometries,
-      textures: latest.textures,
-      programs: latest.programs,
-      backingPixels: latest.backingPixels,
-      backingWidth: latest.backingWidth,
-      backingHeight: latest.backingHeight,
-      damagedPixelPercentage: latest.damagedPixelPercentage,
-      avgDamagedPixelPercentage: summary.avgDamagedPixelPercentage,
-      effectiveDevicePixelRatio: latest.effectiveDevicePixelRatio,
-      estimatedBackingBytes: latest.estimatedBackingBytes,
-      msaaSamples: latest.msaaSamples,
-      requestedDevicePixelRatio: latest.requestedDevicePixelRatio,
-      state: summary.state,
-    }
-  }
-
-  function snapshot(reason = 'snapshot') {
-    const facts = getStageFacts() ?? {}
-    sequence += 1
-    return normalizeDesktopWorldDevToolsStageSnapshot({
-      contract: DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID,
-      sequence,
-      status: facts.status ?? 'available',
-      world: facts.world,
-      resources: facts.resources,
-      interactions: facts.interactions,
-      performance: performanceSnapshot(),
-      events,
-      lastError: facts.lastError,
-      reason,
-    })
-  }
-
-  function emitSnapshot(reason = 'snapshot', at = now(), metadata = {}) {
-    if (!enabled || disposed) return false
-    emit(snapshot(reason), metadata)
-    lastEmitAt = at
-    return true
-  }
-
-  function sampleFrame(value = {}) {
-    if (!enabled || disposed) return false
-    const at = finite(value.renderEndedAt, now())
-    const sampleInterval = recording ? 0 : 500
-    if (at - lastSampleAt >= sampleInterval) {
-      appendRenderSample(samples, {
-        ts: Date.now(),
-        frameMs: finite(value.frameMs),
-        renderMs: finite(value.renderMs),
-        updateMs: finite(value.updateMs),
-        gpuMs: finite(value.gpuMs),
-        targetFps: value.targetFps,
-        drawCalls: value.drawCalls,
-        triangles: value.triangles,
-        geometries: value.geometries,
-        textures: value.textures,
-        programs: value.programs,
-        backingPixels: value.backingPixels,
-        backingWidth: value.backingWidth,
-        backingHeight: value.backingHeight,
-        damagedPixelPercentage: value.damagedPixelPercentage,
-        effectiveDevicePixelRatio: value.effectiveDevicePixelRatio,
-        estimatedBackingBytes: value.estimatedBackingBytes,
-        msaaSamples: value.msaaSamples,
-        requestedDevicePixelRatio: value.requestedDevicePixelRatio,
-      }, { limit: DESKTOP_WORLD_DEVTOOLS_LIMITS.performanceSamples, now: Date.now(), source: 'desktop-world' })
-      lastSampleAt = at
-    }
-    if (at - lastEmitAt >= 500) emitSnapshot('frame', at)
-    return true
-  }
-
-  return Object.freeze({
-    configure,
-    dispose() {
-      if (disposed) return false
-      disposed = true
-      samples.length = 0
-      events.length = 0
-      return true
-    },
-    emitSnapshot,
-    isEnabled() { return enabled && !disposed },
-    isRecording() { return enabled && recording && !disposed },
-    recordEvent,
-    sampleFrame,
-    snapshot,
-    state() {
-      return Object.freeze({
-        disposed,
-        enabled,
-        recording,
-        eventCount: events.length,
-        sampleCount: samples.length,
-        hasOwnFrameLoop: false,
-      })
-    },
+export function createDesktopWorldDevToolsStageProbe(options = {}) {
+  return createDesktopWorldDevToolsStageProbeLifecycle(options, {
+    authoritativeDisplayId,
+    boundedInteger,
+    limits: DESKTOP_WORLD_DEVTOOLS_LIMITS,
+    normalizeEvent,
+    normalizeStageSnapshot: normalizeDesktopWorldDevToolsStageSnapshot,
+    stageContractId: DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID,
   })
 }

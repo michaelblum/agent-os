@@ -6,10 +6,16 @@ import {
   normalizeRenderSample,
   summarizeRenderPerformance,
 } from './model.js';
-import { projectDesktopWorldDevToolsPerformance } from '../desktop-world-devtools/compat.js';
+import {
+  canonicalDesktopWorldPerformanceSource,
+  DESKTOP_WORLD_PERFORMANCE_IDENTITY_LIMITS,
+  isCanonicalDesktopWorldPerformanceSource,
+  projectDesktopWorldDevToolsPerformance,
+} from '../desktop-world-devtools/compat.js';
 
 const BASE_TITLE = 'Render Performance';
 const DEFAULT_SOURCE = 'panel';
+const DESKTOP_WORLD_STATE_VERSION = 2;
 const SAMPLE_LIMIT = 360;
 const RENDER_INTERVAL_MS = 250;
 
@@ -122,6 +128,54 @@ function clockTime(ts) {
     + String(date.getSeconds()).padStart(2, '0');
 }
 
+function restoredDesktopWorldState(value, restoredSources) {
+  if (
+    !value
+    || typeof value !== 'object'
+    || Array.isArray(value)
+    || value.version !== DESKTOP_WORLD_STATE_VERSION
+    || !value.publication
+    || typeof value.publication !== 'object'
+    || Array.isArray(value.publication)
+    || !Array.isArray(value.bindings)
+    || value.bindings.length > DESKTOP_WORLD_PERFORMANCE_IDENTITY_LIMITS.displays
+  ) return null;
+
+  const publication = {};
+  for (const field of ['canvasGeneration', 'topologyGeneration', 'sequence', 'stageSnapshotRevision']) {
+    const entry = value.publication[field];
+    if (!Number.isSafeInteger(entry) || entry < 0) return null;
+    publication[field] = entry;
+  }
+
+  const bindings = new Map();
+  const displayIds = new Set();
+  const displayIndexes = new Set();
+  for (const binding of value.bindings) {
+    if (!binding || typeof binding !== 'object' || Array.isArray(binding)) return null;
+    const source = binding.source;
+    const canonicalSource = canonicalDesktopWorldPerformanceSource(binding);
+    if (
+      typeof source !== 'string'
+      || source.length < 1
+      || source.length > DESKTOP_WORLD_PERFORMANCE_IDENTITY_LIMITS.source
+      || source !== canonicalSource
+      || bindings.has(source)
+      || displayIds.has(binding.displayId)
+      || displayIndexes.has(binding.displayIndex)
+      || !restoredSources.has(source)
+    ) return null;
+    bindings.set(source, {
+      source,
+      displayId: binding.displayId,
+      displayIndex: binding.displayIndex,
+    });
+    displayIds.add(binding.displayId);
+    displayIndexes.add(binding.displayIndex);
+  }
+  return { publication, bindings };
+}
+
 export default function RenderPerformance(options = {}) {
   let host = null;
   let root = null;
@@ -129,8 +183,9 @@ export default function RenderPerformance(options = {}) {
   let lastFrameAt = null;
   let lastRenderAt = 0;
   let targetFps = Number.isFinite(options.targetFps) ? options.targetFps : 60;
-  let desktopWorldSequence = -1;
+  let desktopWorldPublication = null;
   const sources = new Map();
+  const desktopWorldBindings = new Map();
   const events = [];
   const bootAt = wallTime();
 
@@ -148,9 +203,37 @@ export default function RenderPerformance(options = {}) {
     return normalized;
   }
 
+  function appendGenericSample(sample, source) {
+    if (isCanonicalDesktopWorldPerformanceSource(source)) return false;
+    appendSample(sample, source);
+    return true;
+  }
+
   function appendEvent(type, text) {
     events.push({ ts: clockTime(wallTime()), type, text });
     while (events.length > 80) events.shift();
+  }
+
+  function resetState() {
+    sources.clear();
+    desktopWorldBindings.clear();
+    desktopWorldPublication = null;
+    events.length = 0;
+    renderState();
+  }
+
+  function isNewerDesktopWorldPublication(projection) {
+    if (!desktopWorldPublication) return true;
+    if (
+      desktopWorldPublication.stageSnapshotRevision > 0
+      || projection.stageSnapshotRevision > 0
+    ) {
+      return projection.stageSnapshotRevision > desktopWorldPublication.stageSnapshotRevision;
+    }
+    const sameLifecycle = projection.canvasGeneration === desktopWorldPublication.canvasGeneration
+      && projection.topologyGeneration === desktopWorldPublication.topologyGeneration;
+    if (!sameLifecycle) return true;
+    return projection.sequence > desktopWorldPublication.sequence;
   }
 
   function recordPanelFrame(ts) {
@@ -244,6 +327,11 @@ export default function RenderPerformance(options = {}) {
           samples: samples.slice(-SAMPLE_LIMIT),
         },
       ])),
+      desktopWorld: desktopWorldPublication ? {
+        version: DESKTOP_WORLD_STATE_VERSION,
+        publication: { ...desktopWorldPublication },
+        bindings: [...desktopWorldBindings.values()].map((binding) => ({ ...binding })),
+      } : null,
       events: [...events],
     };
   }
@@ -269,13 +357,10 @@ export default function RenderPerformance(options = {}) {
       window.__renderPerformanceDebug = {
         sample(payload = {}) {
           const source = payload.source || 'debug';
-          appendSample(normalizeRenderSample(payload, { source }), source);
-          renderState();
+          if (appendGenericSample(normalizeRenderSample(payload, { source }), source)) renderState();
         },
         reset() {
-          sources.clear();
-          events.length = 0;
-          renderState();
+          resetState();
         },
       };
       document.addEventListener('visibilitychange', () => {
@@ -293,15 +378,38 @@ export default function RenderPerformance(options = {}) {
       const payload = msg.payload || msg;
       if (msg.type === 'desktop_world_devtools.snapshot') {
         const projection = projectDesktopWorldDevToolsPerformance(payload);
-        if (projection.sequence <= desktopWorldSequence) return;
-        desktopWorldSequence = projection.sequence;
-        appendSample(projection.sample, projection.sample.source);
+        if (!isNewerDesktopWorldPublication(projection)) return;
+        const nextBindings = new Map(projection.displays.map((display) => [
+          display.sample.source,
+          {
+            source: display.sample.source,
+            displayId: display.displayId,
+            displayIndex: display.displayIndex,
+          },
+        ]));
+        for (const source of nextBindings.keys()) {
+          if (sources.has(source) && !desktopWorldBindings.has(source)) return;
+        }
+        desktopWorldPublication = {
+          canvasGeneration: projection.canvasGeneration,
+          topologyGeneration: projection.topologyGeneration,
+          sequence: projection.sequence,
+          stageSnapshotRevision: projection.stageSnapshotRevision,
+        };
+        for (const source of desktopWorldBindings.keys()) {
+          if (!nextBindings.has(source)) sources.delete(source);
+        }
+        desktopWorldBindings.clear();
+        for (const display of projection.displays) {
+          desktopWorldBindings.set(display.sample.source, nextBindings.get(display.sample.source));
+          appendSample(display.sample, display.sample.source);
+        }
         renderState();
         return;
       }
       if (msg.type === 'sample' || msg.type === 'frame' || msg.type === 'metrics') {
         const source = payload.source || 'external';
-        appendSample(payload, source);
+        if (!appendGenericSample(payload, source)) return;
         if (msg.type === 'metrics' && !payload.frameMs && !payload.fps) {
           appendEvent('metrics', `updated ${source}`);
         }
@@ -320,10 +428,7 @@ export default function RenderPerformance(options = {}) {
         return;
       }
       if (msg.type === 'reset') {
-        sources.clear();
-        events.length = 0;
-        desktopWorldSequence = -1;
-        renderState();
+        resetState();
       }
     },
 
@@ -336,6 +441,15 @@ export default function RenderPerformance(options = {}) {
       for (const [source, entry] of Object.entries(state.sources || {})) {
         const samples = Array.isArray(entry?.samples) ? entry.samples.slice(-SAMPLE_LIMIT) : [];
         sources.set(source, samples);
+      }
+      desktopWorldBindings.clear();
+      desktopWorldPublication = null;
+      const restoredDesktopWorld = restoredDesktopWorldState(state.desktopWorld, sources);
+      if (restoredDesktopWorld) {
+        desktopWorldPublication = restoredDesktopWorld.publication;
+        for (const [source, binding] of restoredDesktopWorld.bindings) {
+          desktopWorldBindings.set(source, binding);
+        }
       }
       events.length = 0;
       if (Array.isArray(state.events)) events.push(...state.events.slice(-80));

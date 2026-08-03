@@ -1,13 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/desktop-world-devtools-stage-v1.schema.json",
-  "title": "AOS DesktopWorld DevTools Stage Snapshot v1",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/desktop-world-devtools-stage-v2.schema.json",
+  "title": "AOS DesktopWorld DevTools Stage Snapshot v2",
   "description": "Content-free bounded engine facts shared by CLI, SDK, and host-neutral DevTools views.",
   "type": "object",
-  "required": ["contract", "sequence", "status", "world", "resources", "interactions", "performance", "counters", "events", "lastError"],
+  "required": ["contract", "canvasGeneration", "topologyGeneration", "sequence", "status", "world", "resources", "interactions", "displayPerformance", "counters", "events", "lastError"],
   "additionalProperties": false,
   "properties": {
-    "contract": { "const": "aos.desktop-world.devtools.stage.v1" },
+    "contract": { "const": "aos.desktop-world.devtools.stage.v2" },
+    "canvasGeneration": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "topologyGeneration": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
     "sequence": { "type": "integer", "minimum": 0 },
     "status": { "enum": ["available", "unavailable", "unknown"] },
     "native": { "$ref": "#/$defs/Native" },
@@ -26,7 +28,7 @@
     },
     "resources": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/Resource" } },
     "interactions": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/Interaction" } },
-    "performance": { "$ref": "#/$defs/Performance" },
+    "displayPerformance": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/DisplayPerformance" } },
     "counters": { "$ref": "#/$defs/Counters" },
     "events": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/Event" } },
     "lastError": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/LastError" }] }
@@ -34,7 +36,7 @@
   "$defs": {
     "Identifier": { "type": "string", "minLength": 1, "maxLength": 256 },
     "Native": {
-      "type": "object", "required": ["desktopFrameWarm"], "additionalProperties": false,
+      "type": "object", "required": ["desktopFrameWarm", "nativeEffect"], "additionalProperties": false,
       "properties": {
         "desktopFrameWarm": {
           "type": "object", "required": ["displayCount", "errorCode", "generation", "state"], "additionalProperties": false,
@@ -46,7 +48,7 @@
           }
         },
         "nativeEffect": {
-          "type": "object", "required": ["activeInstanceCount", "activeSheetCount", "acceptedCount", "attemptedCount", "completedCount", "disposedCount", "failedCount", "lastErrorCode", "lastExecution", "lastPresentationLatencyMs", "presentedCount", "rejectedCount", "retainedBufferCount", "retainedTextureCount", "retainedViewCount", "state"], "additionalProperties": false,
+          "type": "object", "required": ["activeInstanceCount", "activeSheetCount", "acceptedCount", "attemptedCount", "completedCount", "disposedCount", "failedCount", "lastErrorCode", "lastExecution", "lastPresentationLatencyMs", "lastRenderBackingPixelCount", "lastRenderBackingPixelPercentage", "lastRenderTriangleCount", "presentedCount", "rejectedCount", "retainedBufferCount", "retainedTextureCount", "retainedViewCount", "state"], "additionalProperties": false,
           "properties": {
             "activeInstanceCount": { "type": "integer", "minimum": 0, "maximum": 1 },
             "activeSheetCount": { "type": "integer", "minimum": 0, "maximum": 1 },
@@ -70,6 +72,9 @@
               }
             },
             "lastPresentationLatencyMs": { "type": ["integer", "null"], "minimum": 0, "maximum": 1000000000 },
+            "lastRenderBackingPixelCount": { "type": ["integer", "null"], "minimum": 0, "maximum": 1000000000 },
+            "lastRenderBackingPixelPercentage": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+            "lastRenderTriangleCount": { "type": ["integer", "null"], "minimum": 0, "maximum": 1000000000 },
             "presentedCount": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
             "rejectedCount": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
             "retainedBufferCount": { "type": "integer", "minimum": 0, "maximum": 32 },
@@ -162,6 +167,15 @@
         "msaaSamples": { "type": ["number", "null"], "minimum": 0, "maximum": 64 },
         "requestedDevicePixelRatio": { "type": ["number", "null"], "exclusiveMinimum": 0, "maximum": 4 },
         "state": { "enum": ["hot", "idle", "stable", "warn"] }
+      }
+    },
+    "DisplayPerformance": {
+      "type": "object", "required": ["displayId", "displayIndex", "scope", "performance"], "additionalProperties": false,
+      "properties": {
+        "displayId": { "$ref": "#/$defs/Identifier" },
+        "displayIndex": { "type": "integer", "minimum": 0, "maximum": 31 },
+        "scope": { "const": "stage-segment" },
+        "performance": { "$ref": "#/$defs/Performance" }
       }
     },
     "Counters": {

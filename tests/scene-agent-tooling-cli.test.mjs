@@ -9,8 +9,10 @@ import test from 'node:test'
 const repo = path.resolve(import.meta.dirname, '..')
 
 function stage() {
+  const performance = { enabled: true, sampleCount: 2, currentFps: 60 }
   return {
-    contract: 'aos.desktop-world.devtools.stage.v1', sequence: 7, status: 'available',
+    contract: 'aos.desktop-world.devtools.stage.v2', canvasGeneration: 3,
+    topologyGeneration: 4, sequence: 7, status: 'available',
     world: {
       displays: [{ id: 'main', index: 0, bounds: [0, 0, 1440, 900] }],
       nodes: [{ id: 'body', resourceId: 'companion/main', position: [100, 200, 0] }],
@@ -24,13 +26,17 @@ function stage() {
       }],
     },
     resources: [{ id: 'companion/main', owner: 'example', sceneId: 'companion', revision: 2, allocations: { geometries: 1 } }],
-    interactions: [], performance: { enabled: true, sampleCount: 2, currentFps: 60 }, events: [],
+    interactions: [], performance,
+    displayPerformance: [{
+      displayId: 'main', displayIndex: 0, scope: 'stage-segment', performance,
+    }],
+    events: [],
   }
 }
 
 function snapshot() {
   return {
-    contract: 'aos.desktop-world.devtools.snapshot.v1', schemaVersion: 1,
+    contract: 'aos.desktop-world.devtools.snapshot.v2', schemaVersion: 2,
     stageSnapshotRevision: 1,
     session: {
       id: 'devtools-test', revision: 1, activeTab: 'world', selectedResource: 'companion/main',
@@ -103,7 +109,10 @@ test('scene agent tooling uses headless snapshots and a bounded monitor stream',
     for (const [args, assertion] of [
       [['list', '--json'], (value) => assert.equal(value.resources[0].id, 'companion/main')],
       [['inspect', '--resource', 'companion/main', '--json'], (value) => assert.equal(value.resources.length, 1)],
-      [['perf', '--resource', 'companion/main', '--json'], (value) => assert.equal(value.performance.currentFps, 60)],
+      [['perf', '--resource', 'companion/main', '--json'], (value) => {
+        assert.equal(value.scope, 'stage-segment')
+        assert.equal(value.displays[0].performance.currentFps, 60)
+      }],
       [[
         'effect', 'trigger',
         '--owner', 'example',

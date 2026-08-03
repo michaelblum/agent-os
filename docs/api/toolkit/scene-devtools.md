@@ -22,6 +22,13 @@ snapshot correlated to their own explicit refresh request, and close in
 `finally`. Concurrent inspectors and stage-local sequence resets cannot make a
 cached snapshot appear fresh.
 
+`scene perf` uses the resource only to confirm that the requested resource is
+mounted. Render metrics are not resource-attributed: the result has
+`scope: "stage-segment"` and one `displays[]` entry per authoritative display,
+each with `displayId`, `displayIndex`, `scope`, and its own scalar
+`performance` facts. Rates, timings, DPR, and backing dimensions are never
+summed across displays.
+
 Replay requires monotonic owner/resource sequences and complete gesture
 lifecycles. It reports counts, resource IDs, and final numeric positions only.
 It performs no rendering, stage mutation, or live TCC input.
@@ -88,17 +95,25 @@ aos scene devtools transfer --session devtools-example \
 ## Snapshot And Instrumentation
 
 `createDesktopWorldDevToolsStageProbe()` projects the existing render loop into
-`aos.desktop-world.devtools.stage.v1`. It reports bounded displays, resources,
+`aos.desktop-world.devtools.stage.v2`. It reports bounded displays, resources,
 nodes, hit regions, affordances, gestures, routes, allocations, interactions,
-performance, events, counters, and last-error facts. Text, prompts, audio,
-scene parameters, and desktop content are excluded.
+per-display stage-segment performance, events, counters, and last-error facts.
+There is no world-wide or resource-wide performance scalar. Text, prompts,
+audio, scene parameters, and desktop content are excluded.
+
+Every segment snapshot is bound to its exact `canvasGeneration`,
+`topologyGeneration`, display ID/index, and refresh `request_id`. The daemon
+rejects stale, unknown, or duplicate receipts and publishes a new snapshot only
+after the complete current display set converges. A topology change invalidates
+any partial receipt.
 
 At each inspection read, the daemon adds `native.desktopFrameWarm` and
 `native.nativeEffect`. Warm state contains only `state`, `displayCount`,
 `generation`, and a redacted `errorCode`. Native-effect state contains only its
 lifecycle state, bounded attempt/admission/presentation/completion/disposal/
 failure counters, active runtime/sheet/texture counts, the last native
-trigger-to-presentation latency, retained buffer/texture/view counts, and the canonical owner/resource/program
+trigger-to-presentation latency, last backing-pixel count and percentage, last
+triangle count, retained buffer/texture/view counts, and the canonical owner/resource/program
 identity and digest of the last admitted execution. The browser does not author
 or cache these native facts. A consumer that needs low-latency desktop textures
 should wait for warm `state: "ready"` before triggering an effect. Reading these
@@ -126,6 +141,11 @@ timer, RAF, or per-frame allocation. Enabled non-recording snapshots are
 throttled. Recording is opt-in and bounded to 240 performance samples and 256
 events. `createDesktopWorldGpuTimer()` reuses a four-query pool and returns
 `null` when GPU timing is unavailable.
+
+Topology receipt changes close the renderer telemetry identity synchronously.
+The probe accepts no frame or refresh snapshot until the queued segment camera,
+backing, interaction, and work configuration has settled for the new canvas,
+topology, display ID, and display index.
 
 `buildDesktopWorldMinimapLayout()` maps the global display topology, nodes, and
 hit regions into a bounded viewport. `createDesktopWorldDevToolsView()` renders

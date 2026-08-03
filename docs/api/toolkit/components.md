@@ -461,12 +461,37 @@ Accepted message types:
 
 - `render-performance/sample`, `render-performance/frame`, and
   `render-performance/metrics` append a renderer sample. Common aliases such as
-  `fps`, `deltaMs`, `dt`, `duration`, and `calls` are normalized.
+  `fps`, `deltaMs`, `dt`, `duration`, and `calls` are normalized. Exact
+  `desktop-world:<displayIndex>:<displayId>` source IDs are reserved for the
+  component's DesktopWorld snapshot ingress and are rejected here;
+  noncanonical prefixed IDs such as `desktop-world:user-owned` remain valid
+  generic sources.
 - `render-performance/mark` appends an operator-visible render event, for
   example `{ "type": "shader", "text": "fallback path active" }`.
 - `render-performance/target_fps` changes the frame budget used for
   classification.
 - `render-performance/reset` clears samples and marks.
+
+State transfer preserves the current DesktopWorld publication lifecycle and
+bounded canonical display-to-source bindings attributed to that publication.
+After restore, duplicate publications remain suppressed and later replacement
+or unavailable publications retire only those attributed sources. Legacy,
+incomplete, oversized, or structurally inconsistent ownership data restores
+its samples without granting deletion authority or inferring DesktopWorld
+ownership from source ID text.
+If an incoming DesktopWorld binding collides with a restored, unattributed
+canonical bucket, the complete publication is rejected before its revision,
+bindings, samples, or retirements change. Later unavailable publications retire
+only attributed bindings and leave that legacy bucket intact. Recovery requires
+an explicit `render-performance/reset` (or a fresh component), which
+intentionally clears all samples, ownership, and publication ordering before a
+fresh DesktopWorld publication can establish canonical ownership.
+
+For daemon snapshots, a nonzero `stageSnapshotRevision` globally orders
+publications across lifecycle changes: lower or equal revisions are ignored,
+while a higher revision may replace the lifecycle and restart its segment-local
+sequence. Snapshots without that wrapper revision retain lifecycle-and-sequence
+fallback ordering for standalone/local use.
 
 ### Integration Hub
 

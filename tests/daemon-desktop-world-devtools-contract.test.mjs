@@ -17,6 +17,7 @@ test('daemon routes bounded stage snapshots and every revisioned session action'
   const controller = read('src/daemon/desktop-world-devtools-controller.swift')
   const nativeFacts = read('src/daemon/desktop-world-devtools-native-stage-facts.swift')
   const session = read('src/daemon/desktop-world-devtools-session.swift')
+  const stageReceipt = read('src/daemon/desktop-world-devtools-stage.swift')
 
   assert.match(unified, /case "desktop_world_stage\.devtools\.snapshot":\s*if canvasID == self\.sceneStageCanvasID/)
   for (const action of ['devtools_open', 'devtools_status', 'devtools_update', 'devtools_transfer', 'devtools_close', 'devtools_monitor']) {
@@ -27,7 +28,9 @@ test('daemon routes bounded stage snapshots and every revisioned session action'
   assert.doesNotMatch(unified, /mutateDesktopWorldDevToolsCanvas|transferDesktopWorldDevToolsHost|String\?\?/)
   assert.match(controller, /final class AOSDesktopWorldDevToolsController/)
   assert.match(controller, /observeNativeStageFacts[\s\S]*publishSnapshots/)
-  assert.match(controller, /guard !Thread\.isMainThread, ensureSceneStage\(\) else \{ return false \}/)
+  assert.match(controller, /stageConfigurationQueue\.async/)
+  assert.match(controller, /stageConfigurationQueue\.sync/)
+  assert.match(controller, /if enabled \{[\s\S]{0,100}guard ensureSceneStage\(\) else \{ return false \}/)
   assert.match(controller, /aos:\/\/toolkit\/components\/desktop-world-devtools\/index\.html/)
   assert.match(controller, /closeSessionHosts/)
   assert.match(controller, /state\.ownedPanelIDs where panelID != state\.host\?\.id/)
@@ -35,11 +38,22 @@ test('daemon routes bounded stage snapshots and every revisioned session action'
   assert.match(controller, /let stageRequestID = headless \? UUID\(\)\.uuidString\.lowercased\(\) : nil/)
   assert.match(controller, /configureStage\(requestID: stageRequestID\)/)
   assert.match(controller, /requestID: payload\["request_id"\] as\? String/)
+  assert.match(controller, /desktopWorldSceneBarrierTopology/)
+  assert.match(controller, /canvasGeneration == topology\.canvasGeneration/)
+  assert.match(controller, /topologyGeneration == topology\.generation/)
+  assert.match(controller, /expectedIndexes: Set\(topology\.segments\.map\(\\\.index\)\)/)
+  assert.match(controller, /guard result == \.committed else \{ return result \}/)
+  assert.match(unified, /handleStageSnapshot\(payload\) == \.committed/)
   assert.match(controller, /let enabled = configuration\.enabled \|\| hasSceneMonitor\(\)/)
   assert.match(session, /enum AOSDesktopWorldDevToolsFieldPatch<Value>/)
   assert.match(session, /struct AOSDesktopWorldDevToolsUpdateRequest/)
   assert.match(session, /"stageSnapshotRevision": stageSnapshotRevision/)
   assert.match(session, /"stageSnapshotReady": state\.stageRequestID == nil \|\| state\.stageRequestCompletedRevision != nil/)
+  assert.match(stageReceipt, /enum AOSDesktopWorldDevToolsStageCommitResult/)
+  assert.match(stageReceipt, /case rejected[\s\S]*case pending[\s\S]*case committed/)
+  assert.match(stageReceipt, /struct AOSDesktopWorldDevToolsStageSnapshotAggregator/)
+  assert.ok(session.split('\n').length < 1_000)
+  assert.ok(stageReceipt.split('\n').length < 1_000)
   assert.match(nativeFacts, /struct AOSDesktopWorldDevToolsNativeStageFacts/)
   assert.match(nativeFacts, /"lastExecution": lastExecution/)
   assert.doesNotMatch(nativeFacts, /pixels|coordinates|parameters|frameTimestamp/)
@@ -62,32 +76,46 @@ test('stock panel closes before first telemetry and declares no status-item owne
 test('stage probe is configured inside the existing DesktopWorld render lifecycle', () => {
   const stage = read('packages/toolkit/components/desktop-world-stage/index.js')
   const outlet = read('packages/toolkit/components/desktop-world-stage/scene-outlet.js')
-  const probe = read('packages/toolkit/scene/desktop-world-devtools.js')
+  const probeFacade = read('packages/toolkit/scene/desktop-world-devtools.js')
+  const probe = read('packages/toolkit/scene/desktop-world-devtools-stage-probe.js')
+  const requests = read('packages/toolkit/components/desktop-world-stage/devtools-request-lifecycle.js')
 
   assert.match(stage, /sceneOutlet\.setDevToolsProbe\(devtoolsProbe\)/)
   assert.match(stage, /displays: devtoolsTopologySnapshot\(\)\.displays/)
   assert.match(outlet, /devtoolsProbe\.sampleFrame/)
   assert.match(stage, /desktop_world_stage\.devtools\.configure/)
   assert.match(stage, /message\.payload\?\.request_id/)
-  assert.match(stage, /\{ request_id: requestId \}/)
+  assert.match(stage, /devtoolsRequests\.request\(requestId\)/)
+  assert.match(stage, /canvas_generation: surface\.canvasGeneration/)
+  assert.match(stage, /topology_generation: surface\.topologyGeneration/)
+  assert.match(stage, /segment_display_id: surface\.segment\?\.display_id/)
+  assert.match(stage, /segment_index: surface\.segment\?\.index/)
+  assert.match(stage, /devtoolsProbe\.recordEvent\(\{ kind: 'topology\.changed' \}\)/)
+  assert.match(stage, /onTopologyChange:[\s\S]{0,180}const identity = devtoolsSampleIdentity\(segment\)[\s\S]{0,100}devtoolsRequests\.identityChanging\(identity\)[\s\S]*requireDesktopWorldSceneSegment[\s\S]{0,300}devtoolsRequests\.identityReady\(identity/)
+  assert.match(probe, /function recordEvent[\s\S]{0,180}synchronizeSampleIdentity\(\)/)
+  assert.match(probe, /canvasGeneration[\s\S]*topologyGeneration[\s\S]*displayId[\s\S]*displayIndex/)
+  assert.match(probeFacade, /createDesktopWorldDevToolsStageProbeLifecycle/)
+  assert.ok(probeFacade.split('\n').length < 1_000)
+  assert.doesNotMatch(stage, /surface\.isPrimary[\s\S]{0,160}devtoolsProbe\.emitSnapshot/)
   assert.doesNotMatch(probe, /requestAnimationFrame|setInterval|setTimeout/)
+  assert.doesNotMatch(requests, /requestAnimationFrame|setInterval|setTimeout/)
 })
 
 test('stage topology keeps native geometry in DevTools and out of strict scene events', () => {
   const segments = [
-    { display_id: 1, index: 0, dw_bounds: [0, 200, 1440, 900], native_bounds: [-1440, 0, 1440, 900], scale_factor: 2 },
+    { display_id: 69_733_382, index: 0, dw_bounds: [0, 200, 1440, 900], native_bounds: [-1440, 0, 1440, 900], scale_factor: 2 },
     { display_id: 2, index: 1, dw_bounds: [1440, 0, 1920, 1080], native_bounds: [0, -200, 1920, 1080], scale_factor: 1 },
   ]
   const scene = projectSceneEventTopology(segments)
   const devtools = projectDesktopWorldDevToolsTopology(segments)
 
   assert.deepEqual(scene.displays, [
-    { displayId: 1, index: 0, bounds: [0, 200, 1440, 900] },
+    { displayId: 69_733_382, index: 0, bounds: [0, 200, 1440, 900] },
     { displayId: 2, index: 1, bounds: [1440, 0, 1920, 1080] },
   ])
   assert.deepEqual(devtools.displays, [
-    { displayId: 1, index: 0, bounds: [0, 200, 1440, 900], scaleFactor: 2, nativeBounds: [-1440, 0, 1440, 900] },
-    { displayId: 2, index: 1, bounds: [1440, 0, 1920, 1080], scaleFactor: 1, nativeBounds: [0, -200, 1920, 1080] },
+    { displayId: '69733382', index: 0, bounds: [0, 200, 1440, 900], scaleFactor: 2, nativeBounds: [-1440, 0, 1440, 900] },
+    { displayId: '2', index: 1, bounds: [1440, 0, 1920, 1080], scaleFactor: 1, nativeBounds: [0, -200, 1920, 1080] },
   ])
   assert.equal(scene.displays.some((display) => (
     Object.hasOwn(display, 'nativeBounds') || Object.hasOwn(display, 'scaleFactor')

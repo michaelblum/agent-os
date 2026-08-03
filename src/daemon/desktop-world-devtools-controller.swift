@@ -1,5 +1,38 @@
 import AppKit
+import CoreFoundation
 import Foundation
+
+private func aosDesktopWorldDevToolsExactUInt64(
+    _ value: Any?,
+    maximum: UInt64 = .max
+) -> UInt64? {
+    guard let number = value as? NSNumber,
+          CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
+    let scalar = number.doubleValue
+    guard scalar.isFinite,
+          scalar.rounded(.towardZero) == scalar,
+          number.compare(NSNumber(value: UInt64.zero)) != .orderedAscending,
+          number.compare(NSNumber(value: maximum)) != .orderedDescending else { return nil }
+    let result = number.uint64Value
+    return NSNumber(value: result).compare(number) == .orderedSame ? result : nil
+}
+
+private func aosDesktopWorldDevToolsExactInt(
+    _ value: Any?,
+    range: ClosedRange<Int>
+) -> Int? {
+    guard let number = value as? NSNumber,
+          CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
+    let scalar = number.doubleValue
+    guard scalar.isFinite,
+          scalar.rounded(.towardZero) == scalar,
+          number.compare(NSNumber(value: range.lowerBound)) != .orderedAscending,
+          number.compare(NSNumber(value: range.upperBound)) != .orderedDescending else { return nil }
+    let result = number.intValue
+    return range.contains(result) && NSNumber(value: result).compare(number) == .orderedSame
+        ? result
+        : nil
+}
 
 final class AOSDesktopWorldDevToolsController {
     private let canvasManager: CanvasManager
@@ -8,6 +41,9 @@ final class AOSDesktopWorldDevToolsController {
     private let hasSceneMonitor: () -> Bool
     private let resolveContentURL: (String) -> String
     private let sessions: AOSDesktopWorldDevToolsSessionRegistry
+    private let stageConfigurationQueue = DispatchQueue(
+        label: "io.agent-os.desktop-world-devtools.stage-configuration"
+    )
 
     init(
         canvasManager: CanvasManager,
@@ -36,14 +72,45 @@ final class AOSDesktopWorldDevToolsController {
     }
 
     @discardableResult
-    func handleStageSnapshot(_ payload: [String: Any]) -> Bool {
-        guard let snapshot = payload["snapshot"] as? [String: Any],
-              sessions.recordStageSnapshot(
-                snapshot,
-                requestID: payload["request_id"] as? String
-              ) else { return false }
+    func handleStageSnapshot(_ payload: [String: Any]) -> AOSDesktopWorldDevToolsStageCommitResult {
+        guard let topology = canvasManager.desktopWorldSceneBarrierTopology(
+                  canvasID: sceneStageCanvasID
+              ),
+              let canvasGeneration = aosDesktopWorldDevToolsExactUInt64(
+                  payload["canvas_generation"]
+              ),
+              let topologyGeneration = aosDesktopWorldDevToolsExactUInt64(
+                  payload["topology_generation"]
+              ),
+              let displayIDValue = aosDesktopWorldDevToolsExactUInt64(
+                  payload["segment_display_id"],
+                  maximum: UInt64(UInt32.max)
+              ),
+              let displayID = UInt32(exactly: displayIDValue),
+              let segmentIndex = aosDesktopWorldDevToolsExactInt(
+                  payload["segment_index"],
+                  range: 0...31
+              ),
+              canvasGeneration == topology.canvasGeneration,
+              topologyGeneration == topology.generation,
+              topology.segments.contains(where: {
+                  $0.displayID == displayID && $0.index == segmentIndex
+              }),
+              let snapshot = payload["snapshot"] as? [String: Any] else { return .rejected }
+        let result = sessions.recordStageSnapshot(
+            snapshot,
+            requestID: payload["request_id"] as? String,
+            segment: AOSDesktopWorldDevToolsStageSegmentIdentity(
+                canvasGeneration: canvasGeneration,
+                topologyGeneration: topologyGeneration,
+                displayID: displayID,
+                index: segmentIndex,
+                expectedIndexes: Set(topology.segments.map(\.index))
+            )
+        )
+        guard result == .committed else { return result }
         publishSnapshots()
-        return true
+        return .committed
     }
 
     func publishSnapshots(hostID: String? = nil) {
@@ -57,15 +124,27 @@ final class AOSDesktopWorldDevToolsController {
     }
 
     func configureStage(requestID: String? = nil) -> Bool {
+        if Thread.isMainThread {
+            stageConfigurationQueue.async { [weak self] in
+                _ = self?.configureStageOffMain(requestID: requestID)
+            }
+            return true
+        }
+        return stageConfigurationQueue.sync { [weak self] in
+            self?.configureStageOffMain(requestID: requestID) ?? false
+        }
+    }
+
+    private func configureStageOffMain(requestID: String?) -> Bool {
+        dispatchPrecondition(condition: .notOnQueue(.main))
         let configuration = sessions.instrumentationConfiguration()
         let enabled = configuration.enabled || hasSceneMonitor()
-        var stageExists = mutateCanvas { [weak self] in
+        let stageExists = mutateCanvas { [weak self] in
             guard let self else { return false }
             return self.canvasManager.hasCanvas(self.sceneStageCanvasID)
         }
-        if enabled && !stageExists {
-            guard !Thread.isMainThread, ensureSceneStage() else { return false }
-            stageExists = true
+        if enabled {
+            guard ensureSceneStage() else { return false }
         }
         if !enabled && !stageExists { return true }
         canvasManager.postMessageToCurrentCanvasAsync(canvasID: sceneStageCanvasID, payload: [

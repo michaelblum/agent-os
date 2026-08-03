@@ -10,8 +10,40 @@ export interface DesktopWorldDevToolsEvent {
   at: number;
 }
 
+export interface DesktopWorldDevToolsPerformance {
+  enabled: boolean;
+  recording: boolean;
+  sampleCount: number;
+  targetFps: number | null;
+  budgetMs: number | null;
+  currentFps: number | null;
+  p95FrameMs: number | null;
+  maxFrameMs: number | null;
+  avgFrameMs: number | null;
+  avgRenderMs: number | null;
+  avgUpdateMs: number | null;
+  avgGpuMs: number | null;
+  drawCalls: number | null;
+  triangles: number | null;
+  geometries: number | null;
+  textures: number | null;
+  programs: number | null;
+  backingPixels: number | null;
+  backingWidth: number | null;
+  backingHeight: number | null;
+  damagedPixelPercentage: number | null;
+  avgDamagedPixelPercentage: number | null;
+  requestedDevicePixelRatio: number | null;
+  effectiveDevicePixelRatio: number | null;
+  estimatedBackingBytes: number | null;
+  msaaSamples: number | null;
+  state: 'hot' | 'idle' | 'stable' | 'warn';
+}
+
 export interface DesktopWorldDevToolsStageSnapshot {
   contract: typeof DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID;
+  canvasGeneration: number;
+  topologyGeneration: number;
   sequence: number;
   status: 'available' | 'unavailable' | 'unknown';
   native?: Readonly<{
@@ -39,6 +71,9 @@ export interface DesktopWorldDevToolsStageSnapshot {
         resourceRevision: number;
       }> | null;
       lastPresentationLatencyMs: number | null;
+      lastRenderBackingPixelCount: number | null;
+      lastRenderBackingPixelPercentage: number | null;
+      lastRenderTriangleCount: number | null;
       presentedCount: number;
       rejectedCount: number;
       retainedBufferCount: number;
@@ -87,35 +122,12 @@ export interface DesktopWorldDevToolsStageSnapshot {
     regionCount: number;
     errorCode: string | null;
   }>>;
-  performance: Readonly<{
-    enabled: boolean;
-    recording: boolean;
-    sampleCount: number;
-    targetFps: number | null;
-    budgetMs: number | null;
-    currentFps: number | null;
-    p95FrameMs: number | null;
-    maxFrameMs: number | null;
-    avgFrameMs: number | null;
-    avgRenderMs: number | null;
-    avgUpdateMs: number | null;
-    avgGpuMs: number | null;
-    drawCalls: number | null;
-    triangles: number | null;
-    geometries: number | null;
-    textures: number | null;
-    programs: number | null;
-    backingPixels: number | null;
-    backingWidth: number | null;
-    backingHeight: number | null;
-    damagedPixelPercentage: number | null;
-    avgDamagedPixelPercentage: number | null;
-    requestedDevicePixelRatio: number | null;
-    effectiveDevicePixelRatio: number | null;
-    estimatedBackingBytes: number | null;
-    msaaSamples: number | null;
-    state: 'hot' | 'idle' | 'stable' | 'warn';
-  }>;
+  displayPerformance: ReadonlyArray<Readonly<{
+    displayId: string;
+    displayIndex: number;
+    scope: 'stage-segment';
+    performance: Readonly<DesktopWorldDevToolsPerformance>;
+  }>>;
   counters: Readonly<Record<'displays' | 'resources' | 'nodes' | 'hitRegions' | 'affordances' | 'activeGestures' | 'activeRoutes' | 'errors', number>>;
   events: ReadonlyArray<Readonly<DesktopWorldDevToolsEvent>>;
   lastError: Readonly<{ code: string; at: number }> | null;
@@ -123,7 +135,7 @@ export interface DesktopWorldDevToolsStageSnapshot {
 
 export interface DesktopWorldDevToolsSnapshot {
   contract: typeof DESKTOP_WORLD_DEVTOOLS_SNAPSHOT_CONTRACT_ID;
-  schemaVersion: 1;
+  schemaVersion: 2;
   stageSnapshotRevision: number;
   session: Readonly<DesktopWorldDevToolsSession>;
   stage: DesktopWorldDevToolsStageSnapshot;
@@ -140,8 +152,8 @@ export interface DesktopWorldDevToolsSession {
   host: Readonly<{ kind: DesktopWorldDevToolsHostKind; id: string; state: DesktopWorldDevToolsHostState }> | null;
 }
 
-export const DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID: 'aos.desktop-world.devtools.stage.v1';
-export const DESKTOP_WORLD_DEVTOOLS_SNAPSHOT_CONTRACT_ID: 'aos.desktop-world.devtools.snapshot.v1';
+export const DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID: 'aos.desktop-world.devtools.stage.v2';
+export const DESKTOP_WORLD_DEVTOOLS_SNAPSHOT_CONTRACT_ID: 'aos.desktop-world.devtools.snapshot.v2';
 export const DESKTOP_WORLD_DEVTOOLS_LIMITS: Readonly<{
   events: 256;
   filters: 16;
@@ -277,6 +289,14 @@ export function createDesktopWorldDevToolsStageProbe(options?: {
     snapshot: DesktopWorldDevToolsStageSnapshot,
     metadata: Readonly<Record<string, unknown>>,
   ) => void;
+  getPerformanceDisplay?: () => Readonly<{
+    displayId: string;
+    displayIndex: number;
+  }> | null;
+  getStageIdentity?: () => Readonly<{
+    canvasGeneration: number;
+    topologyGeneration: number;
+  }>;
   getStageFacts?: () => Readonly<{
     status?: DesktopWorldDevToolsStageSnapshot['status'];
     world?: Partial<DesktopWorldDevToolsStageSnapshot['world']>;

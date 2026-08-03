@@ -9,8 +9,15 @@ import {
 } from '../../packages/toolkit/scene/desktop-world-client.js'
 
 function stage({ position = [10, 20, 0], sequence = 4 } = {}) {
+  const performance = {
+    enabled: true, recording: false, sampleCount: 1, drawCalls: 4, triangles: 48,
+    backingWidth: 1440, backingHeight: 900, backingPixels: 1_296_000,
+    requestedDevicePixelRatio: 1, effectiveDevicePixelRatio: 1,
+    estimatedBackingBytes: 51_840_000, msaaSamples: 4, state: 'stable',
+  }
   return {
-    contract: 'aos.desktop-world.devtools.stage.v1', sequence, status: 'available',
+    contract: 'aos.desktop-world.devtools.stage.v2', canvasGeneration: 3,
+    topologyGeneration: 4, sequence, status: 'available',
     world: {
       displays: [{ id: 'main', index: 0, bounds: [0, 0, 1440, 900] }],
       nodes: [{ id: 'body', resourceId: 'companion/main', position }, { id: 'other', resourceId: 'demo/item', position: [30, 40, 0] }],
@@ -20,7 +27,11 @@ function stage({ position = [10, 20, 0], sequence = 4 } = {}) {
       { id: 'companion/main', owner: 'example', sceneId: 'companion', revision: 2 },
       { id: 'demo/item', owner: 'example', sceneId: 'demo', revision: 1 },
     ],
-    interactions: [], performance: {}, events: [],
+    interactions: [], performance,
+    displayPerformance: [{
+      displayId: 'main', displayIndex: 0, scope: 'stage-segment', performance,
+    }],
+    events: [],
   }
 }
 
@@ -30,8 +41,8 @@ function devtoolsSnapshot({
   stageValue = stage(),
 } = {}) {
   return {
-    contract: 'aos.desktop-world.devtools.snapshot.v1',
-    schemaVersion: 1,
+    contract: 'aos.desktop-world.devtools.snapshot.v2',
+    schemaVersion: 2,
     stageSnapshotRevision,
     session: {
       id: 'devtools-1', revision: 1, activeTab: 'world', selectedResource: null,
@@ -136,7 +147,9 @@ test('transport-injected client emits familiar scene actions without owning a so
   })
   await client.list()
   await client.inspect('companion/main')
-  await client.perf('companion/main')
+  const performance = await client.perf('companion/main')
+  assert.equal(performance.scope, 'stage-segment')
+  assert.equal(performance.displays[0].performance.drawCalls, 4)
   await client.effect.trigger({
     owner: 'example',
     resource: 'companion/main',
@@ -187,6 +200,53 @@ test('transport-injected client emits familiar scene actions without owning a so
   })
   assert.equal(subscriptions[0].action, 'devtools_monitor')
   assert.equal(subscriptions[0].data.resource, 'companion/main')
+})
+
+test('scene perf preserves non-primary segment work without attributing stage metrics to the resource', async () => {
+  const primary = {
+    enabled: true, recording: false, sampleCount: 2, drawCalls: 0, triangles: 0,
+    backingWidth: 3024, backingHeight: 1964, backingPixels: 5_939_136,
+    requestedDevicePixelRatio: 2, effectiveDevicePixelRatio: 2,
+    estimatedBackingBytes: 237_565_440, msaaSamples: 4, state: 'stable',
+  }
+  const external = {
+    enabled: true, recording: false, sampleCount: 2, drawCalls: 4, triangles: 48,
+    backingWidth: 1920, backingHeight: 1080, backingPixels: 2_073_600,
+    requestedDevicePixelRatio: 1, effectiveDevicePixelRatio: 1,
+    estimatedBackingBytes: 82_944_000, msaaSamples: 4, state: 'stable',
+  }
+  const frozenTopology = stage({ position: [1498, 1166, 0] })
+  frozenTopology.world.displays = [
+    { id: 'display-0', index: 0, bounds: [207, 0, 1512, 982], scaleFactor: 2 },
+    { id: 'display-1', index: 1, bounds: [0, 982, 1920, 1080], scaleFactor: 1 },
+  ]
+  frozenTopology.performance = primary
+  frozenTopology.displayPerformance = [
+    { displayId: 'display-0', displayIndex: 0, scope: 'stage-segment', performance: primary },
+    { displayId: 'display-1', displayIndex: 1, scope: 'stage-segment', performance: external },
+  ]
+  const snapshot = devtoolsSnapshot({ stageValue: frozenTopology })
+  const client = createDesktopWorldSceneClient({
+    request(value) {
+      if (value.action === 'devtools_open' || value.action === 'devtools_status') {
+        return { session: snapshot }
+      }
+      if (value.action === 'devtools_close') return { status: 'ok' }
+      throw new Error(`Unexpected action: ${value.action}`)
+    },
+  })
+
+  const result = await client.perf('companion/main')
+
+  assert.equal(result.scope, 'stage-segment')
+  assert.deepEqual(result.displays.map((entry) => ({
+    displayId: entry.displayId,
+    drawCalls: entry.performance.drawCalls,
+    triangles: entry.performance.triangles,
+  })), [
+    { displayId: 'display-0', drawCalls: 0, triangles: 0 },
+    { displayId: 'display-1', drawCalls: 4, triangles: 48 },
+  ])
 })
 
 test('scene effect trigger rejects malformed identities before transport', () => {

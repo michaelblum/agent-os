@@ -16,6 +16,7 @@ import {
 } from './scene-outlet-devtools.js'
 import { prepareDesktopWorldSceneOutletReplacement } from './scene-outlet-replacement.js'
 import { createDesktopWorldSceneRenderCoordinator } from './scene-render-coordinator.js'
+import { createDesktopWorldSceneRenderTiming } from './scene-render-timing.js'
 import { evaluateDesktopWorldNativeRenderMetrics } from './scene-render-budget.js'
 import { createDesktopWorldRenderDamageTracker } from './scene-render-damage.js'
 import {
@@ -71,6 +72,7 @@ export function createDesktopWorldSceneOutlet({
   const pendingResourceKeys = new Set()
   const segmentBudget = createSceneSegmentResourceBudget()
   const damageTracker = createDesktopWorldRenderDamageTracker()
+  const renderTiming = createDesktopWorldSceneRenderTiming()
   let frame = null
   let disposed = false
   let disposeResult = null
@@ -84,7 +86,6 @@ export function createDesktopWorldSceneOutlet({
   let devtoolsProbe = null
   let faultObserver = null
   let gpuTimer = null
-  let lastRenderAt = null
   let interactionGeometryObserver = null
   let nextPlayGeneration = 0
   const framebufferProofRateLimiter = createDesktopWorldFramebufferProofRateLimiter()
@@ -98,6 +99,7 @@ export function createDesktopWorldSceneOutlet({
   }
 
   const updateSegment = (nextSegment, nextTopology) => {
+    renderTiming.reset()
     if (!renderCoordinator.updateSegment(nextSegment, nextTopology)) {
       faultSceneSegment('SCENE_SEGMENT_CONFIGURATION_FAILED')
       return false
@@ -191,7 +193,7 @@ export function createDesktopWorldSceneOutlet({
       now,
     )
     stageFault = fault
-    lastRenderAt = null
+    renderTiming.reset()
     cancelRender()
     try { gpuTimer?.dispose() } catch {}
     gpuTimer = null
@@ -604,7 +606,7 @@ export function createDesktopWorldSceneOutlet({
             backingWidth: renderMetrics?.backingWidth,
             damagedPixelPercentage: damage.damagedPixelPercentage,
             drawCalls: info.render.calls,
-            frameMs: lastRenderAt === null ? null : Math.max(0, at - lastRenderAt),
+            frameMs: renderTiming.record(at),
             geometries: info.memory.geometries,
             gpuMs,
             effectiveDevicePixelRatio: renderMetrics?.effectiveDevicePixelRatio,
@@ -618,16 +620,15 @@ export function createDesktopWorldSceneOutlet({
             triangles: info.render.triangles,
             updateMs: Math.max(0, renderStartedAt - updateStartedAt),
           })
-          lastRenderAt = at
         }
-      } else if (lastRenderAt !== null) {
-        lastRenderAt = null
+      } else {
+        renderTiming.reset()
       }
       if ((hidden || contextLost) && gpuTimer) {
         gpuTimer.dispose()
         gpuTimer = null
       }
-      if (!trackPerformance && lastRenderAt !== null) lastRenderAt = null
+      if (!trackPerformance) renderTiming.reset()
     } catch {
       faultSceneSegment('SCENE_RENDER_FAILED')
     } finally {
@@ -773,7 +774,7 @@ export function createDesktopWorldSceneOutlet({
     },
     setDevToolsProbe(probe) {
       devtoolsProbe = probe ?? null
-      lastRenderAt = null
+      renderTiming.reset()
       return true
     },
     setFaultObserver(observer) {

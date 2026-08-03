@@ -1,6 +1,41 @@
 import { normalizeDesktopWorldDevToolsSnapshot } from '../../scene/desktop-world-devtools.js';
 
 const STAGE_CANVAS_ID = 'aos-desktop-world-stage';
+export const DESKTOP_WORLD_PERFORMANCE_IDENTITY_LIMITS = Object.freeze({
+  displays: 16,
+  displayId: 256,
+  displayIndex: 31,
+  source: 273,
+});
+
+export function canonicalDesktopWorldPerformanceSource(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const { displayId, displayIndex } = value;
+  if (
+    typeof displayId !== 'string'
+    || displayId.length < 1
+    || displayId.length > DESKTOP_WORLD_PERFORMANCE_IDENTITY_LIMITS.displayId
+    || !Number.isSafeInteger(displayIndex)
+    || displayIndex < 0
+    || displayIndex > DESKTOP_WORLD_PERFORMANCE_IDENTITY_LIMITS.displayIndex
+  ) return null;
+  const source = `desktop-world:${displayIndex}:${displayId}`;
+  return source.length <= DESKTOP_WORLD_PERFORMANCE_IDENTITY_LIMITS.source ? source : null;
+}
+
+export function isCanonicalDesktopWorldPerformanceSource(source) {
+  if (typeof source !== 'string') return false;
+  const prefix = 'desktop-world:';
+  if (!source.startsWith(prefix)) return false;
+  const separator = source.indexOf(':', prefix.length);
+  if (separator < 0) return false;
+  const displayIndexText = source.slice(prefix.length, separator);
+  if (!/^(0|[1-9]\d*)$/u.test(displayIndexText)) return false;
+  return canonicalDesktopWorldPerformanceSource({
+    displayId: source.slice(separator + 1),
+    displayIndex: Number(displayIndexText),
+  }) === source;
+}
 
 function rectObject(frame) {
   return { x: frame[0], y: frame[1], w: frame[2], h: frame[3] };
@@ -8,25 +43,55 @@ function rectObject(frame) {
 
 export function projectDesktopWorldDevToolsPerformance(input, { now = Date.now() } = {}) {
   const snapshot = normalizeDesktopWorldDevToolsSnapshot(input);
-  const performance = snapshot.stage.performance;
+  const unavailableLifecycle = snapshot.stage.status === 'unavailable'
+    && Array.isArray(input?.stage?.world?.displays)
+    && input.stage.world.displays.length === 0
+    && Array.isArray(input?.stage?.displayPerformance)
+    && input.stage.displayPerformance.length === 0;
+  const displayByIndex = new Map(snapshot.stage.world.displays.map((display) => [display.index, display]));
+  const displays = snapshot.stage.displayPerformance.map((entry) => {
+    const performance = entry.performance;
+    const display = displayByIndex.get(entry.displayIndex);
+    const source = canonicalDesktopWorldPerformanceSource(entry);
+    if (!source) throw new TypeError('Invalid DesktopWorld performance source identity');
+    return Object.freeze({
+      displayId: entry.displayId,
+      displayIndex: entry.displayIndex,
+      scope: entry.scope,
+      sample: Object.freeze({
+        source,
+        ts: now,
+        fps: performance.currentFps,
+        frameMs: performance.currentFps ? 1000 / performance.currentFps : performance.avgFrameMs,
+        renderMs: performance.avgRenderMs,
+        updateMs: performance.avgUpdateMs,
+        gpuMs: performance.avgGpuMs,
+        drawCalls: performance.drawCalls,
+        triangles: performance.triangles,
+        geometries: performance.geometries,
+        textures: performance.textures,
+        programs: performance.programs,
+        backingPixels: performance.backingPixels,
+        backingWidth: performance.backingWidth,
+        backingHeight: performance.backingHeight,
+        effectiveDevicePixelRatio: performance.effectiveDevicePixelRatio,
+        requestedDevicePixelRatio: performance.requestedDevicePixelRatio,
+        displayScaleFactor: display?.scaleFactor ?? null,
+        displayId: entry.displayId,
+        displayIndex: entry.displayIndex,
+        label: `DesktopWorld display ${entry.displayId} (${entry.displayIndex})`,
+      }),
+    });
+  });
+  if (displays.length === 0 && !unavailableLifecycle) {
+    throw new TypeError('DesktopWorld stage-segment performance is unavailable');
+  }
   return Object.freeze({
+    canvasGeneration: snapshot.stage.canvasGeneration,
+    topologyGeneration: snapshot.stage.topologyGeneration,
     sequence: snapshot.stage.sequence,
-    sample: Object.freeze({
-      source: 'desktop-world',
-      ts: now,
-      fps: performance.currentFps,
-      frameMs: performance.currentFps ? 1000 / performance.currentFps : performance.avgFrameMs,
-      renderMs: performance.avgRenderMs,
-      updateMs: performance.avgUpdateMs,
-      gpuMs: performance.avgGpuMs,
-      drawCalls: performance.drawCalls,
-      triangles: performance.triangles,
-      geometries: performance.geometries,
-      textures: performance.textures,
-      programs: performance.programs,
-      backingPixels: performance.backingPixels,
-      label: 'DesktopWorld stage',
-    }),
+    stageSnapshotRevision: snapshot.stageSnapshotRevision,
+    displays: Object.freeze(displays),
   });
 }
 

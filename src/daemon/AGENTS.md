@@ -209,12 +209,23 @@ exact generation settles. Topology changes, segment faults, and failed cleanup
 retire the complete affected stage generation, invalidate its leases, and leave
 no partially healthy projection behind.
 `desktop-world-devtools-session.swift` owns revisioned inspector state,
-exclusive canvas host leases, bounded canonical stage snapshots, and recording
-admission. Host transfer reserves, suspends, activates, and commits in that
-order; failure restores the previous host. The daemon may create the stock AOS
-panel but owns no DevTools layout or product policy. Connection-scoped scene
-monitors consume the same canonical stage snapshot and existing probe cadence;
-they must not add another sampler or survive their owning connection.
+exclusive canvas host leases, committed canonical stage snapshots, and
+recording admission. `desktop-world-devtools-stage.swift` owns the bounded v2
+wire model, semantic and display-performance validation, and exact-generation
+all-display receipt barrier. Its typed receipt outcome is rejected, pending,
+or committed; only committed snapshots may publish to inspector hosts or
+connection-scoped scene monitors. Host transfer reserves, suspends, activates,
+and commits in that order; failure restores the previous host. The daemon may
+create the stock AOS panel but owns no DevTools layout or product policy.
+Connection-scoped scene monitors consume the same canonical stage snapshot and
+existing probe cadence; they must not add another sampler or survive their
+owning connection.
+Each renderer segment reports performance against its exact canvas generation,
+topology generation, and authoritative display ID/index. Refresh requests fail
+closed on stale, unknown, or duplicate receipts and become ready only after the
+complete expected display set converges; topology changes invalidate partial
+receipts. Published metrics remain per-display stage-segment scalars, never a
+resource attribution or a sum of rates, timings, DPR, or backing dimensions.
 At inspection read time, the daemon decorates canonical stage snapshots with
 the native desktop-frame warm pool's state, display count, generation, and
 redacted error code, plus bounded native-effect admission, presentation,

@@ -3204,7 +3204,7 @@ class UnifiedDaemon {
     }
 
     private func handleDesktopWorldDevToolsStageSnapshot(_ payload: [String: Any]) {
-        guard desktopWorldDevTools.handleStageSnapshot(payload) else { return }
+        guard desktopWorldDevTools.handleStageSnapshot(payload) == .committed else { return }
         publishDesktopWorldSceneMonitorSnapshots()
     }
 

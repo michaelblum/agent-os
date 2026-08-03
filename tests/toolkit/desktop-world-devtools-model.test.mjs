@@ -161,8 +161,11 @@ test('DesktopWorld performance acceptance fails closed on malformed or unbounded
 });
 
 function stageSnapshot(overrides = {}) {
+  const performance = { enabled: true, recording: false, currentFps: 60 }
   return {
     contract: DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID,
+    canvasGeneration: 3,
+    topologyGeneration: 4,
     sequence: 7,
     status: 'available',
     native: {
@@ -190,6 +193,9 @@ function stageSnapshot(overrides = {}) {
           resourceRevision: 3,
         },
         lastPresentationLatencyMs: 31,
+        lastRenderBackingPixelCount: 480_000,
+        lastRenderBackingPixelPercentage: 8.25,
+        lastRenderTriangleCount: 12_000,
         presentedCount: 1,
         rejectedCount: 1,
         retainedBufferCount: 0,
@@ -211,7 +217,11 @@ function stageSnapshot(overrides = {}) {
     },
     resources: [{ id: 'resource', owner: 'consumer', sceneId: 'scene', objectCount: 1 }],
     interactions: [{ id: 'consumer:resource', resourceId: 'resource', active: true, recognizers: ['drag'] }],
-    performance: { enabled: true, recording: false, currentFps: 60 },
+    displayPerformance: [{
+      displayId: 'left', displayIndex: 0, scope: 'stage-segment', performance,
+    }, {
+      displayId: 'main', displayIndex: 1, scope: 'stage-segment', performance,
+    }],
     events: [{ sequence: 1, kind: 'scene.mounted', resourceId: 'resource', at: 100 }],
     ...overrides,
   };
@@ -271,6 +281,9 @@ test('DesktopWorld DevTools stage normalization is strict, bounded, and content-
       resourceRevision: 3,
     },
     lastPresentationLatencyMs: 31,
+    lastRenderBackingPixelCount: 480_000,
+    lastRenderBackingPixelPercentage: 8.25,
+    lastRenderTriangleCount: 12_000,
     presentedCount: 1,
     rejectedCount: 1,
     retainedBufferCount: 0,
@@ -308,6 +321,9 @@ test('DesktopWorld DevTools bounds native warm status without exposing capture c
           resourceRevision: 3e9,
         },
         lastPresentationLatencyMs: -1,
+        lastRenderBackingPixelCount: 1e12,
+        lastRenderBackingPixelPercentage: 101,
+        lastRenderTriangleCount: -1,
         parameters: 'not allowed',
         presentedCount: 4,
         rejectedCount: 5,
@@ -338,6 +354,9 @@ test('DesktopWorld DevTools bounds native warm status without exposing capture c
       lastErrorCode: 'y'.repeat(64),
       lastExecution: null,
       lastPresentationLatencyMs: 0,
+      lastRenderBackingPixelCount: 1e9,
+      lastRenderBackingPixelPercentage: 100,
+      lastRenderTriangleCount: 0,
       presentedCount: 4,
       rejectedCount: 5,
       retainedBufferCount: 32,
@@ -384,6 +403,18 @@ test('DesktopWorld DevTools keeps older display facts readable without inventing
   assert.equal('nativeBounds' in normalized.world.displays[0], false);
 });
 
+test('DesktopWorld DevTools preserves numeric physical display identity as a public string', () => {
+  const numeric = stageSnapshot();
+  numeric.world.displays[0].id = 69_733_382;
+  numeric.displayPerformance[0].displayId = 69_733_382;
+
+  const normalized = normalizeDesktopWorldDevToolsStageSnapshot(numeric);
+
+  assert.equal(normalized.world.displays[0].id, '69733382');
+  assert.equal(normalized.displayPerformance[0].displayId, '69733382');
+  assert.notEqual(normalized.world.displays[0].id, 'display-0');
+});
+
 test('DesktopWorld DevTools session normalization validates host and filters', () => {
   const snapshot = normalizeDesktopWorldDevToolsSnapshot({
     contract: DESKTOP_WORLD_DEVTOOLS_SNAPSHOT_CONTRACT_ID,
@@ -410,16 +441,18 @@ test('DesktopWorld DevTools session normalization validates host and filters', (
 
 test('unavailable performance metrics remain unavailable instead of becoming zero', () => {
   const snapshot = normalizeDesktopWorldDevToolsStageSnapshot(stageSnapshot({
-    performance: {
-      enabled: true,
-      recording: false,
-      avgGpuMs: null,
-      currentFps: null,
-    },
+    displayPerformance: [{
+      displayId: 'left', displayIndex: 0, scope: 'stage-segment', performance: {
+        enabled: true,
+        recording: false,
+        avgGpuMs: null,
+        currentFps: null,
+      },
+    }],
   }));
 
-  assert.equal(snapshot.performance.avgGpuMs, null);
-  assert.equal(snapshot.performance.currentFps, null);
+  assert.equal(snapshot.displayPerformance[0].performance.avgGpuMs, null);
+  assert.equal(snapshot.displayPerformance[0].performance.currentFps, null);
 });
 
 test('GPU timer reuses a bounded query pool and disposes it exactly once', () => {
@@ -497,10 +530,15 @@ test('DesktopWorld DevTools probe throttles idle samples and records bounded tel
   const probe = createDesktopWorldDevToolsStageProbe({
     now: () => clock,
     getStageFacts: () => stageSnapshot(),
+    getPerformanceDisplay: () => ({ displayId: 'left', displayIndex: 0 }),
+    getStageIdentity: () => ({ canvasGeneration: 3, topologyGeneration: 4 }),
     emit: (snapshot, metadata) => emitted.push({ metadata, snapshot }),
   });
 
   probe.configure({ enabled: true });
+  probe.setIdentityReady({
+    canvasGeneration: 3, topologyGeneration: 4, displayId: 'left', displayIndex: 0,
+  });
   probe.recordEvent({ kind: 'scene.mounted', resourceId: 'resource' });
   probe.sampleFrame({
     frameMs: 16,
@@ -532,23 +570,29 @@ test('DesktopWorld DevTools probe throttles idle samples and records bounded tel
     msaaSamples: 4,
   });
   assert.equal(probe.state().sampleCount, 2);
-  assert.equal(emitted.at(-1).snapshot.performance.backingPixels, 2073600);
-  assert.equal(emitted.at(-1).snapshot.performance.backingWidth, 1920);
-  assert.equal(emitted.at(-1).snapshot.performance.backingHeight, 1080);
-  assert.equal(emitted.at(-1).snapshot.performance.damagedPixelPercentage, 20);
-  assert.equal(emitted.at(-1).snapshot.performance.avgDamagedPixelPercentage, 15);
-  assert.equal(emitted.at(-1).snapshot.performance.requestedDevicePixelRatio, 1);
-  assert.equal(emitted.at(-1).snapshot.performance.effectiveDevicePixelRatio, 1);
-  assert.equal(emitted.at(-1).snapshot.performance.estimatedBackingBytes, 82_944_000);
-  assert.equal(emitted.at(-1).snapshot.performance.msaaSamples, 4);
-  assert.equal(emitted.at(-1).snapshot.performance.targetFps, 60);
-  assert.ok(emitted.at(-1).snapshot.performance.budgetMs > 16);
-  assert.equal(emitted.at(-1).snapshot.performance.maxFrameMs, 18);
+  const segmentPerformance = emitted.at(-1).snapshot.displayPerformance[0].performance;
+  assert.equal(segmentPerformance.backingPixels, 2073600);
+  assert.equal(emitted.at(-1).snapshot.displayPerformance[0].displayId, 'left');
+  assert.equal(emitted.at(-1).snapshot.displayPerformance[0].scope, 'stage-segment');
+  assert.equal(segmentPerformance.backingWidth, 1920);
+  assert.equal(segmentPerformance.backingHeight, 1080);
+  assert.equal(segmentPerformance.damagedPixelPercentage, 20);
+  assert.equal(segmentPerformance.avgDamagedPixelPercentage, 15);
+  assert.equal(segmentPerformance.requestedDevicePixelRatio, 1);
+  assert.equal(segmentPerformance.effectiveDevicePixelRatio, 1);
+  assert.equal(segmentPerformance.estimatedBackingBytes, 82_944_000);
+  assert.equal(segmentPerformance.msaaSamples, 4);
+  assert.equal(segmentPerformance.targetFps, 60);
+  assert.ok(segmentPerformance.budgetMs > 16);
+  assert.equal(segmentPerformance.maxFrameMs, 18);
 
   probe.emitSnapshot('requested', undefined, { request_id: 'request-1' });
   assert.deepEqual(emitted.at(-1).metadata, { request_id: 'request-1' });
 
   probe.configure({ enabled: true, recording: true });
+  probe.setIdentityReady({
+    canvasGeneration: 3, topologyGeneration: 4, displayId: 'left', displayIndex: 0,
+  });
   clock = 601;
   probe.sampleFrame({ frameMs: 19 });
   assert.equal(probe.state().sampleCount, 3);
@@ -560,4 +604,129 @@ test('DesktopWorld DevTools probe throttles idle samples and records bounded tel
   assert.equal(probe.dispose(), true);
   assert.equal(probe.dispose(), false);
   assert.equal(probe.sampleFrame({ frameMs: 16 }), false);
+});
+
+test('DesktopWorld DevTools probe rolls samples on exact display identity changes', () => {
+  let clock = 0;
+  let identity = {
+    canvasGeneration: 3,
+    topologyGeneration: 4,
+    displayId: 'left',
+    displayIndex: 0,
+  };
+  const facts = () => {
+    const value = stageSnapshot();
+    value.world = {
+      ...value.world,
+      displays: value.world.displays.map((display) => (
+        display.index === identity.displayIndex
+          ? { ...display, id: identity.displayId }
+          : display
+      )),
+    };
+    return value;
+  };
+  const probe = createDesktopWorldDevToolsStageProbe({
+    now: () => clock,
+    getStageFacts: facts,
+    getPerformanceDisplay: () => ({
+      displayId: identity.displayId,
+      displayIndex: identity.displayIndex,
+    }),
+    getStageIdentity: () => ({
+      canvasGeneration: identity.canvasGeneration,
+      topologyGeneration: identity.topologyGeneration,
+    }),
+  });
+
+  probe.configure({ enabled: true, recording: true });
+  probe.setIdentityReady(identity);
+  probe.sampleFrame({ frameMs: 12, renderMs: 8, drawCalls: 9 });
+  assert.equal(probe.snapshot().displayPerformance[0].performance.sampleCount, 1);
+
+  identity = {
+    canvasGeneration: 3,
+    topologyGeneration: 5,
+    displayId: 'reassigned',
+    displayIndex: 0,
+  };
+  probe.setIdentityReady(identity);
+  assert.equal(probe.recordEvent({ kind: 'topology.changed' }), true);
+  const rolled = probe.snapshot();
+  assert.equal(rolled.displayPerformance[0].displayId, 'reassigned');
+  assert.equal(rolled.displayPerformance[0].performance.sampleCount, 0);
+  assert.equal(rolled.displayPerformance[0].performance.currentFps, null);
+  assert.equal(rolled.displayPerformance[0].performance.avgFrameMs, null);
+  assert.equal(rolled.displayPerformance[0].performance.maxFrameMs, null);
+  assert.equal(rolled.displayPerformance[0].performance.drawCalls, null);
+
+  clock = 1;
+  probe.sampleFrame({ frameMs: 30, renderMs: 2, drawCalls: 2 });
+  const reassigned = probe.snapshot().displayPerformance[0];
+  assert.equal(reassigned.performance.sampleCount, 1);
+  assert.ok(Math.abs(reassigned.performance.currentFps - (1000 / 30)) < 0.001);
+  assert.equal(reassigned.performance.avgFrameMs, 30);
+  assert.equal(reassigned.performance.maxFrameMs, 30);
+  assert.equal(reassigned.performance.avgRenderMs, 2);
+  assert.equal(reassigned.performance.drawCalls, 2);
+});
+
+test('DesktopWorld DevTools probe rejects intervening frames until same-size reassignment is ready', () => {
+  let identity = {
+    canvasGeneration: 3,
+    topologyGeneration: 4,
+    displayId: '100',
+    displayIndex: 0,
+  };
+  const probe = createDesktopWorldDevToolsStageProbe({
+    getStageFacts: () => {
+      const value = stageSnapshot();
+      value.world = {
+        ...value.world,
+        displays: value.world.displays.map((display) => (
+          display.index === 0 ? { ...display, id: identity.displayId } : display
+        )),
+      };
+      return value;
+    },
+    getPerformanceDisplay: () => ({
+      displayId: identity.displayId,
+      displayIndex: identity.displayIndex,
+    }),
+    getStageIdentity: () => ({
+      canvasGeneration: identity.canvasGeneration,
+      topologyGeneration: identity.topologyGeneration,
+    }),
+  });
+
+  probe.configure({ enabled: true, recording: true });
+  const originalIdentity = identity;
+  probe.setIdentityReady(originalIdentity);
+  assert.equal(probe.sampleFrame({ backingWidth: 1920, drawCalls: 1, frameMs: 16 }), true);
+
+  probe.setIdentityReady(false);
+  identity = {
+    canvasGeneration: 3,
+    topologyGeneration: 5,
+    displayId: '101',
+    displayIndex: 0,
+  };
+  assert.equal(probe.setIdentityReady(originalIdentity), true);
+  assert.equal(
+    probe.sampleFrame({ backingWidth: 1920, drawCalls: 99, frameMs: 16 }),
+    false,
+  );
+
+  probe.setIdentityReady(identity);
+  const ready = probe.snapshot().displayPerformance[0];
+  assert.equal(ready.displayId, '101');
+  assert.equal(ready.performance.sampleCount, 0);
+  assert.equal(ready.performance.drawCalls, null);
+  assert.equal(ready.performance.backingWidth, null);
+
+  assert.equal(probe.sampleFrame({ backingWidth: 1920, drawCalls: 2, frameMs: 17 }), true);
+  const reassigned = probe.snapshot().displayPerformance[0];
+  assert.equal(reassigned.performance.sampleCount, 1);
+  assert.equal(reassigned.performance.drawCalls, 2);
+  assert.equal(reassigned.performance.backingWidth, 1920);
 });
