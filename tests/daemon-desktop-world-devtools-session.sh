@@ -115,7 +115,7 @@ func created(_ result: AOSDesktopWorldDevToolsMutationResult) -> AOSDesktopWorld
     return state
 }
 
-func performance(_ segmentIndex: Int) -> [String: Any] {
+func performance(_ segmentIndex: Int, sampleCount: Int = 1) -> [String: Any] {
     let primary = segmentIndex == 0
     let backingWidth = primary ? 3_024.0 : 1_920.0
     let backingHeight = primary ? 1_964.0 : 1_080.0
@@ -123,7 +123,7 @@ func performance(_ segmentIndex: Int) -> [String: Any] {
     let scale = primary ? 2.0 : 1.0
     let resolvedBytes = backingPixels * 8
     return [
-        "enabled": true, "recording": false, "sampleCount": 1,
+        "enabled": true, "recording": false, "sampleCount": sampleCount,
         "targetFps": 60.0, "budgetMs": 16.6667,
         "currentFps": 60.0, "p95FrameMs": 16.0, "avgFrameMs": 16.0,
         "maxFrameMs": 17.0,
@@ -138,12 +138,16 @@ func performance(_ segmentIndex: Int) -> [String: Any] {
     ]
 }
 
-func displayPerformance(_ segmentIndex: Int) -> [String: Any] {
+func displayPerformance(
+    _ segmentIndex: Int,
+    sampleCount: Int = 1,
+    displayIDs: [UInt32] = [100, 101]
+) -> [String: Any] {
     [
-        "displayId": String(segmentIndex + 100),
+        "displayId": String(displayIDs[segmentIndex]),
         "displayIndex": segmentIndex,
         "scope": "stage-segment",
-        "performance": performance(segmentIndex),
+        "performance": performance(segmentIndex, sampleCount: sampleCount),
     ]
 }
 
@@ -162,27 +166,32 @@ func stageCounters() -> [String: Int] {
 func stageSnapshot(
     segmentIndex: Int = 0,
     canvasGeneration: Int = 3,
-    topologyGeneration: Int = 4
+    topologyGeneration: Int = 4,
+    sampleCount: Int = 1,
+    displayIDs: [UInt32] = [100, 101],
+    sequence: Int = 1,
+    nodeX: Double = 1_498.0,
+    resourceRevision: Int = 1
 ) -> [String: Any] {
     [
         "contract": aosDesktopWorldDevToolsStageContract,
         "canvasGeneration": canvasGeneration,
         "topologyGeneration": topologyGeneration,
-        "sequence": 1,
+        "sequence": sequence,
         "status": "available",
         "world": [
             "displays": [[
-                "id": "100", "index": 0,
+                "id": String(displayIDs[0]), "index": 0,
                 "bounds": [207.0, 0.0, 1512.0, 982.0],
                 "scaleFactor": 2.0,
                 "nativeBounds": [0.0, 0.0, 1512.0, 982.0],
             ], [
-                "id": "101", "index": 1,
+                "id": String(displayIDs[1]), "index": 1,
                 "bounds": [0.0, 982.0, 1920.0, 1080.0],
                 "scaleFactor": 1.0,
                 "nativeBounds": [-207.0, 982.0, 1920.0, 1080.0],
             ]],
-            "nodes": [["id": "body", "resourceId": "companion/main", "parentId": NSNull(), "kind": "mesh", "implementation": "aos.scene.geometry.primitive", "position": [1498.0, 1166.0, 0.0], "visible": true]],
+            "nodes": [["id": "body", "resourceId": "companion/main", "parentId": NSNull(), "kind": "mesh", "implementation": "aos.scene.geometry.primitive", "position": [nodeX, 1166.0, 0.0], "visible": true]],
             "hitRegions": [], "affordances": [], "gestures": [[
                 "id": "gesture-1", "resourceId": "companion/main", "affordanceId": "body",
                 "interactionId": "travel", "kind": "drag", "phase": "cancel",
@@ -190,7 +199,7 @@ func stageSnapshot(
             ]], "routes": [],
         ],
         "resources": [[
-            "id": "companion/main", "owner": "example.consumer", "sceneId": "scene", "revision": 1,
+            "id": "companion/main", "owner": "example.consumer", "sceneId": "scene", "revision": resourceRevision,
             "suspended": false, "objectCount": 1, "descriptorCount": 2, "animationCount": 1,
             "signalCount": 1, "interactionCount": 1, "implementations": ["aos.scene.geometry.primitive"],
             "allocations": ["geometries": 1, "materials": 1, "textures": 0, "programs": 1],
@@ -201,31 +210,100 @@ func stageSnapshot(
             "active": false, "suspended": false, "recognizers": ["drag"],
             "regionCount": 0, "errorCode": NSNull(),
         ]],
-        "displayPerformance": [displayPerformance(segmentIndex)],
+        "displayPerformance": [displayPerformance(
+            segmentIndex,
+            sampleCount: sampleCount,
+            displayIDs: displayIDs
+        )],
         "counters": stageCounters(),
         "events": [["sequence": 1, "kind": "scene.mount", "resourceId": NSNull(), "code": NSNull(), "at": 100.0]],
         "lastError": NSNull(),
     ]
 }
 
-func aggregateStageSnapshot() -> [String: Any] {
+func aggregateStageSnapshot(sampleCount: Int = 1) -> [String: Any] {
     var snapshot = stageSnapshot()
-    snapshot["displayPerformance"] = [displayPerformance(0), displayPerformance(1)]
+    snapshot["displayPerformance"] = [
+        displayPerformance(0, sampleCount: sampleCount),
+        displayPerformance(1, sampleCount: sampleCount),
+    ]
     return snapshot
 }
 
 func segmentIdentity(
     _ index: Int,
     canvasGeneration: UInt64 = 3,
-    topologyGeneration: UInt64 = 4
+    topologyGeneration: UInt64 = 4,
+    displayIDs: [UInt32] = [100, 101]
 ) -> AOSDesktopWorldDevToolsStageSegmentIdentity {
     AOSDesktopWorldDevToolsStageSegmentIdentity(
         canvasGeneration: canvasGeneration,
         topologyGeneration: topologyGeneration,
-        displayID: UInt32(index + 100),
+        displayID: displayIDs[index],
         index: index,
         expectedIndexes: [0, 1]
     )
+}
+
+func stageSnapshotRevision(
+    _ registry: AOSDesktopWorldDevToolsSessionRegistry,
+    sessionID: String
+) -> Int {
+    registry.snapshot(sessionID: sessionID)!["stageSnapshotRevision"] as! Int
+}
+
+func canonicalSampleCounts(
+    _ registry: AOSDesktopWorldDevToolsSessionRegistry,
+    sessionID: String
+) -> [Int] {
+    let snapshot = registry.snapshot(sessionID: sessionID)!
+    let stage = snapshot["stage"] as! [String: Any]
+    let entries = stage["displayPerformance"] as! [[String: Any]]
+    return entries.map {
+        let performance = $0["performance"] as! [String: Any]
+        return performance["sampleCount"] as! Int
+    }
+}
+
+func canonicalStage(
+    _ registry: AOSDesktopWorldDevToolsSessionRegistry,
+    sessionID: String
+) -> [String: Any] {
+    registry.snapshot(sessionID: sessionID)!["stage"] as! [String: Any]
+}
+
+func canonicalSequence(
+    _ registry: AOSDesktopWorldDevToolsSessionRegistry,
+    sessionID: String
+) -> Int {
+    canonicalStage(registry, sessionID: sessionID)["sequence"] as! Int
+}
+
+func canonicalNodeX(
+    _ registry: AOSDesktopWorldDevToolsSessionRegistry,
+    sessionID: String
+) -> Double {
+    let world = canonicalStage(registry, sessionID: sessionID)["world"] as! [String: Any]
+    let nodes = world["nodes"] as! [[String: Any]]
+    let position = nodes[0]["position"] as! [Double]
+    return position[0]
+}
+
+func canonicalResourceRevision(
+    _ registry: AOSDesktopWorldDevToolsSessionRegistry,
+    sessionID: String
+) -> Int {
+    let resources = canonicalStage(registry, sessionID: sessionID)["resources"] as! [[String: Any]]
+    return resources[0]["revision"] as! Int
+}
+
+func stageSnapshotReady(
+    _ registry: AOSDesktopWorldDevToolsSessionRegistry,
+    sessionID: String
+) -> Bool {
+    let snapshot = registry.snapshot(sessionID: sessionID)!
+    let session = snapshot["session"] as! [String: Any]
+    return session["stageSnapshotReady"] as! Bool
 }
 
 var nativeWarmState = AOSDesktopWorldDevToolsNativeStageFacts(
@@ -336,6 +414,896 @@ let topologyPendingSession = topologyPending["session"] as! [String: Any]
 require(topologyPendingSession["stageSnapshotReady"] as? Bool == false, "stale topology receipt satisfied freshness")
 _ = freshnessRegistry.close(sessionID: topologySession.id)
 
+let monotonicRequestRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let monotonicObserver = created(monotonicRequestRegistry.create())
+require(monotonicRequestRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1, sequence: 9, nodeX: 90, resourceRevision: 90),
+    segment: segmentIdentity(0)
+) == .pending, "monotonic seed primary did not remain pending")
+require(monotonicRequestRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 2, sequence: 9),
+    segment: segmentIdentity(1)
+) == .committed, "monotonic seed did not commit")
+let monotonicRequestID = "monotonic-interleaving-request"
+let monotonicRequestSession = created(
+    monotonicRequestRegistry.create(stageRequestID: monotonicRequestID)
+)
+require(monotonicRequestRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 3, sequence: 10, nodeX: 100, resourceRevision: 100),
+    requestID: monotonicRequestID,
+    segment: segmentIdentity(0)
+) == .pending, "interleaved request primary did not remain pending")
+require(monotonicRequestRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 4, sequence: 11, nodeX: 110, resourceRevision: 110),
+    segment: segmentIdentity(0)
+) == .committed, "newer ordinary primary did not commit")
+require(monotonicRequestRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 5, sequence: 10),
+    requestID: monotonicRequestID,
+    segment: segmentIdentity(1)
+) == .committed, "incomparable request receipt did not merge with current")
+require(
+    stageSnapshotReady(monotonicRequestRegistry, sessionID: monotonicRequestSession.id),
+    "merged canonical did not complete the covered request"
+)
+require(
+    canonicalSequence(monotonicRequestRegistry, sessionID: monotonicRequestSession.id) == 11
+        && canonicalNodeX(
+            monotonicRequestRegistry,
+            sessionID: monotonicRequestSession.id
+        ) == 110
+        && canonicalResourceRevision(
+            monotonicRequestRegistry,
+            sessionID: monotonicRequestSession.id
+        ) == 110,
+    "delayed request receipt rolled back newer primary world facts"
+)
+require(
+    canonicalSampleCounts(
+        monotonicRequestRegistry,
+        sessionID: monotonicRequestSession.id
+    ) == [4, 5],
+    "incomparable request merge did not retain the freshest display components"
+)
+let monotonicRevision = stageSnapshotRevision(
+    monotonicRequestRegistry,
+    sessionID: monotonicRequestSession.id
+)
+require(monotonicRequestRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 6, sequence: 11, nodeX: 999, resourceRevision: 999),
+    segment: segmentIdentity(0)
+) == .rejected, "conflicting equal producer sequence was accepted")
+require(monotonicRequestRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 7, sequence: 9),
+    segment: segmentIdentity(1)
+) == .rejected, "lower producer sequence was accepted")
+require(
+    stageSnapshotRevision(monotonicRequestRegistry, sessionID: monotonicRequestSession.id)
+        == monotonicRevision
+        && canonicalNodeX(
+            monotonicRequestRegistry,
+            sessionID: monotonicRequestSession.id
+        ) == 110
+        && canonicalSampleCounts(
+            monotonicRequestRegistry,
+            sessionID: monotonicRequestSession.id
+        ) == [4, 5],
+    "equal or lower replay changed the canonical snapshot"
+)
+_ = monotonicRequestRegistry.close(sessionID: monotonicRequestSession.id)
+_ = monotonicRequestRegistry.close(sessionID: monotonicObserver.id)
+
+let cadenceRequestRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let cadenceObserver = created(cadenceRequestRegistry.create())
+require(cadenceRequestRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1, sequence: 9, nodeX: 90, resourceRevision: 90),
+    segment: segmentIdentity(0)
+) == .pending, "cadence seed primary did not remain pending")
+require(cadenceRequestRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 2, sequence: 9),
+    segment: segmentIdentity(1)
+) == .committed, "cadence seed did not commit")
+let cadenceRequestID = "cadence-merge-request"
+let cadenceRequestSession = created(
+    cadenceRequestRegistry.create(stageRequestID: cadenceRequestID)
+)
+require(cadenceRequestRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 3, sequence: 10, nodeX: 100, resourceRevision: 100),
+    requestID: cadenceRequestID,
+    segment: segmentIdentity(0)
+) == .pending, "cadence request primary did not remain pending")
+require(cadenceRequestRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 6, sequence: 11, nodeX: 110, resourceRevision: 110),
+    segment: segmentIdentity(0)
+) == .committed, "cadence current primary did not advance")
+require(cadenceRequestRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 7, sequence: 11),
+    segment: segmentIdentity(1)
+) == .committed, "cadence current secondary did not advance")
+let cadenceCurrentRevision = stageSnapshotRevision(
+    cadenceRequestRegistry,
+    sessionID: cadenceRequestSession.id
+)
+require(cadenceRequestRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 5, sequence: 10),
+    requestID: cadenceRequestID,
+    segment: segmentIdentity(1)
+) == .pending, "dominated request receipt did not remain pending")
+require(
+    !stageSnapshotReady(cadenceRequestRegistry, sessionID: cadenceRequestSession.id)
+        && stageSnapshotRevision(
+            cadenceRequestRegistry,
+            sessionID: cadenceRequestSession.id
+        ) == cadenceCurrentRevision,
+    "dominated request completed without a newer publication"
+)
+require(cadenceRequestRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 8, sequence: 12, nodeX: 120, resourceRevision: 120),
+    segment: segmentIdentity(0)
+) == .committed, "one cadence receipt did not merge the dominated request")
+require(
+    stageSnapshotReady(cadenceRequestRegistry, sessionID: cadenceRequestSession.id)
+        && canonicalSequence(
+            cadenceRequestRegistry,
+            sessionID: cadenceRequestSession.id
+        ) == 12
+        && canonicalSampleCounts(
+            cadenceRequestRegistry,
+            sessionID: cadenceRequestSession.id
+        ) == [8, 7],
+    "one cadence receipt did not publish the freshest covered vector"
+)
+_ = cadenceRequestRegistry.close(sessionID: cadenceRequestSession.id)
+_ = cadenceRequestRegistry.close(sessionID: cadenceObserver.id)
+
+let equalConvergenceRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let equalConvergenceID = "equal-convergence-request"
+let equalConvergenceSession = created(
+    equalConvergenceRegistry.create(stageRequestID: equalConvergenceID)
+)
+require(equalConvergenceRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1, sequence: 10, nodeX: 100, resourceRevision: 100),
+    requestID: equalConvergenceID,
+    segment: segmentIdentity(0)
+) == .pending, "equal convergence primary did not remain pending")
+require(equalConvergenceRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 10),
+    requestID: equalConvergenceID,
+    segment: segmentIdentity(1)
+) == .pending, "equal convergence request did not bind")
+require(equalConvergenceRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 0, sequence: 10, nodeX: 999, resourceRevision: 999),
+    segment: segmentIdentity(0)
+) == .pending, "conflicting equal convergence receipt did not fail closed")
+require(
+    stageSnapshotRevision(equalConvergenceRegistry, sessionID: equalConvergenceSession.id) == 0
+        && !stageSnapshotReady(
+            equalConvergenceRegistry,
+            sessionID: equalConvergenceSession.id
+        ),
+    "conflicting equal convergence receipt completed the request"
+)
+_ = equalConvergenceRegistry.close(sessionID: equalConvergenceSession.id)
+
+let pendingRegressionRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let pendingRegressionSession = created(pendingRegressionRegistry.create())
+require(pendingRegressionRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1, sequence: 9, nodeX: 90, resourceRevision: 90),
+    segment: segmentIdentity(0)
+) == .pending, "pending regression seed primary did not remain pending")
+require(pendingRegressionRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 2, sequence: 9),
+    segment: segmentIdentity(1)
+) == .committed, "pending regression seed did not commit")
+require(pendingRegressionRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 0, sequence: 10, nodeX: 100, resourceRevision: 100),
+    segment: segmentIdentity(0)
+) == .pending, "pending regression transition seed did not remain pending")
+require(pendingRegressionRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 4, sequence: 11, nodeX: 110, resourceRevision: 110),
+    segment: segmentIdentity(0)
+) == .committed, "pending regression current primary did not advance")
+require(pendingRegressionRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 10),
+    segment: segmentIdentity(1)
+) == .pending, "pending regression secondary did not remain pending")
+let pendingRegressionRevision = stageSnapshotRevision(
+    pendingRegressionRegistry,
+    sessionID: pendingRegressionSession.id
+)
+require(pendingRegressionRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 0, sequence: 10, nodeX: 999, resourceRevision: 999),
+    segment: segmentIdentity(0)
+) == .rejected, "stale pending transition primary was accepted")
+require(
+    stageSnapshotRevision(
+        pendingRegressionRegistry,
+        sessionID: pendingRegressionSession.id
+    ) == pendingRegressionRevision
+        && canonicalNodeX(
+            pendingRegressionRegistry,
+            sessionID: pendingRegressionSession.id
+        ) == 110
+        && canonicalSampleCounts(
+            pendingRegressionRegistry,
+            sessionID: pendingRegressionSession.id
+        ) == [4, 2],
+    "stale pending transition rolled back the canonical snapshot"
+)
+require(pendingRegressionRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 0, sequence: 12, nodeX: 120, resourceRevision: 120),
+    segment: segmentIdentity(0)
+) == .committed, "fresh pending transition did not commit")
+require(
+    canonicalSequence(pendingRegressionRegistry, sessionID: pendingRegressionSession.id) == 12
+        && canonicalSampleCounts(
+            pendingRegressionRegistry,
+            sessionID: pendingRegressionSession.id
+        ) == [0, 0],
+    "fresh pending transition did not publish atomically"
+)
+_ = pendingRegressionRegistry.close(sessionID: pendingRegressionSession.id)
+
+let requestClassRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let requestClassID = "sampling-class-request"
+let requestClassSession = created(requestClassRegistry.create(stageRequestID: requestClassID))
+require(requestClassRegistry.recordStageSnapshot(
+    aggregateStageSnapshot(),
+    requestID: "unknown-request"
+) == .rejected, "unknown aggregate request was accepted")
+require(requestClassRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1),
+    requestID: requestClassID,
+    segment: segmentIdentity(0)
+) == .pending, "request sampling-class seed did not remain pending")
+require(requestClassRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0),
+    requestID: requestClassID,
+    segment: segmentIdentity(1)
+) == .pending, "mixed request did not enter request-bound convergence")
+require(
+    stageSnapshotRevision(requestClassRegistry, sessionID: requestClassSession.id) == 0,
+    "mixed request receipt published a canonical revision"
+)
+require(
+    !stageSnapshotReady(requestClassRegistry, sessionID: requestClassSession.id),
+    "mixed request reported freshness before async convergence"
+)
+require(requestClassRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 0),
+    requestID: requestClassID,
+    segment: segmentIdentity(0)
+) == .rejected, "handled request ID was accepted for an impossible resend")
+require(requestClassRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 2),
+    segment: segmentIdentity(1)
+) == .pending, "same-class async receipt completed a mixed request")
+require(
+    !stageSnapshotReady(requestClassRegistry, sessionID: requestClassSession.id),
+    "mixed async receipts satisfied request freshness"
+)
+require(requestClassRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 0, sequence: 2),
+    segment: segmentIdentity(0)
+) == .committed, "uniform async convergence did not complete request freshness")
+require(
+    canonicalSampleCounts(requestClassRegistry, sessionID: requestClassSession.id) == [0, 0],
+    "request-bound async convergence did not publish atomically"
+)
+require(
+    stageSnapshotReady(requestClassRegistry, sessionID: requestClassSession.id),
+    "uniform async convergence did not satisfy request freshness"
+)
+require(
+    requestClassRegistry.state(sessionID: requestClassSession.id)?.stageRequestCompletedRevision
+        == stageSnapshotRevision(requestClassRegistry, sessionID: requestClassSession.id),
+    "async convergence recorded the wrong completed revision"
+)
+_ = requestClassRegistry.close(sessionID: requestClassSession.id)
+
+let reverseRequestClassRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let reverseRequestClassID = "reverse-sampling-class-request"
+let reverseRequestClassSession = created(
+    reverseRequestClassRegistry.create(stageRequestID: reverseRequestClassID)
+)
+require(reverseRequestClassRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0),
+    requestID: reverseRequestClassID,
+    segment: segmentIdentity(1)
+) == .pending, "reverse request sampling-class seed did not remain pending")
+require(reverseRequestClassRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1),
+    requestID: reverseRequestClassID,
+    segment: segmentIdentity(0)
+) == .pending, "reverse mixed request did not enter convergence")
+require(reverseRequestClassRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1, sequence: 2),
+    segment: segmentIdentity(0)
+) == .pending, "reverse convergence first async receipt did not remain pending")
+require(reverseRequestClassRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 1, sequence: 2),
+    segment: segmentIdentity(1)
+) == .committed, "reverse sampled async convergence did not commit")
+require(
+    canonicalSampleCounts(
+        reverseRequestClassRegistry,
+        sessionID: reverseRequestClassSession.id
+    ) == [1, 1],
+    "reverse sampled convergence published a mixed class"
+)
+require(
+    stageSnapshotReady(
+        reverseRequestClassRegistry,
+        sessionID: reverseRequestClassSession.id
+    ),
+    "reverse sampled convergence did not satisfy request freshness"
+)
+require(
+    reverseRequestClassRegistry.state(sessionID: reverseRequestClassSession.id)?.stageRequestCompletedRevision
+        == stageSnapshotRevision(
+            reverseRequestClassRegistry,
+            sessionID: reverseRequestClassSession.id
+        ),
+    "reverse convergence recorded the wrong completed revision"
+)
+_ = reverseRequestClassRegistry.close(sessionID: reverseRequestClassSession.id)
+
+let concurrentRequestRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let concurrentOlderID = "a-older-request"
+let concurrentNewerID = "z-newer-request"
+let concurrentOlderSession = created(
+    concurrentRequestRegistry.create(stageRequestID: concurrentOlderID)
+)
+let concurrentNewerSession = created(
+    concurrentRequestRegistry.create(stageRequestID: concurrentNewerID)
+)
+require(concurrentRequestRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1, sequence: 10, nodeX: 100, resourceRevision: 10),
+    requestID: concurrentOlderID,
+    segment: segmentIdentity(0)
+) == .pending, "older concurrent request primary did not remain pending")
+require(concurrentRequestRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 2, sequence: 20, nodeX: 200, resourceRevision: 20),
+    requestID: concurrentNewerID,
+    segment: segmentIdentity(0)
+) == .pending, "newer concurrent request primary did not remain pending")
+require(concurrentRequestRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 10),
+    requestID: concurrentOlderID,
+    segment: segmentIdentity(1)
+) == .pending, "older concurrent request did not enter convergence")
+require(concurrentRequestRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 20),
+    requestID: concurrentNewerID,
+    segment: segmentIdentity(1)
+) == .pending, "newer concurrent request did not enter convergence")
+require(concurrentRequestRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 3, sequence: 21),
+    segment: segmentIdentity(1)
+) == .committed, "simultaneous request convergence did not commit")
+require(
+    canonicalSequence(concurrentRequestRegistry, sessionID: concurrentNewerSession.id) == 20,
+    "lexically first older request supplied the simultaneous canonical sequence"
+)
+require(
+    canonicalNodeX(concurrentRequestRegistry, sessionID: concurrentNewerSession.id) == 200,
+    "lexically first older request supplied the simultaneous canonical world"
+)
+require(
+    canonicalResourceRevision(
+        concurrentRequestRegistry,
+        sessionID: concurrentNewerSession.id
+    ) == 20,
+    "lexically first older request supplied the simultaneous canonical resources"
+)
+require(
+    canonicalSampleCounts(
+        concurrentRequestRegistry,
+        sessionID: concurrentNewerSession.id
+    ) == [2, 3],
+    "simultaneous convergence lost the newer request performance receipt"
+)
+let concurrentRevision = stageSnapshotRevision(
+    concurrentRequestRegistry,
+    sessionID: concurrentNewerSession.id
+)
+require(
+    stageSnapshotReady(concurrentRequestRegistry, sessionID: concurrentOlderSession.id)
+        && stageSnapshotReady(concurrentRequestRegistry, sessionID: concurrentNewerSession.id),
+    "newer canonical did not complete the co-converged older request"
+)
+require(
+    concurrentRequestRegistry.state(sessionID: concurrentOlderSession.id)?.stageRequestCompletedRevision
+        == concurrentRevision
+        && concurrentRequestRegistry.state(
+            sessionID: concurrentNewerSession.id
+        )?.stageRequestCompletedRevision == concurrentRevision,
+    "co-converged requests were not completed at the selected canonical revision"
+)
+_ = concurrentRequestRegistry.close(sessionID: concurrentOlderSession.id)
+_ = concurrentRequestRegistry.close(sessionID: concurrentNewerSession.id)
+
+let reverseConcurrentRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let reverseConcurrentOlderID = "z-reverse-older"
+let reverseConcurrentNewerID = "a-reverse-newer"
+let reverseConcurrentOlderSession = created(
+    reverseConcurrentRegistry.create(stageRequestID: reverseConcurrentOlderID)
+)
+let reverseConcurrentNewerSession = created(
+    reverseConcurrentRegistry.create(stageRequestID: reverseConcurrentNewerID)
+)
+require(reverseConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 0, sequence: 30, nodeX: 300, resourceRevision: 30),
+    requestID: reverseConcurrentOlderID,
+    segment: segmentIdentity(0)
+) == .pending, "reverse older concurrent request primary did not remain pending")
+require(reverseConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 0, sequence: 40, nodeX: 400, resourceRevision: 40),
+    requestID: reverseConcurrentNewerID,
+    segment: segmentIdentity(0)
+) == .pending, "reverse newer concurrent request primary did not remain pending")
+require(reverseConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 4, sequence: 30),
+    requestID: reverseConcurrentOlderID,
+    segment: segmentIdentity(1)
+) == .pending, "reverse older concurrent request did not enter convergence")
+require(reverseConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 5, sequence: 40),
+    requestID: reverseConcurrentNewerID,
+    segment: segmentIdentity(1)
+) == .pending, "reverse newer concurrent request did not enter convergence")
+require(reverseConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 41),
+    segment: segmentIdentity(1)
+) == .committed, "reverse simultaneous request convergence did not commit")
+require(
+    canonicalSequence(reverseConcurrentRegistry, sessionID: reverseConcurrentNewerSession.id) == 40
+        && canonicalNodeX(
+            reverseConcurrentRegistry,
+            sessionID: reverseConcurrentNewerSession.id
+        ) == 400
+        && canonicalResourceRevision(
+            reverseConcurrentRegistry,
+            sessionID: reverseConcurrentNewerSession.id
+        ) == 40,
+    "reverse simultaneous convergence did not select the newest admission"
+)
+require(
+    canonicalSampleCounts(
+        reverseConcurrentRegistry,
+        sessionID: reverseConcurrentNewerSession.id
+    ) == [0, 0],
+    "reverse simultaneous convergence published a mixed sampling class"
+)
+require(
+    stageSnapshotReady(
+        reverseConcurrentRegistry,
+        sessionID: reverseConcurrentOlderSession.id
+    ) && stageSnapshotReady(
+        reverseConcurrentRegistry,
+        sessionID: reverseConcurrentNewerSession.id
+    ),
+    "reverse newer canonical did not safely complete both requests"
+)
+_ = reverseConcurrentRegistry.close(sessionID: reverseConcurrentOlderSession.id)
+_ = reverseConcurrentRegistry.close(sessionID: reverseConcurrentNewerSession.id)
+
+let uncoveredConcurrentRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let uncoveredOlderID = "a-uncovered-older"
+let uncoveredNewerID = "z-uncovered-newer"
+let uncoveredOlderSession = created(
+    uncoveredConcurrentRegistry.create(stageRequestID: uncoveredOlderID)
+)
+let uncoveredNewerSession = created(
+    uncoveredConcurrentRegistry.create(stageRequestID: uncoveredNewerID)
+)
+require(uncoveredConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1, sequence: 70, nodeX: 700, resourceRevision: 70),
+    requestID: uncoveredOlderID,
+    segment: segmentIdentity(0)
+) == .pending, "uncovered older request primary did not remain pending")
+require(uncoveredConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 2, sequence: 60, nodeX: 600, resourceRevision: 60),
+    requestID: uncoveredNewerID,
+    segment: segmentIdentity(0)
+) == .pending, "uncovered newer request primary did not remain pending")
+require(uncoveredConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 70),
+    requestID: uncoveredOlderID,
+    segment: segmentIdentity(1)
+) == .pending, "uncovered older request did not enter convergence")
+require(uncoveredConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 60),
+    requestID: uncoveredNewerID,
+    segment: segmentIdentity(1)
+) == .pending, "uncovered newer request did not enter convergence")
+require(uncoveredConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 1, sequence: 59),
+    segment: segmentIdentity(1)
+) == .pending, "regressed producer sequence advanced concurrent convergence")
+require(
+    !stageSnapshotReady(uncoveredConcurrentRegistry, sessionID: uncoveredOlderSession.id)
+        && !stageSnapshotReady(uncoveredConcurrentRegistry, sessionID: uncoveredNewerSession.id),
+    "regressed producer sequence completed a concurrent request"
+)
+require(uncoveredConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 1, sequence: 71),
+    segment: segmentIdentity(1)
+) == .committed, "uncovered simultaneous request convergence did not commit")
+require(
+    stageSnapshotReady(uncoveredConcurrentRegistry, sessionID: uncoveredNewerSession.id),
+    "selected newer request did not complete against its canonical receipt"
+)
+require(
+    !stageSnapshotReady(uncoveredConcurrentRegistry, sessionID: uncoveredOlderSession.id)
+        && uncoveredConcurrentRegistry.state(
+            sessionID: uncoveredOlderSession.id
+        )?.stageRequestCompletedRevision == nil,
+    "older request completed without per-display freshness coverage"
+)
+require(
+    canonicalSequence(uncoveredConcurrentRegistry, sessionID: uncoveredNewerSession.id) == 60
+        && canonicalNodeX(
+            uncoveredConcurrentRegistry,
+            sessionID: uncoveredNewerSession.id
+        ) == 600,
+    "uncovered convergence published a non-selected canonical receipt"
+)
+require(uncoveredConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1, sequence: 72, nodeX: 720, resourceRevision: 72),
+    segment: segmentIdentity(0)
+) == .committed, "later coverage did not complete the retained older request")
+require(
+    stageSnapshotReady(uncoveredConcurrentRegistry, sessionID: uncoveredOlderSession.id)
+        && canonicalSequence(
+            uncoveredConcurrentRegistry,
+            sessionID: uncoveredOlderSession.id
+        ) == 72
+        && canonicalNodeX(
+            uncoveredConcurrentRegistry,
+            sessionID: uncoveredOlderSession.id
+        ) == 720,
+    "retained older request completed without a newer canonical receipt"
+)
+_ = uncoveredConcurrentRegistry.close(sessionID: uncoveredOlderSession.id)
+_ = uncoveredConcurrentRegistry.close(sessionID: uncoveredNewerSession.id)
+
+let closedConcurrentRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let closedConcurrentID = "a-closed-concurrent"
+let liveConcurrentID = "z-live-concurrent"
+let closedConcurrentSession = created(
+    closedConcurrentRegistry.create(stageRequestID: closedConcurrentID)
+)
+let liveConcurrentSession = created(
+    closedConcurrentRegistry.create(stageRequestID: liveConcurrentID)
+)
+require(closedConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1, sequence: 80, nodeX: 800, resourceRevision: 80),
+    requestID: closedConcurrentID,
+    segment: segmentIdentity(0)
+) == .pending, "closing concurrent request primary did not remain pending")
+require(closedConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 2, sequence: 90, nodeX: 900, resourceRevision: 90),
+    requestID: liveConcurrentID,
+    segment: segmentIdentity(0)
+) == .pending, "live concurrent request primary did not remain pending")
+require(closedConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 80),
+    requestID: closedConcurrentID,
+    segment: segmentIdentity(1)
+) == .pending, "closing concurrent request did not enter convergence")
+require(closedConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 90),
+    requestID: liveConcurrentID,
+    segment: segmentIdentity(1)
+) == .pending, "live concurrent request did not enter convergence")
+_ = closedConcurrentRegistry.close(sessionID: closedConcurrentSession.id)
+require(closedConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 1, sequence: 91),
+    segment: segmentIdentity(1)
+) == .committed, "live concurrent request did not survive peer close")
+require(
+    stageSnapshotReady(closedConcurrentRegistry, sessionID: liveConcurrentSession.id)
+        && canonicalNodeX(
+            closedConcurrentRegistry,
+            sessionID: liveConcurrentSession.id
+        ) == 900,
+    "closed concurrent request affected the surviving canonical receipt"
+)
+require(closedConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1, sequence: 92),
+    requestID: closedConcurrentID,
+    segment: segmentIdentity(0)
+) == .rejected, "closed concurrent request accepted a late correlated receipt")
+_ = closedConcurrentRegistry.close(sessionID: liveConcurrentSession.id)
+
+let staleConcurrentRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let staleConcurrentOlderID = "a-stale-concurrent"
+let staleConcurrentNewerID = "z-stale-concurrent"
+let staleConcurrentOlderSession = created(
+    staleConcurrentRegistry.create(stageRequestID: staleConcurrentOlderID)
+)
+let staleConcurrentNewerSession = created(
+    staleConcurrentRegistry.create(stageRequestID: staleConcurrentNewerID)
+)
+for (requestID, sequence) in [(staleConcurrentOlderID, 100), (staleConcurrentNewerID, 110)] {
+    require(staleConcurrentRegistry.recordStageSnapshot(
+        stageSnapshot(sampleCount: 1, sequence: sequence),
+        requestID: requestID,
+        segment: segmentIdentity(0)
+    ) == .pending, "stale concurrent request primary did not remain pending")
+    require(staleConcurrentRegistry.recordStageSnapshot(
+        stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: sequence),
+        requestID: requestID,
+        segment: segmentIdentity(1)
+    ) == .pending, "stale concurrent request did not enter convergence")
+}
+require(staleConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, topologyGeneration: 5, sampleCount: 1, sequence: 111),
+    segment: segmentIdentity(1, topologyGeneration: 5)
+) == .pending, "replacement topology first receipt did not remain pending")
+require(staleConcurrentRegistry.recordStageSnapshot(
+    stageSnapshot(topologyGeneration: 5, sampleCount: 1, sequence: 112),
+    segment: segmentIdentity(0, topologyGeneration: 5)
+) == .committed, "replacement topology did not publish normally")
+require(
+    !stageSnapshotReady(
+        staleConcurrentRegistry,
+        sessionID: staleConcurrentOlderSession.id
+    ) && !stageSnapshotReady(
+        staleConcurrentRegistry,
+        sessionID: staleConcurrentNewerSession.id
+    ),
+    "replacement topology completed stale simultaneous requests"
+)
+require(
+    staleConcurrentRegistry.state(
+        sessionID: staleConcurrentOlderSession.id
+    )?.stageRequestCompletedRevision == nil
+        && staleConcurrentRegistry.state(
+            sessionID: staleConcurrentNewerSession.id
+        )?.stageRequestCompletedRevision == nil,
+    "stale simultaneous requests recorded a replacement-topology revision"
+)
+_ = staleConcurrentRegistry.close(sessionID: staleConcurrentOlderSession.id)
+_ = staleConcurrentRegistry.close(sessionID: staleConcurrentNewerSession.id)
+
+let staleConvergenceRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let staleConvergenceID = "stale-convergence-request"
+let staleConvergenceSession = created(
+    staleConvergenceRegistry.create(stageRequestID: staleConvergenceID)
+)
+require(staleConvergenceRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1),
+    requestID: staleConvergenceID,
+    segment: segmentIdentity(0)
+) == .pending, "stale convergence seed did not remain pending")
+require(staleConvergenceRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0),
+    requestID: staleConvergenceID,
+    segment: segmentIdentity(1)
+) == .pending, "stale convergence request did not bind")
+require(staleConvergenceRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, topologyGeneration: 5, sampleCount: 1),
+    segment: segmentIdentity(1, topologyGeneration: 5)
+) == .pending, "new topology first async receipt did not remain pending")
+require(staleConvergenceRegistry.recordStageSnapshot(
+    stageSnapshot(topologyGeneration: 5, sampleCount: 1),
+    segment: segmentIdentity(0, topologyGeneration: 5)
+) == .committed, "new topology async aggregate did not publish normally")
+require(
+    !stageSnapshotReady(
+        staleConvergenceRegistry,
+        sessionID: staleConvergenceSession.id
+    ),
+    "new topology receipts completed a stale request binding"
+)
+require(
+    staleConvergenceRegistry.state(sessionID: staleConvergenceSession.id)?.stageRequestCompletedRevision == nil,
+    "stale request binding recorded a completed revision"
+)
+_ = staleConvergenceRegistry.close(sessionID: staleConvergenceSession.id)
+require(staleConvergenceRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1),
+    requestID: staleConvergenceID,
+    segment: segmentIdentity(0)
+) == .rejected, "closed request binding accepted a late correlated receipt")
+
+let samplingRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let samplingSession = created(samplingRegistry.create())
+require(samplingRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 1),
+    segment: segmentIdentity(1)
+) == .pending, "reverse-order sampled startup first display did not remain pending")
+require(samplingRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1),
+    segment: segmentIdentity(0)
+) == .committed, "sampled startup did not commit atomically")
+let sampledSeedRevision = stageSnapshotRevision(samplingRegistry, sessionID: samplingSession.id)
+require(
+    canonicalSampleCounts(samplingRegistry, sessionID: samplingSession.id) == [1, 1],
+    "sampled startup published a mixed class"
+)
+require(samplingRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 0, sequence: 2),
+    segment: segmentIdentity(0)
+) == .pending, "sampled-to-unsampled first display did not remain pending")
+require(
+    stageSnapshotRevision(samplingRegistry, sessionID: samplingSession.id) == sampledSeedRevision,
+    "sampled-to-unsampled partial class published a revision"
+)
+require(
+    canonicalSampleCounts(samplingRegistry, sessionID: samplingSession.id) == [1, 1],
+    "sampled-to-unsampled partial class replaced the canonical snapshot"
+)
+require(samplingRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 2),
+    segment: segmentIdentity(1)
+) == .committed, "sampled-to-unsampled class did not commit atomically")
+let unsampledRevision = stageSnapshotRevision(samplingRegistry, sessionID: samplingSession.id)
+require(unsampledRevision == sampledSeedRevision + 1, "unsampled promotion revision drifted")
+require(
+    canonicalSampleCounts(samplingRegistry, sessionID: samplingSession.id) == [0, 0],
+    "sampled-to-unsampled promotion published a mixed class"
+)
+require(samplingRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 1, sequence: 3),
+    segment: segmentIdentity(1)
+) == .pending, "reverse-order unsampled-to-sampled first display did not remain pending")
+require(
+    stageSnapshotRevision(samplingRegistry, sessionID: samplingSession.id) == unsampledRevision,
+    "reverse-order unsampled-to-sampled partial class published a revision"
+)
+require(
+    canonicalSampleCounts(samplingRegistry, sessionID: samplingSession.id) == [0, 0],
+    "reverse-order unsampled-to-sampled partial class replaced the canonical snapshot"
+)
+require(samplingRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1, sequence: 3),
+    segment: segmentIdentity(0)
+) == .committed, "reverse-order unsampled-to-sampled class did not commit atomically")
+let sampledRevision = stageSnapshotRevision(samplingRegistry, sessionID: samplingSession.id)
+require(sampledRevision == unsampledRevision + 1, "sampled promotion revision drifted")
+require(
+    canonicalSampleCounts(samplingRegistry, sessionID: samplingSession.id) == [1, 1],
+    "reverse-order unsampled-to-sampled promotion published a mixed class"
+)
+require(samplingRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 2, sequence: 4),
+    segment: segmentIdentity(1)
+) == .committed, "ordinary same-class asynchronous update did not commit")
+require(
+    canonicalSampleCounts(samplingRegistry, sessionID: samplingSession.id) == [1, 2],
+    "ordinary same-class asynchronous update lost a display"
+)
+require(samplingRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 0, sequence: 4),
+    segment: segmentIdentity(0)
+) == .pending, "superseded transition seed did not remain pending")
+require(samplingRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 3, sequence: 5),
+    segment: segmentIdentity(0)
+) == .committed, "same-class update did not supersede its pending transition entry")
+let supersededPendingRevision = stageSnapshotRevision(
+    samplingRegistry,
+    sessionID: samplingSession.id
+)
+require(samplingRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 0, sequence: 5),
+    segment: segmentIdentity(1)
+) == .pending, "stale pending display entry crossed a later same-class update")
+require(
+    stageSnapshotRevision(samplingRegistry, sessionID: samplingSession.id)
+        == supersededPendingRevision,
+    "stale pending display entry published a mixed revision"
+)
+require(
+    canonicalSampleCounts(samplingRegistry, sessionID: samplingSession.id) == [3, 2],
+    "pending transition changed the canonical same-class snapshot"
+)
+require(samplingRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 0, sequence: 6),
+    segment: segmentIdentity(0)
+) == .committed, "fresh complete transition did not replace superseded pending data")
+_ = samplingRegistry.close(sessionID: samplingSession.id)
+
+let isolationRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let isolationSession = created(isolationRegistry.create())
+require(isolationRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 1, sequence: 100),
+    segment: segmentIdentity(0)
+) == .pending, "isolation seed first display did not remain pending")
+require(isolationRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, sampleCount: 1, sequence: 100),
+    segment: segmentIdentity(1)
+) == .committed, "isolation seed did not commit")
+require(isolationRegistry.recordStageSnapshot(
+    stageSnapshot(sampleCount: 0, sequence: 101),
+    segment: segmentIdentity(0)
+) == .pending, "pre-canvas-change transition did not remain pending")
+let beforeCanvasChange = stageSnapshotRevision(isolationRegistry, sessionID: isolationSession.id)
+require(isolationRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, canvasGeneration: 4, sampleCount: 0),
+    segment: segmentIdentity(1, canvasGeneration: 4)
+) == .pending, "stale pending data crossed the canvas generation")
+require(
+    stageSnapshotRevision(isolationRegistry, sessionID: isolationSession.id) == beforeCanvasChange,
+    "canvas-generation partial receipt published a revision"
+)
+require(isolationRegistry.recordStageSnapshot(
+    stageSnapshot(canvasGeneration: 4, sampleCount: 0),
+    segment: segmentIdentity(0, canvasGeneration: 4)
+) == .committed, "new canvas generation did not commit from its own complete set")
+require(
+    canonicalSequence(isolationRegistry, sessionID: isolationSession.id) == 1,
+    "new canvas generation did not reset its producer sequence fence"
+)
+require(isolationRegistry.recordStageSnapshot(
+    stageSnapshot(canvasGeneration: 4, sampleCount: 1, sequence: 2),
+    segment: segmentIdentity(0, canvasGeneration: 4)
+) == .pending, "pre-topology-change transition did not remain pending")
+let beforeTopologyChange = stageSnapshotRevision(isolationRegistry, sessionID: isolationSession.id)
+require(isolationRegistry.recordStageSnapshot(
+    stageSnapshot(segmentIndex: 1, canvasGeneration: 4, topologyGeneration: 5, sampleCount: 1),
+    segment: segmentIdentity(1, canvasGeneration: 4, topologyGeneration: 5)
+) == .pending, "stale pending data crossed the topology generation")
+require(
+    stageSnapshotRevision(isolationRegistry, sessionID: isolationSession.id) == beforeTopologyChange,
+    "topology-generation partial receipt published a revision"
+)
+require(isolationRegistry.recordStageSnapshot(
+    stageSnapshot(canvasGeneration: 4, topologyGeneration: 5, sampleCount: 1),
+    segment: segmentIdentity(0, canvasGeneration: 4, topologyGeneration: 5)
+) == .committed, "new topology generation did not commit from its own complete set")
+require(
+    canonicalSequence(isolationRegistry, sessionID: isolationSession.id) == 1,
+    "new topology generation did not reset its producer sequence fence"
+)
+let replacementDisplayIDs: [UInt32] = [200, 201]
+require(isolationRegistry.recordStageSnapshot(
+    stageSnapshot(canvasGeneration: 4, topologyGeneration: 5, sampleCount: 0, sequence: 2),
+    segment: segmentIdentity(0, canvasGeneration: 4, topologyGeneration: 5)
+) == .pending, "pre-display-change transition did not remain pending")
+let beforeDisplayChange = stageSnapshotRevision(isolationRegistry, sessionID: isolationSession.id)
+require(isolationRegistry.recordStageSnapshot(
+    stageSnapshot(
+        segmentIndex: 1,
+        canvasGeneration: 4,
+        topologyGeneration: 5,
+        sampleCount: 0,
+        displayIDs: replacementDisplayIDs
+    ),
+    segment: segmentIdentity(
+        1,
+        canvasGeneration: 4,
+        topologyGeneration: 5,
+        displayIDs: replacementDisplayIDs
+    )
+) == .pending, "stale pending data crossed display identity")
+require(
+    stageSnapshotRevision(isolationRegistry, sessionID: isolationSession.id) == beforeDisplayChange,
+    "display-identity partial receipt published a revision"
+)
+require(isolationRegistry.recordStageSnapshot(
+    stageSnapshot(
+        canvasGeneration: 4,
+        topologyGeneration: 5,
+        sampleCount: 0,
+        displayIDs: replacementDisplayIDs
+    ),
+    segment: segmentIdentity(
+        0,
+        canvasGeneration: 4,
+        topologyGeneration: 5,
+        displayIDs: replacementDisplayIDs
+    )
+) == .committed, "replacement displays did not commit from their own complete set")
+require(
+    canonicalSampleCounts(isolationRegistry, sessionID: isolationSession.id) == [0, 0],
+    "replacement displays published a mixed sampling class"
+)
+_ = isolationRegistry.close(sessionID: isolationSession.id)
+
 let first = created(registry.create(selectedResource: "companion/main"))
 require(registry.instrumentationConfiguration().enabled, "created session did not enable instrumentation")
 require(!registry.instrumentationConfiguration().recording, "recording enabled unexpectedly")
@@ -402,6 +1370,20 @@ var leaked = aggregateStageSnapshot()
 leaked["transcript"] = "secret"
 leaked["native"] = ["desktopFrameWarm": ["pixels": "secret"]]
 require(registry.recordStageSnapshot(leaked) == .committed, "valid stage snapshot with unknown renderer field was rejected")
+let beforeMixedAggregate = stageSnapshotRevision(registry, sessionID: first.id)
+var mixedAggregate = aggregateStageSnapshot()
+mixedAggregate["displayPerformance"] = [
+    displayPerformance(0, sampleCount: 1),
+    displayPerformance(1, sampleCount: 0),
+]
+require(
+    registry.recordStageSnapshot(mixedAggregate) == .rejected,
+    "complete aggregate admitted a mixed sampling class"
+)
+require(
+    stageSnapshotRevision(registry, sessionID: first.id) == beforeMixedAggregate,
+    "rejected mixed aggregate published a revision"
+)
 nativeWarmState = AOSDesktopWorldDevToolsNativeStageFacts(
     displayCount: 1,
     errorCode: nil,
@@ -667,13 +1649,23 @@ require(
 )
 
 var monitorPublications: [[String: Any]] = []
-func deliverControllerSnapshot(_ segmentIndex: Int, topologyGeneration: Int) -> AOSDesktopWorldDevToolsStageCommitResult {
+func deliverControllerSnapshot(
+    _ segmentIndex: Int,
+    topologyGeneration: Int,
+    sampleCount: Int = 1,
+    sequence: Int = 1
+) -> AOSDesktopWorldDevToolsStageCommitResult {
     let result = controller.handleStageSnapshot([
         "canvas_generation": NSNumber(value: UInt64(3)),
         "topology_generation": NSNumber(value: UInt64(topologyGeneration)),
         "segment_display_id": NSNumber(value: UInt32(segmentIndex + 100)),
         "segment_index": NSNumber(value: segmentIndex),
-        "snapshot": stageSnapshot(segmentIndex: segmentIndex, topologyGeneration: topologyGeneration),
+        "snapshot": stageSnapshot(
+            segmentIndex: segmentIndex,
+            topologyGeneration: topologyGeneration,
+            sampleCount: sampleCount,
+            sequence: sequence
+        ),
     ])
     if result == .committed {
         monitorPublications.append(controller.stageSnapshot(resourceID: "companion/main")!)
@@ -736,6 +1728,30 @@ require(
 fakeCanvas.posts.removeAll()
 require(deliverControllerSnapshot(0, topologyGeneration: 4) == .pending, "seed receipt did not remain pending")
 require(deliverControllerSnapshot(1, topologyGeneration: 4) == .committed, "seed receipt did not commit")
+fakeCanvas.posts.removeAll()
+monitorPublications.removeAll()
+require(
+    deliverControllerSnapshot(0, topologyGeneration: 4, sampleCount: 0, sequence: 2) == .pending,
+    "sampling-class partial receipt did not remain pending"
+)
+let partialSamplingPublications = fakeCanvas.posts.filter { entry in
+    let message = entry["message"] as? [String: Any]
+    return message?["type"] as? String == "desktop_world_devtools.snapshot"
+}
+require(partialSamplingPublications.isEmpty, "sampling-class partial receipt published to the host")
+require(monitorPublications.isEmpty, "sampling-class partial receipt published to the monitor")
+require(
+    deliverControllerSnapshot(1, topologyGeneration: 4, sampleCount: 0, sequence: 2) == .committed,
+    "complete sampling class did not publish atomically"
+)
+require(monitorPublications.count == 1, "complete sampling class did not publish to the monitor")
+require(
+    (monitorPublications[0]["displayPerformance"] as! [[String: Any]]).allSatisfy { entry in
+        let performance = entry["performance"] as! [String: Any]
+        return performance["sampleCount"] as? Int == 0
+    },
+    "monitor publication contained mixed sampling classes"
+)
 fakeCanvas.posts.removeAll()
 monitorPublications.removeAll()
 

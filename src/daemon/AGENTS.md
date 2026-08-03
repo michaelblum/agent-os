@@ -224,8 +224,29 @@ Each renderer segment reports performance against its exact canvas generation,
 topology generation, and authoritative display ID/index. Refresh requests fail
 closed on stale, unknown, or duplicate receipts and become ready only after the
 complete expected display set converges; topology changes invalidate partial
-receipts. Published metrics remain per-display stage-segment scalars, never a
+receipts. Canonical asynchronous receipts retain the prior complete snapshot
+while display segments cross between zero-sample and sampled performance, then
+publish the new sampling class only after every expected display converges;
+partial receipts never cross canvas, topology, or display identity. Published
+metrics remain per-display stage-segment scalars, never a
 resource attribution or a sum of rates, timings, DPR, or backing dimensions.
+When a one-shot correlated refresh observes both sampling classes, retire that
+request from correlated collection and bind its complete receipt set to the
+exact canvas, topology, and display identity. Subsequent identity-matched
+asynchronous receipts update that set until it is uniform; reusing the handled
+request ID is not a convergence mechanism. Each segment probe increments its
+producer-local snapshot sequence on every emission, so mutation of an existing
+display receipt requires a strictly greater sequence. Equal sequences may be
+shared across request receipts only when they came from the same admitted
+asynchronous payload event. Every same-identity publication must cover the
+current sequence at every display and advance at least one. Same-class
+incomparable receipts merge their freshest per-display components; receipts in
+different sampling classes wait until one complete vector postdates the other.
+If several request-bound sets converge, the newest monotonic request admission
+drives that publication, but only requests covered by the published vector
+complete. Request tokens carry no lexical ordering, and asynchronous receipts
+may update only display indexes already correlated to that request. Exact
+canvas, topology, or display-identity replacement starts a new sequence fence.
 At inspection read time, the daemon decorates canonical stage snapshots with
 the native desktop-frame warm pool's state, display count, generation, and
 redacted error code, plus bounded native-effect admission, presentation,

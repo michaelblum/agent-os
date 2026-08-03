@@ -326,9 +326,11 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
 
         stageSnapshot = canonical
         stageSnapshotRevision += 1
-        if let requestID {
+        var completedRequestIDs = outcome.completedRequestIDs
+        if let requestID { completedRequestIDs.insert(requestID) }
+        for completedRequestID in completedRequestIDs {
             for sessionID in sessions.compactMap({ sessionID, state in
-                state.stageRequestID == requestID ? sessionID : nil
+                state.stageRequestID == completedRequestID ? sessionID : nil
             }) {
                 guard var state = sessions[sessionID] else { continue }
                 state.stageRequestCompletedRevision = stageSnapshotRevision

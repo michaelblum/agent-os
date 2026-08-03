@@ -33,6 +33,7 @@ function stageFacts(current) {
 function harness(options = {}) {
   const emitted = []
   let current = identity(4)
+  let currentTime = 0
   const probe = createDesktopWorldDevToolsStageProbe({
     emit: (snapshot, metadata) => emitted.push({ snapshot, metadata }),
     getPerformanceDisplay: () => ({
@@ -44,6 +45,7 @@ function harness(options = {}) {
       canvasGeneration: current.canvasGeneration,
       topologyGeneration: current.topologyGeneration,
     }),
+    now: () => currentTime,
   })
   const requests = createDesktopWorldDevToolsRequestLifecycle({
     getIdentity: () => current,
@@ -57,6 +59,7 @@ function harness(options = {}) {
     emitted,
     probe,
     requests,
+    advanceTo(next) { currentTime = next },
     setIdentity(next) { current = next },
   }
 }
@@ -87,6 +90,26 @@ test('correlated stage request waits for queued topology reconfiguration and emi
   assert.equal(testHarness.emitted.length, 1, 'duplicate request ID emitted twice')
 })
 
+test('queued stage requests emit in admission order independent of lexical request IDs', () => {
+  const testHarness = harness()
+  const next = identity(5)
+  testHarness.setIdentity(next)
+  testHarness.requests.identityChanging(next)
+
+  assert.equal(testHarness.requests.request('z-older-request'), true)
+  assert.equal(testHarness.requests.request('a-newer-request'), true)
+  assert.equal(testHarness.requests.identityReady(next), true)
+  assert.deepEqual(testHarness.emitted.map(({ metadata }) => metadata.request_id), [
+    'z-older-request',
+    'a-newer-request',
+  ])
+  assert.deepEqual(testHarness.emitted.map(({ snapshot }) => snapshot.sequence), [1, 2])
+
+  assert.equal(testHarness.requests.request('z-older-request'), true)
+  assert.equal(testHarness.requests.request('a-newer-request'), true)
+  assert.equal(testHarness.emitted.length, 2, 'handled request IDs emitted more than once')
+})
+
 test('topology replacement retires pending requests bound to the superseded identity', () => {
   const testHarness = harness()
   const replaced = identity(5)
@@ -101,6 +124,41 @@ test('topology replacement retires pending requests bound to the superseded iden
   assert.equal(testHarness.requests.identityReady(successor), true)
   assert.equal(testHarness.requests.request('refresh-replaced'), true)
   assert.equal(testHarness.emitted.length, 0)
+})
+
+test('handled request ID emits once while later frame telemetry remains uncorrelated', () => {
+  const testHarness = harness()
+
+  assert.equal(testHarness.requests.request('refresh-one-shot'), true)
+  assert.equal(testHarness.requests.request('refresh-one-shot'), true)
+  assert.deepEqual(testHarness.emitted.map(({ metadata }) => metadata), [
+    { request_id: 'refresh-one-shot' },
+  ])
+
+  testHarness.advanceTo(501)
+  assert.equal(testHarness.probe.sampleFrame({
+    renderEndedAt: 501,
+    frameMs: 16,
+    renderMs: 4,
+    updateMs: 2,
+    drawCalls: 1,
+    triangles: 2,
+    geometries: 1,
+    textures: 0,
+    programs: 1,
+    backingPixels: 10_000,
+    backingWidth: 100,
+    backingHeight: 100,
+    damagedPixelPercentage: 1,
+    effectiveDevicePixelRatio: 1,
+    estimatedBackingBytes: 80_000,
+    msaaSamples: 1,
+    requestedDevicePixelRatio: 1,
+  }), true)
+  assert.deepEqual(testHarness.emitted.map(({ metadata }) => metadata), [
+    { request_id: 'refresh-one-shot' },
+    {},
+  ])
 })
 
 test('pending request admission is bounded, deduplicated, and cleared by disable and disposal', () => {
