@@ -164,6 +164,24 @@ function desktopWorldPerformanceSnapshot({
   }
 }
 
+function restoreThenRetireDesktopWorld(state, stageSnapshotRevision = 21) {
+  const restored = RenderPerformance()
+  restored.render(fakeHost())
+  restored.restore(state)
+  restored.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 0,
+      topologyGeneration: 0,
+      sequence: 0,
+      stageSnapshotRevision,
+      status: 'unavailable',
+      displays: [],
+    }),
+  })
+  return restored.serialize()
+}
+
 test('InspectorPanel exposes a passive AX region', (t) => {
   withFakeBrowser(t)
 
@@ -354,9 +372,9 @@ test('RenderPerformance restore preserves DesktopWorld publication ownership for
   })
 
   const serialized = original.serialize()
-  assert.deepEqual([...serialized.desktopWorld.sources].sort(), [
-    'desktop-world:0:old-a',
-    'desktop-world:1:old-b',
+  assert.deepEqual(serialized.desktopWorld.bindings, [
+    { source: 'desktop-world:0:old-a', displayId: 'old-a', displayIndex: 0 },
+    { source: 'desktop-world:1:old-b', displayId: 'old-b', displayIndex: 1 },
   ])
 
   const restored = RenderPerformance()
@@ -392,6 +410,100 @@ test('RenderPerformance restore preserves DesktopWorld publication ownership for
   ])
 })
 
+test('RenderPerformance restore rejects forged generic DesktopWorld ownership atomically', (t) => {
+  withFakeBrowser(t)
+
+  const original = RenderPerformance()
+  original.render(fakeHost())
+  original.onMessage({
+    type: 'sample',
+    payload: { source: 'desktop-world:user-owned', fps: 30 },
+  })
+  original.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 3,
+      topologyGeneration: 4,
+      sequence: 10,
+      stageSnapshotRevision: 20,
+      displays: [{ id: 'old-a', index: 0 }],
+    }),
+  })
+
+  const serialized = original.serialize()
+  serialized.desktopWorld.bindings.push({
+    source: 'desktop-world:user-owned',
+    displayId: 'user-owned',
+    displayIndex: 1,
+  })
+
+  const retired = restoreThenRetireDesktopWorld(serialized)
+  assert.ok(retired.sources['desktop-world:0:old-a'])
+  assert.ok(retired.sources['desktop-world:user-owned'])
+})
+
+test('RenderPerformance restore rejects mismatched, duplicate, and oversized ownership bindings', (t) => {
+  withFakeBrowser(t)
+
+  const original = RenderPerformance()
+  original.render(fakeHost())
+  original.onMessage({
+    type: 'sample',
+    payload: { source: 'desktop-world:user-owned', fps: 30 },
+  })
+  original.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 3,
+      topologyGeneration: 4,
+      sequence: 10,
+      stageSnapshotRevision: 20,
+      displays: [{ id: 'old-a', index: 0 }],
+    }),
+  })
+  const honest = original.serialize()
+
+  const cases = [
+    ['mismatched canonical source', (state) => {
+      state.desktopWorld.bindings[0].displayId = 'not-old-a'
+    }],
+    ['duplicate source', (state) => {
+      state.desktopWorld.bindings.push({ ...state.desktopWorld.bindings[0] })
+    }],
+    ['duplicate display index', (state) => {
+      const source = 'desktop-world:0:other'
+      state.sources[source] = state.sources['desktop-world:0:old-a']
+      state.desktopWorld.bindings.push({ source, displayId: 'other', displayIndex: 0 })
+    }],
+    ['duplicate display id', (state) => {
+      const source = 'desktop-world:1:old-a'
+      state.sources[source] = state.sources['desktop-world:0:old-a']
+      state.desktopWorld.bindings.push({ source, displayId: 'old-a', displayIndex: 1 })
+    }],
+    ['overlong source', (state) => {
+      state.desktopWorld.bindings[0].source = 'x'.repeat(274)
+    }],
+    ['overlong display id', (state) => {
+      state.desktopWorld.bindings[0].displayId = 'x'.repeat(257)
+    }],
+    ['too many bindings', (state) => {
+      state.desktopWorld.bindings = Array.from({ length: 17 }, (_, index) => ({
+        source: `desktop-world:${index}:display-${index}`,
+        displayId: `display-${index}`,
+        displayIndex: index,
+      }))
+    }],
+  ]
+
+  for (const [name, mutate] of cases) {
+    const tampered = structuredClone(honest)
+    mutate(tampered)
+    const retired = restoreThenRetireDesktopWorld(tampered)
+    assert.ok(retired.sources['desktop-world:0:old-a'], `${name} must not restore deletion authority`)
+    assert.ok(retired.sources['desktop-world:user-owned'], `${name} must retain generic sources`)
+  }
+})
+
 test('RenderPerformance restore leaves legacy and partial source ownership unattributed', (t) => {
   withFakeBrowser(t)
 
@@ -403,17 +515,27 @@ test('RenderPerformance restore leaves legacy and partial source ownership unatt
     },
     events: [],
   }
-  const partialDesktopWorld = {
+  const legacyDesktopWorld = {
     version: 1,
     publication: {
       canvasGeneration: 3,
       topologyGeneration: 4,
       sequence: 10,
+      stageSnapshotRevision: 20,
     },
     sources: [source],
   }
+  const partialDesktopWorld = {
+    version: 2,
+    publication: {
+      canvasGeneration: 3,
+      topologyGeneration: 4,
+      sequence: 10,
+    },
+    bindings: [{ source, displayId: 'user-provided', displayIndex: 0 }],
+  }
 
-  for (const desktopWorld of [undefined, partialDesktopWorld]) {
+  for (const desktopWorld of [undefined, legacyDesktopWorld, partialDesktopWorld]) {
     const restored = RenderPerformance()
     restored.render(fakeHost())
     restored.restore({ ...baseState, ...(desktopWorld ? { desktopWorld } : {}) })

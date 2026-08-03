@@ -1,6 +1,27 @@
 import { normalizeDesktopWorldDevToolsSnapshot } from '../../scene/desktop-world-devtools.js';
 
 const STAGE_CANVAS_ID = 'aos-desktop-world-stage';
+export const DESKTOP_WORLD_PERFORMANCE_IDENTITY_LIMITS = Object.freeze({
+  displays: 16,
+  displayId: 256,
+  displayIndex: 31,
+  source: 273,
+});
+
+export function canonicalDesktopWorldPerformanceSource(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const { displayId, displayIndex } = value;
+  if (
+    typeof displayId !== 'string'
+    || displayId.length < 1
+    || displayId.length > DESKTOP_WORLD_PERFORMANCE_IDENTITY_LIMITS.displayId
+    || !Number.isSafeInteger(displayIndex)
+    || displayIndex < 0
+    || displayIndex > DESKTOP_WORLD_PERFORMANCE_IDENTITY_LIMITS.displayIndex
+  ) return null;
+  const source = `desktop-world:${displayIndex}:${displayId}`;
+  return source.length <= DESKTOP_WORLD_PERFORMANCE_IDENTITY_LIMITS.source ? source : null;
+}
 
 function rectObject(frame) {
   return { x: frame[0], y: frame[1], w: frame[2], h: frame[3] };
@@ -17,12 +38,14 @@ export function projectDesktopWorldDevToolsPerformance(input, { now = Date.now()
   const displays = snapshot.stage.displayPerformance.map((entry) => {
     const performance = entry.performance;
     const display = displayByIndex.get(entry.displayIndex);
+    const source = canonicalDesktopWorldPerformanceSource(entry);
+    if (!source) throw new TypeError('Invalid DesktopWorld performance source identity');
     return Object.freeze({
       displayId: entry.displayId,
       displayIndex: entry.displayIndex,
       scope: entry.scope,
       sample: Object.freeze({
-        source: `desktop-world:${entry.displayIndex}:${entry.displayId}`,
+        source,
         ts: now,
         fps: performance.currentFps,
         frameMs: performance.currentFps ? 1000 / performance.currentFps : performance.avgFrameMs,

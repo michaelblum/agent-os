@@ -6,12 +6,15 @@ import {
   normalizeRenderSample,
   summarizeRenderPerformance,
 } from './model.js';
-import { projectDesktopWorldDevToolsPerformance } from '../desktop-world-devtools/compat.js';
+import {
+  canonicalDesktopWorldPerformanceSource,
+  DESKTOP_WORLD_PERFORMANCE_IDENTITY_LIMITS,
+  projectDesktopWorldDevToolsPerformance,
+} from '../desktop-world-devtools/compat.js';
 
 const BASE_TITLE = 'Render Performance';
 const DEFAULT_SOURCE = 'panel';
-const DESKTOP_WORLD_STATE_VERSION = 1;
-const MAX_DESKTOP_WORLD_SOURCES = 16;
+const DESKTOP_WORLD_STATE_VERSION = 2;
 const SAMPLE_LIMIT = 360;
 const RENDER_INTERVAL_MS = 250;
 
@@ -133,8 +136,8 @@ function restoredDesktopWorldState(value, restoredSources) {
     || !value.publication
     || typeof value.publication !== 'object'
     || Array.isArray(value.publication)
-    || !Array.isArray(value.sources)
-    || value.sources.length > MAX_DESKTOP_WORLD_SOURCES
+    || !Array.isArray(value.bindings)
+    || value.bindings.length > DESKTOP_WORLD_PERFORMANCE_IDENTITY_LIMITS.displays
   ) return null;
 
   const publication = {};
@@ -144,12 +147,32 @@ function restoredDesktopWorldState(value, restoredSources) {
     publication[field] = entry;
   }
 
-  const ownedSources = new Set();
-  for (const source of value.sources) {
-    if (typeof source !== 'string' || ownedSources.has(source) || !restoredSources.has(source)) return null;
-    ownedSources.add(source);
+  const bindings = new Map();
+  const displayIds = new Set();
+  const displayIndexes = new Set();
+  for (const binding of value.bindings) {
+    if (!binding || typeof binding !== 'object' || Array.isArray(binding)) return null;
+    const source = binding.source;
+    const canonicalSource = canonicalDesktopWorldPerformanceSource(binding);
+    if (
+      typeof source !== 'string'
+      || source.length < 1
+      || source.length > DESKTOP_WORLD_PERFORMANCE_IDENTITY_LIMITS.source
+      || source !== canonicalSource
+      || bindings.has(source)
+      || displayIds.has(binding.displayId)
+      || displayIndexes.has(binding.displayIndex)
+      || !restoredSources.has(source)
+    ) return null;
+    bindings.set(source, {
+      source,
+      displayId: binding.displayId,
+      displayIndex: binding.displayIndex,
+    });
+    displayIds.add(binding.displayId);
+    displayIndexes.add(binding.displayIndex);
   }
-  return { publication, sources: ownedSources };
+  return { publication, bindings };
 }
 
 export default function RenderPerformance(options = {}) {
@@ -161,7 +184,7 @@ export default function RenderPerformance(options = {}) {
   let targetFps = Number.isFinite(options.targetFps) ? options.targetFps : 60;
   let desktopWorldPublication = null;
   const sources = new Map();
-  const desktopWorldSources = new Set();
+  const desktopWorldBindings = new Map();
   const events = [];
   const bootAt = wallTime();
 
@@ -290,7 +313,7 @@ export default function RenderPerformance(options = {}) {
       desktopWorld: desktopWorldPublication ? {
         version: DESKTOP_WORLD_STATE_VERSION,
         publication: { ...desktopWorldPublication },
-        sources: [...desktopWorldSources],
+        bindings: [...desktopWorldBindings.values()].map((binding) => ({ ...binding })),
       } : null,
       events: [...events],
     };
@@ -348,13 +371,20 @@ export default function RenderPerformance(options = {}) {
           sequence: projection.sequence,
           stageSnapshotRevision: projection.stageSnapshotRevision,
         };
-        const nextSources = new Set(projection.displays.map((display) => display.sample.source));
-        for (const source of desktopWorldSources) {
-          if (!nextSources.has(source)) sources.delete(source);
+        const nextBindings = new Map(projection.displays.map((display) => [
+          display.sample.source,
+          {
+            source: display.sample.source,
+            displayId: display.displayId,
+            displayIndex: display.displayIndex,
+          },
+        ]));
+        for (const source of desktopWorldBindings.keys()) {
+          if (!nextBindings.has(source)) sources.delete(source);
         }
-        desktopWorldSources.clear();
+        desktopWorldBindings.clear();
         for (const display of projection.displays) {
-          desktopWorldSources.add(display.sample.source);
+          desktopWorldBindings.set(display.sample.source, nextBindings.get(display.sample.source));
           appendSample(display.sample, display.sample.source);
         }
         renderState();
@@ -382,7 +412,7 @@ export default function RenderPerformance(options = {}) {
       }
       if (msg.type === 'reset') {
         sources.clear();
-        desktopWorldSources.clear();
+        desktopWorldBindings.clear();
         desktopWorldPublication = null;
         events.length = 0;
         renderState();
@@ -399,12 +429,14 @@ export default function RenderPerformance(options = {}) {
         const samples = Array.isArray(entry?.samples) ? entry.samples.slice(-SAMPLE_LIMIT) : [];
         sources.set(source, samples);
       }
-      desktopWorldSources.clear();
+      desktopWorldBindings.clear();
       desktopWorldPublication = null;
       const restoredDesktopWorld = restoredDesktopWorldState(state.desktopWorld, sources);
       if (restoredDesktopWorld) {
         desktopWorldPublication = restoredDesktopWorld.publication;
-        for (const source of restoredDesktopWorld.sources) desktopWorldSources.add(source);
+        for (const [source, binding] of restoredDesktopWorld.bindings) {
+          desktopWorldBindings.set(source, binding);
+        }
       }
       events.length = 0;
       if (Array.isArray(state.events)) events.push(...state.events.slice(-80));
