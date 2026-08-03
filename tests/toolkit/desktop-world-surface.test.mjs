@@ -81,6 +81,32 @@ test('start ignores other surfaces and resolves on matching topology', async () 
   assert.equal(adapter.topology[0].scale_factor, 2)
 })
 
+test('start waits through generationless snapshots for authoritative topology identity', async () => {
+  const callbacks = []
+  const adapter = new StubAdapter({
+    canvasId: topologyEvent.canvas_id,
+    host: {
+      subscribe: () => ({ on: (handler) => callbacks.push(handler) }),
+    },
+  })
+
+  const started = adapter.start({})
+  assert.equal(callbacks[0]({
+    type: 'canvas_lifecycle',
+    event: 'canvas_topology_settled',
+    canvas_id: topologyEvent.canvas_id,
+    segments,
+  }), false)
+  assert.equal(adapter.canvasGeneration, null)
+  assert.equal(adapter.topologyGeneration, null)
+
+  callbacks[0](topologyEvent)
+  await started
+
+  assert.equal(adapter.canvasGeneration, 3)
+  assert.equal(adapter.topologyGeneration, 4)
+})
+
 test('topology changes call re-election callbacks after initial boot', async () => {
   const callbacks = []
   const calls = []

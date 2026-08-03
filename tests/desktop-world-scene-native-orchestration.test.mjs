@@ -16,6 +16,27 @@ test('DesktopWorld hosts use current non-persistent source', async () => {
   assert.match(scheme, /aosSchemeOriginalURLResponse\(response, requestURL: url\)/u)
 })
 
+test('DesktopWorld lifecycle snapshots carry the exact current stage generation', async () => {
+  const daemon = await readFile(path.join(repoRoot, 'src/daemon/unified.swift'), 'utf8')
+  const snapshotPublisher = daemon.match(
+    /private func broadcastCanvasLifecycleSnapshot\([\s\S]*?\n    \}/u,
+  )?.[0] ?? ''
+
+  assert.match(
+    snapshotPublisher,
+    /desktopWorldSceneBarrierTopology\(canvasID: info\.id\)/u,
+    'subscription snapshots must read one authoritative DesktopWorld topology descriptor',
+  )
+  assert.match(snapshotPublisher, /segments: descriptor\.segments/u)
+  assert.match(snapshotPublisher, /canvasGeneration: descriptor\.canvasGeneration/u)
+  assert.match(snapshotPublisher, /topologyGeneration: descriptor\.generation/u)
+  assert.doesNotMatch(
+    snapshotPublisher,
+    /topologySettledPayload\(canvasID: info\.id, segments: segments\)/u,
+    'generationless list projection cannot satisfy stage startup readiness',
+  )
+})
+
 test('DesktopWorld stage results are origin-attributed and controller-coordinated', async () => {
   const [stage, daemon, controller, transport, surface] = await Promise.all([
     readFile(path.join(repoRoot, 'packages/toolkit/components/desktop-world-stage/index.js'), 'utf8'),
