@@ -147,6 +147,18 @@ func displayPerformance(_ segmentIndex: Int) -> [String: Any] {
     ]
 }
 
+let requiredStageCounterKeys = [
+    "displays", "resources", "nodes", "hitRegions", "affordances",
+    "activeGestures", "activeRoutes", "errors",
+]
+
+func stageCounters() -> [String: Int] {
+    [
+        "displays": 2, "resources": 1, "nodes": 1, "hitRegions": 0,
+        "affordances": 0, "activeGestures": 0, "activeRoutes": 0, "errors": 0,
+    ]
+}
+
 func stageSnapshot(
     segmentIndex: Int = 0,
     canvasGeneration: Int = 3,
@@ -190,10 +202,7 @@ func stageSnapshot(
             "regionCount": 0, "errorCode": NSNull(),
         ]],
         "displayPerformance": [displayPerformance(segmentIndex)],
-        "counters": [
-            "displays": 2, "resources": 1, "nodes": 1, "hitRegions": 0,
-            "affordances": 0, "activeGestures": 0, "activeRoutes": 0, "errors": 0,
-        ],
+        "counters": stageCounters(),
         "events": [["sequence": 1, "kind": "scene.mount", "resourceId": NSNull(), "code": NSNull(), "at": 100.0]],
         "lastError": NSNull(),
     ]
@@ -496,6 +505,11 @@ require(externalPerformance["triangles"] as? Double == 120.0, "external display 
 let canonicalEvent = (stage["events"] as! [[String: Any]])[0]
 require(canonicalEvent["resourceId"] is NSNull, "canonical event omitted required null resourceId")
 require(canonicalEvent["code"] is NSNull, "canonical event omitted required null code")
+let canonicalCounters = stage["counters"] as! [String: Any]
+require(Set(canonicalCounters.keys) == Set(requiredStageCounterKeys), "canonical counters lost the full required key set")
+for (key, value) in stageCounters() {
+    require(canonicalCounters[key] as? Int == value, "canonical counter \(key) changed producer value")
+}
 require((canonical["contract"] as? String) == aosDesktopWorldDevToolsSnapshotContract, "session snapshot contract mismatch")
 let selectedStage = registry.stageSnapshot(resourceID: "companion/main")!
 let selectedResources = selectedStage["resources"] as! [[String: Any]]
@@ -517,6 +531,47 @@ var resources = oversizedError["resources"] as! [[String: Any]]
 resources[0]["errorCode"] = String(repeating: "x", count: 65)
 oversizedError["resources"] = resources
 require(registry.recordStageSnapshot(oversizedError) == .rejected, "oversized resource error code was accepted")
+
+var emptyCounters = aggregateStageSnapshot()
+emptyCounters["counters"] = [String: Int]()
+require(registry.recordStageSnapshot(emptyCounters) == .rejected, "empty stage counters were accepted")
+
+for missingKey in requiredStageCounterKeys {
+    var missingCounter = aggregateStageSnapshot()
+    var counters = stageCounters()
+    counters.removeValue(forKey: missingKey)
+    missingCounter["counters"] = counters
+    require(
+        registry.recordStageSnapshot(missingCounter) == .rejected,
+        "stage counters missing \(missingKey) were accepted"
+    )
+}
+
+var extraCounter = aggregateStageSnapshot()
+var counters = stageCounters()
+counters["unexpected"] = 0
+extraCounter["counters"] = counters
+require(registry.recordStageSnapshot(extraCounter) == .rejected, "extra stage counter was accepted")
+
+var wrongTypeCounter = aggregateStageSnapshot()
+var mixedCounters = stageCounters().reduce(into: [String: Any]()) { result, entry in
+    result[entry.key] = entry.value
+}
+mixedCounters["displays"] = "2"
+wrongTypeCounter["counters"] = mixedCounters
+require(registry.recordStageSnapshot(wrongTypeCounter) == .rejected, "wrong-type stage counter was accepted")
+
+var negativeCounter = aggregateStageSnapshot()
+counters = stageCounters()
+counters["errors"] = -1
+negativeCounter["counters"] = counters
+require(registry.recordStageSnapshot(negativeCounter) == .rejected, "negative stage counter was accepted")
+
+var oversizedCounter = aggregateStageSnapshot()
+counters = stageCounters()
+counters["errors"] = 100_001
+oversizedCounter["counters"] = counters
+require(registry.recordStageSnapshot(oversizedCounter) == .rejected, "oversized stage counter was accepted")
 
 var invalidMetric = aggregateStageSnapshot()
 var displayPerformance = invalidMetric["displayPerformance"] as! [[String: Any]]

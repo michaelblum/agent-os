@@ -215,7 +215,7 @@ private struct AOSDesktopWorldDevToolsStageSnapshot: Codable {
               interactions.count <= 256,
               events.count <= 256,
               displayPerformance.count <= 16,
-              counters.keys.allSatisfy({ Self.counterKeys.contains($0) }),
+              Set(counters.keys) == Self.counterKeys,
               counters.values.allSatisfy({ $0 >= 0 && $0 <= 100_000 }),
               displayPerformance.allSatisfy({ Self.performanceIsValid($0.performance) }),
               lastError == nil || (Self.validString(lastError!.code, limit: 64)
