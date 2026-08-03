@@ -217,7 +217,7 @@ test('RenderPerformance exposes root region and sparkline image semantics', (t) 
   assert.match(root.innerHTML, /class="perf-sparkline" role="img" aria-label="Frame-time sparkline"/)
 })
 
-test('RenderPerformance accepts replacement lifecycle sequence restarts and retires disappeared displays', (t) => {
+test('RenderPerformance accepts a higher daemon revision with a replacement lifecycle and retires disappeared displays', (t) => {
   withFakeBrowser(t)
 
   const perf = RenderPerformance()
@@ -228,6 +228,7 @@ test('RenderPerformance accepts replacement lifecycle sequence restarts and reti
       canvasGeneration: 1,
       topologyGeneration: 1,
       sequence: 10,
+      stageSnapshotRevision: 10,
       displays: [{ id: 'old-a', index: 0 }, { id: 'old-b', index: 1 }],
     }),
   })
@@ -242,6 +243,7 @@ test('RenderPerformance accepts replacement lifecycle sequence restarts and reti
       canvasGeneration: 2,
       topologyGeneration: 2,
       sequence: 1,
+      stageSnapshotRevision: 11,
       displays: [{ id: 'new-a', index: 0 }],
     }),
   })
@@ -249,6 +251,80 @@ test('RenderPerformance accepts replacement lifecycle sequence restarts and reti
     Object.keys(perf.serialize().sources).filter((source) => source.startsWith('desktop-world:')),
     ['desktop-world:0:new-a'],
   )
+})
+
+test('RenderPerformance rejects a stale daemon revision from a different lifecycle', (t) => {
+  withFakeBrowser(t)
+
+  const perf = RenderPerformance()
+  perf.render(fakeHost())
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 3,
+      topologyGeneration: 3,
+      sequence: 1,
+      stageSnapshotRevision: 10,
+      displays: [{ id: 'current', index: 0, fps: 60 }],
+    }),
+  })
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 2,
+      topologyGeneration: 2,
+      sequence: 99,
+      stageSnapshotRevision: 9,
+      displays: [{ id: 'stale', index: 0, fps: 15 }],
+    }),
+  })
+
+  const state = perf.serialize()
+  assert.deepEqual(state.desktopWorld.publication, {
+    canvasGeneration: 3,
+    topologyGeneration: 3,
+    sequence: 1,
+    stageSnapshotRevision: 10,
+  })
+  assert.ok(state.sources['desktop-world:0:current'])
+  assert.equal(state.sources['desktop-world:0:stale'], undefined)
+})
+
+test('RenderPerformance rejects an equal daemon revision from a different lifecycle', (t) => {
+  withFakeBrowser(t)
+
+  const perf = RenderPerformance()
+  perf.render(fakeHost())
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 3,
+      topologyGeneration: 3,
+      sequence: 1,
+      stageSnapshotRevision: 10,
+      displays: [{ id: 'current', index: 0, fps: 60 }],
+    }),
+  })
+  perf.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 4,
+      topologyGeneration: 4,
+      sequence: 1,
+      stageSnapshotRevision: 10,
+      displays: [{ id: 'duplicate', index: 0, fps: 15 }],
+    }),
+  })
+
+  const state = perf.serialize()
+  assert.deepEqual(state.desktopWorld.publication, {
+    canvasGeneration: 3,
+    topologyGeneration: 3,
+    sequence: 1,
+    stageSnapshotRevision: 10,
+  })
+  assert.ok(state.sources['desktop-world:0:current'])
+  assert.equal(state.sources['desktop-world:0:duplicate'], undefined)
 })
 
 test('RenderPerformance admits newer daemon publications when a segment-local sequence repeats', (t) => {
@@ -340,6 +416,7 @@ test('RenderPerformance consumes an unavailable lifecycle and retires every Desk
       canvasGeneration: 0,
       topologyGeneration: 0,
       sequence: 0,
+      stageSnapshotRevision: 2,
       status: 'unavailable',
       displays: [],
     }),
@@ -408,6 +485,50 @@ test('RenderPerformance restore preserves DesktopWorld publication ownership for
     'desktop-world:user-owned',
     'panel',
   ])
+})
+
+test('RenderPerformance restored daemon revision rejects delayed lower and equal lifecycle publications', (t) => {
+  withFakeBrowser(t)
+
+  const original = RenderPerformance()
+  original.render(fakeHost())
+  original.onMessage({
+    type: 'desktop_world_devtools.snapshot',
+    payload: desktopWorldPerformanceSnapshot({
+      canvasGeneration: 3,
+      topologyGeneration: 3,
+      sequence: 7,
+      stageSnapshotRevision: 20,
+      displays: [{ id: 'current', index: 0, fps: 60 }],
+    }),
+  })
+
+  const restored = RenderPerformance()
+  restored.render(fakeHost())
+  restored.restore(original.serialize())
+  for (const [stageSnapshotRevision, lifecycle] of [[19, 2], [20, 4]]) {
+    restored.onMessage({
+      type: 'desktop_world_devtools.snapshot',
+      payload: desktopWorldPerformanceSnapshot({
+        canvasGeneration: lifecycle,
+        topologyGeneration: lifecycle,
+        sequence: 99,
+        stageSnapshotRevision,
+        displays: [{ id: `delayed-${stageSnapshotRevision}`, index: 0, fps: 15 }],
+      }),
+    })
+  }
+
+  const state = restored.serialize()
+  assert.deepEqual(state.desktopWorld.publication, {
+    canvasGeneration: 3,
+    topologyGeneration: 3,
+    sequence: 7,
+    stageSnapshotRevision: 20,
+  })
+  assert.equal(state.sources['desktop-world:0:current'].samples.at(-1).fps, 60)
+  assert.equal(state.sources['desktop-world:0:delayed-19'], undefined)
+  assert.equal(state.sources['desktop-world:0:delayed-20'], undefined)
 })
 
 test('RenderPerformance restore rejects forged generic DesktopWorld ownership atomically', (t) => {

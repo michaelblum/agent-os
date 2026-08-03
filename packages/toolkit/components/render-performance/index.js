@@ -209,13 +209,15 @@ export default function RenderPerformance(options = {}) {
 
   function isNewerDesktopWorldPublication(projection) {
     if (!desktopWorldPublication) return true;
+    if (
+      desktopWorldPublication.stageSnapshotRevision > 0
+      || projection.stageSnapshotRevision > 0
+    ) {
+      return projection.stageSnapshotRevision > desktopWorldPublication.stageSnapshotRevision;
+    }
     const sameLifecycle = projection.canvasGeneration === desktopWorldPublication.canvasGeneration
       && projection.topologyGeneration === desktopWorldPublication.topologyGeneration;
     if (!sameLifecycle) return true;
-    if (desktopWorldPublication.stageSnapshotRevision > 0) {
-      return projection.stageSnapshotRevision > desktopWorldPublication.stageSnapshotRevision;
-    }
-    if (projection.stageSnapshotRevision > 0) return true;
     return projection.sequence > desktopWorldPublication.sequence;
   }
 

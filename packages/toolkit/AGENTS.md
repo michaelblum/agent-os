@@ -92,6 +92,9 @@ Render Performance state transfer must preserve the exact DesktopWorld
 publication lifecycle and bounded canonical display-to-source bindings. Legacy,
 partial, or inconsistent state must not infer DesktopWorld ownership from
 user-controlled source IDs or grant source-deletion authority.
+Nonzero daemon stage-snapshot revisions globally order Render Performance
+publications across lifecycle changes; absent or zero revisions retain the
+exact-lifecycle segment-sequence fallback for standalone/local snapshots.
 
 Legacy cross-display transfer outlines are superseded by One-World/union-backed
 surfaces. Do not grow that path. The AOS Surface System epic should replace

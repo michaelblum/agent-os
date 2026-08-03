@@ -476,6 +476,12 @@ incomplete, oversized, or structurally inconsistent ownership data restores
 its samples without granting deletion authority or inferring DesktopWorld
 ownership from source ID text.
 
+For daemon snapshots, a nonzero `stageSnapshotRevision` globally orders
+publications across lifecycle changes: lower or equal revisions are ignored,
+while a higher revision may replace the lifecycle and restart its segment-local
+sequence. Snapshots without that wrapper revision retain lifecycle-and-sequence
+fallback ordering for standalone/local use.
+
 ### Integration Hub
 
 `integration-hub` is the reusable operator surface for chat-driven broker work.
