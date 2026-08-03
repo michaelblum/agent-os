@@ -358,6 +358,15 @@ private struct AOSDesktopWorldDevToolsStageSnapshot: Codable {
 }
 
 struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
+    private enum SamplingClass: Hashable {
+        case unsampled
+        case sampled
+
+        init(sampleCount: Int) {
+            self = sampleCount == 0 ? .unsampled : .sampled
+        }
+    }
+
     private struct Receipt {
         let canvasGeneration: UInt64
         let displays: [AOSDesktopWorldDevToolsStageSnapshot.Display]
@@ -365,6 +374,17 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
         let topologyGeneration: UInt64
         var primary: AOSDesktopWorldDevToolsStageSnapshot?
         var performanceByIndex: [Int: AOSDesktopWorldDevToolsStageSnapshot.DisplayPerformance] = [:]
+
+        var samplingClass: SamplingClass? {
+            let classes = Set(performanceByIndex.values.map {
+                SamplingClass(sampleCount: $0.performance.sampleCount)
+            })
+            return classes.count == 1 ? classes.first : nil
+        }
+
+        var isEmpty: Bool {
+            performanceByIndex.isEmpty
+        }
 
         init(
             _ snapshot: AOSDesktopWorldDevToolsStageSnapshot,
@@ -376,18 +396,25 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
             topologyGeneration = identity.topologyGeneration
         }
 
+        func matches(
+            _ snapshot: AOSDesktopWorldDevToolsStageSnapshot,
+            identity: AOSDesktopWorldDevToolsStageSegmentIdentity
+        ) -> Bool {
+            identity.canvasGeneration == canvasGeneration
+                && identity.topologyGeneration == topologyGeneration
+                && identity.expectedIndexes == expectedIndexes
+                && snapshot.canvasGeneration == canvasGeneration
+                && snapshot.topologyGeneration == topologyGeneration
+                && Set(snapshot.world.displays.map(\.index)) == expectedIndexes
+                && snapshot.world.displays == displays
+        }
+
         mutating func record(
             _ snapshot: AOSDesktopWorldDevToolsStageSnapshot,
             identity: AOSDesktopWorldDevToolsStageSegmentIdentity,
             rejectDuplicate: Bool
         ) -> Bool {
-            guard identity.canvasGeneration == canvasGeneration,
-                  identity.topologyGeneration == topologyGeneration,
-                  identity.expectedIndexes == expectedIndexes,
-                  snapshot.canvasGeneration == canvasGeneration,
-                  snapshot.topologyGeneration == topologyGeneration,
-                  Set(snapshot.world.displays.map(\.index)) == expectedIndexes,
-                  snapshot.world.displays == displays,
+            guard matches(snapshot, identity: identity),
                   snapshot.displayPerformance.count == 1,
                   let entry = snapshot.displayPerformance.first,
                   entry.displayIndex == identity.index,
@@ -395,10 +422,19 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
                   displays.contains(where: {
                       $0.index == identity.index && $0.id == entry.displayId
                   }),
+                  samplingClass == nil
+                    || samplingClass == SamplingClass(
+                        sampleCount: entry.performance.sampleCount
+                    ),
                   !rejectDuplicate || performanceByIndex[identity.index] == nil else { return false }
             performanceByIndex[identity.index] = entry
             if identity.index == 0 { primary = snapshot }
             return true
+        }
+
+        mutating func remove(index: Int) {
+            performanceByIndex.removeValue(forKey: index)
+            if index == 0 { primary = nil }
         }
 
         func aggregate() -> AOSDesktopWorldDevToolsStageSnapshot? {
@@ -413,6 +449,7 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
     }
 
     private var currentReceipt: Receipt?
+    private var pendingReceipt: Receipt?
     private var receiptsByRequest: [String: Receipt] = [:]
 
     mutating func discard(requestID: String) {
@@ -430,11 +467,11 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
               input.count <= 512 * 1_024,
               let decoded = try? JSONDecoder().decode(AOSDesktopWorldDevToolsStageSnapshot.self, from: input),
               decoded.isValid() else { return (.rejected, nil) }
+        guard requestID == nil || requestIsPending else { return (.rejected, nil) }
 
         let aggregate: AOSDesktopWorldDevToolsStageSnapshot?
         if let segment {
             if let requestID {
-                guard requestIsPending else { return (.rejected, nil) }
                 var receipt = receiptsByRequest[requestID] ?? Receipt(decoded, identity: segment)
                 guard receipt.record(decoded, identity: segment, rejectDuplicate: true) else {
                     receiptsByRequest.removeValue(forKey: requestID)
@@ -445,31 +482,64 @@ struct AOSDesktopWorldDevToolsStageSnapshotAggregator {
                 if aggregate != nil {
                     receiptsByRequest.removeValue(forKey: requestID)
                     currentReceipt = receipt
+                    pendingReceipt = nil
                 }
             } else {
-                var receipt: Receipt
-                if let currentReceipt,
-                   currentReceipt.canvasGeneration == segment.canvasGeneration,
-                   currentReceipt.topologyGeneration == segment.topologyGeneration,
-                   currentReceipt.expectedIndexes == segment.expectedIndexes,
-                   currentReceipt.displays == decoded.world.displays {
-                    receipt = currentReceipt
-                } else {
-                    receipt = Receipt(decoded, identity: segment)
-                }
-                guard receipt.record(decoded, identity: segment, rejectDuplicate: false) else {
+                guard decoded.displayPerformance.count == 1,
+                      let entry = decoded.displayPerformance.first else {
                     return (.rejected, nil)
                 }
-                currentReceipt = receipt
-                aggregate = receipt.aggregate()
+                let incomingSamplingClass = SamplingClass(
+                    sampleCount: entry.performance.sampleCount
+                )
+
+                if var currentReceipt,
+                   currentReceipt.matches(decoded, identity: segment),
+                   currentReceipt.samplingClass == incomingSamplingClass {
+                    guard currentReceipt.record(
+                        decoded,
+                        identity: segment,
+                        rejectDuplicate: false
+                    ) else { return (.rejected, nil) }
+                    self.currentReceipt = currentReceipt
+                    if var pendingReceipt,
+                       pendingReceipt.matches(decoded, identity: segment) {
+                        pendingReceipt.remove(index: segment.index)
+                        self.pendingReceipt = pendingReceipt.isEmpty ? nil : pendingReceipt
+                    }
+                    aggregate = currentReceipt.aggregate()
+                } else {
+                    var receipt: Receipt
+                    if let pendingReceipt,
+                       pendingReceipt.matches(decoded, identity: segment),
+                       pendingReceipt.samplingClass == incomingSamplingClass {
+                        receipt = pendingReceipt
+                    } else {
+                        receipt = Receipt(decoded, identity: segment)
+                    }
+                    guard receipt.record(decoded, identity: segment, rejectDuplicate: false) else {
+                        return (.rejected, nil)
+                    }
+                    pendingReceipt = receipt
+                    aggregate = receipt.aggregate()
+                    if aggregate != nil {
+                        currentReceipt = receipt
+                        pendingReceipt = nil
+                    }
+                }
             }
         } else {
             let expected = Set(decoded.world.displays.map(\.index))
             guard decoded.displayPerformance.count == decoded.world.displays.count,
-                  Set(decoded.displayPerformance.map(\.displayIndex)) == expected else {
+                  Set(decoded.displayPerformance.map(\.displayIndex)) == expected,
+                  Set(decoded.displayPerformance.map {
+                      SamplingClass(sampleCount: $0.performance.sampleCount)
+                  }).count <= 1 else {
                 return (.rejected, nil)
             }
             aggregate = decoded
+            currentReceipt = nil
+            pendingReceipt = nil
         }
 
         guard let aggregate else { return (.pending, nil) }

@@ -224,7 +224,11 @@ Each renderer segment reports performance against its exact canvas generation,
 topology generation, and authoritative display ID/index. Refresh requests fail
 closed on stale, unknown, or duplicate receipts and become ready only after the
 complete expected display set converges; topology changes invalidate partial
-receipts. Published metrics remain per-display stage-segment scalars, never a
+receipts. Canonical asynchronous receipts retain the prior complete snapshot
+while display segments cross between zero-sample and sampled performance, then
+publish the new sampling class only after every expected display converges;
+partial receipts never cross canvas, topology, or display identity. Published
+metrics remain per-display stage-segment scalars, never a
 resource attribution or a sum of rates, timings, DPR, or backing dimensions.
 At inspection read time, the daemon decorates canonical stage snapshots with
 the native desktop-frame warm pool's state, display count, generation, and
