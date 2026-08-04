@@ -111,8 +111,9 @@ function renderCaptureSource(source) {
   };
 }
 
-function isExplicitRegionCapture(source) {
-  return source?.kind === 'source_flags' && source.argv?.[0] === '--region';
+function producesDisplayTopology(source, passthrough) {
+  return (source?.kind === 'source_flags' && source.argv?.[0] === '--region')
+    || passthrough.includes('--interactive');
 }
 
 function parseCaptureSource(targetArgv, sourceFlagEntries, errors) {
@@ -383,16 +384,17 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
         maxBuffer: 100 * 1024 * 1024,
       });
       const capture = parsePrimitiveJSON(result, 'aos __see capture');
-      const displayTopology = isExplicitRegionCapture(captureSource)
+      const requiresDisplayTopology = producesDisplayTopology(captureSource, parsed.passthrough);
+      const displayTopology = requiresDisplayTopology
         ? capture.display_topology
         : undefined;
-      if (isExplicitRegionCapture(captureSource) && (
+      if (requiresDisplayTopology && (
         !displayTopology
         || displayTopology.schema !== 'aos.display-topology.v1'
         || typeof displayTopology.identity !== 'string'
       )) {
         exitAgentWorkspaceError(
-          'explicit region capture omitted its canonical display_topology',
+          'region or interactive capture omitted its canonical display_topology',
           'DISPLAY_TOPOLOGY_MISSING',
         );
       }

@@ -63,6 +63,17 @@ jq -e '
   and .display_topology.identity == $identity
   and .state_id != .display_topology.identity
 ' --arg identity "$UUID_FIXTURE_ID" "$TMP_ROOT/saved-region.json" >/dev/null
+AOS_TOPOLOGY_FIXTURE="$ROOT/shared/schemas/fixtures/display-topology-v1/valid/uuid-members.json" \
+  AOS_STATE_ROOT="$TMP_ROOT/state" \
+  AOS_PATH="$FAKE_AOS" \
+  node "$ROOT/scripts/aos-see-native.mjs" capture \
+    --interactive --save --mode ax --workspace topology --name interactive \
+    >"$TMP_ROOT/saved-interactive.json"
+jq -e --slurpfile topology "$ROOT/shared/schemas/fixtures/display-topology-v1/valid/uuid-members.json" '
+  .display_topology == $topology[0]
+  and .state_id == "see_topology_fixture"
+  and .state_id != .display_topology.identity
+' "$TMP_ROOT/saved-interactive.json" >/dev/null
 if AOS_FAKE_OMIT_TOPOLOGY=1 \
   AOS_TOPOLOGY_FIXTURE="$ROOT/shared/schemas/fixtures/display-topology-v1/valid/uuid-members.json" \
   AOS_STATE_ROOT="$TMP_ROOT/state" \
@@ -74,6 +85,17 @@ if AOS_FAKE_OMIT_TOPOLOGY=1 \
   exit 1
 fi
 jq -e '.code == "DISPLAY_TOPOLOGY_MISSING"' "$TMP_ROOT/missing.err" >/dev/null
+if AOS_FAKE_OMIT_TOPOLOGY=1 \
+  AOS_TOPOLOGY_FIXTURE="$ROOT/shared/schemas/fixtures/display-topology-v1/valid/uuid-members.json" \
+  AOS_STATE_ROOT="$TMP_ROOT/state" \
+  AOS_PATH="$FAKE_AOS" \
+  node "$ROOT/scripts/aos-see-native.mjs" capture \
+    --interactive --save --mode ax --workspace topology-interactive-missing --name interactive \
+    >"$TMP_ROOT/interactive-missing.out" 2>"$TMP_ROOT/interactive-missing.err"; then
+  echo "missing interactive display topology unexpectedly succeeded" >&2
+  exit 1
+fi
+jq -e '.code == "DISPLAY_TOPOLOGY_MISSING"' "$TMP_ROOT/interactive-missing.err" >/dev/null
 
 python3 - "$ROOT" <<'PY'
 from pathlib import Path
@@ -193,6 +215,8 @@ assert re.search(r'version:\s*"0\.3\.0"', pipeline)
 assert "capture.display_topology" in saved_capture
 assert "DISPLAY_TOPOLOGY_MISSING" in saved_capture
 assert "{ display_topology: displayTopology }" in saved_capture
+assert "function producesDisplayTopology(source, passthrough)" in saved_capture
+assert "passthrough.includes('--interactive')" in saved_capture
 
 manifest = json.loads((root / "manifests/commands/aos-commands.json").read_text())
 see = next(command for command in manifest["commands"] if command["path"] == ["see"])

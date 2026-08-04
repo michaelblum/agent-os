@@ -58,11 +58,12 @@ tests.
 - Display-topology identity proof must compile the focused production Swift
   helper with `-Onone`, remain offline and daemon/TCC-free, and cover raw
   enumeration permutations, every mapping fact, UUID fallback, invalid inputs,
-  direct region/saved-region response wiring, `state_id` separation, and the
-  single-observation source guard. It must also reject missing/duplicate live
-  NSScreen sources, selected/provider membership drift, provider frame/point
-  size and production filter-scale drift, fractional/unrepresentable pixel
-  dimensions, and captured full-display pixel mismatch. Static guards must
+  direct and saved explicit/interactively selected region response wiring,
+  `state_id` separation, and the single-observation source guard. It must also
+  reject missing/duplicate live NSScreen sources, selected/provider membership
+  drift, provider frame/point size and production filter-scale drift,
+  fractional/unrepresentable pixel dimensions, and captured full-display pixel
+  mismatch. Static guards must
   prove interactive selection uses only frozen bounds and rejoins the validated
   region path with no screen re-enumeration, filter recreation, or external
   image capture. Native region capture remains a separate permission-sensitive
