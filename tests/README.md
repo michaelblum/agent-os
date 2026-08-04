@@ -186,7 +186,8 @@ Examples:
 
 - `node --test tests/aos-see-native-lifecycle.test.mjs`
 - `bash tests/see-image-compare.sh` (compiles only the focused comparator and
-  fake-dispatch harness; no repo binary, capture, daemon, or TCC)
+  fake-dispatch harness; proves canonical metrics plus optional atomic
+  grayscale artifacts without the repo binary, capture, daemon, or TCC)
 - `node --test tests/renderer/*.test.mjs`
 - `node --test tests/bundled-whisper-stt.test.mjs`
 - `cd packages/gateway && npm test`

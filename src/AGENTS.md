@@ -58,9 +58,18 @@ needs, but public command policy and product UI policy belong above it:
   file comparator behind private `__see compare`. It opens each input
   nonblocking, validates the opened descriptor is a regular file, decodes one
   upright, non-animated PNG per input into bounded canonical sRGB premultiplied
-  RGBA, compares identical decoded geometry, and emits stable JSON without
-  capture, interactive preflight, permissions, polling, or native runtime
-  lifecycle;
+  RGBA, and compares identical decoded geometry. Without artifact flags it
+  preserves the byte-stable `aos.image-compare.v1` response and performs no
+  writes. `--change-map-out` and `--mask-out` opt into bounded one-byte planes,
+  private same-directory staging, fsync, and atomic no-overwrite publication;
+  it pins each symlink-free parent identity, revalidates the requested parent
+  path before publication and receipt, and verifies the published file
+  identity. Artifact success requires a checked v2 JSON receipt. Handled write,
+  finalization, or receipt failure rolls back invocation-owned outputs and
+  reports cleanup failure explicitly, while expectation failure retains
+  successfully published artifacts only after its checked v2 receipt. The
+  comparator never captures, performs interactive preflight, requests
+  permissions, polls, or starts native runtime lifecycle;
 - daemon socket admission begins only after AppKit finishes launch and services
   one queued main-loop action, so clients cannot invoke native hosts against a
   merely initialized but not yet running application connection;

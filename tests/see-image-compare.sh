@@ -71,6 +71,29 @@ def solid_rgba_png(width, height, pixel, *, changed_pixel=None):
         + chunk(b"IEND", b"")
     )
 
+def patterned_gray_png(width, height, *, patterned):
+    compressor = zlib.compressobj(6)
+    compressed = bytearray()
+    state = 0x13579BDF
+    zero_row = bytes(width)
+    for _ in range(height):
+        if patterned:
+            row = bytearray(width)
+            for x in range(width):
+                state = (1664525 * state + 1013904223) & 0xffffffff
+                row[x] = state >> 24
+        else:
+            row = zero_row
+        compressed.extend(compressor.compress(b"\x00" + row))
+    compressed.extend(compressor.flush())
+    return (
+        signature
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 0, 0, 0, 0))
+        + chunk(b"sRGB", b"\x00")
+        + chunk(b"IDAT", bytes(compressed))
+        + chunk(b"IEND", b"")
+    )
+
 base_rows = [
     [10, 20, 30, 255, 40, 50, 60, 255],
     [70, 80, 90, 255, 100, 110, 120, 255],
@@ -134,6 +157,12 @@ four_k_files = {
 for name, data in four_k_files.items():
     with open(os.path.join(root, name), "wb") as handle:
         handle.write(data)
+
+race_width, race_height = 1536, 1536
+with open(os.path.join(root, "race-before.png"), "wb") as handle:
+    handle.write(patterned_gray_png(race_width, race_height, patterned=False))
+with open(os.path.join(root, "race-after.png"), "wb") as handle:
+    handle.write(patterned_gray_png(race_width, race_height, patterned=True))
 
 with open(os.path.join(root, "not-png.gif"), "wb") as handle:
     handle.write(b"GIF89a")
@@ -214,6 +243,150 @@ if timing_path:
         timing_handle.write(f"{elapsed:.3f}")
 
 sys.exit(return_code if return_code >= 0 else 128 - return_code)
+PY
+
+ARTIFACT_RACE_RUNNER="$TMP_ROOT/run-artifact-race.py"
+cat >"$ARTIFACT_RACE_RUNNER" <<'PY'
+import os
+import select
+import signal
+import subprocess
+import sys
+import time
+
+mode, parent, target, stdout_path, stderr_path, status_path = sys.argv[1:7]
+command = sys.argv[7:]
+watch_descriptor = os.open(parent, os.O_RDONLY)
+kqueue = select.kqueue()
+kqueue.control([
+    select.kevent(
+        watch_descriptor,
+        filter=select.KQ_FILTER_VNODE,
+        flags=select.KQ_EV_ADD | select.KQ_EV_CLEAR,
+        fflags=select.KQ_NOTE_WRITE | select.KQ_NOTE_RENAME,
+    )
+], 0, 0)
+process = None
+changed = False
+try:
+    with open(stdout_path, "wb") as stdout_handle, open(stderr_path, "wb") as stderr_handle:
+        process = subprocess.Popen(
+            command,
+            stdout=stdout_handle,
+            stderr=stderr_handle,
+            start_new_session=True,
+        )
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline and process.poll() is None:
+            events = kqueue.control(None, 1, 0.25)
+            if not events:
+                continue
+            if mode == "parent-drift":
+                moved_parent = parent + ".moved"
+                os.rename(parent, moved_parent)
+                os.mkdir(parent, 0o700)
+                with open(os.path.join(parent, "unrelated.txt"), "w", encoding="utf-8") as handle:
+                    handle.write("preserve replacement parent\n")
+                changed = True
+                break
+            if mode == "cleanup-failure" and os.path.lexists(target):
+                os.chmod(parent, 0o500)
+                changed = True
+                break
+        if not changed:
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+            raise RuntimeError(f"did not establish deterministic {mode} checkpoint")
+        try:
+            return_code = process.wait(timeout=8)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+            raise
+    with open(status_path, "w", encoding="utf-8") as status_handle:
+        status_handle.write(str(return_code))
+finally:
+    if mode == "cleanup-failure" and changed:
+        os.chmod(parent, 0o700)
+    kqueue.close()
+    os.close(watch_descriptor)
+PY
+
+GRAY_PNG_INSPECTOR="$TMP_ROOT/inspect-gray-png.py"
+cat >"$GRAY_PNG_INSPECTOR" <<'PY'
+import binascii
+import hashlib
+import json
+import struct
+import sys
+import zlib
+
+data = open(sys.argv[1], "rb").read()
+assert data.startswith(b"\x89PNG\r\n\x1a\n"), sys.argv[1]
+offset = 8
+idat = bytearray()
+width = height = bit_depth = color_type = None
+while offset < len(data):
+    length = struct.unpack(">I", data[offset:offset + 4])[0]
+    kind = data[offset + 4:offset + 8]
+    payload = data[offset + 8:offset + 8 + length]
+    crc = struct.unpack(">I", data[offset + 8 + length:offset + 12 + length])[0]
+    assert binascii.crc32(kind + payload) & 0xffffffff == crc
+    offset += 12 + length
+    if kind == b"IHDR":
+        width, height, bit_depth, color_type, compression, filtering, interlace = struct.unpack(">IIBBBBB", payload)
+        assert compression == 0 and filtering == 0 and interlace == 0
+    elif kind == b"IDAT":
+        idat.extend(payload)
+    elif kind == b"IEND":
+        break
+
+assert bit_depth == 8 and color_type == 0, (bit_depth, color_type)
+raw = zlib.decompress(bytes(idat))
+stride = width
+assert len(raw) == height * (stride + 1), (len(raw), width, height)
+samples = bytearray()
+prior = bytearray(stride)
+cursor = 0
+for _ in range(height):
+    filter_type = raw[cursor]
+    encoded = raw[cursor + 1:cursor + 1 + stride]
+    cursor += stride + 1
+    row = bytearray(stride)
+    for x, value in enumerate(encoded):
+        left = row[x - 1] if x else 0
+        up = prior[x]
+        up_left = prior[x - 1] if x else 0
+        if filter_type == 0:
+            predictor = 0
+        elif filter_type == 1:
+            predictor = left
+        elif filter_type == 2:
+            predictor = up
+        elif filter_type == 3:
+            predictor = (left + up) // 2
+        elif filter_type == 4:
+            estimate = left + up - up_left
+            pa, pb, pc = abs(estimate - left), abs(estimate - up), abs(estimate - up_left)
+            predictor = left if pa <= pb and pa <= pc else up if pb <= pc else up_left
+        else:
+            raise AssertionError(filter_type)
+        row[x] = (value + predictor) & 0xff
+    samples.extend(row)
+    prior = row
+
+print(json.dumps({
+    "width": width,
+    "height": height,
+    "bit_depth": bit_depth,
+    "color_type": color_type,
+    "sample_count": len(samples),
+    "sample_sha256": hashlib.sha256(samples).hexdigest(),
+    "nonzero_samples": sum(value != 0 for value in samples),
+    "first_samples": list(samples[:16]),
+    "last_sample": samples[-1],
+}, sort_keys=True))
 PY
 
 run_success() {
@@ -369,7 +542,7 @@ PY
 }
 
 run_success identical "$FIXTURES/base.png" "$FIXTURES/base-metadata.png"
-python3 - "$TMP_ROOT/identical.out" "$FIXTURES/base.png" <<'PY'
+python3 - "$TMP_ROOT/identical.out" "$FIXTURES/base.png" "$FIXTURES/base-metadata.png" <<'PY'
 import hashlib
 import json
 import os
@@ -385,8 +558,10 @@ expected_hash = hashlib.sha256(b"AOS_RGBA8_V1\0" + struct.pack(">QQ", 2, 2) + pi
 assert list(payload) == sorted(payload), payload
 assert payload["status"] == "success", payload
 assert payload["schema_version"] == "aos.image-compare.v1", payload
+assert "artifacts" not in payload, payload
 assert payload["expectation"] is None, payload
-assert payload["before"]["path"] == os.path.normpath(os.path.abspath(sys.argv[2])), payload
+assert os.path.samefile(payload["before"]["path"], sys.argv[2]), payload
+assert os.path.samefile(payload["after"]["path"], sys.argv[3]), payload
 assert payload["before"]["width"] == 2 and payload["before"]["height"] == 2, payload
 assert payload["before"]["canonical_pixel_sha256"] == expected_hash, payload
 assert payload["after"]["canonical_pixel_sha256"] == expected_hash, payload
@@ -401,8 +576,30 @@ assert comparison == {
     "sum_channel_delta": 0,
     "total_pixels": 4,
 }, comparison
+expected = {
+    "status": "success",
+    "schema_version": "aos.image-compare.v1",
+    "before": {
+        "path": payload["before"]["path"],
+        "width": 2,
+        "height": 2,
+        "canonical_pixel_sha256": expected_hash,
+    },
+    "after": {
+        "path": payload["after"]["path"],
+        "width": 2,
+        "height": 2,
+        "canonical_pixel_sha256": expected_hash,
+    },
+    "comparison": comparison,
+    "expectation": None,
+}
+expected_text = json.dumps(expected, sort_keys=True, separators=(",", ":")).replace("/", "\\/")
+expected_bytes = (expected_text + "\n").encode()
+actual_bytes = open(sys.argv[1], "rb").read()
+assert actual_bytes == expected_bytes, (actual_bytes, expected_bytes)
 PY
-pass "different PNG encodings and metadata canonicalize to the authoritative pixel hash"
+pass "no-output comparison remains byte-exact v1 with no artifact members or writes"
 
 run_success one-pixel "$FIXTURES/base.png" "$FIXTURES/changed.png" --expect change
 python3 - "$TMP_ROOT/one-pixel.out" <<'PY'
@@ -486,9 +683,362 @@ run_success grayscale-conversion "$FIXTURES/gray.png" "$FIXTURES/gray.png" --exp
 run_success regular-file-symlink "$FIXTURES/base-link.png" "$FIXTURES/base.png" --expect no-change
 pass "RGB, RGBA, untagged RGB, and grayscale PNG inputs decode through canonical sRGB RGBA"
 
+/bin/mkdir "$TMP_ROOT/artifacts"
+ARTIFACT_ROOT="$(cd "$TMP_ROOT/artifacts" && pwd -P)"
+/bin/mkdir -p "$ARTIFACT_ROOT/valid" "$ARTIFACT_ROOT/invalid/real-parent"
+
+CHANGE_MAP="$ARTIFACT_ROOT/valid/change-map.png"
+MASK="$ARTIFACT_ROOT/valid/mask.png"
+run_success artifact-both \
+  "$FIXTURES/base.png" "$FIXTURES/changed.png" \
+  --pixel-tolerance 4 --change-map-out "$CHANGE_MAP" --mask-out "$MASK" --expect change
+python3 "$GRAY_PNG_INSPECTOR" "$CHANGE_MAP" >"$TMP_ROOT/change-map-inspection.json"
+python3 "$GRAY_PNG_INSPECTOR" "$MASK" >"$TMP_ROOT/mask-inspection.json"
+python3 - \
+  "$TMP_ROOT/artifact-both.out" "$CHANGE_MAP" "$MASK" \
+  "$TMP_ROOT/change-map-inspection.json" "$TMP_ROOT/mask-inspection.json" <<'PY'
+import hashlib
+import json
+import os
+import stat
+import struct
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+change_path, mask_path = sys.argv[2:4]
+change_inspection = json.load(open(sys.argv[4], encoding="utf-8"))
+mask_inspection = json.load(open(sys.argv[5], encoding="utf-8"))
+assert payload["schema_version"] == "aos.image-compare.v2", payload
+assert payload["comparison"]["changed_pixels"] == 1, payload
+assert payload["expectation"] == {"requested": "change", "actual": "change", "met": True}, payload
+expected_planes = {
+    "change_map": (
+        change_path,
+        bytes([0, 5, 0, 0]),
+        "aos.image-compare.change-map.gray8.v1",
+        b"AOS_IMAGE_COMPARE_CHANGE_MAP_U8_V1\0",
+        change_inspection,
+    ),
+    "mask": (
+        mask_path,
+        bytes([0, 255, 0, 0]),
+        "aos.image-compare.mask.gray8.v1",
+        b"AOS_IMAGE_COMPARE_MASK_U8_V1\0",
+        mask_inspection,
+    ),
+}
+for key, (path, samples, encoding, domain, inspection) in expected_planes.items():
+    descriptor = payload["artifacts"][key]
+    assert descriptor == {
+        "path": os.path.normpath(os.path.abspath(path)),
+        "width": 2,
+        "height": 2,
+        "encoding_version": encoding,
+        "canonical_sample_sha256": hashlib.sha256(domain + struct.pack(">QQ", 2, 2) + samples).hexdigest(),
+        "png_file_sha256": hashlib.sha256(open(path, "rb").read()).hexdigest(),
+        "selected_pixels": 1,
+    }, descriptor
+    assert stat.S_IMODE(os.lstat(path).st_mode) == 0o600
+    assert inspection["width"] == 2 and inspection["height"] == 2
+    assert inspection["bit_depth"] == 8 and inspection["color_type"] == 0
+    assert inspection["sample_count"] == 4
+    assert inspection["first_samples"] == list(samples)
+    assert inspection["sample_sha256"] == hashlib.sha256(samples).hexdigest()
+PY
+pass "artifact v2 returns exact descriptors, domain-separated sample hashes, PNG hashes, mode 0600, and grayscale samples"
+
+SINGLE_CHANGE="$ARTIFACT_ROOT/valid/single-change.png"
+run_success artifact-change-only \
+  "$FIXTURES/base.png" "$FIXTURES/changed.png" \
+  --pixel-tolerance 5 --change-map-out "$SINGLE_CHANGE"
+SINGLE_MASK="$ARTIFACT_ROOT/valid/single-mask.png"
+run_success artifact-mask-only \
+  "$FIXTURES/base.png" "$FIXTURES/changed.png" \
+  --pixel-tolerance 5 --mask-out "$SINGLE_MASK"
+python3 "$GRAY_PNG_INSPECTOR" "$SINGLE_CHANGE" >"$TMP_ROOT/single-change-inspection.json"
+python3 "$GRAY_PNG_INSPECTOR" "$SINGLE_MASK" >"$TMP_ROOT/single-mask-inspection.json"
+python3 - \
+  "$TMP_ROOT/artifact-change-only.out" "$TMP_ROOT/artifact-mask-only.out" \
+  "$TMP_ROOT/single-change-inspection.json" "$TMP_ROOT/single-mask-inspection.json" <<'PY'
+import json
+import sys
+change_payload = json.load(open(sys.argv[1], encoding="utf-8"))
+mask_payload = json.load(open(sys.argv[2], encoding="utf-8"))
+change_inspection = json.load(open(sys.argv[3], encoding="utf-8"))
+mask_inspection = json.load(open(sys.argv[4], encoding="utf-8"))
+assert change_payload["schema_version"] == "aos.image-compare.v2", change_payload
+assert change_payload["artifacts"]["change_map"]["selected_pixels"] == 1, change_payload
+assert change_payload["artifacts"]["mask"] is None, change_payload
+assert change_inspection["first_samples"] == [0, 5, 0, 0], change_inspection
+assert mask_payload["schema_version"] == "aos.image-compare.v2", mask_payload
+assert mask_payload["artifacts"]["change_map"] is None, mask_payload
+assert mask_payload["artifacts"]["mask"]["selected_pixels"] == 0, mask_payload
+assert mask_inspection["first_samples"] == [0, 0, 0, 0], mask_inspection
+PY
+pass "change map and tolerance mask are independently optional one-byte outputs with null unrequested descriptors"
+
+/bin/ln -s real-parent "$ARTIFACT_ROOT/invalid/parent-link"
+/usr/bin/touch "$ARTIFACT_ROOT/invalid/existing.png"
+/bin/mkdir "$ARTIFACT_ROOT/invalid/directory.png"
+/usr/bin/mkfifo "$ARTIFACT_ROOT/invalid/fifo.png"
+/bin/ln -s existing.png "$ARTIFACT_ROOT/invalid/symlink.png"
+/usr/bin/touch "$ARTIFACT_ROOT/invalid/not-directory"
+
+run_failure change-map-missing MISSING_ARG "$FIXTURES/base.png" "$FIXTURES/base.png" --change-map-out
+run_failure mask-missing MISSING_ARG "$FIXTURES/base.png" "$FIXTURES/base.png" --mask-out
+run_failure duplicate-change-map INVALID_ARG \
+  "$FIXTURES/base.png" "$FIXTURES/base.png" \
+  --change-map-out "$ARTIFACT_ROOT/valid/duplicate-a.png" --change-map-out "$ARTIFACT_ROOT/valid/duplicate-b.png"
+run_failure duplicate-mask INVALID_ARG \
+  "$FIXTURES/base.png" "$FIXTURES/base.png" \
+  --mask-out "$ARTIFACT_ROOT/valid/duplicate-a.png" --mask-out "$ARTIFACT_ROOT/valid/duplicate-b.png"
+run_failure artifact-dash IMAGE_ARTIFACT_PATH_INVALID \
+  "$FIXTURES/base.png" "$FIXTURES/base.png" --mask-out -
+run_failure artifact-extension IMAGE_ARTIFACT_PATH_INVALID \
+  "$FIXTURES/base.png" "$FIXTURES/base.png" --mask-out "$ARTIFACT_ROOT/valid/output.jpg"
+run_failure artifact-uppercase-extension IMAGE_ARTIFACT_PATH_INVALID \
+  "$FIXTURES/base.png" "$FIXTURES/base.png" --mask-out "$ARTIFACT_ROOT/valid/output.PNG"
+run_failure artifact-trailing-slash IMAGE_ARTIFACT_PATH_INVALID \
+  "$FIXTURES/base.png" "$FIXTURES/base.png" --mask-out "$ARTIFACT_ROOT/valid/output.png/"
+run_failure artifact-standardized-collision IMAGE_ARTIFACT_PATH_INVALID \
+  "$FIXTURES/base.png" "$FIXTURES/base.png" \
+  --change-map-out "$ARTIFACT_ROOT/valid/collision.png" \
+  --mask-out "$ARTIFACT_ROOT/valid/unused/../collision.png"
+run_failure artifact-missing-parent IMAGE_ARTIFACT_PARENT_INVALID \
+  "$FIXTURES/base.png" "$FIXTURES/base.png" --mask-out "$ARTIFACT_ROOT/missing/output.png"
+run_failure artifact-symlink-parent IMAGE_ARTIFACT_PARENT_INVALID \
+  "$FIXTURES/base.png" "$FIXTURES/base.png" --mask-out "$ARTIFACT_ROOT/invalid/parent-link/output.png"
+run_failure artifact-nondirectory-parent IMAGE_ARTIFACT_PARENT_INVALID \
+  "$FIXTURES/base.png" "$FIXTURES/base.png" --mask-out "$ARTIFACT_ROOT/invalid/not-directory/output.png"
+for special in existing directory fifo symlink; do
+  run_failure "artifact-existing-$special" IMAGE_ARTIFACT_TARGET_EXISTS \
+    "$FIXTURES/base.png" "$FIXTURES/base.png" --mask-out "$ARTIFACT_ROOT/invalid/$special.png"
+done
+pass "artifact validation rejects duplicate flags, invalid paths, standardized collisions, symlink parents, and existing regular or special targets"
+
+RETAIN_CHANGE="$ARTIFACT_ROOT/valid/retain-change.png"
+RETAIN_MASK="$ARTIFACT_ROOT/valid/retain-mask.png"
+if "$COMPARE_HARNESS" \
+    "$FIXTURES/base.png" "$FIXTURES/base-metadata.png" \
+    --change-map-out "$RETAIN_CHANGE" --mask-out "$RETAIN_MASK" --expect change \
+    >"$TMP_ROOT/artifact-expect-fail.out" 2>"$TMP_ROOT/artifact-expect-fail.err"; then
+  fail "artifact expectation failure unexpectedly exited zero"
+elif [[ -s "$TMP_ROOT/artifact-expect-fail.out" ]]; then
+  fail "artifact expectation failure wrote stdout"
+elif python3 - "$TMP_ROOT/artifact-expect-fail.err" "$RETAIN_CHANGE" "$RETAIN_MASK" <<'PY'
+import json
+import os
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+assert payload["schema_version"] == "aos.image-compare.v2", payload
+assert payload["status"] == "expectation_failed", payload
+assert payload["code"] == "IMAGE_COMPARISON_EXPECTATION_FAILED", payload
+assert payload["expectation"] == {"requested": "change", "actual": "no-change", "met": False}, payload
+for key, path in zip(("change_map", "mask"), sys.argv[2:]):
+    assert os.path.isfile(path), path
+    assert payload["artifacts"][key]["path"] == path, payload
+    assert payload["artifacts"][key]["selected_pixels"] == 0, payload
+PY
+then
+  pass "expectation failure returns full v2 JSON on stderr and retains both published artifacts"
+else
+  fail "artifact expectation failure contract drifted: $(cat "$TMP_ROOT/artifact-expect-fail.err")"
+fi
+
+/bin/mkdir "$ARTIFACT_ROOT/rollback-change" "$ARTIFACT_ROOT/rollback-mask"
+/bin/chmod 500 "$ARTIFACT_ROOT/rollback-mask"
+ROLLBACK_CHANGE="$ARTIFACT_ROOT/rollback-change/change.png"
+ROLLBACK_MASK="$ARTIFACT_ROOT/rollback-mask/mask.png"
+if "$COMPARE_HARNESS" \
+    "$FIXTURES/base.png" "$FIXTURES/changed.png" \
+    --change-map-out "$ROLLBACK_CHANGE" --mask-out "$ROLLBACK_MASK" \
+    >"$TMP_ROOT/artifact-rollback.out" 2>"$TMP_ROOT/artifact-rollback.err"; then
+  rollback_status=0
+else
+  rollback_status=$?
+fi
+/bin/chmod 700 "$ARTIFACT_ROOT/rollback-mask"
+if [[ "$rollback_status" -eq 0 || -s "$TMP_ROOT/artifact-rollback.out" ]]; then
+  fail "handled artifact write failure did not fail on JSON stderr only"
+elif python3 - "$TMP_ROOT/artifact-rollback.err" "$ROLLBACK_CHANGE" "$ROLLBACK_MASK" "$ARTIFACT_ROOT" <<'PY'
+import json
+import os
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+assert payload["code"] == "IMAGE_ARTIFACT_WRITE_FAILED", payload
+assert not os.path.lexists(sys.argv[2]), sys.argv[2]
+assert not os.path.lexists(sys.argv[3]), sys.argv[3]
+stages = []
+for root, directories, files in os.walk(sys.argv[4]):
+    stages.extend(os.path.join(root, name) for name in files + directories if name.startswith(".aos-image-compare-"))
+assert stages == [], stages
+PY
+then
+  pass "handled second-output failure removes the first published output and every private stage"
+else
+  fail "handled artifact rollback drifted: $(cat "$TMP_ROOT/artifact-rollback.err")"
+fi
+
+/bin/mkdir "$ARTIFACT_ROOT/receipt-rollback"
+RECEIPT_ROLLBACK="$ARTIFACT_ROOT/receipt-rollback/change.png"
+/usr/bin/touch "$ARTIFACT_ROOT/receipt-rollback/unrelated.txt"
+if "$COMPARE_HARNESS" \
+    "$FIXTURES/base.png" "$FIXTURES/changed.png" \
+    --change-map-out "$RECEIPT_ROLLBACK" \
+    1>&- 2>"$TMP_ROOT/artifact-receipt-closed.err"; then
+  receipt_closed_status=0
+else
+  receipt_closed_status=$?
+fi
+if [[ "$receipt_closed_status" -eq 0 ]]; then
+  fail "closed artifact receipt stdout unexpectedly exited zero"
+elif python3 - "$TMP_ROOT/artifact-receipt-closed.err" "$RECEIPT_ROLLBACK" "$ARTIFACT_ROOT/receipt-rollback" <<'PY'
+import json
+import os
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+assert payload["code"] == "IMAGE_ARTIFACT_RECEIPT_WRITE_FAILED", payload
+assert not os.path.lexists(sys.argv[2]), sys.argv[2]
+assert os.path.isfile(os.path.join(sys.argv[3], "unrelated.txt")), sys.argv[3]
+assert not any(name.startswith(".aos-image-compare-") for name in os.listdir(sys.argv[3])), os.listdir(sys.argv[3])
+PY
+then
+  pass "closed v2 receipt stdout fails nonzero and rolls back only the owned artifact"
+else
+  fail "closed artifact receipt rollback drifted: $(cat "$TMP_ROOT/artifact-receipt-closed.err")"
+fi
+
+/bin/mkdir "$ARTIFACT_ROOT/parent-drift"
+PARENT_DRIFT_TARGET="$ARTIFACT_ROOT/parent-drift/change.png"
+if python3 "$ARTIFACT_RACE_RUNNER" \
+    parent-drift "$ARTIFACT_ROOT/parent-drift" "$PARENT_DRIFT_TARGET" \
+    "$TMP_ROOT/artifact-parent-drift.out" "$TMP_ROOT/artifact-parent-drift.err" "$TMP_ROOT/artifact-parent-drift.status" \
+    "$COMPARE_HARNESS" "$FIXTURES/race-before.png" "$FIXTURES/race-after.png" \
+    --change-map-out "$PARENT_DRIFT_TARGET"; then
+  parent_drift_runner_status=0
+else
+  parent_drift_runner_status=$?
+fi
+if [[ "$parent_drift_runner_status" -ne 0 ]]; then
+  fail "parent-drift checkpoint runner failed"
+elif python3 - \
+    "$TMP_ROOT/artifact-parent-drift.status" "$TMP_ROOT/artifact-parent-drift.out" "$TMP_ROOT/artifact-parent-drift.err" \
+    "$ARTIFACT_ROOT/parent-drift" "$ARTIFACT_ROOT/parent-drift.moved" <<'PY'
+import json
+import os
+import sys
+return_code = int(open(sys.argv[1], encoding="utf-8").read())
+assert return_code != 0, return_code
+assert os.path.getsize(sys.argv[2]) == 0, sys.argv[2]
+payload = json.load(open(sys.argv[3], encoding="utf-8"))
+assert payload["code"] == "IMAGE_ARTIFACT_PARENT_CHANGED", payload
+replacement, moved = sys.argv[4:6]
+assert open(os.path.join(replacement, "unrelated.txt"), encoding="utf-8").read() == "preserve replacement parent\n"
+assert not os.path.lexists(os.path.join(replacement, "change.png")), replacement
+assert not os.path.lexists(os.path.join(moved, "change.png")), moved
+for parent in (replacement, moved):
+    assert not any(name.startswith(".aos-image-compare-") for name in os.listdir(parent)), os.listdir(parent)
+PY
+then
+  pass "parent rename after private staging fails closed, removes the pinned stage, and preserves the replacement parent"
+else
+  fail "parent-drift artifact contract drifted: $(cat "$TMP_ROOT/artifact-parent-drift.err" 2>/dev/null)"
+fi
+
+/bin/mkdir "$ARTIFACT_ROOT/cleanup-failure" "$ARTIFACT_ROOT/cleanup-trigger"
+/usr/bin/touch "$ARTIFACT_ROOT/cleanup-failure/unrelated.txt"
+/bin/chmod 500 "$ARTIFACT_ROOT/cleanup-trigger"
+CLEANUP_FAILURE_CHANGE="$ARTIFACT_ROOT/cleanup-failure/change.png"
+CLEANUP_FAILURE_MASK="$ARTIFACT_ROOT/cleanup-trigger/mask.png"
+if python3 "$ARTIFACT_RACE_RUNNER" \
+    cleanup-failure "$ARTIFACT_ROOT/cleanup-failure" "$CLEANUP_FAILURE_CHANGE" \
+    "$TMP_ROOT/artifact-cleanup-failure.out" "$TMP_ROOT/artifact-cleanup-failure.err" "$TMP_ROOT/artifact-cleanup-failure.status" \
+    "$COMPARE_HARNESS" "$FIXTURES/race-before.png" "$FIXTURES/race-after.png" \
+    --change-map-out "$CLEANUP_FAILURE_CHANGE" --mask-out "$CLEANUP_FAILURE_MASK"; then
+  cleanup_failure_runner_status=0
+else
+  cleanup_failure_runner_status=$?
+fi
+/bin/chmod 700 "$ARTIFACT_ROOT/cleanup-trigger"
+if [[ "$cleanup_failure_runner_status" -ne 0 ]]; then
+  fail "cleanup-failure checkpoint runner failed"
+elif python3 - \
+    "$TMP_ROOT/artifact-cleanup-failure.status" "$TMP_ROOT/artifact-cleanup-failure.out" "$TMP_ROOT/artifact-cleanup-failure.err" \
+    "$CLEANUP_FAILURE_CHANGE" "$CLEANUP_FAILURE_MASK" "$ARTIFACT_ROOT/cleanup-failure/unrelated.txt" <<'PY'
+import json
+import os
+import sys
+return_code = int(open(sys.argv[1], encoding="utf-8").read())
+assert return_code != 0, return_code
+assert os.path.getsize(sys.argv[2]) == 0, sys.argv[2]
+payload = json.load(open(sys.argv[3], encoding="utf-8"))
+assert payload["code"] == "IMAGE_ARTIFACT_CLEANUP_FAILED", payload
+assert os.path.isfile(sys.argv[4]), sys.argv[4]
+assert not os.path.lexists(sys.argv[5]), sys.argv[5]
+assert os.path.isfile(sys.argv[6]), sys.argv[6]
+PY
+then
+  pass "rollback unlink denial surfaces IMAGE_ARTIFACT_CLEANUP_FAILED and preserves unrelated files"
+else
+  fail "cleanup-failure artifact contract drifted: $(cat "$TMP_ROOT/artifact-cleanup-failure.err" 2>/dev/null)"
+fi
+
 run_four_k_success four-k-identical identical "$FIXTURES/four-k-before.png" "$FIXTURES/four-k-identical.png"
 run_four_k_success four-k-sparse sparse "$FIXTURES/four-k-before.png" "$FIXTURES/four-k-sparse.png"
 run_four_k_success four-k-dense dense "$FIXTURES/four-k-before.png" "$FIXTURES/four-k-dense.png"
+
+FOUR_K_CHANGE="$ARTIFACT_ROOT/valid/four-k-change.png"
+FOUR_K_MASK="$ARTIFACT_ROOT/valid/four-k-mask.png"
+if AOS_WATCHDOG_TIMING_PATH="$TMP_ROOT/four-k-artifacts.seconds" python3 "$WATCHDOG" 4 \
+    "$TMP_ROOT/four-k-artifacts.out" "$TMP_ROOT/four-k-artifacts.err" \
+    "$COMPARE_HARNESS" "$FIXTURES/four-k-before.png" "$FIXTURES/four-k-sparse.png" \
+    --change-map-out "$FOUR_K_CHANGE" --mask-out "$FOUR_K_MASK"; then
+  four_k_artifact_status=0
+else
+  four_k_artifact_status=$?
+fi
+if [[ "$four_k_artifact_status" -eq 124 ]]; then
+  fail "4K spatial artifact output exceeded the 4-second watchdog"
+elif [[ "$four_k_artifact_status" -ne 0 || -s "$TMP_ROOT/four-k-artifacts.err" ]]; then
+  fail "4K spatial artifact output contract failed: $(cat "$TMP_ROOT/four-k-artifacts.err" "$TMP_ROOT/four-k-artifacts.out")"
+else
+  python3 "$GRAY_PNG_INSPECTOR" "$FOUR_K_CHANGE" >"$TMP_ROOT/four-k-change-inspection.json"
+  python3 "$GRAY_PNG_INSPECTOR" "$FOUR_K_MASK" >"$TMP_ROOT/four-k-mask-inspection.json"
+  if python3 - \
+      "$TMP_ROOT/four-k-artifacts.out" "$FOUR_K_CHANGE" "$FOUR_K_MASK" \
+      "$TMP_ROOT/four-k-change-inspection.json" "$TMP_ROOT/four-k-mask-inspection.json" <<'PY'
+import hashlib
+import json
+import os
+import struct
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+width, height = 3840, 2160
+sample_count = width * height
+assert payload["schema_version"] == "aos.image-compare.v2", payload
+assert payload["comparison"]["changed_pixels"] == 1, payload
+for key, path, inspection_path, value, domain in (
+    ("change_map", sys.argv[2], sys.argv[4], 5, b"AOS_IMAGE_COMPARE_CHANGE_MAP_U8_V1\0"),
+    ("mask", sys.argv[3], sys.argv[5], 255, b"AOS_IMAGE_COMPARE_MASK_U8_V1\0"),
+):
+    inspection = json.load(open(inspection_path, encoding="utf-8"))
+    samples = bytes(sample_count - 1) + bytes([value])
+    descriptor = payload["artifacts"][key]
+    assert descriptor["selected_pixels"] == 1, descriptor
+    assert descriptor["canonical_sample_sha256"] == hashlib.sha256(
+        domain + struct.pack(">QQ", width, height) + samples
+    ).hexdigest(), descriptor
+    assert descriptor["png_file_sha256"] == hashlib.sha256(open(path, "rb").read()).hexdigest(), descriptor
+    assert inspection["sample_count"] == sample_count, inspection
+    assert inspection["nonzero_samples"] == 1 and inspection["last_sample"] == value, inspection
+    assert os.path.getsize(path) < 128 * 1024 * 1024, os.path.getsize(path)
+PY
+  then
+    pass "two 4K one-byte artifact planes publish with exact sparse samples and hashes in $(cat "$TMP_ROOT/four-k-artifacts.seconds")s"
+  else
+    fail "4K spatial artifact samples or descriptors drifted"
+  fi
+fi
 
 if "$COMPARE_HARNESS" "$FIXTURES/base.png" "$FIXTURES/base-metadata.png" --expect change >"$TMP_ROOT/expect-fail.out" 2>"$TMP_ROOT/expect-fail.err"; then
   fail "expectation failure unexpectedly exited zero"
@@ -783,6 +1333,16 @@ run_dispatch_probe dispatch-absolute "$DISPATCH_BIN/aos"
 run_dispatch_probe dispatch-path aos
 run_dispatch_probe dispatch-relative ../../fake-aos-repo/bin/aos
 
+if SEE_COMPARE_HELP="$(node scripts/aos-help-proxy.mjs see compare 2>"$TMP_ROOT/see-compare-help.err")"; then
+  if /usr/bin/grep -Fq "requires one artifact output path: --change-map-out OR --mask-out" <<<"$SEE_COMPARE_HELP"; then
+    pass "direct text help renders the canonical artifact-output alternative group"
+  else
+    fail "direct text help omitted the artifact-output alternative group"
+  fi
+else
+  fail "direct text help crashed: $(cat "$TMP_ROOT/see-compare-help.err")"
+fi
+
 python3 - <<'PY'
 import json
 import re
@@ -790,11 +1350,23 @@ from pathlib import Path
 
 source = json.loads(Path("manifests/commands/source/aos/03-see-05-compare.json").read_text(encoding="utf-8"))
 form = source["commands"][0]["forms"][0]
+artifact_form = source["commands"][0]["forms"][1]
 assert source["id"] == "see-05-compare", source
 assert source["commands"][0]["path"] == ["see", "compare"], source
 assert form["id"] == "see-compare", form
 assert form["output"] == {"default_mode": "json", "error_mode": "json_stderr", "streaming": False, "supports_json_flag": False}, form
 assert form["execution"] == {"auto_starts_daemon": False, "interactive": False, "mutates_state": False, "read_only": True, "requires_permissions": False, "streaming": False, "supports_dry_run": False}, form
+assert {arg.get("token") for arg in form["args"] if arg["kind"] == "flag"} == {"--pixel-tolerance", "--expect"}, form
+assert artifact_form["id"] == "see-compare-artifacts", artifact_form
+assert artifact_form["output"] == form["output"], artifact_form
+assert artifact_form["execution"] == {"auto_starts_daemon": False, "interactive": False, "mutates_state": True, "mutation_scope": "explicit_output_paths_only", "read_only": False, "requires_permissions": False, "streaming": False, "supports_dry_run": False}, artifact_form
+assert artifact_form["constraints"]["required_groups"] == [{
+    "one_of": [["change-map-out"], ["mask-out"]],
+    "summary": "artifact output path",
+}], artifact_form
+assert {arg.get("token") for arg in artifact_form["args"] if arg["kind"] == "flag"} == {
+    "--change-map-out", "--mask-out", "--pixel-tolerance", "--expect"
+}, artifact_form
 
 external = json.loads(Path("manifests/commands/aos-external-commands.json").read_text(encoding="utf-8"))
 routes = [item for item in external["commands"] if item["path"] == ["see", "compare"]]
@@ -807,6 +1379,15 @@ assert not any("aos-see-native" in str(value) for value in route.values()), rout
 
 fallbacks = [item for item in external["commands"] if item["path"] == ["see"] and item["argv_prefix"] == ["node", "scripts/aos-see-native.mjs", "capture"]]
 assert len(fallbacks) == 1 and "compare" in fallbacks[0]["when"]["excluded_values"], fallbacks
+
+generated = json.loads(Path("manifests/commands/aos-commands.json").read_text(encoding="utf-8"))
+generated_routes = [item for item in generated["commands"] if item["path"] == ["see", "compare"]]
+assert len(generated_routes) == 1, generated_routes
+generated_artifact_forms = [form for form in generated_routes[0]["forms"] if form["id"] == "see-compare-artifacts"]
+assert len(generated_artifact_forms) == 1, generated_artifact_forms
+generated_artifact_form = generated_artifact_forms[0]
+assert generated_artifact_form["constraints"]["required_groups"] == artifact_form["constraints"]["required_groups"], generated_artifact_form
+assert generated_artifact_form["execution"]["mutation_scope"] == "explicit_output_paths_only", generated_artifact_form
 
 main = Path("src/main.swift").read_text(encoding="utf-8")
 body = re.search(r'case "compare":(?P<body>.*?)case "cursor":', main, re.S)
@@ -824,25 +1405,58 @@ comparator = Path("src/perceive/image-file-compare.swift").read_text(encoding="u
 imports = set(re.findall(r"^import ([A-Za-z0-9_]+)$", comparator, re.M))
 assert imports == {"CoreGraphics", "CryptoKit", "Darwin", "Foundation", "ImageIO"}, imports
 compare_body_match = re.search(
-    r"private func compareCanonicalImages\(.*?\n\}\n\nprivate func imageCompareDescription",
+    r"private func compareCanonicalImages\(.*?\n\}\n\nprivate func scanCanonicalImageDelta",
     comparator,
     re.S,
 )
 assert compare_body_match, comparator
 compare_body = compare_body_match.group(0)
 assert "before.pixels.count == canonicalByteCount && after.pixels.count == canonicalByteCount" in compare_body, compare_body
-assert compare_body.count("Darwin.memcmp(") == 2, compare_body
-assert re.search(r"guard Darwin\.memcmp\([^\n]+canonicalByteCount\) != 0 else \{ return \}", compare_body), compare_body
+assert compare_body.count("Data(count: Int(totalPixels))") == 2, compare_body
+assert "changeMapSamples = options.changeMapPath.map" in compare_body, compare_body
+assert "maskSamples = options.maskPath.map" in compare_body, compare_body
+assert re.search(r"else \{\s*metrics = scanCanonicalImageDelta\(.*?changeMapBytes: nil,\s*maskBytes: nil", compare_body, re.S), compare_body
+
+scan_body_match = re.search(
+    r"private func scanCanonicalImageDelta\(.*?\n\}\n\nprivate func writeImageCompareArtifacts",
+    comparator,
+    re.S,
+)
+assert scan_body_match, comparator
+scan_body = scan_body_match.group(0)
+assert scan_body.count("Darwin.memcmp(") == 2, scan_body
+assert re.search(r"guard Darwin\.memcmp\([^\n]+canonicalByteCount\) != 0 else \{ return \}", scan_body), scan_body
 assert re.search(
     r"while y < before\.height.*?Darwin\.memcmp\([^\n]+bytesPerRow\) != 0.*?while x < before\.width",
-    compare_body,
+    scan_body,
     re.S,
-), compare_body
-assert compare_body.count("assumingMemoryBound(to: UInt8.self)") == 2, compare_body
-assert "bindMemory(to: UInt8.self)" not in compare_body, compare_body
-assert "pixelIndex % before.width" not in compare_body, compare_body
-assert "pixelIndex / before.width" not in compare_body, compare_body
-assert "before.sha256 == after.sha256" not in compare_body, compare_body
+), scan_body
+assert scan_body.count("assumingMemoryBound(to: UInt8.self)") == 2, scan_body
+assert "bindMemory(to: UInt8.self)" not in scan_body, scan_body
+assert "pixelIndex % before.width" not in scan_body, scan_body
+assert "pixelIndex / before.width" not in scan_body, scan_body
+assert "before.sha256 == after.sha256" not in scan_body, scan_body
+assert "changeMapBytes?[planeIndex] = UInt8(pixelMaximumDelta)" in scan_body, scan_body
+assert "maskBytes?[planeIndex] = pixelMaximumDelta > tolerance ? 255 : 0" in scan_body, scan_body
+assert "O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC" in comparator, comparator
+assert "mode_t(0o600)" in comparator and "Darwin.fchmod" in comparator, comparator
+assert "Darwin.fsync(descriptor)" in comparator, comparator
+assert "Darwin.openat(descriptor, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)" in comparator, comparator
+assert "Darwin.fstatat(directoryDescriptor, fileName, &existing, AT_SYMLINK_NOFOLLOW)" in comparator, comparator
+assert "Darwin.renameatx_np(" in comparator and "UInt32(RENAME_EXCL)" in comparator, comparator
+assert "Darwin.unlinkat(artifact.directoryDescriptor, artifact.fileName, 0)" in comparator, comparator
+assert "cleanupImageCompareArtifacts(staged: staged, published: published)" in comparator, comparator
+assert "IMAGE_ARTIFACT_PARENT_CHANGED" in comparator, comparator
+assert "parentDevice: parentStatus.st_dev" in comparator and "parentInode: parentStatus.st_ino" in comparator, comparator
+assert "try revalidateImageCompareArtifactParent(target)" in comparator, comparator
+assert "try verifyImageCompareArtifactPublication(targets: artifactTargets, published: publication.published)" in comparator, comparator
+assert "IMAGE_ARTIFACT_CLEANUP_FAILED" in comparator, comparator
+assert "try unlinkImageCompareArtifactIfOwned(artifact)" in comparator, comparator
+assert "Darwin.fsync(artifact.directoryDescriptor)" in comparator, comparator
+assert "IMAGE_ARTIFACT_RECEIPT_WRITE_FAILED" in comparator, comparator
+assert "try writeImageCompareJSONChecked(result, to: .standardOutput)" in comparator, comparator
+assert "try writeImageCompareJSONChecked(failure, to: .standardError)" in comparator, comparator
+assert comparator.index("writeImageCompareArtifacts(") < comparator.index('expectation["met"] as? Bool == false'), comparator
 assert "@_optimize" not in comparator, comparator
 for forbidden in (
     "ScreenCaptureKit",
@@ -894,15 +1508,29 @@ assert all(fragment in api_doc for fragment in (
     "This compares compact saved-ref structure, not artifact pixels.",
     "`aos see compare <before.png> <after.png>`",
     "does not capture, poll, wait, resize, crop, or align its inputs",
+    "Calls without output flags remain the byte-stable, write-free `aos.image-compare.v1` form.",
+    "The opened parent identity is pinned and the requested symlink-free path must still resolve to it immediately before publication and receipt",
+    "Artifact success requires the complete v2 JSON receipt.",
+    "`IMAGE_ARTIFACT_CLEANUP_FAILED`",
+    "Each file is atomic, but two requested files are not claimed to be mutually crash-atomic.",
 )), api_doc
 
 capabilities_doc = " ".join(Path("docs/api/aos-capabilities.md").read_text(encoding="utf-8").split())
 assert all(fragment in capabilities_doc for fragment in (
-    "| Artifact comparison | Exact canonical pixel verification over existing same-size PNG paths; no capture, wait, or alignment |",
+    "| Artifact comparison | Exact canonical pixel verification and optional grayscale spatial evidence over existing same-size PNG paths; no capture, wait, or alignment |",
     "When matching before/after PNG artifact paths already exist, use `./aos see compare <before.png> <after.png>` as the exact pixel alternative",
+    "The opened parent identity must still match the requested symlink-free path before publication and receipt",
+    "Artifact success requires the complete v2 JSON receipt.",
+    "`IMAGE_ARTIFACT_CLEANUP_FAILED`",
+    "Files are individually atomic, not mutually crash-atomic.",
 )), capabilities_doc
+
+workflow_rules = Path("docs/dev/workflow-rules.json").read_text(encoding="utf-8")
+proof_registry = Path("docs/dev/test-proof-registry.d/command-surface.json").read_text(encoding="utf-8")
+assert "v1 no-write compatibility, optional grayscale artifacts, canonical text help, target and parent-identity safety, checked receipts, normal and failed rollback, expectation retention" in workflow_rules, workflow_rules
+assert "preserves byte-stable v1 no-write comparison, emits exact optional grayscale v2 artifacts through parent-identity-safe atomic publication plus a checked receipt" in proof_registry, proof_registry
 PY
-pass "source and primary API docs preserve the optimized stateless comparison contract"
+pass "source, split manifest forms, DOX/API, and workflow proof text preserve the bounded artifact contract"
 
 if [[ "$FAILURES" -ne 0 ]]; then
   printf 'see image compare: %s failure(s)\n' "$FAILURES" >&2

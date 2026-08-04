@@ -2001,11 +2001,11 @@
         "see",
         "compare"
       ],
-      "summary" : "Compare two existing PNG files as canonical RGBA pixels",
+      "summary" : "Compare two existing PNG files as canonical RGBA pixels, optionally writing spatial artifacts",
       "forms" : [
         {
           "id" : "see-compare",
-          "summary" : "Compare two same-size non-animated PNG files without capture, polling, or runtime services",
+          "summary" : "Compare two same-size non-animated PNG files without writing artifacts, capture, polling, or runtime services",
           "usage" : "aos see compare <before.png> <after.png> [--pixel-tolerance <0..255>] [--expect change|no-change]",
           "args" : [
             {
@@ -2059,6 +2059,105 @@
             "interactive" : false,
             "mutates_state" : false,
             "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : false
+          }
+        },
+        {
+          "id" : "see-compare-artifacts",
+          "summary" : "Compare two same-size non-animated PNG files and atomically write one or both grayscale spatial artifacts",
+          "usage" : "aos see compare <before.png> <after.png> [--change-map-out <new.png>] [--mask-out <new.png>] [--pixel-tolerance <0..255>] [--expect change|no-change]",
+          "args" : [
+            {
+              "id" : "before",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Existing before-state PNG file",
+              "value_type" : "path"
+            },
+            {
+              "id" : "after",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Existing after-state PNG file with identical decoded dimensions",
+              "value_type" : "path"
+            },
+            {
+              "id" : "change-map-out",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Write an 8-bit grayscale PNG whose samples are the maximum canonical RGBA channel delta per pixel",
+              "token" : "--change-map-out",
+              "value_type" : "path"
+            },
+            {
+              "id" : "mask-out",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Write an 8-bit grayscale PNG whose samples are 255 exactly where maximum canonical RGBA delta exceeds tolerance",
+              "token" : "--mask-out",
+              "value_type" : "path"
+            },
+            {
+              "id" : "pixel-tolerance",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Inclusive per-channel tolerance from 0 through 255; a channel changes only above this value",
+              "token" : "--pixel-tolerance",
+              "value_type" : "integer"
+            },
+            {
+              "id" : "expect",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Require the tolerance-adjusted comparison to report change or no-change after retaining published artifacts",
+              "token" : "--expect",
+              "value_type" : {
+                "enum" : [
+                  {
+                    "value" : "change",
+                    "summary" : "At least one decoded pixel changes above tolerance"
+                  },
+                  {
+                    "value" : "no-change",
+                    "summary" : "No decoded pixel changes above tolerance"
+                  }
+                ]
+              }
+            }
+          ],
+          "constraints" : {
+            "required_groups" : [
+              {
+                "one_of" : [
+                  [
+                    "change-map-out"
+                  ],
+                  [
+                    "mask-out"
+                  ]
+                ],
+                "summary" : "artifact output path"
+              }
+            ]
+          },
+          "examples" : [
+            "aos see compare before.png after.png --change-map-out ./change-map.png",
+            "aos see compare before.png after.png --pixel-tolerance 4 --change-map-out ./change-map.png --mask-out ./mask.png --expect change"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "mutation_scope" : "explicit_output_paths_only",
+            "read_only" : false,
             "requires_permissions" : false,
             "streaming" : false,
             "supports_dry_run" : false

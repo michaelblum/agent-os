@@ -19,12 +19,12 @@ current command tree before public CLI and self-hosting boundary changes.
 ## Summary
 
 - Command paths: 68
-- Concrete forms: 232
-- Consumer-discoverable forms: 223
+- Concrete forms: 233
+- Consumer-discoverable forms: 224
 - Internal/transitional command paths: 1
-- Mutating or conditionally mutating forms: 130
+- Mutating or conditionally mutating forms: 131
 - Forms with unspecified mutability metadata: 0
-- Forms with JSON output path: 227
+- Forms with JSON output path: 228
 - Forms with dry-run support: 38
 
 ## Capability Group Counts
@@ -33,7 +33,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | --- | --- |
 | Browser companion | 15 |
 | Canvas and vision | 5 |
-| Capture and perception | 8 |
+| Capture and perception | 9 |
 | CLI metadata | 2 |
 | Content/wiki | 18 |
 | Core desktop | 8 |
@@ -64,7 +64,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `see` | 13 | Capture and perception, Saved workspace | yes | conditional --save, mutates, read-only | --json, default | `manifests/commands/source/aos/03-see-01-capture.json, manifests/commands/source/aos/03-see-02-workspace.json` | `node scripts/aos-help-proxy.mjs see [missing child]; node scripts/aos-see-native.mjs capture [not capture/compare/observe/cursor...]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `see zone` | 4 | Canvas and vision | yes | mutates | default | `manifests/commands/source/aos/03-see-03-zone.json` | `node scripts/aos-subcommand-router.mjs see zone MISSING_SUBCOMMAND see zone requires a subcommand. Usage: aos see zone <save\|define\|list\|delete> ... UNKNOWN_SUBCOMMAND see zone subcommand` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `see annotation` | 8 | Operator input | yes | mutates, read-only | --json, default | `manifests/commands/source/aos/03-see-04-annotation.json` | `node scripts/aos-subcommand-router.mjs see annotation MISSING_SUBCOMMAND see annotation requires a subcommand. Usage: aos see annotation <select\|create\|list\|read\|consume\|link-work-record\|delete> ... UNKNOWN_SUBCOMMAND see annotation subcommand` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `see compare` | 1 | Capture and perception | yes | read-only | default | `manifests/commands/source/aos/03-see-05-compare.json` | `$AOS_PATH __see compare` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `see compare` | 2 | Capture and perception | yes | mutates, read-only | default | `manifests/commands/source/aos/03-see-05-compare.json` | `$AOS_PATH __see compare` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `show` | 15 | Overlay/display | yes | mutates, read-only | --json, default, no | `manifests/commands/source/aos/04-show.json` | `node scripts/aos-family-router.mjs show UNKNOWN_SUBCOMMAND show subcommand [not render/create/update/remove...]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `recipe` | 4 | Skills and recipes | yes | mutates, read-only | --json | `manifests/commands/source/aos/06-recipe.json` | `node scripts/aos-recipe.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `do` | 32 | Pointer and keyboard, Canvas and vision, Browser companion, Desktop/native control | yes | mutates, read-only | default | `manifests/commands/source/aos/07-do-01-pointing.json, manifests/commands/source/aos/07-do-02-text.json, manifests/commands/source/aos/07-do-03-controls.json, manifests/commands/source/aos/07-do-04-window.json, manifests/commands/source/aos/07-do-05-script-session.json, manifests/commands/source/aos/07-do-06-app-lifecycle.json, manifests/commands/source/aos/07-do-07-menu.json` | `node scripts/aos-help-proxy.mjs do [missing child]; node scripts/aos-family-router.mjs do UNKNOWN_SUBCOMMAND do subcommand [not click/hover/drag/fill...]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
@@ -159,6 +159,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `see annotation link-work-record` | `see-annotation-link-work-record` | Operator input | yes | mutates | --json | no | `manifests/commands/source/aos/03-see-04-annotation.json` | `node scripts/aos-pending-annotation.mjs link-work-record` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `see annotation delete` | `see-annotation-delete` | Operator input | yes | mutates | --json | no | `manifests/commands/source/aos/03-see-04-annotation.json` | `node scripts/aos-pending-annotation.mjs delete` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `see compare` | `see-compare` | Capture and perception | yes | read-only | default | no | `manifests/commands/source/aos/03-see-05-compare.json` | `$AOS_PATH __see compare` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `see compare` | `see-compare-artifacts` | Capture and perception | yes | mutates | default | no | `manifests/commands/source/aos/03-see-05-compare.json` | `$AOS_PATH __see compare` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `show create` | `show-create` | Overlay/display | yes | mutates | default | no | `manifests/commands/source/aos/04-show.json` | `node scripts/aos-show-client.mjs create` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `show update` | `show-update` | Overlay/display | yes | mutates | default | no | `manifests/commands/source/aos/04-show.json` | `node scripts/aos-show-client.mjs update` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `show remove` | `show-remove` | Overlay/display | yes | mutates | default | no | `manifests/commands/source/aos/04-show.json` | `node scripts/aos-show-client.mjs remove` | `docs/api/aos.md, docs/api/aos-capabilities.md` |

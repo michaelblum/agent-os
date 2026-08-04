@@ -58,12 +58,16 @@ tests.
 - PNG file comparison proof must compile only its focused Swift source and
   disposable harness with explicit `-Onone`, generate fixed fixtures under a
   private temporary root, reject special files under a bounded watchdog, and
-  prove exact identical, sparse-change, and dense-change metrics for
-  compressible 3840x2160 RGBA PNGs within the focused performance watchdog. It
-  must exercise the production runtime-path helper, dispatcher, and comparator
-  through absolute, PATH, and relative executable invocations from an external
-  caller directory. It must not execute the repo AOS binary, capture pixels,
-  start services, or require TCC.
+  prove exact identical, sparse-change, and dense-change metrics plus optional
+  grayscale change-map/mask samples, hashes, target validation, expectation
+  retention, parent-identity drift rejection, checked-receipt rollback, normal
+  rollback, explicit cleanup-failure reporting, unrelated-file preservation,
+  and bounded 3840x2160 artifact output. It must render direct text help so
+  malformed required-group topology cannot self-pass, and exercise the
+  production runtime-path helper, dispatcher, and comparator through absolute,
+  PATH, and relative executable invocations from an external caller directory.
+  It must not execute the repo AOS binary, capture pixels, start services, or
+  require TCC.
 - `tests/dev-workflow-router.sh` runs its public `./aos` rejection checks by
   default. Use `AOS_SKIP_LIVE_CLI_CHECKS=1` only for explicit static-only
   validation while the repo artifact is absent or waiting at ADR 0023's human
