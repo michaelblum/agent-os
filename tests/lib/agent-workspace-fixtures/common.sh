@@ -91,39 +91,49 @@ with_corrupt_file() {
     mv "$backup" "$file"
 }
 
-validate_agent_workspace_schema() {
-    python3 - shared/schemas/aos-agent-workspace-v0.schema.json "$@" <<'PY'
+_run_agent_workspace_schema_validation() {
+    local expectation="$1"
+    shift
+    python3 - \
+        shared/schemas/aos-agent-workspace-v0.schema.json \
+        shared/schemas/display-topology-v1.schema.json \
+        "$expectation" \
+        "$@" <<'PY'
 import json
 import sys
 from pathlib import Path
 from jsonschema import Draft202012Validator
+from referencing import Registry, Resource
 
 schema = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+display_topology_schema = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+expectation = sys.argv[3]
 Draft202012Validator.check_schema(schema)
-validator = Draft202012Validator(schema)
-for instance_path in sys.argv[2:]:
+Draft202012Validator.check_schema(display_topology_schema)
+registry = Registry().with_resource(
+    display_topology_schema["$id"],
+    Resource.from_contents(display_topology_schema),
+)
+validator = Draft202012Validator(schema, registry=registry)
+for instance_path in sys.argv[4:]:
     instance = json.loads(Path(instance_path).read_text(encoding="utf-8"))
     errors = sorted(validator.iter_errors(instance), key=lambda error: list(error.path))
-    if errors:
+    if expectation == "accept" and errors:
         print(f"{instance_path}: {errors[0].message}", file=sys.stderr)
+        sys.exit(1)
+    if expectation == "reject" and not errors:
+        print(f"{instance_path}: schema accepted invalid instance", file=sys.stderr)
         sys.exit(1)
 PY
 }
 
+validate_agent_workspace_schema() {
+    _run_agent_workspace_schema_validation accept "$@"
+}
+
 expect_agent_workspace_schema_rejects() {
     local instance_path="$1"
-    if python3 - shared/schemas/aos-agent-workspace-v0.schema.json "$instance_path" <<'PY'
-import json
-import sys
-from pathlib import Path
-from jsonschema import Draft202012Validator
-
-schema = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-instance = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
-errors = sorted(Draft202012Validator(schema).iter_errors(instance), key=lambda error: list(error.path))
-sys.exit(0 if not errors else 1)
-PY
-    then
-        fail "schema accepted invalid instance: $instance_path"
+    if ! _run_agent_workspace_schema_validation reject "$instance_path"; then
+        fail "schema did not reject invalid instance cleanly: $instance_path"
     fi
 }

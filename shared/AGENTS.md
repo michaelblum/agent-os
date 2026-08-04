@@ -17,6 +17,11 @@ apps, and tests.
 ## Local Contracts
 
 - Schema changes must update fixtures, docs, and tests that assert the contract.
+- `schemas/display-topology-v1.*` owns the closed content-addressed display
+  mapping snapshot embedded by spatial-topology 0.3.0 and explicit or
+  interactively selected region captures; keep its canonical ordering,
+  fallback, and binary identity encoding synchronized with the production Swift
+  helper and deterministic fixtures.
 - Shared helpers must stay product-neutral and layer-neutral.
 - Do not hide app-specific semantics in shared schema fields.
 - `swift/ipc/runtime-paths.swift` owns executable identity. Resolve the running

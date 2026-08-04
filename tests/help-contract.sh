@@ -695,6 +695,7 @@ import os
 capture = json.loads(os.environ["CAPTURE"])
 capture_form = next(item for item in capture["forms"] if item["id"] == "see-capture")
 capture_save_form = next(item for item in capture["forms"] if item["id"] == "see-capture-save")
+see_list_form = next(item for item in capture["forms"] if item["id"] == "see-list")
 capture_tokens = {arg.get("token") for arg in capture_form["args"]}
 capture_save_tokens = {arg.get("token") for arg in capture_save_form["args"]}
 capture_conflicts = [set(item) for item in capture_form.get("constraints", {}).get("conflicts", [])]
@@ -707,12 +708,18 @@ mode_arg = next(arg for arg in capture_save_form["args"] if arg.get("token") == 
 mode_values = {item["value"] for item in mode_arg["value_type"]["enum"]}
 save_arg = next(arg for arg in capture_form["args"] if arg.get("token") == "--save")
 capture_save_arg = next(arg for arg in capture_save_form["args"] if arg.get("token") == "--save")
+region_arg = next(arg for arg in capture_form["args"] if arg.get("token") == "--region")
+perception_arg = next(arg for arg in capture_form["args"] if arg.get("token") == "--perception")
+saved_region_arg = next(arg for arg in capture_save_form["args"] if arg.get("token") == "--region")
+saved_interactive_arg = next(arg for arg in capture_save_form["args"] if arg.get("token") == "--interactive")
 assert {"--save", "--workspace", "--name", "--mode", "--query"} <= capture_tokens, capture_tokens
-assert {"--region", "--canvas", "--channel", "--save", "--workspace", "--name", "--mode", "--query"} <= capture_save_tokens, capture_save_tokens
+assert {"--region", "--canvas", "--channel", "--interactive", "--save", "--workspace", "--name", "--mode", "--query"} <= capture_save_tokens, capture_save_tokens
 assert {"save", "out"} in capture_conflicts, capture_conflicts
 assert {"target", "region", "canvas", "channel"} in capture_conflicts, capture_conflicts
 assert {"region", "canvas", "channel"} in capture_save_conflicts, capture_save_conflicts
 assert {"target", "region", "canvas", "channel"} in capture_save_conflicts, capture_save_conflicts
+for source in ("region", "canvas", "channel"):
+    assert {"interactive", source} in capture_save_conflicts, capture_save_conflicts
 assert target_arg["required"] is False, target_arg
 assert capture_save_target_arg["required"] is False, capture_save_target_arg
 assert target_arg["default_value"] == "main", target_arg
@@ -724,8 +731,15 @@ assert format_arg["default_value"] == "png", format_arg
 assert mode_values == {"ax", "vision", "som"}, mode_values
 assert "stable native AX press/focus/set-value" in save_arg["summary"], save_arg
 assert "documented saved-ref action matrix" in capture_save_arg["summary"], capture_save_arg
+assert "frozen display_topology" in region_arg["summary"], region_arg
+assert "exact direct display_topology" in perception_arg["summary"], perception_arg
+assert "display_topology" in saved_region_arg["summary"], saved_region_arg
+assert "exact native display_topology" in saved_interactive_arg["summary"], saved_interactive_arg
+assert "DISPLAY_TOPOLOGY_MISSING" in saved_interactive_arg["summary"], saved_interactive_arg
+assert "spatial-topology 0.3.0" in see_list_form["summary"], see_list_form
 assert capture_form["examples"][0].startswith("aos see capture") and "--save" in capture_form["examples"][0], capture_form["examples"]
 assert any("--canvas" in item and "--save" in item for item in capture_save_form["examples"]), capture_save_form["examples"]
+assert any("--interactive" in item and "--save" in item for item in capture_save_form["examples"]), capture_save_form["examples"]
 assert any("aos see refs" in item for item in capture_save_form["examples"]), capture_save_form["examples"]
 saved_loop_examples = capture_save_form["examples"]
 assert "aos see capture browser:work --save --mode som --workspace default --name before" in saved_loop_examples, saved_loop_examples
@@ -738,6 +752,7 @@ assert "stable native AX actions" in capture_save_form["summary"], capture_save_
 assert "--region <rect>" in capture_save_form["usage"], capture_save_form["usage"]
 assert "--canvas <id>" in capture_save_form["usage"], capture_save_form["usage"]
 assert "--channel <id>" in capture_save_form["usage"], capture_save_form["usage"]
+assert "--interactive" in capture_save_form["usage"], capture_save_form["usage"]
 assert capture_form["execution"]["mutates_state"] is False, capture_form["execution"]
 assert capture_form["execution"]["mutates_when_flags"] == ["--save"], capture_form["execution"]
 assert capture_form["execution"]["read_only"] is True, capture_form["execution"]
@@ -745,8 +760,11 @@ assert "conditional_modes" not in capture_form["output"], capture_form["output"]
 assert capture_form["output"]["default_mode"] == "json", capture_form["output"]
 assert capture_save_form["execution"]["mutates_state"] is True, capture_save_form["execution"]
 assert capture_save_form["execution"]["read_only"] is False, capture_save_form["execution"]
+assert capture_save_form["execution"]["interactive"] is False, capture_save_form["execution"]
 assert "--save" in capture["summary"], capture["summary"]
 capture_text = os.environ["CAPTURE_TEXT"]
+assert "compact response preserves the exact native display_topology" in capture_text, capture_text
+assert "aos see capture --interactive --save --mode ax --workspace default --name selection" in capture_text, capture_text
 assert "[execution: read-only, mutates-with --save, requires-permissions]" in capture_text, capture_text
 assert "[execution: mutates-state, requires-permissions]" in capture_text, capture_text
 assert "[output: json; with --save: json]" not in capture_text, capture_text

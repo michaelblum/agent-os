@@ -429,6 +429,19 @@ workspace state. New saved captures persist compact
 `capture_source.argv` so post-action refresh recommendations can reconstruct
 the original positional or source-flag capture scope.
 
+Bounds-only saved `--interactive` capture selects a rectangle on exactly one
+default or positional display target and then uses the validated region path;
+it conflicts with `--region`, `--canvas`, and `--channel`. For both explicit
+saved `--region` and bounds-only saved `--interactive`, compact stdout preserves
+the exact direct native `display_topology`. A missing object, wrong schema tag,
+or absent string identity fails the saved capture closed with
+`DISPLAY_TOPOLOGY_MISSING`, and the per-capture `state_id` remains distinct from
+`display_topology.identity`.
+
+```bash
+aos see capture --interactive --save --mode ax --workspace default --name selection
+```
+
 Saved agent workspaces live under
 `~/.config/aos/{repo|installed}/agent-workspaces/<workspace>/`, or
 `$AOS_STATE_ROOT/{repo|installed}/agent-workspaces/<workspace>/` when the state
@@ -1147,7 +1160,11 @@ aos see capture --region 1172,442,320,480 --perception
 Useful capture modifiers include:
 
 - `--window` to restrict `user_active`/window captures to the window frame
-- `--region <x,y,w,h>` for explicit CG-coordinate regions
+- `--region <x,y,w,h>` for explicit CG-coordinate regions; every successful
+  region response directly includes the frozen `aos.display-topology.v1`
+  mapping used to resolve, segment, capture, and stitch it
+- `--interactive` to select bounds on exactly one target display and route the
+  real pixels through the same validated region path
 - `--canvas <id>` / `--channel <id>` for surface-relative captures
 - `--exclude-window <CGWindowID>` to omit specific windows from a display/region capture
 - `--perception` to attach spatial metadata alongside the image payload
@@ -1156,6 +1173,16 @@ Capture responses include an opaque `state_id` such as `see_abc123def456`.
 Work-record and recipe layers can carry that id into the next action as the
 perception state the agent acted from. The id is a correlation handle, not a
 stable object reference or cache key.
+
+`aos see list` returns spatial-topology `0.3.0` and directly includes
+`display_topology`. The nested object has a stable content identity over display
+mapping facts only. An explicit `--region` or bounds-only `--interactive`
+capture returns the same object at response top level even without
+`--perception`; with `--perception`, its
+`perceptions[].topology.display_topology` value is byte-for-byte equivalent.
+The producer observes displays once per command and reuses that frozen value.
+`state_id` stays independently per-capture and is not a topology identity.
+See [`display-topology-v1.md`](../../shared/schemas/display-topology-v1.md).
 
 `aos see cursor` returns the cursor point, display ordinal, the frontmost
 visible window under the cursor when available, and an optional AX `element`.
@@ -1197,6 +1224,11 @@ for the response shape.
 - composite capture scale
 - per-display surface segments when a region/canvas/channel spans multiple displays
 - a `spatial-topology` snapshot for the same moment
+
+Spatial-topology `0.3.0` requires the same frozen `display_topology` value. The
+DesktopWorld canvas lifecycle counter named `topologyGeneration` (or
+`topology_generation`) is a separate non-content-addressed, non-persistent,
+non-comparable value and is not atomically correlated with this identity.
 
 ## `aos show`
 

@@ -29,6 +29,12 @@ test('top-level defines desktop_world_bounds + visible_desktop_world_bounds', ()
   assert.ok(required.has('visible_desktop_world_bounds'), 'top-level required must include visible_desktop_world_bounds');
 });
 
+test('v0.3.0 requires the canonical display topology snapshot', () => {
+  assert.equal(schema.properties.version.const, '0.3.0');
+  assert.equal(schema.properties.display_topology.$ref, 'display-topology-v1.schema.json');
+  assert.ok(new Set(schema.required || []).has('display_topology'));
+});
+
 test('Cursor typedef carries DesktopWorld siblings', () => {
   const cursor = schema.$defs?.Cursor;
   assert.ok(cursor, 'expected $defs.Cursor');

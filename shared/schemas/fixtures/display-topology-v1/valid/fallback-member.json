@@ -1,0 +1,41 @@
+{
+  "schema": "aos.display-topology.v1",
+  "identity": "sha256:7dee2bcb8742cfacec8484b92d4cb369ffb323abceb9d8c48cc80bb33736609d",
+  "uses_display_id_fallback": true,
+  "screens_have_separate_spaces": true,
+  "desktop_world_origin_native": { "x": -1920, "y": -200 },
+  "native_bounds": { "x": -1920, "y": -200, "width": 3360, "height": 1100 },
+  "native_visible_bounds": { "x": -1920, "y": -176, "width": 3360, "height": 1076 },
+  "desktop_world_bounds": { "x": 0, "y": 0, "width": 3360, "height": 1100 },
+  "visible_desktop_world_bounds": { "x": 0, "y": 24, "width": 3360, "height": 1076 },
+  "displays": [
+    {
+      "ordinal": 1,
+      "is_main": true,
+      "member_identity": {
+        "kind": "display_uuid",
+        "display_uuid": "11111111-2222-4333-8444-555555555555"
+      },
+      "native_bounds": { "x": 0, "y": 0, "width": 1440, "height": 900 },
+      "native_visible_bounds": { "x": 0, "y": 24, "width": 1440, "height": 876 },
+      "desktop_world_bounds": { "x": 1920, "y": 200, "width": 1440, "height": 900 },
+      "visible_desktop_world_bounds": { "x": 1920, "y": 224, "width": 1440, "height": 876 },
+      "scale_factor": 2,
+      "rotation": 0
+    },
+    {
+      "ordinal": 2,
+      "is_main": false,
+      "member_identity": {
+        "kind": "display_id_fallback",
+        "display_id_fallback": 202
+      },
+      "native_bounds": { "x": -1920, "y": -200, "width": 1920, "height": 1080 },
+      "native_visible_bounds": { "x": -1920, "y": -176, "width": 1920, "height": 1056 },
+      "desktop_world_bounds": { "x": 0, "y": 0, "width": 1920, "height": 1080 },
+      "visible_desktop_world_bounds": { "x": 0, "y": 24, "width": 1920, "height": 1056 },
+      "scale_factor": 1,
+      "rotation": 90
+    }
+  ]
+}

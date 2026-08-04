@@ -315,6 +315,7 @@
         "target": { "$ref": "#/$defs/non_empty_string" },
         "query": { "$ref": "#/$defs/nullable_string" },
         "state_id": { "$ref": "#/$defs/nullable_string" },
+        "display_topology": { "$ref": "display-topology-v1.schema.json" },
         "paths": { "$ref": "#/$defs/paths" },
         "counts": {
           "type": "object",

@@ -29,6 +29,11 @@ backend validation, and local cleanup.
   as AX/browser element arrays, semantic target arrays, annotations,
   perceptions, screenshots, or base64. Keep heavy payloads file-backed under the
   saved snapshot directory.
+- Explicit saved `--region` and bounds-only saved `--interactive` captures are
+  the narrow exceptions for the closed, non-heavy `display_topology` mapping:
+  compact stdout must preserve the exact native capture value and fail closed
+  if it is missing, without observing displays or creating another capture
+  path.
 - Saved refs must fail closed before mutation when confidence, backend,
   resolution class, action compatibility, current validation, or durable native
   identity is insufficient.

@@ -382,7 +382,7 @@
               "id" : "region",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Global CG region in points: x,y,w,h",
+              "summary" : "Global CG region in points: x,y,w,h; response directly includes the frozen display_topology used to segment and stitch it",
               "token" : "--region",
               "value_type" : "string"
             },
@@ -446,7 +446,7 @@
               "id" : "perception",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Include topology + resolved surface geometry for the capture (segments when spanning displays)",
+              "summary" : "Include spatial topology + resolved surface geometry; explicit regions reuse the exact direct display_topology snapshot",
               "token" : "--perception",
               "value_type" : "bool"
             },
@@ -502,7 +502,7 @@
               "id" : "interactive",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Native selection rectangle",
+              "summary" : "Select bounds on exactly one target display, then capture through the validated region pipeline; conflicts with --region, --canvas, --channel, --window, and --crop",
               "token" : "--interactive",
               "value_type" : "bool"
             },
@@ -598,6 +598,26 @@
                 "channel"
               ],
               [
+                "interactive",
+                "region"
+              ],
+              [
+                "interactive",
+                "canvas"
+              ],
+              [
+                "interactive",
+                "channel"
+              ],
+              [
+                "interactive",
+                "window"
+              ],
+              [
+                "interactive",
+                "crop"
+              ],
+              [
                 "target",
                 "region",
                 "canvas",
@@ -663,7 +683,7 @@
               "id" : "region",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Global CG region in points: x,y,w,h",
+              "summary" : "Global CG region in points: x,y,w,h; compact saved response directly preserves the native capture display_topology",
               "token" : "--region",
               "value_type" : "string"
             },
@@ -682,6 +702,14 @@
               "summary" : "Capture a focus channel by id",
               "token" : "--channel",
               "value_type" : "string"
+            },
+            {
+              "id" : "interactive",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Select bounds on exactly one target display and save through the validated region pipeline; compact response preserves the exact native display_topology or fails with DISPLAY_TOPOLOGY_MISSING; conflicts with --region, --canvas, and --channel",
+              "token" : "--interactive",
+              "value_type" : "bool"
             },
             {
               "id" : "save",
@@ -752,6 +780,18 @@
                 "region",
                 "canvas",
                 "channel"
+              ],
+              [
+                "interactive",
+                "region"
+              ],
+              [
+                "interactive",
+                "canvas"
+              ],
+              [
+                "interactive",
+                "channel"
               ]
             ]
           },
@@ -759,6 +799,7 @@
             "aos see capture browser:work --save --mode som --workspace default --name before",
             "aos see capture browser:work --save --mode som --workspace default --name after",
             "aos see capture --canvas surface-inspector --save --mode som --workspace default",
+            "aos see capture --interactive --save --mode ax --workspace default --name selection",
             "aos see snapshots --workspace default",
             "aos see refs --workspace default --query Save"
           ],
@@ -779,7 +820,7 @@
             "supports_json_flag" : false
           },
           "summary" : "Persist perception into a local agent workspace for the canonical ready/capture/ref/action/recapture/verify loop and return compact saved refs with conformance/proof for canvas, browser, and stable native AX actions with actionable producer verdicts",
-          "usage" : "aos see capture [<target>|--region <rect>|--canvas <id>|--channel <id>] --save [--mode <mode>] [--workspace <id>] [--name <id>] [--query <text>]"
+          "usage" : "aos see capture [<target>|--region <rect>|--canvas <id>|--channel <id>] [--interactive] --save [--mode <mode>] [--workspace <id>] [--name <id>] [--query <text>]"
         },
         {
           "args" : [
@@ -854,6 +895,7 @@
             "supports_dry_run" : false
           },
           "id" : "see-list",
+          "summary" : "Observe displays once and return spatial-topology 0.3.0 with a canonical content-addressed display_topology",
           "output" : {
             "default_mode" : "json",
             "error_mode" : "json_stderr",
