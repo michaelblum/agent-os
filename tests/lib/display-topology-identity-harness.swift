@@ -86,6 +86,22 @@ private func snapshot(
     )
 }
 
+private func providerFact(
+    _ display: AOSDisplayTopologyDisplay,
+    frame: AOSDisplayTopologyBounds? = nil,
+    pointWidth: Int? = nil,
+    pointHeight: Int? = nil,
+    scaleFactor: Double? = nil
+) -> AOSDisplayCaptureProviderFact {
+    AOSDisplayCaptureProviderFact(
+        runtimeDisplayID: display.runtimeDisplayID,
+        nativeFrame: frame ?? display.nativeBounds,
+        pointWidth: pointWidth ?? Int(display.nativeBounds.width),
+        pointHeight: pointHeight ?? Int(display.nativeBounds.height),
+        scaleFactor: scaleFactor
+    )
+}
+
 private func expectIdentityChange(
     _ baselineIdentity: String,
     _ label: String,
@@ -129,6 +145,122 @@ struct DisplayTopologyIdentityHarness {
         precondition(original.displays[0].runtimeDisplayID == 101, "main display must sort first")
         precondition(original.desktopWorldOriginNative == AOSDisplayTopologyPoint(x: -1920, y: -200))
         precondition(original.desktopWorldBounds == bounds(0, 0, 3360, 1100))
+
+        // The live join is exact: every active CG display must have exactly one
+        // NSScreen-backed observation, with no inactive source admitted.
+        expectFailure("missing live NSScreen source") {
+            _ = try buildAOSDisplayTopologySnapshot(
+                activeDisplayIDs: [101, 202],
+                observation: [originalMembers[0]],
+                screensHaveSeparateSpaces: true
+            )
+        }
+        expectFailure("duplicate live NSScreen source") {
+            _ = try buildAOSDisplayTopologySnapshot(
+                activeDisplayIDs: [101, 202],
+                observation: [originalMembers[0], originalMembers[1], originalMembers[1]],
+                screensHaveSeparateSpaces: true
+            )
+        }
+        expectFailure("inactive live source") {
+            _ = try buildAOSDisplayTopologySnapshot(
+                activeDisplayIDs: [101],
+                observation: originalMembers,
+                screensHaveSeparateSpaces: true
+            )
+        }
+
+        // ScreenCaptureKit contributes display ID, frame, and width/height in
+        // points. Its live projection leaves scale nil; output image pixels
+        // prove the configured topology-derived scale after capture.
+        let providerFacts = original.displays.map { providerFact($0) }
+        let captureAlignments = try validateAOSDisplayCaptureAlignment(
+            topology: original,
+            providerFacts: providerFacts,
+            selectedDisplayIDs: [101, 202]
+        )
+        precondition(captureAlignments.map(\.runtimeDisplayID) == [101, 202])
+        precondition(captureAlignments[0].expectedPixelWidth == 2880)
+        precondition(captureAlignments[0].expectedPixelHeight == 1800)
+        precondition(captureAlignments[1].expectedPixelWidth == 1920)
+        precondition(captureAlignments[1].expectedPixelHeight == 1080)
+        try validateAOSCapturedDisplayPixelGeometry(
+            alignment: captureAlignments[0],
+            actualWidth: 2880,
+            actualHeight: 1800
+        )
+        expectFailure("duplicate selected provider membership") {
+            _ = try validateAOSDisplayCaptureAlignment(
+                topology: original,
+                providerFacts: providerFacts,
+                selectedDisplayIDs: [101, 101]
+            )
+        }
+        expectFailure("selected display missing from topology") {
+            _ = try validateAOSDisplayCaptureAlignment(
+                topology: original,
+                providerFacts: providerFacts,
+                selectedDisplayIDs: [303]
+            )
+        }
+        expectFailure("selected display missing from provider") {
+            _ = try validateAOSDisplayCaptureAlignment(
+                topology: original,
+                providerFacts: [providerFacts[0]],
+                selectedDisplayIDs: [202]
+            )
+        }
+        expectFailure("duplicate provider display") {
+            _ = try validateAOSDisplayCaptureAlignment(
+                topology: original,
+                providerFacts: providerFacts + [providerFacts[1]],
+                selectedDisplayIDs: [202]
+            )
+        }
+        expectFailure("same-id provider frame drift") {
+            var changed = providerFacts
+            changed[1] = providerFact(
+                original.displays[1],
+                frame: bounds(-1919, -200, 1920, 1080)
+            )
+            _ = try validateAOSDisplayCaptureAlignment(
+                topology: original,
+                providerFacts: changed,
+                selectedDisplayIDs: [202]
+            )
+        }
+        expectFailure("same-id provider point-size drift") {
+            var changed = providerFacts
+            changed[1] = providerFact(original.displays[1], pointWidth: 1919)
+            _ = try validateAOSDisplayCaptureAlignment(
+                topology: original,
+                providerFacts: changed,
+                selectedDisplayIDs: [202]
+            )
+        }
+        expectFailure("same-id provider scale drift when representable") {
+            var changed = providerFacts
+            changed[1] = providerFact(original.displays[1], scaleFactor: 2)
+            _ = try validateAOSDisplayCaptureAlignment(
+                topology: original,
+                providerFacts: changed,
+                selectedDisplayIDs: [202]
+            )
+        }
+        expectFailure("captured full-display pixel width drift") {
+            try validateAOSCapturedDisplayPixelGeometry(
+                alignment: captureAlignments[0],
+                actualWidth: 2879,
+                actualHeight: 1800
+            )
+        }
+        expectFailure("captured full-display pixel height drift") {
+            try validateAOSCapturedDisplayPixelGeometry(
+                alignment: captureAlignments[0],
+                actualWidth: 2880,
+                actualHeight: 1799
+            )
+        }
 
         // Raw CoreGraphics enumeration order is irrelevant.
         let permuted = try snapshot(Array(originalMembers.reversed()))

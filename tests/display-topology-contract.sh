@@ -85,6 +85,7 @@ from jsonschema import Draft202012Validator
 
 root = Path(sys.argv[1])
 pipeline = (root / "src/perceive/capture-pipeline.swift").read_text()
+topology_owner = (root / "src/perceive/display-topology.swift").read_text()
 models = (root / "src/perceive/models.swift").read_text()
 saved_capture = (root / "scripts/lib/agent-workspace/capture.mjs").read_text()
 
@@ -109,11 +110,38 @@ for forbidden in (
 capture_body = pipeline.split("func captureCommand(args: [String]) async", 1)[1]
 assert capture_body.count("observeDisplayTopologySnapshot()") == 1
 assert "let displays = getCaptureDisplays(from: displayTopologySnapshot)" in capture_body
+assert capture_body.count("content.displays.map") == 1
+assert "validateAOSDisplayCaptureAlignment(" in capture_body
+assert "selectedDisplayIDs: selectedCaptureDisplayIDs" in capture_body
+assert "var captureSourcesByID: [CGDirectDisplayID: AOSValidatedDisplayCaptureSource] = [:]" in capture_body
+assert "content.displays.first" not in capture_body
+assert capture_body.index("validateAOSDisplayCaptureAlignment(") < capture_body.index("// ── Capture loop ──")
 assert "resolveCaptureSurface(opts: opts, displays: displays)" in capture_body
 assert "buildSpatialTopology(displayTopology: displayTopologySnapshot)" in capture_body
 assert "resp.display_topology = displayTopologySnapshot" in capture_body
 assert "resp.state_id = makeAOSStateID()" in capture_body
 assert "resp.state_id = displayTopologySnapshot.identity" not in capture_body
+
+observer_body = pipeline.split("func observeDisplayTopologySnapshot()", 1)[1].split(
+    "func getCaptureDisplays(from snapshot:", 1
+)[0]
+assert "let observation = screens.compactMap" in observer_body
+assert "activeDisplayIDs: activeDisplayIDs" in observer_body
+assert "screenMap" not in observer_body
+assert "return nativeFrame" not in observer_body
+assert "?? 1" not in observer_body
+assert "screen?." not in observer_body
+
+capture_display_body = pipeline.split("func captureDisplay(", 1)[1].split(
+    "func captureWindow(", 1
+)[0]
+assert "config.width = source.alignment.expectedPixelWidth" in capture_display_body
+assert "config.height = source.alignment.expectedPixelHeight" in capture_display_body
+assert "validateAOSCapturedDisplayPixelGeometry(" in capture_display_body
+assert capture_display_body.index("validateAOSCapturedDisplayPixelGeometry(") < capture_display_body.index("return image")
+assert "struct AOSDisplayCaptureProviderFact" in topology_owner
+assert "func validateAOSDisplayCaptureAlignment(" in topology_owner
+assert "func validateAOSCapturedDisplayPixelGeometry(" in topology_owner
 
 list_body = pipeline.split("func seeListCommand()", 1)[1].split(
     "// MARK: - Command: cursor", 1

@@ -243,29 +243,25 @@ func observeDisplayTopologySnapshot() -> AOSDisplayTopologySnapshot {
     let mainID = CGMainDisplayID()
     let screens = NSScreen.screens
     let screensHaveSeparateSpaces = NSScreen.screensHaveSeparateSpaces
-    var screenMap: [CGDirectDisplayID: NSScreen] = [:]
-    for screen in screens {
-        if let n = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID {
-            screenMap[n] = screen
+    let activeDisplayIDs = Array(ids.prefix(Int(count)))
+    let activeDisplayIDSet = Set(activeDisplayIDs)
+    let observation = screens.compactMap { screen -> AOSDisplayTopologyObservationMember? in
+        guard let displayID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID,
+              activeDisplayIDSet.contains(displayID)
+        else {
+            return nil
         }
-    }
-
-    let observation = ids.prefix(Int(count)).map { displayID -> AOSDisplayTopologyObservationMember in
         let nativeFrame = CGDisplayBounds(displayID)
-        let screen = screenMap[displayID]
-        let visibleFrame: CGRect = {
-            guard let screen else { return nativeFrame }
-            let frame = screen.frame
-            let visible = screen.visibleFrame
-            let localX = visible.origin.x - frame.origin.x
-            let localY = frame.height - (visible.origin.y - frame.origin.y) - visible.height
-            return CGRect(
-                x: nativeFrame.origin.x + localX,
-                y: nativeFrame.origin.y + localY,
-                width: visible.width,
-                height: visible.height
-            )
-        }()
+        let frame = screen.frame
+        let visible = screen.visibleFrame
+        let localX = visible.origin.x - frame.origin.x
+        let localY = frame.height - (visible.origin.y - frame.origin.y) - visible.height
+        let visibleFrame = CGRect(
+            x: nativeFrame.origin.x + localX,
+            y: nativeFrame.origin.y + localY,
+            width: visible.width,
+            height: visible.height
+        )
         let displayUUID: String? = {
             guard let unmanaged = CGDisplayCreateUUIDFromDisplayID(displayID) else { return nil }
             return CFUUIDCreateString(nil, unmanaged.takeRetainedValue()) as String
@@ -273,7 +269,7 @@ func observeDisplayTopologySnapshot() -> AOSDisplayTopologySnapshot {
         return AOSDisplayTopologyObservationMember(
             runtimeDisplayID: displayID,
             displayUUID: displayUUID,
-            label: screen?.localizedName ?? "Display",
+            label: screen.localizedName,
             isMain: displayID == mainID,
             isMirrored: CGDisplayMirrorsDisplay(displayID) != kCGNullDirectDisplay,
             nativeBounds: AOSDisplayTopologyBounds(
@@ -288,13 +284,14 @@ func observeDisplayTopologySnapshot() -> AOSDisplayTopologySnapshot {
                 width: visibleFrame.width,
                 height: visibleFrame.height
             ),
-            scaleFactor: Double(screen?.backingScaleFactor ?? 1),
+            scaleFactor: Double(screen.backingScaleFactor),
             rotation: Double(CGDisplayRotation(displayID))
         )
     }
 
     do {
         return try buildAOSDisplayTopologySnapshot(
+            activeDisplayIDs: activeDisplayIDs,
             observation: observation,
             screensHaveSeparateSpaces: screensHaveSeparateSpaces
         )
@@ -1016,19 +1013,30 @@ func stitchSurfaceSegments(
 // MARK: - ScreenCaptureKit Capture
 
 @available(macOS 14.0, *)
+struct AOSValidatedDisplayCaptureSource {
+    let display: SCDisplay
+    let alignment: AOSDisplayCaptureAlignment
+}
+
+@available(macOS 14.0, *)
 func captureDisplay(
-    _ scDisplay: SCDisplay,
-    scaleFactor: Double,
+    _ source: AOSValidatedDisplayCaptureSource,
     showCursor: Bool,
     excludingWindows: [SCWindow] = []
 ) async throws -> CGImage {
-    let filter = SCContentFilter(display: scDisplay, excludingWindows: excludingWindows)
+    let filter = SCContentFilter(display: source.display, excludingWindows: excludingWindows)
     let config = SCStreamConfiguration()
-    config.width = Int(Double(scDisplay.width) * scaleFactor)
-    config.height = Int(Double(scDisplay.height) * scaleFactor)
+    config.width = source.alignment.expectedPixelWidth
+    config.height = source.alignment.expectedPixelHeight
     config.showsCursor = showCursor
     config.captureResolution = .best
-    return try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+    let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+    try validateAOSCapturedDisplayPixelGeometry(
+        alignment: source.alignment,
+        actualWidth: image.width,
+        actualHeight: image.height
+    )
+    return image
 }
 
 @available(macOS 14.0, *)
@@ -1981,6 +1989,23 @@ func captureCommand(args: [String]) async {
 
     let displayTopologySnapshot = observeDisplayTopologySnapshot()
     let displays = getCaptureDisplays(from: displayTopologySnapshot)
+    let captureProviderProjection = content.displays.map { display in
+        (
+            fact: AOSDisplayCaptureProviderFact(
+                runtimeDisplayID: display.displayID,
+                nativeFrame: AOSDisplayTopologyBounds(
+                    x: Double(display.frame.origin.x),
+                    y: Double(display.frame.origin.y),
+                    width: Double(display.frame.width),
+                    height: Double(display.frame.height)
+                ),
+                pointWidth: display.width,
+                pointHeight: display.height,
+                scaleFactor: nil
+            ),
+            display: display
+        )
+    }
     let excludedWindowIDs = Set(opts.excludedWindowIDs)
     let excludedSCWindows = content.windows.filter { excludedWindowIDs.contains(Int($0.windowID)) }
     let explicitSurface = resolveCaptureSurface(opts: opts, displays: displays)
@@ -2053,6 +2078,34 @@ func captureCommand(args: [String]) async {
         }
     }
 
+    let selectedCaptureDisplayIDs = explicitSurface?.segments.map { $0.display.cgID } ?? targetDisplayIDs
+    let captureAlignments: [AOSDisplayCaptureAlignment]
+    do {
+        captureAlignments = try validateAOSDisplayCaptureAlignment(
+            topology: displayTopologySnapshot,
+            providerFacts: captureProviderProjection.map(\.fact),
+            selectedDisplayIDs: selectedCaptureDisplayIDs
+        )
+    } catch {
+        exitError("Capture provider does not align with frozen display topology: \(error)", code: "CAPTURE_TOPOLOGY_MISMATCH")
+    }
+    let providerDisplaysByID = Dictionary(uniqueKeysWithValues: captureProviderProjection.map {
+        ($0.fact.runtimeDisplayID, $0.display)
+    })
+    var captureSourcesByID: [CGDirectDisplayID: AOSValidatedDisplayCaptureSource] = [:]
+    for alignment in captureAlignments {
+        guard let providerDisplay = providerDisplaysByID[alignment.runtimeDisplayID] else {
+            exitError(
+                "Validated display \(alignment.runtimeDisplayID) has no capture provider",
+                code: "CAPTURE_TOPOLOGY_MISMATCH"
+            )
+        }
+        captureSourcesByID[alignment.runtimeDisplayID] = AOSValidatedDisplayCaptureSource(
+            display: providerDisplay,
+            alignment: alignment
+        )
+    }
+
     // ── Interactive selection ──
     var interactiveBounds: BoundsJSON? = nil
     var interactiveImage: CGImage? = nil
@@ -2118,14 +2171,13 @@ func captureCommand(args: [String]) async {
 
         var capturedSegments: [CapturedSurfaceSegment] = []
         for segment in surface.segments {
-            guard let scDisplay = content.displays.first(where: { $0.displayID == segment.display.cgID }) else {
-                exitError("Display \(segment.display.ordinal) not available", code: "DISPLAY_NOT_FOUND")
+            guard let captureSource = captureSourcesByID[segment.display.cgID] else {
+                exitError("Display \(segment.display.ordinal) has no validated capture source", code: "CAPTURE_TOPOLOGY_MISMATCH")
             }
             let displayImage: CGImage
             do {
                 displayImage = try await captureDisplay(
-                    scDisplay,
-                    scaleFactor: segment.display.scaleFactor,
+                    captureSource,
                     showCursor: opts.showCursor,
                     excludingWindows: excludedSCWindows
                 )
@@ -2265,13 +2317,12 @@ func captureCommand(args: [String]) async {
 
                 if window.frame.width < 10 || window.frame.height < 10 {
                     responseWarning = "Window appears minimized or hidden (frame: \(Int(window.frame.width))x\(Int(window.frame.height))). Falling back to display capture."
-                    guard let scDisplay = content.displays.first(where: { $0.displayID == cgID }) else {
-                        exitError("Display \(entry.ordinal) not available", code: "DISPLAY_NOT_FOUND")
+                    guard let captureSource = captureSourcesByID[cgID] else {
+                        exitError("Display \(entry.ordinal) has no validated capture source", code: "CAPTURE_TOPOLOGY_MISMATCH")
                     }
                     do {
                         image = try await captureDisplay(
-                            scDisplay,
-                            scaleFactor: entry.scaleFactor,
+                            captureSource,
                             showCursor: opts.showCursor,
                             excludingWindows: excludedSCWindows
                         )
@@ -2284,13 +2335,12 @@ func captureCommand(args: [String]) async {
                     }
                     catch {
                         responseWarning = "Window capture failed (\(error.localizedDescription)). Falling back to display capture."
-                        guard let scDisplay = content.displays.first(where: { $0.displayID == cgID }) else {
-                            exitError("Display \(entry.ordinal) not available", code: "DISPLAY_NOT_FOUND")
+                        guard let captureSource = captureSourcesByID[cgID] else {
+                            exitError("Display \(entry.ordinal) has no validated capture source", code: "CAPTURE_TOPOLOGY_MISMATCH")
                         }
                         do {
                             image = try await captureDisplay(
-                                scDisplay,
-                                scaleFactor: entry.scaleFactor,
+                                captureSource,
                                 showCursor: opts.showCursor,
                                 excludingWindows: excludedSCWindows
                             )
@@ -2299,13 +2349,12 @@ func captureCommand(args: [String]) async {
                     }
                 }
             } else {
-                guard let scDisplay = content.displays.first(where: { $0.displayID == cgID }) else {
-                    exitError("Display \(entry.ordinal) not available", code: "DISPLAY_NOT_FOUND")
+                guard let captureSource = captureSourcesByID[cgID] else {
+                    exitError("Display \(entry.ordinal) has no validated capture source", code: "CAPTURE_TOPOLOGY_MISMATCH")
                 }
                 do {
                     image = try await captureDisplay(
-                        scDisplay,
-                        scaleFactor: entry.scaleFactor,
+                        captureSource,
                         showCursor: opts.showCursor,
                         excludingWindows: excludedSCWindows
                     )

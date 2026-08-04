@@ -4,7 +4,10 @@ import CryptoKit
 
 enum AOSDisplayTopologyError: Error, CustomStringConvertible {
     case noDisplays
+    case duplicateActiveDisplayID(UInt32)
     case duplicateRuntimeDisplayID(UInt32)
+    case missingObservationForActiveDisplay(UInt32)
+    case observationForInactiveDisplay(UInt32)
     case invalidMainDisplayCount(Int)
     case invalidUUID(displayID: UInt32, value: String)
     case nonFinite(field: String)
@@ -15,8 +18,14 @@ enum AOSDisplayTopologyError: Error, CustomStringConvertible {
         switch self {
         case .noDisplays:
             return "display topology observation contains no displays"
+        case .duplicateActiveDisplayID(let displayID):
+            return "active display list repeats runtime display id \(displayID)"
         case .duplicateRuntimeDisplayID(let displayID):
             return "display topology observation repeats runtime display id \(displayID)"
+        case .missingObservationForActiveDisplay(let displayID):
+            return "active display \(displayID) has no live NSScreen observation"
+        case .observationForInactiveDisplay(let displayID):
+            return "display topology observation includes inactive display \(displayID)"
         case .invalidMainDisplayCount(let count):
             return "display topology observation must contain exactly one main display; found \(count)"
         case .invalidUUID(let displayID, let value):
@@ -133,6 +142,62 @@ struct AOSDisplayTopologySnapshot: Encodable {
         case visibleDesktopWorldBounds = "visible_desktop_world_bounds"
         case displays
     }
+}
+
+struct AOSDisplayCaptureProviderFact {
+    let runtimeDisplayID: UInt32
+    let nativeFrame: AOSDisplayTopologyBounds
+    let pointWidth: Int
+    let pointHeight: Int
+    // ScreenCaptureKit does not currently expose backing scale. Live SCDisplay
+    // projections leave this nil; pure providers that do expose scale may set it.
+    let scaleFactor: Double?
+}
+
+struct AOSDisplayCaptureAlignment {
+    let runtimeDisplayID: UInt32
+    let expectedPixelWidth: Int
+    let expectedPixelHeight: Int
+}
+
+enum AOSDisplayCaptureAlignmentError: Error, LocalizedError, CustomStringConvertible {
+    case duplicateSelectedDisplayID(UInt32)
+    case duplicateProviderDisplayID(UInt32)
+    case selectedDisplayMissingFromTopology(UInt32)
+    case selectedDisplayMissingFromProvider(UInt32)
+    case invalidProviderGeometry(UInt32)
+    case providerFrameMismatch(UInt32)
+    case providerPointSizeMismatch(UInt32)
+    case providerScaleMismatch(UInt32)
+    case invalidExpectedPixelGeometry(UInt32)
+    case capturedPixelGeometryMismatch(displayID: UInt32, expectedWidth: Int, expectedHeight: Int, actualWidth: Int, actualHeight: Int)
+
+    var description: String {
+        switch self {
+        case .duplicateSelectedDisplayID(let displayID):
+            return "selected display list repeats runtime display id \(displayID)"
+        case .duplicateProviderDisplayID(let displayID):
+            return "capture provider repeats runtime display id \(displayID)"
+        case .selectedDisplayMissingFromTopology(let displayID):
+            return "selected display \(displayID) is absent from the frozen topology"
+        case .selectedDisplayMissingFromProvider(let displayID):
+            return "selected display \(displayID) is absent from the capture provider"
+        case .invalidProviderGeometry(let displayID):
+            return "capture provider has invalid geometry for display \(displayID)"
+        case .providerFrameMismatch(let displayID):
+            return "capture provider frame disagrees with frozen topology for display \(displayID)"
+        case .providerPointSizeMismatch(let displayID):
+            return "capture provider point size disagrees with frozen topology for display \(displayID)"
+        case .providerScaleMismatch(let displayID):
+            return "capture provider scale disagrees with frozen topology for display \(displayID)"
+        case .invalidExpectedPixelGeometry(let displayID):
+            return "frozen topology produces invalid pixel geometry for display \(displayID)"
+        case let .capturedPixelGeometryMismatch(displayID, expectedWidth, expectedHeight, actualWidth, actualHeight):
+            return "captured display \(displayID) is \(actualWidth)x\(actualHeight) pixels; expected \(expectedWidth)x\(expectedHeight)"
+        }
+    }
+
+    var errorDescription: String? { description }
 }
 
 private struct AOSNormalizedDisplayTopologyMember {
@@ -358,11 +423,124 @@ private func aosDisplayTopologyIdentity(
     return "sha256:\(digest)"
 }
 
+func validateAOSDisplayCaptureAlignment(
+    topology: AOSDisplayTopologySnapshot,
+    providerFacts: [AOSDisplayCaptureProviderFact],
+    selectedDisplayIDs: [UInt32]
+) throws -> [AOSDisplayCaptureAlignment] {
+    var providerByID: [UInt32: AOSDisplayCaptureProviderFact] = [:]
+    for fact in providerFacts {
+        guard providerByID.updateValue(fact, forKey: fact.runtimeDisplayID) == nil else {
+            throw AOSDisplayCaptureAlignmentError.duplicateProviderDisplayID(fact.runtimeDisplayID)
+        }
+    }
+
+    let topologyByID = Dictionary(uniqueKeysWithValues: topology.displays.map {
+        ($0.runtimeDisplayID, $0)
+    })
+    var selected = Set<UInt32>()
+    return try selectedDisplayIDs.map { displayID in
+        guard selected.insert(displayID).inserted else {
+            throw AOSDisplayCaptureAlignmentError.duplicateSelectedDisplayID(displayID)
+        }
+        guard let display = topologyByID[displayID] else {
+            throw AOSDisplayCaptureAlignmentError.selectedDisplayMissingFromTopology(displayID)
+        }
+        guard let provider = providerByID[displayID] else {
+            throw AOSDisplayCaptureAlignmentError.selectedDisplayMissingFromProvider(displayID)
+        }
+        let providerValues = [
+            provider.nativeFrame.x,
+            provider.nativeFrame.y,
+            provider.nativeFrame.width,
+            provider.nativeFrame.height,
+        ]
+        guard providerValues.allSatisfy(\.isFinite),
+              provider.nativeFrame.width > 0,
+              provider.nativeFrame.height > 0,
+              provider.pointWidth > 0,
+              provider.pointHeight > 0
+        else {
+            throw AOSDisplayCaptureAlignmentError.invalidProviderGeometry(displayID)
+        }
+        guard provider.nativeFrame == display.nativeBounds else {
+            throw AOSDisplayCaptureAlignmentError.providerFrameMismatch(displayID)
+        }
+        guard Double(provider.pointWidth) == display.nativeBounds.width,
+              Double(provider.pointHeight) == display.nativeBounds.height
+        else {
+            throw AOSDisplayCaptureAlignmentError.providerPointSizeMismatch(displayID)
+        }
+        if let providerScale = provider.scaleFactor {
+            guard providerScale.isFinite, providerScale > 0 else {
+                throw AOSDisplayCaptureAlignmentError.invalidProviderGeometry(displayID)
+            }
+            guard providerScale == display.scaleFactor else {
+                throw AOSDisplayCaptureAlignmentError.providerScaleMismatch(displayID)
+            }
+        }
+
+        let pixelWidth = display.nativeBounds.width * display.scaleFactor
+        let pixelHeight = display.nativeBounds.height * display.scaleFactor
+        guard pixelWidth.isFinite,
+              pixelHeight.isFinite,
+              pixelWidth >= 1,
+              pixelHeight >= 1,
+              pixelWidth <= Double(Int.max),
+              pixelHeight <= Double(Int.max)
+        else {
+            throw AOSDisplayCaptureAlignmentError.invalidExpectedPixelGeometry(displayID)
+        }
+        return AOSDisplayCaptureAlignment(
+            runtimeDisplayID: displayID,
+            expectedPixelWidth: Int(pixelWidth),
+            expectedPixelHeight: Int(pixelHeight)
+        )
+    }
+}
+
+func validateAOSCapturedDisplayPixelGeometry(
+    alignment: AOSDisplayCaptureAlignment,
+    actualWidth: Int,
+    actualHeight: Int
+) throws {
+    guard actualWidth == alignment.expectedPixelWidth,
+          actualHeight == alignment.expectedPixelHeight
+    else {
+        throw AOSDisplayCaptureAlignmentError.capturedPixelGeometryMismatch(
+            displayID: alignment.runtimeDisplayID,
+            expectedWidth: alignment.expectedPixelWidth,
+            expectedHeight: alignment.expectedPixelHeight,
+            actualWidth: actualWidth,
+            actualHeight: actualHeight
+        )
+    }
+}
+
 func buildAOSDisplayTopologySnapshot(
     observation: [AOSDisplayTopologyObservationMember],
     screensHaveSeparateSpaces: Bool
 ) throws -> AOSDisplayTopologySnapshot {
-    guard !observation.isEmpty else { throw AOSDisplayTopologyError.noDisplays }
+    try buildAOSDisplayTopologySnapshot(
+        activeDisplayIDs: observation.map(\.runtimeDisplayID),
+        observation: observation,
+        screensHaveSeparateSpaces: screensHaveSeparateSpaces
+    )
+}
+
+func buildAOSDisplayTopologySnapshot(
+    activeDisplayIDs: [UInt32],
+    observation: [AOSDisplayTopologyObservationMember],
+    screensHaveSeparateSpaces: Bool
+) throws -> AOSDisplayTopologySnapshot {
+    guard !activeDisplayIDs.isEmpty else { throw AOSDisplayTopologyError.noDisplays }
+
+    var activeIDs = Set<UInt32>()
+    for displayID in activeDisplayIDs {
+        guard activeIDs.insert(displayID).inserted else {
+            throw AOSDisplayTopologyError.duplicateActiveDisplayID(displayID)
+        }
+    }
 
     var seenDisplayIDs = Set<UInt32>()
     var normalized: [AOSNormalizedDisplayTopologyMember] = []
@@ -406,6 +584,13 @@ func buildAOSDisplayTopologySnapshot(
             scaleFactor: scale,
             rotation: try aosCanonicalRotation(member.rotation, displayID: member.runtimeDisplayID)
         ))
+    }
+
+    if let displayID = activeIDs.subtracting(seenDisplayIDs).sorted().first {
+        throw AOSDisplayTopologyError.missingObservationForActiveDisplay(displayID)
+    }
+    if let displayID = seenDisplayIDs.subtracting(activeIDs).sorted().first {
+        throw AOSDisplayTopologyError.observationForInactiveDisplay(displayID)
     }
 
     let mainCount = normalized.filter(\.isMain).count

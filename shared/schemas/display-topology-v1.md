@@ -32,6 +32,28 @@ An explicit `--region` response exposes this object directly even without
 `state_id` remains a new per-capture correlation handle; it is neither derived
 from nor interchangeable with `display_topology.identity`.
 
+## Capture-provider alignment boundary
+
+The live builder admits the observation only when every active CoreGraphics
+display has exactly one `NSScreen` source. Missing or duplicate mappings fail
+closed; visible bounds, label, and backing scale are never synthesized.
+
+ScreenCaptureKit content and the CoreGraphics/AppKit observation are separate
+framework reads. Before any selected full-display capture, the producer
+projects `SCDisplay` once and requires unique selected membership plus exact
+agreement for display ID, frame, and width/height in points. The capture output
+size is configured from the frozen topology's point geometry and backing scale,
+and the returned full-display `CGImage` must have those exact pixel dimensions
+before any crop or stitch.
+
+This validation detects every mismatch exposed by those framework values, but
+it does not claim an atomic framework generation. `SCDisplay` does not expose
+backing scale, UUID, visible bounds, rotation, or a generation token. A change
+that preserves all exposed values can therefore remain unobservable at this
+seam. That limitation does not weaken or create another topology identity: the
+published identity still names only the admitted frozen CoreGraphics/AppKit
+observation.
+
 ## Member identity and order
 
 A usable `CGDisplayCreateUUIDFromDisplayID` value is normalized to lowercase
