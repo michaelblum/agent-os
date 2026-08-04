@@ -2137,9 +2137,14 @@
             "required_groups" : [
               {
                 "one_of" : [
-                  "change-map-out",
-                  "mask-out"
-                ]
+                  [
+                    "change-map-out"
+                  ],
+                  [
+                    "mask-out"
+                  ]
+                ],
+                "summary" : "artifact output path"
               }
             ]
           },
@@ -2151,6 +2156,7 @@
             "auto_starts_daemon" : false,
             "interactive" : false,
             "mutates_state" : true,
+            "mutation_scope" : "explicit_output_paths_only",
             "read_only" : false,
             "requires_permissions" : false,
             "streaming" : false,

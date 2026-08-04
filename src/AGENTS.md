@@ -62,10 +62,14 @@ needs, but public command policy and product UI policy belong above it:
   preserves the byte-stable `aos.image-compare.v1` response and performs no
   writes. `--change-map-out` and `--mask-out` opt into bounded one-byte planes,
   private same-directory staging, fsync, and atomic no-overwrite publication;
-  handled write failure rolls back invocation-owned outputs, while expectation
-  failure retains successfully published artifacts. The comparator never
-  captures, performs interactive preflight, requests permissions, polls, or
-  starts native runtime lifecycle;
+  it pins each symlink-free parent identity, revalidates the requested parent
+  path before publication and receipt, and verifies the published file
+  identity. Artifact success requires a checked v2 JSON receipt. Handled write,
+  finalization, or receipt failure rolls back invocation-owned outputs and
+  reports cleanup failure explicitly, while expectation failure retains
+  successfully published artifacts only after its checked v2 receipt. The
+  comparator never captures, performs interactive preflight, requests
+  permissions, polls, or starts native runtime lifecycle;
 - daemon socket admission begins only after AppKit finishes launch and services
   one queued main-loop action, so clients cannot invoke native hosts against a
   merely initialized but not yet running application connection;

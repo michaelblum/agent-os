@@ -51,6 +51,8 @@ private struct ImageCompareArtifactTarget {
     let parentPath: String
     let fileName: String
     let directoryDescriptor: Int32
+    let parentDevice: dev_t
+    let parentInode: ino_t
 }
 
 private struct ImageCompareArtifactPlane {
@@ -82,6 +84,11 @@ private struct ImageCompareStagedArtifact {
     let inode: ino_t
 }
 
+private struct ImageCompareArtifactPublication {
+    let descriptors: [ImageCompareArtifactKind: [String: Any]]
+    let published: [ImageCompareStagedArtifact]
+}
+
 private struct CanonicalImage {
     let path: String
     let width: Int
@@ -96,9 +103,10 @@ private struct ImageCompareFailure: Error {
 }
 
 func imageFileCompareCommand(args: [String]) -> Never {
+    var artifactTargets: [ImageCompareArtifactTarget] = []
     do {
         let options = try parseImageCompareOptions(args)
-        let artifactTargets = try validateImageCompareArtifactTargets(options)
+        artifactTargets = try validateImageCompareArtifactTargets(options)
         let before = try decodeCanonicalPNG(path: options.beforePath, label: "before")
         let after = try decodeCanonicalPNG(path: options.afterPath, label: "after")
 
@@ -111,35 +119,85 @@ func imageFileCompareCommand(args: [String]) -> Never {
 
         let computation = compareCanonicalImages(before: before, after: after, options: options)
         var result = computation.payload
+        var artifactPublication: ImageCompareArtifactPublication?
         if !artifactTargets.isEmpty {
-            let descriptors = try writeImageCompareArtifacts(
+            let publication = try writeImageCompareArtifacts(
                 targets: artifactTargets,
                 computation: computation,
                 width: before.width,
                 height: before.height
             )
+            artifactPublication = publication
             result["schema_version"] = "aos.image-compare.v2"
             result["artifacts"] = [
-                "change_map": descriptors[.changeMap] as Any? ?? NSNull(),
-                "mask": descriptors[.mask] as Any? ?? NSNull(),
+                "change_map": publication.descriptors[.changeMap] as Any? ?? NSNull(),
+                "mask": publication.descriptors[.mask] as Any? ?? NSNull(),
             ]
         }
-        closeImageCompareArtifactTargets(artifactTargets)
         if let expectation = result["expectation"] as? [String: Any], expectation["met"] as? Bool == false {
             var failure = result
             failure["status"] = "expectation_failed"
             failure["code"] = "IMAGE_COMPARISON_EXPECTATION_FAILED"
             failure["error"] = "Image comparison expectation was not met."
-            writeImageCompareJSON(failure, to: .standardError)
+            if let publication = artifactPublication {
+                do {
+                    try verifyImageCompareArtifactPublication(targets: artifactTargets, published: publication.published)
+                    try writeImageCompareJSONChecked(failure, to: .standardError)
+                } catch let operationFailure as ImageCompareFailure {
+                    failImageCompareArtifactOperation(
+                        publication: publication,
+                        targets: artifactTargets,
+                        failure: operationFailure
+                    )
+                } catch {
+                    failImageCompareArtifactOperation(
+                        publication: publication,
+                        targets: artifactTargets,
+                        failure: ImageCompareFailure(
+                            code: "IMAGE_ARTIFACT_RECEIPT_WRITE_FAILED",
+                            message: "Could not write the required image comparison artifact receipt."
+                        )
+                    )
+                }
+            } else {
+                closeImageCompareArtifactTargets(artifactTargets)
+                writeImageCompareJSON(failure, to: .standardError)
+            }
+            closeImageCompareArtifactTargets(artifactTargets)
             exit(1)
         }
 
-        writeImageCompareJSON(result, to: .standardOutput)
+        if let publication = artifactPublication {
+            do {
+                try verifyImageCompareArtifactPublication(targets: artifactTargets, published: publication.published)
+                try writeImageCompareJSONChecked(result, to: .standardOutput)
+            } catch let operationFailure as ImageCompareFailure {
+                failImageCompareArtifactOperation(
+                    publication: publication,
+                    targets: artifactTargets,
+                    failure: operationFailure
+                )
+            } catch {
+                failImageCompareArtifactOperation(
+                    publication: publication,
+                    targets: artifactTargets,
+                    failure: ImageCompareFailure(
+                        code: "IMAGE_ARTIFACT_RECEIPT_WRITE_FAILED",
+                        message: "Could not write the required image comparison artifact receipt."
+                    )
+                )
+            }
+        } else {
+            writeImageCompareJSON(result, to: .standardOutput)
+        }
+        closeImageCompareArtifactTargets(artifactTargets)
         exit(0)
     } catch let failure as ImageCompareFailure {
+        closeImageCompareArtifactTargets(artifactTargets)
         writeImageCompareJSON(["code": failure.code, "error": failure.message], to: .standardError)
         exit(1)
     } catch {
+        closeImageCompareArtifactTargets(artifactTargets)
         writeImageCompareJSON(
             ["code": "IMAGE_DECODE_FAILED", "error": "Image comparison failed: \(error.localizedDescription)"],
             to: .standardError
@@ -299,6 +357,15 @@ private func validateImageCompareArtifactTargets(_ options: ImageCompareOptions)
 
             let parentPath = NSString(string: path).deletingLastPathComponent
             let directoryDescriptor = try openImageCompareArtifactParent(parentPath, targetPath: path)
+            var parentStatus = stat()
+            guard Darwin.fstat(directoryDescriptor, &parentStatus) == 0,
+                  parentStatus.st_mode & mode_t(S_IFMT) == mode_t(S_IFDIR) else {
+                Darwin.close(directoryDescriptor)
+                throw ImageCompareFailure(
+                    code: "IMAGE_ARTIFACT_PARENT_INVALID",
+                    message: "Could not identify image comparison artifact parent: \(parentPath)."
+                )
+            }
             var existing = stat()
             if Darwin.fstatat(directoryDescriptor, fileName, &existing, AT_SYMLINK_NOFOLLOW) == 0 {
                 Darwin.close(directoryDescriptor)
@@ -319,7 +386,9 @@ private func validateImageCompareArtifactTargets(_ options: ImageCompareOptions)
                 path: path,
                 parentPath: parentPath,
                 fileName: fileName,
-                directoryDescriptor: directoryDescriptor
+                directoryDescriptor: directoryDescriptor,
+                parentDevice: parentStatus.st_dev,
+                parentInode: parentStatus.st_ino
             ))
         }
         return targets
@@ -350,6 +419,39 @@ private func openImageCompareArtifactParent(_ parentPath: String, targetPath: St
         descriptor = nextDescriptor
     }
     return descriptor
+}
+
+private func revalidateImageCompareArtifactParent(_ target: ImageCompareArtifactTarget) throws {
+    var pinnedStatus = stat()
+    guard Darwin.fstat(target.directoryDescriptor, &pinnedStatus) == 0,
+          pinnedStatus.st_dev == target.parentDevice,
+          pinnedStatus.st_ino == target.parentInode else {
+        throw ImageCompareFailure(
+            code: "IMAGE_ARTIFACT_PARENT_CHANGED",
+            message: "Pinned image comparison artifact parent identity changed: \(target.parentPath)."
+        )
+    }
+
+    let currentDescriptor: Int32
+    do {
+        currentDescriptor = try openImageCompareArtifactParent(target.parentPath, targetPath: target.path)
+    } catch {
+        throw ImageCompareFailure(
+            code: "IMAGE_ARTIFACT_PARENT_CHANGED",
+            message: "Image comparison artifact parent path changed before publication: \(target.parentPath)."
+        )
+    }
+    defer { Darwin.close(currentDescriptor) }
+
+    var currentStatus = stat()
+    guard Darwin.fstat(currentDescriptor, &currentStatus) == 0,
+          currentStatus.st_dev == target.parentDevice,
+          currentStatus.st_ino == target.parentInode else {
+        throw ImageCompareFailure(
+            code: "IMAGE_ARTIFACT_PARENT_CHANGED",
+            message: "Image comparison artifact parent path changed before publication: \(target.parentPath)."
+        )
+    }
 }
 
 private func closeImageCompareArtifactTargets(_ targets: [ImageCompareArtifactTarget]) {
@@ -694,7 +796,7 @@ private func writeImageCompareArtifacts(
     computation: ImageCompareComputation,
     width: Int,
     height: Int
-) throws -> [ImageCompareArtifactKind: [String: Any]] {
+) throws -> ImageCompareArtifactPublication {
     var staged: [ImageCompareStagedArtifact] = []
     var published: [ImageCompareStagedArtifact] = []
     var descriptors: [ImageCompareArtifactKind: [String: Any]] = [:]
@@ -718,6 +820,7 @@ private func writeImageCompareArtifacts(
             let pngData = try encodeImageCompareGrayscalePNG(samples: plane.samples, width: width, height: height)
             let stage = try stageImageCompareArtifact(pngData, target: target)
             staged.append(stage)
+            try revalidateImageCompareArtifactParent(target)
 
             guard Darwin.renameatx_np(
                 stage.directoryDescriptor,
@@ -731,13 +834,17 @@ private func writeImageCompareArtifacts(
                     message: "Could not publish image comparison artifact without overwriting: \(target.path)."
                 )
             }
-            published.append(ImageCompareStagedArtifact(
+            let publishedArtifact = ImageCompareStagedArtifact(
                 fileName: target.fileName,
                 directoryDescriptor: target.directoryDescriptor,
                 device: stage.device,
                 inode: stage.inode
-            ))
+            )
+            published.append(publishedArtifact)
+            try verifyPublishedImageCompareArtifact(target: target, artifact: publishedArtifact)
             try fsyncImageCompareDirectory(target)
+            try revalidateImageCompareArtifactParent(target)
+            try verifyPublishedImageCompareArtifact(target: target, artifact: publishedArtifact)
 
             descriptors[target.kind] = [
                 "path": target.path,
@@ -754,10 +861,47 @@ private func writeImageCompareArtifacts(
                 "selected_pixels": plane.selectedPixels,
             ]
         }
-        return descriptors
+        try verifyImageCompareArtifactPublication(targets: targets, published: published)
+        return ImageCompareArtifactPublication(descriptors: descriptors, published: published)
     } catch {
-        cleanupImageCompareArtifacts(staged: staged, published: published)
+        do {
+            try cleanupImageCompareArtifacts(staged: staged, published: published)
+        } catch let cleanupFailure as ImageCompareFailure {
+            throw cleanupFailure
+        }
         throw error
+    }
+}
+
+private func verifyImageCompareArtifactPublication(
+    targets: [ImageCompareArtifactTarget],
+    published: [ImageCompareStagedArtifact]
+) throws {
+    guard targets.count == published.count else {
+        throw ImageCompareFailure(
+            code: "IMAGE_ARTIFACT_WRITE_FAILED",
+            message: "Image comparison artifact publication was incomplete."
+        )
+    }
+    for (target, artifact) in zip(targets, published) {
+        try revalidateImageCompareArtifactParent(target)
+        try verifyPublishedImageCompareArtifact(target: target, artifact: artifact)
+    }
+}
+
+private func verifyPublishedImageCompareArtifact(
+    target: ImageCompareArtifactTarget,
+    artifact: ImageCompareStagedArtifact
+) throws {
+    var status = stat()
+    guard Darwin.fstatat(target.directoryDescriptor, target.fileName, &status, AT_SYMLINK_NOFOLLOW) == 0,
+          status.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG),
+          status.st_dev == artifact.device,
+          status.st_ino == artifact.inode else {
+        throw ImageCompareFailure(
+            code: "IMAGE_ARTIFACT_WRITE_FAILED",
+            message: "Published image comparison artifact identity could not be verified: \(target.path)."
+        )
     }
 }
 
@@ -797,6 +941,7 @@ private func stageImageCompareArtifact(
 ) throws -> ImageCompareStagedArtifact {
     var stageName: String?
     var descriptor: Int32 = -1
+    var stagedArtifact: ImageCompareStagedArtifact?
     for _ in 0..<16 {
         let candidate = "\(imageCompareArtifactStagePrefix)\(UUID().uuidString).stage"
         descriptor = Darwin.openat(
@@ -815,6 +960,16 @@ private func stageImageCompareArtifact(
         throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Could not create a private artifact stage in: \(target.parentPath).")
     }
     do {
+        var status = stat()
+        guard Darwin.fstat(descriptor, &status) == 0 else {
+            throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Could not identify the staged PNG artifact.")
+        }
+        stagedArtifact = ImageCompareStagedArtifact(
+            fileName: stageName,
+            directoryDescriptor: target.directoryDescriptor,
+            device: status.st_dev,
+            inode: status.st_ino
+        )
         guard Darwin.fchmod(descriptor, mode_t(0o600)) == 0 else {
             throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Could not secure artifact staging permissions.")
         }
@@ -835,24 +990,29 @@ private func stageImageCompareArtifact(
         guard Darwin.fsync(descriptor) == 0 else {
             throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Could not fsync the staged PNG artifact.")
         }
-        var status = stat()
-        guard Darwin.fstat(descriptor, &status) == 0 else {
-            throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Could not identify the staged PNG artifact.")
-        }
         guard Darwin.close(descriptor) == 0 else {
             descriptor = -1
             throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Could not close the staged PNG artifact.")
         }
         descriptor = -1
-        return ImageCompareStagedArtifact(
-            fileName: stageName,
-            directoryDescriptor: target.directoryDescriptor,
-            device: status.st_dev,
-            inode: status.st_ino
-        )
+        guard let stagedArtifact else {
+            throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Staged PNG artifact identity was lost.")
+        }
+        return stagedArtifact
     } catch {
         if descriptor >= 0 { Darwin.close(descriptor) }
-        Darwin.unlinkat(target.directoryDescriptor, stageName, 0)
+        do {
+            if let stagedArtifact {
+                try cleanupImageCompareArtifacts(staged: [stagedArtifact], published: [])
+            } else {
+                try cleanupUnidentifiedImageCompareStage(
+                    fileName: stageName,
+                    directoryDescriptor: target.directoryDescriptor
+                )
+            }
+        } catch let cleanupFailure as ImageCompareFailure {
+            throw cleanupFailure
+        }
         throw error
     }
 }
@@ -866,23 +1026,69 @@ private func fsyncImageCompareDirectory(_ target: ImageCompareArtifactTarget) th
 private func cleanupImageCompareArtifacts(
     staged: [ImageCompareStagedArtifact],
     published: [ImageCompareStagedArtifact]
-) {
-    for artifact in staged.reversed() {
-        unlinkImageCompareArtifactIfOwned(artifact)
+) throws {
+    var failures: [String] = []
+    for artifact in Array(staged.reversed()) + Array(published.reversed()) {
+        do {
+            try unlinkImageCompareArtifactIfOwned(artifact)
+        } catch let failure as ImageCompareFailure {
+            failures.append(failure.message)
+        } catch {
+            failures.append("Unexpected rollback failure for \(artifact.fileName).")
+        }
     }
-    for artifact in published.reversed() {
-        unlinkImageCompareArtifactIfOwned(artifact)
+    guard failures.isEmpty else {
+        throw ImageCompareFailure(
+            code: "IMAGE_ARTIFACT_CLEANUP_FAILED",
+            message: "Image comparison artifact cleanup failed: \(failures.joined(separator: " "))"
+        )
     }
 }
 
-private func unlinkImageCompareArtifactIfOwned(_ artifact: ImageCompareStagedArtifact) {
+private func unlinkImageCompareArtifactIfOwned(_ artifact: ImageCompareStagedArtifact) throws {
     var status = stat()
-    guard Darwin.fstatat(artifact.directoryDescriptor, artifact.fileName, &status, AT_SYMLINK_NOFOLLOW) == 0,
-          status.st_dev == artifact.device,
-          status.st_ino == artifact.inode else {
+    guard Darwin.fstatat(artifact.directoryDescriptor, artifact.fileName, &status, AT_SYMLINK_NOFOLLOW) == 0 else {
+        if errno == ENOENT { return }
+        throw ImageCompareFailure(
+            code: "IMAGE_ARTIFACT_CLEANUP_FAILED",
+            message: "Could not inspect owned artifact during rollback: \(artifact.fileName)."
+        )
+    }
+    guard status.st_dev == artifact.device, status.st_ino == artifact.inode else {
         return
     }
-    Darwin.unlinkat(artifact.directoryDescriptor, artifact.fileName, 0)
+    guard Darwin.unlinkat(artifact.directoryDescriptor, artifact.fileName, 0) == 0 else {
+        if errno == ENOENT { return }
+        throw ImageCompareFailure(
+            code: "IMAGE_ARTIFACT_CLEANUP_FAILED",
+            message: "Could not remove owned artifact during rollback: \(artifact.fileName)."
+        )
+    }
+    guard Darwin.fsync(artifact.directoryDescriptor) == 0 else {
+        throw ImageCompareFailure(
+            code: "IMAGE_ARTIFACT_CLEANUP_FAILED",
+            message: "Could not fsync artifact parent after rollback: \(artifact.fileName)."
+        )
+    }
+}
+
+private func cleanupUnidentifiedImageCompareStage(
+    fileName: String,
+    directoryDescriptor: Int32
+) throws {
+    guard Darwin.unlinkat(directoryDescriptor, fileName, 0) == 0 else {
+        if errno == ENOENT { return }
+        throw ImageCompareFailure(
+            code: "IMAGE_ARTIFACT_CLEANUP_FAILED",
+            message: "Could not remove unidentified private artifact stage: \(fileName)."
+        )
+    }
+    guard Darwin.fsync(directoryDescriptor) == 0 else {
+        throw ImageCompareFailure(
+            code: "IMAGE_ARTIFACT_CLEANUP_FAILED",
+            message: "Could not fsync artifact parent after private-stage rollback: \(fileName)."
+        )
+    }
 }
 
 private func canonicalImageCompareSampleSHA256(
@@ -916,6 +1122,49 @@ private func imageCompareDescription(_ image: CanonicalImage) -> [String: Any] {
 
 private func roundedImageCompareFloat(_ value: Double) -> Double {
     (value * imageCompareFloatScale).rounded() / imageCompareFloatScale
+}
+
+private func failImageCompareArtifactOperation(
+    publication: ImageCompareArtifactPublication,
+    targets: [ImageCompareArtifactTarget],
+    failure: ImageCompareFailure
+) -> Never {
+    var reportedFailure = failure
+    do {
+        try cleanupImageCompareArtifacts(staged: [], published: publication.published)
+    } catch let cleanupFailure as ImageCompareFailure {
+        reportedFailure = cleanupFailure
+    } catch {
+        reportedFailure = ImageCompareFailure(
+            code: "IMAGE_ARTIFACT_CLEANUP_FAILED",
+            message: "Image comparison artifact cleanup failed after artifact finalization."
+        )
+    }
+    closeImageCompareArtifactTargets(targets)
+    writeImageCompareJSON(
+        ["code": reportedFailure.code, "error": reportedFailure.message],
+        to: .standardError
+    )
+    exit(1)
+}
+
+private func writeImageCompareJSONChecked(_ payload: [String: Any], to handle: FileHandle) throws {
+    guard JSONSerialization.isValidJSONObject(payload) else {
+        throw ImageCompareFailure(
+            code: "IMAGE_ARTIFACT_RECEIPT_WRITE_FAILED",
+            message: "Could not serialize the required image comparison artifact receipt."
+        )
+    }
+    do {
+        var data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
+        data.append(Data("\n".utf8))
+        try handle.write(contentsOf: data)
+    } catch {
+        throw ImageCompareFailure(
+            code: "IMAGE_ARTIFACT_RECEIPT_WRITE_FAILED",
+            message: "Could not write the required image comparison artifact receipt."
+        )
+    }
 }
 
 private func writeImageCompareJSON(_ payload: [String: Any], to handle: FileHandle) {

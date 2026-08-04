@@ -71,6 +71,29 @@ def solid_rgba_png(width, height, pixel, *, changed_pixel=None):
         + chunk(b"IEND", b"")
     )
 
+def patterned_gray_png(width, height, *, patterned):
+    compressor = zlib.compressobj(6)
+    compressed = bytearray()
+    state = 0x13579BDF
+    zero_row = bytes(width)
+    for _ in range(height):
+        if patterned:
+            row = bytearray(width)
+            for x in range(width):
+                state = (1664525 * state + 1013904223) & 0xffffffff
+                row[x] = state >> 24
+        else:
+            row = zero_row
+        compressed.extend(compressor.compress(b"\x00" + row))
+    compressed.extend(compressor.flush())
+    return (
+        signature
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 0, 0, 0, 0))
+        + chunk(b"sRGB", b"\x00")
+        + chunk(b"IDAT", bytes(compressed))
+        + chunk(b"IEND", b"")
+    )
+
 base_rows = [
     [10, 20, 30, 255, 40, 50, 60, 255],
     [70, 80, 90, 255, 100, 110, 120, 255],
@@ -134,6 +157,12 @@ four_k_files = {
 for name, data in four_k_files.items():
     with open(os.path.join(root, name), "wb") as handle:
         handle.write(data)
+
+race_width, race_height = 1536, 1536
+with open(os.path.join(root, "race-before.png"), "wb") as handle:
+    handle.write(patterned_gray_png(race_width, race_height, patterned=False))
+with open(os.path.join(root, "race-after.png"), "wb") as handle:
+    handle.write(patterned_gray_png(race_width, race_height, patterned=True))
 
 with open(os.path.join(root, "not-png.gif"), "wb") as handle:
     handle.write(b"GIF89a")
@@ -214,6 +243,74 @@ if timing_path:
         timing_handle.write(f"{elapsed:.3f}")
 
 sys.exit(return_code if return_code >= 0 else 128 - return_code)
+PY
+
+ARTIFACT_RACE_RUNNER="$TMP_ROOT/run-artifact-race.py"
+cat >"$ARTIFACT_RACE_RUNNER" <<'PY'
+import os
+import select
+import signal
+import subprocess
+import sys
+import time
+
+mode, parent, target, stdout_path, stderr_path, status_path = sys.argv[1:7]
+command = sys.argv[7:]
+watch_descriptor = os.open(parent, os.O_RDONLY)
+kqueue = select.kqueue()
+kqueue.control([
+    select.kevent(
+        watch_descriptor,
+        filter=select.KQ_FILTER_VNODE,
+        flags=select.KQ_EV_ADD | select.KQ_EV_CLEAR,
+        fflags=select.KQ_NOTE_WRITE | select.KQ_NOTE_RENAME,
+    )
+], 0, 0)
+process = None
+changed = False
+try:
+    with open(stdout_path, "wb") as stdout_handle, open(stderr_path, "wb") as stderr_handle:
+        process = subprocess.Popen(
+            command,
+            stdout=stdout_handle,
+            stderr=stderr_handle,
+            start_new_session=True,
+        )
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline and process.poll() is None:
+            events = kqueue.control(None, 1, 0.25)
+            if not events:
+                continue
+            if mode == "parent-drift":
+                moved_parent = parent + ".moved"
+                os.rename(parent, moved_parent)
+                os.mkdir(parent, 0o700)
+                with open(os.path.join(parent, "unrelated.txt"), "w", encoding="utf-8") as handle:
+                    handle.write("preserve replacement parent\n")
+                changed = True
+                break
+            if mode == "cleanup-failure" and os.path.lexists(target):
+                os.chmod(parent, 0o500)
+                changed = True
+                break
+        if not changed:
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+            raise RuntimeError(f"did not establish deterministic {mode} checkpoint")
+        try:
+            return_code = process.wait(timeout=8)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+            raise
+    with open(status_path, "w", encoding="utf-8") as status_handle:
+        status_handle.write(str(return_code))
+finally:
+    if mode == "cleanup-failure" and changed:
+        os.chmod(parent, 0o700)
+    kqueue.close()
+    os.close(watch_descriptor)
 PY
 
 GRAY_PNG_INSPECTOR="$TMP_ROOT/inspect-gray-png.py"
@@ -782,6 +879,110 @@ else
   fail "handled artifact rollback drifted: $(cat "$TMP_ROOT/artifact-rollback.err")"
 fi
 
+/bin/mkdir "$ARTIFACT_ROOT/receipt-rollback"
+RECEIPT_ROLLBACK="$ARTIFACT_ROOT/receipt-rollback/change.png"
+/usr/bin/touch "$ARTIFACT_ROOT/receipt-rollback/unrelated.txt"
+if "$COMPARE_HARNESS" \
+    "$FIXTURES/base.png" "$FIXTURES/changed.png" \
+    --change-map-out "$RECEIPT_ROLLBACK" \
+    1>&- 2>"$TMP_ROOT/artifact-receipt-closed.err"; then
+  receipt_closed_status=0
+else
+  receipt_closed_status=$?
+fi
+if [[ "$receipt_closed_status" -eq 0 ]]; then
+  fail "closed artifact receipt stdout unexpectedly exited zero"
+elif python3 - "$TMP_ROOT/artifact-receipt-closed.err" "$RECEIPT_ROLLBACK" "$ARTIFACT_ROOT/receipt-rollback" <<'PY'
+import json
+import os
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+assert payload["code"] == "IMAGE_ARTIFACT_RECEIPT_WRITE_FAILED", payload
+assert not os.path.lexists(sys.argv[2]), sys.argv[2]
+assert os.path.isfile(os.path.join(sys.argv[3], "unrelated.txt")), sys.argv[3]
+assert not any(name.startswith(".aos-image-compare-") for name in os.listdir(sys.argv[3])), os.listdir(sys.argv[3])
+PY
+then
+  pass "closed v2 receipt stdout fails nonzero and rolls back only the owned artifact"
+else
+  fail "closed artifact receipt rollback drifted: $(cat "$TMP_ROOT/artifact-receipt-closed.err")"
+fi
+
+/bin/mkdir "$ARTIFACT_ROOT/parent-drift"
+PARENT_DRIFT_TARGET="$ARTIFACT_ROOT/parent-drift/change.png"
+if python3 "$ARTIFACT_RACE_RUNNER" \
+    parent-drift "$ARTIFACT_ROOT/parent-drift" "$PARENT_DRIFT_TARGET" \
+    "$TMP_ROOT/artifact-parent-drift.out" "$TMP_ROOT/artifact-parent-drift.err" "$TMP_ROOT/artifact-parent-drift.status" \
+    "$COMPARE_HARNESS" "$FIXTURES/race-before.png" "$FIXTURES/race-after.png" \
+    --change-map-out "$PARENT_DRIFT_TARGET"; then
+  parent_drift_runner_status=0
+else
+  parent_drift_runner_status=$?
+fi
+if [[ "$parent_drift_runner_status" -ne 0 ]]; then
+  fail "parent-drift checkpoint runner failed"
+elif python3 - \
+    "$TMP_ROOT/artifact-parent-drift.status" "$TMP_ROOT/artifact-parent-drift.out" "$TMP_ROOT/artifact-parent-drift.err" \
+    "$ARTIFACT_ROOT/parent-drift" "$ARTIFACT_ROOT/parent-drift.moved" <<'PY'
+import json
+import os
+import sys
+return_code = int(open(sys.argv[1], encoding="utf-8").read())
+assert return_code != 0, return_code
+assert os.path.getsize(sys.argv[2]) == 0, sys.argv[2]
+payload = json.load(open(sys.argv[3], encoding="utf-8"))
+assert payload["code"] == "IMAGE_ARTIFACT_PARENT_CHANGED", payload
+replacement, moved = sys.argv[4:6]
+assert open(os.path.join(replacement, "unrelated.txt"), encoding="utf-8").read() == "preserve replacement parent\n"
+assert not os.path.lexists(os.path.join(replacement, "change.png")), replacement
+assert not os.path.lexists(os.path.join(moved, "change.png")), moved
+for parent in (replacement, moved):
+    assert not any(name.startswith(".aos-image-compare-") for name in os.listdir(parent)), os.listdir(parent)
+PY
+then
+  pass "parent rename after private staging fails closed, removes the pinned stage, and preserves the replacement parent"
+else
+  fail "parent-drift artifact contract drifted: $(cat "$TMP_ROOT/artifact-parent-drift.err" 2>/dev/null)"
+fi
+
+/bin/mkdir "$ARTIFACT_ROOT/cleanup-failure" "$ARTIFACT_ROOT/cleanup-trigger"
+/usr/bin/touch "$ARTIFACT_ROOT/cleanup-failure/unrelated.txt"
+/bin/chmod 500 "$ARTIFACT_ROOT/cleanup-trigger"
+CLEANUP_FAILURE_CHANGE="$ARTIFACT_ROOT/cleanup-failure/change.png"
+CLEANUP_FAILURE_MASK="$ARTIFACT_ROOT/cleanup-trigger/mask.png"
+if python3 "$ARTIFACT_RACE_RUNNER" \
+    cleanup-failure "$ARTIFACT_ROOT/cleanup-failure" "$CLEANUP_FAILURE_CHANGE" \
+    "$TMP_ROOT/artifact-cleanup-failure.out" "$TMP_ROOT/artifact-cleanup-failure.err" "$TMP_ROOT/artifact-cleanup-failure.status" \
+    "$COMPARE_HARNESS" "$FIXTURES/race-before.png" "$FIXTURES/race-after.png" \
+    --change-map-out "$CLEANUP_FAILURE_CHANGE" --mask-out "$CLEANUP_FAILURE_MASK"; then
+  cleanup_failure_runner_status=0
+else
+  cleanup_failure_runner_status=$?
+fi
+/bin/chmod 700 "$ARTIFACT_ROOT/cleanup-trigger"
+if [[ "$cleanup_failure_runner_status" -ne 0 ]]; then
+  fail "cleanup-failure checkpoint runner failed"
+elif python3 - \
+    "$TMP_ROOT/artifact-cleanup-failure.status" "$TMP_ROOT/artifact-cleanup-failure.out" "$TMP_ROOT/artifact-cleanup-failure.err" \
+    "$CLEANUP_FAILURE_CHANGE" "$CLEANUP_FAILURE_MASK" "$ARTIFACT_ROOT/cleanup-failure/unrelated.txt" <<'PY'
+import json
+import os
+import sys
+return_code = int(open(sys.argv[1], encoding="utf-8").read())
+assert return_code != 0, return_code
+assert os.path.getsize(sys.argv[2]) == 0, sys.argv[2]
+payload = json.load(open(sys.argv[3], encoding="utf-8"))
+assert payload["code"] == "IMAGE_ARTIFACT_CLEANUP_FAILED", payload
+assert os.path.isfile(sys.argv[4]), sys.argv[4]
+assert not os.path.lexists(sys.argv[5]), sys.argv[5]
+assert os.path.isfile(sys.argv[6]), sys.argv[6]
+PY
+then
+  pass "rollback unlink denial surfaces IMAGE_ARTIFACT_CLEANUP_FAILED and preserves unrelated files"
+else
+  fail "cleanup-failure artifact contract drifted: $(cat "$TMP_ROOT/artifact-cleanup-failure.err" 2>/dev/null)"
+fi
+
 run_four_k_success four-k-identical identical "$FIXTURES/four-k-before.png" "$FIXTURES/four-k-identical.png"
 run_four_k_success four-k-sparse sparse "$FIXTURES/four-k-before.png" "$FIXTURES/four-k-sparse.png"
 run_four_k_success four-k-dense dense "$FIXTURES/four-k-before.png" "$FIXTURES/four-k-dense.png"
@@ -1132,6 +1333,16 @@ run_dispatch_probe dispatch-absolute "$DISPATCH_BIN/aos"
 run_dispatch_probe dispatch-path aos
 run_dispatch_probe dispatch-relative ../../fake-aos-repo/bin/aos
 
+if SEE_COMPARE_HELP="$(node scripts/aos-help-proxy.mjs see compare 2>"$TMP_ROOT/see-compare-help.err")"; then
+  if /usr/bin/grep -Fq "requires one artifact output path: --change-map-out OR --mask-out" <<<"$SEE_COMPARE_HELP"; then
+    pass "direct text help renders the canonical artifact-output alternative group"
+  else
+    fail "direct text help omitted the artifact-output alternative group"
+  fi
+else
+  fail "direct text help crashed: $(cat "$TMP_ROOT/see-compare-help.err")"
+fi
+
 python3 - <<'PY'
 import json
 import re
@@ -1148,8 +1359,11 @@ assert form["execution"] == {"auto_starts_daemon": False, "interactive": False, 
 assert {arg.get("token") for arg in form["args"] if arg["kind"] == "flag"} == {"--pixel-tolerance", "--expect"}, form
 assert artifact_form["id"] == "see-compare-artifacts", artifact_form
 assert artifact_form["output"] == form["output"], artifact_form
-assert artifact_form["execution"] == {"auto_starts_daemon": False, "interactive": False, "mutates_state": True, "read_only": False, "requires_permissions": False, "streaming": False, "supports_dry_run": False}, artifact_form
-assert artifact_form["constraints"]["required_groups"] == [{"one_of": ["change-map-out", "mask-out"]}], artifact_form
+assert artifact_form["execution"] == {"auto_starts_daemon": False, "interactive": False, "mutates_state": True, "mutation_scope": "explicit_output_paths_only", "read_only": False, "requires_permissions": False, "streaming": False, "supports_dry_run": False}, artifact_form
+assert artifact_form["constraints"]["required_groups"] == [{
+    "one_of": [["change-map-out"], ["mask-out"]],
+    "summary": "artifact output path",
+}], artifact_form
 assert {arg.get("token") for arg in artifact_form["args"] if arg["kind"] == "flag"} == {
     "--change-map-out", "--mask-out", "--pixel-tolerance", "--expect"
 }, artifact_form
@@ -1165,6 +1379,15 @@ assert not any("aos-see-native" in str(value) for value in route.values()), rout
 
 fallbacks = [item for item in external["commands"] if item["path"] == ["see"] and item["argv_prefix"] == ["node", "scripts/aos-see-native.mjs", "capture"]]
 assert len(fallbacks) == 1 and "compare" in fallbacks[0]["when"]["excluded_values"], fallbacks
+
+generated = json.loads(Path("manifests/commands/aos-commands.json").read_text(encoding="utf-8"))
+generated_routes = [item for item in generated["commands"] if item["path"] == ["see", "compare"]]
+assert len(generated_routes) == 1, generated_routes
+generated_artifact_forms = [form for form in generated_routes[0]["forms"] if form["id"] == "see-compare-artifacts"]
+assert len(generated_artifact_forms) == 1, generated_artifact_forms
+generated_artifact_form = generated_artifact_forms[0]
+assert generated_artifact_form["constraints"]["required_groups"] == artifact_form["constraints"]["required_groups"], generated_artifact_form
+assert generated_artifact_form["execution"]["mutation_scope"] == "explicit_output_paths_only", generated_artifact_form
 
 main = Path("src/main.swift").read_text(encoding="utf-8")
 body = re.search(r'case "compare":(?P<body>.*?)case "cursor":', main, re.S)
@@ -1223,6 +1446,16 @@ assert "Darwin.fstatat(directoryDescriptor, fileName, &existing, AT_SYMLINK_NOFO
 assert "Darwin.renameatx_np(" in comparator and "UInt32(RENAME_EXCL)" in comparator, comparator
 assert "Darwin.unlinkat(artifact.directoryDescriptor, artifact.fileName, 0)" in comparator, comparator
 assert "cleanupImageCompareArtifacts(staged: staged, published: published)" in comparator, comparator
+assert "IMAGE_ARTIFACT_PARENT_CHANGED" in comparator, comparator
+assert "parentDevice: parentStatus.st_dev" in comparator and "parentInode: parentStatus.st_ino" in comparator, comparator
+assert "try revalidateImageCompareArtifactParent(target)" in comparator, comparator
+assert "try verifyImageCompareArtifactPublication(targets: artifactTargets, published: publication.published)" in comparator, comparator
+assert "IMAGE_ARTIFACT_CLEANUP_FAILED" in comparator, comparator
+assert "try unlinkImageCompareArtifactIfOwned(artifact)" in comparator, comparator
+assert "Darwin.fsync(artifact.directoryDescriptor)" in comparator, comparator
+assert "IMAGE_ARTIFACT_RECEIPT_WRITE_FAILED" in comparator, comparator
+assert "try writeImageCompareJSONChecked(result, to: .standardOutput)" in comparator, comparator
+assert "try writeImageCompareJSONChecked(failure, to: .standardError)" in comparator, comparator
 assert comparator.index("writeImageCompareArtifacts(") < comparator.index('expectation["met"] as? Bool == false'), comparator
 assert "@_optimize" not in comparator, comparator
 for forbidden in (
@@ -1276,6 +1509,9 @@ assert all(fragment in api_doc for fragment in (
     "`aos see compare <before.png> <after.png>`",
     "does not capture, poll, wait, resize, crop, or align its inputs",
     "Calls without output flags remain the byte-stable, write-free `aos.image-compare.v1` form.",
+    "The opened parent identity is pinned and the requested symlink-free path must still resolve to it immediately before publication and receipt",
+    "Artifact success requires the complete v2 JSON receipt.",
+    "`IMAGE_ARTIFACT_CLEANUP_FAILED`",
     "Each file is atomic, but two requested files are not claimed to be mutually crash-atomic.",
 )), api_doc
 
@@ -1283,13 +1519,16 @@ capabilities_doc = " ".join(Path("docs/api/aos-capabilities.md").read_text(encod
 assert all(fragment in capabilities_doc for fragment in (
     "| Artifact comparison | Exact canonical pixel verification and optional grayscale spatial evidence over existing same-size PNG paths; no capture, wait, or alignment |",
     "When matching before/after PNG artifact paths already exist, use `./aos see compare <before.png> <after.png>` as the exact pixel alternative",
+    "The opened parent identity must still match the requested symlink-free path before publication and receipt",
+    "Artifact success requires the complete v2 JSON receipt.",
+    "`IMAGE_ARTIFACT_CLEANUP_FAILED`",
     "Files are individually atomic, not mutually crash-atomic.",
 )), capabilities_doc
 
 workflow_rules = Path("docs/dev/workflow-rules.json").read_text(encoding="utf-8")
 proof_registry = Path("docs/dev/test-proof-registry.d/command-surface.json").read_text(encoding="utf-8")
-assert "v1 no-write compatibility, optional grayscale artifacts, target safety, rollback, expectation retention" in workflow_rules, workflow_rules
-assert "preserves byte-stable v1 no-write comparison, emits exact optional grayscale v2 artifacts" in proof_registry, proof_registry
+assert "v1 no-write compatibility, optional grayscale artifacts, canonical text help, target and parent-identity safety, checked receipts, normal and failed rollback, expectation retention" in workflow_rules, workflow_rules
+assert "preserves byte-stable v1 no-write comparison, emits exact optional grayscale v2 artifacts through parent-identity-safe atomic publication plus a checked receipt" in proof_registry, proof_registry
 PY
 pass "source, split manifest forms, DOX/API, and workflow proof text preserve the bounded artifact contract"
 

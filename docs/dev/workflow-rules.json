@@ -645,12 +645,12 @@
         {
           "id": "image-file-compare-proof",
           "command": "bash tests/see-image-compare.sh",
-          "reason": "Compile the focused comparator with the production runtime-path and dispatcher sources, then verify canonical comparison, v1 no-write compatibility, optional grayscale artifacts, target safety, rollback, expectation retention, and route contracts."
+          "reason": "Compile the focused comparator with the production runtime-path and dispatcher sources, then verify canonical comparison, v1 no-write compatibility, optional grayscale artifacts, canonical text help, target and parent-identity safety, checked receipts, normal and failed rollback, expectation retention, and route contracts."
         }
       ],
       "verification": [],
       "notes": [
-        "Hermetic and offline: generates fixed PNG fixtures and spatial outputs in a private temporary root and does not build or execute ./aos, capture pixels, start a daemon, or touch TCC."
+        "Hermetic and offline: generates fixed PNG fixtures and spatial outputs in a private temporary root, uses deterministic filesystem event checkpoints for parent drift and cleanup denial, and does not build or execute ./aos, capture pixels, start a daemon, or touch TCC."
       ]
     },
     {

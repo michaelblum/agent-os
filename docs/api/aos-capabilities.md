@@ -163,10 +163,14 @@ Without output flags, the fast path performs no writes and retains the exact
 version, domain-separated canonical sample SHA-256, exact PNG-file SHA-256, and
 nonzero selected-pixel count. Outputs require new distinct standardized `.png`
 paths below existing symlink-free parents. Each mode-`0600` destination-local
-stage is encoded, fsynced, and atomically published without overwrite. Handled
-failure removes invocation-owned stages and published outputs; expectation
-failure retains artifacts. Files are individually atomic, not mutually
-crash-atomic.
+stage is encoded, fsynced, and atomically published without overwrite. The
+opened parent identity must still match the requested symlink-free path before
+publication and receipt, and published identity is rechecked. Artifact success
+requires the complete v2 JSON receipt. Handled write, finalization, or receipt
+failure removes invocation-owned stages and published outputs; cleanup failure
+surfaces as `IMAGE_ARTIFACT_CLEANUP_FAILED` while unrelated files are preserved.
+Expectation failure retains artifacts only after its complete v2 receipt is
+written. Files are individually atomic, not mutually crash-atomic.
 
 Integer counts and deltas in both schemas are authoritative.
 `changed_ratio` and `mean_channel_delta` are convenience values rounded to 12

@@ -400,10 +400,16 @@ Artifact output paths must be distinct after absolute standardization, end in
 components, and be absent of every file type. AOS never creates a parent or
 overwrites a target. Each requested file stages at mode `0600` in its destination,
 is encoded and fsynced, then publishes atomically with no-overwrite semantics.
-A handled failure removes stages and any invocation-owned output already
-published; an expectation failure retains successfully published artifacts.
-Each file is atomic, but two requested files are not claimed to be mutually
-crash-atomic.
+The opened parent identity is pinned and the requested symlink-free path must
+still resolve to it immediately before publication and receipt; the published
+file identity is also rechecked. Artifact success requires the complete v2 JSON
+receipt. A handled write, finalization, or receipt failure removes stages and
+any invocation-owned output already published. Cleanup inspection, unlink, and
+rollback-fsync failures surface as `IMAGE_ARTIFACT_CLEANUP_FAILED` rather than
+being hidden; unrelated files are never cleanup targets. An expectation failure
+retains successfully published artifacts only after its complete v2 receipt is
+written. Each file is atomic, but two requested files are not claimed to be
+mutually crash-atomic.
 
 The v2 `artifacts.change_map` and `artifacts.mask` entries are a descriptor or
 `null`. Descriptors contain the absolute `path`, `width`, `height`,
