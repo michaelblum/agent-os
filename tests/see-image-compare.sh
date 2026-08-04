@@ -532,8 +532,8 @@ run_failure_bounded fifo-symlink-input IMAGE_READ_FAILED "$FIXTURES/input-fifo-l
 run_failure_bounded directory-input IMAGE_READ_FAILED "$FIXTURES/input-directory" "$FIXTURES/base.png"
 run_failure_bounded device-input IMAGE_READ_FAILED /dev/null "$FIXTURES/base.png"
 
-DISPATCH_STUBS="$TMP_ROOT/dispatch-stubs.swift"
-cat >"$DISPATCH_STUBS" <<'SWIFT'
+DISPATCH_SUPPORT="$TMP_ROOT/dispatch-support.swift"
+cat >"$DISPATCH_SUPPORT" <<'SWIFT'
 import Foundation
 
 struct ProcessOutput {
@@ -542,16 +542,7 @@ struct ProcessOutput {
     let stderr: String
 }
 
-enum FakeRuntimeMode: String { case repo }
-
-func aosCurrentRepoRoot(executablePath: String = "") -> String? {
-    ProcessInfo.processInfo.environment["AOS_TEST_REPO_ROOT"]
-}
-func aosCurrentRuntimeMode() -> FakeRuntimeMode { .repo }
-func aosStateRoot() -> String { "/tmp/aos-image-compare-state" }
-func aosCurrentSessionKey() -> String { "image-compare-test" }
-func aosCurrentSessionHarness() -> String { "test" }
-func aosInvocationDisplayName() -> String { "aos" }
+func aosInvocationDisplayName() -> String { CommandLine.arguments.first ?? "aos" }
 func exitError(_ message: String, code: String) -> Never {
     let data = try! JSONSerialization.data(withJSONObject: ["code": code, "error": message], options: [.sortedKeys])
     FileHandle.standardError.write(data)
@@ -564,28 +555,33 @@ cat >"$HARNESS_MAIN" <<'SWIFT'
 import Foundation
 
 let args = Array(CommandLine.arguments.dropFirst())
-if args.starts(with: ["__see", "compare"]) {
-    imageFileCompareCommand(args: Array(args.dropFirst(2)))
-}
 if runExternalCommandIfMatched(args: args) {
     exit(0)
+}
+if args.starts(with: ["__see", "compare"]) {
+    imageFileCompareCommand(args: Array(args.dropFirst(2)))
 }
 exitError("No route", code: "NO_ROUTE")
 SWIFT
 
-DISPATCH_HARNESS="$TMP_ROOT/aos-fake-dispatch"
+DISPATCH_HARNESS="$TMP_ROOT/aos-production-dispatch"
 /usr/bin/xcrun swiftc \
   -Onone \
-  "$DISPATCH_STUBS" \
+  "$DISPATCH_SUPPORT" \
+  shared/swift/ipc/runtime-paths.swift \
   src/shared/external-command-dispatch.swift \
   src/perceive/image-file-compare.swift \
   "$HARNESS_MAIN" \
   -o "$DISPATCH_HARNESS"
 
-DISPATCH_ROOT="$TMP_ROOT/dispatch-work"
-DISPATCH_BIN="$DISPATCH_ROOT/bin"
-DISPATCH_CWD="$DISPATCH_ROOT/nested-caller"
-/bin/mkdir -p "$DISPATCH_BIN" "$DISPATCH_CWD"
+DISPATCH_REPO="$TMP_ROOT/fake-aos-repo"
+DISPATCH_BIN="$DISPATCH_REPO/bin"
+DISPATCH_SENTINEL="$DISPATCH_REPO/packages/toolkit/components/inspector-panel/index.html"
+DISPATCH_MANIFEST="$DISPATCH_REPO/manifests/commands/aos-external-commands.json"
+DISPATCH_CWD="$TMP_ROOT/external-caller/nested"
+/bin/mkdir -p "$DISPATCH_BIN" "$(dirname "$DISPATCH_SENTINEL")" "$(dirname "$DISPATCH_MANIFEST")" "$DISPATCH_CWD"
+/usr/bin/touch "$DISPATCH_SENTINEL"
+/bin/cp manifests/commands/aos-external-commands.json "$DISPATCH_MANIFEST"
 /bin/cp "$DISPATCH_HARNESS" "$DISPATCH_BIN/aos"
 /bin/cp "$FIXTURES/base.png" "$DISPATCH_CWD/before.png"
 /bin/cp "$FIXTURES/changed.png" "$DISPATCH_CWD/after.png"
@@ -595,29 +591,56 @@ run_dispatch_probe() {
   local invocation="$2"
   local stdout_file="$TMP_ROOT/${label}.out"
   local stderr_file="$TMP_ROOT/${label}.err"
-  if (cd "$DISPATCH_CWD" && PATH="$DISPATCH_BIN:/usr/bin:/bin" AOS_TEST_REPO_ROOT="$ROOT" "$invocation" see compare before.png after.png --expect change) >"$stdout_file" 2>"$stderr_file" \
-      && [[ ! -s "$stderr_file" ]] \
+  local status
+  if (cd "$DISPATCH_CWD" && /usr/bin/env \
+      -u AOS_REPO_ROOT \
+      -u AOS_TEST_REPO_ROOT \
+      -u AOS_RUNTIME_MODE \
+      PATH="$DISPATCH_BIN:/usr/bin:/bin" \
+      /usr/bin/python3 "$WATCHDOG" 4 "$stdout_file" "$stderr_file" \
+      "$invocation" see compare before.png after.png --expect change); then
+    status=0
+  else
+    status=$?
+  fi
+  if [[ "$status" -eq 124 ]]; then
+    fail "$label did not terminate within the dispatch recursion watchdog"
+    return
+  fi
+  if [[ "$status" -eq 0 && ! -s "$stderr_file" ]] \
       && python3 - "$stdout_file" "$DISPATCH_CWD" <<'PY'
 import json
 import os
 import sys
 payload = json.load(open(sys.argv[1], encoding="utf-8"))
 caller = os.path.normpath(os.path.abspath(sys.argv[2]))
+assert list(payload) == sorted(payload), payload
 assert payload["status"] == "success", payload
+assert payload["schema_version"] == "aos.image-compare.v1", payload
 assert payload["before"]["path"] == os.path.join(caller, "before.png"), payload
 assert payload["after"]["path"] == os.path.join(caller, "after.png"), payload
-assert payload["comparison"]["changed_pixels"] == 1, payload
+assert payload["comparison"] == {
+    "changed_bounds": {"x": 1, "y": 0, "width": 1, "height": 1},
+    "changed_pixels": 1,
+    "changed_ratio": 0.25,
+    "max_channel_delta": 5,
+    "mean_channel_delta": 0.3125,
+    "pixel_tolerance": 0,
+    "sum_channel_delta": 5,
+    "total_pixels": 4,
+}, payload
 assert payload["expectation"] == {"requested": "change", "actual": "change", "met": True}, payload
 PY
   then
-    pass "$label preserves caller cwd and executes the real comparator with JSON stdout only"
+    pass "$label resolves the production repo route, preserves caller cwd, and terminates with exact JSON metrics"
   else
-    fail "$label production dispatch drifted: $(cat "$stderr_file" "$stdout_file" 2>/dev/null)"
+    fail "$label production dispatch drifted (status=$status): $(cat "$stderr_file" "$stdout_file" 2>/dev/null)"
   fi
 }
 
+run_dispatch_probe dispatch-absolute "$DISPATCH_BIN/aos"
 run_dispatch_probe dispatch-path aos
-run_dispatch_probe dispatch-relative ../bin/aos
+run_dispatch_probe dispatch-relative ../../fake-aos-repo/bin/aos
 
 python3 - <<'PY'
 import json
@@ -694,6 +717,26 @@ for forbidden in (
 ):
     assert forbidden not in comparator, forbidden
 assert not re.search(r"\b(?:poll|select|sleep|usleep)\s*\(", comparator), comparator
+
+runtime_paths = Path("shared/swift/ipc/runtime-paths.swift").read_text(encoding="utf-8")
+assert re.search(r"^import MachO$", runtime_paths, re.M), runtime_paths
+executable_path_body = re.search(
+    r"func aosExecutablePath\(\) -> String \{(?P<body>.*?)\n\}",
+    runtime_paths,
+    re.S,
+)
+assert executable_path_body, runtime_paths
+assert "_NSGetExecutablePath" in executable_path_body.group("body"), executable_path_body.group("body")
+assert "CommandLine.arguments.first" in executable_path_body.group("body"), executable_path_body.group("body")
+assert "currentDirectoryPath" in executable_path_body.group("body"), executable_path_body.group("body")
+normalize_body = re.search(
+    r"private func aosNormalizeExecutablePath\(.*?\n\}",
+    runtime_paths,
+    re.S,
+)
+assert normalize_body, runtime_paths
+assert "resolvingSymlinksInPath" in normalize_body.group(0), normalize_body.group(0)
+assert "Process()" not in executable_path_body.group("body"), executable_path_body.group("body")
 
 api_doc = " ".join(Path("docs/api/aos.md").read_text(encoding="utf-8").split())
 assert all(fragment in api_doc for fragment in (

@@ -385,13 +385,12 @@ show_client = Path("scripts/aos-show-client.mjs").read_text(encoding="utf-8")
 update_case = re.search(r"case 'update':(?P<body>.*?)break;", show_client, re.S)
 assert update_case, "show update switch case missing"
 assert update_case.group("body").count("mutationCommand(args, 'update')") == 1, update_case.group("body")
-for path, prefix in [
-    (("serve",), ["__serve"]),
-    (("see", "compare"), ["__see", "compare"]),
-]:
-    command = commands[path]
-    assert command["executable"] == "$AOS_PATH", command
-    assert command["argv_prefix"] == prefix, command
+serve = commands[("serve",)]
+assert serve["executable"] == "$AOS_PATH", serve
+assert serve["argv_prefix"] == ["__serve"], serve
+compare = commands[("see", "compare")]
+assert compare["executable"] == "/usr/bin/env", compare
+assert compare["argv_prefix"] == ["$AOS_PATH", "__see", "compare"], compare
 command = commands[("doctor",)]
 assert command["executable"] == "/usr/bin/env", command
 assert command["argv_prefix"] == ["node", "scripts/aos-doctor.mjs"], command

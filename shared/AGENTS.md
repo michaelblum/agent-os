@@ -19,6 +19,11 @@ apps, and tests.
 - Schema changes must update fixtures, docs, and tests that assert the contract.
 - Shared helpers must stay product-neutral and layer-neutral.
 - Do not hide app-specific semantics in shared schema fields.
+- `swift/ipc/runtime-paths.swift` owns executable identity. Resolve the running
+  Mach-O image to an absolute, symlink-resolved path independent of raw argv
+  spelling or caller cwd, and begin repo-root discovery from that identity.
+  User-facing invocation names remain owned by raw argv in
+  `src/shared/invocation.swift`.
 
 ## Work Guidance
 

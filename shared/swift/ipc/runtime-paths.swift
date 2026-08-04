@@ -1,6 +1,7 @@
 // runtime-paths.swift — runtime mode, identity, and state path helpers.
 
 import Foundation
+import MachO
 
 enum AOSRuntimeMode: String, CaseIterable, Codable {
     case repo
@@ -72,8 +73,37 @@ func aosInstallAppPath() -> String {
     ProcessInfo.processInfo.environment["AOS_INSTALL_PATH"] ?? "\(aosHomeDir())/Applications/AOS.app"
 }
 
+private func aosNormalizeExecutablePath(_ path: String, relativeTo currentDirectory: String) -> String {
+    let expanded = NSString(string: path).expandingTildeInPath
+    let absolute = expanded.hasPrefix("/")
+        ? expanded
+        : (currentDirectory as NSString).appendingPathComponent(expanded)
+    return URL(fileURLWithPath: absolute)
+        .standardizedFileURL
+        .resolvingSymlinksInPath()
+        .standardizedFileURL
+        .path
+}
+
 func aosExecutablePath() -> String {
-    NSString(string: CommandLine.arguments[0]).standardizingPath
+    let currentDirectory = FileManager.default.currentDirectoryPath
+    var bufferSize: UInt32 = 0
+    _ = _NSGetExecutablePath(nil, &bufferSize)
+    if bufferSize > 0 {
+        var buffer = [CChar](repeating: 0, count: Int(bufferSize))
+        let status = buffer.withUnsafeMutableBufferPointer {
+            _NSGetExecutablePath($0.baseAddress, &bufferSize)
+        }
+        if status == 0 {
+            let executablePath = String(cString: buffer)
+            if !executablePath.isEmpty {
+                return aosNormalizeExecutablePath(executablePath, relativeTo: currentDirectory)
+            }
+        }
+    }
+
+    let argvPath = CommandLine.arguments.first ?? "aos"
+    return aosNormalizeExecutablePath(argvPath, relativeTo: currentDirectory)
 }
 
 func aosCurrentRuntimeMode(executablePath: String = aosExecutablePath()) -> AOSRuntimeMode {

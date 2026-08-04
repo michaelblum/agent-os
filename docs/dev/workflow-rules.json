@@ -622,6 +622,7 @@
       "id": "image-file-compare",
       "summary": "Stateless PNG comparator source, command contract, or hermetic proof changed.",
       "patterns": [
+        "shared/swift/ipc/runtime-paths.swift",
         "src/main.swift",
         "src/perceive/image-file-compare.swift",
         "manifests/commands/source/aos/03-see-05-compare.json",
@@ -644,7 +645,7 @@
         {
           "id": "image-file-compare-proof",
           "command": "bash tests/see-image-compare.sh",
-          "reason": "Compile only the focused comparator and fake-dispatch harness, then verify canonical PNG comparison, parser, error, expectation, and route contracts."
+          "reason": "Compile the focused comparator with the production runtime-path and dispatcher sources, then verify canonical PNG comparison, parser, error, expectation, and route contracts."
         }
       ],
       "verification": [],
