@@ -98,7 +98,7 @@ private func providerFact(
         nativeFrame: frame ?? display.nativeBounds,
         pointWidth: pointWidth ?? Int(display.nativeBounds.width),
         pointHeight: pointHeight ?? Int(display.nativeBounds.height),
-        scaleFactor: scaleFactor
+        scaleFactor: scaleFactor ?? display.scaleFactor
     )
 }
 
@@ -170,9 +170,9 @@ struct DisplayTopologyIdentityHarness {
             )
         }
 
-        // ScreenCaptureKit contributes display ID, frame, and width/height in
-        // points. Its live projection leaves scale nil; output image pixels
-        // prove the configured topology-derived scale after capture.
+        // ScreenCaptureKit contributes display ID, frame, width/height in
+        // points, and the admitted filter's point-to-pixel scale. Output image
+        // pixels then prove the configured topology-derived geometry.
         let providerFacts = original.displays.map { providerFact($0) }
         let captureAlignments = try validateAOSDisplayCaptureAlignment(
             topology: original,
@@ -259,6 +259,72 @@ struct DisplayTopologyIdentityHarness {
                 alignment: captureAlignments[0],
                 actualWidth: 2880,
                 actualHeight: 1799
+            )
+        }
+
+        let interactiveWindow = try aosInteractiveSelectionWindowBounds(
+            displayNativeBounds: original.displays[1].nativeBounds,
+            mainDisplayHeight: original.displays[0].nativeBounds.height
+        )
+        precondition(interactiveWindow == bounds(-1920, 20, 1920, 1080))
+        let interactiveGlobal = try aosInteractiveSelectionGlobalBounds(
+            localSelection: bounds(100, 50, 300, 200),
+            displayNativeBounds: original.displays[1].nativeBounds
+        )
+        precondition(interactiveGlobal == bounds(-1820, -150, 300, 200))
+        expectFailure("interactive selection outside frozen display") {
+            _ = try aosInteractiveSelectionGlobalBounds(
+                localSelection: bounds(1900, 0, 40, 40),
+                displayNativeBounds: original.displays[1].nativeBounds
+            )
+        }
+
+        let fractionalMember = member(
+            id: 505,
+            uuid: "55555555-5555-4555-8555-555555555555",
+            label: "fractional",
+            main: true,
+            native: bounds(0, 0, 1, 1),
+            visible: bounds(0, 0, 1, 1),
+            scale: 1.5
+        )
+        let fractionalSnapshot = try snapshot([fractionalMember])
+        expectFailure("fractional expected pixel geometry") {
+            _ = try validateAOSDisplayCaptureAlignment(
+                topology: fractionalSnapshot,
+                providerFacts: [AOSDisplayCaptureProviderFact(
+                    runtimeDisplayID: 505,
+                    nativeFrame: bounds(0, 0, 1, 1),
+                    pointWidth: 1,
+                    pointHeight: 1,
+                    scaleFactor: 1.5
+                )],
+                selectedDisplayIDs: [505]
+            )
+        }
+
+        let boundaryWidth = Double(Int.max)
+        let boundaryMember = member(
+            id: 606,
+            uuid: "66666666-6666-4666-8666-666666666666",
+            label: "boundary",
+            main: true,
+            native: bounds(0, 0, boundaryWidth, 1),
+            visible: bounds(0, 0, boundaryWidth, 1),
+            scale: 1
+        )
+        let boundarySnapshot = try snapshot([boundaryMember])
+        expectFailure("unrepresentable expected pixel geometry") {
+            _ = try validateAOSDisplayCaptureAlignment(
+                topology: boundarySnapshot,
+                providerFacts: [AOSDisplayCaptureProviderFact(
+                    runtimeDisplayID: 606,
+                    nativeFrame: bounds(0, 0, boundaryWidth, 1),
+                    pointWidth: Int.max,
+                    pointHeight: 1,
+                    scaleFactor: 1
+                )],
+                selectedDisplayIDs: [606]
             )
         }
 

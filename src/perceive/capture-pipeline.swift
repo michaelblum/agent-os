@@ -1014,23 +1014,21 @@ func stitchSurfaceSegments(
 
 @available(macOS 14.0, *)
 struct AOSValidatedDisplayCaptureSource {
-    let display: SCDisplay
+    let filter: SCContentFilter
     let alignment: AOSDisplayCaptureAlignment
 }
 
 @available(macOS 14.0, *)
 func captureDisplay(
     _ source: AOSValidatedDisplayCaptureSource,
-    showCursor: Bool,
-    excludingWindows: [SCWindow] = []
+    showCursor: Bool
 ) async throws -> CGImage {
-    let filter = SCContentFilter(display: source.display, excludingWindows: excludingWindows)
     let config = SCStreamConfiguration()
     config.width = source.alignment.expectedPixelWidth
     config.height = source.alignment.expectedPixelHeight
     config.showsCursor = showCursor
     config.captureResolution = .best
-    let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+    let image = try await SCScreenshotManager.captureImage(contentFilter: source.filter, configuration: config)
     try validateAOSCapturedDisplayPixelGeometry(
         alignment: source.alignment,
         actualWidth: image.width,
@@ -1290,6 +1288,24 @@ func parseCaptureArgs(_ args: [String]) -> CaptureOptions {
         }
         i += 1
     }
+    if opts.interactive {
+        let conflicts = [
+            (opts.region != nil, "--region"),
+            (opts.canvasID != nil, "--canvas"),
+            (opts.channelID != nil, "--channel"),
+            (opts.windowOnly, "--window"),
+            (opts.crop != nil, "--crop"),
+        ].compactMap { pair in pair.0 ? pair.1 : nil }
+        if !conflicts.isEmpty {
+            exitError(
+                "--interactive cannot be combined with \(conflicts.joined(separator: ", "))",
+                code: "INVALID_ARG"
+            )
+        }
+        if opts.target.hasPrefix("browser:") {
+            exitError("--interactive requires one native display target", code: "INVALID_ARG")
+        }
+    }
     return opts
 }
 
@@ -1455,24 +1471,54 @@ class SelectionOverlayView: NSView {
     }
 }
 
-func showInteractiveSelection(on display: CaptureDisplayEntry, timeout: Double = 60) -> NSRect? {
+enum InteractiveSelectionResult {
+    case selected(NSRect)
+    case cancelled
+    case timedOut
+}
+
+func showInteractiveSelection(
+    on display: CaptureDisplayEntry,
+    mainDisplayHeight: Double,
+    timeout: Double = 60
+) -> InteractiveSelectionResult {
     if !Thread.isMainThread {
-        var result: NSRect? = nil
-        DispatchQueue.main.sync { result = showInteractiveSelection(on: display, timeout: timeout) }
+        var result: InteractiveSelectionResult = .timedOut
+        DispatchQueue.main.sync {
+            result = showInteractiveSelection(
+                on: display,
+                mainDisplayHeight: mainDisplayHeight,
+                timeout: timeout
+            )
+        }
         return result
     }
     NSApp.setActivationPolicy(.regular)
 
-    let nsScreen = NSScreen.screens.first { screen in
-        (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID) == display.cgID
+    let frozenWindowBounds: AOSDisplayTopologyBounds
+    do {
+        frozenWindowBounds = try aosInteractiveSelectionWindowBounds(
+            displayNativeBounds: AOSDisplayTopologyBounds(
+                x: display.bounds.origin.x,
+                y: display.bounds.origin.y,
+                width: display.bounds.width,
+                height: display.bounds.height
+            ),
+            mainDisplayHeight: mainDisplayHeight
+        )
+    } catch {
+        exitError("Invalid frozen interactive display geometry: \(error)", code: "DISPLAY_TOPOLOGY_INVALID")
     }
-    let windowRect = nsScreen?.frame ?? NSRect(
-        x: Double(display.bounds.origin.x), y: 0,
-        width: Double(display.bounds.width), height: Double(display.bounds.height)
+    let windowRect = NSRect(
+        x: frozenWindowBounds.x,
+        y: frozenWindowBounds.y,
+        width: frozenWindowBounds.width,
+        height: frozenWindowBounds.height
     )
 
     var result: NSRect? = nil
     var done = false
+    var cancelled = false
     let deadline = Date(timeIntervalSinceNow: timeout)
 
     let window = KeyableWindow(contentRect: windowRect, styleMask: .borderless, backing: .buffered, defer: false)
@@ -1489,7 +1535,7 @@ func showInteractiveSelection(on display: CaptureDisplayEntry, timeout: Double =
     window.contentView?.addSubview(overlay)
 
     overlay.onComplete = { rect in result = rect; done = true }
-    overlay.onCancel = { done = true }
+    overlay.onCancel = { cancelled = true; done = true }
 
     window.orderFrontRegardless()
     window.makeKey()
@@ -1509,7 +1555,8 @@ func showInteractiveSelection(on display: CaptureDisplayEntry, timeout: Double =
     NSCursor.pop()
     window.orderOut(nil)
     NSApp.setActivationPolicy(.prohibited)
-    return done ? result : nil
+    if let result { return .selected(result) }
+    return cancelled ? .cancelled : .timedOut
 }
 
 // MARK: - Command: list (spatial topology)
@@ -1989,26 +2036,9 @@ func captureCommand(args: [String]) async {
 
     let displayTopologySnapshot = observeDisplayTopologySnapshot()
     let displays = getCaptureDisplays(from: displayTopologySnapshot)
-    let captureProviderProjection = content.displays.map { display in
-        (
-            fact: AOSDisplayCaptureProviderFact(
-                runtimeDisplayID: display.displayID,
-                nativeFrame: AOSDisplayTopologyBounds(
-                    x: Double(display.frame.origin.x),
-                    y: Double(display.frame.origin.y),
-                    width: Double(display.frame.width),
-                    height: Double(display.frame.height)
-                ),
-                pointWidth: display.width,
-                pointHeight: display.height,
-                scaleFactor: nil
-            ),
-            display: display
-        )
-    }
     let excludedWindowIDs = Set(opts.excludedWindowIDs)
     let excludedSCWindows = content.windows.filter { excludedWindowIDs.contains(Int($0.windowID)) }
-    let explicitSurface = resolveCaptureSurface(opts: opts, displays: displays)
+    var explicitSurface = resolveCaptureSurface(opts: opts, displays: displays)
 
     // ── Resolve target ──
     var targetDisplayIDs: [CGDirectDisplayID] = []
@@ -2078,6 +2108,90 @@ func captureCommand(args: [String]) async {
         }
     }
 
+    // ── Interactive bounds selection ──
+    // The overlay selects only frozen display-local points. Pixels still flow
+    // through the canonical validated region capture path below.
+    var interactiveBounds: BoundsJSON? = nil
+    if opts.interactive {
+        if opts.crop != nil {
+            exitError("--interactive cannot resolve with a crop", code: "INVALID_ARG")
+        }
+        guard targetDisplayIDs.count == 1,
+              let selectedDisplay = displays.first(where: { $0.cgID == targetDisplayIDs[0] }),
+              let mainDisplay = displays.first(where: \.isMain)
+        else {
+            exitError("--interactive requires exactly one resolved display", code: "INVALID_ARG")
+        }
+
+        let localSelection: NSRect
+        switch showInteractiveSelection(
+            on: selectedDisplay,
+            mainDisplayHeight: mainDisplay.bounds.height,
+            timeout: opts.timeout
+        ) {
+        case .selected(let bounds):
+            localSelection = bounds.integral
+        case .cancelled:
+            exitError("Interactive selection cancelled", code: "SELECTION_CANCELLED")
+        case .timedOut:
+            exitError("Interactive selection timed out", code: "TIMEOUT")
+        }
+
+        let selectedGlobalBounds: AOSDisplayTopologyBounds
+        do {
+            selectedGlobalBounds = try aosInteractiveSelectionGlobalBounds(
+                localSelection: AOSDisplayTopologyBounds(
+                    x: localSelection.origin.x,
+                    y: localSelection.origin.y,
+                    width: localSelection.width,
+                    height: localSelection.height
+                ),
+                displayNativeBounds: AOSDisplayTopologyBounds(
+                    x: selectedDisplay.bounds.origin.x,
+                    y: selectedDisplay.bounds.origin.y,
+                    width: selectedDisplay.bounds.width,
+                    height: selectedDisplay.bounds.height
+                )
+            )
+        } catch {
+            exitError("Invalid interactive selection: \(error)", code: "INVALID_ARG")
+        }
+        let globalBounds = CGRect(
+            x: selectedGlobalBounds.x,
+            y: selectedGlobalBounds.y,
+            width: selectedGlobalBounds.width,
+            height: selectedGlobalBounds.height
+        ).integral
+        explicitSurface = CaptureSurfaceSelection(
+            kind: "region",
+            id: nil,
+            globalBounds: globalBounds,
+            windowID: nil,
+            segments: resolveSurfaceSegments(globalBounds, displays: displays)
+        )
+    }
+
+    // Create each provider filter once. Its frame, point dimensions, and
+    // pointPixelScale are admitted together, and the exact filter is retained
+    // for the later screenshot request.
+    let captureProviderProjection = content.displays.map { display in
+        let filter = SCContentFilter(display: display, excludingWindows: excludedSCWindows)
+        return (
+            fact: AOSDisplayCaptureProviderFact(
+                runtimeDisplayID: display.displayID,
+                nativeFrame: AOSDisplayTopologyBounds(
+                    x: Double(display.frame.origin.x),
+                    y: Double(display.frame.origin.y),
+                    width: Double(display.frame.width),
+                    height: Double(display.frame.height)
+                ),
+                pointWidth: display.width,
+                pointHeight: display.height,
+                scaleFactor: Double(filter.pointPixelScale)
+            ),
+            filter: filter
+        )
+    }
     let selectedCaptureDisplayIDs = explicitSurface?.segments.map { $0.display.cgID } ?? targetDisplayIDs
     let captureAlignments: [AOSDisplayCaptureAlignment]
     do {
@@ -2089,49 +2203,21 @@ func captureCommand(args: [String]) async {
     } catch {
         exitError("Capture provider does not align with frozen display topology: \(error)", code: "CAPTURE_TOPOLOGY_MISMATCH")
     }
-    let providerDisplaysByID = Dictionary(uniqueKeysWithValues: captureProviderProjection.map {
-        ($0.fact.runtimeDisplayID, $0.display)
+    let providerFiltersByID = Dictionary(uniqueKeysWithValues: captureProviderProjection.map {
+        ($0.fact.runtimeDisplayID, $0.filter)
     })
     var captureSourcesByID: [CGDirectDisplayID: AOSValidatedDisplayCaptureSource] = [:]
     for alignment in captureAlignments {
-        guard let providerDisplay = providerDisplaysByID[alignment.runtimeDisplayID] else {
+        guard let providerFilter = providerFiltersByID[alignment.runtimeDisplayID] else {
             exitError(
                 "Validated display \(alignment.runtimeDisplayID) has no capture provider",
                 code: "CAPTURE_TOPOLOGY_MISMATCH"
             )
         }
         captureSourcesByID[alignment.runtimeDisplayID] = AOSValidatedDisplayCaptureSource(
-            display: providerDisplay,
+            filter: providerFilter,
             alignment: alignment
         )
-    }
-
-    // ── Interactive selection ──
-    var interactiveBounds: BoundsJSON? = nil
-    var interactiveImage: CGImage? = nil
-    if opts.interactive {
-        let tmpPath = NSTemporaryDirectory() + "aos-interactive-\(ProcessInfo.processInfo.processIdentifier).png"
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        proc.arguments = ["-i", "-x", tmpPath]
-        proc.standardOutput = FileHandle.nullDevice
-        proc.standardError = FileHandle.nullDevice
-        do { try proc.run() } catch {
-            exitError("Failed to launch screencapture: \(error.localizedDescription)", code: "INTERACTIVE_FAILED")
-        }
-        proc.waitUntilExit()
-
-        guard proc.terminationStatus == 0,
-              let dataProvider = CGDataProvider(url: URL(fileURLWithPath: tmpPath) as CFURL),
-              let img = CGImage(pngDataProviderSource: dataProvider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
-        else {
-            try? FileManager.default.removeItem(atPath: tmpPath)
-            exitError("Interactive selection cancelled", code: "SELECTION_CANCELLED")
-        }
-        try? FileManager.default.removeItem(atPath: tmpPath)
-
-        interactiveImage = img
-        interactiveBounds = BoundsJSON(x: 0, y: 0, width: img.width, height: img.height)
     }
 
     // ── Capture loop ──
@@ -2149,18 +2235,7 @@ func captureCommand(args: [String]) async {
         : nil
     var responsePerceptions: [CapturePerceptionJSON] = []
 
-    if let iImg = interactiveImage {
-        var finalImage = iImg
-        if let grid = opts.grid {
-            finalImage = drawGrid(on: finalImage, spec: grid, thickness: opts.thickness, shadow: opts.shadow)
-        }
-        if !opts.drawRects.isEmpty {
-            finalImage = drawRects(on: finalImage, rects: opts.drawRects, thickness: opts.thickness, shadow: opts.shadow)
-        }
-        results.append((finalImage, opts.resolvedOutputPath))
-    }
-
-    if interactiveImage == nil, let surface = explicitSurface {
+    if let surface = explicitSurface {
         let captureScale = max(surface.segments.map { $0.display.scaleFactor }.max() ?? 1.0, 1.0)
         let stitchedRect = CGRect(
             x: 0,
@@ -2178,8 +2253,7 @@ func captureCommand(args: [String]) async {
             do {
                 displayImage = try await captureDisplay(
                     captureSource,
-                    showCursor: opts.showCursor,
-                    excludingWindows: excludedSCWindows
+                    showCursor: opts.showCursor
                 )
             } catch {
                 exitError("Display capture failed: \(error.localizedDescription)", code: "CAPTURE_FAILED")
@@ -2192,6 +2266,9 @@ func captureCommand(args: [String]) async {
         }
 
         var image = stitchSurfaceSegments(capturedSegments, canvasSize: stitchedRect.size)
+        if opts.interactive {
+            interactiveBounds = BoundsJSON(x: 0, y: 0, width: image.width, height: image.height)
+        }
         let mapper = CoordinateMapper(
             displayOrigin: surface.globalBounds.origin,
             scaleFactor: captureScale,
@@ -2297,7 +2374,6 @@ func captureCommand(args: [String]) async {
         results.append((image, opts.resolvedOutputPath))
     } else {
         for (idx, cgID) in targetDisplayIDs.enumerated() {
-            if interactiveImage != nil { break }
             guard let entry = displays.first(where: { $0.cgID == cgID }) else { continue }
             var image: CGImage
             var capturedWindow: SCWindow? = nil
@@ -2323,8 +2399,7 @@ func captureCommand(args: [String]) async {
                     do {
                         image = try await captureDisplay(
                             captureSource,
-                            showCursor: opts.showCursor,
-                            excludingWindows: excludedSCWindows
+                            showCursor: opts.showCursor
                         )
                     }
                     catch { exitError("Display capture failed: \(error.localizedDescription)", code: "CAPTURE_FAILED") }
@@ -2341,8 +2416,7 @@ func captureCommand(args: [String]) async {
                         do {
                             image = try await captureDisplay(
                                 captureSource,
-                                showCursor: opts.showCursor,
-                                excludingWindows: excludedSCWindows
+                                showCursor: opts.showCursor
                             )
                         }
                         catch { exitError("Display capture also failed: \(error.localizedDescription)", code: "CAPTURE_FAILED") }
@@ -2355,8 +2429,7 @@ func captureCommand(args: [String]) async {
                 do {
                     image = try await captureDisplay(
                         captureSource,
-                        showCursor: opts.showCursor,
-                        excludingWindows: excludedSCWindows
+                        showCursor: opts.showCursor
                     )
                 }
                 catch { exitError("Display capture failed: \(error.localizedDescription)", code: "CAPTURE_FAILED") }
@@ -2528,7 +2601,7 @@ func captureCommand(args: [String]) async {
     func buildResponse() -> SuccessResponse {
         var resp = SuccessResponse()
         resp.state_id = makeAOSStateID()
-        if opts.region != nil {
+        if opts.region != nil || opts.interactive {
             resp.display_topology = displayTopologySnapshot
         }
         resp.cursor = responseCursor

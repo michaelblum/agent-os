@@ -61,8 +61,12 @@ tests.
   direct region/saved-region response wiring, `state_id` separation, and the
   single-observation source guard. It must also reject missing/duplicate live
   NSScreen sources, selected/provider membership drift, provider frame/point
-  size and representable scale drift, and captured full-display pixel mismatch.
-  Native region capture remains a separate permission-sensitive test.
+  size and production filter-scale drift, fractional/unrepresentable pixel
+  dimensions, and captured full-display pixel mismatch. Static guards must
+  prove interactive selection uses only frozen bounds and rejoins the validated
+  region path with no screen re-enumeration, filter recreation, or external
+  image capture. Native region capture remains a separate permission-sensitive
+  test.
 - PNG file comparison proof must compile only its focused Swift source and
   disposable harness with explicit `-Onone`, generate fixed fixtures under a
   private temporary root, reject special files under a bounded watchdog, and

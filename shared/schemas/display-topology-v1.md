@@ -2,14 +2,14 @@
 
 **Schema:** `aos.display-topology.v1`
 **File:** `display-topology-v1.schema.json`
-**Producers:** `aos see list`, explicit `aos see capture --region`
+**Producers:** `aos see list`, explicit or interactively selected region capture
 
 ## Contract
 
 `display_topology` is one immutable observation of the active-display mapping.
-The producer freezes it before resolving an explicit region. That same value
-drives display lookup, segmentation, capture scale, per-display cropping,
-stitching, the direct capture response, and the optional perception topology.
+The producer freezes it before resolving or interactively selecting a region.
+That same value drives display lookup, segmentation, capture scale, per-display
+cropping, stitching, the direct capture response, and the optional perception topology.
 `aos see list` also observes once and builds its dynamic spatial topology from
 that exact snapshot. There is no post-capture recomputation or second display
 enumeration.
@@ -26,8 +26,12 @@ The object is closed. It contains:
   identity, native and DesktopWorld full/visible bounds, scale, and normalized
   rotation.
 
-An explicit `--region` response exposes this object directly even without
-`--perception`. When perception is requested,
+An explicit `--region` or bounds-only `--interactive` region response exposes
+this object directly even without `--perception`. The interactive overlay uses
+the frozen target-display geometry, returns only local selection bounds, and
+the real pixels follow the same validated region segmentation/capture/stitch
+path; it neither enumerates screens again nor captures an image itself. When
+perception is requested,
 `perceptions[].topology.display_topology` is the same frozen value. The capture
 `state_id` remains a new per-capture correlation handle; it is neither derived
 from nor interchangeable with `display_topology.identity`.
@@ -39,19 +43,21 @@ display has exactly one `NSScreen` source. Missing or duplicate mappings fail
 closed; visible bounds, label, and backing scale are never synthesized.
 
 ScreenCaptureKit content and the CoreGraphics/AppKit observation are separate
-framework reads. Before any selected full-display capture, the producer
-projects `SCDisplay` once and requires unique selected membership plus exact
-agreement for display ID, frame, and width/height in points. The capture output
-size is configured from the frozen topology's point geometry and backing scale,
-and the returned full-display `CGImage` must have those exact pixel dimensions
-before any crop or stitch.
+framework reads. Before any selected full-display capture, the producer creates
+each `SCContentFilter` once and requires unique selected membership plus exact
+agreement for display ID, frame, width/height in points, and the filter's
+`pointPixelScale`. The admitted filter is retained for capture rather than
+recreated. Output size is the exact integer conversion of the frozen point
+geometry times that validated scale; fractional or unrepresentable dimensions
+fail closed. The returned full-display `CGImage` must have those exact pixel
+dimensions before any crop or stitch.
 
 This validation detects every mismatch exposed by those framework values, but
-it does not claim an atomic framework generation. `SCDisplay` does not expose
-backing scale, UUID, visible bounds, rotation, or a generation token. A change
-that preserves all exposed values can therefore remain unobservable at this
-seam. That limitation does not weaken or create another topology identity: the
-published identity still names only the admitted frozen CoreGraphics/AppKit
+it does not claim an atomic framework generation. ScreenCaptureKit does not
+expose the display UUID, visible bounds, rotation, or a generation token. A
+change that preserves all exposed values can therefore remain unobservable at
+this seam. That limitation does not weaken or create another topology identity:
+the published identity still names only the admitted frozen CoreGraphics/AppKit
 observation.
 
 ## Member identity and order

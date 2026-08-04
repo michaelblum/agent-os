@@ -149,9 +149,7 @@ struct AOSDisplayCaptureProviderFact {
     let nativeFrame: AOSDisplayTopologyBounds
     let pointWidth: Int
     let pointHeight: Int
-    // ScreenCaptureKit does not currently expose backing scale. Live SCDisplay
-    // projections leave this nil; pure providers that do expose scale may set it.
-    let scaleFactor: Double?
+    let scaleFactor: Double
 }
 
 struct AOSDisplayCaptureAlignment {
@@ -171,6 +169,8 @@ enum AOSDisplayCaptureAlignmentError: Error, LocalizedError, CustomStringConvert
     case providerScaleMismatch(UInt32)
     case invalidExpectedPixelGeometry(UInt32)
     case capturedPixelGeometryMismatch(displayID: UInt32, expectedWidth: Int, expectedHeight: Int, actualWidth: Int, actualHeight: Int)
+    case invalidInteractiveSelectionGeometry
+    case interactiveSelectionOutsideDisplay
 
     var description: String {
         switch self {
@@ -194,6 +194,10 @@ enum AOSDisplayCaptureAlignmentError: Error, LocalizedError, CustomStringConvert
             return "frozen topology produces invalid pixel geometry for display \(displayID)"
         case let .capturedPixelGeometryMismatch(displayID, expectedWidth, expectedHeight, actualWidth, actualHeight):
             return "captured display \(displayID) is \(actualWidth)x\(actualHeight) pixels; expected \(expectedWidth)x\(expectedHeight)"
+        case .invalidInteractiveSelectionGeometry:
+            return "interactive selection geometry is invalid"
+        case .interactiveSelectionOutsideDisplay:
+            return "interactive selection extends outside its frozen display"
         }
     }
 
@@ -471,32 +475,90 @@ func validateAOSDisplayCaptureAlignment(
         else {
             throw AOSDisplayCaptureAlignmentError.providerPointSizeMismatch(displayID)
         }
-        if let providerScale = provider.scaleFactor {
-            guard providerScale.isFinite, providerScale > 0 else {
-                throw AOSDisplayCaptureAlignmentError.invalidProviderGeometry(displayID)
-            }
-            guard providerScale == display.scaleFactor else {
-                throw AOSDisplayCaptureAlignmentError.providerScaleMismatch(displayID)
-            }
+        guard provider.scaleFactor.isFinite, provider.scaleFactor > 0 else {
+            throw AOSDisplayCaptureAlignmentError.invalidProviderGeometry(displayID)
+        }
+        guard provider.scaleFactor == display.scaleFactor else {
+            throw AOSDisplayCaptureAlignmentError.providerScaleMismatch(displayID)
         }
 
-        let pixelWidth = display.nativeBounds.width * display.scaleFactor
-        let pixelHeight = display.nativeBounds.height * display.scaleFactor
-        guard pixelWidth.isFinite,
-              pixelHeight.isFinite,
-              pixelWidth >= 1,
-              pixelHeight >= 1,
-              pixelWidth <= Double(Int.max),
-              pixelHeight <= Double(Int.max)
+        let pixelWidthValue = display.nativeBounds.width * display.scaleFactor
+        let pixelHeightValue = display.nativeBounds.height * display.scaleFactor
+        guard pixelWidthValue.isFinite,
+              pixelHeightValue.isFinite,
+              pixelWidthValue >= 1,
+              pixelHeightValue >= 1,
+              let pixelWidth = Int(exactly: pixelWidthValue),
+              let pixelHeight = Int(exactly: pixelHeightValue)
         else {
             throw AOSDisplayCaptureAlignmentError.invalidExpectedPixelGeometry(displayID)
         }
         return AOSDisplayCaptureAlignment(
             runtimeDisplayID: displayID,
-            expectedPixelWidth: Int(pixelWidth),
-            expectedPixelHeight: Int(pixelHeight)
+            expectedPixelWidth: pixelWidth,
+            expectedPixelHeight: pixelHeight
         )
     }
+}
+
+func aosInteractiveSelectionWindowBounds(
+    displayNativeBounds: AOSDisplayTopologyBounds,
+    mainDisplayHeight: Double
+) throws -> AOSDisplayTopologyBounds {
+    guard mainDisplayHeight.isFinite, mainDisplayHeight > 0 else {
+        throw AOSDisplayCaptureAlignmentError.invalidInteractiveSelectionGeometry
+    }
+    let displayBounds: AOSDisplayTopologyBounds
+    do {
+        displayBounds = try aosCanonicalBounds(
+            displayNativeBounds,
+            field: "interactive.display_native_bounds",
+            requiresPositiveSize: true
+        )
+    } catch {
+        throw AOSDisplayCaptureAlignmentError.invalidInteractiveSelectionGeometry
+    }
+    return AOSDisplayTopologyBounds(
+        x: displayBounds.x,
+        y: mainDisplayHeight - (displayBounds.y + displayBounds.height),
+        width: displayBounds.width,
+        height: displayBounds.height
+    )
+}
+
+func aosInteractiveSelectionGlobalBounds(
+    localSelection: AOSDisplayTopologyBounds,
+    displayNativeBounds: AOSDisplayTopologyBounds
+) throws -> AOSDisplayTopologyBounds {
+    let local: AOSDisplayTopologyBounds
+    let display: AOSDisplayTopologyBounds
+    do {
+        local = try aosCanonicalBounds(
+            localSelection,
+            field: "interactive.local_selection",
+            requiresPositiveSize: true
+        )
+        display = try aosCanonicalBounds(
+            displayNativeBounds,
+            field: "interactive.display_native_bounds",
+            requiresPositiveSize: true
+        )
+    } catch {
+        throw AOSDisplayCaptureAlignmentError.invalidInteractiveSelectionGeometry
+    }
+    guard local.x >= 0,
+          local.y >= 0,
+          local.x + local.width <= display.width,
+          local.y + local.height <= display.height
+    else {
+        throw AOSDisplayCaptureAlignmentError.interactiveSelectionOutsideDisplay
+    }
+    return AOSDisplayTopologyBounds(
+        x: display.x + local.x,
+        y: display.y + local.y,
+        width: local.width,
+        height: local.height
+    )
 }
 
 func validateAOSCapturedDisplayPixelGeometry(

@@ -502,7 +502,7 @@
               "id" : "interactive",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Native selection rectangle",
+              "summary" : "Select bounds on exactly one target display, then capture through the validated region pipeline; conflicts with --region, --canvas, --channel, --window, and --crop",
               "token" : "--interactive",
               "value_type" : "bool"
             },
@@ -596,6 +596,26 @@
               [
                 "window",
                 "channel"
+              ],
+              [
+                "interactive",
+                "region"
+              ],
+              [
+                "interactive",
+                "canvas"
+              ],
+              [
+                "interactive",
+                "channel"
+              ],
+              [
+                "interactive",
+                "window"
+              ],
+              [
+                "interactive",
+                "crop"
               ],
               [
                 "target",

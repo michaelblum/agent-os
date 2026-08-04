@@ -111,16 +111,50 @@ capture_body = pipeline.split("func captureCommand(args: [String]) async", 1)[1]
 assert capture_body.count("observeDisplayTopologySnapshot()") == 1
 assert "let displays = getCaptureDisplays(from: displayTopologySnapshot)" in capture_body
 assert capture_body.count("content.displays.map") == 1
+assert capture_body.count("let filter = SCContentFilter(display: display, excludingWindows: excludedSCWindows)") == 1
+assert "scaleFactor: Double(filter.pointPixelScale)" in capture_body
+assert "filter: filter" in capture_body
 assert "validateAOSDisplayCaptureAlignment(" in capture_body
 assert "selectedDisplayIDs: selectedCaptureDisplayIDs" in capture_body
 assert "var captureSourcesByID: [CGDirectDisplayID: AOSValidatedDisplayCaptureSource] = [:]" in capture_body
 assert "content.displays.first" not in capture_body
+assert "/usr/sbin/screencapture" not in capture_body
+assert "interactiveImage" not in capture_body
+assert "showInteractiveSelection(" in capture_body
+assert "explicitSurface = CaptureSurfaceSelection(" in capture_body
+assert 'kind: "region"' in capture_body
+assert "if let surface = explicitSurface" in capture_body
+assert "aosInteractiveSelectionGlobalBounds(" in capture_body
+assert "targetDisplayIDs.count == 1" in capture_body
+assert "if opts.region != nil || opts.interactive" in capture_body
+assert capture_body.index("showInteractiveSelection(") < capture_body.index("content.displays.map")
 assert capture_body.index("validateAOSDisplayCaptureAlignment(") < capture_body.index("// ── Capture loop ──")
 assert "resolveCaptureSurface(opts: opts, displays: displays)" in capture_body
 assert "buildSpatialTopology(displayTopology: displayTopologySnapshot)" in capture_body
 assert "resp.display_topology = displayTopologySnapshot" in capture_body
 assert "resp.state_id = makeAOSStateID()" in capture_body
 assert "resp.state_id = displayTopologySnapshot.identity" not in capture_body
+
+parser_body = pipeline.split("func parseCaptureArgs(_ args: [String])", 1)[1].split(
+    "func resolveUTType(", 1
+)[0]
+assert '"--interactive cannot be combined with \\(conflicts.joined(separator: ", "))"' in parser_body
+for option, flag in (
+    ("opts.region != nil", "--region"),
+    ("opts.canvasID != nil", "--canvas"),
+    ("opts.channelID != nil", "--channel"),
+    ("opts.windowOnly", "--window"),
+    ("opts.crop != nil", "--crop"),
+):
+    assert f'({option}, "{flag}")' in parser_body
+assert 'opts.target.hasPrefix("browser:")' in parser_body
+
+selector_body = pipeline.split("func showInteractiveSelection(", 1)[1].split(
+    "// MARK: - Command: list", 1
+)[0]
+assert "NSScreen.screens" not in selector_body
+assert "aosInteractiveSelectionWindowBounds(" in selector_body
+assert "mainDisplayHeight: mainDisplayHeight" in selector_body
 
 observer_body = pipeline.split("func observeDisplayTopologySnapshot()", 1)[1].split(
     "func getCaptureDisplays(from snapshot:", 1
@@ -137,11 +171,15 @@ capture_display_body = pipeline.split("func captureDisplay(", 1)[1].split(
 )[0]
 assert "config.width = source.alignment.expectedPixelWidth" in capture_display_body
 assert "config.height = source.alignment.expectedPixelHeight" in capture_display_body
+assert "contentFilter: source.filter" in capture_display_body
+assert "SCContentFilter(" not in capture_display_body
 assert "validateAOSCapturedDisplayPixelGeometry(" in capture_display_body
 assert capture_display_body.index("validateAOSCapturedDisplayPixelGeometry(") < capture_display_body.index("return image")
 assert "struct AOSDisplayCaptureProviderFact" in topology_owner
 assert "func validateAOSDisplayCaptureAlignment(" in topology_owner
 assert "func validateAOSCapturedDisplayPixelGeometry(" in topology_owner
+assert "let pixelWidth = Int(exactly: pixelWidthValue)" in topology_owner
+assert "let pixelHeight = Int(exactly: pixelHeightValue)" in topology_owner
 
 list_body = pipeline.split("func seeListCommand()", 1)[1].split(
     "// MARK: - Command: cursor", 1
@@ -161,9 +199,14 @@ see = next(command for command in manifest["commands"] if command["path"] == ["s
 capture = next(form for form in see["forms"] if form["id"] == "see-capture")
 region = next(arg for arg in capture["args"] if arg.get("token") == "--region")
 perception = next(arg for arg in capture["args"] if arg.get("token") == "--perception")
+interactive = next(arg for arg in capture["args"] if arg.get("token") == "--interactive")
 see_list = next(form for form in see["forms"] if form["id"] == "see-list")
 assert "display_topology" in region["summary"]
 assert "exact direct display_topology" in perception["summary"]
+assert "validated region pipeline" in interactive["summary"]
+conflicts = {frozenset(group) for group in capture["constraints"]["conflicts"]}
+for flag in ("region", "canvas", "channel", "window", "crop"):
+    assert frozenset(("interactive", flag)) in conflicts
 assert "spatial-topology 0.3.0" in see_list["summary"]
 print("PASS static display-topology wiring")
 PY
