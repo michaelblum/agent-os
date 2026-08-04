@@ -215,8 +215,8 @@
     },
     {
       "id": "verification-assertion-loop",
-      "requirement": "use verification skill for recapture, refs diff/expect, gates, and Work Record evidence",
-      "prompt": "Fresh agent: prove a desktop action with before/after saved refs and decide when Work Record evidence is required.",
+      "requirement": "use verification skill for recapture, refs diff/expect, exact PNG comparison, gates, and Work Record evidence",
+      "prompt": "Fresh agent: prove a desktop action with before/after saved refs or exact PNG artifacts and decide when Work Record evidence is required.",
       "selected_skills": [
         "aos-verification",
         "aos-saved-workspace",
@@ -226,11 +226,12 @@
         "./aos help see --json",
         "./aos help work-record --json",
         "./aos see refs --workspace \"$AOS_WORKSPACE\" --diff <before>..<after> --expect change --json",
+        "./aos see compare <before.png> <after.png> --expect change",
         "./aos work-record verify <id-or-path> --json",
         "./aos work-record status <id-or-path> --json"
       ],
       "captured_output": {
-        "decision": "Use recapture and ref diff/expect for compact assertions. Escalate to Work Record verify/status when durable evidence, recovery guidance, or report-only repair planning is required.",
+        "decision": "Use recapture and ref diff/expect for compact assertions, or compare existing same-size PNG artifacts when exact RGBA change is the evidence. Escalate to Work Record verify/status when durable evidence, recovery guidance, or report-only repair planning is required.",
         "stop_condition": "Stop when the post-action state cannot be recaptured, the diff expectation fails, or the proof requires live UI/TCC/native mutation outside the task.",
         "rejected_competing_surfaces": [
           "assertion from memory of the action",

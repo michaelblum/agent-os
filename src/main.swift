@@ -191,6 +191,8 @@ private func handleSeePrimitive(args: [String]) {
         let subArgs = Array(args.dropFirst())
         if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos see capture") }
         runCaptureAsync(args: subArgs)
+    case "compare":
+        imageFileCompareCommand(args: Array(args.dropFirst()))
     case "cursor":
         ensureInteractivePreflight(command: "aos see cursor")
         cursorCommand()

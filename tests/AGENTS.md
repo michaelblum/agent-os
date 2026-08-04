@@ -55,6 +55,10 @@ tests.
   native manager, not a copied fake allocator. A static AppKit harness may
   exercise production menu rendering and callback binding without opening a
   status item; native menu-bar acceptance remains a separate build/runtime gate.
+- PNG file comparison proof must compile only its focused Swift source and
+  disposable harness, generate fixed fixtures under a private temporary root,
+  and exercise external dispatch with a fake AOS child. It must not execute the
+  repo AOS binary, capture pixels, start services, or require TCC.
 - `tests/dev-workflow-router.sh` runs its public `./aos` rejection checks by
   default. Use `AOS_SKIP_LIVE_CLI_CHECKS=1` only for explicit static-only
   validation while the repo artifact is absent or waiting at ADR 0023's human

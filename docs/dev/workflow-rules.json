@@ -619,6 +619,36 @@
       "verification": []
     },
     {
+      "id": "image-file-compare",
+      "summary": "Stateless PNG comparator source, command contract, or hermetic proof changed.",
+      "patterns": [
+        "src/perceive/image-file-compare.swift",
+        "manifests/commands/source/aos/03-see-05-compare.json",
+        "tests/see-image-compare.sh"
+      ],
+      "classes": [
+        "command_contract",
+        "swift",
+        "tests"
+      ],
+      "actions": [
+        "focused_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "image-file-compare-proof",
+          "command": "bash tests/see-image-compare.sh",
+          "reason": "Compile only the focused comparator and fake-dispatch harness, then verify canonical PNG comparison, parser, error, expectation, and route contracts."
+        }
+      ],
+      "verification": [],
+      "notes": [
+        "Hermetic and offline: generates fixed PNG fixtures in a private temporary root and does not build or execute ./aos, capture pixels, start a daemon, or touch TCC."
+      ]
+    },
+    {
       "id": "native-see-capture-lifecycle",
       "summary": "Native perception wrapper or its focused cancellation proof changed.",
       "patterns": [

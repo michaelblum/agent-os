@@ -36,6 +36,22 @@
       "status": "active"
     },
     {
+      "id": "image-file-compare-proof",
+      "path_patterns": [
+        "tests/see-image-compare.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "command-surface",
+      "harness_level": "shell_router",
+      "proof_kind": "image_comparison",
+      "contract": "The stateless PNG comparator canonicalizes bounded upright inputs, reports authoritative deltas and bounds, gates optional expectations, and dispatches directly without capture or runtime services.",
+      "worth": "This proves pixel, parser, error, resource-cap, and public-route behavior against production comparator and dispatcher sources without building or executing the repo binary.",
+      "command": "bash tests/see-image-compare.sh",
+      "replaces": [],
+      "guard": "compiles only disposable focused Swift harnesses and generates fixed PNG fixtures under a private temporary root; no capture, daemon, repo binary, or TCC",
+      "status": "active"
+    },
+    {
       "id": "native-see-lifecycle-proof",
       "path_patterns": [
         "tests/aos-see-native-lifecycle.test.mjs"

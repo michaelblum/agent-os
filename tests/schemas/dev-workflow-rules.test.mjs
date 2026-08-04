@@ -318,6 +318,20 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.equal(rules.get('command-surface-implementations')?.hot_swappable, true);
   assert.equal(rules.get('command-surface-implementations')?.tcc_identity_sensitive, false);
   assert.deepEqual(
+    rules.get('image-file-compare')?.patterns,
+    [
+      'src/perceive/image-file-compare.swift',
+      'manifests/commands/source/aos/03-see-05-compare.json',
+      'tests/see-image-compare.sh',
+    ],
+  );
+  assert.deepEqual(
+    rules.get('image-file-compare')?.commands?.map((step) => step.command),
+    ['bash tests/see-image-compare.sh'],
+  );
+  assert.equal(rules.get('image-file-compare')?.hot_swappable, true);
+  assert.equal(rules.get('image-file-compare')?.tcc_identity_sensitive, false);
+  assert.deepEqual(
     rules.get('native-see-capture-lifecycle')?.patterns,
     [
       'scripts/aos-see-native.mjs',

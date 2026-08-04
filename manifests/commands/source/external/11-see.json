@@ -40,6 +40,7 @@
         "child_arg_index": 0,
         "excluded_values": [
           "capture",
+          "compare",
           "observe",
           "cursor",
           "list",
@@ -77,6 +78,19 @@
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
+    },
+    {
+      "path": [
+        "see",
+        "compare"
+      ],
+      "summary": "Compare two existing PNG files through the stateless native image comparator.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": [
+        "__see",
+        "compare"
+      ],
+      "cwd": "repo"
     },
     {
       "path": [

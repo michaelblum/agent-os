@@ -356,11 +356,16 @@ assert len(see_fallback) == 1, see_fallback
 assert see_fallback[0]["executable"] == "/usr/bin/env", see_fallback[0]
 assert see_fallback[0]["env"]["AOS_PATH"] == "$AOS_PATH", see_fallback[0]
 assert "capture" in see_fallback[0]["when"]["excluded_values"], see_fallback[0]
+assert "compare" in see_fallback[0]["when"]["excluded_values"], see_fallback[0]
 for path in [("see", "capture"), ("see", "cursor"), ("see", "list"), ("see", "selection")]:
     command = commands[path]
     assert command["executable"] == "/usr/bin/env", command
     assert command["argv_prefix"] == ["node", "scripts/aos-see-native.mjs", path[-1]], command
     assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
+compare = commands[("see", "compare")]
+assert compare["executable"] == "$AOS_PATH", compare
+assert compare["argv_prefix"] == ["__see", "compare"], compare
+assert "env" not in compare and "stdio" not in compare, compare
 command = commands[("say",)]
 assert command["executable"] == "/usr/bin/env", command
 assert command["argv_prefix"] == ["node", "scripts/aos-say.mjs"], command
@@ -380,12 +385,13 @@ show_client = Path("scripts/aos-show-client.mjs").read_text(encoding="utf-8")
 update_case = re.search(r"case 'update':(?P<body>.*?)break;", show_client, re.S)
 assert update_case, "show update switch case missing"
 assert update_case.group("body").count("mutationCommand(args, 'update')") == 1, update_case.group("body")
-for path, primitive in [
-    (("serve",), "__serve"),
+for path, prefix in [
+    (("serve",), ["__serve"]),
+    (("see", "compare"), ["__see", "compare"]),
 ]:
     command = commands[path]
     assert command["executable"] == "$AOS_PATH", command
-    assert command["argv_prefix"] == [primitive], command
+    assert command["argv_prefix"] == prefix, command
 command = commands[("doctor",)]
 assert command["executable"] == "/usr/bin/env", command
 assert command["argv_prefix"] == ["node", "scripts/aos-doctor.mjs"], command
