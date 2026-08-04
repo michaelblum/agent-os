@@ -2,6 +2,7 @@
 
 import CoreGraphics
 import CryptoKit
+import Darwin
 import Foundation
 import ImageIO
 
@@ -148,30 +149,32 @@ private func standardizedImageComparePath(_ rawPath: String) -> String {
 }
 
 private func readBoundedImageData(path: String) throws -> Data {
-    let url = URL(fileURLWithPath: path)
-    let attributes: [FileAttributeKey: Any]
-    do {
-        attributes = try FileManager.default.attributesOfItem(atPath: path)
-    } catch {
+    let descriptor = Darwin.open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)
+    guard descriptor >= 0 else {
         throw ImageCompareFailure(code: "IMAGE_READ_FAILED", message: "Could not read image file: \(path).")
     }
 
-    if let size = attributes[.size] as? NSNumber, size.uint64Value > imageCompareEncodedByteLimit {
+    var status = stat()
+    guard Darwin.fstat(descriptor, &status) == 0 else {
+        Darwin.close(descriptor)
+        throw ImageCompareFailure(code: "IMAGE_READ_FAILED", message: "Could not read image file: \(path).")
+    }
+    guard status.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG), status.st_size >= 0 else {
+        Darwin.close(descriptor)
+        throw ImageCompareFailure(code: "IMAGE_READ_FAILED", message: "Could not read image file: \(path).")
+    }
+
+    let encodedSize = UInt64(status.st_size)
+    guard encodedSize <= imageCompareEncodedByteLimit else {
+        Darwin.close(descriptor)
         throw ImageCompareFailure(code: "IMAGE_TOO_LARGE", message: "Encoded image exceeds the 128 MiB input limit: \(path).")
     }
 
-    let handle: FileHandle
-    do {
-        handle = try FileHandle(forReadingFrom: url)
-    } catch {
-        throw ImageCompareFailure(code: "IMAGE_READ_FAILED", message: "Could not read image file: \(path).")
-    }
+    let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
     defer { try? handle.close() }
 
     var data = Data()
-    if let size = attributes[.size] as? NSNumber, size.uint64Value <= UInt64(Int.max) {
-        data.reserveCapacity(Int(size.uint64Value))
-    }
+    data.reserveCapacity(Int(encodedSize))
     do {
         while let chunk = try handle.read(upToCount: 1024 * 1024), !chunk.isEmpty {
             let nextSize = UInt64(data.count) + UInt64(chunk.count)

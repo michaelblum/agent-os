@@ -85,12 +85,12 @@
         "compare"
       ],
       "summary": "Compare two existing PNG files through the stateless native image comparator.",
-      "executable": "$AOS_PATH",
+      "executable": "/usr/bin/env",
       "argv_prefix": [
+        "$AOS_PATH",
         "__see",
         "compare"
-      ],
-      "cwd": "repo"
+      ]
     },
     {
       "path": [

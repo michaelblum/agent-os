@@ -622,8 +622,10 @@
       "id": "image-file-compare",
       "summary": "Stateless PNG comparator source, command contract, or hermetic proof changed.",
       "patterns": [
+        "src/main.swift",
         "src/perceive/image-file-compare.swift",
         "manifests/commands/source/aos/03-see-05-compare.json",
+        "manifests/commands/source/external/11-see.json",
         "tests/see-image-compare.sh"
       ],
       "classes": [

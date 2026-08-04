@@ -320,8 +320,10 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.deepEqual(
     rules.get('image-file-compare')?.patterns,
     [
+      'src/main.swift',
       'src/perceive/image-file-compare.swift',
       'manifests/commands/source/aos/03-see-05-compare.json',
+      'manifests/commands/source/external/11-see.json',
       'tests/see-image-compare.sh',
     ],
   );

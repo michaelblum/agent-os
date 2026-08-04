@@ -555,6 +555,24 @@ else
     fail "dev recommend image comparator routing drifted"
 fi
 
+for IMAGE_COMPARE_ROUTE_OWNER in src/main.swift manifests/commands/source/external/11-see.json; do
+    if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files "$IMAGE_COMPARE_ROUTE_OWNER" 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert "image-file-compare" in data["summary"]["rule_ids"], data
+commands = [item["command"] for item in data["next_commands"]]
+assert commands.count("bash tests/see-image-compare.sh") == 1, data
+PY
+    then
+        pass "dev recommend routes $IMAGE_COMPARE_ROUTE_OWNER to the image comparator proof"
+    else
+        fail "dev recommend image comparator route-owner routing drifted for $IMAGE_COMPARE_ROUTE_OWNER"
+    fi
+done
+
 if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files manifests/commands/source/aos/03-see-01-capture.json scripts/generate-command-manifests.mjs tests/command-manifest-generation.sh 2>/dev/null)" python3 - <<'PY'
 import json
 import os

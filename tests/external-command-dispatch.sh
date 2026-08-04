@@ -363,9 +363,9 @@ for path in [("see", "capture"), ("see", "cursor"), ("see", "list"), ("see", "se
     assert command["argv_prefix"] == ["node", "scripts/aos-see-native.mjs", path[-1]], command
     assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
 compare = commands[("see", "compare")]
-assert compare["executable"] == "$AOS_PATH", compare
-assert compare["argv_prefix"] == ["__see", "compare"], compare
-assert "env" not in compare and "stdio" not in compare, compare
+assert compare["executable"] == "/usr/bin/env", compare
+assert compare["argv_prefix"] == ["$AOS_PATH", "__see", "compare"], compare
+assert "cwd" not in compare and "env" not in compare and "stdio" not in compare, compare
 command = commands[("say",)]
 assert command["executable"] == "/usr/bin/env", command
 assert command["argv_prefix"] == ["node", "scripts/aos-say.mjs"], command

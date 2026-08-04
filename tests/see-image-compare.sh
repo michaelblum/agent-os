@@ -120,6 +120,11 @@ with open(os.path.join(root, "oversize-encoded.png"), "wb") as handle:
     handle.write(b"\x00")
 PY
 
+/usr/bin/mkfifo "$FIXTURES/input.fifo"
+/bin/ln -s input.fifo "$FIXTURES/input-fifo-link"
+/bin/ln -s base.png "$FIXTURES/base-link.png"
+/bin/mkdir "$FIXTURES/input-directory"
+
 HARNESS_MAIN="$TMP_ROOT/main.swift"
 cat >"$HARNESS_MAIN" <<'SWIFT'
 imageFileCompareCommand(args: Array(CommandLine.arguments.dropFirst()))
@@ -130,6 +135,34 @@ COMPARE_HARNESS="$TMP_ROOT/aos-image-compare-harness"
   src/perceive/image-file-compare.swift \
   "$HARNESS_MAIN" \
   -o "$COMPARE_HARNESS"
+
+WATCHDOG="$TMP_ROOT/run-with-watchdog.py"
+cat >"$WATCHDOG" <<'PY'
+import os
+import signal
+import subprocess
+import sys
+
+timeout_seconds = float(sys.argv[1])
+stdout_path, stderr_path = sys.argv[2:4]
+command = sys.argv[4:]
+
+with open(stdout_path, "wb") as stdout_handle, open(stderr_path, "wb") as stderr_handle:
+    process = subprocess.Popen(
+        command,
+        stdout=stdout_handle,
+        stderr=stderr_handle,
+        start_new_session=True,
+    )
+    try:
+        return_code = process.wait(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.wait()
+        sys.exit(124)
+
+sys.exit(return_code if return_code >= 0 else 128 - return_code)
+PY
 
 run_success() {
   local label="$1"
@@ -169,6 +202,45 @@ assert list(payload) == sorted(payload), payload
 PY
   then
     pass "$label returns $code on JSON stderr only"
+  else
+    fail "$label error payload drifted: $(cat "$stderr_file" 2>/dev/null)"
+  fi
+}
+
+run_failure_bounded() {
+  local label="$1"
+  local code="$2"
+  shift 2
+  local stdout_file="$TMP_ROOT/${label}.out"
+  local stderr_file="$TMP_ROOT/${label}.err"
+  local status
+  if python3 "$WATCHDOG" 3 "$stdout_file" "$stderr_file" "$COMPARE_HARNESS" "$@"; then
+    status=0
+  else
+    status=$?
+  fi
+  if [[ "$status" -eq 124 ]]; then
+    fail "$label exceeded the 3-second nonblocking input watchdog"
+    return
+  fi
+  if [[ "$status" -eq 0 ]]; then
+    fail "$label unexpectedly exited zero"
+    return
+  fi
+  if [[ -s "$stdout_file" ]]; then
+    fail "$label wrote stdout: $(cat "$stdout_file")"
+    return
+  fi
+  if python3 - "$stderr_file" "$code" <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+assert payload["code"] == sys.argv[2], payload
+assert isinstance(payload["error"], str) and payload["error"], payload
+assert list(payload) == sorted(payload), payload
+PY
+  then
+    pass "$label returns $code within the nonblocking input watchdog"
   else
     fail "$label error payload drifted: $(cat "$stderr_file" 2>/dev/null)"
   fi
@@ -289,6 +361,7 @@ pass "premultiplication canonicalizes invisible transparent RGB"
 run_success rgb-conversion "$FIXTURES/rgb.png" "$FIXTURES/rgba.png" --expect no-change
 run_success untagged-srgb "$FIXTURES/untagged-rgb.png" "$FIXTURES/rgba.png" --expect no-change
 run_success grayscale-conversion "$FIXTURES/gray.png" "$FIXTURES/gray.png" --expect no-change
+run_success regular-file-symlink "$FIXTURES/base-link.png" "$FIXTURES/base.png" --expect no-change
 pass "RGB, RGBA, untagged RGB, and grayscale PNG inputs decode through canonical sRGB RGBA"
 
 if "$COMPARE_HARNESS" "$FIXTURES/base.png" "$FIXTURES/base-metadata.png" --expect change >"$TMP_ROOT/expect-fail.out" 2>"$TMP_ROOT/expect-fail.err"; then
@@ -332,6 +405,10 @@ run_failure orientation UNSUPPORTED_IMAGE_ORIENTATION "$FIXTURES/oriented.png" "
 run_failure encoded-cap IMAGE_TOO_LARGE "$FIXTURES/oversize-encoded.png" "$FIXTURES/geometry.png"
 run_failure decoded-cap IMAGE_TOO_LARGE "$FIXTURES/oversize-decoded.png" "$FIXTURES/geometry.png"
 run_failure geometry IMAGE_GEOMETRY_MISMATCH "$FIXTURES/base.png" "$FIXTURES/geometry.png"
+run_failure_bounded fifo-input IMAGE_READ_FAILED "$FIXTURES/input.fifo" "$FIXTURES/base.png"
+run_failure_bounded fifo-symlink-input IMAGE_READ_FAILED "$FIXTURES/input-fifo-link" "$FIXTURES/base.png"
+run_failure_bounded directory-input IMAGE_READ_FAILED "$FIXTURES/input-directory" "$FIXTURES/base.png"
+run_failure_bounded device-input IMAGE_READ_FAILED /dev/null "$FIXTURES/base.png"
 
 DISPATCH_STUBS="$TMP_ROOT/dispatch-stubs.swift"
 cat >"$DISPATCH_STUBS" <<'SWIFT'
@@ -366,10 +443,7 @@ import Foundation
 
 let args = Array(CommandLine.arguments.dropFirst())
 if args.starts(with: ["__see", "compare"]) {
-    let data = try! JSONSerialization.data(withJSONObject: ["argv": args], options: [.sortedKeys])
-    FileHandle.standardOutput.write(data)
-    FileHandle.standardOutput.write(Data("\n".utf8))
-    exit(0)
+    imageFileCompareCommand(args: Array(args.dropFirst(2)))
 }
 if runExternalCommandIfMatched(args: args) {
     exit(0)
@@ -381,22 +455,46 @@ DISPATCH_HARNESS="$TMP_ROOT/aos-fake-dispatch"
 /usr/bin/xcrun swiftc \
   "$DISPATCH_STUBS" \
   src/shared/external-command-dispatch.swift \
+  src/perceive/image-file-compare.swift \
   "$HARNESS_MAIN" \
   -o "$DISPATCH_HARNESS"
 
-if AOS_TEST_REPO_ROOT="$ROOT" "$DISPATCH_HARNESS" see compare before.png after.png --expect change >"$TMP_ROOT/dispatch.out" 2>"$TMP_ROOT/dispatch.err" \
-    && [[ ! -s "$TMP_ROOT/dispatch.err" ]] \
-    && python3 - "$TMP_ROOT/dispatch.out" <<'PY'
+DISPATCH_ROOT="$TMP_ROOT/dispatch-work"
+DISPATCH_BIN="$DISPATCH_ROOT/bin"
+DISPATCH_CWD="$DISPATCH_ROOT/nested-caller"
+/bin/mkdir -p "$DISPATCH_BIN" "$DISPATCH_CWD"
+/bin/cp "$DISPATCH_HARNESS" "$DISPATCH_BIN/aos"
+/bin/cp "$FIXTURES/base.png" "$DISPATCH_CWD/before.png"
+/bin/cp "$FIXTURES/changed.png" "$DISPATCH_CWD/after.png"
+
+run_dispatch_probe() {
+  local label="$1"
+  local invocation="$2"
+  local stdout_file="$TMP_ROOT/${label}.out"
+  local stderr_file="$TMP_ROOT/${label}.err"
+  if (cd "$DISPATCH_CWD" && PATH="$DISPATCH_BIN:/usr/bin:/bin" AOS_TEST_REPO_ROOT="$ROOT" "$invocation" see compare before.png after.png --expect change) >"$stdout_file" 2>"$stderr_file" \
+      && [[ ! -s "$stderr_file" ]] \
+      && python3 - "$stdout_file" "$DISPATCH_CWD" <<'PY'
 import json
+import os
 import sys
 payload = json.load(open(sys.argv[1], encoding="utf-8"))
-assert payload["argv"] == ["__see", "compare", "before.png", "after.png", "--expect", "change"], payload
+caller = os.path.normpath(os.path.abspath(sys.argv[2]))
+assert payload["status"] == "success", payload
+assert payload["before"]["path"] == os.path.join(caller, "before.png"), payload
+assert payload["after"]["path"] == os.path.join(caller, "after.png"), payload
+assert payload["comparison"]["changed_pixels"] == 1, payload
+assert payload["expectation"] == {"requested": "change", "actual": "change", "met": True}, payload
 PY
-then
-  pass "public see compare route dispatches directly to AOS_PATH __see compare"
-else
-  fail "public fake dispatch route drifted: $(cat "$TMP_ROOT/dispatch.err" "$TMP_ROOT/dispatch.out" 2>/dev/null)"
-fi
+  then
+    pass "$label preserves caller cwd and executes the real comparator with JSON stdout only"
+  else
+    fail "$label production dispatch drifted: $(cat "$stderr_file" "$stdout_file" 2>/dev/null)"
+  fi
+}
+
+run_dispatch_probe dispatch-path aos
+run_dispatch_probe dispatch-relative ../bin/aos
 
 python3 - <<'PY'
 import json
@@ -415,9 +513,9 @@ external = json.loads(Path("manifests/commands/aos-external-commands.json").read
 routes = [item for item in external["commands"] if item["path"] == ["see", "compare"]]
 assert len(routes) == 1, routes
 route = routes[0]
-assert route["executable"] == "$AOS_PATH", route
-assert route["argv_prefix"] == ["__see", "compare"], route
-assert "env" not in route and "stdio" not in route, route
+assert route["executable"] == "/usr/bin/env", route
+assert route["argv_prefix"] == ["$AOS_PATH", "__see", "compare"], route
+assert "cwd" not in route and "env" not in route and "stdio" not in route, route
 assert not any("aos-see-native" in str(value) for value in route.values()), route
 
 fallbacks = [item for item in external["commands"] if item["path"] == ["see"] and item["argv_prefix"] == ["node", "scripts/aos-see-native.mjs", "capture"]]
@@ -434,14 +532,26 @@ public_text = "\n".join([
     Path("manifests/commands/source/aos/03-see-05-compare.json").read_text(encoding="utf-8"),
 ])
 assert ("si" + "gil").lower() not in public_text.lower(), public_text
-PY
-pass "manifests and hidden dispatch keep comparison direct, stateless, permission-free, and product-neutral"
 
-if git diff --quiet -- src/perceive/capture-pipeline.swift; then
-  pass "capture pipeline remains unchanged"
-else
-  fail "capture pipeline changed"
-fi
+comparator = Path("src/perceive/image-file-compare.swift").read_text(encoding="utf-8")
+imports = set(re.findall(r"^import ([A-Za-z0-9_]+)$", comparator, re.M))
+assert imports == {"CoreGraphics", "CryptoKit", "Darwin", "Foundation", "ImageIO"}, imports
+for forbidden in (
+    "ScreenCaptureKit",
+    "SCStream",
+    "SCScreenshotManager",
+    "CGPreflightScreenCaptureAccess",
+    "CGRequestScreenCaptureAccess",
+    "AXIsProcessTrusted",
+    "ensureInteractivePreflight",
+    "AOS_STATE_ROOT",
+    "AOS_RUNTIME_MODE",
+    "daemonBrokerCommand",
+):
+    assert forbidden not in comparator, forbidden
+assert not re.search(r"\b(?:poll|select|sleep|usleep)\s*\(", comparator), comparator
+PY
+pass "source dependencies keep comparison direct, stateless, permission-free, capture-free, daemon-free, polling-free, and product-neutral"
 
 if [[ "$FAILURES" -ne 0 ]]; then
   printf 'see image compare: %s failure(s)\n' "$FAILURES" >&2

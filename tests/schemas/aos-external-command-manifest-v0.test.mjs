@@ -216,16 +216,19 @@ test('desktop pixel native baseline inherits stdio for supervised cancellation',
 test('external command manifest only routes approved bootstrap and stateless primitives to Swift', async () => {
   const manifest = await loadJson(manifestPath);
   const allowedSwiftRoutes = new Map([
-    ['serve', ['__serve']],
-    ['see compare', ['__see', 'compare']],
+    ['serve', { executable: '$AOS_PATH', argvPrefix: ['__serve'] }],
+    ['see compare', { executable: '/usr/bin/env', argvPrefix: ['$AOS_PATH', '__see', 'compare'] }],
   ]);
 
   for (const command of manifest.commands) {
-    if (command.executable !== '$AOS_PATH') continue;
+    const directlyInvokesSwift = command.executable === '$AOS_PATH'
+      || (command.executable === '/usr/bin/env' && command.argv_prefix[0] === '$AOS_PATH');
+    if (!directlyInvokesSwift) continue;
     const publicPath = command.path.join(' ');
-    const allowedPrefix = allowedSwiftRoutes.get(publicPath);
-    assert.ok(allowedPrefix, `${publicPath} must route through an external script, not $AOS_PATH`);
-    assert.deepEqual(command.argv_prefix, allowedPrefix, `${publicPath} must use its approved direct primitive only`);
+    const allowed = allowedSwiftRoutes.get(publicPath);
+    assert.ok(allowed, `${publicPath} must route through an external script, not the current AOS executable`);
+    assert.equal(command.executable, allowed.executable, `${publicPath} direct executable strategy drifted`);
+    assert.deepEqual(command.argv_prefix, allowed.argvPrefix, `${publicPath} must use its approved direct primitive only`);
   }
 });
 
@@ -451,11 +454,9 @@ test('private Swift primitives are reachable only through expected direct routes
   for (const command of manifest.commands) {
     for (const arg of command.argv_prefix) {
       if (!privatePrimitives.has(arg)) continue;
-      assert.equal(
-        command.executable,
-        '$AOS_PATH',
-        `${command.path.join(' ')} must not pass ${arg} through a non-Swift executable`,
-      );
+      const directlyInvokesSwift = command.executable === '$AOS_PATH'
+        || (command.executable === '/usr/bin/env' && command.argv_prefix[0] === '$AOS_PATH');
+      assert.equal(directlyInvokesSwift, true, `${command.path.join(' ')} must directly self-route ${arg}`);
       assert.ok(
         expectedDirectRoutes.get(arg)?.has(command.path.join(' ')),
         `${command.path.join(' ')} must not expose private primitive ${arg} directly`,
