@@ -63,11 +63,12 @@ tests.
   reject missing/duplicate live NSScreen sources, selected/provider membership
   drift, provider frame/point size and production filter-scale drift,
   fractional/unrepresentable pixel dimensions, and captured full-display pixel
-  mismatch. Static guards must
-  prove interactive selection uses only frozen bounds and rejoins the validated
-  region path with no screen re-enumeration, filter recreation, or external
-  image capture. Native region capture remains a separate permission-sensitive
-  test.
+  mismatch. Saved region and interactive summaries must validate through the
+  common workspace validator with the canonical sibling topology schema
+  registered by `$id`. Static guards must prove interactive selection uses only
+  frozen bounds and rejoins the validated region path with no screen
+  re-enumeration, filter recreation, or external image capture. Native region
+  capture remains a separate permission-sensitive test.
 - PNG file comparison proof must compile only its focused Swift source and
   disposable harness with explicit `-Onone`, generate fixed fixtures under a
   private temporary root, reject special files under a bounded watchdog, and

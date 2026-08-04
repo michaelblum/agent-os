@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/aos-display-topology.XXXXXX")"
 trap 'rm -rf "$TMP_ROOT"' EXIT
+source "$ROOT/tests/lib/agent-workspace-fixtures/common.sh"
 
 swiftc -Onone \
   "$ROOT/src/perceive/display-topology.swift" \
@@ -74,6 +75,19 @@ jq -e --slurpfile topology "$ROOT/shared/schemas/fixtures/display-topology-v1/va
   and .state_id == "see_topology_fixture"
   and .state_id != .display_topology.identity
 ' "$TMP_ROOT/saved-interactive.json" >/dev/null
+(
+  cd "$ROOT"
+  validate_agent_workspace_schema \
+    "$TMP_ROOT/saved-region.json" \
+    "$TMP_ROOT/saved-interactive.json"
+)
+jq '.display_topology.identity = 7' \
+  "$TMP_ROOT/saved-interactive.json" \
+  >"$TMP_ROOT/invalid-saved-interactive.json"
+(
+  cd "$ROOT"
+  expect_agent_workspace_schema_rejects "$TMP_ROOT/invalid-saved-interactive.json"
+)
 if AOS_FAKE_OMIT_TOPOLOGY=1 \
   AOS_TOPOLOGY_FIXTURE="$ROOT/shared/schemas/fixtures/display-topology-v1/valid/uuid-members.json" \
   AOS_STATE_ROOT="$TMP_ROOT/state" \

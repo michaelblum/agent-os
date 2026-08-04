@@ -7,6 +7,7 @@
       "id": "display-topology-identity-contract",
       "path_patterns": [
         "tests/display-topology-contract.sh",
+        "tests/lib/agent-workspace-fixtures/common.sh",
         "tests/lib/display-topology-identity-harness.swift",
         "tests/schemas/display-topology-v1.test.mjs",
         "tests/schemas/spatial-topology.test.mjs"
@@ -17,11 +18,11 @@
       "owner": "display-topology",
       "harness_level": "model_unit",
       "proof_kind": "display_topology_identity_contract",
-      "contract": "One frozen active-display observation canonically orders and hashes every declared mapping fact, drives explicit region and list projections without a second display observation, and remains separate from capture state and DesktopWorld lifecycle generations.",
-      "worth": "This catches identity instability, omitted rotation or bounds facts, unsafe UUID fallback, response drift, saved-region projection loss, and duplicate live display enumeration without requiring screen capture or TCC.",
+      "contract": "One frozen active-display observation canonically orders and hashes every declared mapping fact, drives explicit or interactively selected region and list projections without a second display observation, remains separate from capture state and DesktopWorld lifecycle generations, and resolves through the canonical sibling schema when embedded in saved summaries.",
+      "worth": "This catches identity instability, omitted rotation or bounds facts, unsafe UUID fallback, response drift, saved-region projection loss, unresolved saved-summary schema references, and duplicate live display enumeration without requiring screen capture or TCC.",
       "command": "bash tests/display-topology-contract.sh && node --test tests/schemas/display-topology-v1.test.mjs tests/schemas/spatial-topology.test.mjs",
       "replaces": [],
-      "guard": "focused production Swift helper, deterministic JSON fixtures, static source guards, and fake-AOS saved-region projection only; no repo AOS binary, build, daemon, ScreenCaptureKit capture, GUI, TCC, or live display mutation",
+      "guard": "focused production Swift helper, deterministic JSON fixtures, static source guards, and fake-AOS saved region/interactive summary validation only; no repo AOS binary, build, daemon, ScreenCaptureKit capture, GUI, TCC, or live display mutation",
       "status": "active"
     }
   ]
