@@ -74,15 +74,46 @@ func aosInstallAppPath() -> String {
 }
 
 private func aosNormalizeExecutablePath(_ path: String, relativeTo currentDirectory: String) -> String {
-    let expanded = NSString(string: path).expandingTildeInPath
-    let absolute = expanded.hasPrefix("/")
-        ? expanded
-        : (currentDirectory as NSString).appendingPathComponent(expanded)
+    let absolute = path.hasPrefix("/")
+        ? path
+        : (currentDirectory as NSString).appendingPathComponent(path)
     return URL(fileURLWithPath: absolute)
         .standardizedFileURL
         .resolvingSymlinksInPath()
         .standardizedFileURL
         .path
+}
+
+func aosResolveExecutablePathFallback(
+    argvPath: String,
+    callerCurrentDirectory: String,
+    pathEnvironment: String?
+) -> String {
+    if argvPath.hasPrefix("/") || argvPath.contains("/") {
+        return aosNormalizeExecutablePath(argvPath, relativeTo: callerCurrentDirectory)
+    }
+
+    if let pathEnvironment {
+        for rawEntry in pathEnvironment.split(separator: ":", omittingEmptySubsequences: false) {
+            let entry = rawEntry.isEmpty ? callerCurrentDirectory : String(rawEntry)
+            let candidate = (entry as NSString).appendingPathComponent(argvPath)
+            let normalizedCandidate = aosNormalizeExecutablePath(
+                candidate,
+                relativeTo: callerCurrentDirectory
+            )
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(
+                atPath: normalizedCandidate,
+                isDirectory: &isDirectory
+            ), !isDirectory.boolValue,
+                FileManager.default.isExecutableFile(atPath: normalizedCandidate) else {
+                continue
+            }
+            return normalizedCandidate
+        }
+    }
+
+    return aosNormalizeExecutablePath(argvPath, relativeTo: callerCurrentDirectory)
 }
 
 func aosExecutablePath() -> String {
@@ -103,7 +134,11 @@ func aosExecutablePath() -> String {
     }
 
     let argvPath = CommandLine.arguments.first ?? "aos"
-    return aosNormalizeExecutablePath(argvPath, relativeTo: currentDirectory)
+    return aosResolveExecutablePathFallback(
+        argvPath: argvPath,
+        callerCurrentDirectory: currentDirectory,
+        pathEnvironment: ProcessInfo.processInfo.environment["PATH"]
+    )
 }
 
 func aosCurrentRuntimeMode(executablePath: String = aosExecutablePath()) -> AOSRuntimeMode {

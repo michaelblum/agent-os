@@ -586,6 +586,122 @@ DISPATCH_CWD="$TMP_ROOT/external-caller/nested"
 /bin/cp "$FIXTURES/base.png" "$DISPATCH_CWD/before.png"
 /bin/cp "$FIXTURES/changed.png" "$DISPATCH_CWD/after.png"
 
+RUNTIME_PATH_HARNESS_ROOT="$TMP_ROOT/runtime-path-harness"
+/bin/mkdir -p "$RUNTIME_PATH_HARNESS_ROOT"
+RUNTIME_PATH_MAIN="$RUNTIME_PATH_HARNESS_ROOT/main.swift"
+cat >"$RUNTIME_PATH_MAIN" <<'SWIFT'
+import Foundation
+
+guard CommandLine.arguments.count == 4 else {
+    FileHandle.standardError.write(Data("usage: resolver <argv> <cwd> <path-or-nil>\n".utf8))
+    exit(2)
+}
+
+let pathEnvironment = CommandLine.arguments[3] == "__AOS_NIL_PATH__"
+    ? nil
+    : CommandLine.arguments[3]
+print(aosResolveExecutablePathFallback(
+    argvPath: CommandLine.arguments[1],
+    callerCurrentDirectory: CommandLine.arguments[2],
+    pathEnvironment: pathEnvironment
+))
+SWIFT
+
+RUNTIME_PATH_HARNESS="$TMP_ROOT/runtime-path-resolver"
+/usr/bin/xcrun swiftc \
+  -Onone \
+  shared/swift/ipc/runtime-paths.swift \
+  "$RUNTIME_PATH_MAIN" \
+  -o "$RUNTIME_PATH_HARNESS"
+
+RUNTIME_PATH_ROOT="${TMP_ROOT//\/\//\/}/runtime-path-fixtures"
+RUNTIME_PATH_CWD="$RUNTIME_PATH_ROOT/caller"
+RUNTIME_PATH_FIRST="$RUNTIME_PATH_ROOT/first-bin"
+RUNTIME_PATH_SECOND="$RUNTIME_PATH_ROOT/second-bin"
+/bin/mkdir -p "$RUNTIME_PATH_CWD" "$RUNTIME_PATH_FIRST" "$RUNTIME_PATH_SECOND" \
+  "$RUNTIME_PATH_CWD/relative-bin" "$RUNTIME_PATH_ROOT/relative-target" \
+  "$RUNTIME_PATH_ROOT/directory-bin/skip-me" "$RUNTIME_PATH_ROOT/nonexec-bin" \
+  "$RUNTIME_PATH_ROOT/executable-bin" "$RUNTIME_PATH_ROOT/symlink-bin" \
+  "$RUNTIME_PATH_ROOT/symlink-target"
+/usr/bin/touch \
+  "$RUNTIME_PATH_FIRST/path-order" \
+  "$RUNTIME_PATH_SECOND/path-order" \
+  "$RUNTIME_PATH_CWD/empty-entry" \
+  "$RUNTIME_PATH_CWD/relative-bin/relative-entry" \
+  "$RUNTIME_PATH_ROOT/relative-target/relative-command" \
+  "$RUNTIME_PATH_ROOT/nonexec-bin/skip-me" \
+  "$RUNTIME_PATH_ROOT/executable-bin/skip-me" \
+  "$RUNTIME_PATH_ROOT/symlink-target/real-command"
+/bin/chmod 700 \
+  "$RUNTIME_PATH_FIRST/path-order" \
+  "$RUNTIME_PATH_SECOND/path-order" \
+  "$RUNTIME_PATH_CWD/empty-entry" \
+  "$RUNTIME_PATH_CWD/relative-bin/relative-entry" \
+  "$RUNTIME_PATH_ROOT/relative-target/relative-command" \
+  "$RUNTIME_PATH_ROOT/executable-bin/skip-me" \
+  "$RUNTIME_PATH_ROOT/symlink-target/real-command"
+/bin/chmod 600 "$RUNTIME_PATH_ROOT/nonexec-bin/skip-me"
+/bin/ln -s ../symlink-target/real-command "$RUNTIME_PATH_ROOT/symlink-bin/symlink-command"
+
+resolve_runtime_path() {
+  "$RUNTIME_PATH_HARNESS" "$1" "$RUNTIME_PATH_CWD" "$2"
+}
+
+assert_runtime_path() {
+  local label="$1"
+  local argv_path="$2"
+  local path_environment="$3"
+  local expected="$4"
+  local actual
+  if actual="$(resolve_runtime_path "$argv_path" "$path_environment")" \
+      && [[ "$actual" == "$expected" ]]; then
+    pass "$label"
+  else
+    fail "$label (expected=$expected, actual=$actual)"
+  fi
+}
+
+assert_runtime_path \
+  "runtime fallback normalizes absolute argv" \
+  "$RUNTIME_PATH_ROOT/relative-target/../relative-target/relative-command" \
+  "__AOS_NIL_PATH__" \
+  "$RUNTIME_PATH_ROOT/relative-target/relative-command"
+assert_runtime_path \
+  "runtime fallback normalizes caller-relative slash argv" \
+  "../relative-target/relative-command" \
+  "__AOS_NIL_PATH__" \
+  "$RUNTIME_PATH_ROOT/relative-target/relative-command"
+assert_runtime_path \
+  "runtime fallback selects the first executable PATH match" \
+  "path-order" \
+  "$RUNTIME_PATH_FIRST:$RUNTIME_PATH_SECOND" \
+  "$RUNTIME_PATH_FIRST/path-order"
+
+empty_entry_actual="$(resolve_runtime_path "empty-entry" ":relative-bin")"
+relative_entry_actual="$(resolve_runtime_path "relative-entry" ":relative-bin")"
+if [[ "$empty_entry_actual" == "$RUNTIME_PATH_CWD/empty-entry" \
+    && "$relative_entry_actual" == "$RUNTIME_PATH_CWD/relative-bin/relative-entry" ]]; then
+  pass "runtime fallback treats empty PATH entries as caller cwd and resolves relative entries from it"
+else
+  fail "runtime fallback empty/relative PATH resolution (empty=$empty_entry_actual, relative=$relative_entry_actual)"
+fi
+
+assert_runtime_path \
+  "runtime fallback resolves an executable symlink to its target" \
+  "symlink-command" \
+  "$RUNTIME_PATH_ROOT/symlink-bin" \
+  "$RUNTIME_PATH_ROOT/symlink-target/real-command"
+assert_runtime_path \
+  "runtime fallback skips directory and non-executable PATH candidates" \
+  "skip-me" \
+  "$RUNTIME_PATH_ROOT/directory-bin:$RUNTIME_PATH_ROOT/nonexec-bin:$RUNTIME_PATH_ROOT/executable-bin" \
+  "$RUNTIME_PATH_ROOT/executable-bin/skip-me"
+assert_runtime_path \
+  "runtime fallback retains an absolute caller-relative diagnostic path on PATH miss" \
+  "missing-command" \
+  "$RUNTIME_PATH_FIRST:$RUNTIME_PATH_SECOND" \
+  "$RUNTIME_PATH_CWD/missing-command"
+
 run_dispatch_probe() {
   local label="$1"
   local invocation="$2"
@@ -729,6 +845,7 @@ assert executable_path_body, runtime_paths
 assert "_NSGetExecutablePath" in executable_path_body.group("body"), executable_path_body.group("body")
 assert "CommandLine.arguments.first" in executable_path_body.group("body"), executable_path_body.group("body")
 assert "currentDirectoryPath" in executable_path_body.group("body"), executable_path_body.group("body")
+assert "aosResolveExecutablePathFallback" in executable_path_body.group("body"), executable_path_body.group("body")
 normalize_body = re.search(
     r"private func aosNormalizeExecutablePath\(.*?\n\}",
     runtime_paths,
@@ -737,6 +854,13 @@ normalize_body = re.search(
 assert normalize_body, runtime_paths
 assert "resolvingSymlinksInPath" in normalize_body.group(0), normalize_body.group(0)
 assert "Process()" not in executable_path_body.group("body"), executable_path_body.group("body")
+fallback_body = re.search(
+    r"func aosResolveExecutablePathFallback\(.*?\n\}\n\nfunc aosExecutablePath",
+    runtime_paths,
+    re.S,
+)
+assert fallback_body, runtime_paths
+assert "Process()" not in fallback_body.group(0), fallback_body.group(0)
 
 api_doc = " ".join(Path("docs/api/aos.md").read_text(encoding="utf-8").split())
 assert all(fragment in api_doc for fragment in (
