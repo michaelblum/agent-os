@@ -22,10 +22,11 @@ apps, and tests.
 - `swift/ipc/runtime-paths.swift` owns executable identity. Resolve the running
   Mach-O image authoritatively to an absolute, symlink-resolved path and begin
   repo-root discovery from that identity. If image lookup fails, normalize
-  slash-bearing argv from the caller cwd; resolve bare argv by PATH order,
-  including empty and relative entries, with an absolute caller-relative path
-  retained as the diagnostic fallback. User-facing invocation names remain
-  owned by raw argv in `src/shared/invocation.swift`.
+  slash-bearing argv from the caller cwd; resolve bare argv by PATH order to an
+  executable regular file, including empty and relative entries, with an
+  absolute caller-relative path retained as the diagnostic fallback.
+  User-facing invocation names remain owned by raw argv in
+  `src/shared/invocation.swift`.
 
 ## Work Guidance
 

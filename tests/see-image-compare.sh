@@ -6,8 +6,12 @@ cd "$ROOT"
 
 TMP_ROOT="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/aos-see-image-compare.XXXXXX")"
 /bin/chmod 700 "$TMP_ROOT"
+RUNTIME_PATH_SPECIAL_ROOT=""
 cleanup() {
   /bin/rm -rf "$TMP_ROOT"
+  if [[ -n "$RUNTIME_PATH_SPECIAL_ROOT" ]]; then
+    /bin/rm -rf "$RUNTIME_PATH_SPECIAL_ROOT"
+  fi
 }
 trap cleanup EXIT INT TERM
 
@@ -615,6 +619,8 @@ RUNTIME_PATH_HARNESS="$TMP_ROOT/runtime-path-resolver"
   -o "$RUNTIME_PATH_HARNESS"
 
 RUNTIME_PATH_ROOT="${TMP_ROOT//\/\//\/}/runtime-path-fixtures"
+RUNTIME_PATH_SPECIAL_ROOT="$(/usr/bin/mktemp -d /tmp/aos-runtime-path.XXXXXX)"
+/bin/chmod 700 "$RUNTIME_PATH_SPECIAL_ROOT"
 RUNTIME_PATH_CWD="$RUNTIME_PATH_ROOT/caller"
 RUNTIME_PATH_FIRST="$RUNTIME_PATH_ROOT/first-bin"
 RUNTIME_PATH_SECOND="$RUNTIME_PATH_ROOT/second-bin"
@@ -622,7 +628,8 @@ RUNTIME_PATH_SECOND="$RUNTIME_PATH_ROOT/second-bin"
   "$RUNTIME_PATH_CWD/relative-bin" "$RUNTIME_PATH_ROOT/relative-target" \
   "$RUNTIME_PATH_ROOT/directory-bin/skip-me" "$RUNTIME_PATH_ROOT/nonexec-bin" \
   "$RUNTIME_PATH_ROOT/executable-bin" "$RUNTIME_PATH_ROOT/symlink-bin" \
-  "$RUNTIME_PATH_ROOT/symlink-target"
+  "$RUNTIME_PATH_ROOT/symlink-target" "$RUNTIME_PATH_SPECIAL_ROOT/fifo-bin" \
+  "$RUNTIME_PATH_SPECIAL_ROOT/socket-bin" "$RUNTIME_PATH_SPECIAL_ROOT/regular-bin"
 /usr/bin/touch \
   "$RUNTIME_PATH_FIRST/path-order" \
   "$RUNTIME_PATH_SECOND/path-order" \
@@ -631,7 +638,17 @@ RUNTIME_PATH_SECOND="$RUNTIME_PATH_ROOT/second-bin"
   "$RUNTIME_PATH_ROOT/relative-target/relative-command" \
   "$RUNTIME_PATH_ROOT/nonexec-bin/skip-me" \
   "$RUNTIME_PATH_ROOT/executable-bin/skip-me" \
-  "$RUNTIME_PATH_ROOT/symlink-target/real-command"
+  "$RUNTIME_PATH_ROOT/symlink-target/real-command" \
+  "$RUNTIME_PATH_SPECIAL_ROOT/regular-bin/special-command"
+/usr/bin/mkfifo "$RUNTIME_PATH_SPECIAL_ROOT/fifo-bin/special-command"
+python3 - "$RUNTIME_PATH_SPECIAL_ROOT/socket-bin/special-command" <<'PY'
+import socket
+import sys
+
+socket_path = sys.argv[1]
+with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
+    listener.bind(socket_path)
+PY
 /bin/chmod 700 \
   "$RUNTIME_PATH_FIRST/path-order" \
   "$RUNTIME_PATH_SECOND/path-order" \
@@ -639,7 +656,10 @@ RUNTIME_PATH_SECOND="$RUNTIME_PATH_ROOT/second-bin"
   "$RUNTIME_PATH_CWD/relative-bin/relative-entry" \
   "$RUNTIME_PATH_ROOT/relative-target/relative-command" \
   "$RUNTIME_PATH_ROOT/executable-bin/skip-me" \
-  "$RUNTIME_PATH_ROOT/symlink-target/real-command"
+  "$RUNTIME_PATH_ROOT/symlink-target/real-command" \
+  "$RUNTIME_PATH_SPECIAL_ROOT/fifo-bin/special-command" \
+  "$RUNTIME_PATH_SPECIAL_ROOT/socket-bin/special-command" \
+  "$RUNTIME_PATH_SPECIAL_ROOT/regular-bin/special-command"
 /bin/chmod 600 "$RUNTIME_PATH_ROOT/nonexec-bin/skip-me"
 /bin/ln -s ../symlink-target/real-command "$RUNTIME_PATH_ROOT/symlink-bin/symlink-command"
 
@@ -696,6 +716,11 @@ assert_runtime_path \
   "skip-me" \
   "$RUNTIME_PATH_ROOT/directory-bin:$RUNTIME_PATH_ROOT/nonexec-bin:$RUNTIME_PATH_ROOT/executable-bin" \
   "$RUNTIME_PATH_ROOT/executable-bin/skip-me"
+assert_runtime_path \
+  "runtime fallback skips executable FIFO and socket PATH candidates" \
+  "special-command" \
+  "$RUNTIME_PATH_SPECIAL_ROOT/fifo-bin:$RUNTIME_PATH_SPECIAL_ROOT/socket-bin:$RUNTIME_PATH_SPECIAL_ROOT/regular-bin" \
+  "$RUNTIME_PATH_SPECIAL_ROOT/regular-bin/special-command"
 assert_runtime_path \
   "runtime fallback retains an absolute caller-relative diagnostic path on PATH miss" \
   "missing-command" \

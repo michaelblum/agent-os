@@ -101,12 +101,11 @@ func aosResolveExecutablePathFallback(
                 candidate,
                 relativeTo: callerCurrentDirectory
             )
-            var isDirectory: ObjCBool = false
-            guard FileManager.default.fileExists(
-                atPath: normalizedCandidate,
-                isDirectory: &isDirectory
-            ), !isDirectory.boolValue,
-                FileManager.default.isExecutableFile(atPath: normalizedCandidate) else {
+            let candidateURL = URL(fileURLWithPath: normalizedCandidate)
+            guard let candidateValues = try? candidateURL.resourceValues(
+                forKeys: [.isRegularFileKey, .isExecutableKey]
+            ), candidateValues.isRegularFile == true,
+                candidateValues.isExecutable == true else {
                 continue
             }
             return normalizedCandidate
