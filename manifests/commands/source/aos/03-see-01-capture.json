@@ -472,6 +472,14 @@
               "value_type": "string"
             },
             {
+              "id": "interactive",
+              "kind": "flag",
+              "required": false,
+              "summary": "Select bounds on exactly one target display and save through the validated region pipeline; compact response preserves the exact native display_topology or fails with DISPLAY_TOPOLOGY_MISSING; conflicts with --region, --canvas, and --channel",
+              "token": "--interactive",
+              "value_type": "bool"
+            },
+            {
               "id": "save",
               "kind": "flag",
               "required": true,
@@ -540,6 +548,18 @@
                 "region",
                 "canvas",
                 "channel"
+              ],
+              [
+                "interactive",
+                "region"
+              ],
+              [
+                "interactive",
+                "canvas"
+              ],
+              [
+                "interactive",
+                "channel"
               ]
             ]
           },
@@ -547,6 +567,7 @@
             "aos see capture browser:work --save --mode som --workspace default --name before",
             "aos see capture browser:work --save --mode som --workspace default --name after",
             "aos see capture --canvas surface-inspector --save --mode som --workspace default",
+            "aos see capture --interactive --save --mode ax --workspace default --name selection",
             "aos see snapshots --workspace default",
             "aos see refs --workspace default --query Save"
           ],
@@ -567,7 +588,7 @@
             "supports_json_flag": false
           },
           "summary": "Persist perception into a local agent workspace for the canonical ready/capture/ref/action/recapture/verify loop and return compact saved refs with conformance/proof for canvas, browser, and stable native AX actions with actionable producer verdicts",
-          "usage": "aos see capture [<target>|--region <rect>|--canvas <id>|--channel <id>] --save [--mode <mode>] [--workspace <id>] [--name <id>] [--query <text>]"
+          "usage": "aos see capture [<target>|--region <rect>|--canvas <id>|--channel <id>] [--interactive] --save [--mode <mode>] [--workspace <id>] [--name <id>] [--query <text>]"
         },
         {
           "args": [

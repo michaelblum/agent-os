@@ -71,7 +71,7 @@ assert.ok(defs.summary.properties.capture_source, 'saved capture summaries must 
 assert.equal(
   defs.summary.properties.display_topology?.$ref,
   'display-topology-v1.schema.json',
-  'saved region summaries must preserve the direct native display topology contract',
+  'saved explicit and interactively selected region summaries must preserve the direct native display topology contract',
 );
 assert.ok(defs.snapshot_record.properties.capture_source, 'snapshot records must allow compact capture source readback');
 assert.ok(defs.workspace_index.properties.snapshots.items.properties.capture_source, 'workspace index snapshots must allow compact capture source readback');
@@ -774,6 +774,10 @@ for (const text of [schemaDoc, apiDoc]) {
   assert.ok(text.includes('committed.json'), 'storage docs must mention committed marker');
   assert.ok(text.includes('snapshots/.staging/'), 'storage docs must mention staging directory');
   assert.ok(text.includes('index.json') && /rebuild/.test(text), 'storage docs must describe index rebuild');
+  assert.ok(text.includes('saved `--region`'), 'saved workspace docs must describe explicit saved region capture');
+  assert.ok(text.includes('saved `--interactive`'), 'saved workspace docs must describe bounds-only saved interactive capture');
+  assert.ok(text.includes('DISPLAY_TOPOLOGY_MISSING'), 'saved workspace docs must document fail-closed topology omission');
+  assert.ok(text.includes('display_topology.identity'), 'saved workspace docs must distinguish topology identity from state_id');
 }
 
 const browserActionSlashList = SAVED_REF_V0_ACTIONS_BY_BACKEND.browser.join('/');
@@ -935,6 +939,7 @@ assert.equal(captureForm.output.default_mode, 'json', 'ordinary capture form mus
 assert.equal(captureForm.output.conditional_modes, undefined, 'ordinary capture form must not describe --save as a different output mode');
 assert.equal(captureSaveForm.execution.mutates_state, true, 'saved capture form must be mutating');
 assert.equal(captureSaveForm.execution.read_only, false, 'saved capture form must not be read-only');
+assert.equal(captureSaveForm.execution.interactive, false, 'optional saved --interactive must not classify every saved capture as interactive');
 assert.deepEqual(captureForm.constraints?.required_groups, undefined, 'ordinary capture form must not require a source because the parser defaults to main');
 assert.deepEqual(captureSaveForm.constraints?.required_groups, undefined, 'saved capture form must not require a source because the parser defaults to main');
 assert.equal(captureForm.args.find((arg) => arg.id === 'target')?.required, false, 'ordinary capture target must not be unconditionally required');
@@ -943,6 +948,9 @@ assert.equal(captureForm.args.find((arg) => arg.id === 'target')?.default_value,
 assert.equal(captureSaveForm.args.find((arg) => arg.id === 'target')?.default_value, 'main', 'saved capture target must document the parser default');
 assert.equal(parseCaptureArgs([]).target, 'main', 'capture parser must keep no-source default aligned with help metadata');
 assert.equal(parseCaptureArgs(['--save']).target, 'main', 'saved capture parser must keep no-source default aligned with help metadata');
+const parsedInteractiveSave = parseCaptureArgs(['--interactive', '--save']);
+assert.equal(parsedInteractiveSave.target, 'main', 'saved interactive capture must retain the default display target');
+assert.ok(parsedInteractiveSave.passthrough.includes('--interactive'), 'saved interactive capture must preserve the native selection flag');
 assert.deepEqual(parseCaptureArgs([]).capture_source, {
   kind: 'default_target',
   argv: ['main'],
@@ -1043,6 +1051,22 @@ assert.deepEqual(
 assert.ok(captureSaveForm.usage.includes('--region <rect>'), 'saved capture usage must advertise region source');
 assert.ok(captureSaveForm.usage.includes('--canvas <id>'), 'saved capture usage must advertise canvas source');
 assert.ok(captureSaveForm.usage.includes('--channel <id>'), 'saved capture usage must advertise channel source');
+assert.ok(captureSaveForm.usage.includes('--interactive'), 'saved capture usage must advertise interactive selection');
+const savedInteractiveArg = captureSaveForm.args.find((arg) => arg.id === 'interactive');
+assert.equal(savedInteractiveArg?.token, '--interactive', 'saved capture manifest must declare the interactive flag');
+assert.match(savedInteractiveArg?.summary ?? '', /exact native display_topology/, 'saved interactive help must describe exact topology preservation');
+assert.match(savedInteractiveArg?.summary ?? '', /DISPLAY_TOPOLOGY_MISSING/, 'saved interactive help must describe fail-closed topology omission');
+const savedCaptureConflicts = (captureSaveForm.constraints?.conflicts ?? []).map((group) => new Set(group));
+for (const source of ['region', 'canvas', 'channel']) {
+  assert.ok(
+    savedCaptureConflicts.some((group) => group.size === 2 && group.has('interactive') && group.has(source)),
+    `saved interactive capture must conflict with ${source}`,
+  );
+}
+assert.ok(
+  captureSaveForm.examples.some((example) => example.includes('--interactive') && example.includes('--save')),
+  'saved capture examples must include interactive persistence',
+);
 JS
 
 echo "PASS contract drift"
