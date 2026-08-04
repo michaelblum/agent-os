@@ -620,7 +620,7 @@
     },
     {
       "id": "image-file-compare",
-      "summary": "Stateless PNG comparator source, command contract, or hermetic proof changed.",
+      "summary": "Stateless PNG comparator source, optional spatial artifact contract, or hermetic proof changed.",
       "patterns": [
         "shared/swift/ipc/runtime-paths.swift",
         "src/main.swift",
@@ -645,12 +645,12 @@
         {
           "id": "image-file-compare-proof",
           "command": "bash tests/see-image-compare.sh",
-          "reason": "Compile the focused comparator with the production runtime-path and dispatcher sources, then verify canonical PNG comparison, parser, error, expectation, and route contracts."
+          "reason": "Compile the focused comparator with the production runtime-path and dispatcher sources, then verify canonical comparison, v1 no-write compatibility, optional grayscale artifacts, target safety, rollback, expectation retention, and route contracts."
         }
       ],
       "verification": [],
       "notes": [
-        "Hermetic and offline: generates fixed PNG fixtures in a private temporary root and does not build or execute ./aos, capture pixels, start a daemon, or touch TCC."
+        "Hermetic and offline: generates fixed PNG fixtures and spatial outputs in a private temporary root and does not build or execute ./aos, capture pixels, start a daemon, or touch TCC."
       ]
     },
     {

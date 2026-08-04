@@ -10,6 +10,7 @@ private let imageCompareEncodedByteLimit: UInt64 = 128 * 1024 * 1024
 private let imageComparePixelLimit: UInt64 = 33_554_432
 private let imageCompareFloatScale = 1_000_000_000_000.0
 private let imageComparePNGSignature = Data([137, 80, 78, 71, 13, 10, 26, 10])
+private let imageCompareArtifactStagePrefix = ".aos-image-compare-"
 
 private enum ImageCompareExpectation: String {
     case change
@@ -21,6 +22,64 @@ private struct ImageCompareOptions {
     let afterPath: String
     let pixelTolerance: UInt8
     let expectation: ImageCompareExpectation?
+    let changeMapPath: String?
+    let maskPath: String?
+}
+
+private enum ImageCompareArtifactKind: Hashable {
+    case changeMap
+    case mask
+
+    var encodingVersion: String {
+        switch self {
+        case .changeMap: return "aos.image-compare.change-map.gray8.v1"
+        case .mask: return "aos.image-compare.mask.gray8.v1"
+        }
+    }
+
+    var hashDomain: String {
+        switch self {
+        case .changeMap: return "AOS_IMAGE_COMPARE_CHANGE_MAP_U8_V1\0"
+        case .mask: return "AOS_IMAGE_COMPARE_MASK_U8_V1\0"
+        }
+    }
+}
+
+private struct ImageCompareArtifactTarget {
+    let kind: ImageCompareArtifactKind
+    let path: String
+    let parentPath: String
+    let fileName: String
+    let directoryDescriptor: Int32
+}
+
+private struct ImageCompareArtifactPlane {
+    let samples: Data
+    let selectedPixels: UInt64
+}
+
+private struct ImageCompareComputation {
+    let payload: [String: Any]
+    let changeMap: ImageCompareArtifactPlane?
+    let mask: ImageCompareArtifactPlane?
+}
+
+private struct ImageCompareMetrics {
+    var changedPixels: UInt64 = 0
+    var nonzeroDeltaPixels: UInt64 = 0
+    var sumChannelDelta: UInt64 = 0
+    var maxChannelDelta = 0
+    var minimumX: Int
+    var minimumY: Int
+    var maximumX = -1
+    var maximumY = -1
+}
+
+private struct ImageCompareStagedArtifact {
+    let fileName: String
+    let directoryDescriptor: Int32
+    let device: dev_t
+    let inode: ino_t
 }
 
 private struct CanonicalImage {
@@ -39,6 +98,7 @@ private struct ImageCompareFailure: Error {
 func imageFileCompareCommand(args: [String]) -> Never {
     do {
         let options = try parseImageCompareOptions(args)
+        let artifactTargets = try validateImageCompareArtifactTargets(options)
         let before = try decodeCanonicalPNG(path: options.beforePath, label: "before")
         let after = try decodeCanonicalPNG(path: options.afterPath, label: "after")
 
@@ -49,7 +109,22 @@ func imageFileCompareCommand(args: [String]) -> Never {
             )
         }
 
-        let result = compareCanonicalImages(before: before, after: after, options: options)
+        let computation = compareCanonicalImages(before: before, after: after, options: options)
+        var result = computation.payload
+        if !artifactTargets.isEmpty {
+            let descriptors = try writeImageCompareArtifacts(
+                targets: artifactTargets,
+                computation: computation,
+                width: before.width,
+                height: before.height
+            )
+            result["schema_version"] = "aos.image-compare.v2"
+            result["artifacts"] = [
+                "change_map": descriptors[.changeMap] as Any? ?? NSNull(),
+                "mask": descriptors[.mask] as Any? ?? NSNull(),
+            ]
+        }
+        closeImageCompareArtifactTargets(artifactTargets)
         if let expectation = result["expectation"] as? [String: Any], expectation["met"] as? Bool == false {
             var failure = result
             failure["status"] = "expectation_failed"
@@ -79,6 +154,10 @@ private func parseImageCompareOptions(_ args: [String]) throws -> ImageCompareOp
     var toleranceSeen = false
     var expectation: ImageCompareExpectation?
     var expectationSeen = false
+    var changeMapPath: String?
+    var changeMapSeen = false
+    var maskPath: String?
+    var maskSeen = false
     var index = 0
 
     while index < args.count {
@@ -110,6 +189,26 @@ private func parseImageCompareOptions(_ args: [String]) throws -> ImageCompareOp
             expectation = value
             expectationSeen = true
             index += 2
+        case "--change-map-out":
+            guard !changeMapSeen else {
+                throw ImageCompareFailure(code: "INVALID_ARG", message: "--change-map-out may be provided only once.")
+            }
+            guard index + 1 < args.count, !args[index + 1].hasPrefix("--") else {
+                throw ImageCompareFailure(code: "MISSING_ARG", message: "--change-map-out requires a new .png output path.")
+            }
+            changeMapPath = args[index + 1]
+            changeMapSeen = true
+            index += 2
+        case "--mask-out":
+            guard !maskSeen else {
+                throw ImageCompareFailure(code: "INVALID_ARG", message: "--mask-out may be provided only once.")
+            }
+            guard index + 1 < args.count, !args[index + 1].hasPrefix("--") else {
+                throw ImageCompareFailure(code: "MISSING_ARG", message: "--mask-out requires a new .png output path.")
+            }
+            maskPath = args[index + 1]
+            maskSeen = true
+            index += 2
         default:
             if arg.hasPrefix("-") {
                 throw ImageCompareFailure(code: "UNKNOWN_OPTION", message: "Unknown image comparison option: \(arg).")
@@ -133,7 +232,9 @@ private func parseImageCompareOptions(_ args: [String]) throws -> ImageCompareOp
         beforePath: paths[0],
         afterPath: paths[1],
         pixelTolerance: tolerance,
-        expectation: expectation
+        expectation: expectation,
+        changeMapPath: changeMapPath,
+        maskPath: maskPath
     )
 }
 
@@ -146,6 +247,115 @@ private func standardizedImageComparePath(_ rawPath: String) -> String {
         absolute = (FileManager.default.currentDirectoryPath as NSString).appendingPathComponent(expanded)
     }
     return NSString(string: absolute).standardizingPath
+}
+
+private func standardizedImageCompareArtifactPath(_ rawPath: String) -> String {
+    let expanded = NSString(string: rawPath).expandingTildeInPath
+    let absolute = NSString(string: expanded).isAbsolutePath
+        ? expanded
+        : (FileManager.default.currentDirectoryPath as NSString).appendingPathComponent(expanded)
+    var components: [Substring] = []
+    for component in absolute.split(separator: "/", omittingEmptySubsequences: true) {
+        if component == "." { continue }
+        if component == ".." {
+            if !components.isEmpty { components.removeLast() }
+            continue
+        }
+        components.append(component)
+    }
+    return "/" + components.joined(separator: "/")
+}
+
+private func validateImageCompareArtifactTargets(_ options: ImageCompareOptions) throws -> [ImageCompareArtifactTarget] {
+    let requested: [(ImageCompareArtifactKind, String?)] = [
+        (.changeMap, options.changeMapPath),
+        (.mask, options.maskPath),
+    ]
+    var targets: [ImageCompareArtifactTarget] = []
+
+    do {
+        for (kind, rawPath) in requested {
+            guard let rawPath else { continue }
+            guard rawPath != "-",
+                  !rawPath.contains("\0"),
+                  !rawPath.hasSuffix("/"),
+                  NSString(string: rawPath).pathExtension == "png" else {
+                throw ImageCompareFailure(
+                    code: "IMAGE_ARTIFACT_PATH_INVALID",
+                    message: "Image comparison artifact output must be a .png path and may not be '-': \(rawPath)."
+                )
+            }
+            let path = standardizedImageCompareArtifactPath(rawPath)
+            let fileName = NSString(string: path).lastPathComponent
+            guard path != "/", fileName.hasSuffix(".png") else {
+                throw ImageCompareFailure(code: "IMAGE_ARTIFACT_PATH_INVALID", message: "Invalid image comparison artifact output path: \(path).")
+            }
+            if targets.contains(where: { $0.path == path }) {
+                throw ImageCompareFailure(
+                    code: "IMAGE_ARTIFACT_PATH_INVALID",
+                    message: "Image comparison artifact output paths must be distinct after standardization: \(path)."
+                )
+            }
+
+            let parentPath = NSString(string: path).deletingLastPathComponent
+            let directoryDescriptor = try openImageCompareArtifactParent(parentPath, targetPath: path)
+            var existing = stat()
+            if Darwin.fstatat(directoryDescriptor, fileName, &existing, AT_SYMLINK_NOFOLLOW) == 0 {
+                Darwin.close(directoryDescriptor)
+                throw ImageCompareFailure(
+                    code: "IMAGE_ARTIFACT_TARGET_EXISTS",
+                    message: "Image comparison artifact target already exists and will not be overwritten: \(path)."
+                )
+            }
+            guard errno == ENOENT else {
+                Darwin.close(directoryDescriptor)
+                throw ImageCompareFailure(
+                    code: "IMAGE_ARTIFACT_PATH_INVALID",
+                    message: "Could not validate image comparison artifact target: \(path)."
+                )
+            }
+            targets.append(ImageCompareArtifactTarget(
+                kind: kind,
+                path: path,
+                parentPath: parentPath,
+                fileName: fileName,
+                directoryDescriptor: directoryDescriptor
+            ))
+        }
+        return targets
+    } catch {
+        closeImageCompareArtifactTargets(targets)
+        throw error
+    }
+}
+
+private func openImageCompareArtifactParent(_ parentPath: String, targetPath: String) throws -> Int32 {
+    guard NSString(string: parentPath).isAbsolutePath else {
+        throw ImageCompareFailure(code: "IMAGE_ARTIFACT_PATH_INVALID", message: "Artifact parent path is not absolute: \(parentPath).")
+    }
+
+    var descriptor = Darwin.open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+    guard descriptor >= 0 else {
+        throw ImageCompareFailure(code: "IMAGE_ARTIFACT_PARENT_INVALID", message: "Could not open the filesystem root for artifact output.")
+    }
+    for component in NSString(string: parentPath).pathComponents where component != "/" {
+        let nextDescriptor = Darwin.openat(descriptor, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        Darwin.close(descriptor)
+        guard nextDescriptor >= 0 else {
+            throw ImageCompareFailure(
+                code: "IMAGE_ARTIFACT_PARENT_INVALID",
+                message: "Image comparison artifact parent must exist with no symlink or non-directory components: \(targetPath)."
+            )
+        }
+        descriptor = nextDescriptor
+    }
+    return descriptor
+}
+
+private func closeImageCompareArtifactTargets(_ targets: [ImageCompareArtifactTarget]) {
+    for target in targets {
+        Darwin.close(target.directoryDescriptor)
+    }
 }
 
 private func readBoundedImageData(path: String) throws -> Data {
@@ -316,21 +526,115 @@ private func compareCanonicalImages(
     before: CanonicalImage,
     after: CanonicalImage,
     options: ImageCompareOptions
-) -> [String: Any] {
+) -> ImageCompareComputation {
     let totalPixels = UInt64(before.width) * UInt64(before.height)
     let tolerance = Int(options.pixelTolerance)
-    var changedPixels: UInt64 = 0
-    var sumChannelDelta: UInt64 = 0
-    var maxChannelDelta = 0
-    var minimumX = before.width
-    var minimumY = before.height
-    var maximumX = -1
-    var maximumY = -1
     let canonicalByteCount = Int(totalPixels) * 4
     precondition(
         before.pixels.count == canonicalByteCount && after.pixels.count == canonicalByteCount,
         "Canonical image buffers must contain exactly width * height * 4 bytes."
     )
+
+    var changeMapSamples = options.changeMapPath.map { _ in Data(count: Int(totalPixels)) }
+    var maskSamples = options.maskPath.map { _ in Data(count: Int(totalPixels)) }
+    let metrics: ImageCompareMetrics
+    if changeMapSamples != nil, maskSamples != nil {
+        metrics = changeMapSamples!.withUnsafeMutableBytes { changeMapBuffer in
+            maskSamples!.withUnsafeMutableBytes { maskBuffer in
+                scanCanonicalImageDelta(
+                    before: before,
+                    after: after,
+                    tolerance: tolerance,
+                    changeMapBytes: changeMapBuffer.baseAddress!.assumingMemoryBound(to: UInt8.self),
+                    maskBytes: maskBuffer.baseAddress!.assumingMemoryBound(to: UInt8.self)
+                )
+            }
+        }
+    } else if changeMapSamples != nil {
+        metrics = changeMapSamples!.withUnsafeMutableBytes { changeMapBuffer in
+            scanCanonicalImageDelta(
+                before: before,
+                after: after,
+                tolerance: tolerance,
+                changeMapBytes: changeMapBuffer.baseAddress!.assumingMemoryBound(to: UInt8.self),
+                maskBytes: nil
+            )
+        }
+    } else if maskSamples != nil {
+        metrics = maskSamples!.withUnsafeMutableBytes { maskBuffer in
+            scanCanonicalImageDelta(
+                before: before,
+                after: after,
+                tolerance: tolerance,
+                changeMapBytes: nil,
+                maskBytes: maskBuffer.baseAddress!.assumingMemoryBound(to: UInt8.self)
+            )
+        }
+    } else {
+        metrics = scanCanonicalImageDelta(
+            before: before,
+            after: after,
+            tolerance: tolerance,
+            changeMapBytes: nil,
+            maskBytes: nil
+        )
+    }
+
+    let actual = metrics.changedPixels > 0 ? ImageCompareExpectation.change : ImageCompareExpectation.noChange
+    let bounds: Any = metrics.changedPixels == 0
+        ? NSNull()
+        : [
+            "x": metrics.minimumX,
+            "y": metrics.minimumY,
+            "width": metrics.maximumX - metrics.minimumX + 1,
+            "height": metrics.maximumY - metrics.minimumY + 1,
+        ]
+    let expectationPayload: Any = options.expectation.map { requested in
+        [
+            "requested": requested.rawValue,
+            "actual": actual.rawValue,
+            "met": requested == actual,
+        ] as [String: Any]
+    } ?? NSNull()
+
+    let payload: [String: Any] = [
+        "status": "success",
+        "schema_version": "aos.image-compare.v1",
+        "before": imageCompareDescription(before),
+        "after": imageCompareDescription(after),
+        "comparison": [
+            "pixel_tolerance": Int(options.pixelTolerance),
+            "total_pixels": totalPixels,
+            "changed_pixels": metrics.changedPixels,
+            "changed_ratio": roundedImageCompareFloat(Double(metrics.changedPixels) / Double(totalPixels)),
+            "changed_bounds": bounds,
+            "sum_channel_delta": metrics.sumChannelDelta,
+            "mean_channel_delta": roundedImageCompareFloat(Double(metrics.sumChannelDelta) / (4.0 * Double(totalPixels))),
+            "max_channel_delta": metrics.maxChannelDelta,
+        ],
+        "expectation": expectationPayload,
+    ]
+
+    return ImageCompareComputation(
+        payload: payload,
+        changeMap: changeMapSamples.map {
+            ImageCompareArtifactPlane(samples: $0, selectedPixels: metrics.nonzeroDeltaPixels)
+        },
+        mask: maskSamples.map {
+            ImageCompareArtifactPlane(samples: $0, selectedPixels: metrics.changedPixels)
+        }
+    )
+}
+
+private func scanCanonicalImageDelta(
+    before: CanonicalImage,
+    after: CanonicalImage,
+    tolerance: Int,
+    changeMapBytes: UnsafeMutablePointer<UInt8>?,
+    maskBytes: UnsafeMutablePointer<UInt8>?
+) -> ImageCompareMetrics {
+    let canonicalByteCount = before.width * before.height * 4
+    var metrics = ImageCompareMetrics(minimumX: before.width, minimumY: before.height)
 
     before.pixels.withUnsafeBytes { beforeBytes in
         after.pixels.withUnsafeBytes { afterBytes in
@@ -354,10 +658,16 @@ private func compareCanonicalImages(
                         let blueDelta = abs(Int(lhsRow[byteOffset + 2]) - Int(rhsRow[byteOffset + 2]))
                         let alphaDelta = abs(Int(lhsRow[byteOffset + 3]) - Int(rhsRow[byteOffset + 3]))
                         let pixelMaximumDelta = max(max(redDelta, greenDelta), max(blueDelta, alphaDelta))
-                        sumChannelDelta += UInt64(redDelta + greenDelta + blueDelta + alphaDelta)
-                        maxChannelDelta = max(maxChannelDelta, pixelMaximumDelta)
+                        let planeIndex = y * before.width + x
+                        changeMapBytes?[planeIndex] = UInt8(pixelMaximumDelta)
+                        maskBytes?[planeIndex] = pixelMaximumDelta > tolerance ? 255 : 0
+                        metrics.sumChannelDelta += UInt64(redDelta + greenDelta + blueDelta + alphaDelta)
+                        metrics.maxChannelDelta = max(metrics.maxChannelDelta, pixelMaximumDelta)
+                        if pixelMaximumDelta > 0 {
+                            metrics.nonzeroDeltaPixels += 1
+                        }
                         if pixelMaximumDelta > tolerance {
-                            changedPixels += 1
+                            metrics.changedPixels += 1
                             rowMinimumX = min(rowMinimumX, x)
                             rowMaximumX = x
                         }
@@ -365,10 +675,10 @@ private func compareCanonicalImages(
                         byteOffset += 4
                     }
                     if rowMaximumX >= 0 {
-                        minimumX = min(minimumX, rowMinimumX)
-                        minimumY = min(minimumY, y)
-                        maximumX = max(maximumX, rowMaximumX)
-                        maximumY = y
+                        metrics.minimumX = min(metrics.minimumX, rowMinimumX)
+                        metrics.minimumY = min(metrics.minimumY, y)
+                        metrics.maximumX = max(metrics.maximumX, rowMaximumX)
+                        metrics.maximumY = y
                     }
                 }
                 y += 1
@@ -376,40 +686,223 @@ private func compareCanonicalImages(
         }
     }
 
-    let actual = changedPixels > 0 ? ImageCompareExpectation.change : ImageCompareExpectation.noChange
-    let bounds: Any = changedPixels == 0
-        ? NSNull()
-        : [
-            "x": minimumX,
-            "y": minimumY,
-            "width": maximumX - minimumX + 1,
-            "height": maximumY - minimumY + 1,
-        ]
-    let expectationPayload: Any = options.expectation.map { requested in
-        [
-            "requested": requested.rawValue,
-            "actual": actual.rawValue,
-            "met": requested == actual,
-        ] as [String: Any]
-    } ?? NSNull()
+    return metrics
+}
 
-    return [
-        "status": "success",
-        "schema_version": "aos.image-compare.v1",
-        "before": imageCompareDescription(before),
-        "after": imageCompareDescription(after),
-        "comparison": [
-            "pixel_tolerance": Int(options.pixelTolerance),
-            "total_pixels": totalPixels,
-            "changed_pixels": changedPixels,
-            "changed_ratio": roundedImageCompareFloat(Double(changedPixels) / Double(totalPixels)),
-            "changed_bounds": bounds,
-            "sum_channel_delta": sumChannelDelta,
-            "mean_channel_delta": roundedImageCompareFloat(Double(sumChannelDelta) / (4.0 * Double(totalPixels))),
-            "max_channel_delta": maxChannelDelta,
-        ],
-        "expectation": expectationPayload,
-    ]
+private func writeImageCompareArtifacts(
+    targets: [ImageCompareArtifactTarget],
+    computation: ImageCompareComputation,
+    width: Int,
+    height: Int
+) throws -> [ImageCompareArtifactKind: [String: Any]] {
+    var staged: [ImageCompareStagedArtifact] = []
+    var published: [ImageCompareStagedArtifact] = []
+    var descriptors: [ImageCompareArtifactKind: [String: Any]] = [:]
+
+    do {
+        for target in targets {
+            let plane: ImageCompareArtifactPlane
+            switch target.kind {
+            case .changeMap:
+                guard let changeMap = computation.changeMap else {
+                    throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Change-map sample plane was not produced.")
+                }
+                plane = changeMap
+            case .mask:
+                guard let mask = computation.mask else {
+                    throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Mask sample plane was not produced.")
+                }
+                plane = mask
+            }
+
+            let pngData = try encodeImageCompareGrayscalePNG(samples: plane.samples, width: width, height: height)
+            let stage = try stageImageCompareArtifact(pngData, target: target)
+            staged.append(stage)
+
+            guard Darwin.renameatx_np(
+                stage.directoryDescriptor,
+                stage.fileName,
+                target.directoryDescriptor,
+                target.fileName,
+                UInt32(RENAME_EXCL)
+            ) == 0 else {
+                throw ImageCompareFailure(
+                    code: errno == EEXIST ? "IMAGE_ARTIFACT_TARGET_EXISTS" : "IMAGE_ARTIFACT_WRITE_FAILED",
+                    message: "Could not publish image comparison artifact without overwriting: \(target.path)."
+                )
+            }
+            published.append(ImageCompareStagedArtifact(
+                fileName: target.fileName,
+                directoryDescriptor: target.directoryDescriptor,
+                device: stage.device,
+                inode: stage.inode
+            ))
+            try fsyncImageCompareDirectory(target)
+
+            descriptors[target.kind] = [
+                "path": target.path,
+                "width": width,
+                "height": height,
+                "encoding_version": target.kind.encodingVersion,
+                "canonical_sample_sha256": canonicalImageCompareSampleSHA256(
+                    kind: target.kind,
+                    width: UInt64(width),
+                    height: UInt64(height),
+                    samples: plane.samples
+                ),
+                "png_file_sha256": sha256Hex(pngData),
+                "selected_pixels": plane.selectedPixels,
+            ]
+        }
+        return descriptors
+    } catch {
+        cleanupImageCompareArtifacts(staged: staged, published: published)
+        throw error
+    }
+}
+
+private func encodeImageCompareGrayscalePNG(samples: Data, width: Int, height: Int) throws -> Data {
+    guard samples.count == width * height,
+          let provider = CGDataProvider(data: samples as CFData),
+          let image = CGImage(
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bitsPerPixel: 8,
+            bytesPerRow: width,
+            space: CGColorSpaceCreateDeviceGray(),
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent
+          ) else {
+        throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Could not create an 8-bit grayscale artifact image.")
+    }
+
+    let encoded = NSMutableData()
+    guard let destination = CGImageDestinationCreateWithData(encoded, "public.png" as CFString, 1, nil) else {
+        throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Could not create the PNG artifact encoder.")
+    }
+    CGImageDestinationAddImage(destination, image, nil)
+    guard CGImageDestinationFinalize(destination) else {
+        throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Could not encode the PNG artifact.")
+    }
+    return encoded as Data
+}
+
+private func stageImageCompareArtifact(
+    _ data: Data,
+    target: ImageCompareArtifactTarget
+) throws -> ImageCompareStagedArtifact {
+    var stageName: String?
+    var descriptor: Int32 = -1
+    for _ in 0..<16 {
+        let candidate = "\(imageCompareArtifactStagePrefix)\(UUID().uuidString).stage"
+        descriptor = Darwin.openat(
+            target.directoryDescriptor,
+            candidate,
+            O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC,
+            mode_t(0o600)
+        )
+        if descriptor >= 0 {
+            stageName = candidate
+            break
+        }
+        if errno != EEXIST { break }
+    }
+    guard descriptor >= 0, let stageName else {
+        throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Could not create a private artifact stage in: \(target.parentPath).")
+    }
+    do {
+        guard Darwin.fchmod(descriptor, mode_t(0o600)) == 0 else {
+            throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Could not secure artifact staging permissions.")
+        }
+        try data.withUnsafeBytes { buffer in
+            guard let baseAddress = buffer.baseAddress else { return }
+            var offset = 0
+            while offset < buffer.count {
+                let written = Darwin.write(descriptor, baseAddress.advanced(by: offset), buffer.count - offset)
+                if written > 0 {
+                    offset += written
+                } else if written < 0, errno == EINTR {
+                    continue
+                } else {
+                    throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Could not write the staged PNG artifact.")
+                }
+            }
+        }
+        guard Darwin.fsync(descriptor) == 0 else {
+            throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Could not fsync the staged PNG artifact.")
+        }
+        var status = stat()
+        guard Darwin.fstat(descriptor, &status) == 0 else {
+            throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Could not identify the staged PNG artifact.")
+        }
+        guard Darwin.close(descriptor) == 0 else {
+            descriptor = -1
+            throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Could not close the staged PNG artifact.")
+        }
+        descriptor = -1
+        return ImageCompareStagedArtifact(
+            fileName: stageName,
+            directoryDescriptor: target.directoryDescriptor,
+            device: status.st_dev,
+            inode: status.st_ino
+        )
+    } catch {
+        if descriptor >= 0 { Darwin.close(descriptor) }
+        Darwin.unlinkat(target.directoryDescriptor, stageName, 0)
+        throw error
+    }
+}
+
+private func fsyncImageCompareDirectory(_ target: ImageCompareArtifactTarget) throws {
+    guard Darwin.fsync(target.directoryDescriptor) == 0 else {
+        throw ImageCompareFailure(code: "IMAGE_ARTIFACT_WRITE_FAILED", message: "Could not fsync artifact parent: \(target.parentPath).")
+    }
+}
+
+private func cleanupImageCompareArtifacts(
+    staged: [ImageCompareStagedArtifact],
+    published: [ImageCompareStagedArtifact]
+) {
+    for artifact in staged.reversed() {
+        unlinkImageCompareArtifactIfOwned(artifact)
+    }
+    for artifact in published.reversed() {
+        unlinkImageCompareArtifactIfOwned(artifact)
+    }
+}
+
+private func unlinkImageCompareArtifactIfOwned(_ artifact: ImageCompareStagedArtifact) {
+    var status = stat()
+    guard Darwin.fstatat(artifact.directoryDescriptor, artifact.fileName, &status, AT_SYMLINK_NOFOLLOW) == 0,
+          status.st_dev == artifact.device,
+          status.st_ino == artifact.inode else {
+        return
+    }
+    Darwin.unlinkat(artifact.directoryDescriptor, artifact.fileName, 0)
+}
+
+private func canonicalImageCompareSampleSHA256(
+    kind: ImageCompareArtifactKind,
+    width: UInt64,
+    height: UInt64,
+    samples: Data
+) -> String {
+    var hasher = SHA256()
+    hasher.update(data: Data(kind.hashDomain.utf8))
+    var widthBE = width.bigEndian
+    var heightBE = height.bigEndian
+    withUnsafeBytes(of: &widthBE) { hasher.update(data: Data($0)) }
+    withUnsafeBytes(of: &heightBE) { hasher.update(data: Data($0)) }
+    hasher.update(data: samples)
+    return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+}
+
+private func sha256Hex(_ data: Data) -> String {
+    SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
 }
 
 private func imageCompareDescription(_ image: CanonicalImage) -> [String: Any] {

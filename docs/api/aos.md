@@ -388,7 +388,31 @@ When exact before/after PNG artifact paths already exist and have the same
 decoded dimensions, use `aos see compare <before.png> <after.png>` for canonical
 pixel comparison. This file comparator does not capture, poll, wait, resize,
 crop, or align its inputs; it is separate from the saved-ref diff in the core
-loop above.
+loop above. Calls without output flags remain the byte-stable,
+write-free `aos.image-compare.v1` form. Add `--change-map-out <new.png>` and/or
+`--mask-out <new.png>` to receive `aos.image-compare.v2` and write same-size
+8-bit grayscale PNGs: the change map stores each pixel's maximum canonical
+RGBA channel delta, while the mask stores 255 exactly where that delta exceeds
+`--pixel-tolerance` and 0 elsewhere.
+
+Artifact output paths must be distinct after absolute standardization, end in
+`.png`, not be `-`, have an existing directory parent with no symlink
+components, and be absent of every file type. AOS never creates a parent or
+overwrites a target. Each requested file stages at mode `0600` in its destination,
+is encoded and fsynced, then publishes atomically with no-overwrite semantics.
+A handled failure removes stages and any invocation-owned output already
+published; an expectation failure retains successfully published artifacts.
+Each file is atomic, but two requested files are not claimed to be mutually
+crash-atomic.
+
+The v2 `artifacts.change_map` and `artifacts.mask` entries are a descriptor or
+`null`. Descriptors contain the absolute `path`, `width`, `height`,
+`encoding_version`, domain-separated `canonical_sample_sha256`, exact encoded
+`png_file_sha256`, and count of nonzero `selected_pixels`. Change-map samples
+use the `AOS_IMAGE_COMPARE_CHANGE_MAP_U8_V1\0` hash domain and select raw deltas
+above zero; mask samples use `AOS_IMAGE_COMPARE_MASK_U8_V1\0` and select deltas
+above tolerance. Each canonical sample hash appends unsigned 64-bit big-endian
+width and height followed by the row-major one-byte sample plane.
 
 Saved capture uses the same capture-source contract as ordinary capture: supply
 a positional target such as `browser:work` or a source flag such as

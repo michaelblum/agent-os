@@ -113,7 +113,7 @@ action:
 | Need | Use | Boundary |
 | --- | --- | --- |
 | Changed at all | `aos see refs --diff <before>..<after> --expect change|no-change --json` | Compares two existing saved snapshots; it does not capture, poll, or wait. |
-| Exact PNG pixel change | `aos see compare <before.png> <after.png> [--pixel-tolerance <0..255>] [--expect change|no-change]` | Compares two existing same-size PNG artifacts; it does not capture, crop, resize, align, poll, wait, or start runtime services. |
+| Exact PNG pixel change | `aos see compare <before.png> <after.png> [--pixel-tolerance <0..255>] [--expect change|no-change] [--change-map-out <new.png>] [--mask-out <new.png>]` | Compares two existing same-size PNG artifacts; optional outputs write exact grayscale spatial evidence but never capture, crop, resize, align, poll, wait, or start runtime services. |
 | Specific ref status | `aos see refs --diff <before>..<after> --expect-ref <ref>=added|removed|changed|unchanged|present|missing --json` | Gates compact saved refs inside one diff; repeat `--expect-ref` for multiple refs. |
 | Command JSON condition | A source-backed recipe that inspects known command JSON or runs saved-ref diff gates as explicit postcondition steps | `recipe dry-run` is static and does not observe live state; live checks must be explicit recipe steps. |
 | Human approval or decision | `aos gate ask`, `aos gate defer`, `aos gate submit`, and `aos gate records` | Produces structured human decision records; it is not a UI-state assertion surface. |
@@ -140,11 +140,14 @@ changes when any canonical RGBA channel has an absolute delta strictly greater
 than that tolerance. `--expect change|no-change` turns the same result into an
 exit gate. JSON is always emitted, so the command has no `--json` flag.
 
-Inputs must have identical decoded dimensions. AOS does not resize, crop,
-register, mask, or create a diff image. Use bounded capture regions, canvases,
-or channels before comparison, and run multiple captures/comparisons for
-multiple areas. Encoded input is capped at 128 MiB and decoded input at
-33,554,432 pixels per file.
+Inputs must have identical decoded dimensions. AOS does not resize, crop, or
+register them. `--change-map-out <new.png>` writes maximum canonical RGBA delta
+per pixel; `--mask-out <new.png>` writes 255 when that maximum exceeds tolerance
+and 0 otherwise. Each requested output is a same-size 8-bit grayscale PNG and
+uses one bounded byte plane. Use bounded capture regions, canvases, or channels
+before comparison, and run multiple captures/comparisons for multiple areas.
+Encoded input is capped at 128 MiB and decoded input at 33,554,432 pixels per
+file.
 
 ImageIO type-checks and decodes each PNG into sRGB, 8-bit premultiplied-last
 RGBA. Untagged input is treated as sRGB, orientation must be upright, alpha is
@@ -153,7 +156,19 @@ are row-major with `x=0, y=0` at the top left. The canonical pixel digest is
 SHA-256 over `AOS_RGBA8_V1\0`, unsigned 64-bit big-endian width and height, and
 the canonical RGBA bytes.
 
-Integer counts and deltas in `aos.image-compare.v1` are authoritative.
+Without output flags, the fast path performs no writes and retains the exact
+`aos.image-compare.v1` JSON contract. Artifact calls return
+`aos.image-compare.v2` with descriptor-or-null `artifacts.change_map` and
+`artifacts.mask`. A descriptor reports absolute path, geometry, encoding
+version, domain-separated canonical sample SHA-256, exact PNG-file SHA-256, and
+nonzero selected-pixel count. Outputs require new distinct standardized `.png`
+paths below existing symlink-free parents. Each mode-`0600` destination-local
+stage is encoded, fsynced, and atomically published without overwrite. Handled
+failure removes invocation-owned stages and published outputs; expectation
+failure retains artifacts. Files are individually atomic, not mutually
+crash-atomic.
+
+Integer counts and deltas in both schemas are authoritative.
 `changed_ratio` and `mean_channel_delta` are convenience values rounded to 12
 decimal places using nearest rounding with ties away from zero. Product-owned
 thresholds beyond per-channel tolerance should gate the stable JSON fields in
@@ -252,7 +267,7 @@ apps cannot safely reconstruct from the current JSON surfaces.
 | Desktop discovery | Displays, windows, cursor, selection, and active surfaces | `graph displays`, `graph windows`, `see list`, `see cursor`, `see selection` |
 | Capture and perception | Screenshots, window/region/canvas/channel capture, xray, labels, saved refs | `see capture`, `see capture --save`, `see snapshots`, `see refs` |
 | Saved workspace | Snapshot/ref storage, ref lookup, diffs, expectations, cleanup | `see workspaces`, `see workspace`, `see refs --diff --expect`, workspace prune/delete |
-| Artifact comparison | Exact canonical pixel verification over existing same-size PNG paths; no capture, wait, or alignment | `see compare <before.png> <after.png> [--pixel-tolerance <0..255>] [--expect change\|no-change]` |
+| Artifact comparison | Exact canonical pixel verification and optional grayscale spatial evidence over existing same-size PNG paths; no capture, wait, or alignment | `see compare <before.png> <after.png> [--pixel-tolerance <0..255>] [--expect change\|no-change] [--change-map-out <new.png>] [--mask-out <new.png>]` |
 | Desktop/native control | App activate/quit/hide/unhide, window raise/move/resize/close/minimize/maximize/restore, app menu invocation, explicit Apple Shortcut execution, and native AX press/focus/set-value | `do activate`, `do quit`, `do hide`, `do unhide`, `do raise`, `do move`, `do resize`, `do close`, `do minimize`, `do maximize`, `do restore`, `do menu`, `do press`, `do focus`, `do set-value`, `shortcut run` |
 | AOS-hosted status-item leases | Product-neutral native descriptor, observed anchor/events, exact compare-and-swap update, generation-scoped action admission, inspect/invoke, and disconnect cleanup | `status-item validate/register --follow/update/inspect/invoke` |
 | Pointer and keyboard | Mouse, keyboard, scrolling, dragging, text, browser ref actions | `do click`, `do hover`, `do drag`, `do scroll`, `do type`, `do key`, `do fill`, `do navigate` |
@@ -364,5 +379,7 @@ targets:
 8. Gate compact evidence with `./aos see refs --diff <before>..<after> --expect ...`
    or a Work Record verifier. When matching before/after PNG artifact paths
    already exist, use `./aos see compare <before.png> <after.png>` as the exact
-   pixel alternative; it does not capture, wait, or align inputs.
+   pixel alternative; request `--change-map-out` and/or `--mask-out` only when
+   path-backed spatial evidence is needed. It does not capture, wait, or align
+   inputs.
 9. Stop on stale identity, fallback-only refs, unsupported actions, missing permissions, off-Space/minimized native blockers, or required live proof.
