@@ -18,13 +18,18 @@ Record schema first.
 6. Recapture into the same workspace.
 7. Compare compact refs with
    `./aos see refs --diff <before>..<after> --expect change|no-change --json`.
-8. Use Work Record read/verify/status/plan-repair when durable evidence or
+8. When exact raster evidence matters, compare two already-captured same-size
+   PNG artifacts with
+   `./aos see compare <before.png> <after.png> [--pixel-tolerance <0..255>] [--expect change|no-change]`.
+9. Use Work Record read/verify/status/plan-repair when durable evidence or
    recovery guidance is required.
 
 ## Evidence Choices
 
 - Use ref diffs for compact UI state checks.
-- Use visible artifacts when the proof is visual and refs are insufficient.
+- Use `see compare` for exact RGBA change checks when visible PNG artifacts are
+  the evidence and refs are insufficient. It compares existing files only; it
+  does not capture, crop, resize, poll, wait, or produce a diff image.
 - Use `./aos daemon-snapshot`, `./aos service logs --tail N`, command JSON,
   and structured errors for diagnostic readback; those are not durable UI-state
   assertions by themselves.
@@ -40,7 +45,8 @@ Record schema first.
 There is no current public `aos trace`, `aos verify`, `aos assert`, or
 Playwright-style video command. Build the proof trail from current commands:
 readiness/status, saved before/action/after captures, action envelopes,
-refs diff/expect gates, diagnostic readbacks, gate records, and Work Records.
+refs diff/expect gates, PNG comparison JSON, diagnostic readbacks, gate records,
+and Work Records.
 
 ## Stop
 

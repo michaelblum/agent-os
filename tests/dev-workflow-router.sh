@@ -533,6 +533,46 @@ else
     fail "dev recommend experience production contract routing drifted"
 fi
 
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files shared/swift/ipc/runtime-paths.swift src/perceive/image-file-compare.swift manifests/commands/source/aos/03-see-05-compare.json docs/api/aos.md docs/api/aos-capabilities.md tests/see-image-compare.sh 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+assert data["status"] == "success", data
+assert data["proof_worth"]["status"] == "passed", data
+assert "image-file-compare" in summary["rule_ids"], data
+assert "command-surface-manifests" in summary["rule_ids"], data
+assert "unclassified" not in summary["rule_ids"], data
+assert summary["requires_swift_build"] is True, data
+assert summary["tcc_identity_sensitive"] is True, data
+commands = [item["command"] for item in data["next_commands"]]
+assert commands.count("bash tests/see-image-compare.sh") == 1, data
+PY
+then
+    pass "dev recommend routes image comparator changes to hermetic focused proof"
+else
+    fail "dev recommend image comparator routing drifted"
+fi
+
+for IMAGE_COMPARE_ROUTE_OWNER in shared/swift/ipc/runtime-paths.swift src/main.swift manifests/commands/source/external/11-see.json docs/api/aos.md docs/api/aos-capabilities.md; do
+    if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files "$IMAGE_COMPARE_ROUTE_OWNER" 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert "image-file-compare" in data["summary"]["rule_ids"], data
+commands = [item["command"] for item in data["next_commands"]]
+assert commands.count("bash tests/see-image-compare.sh") == 1, data
+PY
+    then
+        pass "dev recommend routes $IMAGE_COMPARE_ROUTE_OWNER to the image comparator proof"
+    else
+        fail "dev recommend image comparator route-owner routing drifted for $IMAGE_COMPARE_ROUTE_OWNER"
+    fi
+done
+
 if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files manifests/commands/source/aos/03-see-01-capture.json scripts/generate-command-manifests.mjs tests/command-manifest-generation.sh 2>/dev/null)" python3 - <<'PY'
 import json
 import os

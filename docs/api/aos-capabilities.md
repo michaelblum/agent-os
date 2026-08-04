@@ -65,7 +65,7 @@ Command-to-state map:
 | Runtime state | `ready`, `status`, `doctor`, `permissions`, `service`, `service logs`, `runtime`, `daemon-snapshot`, `experience status` | Mode-scoped readiness, config, daemon/service, log readback, diagnostics, and experience readback |
 | Work Record | `work-record list/read/verify/status/plan-repair`, `work-record repair ...`, `work-record export` | Durable evidence and bounded recovery workflows; no autonomous replay |
 | Content root | `content status`, `content wait`, `experience status`, wiki/content-backed surfaces | Readable declared content root; not a workspace or Work Record root |
-| Evidence state | `see refs --diff --expect`, `see annotation ...`, `gate records`, `work-record ...`, logs, command JSON | Proof trail for later inspection; not current UI state |
+| Evidence state | `see refs --diff --expect`, `see compare`, `see annotation ...`, `gate records`, `work-record ...`, logs, command JSON | Proof trail for later inspection; not current UI state |
 
 Saved-workspace verification is evidence-state plumbing, not a generic
 assertion engine. Keep lightweight checks tied to saved refs, recipe command
@@ -113,6 +113,7 @@ action:
 | Need | Use | Boundary |
 | --- | --- | --- |
 | Changed at all | `aos see refs --diff <before>..<after> --expect change|no-change --json` | Compares two existing saved snapshots; it does not capture, poll, or wait. |
+| Exact PNG pixel change | `aos see compare <before.png> <after.png> [--pixel-tolerance <0..255>] [--expect change|no-change]` | Compares two existing same-size PNG artifacts; it does not capture, crop, resize, align, poll, wait, or start runtime services. |
 | Specific ref status | `aos see refs --diff <before>..<after> --expect-ref <ref>=added|removed|changed|unchanged|present|missing --json` | Gates compact saved refs inside one diff; repeat `--expect-ref` for multiple refs. |
 | Command JSON condition | A source-backed recipe that inspects known command JSON or runs saved-ref diff gates as explicit postcondition steps | `recipe dry-run` is static and does not observe live state; live checks must be explicit recipe steps. |
 | Human approval or decision | `aos gate ask`, `aos gate defer`, `aos gate submit`, and `aos gate records` | Produces structured human decision records; it is not a UI-state assertion surface. |
@@ -130,6 +131,34 @@ predicate, or content root is available before the next command. They should
 stay bounded, return structured timeout JSON, and report the pending condition
 they were waiting on. Use saved refs, explicit command JSON postconditions, or
 Work Record verification for behavior assertions after an action.
+
+### PNG pixel comparison
+
+`aos see compare` is a stateless file comparator for one non-animated PNG per
+path. It accepts an optional per-channel tolerance from 0 through 255; a pixel
+changes when any canonical RGBA channel has an absolute delta strictly greater
+than that tolerance. `--expect change|no-change` turns the same result into an
+exit gate. JSON is always emitted, so the command has no `--json` flag.
+
+Inputs must have identical decoded dimensions. AOS does not resize, crop,
+register, mask, or create a diff image. Use bounded capture regions, canvases,
+or channels before comparison, and run multiple captures/comparisons for
+multiple areas. Encoded input is capped at 128 MiB and decoded input at
+33,554,432 pixels per file.
+
+ImageIO type-checks and decodes each PNG into sRGB, 8-bit premultiplied-last
+RGBA. Untagged input is treated as sRGB, orientation must be upright, alpha is
+compared, and premultiplication removes invisible RGB differences. Pixel bytes
+are row-major with `x=0, y=0` at the top left. The canonical pixel digest is
+SHA-256 over `AOS_RGBA8_V1\0`, unsigned 64-bit big-endian width and height, and
+the canonical RGBA bytes.
+
+Integer counts and deltas in `aos.image-compare.v1` are authoritative.
+`changed_ratio` and `mean_channel_delta` are convenience values rounded to 12
+decimal places using nearest rounding with ties away from zero. Product-owned
+thresholds beyond per-channel tolerance should gate the stable JSON fields in
+the owning test, config, or recipe instead of adding inference policy to this
+primitive.
 
 ## Diagnostics And Evidence Trace
 
@@ -223,6 +252,7 @@ apps cannot safely reconstruct from the current JSON surfaces.
 | Desktop discovery | Displays, windows, cursor, selection, and active surfaces | `graph displays`, `graph windows`, `see list`, `see cursor`, `see selection` |
 | Capture and perception | Screenshots, window/region/canvas/channel capture, xray, labels, saved refs | `see capture`, `see capture --save`, `see snapshots`, `see refs` |
 | Saved workspace | Snapshot/ref storage, ref lookup, diffs, expectations, cleanup | `see workspaces`, `see workspace`, `see refs --diff --expect`, workspace prune/delete |
+| Artifact comparison | Exact canonical pixel verification over existing same-size PNG paths; no capture, wait, or alignment | `see compare <before.png> <after.png> [--pixel-tolerance <0..255>] [--expect change\|no-change]` |
 | Desktop/native control | App activate/quit/hide/unhide, window raise/move/resize/close/minimize/maximize/restore, app menu invocation, explicit Apple Shortcut execution, and native AX press/focus/set-value | `do activate`, `do quit`, `do hide`, `do unhide`, `do raise`, `do move`, `do resize`, `do close`, `do minimize`, `do maximize`, `do restore`, `do menu`, `do press`, `do focus`, `do set-value`, `shortcut run` |
 | AOS-hosted status-item leases | Product-neutral native descriptor, observed anchor/events, exact compare-and-swap update, generation-scoped action admission, inspect/invoke, and disconnect cleanup | `status-item validate/register --follow/update/inspect/invoke` |
 | Pointer and keyboard | Mouse, keyboard, scrolling, dragging, text, browser ref actions | `do click`, `do hover`, `do drag`, `do scroll`, `do type`, `do key`, `do fill`, `do navigate` |
@@ -331,5 +361,8 @@ targets:
 5. Dry-run before any supported mutating action, including window raise/move/resize.
 6. Act once only when the dry-run validates the current target.
 7. Recapture.
-8. Gate compact evidence with `./aos see refs --diff <before>..<after> --expect ...` or a Work Record verifier.
+8. Gate compact evidence with `./aos see refs --diff <before>..<after> --expect ...`
+   or a Work Record verifier. When matching before/after PNG artifact paths
+   already exist, use `./aos see compare <before.png> <after.png>` as the exact
+   pixel alternative; it does not capture, wait, or align inputs.
 9. Stop on stale identity, fallback-only refs, unsupported actions, missing permissions, off-Space/minimized native blockers, or required live proof.

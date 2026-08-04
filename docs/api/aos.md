@@ -115,7 +115,7 @@ The current top-level commands are:
 | `aos skills` | installable AOS root skills: list, check installed state, install, and dry-run install plans |
 | `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
 | `aos work-record` | Work Record discovery, report-only verification, recovery guidance, repair/attempt planning, controlled fixture repair execution, non-executing replacement proposals, explicit-root replacement writing, repair finalization, and external source supersession lookup/indexing |
-| `aos see` | Perception: cursor state, captures, observation streams, zones |
+| `aos see` | Perception and artifact verification: cursor state, captures, observation streams, zones, and exact comparison of existing PNG files |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
 | `aos show` | Projection: canvas create/update/remove/list/eval/render |
 | `aos scene` | Connection-scoped declarative DesktopWorld scene and gesture stream |
@@ -376,12 +376,19 @@ Typical consumer loop:
    `--expect change|no-change` when a recipe or shell needs a non-zero exit on
    mismatch, or repeat
    `--expect-ref <ref>=added|removed|changed|unchanged|present|missing` for
-   ref postconditions.
+   ref postconditions. This compares compact saved-ref structure, not artifact
+   pixels.
 5. Dry-run the saved-ref action and inspect `resolution_status`.
 6. Dispatch only if the ref validates or reacquires.
 7. Use structured `recommended_next` descriptors and
    `recommended_next_command` when a fresh saved capture is needed before
    reusing refs from the surface.
+
+When exact before/after PNG artifact paths already exist and have the same
+decoded dimensions, use `aos see compare <before.png> <after.png>` for canonical
+pixel comparison. This file comparator does not capture, poll, wait, resize,
+crop, or align its inputs; it is separate from the saved-ref diff in the core
+loop above.
 
 Saved capture uses the same capture-source contract as ordinary capture: supply
 a positional target such as `browser:work` or a source flag such as
@@ -472,8 +479,12 @@ Current wait/assertion boundary: saved workspaces do not expose
 or `aos see assert`. Use structured `recommended_next` descriptors and
 `recommended_next_command` plus a fresh saved capture for re-perception. Use
 `aos see refs --diff <from>..<to>` only for compact saved-ref comparison between
-two existing snapshots. `--expect change|no-change` makes that compact diff a
-machine-checkable gate with `REF_DIFF_EXPECTATION_FAILED` on mismatch;
+two existing snapshots. For exact pixel comparison when existing same-size PNG
+paths are already available, use
+`aos see compare <before.png> <after.png>`. The file comparator does not capture,
+poll, wait, resize, crop, or align its inputs, and it is not a saved-workspace
+diff. `--expect change|no-change` makes either comparison a machine-checkable
+gate with the command's structured expectation failure on mismatch;
 `--expect-ref <ref>=added|removed|changed|unchanged|present|missing` gates one
 saved ref inside the same compact diff and can be repeated. A single ref gate
 reports `diff.ref_expectation`; multiple ref gates report
@@ -1086,6 +1097,7 @@ Primary public verbs:
 | --- | --- |
 | `cursor` | inspect what is under the cursor |
 | `capture` | capture a target display/window/region |
+| `compare` | compare canonical pixels from two existing same-size PNG files |
 | `observe` | stream perception events from the daemon |
 | `list` | enumerate capture/display targets |
 | `selection` | interactive region selection |

@@ -96,6 +96,8 @@ test('installable browser and saved-workspace skills preserve split contracts', 
   assert.match(verification, /act-recapture-verify/);
   assert.doesNotMatch(verification, /act-recapture-assert/);
   assert.match(verification, /see refs --diff/);
+  assert.match(verification, /see compare/);
+  assert.match(verification, /does not capture, crop, resize, poll, wait, or produce a diff image/);
 
   const annotations = await readFile(path.join(repoRoot, 'skills', 'aos-operator-annotations', 'SKILL.md'), 'utf8');
   assert.match(annotations, /aos status-item/);

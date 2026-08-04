@@ -948,7 +948,7 @@
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
-        "excluded_values": ["capture", "observe", "cursor", "list", "selection", "snapshots", "refs", "workspaces", "workspace", "snapshot", "annotation", "zone"]
+        "excluded_values": ["capture", "compare", "observe", "cursor", "list", "selection", "snapshots", "refs", "workspaces", "workspace", "snapshot", "annotation", "zone"]
       },
       "env": {
         "AOS_PATH": "$AOS_PATH",
@@ -967,6 +967,12 @@
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
+    },
+    {
+      "path": ["see", "compare"],
+      "summary": "Compare two existing PNG files through the stateless native image comparator.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["$AOS_PATH", "__see", "compare"]
     },
     {
       "path": ["see", "snapshots"],

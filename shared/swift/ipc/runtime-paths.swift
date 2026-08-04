@@ -1,6 +1,7 @@
 // runtime-paths.swift — runtime mode, identity, and state path helpers.
 
 import Foundation
+import MachO
 
 enum AOSRuntimeMode: String, CaseIterable, Codable {
     case repo
@@ -72,8 +73,71 @@ func aosInstallAppPath() -> String {
     ProcessInfo.processInfo.environment["AOS_INSTALL_PATH"] ?? "\(aosHomeDir())/Applications/AOS.app"
 }
 
+private func aosNormalizeExecutablePath(_ path: String, relativeTo currentDirectory: String) -> String {
+    let absolute = path.hasPrefix("/")
+        ? path
+        : (currentDirectory as NSString).appendingPathComponent(path)
+    return URL(fileURLWithPath: absolute)
+        .standardizedFileURL
+        .resolvingSymlinksInPath()
+        .standardizedFileURL
+        .path
+}
+
+func aosResolveExecutablePathFallback(
+    argvPath: String,
+    callerCurrentDirectory: String,
+    pathEnvironment: String?
+) -> String {
+    if argvPath.hasPrefix("/") || argvPath.contains("/") {
+        return aosNormalizeExecutablePath(argvPath, relativeTo: callerCurrentDirectory)
+    }
+
+    if let pathEnvironment {
+        for rawEntry in pathEnvironment.split(separator: ":", omittingEmptySubsequences: false) {
+            let entry = rawEntry.isEmpty ? callerCurrentDirectory : String(rawEntry)
+            let candidate = (entry as NSString).appendingPathComponent(argvPath)
+            let normalizedCandidate = aosNormalizeExecutablePath(
+                candidate,
+                relativeTo: callerCurrentDirectory
+            )
+            let candidateURL = URL(fileURLWithPath: normalizedCandidate)
+            guard let candidateValues = try? candidateURL.resourceValues(
+                forKeys: [.isRegularFileKey, .isExecutableKey]
+            ), candidateValues.isRegularFile == true,
+                candidateValues.isExecutable == true else {
+                continue
+            }
+            return normalizedCandidate
+        }
+    }
+
+    return aosNormalizeExecutablePath(argvPath, relativeTo: callerCurrentDirectory)
+}
+
 func aosExecutablePath() -> String {
-    NSString(string: CommandLine.arguments[0]).standardizingPath
+    let currentDirectory = FileManager.default.currentDirectoryPath
+    var bufferSize: UInt32 = 0
+    _ = _NSGetExecutablePath(nil, &bufferSize)
+    if bufferSize > 0 {
+        var buffer = [CChar](repeating: 0, count: Int(bufferSize))
+        let status = buffer.withUnsafeMutableBufferPointer {
+            _NSGetExecutablePath($0.baseAddress, &bufferSize)
+        }
+        if status == 0 {
+            let executablePath = String(cString: buffer)
+            if !executablePath.isEmpty {
+                return aosNormalizeExecutablePath(executablePath, relativeTo: currentDirectory)
+            }
+        }
+    }
+
+    let argvPath = CommandLine.arguments.first ?? "aos"
+    return aosResolveExecutablePathFallback(
+        argvPath: argvPath,
+        callerCurrentDirectory: currentDirectory,
+        pathEnvironment: ProcessInfo.processInfo.environment["PATH"]
+    )
 }
 
 func aosCurrentRuntimeMode(executablePath: String = aosExecutablePath()) -> AOSRuntimeMode {

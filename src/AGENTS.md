@@ -54,6 +54,13 @@ needs, but public command policy and product UI policy belong above it:
 - permission status and request primitives belong to the process that owns the
   privileged capability; daemon-owned microphone capture therefore uses
   daemon-owned authorization rather than foreground CLI authorization;
+- `src/perceive/image-file-compare.swift` owns the stateless, daemon-free PNG
+  file comparator behind private `__see compare`. It opens each input
+  nonblocking, validates the opened descriptor is a regular file, decodes one
+  upright, non-animated PNG per input into bounded canonical sRGB premultiplied
+  RGBA, compares identical decoded geometry, and emits stable JSON without
+  capture, interactive preflight, permissions, polling, or native runtime
+  lifecycle;
 - daemon socket admission begins only after AppKit finishes launch and services
   one queued main-loop action, so clients cannot invoke native hosts against a
   merely initialized but not yet running application connection;

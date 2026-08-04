@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "id": "see-05-compare",
+  "path_prefix": [
+    "see"
+  ],
+  "commands": [
+    {
+      "path": [
+        "see",
+        "compare"
+      ],
+      "summary": "Compare two existing PNG files as canonical RGBA pixels",
+      "forms": [
+        {
+          "id": "see-compare",
+          "summary": "Compare two same-size non-animated PNG files without capture, polling, or runtime services",
+          "usage": "aos see compare <before.png> <after.png> [--pixel-tolerance <0..255>] [--expect change|no-change]",
+          "args": [
+            {
+              "id": "before",
+              "kind": "positional",
+              "required": true,
+              "summary": "Existing before-state PNG file",
+              "value_type": "path"
+            },
+            {
+              "id": "after",
+              "kind": "positional",
+              "required": true,
+              "summary": "Existing after-state PNG file with identical decoded dimensions",
+              "value_type": "path"
+            },
+            {
+              "id": "pixel-tolerance",
+              "kind": "flag",
+              "required": false,
+              "summary": "Inclusive per-channel tolerance from 0 through 255; a channel changes only above this value",
+              "token": "--pixel-tolerance",
+              "value_type": "integer"
+            },
+            {
+              "id": "expect",
+              "kind": "flag",
+              "required": false,
+              "summary": "Require the tolerance-adjusted comparison to report change or no-change",
+              "token": "--expect",
+              "value_type": {
+                "enum": [
+                  {
+                    "value": "change",
+                    "summary": "At least one decoded pixel changes above tolerance"
+                  },
+                  {
+                    "value": "no-change",
+                    "summary": "No decoded pixel changes above tolerance"
+                  }
+                ]
+              }
+            }
+          ],
+          "examples": [
+            "aos see compare before.png after.png",
+            "aos see compare before.png after.png --pixel-tolerance 4 --expect change"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          }
+        }
+      ]
+    }
+  ]
+}

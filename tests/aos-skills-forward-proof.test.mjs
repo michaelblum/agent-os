@@ -95,6 +95,14 @@ test('cold-agent forward proof preserves the AOS browser and Playwright CLI boun
   assert.match(browser.captured_output.decision, /upstream Playwright CLI skills/);
 });
 
+test('cold-agent forward proof exposes exact PNG comparison through the verification skill', async () => {
+  const proof = await fixture();
+  const verification = proof.scenarios.find((scenario) => scenario.id === 'verification-assertion-loop');
+  assert.ok(verification);
+  assert.ok(verification.selected_commands.some((command) => command.includes('see compare <before.png> <after.png>')));
+  assert.match(verification.captured_output.decision, /existing same-size PNG artifacts/);
+});
+
 test('cold-agent forward proof records prompts, decisions, and stop conditions', async () => {
   const proof = await fixture();
   for (const scenario of [proof.preflight, ...proof.scenarios]) {
