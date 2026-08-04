@@ -1,13 +1,18 @@
 # Spatial Topology Schema
 
 **File:** `spatial-topology.schema.json`
-**Version:** 0.2.0
+**Version:** 0.3.0
 **Producer:** `aos see list`
 **Consumers:** `aos do`, orchestrators
 
 ## What This Is
 
 A snapshot of the macOS display and window layout. The orchestrator's world map.
+
+Version 0.3.0 requires `display_topology`, the closed
+`aos.display-topology.v1` mapping observation used to build the rest of the
+snapshot. See `display-topology-v1.md` for its content identity, ordering,
+fallback, and one-observation rules.
 
 ```
 Display → Windows (visible, front-to-back z-order)
@@ -50,6 +55,10 @@ DesktopWorld-anchored fields on every display, plus top-level
 `desktop_world_bounds` / `visible_desktop_world_bounds` aggregates and
 DesktopWorld cursor siblings (`desktop_world_x`, `desktop_world_y`). Cross-
 surface consumers should read the DesktopWorld fields directly.
+
+The dynamic window/app/cursor envelope and its timestamp do not participate in
+`display_topology.identity`. `aos see list` freezes the display observation once
+and derives the spatial topology from it; it does not re-enumerate displays.
 
 Window frames, input events, and other surfaces that still emit only native-
 compat values must be re-anchored into DesktopWorld before cross-surface use.
@@ -117,6 +126,12 @@ in one native boundary layer and one shared JS runtime.
 **Layer filtering is the consumer's job.** All windows visible on screen are included regardless of layer. Layer 0 = normal application windows. Layer > 0 = system overlays, floating panels, PiP windows. Most agents should start by filtering to layer 0 and expand as needed. The full set is provided so agents can reason about floating UI when necessary.
 
 **Session-scoped IDs are exposed but not for persistence.** `window_id` (CGWindowID) and `display_id` (CGDirectDisplayID) are valid for the current login session. Use `display_uuid` and `bundle_id` for cross-session references.
+
+**DesktopWorld lifecycle generations are not display identities.**
+`topologyGeneration` / `topology_generation` is independently canvas/lifecycle
+scoped, non-content-addressed, non-persistent, non-comparable across
+lifecycles/processes, and not atomically correlated with
+`display_topology.identity`.
 
 ## How `aos do` Uses This
 

@@ -695,6 +695,7 @@ import os
 capture = json.loads(os.environ["CAPTURE"])
 capture_form = next(item for item in capture["forms"] if item["id"] == "see-capture")
 capture_save_form = next(item for item in capture["forms"] if item["id"] == "see-capture-save")
+see_list_form = next(item for item in capture["forms"] if item["id"] == "see-list")
 capture_tokens = {arg.get("token") for arg in capture_form["args"]}
 capture_save_tokens = {arg.get("token") for arg in capture_save_form["args"]}
 capture_conflicts = [set(item) for item in capture_form.get("constraints", {}).get("conflicts", [])]
@@ -707,6 +708,9 @@ mode_arg = next(arg for arg in capture_save_form["args"] if arg.get("token") == 
 mode_values = {item["value"] for item in mode_arg["value_type"]["enum"]}
 save_arg = next(arg for arg in capture_form["args"] if arg.get("token") == "--save")
 capture_save_arg = next(arg for arg in capture_save_form["args"] if arg.get("token") == "--save")
+region_arg = next(arg for arg in capture_form["args"] if arg.get("token") == "--region")
+perception_arg = next(arg for arg in capture_form["args"] if arg.get("token") == "--perception")
+saved_region_arg = next(arg for arg in capture_save_form["args"] if arg.get("token") == "--region")
 assert {"--save", "--workspace", "--name", "--mode", "--query"} <= capture_tokens, capture_tokens
 assert {"--region", "--canvas", "--channel", "--save", "--workspace", "--name", "--mode", "--query"} <= capture_save_tokens, capture_save_tokens
 assert {"save", "out"} in capture_conflicts, capture_conflicts
@@ -724,6 +728,10 @@ assert format_arg["default_value"] == "png", format_arg
 assert mode_values == {"ax", "vision", "som"}, mode_values
 assert "stable native AX press/focus/set-value" in save_arg["summary"], save_arg
 assert "documented saved-ref action matrix" in capture_save_arg["summary"], capture_save_arg
+assert "frozen display_topology" in region_arg["summary"], region_arg
+assert "exact direct display_topology" in perception_arg["summary"], perception_arg
+assert "display_topology" in saved_region_arg["summary"], saved_region_arg
+assert "spatial-topology 0.3.0" in see_list_form["summary"], see_list_form
 assert capture_form["examples"][0].startswith("aos see capture") and "--save" in capture_form["examples"][0], capture_form["examples"]
 assert any("--canvas" in item and "--save" in item for item in capture_save_form["examples"]), capture_save_form["examples"]
 assert any("aos see refs" in item for item in capture_save_form["examples"]), capture_save_form["examples"]

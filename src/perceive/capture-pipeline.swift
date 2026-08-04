@@ -228,47 +228,115 @@ struct CoordinateMapper {
 
 // MARK: - Display Enumeration (capture pipeline)
 
-func getCaptureDisplays() -> [CaptureDisplayEntry] {
-    let maxD: UInt32 = 16
+func observeDisplayTopologySnapshot() -> AOSDisplayTopologySnapshot {
+    // One bounded read owns this observation. Every downstream display lookup,
+    // region segment, stitch, response, and optional perception consumes the
+    // immutable value returned here.
+    let maxD: UInt32 = 64
     var ids = [CGDirectDisplayID](repeating: 0, count: Int(maxD))
     var count: UInt32 = 0
-    CGGetActiveDisplayList(maxD, &ids, &count)
+    let displayListResult = CGGetActiveDisplayList(maxD, &ids, &count)
+    guard displayListResult == .success, count <= maxD else {
+        exitError("Failed to observe active displays", code: "DISPLAY_TOPOLOGY_INVALID")
+    }
 
     let mainID = CGMainDisplayID()
-    let mainBounds = CGDisplayBounds(mainID)
-    let mainCX = mainBounds.origin.x + mainBounds.width / 2
-
-    var scaleMap: [CGDirectDisplayID: Double] = [:]
-    for screen in NSScreen.screens {
+    let screens = NSScreen.screens
+    let screensHaveSeparateSpaces = NSScreen.screensHaveSeparateSpaces
+    var screenMap: [CGDirectDisplayID: NSScreen] = [:]
+    for screen in screens {
         if let n = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID {
-            scaleMap[n] = screen.backingScaleFactor
+            screenMap[n] = screen
         }
     }
 
-    let sorted = ids.prefix(Int(count)).sorted { a, b in
-        if a == mainID { return true }
-        if b == mainID { return false }
-        return CGDisplayBounds(a).origin.x < CGDisplayBounds(b).origin.x
-    }
-
-    return sorted.enumerated().map { i, did in
-        let b = CGDisplayBounds(did)
-        let isMain = did == mainID
-        let mirror = CGDisplayMirrorsDisplay(did)
-        let isMirror = mirror != kCGNullDirectDisplay
-        let type = isMirror ? "Mirror for Built-in Display" : (isMain ? "Main display" : "Extended")
-        let cx = b.origin.x + b.width / 2
-        let arr = isMain ? "main" : (cx < mainCX ? "left" : (cx > mainCX ? "right" : "center"))
-
-        return CaptureDisplayEntry(
-            ordinal: i + 1, cgID: did, bounds: b,
-            scaleFactor: scaleMap[did] ?? 1.0,
-            rotation: Double(CGDisplayRotation(did)),
-            isMain: isMain, isMirrored: isMirror,
-            type: type, arrangement: arr,
-            resolution: "\(Int(b.width))x\(Int(b.height))"
+    let observation = ids.prefix(Int(count)).map { displayID -> AOSDisplayTopologyObservationMember in
+        let nativeFrame = CGDisplayBounds(displayID)
+        let screen = screenMap[displayID]
+        let visibleFrame: CGRect = {
+            guard let screen else { return nativeFrame }
+            let frame = screen.frame
+            let visible = screen.visibleFrame
+            let localX = visible.origin.x - frame.origin.x
+            let localY = frame.height - (visible.origin.y - frame.origin.y) - visible.height
+            return CGRect(
+                x: nativeFrame.origin.x + localX,
+                y: nativeFrame.origin.y + localY,
+                width: visible.width,
+                height: visible.height
+            )
+        }()
+        let displayUUID: String? = {
+            guard let unmanaged = CGDisplayCreateUUIDFromDisplayID(displayID) else { return nil }
+            return CFUUIDCreateString(nil, unmanaged.takeRetainedValue()) as String
+        }()
+        return AOSDisplayTopologyObservationMember(
+            runtimeDisplayID: displayID,
+            displayUUID: displayUUID,
+            label: screen?.localizedName ?? "Display",
+            isMain: displayID == mainID,
+            isMirrored: CGDisplayMirrorsDisplay(displayID) != kCGNullDirectDisplay,
+            nativeBounds: AOSDisplayTopologyBounds(
+                x: nativeFrame.origin.x,
+                y: nativeFrame.origin.y,
+                width: nativeFrame.width,
+                height: nativeFrame.height
+            ),
+            nativeVisibleBounds: AOSDisplayTopologyBounds(
+                x: visibleFrame.origin.x,
+                y: visibleFrame.origin.y,
+                width: visibleFrame.width,
+                height: visibleFrame.height
+            ),
+            scaleFactor: Double(screen?.backingScaleFactor ?? 1),
+            rotation: Double(CGDisplayRotation(displayID))
         )
     }
+
+    do {
+        return try buildAOSDisplayTopologySnapshot(
+            observation: observation,
+            screensHaveSeparateSpaces: screensHaveSeparateSpaces
+        )
+    } catch {
+        exitError("Invalid display topology observation: \(error)", code: "DISPLAY_TOPOLOGY_INVALID")
+    }
+}
+
+func getCaptureDisplays(from snapshot: AOSDisplayTopologySnapshot) -> [CaptureDisplayEntry] {
+    let main = snapshot.displays.first(where: \.isMain)!
+    let mainCenterX = main.nativeBounds.x + main.nativeBounds.width / 2
+    return snapshot.displays.map { display in
+        let centerX = display.nativeBounds.x + display.nativeBounds.width / 2
+        let type = display.runtimeIsMirrored
+            ? "Mirror for Built-in Display"
+            : (display.isMain ? "Main display" : "Extended")
+        let arrangement = display.isMain
+            ? "main"
+            : (centerX < mainCenterX ? "left" : (centerX > mainCenterX ? "right" : "center"))
+
+        return CaptureDisplayEntry(
+            ordinal: display.ordinal,
+            cgID: display.runtimeDisplayID,
+            bounds: CGRect(
+                x: display.nativeBounds.x,
+                y: display.nativeBounds.y,
+                width: display.nativeBounds.width,
+                height: display.nativeBounds.height
+            ),
+            scaleFactor: display.scaleFactor,
+            rotation: display.rotation,
+            isMain: display.isMain,
+            isMirrored: display.runtimeIsMirrored,
+            type: type,
+            arrangement: arrangement,
+            resolution: "\(Int(display.nativeBounds.width))x\(Int(display.nativeBounds.height))"
+        )
+    }
+}
+
+func getCaptureDisplays() -> [CaptureDisplayEntry] {
+    getCaptureDisplays(from: observeDisplayTopologySnapshot())
 }
 
 func displayForWindow(_ window: SCWindow, displays: [CaptureDisplayEntry]) -> CaptureDisplayEntry {
@@ -1439,8 +1507,8 @@ func showInteractiveSelection(on display: CaptureDisplayEntry, timeout: Double =
 // MARK: - Command: list (spatial topology)
 
 @available(macOS 14.0, *)
-func buildSpatialTopology() -> SpatialTopology {
-    let displays = getCaptureDisplays()
+func buildSpatialTopology(displayTopology: AOSDisplayTopologySnapshot) -> SpatialTopology {
+    let displays = getCaptureDisplays(from: displayTopology)
 
     // Build window list using CGWindowList directly.
 
@@ -1464,18 +1532,7 @@ func buildSpatialTopology() -> SpatialTopology {
         STFocusedApp(pid: Int($0.processIdentifier), name: $0.localizedName ?? "Unknown", bundle_id: $0.bundleIdentifier)
     }
 
-    // DesktopWorld origin — top-left of the arranged full-display native union.
-    let unionOrigin: CGPoint = {
-        guard let first = displays.first else { return .zero }
-        let rect = displays.dropFirst().reduce(first.bounds) { $0.union($1.bounds) }
-        return rect.origin
-    }()
-    func reanchor(_ b: STBounds) -> STBounds {
-        STBounds(x: b.x - Double(unionOrigin.x),
-                 y: b.y - Double(unionOrigin.y),
-                 width: b.width,
-                 height: b.height)
-    }
+    let unionOrigin = displayTopology.desktopWorldOriginNative
 
     // Cursor
     let cursorPt = mouseInCGCoords()
@@ -1487,14 +1544,6 @@ func buildSpatialTopology() -> SpatialTopology {
         desktop_world_y: cursorPt.y - Double(unionOrigin.y),
         display: cursorDisplay.ordinal
     )
-
-    // NSScreen map
-    var screenMap: [CGDirectDisplayID: NSScreen] = [:]
-    for screen in NSScreen.screens {
-        if let n = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID {
-            screenMap[n] = screen
-        }
-    }
 
     // Windows — assign to displays
     var windowsByDisplay: [CGDirectDisplayID: [STWindow]] = [:]
@@ -1542,53 +1591,27 @@ func buildSpatialTopology() -> SpatialTopology {
     }
 
     // Build STDisplay array
-    let stDisplays: [STDisplay] = displays.map { d in
-        let uuid: String? = {
-            guard let unmanaged = CGDisplayCreateUUIDFromDisplayID(d.cgID) else { return nil }
-            let cfUUID = unmanaged.takeRetainedValue()
-            return CFUUIDCreateString(nil, cfUUID) as String
-        }()
-
-        let label: String = screenMap[d.cgID]?.localizedName ?? "Display \(d.ordinal)"
-
-        let visibleBounds: STBounds = {
-            guard let screen = screenMap[d.cgID] else {
-                return STBounds(x: d.bounds.origin.x, y: d.bounds.origin.y,
-                                width: d.bounds.width, height: d.bounds.height)
-            }
-            let sf = screen.frame
-            let vf = screen.visibleFrame
-            let localX = vf.origin.x - sf.origin.x
-            let localY = sf.height - (vf.origin.y - sf.origin.y) - vf.height
-            return STBounds(
-                x: d.bounds.origin.x + localX,
-                y: d.bounds.origin.y + localY,
-                width: vf.width,
-                height: vf.height
-            )
-        }()
-
-        let nativeBounds = STBounds(
-            x: d.bounds.origin.x,
-            y: d.bounds.origin.y,
-            width: d.bounds.width,
-            height: d.bounds.height
-        )
+    let stDisplays: [STDisplay] = displayTopology.displays.map { display in
+        func stBounds(_ bounds: AOSDisplayTopologyBounds) -> STBounds {
+            STBounds(x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height)
+        }
+        let nativeBounds = stBounds(display.nativeBounds)
+        let visibleBounds = stBounds(display.nativeVisibleBounds)
         return STDisplay(
-            display_id: Int(d.cgID),
-            display_uuid: uuid,
-            ordinal: d.ordinal,
-            label: label,
-            is_main: d.isMain,
+            display_id: Int(display.runtimeDisplayID),
+            display_uuid: display.runtimeDisplayUUID,
+            ordinal: display.ordinal,
+            label: display.runtimeLabel == "Display" ? "Display \(display.ordinal)" : display.runtimeLabel,
+            is_main: display.isMain,
             bounds: nativeBounds,
             visible_bounds: visibleBounds,
             native_bounds: nativeBounds,
             native_visible_bounds: visibleBounds,
-            desktop_world_bounds: reanchor(nativeBounds),
-            visible_desktop_world_bounds: reanchor(visibleBounds),
-            scale_factor: d.scaleFactor,
-            rotation: d.rotation,
-            windows: windowsByDisplay[d.cgID] ?? []
+            desktop_world_bounds: stBounds(display.desktopWorldBounds),
+            visible_desktop_world_bounds: stBounds(display.visibleDesktopWorldBounds),
+            scale_factor: display.scaleFactor,
+            rotation: display.rotation,
+            windows: windowsByDisplay[display.runtimeDisplayID] ?? []
         )
     }
 
@@ -1610,32 +1633,25 @@ func buildSpatialTopology() -> SpatialTopology {
     let iso8601 = ISO8601DateFormatter()
     iso8601.formatOptions = [.withInternetDateTime]
 
-    func unionRect(_ rects: [STBounds]) -> STBounds {
-        guard let first = rects.first else { return STBounds(x: 0, y: 0, width: 0, height: 0) }
-        var minX = first.x
-        var minY = first.y
-        var maxX = first.x + first.width
-        var maxY = first.y + first.height
-        for r in rects.dropFirst() {
-            minX = min(minX, r.x)
-            minY = min(minY, r.y)
-            maxX = max(maxX, r.x + r.width)
-            maxY = max(maxY, r.y + r.height)
-        }
-        return STBounds(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
-    }
-    let desktopWorldUnion: STBounds = stDisplays.isEmpty
-        ? STBounds(x: 0, y: 0, width: 0, height: 0)
-        : unionRect(stDisplays.map { $0.desktop_world_bounds })
-    let visibleDesktopWorldUnion: STBounds = stDisplays.isEmpty
-        ? desktopWorldUnion
-        : unionRect(stDisplays.map { $0.visible_desktop_world_bounds })
+    let desktopWorldUnion = STBounds(
+        x: displayTopology.desktopWorldBounds.x,
+        y: displayTopology.desktopWorldBounds.y,
+        width: displayTopology.desktopWorldBounds.width,
+        height: displayTopology.desktopWorldBounds.height
+    )
+    let visibleDesktopWorldUnion = STBounds(
+        x: displayTopology.visibleDesktopWorldBounds.x,
+        y: displayTopology.visibleDesktopWorldBounds.y,
+        width: displayTopology.visibleDesktopWorldBounds.width,
+        height: displayTopology.visibleDesktopWorldBounds.height
+    )
 
     let topology = SpatialTopology(
         schema: "spatial-topology",
-        version: "0.2.0",
+        version: "0.3.0",
         timestamp: iso8601.string(from: Date()),
-        screens_have_separate_spaces: NSScreen.screensHaveSeparateSpaces,
+        display_topology: displayTopology,
+        screens_have_separate_spaces: displayTopology.screensHaveSeparateSpaces,
         cursor: stCursor,
         focused_window_id: focusedWinID.map { Int($0) },
         focused_app: focusedApp,
@@ -1649,7 +1665,8 @@ func buildSpatialTopology() -> SpatialTopology {
 
 @available(macOS 14.0, *)
 func seeListCommand() {
-    print(jsonString(buildSpatialTopology()))
+    let displayTopology = observeDisplayTopologySnapshot()
+    print(jsonString(buildSpatialTopology(displayTopology: displayTopology)))
 }
 
 // MARK: - Command: cursor (capture pipeline version)
@@ -1962,7 +1979,8 @@ func captureCommand(args: [String]) async {
         )
     }
 
-    let displays = getCaptureDisplays()
+    let displayTopologySnapshot = observeDisplayTopologySnapshot()
+    let displays = getCaptureDisplays(from: displayTopologySnapshot)
     let excludedWindowIDs = Set(opts.excludedWindowIDs)
     let excludedSCWindows = content.windows.filter { excludedWindowIDs.contains(Int($0.windowID)) }
     let explicitSurface = resolveCaptureSurface(opts: opts, displays: displays)
@@ -2073,7 +2091,9 @@ func captureCommand(args: [String]) async {
     var responseAnnotations: [AnnotationJSON]? = nil
     var responseWindow: CaptureWindowJSON? = nil
     var responseSurfaces: [CaptureSurfaceJSON] = []
-    let topologySnapshot = opts.perception ? buildSpatialTopology() : nil
+    let topologySnapshot = opts.perception
+        ? buildSpatialTopology(displayTopology: displayTopologySnapshot)
+        : nil
     var responsePerceptions: [CapturePerceptionJSON] = []
 
     if let iImg = interactiveImage {
@@ -2459,6 +2479,9 @@ func captureCommand(args: [String]) async {
     func buildResponse() -> SuccessResponse {
         var resp = SuccessResponse()
         resp.state_id = makeAOSStateID()
+        if opts.region != nil {
+            resp.display_topology = displayTopologySnapshot
+        }
         resp.cursor = responseCursor
         resp.bounds = interactiveBounds
         resp.click_x = responseClickX

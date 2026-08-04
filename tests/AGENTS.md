@@ -55,6 +55,12 @@ tests.
   native manager, not a copied fake allocator. A static AppKit harness may
   exercise production menu rendering and callback binding without opening a
   status item; native menu-bar acceptance remains a separate build/runtime gate.
+- Display-topology identity proof must compile the focused production Swift
+  helper with `-Onone`, remain offline and daemon/TCC-free, and cover raw
+  enumeration permutations, every mapping fact, UUID fallback, invalid inputs,
+  direct region/saved-region response wiring, `state_id` separation, and the
+  single-observation source guard. Native region capture remains a separate
+  permission-sensitive test.
 - PNG file comparison proof must compile only its focused Swift source and
   disposable harness with explicit `-Onone`, generate fixed fixtures under a
   private temporary root, reject special files under a bounded watchdog, and

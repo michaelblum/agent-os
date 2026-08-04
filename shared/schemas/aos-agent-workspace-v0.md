@@ -103,6 +103,13 @@ Compact stdout includes `capture_mode`, `capture_source`, `capture_target`,
 payload classes, and known limits. It must not include full `elements`,
 `semantic_targets`, `perceptions`, or base64 payloads.
 
+For an explicit saved `--region` capture, compact stdout additionally preserves
+the direct closed `display_topology` object produced by the native capture. It
+is the same frozen mapping used for region segmentation and stitching, is not a
+heavy perception payload, and remains independent from the per-capture
+`state_id`. The full native response persisted as `capture.json` carries the
+same value.
+
 `aos see snapshots` and workspace `index_health.current_snapshot` expose compact
 snapshot discovery fields: `snapshot_id`, `created_at`, `capture_mode`,
 `capture_source`, `capture_target`, `target`, `query`, ref/artifact counts, and

@@ -111,6 +111,10 @@ function renderCaptureSource(source) {
   };
 }
 
+function isExplicitRegionCapture(source) {
+  return source?.kind === 'source_flags' && source.argv?.[0] === '--region';
+}
+
 function parseCaptureSource(targetArgv, sourceFlagEntries, errors) {
   let invalid = false;
   if (targetArgv && sourceFlagEntries.length > 0) {
@@ -379,6 +383,19 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
         maxBuffer: 100 * 1024 * 1024,
       });
       const capture = parsePrimitiveJSON(result, 'aos __see capture');
+      const displayTopology = isExplicitRegionCapture(captureSource)
+        ? capture.display_topology
+        : undefined;
+      if (isExplicitRegionCapture(captureSource) && (
+        !displayTopology
+        || displayTopology.schema !== 'aos.display-topology.v1'
+        || typeof displayTopology.identity !== 'string'
+      )) {
+        exitAgentWorkspaceError(
+          'explicit region capture omitted its canonical display_topology',
+          'DISPLAY_TOPOLOGY_MISSING',
+        );
+      }
       const artifactRefs = [
         ...fileArtifactRefs(capture, stagedArtifactsDir, finalArtifactsDir),
         ...rewriteBase64Payload(capture, stagedArtifactsDir, finalArtifactsDir),
@@ -436,6 +453,7 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
         target,
         query: parsed.options.query,
         state_id: capture.state_id ?? null,
+        ...(displayTopology ? { display_topology: displayTopology } : {}),
         paths,
         counts: {
           files: capture.files?.length ?? 0,

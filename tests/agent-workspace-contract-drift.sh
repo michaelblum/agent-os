@@ -68,6 +68,11 @@ assert.ok(defs.capture_source, 'schema must describe durable saved capture sourc
 assert.deepEqual(defs.capture_source.properties.kind.enum, CAPTURE_SOURCE_KIND_VALUES, 'schema must not publish a target-plus-source hybrid capture_source kind');
 assert.ok(defs.ref_summary.properties.capture_source, 'ref summaries must allow compact capture source readback');
 assert.ok(defs.summary.properties.capture_source, 'saved capture summaries must allow compact capture source readback');
+assert.equal(
+  defs.summary.properties.display_topology?.$ref,
+  'display-topology-v1.schema.json',
+  'saved region summaries must preserve the direct native display topology contract',
+);
 assert.ok(defs.snapshot_record.properties.capture_source, 'snapshot records must allow compact capture source readback');
 assert.ok(defs.workspace_index.properties.snapshots.items.properties.capture_source, 'workspace index snapshots must allow compact capture source readback');
 assert.equal(workspaceID(null, {}), 'default', 'workspace fallback must be command-local default');

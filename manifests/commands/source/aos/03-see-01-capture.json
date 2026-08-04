@@ -150,7 +150,7 @@
               "id": "region",
               "kind": "flag",
               "required": false,
-              "summary": "Global CG region in points: x,y,w,h",
+              "summary": "Global CG region in points: x,y,w,h; response directly includes the frozen display_topology used to segment and stitch it",
               "token": "--region",
               "value_type": "string"
             },
@@ -214,7 +214,7 @@
               "id": "perception",
               "kind": "flag",
               "required": false,
-              "summary": "Include topology + resolved surface geometry for the capture (segments when spanning displays)",
+              "summary": "Include spatial topology + resolved surface geometry; explicit regions reuse the exact direct display_topology snapshot",
               "token": "--perception",
               "value_type": "bool"
             },
@@ -431,7 +431,7 @@
               "id": "region",
               "kind": "flag",
               "required": false,
-              "summary": "Global CG region in points: x,y,w,h",
+              "summary": "Global CG region in points: x,y,w,h; compact saved response directly preserves the native capture display_topology",
               "token": "--region",
               "value_type": "string"
             },
@@ -620,6 +620,7 @@
             "supports_dry_run": false
           },
           "id": "see-list",
+          "summary": "Observe displays once and return spatial-topology 0.3.0 with a canonical content-addressed display_topology",
           "output": {
             "default_mode": "json",
             "error_mode": "json_stderr",

@@ -268,8 +268,8 @@ apps cannot safely reconstruct from the current JSON surfaces.
 | Group | Use for | Command surface |
 | --- | --- | --- |
 | Core readiness | Runtime gates, explicit direct-capture consent, and blockers before live desktop work | `ready`, `status`, `doctor`, `permissions check/preflight`, `permissions prime screen-capture`, `service status` |
-| Desktop discovery | Displays, windows, cursor, selection, and active surfaces | `graph displays`, `graph windows`, `see list`, `see cursor`, `see selection` |
-| Capture and perception | Screenshots, window/region/canvas/channel capture, xray, labels, saved refs | `see capture`, `see capture --save`, `see snapshots`, `see refs` |
+| Desktop discovery | Displays, windows, cursor, selection, active surfaces, and content-addressed display mapping identity | `graph displays`, `graph windows`, `see list`, `see cursor`, `see selection` |
+| Capture and perception | Screenshots, window/region/canvas/channel capture, frozen region display topology, xray, labels, saved refs | `see capture`, `see capture --save`, `see snapshots`, `see refs` |
 | Saved workspace | Snapshot/ref storage, ref lookup, diffs, expectations, cleanup | `see workspaces`, `see workspace`, `see refs --diff --expect`, workspace prune/delete |
 | Artifact comparison | Exact canonical pixel verification and optional grayscale spatial evidence over existing same-size PNG paths; no capture, wait, or alignment | `see compare <before.png> <after.png> [--pixel-tolerance <0..255>] [--expect change\|no-change] [--change-map-out <new.png>] [--mask-out <new.png>]` |
 | Desktop/native control | App activate/quit/hide/unhide, window raise/move/resize/close/minimize/maximize/restore, app menu invocation, explicit Apple Shortcut execution, and native AX press/focus/set-value | `do activate`, `do quit`, `do hide`, `do unhide`, `do raise`, `do move`, `do resize`, `do close`, `do minimize`, `do maximize`, `do restore`, `do menu`, `do press`, `do focus`, `do set-value`, `shortcut run` |

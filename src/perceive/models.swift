@@ -99,7 +99,7 @@ func buildAppLookup() -> [pid_t: (name: String, bundleID: String?, isHidden: Boo
     return lookup
 }
 
-// MARK: - Spatial Topology Output Models (spatial-topology.schema.json v0.1.0)
+// MARK: - Spatial Topology Output Models (spatial-topology.schema.json v0.3.0)
 
 struct STBounds: Encodable {
     let x: Double
@@ -165,6 +165,7 @@ struct SpatialTopology: Encodable {
     let schema: String
     let version: String
     let timestamp: String
+    let display_topology: AOSDisplayTopologySnapshot
     let screens_have_separate_spaces: Bool
     let cursor: STCursor
     let focused_window_id: Int?
@@ -445,6 +446,7 @@ struct CaptureSurfaceJSON: Encodable {
 struct SuccessResponse: Encodable {
     let status = "success"
     var state_id: String?
+    var display_topology: AOSDisplayTopologySnapshot?
     var files: [String]?
     var base64: [String]?
     var cursor: CursorJSON?
@@ -460,13 +462,14 @@ struct SuccessResponse: Encodable {
     var perceptions: [CapturePerceptionJSON]?
 
     enum CodingKeys: String, CodingKey {
-        case status, state_id, files, base64, cursor, bounds, click_x, click_y, warning, elements, semantic_targets, annotations, window, surfaces, perceptions
+        case status, state_id, display_topology, files, base64, cursor, bounds, click_x, click_y, warning, elements, semantic_targets, annotations, window, surfaces, perceptions
     }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(status, forKey: .status)
         if let id = state_id { try c.encode(id, forKey: .state_id) }
+        if let topology = display_topology { try c.encode(topology, forKey: .display_topology) }
         if let f = files { try c.encode(f, forKey: .files) }
         if let b = base64 { try c.encode(b, forKey: .base64) }
         if let cur = cursor { try c.encode(cur, forKey: .cursor) }
