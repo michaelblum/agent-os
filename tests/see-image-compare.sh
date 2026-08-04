@@ -45,6 +45,28 @@ def png(width, height, color_type, rows, *, compression=6, extras=(), tagged=Tru
         + chunk(b"IEND", b"")
     )
 
+def solid_rgba_png(width, height, pixel, *, changed_pixel=None):
+    assert len(pixel) == 4
+    compressor = zlib.compressobj(9)
+    compressed = bytearray()
+    base_row = bytes(pixel) * width
+    for y in range(height):
+        row = base_row
+        if changed_pixel is not None and y == changed_pixel[1]:
+            x, _, changed_rgba = changed_pixel
+            assert 0 <= x < width and len(changed_rgba) == 4
+            offset = x * 4
+            row = base_row[:offset] + bytes(changed_rgba) + base_row[offset + 4:]
+        compressed.extend(compressor.compress(b"\x00" + row))
+    compressed.extend(compressor.flush())
+    return (
+        signature
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
+        + chunk(b"sRGB", b"\x00")
+        + chunk(b"IDAT", bytes(compressed))
+        + chunk(b"IEND", b"")
+    )
+
 base_rows = [
     [10, 20, 30, 255, 40, 50, 60, 255],
     [70, 80, 90, 255, 100, 110, 120, 255],
@@ -92,6 +114,23 @@ for name, data in files.items():
     with open(os.path.join(root, name), "wb") as handle:
         handle.write(data)
 
+four_k_width, four_k_height = 3840, 2160
+four_k_pixel = [10, 20, 30, 255]
+four_k_files = {
+    "four-k-before.png": solid_rgba_png(four_k_width, four_k_height, four_k_pixel),
+    "four-k-identical.png": solid_rgba_png(four_k_width, four_k_height, four_k_pixel),
+    "four-k-sparse.png": solid_rgba_png(
+        four_k_width,
+        four_k_height,
+        four_k_pixel,
+        changed_pixel=(3839, 2159, [15, 20, 30, 255]),
+    ),
+    "four-k-dense.png": solid_rgba_png(four_k_width, four_k_height, [11, 21, 31, 255]),
+}
+for name, data in four_k_files.items():
+    with open(os.path.join(root, name), "wb") as handle:
+        handle.write(data)
+
 with open(os.path.join(root, "not-png.gif"), "wb") as handle:
     handle.write(b"GIF89a")
 with open(os.path.join(root, "malformed.png"), "wb") as handle:
@@ -132,6 +171,7 @@ SWIFT
 
 COMPARE_HARNESS="$TMP_ROOT/aos-image-compare-harness"
 /usr/bin/xcrun swiftc \
+  -Onone \
   src/perceive/image-file-compare.swift \
   "$HARNESS_MAIN" \
   -o "$COMPARE_HARNESS"
@@ -142,12 +182,14 @@ import os
 import signal
 import subprocess
 import sys
+import time
 
 timeout_seconds = float(sys.argv[1])
 stdout_path, stderr_path = sys.argv[2:4]
 command = sys.argv[4:]
 
 with open(stdout_path, "wb") as stdout_handle, open(stderr_path, "wb") as stderr_handle:
+    started = time.perf_counter()
     process = subprocess.Popen(
         command,
         stdout=stdout_handle,
@@ -160,6 +202,12 @@ with open(stdout_path, "wb") as stdout_handle, open(stderr_path, "wb") as stderr
         os.killpg(process.pid, signal.SIGKILL)
         process.wait()
         sys.exit(124)
+
+elapsed = time.perf_counter() - started
+timing_path = os.environ.get("AOS_WATCHDOG_TIMING_PATH")
+if timing_path:
+    with open(timing_path, "w", encoding="utf-8") as timing_handle:
+        timing_handle.write(f"{elapsed:.3f}")
 
 sys.exit(return_code if return_code >= 0 else 128 - return_code)
 PY
@@ -175,6 +223,76 @@ run_success() {
     pass "$label exits zero with JSON stdout only"
   else
     fail "$label output contract (stdout=$(cat "$stdout_file" 2>/dev/null), stderr=$(cat "$stderr_file" 2>/dev/null))"
+  fi
+}
+
+run_four_k_success() {
+  local label="$1"
+  local expected_case="$2"
+  shift 2
+  local stdout_file="$TMP_ROOT/${label}.out"
+  local stderr_file="$TMP_ROOT/${label}.err"
+  local timing_file="$TMP_ROOT/${label}.seconds"
+  local status
+  if AOS_WATCHDOG_TIMING_PATH="$timing_file" python3 "$WATCHDOG" 4 "$stdout_file" "$stderr_file" "$COMPARE_HARNESS" "$@"; then
+    status=0
+  else
+    status=$?
+  fi
+  if [[ "$status" -eq 124 ]]; then
+    fail "$label exceeded the 4-second 4K comparison watchdog"
+    return
+  fi
+  if [[ "$status" -ne 0 || ! -s "$stdout_file" || -s "$stderr_file" ]]; then
+    fail "$label output contract (status=$status, stdout=$(cat "$stdout_file" 2>/dev/null), stderr=$(cat "$stderr_file" 2>/dev/null))"
+    return
+  fi
+  if python3 - "$stdout_file" "$expected_case" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+comparison = payload["comparison"]
+expected = {
+    "identical": {
+        "changed_bounds": None,
+        "changed_pixels": 0,
+        "changed_ratio": 0,
+        "max_channel_delta": 0,
+        "mean_channel_delta": 0,
+        "pixel_tolerance": 0,
+        "sum_channel_delta": 0,
+        "total_pixels": 8_294_400,
+    },
+    "sparse": {
+        "changed_bounds": {"x": 3839, "y": 2159, "width": 1, "height": 1},
+        "changed_pixels": 1,
+        "changed_ratio": 0.000000120563,
+        "max_channel_delta": 5,
+        "mean_channel_delta": 0.000000150704,
+        "pixel_tolerance": 0,
+        "sum_channel_delta": 5,
+        "total_pixels": 8_294_400,
+    },
+    "dense": {
+        "changed_bounds": {"x": 0, "y": 0, "width": 3840, "height": 2160},
+        "changed_pixels": 8_294_400,
+        "changed_ratio": 1,
+        "max_channel_delta": 1,
+        "mean_channel_delta": 0.75,
+        "pixel_tolerance": 0,
+        "sum_channel_delta": 24_883_200,
+        "total_pixels": 8_294_400,
+    },
+}[sys.argv[2]]
+assert payload["status"] == "success", payload
+assert payload["expectation"] is None, payload
+assert comparison == expected, comparison
+PY
+  then
+    pass "$label reports exact 4K metrics and bounds in $(cat "$timing_file")s"
+  else
+    fail "$label metrics drifted: $(cat "$stdout_file")"
   fi
 }
 
@@ -364,6 +482,10 @@ run_success grayscale-conversion "$FIXTURES/gray.png" "$FIXTURES/gray.png" --exp
 run_success regular-file-symlink "$FIXTURES/base-link.png" "$FIXTURES/base.png" --expect no-change
 pass "RGB, RGBA, untagged RGB, and grayscale PNG inputs decode through canonical sRGB RGBA"
 
+run_four_k_success four-k-identical identical "$FIXTURES/four-k-before.png" "$FIXTURES/four-k-identical.png"
+run_four_k_success four-k-sparse sparse "$FIXTURES/four-k-before.png" "$FIXTURES/four-k-sparse.png"
+run_four_k_success four-k-dense dense "$FIXTURES/four-k-before.png" "$FIXTURES/four-k-dense.png"
+
 if "$COMPARE_HARNESS" "$FIXTURES/base.png" "$FIXTURES/base-metadata.png" --expect change >"$TMP_ROOT/expect-fail.out" 2>"$TMP_ROOT/expect-fail.err"; then
   fail "expectation failure unexpectedly exited zero"
 elif [[ -s "$TMP_ROOT/expect-fail.out" ]]; then
@@ -453,6 +575,7 @@ SWIFT
 
 DISPATCH_HARNESS="$TMP_ROOT/aos-fake-dispatch"
 /usr/bin/xcrun swiftc \
+  -Onone \
   "$DISPATCH_STUBS" \
   src/shared/external-command-dispatch.swift \
   src/perceive/image-file-compare.swift \
@@ -536,6 +659,27 @@ assert ("si" + "gil").lower() not in public_text.lower(), public_text
 comparator = Path("src/perceive/image-file-compare.swift").read_text(encoding="utf-8")
 imports = set(re.findall(r"^import ([A-Za-z0-9_]+)$", comparator, re.M))
 assert imports == {"CoreGraphics", "CryptoKit", "Darwin", "Foundation", "ImageIO"}, imports
+compare_body_match = re.search(
+    r"private func compareCanonicalImages\(.*?\n\}\n\nprivate func imageCompareDescription",
+    comparator,
+    re.S,
+)
+assert compare_body_match, comparator
+compare_body = compare_body_match.group(0)
+assert "before.pixels.count == canonicalByteCount && after.pixels.count == canonicalByteCount" in compare_body, compare_body
+assert compare_body.count("Darwin.memcmp(") == 2, compare_body
+assert re.search(r"guard Darwin\.memcmp\([^\n]+canonicalByteCount\) != 0 else \{ return \}", compare_body), compare_body
+assert re.search(
+    r"while y < before\.height.*?Darwin\.memcmp\([^\n]+bytesPerRow\) != 0.*?while x < before\.width",
+    compare_body,
+    re.S,
+), compare_body
+assert compare_body.count("assumingMemoryBound(to: UInt8.self)") == 2, compare_body
+assert "bindMemory(to: UInt8.self)" not in compare_body, compare_body
+assert "pixelIndex % before.width" not in compare_body, compare_body
+assert "pixelIndex / before.width" not in compare_body, compare_body
+assert "before.sha256 == after.sha256" not in compare_body, compare_body
+assert "@_optimize" not in comparator, comparator
 for forbidden in (
     "ScreenCaptureKit",
     "SCStream",
@@ -550,8 +694,23 @@ for forbidden in (
 ):
     assert forbidden not in comparator, forbidden
 assert not re.search(r"\b(?:poll|select|sleep|usleep)\s*\(", comparator), comparator
+
+api_doc = " ".join(Path("docs/api/aos.md").read_text(encoding="utf-8").split())
+assert all(fragment in api_doc for fragment in (
+    "| `aos see` | Perception and artifact verification:",
+    "| `compare` | compare canonical pixels from two existing same-size PNG files |",
+    "This compares compact saved-ref structure, not artifact pixels.",
+    "`aos see compare <before.png> <after.png>`",
+    "does not capture, poll, wait, resize, crop, or align its inputs",
+)), api_doc
+
+capabilities_doc = " ".join(Path("docs/api/aos-capabilities.md").read_text(encoding="utf-8").split())
+assert all(fragment in capabilities_doc for fragment in (
+    "| Artifact comparison | Exact canonical pixel verification over existing same-size PNG paths; no capture, wait, or alignment |",
+    "When matching before/after PNG artifact paths already exist, use `./aos see compare <before.png> <after.png>` as the exact pixel alternative",
+)), capabilities_doc
 PY
-pass "source dependencies keep comparison direct, stateless, permission-free, capture-free, daemon-free, polling-free, and product-neutral"
+pass "source and primary API docs preserve the optimized stateless comparison contract"
 
 if [[ "$FAILURES" -ne 0 ]]; then
   printf 'see image compare: %s failure(s)\n' "$FAILURES" >&2

@@ -533,7 +533,7 @@ else
     fail "dev recommend experience production contract routing drifted"
 fi
 
-if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files src/perceive/image-file-compare.swift manifests/commands/source/aos/03-see-05-compare.json tests/see-image-compare.sh 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files src/perceive/image-file-compare.swift manifests/commands/source/aos/03-see-05-compare.json docs/api/aos.md docs/api/aos-capabilities.md tests/see-image-compare.sh 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -555,7 +555,7 @@ else
     fail "dev recommend image comparator routing drifted"
 fi
 
-for IMAGE_COMPARE_ROUTE_OWNER in src/main.swift manifests/commands/source/external/11-see.json; do
+for IMAGE_COMPARE_ROUTE_OWNER in src/main.swift manifests/commands/source/external/11-see.json docs/api/aos.md docs/api/aos-capabilities.md; do
     if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files "$IMAGE_COMPARE_ROUTE_OWNER" 2>/dev/null)" python3 - <<'PY'
 import json
 import os

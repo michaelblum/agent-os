@@ -252,6 +252,7 @@ apps cannot safely reconstruct from the current JSON surfaces.
 | Desktop discovery | Displays, windows, cursor, selection, and active surfaces | `graph displays`, `graph windows`, `see list`, `see cursor`, `see selection` |
 | Capture and perception | Screenshots, window/region/canvas/channel capture, xray, labels, saved refs | `see capture`, `see capture --save`, `see snapshots`, `see refs` |
 | Saved workspace | Snapshot/ref storage, ref lookup, diffs, expectations, cleanup | `see workspaces`, `see workspace`, `see refs --diff --expect`, workspace prune/delete |
+| Artifact comparison | Exact canonical pixel verification over existing same-size PNG paths; no capture, wait, or alignment | `see compare <before.png> <after.png> [--pixel-tolerance <0..255>] [--expect change\|no-change]` |
 | Desktop/native control | App activate/quit/hide/unhide, window raise/move/resize/close/minimize/maximize/restore, app menu invocation, explicit Apple Shortcut execution, and native AX press/focus/set-value | `do activate`, `do quit`, `do hide`, `do unhide`, `do raise`, `do move`, `do resize`, `do close`, `do minimize`, `do maximize`, `do restore`, `do menu`, `do press`, `do focus`, `do set-value`, `shortcut run` |
 | AOS-hosted status-item leases | Product-neutral native descriptor, observed anchor/events, exact compare-and-swap update, generation-scoped action admission, inspect/invoke, and disconnect cleanup | `status-item validate/register --follow/update/inspect/invoke` |
 | Pointer and keyboard | Mouse, keyboard, scrolling, dragging, text, browser ref actions | `do click`, `do hover`, `do drag`, `do scroll`, `do type`, `do key`, `do fill`, `do navigate` |
@@ -360,5 +361,8 @@ targets:
 5. Dry-run before any supported mutating action, including window raise/move/resize.
 6. Act once only when the dry-run validates the current target.
 7. Recapture.
-8. Gate compact evidence with `./aos see refs --diff <before>..<after> --expect ...` or a Work Record verifier.
+8. Gate compact evidence with `./aos see refs --diff <before>..<after> --expect ...`
+   or a Work Record verifier. When matching before/after PNG artifact paths
+   already exist, use `./aos see compare <before.png> <after.png>` as the exact
+   pixel alternative; it does not capture, wait, or align inputs.
 9. Stop on stale identity, fallback-only refs, unsupported actions, missing permissions, off-Space/minimized native blockers, or required live proof.

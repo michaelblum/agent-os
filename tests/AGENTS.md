@@ -56,11 +56,13 @@ tests.
   exercise production menu rendering and callback binding without opening a
   status item; native menu-bar acceptance remains a separate build/runtime gate.
 - PNG file comparison proof must compile only its focused Swift source and
-  disposable harness, generate fixed fixtures under a private temporary root,
-  reject special files under a bounded watchdog, and exercise the production
-  dispatcher plus comparator through PATH and relative executable invocations
-  from a nested caller directory. It must not execute the repo AOS binary,
-  capture pixels, start services, or require TCC.
+  disposable harness with explicit `-Onone`, generate fixed fixtures under a
+  private temporary root, reject special files under a bounded watchdog, and
+  prove exact identical, sparse-change, and dense-change metrics for
+  compressible 3840x2160 RGBA PNGs within the focused performance watchdog. It
+  must exercise the production dispatcher plus comparator through PATH and
+  relative executable invocations from a nested caller directory. It must not
+  execute the repo AOS binary, capture pixels, start services, or require TCC.
 - `tests/dev-workflow-router.sh` runs its public `./aos` rejection checks by
   default. Use `AOS_SKIP_LIVE_CLI_CHECKS=1` only for explicit static-only
   validation while the repo artifact is absent or waiting at ADR 0023's human

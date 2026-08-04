@@ -326,29 +326,52 @@ private func compareCanonicalImages(
     var minimumY = before.height
     var maximumX = -1
     var maximumY = -1
+    let canonicalByteCount = Int(totalPixels) * 4
+    precondition(
+        before.pixels.count == canonicalByteCount && after.pixels.count == canonicalByteCount,
+        "Canonical image buffers must contain exactly width * height * 4 bytes."
+    )
 
     before.pixels.withUnsafeBytes { beforeBytes in
         after.pixels.withUnsafeBytes { afterBytes in
-            let lhs = beforeBytes.bindMemory(to: UInt8.self)
-            let rhs = afterBytes.bindMemory(to: UInt8.self)
-            for pixelIndex in 0..<Int(totalPixels) {
-                let byteIndex = pixelIndex * 4
-                var pixelChanged = false
-                for channel in 0..<4 {
-                    let delta = abs(Int(lhs[byteIndex + channel]) - Int(rhs[byteIndex + channel]))
-                    sumChannelDelta += UInt64(delta)
-                    maxChannelDelta = max(maxChannelDelta, delta)
-                    if delta > tolerance { pixelChanged = true }
+            let lhs = beforeBytes.baseAddress!.assumingMemoryBound(to: UInt8.self)
+            let rhs = afterBytes.baseAddress!.assumingMemoryBound(to: UInt8.self)
+            guard Darwin.memcmp(lhs, rhs, canonicalByteCount) != 0 else { return }
+
+            let bytesPerRow = before.width * 4
+            var y = 0
+            while y < before.height {
+                let lhsRow = lhs.advanced(by: y * bytesPerRow)
+                let rhsRow = rhs.advanced(by: y * bytesPerRow)
+                if Darwin.memcmp(lhsRow, rhsRow, bytesPerRow) != 0 {
+                    var rowMinimumX = before.width
+                    var rowMaximumX = -1
+                    var x = 0
+                    var byteOffset = 0
+                    while x < before.width {
+                        let redDelta = abs(Int(lhsRow[byteOffset]) - Int(rhsRow[byteOffset]))
+                        let greenDelta = abs(Int(lhsRow[byteOffset + 1]) - Int(rhsRow[byteOffset + 1]))
+                        let blueDelta = abs(Int(lhsRow[byteOffset + 2]) - Int(rhsRow[byteOffset + 2]))
+                        let alphaDelta = abs(Int(lhsRow[byteOffset + 3]) - Int(rhsRow[byteOffset + 3]))
+                        let pixelMaximumDelta = max(max(redDelta, greenDelta), max(blueDelta, alphaDelta))
+                        sumChannelDelta += UInt64(redDelta + greenDelta + blueDelta + alphaDelta)
+                        maxChannelDelta = max(maxChannelDelta, pixelMaximumDelta)
+                        if pixelMaximumDelta > tolerance {
+                            changedPixels += 1
+                            rowMinimumX = min(rowMinimumX, x)
+                            rowMaximumX = x
+                        }
+                        x += 1
+                        byteOffset += 4
+                    }
+                    if rowMaximumX >= 0 {
+                        minimumX = min(minimumX, rowMinimumX)
+                        minimumY = min(minimumY, y)
+                        maximumX = max(maximumX, rowMaximumX)
+                        maximumY = y
+                    }
                 }
-                if pixelChanged {
-                    changedPixels += 1
-                    let x = pixelIndex % before.width
-                    let y = pixelIndex / before.width
-                    minimumX = min(minimumX, x)
-                    minimumY = min(minimumY, y)
-                    maximumX = max(maximumX, x)
-                    maximumY = max(maximumY, y)
-                }
+                y += 1
             }
         }
     }

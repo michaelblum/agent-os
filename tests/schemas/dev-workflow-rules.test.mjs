@@ -324,6 +324,8 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
       'src/perceive/image-file-compare.swift',
       'manifests/commands/source/aos/03-see-05-compare.json',
       'manifests/commands/source/external/11-see.json',
+      'docs/api/aos.md',
+      'docs/api/aos-capabilities.md',
       'tests/see-image-compare.sh',
     ],
   );
