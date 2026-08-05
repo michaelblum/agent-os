@@ -1,0 +1,32 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof-worth entries for daemon-owned native pixel acquisition and public capture transfer.",
+  "entries": [
+    {
+      "id": "public-native-capture-single-owner-contract",
+      "path_patterns": [
+        "tests/public-capture-transfer.test.mjs",
+        "tests/daemon-session-reader.test.mjs",
+        "tests/lib/public-capture-controller-tests.swift",
+        "tests/desktop-pixel-broker-contract.test.mjs",
+        "tests/lib/desktop-frame-warm-pool-tests.swift",
+        "tests/lib/desktop-pixel-broker-tests.swift",
+        "tests/lib/desktop-pixel-native-lifecycle-tests.swift",
+        "tests/toolkit/runtime-canvas-host-runtime.test.mjs"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/daemon-event/**/see-capture-*.json"
+      ],
+      "owner": "daemon-desktop-pixels",
+      "harness_level": "model_unit",
+      "proof_kind": "public_native_capture_single_owner_contract",
+      "contract": "Direct and saved native capture use one deadline-bounded daemon broker transaction, full canonical topology revalidation, explicit public exclusions, exact-generation callback quarantine and late-authority warm reconvergence, source-labeled window fallback, exact-integer closed-shape IPC, bounded NDJSON reads, and the existing output policy without a second production ScreenCaptureKit owner.",
+      "worth": "This prevents public capture from overlapping warm DesktopWorld streams, reopening before uncertain native callbacks settle, failing to reconverge after late authority, trusting duplicated caller geometry or lossy numbers, returning stale window pixels, leaking capture artifacts into transport, hanging on a byte-drip peer, growing an unterminated frame without bound, or truncating frames above the normal socket queue budget.",
+      "command": "node --test tests/public-capture-transfer.test.mjs tests/daemon-session-reader.test.mjs tests/desktop-pixel-broker-contract.test.mjs tests/desktop-frame-texture-native.test.mjs tests/toolkit/runtime-canvas-host-runtime.test.mjs && bash tests/display-topology-contract.sh && bash tests/daemon-ipc-schema.sh && node --test tests/schemas/daemon-event.test.mjs",
+      "replaces": [],
+      "guard": "focused production Swift owners, fake native callbacks, schema fixtures, and in-memory bytes only; no AOS binary, daemon socket, GUI, TCC, native capture, filesystem artifact, or external process lifecycle",
+      "status": "active"
+    }
+  ]
+}

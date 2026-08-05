@@ -5,17 +5,39 @@
 
 import Foundation
 
+let aosDaemonMaximumNDJSONFrameBytes = 32 * 1024 * 1024
+
 struct NDJSONReader {
     private var buffer = Data()
+    private var trailingFrameByteCount = 0
+    let maximumFrameBytes: Int
+
+    init(maximumFrameBytes: Int = aosDaemonMaximumNDJSONFrameBytes) {
+        self.maximumFrameBytes = max(1, maximumFrameBytes)
+    }
 
     /// Append raw bytes to the internal buffer.
-    mutating func append(_ data: Data) {
-        buffer.append(data)
+    @discardableResult
+    mutating func append(_ data: Data) -> Bool {
+        append(Array(data), count: data.count)
     }
 
     /// Append raw bytes from a fixed-size array.
-    mutating func append(_ bytes: [UInt8], count: Int) {
+    @discardableResult
+    mutating func append(_ bytes: [UInt8], count: Int) -> Bool {
+        guard count >= 0, count <= bytes.count else { return false }
+        var nextTrailingCount = trailingFrameByteCount
+        for byte in bytes.prefix(count) {
+            if byte == UInt8(ascii: "\n") {
+                nextTrailingCount = 0
+                continue
+            }
+            nextTrailingCount += 1
+            if nextTrailingCount > maximumFrameBytes { return false }
+        }
         buffer.append(contentsOf: bytes[0..<count])
+        trailingFrameByteCount = nextTrailingCount
+        return true
     }
 
     /// Extract and parse the next complete JSON line, if available.
@@ -45,6 +67,10 @@ struct NDJSONReader {
 
     /// Whether the buffer is empty.
     var isEmpty: Bool { buffer.isEmpty }
+
+    /// Content bytes retained across complete and partial frames. Exposed for
+    /// bounded framing diagnostics and disposable production-reader proofs.
+    var bufferedByteCount: Int { buffer.count }
 }
 
 // MARK: - Envelope Decoding

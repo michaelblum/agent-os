@@ -137,6 +137,9 @@ class UnifiedDaemon {
         broker: desktopPixelBroker,
         strategy: .prewarmedSnapshot
     )
+    private lazy var publicCaptureController = AOSPublicCaptureController(
+        capturer: desktopFrameCapturer
+    )
     private lazy var desktopFrameCaptureConsent = AOSDesktopFrameCaptureConsentController(
         capturer: desktopFrameProbeCapturer,
         preflightPermission: { CGPreflightScreenCaptureAccess() }
@@ -381,6 +384,8 @@ class UnifiedDaemon {
 
     struct SubscriberConnection {
         let outbound: AOSConnectionOutboundWriter
+        var publicCapture: AOSDesktopFrameCancelling?
+        var publicCaptureToken: UUID?
         var perceptionChannelIDs: Set<UUID>
         var isSubscribed: Bool  // subscribed to display events too
         var wantsInputEvents: Bool
@@ -609,9 +614,6 @@ class UnifiedDaemon {
                     return
                 case "desktop_world_devtools.host.command":
                     self.handleDesktopWorldDevToolsHostCommand(callerID: canvasID, payload: inner ?? [:])
-                    return
-                case "capture.region":
-                    self.handleCaptureRegion(callerID: canvasID, payload: inner ?? [:])
                     return
                 case "desktop_frame.acquire":
                     self.handleDesktopFrameAcquire(callerID: canvasID, payload: inner ?? [:])
@@ -2839,124 +2841,6 @@ class UnifiedDaemon {
         lastPositionsLock.unlock()
     }
 
-    /// Request/response: capture a CG-coordinate region and return a base64 image.
-    /// Intended for small renderer-side sampling windows such as transition FX.
-    private func handleCaptureRegion(callerID: String, payload: [String: Any]) {
-        let requestID = payload["request_id"] as? String
-        let number: (String) -> Double? = { key in
-            if let raw = payload[key] as? NSNumber { return raw.doubleValue }
-            if let raw = payload[key] as? Double { return raw }
-            if let raw = payload[key] as? Int { return Double(raw) }
-            if let raw = payload[key] as? String { return Double(raw) }
-            return nil
-        }
-
-        guard let x = number("x"),
-              let y = number("y"),
-              let width = number("width") ?? number("w"),
-              let height = number("height") ?? number("h"),
-              x.isFinite, y.isFinite, width.isFinite, height.isFinite,
-              width > 0, height > 0 else {
-            dispatchCanvasResponse(
-                to: callerID,
-                requestID: requestID,
-                status: "error",
-                code: "INVALID_REGION",
-                message: "capture.region requires finite x, y, width, height"
-            )
-            return
-        }
-
-        let format = (payload["format"] as? String)?.lowercased() ?? "jpg"
-        let quality = (payload["quality"] as? String)?.lowercased() ?? "med"
-        let excludeCanvasIDs = (payload["exclude_canvas_ids"] as? [String] ?? [])
-            .filter { !$0.isEmpty }
-
-        let excludeWindowIDs: [Int] = {
-            guard !excludeCanvasIDs.isEmpty else { return [] }
-            if Thread.isMainThread {
-                return excludeCanvasIDs.flatMap { self.canvasManager.windowNumbers(forID: $0) }
-            }
-            var ids: [Int] = []
-            DispatchQueue.main.sync {
-                ids = excludeCanvasIDs.flatMap { self.canvasManager.windowNumbers(forID: $0) }
-            }
-            return ids
-        }()
-
-        let region = String(format: "%.3f,%.3f,%.3f,%.3f", x, y, width, height)
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
-
-            var arguments = [
-                "see", "capture",
-                "--region", region,
-                "--base64",
-                "--format", format,
-                "--quality", quality,
-            ]
-            for windowID in excludeWindowIDs {
-                arguments.append(contentsOf: ["--exclude-window", String(windowID)])
-            }
-
-            let process = runProcess(
-                aosExecutablePath(),
-                arguments: arguments,
-                environment: ["AOS_BYPASS_PERMISSIONS_SETUP": "1"]
-            )
-            guard process.exitCode == 0 else {
-                self.dispatchCanvasResponse(
-                    to: callerID,
-                    requestID: requestID,
-                    status: "error",
-                    code: "CAPTURE_FAILED",
-                    message: process.stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        ? "capture.region failed with exit code \(process.exitCode)"
-                        : process.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-                )
-                return
-            }
-
-            guard let data = process.stdout.data(using: .utf8),
-                  let parsed = try? JSONSerialization.jsonObject(with: data, options: []),
-                  let dict = parsed as? [String: Any],
-                  let imageBase64 = (dict["base64"] as? [String])?.first else {
-                self.dispatchCanvasResponse(
-                    to: callerID,
-                    requestID: requestID,
-                    status: "error",
-                    code: "INVALID_CAPTURE_RESPONSE",
-                    message: "capture.region returned malformed JSON"
-                )
-                return
-            }
-
-            let mimeType: String = {
-                switch format {
-                case "png": return "image/png"
-                case "heic": return "image/heic"
-                default: return "image/jpeg"
-                }
-            }()
-
-            self.dispatchCanvasResponse(
-                to: callerID,
-                requestID: requestID,
-                status: "ok",
-                extra: [
-                    "base64": imageBase64,
-                    "mime_type": mimeType,
-                    "region": [
-                        "x": x,
-                        "y": y,
-                        "width": width,
-                        "height": height,
-                    ],
-                ]
-            )
-        }
-    }
-
     private func handleDesktopFrameAcquire(callerID: String, payload: [String: Any]) {
         desktopFrameCapture.acquire(
             callerCanvasID: callerID,
@@ -3088,6 +2972,8 @@ class UnifiedDaemon {
         activeConnections.insert(connectionID)
         subscribers[connectionID] = SubscriberConnection(
             outbound: outbound,
+            publicCapture: nil,
+            publicCaptureToken: nil,
             perceptionChannelIDs: [],
             isSubscribed: false,
             wantsInputEvents: false,
@@ -3098,6 +2984,12 @@ class UnifiedDaemon {
         subscriberLock.unlock()
 
         defer {
+            subscriberLock.lock()
+            let publicCapture = subscribers[connectionID]?.publicCapture
+            subscribers[connectionID]?.publicCapture = nil
+            subscribers[connectionID]?.publicCaptureToken = nil
+            subscriberLock.unlock()
+            publicCapture?.cancel()
             voiceTransport.connectionClosed(connectionID)
             annotationSelection.connectionClosed(connectionID)
             desktopFrameCaptureConsent.connectionClosed(connectionID)
@@ -3308,6 +3200,7 @@ class UnifiedDaemon {
         case ("show", "audit"):               return "audit"
         case ("show", "post"):                return "post"
         case ("see", "snapshot"):             return "snapshot"
+        case ("see", "capture"):              return "capture"
         case ("tell", "send"):                return "tell"
         case ("listen", "read"):              return "coord-read"
         case ("listen", "channels"):          return "coord-channels"
@@ -3467,6 +3360,9 @@ class UnifiedDaemon {
             flat["action"] = internalAction
             flat["__envelope_ref"] = env.ref ?? ""
             flat["__envelope_active"] = true
+            if internalAction == "capture" {
+                flat["__capture_payload"] = env.data
+            }
             routeAction(internalAction, json: flat, outbound: outbound, connectionID: connectionID)
             return
         }
@@ -3477,6 +3373,65 @@ class UnifiedDaemon {
         switch action {
 
         // -- Perception actions --
+        case "capture":
+            let captureToken = UUID()
+            subscriberLock.lock()
+            let captureAdmitted: Bool
+            if subscribers[connectionID]?.publicCaptureToken == nil {
+                subscribers[connectionID]?.publicCaptureToken = captureToken
+                captureAdmitted = true
+            } else {
+                captureAdmitted = false
+            }
+            subscriberLock.unlock()
+            guard captureAdmitted else {
+                sendResponseJSON(
+                    to: outbound,
+                    ["error": "Capture is already active", "code": "DESKTOP_FRAME_BUSY"],
+                    envelopeActive: envelopeActive,
+                    envelopeRef: envelopeRef
+                )
+                return
+            }
+            let capture = publicCaptureController.capture(
+                payload: (json["__capture_payload"] as? [String: Any]) ?? [:],
+                emitChunk: { data in
+                    guard let bytes = envelopeBytes(
+                        service: "see",
+                        event: "capture_chunk",
+                        data: data,
+                        ref: envelopeRef
+                    ) else { return false }
+                    return outbound.enqueueAndWait(bytes)
+                },
+                completion: { [weak self, weak outbound] response in
+                    guard let self else { return }
+                    self.subscriberLock.lock()
+                    let ownsCapture = self.subscribers[connectionID]?
+                        .publicCaptureToken == captureToken
+                    if ownsCapture {
+                        self.subscribers[connectionID]?.publicCapture = nil
+                        self.subscribers[connectionID]?.publicCaptureToken = nil
+                    }
+                    self.subscriberLock.unlock()
+                    guard ownsCapture, let outbound else { return }
+                    sendResponseJSON(
+                        to: outbound,
+                        response,
+                        envelopeActive: envelopeActive,
+                        envelopeRef: envelopeRef
+                    )
+                }
+            )
+            subscriberLock.lock()
+            let ownsCapture = subscribers[connectionID]?
+                .publicCaptureToken == captureToken
+            if ownsCapture {
+                subscribers[connectionID]?.publicCapture = capture
+            }
+            subscriberLock.unlock()
+            if !ownsCapture { capture.cancel() }
+
         case "subscribe":
             let depth = json["depth"] as? Int ?? config.perception.default_depth
             let scope = json["scope"] as? String ?? "cursor"

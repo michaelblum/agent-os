@@ -1,5 +1,7 @@
 import Foundation
 
+let aosPublicCaptureDaemonTransactionBudget: TimeInterval = 24
+
 private struct AOSDesktopFrameWarmSourceIdentity: Equatable {
     let canvasGeneration: UInt64
     let displayIDs: [UInt32]
@@ -112,12 +114,38 @@ enum AOSDesktopFrameWarmCaptureAdmission {
 }
 
 final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
+    private enum ExclusiveStillPhase {
+        case quiescing
+        case capturing
+        case restoring
+    }
+
+    private struct ExclusiveStill {
+        var cancelWaiters: [(Result<Void, Error>) -> Void]
+        let completion: (Result<AOSDesktopPixelFrameSet, Error>) -> Void
+        var completionDelivered: Bool
+        var canceled: Bool
+        var deadline: AOSDesktopFrameCancelling?
+        let frozenPriorIdentity: AOSDesktopFrameWarmSourceIdentity?
+        let id: UUID
+        var operation: AOSDesktopFrameCancelling?
+        var phase: ExclusiveStillPhase
+        let request: AOSDesktopPixelSnapshotRequest
+        var snapshotResult: Result<AOSDesktopPixelFrameSet, Error>?
+        var timedOut: Bool
+        var topologyDrifted: Bool
+    }
+
     private let broker: AOSDesktopPixelBroker
     private var desired: AOSDesktopFrameWarmConfiguration?
     private var failure: AOSDesktopFrameCaptureFailure?
     private var generation: UInt64 = 0
     private var lease: AOSDesktopPixelWarmLease?
     private let ownerID: String
+    private let scheduleDeadline: (
+        TimeInterval,
+        @escaping () -> Void
+    ) -> AOSDesktopFrameCancelling
     private let queue = DispatchQueue(label: "io.agent-os.desktop-frame-warm-pool")
     private var retiring = false
     private var sourceRecoveryAttempts = 0
@@ -127,13 +155,27 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
     private var statusObserver: ((AOSDesktopFrameWarmStatus) -> Void)?
     private var lastNotifiedStatus: AOSDesktopFrameWarmStatus?
     private var terminalFailure = false
+    private var exclusiveStill: ExclusiveStill?
+    private var awaitingAuthoritativeStillSettlement: UUID?
 
     init(
         broker: AOSDesktopPixelBroker,
-        ownerID: String = "desktop-frame-warm-pool"
+        ownerID: String = "desktop-frame-warm-pool",
+        scheduleDeadline: @escaping (
+            TimeInterval,
+            @escaping () -> Void
+        ) -> AOSDesktopFrameCancelling = { delay, action in
+            let work = DispatchWorkItem(block: action)
+            DispatchQueue.global(qos: .utility).asyncAfter(
+                deadline: .now() + delay,
+                execute: work
+            )
+            return AOSDesktopFrameCancellation { work.cancel() }
+        }
     ) {
         self.broker = broker
         self.ownerID = ownerID
+        self.scheduleDeadline = scheduleDeadline
     }
 
     func reconcileWarm(_ configuration: AOSDesktopFrameWarmConfiguration?) {
@@ -198,6 +240,33 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
         }
     }
 
+    /// Retires every authoritative warm owner before admitting one broker still,
+    /// then restores the exact still-current desired configuration. The caller
+    /// receives the still only after restoration is ready (or a stable failure).
+    @discardableResult
+    func captureExclusiveStill(
+        _ request: AOSDesktopPixelSnapshotRequest,
+        completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void
+    ) -> AOSDesktopFrameCancelling {
+        let id = UUID()
+        queue.async { [weak self] in
+            self?.beginExclusiveStillOnQueue(
+                id: id,
+                request: request,
+                completion: completion
+            )
+        }
+        return AOSDesktopFrameRetirementCancellation { [weak self] settled in
+            guard let self else {
+                settled(.failure(AOSDesktopFrameCaptureFailure.unauthorized))
+                return
+            }
+            self.queue.async {
+                self.cancelExclusiveStillOnQueue(id: id, settled: settled)
+            }
+        }
+    }
+
     private func reconcileOnQueue(
         _ configuration: AOSDesktopFrameWarmConfiguration?
     ) {
@@ -210,13 +279,33 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
             return
         }
         desired = configuration
+        if var transaction = exclusiveStill,
+           configuration?.sourceIdentity != transaction.frozenPriorIdentity {
+            transaction.topologyDrifted = true
+            exclusiveStill = transaction
+        }
         if terminalFailure { return }
         failure = nil
         generation &+= 1
         if generation == 0 { generation = 1 }
         sourceRecoveryAttempts = 0
         sourceRecoveryBlockedGeneration = nil
+        if awaitingAuthoritativeStillSettlement != nil {
+            state = .failed
+            failure = .retirementUncertain
+            return
+        }
         if retiring { return }
+        if let exclusiveStill {
+            if exclusiveStill.phase == .restoring {
+                if lease != nil || startup != nil {
+                    retireCurrentOnQueue()
+                } else {
+                    beginExclusiveRestoreOnQueue()
+                }
+            }
+            return
+        }
         if lease != nil || startup != nil {
             retireCurrentOnQueue()
             return
@@ -227,6 +316,11 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
     private func beginDesiredOnQueue() {
         defer { notifyStatusIfChangedOnQueue() }
         guard !retiring else { return }
+        guard awaitingAuthoritativeStillSettlement == nil else {
+            state = .failed
+            failure = .retirementUncertain
+            return
+        }
         guard let configuration = desired else {
             state = .idle
             failure = nil
@@ -248,7 +342,17 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
         failure = nil
         let operation = broker.prepareWarm(
             configuration.request,
-            ownerID: ownerID
+            ownerID: ownerID,
+            terminalObserver: { [weak self] lease, error in
+                self?.queue.async {
+                    self?.warmSourceTerminatedOnQueue(
+                        generation: startGeneration,
+                        configuration: configuration,
+                        leaseID: lease.id,
+                        error: error
+                    )
+                }
+            }
         ) { [weak self] result in
             self?.queue.async {
                 self?.preparedOnQueue(
@@ -284,6 +388,9 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
             self.lease = lease
             state = .ready
             failure = nil
+            if exclusiveStill?.phase == .restoring {
+                finishExclusiveStillOnQueue()
+            }
         case .failure(let error):
             lease = nil
             state = .failed
@@ -299,7 +406,34 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
             } else {
                 sourceRecoveryBlockedGeneration = generation
             }
+            if exclusiveStill?.phase == .restoring,
+               state == .failed {
+                finishExclusiveStillOnQueue(restoreFailure: observed)
+            }
         }
+    }
+
+    private func warmSourceTerminatedOnQueue(
+        generation: UInt64,
+        configuration: AOSDesktopFrameWarmConfiguration,
+        leaseID: UUID,
+        error: Error
+    ) {
+        defer { notifyStatusIfChangedOnQueue() }
+        guard self.generation == generation,
+              desired?.sourceIdentity == configuration.sourceIdentity,
+              lease?.id == leaseID,
+              state == .ready,
+              !retiring,
+              exclusiveStill == nil else { return }
+        let observed = aosDesktopFrameCaptureFailure(for: error)
+        failure = observed
+        if observed == .connectionInterrupted, sourceRecoveryAttempts == 0 {
+            sourceRecoveryAttempts = 1
+        } else {
+            sourceRecoveryBlockedGeneration = generation
+        }
+        retireCurrentOnQueue()
     }
 
     private func freezeFailedOnQueue(
@@ -352,7 +486,8 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
     ) -> Bool {
         switch failure {
         case .captureFailed, .connectionInterrupted, .displayNotFound, .leaseNotFound,
-             .permissionDenied, .retirementUncertain, .unauthorized, .unsupported:
+             .permissionDenied, .retirementUncertain, .topologyMismatch,
+             .unauthorized, .unsupported:
             return true
         case .busy, .consentRequired, .frameNotReady, .staleFrame:
             return false
@@ -413,9 +548,295 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
             terminalFailure = true
             failure = (error as? AOSDesktopFrameCaptureFailure)
                 ?? .retirementUncertain
+            if exclusiveStill != nil {
+                finishExclusiveStillOnQueue(restoreFailure: failure)
+            }
+            return
+        }
+        if let exclusiveStill {
+            switch exclusiveStill.phase {
+            case .quiescing:
+                startExclusiveSnapshotOnQueue()
+            case .capturing:
+                break
+            case .restoring:
+                if exclusiveStill.canceled {
+                    finishExclusiveStillOnQueue()
+                    beginDesiredOnQueue()
+                } else {
+                    beginExclusiveRestoreOnQueue()
+                }
+            }
             return
         }
         beginDesiredOnQueue()
+    }
+
+    private func beginExclusiveStillOnQueue(
+        id: UUID,
+        request: AOSDesktopPixelSnapshotRequest,
+        completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void
+    ) {
+        defer { notifyStatusIfChangedOnQueue() }
+        guard exclusiveStill == nil,
+              awaitingAuthoritativeStillSettlement == nil,
+              !terminalFailure else {
+            deliverExclusiveStillCompletion(completion, result: .failure(
+                terminalFailure || awaitingAuthoritativeStillSettlement != nil
+                    ? AOSDesktopFrameCaptureFailure.retirementUncertain
+                    : AOSDesktopFrameCaptureFailure.busy
+            ))
+            return
+        }
+        guard request.capturePolicy == .publicExplicitExclusions,
+              aosDesktopPixelRequestIsValid(request) else {
+            deliverExclusiveStillCompletion(
+                completion,
+                result: .failure(AOSDesktopFrameCaptureFailure.captureFailed)
+            )
+            return
+        }
+        exclusiveStill = ExclusiveStill(
+            cancelWaiters: [],
+            completion: completion,
+            completionDelivered: false,
+            canceled: false,
+            deadline: nil,
+            frozenPriorIdentity: desired?.sourceIdentity,
+            id: id,
+            operation: nil,
+            phase: .quiescing,
+            request: request,
+            snapshotResult: nil,
+            timedOut: false,
+            topologyDrifted: false
+        )
+        let deadline = scheduleDeadline(
+            aosPublicCaptureDaemonTransactionBudget
+        ) { [weak self] in
+            self?.queue.async {
+                self?.exclusiveStillDeadlineOnQueue(id: id)
+            }
+        }
+        if exclusiveStill?.id == id {
+            exclusiveStill?.deadline = deadline
+        } else {
+            deadline.cancel()
+        }
+        if retiring { return }
+        if lease != nil || startup != nil {
+            retireCurrentOnQueue()
+        } else {
+            startExclusiveSnapshotOnQueue()
+        }
+    }
+
+    private func startExclusiveSnapshotOnQueue() {
+        guard var transaction = exclusiveStill,
+              transaction.phase == .quiescing else { return }
+        if transaction.canceled {
+            transaction.phase = .restoring
+            transaction.snapshotResult = .failure(
+                AOSDesktopFrameCaptureFailure.unauthorized
+            )
+            exclusiveStill = transaction
+            beginExclusiveRestoreOnQueue()
+            return
+        }
+        transaction.phase = .capturing
+        state = .retiring
+        exclusiveStill = transaction
+        let id = transaction.id
+        let operation = broker.snapshot(
+            transaction.request,
+            authoritativeSettlementObserver: { [weak self] in
+                self?.queue.async {
+                    self?.exclusiveSnapshotAuthoritativelySettledOnQueue(id: id)
+                }
+            },
+            completion: { [weak self] result in
+                self?.queue.async {
+                    self?.exclusiveSnapshotSettledOnQueue(id: id, result: result)
+                }
+            }
+        )
+        guard var current = exclusiveStill, current.id == id else {
+            operation.cancel()
+            return
+        }
+        current.operation = operation
+        exclusiveStill = current
+    }
+
+    private func exclusiveSnapshotSettledOnQueue(
+        id: UUID,
+        result: Result<AOSDesktopPixelFrameSet, Error>
+    ) {
+        guard var transaction = exclusiveStill,
+              transaction.id == id,
+              transaction.phase == .capturing else { return }
+        transaction.operation = nil
+        transaction.snapshotResult = transaction.canceled
+            ? .failure(AOSDesktopFrameCaptureFailure.unauthorized)
+            : result
+        transaction.phase = .restoring
+        exclusiveStill = transaction
+        if case .failure(let error) = result,
+           error as? AOSDesktopFrameCaptureFailure == .retirementUncertain {
+            state = .failed
+            failure = .retirementUncertain
+            awaitingAuthoritativeStillSettlement = id
+            finishExclusiveStillOnQueue(restoreFailure: .retirementUncertain)
+            return
+        }
+        beginExclusiveRestoreOnQueue()
+    }
+
+    private func exclusiveSnapshotAuthoritativelySettledOnQueue(id: UUID) {
+        defer { notifyStatusIfChangedOnQueue() }
+        guard awaitingAuthoritativeStillSettlement == id else { return }
+        awaitingAuthoritativeStillSettlement = nil
+        failure = nil
+        sourceRecoveryAttempts = 0
+        sourceRecoveryBlockedGeneration = nil
+        guard !terminalFailure,
+              exclusiveStill == nil,
+              lease == nil,
+              startup == nil,
+              !retiring else { return }
+        beginDesiredOnQueue()
+    }
+
+    private func beginExclusiveRestoreOnQueue() {
+        guard exclusiveStill?.phase == .restoring else { return }
+        if terminalFailure {
+            finishExclusiveStillOnQueue(restoreFailure: .retirementUncertain)
+            return
+        }
+        guard desired != nil else {
+            state = .idle
+            failure = nil
+            finishExclusiveStillOnQueue()
+            return
+        }
+        beginDesiredOnQueue()
+        if state == .failed {
+            finishExclusiveStillOnQueue(
+                restoreFailure: failure ?? .captureFailed
+            )
+        }
+    }
+
+    private func cancelExclusiveStillOnQueue(
+        id: UUID,
+        settled: @escaping (Result<Void, Error>) -> Void
+    ) {
+        guard var transaction = exclusiveStill, transaction.id == id else {
+            settled(.success(()))
+            return
+        }
+        transaction.cancelWaiters.append(settled)
+        transaction.canceled = true
+        if !transaction.timedOut {
+            transaction.snapshotResult = .failure(
+                AOSDesktopFrameCaptureFailure.unauthorized
+            )
+        }
+        exclusiveStill = transaction
+        switch transaction.phase {
+        case .quiescing:
+            return
+        case .restoring:
+            if retiring { return }
+            if lease != nil || startup != nil {
+                retireCurrentOnQueue()
+            } else {
+                finishExclusiveStillOnQueue()
+                beginDesiredOnQueue()
+            }
+            return
+        case .capturing:
+            break
+        }
+        guard let operation = transaction.operation else { return }
+        if let retiring = operation as? AOSDesktopFrameRetirementAwaiting {
+            retiring.cancelAndAwaitRetirement { [weak self] result in
+                self?.queue.async {
+                    guard var current = self?.exclusiveStill,
+                          current.id == id else {
+                        return
+                    }
+                    current.operation = nil
+                    current.phase = .restoring
+                    current.snapshotResult = .failure(
+                        AOSDesktopFrameCaptureFailure.unauthorized
+                    )
+                    self?.exclusiveStill = current
+                    if case .failure = result {
+                        self?.failure = .retirementUncertain
+                        self?.state = .failed
+                    }
+                    self?.beginExclusiveRestoreOnQueue()
+                }
+            }
+        } else {
+            operation.cancel()
+        }
+    }
+
+    private func exclusiveStillDeadlineOnQueue(id: UUID) {
+        guard var transaction = exclusiveStill,
+              transaction.id == id,
+              !transaction.completionDelivered else { return }
+        transaction.completionDelivered = true
+        transaction.timedOut = true
+        transaction.snapshotResult = .failure(
+            AOSDesktopFrameCaptureFailure.captureFailed
+        )
+        exclusiveStill = transaction
+        deliverExclusiveStillCompletion(
+            transaction.completion,
+            result: .failure(AOSDesktopFrameCaptureFailure.captureFailed)
+        )
+        cancelExclusiveStillOnQueue(id: id) { _ in }
+    }
+
+    private func finishExclusiveStillOnQueue(
+        restoreFailure: AOSDesktopFrameCaptureFailure? = nil
+    ) {
+        guard let transaction = exclusiveStill else { return }
+        exclusiveStill = nil
+        transaction.deadline?.cancel()
+        let result: Result<AOSDesktopPixelFrameSet, Error>
+        let retirement: Result<Void, Error>
+        if let restoreFailure {
+            result = .failure(restoreFailure)
+            retirement = .failure(restoreFailure)
+        } else if transaction.topologyDrifted && !transaction.canceled {
+            result = .failure(AOSDesktopFrameCaptureFailure.topologyMismatch)
+            retirement = .success(())
+        } else {
+            result = transaction.snapshotResult
+                ?? .failure(AOSDesktopFrameCaptureFailure.captureFailed)
+            retirement = .success(())
+        }
+        if !transaction.completionDelivered {
+            deliverExclusiveStillCompletion(transaction.completion, result: result)
+        }
+        transaction.cancelWaiters.forEach { waiter in
+            DispatchQueue.global(qos: .userInitiated).async {
+                waiter(retirement)
+            }
+        }
+    }
+
+    private func deliverExclusiveStillCompletion(
+        _ completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void,
+        result: Result<AOSDesktopPixelFrameSet, Error>
+    ) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            completion(result)
+        }
     }
 
     private func statusOnQueue() -> AOSDesktopFrameWarmStatus {

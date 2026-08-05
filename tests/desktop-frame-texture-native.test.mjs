@@ -11,6 +11,10 @@ const displayGeometrySource = path.join(
   repoRoot,
   'src/shared/desktop-world-display-geometry.swift',
 )
+const displayTopologySource = path.join(
+  repoRoot,
+  'src/perceive/display-topology.swift',
+)
 const storeSource = path.join(repoRoot, 'src/display/desktop-frame-texture.swift')
 const consentContractSource = path.join(repoRoot, 'src/shared/desktop-frame-capture-consent-contract.swift')
 const consentSource = path.join(repoRoot, 'src/daemon/desktop-frame-capture-consent.swift')
@@ -1371,6 +1375,7 @@ struct DesktopFrameProof {
     '-parse-as-library',
     taskStateSource,
     displayGeometrySource,
+    displayTopologySource,
     storeSource,
     consentContractSource,
     brokerSource,

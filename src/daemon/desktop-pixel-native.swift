@@ -52,6 +52,55 @@ private func aosDesktopPixelNativeError(
     return nil
 }
 
+struct AOSDesktopPixelStillDisplayOutcome {
+    var displayFailure: AOSDesktopFrameCaptureFailure?
+    var displayFrame: AOSDesktopPixelFrame?
+    let requestedWindowID: Int?
+    var windowFailure: AOSDesktopFrameCaptureFailure?
+    var windowFrame: AOSDesktopPixelFrame?
+}
+
+func aosResolveDesktopPixelStillOutcomes(
+    displayIDs: [UInt32],
+    outcomes: [UInt32: AOSDesktopPixelStillDisplayOutcome]
+) -> Result<[AOSDesktopPixelFrame], AOSDesktopFrameCaptureFailure> {
+    if outcomes.values.contains(where: {
+        $0.displayFailure == .retirementUncertain
+            || $0.windowFailure == .retirementUncertain
+    }) {
+        return .failure(.retirementUncertain)
+    }
+    var frames: [AOSDesktopPixelFrame] = []
+    var failures: [AOSDesktopFrameCaptureFailure] = []
+    for displayID in displayIDs {
+        guard let outcome = outcomes[displayID] else {
+            failures.append(.captureFailed)
+            continue
+        }
+        if outcome.requestedWindowID != nil,
+           let windowFrame = outcome.windowFrame {
+            frames.append(windowFrame)
+        } else if let displayFrame = outcome.displayFrame,
+                  let image = displayFrame.image {
+            frames.append(AOSDesktopPixelFrame(
+                capturedAt: displayFrame.capturedAt,
+                displayID: displayID,
+                image: image,
+                source: .display,
+                usedWindowFallback: outcome.requestedWindowID != nil
+            ))
+        } else {
+            failures.append(
+                outcome.windowFailure
+                    ?? outcome.displayFailure
+                    ?? .captureFailed
+            )
+        }
+    }
+    if let failure = failures.first { return .failure(failure) }
+    return .success(frames)
+}
+
 private final class AOSDesktopPixelNativeTrace: @unchecked Sendable {
     private let startedAt = Date()
 
@@ -75,17 +124,41 @@ private final class AOSDesktopPixelNativeTrace: @unchecked Sendable {
 private final class AOSDesktopPixelSourceFailureState: @unchecked Sendable {
     private var failure: Error?
     private let lock = NSLock()
+    private var observer: ((Error) -> Void)?
+    private var terminalDelivered = false
 
     func record(_ error: Error) {
+        let delivery: ((Error) -> Void)?
         lock.lock()
         if failure == nil { failure = error }
+        if terminalDelivered {
+            delivery = nil
+        } else {
+            terminalDelivered = observer != nil
+            delivery = observer
+        }
         lock.unlock()
+        delivery?(error)
     }
 
     func current() -> Error? {
         lock.lock()
         defer { lock.unlock() }
         return failure
+    }
+
+    func observe(_ observer: @escaping (Error) -> Void) {
+        let delivery: Error?
+        lock.lock()
+        self.observer = observer
+        if terminalDelivered {
+            delivery = nil
+        } else {
+            delivery = failure
+            terminalDelivered = delivery != nil
+        }
+        lock.unlock()
+        if let delivery { observer(delivery) }
     }
 }
 
@@ -153,7 +226,7 @@ private func aosDesktopPixelSourceDimensions(
             pointHeight: display.height,
             pointPixelScale: filter.pointPixelScale
         ) else {
-            throw AOSDesktopFrameCaptureFailure.captureFailed
+            throw AOSDesktopFrameCaptureFailure.topologyMismatch
         }
         return geometry.pixelDimensions
     }
@@ -163,104 +236,478 @@ private func aosDesktopPixelSourceDimensions(
             pointHeight: Double(display.height),
             pointPixelScale: Double(filter.pointPixelScale)
           ) else {
-        throw AOSDesktopFrameCaptureFailure.captureFailed
+        throw AOSDesktopFrameCaptureFailure.topologyMismatch
     }
     return dimensions
 }
 
-private actor AOSNativeDesktopPixelSnapshotActor {
-    func snapshot(
-        _ request: AOSDesktopPixelSnapshotRequest
-    ) async throws -> AOSDesktopPixelFrameSet {
+func aosValidateDesktopPixelPublicCaptureAdmission(
+    request: AOSDesktopPixelSnapshotRequest,
+    providerFacts: [AOSDisplayCaptureProviderFact]
+) throws -> [AOSDisplayCaptureAlignment] {
+    guard request.capturePolicy == .publicExplicitExclusions,
+          let topology = request.publicCaptureTopology,
+          request.publicCaptureSelections.map(\.runtimeDisplayID)
+            == request.displayIDs else {
+        throw AOSDesktopFrameCaptureFailure.topologyMismatch
+    }
+    do {
+        return try validateAOSDisplayCaptureAlignment(
+            topology: topology,
+            providerFacts: providerFacts,
+            selectedDisplays: request.publicCaptureSelections
+        )
+    } catch {
+        throw AOSDesktopFrameCaptureFailure.topologyMismatch
+    }
+}
+
+@available(macOS 14.0, *)
+private func aosDesktopPixelPublicCaptureProviderFact(
+    display: SCDisplay,
+    filter: SCContentFilter,
+    selection: AOSDisplayCaptureSelection
+) throws -> AOSDisplayCaptureProviderFact {
+    let displayUUID: String? = {
+        guard let unmanaged = CGDisplayCreateUUIDFromDisplayID(
+            display.displayID
+        ) else {
+            return nil
+        }
+        return CFUUIDCreateString(nil, unmanaged.takeRetainedValue()) as String
+    }()
+    let memberIdentity: AOSDisplayTopologyMemberIdentity
+    do {
+        memberIdentity = try aosDisplayCaptureProviderMemberIdentity(
+            runtimeDisplayID: display.displayID,
+            displayUUID: displayUUID,
+            expectedMemberIdentity: selection.memberIdentity
+        )
+    } catch {
+        throw AOSDesktopFrameCaptureFailure.topologyMismatch
+    }
+    let nativeFrame = CGDisplayBounds(display.displayID)
+    return AOSDisplayCaptureProviderFact(
+        runtimeDisplayID: display.displayID,
+        memberIdentity: memberIdentity,
+        nativeFrame: AOSDisplayTopologyBounds(
+            x: nativeFrame.origin.x,
+            y: nativeFrame.origin.y,
+            width: nativeFrame.width,
+            height: nativeFrame.height
+        ),
+        pointWidth: display.width,
+        pointHeight: display.height,
+        scaleFactor: Double(filter.pointPixelScale)
+    )
+}
+
+private final class AOSNativeDesktopPixelStillOperation:
+    AOSDesktopFrameRetirementAwaiting,
+    @unchecked Sendable
+{
+    @available(macOS 14.0, *)
+    private struct PreparedDisplayCapture {
+        enum Source {
+            case display
+            case window(Int)
+        }
+
+        let displayID: UInt32
+        let filter: SCContentFilter
+        let height: Int
+        let source: Source
+        let width: Int
+    }
+
+    private static let callbackDeadline: TimeInterval = 5
+
+    private let completion: (Result<AOSDesktopPixelFrameSet, Error>) -> Void
+    private var canceled = false
+    private var contentPending = true
+    private var displayOutcomes: [UInt32: AOSDesktopPixelStillDisplayOutcome] = [:]
+    private var finished = false
+    private let lock = NSLock()
+    private var outstandingNativeCallbacks = 0
+    private var pendingCaptureCallbacks = 0
+    private let request: AOSDesktopPixelSnapshotRequest
+    private var retirementWaiters: [(Result<Void, Error>) -> Void] = []
+    private let startedAt = Date()
+
+    init(
+        request: AOSDesktopPixelSnapshotRequest,
+        completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void
+    ) {
+        self.request = request
+        self.completion = completion
+    }
+
+    func start() {
         guard #available(macOS 14.0, *) else {
-            throw AOSDesktopFrameCaptureFailure.unsupported
+            finish(.failure(AOSDesktopFrameCaptureFailure.unsupported))
+            return
         }
         guard CGPreflightScreenCaptureAccess() else {
-            throw AOSDesktopFrameCaptureFailure.permissionDenied
+            finish(.failure(AOSDesktopFrameCaptureFailure.permissionDenied))
+            return
         }
         guard aosDesktopPixelRequestIsValid(request) else {
-            throw AOSDesktopFrameCaptureFailure.captureFailed
+            finish(.failure(AOSDesktopFrameCaptureFailure.captureFailed))
+            return
         }
-        try Task.checkCancellation()
+        let token = AOSDesktopPixelRetainedCallbackToken<SCShareableContent>()
+        registerNativeCallback()
+        token.start(
+            deadline: Self.callbackDeadline,
+            nativeStart: { callback in
+                SCShareableContent.getExcludingDesktopWindows(
+                    false,
+                    onScreenWindowsOnly: true,
+                    completionHandler: callback
+                )
+            },
+            authoritativeSettlement: { [weak self] in
+                self?.nativeCallbackSettled()
+            },
+            completion: { [weak self] result in
+                guard let self else { return }
+                switch result {
+                case .success(let content):
+                    DispatchQueue.main.async { self.contentReady(content) }
+                case .failure(let error):
+                    self.finish(.failure(aosDesktopFrameCaptureFailure(for: error)))
+                }
+            }
+        )
+    }
 
-        let startedAt = Date()
-        let content: SCShareableContent
+    func cancel() {
+        lock.lock()
+        canceled = true
+        let canFinish = !contentPending && pendingCaptureCallbacks == 0
+        lock.unlock()
+        if canFinish {
+            finish(.failure(AOSDesktopFrameCaptureFailure.unauthorized))
+        }
+    }
+
+    func cancelAndAwaitRetirement(
+        _ completion: @escaping (Result<Void, Error>) -> Void
+    ) {
+        lock.lock()
+        if finished && outstandingNativeCallbacks == 0 {
+            lock.unlock()
+            completion(.success(()))
+            return
+        }
+        retirementWaiters.append(completion)
+        lock.unlock()
+        cancel()
+    }
+
+    @available(macOS 14.0, *)
+    private func contentReady(_ content: SCShareableContent) {
+        lock.lock()
+        contentPending = false
+        let isCanceled = canceled
+        lock.unlock()
+        guard !isCanceled else {
+            finish(.failure(AOSDesktopFrameCaptureFailure.unauthorized))
+            return
+        }
+        var displayByID: [UInt32: SCDisplay] = [:]
+        for display in content.displays {
+            guard displayByID.updateValue(
+                display,
+                forKey: display.displayID
+            ) == nil else {
+                finish(.failure(AOSDesktopFrameCaptureFailure.topologyMismatch))
+                return
+            }
+        }
+        guard request.displayIDs.allSatisfy({ displayByID[$0] != nil }) else {
+            finish(.failure(AOSDesktopFrameCaptureFailure.topologyMismatch))
+            return
+        }
         do {
-            content = try await SCShareableContent.excludingDesktopWindows(
-                false,
-                onScreenWindowsOnly: true
+            var displayFilters: [UInt32: SCContentFilter] = [:]
+            var providerFacts: [AOSDisplayCaptureProviderFact] = []
+            let selectionByDisplayID = Dictionary(
+                uniqueKeysWithValues: request.publicCaptureSelections.map {
+                    ($0.runtimeDisplayID, $0)
+                }
             )
-        } catch {
-            throw aosDesktopFrameCaptureFailure(for: error)
-        }
-        try Task.checkCancellation()
-
-        let requested = Set(request.displayIDs)
-        let displays = content.displays.filter { requested.contains($0.displayID) }
-        guard displays.count == requested.count else {
-            throw AOSDesktopFrameCaptureFailure.displayNotFound
-        }
-        let frames = try await withThrowingTaskGroup(
-            of: AOSDesktopPixelFrame.self
-        ) { group in
-            for display in displays {
-                group.addTask {
-                    let filter = try aosDesktopPixelCaptureFilter(
-                        content: content,
-                        display: display,
-                        excludingWindowIDs: request.excludingWindowIDs
-                    )
-                    let source = try aosDesktopPixelSourceDimensions(
-                        display: display,
-                        filter: filter,
-                        request: request
-                    )
-                    guard let profile = AOSDesktopPixelWarmStreamProfile(
-                            sourceWidth: source.width,
-                            sourceHeight: source.height,
-                            maximumPixels: request.maximumPixelsPerDisplay,
-                            sizingPolicy: request.sizingPolicy
-                          ) else {
-                        throw AOSDesktopFrameCaptureFailure.captureFailed
+            for displayID in request.displayIDs {
+                guard let display = displayByID[displayID] else {
+                    throw AOSDesktopFrameCaptureFailure.topologyMismatch
+                }
+                let displayFilter = try aosDesktopPixelCaptureFilter(
+                    content: content,
+                    display: display,
+                    excludingWindowIDs: request.excludingWindowIDs,
+                    policy: request.capturePolicy
+                )
+                displayFilters[displayID] = displayFilter
+                if request.capturePolicy == .publicExplicitExclusions {
+                    guard let selection = selectionByDisplayID[displayID] else {
+                        throw AOSDesktopFrameCaptureFailure.topologyMismatch
                     }
-                    let configuration = SCStreamConfiguration()
-                    configuration.width = profile.width
-                    configuration.height = profile.height
-                    configuration.showsCursor = false
-                    configuration.captureResolution = .best
-                    let image: CGImage
-                    do {
-                        try Task.checkCancellation()
-                        image = try await SCScreenshotManager.captureImage(
-                            contentFilter: filter,
-                            configuration: configuration
+                    providerFacts.append(
+                        try aosDesktopPixelPublicCaptureProviderFact(
+                            display: display,
+                            filter: displayFilter,
+                            selection: selection
                         )
-                    } catch {
-                        throw aosDesktopFrameCaptureFailure(for: error)
-                    }
-                    try Task.checkCancellation()
-                    return AOSDesktopPixelFrame(
-                        capturedAt: Date(),
-                        displayID: display.displayID,
-                        image: image
                     )
                 }
             }
-            var results: [AOSDesktopPixelFrame] = []
-            for try await frame in group {
-                results.append(frame)
+            let publicAlignments = request.capturePolicy == .publicExplicitExclusions
+                ? try aosValidateDesktopPixelPublicCaptureAdmission(
+                    request: request,
+                    providerFacts: providerFacts
+                )
+                : []
+            let publicAlignmentByDisplayID = Dictionary(
+                uniqueKeysWithValues: publicAlignments.map {
+                    ($0.runtimeDisplayID, $0)
+                }
+            )
+            var prepared: [PreparedDisplayCapture] = []
+            var outcomes: [UInt32: AOSDesktopPixelStillDisplayOutcome] = [:]
+            for displayID in request.displayIDs {
+                guard let display = displayByID[displayID],
+                      let displayFilter = displayFilters[displayID] else {
+                    throw AOSDesktopFrameCaptureFailure.topologyMismatch
+                }
+                let sourceWidth: Int
+                let sourceHeight: Int
+                if request.capturePolicy == .publicExplicitExclusions {
+                    guard let alignment = publicAlignmentByDisplayID[displayID] else {
+                        throw AOSDesktopFrameCaptureFailure.topologyMismatch
+                    }
+                    sourceWidth = alignment.expectedPixelWidth
+                    sourceHeight = alignment.expectedPixelHeight
+                } else {
+                    let source = try aosDesktopPixelSourceDimensions(
+                        display: display,
+                        filter: displayFilter,
+                        request: request
+                    )
+                    sourceWidth = source.width
+                    sourceHeight = source.height
+                }
+                guard let profile = AOSDesktopPixelWarmStreamProfile(
+                    sourceWidth: sourceWidth,
+                    sourceHeight: sourceHeight,
+                    maximumPixels: request.maximumPixelsPerDisplay,
+                    sizingPolicy: request.sizingPolicy
+                ) else {
+                    throw AOSDesktopFrameCaptureFailure.captureFailed
+                }
+                let requestedWindowID = request.windowIDsByDisplay[display.displayID]
+                outcomes[display.displayID] = AOSDesktopPixelStillDisplayOutcome(
+                    displayFailure: nil,
+                    displayFrame: nil,
+                    requestedWindowID: requestedWindowID,
+                    windowFailure: nil,
+                    windowFrame: nil
+                )
+                prepared.append(PreparedDisplayCapture(
+                    displayID: display.displayID,
+                    filter: displayFilter,
+                    height: profile.height,
+                    source: .display,
+                    width: profile.width
+                ))
+                if let windowID = requestedWindowID,
+                   !request.excludingWindowIDs.contains(windowID),
+                   let window = content.windows.first(where: {
+                              Int($0.windowID) == windowID
+                          }),
+                   let geometry = request.displayLayout?.geometry(
+                              displayID: display.displayID
+                          ),
+                   geometry.nativePointBounds.contains(CGPoint(
+                              x: window.frame.midX,
+                              y: window.frame.midY
+                          )),
+                   let dimensions = AOSDesktopPixelDimensions(
+                              pointWidth: window.frame.width,
+                              pointHeight: window.frame.height,
+                              pointPixelScale: geometry.pointPixelScale
+                          ),
+                   dimensions.pixelCount.map({
+                              $0 <= request.maximumPixelsPerDisplay
+                          }) == true {
+                    prepared.append(PreparedDisplayCapture(
+                        displayID: display.displayID,
+                        filter: SCContentFilter(desktopIndependentWindow: window),
+                        height: dimensions.height,
+                        source: .window(windowID),
+                        width: dimensions.width
+                    ))
+                }
             }
-            return results.sorted { $0.displayID < $1.displayID }
+            lock.lock()
+            guard !finished, !canceled else {
+                lock.unlock()
+                finish(.failure(AOSDesktopFrameCaptureFailure.unauthorized))
+                return
+            }
+            displayOutcomes = outcomes
+            pendingCaptureCallbacks = prepared.count
+            lock.unlock()
+            for entry in prepared {
+                let configuration = SCStreamConfiguration()
+                configuration.width = entry.width
+                configuration.height = entry.height
+                configuration.showsCursor = request.showsCursor
+                configuration.captureResolution = .best
+                configuration.ignoreShadowsSingleWindow = true
+                let token = AOSDesktopPixelRetainedCallbackToken<CGImage>()
+                registerNativeCallback()
+                token.start(
+                    deadline: Self.callbackDeadline,
+                    nativeStart: { callback in
+                        SCScreenshotManager.captureImage(
+                            contentFilter: entry.filter,
+                            configuration: configuration,
+                            completionHandler: callback
+                        )
+                    },
+                    authoritativeSettlement: { [weak self] in
+                        self?.nativeCallbackSettled()
+                    },
+                    completion: { [weak self] result in
+                        self?.imageSettled(
+                            result,
+                            capture: entry,
+                            expectedWidth: entry.width,
+                            expectedHeight: entry.height
+                        )
+                    }
+                )
+            }
+        } catch {
+            finish(.failure(aosDesktopFrameCaptureFailure(for: error)))
         }
+    }
 
-        return AOSDesktopPixelFrameSet(
-            capturedAt: startedAt,
-            durationMilliseconds: max(
-                0,
-                Int(Date().timeIntervalSince(startedAt) * 1_000)
-            ),
-            frames: frames
-        )
+    private func imageSettled(
+        _ result: Result<CGImage, Error>,
+        capture: PreparedDisplayCapture,
+        expectedWidth: Int,
+        expectedHeight: Int
+    ) {
+        let frame: AOSDesktopPixelFrame?
+        let failure: AOSDesktopFrameCaptureFailure?
+        switch result {
+        case .failure(let error):
+            frame = nil
+            failure = aosDesktopFrameCaptureFailure(for: error)
+        case .success(let image):
+            if image.width == expectedWidth, image.height == expectedHeight {
+                frame = AOSDesktopPixelFrame(
+                    capturedAt: Date(),
+                    displayID: capture.displayID,
+                    image: image,
+                    source: {
+                        switch capture.source {
+                        case .display: return .display
+                        case .window(let windowID): return .window(windowID)
+                        }
+                    }()
+                )
+                failure = nil
+            } else {
+                frame = nil
+                failure = .captureFailed
+            }
+        }
+        lock.lock()
+        guard !finished,
+              pendingCaptureCallbacks > 0,
+              var outcome = displayOutcomes[capture.displayID] else {
+            lock.unlock()
+            return
+        }
+        switch capture.source {
+        case .display:
+            outcome.displayFrame = frame
+            outcome.displayFailure = failure
+        case .window:
+            outcome.windowFrame = frame
+            outcome.windowFailure = failure
+        }
+        displayOutcomes[capture.displayID] = outcome
+        pendingCaptureCallbacks -= 1
+        let complete = pendingCaptureCallbacks == 0
+        let canceled = self.canceled
+        let outcomes = displayOutcomes
+        lock.unlock()
+        guard complete else { return }
+        if canceled {
+            finish(.failure(AOSDesktopFrameCaptureFailure.unauthorized))
+        } else {
+            switch aosResolveDesktopPixelStillOutcomes(
+                displayIDs: request.displayIDs,
+                outcomes: outcomes
+            ) {
+            case .failure(let failure):
+                finish(.failure(failure))
+            case .success(let frames):
+                finish(.success(AOSDesktopPixelFrameSet(
+                    capturedAt: startedAt,
+                    durationMilliseconds: max(
+                        0,
+                        Int(Date().timeIntervalSince(startedAt) * 1_000)
+                    ),
+                    frames: frames
+                )))
+            }
+        }
+    }
+
+    private func registerNativeCallback() {
+        lock.lock()
+        outstandingNativeCallbacks += 1
+        lock.unlock()
+    }
+
+    private func nativeCallbackSettled() {
+        lock.lock()
+        precondition(outstandingNativeCallbacks > 0)
+        outstandingNativeCallbacks -= 1
+        let waiters: [(Result<Void, Error>) -> Void]
+        if finished && outstandingNativeCallbacks == 0 {
+            waiters = retirementWaiters
+            retirementWaiters = []
+        } else {
+            waiters = []
+        }
+        lock.unlock()
+        waiters.forEach { $0(.success(())) }
+    }
+
+    private func finish(_ result: Result<AOSDesktopPixelFrameSet, Error>) {
+        lock.lock()
+        guard !finished else {
+            lock.unlock()
+            return
+        }
+        finished = true
+        pendingCaptureCallbacks = 0
+        displayOutcomes.removeAll()
+        let waiters: [(Result<Void, Error>) -> Void]
+        if outstandingNativeCallbacks == 0 {
+            waiters = retirementWaiters
+            retirementWaiters = []
+        } else {
+            waiters = []
+        }
+        lock.unlock()
+        completion(result)
+        waiters.forEach { $0(.success(())) }
     }
 }
 
@@ -546,7 +993,8 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
                 let output = AOSDesktopPixelStreamOutput(
                     displayID: display.displayID,
                     slot: slot,
-                    nativeStopped: { [weak startOperation, weak stopOperation] error in
+                    nativeStopped: { [weak startOperation, weak stopOperation, weak sourceFailure] error in
+                        sourceFailure?.record(error)
                         startOperation?.settle(.failure(error))
                         stopOperation?.settle(.failure(error))
                     },
@@ -710,6 +1158,10 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
         )
     }
 
+    func setTerminalObserver(_ observer: @escaping (Error) -> Void) {
+        failureState.observe(observer)
+    }
+
     func cancel(completion: @escaping (Result<Void, Error>) -> Void) {
         lock.lock()
         if stopFinished, let stopResult {
@@ -774,21 +1226,17 @@ private final class AOSNativeDesktopPixelWarmSource: AOSDesktopPixelWarmSource,
 final class AOSNativeDesktopPixelAcquirer: AOSDesktopPixelAcquiring,
     AOSDesktopPixelWarmAcquiring
 {
-    private let actor = AOSNativeDesktopPixelSnapshotActor()
-
     @discardableResult
     func snapshot(
         _ request: AOSDesktopPixelSnapshotRequest,
         completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void
     ) -> AOSDesktopFrameCancelling {
-        let task = Task.detached(priority: .userInitiated) { [actor] in
-            do {
-                completion(.success(try await actor.snapshot(request)))
-            } catch {
-                completion(.failure(error))
-            }
-        }
-        return AOSDesktopFrameCancellation { task.cancel() }
+        let operation = AOSNativeDesktopPixelStillOperation(
+            request: request,
+            completion: completion
+        )
+        operation.start()
+        return operation
     }
 
     @discardableResult

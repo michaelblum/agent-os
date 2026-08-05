@@ -44,10 +44,30 @@ scene_extension = {
     "threeRevision": "183",
 }
 
+display_topology = json.loads((
+    schema_root / "fixtures/display-topology-v1/valid/uuid-members.json"
+).read_text())
+
+see_capture = {
+    "capture_id": "11111111-1111-4111-8111-111111111111",
+    "display_topology": display_topology,
+    "displays": [{
+        "display_id": 42,
+        "index": 0,
+        "topology_ordinal": 1,
+    }],
+    "display_ids": [42],
+    "excluded_window_ids": [901],
+    "window_targets": [],
+    "maximum_pixels_per_display": 2073600,
+    "shows_cursor": False,
+}
+
 good_requests = [
     {"v":1,"service":"system","action":"ping","data":{}},
     {"v":1,"service":"see","action":"observe","data":{"depth":1,"scope":"cursor"}},
     {"v":1,"service":"see","action":"snapshot","data":{}},
+    {"v":1,"service":"see","action":"capture","data":see_capture,"ref":see_capture["capture_id"]},
     {"v":1,"service":"show","action":"create","data":{"id":"x","at":[0,0,10,10],"html":"<div/>"}},
     {"v":1,"service":"show","action":"create","data":{"id":"hit","at":[0,0,10,10],"window_level":"screen_saver","html":"<div/>"}},
     {"v":1,"service":"show","action":"create","data":{"id":"world","surface":"desktop-world","url":"aos://toolkit/components/surface-inspector/index.html"}},
@@ -76,6 +96,7 @@ bad_requests = [
     {"v":2,"service":"system","action":"ping","data":{}},  # wrong v
     {"v":1,"service":"system","action":"PING","data":{}},  # uppercase action
     {"v":1,"service":"unknown","action":"ping","data":{}},  # bad service
+    {"v":1,"service":"see","action":"unknown","data":{}},  # see action vocabulary is closed
     {"v":1,"service":"tell","action":"send","data":{"audience":["ops"]}},  # no text or payload
     {"v":1,"service":"session","action":"register","data":{"name":"only-a-name"}},  # missing session_id
     {"v":1,"service":"permissions","action":"unknown","data":{}},  # permission action vocabulary is closed
@@ -87,6 +108,10 @@ bad_requests = [
     {"v":1,"service":"show","action":"create","data":{"id":"x","surface":"desktop-world","at":[0,0,10,10],"html":"<div/>"}},  # surface + at
     {"v":1,"service":"show","action":"create","data":{"id":"x","surface":"desktop-world","anchor_window":1,"offset":[0,0,10,10],"html":"<div/>"}},  # surface + anchor
     {"v":1,"service":"show","action":"post","data":{}},  # show.post missing required id
+    {"v":1,"service":"see","action":"capture","data":{**see_capture,"maximum_pixels_per_display":67108865}},  # public pixel budget is bounded
+    {"v":1,"service":"see","action":"capture","data":{k:v for k,v in see_capture.items() if k != "display_topology"}},  # canonical display topology is required
+    {"v":1,"service":"see","action":"capture","data":{**see_capture,"topology_identity":"sha256:" + "a" * 64}},  # independent identity authority is forbidden
+    {"v":1,"service":"see","action":"capture","data":{**see_capture,"path":"/private/capture.png"}},  # transport cannot accept artifact paths
     {"v":1,"service":"status_item","action":"unknown","data":{}},  # status item action vocabulary is closed
     {"v":1,"service":"status_item","action":"register","data":{"descriptor":{**descriptor,"owner":"io..example"}}},  # runtime rejects dot-dot identifiers
     {"v":1,"service":"status_item","action":"update","data":{"owner":"io.example.app","item_id":"status","generation":7,"descriptor":{**descriptor,"revision":4}}},  # missing current revision
@@ -117,6 +142,7 @@ status_anchor = {
 }
 good_responses = [
     {"v":1,"status":"success","data":{"generation":7},"ref":"register-1"},
+    {"v":1,"status":"success","data":{"capture_id":see_capture["capture_id"],"topology_identity":display_topology["identity"],"frames":[{"display_id":42,"frame_index":0,"chunk_count":1,"byte_count":4,"sha256":"b"*64,"width":2,"height":2,"capture_source":"display","window_fallback":False}]},"ref":see_capture["capture_id"]},
     {"v":1,"status":"dry_run","data":{"owner":"io.example.app","item_id":"tool","action_id":"activate","generation":7,"descriptor_revision":3,"action_sequence":1,"event_type":"primary_activation","bounds":status_bounds,"anchor":status_anchor},"ref":"invoke-1"},
     {"v":1,"status":"error","error":"status item not found","code":"STATUS_ITEM_NOT_FOUND"},
     {"v":1,"status":"error","error":"invalid descriptor","code":"INVALID_STATUS_ITEM_DESCRIPTOR"},
@@ -143,6 +169,9 @@ bad_responses = [
     {"v":1,"status":"error","error":"unknown","code":"SOME_NEW_ERROR"},  # unrelated error vocabulary remains closed
     {"v":1,"status":"error","error":"unknown","code":"STATUS_ITEM_"},  # status item code requires a suffix
     {"v":1,"status":"error","error":"unknown","code":"STATUS_ITEM_FUTURE_ERROR"},  # status item error vocabulary is exact
+    {"v":1,"status":"success","data":{"capture_id":see_capture["capture_id"],"topology_identity":display_topology["identity"],"frames":[{"display_id":42,"frame_index":0,"chunk_count":1,"byte_count":4,"sha256":"b"*64,"width":2,"height":2,"capture_source":"display","window_fallback":False,"extra":True}]},"ref":see_capture["capture_id"]},  # capture frame metadata is closed
+    {"v":1,"status":"success","data":{"capture_id":see_capture["capture_id"],"topology_identity":display_topology["identity"],"frames":[{"display_id":42,"frame_index":0,"chunk_count":1,"byte_count":4,"sha256":"b"*64,"height":2,"capture_source":"display","window_fallback":False}]},"ref":see_capture["capture_id"]},  # capture frame metadata is complete
+    {"v":1,"status":"success","data":{"capture_id":see_capture["capture_id"],"topology_identity":display_topology["identity"],"frames":[{"display_id":42,"frame_index":0,"chunk_count":1,"byte_count":4,"sha256":"b"*64,"width":2,"height":2,"capture_source":"window","window_fallback":True,"window_id":901}]},"ref":see_capture["capture_id"]},  # window success cannot also be fallback
 ]
 for response in bad_responses:
     errors = list(response_validator.iter_errors(response))

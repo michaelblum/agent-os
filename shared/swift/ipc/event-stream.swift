@@ -16,6 +16,8 @@ class DaemonEventStream {
     let initialBackoffSec: Double
     let maxBackoffSec: Double
     let connectTimeoutMs: Int32
+    private let connector: (String, Int32) -> Int32
+    private let maximumFrameBytes: Int
 
     // -- Callbacks --
     /// Called for every parsed JSON message on the stream. This is the primary callback.
@@ -53,13 +55,22 @@ class DaemonEventStream {
         ],
         initialBackoffSec: Double = 1.0,
         maxBackoffSec: Double = 10.0,
-        connectTimeoutMs: Int32 = 1000
+        connectTimeoutMs: Int32 = 1000,
+        maximumFrameBytes: Int = aosDaemonMaximumNDJSONFrameBytes,
+        connector: @escaping (String, Int32) -> Int32 = {
+            connectSocket($0, timeoutMs: $1)
+        }
     ) {
         self.socketPath = socketPath
         self.subscribeMessage = subscribeMessage
         self.initialBackoffSec = initialBackoffSec
         self.maxBackoffSec = maxBackoffSec
         self.connectTimeoutMs = connectTimeoutMs
+        self.connector = connector
+        self.maximumFrameBytes = min(
+            max(1, maximumFrameBytes),
+            aosDaemonMaximumNDJSONFrameBytes
+        )
     }
 
     // MARK: - Public API
@@ -108,7 +119,7 @@ class DaemonEventStream {
             guard running else { lock.unlock(); return }
             lock.unlock()
 
-            let sockFD = connectSocket(socketPath, timeoutMs: connectTimeoutMs)
+            let sockFD = connector(socketPath, connectTimeoutMs)
             guard sockFD >= 0 else {
                 fputs("event-stream: daemon unavailable, retrying in \(Int(backoff))s...\n", stderr)
                 usleep(UInt32(backoff * 1_000_000))
@@ -169,7 +180,7 @@ class DaemonEventStream {
     // MARK: - Read Loop
 
     private func readLoop(_ fd: Int32) {
-        var reader = NDJSONReader()
+        var reader = NDJSONReader(maximumFrameBytes: maximumFrameBytes)
         var chunk = [UInt8](repeating: 0, count: 4096)
 
         while true {
@@ -184,7 +195,7 @@ class DaemonEventStream {
             let n = read(fd, &chunk, chunk.count)
             guard n > 0 else { return }
 
-            reader.append(chunk, count: n)
+            guard reader.append(chunk, count: n) else { return }
 
             while let json = reader.nextJSON() {
                 // Raw callback — every message

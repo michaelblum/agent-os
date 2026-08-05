@@ -22,15 +22,31 @@ needs, but public command policy and product UI policy belong above it:
   perception, and `see list` must consume that frozen snapshot; spatial
   topology construction may not enumerate displays again. Active displays
   require exactly one NSScreen source with no synthesized visible bounds or
-  scale. Before selected full-display capture, each ScreenCaptureKit filter is
-  created once, admitted against unique membership, frame, point size, and
-  `pointPixelScale`, then retained for capture; every returned full display
-  image must match exact topology-derived integer pixel geometry before crop or
-  stitch. Interactive capture may use the existing overlay only to obtain
-  frozen display-local bounds, then must join this same validated region path
-  without another screen enumeration or image-capture subprocess. Runtime
+  scale. Native public capture sends the full canonical topology snapshot plus
+  only display-ID/ordinal selection mapping to the existing unified daemon,
+  whose singleton desktop-pixel broker is the sole production ScreenCaptureKit
+  owner. The daemon rebuilds the topology identity and derives native and
+  DesktopWorld geometry from that canonical snapshot before admitting selected
+  display/window membership; caller-supplied duplicate geometry has no
+  authority. Before screenshot work, each selected live display must match the
+  frozen member identity, complete native frame including origin, point size,
+  and admitted filter scale. UUID-backed members bind through the current
+  CoreGraphics display UUID; fallback members require the exact display ID.
+  Every returned full-display image must match that geometry before
+  crop or stitch. A requested window is preferred, but the same content
+  observation and broker transaction also admit a full-display fallback whose
+  projection is explicitly labeled and warned.
+  Interactive capture may use the existing overlay only to obtain frozen
+  display-local bounds, then must join this same validated region path without
+  another screen enumeration or image-capture subprocess. Browser capture
+  remains daemon-free, and the gated foreground development pixel probe remains
+  the only non-production ScreenCaptureKit exception. Runtime
   labels and UUID-backed display IDs stay outside the identity, while
   missing/duplicate UUIDs use the explicit display-ID fallback;
+  capture IPC accepts only exact integer JSON tokens within the safe-integer
+  range and each field's native bounds, closes chunk/final key sets before
+  decoding, and reads every response under one monotonic deadline and bounded
+  NDJSON frame size;
 - DesktopWorld's per-display Metal projection hosts are generation-bound stage
   infrastructure. They are prepared before native-effect admission, stay
   dormant between effects, and retire only with their display segment, stage,

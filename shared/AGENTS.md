@@ -17,12 +17,24 @@ apps, and tests.
 ## Local Contracts
 
 - Schema changes must update fixtures, docs, and tests that assert the contract.
+- `schemas/daemon-{request,event,response}.schema.json` owns the closed private
+  `see.capture` transport. Requests carry one full canonical topology snapshot
+  and bounded display-ID/ordinal and window selection; the daemon independently
+  rebuilds its identity and geometry before capture. Ordered capture chunks
+  carry bounded base64 bytes plus byte count and SHA-256, never paths or
+  persisted artifact facts. Final frame metadata labels display/window source
+  and window fallback exactly.
 - `schemas/display-topology-v1.*` owns the closed content-addressed display
   mapping snapshot embedded by spatial-topology 0.3.0 and explicit or
   interactively selected region captures; keep its canonical ordering,
   fallback, and binary identity encoding synchronized with the production Swift
   helper and deterministic fixtures.
 - Shared helpers must stay product-neutral and layer-neutral.
+- `swift/ipc/ndjson.swift`, `request-client.swift`, and `event-stream.swift`
+  bound every frame. Request reads use one monotonic absolute deadline across
+  all partial reads; a peer cannot extend a call by dripping bytes without a
+  newline. Event streams treat a rejected bounded append as connection loss so
+  the existing reconnect loop owns recovery.
 - Do not hide app-specific semantics in shared schema fields.
 - `swift/ipc/runtime-paths.swift` owns executable identity. Resolve the running
   Mach-O image authoritatively to an absolute, symlink-resolved path and begin

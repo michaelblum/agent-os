@@ -114,6 +114,56 @@ final class AOSConnectionOutboundWriter {
         return accepted
     }
 
+    /// Write one bounded frame before admitting the next. Large logical
+    /// transfers use this to preserve the normal queue budget instead of
+    /// enqueueing an entire capture at once.
+    @discardableResult
+    func enqueueAndWait(_ frame: Data) -> Bool {
+        let isNDJSONLine = !frame.isEmpty
+            && frame.last == UInt8(ascii: "\n")
+            && !frame.dropLast().contains(UInt8(ascii: "\n"))
+        var shouldDisconnect = false
+        stateLock.lock()
+        if closed || !isNDJSONLine
+            || pendingMessages + 1 > limits.maxQueuedMessages
+            || pendingBytes + frame.count > limits.maxQueuedBytes {
+            if !closed {
+                closed = true
+                disconnectReason = isNDJSONLine
+                    ? "outbound_queue_overflow"
+                    : "invalid_ndjson_frame"
+                shouldDisconnect = true
+            }
+            stateLock.unlock()
+            if shouldDisconnect { shutdownConnection() }
+            return false
+        }
+        pendingMessages += 1
+        pendingBytes += frame.count
+        maximumObservedMessages = max(maximumObservedMessages, pendingMessages)
+        maximumObservedBytes = max(maximumObservedBytes, pendingBytes)
+        stateLock.unlock()
+
+        var result: WriteResult = .failure
+        queue.sync {
+            let shouldWrite = withStateLock { !closed }
+            result = shouldWrite ? writeFully(frame) : .failure
+            stateLock.lock()
+            pendingMessages -= 1
+            pendingBytes -= frame.count
+            if shouldWrite && result != .success && !closed {
+                closed = true
+                disconnectReason = result == .timeout
+                    ? "outbound_write_timeout"
+                    : "outbound_write_failed"
+                shouldDisconnect = true
+            }
+            stateLock.unlock()
+        }
+        if shouldDisconnect { shutdownConnection() }
+        return result == .success
+    }
+
     @discardableResult
     func enqueueResponse(
         _ dict: [String: Any],

@@ -77,6 +77,7 @@ enum AOSDesktopFrameCaptureStrategy {
 final class AOSNativeDesktopFrameCapturer:
     AOSDesktopFrameCapturing,
     AOSDesktopFrameRuntimeCapturing,
+    AOSDesktopPixelExclusiveStillCapturing,
     AOSDesktopPixelFrameSetCapturing
 {
     private let broker: AOSDesktopPixelBroker
@@ -105,6 +106,18 @@ final class AOSNativeDesktopFrameCapturer:
         _ observer: ((AOSDesktopFrameWarmStatus) -> Void)?
     ) {
         warmPool.setWarmStatusObserver(observer)
+    }
+
+    @discardableResult
+    func captureExclusiveStill(
+        _ request: AOSDesktopPixelSnapshotRequest,
+        completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void
+    ) -> AOSDesktopFrameCancelling {
+        guard strategy == .prewarmedSnapshot else {
+            completion(.failure(AOSDesktopFrameCaptureFailure.unauthorized))
+            return AOSDesktopFrameCancellation()
+        }
+        return warmPool.captureExclusiveStill(request, completion: completion)
     }
 
     @discardableResult

@@ -79,8 +79,17 @@ DesktopWorld event-routing failures remain reason-coded and observable through
 bounded daemon diagnostics; never log scene payloads, gesture coordinates,
 labels, or product data to diagnose delivery.
 `desktop-pixel-capture-filter.swift` owns qualified app-process self-exclusion
-and raw-host exact-window exclusion. `desktop-pixel-native.swift` owns
-ScreenCaptureKit snapshots and bounded warm streams.
+for warm internal consumers and exact explicit-window exclusion for public
+capture. Public capture must not hide the AOS process implicitly.
+`desktop-pixel-native.swift` owns ScreenCaptureKit snapshots and bounded warm
+streams. Public still discovery and image acquisition use retained completion
+callbacks with a bounded logical deadline. A missing callback keeps its exact
+generation owner quarantined and blocks later admission without globally
+poisoning unrelated settled generations. Only that callback's authoritative
+settlement may release the quarantine; a late callback cannot redeliver the old
+result or mutate newer state. When a public still has already settled logically,
+that late authority automatically reconverges only the warm pool's still-current
+desired source generation. A never-callback owner remains quarantined.
 `src/shared/desktop-pixel-sample-admission.swift` owns the common usable-frame
 and producer-advancement rules shared by runtime capture and native proofs.
 `desktop-pixel-native-operation.swift` owns the exactly-once, callback-backed
@@ -154,7 +163,20 @@ authorized DesktopWorld stage. It retains only the broker's latest bounded
 native sample set, freezes on demand, and retires on authorization, consent,
 topology, stage-window, or stage loss. Runtime freezes require
 the exact generation-bound pool configuration and never cold-start
-ScreenCaptureKit. The capture controller gets
+ScreenCaptureKit. A public still is one exclusive transaction on this same
+pool: freeze the desired warm identity, await authoritative retirement, admit
+exactly one broker still, then restore the still-current desired configuration
+before returning. One 24-second monotonic daemon deadline covers quiescence,
+capture, restoration, and disconnect cleanup without timer-clearing an
+unsettled native owner. Reconciliation during the transaction updates
+restoration state but cannot open an overlapping producer. If the frozen source
+identity changes, the current desired source must become ready before the old
+capture returns a topology-mismatch failure; a nil desired source restores to
+idle. Cancellation in quiescing, capturing, and restoring also awaits
+authoritative cleanup. Post-ready stream termination is
+observed on the exact lease generation; one interrupted source may retire and
+reopen once, stale callbacks are ignored, and a repeated current failure stays
+unavailable. The capture controller gets
 ordered consumers and excluded stage windows from one main-thread context
 snapshot used for both prewarming and interaction. One-shot consent probes use
 the broker's bounded still-snapshot path. Runtime warm freezes deliver an
@@ -163,6 +185,20 @@ closed until native retirement is acknowledged. Delegate-observed and explicit
 ScreenCaptureKit terminal states count as retirement. A successful explicit stop
 is latched so repeated cleanup is idempotent; unknown stop failures remain
 fail-closed.
+`public-capture-controller.swift` accepts a closed request containing the full
+canonical display-topology snapshot plus display-ID/ordinal selection mapping.
+It rebuilds identity and geometry through the production topology builder and
+rejects unknown keys, non-exact numbers, duplicate identities, non-finite
+geometry, count overages, selection drift, and pixel-budget overflow before
+native capture. Native admission retains that same snapshot and binds each
+selected live display through its canonical UUID or exact display-ID fallback,
+complete CoreGraphics frame including origin, ScreenCaptureKit point size, and
+admitted filter scale before any screenshot callback is started. For a
+requested window, one content observation and one broker
+transaction admit both the preferred window still and a full-display fallback;
+missing, moved, invalid, or failed window capture returns the display with
+explicit source/fallback metadata and a consumer warning. Both native failures
+remain a capture failure.
 When the delegate reports a terminal error before Apple's startup callback,
 retain the delegate error as authoritative and settle the retained native
 operation immediately. The callback references that operation weakly, so a

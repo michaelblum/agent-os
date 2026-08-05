@@ -35,6 +35,10 @@ Pending annotation record construction belongs outside runtime; runtime may
 emit generic operator-selection evidence to an injected adapter, but it must not
 manufacture pending annotation DTOs.
 
+Toolkit runtime owns no pixel-capture bridge. Public native capture is the
+private `see.capture` daemon primitive consumed by the foreground capture
+pipeline; canvases must not regain a `capture.region` or recursive CLI helper.
+
 If a runtime helper becomes a workaround for missing daemon functionality, name
 the missing primitive in a work card instead of letting the workaround become
 the platform contract.

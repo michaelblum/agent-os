@@ -97,3 +97,90 @@ final class AOSDesktopPixelRetainedNativeOperation: @unchecked Sendable {
         return delivery
     }
 }
+
+/// A deadline may end logical delivery, but only the native callback settles
+/// ownership. A timed-out token therefore self-retains in quarantine until a
+/// late callback arrives; if it never arrives the exact native owner remains
+/// occupied and no later ScreenCaptureKit work can be admitted.
+final class AOSDesktopPixelRetainedCallbackToken<Value>: @unchecked Sendable {
+    typealias NativeStart = (@escaping (Value?, Error?) -> Void) -> Void
+
+    let token = UUID()
+    private let lock = NSLock()
+    private var completion: ((Result<Value, Error>) -> Void)?
+    private var delivered = false
+    private var selfRetain: AOSDesktopPixelRetainedCallbackToken<Value>?
+    private var settlementObserver: (() -> Void)?
+    private var settled = false
+
+    func start(
+        deadline: TimeInterval,
+        nativeStart: @escaping NativeStart,
+        authoritativeSettlement: @escaping () -> Void = {},
+        completion: @escaping (Result<Value, Error>) -> Void
+    ) {
+        precondition(deadline > 0 && deadline <= 10)
+        lock.lock()
+        precondition(self.completion == nil && selfRetain == nil)
+        self.completion = completion
+        settlementObserver = authoritativeSettlement
+        selfRetain = self
+        lock.unlock()
+
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(
+            deadline: .now() + deadline
+        ) { [weak self] in
+            self?.deadlineExpired()
+        }
+        nativeStart { [weak self] value, error in
+            self?.nativeSettled(value: value, error: error)
+        }
+    }
+
+    private func deadlineExpired() {
+        let delivery: ((Result<Value, Error>) -> Void)?
+        lock.lock()
+        guard !settled, !delivered else {
+            lock.unlock()
+            return
+        }
+        delivered = true
+        delivery = completion
+        completion = nil
+        lock.unlock()
+        delivery?(.failure(AOSDesktopFrameCaptureFailure.retirementUncertain))
+    }
+
+    private func nativeSettled(value: Value?, error: Error?) {
+        let delivery: ((Result<Value, Error>) -> Void)?
+        let settlementObserver: (() -> Void)?
+        let result: Result<Value, Error>?
+        lock.lock()
+        guard !settled else {
+            lock.unlock()
+            return
+        }
+        settled = true
+        settlementObserver = self.settlementObserver
+        self.settlementObserver = nil
+        if delivered {
+            delivery = nil
+            result = nil
+        } else {
+            delivered = true
+            delivery = completion
+            completion = nil
+            if let error {
+                result = .failure(error)
+            } else if let value {
+                result = .success(value)
+            } else {
+                result = .failure(AOSDesktopFrameCaptureFailure.captureFailed)
+            }
+        }
+        selfRetain = nil
+        lock.unlock()
+        if let result { delivery?(result) }
+        settlementObserver?()
+    }
+}

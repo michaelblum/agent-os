@@ -55,6 +55,24 @@ final class LockedCounter: @unchecked Sendable {
     }
 }
 
+final class NativeIntCallbackBox: @unchecked Sendable {
+    private var callback: ((Int?, Error?) -> Void)?
+    private let lock = NSLock()
+
+    func install(_ callback: @escaping (Int?, Error?) -> Void) {
+        lock.lock()
+        self.callback = callback
+        lock.unlock()
+    }
+
+    func settle(_ value: Int?, error: Error? = nil) {
+        lock.lock()
+        let callback = self.callback
+        lock.unlock()
+        callback?(value, error)
+    }
+}
+
 final class LockedConcurrencyProbe: @unchecked Sendable {
     private var active = 0
     private let lock = NSLock()
@@ -259,7 +277,355 @@ func settlePixelRetirements(
     return result.get()
 }
 
+private func runDesktopPixelPublicCaptureAdmissionTests() throws {
+    let topology = try buildAOSDisplayTopologySnapshot(
+        observation: [
+            AOSDisplayTopologyObservationMember(
+                runtimeDisplayID: 42,
+                displayUUID: "11111111-1111-4111-8111-111111111111",
+                label: "main",
+                isMain: true,
+                isMirrored: false,
+                nativeBounds: AOSDisplayTopologyBounds(
+                    x: 0, y: 0, width: 100, height: 80
+                ),
+                nativeVisibleBounds: AOSDisplayTopologyBounds(
+                    x: 0, y: 0, width: 100, height: 80
+                ),
+                scaleFactor: 2,
+                rotation: 0
+            ),
+            AOSDisplayTopologyObservationMember(
+                runtimeDisplayID: 43,
+                displayUUID: "22222222-2222-4222-8222-222222222222",
+                label: "right",
+                isMain: false,
+                isMirrored: false,
+                nativeBounds: AOSDisplayTopologyBounds(
+                    x: 100, y: 0, width: 100, height: 80
+                ),
+                nativeVisibleBounds: AOSDisplayTopologyBounds(
+                    x: 100, y: 0, width: 100, height: 80
+                ),
+                scaleFactor: 1,
+                rotation: 0
+            ),
+            AOSDisplayTopologyObservationMember(
+                runtimeDisplayID: 44,
+                displayUUID: nil,
+                label: "fallback",
+                isMain: false,
+                isMirrored: false,
+                nativeBounds: AOSDisplayTopologyBounds(
+                    x: 200, y: 0, width: 100, height: 80
+                ),
+                nativeVisibleBounds: AOSDisplayTopologyBounds(
+                    x: 200, y: 0, width: 100, height: 80
+                ),
+                scaleFactor: 1,
+                rotation: 0
+            ),
+        ],
+        screensHaveSeparateSpaces: true
+    )
+    let geometries = topology.displays.enumerated().map { index, display in
+        AOSDesktopWorldDisplayGeometry(
+            displayID: display.runtimeDisplayID,
+            index: index,
+            desktopWorldBounds: CGRect(
+                x: display.desktopWorldBounds.x,
+                y: display.desktopWorldBounds.y,
+                width: display.desktopWorldBounds.width,
+                height: display.desktopWorldBounds.height
+            ),
+            nativePointBounds: CGRect(
+                x: display.nativeBounds.x,
+                y: display.nativeBounds.y,
+                width: display.nativeBounds.width,
+                height: display.nativeBounds.height
+            ),
+            pointPixelScale: display.scaleFactor
+        )!
+    }
+    let selections = topology.displays.map {
+        AOSDisplayCaptureSelection(
+            runtimeDisplayID: $0.runtimeDisplayID,
+            memberIdentity: $0.memberIdentity
+        )
+    }
+    let request = AOSDesktopPixelSnapshotRequest(
+        displayIDs: selections.map(\.runtimeDisplayID),
+        displayLayout: AOSDesktopWorldDisplayLayout(displays: geometries),
+        excludingWindowIDs: [],
+        maximumPixelsPerDisplay: 32_000,
+        sizingPolicy: .exactWithinBudget,
+        capturePolicy: .publicExplicitExclusions,
+        publicCaptureSelections: selections,
+        publicCaptureTopology: topology
+    )
+    require(
+        aosDesktopPixelRequestIsValid(request),
+        "canonical public capture topology binding was rejected"
+    )
+    func providerFact(
+        _ display: AOSDisplayTopologyDisplay,
+        memberIdentity: AOSDisplayTopologyMemberIdentity? = nil,
+        nativeFrame: AOSDisplayTopologyBounds? = nil,
+        pointWidth: Int? = nil,
+        pointHeight: Int? = nil,
+        scaleFactor: Double? = nil
+    ) -> AOSDisplayCaptureProviderFact {
+        AOSDisplayCaptureProviderFact(
+            runtimeDisplayID: display.runtimeDisplayID,
+            memberIdentity: memberIdentity ?? display.memberIdentity,
+            nativeFrame: nativeFrame ?? display.nativeBounds,
+            pointWidth: pointWidth ?? Int(display.nativeBounds.width),
+            pointHeight: pointHeight ?? Int(display.nativeBounds.height),
+            scaleFactor: scaleFactor ?? display.scaleFactor
+        )
+    }
+    let matchingFacts = topology.displays.map { providerFact($0) }
+    let alignments = try aosValidateDesktopPixelPublicCaptureAdmission(
+        request: request,
+        providerFacts: matchingFacts
+    )
+    require(
+        alignments.map(\.runtimeDisplayID) == request.displayIDs
+            && alignments[0].expectedPixelWidth == 200
+            && alignments[0].expectedPixelHeight == 160,
+        "canonical public capture topology binding changed admitted geometry"
+    )
+
+    func requireTopologyMismatch(
+        _ label: String,
+        _ facts: [AOSDisplayCaptureProviderFact]
+    ) {
+        do {
+            _ = try aosValidateDesktopPixelPublicCaptureAdmission(
+                request: request,
+                providerFacts: facts
+            )
+            require(false, "\(label) reached native screenshot admission")
+        } catch let failure as AOSDesktopFrameCaptureFailure {
+            require(
+                failure == .topologyMismatch,
+                "\(label) changed its native admission failure"
+            )
+        } catch {
+            require(false, "\(label) escaped the production admission error")
+        }
+    }
+
+    var moved = matchingFacts
+    moved[1] = providerFact(
+        topology.displays[1],
+        nativeFrame: AOSDisplayTopologyBounds(
+            x: 101, y: 0, width: 100, height: 80
+        )
+    )
+    requireTopologyMismatch("same-size display move", moved)
+
+    var swappedUUIDs = matchingFacts
+    swappedUUIDs[0] = providerFact(
+        topology.displays[0],
+        memberIdentity: topology.displays[1].memberIdentity
+    )
+    swappedUUIDs[1] = providerFact(
+        topology.displays[1],
+        memberIdentity: topology.displays[0].memberIdentity
+    )
+    requireTopologyMismatch("UUID runtime-ID swap", swappedUUIDs)
+
+    var fallbackMismatch = matchingFacts
+    fallbackMismatch[2] = providerFact(
+        topology.displays[2],
+        memberIdentity: .displayIDFallback(45)
+    )
+    requireTopologyMismatch("fallback display-ID mismatch", fallbackMismatch)
+
+    var scaleMismatch = matchingFacts
+    scaleMismatch[0] = providerFact(topology.displays[0], scaleFactor: 1)
+    requireTopologyMismatch("capture scale mismatch", scaleMismatch)
+
+    var sizeMismatch = matchingFacts
+    sizeMismatch[0] = providerFact(topology.displays[0], pointWidth: 99)
+    requireTopologyMismatch("capture point-size mismatch", sizeMismatch)
+}
+
 func runDesktopPixelNativeLifecycleTests() async throws {
+    try runDesktopPixelPublicCaptureAdmissionTests()
+    let successfulCallbackSettled = DispatchSemaphore(value: 0)
+    let successfulCallbackCount = LockedCounter()
+    let successfulCallback = AOSDesktopPixelRetainedCallbackToken<Int>()
+    successfulCallback.start(
+        deadline: 0.1,
+        nativeStart: { callback in callback(7, nil) },
+        completion: { result in
+            successfulCallbackCount.increment()
+            require(
+                (try? result.get()) == 7,
+                "authoritative callback changed its result"
+            )
+            successfulCallbackSettled.signal()
+        }
+    )
+    require(
+        successfulCallbackSettled.wait(timeout: .now() + 1) == .success
+            && successfulCallbackCount.get() == 1,
+        "authoritative callback did not settle exactly once"
+    )
+
+    let lateCallbackBox = NativeIntCallbackBox()
+    let lateCallbackSettled = DispatchSemaphore(value: 0)
+    let lateAuthoritativeSettled = DispatchSemaphore(value: 0)
+    let lateCallbackCount = LockedCounter()
+    let lateAuthoritativeCount = LockedCounter()
+    let lateCallback = AOSDesktopPixelRetainedCallbackToken<Int>()
+    lateCallback.start(
+        deadline: 0.02,
+        nativeStart: { lateCallbackBox.install($0) },
+        authoritativeSettlement: {
+            lateAuthoritativeCount.increment()
+            lateAuthoritativeSettled.signal()
+        },
+        completion: { result in
+            lateCallbackCount.increment()
+            if case .failure(let error) = result {
+                require(
+                    error as? AOSDesktopFrameCaptureFailure == .retirementUncertain,
+                    "missing callback did not become retirement-uncertain"
+                )
+            } else {
+                require(false, "missing callback unexpectedly succeeded")
+            }
+            lateCallbackSettled.signal()
+        }
+    )
+    require(
+        lateCallbackSettled.wait(timeout: .now() + 1) == .success
+            && lateCallbackCount.get() == 1,
+        "missing callback did not reach its logical deadline"
+    )
+    lateCallbackBox.settle(9)
+    require(
+        lateAuthoritativeSettled.wait(timeout: .now() + 1) == .success
+            && lateAuthoritativeCount.get() == 1
+            && lateCallbackCount.get() == 1,
+        "late authoritative callback did not release quarantine exactly once"
+    )
+
+    let neverCallbackSettled = DispatchSemaphore(value: 0)
+    let neverCallback = AOSDesktopPixelRetainedCallbackToken<Int>()
+    neverCallback.start(
+        deadline: 0.02,
+        nativeStart: { _ in },
+        completion: { result in
+            if case .failure(let error) = result {
+                require(
+                    error as? AOSDesktopFrameCaptureFailure == .retirementUncertain,
+                    "never-callback quarantine changed its terminal failure"
+                )
+            } else {
+                require(false, "never-callback token unexpectedly succeeded")
+            }
+            neverCallbackSettled.signal()
+        }
+    )
+    require(
+        neverCallbackSettled.wait(timeout: .now() + 1) == .success,
+        "never-callback token failed to become terminal"
+    )
+
+    let fallbackAt = Date(timeIntervalSince1970: 20)
+    let displayFallbackFrame = AOSDesktopPixelFrame(
+        capturedAt: fallbackAt,
+        displayID: 42,
+        image: onePixelImage()
+    )
+    let windowFrame = AOSDesktopPixelFrame(
+        capturedAt: fallbackAt,
+        displayID: 42,
+        image: onePixelImage(),
+        source: .window(901)
+    )
+    let windowPreferred = aosResolveDesktopPixelStillOutcomes(
+        displayIDs: [42],
+        outcomes: [42: AOSDesktopPixelStillDisplayOutcome(
+            displayFailure: nil,
+            displayFrame: displayFallbackFrame,
+            requestedWindowID: 901,
+            windowFailure: nil,
+            windowFrame: windowFrame
+        )]
+    )
+    if case .success(let frames) = windowPreferred {
+        require(
+            frames.first?.source == .window(901)
+                && frames.first?.usedWindowFallback == false,
+            "successful window capture did not win its admitted fallback pair"
+        )
+    } else {
+        require(false, "successful window capture unexpectedly failed")
+    }
+    for failure in [
+        AOSDesktopFrameCaptureFailure.displayNotFound,
+        .topologyMismatch,
+        .captureFailed,
+    ] {
+        let fallback = aosResolveDesktopPixelStillOutcomes(
+            displayIDs: [42],
+            outcomes: [42: AOSDesktopPixelStillDisplayOutcome(
+                displayFailure: nil,
+                displayFrame: displayFallbackFrame,
+                requestedWindowID: 901,
+                windowFailure: failure,
+                windowFrame: nil
+            )]
+        )
+        if case .success(let frames) = fallback {
+            require(
+                frames.first?.source == .display
+                    && frames.first?.usedWindowFallback == true,
+                "window failure did not select the admitted display fallback"
+            )
+        } else {
+            require(false, "available display fallback unexpectedly failed")
+        }
+    }
+    let bothFailed = aosResolveDesktopPixelStillOutcomes(
+        displayIDs: [42],
+        outcomes: [42: AOSDesktopPixelStillDisplayOutcome(
+            displayFailure: .captureFailed,
+            displayFrame: nil,
+            requestedWindowID: 901,
+            windowFailure: .displayNotFound,
+            windowFrame: nil
+        )]
+    )
+    if case .failure = bothFailed {
+        // Expected: no candidate escaped as a successful frame.
+    } else {
+        require(false, "failed window and display candidates escaped capture")
+    }
+    let uncertainWindow = aosResolveDesktopPixelStillOutcomes(
+        displayIDs: [42],
+        outcomes: [42: AOSDesktopPixelStillDisplayOutcome(
+            displayFailure: nil,
+            displayFrame: displayFallbackFrame,
+            requestedWindowID: 901,
+            windowFailure: .retirementUncertain,
+            windowFrame: nil
+        )]
+    )
+    if case .failure(let failure) = uncertainWindow {
+        require(
+            failure == .retirementUncertain,
+            "uncertain window callback lost quarantine priority"
+        )
+    } else {
+        require(false, "display fallback escaped an uncertain native callback")
+    }
+
     runDesktopPixelCaptureFilterTests()
     let operationUsedMainThread = LockedBoolean()
     let nativeCompletion = LockedNativeCompletion()

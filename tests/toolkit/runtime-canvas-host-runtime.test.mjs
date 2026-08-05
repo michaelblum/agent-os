@@ -100,7 +100,7 @@ test('CanvasHostRuntime rejects request errors and timeouts', async () => {
   )
 })
 
-test('CanvasHostRuntime exposes status, input region, capture, and action helpers', async () => {
+test('CanvasHostRuntime exposes status, input region, and action helpers', () => {
   const posts = []
   const globalObject = hostGlobal(posts)
   let requestCounter = 0
@@ -111,24 +111,9 @@ test('CanvasHostRuntime exposes status, input region, capture, and action helper
 
   runtime.setStatusMenuItems([{ id: 'toggle', title: 'Toggle' }])
   runtime.canvasUpdate({ id: 'panel-a', frame: [1, 2, 3, 4] })
-  const capture = runtime.captureRegion({ x: 1, y: 2, w: 3, h: 4 })
-  globalObject.headsup.receive(encode({
-    type: 'canvas.response',
-    request_id: 'req-1',
-    status: 'ok',
-    base64: 'abc',
-    mime_type: 'image/jpeg',
-  }))
-
-  assert.deepEqual(await capture, {
-    base64: 'abc',
-    mimeType: 'image/jpeg',
-    region: { x: 1, y: 2, w: 3, h: 4 },
-  })
   assert.deepEqual(posts.map((post) => post.type), [
     'set_menu_items',
     'canvas.update',
-    'capture.region',
   ])
 })
 
