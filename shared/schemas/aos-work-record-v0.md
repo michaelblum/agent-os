@@ -9,10 +9,20 @@ the current deterministic fixtures. This remains report-only: it records and
 verifies bounded runs, but it does not authorize autonomous replay, repair, or
 macro recording.
 
+## ADR 0040 Transition Boundary
+
+A Work Record is optional evidence/history and never grants permission to
+observe or act. All Workflow Gate Authorization, operation-allowlist,
+`requires_workflow_gate`, and authorization-status vocabulary below documents
+current legacy runtime/schema coupling. It is an explicit ADR 0040
+implementation gap, not ambient-authority policy; removing it belongs to the
+later atomic Work Record migration.
+
 ## Purpose
 
-A Work Record is the durable AOS artifact for one run of work. It is itself a
-Subject, but this sketch defines the persisted run payload rather than the
+When a caller chooses to emit one, a Work Record is an optional durable AOS
+evidence/history artifact for one run of work. It is itself a Subject, but this
+sketch defines the persisted run payload rather than the
 `aos.workbench.subject` descriptor used to browse it.
 
 The v0 shape follows `CONTEXT.md` and ADR-0001 through ADR-0010:
@@ -296,11 +306,11 @@ embedded `claim_results[]` as record contents, not current proof.
 Repair Plans are intentionally conservative:
 
 - `valid`: no repair plan; recommend read/export/verify only.
-- `stale`: plan fresh perception or re-resolution and a follow-up Work Record;
-  any mutation remains workflow-gated.
+- `stale`: the current legacy planner requires a Workflow Gate before mutation;
+  that coupling is ADR 0040 migration debt, not AOS permission.
 - `repairable`: plan fresh perception or re-resolution plus a descriptive
-  execution-map `candidate_patch` under an explicit workflow gate; the patch is
-  not applied by the plan.
+  execution-map `candidate_patch` under the current legacy Gate fields; the
+  patch is not applied by the plan and the fields do not authorize action.
 - `blocked`: classify missing evidence, permission, runtime, cleanup, or
   postcondition blockers and name the required external action or gate.
 - `impossible`: explain why the known target class cannot satisfy the intent
@@ -316,14 +326,17 @@ that gate. A future repair attempt should emit a new Work Record or an explicit
 patch artifact instead of rewriting `evidence[]`, `claims[]`, historical
 `claim_results[]`, or the source Work Record.
 
-## Workflow Gate Authorization V0
+## Workflow Gate Authorization V0 (Legacy Implementation Gap)
 
-Workflow Gate Authorization is the read-only bridge between a Repair Plan and
-the existing AOS gate contracts:
+This section records current V0 repair coupling that predates ADR 0040. Its
+Gate-derived fields and statuses do not grant permission to observe or act;
+they are an explicit implementation gap awaiting the atomic Work Record runtime
+migration. Workflow Gate Authorization is currently the read-only bridge
+between a Repair Plan and the existing AOS gate contracts:
 
 - `repair_plan`: read-only Work Record repair planning output.
-- `workflow_gate`: a required approval/orchestration boundary named by the
-  Repair Plan.
+- `workflow_gate`: a repair-orchestration record boundary required by the
+  current V0 schema, not AOS action authority.
 - `gate_request`: an `aos.gate.request.v1` request generated from one
   Repair Plan gate.
 - `gate_record`: a terminal `aos.gate.record.v1` outcome.
@@ -404,18 +417,19 @@ The toolkit contract is `work_record.repair_attempt_plan` with schema version
 }
 ```
 
-Supported statuses are `not_required`, `ready`,
+The statuses and readiness rules below are current legacy repair-coupling
+inventory, not ambient-authority policy. Supported statuses are `not_required`, `ready`,
 `blocked_authorization_required`, `blocked_authorization_denied`,
 `blocked_authorization_insufficient`, `blocked_precondition`, `stale`,
 `mismatch`, and `unsupported`. `ready` means only that the descriptor is safe
 to hand to a future explicit executor; it does not mean repair happened.
 
-Positive readiness requires the current Repair Plan to validate, source Work
-Record identity to match, Repair Plan identity to match any supplied
-authorization, every mutating planned operation to have an authorized matching
-Workflow gate, all required preconditions to be representable as explicit
-checks, no candidate patch to be marked applied, and no recommended command to
-be marked executed.
+Under the current implementation, positive readiness requires the current
+Repair Plan to validate, source Work Record identity to match, Repair Plan
+identity to match any supplied legacy authorization record, every mutating
+planned operation to have a matching legacy Workflow gate result, all required
+preconditions to be representable as explicit checks, no candidate patch to be
+marked applied, and no recommended command to be marked executed.
 
 Missing, denied, dismissed, timeout, insufficient, stale, wrong-record,
 wrong-plan, wrong-gate, unsupported, and invalid authorization cases fail
@@ -1223,9 +1237,10 @@ Baseline, delta, and keyframe records relate to the existing model as follows:
   semantic action/state delta records.
 - `recording_evidence_ref` points to existing immutable `evidence[]` entries
   and artifact routes.
-- `recording_replay_policy` re-perceives, resolves target descriptors, reissues
-  semantic action intents, and verifies state patches under the same replay and
-  repair gates required by `execution_map.replay_policy`.
+- `recording_replay_policy` currently re-perceives, resolves the legacy mixed
+  target descriptor, reissues semantic action intents, and verifies state
+  patches under the legacy Gate fields in `execution_map.replay_policy`. That
+  fixture coupling is ADR 0040 migration debt, not AOS permission.
 
 The v0 JSON Schema does not add a top-level frame-pack slot yet. Fixtures keep
 the recording contract beside Work Records until a runtime producer needs an
@@ -1246,8 +1261,9 @@ The first named verifier profile is
 `runWorkRecordVerifierProfile()` in
 `packages/toolkit/workbench/work-record-verifier.js`. The profile wraps the
 deterministic report-only checker. It validates internal Work Record integrity,
-derives claim indexes from `claim_results[]`, confirms replay and repair remain
-workflow-gated, and reports diagnostics without mutating the record.
+derives claim indexes from `claim_results[]`, confirms the current legacy
+replay/repair Gate fields, and reports diagnostics without mutating the record.
+Those fields are migration evidence, not AOS permission.
 
 This command-evidence path is deliberately above the daemon. It is the smallest
 proof that Work Records can be generated from bounded evidence instead of only
@@ -1285,13 +1301,13 @@ canvas, or native bridge action code.
 
 Post-action proof is the after-perception evidence evaluated through a
 post-action Postcondition and its `claim_results[]` entry. Do not invent a raw
-JSON diff protocol to prove the result. If a ref, selector,
-Postcondition check, or artifact route drifts, repair the execution map under an
-explicit workflow/repair gate and keep the evidence immutable. Do not rewrite
-Claim text to chase selector drift, do not mutate `evidence[]`, and do not
-replay, repair, or macro-play back from a Work Record unless
-`execution_map.replay_policy` authorizes that behavior through the required
-workflow gates. The v0 verifier and harness remain report-only.
+JSON diff protocol to prove the result. Current legacy v0 schema/harness
+behavior routes a drifted ref, selector, Postcondition check, or artifact route
+through its Workflow Gate-coupled execution-map repair fields and blocks replay,
+repair, or macro playback according to `execution_map.replay_policy`. That
+coupling is ADR 0040 migration debt and does not authorize action. Evidence
+remains immutable: do not rewrite Claim text to chase selector drift or mutate
+`evidence[]`. The v0 verifier and harness remain report-only.
 
 When a source-backed recipe uses repeatable
 `aos see refs --diff <from>..<to> --expect-ref <ref>=...` as a compact
@@ -1309,7 +1325,8 @@ resolves a target, executes `do`, and captures `see` again. The
 `aos.step_descriptor` descriptor owns target-resolution metadata and
 repair hints; the Work Record owns what actually happened. This slice does not
 replay the action, repair refs, or add a broad recorder/verifier command.
-Replay and repair remain gated by `execution_map.replay_policy`.
+Current replay and repair remain coupled to legacy Gate fields in
+`execution_map.replay_policy`; that is ADR 0040 migration debt, not permission.
 
 The Step Descriptor bridge keeps that split explicit:
 `buildWorkRecordV0FromStepDescriptorEvidence()` combines one
@@ -1427,8 +1444,9 @@ surfaces report `read_only:true`, `mutates_state:false`,
 `automatic_replay_allowed:false`.
 
 Recovery guidance covers all Verifier Health verdicts. `valid` recommends no
-repair or redundant proof loop; `stale` and `repairable` point to
-re-perception/re-resolution or explicit workflow gates; `blocked` names missing
+repair or redundant proof loop; current legacy `stale` and `repairable`
+guidance points to re-perception/re-resolution and Gate fields that await ADR
+0040 migration; `blocked` names missing
 evidence, permission, runtime, cleanup, or postcondition blockers; and
 `impossible`, `superseded`, and `retired` do not offer replay as the next step.
 
@@ -1463,8 +1481,8 @@ The canonical examples for this sketch are JSON fixtures:
   capture command, and health `valid`.
 - [`valid/repairable-stale-saved-ref.json`](fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json)
   preserves stale saved-ref dry-run/action evidence and classifies health
-  `repairable`; repair policy points to re-perceive and re-resolve under an
-  explicit workflow gate.
+  `repairable`; its Gate-coupled repair policy is legacy migration evidence,
+  not AOS permission.
 - [`valid/cleanup-or-postcondition-failed.json`](fixtures/aos-work-record-v0/valid/cleanup-or-postcondition-failed.json)
   preserves successful action evidence plus failed cleanup evidence and
   classifies health as `blocked` without rewriting historical evidence.
@@ -1480,8 +1498,8 @@ The canonical examples for this sketch are JSON fixtures:
   [`../aos-step-descriptor-v0/valid/browser-click-status.json`](fixtures/aos-step-descriptor-v0/valid/browser-click-status.json)
   by the Step Descriptor bridge. It preserves `origin.kind: "workflow"`,
   `origin.ref`, the promoted Claim metadata, evidence refs, postcondition refs,
-  Claim Results, Verifier Report, Health, and workflow-gated replay/repair
-  policy.
+  Claim Results, Verifier Report, Health, and the current legacy Gate-coupled
+  replay/repair policy.
 
 The fixture validation test also checks internal reference integrity that JSON
 Schema cannot express alone: every Claim Result must reference an existing

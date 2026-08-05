@@ -100,7 +100,7 @@
         "work-record",
         "plan-repair"
       ],
-      "summary": "Plan workflow-gated Work Record repair through an external report-only command.",
+      "summary": "Plan the current legacy Gate-coupled Work Record repair path through an external report-only command; Gate is not AOS permission.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -119,7 +119,7 @@
         "work-record",
         "gate-request"
       ],
-      "summary": "Build Work Record repair Workflow Gate requests through an external report-only command.",
+      "summary": "Build requests for the current legacy Gate-coupled Work Record repair path through an external report-only command; Gate is not AOS permission.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",

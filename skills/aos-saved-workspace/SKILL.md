@@ -1,13 +1,14 @@
 ---
 name: aos-saved-workspace
-description: Use AOS saved perception workspaces with `aos see capture --save`, `aos see snapshots`, `aos see refs`, and compact refs for observe-act-recapture loops. Trigger when a task needs saved snapshots, refs, ref-scoped dry-runs or actions, snapshot diffs, or compact UI/browser/native evidence without carrying full screenshots or AX payloads in context.
+description: Use current AOS saved perception handles for observe-act-recapture loops while distinguishing them from public Observation Refs and Locators. Trigger when a task needs saved snapshots, current handles, optional previews or actions, snapshot diffs, or compact UI/browser/native evidence.
 ---
 
 # AOS Saved Workspace
 
 Use saved workspaces when a desktop, native AX, canvas, or browser task needs
 repeatable perception and compact targets. Saved refs are the shared
-locator-like model across AOS surfaces.
+workspace-storage handle in the current implementation; they are not Locators
+or durable target identity under ADR 0040.
 
 ## Loop
 
@@ -17,7 +18,7 @@ locator-like model across AOS surfaces.
 3. Inspect snapshots and refs before acting.
 4. Prefer saved refs such as `ref:<snapshot-id>:<ref>` over coordinates or
    prose targets when the producer says the ref is actionable.
-5. Dry-run when the action supports it, act once, then recapture.
+5. Resolve current identity, optionally dry-run for preview, act once, then recapture.
 
 A saved capture source can be a positional target or one source flag such as
 `--region <rect>`, `--canvas <id>`, or `--channel <id>`. The source forms are
@@ -25,14 +26,15 @@ mutually exclusive, and capture defaults to `main` when no source is supplied.
 
 ## Boundaries
 
-- Saved refs are snapshot scoped; stale desktop, native AX, canvas, or browser
-  identity must be recaptured instead of forced.
+- The public Observation Ref is `(state_id, ref)` and rejects when stale; a
+  Locator re-resolves and rejects zero or multiple matches. Current saved-handle
+  reacquisition is an explicit implementation gap.
 - Workspace artifacts are local control state, not durable Work Record
-  evidence; use Work Records when the task needs a receipt or recovery input.
-- Do not inline screenshots, browser payloads, AX dumps, or full capture JSON
-  when refs and summaries are enough.
-- Coordinate fallback is diagnostic unless the command and task explicitly
-  authorize it.
+  evidence; optionally use Work Records when a receipt or recovery input is useful.
+- Observation stays raw. The caller chooses whether to keep full captures or
+  apply an explicit compacting, masking, persistence, or projection transform.
+- Coordinates selected from perception carry the originating `state_id` and
+  require current-state mechanical validation.
 
 ## Stop
 
@@ -44,6 +46,7 @@ recapture recommendation.
 
 - `docs/api/aos.md`
 - `docs/api/aos-capabilities.md`
+- `docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md`
 - `shared/schemas/aos-agent-workspace-v0.md`
 - `tests/agent-workspace-contract-drift.sh`
 - `tests/agent-workspace-saved-ref.sh`

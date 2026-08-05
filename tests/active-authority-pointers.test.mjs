@@ -64,8 +64,7 @@ async function activeAuthorityPaths() {
     .filter(Boolean)
     .filter((relativePath) => existsSync(path.join(repoRoot, relativePath)))
     .filter((relativePath) => (
-      relativePath === 'README.md'
-      || relativePath === 'AGENTS.md'
+      ['README.md', 'AGENTS.md'].includes(relativePath)
       || relativePath.endsWith('/README.md')
       || relativePath.endsWith('/AGENTS.md')
       || relativePath.startsWith('scripts/')
@@ -73,8 +72,11 @@ async function activeAuthorityPaths() {
       || relativePath.startsWith('docs/api/')
       || relativePath.startsWith('docs/guides/')
       || relativePath.startsWith('docs/design/work-cards/')
+      || relativePath === 'docs/adr/0025-native-annotation-selection-and-shortcut-execution.md'
+      || relativePath === 'docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md'
       || relativePath === 'docs/dev/README.md'
       || relativePath === 'docs/dev/command-surface.md'
+      || (relativePath.startsWith('shared/schemas/') && relativePath.endsWith('.md'))
     ))
     .filter((relativePath) => !relativePath.startsWith('docs/archive/'))
     .filter((relativePath) => !relativePath.startsWith('docs/dev/reports/'))
@@ -120,6 +122,8 @@ test('active authority map points to existing runtime primitive contract owners'
     ['CONTEXT-MAP.md', 'CONTEXT.md'],
     ['CONTEXT-MAP.md', 'ARCHITECTURE.md'],
     ['CONTEXT-MAP.md', 'AGENTS.md'],
+    ['CONTEXT-MAP.md', 'docs/adr/README.md'],
+    ['CONTEXT-MAP.md', 'docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md'],
     ['CONTEXT-MAP.md', 'docs/api/README.md'],
     ['CONTEXT-MAP.md', 'docs/api/aos.md'],
     ['CONTEXT-MAP.md', 'docs/api/aos-capabilities.md'],
@@ -157,6 +161,334 @@ test('active authority map points to existing runtime primitive contract owners'
 
   await Promise.all(targetPaths.map(assertPathExists));
   await Promise.all(requiredPointers.map(([source, target]) => assertMentions(source, target)));
+});
+
+test('ambient authority sources reject mandatory policy while preserving optional mechanics', async () => {
+  const adr = await text('docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md');
+  const adrIndex = await text('docs/adr/README.md');
+  const superseded = await text('docs/adr/0006-state-id-guards-coordinates-strictly-refs-loosely.md');
+  const api = await text('docs/api/aos.md');
+  const workRecordSchema = await text('shared/schemas/aos-work-record-v0.md');
+  const workRecordManifest = await text('manifests/commands/source/aos/35-work-record.json');
+  const workRecordFinalizationManifest = await text('manifests/commands/source/aos/37-work-record-finalization.json');
+  const semanticTargets = await text('shared/schemas/aos-semantic-targets.md');
+  const pendingAnnotation = await text('shared/schemas/aos-pending-annotation-v0.md');
+  const nativeAnnotationAdr = await text('docs/adr/0025-native-annotation-selection-and-shortcut-execution.md');
+  const accessibilityGuide = await text('docs/guides/aos-app-accessibility-surfaces.md');
+  const semanticTargetProbe = await text('src/perceive/semantic-targets.swift');
+  const perceiveModels = await text('src/perceive/models.swift');
+  const stepDescriptor = await text('shared/schemas/aos-step-descriptor-v0.md');
+  const supervisedRun = await text('shared/schemas/aos-supervised-run-v0.md');
+  const sceneAuthoring = await text('docs/api/toolkit/scene-authoring.md');
+  const sceneRuntime = await text('docs/api/toolkit/scene-runtime.md');
+  const subjectCapabilities = await text('shared/schemas/aos-subject-capabilities.md');
+  const sceneExtensions = await text('docs/api/toolkit/scene-extensions.md');
+  const sceneDevtools = await text('docs/api/toolkit/scene-devtools.md');
+  const toolkitWorkbench = await text('docs/api/toolkit/workbench.md');
+  const daemonIpc = await text('shared/schemas/daemon-ipc.md');
+  const sceneEventSchema = await text('shared/schemas/scene-event-v1.md');
+  const shortcutRuntime = await text('scripts/lib/aos-shortcut-run.mjs');
+  const scriptsDox = await text('scripts/AGENTS.md');
+  const daemonDox = await text('src/daemon/AGENTS.md');
+  const sceneDox = await text('packages/toolkit/scene/AGENTS.md');
+  const externalWorkRecordManifest = await text('manifests/commands/source/external/45-work-record.json');
+  const targetDescriptorFixtureManifest = await text('docs/design/fixtures/aos-target-descriptor-v0/manifest.json');
+  const recordingFrameFixtureManifest = await text('docs/design/fixtures/aos-work-recording-frame-v0/manifest.json');
+  const interactionGrammarFixtureManifest = await text('docs/design/fixtures/aos-interaction-grammar-v0/manifest.json');
+  const targetDescriptorFixtureTest = await text('tests/toolkit/aos-target-descriptor-contract.test.mjs');
+  const recordingFrameFixtureTest = await text('tests/toolkit/aos-work-recording-frame-contract.test.mjs');
+  const proofRegistry = await text('docs/dev/test-proof-registry.d/substrate-reclassification.json');
+  const interactionGrammarNote = await text('docs/design/aos-interaction-grammar-v0.md');
+  const recordingFrameNote = await text('docs/design/aos-work-recording-frame-contract-v0.md');
+  const desktopWorldAuthoringSkill = await text('skills/aos-desktop-world-authoring/SKILL.md');
+  const desktopFrameTextureAdr = await text('docs/adr/0030-desktop-frame-texture-leases.md');
+  const desktopPixelBrokerAdr = await text('docs/adr/0031-desktop-pixel-broker-and-warm-snapshots.md');
+  const stepDescriptorJsonSchema = await text('shared/schemas/aos-step-descriptor-v0.schema.json');
+  const desktopWorldDevtoolsJsonSchema = await text('shared/schemas/desktop-world-devtools-stage-v2.schema.json');
+  const agentWorkspaceDox = await text('scripts/lib/agent-workspace/AGENTS.md');
+  const rootDox = await text('AGENTS.md');
+  const apiCapabilities = await text('docs/api/aos-capabilities.md');
+  const sharedDox = await text('shared/AGENTS.md');
+  const coreOrientationSkill = await text('skills/aos-core-orientation/SKILL.md');
+
+  assert.match(adr, /user -> agent host \+ macOS TCC -> AOS observe\/act/);
+  assert.match(adr, /Observation Ref/);
+  assert.match(adr, /Locator/);
+  assert.match(adr, /Work Records are optional evidence\/history/);
+  assert.match(adr, /Status-item dry-run remains non-consuming/);
+  assert.match(adrIndex, /\[0006\].*Superseded/);
+  assert.match(adrIndex, /\[0040\].*Accepted/);
+  assert.match(superseded, /\*\*Status:\*\* Superseded by ADR 0040/);
+  assert.match(pendingAnnotation, /## ADR 0040 Transition Boundary/);
+  assert.match(nativeAnnotationAdr, /\*\*Status:\*\* Accepted; amended by ADR 0040/);
+  assert.match(desktopFrameTextureAdr, /Status: Accepted; amended by ADR 0040/);
+  assert.match(desktopFrameTextureAdr, /## ADR 0040 Transition Boundary/);
+  assert.match(desktopFrameTextureAdr, /current legacy implementation\s+behavior\s+and ADR 0040 migration gaps/);
+  assert.match(desktopFrameTextureAdr, /does not widen the trusted projection\s+realm/);
+  assert.match(desktopPixelBrokerAdr, /Status: Accepted; amended by ADR 0040/);
+  assert.match(desktopPixelBrokerAdr, /## ADR 0040 Transition Boundary/);
+  assert.match(desktopPixelBrokerAdr, /current legacy implementation\s+behavior\s+and ADR 0040 migration gaps/);
+  assert.match(desktopPixelBrokerAdr, /does not\s+widen the trusted projection realm/);
+  assert.match(adrIndex, /\[0030\].*Accepted, amended.*ADR 0040 owns ambient-authority and raw-observation semantics/);
+  assert.match(adrIndex, /\[0031\].*Accepted, amended.*ADR 0040 owns ambient-authority and raw-observation semantics/);
+  assert.match(stepDescriptorJsonSchema, /Current legacy V0 design-schema sketch/);
+  assert.match(stepDescriptorJsonSchema, /Gate is not AOS permission/);
+  assert.match(desktopWorldDevtoolsJsonSchema, /Bounded engine snapshot shared by CLI, SDK, and host-neutral DevTools views/);
+  assert.match(desktopWorldDevtoolsJsonSchema, /private desktop-frame content remain outside it/);
+  assert.match(agentWorkspaceDox, /current saved-ref surface predates ADR 0040 and is migration plumbing/i);
+  assert.match(agentWorkspaceDox, /Do not document saved refs\s+as durable or reacquirable authority/);
+  assert.match(agentWorkspaceDox, /no-foreground proof approval requirement is legacy policy coupling/);
+  assert.match(agentWorkspaceDox, /coordinates with\s+sufficient action-time context are Locator geometry, not diagnostic-only by\s+policy/);
+
+  for (const gap of [
+    'do not consistently enforce the exact',
+    'Gate-derived',
+    'redacts prompt/answer content and continuation source',
+    'native annotation completion still replaces admitted target',
+    'semantic-target public decoder still drops the admitted app-local',
+    'Guided User Signal record builder still defaults prompt/answer projection',
+    'Step Descriptor and Supervised Run schema/harness surfaces still retain',
+    'not a complete public `run-code` surface',
+  ]) {
+    assert.ok(api.includes(gap), `docs/api/aos.md missing explicit implementation gap: ${gap}`);
+  }
+
+  const doctrineSurfaces = [...new Set([
+    ...await activeAuthorityPaths(),
+    'ARCHITECTURE.md',
+    'CONTEXT.md',
+    'docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md',
+    'manifests/commands/source/aos/35-work-record.json',
+    'manifests/commands/source/aos/37-work-record-finalization.json',
+    'manifests/commands/source/aos/03-see-01-capture.json',
+    'manifests/commands/source/aos/07-do-03-controls.json',
+    'manifests/commands/source/aos/39-scene.json',
+    'manifests/commands/source/external/45-work-record.json',
+    'docs/dev/test-proof-registry.d/substrate-reclassification.json',
+    'docs/design/fixtures/aos-target-descriptor-v0/manifest.json',
+    'docs/design/fixtures/aos-work-recording-frame-v0/manifest.json',
+    'docs/design/fixtures/aos-interaction-grammar-v0/manifest.json',
+    'docs/design/aos-interaction-grammar-v0.md',
+    'docs/design/aos-work-recording-frame-contract-v0.md',
+    'docs/design/aos-grand-unification-plan.md',
+    'docs/design/browser-capture-ladder-projection.md',
+    'docs/design/aos-input-signal-subscription-proposal.md',
+    'docs/design/see-do-grammar-trace-connections.md',
+    'docs/design/user-signal-surface.md',
+    'docs/design/aos-shared-gesture-spine-v0.md',
+    'docs/design/aos-desktop-playwright-cli-map.md',
+    'docs/design/surface-annotation-intent-convergence-tracker.md',
+    'docs/adr/0018-installable-aos-skills.md',
+    'shared/schemas/aos-work-record-v0.md',
+    'tests/toolkit/aos-target-descriptor-contract.test.mjs',
+    'tests/toolkit/aos-work-recording-frame-contract.test.mjs',
+    'tests/fixtures/aos-skills/cold-agent-forward-proof-v0.json',
+    'tests/fixtures/aos-skills/agentic-efficacy-eval-v0.json',
+  ])];
+  const mandatoryPatterns = [
+    /dry-run before (?:any|the|a|every|live|mutating)/i,
+    /act once only when the dry-run/i,
+    /then dry-run before run/i,
+    /after dry-run validation before dispatch/i,
+    /approval-gated design only/i,
+    /Stop when a Work Record is corrupt, superseded, missing authorization/i,
+    /coordinate fallback is diagnostic unless/i,
+    /Remove `--dry-run` only after/i,
+    /Stable AOS semantic refs/i,
+    /exposes\s+stable refs/i,
+    /data-semantic-target-id` is the local durable/i,
+    /Reacquisition should use the descriptor's/i,
+    /Saved refs are preferred\./i,
+    /Durable machine identity lives in `target\.target_id`/i,
+    /data-semantic-target-id` contributes `target\.target_id`/i,
+    /check `semantic_targets` for state-scoped refs,\s+`target\.target_id`/i,
+    /need explicit Workflow gates where they/i,
+    /A run must\s+provide both a gate ref/i,
+    /Consumers must check origin, preconditions, gates/i,
+    /Prompt bodies and answer payloads are\s+redacted by default/i,
+    /Plan workflow-gated Work Record repair/i,
+    /now treats browser runs as\s+Workflow-gated step evidence/i,
+    /Replay and repair remain gated by explicit workflow policy fields/i,
+    /any replay\/repair loop needs an explicit\s+workflow gate/i,
+    /requires the caller to pass an explicit workflow gate/i,
+    /Any future live execution, replay, or repair must be a separate\s+Workflow-gated path/i,
+    /confirms replay and repair remain\s+workflow-gated/i,
+    /Replay and repair remain gated by `execution_map\.replay_policy`/i,
+    /required workflow gates/i,
+    /proposed read-only or\s+approval-gated steps/i,
+    /request for one required Workflow gate/i,
+    /repair the execution map under an\s+explicit workflow\/repair gate/i,
+    /authorizes that behavior through the required\s+workflow gates/i,
+    /Accessible names and labels are now hints only; durable identity is/i,
+    /Answer payloads and prompt bodies are redacted by default/i,
+    /\| Locator \| Saved ref, native AX ref, canvas ref, browser ref, or coordinate fallback \|/i,
+    /Require explicit approval before any destructive, live-capture, or external side-effect step/i,
+    /durable AOS browser refs/i,
+    /remains `fallback_only` until a consumer resolves\s+a durable saved ref/i,
+    /recorder should redact or summarize sensitive data by default/i,
+    /Permanent\s+recording of raw screen\/video\/text is out of scope until privacy boundaries are\s+designed/i,
+  ];
+
+  for (const relativePath of doctrineSurfaces) {
+    const content = await text(relativePath);
+    for (const pattern of mandatoryPatterns) {
+      assert.doesNotMatch(content, pattern, `${relativePath} reintroduced mandatory AOS policy`);
+    }
+  }
+
+  for (const relativePath of [
+    'manifests/commands/source/aos/07-do-03-controls.json',
+    'manifests/commands/source/aos/40-status-item.json',
+  ]) {
+    const fragment = JSON.parse(await text(relativePath));
+    const dryRunArgs = fragment.commands
+      .flatMap((command) => command.forms ?? [])
+      .flatMap((form) => form.args ?? [])
+      .filter((arg) => arg.id === 'dry-run');
+    assert.ok(dryRunArgs.length > 0, `${relativePath} must retain optional dry-run mechanics`);
+    assert.ok(dryRunArgs.every((arg) => arg.required === false), `${relativePath} made dry-run mandatory`);
+  }
+
+  const statusItemSource = await text('manifests/commands/source/aos/40-status-item.json');
+  assert.match(statusItemSource, /without consuming admission or emitting an event/);
+  assert.match(workRecordSchema, /Workflow Gate Authorization V0 \(Legacy Implementation Gap\)/);
+  assert.match(workRecordSchema, /All Workflow Gate Authorization, operation-allowlist/);
+  assert.match(workRecordSchema, /do not grant permission to observe or act/);
+  assert.match(workRecordSchema, /Current legacy v0 schema\/harness\s+behavior routes a drifted ref/);
+  assert.match(workRecordSchema, /That\s+coupling is ADR 0040 migration debt and does not authorize action/);
+  assert.match(workRecordManifest, /current legacy repair coupling/);
+  assert.match(workRecordManifest, /not an AOS permission grant/);
+  assert.match(workRecordFinalizationManifest, /current legacy repair-coupling evaluation/);
+  assert.match(workRecordFinalizationManifest, /not an AOS permission grant/);
+  assert.match(semanticTargets, /capture response carries\s+`state_id` at top level/);
+  assert.match(semanticTargets, /current projection does not emit a Locator object/);
+  assert.match(semanticTargets, /Singular `data-aos-action` does not populate this list/);
+  assert.match(semanticTargets, /`extension\.action_id` preserves the app-local action identifier/);
+  assert.match(semanticTargets, /It is not\s+a primitive `aos do` capability, action authority, or durable target identity/);
+  assert.match(semanticTargets, /current\s+public decoder does not preserve\s+that field/);
+  assert.match(api, /Current entries do\s+not emit `target`, a per-entry `state_id`, or `reacquisition`/);
+  assert.match(api, /remains `fallback_only` until a consumer resolves\s+a current Observation Ref or constructs an action-time Locator/);
+  assert.match(api, /Current saved-handle resolution remains migration plumbing, not durable\s+public target identity/);
+  assert.match(accessibilityGuide, /Do not expect the current entry to contain `target`, per-entry\s+`state_id`, or `reacquisition`/);
+  assert.match(stepDescriptor, /## ADR 0040 Transition Boundary/);
+  assert.match(stepDescriptor, /legacy schema\/harness coupling awaiting runtime migration/);
+  assert.match(supervisedRun, /## ADR 0040 Transition Boundary/);
+  assert.match(sceneAuthoring, /Labels remain outside the bounded product-neutral gesture envelope/);
+  assert.match(sceneRuntime, /Parameter values, metadata content, and arbitrary callback\s+errors remain outside/);
+  assert.match(subjectCapabilities, /Current Gate fields on transitional descriptors are legacy coupling/);
+  assert.match(sceneExtensions, /these contract exclusions are not ADR 0040 raw-output gaps/);
+  assert.match(sceneExtensions, /Pixels and private frame\s+handles\s+remain inside the trusted projection realm/);
+  assert.match(sceneDevtools, /Product text,\s+prompts, audio, arbitrary extension state, undeclared engine parameters, and\s+desktop pixels remain outside/);
+  assert.match(toolkitWorkbench, /convenience default is an ADR\s+0040 migration gap/);
+  assert.match(daemonIpc, /outside the\s+bounded lifecycle event envelope; their exclusion is not an ADR 0040 raw-output\s+gap/);
+  assert.match(daemonDox, /This does not widen bounded public contracts or the\s+trusted projection realm/);
+  assert.match(daemonDox, /arbitrary extension or product state, private source\s+objects, native handles, and desktop pixels remain outside public scene and\s+DevTools payloads/);
+  assert.match(daemonDox, /Per-segment predicate results and pixels remain\s+private extension-evaluation facts/);
+  assert.match(daemonDox, /Voice\s+events are bounded lifecycle observations/);
+  assert.match(scriptsDox, /This does not widen bounded lifecycle events or operation receipts/);
+  assert.match(scriptsDox, /speech text and capture paths stay on their owning\s+speech, transcription, or capture channels/);
+  assert.match(nativeAnnotationAdr, /replacement of admitted target\s+`title` and `label` values with `null`/);
+  assert.match(nativeAnnotationAdr, /captured process streams remain outside it/);
+  assert.match(pendingAnnotation, /replaces its admitted target `title` and\s+`label` fields with `null`/);
+  assert.match(pendingAnnotation, /Entered text stays\s+in the durable pending record/);
+  const workRecordDesign = await text('docs/design/aos-work-records-and-self-healing-recipes.md');
+  assert.match(workRecordDesign, /Redaction, summarization, retention, and persistence are explicit caller-owned\s+transforms/);
+  assert.match(workRecordDesign, /AOS does not assign default sensitivity\s+policy/);
+  for (const [relativePath, content] of [
+    ['AGENTS.md', rootDox],
+    ['docs/api/aos.md', api],
+    ['docs/api/aos-capabilities.md', apiCapabilities],
+    ['shared/AGENTS.md', sharedDox],
+    ['skills/aos-core-orientation/SKILL.md', coreOrientationSkill],
+  ]) {
+    assert.match(content, /admitted (?:by|to) (?:each )?(?:bounded |a )?public\s+(?:adapter\s+)?observation/i, `${relativePath} must scope fidelity to admitted public facts`);
+  }
+  for (const [relativePath, content] of [
+    ['scripts/AGENTS.md', scriptsDox],
+    ['src/daemon/AGENTS.md', daemonDox],
+    ['packages/toolkit/scene/AGENTS.md', sceneDox],
+  ]) {
+    assert.match(content, /ADR 0040 transition boundary/i, `${relativePath} must state the transition boundary`);
+    assert.match(content, /admitted (?:by|to) (?:each )?(?:bounded |a )?public\s+(?:adapter\s+)?observation/i, `${relativePath} must scope fidelity to admitted public facts`);
+  }
+  assert.match(externalWorkRecordManifest, /current legacy Gate-coupled Work Record repair path/);
+  assert.match(externalWorkRecordManifest, /Gate is not AOS permission/);
+  assert.match(targetDescriptorFixtureManifest, /legacy_mixed_handle_gap/);
+  assert.match(recordingFrameFixtureManifest, /legacy_mixed_handle_and_gate_gap/);
+  assert.match(interactionGrammarFixtureManifest, /legacy_mixed_handle_gap/);
+  assert.match(targetDescriptorFixtureTest, /not authority for the public target-handle model/);
+  assert.match(recordingFrameFixtureTest, /current pre-ADR-0040 mixed target and Gate-coupled/);
+  assert.match(recordingFrameFixtureTest, /Gate an AOS permission or combine Observation Refs and Locators by contract/);
+  assert.match(proofRegistry, /not the public target-handle contract/);
+  assert.match(interactionGrammarNote, /## ADR 0040 Transition Boundary/);
+  assert.match(interactionGrammarNote, /not the public\s+target-handle contract/);
+  assert.match(recordingFrameNote, /## ADR 0040 Transition Boundary/);
+  assert.match(recordingFrameNote, /Gate is not AOS permission/);
+  assert.match(desktopWorldAuthoringSkill, /aggregate is the complete bounded public proof result/);
+  assert.match(desktopWorldAuthoringSkill, /per-segment results and pixel reads stay outside it, not as ADR 0040 gaps/);
+  assert.match(desktopWorldAuthoringSkill, /bounded snapshot carries its declared engine facts/);
+  assert.match(desktopWorldAuthoringSkill, /label supports native accessibility and\s+inspection while the product-neutral gesture event carries the item ID/);
+  assert.match(toolkitWorkbench, /current legacy harness requires an explicit\s+workflow gate ref and token/);
+  assert.match(toolkitWorkbench, /not an AOS permission or authorization requirement/);
+  assert.match(toolkitWorkbench, /current legacy replay\/repair model still carries explicit\s+workflow-Gate policy fields/);
+  assert.match(sceneDox, /This does\s+not widen the parent trust boundary/);
+  assert.match(sceneDox, /desktop pixels remain private to the trusted projection realm/);
+  assert.match(sceneDox, /That is the trusted-realm capability boundary, not an ADR 0040 raw-observation\s+gap/);
+  assert.match(sceneDox, /all-segment barrier returns the complete bounded public aggregate/);
+  assert.match(toolkitWorkbench, /exposes surface-local\s+inspection selectors/);
+  assert.match(toolkitWorkbench, /neither AOS\s+Observation Refs nor action-time Locators/);
+
+  const grandUnificationPlan = await text('docs/design/aos-grand-unification-plan.md');
+  const browserProjection = await text('docs/design/browser-capture-ladder-projection.md');
+  const inputSignalProposal = await text('docs/design/aos-input-signal-subscription-proposal.md');
+  const historicalSeeDoNote = await text('docs/design/see-do-grammar-trace-connections.md');
+  const userSignalSurface = await text('docs/design/user-signal-surface.md');
+  const gestureSpineNote = await text('docs/design/aos-shared-gesture-spine-v0.md');
+  const desktopPlaywrightMap = await text('docs/design/aos-desktop-playwright-cli-map.md');
+  const annotationConvergenceTracker = await text('docs/design/surface-annotation-intent-convergence-tracker.md');
+  const installableSkillsAdr = await text('docs/adr/0018-installable-aos-skills.md');
+  const sceneManifest = await text('manifests/commands/source/aos/39-scene.json');
+  const sceneOverview = await text('docs/api/toolkit/scene.md');
+  assert.match(grandUnificationPlan, /current legacy replay\/repair loop still\s+carries explicit Workflow Gate coupling/);
+  assert.match(browserProjection, /## ADR 0040 Transition Boundary/);
+  assert.match(browserProjection, /required\s+Workflow Gate fields are fixture\/harness coupling, not AOS permission/);
+  assert.match(inputSignalProposal, /Gate fields; those fields are ADR 0040\s+migration debt, not AOS permission/);
+  assert.match(historicalSeeDoNote, /ADR 0040 transition update/);
+  assert.match(historicalSeeDoNote, /legacy fixture\s+material, not durable Observation Ref identity/);
+  assert.match(userSignalSurface, /current legacy persistence path redacts answer payloads and prompt bodies by default/);
+  assert.match(userSignalSurface, /ADR 0040 migration gap, not the target policy/);
+  assert.match(gestureSpineNote, /## ADR 0040 Transition Boundary/);
+  assert.match(gestureSpineNote, /mixed descriptor is\s+migration evidence, not a durable Observation Ref/);
+  assert.match(desktopPlaywrightMap, /## ADR 0040 Transition Boundary/);
+  assert.match(desktopPlaywrightMap, /current saved refs and browser\/canvas\/native AX\/coordinate forms are not Locators/);
+  assert.match(annotationConvergenceTracker, /ADR 0040 boundary/);
+  assert.match(annotationConvergenceTracker, /it is not AOS\s+permission and is not a prerequisite for ordinary live capture or side effects/);
+  assert.match(installableSkillsAdr, /current AOS browser observation handles\/proof/);
+  assert.match(sceneManifest, /Emit the bounded execution result/);
+  assert.match(sceneManifest, /Emit the bounded replay result/);
+  assert.match(sceneOverview, /Product, arbitrary extension, undeclared engine, and private desktop-frame\s+content remain outside it/);
+  assert.match(daemonIpc, /outside the\s+bounded lifecycle event envelope; their exclusion is not an ADR 0040 raw-output\s+gap/);
+  assert.match(sceneEventSchema, /## ADR 0040 Transition Boundary/);
+  assert.match(sceneEventSchema, /remain outside the product-neutral gesture contract/);
+  assert.match(sceneEventSchema, /their exclusion is not\s+an ADR 0040 raw-output gap/);
+
+  const actionsForSource = semanticTargetProbe.match(/const actionsFor = \(el\) => \{[\s\S]*?\n      \};/)?.[0] ?? '';
+  assert.match(actionsForSource, /data-aos-actions/);
+  assert.match(actionsForSource, /data-aos-primitive-actions/);
+  assert.doesNotMatch(actionsForSource, /\baosAction\b/);
+  assert.doesNotMatch(actionsForSource, /data-aos-action(?!s)/);
+  assert.match(semanticTargetProbe, /const action = data\(el, 'aosAction'\) \|\| attr\(el, 'data-aos-action'\) \|\| ''/);
+  assert.match(semanticTargetProbe, /action_id: action \|\| null/);
+
+  const extensionModel = perceiveModels.match(/struct AOSSemanticTargetExtensionJSON:[\s\S]*?\n}/)?.[0] ?? '';
+  assert.match(extensionModel, /let dom_id: String\?/);
+  assert.doesNotMatch(extensionModel, /action_id/);
+
+  const shortcutReceipt = shortcutRuntime.match(/return \{\s+status: 'ok',[\s\S]*?\n    \};/)?.[0] ?? '';
+  assert.match(shortcutReceipt, /stdout_bytes: stdoutBytes/);
+  assert.match(shortcutReceipt, /stderr_bytes: stderrBytes/);
+  assert.doesNotMatch(shortcutReceipt, /\bstdout:/);
+  assert.doesNotMatch(shortcutReceipt, /\bstderr:/);
 });
 
 test('root Child DOX Index covers every live top-level child AGENTS file', async () => {

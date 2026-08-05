@@ -3,13 +3,14 @@
 **Date:** 2026-05-04
 **Status:** research note / brainstorming
 
-**Status update 2026-06-06:** This is a pre-#429 research note. Current AOS
-target-addressed interaction contracts defer to #429 target descriptors and
-[`aos-interaction-grammar-v0.md`](aos-interaction-grammar-v0.md). Where this
-note says replay should prefer accessible names over coordinates, read that as
-historical shorthand for "prefer semantic descriptors over raw coordinates."
-Accessible names and labels are now hints only; durable identity is
-`target.target_id` scoped by `target.owner_namespace`.
+**ADR 0040 transition update:** This pre-#429 research note is historical, not
+public target-handle authority. Its #429 target descriptors and linked
+interaction grammar are legacy mixed-handle fixture inventory. Where this note
+says replay should prefer accessible names over coordinates, read that only as
+historical shorthand for machine-fact Locator hints. ADR 0040 defines the
+ephemeral Observation Ref `(state_id, ref)` separately from the action-time
+Locator; `target.target_id` and reacquisition fields below are legacy fixture
+material, not durable Observation Ref identity.
 
 This note connects two threads from an external discussion:
 

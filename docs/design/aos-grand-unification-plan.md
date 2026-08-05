@@ -157,14 +157,18 @@ slices with repo evidence and clear exit criteria.
   - claims
 - Verifier v0 consumes saved evidence and emits a structured report.
 - No autonomous reprompting in v0.
-- Auto-feedback may draft findings; any replay/repair loop needs an explicit
-  workflow gate.
+- Auto-feedback may draft findings. The current legacy replay/repair loop still
+  carries explicit Workflow Gate coupling; this is ADR 0040 migration debt, not
+  AOS permission.
 
-### Phase 6: Browser Step Evidence And Workflow-Gated Runs
+### Phase 6: Browser Step Evidence And Legacy Workflow-Gated Runs
+
+This phase records the current legacy harness coupling. Workflow Gate is not
+AOS permission, and the coupling must not survive ADR 0040 runtime migration.
 
 - Add browser step descriptors as recorded, evidence-backed units, not raw
   macro recordings and not Playbook-authored execution.
-- A Workflow-gated harness step is:
+- The current legacy Workflow-gated harness step is:
   - re-see target
   - resolve semantic ref
   - check precondition
@@ -175,7 +179,7 @@ slices with repo evidence and clear exit criteria.
   step-authored primitive actions.
 - Keep raw `playwright-cli` traces, screenshots, video, and codegen as attached
   evidence or hints, not canonical truth.
-- First candidate Workflow-gated browser run:
+- First candidate legacy Workflow-gated browser run:
   - open browser-hosted wiki browser
   - locate the Runtime Modes subject
   - follow its menu facet/resource

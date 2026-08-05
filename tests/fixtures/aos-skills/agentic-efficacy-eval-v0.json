@@ -65,29 +65,29 @@
     },
     {
       "id": "desktop-window-control-inventory",
-      "prompt": "Fresh agent: inspect visible desktop windows, identify first-class AOS app/window controls, dry-run app/window control before mutating, use the AOS-hosted status-item lease path for operator annotation, and name the unsupported desktop boundaries that should not be simulated through shortcuts.",
+      "prompt": "Fresh agent: inspect visible desktop windows, identify first-class AOS app/window controls, optionally preview a control, use the AOS-hosted status-item lease path for operator annotation, and name the unsupported desktop boundaries that should not be simulated through shortcuts.",
       "expected_skills": [
         "aos-desktop"
       ],
       "required_commands": [
         "^\\./aos help graph --json$",
         "^\\./aos graph windows$",
-        "^\\./aos do activate --pid <pid> --dry-run$",
-        "^\\./aos do raise --pid <pid> --window <window-id> --dry-run$",
-        "^\\./aos do close --pid <pid> --window <window-id> --dry-run$",
-        "^\\./aos do minimize --pid <pid> --window <window-id> --dry-run$",
-        "^\\./aos do maximize --pid <pid> --window <window-id> --dry-run$",
-        "^\\./aos do restore --pid <pid> --window <window-id> --dry-run$",
-        "^\\./aos do menu --pid <pid> --path File,Save --dry-run$",
+        "^\\./aos do activate --pid <pid>$",
+        "^\\./aos do raise --pid <pid> --window <window-id>$",
+        "^\\./aos do close --pid <pid> --window <window-id>$",
+        "^\\./aos do minimize --pid <pid> --window <window-id>$",
+        "^\\./aos do maximize --pid <pid> --window <window-id>$",
+        "^\\./aos do restore --pid <pid> --window <window-id>$",
+        "^\\./aos do menu --pid <pid> --path File,Save$",
         "^\\./aos status-item inspect --owner io.example.app --item status --generation <n> --descriptor-revision <n> --json$",
-        "^\\./aos status-item invoke --owner io.example.app --item status --action activate --generation <n> --descriptor-revision <n> --action-sequence <n> --dry-run --json$"
+        "^\\./aos status-item invoke --owner io.example.app --item status --action activate --generation <n> --descriptor-revision <n> --action-sequence <n> --json$"
       ],
       "expected_decision_terms": [
         "activate|quit|hide|unhide",
         "raise",
         "move|resize|close|minimize|maximize|restore|menu|native AX",
         "status-item|operator annotation",
-        "dry-run"
+        "optional preview|dry-run is optional|not permission"
       ],
       "expected_stop_terms": [
         "unsupported|stop",
@@ -103,18 +103,18 @@
     },
     {
       "id": "saved-workspace-observe-act-recapture",
-      "prompt": "Fresh agent: capture an authorized target into a workspace, inspect compact refs, dry-run an action on one actionable ref, perform it once, then recapture proof.",
+      "prompt": "Fresh agent: capture a caller-selected target into a workspace, inspect current saved handles, optionally preview an action, perform it once, then recapture proof.",
       "expected_skills": [
         "aos-saved-workspace"
       ],
       "required_commands": [
         "^\\./aos see capture <target> --save --mode som --workspace \"\\$AOS_WORKSPACE\"$",
         "^\\./aos see refs --workspace \"\\$AOS_WORKSPACE\" --json$",
-        "^\\./aos do press ref:<snapshot-id>:<ref-id> --workspace \"\\$AOS_WORKSPACE\" --dry-run$"
+        "^\\./aos do press ref:<snapshot-id>:<ref-id> --workspace \"\\$AOS_WORKSPACE\"$"
       ],
       "expected_decision_terms": [
-        "saved ref",
-        "dry-run",
+        "saved handle|observation handle",
+        "effectful action validates|optional preview|dry-run is optional",
         "recapture"
       ],
       "expected_stop_terms": [
@@ -128,14 +128,14 @@
     },
     {
       "id": "browser-boundary",
-      "prompt": "Fresh agent: for browser work, choose AOS for durable saved-ref clicking, but explain when upstream Playwright CLI skills should be used instead.",
+      "prompt": "Fresh agent: for browser work, choose AOS for a current observation-handle click, but explain when upstream Playwright CLI skills should be used instead.",
       "expected_skills": [
         "aos-browser"
       ],
       "required_commands": [
         "^\\./aos focus create --id browser-proof --target browser://new$",
         "^\\./aos see capture browser:browser-proof --save --mode som --workspace \"\\$AOS_WORKSPACE\"$",
-        "^\\./aos do click ref:<snapshot-id>:<ref-id> --workspace \"\\$AOS_WORKSPACE\" --dry-run$"
+        "^\\./aos do click ref:<snapshot-id>:<ref-id> --workspace \"\\$AOS_WORKSPACE\"$"
       ],
       "expected_decision_terms": [
         "AOS",
@@ -208,7 +208,6 @@
           "selected_commands": [
             "./aos help graph --json",
             "./aos graph windows",
-            "./aos do activate --pid <pid> --dry-run",
             "./aos do activate --pid <pid>",
             "./aos do quit --pid <pid> --dry-run",
             "./aos do hide --pid <pid> --dry-run",
@@ -228,11 +227,12 @@
             "./aos do restore --pid <pid> --window <window-id> --dry-run",
             "./aos do restore --pid <pid> --window <window-id>",
             "./aos do menu --pid <pid> --path File,Save --dry-run",
+            "./aos do menu --pid <pid> --path File,Save",
             "./aos status-item inspect --owner io.example.app --item status --generation <n> --descriptor-revision <n> --json",
             "./aos status-item invoke --owner io.example.app --item status --action activate --generation <n> --descriptor-revision <n> --action-sequence <n> --dry-run --json",
             "./aos status-item invoke --owner io.example.app --item status --action activate --generation <n> --descriptor-revision <n> --action-sequence <n> --json"
           ],
-          "decision": "Use graph windows for inventory and dry-run first-class app lifecycle, raise, move, resize, close, minimize, maximize, restore, app menu, AOS-hosted status-item operator annotation lease, and native AX controls before action.",
+          "decision": "Use graph windows for inventory and direct first-class app lifecycle, raise, move, resize, close, minimize, maximize, restore, app menu, AOS-hosted status-item operator annotation lease, and native AX controls. Dry-run is an optional preview, not permission.",
           "stop_condition": "Stop on unsupported desktop boundaries such as window fullscreen, Mission Control, or Space switching instead of simulating them."
         },
         {
@@ -247,7 +247,7 @@
             "./aos do press ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\"",
             "./aos see capture <target> --save --mode som --workspace \"$AOS_WORKSPACE\""
           ],
-          "decision": "Use the saved ref, dry-run it, act once, and recapture fresh proof.",
+          "decision": "Use the current saved handle, let the effectful action validate it, and recapture fresh proof; dry-run is optional.",
           "stop_condition": "Stop if the ref is stale, fallback-only, missing, or no longer has an actionable producer verdict."
         },
         {
@@ -259,9 +259,10 @@
             "./aos focus create --id browser-proof --target browser://new",
             "./aos see capture browser:browser-proof --save --mode som --workspace \"$AOS_WORKSPACE\"",
             "./aos see refs --workspace \"$AOS_WORKSPACE\" --json",
-            "./aos do click ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\" --dry-run"
+            "./aos do click ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\" --dry-run",
+            "./aos do click ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\""
           ],
-          "decision": "Use AOS for durable browser refs and validated action envelopes; use upstream Playwright CLI skills for trace, video, codegen, or raw Playwright primitives.",
+          "decision": "Use AOS for current browser observation handles and mechanically validated action envelopes; use upstream Playwright CLI skills for trace, video, codegen, or raw Playwright primitives.",
           "stop_condition": "Stop before vendoring Playwright skills or using the escape hatch without an explicit request and boundary."
         },
         {
@@ -276,7 +277,7 @@
             "./aos work-record status <id-or-path> --json"
           ],
           "decision": "Use ref diff expectations for compact proof and Work Record verify/status when durable evidence or recovery status matters.",
-          "stop_condition": "Stop if the post-action state cannot be recaptured, the expectation fails, or the required proof is outside the task authorization."
+          "stop_condition": "Stop if the post-action state cannot be recaptured, the expectation fails, or the requested proof is outside the caller's scope."
         }
       ]
     },

@@ -8,6 +8,16 @@ state and routing that must outlive individual canvases: sockets,
 subscriptions, display geometry, canvas lifecycle, content routing, input event
 delivery, voice/communication routing, and cleanup.
 
+**ADR 0040 transition boundary:** omission or redaction of facts already
+admitted to bounded public observation contracts below describes current
+runtime gaps, not AOS privacy or authorization policy. Runtime migration must
+preserve those raw observation facts by default or require an explicit
+caller-owned transform. This does not widen bounded public contracts or the
+trusted projection realm: arbitrary extension or product state, private source
+objects, native handles, and desktop pixels remain outside public scene and
+DevTools payloads. Content-free diagnostic *logs* remain valid where explicitly
+required; they do not define public observation payloads.
+
 The public socket may begin accepting work only after AppKit's launch callback
 and one queued main-loop action. Native capability requests must never race a
 merely initialized `NSApplication` that has not entered its event loop.
@@ -23,8 +33,11 @@ Named framebuffer proofs travel only as an operation on that existing owner
 stream. Admission binds the exact authorized extension digest, declared proof
 ID, resource revision, and current topology before the normal all-segment
 barrier dispatches; the daemon never accepts runtime pixel predicates or a
-second proof connection. Successful proof results contain only the bounded
-proof aggregate and must not inherit the ordinary scene snapshot projection.
+second proof connection. Current successful proof results expose the complete
+bounded public aggregate. Per-segment predicate results and pixels remain
+private extension-evaluation facts outside that public proof contract; their
+exclusion is not an ADR 0040 raw-output gap. Proof results must not inherit the
+ordinary scene snapshot or private pixel projection.
 `desktop-world-scene-controller.swift` is the single atomic owner for scene
 lease admission, typed subscriptions, readiness, result/event routing, and
 disconnect cleanup. `desktop-world-scene-transport-controller.swift` owns the
@@ -122,11 +135,15 @@ startup evidence settles before one acknowledged retirement begins, so native
 start and stop never race. A startup that misses the settlement deadline fails
 the broker closed while its coordinator retains ownership and retires any late
 success. Caller cancellation does not cancel an in-flight native operation;
-the coordinator waits for settlement and compensates a late start. Content-free
-lifecycle diagnostics may record configured, start, first
-sample, stop, and delegate-stop phases, but never display identity or pixels.
-A native failure marker may retain only the stable `SCStreamError` numeric code;
-it may not include localized descriptions, user info, source metadata, or paths.
+the coordinator waits for settlement and compensates a late start. Current
+public lifecycle diagnostics expose the configured, start, first-sample, stop,
+and delegate-stop phases declared by their bounded contract. Display identity
+and pixels remain outside that lifecycle diagnostic. Diagnostic logs remain
+content-free. The public
+failure marker exposes the stable typed `SCStreamError` numeric identity.
+Localized descriptions, arbitrary native user info, source metadata, and paths
+remain outside that bounded typed lifecycle diagnostic; their exclusion is not
+an ADR 0040 raw-output gap.
 AOS constructs each warm ScreenCaptureKit source on AppKit's main actor and
 dispatches native start and stop requests off the main thread; main-thread
 invocation can interrupt ScreenCaptureKit's application connection. An
@@ -233,9 +250,11 @@ The consent probe and runtime controller must share the daemon's one pixel
 broker instance so their ScreenCaptureKit work cannot overlap. Disconnect,
 replacement, cancellation, partial presentation, delivery failure,
 or timeout cancels native work and clears the complete capture set.
-`UnifiedDaemon` only routes exact-generation
-messages; it must never forward pixels, paths, handles, or frame URLs through
-public scene transport, events, diagnostics, or consumer processes.
+`UnifiedDaemon` only routes exact-generation messages. Its current public scene
+transport, events, diagnostics, and consumer projections omit pixels, paths,
+handles, and frame URLs. Those private capture facts remain inside the trusted
+projection realm and outside bounded public scene contracts; their exclusion is
+not an ADR 0040 raw-output gap or a caller-content redaction default.
 The singleton full-display stage must be created hidden and resume only after
 every physical display segment in the exact current canvas and topology
 generation reports ready following transparent renderer initialization.
@@ -283,20 +302,23 @@ drives that publication, but only requests covered by the published vector
 complete. Request tokens carry no lexical ordering, and asynchronous receipts
 may update only display indexes already correlated to that request. Exact
 canvas, topology, or display-identity replacement starts a new sequence fence.
-At inspection read time, the daemon decorates canonical stage snapshots with
-the native desktop-frame warm pool's state, display count, generation, and
-redacted error code, plus bounded native-effect admission, presentation,
-completion, disposal, rejection, and failure counters, active runtime/sheet and
-retained buffer/texture/view counts, native trigger-to-presentation latency,
-canonical last-execution
-owner/resource/program identity and digest, and one redacted error code.
-The same snapshot may expose only content-free native render workload facts:
-the last backing-pixel count and percentage plus triangle count. It never
-includes geometry, coordinates, parameters, texture dimensions, or pixels.
+At inspection read time, the daemon currently decorates canonical stage
+snapshots with the native desktop-frame warm pool's state, display count,
+generation, and a bounded typed error code, plus bounded native-effect
+admission, presentation, completion, disposal, rejection, and failure counters,
+active runtime/sheet and retained buffer/texture/view counts, native
+trigger-to-presentation latency,
+canonical last-execution owner/resource/program identity and digest, and one
+bounded typed error code. The same snapshot exposes bounded
+native render workload counts: the last backing-pixel count and percentage plus
+triangle count. Undeclared engine geometry, coordinates, parameters, texture
+dimensions, pixels, and arbitrary native failure details remain outside this
+bounded DevTools observation contract.
 Browser snapshots do not own or cache those facts, and bounded warm lifecycle
-transitions republish to active DevTools hosts without polling. DevTools never
-includes pixels, handles, paths, frame timestamps, effect parameters,
-coordinates, product state, or captured desktop facts. Successful runtime
+transitions republish to active DevTools hosts without polling. Undeclared frame
+timestamps, effect parameters, coordinates, pixels, handles, paths, product
+state, and captured desktop facts remain outside this bounded public
+observation contract under the trusted-realm boundary. Successful runtime
 disposal is recorded only after the runtime reports zero retained buffers,
 textures, and views and the exact native sheet removal succeeds.
 
@@ -323,8 +345,9 @@ Allowed daemon-side surface work:
   the tested fail-open decision without leaving capture state active; successful
   delivery keeps typed destination and diagnostic metadata until final serialization;
   owner-generation key leases may opt into canonical non-printable Escape
-  cancellation; delivery is deduplicated, redacted, and always passes through
-  to macOS, and no other key or text may reach the lease owner;
+  cancellation; public delivery preserves the bounded cancellation facts it
+  declares before passing through to macOS. Other keys and text remain outside
+  this contract and may not reach the lease owner;
 - pointer-session identity is derived independently from pointer consumption;
   `consumePolicy: never` may deliver a pointer-down native effect without
   creating native capture or changing pass-through behavior;
@@ -345,7 +368,10 @@ hotkey leases, bounded microphone-to-WAV capture, streamed system-speech
 playback, bounded owner-only WAV playback, meters, and connection cleanup. It
 must not own transcription,
 conversation policy, product presence state, or branded voice behavior. Voice
-events must never carry audio bytes, spoken text, or local paths.
+events are bounded lifecycle observations; media bytes, spoken text, and local
+paths remain on their owning capture, transcription, speech, or playback
+channels and outside the event envelope. Their exclusion is not an ADR 0040
+raw-output gap.
 `microphone-authorization.swift` owns the daemon process's four-state macOS
 authorization view and the only `AVCaptureDevice.requestAccess(for:.audio)`
 call. First capture may request from `not_determined`; denied, restricted, and

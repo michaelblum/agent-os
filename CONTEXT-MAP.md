@@ -12,6 +12,9 @@ source root. This file is a routing map, not a replacement for those sources.
   and current AOS primitive model.
 - Read `AGENTS.md` for repo-wide agent signage, hard invariants, and authority
   routing.
+- Read `docs/adr/README.md` for ADR status/supersession and
+  `docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md` for
+  ambient authority, raw observation, and public target-handle contracts.
 - Read `docs/agents/domain.md` for how domain docs, context sources, ADRs, and
   conflicts should be handled.
 
@@ -48,6 +51,8 @@ source root. This file is a routing map, not a replacement for those sources.
   `docs/dev/product-maturity.json`.
 - AOS TCC capability broker boundary:
   `docs/adr/0015-aos-tcc-capability-broker-boundary.md`.
+- Ambient authority, raw observation, and target-handle boundary:
+  `docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md`.
 - Command-surface extraction contract: `docs/dev/command-surface.md`.
 - Runtime wiki source layers: `docs/wiki/README.md`, `wiki-seed/`, and
   `docs/wiki/repo-docs-projection-v0.json`.
@@ -111,7 +116,8 @@ source root. This file is a routing map, not a replacement for those sources.
 
 ## Durable Decisions And SOPs
 
-- ADRs and durable architecture decisions: `docs/adr/`.
+- ADRs and durable architecture decisions: `docs/adr/`, with active status and
+  supersession owned by `docs/adr/README.md`.
 - Markdown Guides/SOPs: `docs/guides/`.
 - Source-backed executable Recipes: `recipes/` plus `aos recipe`.
 - Context maintenance guide: `docs/guides/context-doc-maintenance.md`.

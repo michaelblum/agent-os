@@ -112,6 +112,19 @@ Default section order:
 ## Hard Invariants
 
 - Do not discard or overwrite user changes to satisfy workflow hygiene.
+- AOS uses ambient authority: the user authorizes the agent host and macOS TCC
+  constrains the process; AOS must not add auth tokens, allowlists, risk labels,
+  mandatory approvals, mandatory dry-run, Work Record authorization, default
+  core masking/redaction, or assistant/product restrictions. Preserve mechanical
+  correctness through exact identity, stale/ambiguous rejection, bounded
+  resources and timeouts, exactly-once admission where relevant, cleanup, typed
+  errors, and receipts. ADR 0040 owns the detailed contract.
+- Facts and channels admitted by each bounded public observation contract are
+  raw and fidelity-first; facts outside that contract remain outside it.
+  Masking, redaction, persistence, and projection are explicit caller-owned
+  transforms. Public target handles are
+  either state-scoped observation refs or action-time re-resolving locators;
+  never silently reacquire a stale observation ref as though it were a locator.
 - AOS is pre-release with no installed base or external compatibility
   obligations. Migrate internal consumers atomically and delete superseded
   implementation in the same change; compatibility residue requires an

@@ -309,7 +309,7 @@ function backendConformanceRows(doc, marker) {
 const expectedBackendConformanceRows = [
   ['`aos_canvas`', '`reacquirable` `click` and `set-value`', savedRefProofStory('aos_canvas', 'reacquirable', true)],
   ['`browser`', '`snapshot_scoped` `click`, `fill`, `hover`, `scroll`, `drag`, `type`, and `key`', savedRefProofStory('browser', 'snapshot_scoped', true)],
-  ['`native_ax` stable saved refs', 'durable-identity plus producer-verdict `press`, `focus`, and `set-value`', savedRefProofStory('native_ax', 'stable', true)],
+  ['current `native_ax` `stable` saved-handle class', 'current durable-identity plus producer-verdict `press`, `focus`, and `set-value` implementation', savedRefProofStory('native_ax', 'stable', true)],
   ['direct AX one-shot wrappers', '`--pid` / `--role` `press`, `focus`, and `set-value`', directNativeAxProofStory()],
   ['`native_ax` volatile or known-limit refs', 'inspection/readback only', savedRefProofStory('native_ax', 'volatile', false)],
   ['`coordinate_fallback`', 'diagnostic/fallback-only refs', savedRefProofStory('aos_canvas', 'coordinate_fallback', false)],
@@ -384,10 +384,9 @@ function skillFrontmatter(text) {
 const aosSkillFrontmatter = skillFrontmatter(savedWorkspaceSkill);
 assert.equal(aosSkillFrontmatter.name, 'aos-saved-workspace', 'saved workspace skill must keep its installable name');
 assert.ok(
-  /saved perception workspaces/.test(aosSkillFrontmatter.description)
-  && /aos see capture --save/.test(aosSkillFrontmatter.description)
-  && /aos see snapshots/.test(aosSkillFrontmatter.description)
-  && /aos see refs/.test(aosSkillFrontmatter.description)
+  /saved perception handles/.test(aosSkillFrontmatter.description)
+  && /Observation Refs/.test(aosSkillFrontmatter.description)
+  && /Locators/.test(aosSkillFrontmatter.description)
   && /observe-act-recapture/.test(aosSkillFrontmatter.description),
   'saved workspace skill description must trigger on saved capture/ref loops',
 );
@@ -398,6 +397,7 @@ assert.deepEqual(
   [
     'docs/api/aos.md',
     'docs/api/aos-capabilities.md',
+    'docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md',
     'shared/schemas/aos-agent-workspace-v0.md',
     'tests/agent-workspace-contract-drift.sh',
     'tests/agent-workspace-saved-ref.sh',
@@ -414,7 +414,7 @@ const savedWorkspaceLoopTerms = [
   'aos see capture ... --save',
   'Inspect snapshots and refs',
   'ref:<snapshot-id>:<ref>',
-  'Dry-run',
+  'optionally dry-run',
   'recapture',
 ];
 for (const term of savedWorkspaceLoopTerms) {
@@ -424,14 +424,15 @@ const savedWorkspaceProse = savedWorkspaceSkill.replace(/\s+/g, ' ');
 assert.ok(
   savedWorkspaceSkill.indexOf('./aos help see --json') < savedWorkspaceSkill.indexOf('aos see capture ... --save')
   && savedWorkspaceSkill.indexOf('./aos help do --json') < savedWorkspaceSkill.indexOf('aos see capture ... --save')
-  && savedWorkspaceSkill.indexOf('Dry-run') < savedWorkspaceSkill.indexOf('act once, then recapture'),
-  'saved workspace skill must lead with help, then saved capture, dry-run, and recapture',
+  && savedWorkspaceSkill.indexOf('Resolve current identity') < savedWorkspaceSkill.indexOf('act once, then recapture'),
+  'saved workspace skill must lead with help, then saved capture, current identity, action, and recapture',
 );
 for (const term of [
   'compact targets',
-  'Do not inline screenshots, browser payloads, AX dumps, or full capture JSON',
-  'post-action',
-  'Coordinate fallback is diagnostic',
+  'Observation Ref is `(state_id, ref)`',
+  'Locator re-resolves',
+  'Observation stays raw',
+  'caller chooses whether to keep full captures',
 ]) {
   assert.ok(savedWorkspaceProse.includes(term), `saved workspace skill loop missing ${term}`);
 }
@@ -562,12 +563,9 @@ for (const text of [schemaDoc, apiDoc, skill]) {
   assert.ok(text.includes('UNKNOWN_ARG'), 'docs/skill must mention saved-ref grammar UNKNOWN_ARG');
   assert.ok(text.includes('UNKNOWN_FLAG'), 'docs/skill must mention saved-ref grammar UNKNOWN_FLAG');
   assert.ok(/page,\s+frame,\s+navigation/.test(text), 'docs/skill must explain browser page/frame/navigation validation');
-  assert.ok(text.includes('Dry-run') || text.includes('dry-run'), 'docs/skill must describe browser dry-run validation');
+  assert.ok(text.includes('Dry-run') || text.includes('dry-run'), 'docs/skill must preserve optional browser dry-run mechanics');
   assert.ok(text.includes('reacquired'), 'docs/skill must describe reacquired dry-run status');
-  assert.ok(
-    prose.includes('dispatch by rerunning the exact saved-ref command without `--dry-run`'),
-    'docs/skill must explain how to turn a safe dry-run into real dispatch',
-  );
+  assert.ok(/optional[^.]*dry-run|dry-run[^.]*optional/i.test(prose), 'docs/skill must describe dry-run as optional mechanics');
   assert.ok(prose.includes('saved-ref execution envelope'), 'docs/skill must describe real saved-ref execution envelope');
   assert.ok(text.includes('underlying_result'), 'docs/skill must describe nested underlying action result');
   assert.ok(text.includes('recommended_next'), 'docs/skill must describe structured refresh recommendations');
@@ -575,12 +573,12 @@ for (const text of [schemaDoc, apiDoc, skill]) {
   assert.ok(text.includes('recommended_next_command'), 'docs/skill must describe post-action refresh recommendation');
   assert.ok(text.includes('conformance'), 'docs/skill must describe saved-ref conformance fields');
   assert.ok(text.includes('proof'), 'docs/skill must describe saved-ref proof fields');
-  assert.ok(text.includes('approval_gated_live_proof_not_run'), 'docs/skill must name approval-gated live proof status');
+  assert.ok(text.includes('approval_gated_live_proof_not_run'), 'docs/skill must name the current legacy proof-status field');
   assert.ok(text.includes('live_dispatch_proven_no_foreground_not_claimed'), 'docs/skill must name live native dispatch proof status');
   assert.ok(text.includes('tests/manual/native-ax-saved-ref-live-proof.sh'), 'docs/skill must name native AX focus/set-value live proof harness');
   assert.ok(text.includes('deterministic_contract_tests_passed'), 'docs/skill must name deterministic proof status');
   assert.ok(text.includes('deterministic_contract_tests'), 'docs/skill must name deterministic proof level');
-  assert.ok(text.includes('native_saved_ref_contract_tests_plus_approval_gates'), 'docs/skill must name stable native saved-ref proof level');
+  assert.ok(text.includes('native_saved_ref_contract_tests_plus_approval_gates'), 'docs/skill must name the current native saved-handle proof-level field');
   assert.ok(text.includes('native_primitive_response_plus_wrapper_contract'), 'docs/skill must name direct AX wrapper proof level');
   assert.ok(text.includes('known_limit_refusal_tested'), 'docs/skill must name coordinate fallback refusal proof status');
   assert.ok(text.includes('no_foreground'), 'docs/skill must describe native no_foreground conformance fields');
@@ -611,10 +609,10 @@ for (const text of [schemaDoc, apiDoc, skill]) {
   assert.ok(text.includes('captured baseline'), 'docs/skill must require a captured native baseline');
   assert.ok(text.includes('native_saved_ref_evidence'), 'docs/skill must require native saved-ref producer evidence');
   assert.ok(text.includes('producer verdict'), 'docs/skill must describe native saved-ref producer verdicts');
-  assert.ok(text.includes('stable'), 'docs/skill must describe stable native AX saved refs');
-  assert.ok(text.includes('aos do press ref:<snapshot-id>'), 'docs/skill must include stable native press saved-ref example');
-  assert.ok(text.includes('aos do focus ref:<snapshot-id>'), 'docs/skill must include stable native focus saved-ref example');
-  assert.ok(prose.includes('`press` and `focus` examples require stable `native_ax` refs'), 'docs/skill must mark press/focus examples as stable native AX only');
+  assert.ok(text.includes('`stable`'), 'docs/skill must describe the current stable resolution-class field');
+  assert.ok(text.includes('aos do press ref:<snapshot-id>'), 'docs/skill must include current native press saved-handle example');
+  assert.ok(text.includes('aos do focus ref:<snapshot-id>'), 'docs/skill must include current native focus saved-handle example');
+  assert.ok(prose.includes('`press` and `focus` examples require the current `native_ax` `stable` resolution class'), 'docs/skill must mark press/focus examples as current implementation behavior');
   assert.ok(text.includes('direct_ax_ready'), 'docs/skill must describe native direct AX saved-ref dry-run status');
   assert.ok(text.includes('requires_direct_ax_current_matching'), 'docs/skill must describe native saved-ref current matching status');
   assert.ok(text.includes('app_hint'), 'docs/skill must describe native app hint evidence');
@@ -642,8 +640,8 @@ for (const [label, text] of Object.entries({ apiDoc, schemaDoc, skill })) {
   }
 }
 assert.ok(
-  apiDoc.replace(/\s+/g, ' ').includes('`press` and `focus` examples require stable `native_ax` refs'),
-  'API saved-ref examples must mark press/focus as stable native AX only',
+  apiDoc.replace(/\s+/g, ' ').includes('`press` and `focus` examples require the current `native_ax` `stable` resolution class'),
+  'API saved-handle examples must mark press/focus as current stable native AX implementation only',
 );
 assert.ok(apiDoc.includes('aos do type browser:<session>/<ref> "hello world" --state-id <id>'), 'API doc must include direct browser type example');
 assert.ok(apiDoc.includes('aos do key browser:<session>/<ref> "Enter" --state-id <id>'), 'API doc must include direct browser key example');
@@ -761,8 +759,8 @@ for (const usage of captureSourceCoverage.source_flag_usage) {
   assert.ok(`${apiDoc}\n${schemaDoc}`.includes(usage), `canonical docs missing capture source usage ${usage}`);
 }
 assert.ok(
-  savedWorkspaceSkill.includes('Dry-run when the action supports it, act once, then recapture'),
-  'saved workspace skill must show dry-run, real action, and post-action saved capture refresh',
+  savedWorkspaceSkill.includes('optionally dry-run for preview, act once, then recapture'),
+  'saved workspace skill must keep dry-run optional and post-action saved capture refresh explicit',
 );
 assert.ok(
   canvasVisionSkill.includes('`--region`, `--canvas`, or `--channel`')
@@ -783,7 +781,7 @@ for (const text of [schemaDoc, apiDoc]) {
 const browserActionSlashList = SAVED_REF_V0_ACTIONS_BY_BACKEND.browser.join('/');
 assert.ok(manifest.includes(`validated browser ${browserActionSlashList} mutation`), 'manifest save summary must advertise validated browser real mutation from matrix actions');
 const nativeActionSlashList = ['press', 'focus', 'set-value'].join('/');
-assert.ok(manifest.includes(`stable native AX ${nativeActionSlashList}`), 'manifest save summary must advertise stable native AX saved-ref actions');
+assert.ok(manifest.includes(`native AX ${nativeActionSlashList} through the current stable resolution class`), 'manifest save summary must label the current native AX saved-handle resolution class');
 assert.ok(!manifest.includes('remains dry-run advisory'), 'manifest save summary must not describe browser refs as advisory-only');
 
 const doCommand = manifestJSON.commands.find((command) => JSON.stringify(command.path) === JSON.stringify(['do']));
@@ -791,11 +789,11 @@ assert.ok(doCommand, 'manifest missing do command');
 const doFormsByID = new Map(doCommand.forms.map((form) => [form.id, form]));
 for (const action of ['press', 'focus']) {
   const form = doFormsByID.get(`do-${action}`);
-  assert.ok(form.summary.includes(`stable native AX saved refs or direct AX targets`), `manifest do-${action} summary must distinguish stable saved refs from direct AX targets`);
+  assert.ok(form.summary.includes(`current saved native AX handles or direct AX targets`), `manifest do-${action} summary must distinguish current saved handles from direct AX targets`);
   assert.ok(form.summary.includes('direct AX uses current matching'), `manifest do-${action} summary must disclose direct AX current matching`);
   assert.ok(form.summary.includes('no_foreground proof still not claimed'), `manifest do-${action} summary must avoid claiming direct AX no-foreground proof`);
   const targetArg = form.args.find((arg) => arg.id === 'target');
-  assert.ok(targetArg.summary.includes('Stable saved native AX ref'), `manifest do-${action} target arg must mark saved refs as stable native AX only`);
+  assert.ok(targetArg.summary.includes('Saved native AX handle in the current stable resolution class'), `manifest do-${action} target arg must label current implementation behavior`);
 }
 const doSetValueForm = doFormsByID.get('do-set-value');
 assert.ok(

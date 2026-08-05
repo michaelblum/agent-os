@@ -110,12 +110,13 @@ fallback flag, and originating `state_id` when supplied. Work records should
 carry those fields as correlation metadata between the natural-language spine,
 the structured execution map, and immutable evidence.
 
-For AOS-owned target interactions, the current split between durable intent,
+For AOS-owned target interactions, the legacy fixture split between intent,
 execution result metadata, optional gesture evidence, state patches, and replay
-plans is defined in
+plans is recorded in
 [`aos-interaction-grammar-v0.md`](aos-interaction-grammar-v0.md). Work Records
 store that family in their intent, execution-map, evidence, health, and replay
-policy layers; they do not collapse it into raw input replay.
+policy layers. The linked note is migration evidence, not public target-handle
+authority.
 
 Work Recording frame packs over that family are defined in
 [`aos-work-recording-frame-contract-v0.md`](aos-work-recording-frame-contract-v0.md).
@@ -124,24 +125,24 @@ keyframes, evidence refs, replay policy, and frame health. The interaction
 grammar still owns target descriptors, action intents, execution results,
 optional gesture frames, observed input evidence, and state patches.
 
-Coordinates can be recorded, but they are fallback material. When semantic
-targets exist, prefer the AOS target descriptor vocabulary: state-scoped `ref`
-and `state_id` for the immediate action, durable `target.target_id` scoped by
-`target.owner_namespace`, primitive `actions`, current `state`, `provenance`
-for the current address, and `reacquisition` fingerprints for repair. Labels
-and accessibility text can help repair as hints, but they are not durable
-target identity.
+Coordinates can be recorded as evidence. The legacy fixture descriptor combines
+state-scoped `ref`/`state_id` with `target.target_id`,
+`target.owner_namespace`, `provenance`, and `reacquisition` material. ADR 0040
+supersedes that mixed public model with separate Observation Ref and Locator
+types; labels and accessibility text remain hints, not identity.
 
 The first AOS action capture slice is intentionally saved-evidence only. A
 single source records before perception, the AOS `do` result, and after
 perception, then `buildWorkRecordV0FromAosActionEvidence()` normalizes that
-source into Work Record v0. This is enough for a Workflow-gated step/evidence
-bridge: a harness can run the same `see -> resolve -> do -> see` loop and hand
+source into Work Record v0. The current legacy implementation uses a
+Workflow-gated step/evidence bridge: a harness can run the same
+`see -> resolve -> do -> see` loop and hand
 the saved evidence envelope to the builder. Work Records and verifier reports
 are harness obligations around the run, not step-authored primitive actions.
 Playbooks remain method guidance rather than the execution substrate. No
 autonomous replay, ref repair, or broad recorder command is implied by this
-capture slice.
+capture slice. Gate is not AOS permission, and the coupling awaits ADR 0040
+runtime migration.
 
 ## Target Dialects
 
@@ -236,9 +237,11 @@ Promotion to durable trace should happen only when explicit:
 - a failure promotes the last N seconds
 - a human or agent asks to save recent context
 
-The recorder should redact or summarize sensitive data by default. Permanent
-recording of raw screen/video/text is out of scope until privacy boundaries are
-designed. Tracked in #238.
+Redaction, summarization, retention, and persistence are explicit caller-owned
+transforms. A recorder must preserve selected raw facts unless the caller asks
+for a projection, and any durable screen/video/text retention must use the
+caller's explicit scope and lifecycle. AOS does not assign default sensitivity
+policy. Tracked in #238.
 
 ## Health, Repair, And Retirement
 

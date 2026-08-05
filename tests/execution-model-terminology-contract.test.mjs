@@ -107,26 +107,31 @@ test('current code and docs use Step Descriptor instead of Playbook Step substra
   );
 });
 
-test('grand unification plan keeps Work Records and verifier reports as harness obligations', async () => {
+test('legacy Gate-coupled harness remains documented as migration debt, not AOS permission', async () => {
   const plan = await text('docs/design/aos-grand-unification-plan.md');
   const context = await text('CONTEXT.md');
   const workRecords = await text('docs/design/aos-work-records-and-self-healing-recipes.md');
   const adr = await text('docs/adr/0013-aos-execution-model-v0.md');
 
-  assert.match(plan, /### Phase 6: Browser Step Evidence And Workflow-Gated Runs/);
+  assert.match(plan, /### Phase 6: Browser Step Evidence And Legacy Workflow-Gated Runs/);
+  assert.match(plan, /Workflow Gate is not\s+AOS permission/);
+  assert.match(plan, /coupling must not survive ADR 0040 runtime migration/);
   assert.match(plan, /not Playbook-authored execution/);
   assert.match(plan, /Work Records and verifier reports are harness obligations around the run/);
-  assert.match(plan, /First candidate Workflow-gated browser run/);
+  assert.match(plan, /First candidate legacy Workflow-gated browser run/);
   assert.match(plan, /emit a Work Record through the harness/);
   assert.match(plan, /run the report-only verifier profile/);
   assert.match(plan, /`claim_results\[\]`/);
   assert.match(plan, /derived indexes: `verified`, `failed`, `unverified`/);
-  assert.match(context, /now treats browser runs as\s+Workflow-gated step evidence/);
+  assert.match(context, /current legacy browser\s+harness as Workflow-gated step evidence/);
+  assert.match(context, /Gate coupling awaits ADR 0040 migration and is not AOS\s+permission/);
   assert.match(context, /use\s+`claim_results\[\]` as the source of truth/);
-  assert.match(workRecords, /Workflow-gated step\/evidence\s+bridge/);
+  assert.match(workRecords, /current legacy implementation uses a\s+Workflow-gated step\/evidence bridge/);
+  assert.match(workRecords, /Gate is not AOS permission/);
   assert.match(workRecords, /Work Records and verifier reports\s+are harness obligations around the run/);
   assert.match(workRecords, /Playbooks remain method guidance rather than the execution substrate/);
-  assert.match(adr, /neutral V0 sketch for one Workflow-gated step\/evidence bridge/);
+  assert.match(adr, /legacy V0 sketch for one Workflow-gated step\/evidence bridge awaiting ADR 0040/);
+  assert.match(adr, /Gate is not AOS permission/);
   assert.doesNotMatch(plan, /### Phase 6: Browser Playbooks/);
   assert.doesNotMatch(plan, /A playbook step is/);
   assert.doesNotMatch(plan, /save a work record/);
@@ -145,7 +150,7 @@ test('browser capture remains a projection, not a taxonomy source', async () => 
   assert.match(adr, /downstream projections, not the source of truth/);
 });
 
-test('browser target guidance prefers saved refs and keeps direct refs volatile', async () => {
+test('browser target guidance separates public handles from current browser transports', async () => {
   const architecture = await text('ARCHITECTURE.md');
   const aosApi = await text('docs/api/aos.md');
   const browserSkill = await text('skills/aos-browser/SKILL.md');
@@ -153,16 +158,19 @@ test('browser target guidance prefers saved refs and keeps direct refs volatile'
   const externalManifest = JSON.parse(await text('manifests/commands/aos-external-commands.json'));
   const maintained = `${architecture}\n${aosApi}\n${browserSkill}\n${seeDo}`;
 
-  assert.match(architecture, /For normal observe-act loops, agents capture `aos see capture browser:<session> --save --mode som --workspace <id>`/);
-  assert.match(architecture, /saved-ref dispatch validates the current browser target/);
+  assert.match(architecture, /Public target semantics distinguish an ephemeral Observation Ref `\(state_id, ref\)` from a Locator/);
+  assert.match(architecture, /current browser implementation predates that split/);
+  assert.match(architecture, /current saved-handle dispatch validates the browser target/);
   assert.match(aosApi, /Direct browser `type` and `key` remain current-host routes/);
   assert.match(aosApi, /Saved browser `type` and `key` are text-compatible saved-ref actions/);
   assert.match(aosApi, /producer exposes the action in `supported_actions`/);
-  assert.match(browserSkill, /`ref:<snapshot-id>:<ref>` — the preferred observe-act target for normal browser work/);
-  assert.match(browserSkill, /Direct browser refs are volatile/);
+  assert.match(browserSkill, /Observation Ref `\(state_id, ref\)` — ephemeral and stale-rejecting/);
+  assert.match(browserSkill, /Locator — re-resolves current browser state and rejects zero or multiple matches/);
+  assert.match(browserSkill, /`ref:<snapshot-id>:<ref>` — current saved-workspace handle, not a Locator/);
+  assert.match(browserSkill, /Direct browser refs are current implementation transport strings/);
   assert.match(browserSkill, /Direct browser `type` and `key` are current-host routes/);
-  assert.match(browserSkill, /Saved-ref `type` and `key` are supported for text-compatible\s+browser refs/);
-  assert.match(browserSkill, /dry-run validation before dispatch/);
+  assert.match(browserSkill, /Saved-handle `type` and `key` are supported for text-compatible\s+browser refs/);
+  assert.match(browserSkill, /effectful dispatch performs current-target\s+validation/);
   assert.match(seeDo, /public CLI now documents browser targets through `docs\/api\/aos\.md`/);
   assert.match(seeDo, /Collection workers should prefer saved refs for normal loops/);
   assert.match(seeDo, /direct\s+`browser:<session>\/<ref>` targets as current\s+diagnostic\/provenance handles/);
@@ -187,36 +195,41 @@ test('browser target guidance prefers saved refs and keeps direct refs volatile'
   assert.doesNotMatch(browserSkill, /docs\/superpowers\/specs\/2026-04-24-playwright-browser-adapter-design\.md/);
 });
 
-test('context glossary distinguishes saved refs from live target refs', async () => {
+test('context glossary distinguishes public target types from current saved handles', async () => {
   const context = await text('CONTEXT.md');
   const aosApi = await text('docs/api/aos.md');
   const workspaceSchema = await text('shared/schemas/aos-agent-workspace-v0.md');
 
   assert.match(context, /\*\*Saved Ref\*\*:/);
   assert.match(context, /`ref:<snapshot-id>:<ref-id>`/);
-  assert.match(context, /primary model-facing handle/);
+  assert.match(context, /\*\*Observation Ref\*\*:/);
+  assert.match(context, /ephemeral public handle `\(state_id, ref\)`/);
+  assert.match(context, /\*\*Locator\*\*:/);
+  assert.match(context, /re-resolves against current state for every\s+operation/);
   assert.match(context, /workspace snapshot record/);
   assert.match(context, /revalidate or reacquire the current target before mutation/);
-  assert.match(context, /not a live\s+Target-with-Ref/);
-  assert.match(context, /Bare\s+`ref:<ref-id>` is permitted only when unambiguous inside the workspace/);
-  assert.match(context, /separate from direct Target-with-Ref address grammar/);
-  assert.match(context, /snapshot\/workspace\/conformance\/action-matrix data/);
-  assert.match(aosApi, /Saved refs use `ref:<snapshot-id>:<ref-id>`/);
+  assert.match(context, /It is not a live\s+Observation Ref or Locator/);
+  assert.match(context, /Bare\s+`ref:<ref-id>` acceptance and automatic reacquisition are implementation gaps/);
+  assert.match(aosApi, /Snapshot-qualified saved handles/);
   assert.match(workspaceSchema, /Saved refs are scoped to a snapshot/);
   assert.match(workspaceSchema, /originating capture source and mode/);
   assert.doesNotMatch(workspaceSchema, /originating saved target/);
   assert.doesNotMatch(context, /Saved Ref[\s\S]{0,500}is the live wire form/);
 });
 
-test('public API docs preserve the current target and handle ladder', async () => {
+test('public API docs define Observation Refs and Locators while inventorying current forms', async () => {
   const aosApi = await text('docs/api/aos.md');
-  const section = aosApi.split('## Target And Handle Ladder', 2)[1].split('## Core Usage Patterns', 1)[0];
+  const section = aosApi.split('## Target And Handle Contract', 2)[1].split('## Core Usage Patterns', 1)[0];
 
+  assert.match(section, /Observation Ref/);
+  assert.match(section, /ephemeral `\(state_id, ref\)`/);
+  assert.match(section, /Locator/);
+  assert.match(section, /Zero\s+matches return missing; more than one returns ambiguous/);
   assert.match(section, /`ref:<snapshot-id>:<ref-id>`/);
-  assert.match(section, /bare `ref:<ref-id>` only when the\s+workspace can resolve it unambiguously/);
+  assert.match(section, /Bare `ref:<ref-id>` and\s+automatic saved-handle reacquisition are explicit migration gaps/);
   assert.match(section, /`browser:<session>\/<ref>` and `canvas:<canvas-id>\/<ref>`/);
-  assert.match(section, /raw `x,y` plus `--state-id <id>`/);
-  assert.match(section, /selector flags such as `--pid`, `--role`, and\s+filters/);
+  assert.match(section, /raw `x,y` plus\s+`--state-id <id>`/);
+  assert.match(section, /selector\s+flags such as `--pid`, `--role`, and filters/);
   assert.match(section, /no current public `ax:` CLI target grammar/);
   assert.match(section, /Semantic Targets are structured perception records/);
   assert.match(section, /not a separate address grammar/);
@@ -225,18 +238,20 @@ test('public API docs preserve the current target and handle ladder', async () =
   assert.doesNotMatch(section, /`ax:</);
 });
 
-test('README gives the simplified target handle ladder without new grammar', async () => {
+test('README gives the public target types and inventories current grammar', async () => {
   const readme = await text('README.md');
   const section = readme.split('## Target Handles', 2)[1].split('## Track-2 consumers', 1)[0];
 
-  assert.match(section, /saved refs from `aos see capture --save`/);
+  assert.match(section, /ephemeral Observation Ref\s+`\(state_id, ref\)`/);
+  assert.match(section, /Locator, which re-resolves at\s+action time and rejects zero or multiple matches/);
+  assert.match(section, /Current saved-workspace\s+handles/);
   assert.match(section, /`ref:<snapshot-id>:<ref-id>`/);
   assert.match(section, /`browser:<session>\/<ref>` and `canvas:<canvas-id>\/<ref>`/);
   assert.match(section, /raw `x,y` plus `--state-id <id>`/);
-  assert.match(section, /selector flags such as `--pid` and `--role`/);
+  assert.match(section, /selector\s+flags such as `--pid` and `--role`/);
   assert.match(section, /not a public `ax:`\s+target grammar/);
-  assert.match(section, /Semantic Targets are perception records/);
-  assert.match(section, /not another address system/);
+  assert.match(section, /Semantic\s+Targets are perception records/);
+  assert.match(section, /not another address\s+system/);
   assert.doesNotMatch(section, /`screen:/);
   assert.doesNotMatch(section, /`ax:<`/);
 });
@@ -407,7 +422,7 @@ test('canvas host docs keep lifecycle, current targets, and saved refs distinct'
     ?? doCommand?.forms?.find((form) => form.id === 'do-drag-canvas');
   const doClickForm = doCommand?.forms?.find((form) => form.id === 'do-click');
   const doSetValueForm = doCommand?.forms?.find((form) => form.id === 'do-set-value');
-  const targetLadder = aosApi.split('## Target And Handle Ladder', 2)[1].split('## Core Usage Patterns', 1)[0];
+  const targetLadder = aosApi.split('## Target And Handle Contract', 2)[1].split('## Core Usage Patterns', 1)[0];
 
   assert.ok(showCreateForm?.args?.some((arg) => arg.id === 'id' && /Canvas identifier/.test(arg.summary)));
   assert.ok(seeCaptureForm?.args?.some((arg) => arg.token === '--canvas' && /Capture a canvas by id/.test(arg.summary)));
@@ -420,7 +435,7 @@ test('canvas host docs keep lifecycle, current targets, and saved refs distinct'
   assert.match(toolkitRuntime, /`aos show --id <canvas-id>` owns canvas resource lifecycle/);
   assert.match(toolkitRuntime, /`aos see capture\s+--canvas <canvas-id>` scopes perception to the current canvas host/);
   assert.match(toolkitRuntime, /`canvas:<canvas-id>\/<ref>` is the direct current Target-with-Ref/);
-  assert.match(toolkitRuntime, /Saved workspace refs remain the model-facing durable\s+handle/);
+  assert.match(toolkitRuntime, /Saved\s+workspace refs such as `ref:<snapshot-id>:<ref-id>` remain current\s+implementation handles during migration, not durable public target identity/);
   assert.match(toolkitRuntime, /canvas id as a resource id, not as durable object\s+identity/);
   assert.doesNotMatch(`${targetLadder}\n${toolkitRuntime}`, /canvas id is durable object identity/i);
   assert.doesNotMatch(`${targetLadder}\n${toolkitRuntime}`, /canvas:<canvas-id> is the saved ref/i);

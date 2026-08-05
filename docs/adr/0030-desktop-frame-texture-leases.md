@@ -1,7 +1,22 @@
 # ADR 0030: Desktop Frame Texture Leases
 
-- Status: Accepted
+- Status: Accepted; amended by ADR 0040
 - Date: 2026-07-25
+
+## ADR 0040 Transition Boundary
+
+ADR 0040 amends the AOS authority and observation semantics in this decision.
+macOS Screen Recording TCC remains the platform-owned mechanical constraint,
+and bounded native admission, settlement, and cleanup remain correctness
+mechanics. The process-lifetime `consent gate`, explicit prime-before-use
+requirement, and omission or redaction of facts already admitted to a bounded
+public observation contract below are current legacy implementation behavior
+and ADR 0040 migration gaps; they are not AOS-owned permission or privacy
+policy. The target contract uses ambient TCC authority, preserves those raw
+observation facts, and applies omission or redaction only as an explicit
+caller-owned transform. This amendment does not widen the trusted projection
+realm: desktop pixels, native or WebKit handles, private stage messages, and
+product state remain outside bounded public scene and DevTools contracts.
 
 ## Context
 

@@ -82,7 +82,9 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
   assert.match(docs['docs/api/toolkit/scene-authoring.md'], /SceneAffordanceDescriptor/);
   assert.match(docs['docs/api/toolkit/scene-authoring.md'], /createSceneGestureArena/);
   assert.match(docs['docs/api/toolkit/scene-authoring.md'], /Start, end,\s+and cancel are never dropped/);
-  assert.match(docs['docs/api/toolkit/scene-authoring.md'], /never carry\s+product text, audio, prompts/);
+  assert.match(docs['docs/api/toolkit/scene-authoring.md'], /Labels remain outside the bounded product-neutral gesture envelope/);
+  assert.match(docs['docs/api/toolkit/scene-authoring.md'], /product text, audio, prompts, scene documents, commands, and action\s+semantics/);
+  assert.match(docs['docs/api/toolkit/scene-authoring.md'], /stay in their owning consumer or inspection contract/);
 
   assert.match(docs['docs/api/toolkit/scene-runtime.md'], /createDesktopWorldSceneSession/);
   assert.match(docs['docs/api/toolkit/scene-runtime.md'], /createThreeRenderLifecycle/);
@@ -168,14 +170,15 @@ test('surface interaction decision tree remains discoverable from toolkit API do
   }
 });
 
-test('toolkit runtime docs keep canvas host targets separate from saved refs', async () => {
+test('toolkit runtime docs separate public target types from current canvas transports', async () => {
   const runtime = await text('docs/api/toolkit/runtime.md');
   const section = runtime.split('## Canvas Host Target Semantics', 2)[1].split('## ', 1)[0];
 
   assert.match(section, /`aos show --id <canvas-id>` owns canvas resource lifecycle/);
   assert.match(section, /`aos see capture\s+--canvas <canvas-id>` scopes perception to the current canvas host/);
   assert.match(section, /`canvas:<canvas-id>\/<ref>` is the direct current Target-with-Ref/);
-  assert.match(section, /Saved workspace refs remain the model-facing durable\s+handle/);
+  assert.match(section, /public semantic types are an ephemeral\s+Observation Ref `\(state_id, ref\)` and an action-time re-resolving Locator/);
+  assert.match(section, /remain current\s+implementation handles during migration, not durable public target identity/);
   assert.match(section, /`ref:<snapshot-id>:<ref-id>`/);
   assert.match(section, /canvas id as a resource id, not as durable object\s+identity/);
   assert.match(section, /`provenance\.do_target` provide[s]? the action vocabulary/);

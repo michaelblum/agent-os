@@ -20,7 +20,9 @@ directory creation, copies only validated bytes, and publishes
 `extension.json` last as the activation barrier. Readers must treat a
 destination without that manifest as inactive. Existing paths are never
 overwritten. Scaffolding does not install, authorize, mount, import, or execute
-the extension. Output omits local paths and source text.
+the extension. Its bounded summary reports the declared created-artifact facts;
+caller input paths and generated source remain in their owning request and
+files rather than being echoed into the summary.
 
 The neutral runnable artifact is under
 `packages/toolkit/scene/extension-examples/basic-three/`. Its projection owns
@@ -75,10 +77,12 @@ bounded route with only `active`, `kind`, `origin`, `destination`, and
 `progress`. Origin and destination are two-number points in the global
 DesktopWorld coordinate plane. AOS samples it only while inspection is enabled,
 stamps the resource identity itself, and uses the result for `scene inspect`,
-`scene monitor`, and DevTools snapshots. Product state, text, audio, scene
-source, object IDs, and arbitrary extension diagnostics are not part of this
-boundary. Invalid inspection output is omitted and reported as
-`SCENE_EXTENSION_INSPECTION_FAILED` without faulting the scene.
+`scene monitor`, and DevTools snapshots. Those admitted route facts must be
+projected without further omission or redaction. Product state, text, audio,
+scene source, object IDs, and arbitrary extension diagnostics remain outside
+this bounded route-inspection contract. Invalid inspection output is rejected
+and reported as `SCENE_EXTENSION_INSPECTION_FAILED` without faulting the scene;
+these contract exclusions are not ADR 0040 raw-output gaps.
 When a committed route reports `routeStarted`, AOS emits one immediate
 DevTools snapshot after the extension has established this state. Periodic
 progress remains bounded by the normal DevTools sampling cadence.
@@ -149,9 +153,10 @@ successfully. The aggregate remains active until every exact consumer
 acknowledges presentation; a missing acknowledgement, authorization change, or
 topology change clears all staged and visible segments. The retained per-display
 samples may have bounded temporal skew.
-`snapshot()` exposes
-only bounds, dimensions, generation, epoch, capture duration, readiness, and a
-redacted error code. The extension should render the texture only after
+`snapshot()` exposes bounds, dimensions, generation, epoch, capture duration,
+readiness, and a bounded typed error code. Pixels and private frame handles
+remain inside the trusted projection realm and outside this status contract.
+The extension should render the texture only after
 `status` becomes `ready` and call `clear()` when its effect finishes.
 Before the current daemon has been explicitly primed with
 `aos permissions prime screen-capture --json`, `request()` returns normally but

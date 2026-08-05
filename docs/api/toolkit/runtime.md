@@ -151,10 +151,11 @@ Toolkit surfaces participate in the same AOS target ladder as the public CLI.
 `aos show --id <canvas-id>` owns canvas resource lifecycle, `aos see capture
 --canvas <canvas-id>` scopes perception to the current canvas host, and
 `canvas:<canvas-id>/<ref>` is the direct current Target-with-Ref for a semantic
-element inside that host. Saved workspace refs remain the model-facing durable
-handle: agents should prefer `ref:<snapshot-id>:<ref-id>` after `aos see capture
---save`, and use direct canvas targets for current-host actions or diagnostic
-paths where the canvas is live.
+element inside that host. The public semantic types are an ephemeral
+Observation Ref `(state_id, ref)` and an action-time re-resolving Locator. Saved
+workspace refs such as `ref:<snapshot-id>:<ref-id>` remain current
+implementation handles during migration, not durable public target identity;
+direct canvas strings remain current-host transport and placement input.
 
 Toolkit code should treat a canvas id as a resource id, not as durable object
 identity for a semantic control. Semantic targets exposed through

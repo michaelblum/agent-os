@@ -36,7 +36,7 @@
               "id": "authorization",
               "kind": "flag",
               "required": false,
-              "summary": "Workflow Gate Authorization JSON path",
+              "summary": "Current legacy Workflow Gate Authorization JSON path; this records repair coupling and is not an AOS permission grant",
               "token": "--authorization",
               "value_type": "string"
             },
@@ -44,7 +44,7 @@
               "id": "gate-record",
               "kind": "flag",
               "required": false,
-              "summary": "Gate record id or JSON path to evaluate as authorization",
+              "summary": "Gate record id or JSON path for current legacy repair-coupling evaluation; not AOS action authorization",
               "token": "--gate-record",
               "value_type": "string"
             },
@@ -52,7 +52,7 @@
               "id": "resume-event",
               "kind": "flag",
               "required": false,
-              "summary": "Gate resume-event JSON path to evaluate as authorization",
+              "summary": "Gate resume-event JSON path for current legacy repair-coupling evaluation; not AOS action authorization",
               "token": "--resume-event",
               "value_type": "string"
             },
@@ -60,7 +60,7 @@
               "id": "continuation-id",
               "kind": "flag",
               "required": false,
-              "summary": "Submitted deferred-gate continuation id to evaluate as authorization",
+              "summary": "Submitted deferred-gate continuation id for current legacy repair-coupling evaluation; not AOS action authorization",
               "token": "--continuation-id",
               "value_type": "string"
             },
@@ -223,7 +223,7 @@
               "id": "authorization",
               "kind": "flag",
               "required": false,
-              "summary": "Workflow Gate Authorization JSON path",
+              "summary": "Current legacy Workflow Gate Authorization JSON path; this records repair coupling and is not an AOS permission grant",
               "token": "--authorization",
               "value_type": "string"
             },
@@ -231,7 +231,7 @@
               "id": "gate-record",
               "kind": "flag",
               "required": false,
-              "summary": "Gate record id or JSON path to evaluate as authorization",
+              "summary": "Gate record id or JSON path for current legacy repair-coupling evaluation; not AOS action authorization",
               "token": "--gate-record",
               "value_type": "string"
             },
@@ -239,7 +239,7 @@
               "id": "resume-event",
               "kind": "flag",
               "required": false,
-              "summary": "Gate resume-event JSON path to evaluate as authorization",
+              "summary": "Gate resume-event JSON path for current legacy repair-coupling evaluation; not AOS action authorization",
               "token": "--resume-event",
               "value_type": "string"
             },
@@ -247,7 +247,7 @@
               "id": "continuation-id",
               "kind": "flag",
               "required": false,
-              "summary": "Submitted deferred-gate continuation id to evaluate as authorization",
+              "summary": "Submitted deferred-gate continuation id for current legacy repair-coupling evaluation; not AOS action authorization",
               "token": "--continuation-id",
               "value_type": "string"
             },

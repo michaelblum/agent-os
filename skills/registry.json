@@ -53,7 +53,7 @@
     {
       "name": "aos-runtime-readiness",
       "path": "skills/aos-runtime-readiness",
-      "description": "Use direct ./aos runtime gates before live AOS work. Trigger when an agent needs to check readiness, status, permissions, daemon health, or safe passive diagnostics before using canvases, browser targets, input, voice, or runtime state.",
+      "description": "Use direct ./aos mechanical readiness and diagnostics. Trigger when an agent needs current readiness, status, macOS permission state, daemon health, or passive diagnostics for canvases, browser targets, input, voice, or runtime state.",
       "status": "installable",
       "installable": true,
       "invocation": "enabled",
@@ -102,7 +102,7 @@
     {
       "name": "aos-saved-workspace",
       "path": "skills/aos-saved-workspace",
-      "description": "Use AOS saved perception workspaces with `aos see capture --save`, `aos see snapshots`, `aos see refs`, and compact refs for observe-act-recapture loops. Trigger when a task needs saved snapshots, refs, ref-scoped dry-runs or actions, snapshot diffs, or compact UI/browser/native evidence without carrying full screenshots or AX payloads in context.",
+      "description": "Use current AOS saved perception handles for observe-act-recapture loops while distinguishing them from public Observation Refs and Locators. Trigger when a task needs saved snapshots, current handles, optional previews or actions, snapshot diffs, or compact UI/browser/native evidence.",
       "status": "installable",
       "installable": true,
       "invocation": "enabled",
@@ -216,7 +216,7 @@
     {
       "name": "aos-browser",
       "path": "skills/aos-browser",
-      "description": "Use AOS browser saved refs and action envelopes for durable browser work. Trigger when a task involves browser capture, DOM/SOM refs, browser-backed do actions, browser evidence, or deciding between AOS browser wrappers and upstream Playwright CLI escape hatches.",
+      "description": "Use AOS current browser observation handles and action envelopes. Trigger when a task involves browser capture, DOM/SOM refs, browser-backed do actions, optional browser evidence, or deciding between AOS browser wrappers and upstream Playwright CLI escape hatches.",
       "status": "installable",
       "installable": true,
       "invocation": "enabled",
@@ -246,7 +246,7 @@
     {
       "name": "aos-verification",
       "path": "skills/aos-verification",
-      "description": "Use AOS recapture, ref diff, gates, and Work Records for desktop proof. Trigger when a task needs an act-recapture-verify loop, refs diff/expect, diagnostics evidence, durable evidence, or a stop decision on stale targets.",
+      "description": "Use AOS recapture, ref expectations, and optional Work Records for desktop proof. Trigger when a task needs an act-recapture-verify loop, refs diff/expect, diagnostic evidence, durable evidence, or typed stale-target handling.",
       "status": "installable",
       "installable": true,
       "invocation": "enabled",

@@ -13,16 +13,16 @@ commands, a typed MCP gateway for external consumers, and a Node.js agent host.
 
 | Group | Tier | Role |
 |-------|------|------|
-| `aos see` | Primitive | Perception: screenshots, AX tree, cursor queries, focus channels, graph navigation, saved workspace refs |
-| `aos do` | Primitive | Action: saved refs, direct browser/canvas targets, native AX, coordinates, keyboard, AppleScript, behavior profiles |
+| `aos see` | Primitive | Perception: screenshots, AX tree, cursor queries, focus channels, graph navigation, Observation Ref facts, and current saved-workspace handles |
+| `aos do` | Primitive | Action: current saved handles/direct browser/canvas forms, native AX, coordinates, keyboard, AppleScript, and behavior profiles; public Observation Ref/Locator migration remains pending |
 | `aos show` | Primitive | Projection: persistent WKWebView canvases, overlays, HTML-to-bitmap render, anchors, shared surfaces |
 | `aos tell` | Primitive | Outbound communication: human, channel, direct session, and future sinks |
 | `aos listen` | Primitive | Inbound communication: channel/direct-session reads, exact global hotkeys, and bounded microphone capture |
 | `aos say` | Convenience | Direct TTS plus streamed system speech aligned with `tell human` |
 | `aos skills` | Packaging | Installable AOS root skills for direct agent workflows: list, check, install, and dry-run plans |
 | `aos recipe` | Higher-order | Source-backed executable procedures built from primitive commands |
-| `aos work-record` | Higher-order | Read-only Work Record discovery, report-only verification, recovery guidance, and compact evidence bundle manifests |
-| `aos ready` | Runtime/ops | Front-door readiness gate for agents before runtime work |
+| `aos work-record` | Higher-order | Optional Work Record evidence/history: discovery, report-only verification, recovery guidance, and compact evidence bundle manifests |
+| `aos ready` | Runtime/ops | Front-door mechanical readiness check before runtime work |
 | `aos serve` / `aos service` | Runtime/ops | Unified daemon lifecycle: one socket, one CGEventTap, shared state |
 | `aos status` / `aos doctor` | Runtime/ops | Runtime, permission, and readiness diagnostics |
 | `aos permissions` | Runtime/ops | Permission preflight, onboarding, and reset guidance |
@@ -32,14 +32,16 @@ See [docs/api/aos.md](docs/api/aos.md) for the full consumer command table.
 
 ## Target Handles
 
-Normal observe-act loops should use saved refs from `aos see capture --save`:
-`ref:<snapshot-id>:<ref-id>`. Direct live refs such as
-`browser:<session>/<ref>` and `canvas:<canvas-id>/<ref>` are current-host
-addresses for diagnostics, provenance, direct execution, and placement anchors.
-Coordinate fallback remains raw `x,y` plus `--state-id <id>`; native AX direct
-actions use selector flags such as `--pid` and `--role`, not a public `ax:`
-target grammar. Semantic Targets are perception records that contain refs and
-facts, not another address system.
+The public semantic target types are an ephemeral Observation Ref
+`(state_id, ref)`, which rejects when stale, and a Locator, which re-resolves at
+action time and rejects zero or multiple matches. Current saved-workspace
+handles such as `ref:<snapshot-id>:<ref-id>` and direct browser/canvas strings
+such as `browser:<session>/<ref>` and `canvas:<canvas-id>/<ref>` predate that
+split and remain implementation forms during migration. Coordinate fallback
+remains raw `x,y` plus `--state-id <id>`; native AX direct actions use selector
+flags such as `--pid` and `--role`, not a public `ax:` target grammar. Semantic
+Targets are perception records that contain refs and facts, not another address
+system.
 
 ## Saved Workspaces
 

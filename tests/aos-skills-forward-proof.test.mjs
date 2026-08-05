@@ -91,7 +91,7 @@ test('cold-agent forward proof preserves the AOS browser and Playwright CLI boun
     assert.doesNotMatch(command, projectWrapperPattern);
   }
 
-  assert.match(browser.captured_output.decision, /Use AOS for durable browser refs/);
+  assert.match(browser.captured_output.decision, /Use AOS for current browser observation handles/);
   assert.match(browser.captured_output.decision, /upstream Playwright CLI skills/);
 });
 

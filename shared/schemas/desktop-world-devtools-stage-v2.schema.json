@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/desktop-world-devtools-stage-v2.schema.json",
   "title": "AOS DesktopWorld DevTools Stage Snapshot v2",
-  "description": "Content-free bounded engine facts shared by CLI, SDK, and host-neutral DevTools views.",
+  "description": "Bounded engine snapshot shared by CLI, SDK, and host-neutral DevTools views; product, arbitrary extension, undeclared engine, and private desktop-frame content remain outside it.",
   "type": "object",
   "required": ["contract", "canvasGeneration", "topologyGeneration", "sequence", "status", "world", "resources", "interactions", "displayPerformance", "counters", "events", "lastError"],
   "additionalProperties": false,

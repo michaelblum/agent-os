@@ -271,11 +271,13 @@ the response may include:
   - `panic_trigger_count` (int) — input safety shortcut trigger count.
 - `permissions` (object) — daemon-sourced TCC view. Always present.
   - `accessibility` (bool) — `AXIsProcessTrusted()` evaluated inside the daemon.
-  - `screen_capture_direct` (object) — content-free, process-lifetime direct
+  - `screen_capture_direct` (object) — bounded, process-lifetime direct
     capture consent state. It contains `capability="screen_capture_direct"`,
     `status=ready|permission_required|unsupported|failed`,
-    `capture_persisted=false`, and a nullable redacted `error_code`. Reading
-    this object never invokes ScreenCaptureKit or macOS permission UI.
+    `capture_persisted=false`, and a nullable typed `error_code`. Arbitrary
+    native diagnostics and the discarded setup frame remain outside this
+    status contract. Reading this object never invokes
+    ScreenCaptureKit or macOS permission UI.
 
 These fields are additive and intended for operator surfaces such as `status`,
 `doctor`, and startup hooks that need to distinguish a healthy current daemon
@@ -293,8 +295,10 @@ carries a path. Its correlated final success response is metadata-only and uses
 the closed `SeeCaptureResponseData` shape. Capture consumers enforce one
 absolute read deadline and a bounded NDJSON frame size. The `voice` service carries
 generic dictation, microphone-capture, meter, and streamed-system-speech
-lifecycle events. Events never carry audio bytes, spoken text, or local paths;
-transcription and product behavior remain consumer-owned.
+lifecycle events. Media bytes, spoken text, and local paths remain on their
+owning capture, transcription, speech, or playback channels and outside the
+bounded lifecycle event envelope; their exclusion is not an ADR 0040 raw-output
+gap. Transcription and product behavior remain consumer-owned.
 
 Public `aos listen --source hotkey|microphone --follow` and
 `aos say --follow` are the sanctioned adapters for these connection-scoped

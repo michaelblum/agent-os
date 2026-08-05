@@ -60,8 +60,9 @@ Mapping:
   delivered.
 - Workflow: orchestration that reacts to signals with gates, modes, evidence,
   or user-facing state changes.
-- Run / Work Record: proof for bounded tests, smokes, and workflow-gated
-  signal handling.
+- Run / Work Record: proof for bounded tests and smokes. Current legacy
+  signal-handling fixtures may carry Gate fields; those fields are ADR 0040
+  migration debt, not AOS permission.
 
 Signals are not themselves Workflows. They are event/control vocabulary that
 Workflows and surfaces may consume.

@@ -1,13 +1,13 @@
 ---
 name: aos-browser
-description: Use AOS browser saved refs and action envelopes for durable browser work. Trigger when a task involves browser capture, DOM/SOM refs, browser-backed do actions, browser evidence, or deciding between AOS browser wrappers and upstream Playwright CLI escape hatches.
+description: Use AOS current browser observation handles and action envelopes. Trigger when a task involves browser capture, DOM/SOM refs, browser-backed do actions, optional browser evidence, or deciding between AOS browser wrappers and upstream Playwright CLI escape hatches.
 ---
 
 # AOS Browser
 
-Use AOS for browser work that benefits from saved refs, action envelopes, and
-Work Record evidence. Use upstream Playwright CLI skills for browser primitives
-AOS does not wrap.
+Use AOS for browser work that benefits from current saved-workspace handles and
+action envelopes. Add Work Record evidence only when durable history is useful.
+Use upstream Playwright CLI skills for browser primitives AOS does not wrap.
 
 ## AOS Path
 
@@ -15,9 +15,10 @@ AOS does not wrap.
    help before using browser arguments.
 2. Use `aos focus` when a named browser session/channel is needed.
 3. Capture browser state through `aos see capture browser:<session> --save`.
-4. Act through direct browser targets or saved refs only after the current
-   target validates.
-5. Recapture after mutation and preserve compact evidence instead of raw dumps.
+4. Act through an exact current target; use current saved-handle validation as
+   implementation plumbing until Observation Refs and Locators are distinct.
+5. Recapture after mutation. Keep raw output or apply an explicit caller-owned
+   compacting, persistence, masking, or projection transform.
 
 ## Playwright CLI Boundary
 
@@ -39,11 +40,14 @@ installation, and use a temp target for tests.
 
 ## Target Contract
 
-- `ref:<snapshot-id>:<ref>` — the preferred observe-act target for normal browser work.
-- Direct browser refs are volatile and remain diagnostic or provenance handles.
+- Observation Ref `(state_id, ref)` — ephemeral and stale-rejecting.
+- Locator — re-resolves current browser state and rejects zero or multiple matches.
+- `ref:<snapshot-id>:<ref>` — current saved-workspace handle, not a Locator.
+- Direct browser refs are current implementation transport strings.
 - Direct browser `type` and `key` are current-host routes.
-- Saved-ref `type` and `key` are supported for text-compatible browser refs
-  after dry-run validation before dispatch.
+- Saved-handle `type` and `key` are supported for text-compatible browser refs;
+  dry-run is an optional preview and effectful dispatch performs current-target
+  validation.
 
 ## Stop
 
@@ -56,6 +60,7 @@ through upstream Playwright CLI.
 - `ARCHITECTURE.md`
 - `docs/api/aos-capabilities.md`
 - `docs/api/aos.md`
+- `docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md`
 - `docs/archive/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md`
 - `tests/browser/runtime-resolver.test.mjs`
 - `tests/browser/version-check.test.sh`

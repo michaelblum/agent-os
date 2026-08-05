@@ -59,7 +59,7 @@
       "usage": "aos scene extension validate <path> --json",
       "args": [
         {"id":"path","kind":"positional","value_type":"string","required":true,"summary":"Local scene extension directory"},
-        {"id":"json","kind":"flag","token":"--json","value_type":"bool","required":true,"summary":"Emit a redacted machine-readable validation summary"}
+        {"id":"json","kind":"flag","token":"--json","value_type":"bool","required":true,"summary":"Emit the bounded validation summary"}
       ],
       "stdin":{"supported":false,"content_type":null,"used_when":"never"},
       "output":{"default_mode":"json","error_mode":"json_stderr","streaming":false,"supports_json_flag":true},
@@ -93,7 +93,7 @@
       "args": [
         {"id":"path","kind":"positional","value_type":"string","required":true,"summary":"Validated local scene extension directory"},
         {"id":"expected_digest","kind":"flag","token":"--expected-digest","value_type":"string","required":true,"summary":"Exact reviewed artifact SHA-256"},
-        {"id":"json","kind":"flag","token":"--json","value_type":"bool","required":true,"summary":"Emit a redacted machine-readable installation summary"}
+        {"id":"json","kind":"flag","token":"--json","value_type":"bool","required":true,"summary":"Emit the bounded installation summary"}
       ],
       "stdin":{"supported":false,"content_type":null,"used_when":"never"},
       "output":{"default_mode":"json","error_mode":"json_stderr","streaming":false,"supports_json_flag":true},
@@ -135,7 +135,7 @@
         {"id":"expected_program_revision","kind":"flag","token":"--expected-program-revision","value_type":"int","required":true,"summary":"Exact reviewed effect program revision"},
         {"id":"expected_program_digest","kind":"flag","token":"--expected-program-digest","value_type":"string","required":true,"summary":"Exact reviewed effect program SHA-256"},
         {"id":"dry_run","kind":"flag","token":"--dry-run","value_type":"bool","required":false,"summary":"Validate the exact reviewed effect binding without triggering it"},
-        {"id":"json","kind":"flag","token":"--json","value_type":"bool","required":true,"summary":"Emit a bounded content-free result"}
+        {"id":"json","kind":"flag","token":"--json","value_type":"bool","required":true,"summary":"Emit the bounded execution result"}
       ],
       "stdin":{"supported":false,"content_type":null,"used_when":"never"},
       "output":{"default_mode":"json","error_mode":"json_stderr","streaming":false,"supports_json_flag":true},
@@ -208,7 +208,7 @@
       "usage": "aos scene replay --events <fixture.ndjson> --json",
       "args": [
         {"id":"events","kind":"flag","token":"--events","value_type":"string","required":true,"summary":"Local NDJSON scene-event fixture"},
-        {"id":"json","kind":"flag","token":"--json","value_type":"bool","required":true,"summary":"Emit a content-free replay summary"}
+        {"id":"json","kind":"flag","token":"--json","value_type":"bool","required":true,"summary":"Emit the bounded replay result"}
       ],
       "stdin":{"supported":false,"content_type":null,"used_when":"never"},
       "output":{"default_mode":"json","error_mode":"json_stderr","streaming":false,"supports_json_flag":true},

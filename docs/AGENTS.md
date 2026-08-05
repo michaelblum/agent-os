@@ -10,6 +10,7 @@ developer workflow docs, design notes, reports, references, and archives.
 ## Ownership
 
 - `adr/` owns durable architecture decisions.
+- `adr/README.md` owns the active ADR status and supersession index.
 - `api/` owns consumer-facing command, schema, and toolkit contracts.
 - `guides/` owns repeatable procedures and checklists.
 - `dev/` owns developer workflow profiles and reports.
@@ -23,6 +24,8 @@ developer workflow docs, design notes, reports, references, and archives.
 ## Local Contracts
 
 - Put stable contracts in the narrowest durable home.
+- Resolve ADR authority through `adr/README.md`; superseded ADR text is
+  historical context, not an active competing contract.
 - Do not bury architecture decisions in reports or work cards when an ADR,
   schema, API doc, or guide is the owner.
 - Treat reports as historical evidence until current source manifests, schemas,

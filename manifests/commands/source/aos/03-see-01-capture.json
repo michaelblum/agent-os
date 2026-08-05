@@ -286,7 +286,7 @@
               "id": "save",
               "kind": "flag",
               "required": false,
-              "summary": "Persist full perception in a local agent workspace and return compact JSON refs with conformance/proof; saved-ref actions support canvas click/set-value, validated browser click/fill/hover/scroll/drag/type/key mutation, and stable native AX press/focus/set-value when producer verdict is actionable",
+              "summary": "Persist full perception in a local agent workspace and return compact JSON saved handles with conformance/proof; current saved-handle actions support canvas click/set-value, validated browser click/fill/hover/scroll/drag/type/key mutation, and native AX press/focus/set-value through the current stable resolution class when the producer verdict is actionable",
               "token": "--save",
               "value_type": "bool"
             },
@@ -588,7 +588,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "summary": "Persist perception through the same bounded daemon-owned native transaction into a local agent workspace; --window warns on full-display fallback, and compact refs retain conformance/proof for canvas, browser, and stable native AX actions",
+          "summary": "Persist perception through the same bounded daemon-owned native transaction into a local agent workspace; --window warns on full-display fallback, and compact saved handles retain current conformance/proof fields for canvas, browser, and native AX actions",
           "usage": "aos see capture [<target>|--region <rect>|--canvas <id>|--channel <id>] [--interactive] --save [--mode <mode>] [--workspace <id>] [--name <id>] [--query <text>]"
         },
         {

@@ -328,7 +328,8 @@ This V0 transport is file-backed and toolkit/test-helper scoped; it does not add
 a daemon event channel, public `aos test run` command, replay, repair, macro
 playback, Work Record mutation, or a second evidence viewer.
 
-Stable AOS semantic refs use the `test-console-v0:*` surface namespace,
+The current test-console transport stamps state-scoped AOS semantic refs in the
+`test-console-v0:*` surface namespace,
 including `test-console-v0:response-confirm`, `test-console-v0:response-fail`,
 `test-console-v0:response-blocked`, `test-console-v0:response-note`,
 `test-console-v0:retry`, and evidence-specific
@@ -336,7 +337,10 @@ including `test-console-v0:response-confirm`, `test-console-v0:response-fail`,
 `data-aos-ref`, `data-aos-action`, `data-aos-surface`, and
 `data-semantic-target-id` so `aos see capture --canvas <id> --xray` can expose
 canonical `semantic_targets[]` records whose `provenance.do_target` values are
-used for `aos do click`.
+used by the current `aos do click` transport. The bare refs and
+`data-semantic-target-id` values are not durable public target identities; the
+public Observation Ref is the exact `(state_id, ref)` pair, and stale pairs must
+reject rather than reacquire.
 
 The v-next direction keeps wiki document Subjects wiki-oriented and represents
 domain concepts through separate, consumer-owned domain Subjects plus Subject

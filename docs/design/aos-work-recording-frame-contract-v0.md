@@ -1,8 +1,17 @@
 # AOS Work Recording Frame Contract V0
 
-**Status:** contract note for #428 deterministic fixtures
+**Status:** legacy transition fixture note for #428; superseded as public
+target/Gate authority by ADR 0040
 **Depends on:** #429 target descriptors, #430 interaction grammar, and #427
 gesture frames
+
+## ADR 0040 Transition Boundary
+
+This note freezes the current pre-ADR-0040 fixture shape so runtime migration
+can replace it deliberately. Its mixed descriptor combines Observation Ref and
+Locator material, and its Work Record Gate fields record legacy coupling. The
+requirements below apply only to these transition fixtures; they are not the
+public target-handle contract, and Gate is not AOS permission.
 
 ## Purpose
 
@@ -13,11 +22,11 @@ periodic recovery snapshots, immutable evidence references, replay policy, and
 frame health. It does not make raw pointer streams, labels, accessible names,
 or coordinates the durable language of AOS-owned recordings.
 
-For target-addressed AOS interactions, durable identity remains
-`target.target_id` scoped by `target.owner_namespace`. State-scoped `ref` and
-`state_id` identify the immediate action attempt. Labels, accessible names,
-source names, and coordinates can support human review, accessibility, visible
-playback, or reacquisition hints, but they are not recording identity.
+In this legacy fixture, the mixed descriptor stores `target.target_id` scoped
+by `target.owner_namespace` beside the state-scoped `ref` and `state_id` for an
+immediate action attempt. Labels, accessible names, source names, and
+coordinates remain hints rather than fixture identity. ADR 0040 instead defines
+a distinct Observation Ref `(state_id, ref)` and action-time Locator.
 
 ## Frame Family
 
@@ -27,15 +36,15 @@ playback, or reacquisition hints, but they are not recording identity.
 the relevant surfaces, state ids, target descriptors, environment metadata, and
 Work Record context needed to interpret later deltas.
 
-Required target-addressed content:
+Required legacy-fixture content:
 
 - `state_id` for the captured perception state.
 - relevant `target_descriptors[]` with `target.target_id`,
   `target.owner_namespace`, `actions`, `state`, `provenance`, and
   `reacquisition`.
 - `work_record_ref` or Work Record context that names the durable run.
-- `replay_policy_ref` or inline policy context that keeps replay and repair
-  under Work Record gates.
+- `replay_policy_ref` or inline policy context that records the current legacy
+  Work Record Gate coupling.
 
 The baseline is a snapshot for interpretation and recovery. It is not a command
 to replay the screen exactly.
@@ -88,7 +97,7 @@ historical frames or evidence to make a later run look successful.
 4. block on stale, missing, or ambiguous target resolution;
 5. reissue #430 `action_intent` records when a unique target is resolved;
 6. verify expected `state_patch` records or Work Record postconditions;
-7. keep replay and repair behind existing Work Record gates.
+7. preserve the current legacy Work Record Gate fields for migration evidence.
 
 Raw `input_event` / input-event-v2 payloads are observed input evidence and
 #431 compatibility/cutover debt. Blind raw input replay is not the default for
@@ -113,11 +122,11 @@ AOS-owned surfaces.
 ## Repair And Health
 
 Replay failure records frame health instead of editing history. If target
-resolution is stale or ambiguous, the recording appends a `repairable` health
-record that references the original frame, evidence, and policy gate. A future
-repair patch may update the repairable execution map or descriptor resolution
-knowledge under an explicit Work Record gate, but it must preserve the original
-baseline, delta, keyframe, and evidence refs.
+resolution is stale or ambiguous, the legacy fixture appends a `repairable`
+health record that references the original frame, evidence, and Gate field. A
+future runtime migration may update the repairable execution map or Locator
+knowledge, but it must preserve the original baseline, delta, keyframe, and
+evidence refs without treating Gate as permission.
 
 ## Fixture Cases
 

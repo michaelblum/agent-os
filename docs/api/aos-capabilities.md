@@ -9,6 +9,31 @@ discovery, and capability-oriented workflows. This map is grounded in
 Use this file to choose the right direct `./aos` lane before opening large
 schema docs or historical design notes.
 
+## Authority And Observation Posture
+
+AOS runs with ambient authority supplied by the user through the agent host and
+bounded by macOS TCC. It adds no auth token, allowlist, risk label, mandatory
+approval, mandatory dry-run, Work Record permission, default core redaction, or
+assistant/product restriction. Exact identity, stale/ambiguous rejection,
+timeouts, resource bounds, exactly-once admission, cleanup, typed errors, and
+receipts remain required mechanical correctness.
+
+Facts and channels admitted by each bounded public observation contract are raw
+and fidelity-first; facts outside that contract remain outside it. Masking,
+redaction, persistence, retention, and model projection are explicit
+caller-owned transforms. Gate is an explicit neutral structured-input
+primitive, not action authorization. Work Records are optional evidence/history,
+not permission grants.
+
+The public semantic target types are:
+
+- Observation Ref: ephemeral `(state_id, ref)`; a stale pair rejects.
+- Locator: a declarative query re-resolved at action time; zero matches return
+  missing and multiple matches return ambiguous.
+
+Current saved-ref and direct-ref command routes have not completed this type
+split. See the explicit gap inventory in `docs/api/aos.md` and ADR 0040.
+
 For the complete manifest-derived command inventory, including internal or
 transitional forms such as `dev` and `browser _check-version`, see
 `docs/dev/reports/aos-command-capability-inventory-v0.md`. That report is a
@@ -41,11 +66,11 @@ evidence:
 - Runtime state: mode-scoped local AOS state and service readiness, including
   runtime mode, state root, config, daemon/service status, permissions, content
   status, logs, gate records, voice/session presence, and diagnostics.
-- Work Record: durable, inspectable evidence and verification material above
+- Work Record: optional durable, inspectable evidence and verification material above
   primitive command output. It can verify, explain conservative recovery, plan
   gated repair, bundle recovery evidence, and write explicit replacement or
   supersession artifacts through bounded commands. It is not a macro recorder,
-  autonomous replay surface, or automatic repair authority.
+  autonomous replay surface, automatic repair authority, or permission grant.
 - Content root: the configured or declarative filesystem root for wiki/content
   and mounted app surfaces. A live content root must resolve to a readable
   directory; missing paths, files, symlinks, or unreadable paths stay visibly
@@ -80,7 +105,6 @@ AOS's Playwright-like observe-act loop is:
 ./aos ready --json
 ./aos see capture main --save --mode som --workspace default --name before
 ./aos see refs --workspace default --snapshot before --json
-./aos do click ref:before:r1 --workspace default --dry-run
 ./aos do click ref:before:r1 --workspace default
 ./aos see capture main --save --mode som --workspace default --name after
 ./aos see refs --workspace default --diff before..after --expect change --json
@@ -89,19 +113,21 @@ AOS's Playwright-like observe-act loop is:
 Use the same shape for native apps, browser windows, canvas surfaces, regions,
 and focus channels. The capture source can be a positional target such as
 `main` or `browser:work`, or exactly one source flag such as `--region`,
-`--canvas`, or `--channel`. Prefer saved refs over coordinates, dry-run when a
-form supports it, act once, recapture, and verify with refs diff/expect gates
-or a Work Record verifier.
+`--canvas`, or `--channel`. Current saved handles remain implementation plumbing
+until Observation Ref and Locator routes are separated. Act once, recapture,
+and verify when verification is useful. Add `--dry-run` only when the caller
+wants a non-mutating preview; it is not action permission. Work Record evidence
+is optional.
 
 Saved-ref action responses expose `post_action.recommended_next_command` when
 the next safe step is a fresh `aos see capture --save`. Treat that command as
 the action loop handoff before reusing refs from the same surface.
 
-Owner-scoped AOS status-item leases use the same preview-then-act shape.
+Owner-scoped AOS status-item leases support the same optional preview mechanics.
 Register a descriptor with `aos status-item register`, compare-and-swap newer
 descriptor revisions with `aos status-item update`, inspect the lease, then
-dry-run and invoke a semantic action with `aos status-item invoke`, supplying
-the current action sequence reported by inspect. Dry-run does not consume the
+invoke a semantic action with `aos status-item invoke`, supplying the current
+action sequence reported by inspect. Optional dry-run does not consume the
 sequence; effectful invocation atomically reserves it. This covers only
 AOS-hosted status-item leases; it is not a third-party macOS menu-extra scraper.
 
@@ -116,14 +142,14 @@ action:
 | Exact PNG pixel change | `aos see compare <before.png> <after.png> [--pixel-tolerance <0..255>] [--expect change|no-change] [--change-map-out <new.png>] [--mask-out <new.png>]` | Compares two existing same-size PNG artifacts; optional outputs write exact grayscale spatial evidence but never capture, crop, resize, align, poll, wait, or start runtime services. |
 | Specific ref status | `aos see refs --diff <before>..<after> --expect-ref <ref>=added|removed|changed|unchanged|present|missing --json` | Gates compact saved refs inside one diff; repeat `--expect-ref` for multiple refs. |
 | Command JSON condition | A source-backed recipe that inspects known command JSON or runs saved-ref diff gates as explicit postcondition steps | `recipe dry-run` is static and does not observe live state; live checks must be explicit recipe steps. |
-| Human approval or decision | `aos gate ask`, `aos gate defer`, `aos gate submit`, and `aos gate records` | Produces structured human decision records; it is not a UI-state assertion surface. |
-| Durable evidence or postconditions | `aos work-record verify`, `aos work-record status`, and Work Record postcondition evidence | Preserves verifier health and evidence; it is not macro replay, autonomous repair, or a replacement for fresh perception. |
+| Explicit caller-requested structured input | `aos gate ask`, `aos gate defer`, `aos gate submit`, and `aos gate records` | Produces structured input records; it is not a UI-state assertion or ordinary-action authorization surface. |
+| Optional durable evidence or postconditions | `aos work-record verify`, `aos work-record status`, and Work Record postcondition evidence | Preserves verifier health and evidence; it is not permission, macro replay, autonomous repair, or a replacement for fresh perception. |
 | Unsupported wait or assertion | No current `aos see capture --wait-for-change`, `aos see capture --until-stable`, `aos see assert`, `aos assert`, or `aos verify` command | Future wait/assert commands need manifests, parser/schema/docs/tests, and drift gates before public use. |
 
-Fresh perception still comes from the canonical action loop: save a capture,
-inspect refs, dry-run/act, save a fresh capture, then compare saved refs or
-record evidence. Do not imply saved workspaces recapture automatically or hold a
-daemon-scoped current workspace.
+Fresh perception still comes from the action loop: save a capture, inspect the
+current handles, optionally preview, act, save a fresh capture, then compare
+saved output or record evidence when useful. Do not imply saved workspaces
+recapture automatically or hold a daemon-scoped current workspace.
 
 `show wait` and `content wait` are readiness waits, not generic assertions.
 They are appropriate for proving that a named canvas bridge, manifest, JS
@@ -190,7 +216,6 @@ trail is a composed sequence of command JSON and file-backed evidence:
 ./aos status --json
 ./aos see capture main --save --workspace <id> --name before --mode som
 ./aos see refs --workspace <id> --snapshot before --json
-./aos do click ref:before:r1 --workspace <id> --dry-run
 ./aos do click ref:before:r1 --workspace <id>
 ./aos see capture main --save --workspace <id> --name after --mode som
 ./aos see refs --workspace <id> --diff before..after --expect change --json
@@ -207,12 +232,12 @@ Each step contributes a different kind of evidence:
 | --- | --- | --- |
 | Runtime readiness | `ready --json`, `status --json`, `doctor --json`, `permissions ... --json` | Mode, daemon/service, permission, and blocker state before live work. |
 | Before/after perception | `see capture --save`, `see snapshots`, `see refs` | Compact refs plus file-backed capture artifacts under the selected workspace. |
-| Action provenance | `do ... --dry-run`, `do ...` action envelopes | Target resolution, validation status, action path, and recommended recapture command when available. |
+| Action provenance | `do ...` action envelopes and optional `do ... --dry-run` previews | Target resolution, validation status, action path, and recommended recapture command when available. |
 | Lightweight verification | `see refs --diff --expect`, repeatable `--expect-ref` | Machine-checkable compact saved-ref change gates between two saved snapshots. |
 | Diagnostic readback | `daemon-snapshot`, `service logs --tail N`, command JSON, structured errors | Runtime, daemon log, and spatial diagnostics for debugging; not durable UI-state assertions by themselves. |
 | Diagnostic display | `log`, `log push`, `log clear` | Built-in log console/overlay display; useful for operators, not passive daemon log readback. |
-| Human decisions | `gate ask/defer/submit`, `gate records` | Structured human/operator decisions and terminal gate records. |
-| Durable evidence | `work-record read/verify/status/export`, `work-record repair bundle ...` | Verifier health, postconditions, evidence manifests, and handoff artifacts. Bundles and exports are handoff/readback artifacts, not replay engines. |
+| Explicit structured input | `gate ask/defer/submit`, `gate records` | Caller-requested structured input and terminal Gate records; no authority over unrelated actions. |
+| Optional durable evidence | `work-record read/verify/status/export`, `work-record repair bundle ...` | Verifier health, postconditions, evidence manifests, and handoff artifacts. Bundles and exports are handoff/readback artifacts, not replay engines or permission grants. |
 
 This command sequence is the current diagnostics/evidence trace story. It is
 deliberately a recipe-sized composition over existing surfaces, not a new
@@ -267,7 +292,7 @@ apps cannot safely reconstruct from the current JSON surfaces.
 
 | Group | Use for | Command surface |
 | --- | --- | --- |
-| Core readiness | Runtime gates, explicit direct-capture consent, and blockers before live desktop work | `ready`, `status`, `doctor`, `permissions check/preflight`, `permissions prime screen-capture`, `service status` |
+| Core readiness | Runtime/TCC state, direct-capture permission requests, and mechanical blockers | `ready`, `status`, `doctor`, `permissions check/preflight`, `permissions prime screen-capture`, `service status` |
 | Desktop discovery | Displays, windows, cursor, selection, active surfaces, and content-addressed display mapping identity | `graph displays`, `graph windows`, `see list`, `see cursor`, `see selection` |
 | Capture and perception | Screenshots, window/region/canvas/channel capture, frozen region display topology, xray, labels, saved refs | `see capture`, `see capture --save`, `see snapshots`, `see refs` |
 | Saved workspace | Snapshot/ref storage, ref lookup, diffs, expectations, cleanup | `see workspaces`, `see workspace`, `see refs --diff --expect`, workspace prune/delete |
@@ -279,7 +304,7 @@ apps cannot safely reconstruct from the current JSON surfaces.
 | Browser companion | AOS browser refs plus upstream Playwright CLI escape hatch | `focus create --target browser://...`, `see capture browser:<session> --save`, `do ... browser/ref`, `skills companion check --name playwright-cli` |
 | Overlay/display | Canvases, panels, stage surfaces, render/list/wait/readback | `show create/update/remove/list/audit/render/wait/get/to-front/post` |
 | Diagnostics/debug | Debug readbacks and diagnostic displays for active AOS/runtime work | `daemon-snapshot`, `service logs`, `inspect`, `introspect review`, `log` |
-| Verification/evidence | Recapture, refs diff/expect, gates, Work Records | `see refs --diff --expect`, `gate`, `work-record read/verify/status/plan-repair` |
+| Verification/evidence | Recapture, refs diff/expect, explicit Gate input, optional Work Records | `see refs --diff --expect`, `gate`, `work-record read/verify/status/plan-repair` |
 | Operator input | Native geometry or semantic AX target selection, pending operator annotations, and saved-ref handoff | `see annotation select/create/list/read/consume/link-work-record/delete` |
 | Skills and recipes | Installable guidance versus executable source-backed procedures | `skills list/check/install`, `skills companion ...`, `recipe list/explain/dry-run/run` |
 | Runtime/service | Daemon ownership, mode, permissions, cleanup | `service`, `runtime`, `content`, `clean`, `reset` |
@@ -287,8 +312,8 @@ apps cannot safely reconstruct from the current JSON surfaces.
 ## Ergonomics And Dev
 
 Playwright-like means ergonomic, not command-for-command compatible. For AOS,
-that means short direct verbs, stable machine output, dry-run support where
-mutation risk is high, useful errors, discoverable help, and workflows that
+that means short direct verbs, stable machine output, optional dry-run support,
+useful errors, discoverable help, and workflows that
 compose from the same command facts agents see in `./aos help --json`.
 
 Capability groups explain why a command exists. They do not force public
@@ -318,36 +343,37 @@ Status values:
 
 | Action | Status | Current command | Mechanism | Dry-run | Permissions | Spaces/minimized notes | Next step |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| App launch | first-class command | `aos launch <app> [--dry-run]` | AOS source app launcher | Yes | No special TCC in manifest | Source-owned app ids, not arbitrary macOS apps | Keep |
-| App activate | first-class command | `aos do activate --pid <pid> --dry-run` before `aos do activate --pid <pid>` | AppKit app lifecycle | Yes | Accessibility/setup gate in manifest | Activates all app windows; still use graph/readback to target the intended pid | Keep |
-| App quit | first-class command | `aos do quit --pid <pid> --dry-run` before `aos do quit --pid <pid>` | AppKit app lifecycle | Yes | Accessibility/setup gate in manifest | Sends graceful terminate request to exactly one running pid | Keep |
-| App hide/unhide | first-class command | `aos do hide --pid <pid> --dry-run` / `aos do unhide --pid <pid> --dry-run` before action | AppKit app lifecycle | Yes | Accessibility/setup gate in manifest | Pid-scoped app visibility, not Space switching | Keep |
+| App launch | first-class command | `aos launch <app> [--dry-run]` | AOS source app launcher | Optional | No special TCC in manifest | Source-owned app ids, not arbitrary macOS apps | Keep |
+| App activate | first-class command | `aos do activate --pid <pid> [--dry-run]` | AppKit app lifecycle | Optional | Accessibility/TCC state | Activates all app windows; still use graph/readback to target the intended pid | Keep |
+| App quit | first-class command | `aos do quit --pid <pid> [--dry-run]` | AppKit app lifecycle | Optional | Accessibility/TCC state | Sends graceful terminate request to exactly one running pid | Keep |
+| App hide/unhide | first-class command | `aos do hide --pid <pid> [--dry-run]` / `aos do unhide --pid <pid> [--dry-run]` | AppKit app lifecycle | Optional | Accessibility/TCC state | Pid-scoped app visibility, not Space switching | Keep |
 | Window list | first-class command | `aos graph windows [--display N]` | AOS display/window graph | Read-only | No special TCC in manifest | Lists visible graph state only | Keep |
 | Window focus | first-class command | `aos focus create --id <name> --window <wid>` | AOS focus channel | No | No special TCC in manifest | Tracks a window channel; not a raise command | Keep |
-| Window raise | first-class command | `aos do raise --pid <pid> [--window id] --dry-run` before `aos do raise --pid <pid> [--window id]` | native window control | Yes | Accessibility | May fail under Space/minimized constraints | Keep |
-| Window move | first-class command | `aos do move --pid <pid> --to <x,y> [--window id] --dry-run` before `aos do move --pid <pid> --to <x,y> [--window id]` | native window control | Yes | Accessibility | Requires current resolvable window | Keep |
-| Window resize | first-class command | `aos do resize --pid <pid> --to <w,h> [--window id] --dry-run` before `aos do resize --pid <pid> --to <w,h> [--window id]` | native window control | Yes | Accessibility | Requires current resolvable window | Keep |
-| Window close | first-class command | `aos do close --pid <pid> --window <id> --dry-run` before `aos do close --pid <pid> --window <id>` | native AX close button | Yes | Accessibility | Requires exact window id and confirms disappearance after action | Keep |
-| Window minimize | first-class command | `aos do minimize --pid <pid> --window <id> --dry-run` before `aos do minimize --pid <pid> --window <id>` | native AX minimized state | Yes | Accessibility | Requires exact window id and readback confirmation | Keep |
-| Window maximize/restore | first-class command | `aos do maximize --pid <pid> --window <id> --dry-run` / `aos do restore --pid <pid> --window <id> --dry-run` before action | native AX frame/minimized state | Yes | Accessibility | Maximize stores previous frame under AOS state; restore fails closed without saved frame unless unminimizing | Keep |
-| Menu-item invocation | first-class command | `aos do menu --pid <pid> --path File,Save --dry-run` before action | native AX menu path traversal | Yes | Accessibility | Requires exact pid, unique menu path, enabled leaf, and AXPress support | Keep |
-| AOS-hosted status-item lease invocation | first-class command | Keep register-follow alive; use exact owner/item/generation/current revision for `aos status-item update`, then inspect and invoke with the returned revision and action sequence, using `--dry-run` before live invoke | owner-scoped native status-item host lease | Yes | Runtime readiness for live post | Register-follow owns lifetime/events; update preserves the action sequence; effectful invoke atomically consumes it before delivery; native clicks share the allocator; new generations reset it; not arbitrary third-party macOS menu extras | Keep |
+| Window raise | first-class command | `aos do raise --pid <pid> [--window id] [--dry-run]` | native window control | Optional | Accessibility | May fail under Space/minimized constraints | Keep |
+| Window move | first-class command | `aos do move --pid <pid> --to <x,y> [--window id] [--dry-run]` | native window control | Optional | Accessibility | Requires current resolvable window | Keep |
+| Window resize | first-class command | `aos do resize --pid <pid> --to <w,h> [--window id] [--dry-run]` | native window control | Optional | Accessibility | Requires current resolvable window | Keep |
+| Window close | first-class command | `aos do close --pid <pid> --window <id> [--dry-run]` | native AX close button | Optional | Accessibility | Requires exact window id and confirms disappearance after action | Keep |
+| Window minimize | first-class command | `aos do minimize --pid <pid> --window <id> [--dry-run]` | native AX minimized state | Optional | Accessibility | Requires exact window id and readback confirmation | Keep |
+| Window maximize/restore | first-class command | `aos do maximize --pid <pid> --window <id> [--dry-run]` / `aos do restore --pid <pid> --window <id> [--dry-run]` | native AX frame/minimized state | Optional | Accessibility | Maximize stores previous frame under AOS state; restore fails closed without saved frame unless unminimizing | Keep |
+| Menu-item invocation | first-class command | `aos do menu --pid <pid> --path File,Save [--dry-run]` | native AX menu path traversal | Optional | Accessibility | Requires exact pid, unique menu path, enabled leaf, and AXPress support | Keep |
+| AOS-hosted status-item lease invocation | first-class command | Keep register-follow alive; use exact owner/item/generation/current revision for `aos status-item update`, then inspect and invoke with the returned revision and action sequence; `--dry-run` is an optional non-consuming preview | owner-scoped native status-item host lease | Optional | Runtime readiness for live post | Register-follow owns lifetime/events; update preserves the action sequence; effectful invoke atomically consumes it before delivery; native clicks share the allocator; new generations reset it; not arbitrary third-party macOS menu extras | Keep |
 | Window fullscreen | deferred follow-up | none | likely native/AX/key | No | Accessibility | Space transitions are risky | Add only with Space proof |
 | Space detection | unsupported | none | macOS Space state unavailable in public AOS command | No | Accessibility/Screen Recording likely | Current Space identity is not stable public evidence | Design primitive first |
-| Space switching | deferred follow-up | none | key/native Mission Control likely | No | Accessibility/Input Monitoring | Mutates global desktop context | Approval-gated design only |
+| Space switching | deferred follow-up | none | key/native Mission Control likely | No | Accessibility/Input Monitoring | Mutates global desktop context | Design an exact primitive first |
 | Mission Control / app expose | unsupported | none | key/native Mission Control | No | Accessibility/Input Monitoring | Global UI mode, not a stable ref target | Keep unsupported unless a use case proves need |
-| Native AX press | AX-backed command | `aos do press <ref> ... --dry-run` or `--pid --role ... --dry-run` | native AX | Yes | Accessibility | Stable saved refs fail closed on missing identity, off-Space, minimized, or known-limit blockers | Keep |
-| Native AX focus | AX-backed command | `aos do focus <ref> ... --dry-run` or `--pid --role ... --dry-run` | native AX | Yes | Accessibility | Same native saved-ref known limits | Keep |
-| Native AX set-value | AX-backed command | `aos do set-value <ref> --value ... --dry-run` or `--pid --role ...` | native AX/canvas | Yes | Accessibility | Same native saved-ref known limits | Keep |
-| Pointer fallback | first-class command | `aos do click/hover/drag/scroll x,y` | pointer/keyboard input | Some actions | Accessibility/Input Monitoring | Coordinate fallback is diagnostic unless explicitly authorized | Use after saved refs fail or for proof |
+| Native AX press | AX-backed command | `aos do press <ref> ... [--dry-run]` or `--pid --role ... [--dry-run]` | native AX | Optional | Accessibility | Current saved-handle implementation fails closed on missing identity, off-Space, minimized, or known-limit blockers | Keep |
+| Native AX focus | AX-backed command | `aos do focus <ref> ... [--dry-run]` or `--pid --role ... [--dry-run]` | native AX | Optional | Accessibility | Same native saved-handle known limits | Keep |
+| Native AX set-value | AX-backed command | `aos do set-value <ref> --value ... [--dry-run]` or `--pid --role ...` | native AX/canvas | Optional | Accessibility | Same native saved-handle known limits | Keep |
+| Pointer fallback | first-class command | `aos do click/hover/drag/scroll x,y` | pointer/keyboard input | Some actions | Accessibility/Input Monitoring | Caller-selected current coordinates; use `state_id` when selected from perception | Use when exact target/current-state mechanics are satisfied |
 | Keyboard fallback | first-class command | `aos do type`, `aos do key` | keyboard input | Browser refs only for some forms | Accessibility/Input Monitoring | Acts on current focus | Use only with focus proof |
 | App scripting fallback | key/script escape hatch | `aos do tell <app> <script>` | AppleScript | No | Automation/Accessibility likely | App-specific and lower-level | Keep as explicit escape hatch |
 
 ## Browser Boundary
 
-AOS owns durable desktop/browser capture, saved refs, action envelopes, and
-evidence. Upstream Playwright CLI owns browser-only primitives that are not AOS
-desktop primitives:
+AOS currently owns desktop/browser capture, saved-workspace handles, action
+envelopes, and optional evidence. Those saved handles are implementation
+plumbing rather than durable public target identity. Upstream Playwright CLI
+owns browser-only primitives that are not AOS desktop primitives:
 
 - network mocking;
 - storage/auth state;
@@ -377,11 +403,11 @@ targets:
 2. Capture with `./aos see capture ... --save --workspace <id> --mode som`.
 3. Inspect `./aos see refs --workspace <id> --json`.
 4. Prefer `ref:<snapshot-id>:<ref>` over prose or coordinates.
-5. Dry-run before any supported mutating action, including window raise/move/resize.
-6. Act once only when the dry-run validates the current target.
+5. Resolve exact current identity; use optional dry-run only when a preview is useful.
+6. Act once and handle typed stale, missing, ambiguous, or unsupported results.
 7. Recapture.
-8. Gate compact evidence with `./aos see refs --diff <before>..<after> --expect ...`
-   or a Work Record verifier. When matching before/after PNG artifact paths
+8. Check compact evidence with `./aos see refs --diff <before>..<after> --expect ...`
+   or optionally use a Work Record verifier. When matching before/after PNG artifact paths
    already exist, use `./aos see compare <before.png> <after.png>` as the exact
    pixel alternative; request `--change-map-out` and/or `--mask-out` only when
    path-backed spatial evidence is needed. It does not capture, wait, or align

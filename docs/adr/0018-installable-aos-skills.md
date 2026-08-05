@@ -1,11 +1,15 @@
 # ADR 0018: Installable AOS Skills Product Surface
 
-**Status:** Accepted; amended by ADR 0039
+**Status:** Accepted; amended by ADR 0039 and ADR 0040
 **Date:** 2026-07-06
 
 ADR 0039 supersedes this ADR's former retired-skill tombstone policy. The root
 skill inventory now contains current packages only; superseded packages are
 deleted with their internal consumer migration.
+
+ADR 0040 supersedes any reading of this ADR that makes dry-run, Gate, or a Work
+Record a permission prerequisite. Skills teach ambient-authority primitives,
+optional mechanics, and caller-owned evidence choices.
 
 ## Decision
 
@@ -18,8 +22,9 @@ small direct ./aos commands + manifest/help authority + installable skills that 
 
 Skills are agent guidance packages. They are not a new execution substrate and
 do not replace Recipes, Workflows, Work Records, or wiki plugins. Skills teach
-agents which direct `./aos` workflow to use, how to
-validate it, when to dry-run, when to recapture, and when to stop.
+agents which direct `./aos` workflow to use, how to validate mechanical
+identity, when an optional dry-run or recapture is useful, and how to handle
+typed failures.
 
 The public command family will be `aos skills` with at least:
 
@@ -40,7 +45,7 @@ send agents back to `./aos help <command> --json` for current argument shape.
 | Recipe | `recipes/`, recipe manifests, and `aos recipe` | Source-backed executable procedure with dry-run/run semantics. Skills may teach recipe use but do not become recipes. |
 | Workflow | orchestration docs/schemas when implemented | Cross-recipe, agent, gate, retry, and evidence orchestration. A skill may describe how to choose a workflow but is not the workflow engine. |
 | Guide or Playbook | `docs/guides/` and durable docs | Method guidance. It may be referenced by a skill without becoming executable. |
-| Work Record | `aos work-record` and shared schemas | Durable proof/receipt for a run. Skills may teach how to inspect or repair records, but they do not emit proof by themselves. |
+| Work Record | `aos work-record` and shared schemas | Optional durable evidence/history for a run. Skills may teach how to inspect or repair records, but a record does not authorize execution and skills do not emit proof by themselves. |
 
 ## Install Targets
 
@@ -55,7 +60,7 @@ Supported target names are:
 
 Unknown targets fail closed. Implementations must not infer hidden aliases or
 write into user-global skill trees unless the caller chose a target or explicit
-path. Dry-run is the default development proof for new target logic.
+path. Dry-run is an optional non-mutating development proof for new target logic.
 
 ## Installed Copy Ownership And Drift
 
@@ -80,10 +85,10 @@ AOS keeps its browser adapter. AOS owns durable browser flows through:
 
 - `aos focus`
 - `aos see capture browser:... --save`
-- saved refs
-- dry-run validation
+- current saved observation handles
+- optional dry-run inspection
 - action envelopes
-- Work Record evidence
+- optional Work Record evidence
 - `aos show --anchor-browser`
 
 Playwright CLI remains the direct escape hatch for browser primitives AOS does
@@ -110,7 +115,7 @@ The registry source of truth is `skills/registry.json`.
 | `aos-saved-workspace` | installable | Supersedes broad `aos-agent-workspace` for compact saved snapshot/ref observe-act-recapture loops. |
 | `aos-canvas-vision` | installable | Teaches regions, xray, labels, canvas refs, coordinates, and visual fallback proof. |
 | `aos-focus-sessions` | installable | Teaches focus channels as the AOS session model for windows, browsers, and parallel agents. |
-| `aos-browser` | installable | Supersedes broad `browser-adapter` for durable AOS browser refs/proof and explicit upstream Playwright CLI escape hatches. |
+| `aos-browser` | installable | Supersedes broad `browser-adapter` for current AOS browser observation handles/proof and explicit upstream Playwright CLI escape hatches. |
 | `aos-verification` | installable | Teaches recapture, ref diff/expect, gates, and Work Record evidence loops. |
 | `aos-operator-annotations` | installable | Teaches pending annotation list/read/consume/link behavior and safe consume-once boundaries. |
 | `aos-work-records` | installable | Teaches Work Record read/verify/status/recovery and report-only defaults. |

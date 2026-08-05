@@ -102,15 +102,27 @@ commands, runtime helpers, wiki tools, and command adapters.
   new behavior there.
 - Native capability stays in `src/`; public schema contracts stay in
   `shared/schemas/`.
+- **ADR 0040 transition boundary:** omission or redaction of facts already
+  admitted to bounded public adapter observations and mixed
+  saved-ref/reacquisition language below describe current implementation gaps,
+  not AOS privacy, authorization, or target-identity policy. Runtime migration
+  must preserve those raw observation facts by default or require an explicit
+  caller-owned transform, and must separate Observation Refs from Locators.
+  This does not widen bounded lifecycle events or operation receipts to
+  adjacent media, source, product, or private transport content that their
+  public contracts do not observe.
 - `lib/aos-voice-follow.mjs` owns the bounded daemon-follow lifecycle used by
   public connection-scoped streaming adapters, including
   `listen --source hotkey|microphone --follow`, `say --follow`, `play --follow`,
   and native annotation selection. Keep daemon
   connection mechanics in `lib/aos-daemon-client.mjs`, keep speech text on
-  stdin, do not echo speech text or capture paths through events or errors, and
-  cancel the connection-scoped lease when the native external-dispatch owner
-  exits. Signal and parent-loss handling must be active before managed daemon
-  startup, and startup cancellation must await termination of any owned child.
+  stdin, and cancel the connection-scoped lease when the native
+  external-dispatch owner exits. The public events and errors are bounded
+  lifecycle observations; speech text and capture paths stay on their owning
+  speech, transcription, or capture channels and outside those envelopes. Their
+  exclusion is not an ADR 0040 raw-output gap. Signal and
+  parent-loss handling must be active before managed daemon startup, and startup
+  cancellation must await termination of any owned child.
 - `aos-permissions.mjs` treats foreground Microphone preflight as diagnostic
   only. Its public prompt route starts the managed runtime when needed and
   delegates to the daemon authorization primitive; readiness and permissions
@@ -119,8 +131,9 @@ commands, runtime helpers, wiki tools, and command adapters.
   it never teaches drag-add or runtime TCC reset for Microphone.
   Direct screen-capture status is also diagnostic and passive. Only
   `permissions prime screen-capture` may request authorization and invoke the
-  daemon-owned bounded probe; its output stays content-free and it never
-  persists the setup frame.
+  daemon-owned bounded probe. The setup frame is a private, discarded
+  capability-check input outside the public permission-status observation; its
+  exclusion is not an ADR 0040 raw-output gap. It is never persisted.
 - `aos-see-native.mjs` owns native perception admission,
   `lib/aos-see-supervision.mjs` owns the shared process-group boundary, and
   `lib/aos-see-child-runner.mjs` guards the exact native child for direct,
@@ -148,7 +161,10 @@ commands, runtime helpers, wiki tools, and command adapters.
   incremental NDJSON reads, request/ref correlation, timeouts, signal and
   parent-loss handling, canonical daemon-response envelope validation and data
   unwrapping, and cleanup of only a daemon it started. It must not replace the
-  canonical stage snapshot or carry product content.
+  canonical stage snapshot. Arbitrary product and extension content remains
+  outside that bounded engine snapshot; its exclusion is not an ADR 0040
+  raw-output gap. Admitted engine result facts must not be silently omitted or
+  redacted.
 - `lib/aos-scene-extension.mjs` owns trusted scene-extension validation and the
   immutable owner-only installation store. Its module inspector must compile
   the exact native-host ES-module wrapper in a bounded child without linking or
@@ -156,17 +172,23 @@ commands, runtime helpers, wiki tools, and command adapters.
   shutdown.
 - `aos-shortcut.mjs` owns explicit Apple Shortcut execution through
   `/usr/bin/shortcuts`. It passes one exact shortcut name as an argv item,
-  never invokes a shell, bounds time and output, and never returns captured
-  Shortcut output content.
+  never invokes a shell, and bounds time and output. Its typed receipt returns
+  status, duration, and byte counts; captured stdout/stderr remain outside that
+  bounded receipt.
 - `aos-play.mjs` owns bounded connection-scoped WAV playback through the
-  daemon voice-output broker. Input paths stay private to the request; public
-  events expose only lifecycle, format, byte-count, and meter facts.
+  daemon voice-output broker. Public events expose lifecycle, format,
+  byte-count, and meter facts. The caller-owned input path is outside that
+  bounded lifecycle event envelope; its exclusion is not an ADR 0040 raw-output
+  gap.
 - `aos-annotation-select.mjs` owns the public connection-scoped desktop
   annotation adapter. It validates native point, rectangle, freehand, text, or
   semantic target evidence, persists one pending-annotation record before
-  completion, and strips annotation text from the public follow event.
-  Semantic AX evidence remains `fallback_only` until another contract proves a
-  durable reacquirable saved ref.
+  completion, and keeps entered text in that durable record rather than echoing
+  it through the bounded completion receipt. The receipt currently replaces
+  admitted target `title` and `label` values with `null`, an ADR 0040 fidelity
+  gap. The current
+  `fallback_only` AX evidence and saved-ref reacquisition shape are a legacy
+  mixed-handle gap, not a durable target identity contract.
 
 ## Local Contracts
 

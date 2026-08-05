@@ -12,6 +12,10 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const fixtureDir = resolve(__dirname, '../../docs/design/fixtures/aos-target-descriptor-v0')
 
+// This suite freezes the current pre-ADR-0040 mixed descriptor so migration can
+// delete it deliberately. It is not authority for the public target-handle model:
+// an Observation Ref is `(state_id, ref)`, while a Locator is a separate query.
+
 async function readJson(name) {
   return JSON.parse(await readFile(resolve(fixtureDir, name), 'utf8'))
 }
@@ -26,7 +30,7 @@ function namespaceKey(namespace = {}) {
   })
 }
 
-function durableIdentityKey(descriptor = {}) {
+function legacyMixedIdentityKey(descriptor = {}) {
   return `${namespaceKey(descriptor.target?.owner_namespace)}\u0000${descriptor.target?.target_id}`
 }
 
@@ -42,7 +46,7 @@ function walk(value, visit, path = []) {
   }
 }
 
-function assertDescriptorShape(descriptor) {
+function assertLegacyMixedDescriptorShape(descriptor) {
   assert.ok(descriptor.ref, 'descriptor requires state-scoped ref')
   assert.ok(descriptor.state_id, `${descriptor.ref} requires state_id`)
   assert.ok(descriptor.target?.target_id, `${descriptor.ref} requires target.target_id`)
@@ -66,9 +70,10 @@ function assertNoLabelIdentity(descriptor) {
   assert.ok(!identityText.includes(`"${label}"`), `${descriptor.ref} must not embed display label in durable identity`)
 }
 
-test('fixture manifest lists the descriptor contract cases', async () => {
+test('fixture manifest marks the descriptor pack as a legacy mixed-handle gap', async () => {
   const manifest = await readJson('manifest.json')
 
+  assert.equal(manifest.transition_status, 'legacy_mixed_handle_gap')
   assert.deepEqual(manifest.fixtures.sort(), [
     'ambiguous-reacquisition.json',
     'reacquisition-success.json',
@@ -77,17 +82,17 @@ test('fixture manifest lists the descriptor contract cases', async () => {
   ])
 })
 
-test('same-label controls stay distinct through owner namespace plus target id', async () => {
+test('legacy mixed descriptors keep same-label controls distinct in the frozen fixture', async () => {
   const fixture = await readJson('same-label-namespaces.json')
   const targets = fixture.semantic_targets
 
   assert.equal(targets.length, 2)
-  targets.forEach(assertDescriptorShape)
+  targets.forEach(assertLegacyMixedDescriptorShape)
   targets.forEach(assertNoLabelIdentity)
   assert.equal(targets[0].name, targets[1].name)
   assert.equal(targets[0].target.target_id, targets[1].target.target_id)
   assert.notEqual(namespaceKey(targets[0].target.owner_namespace), namespaceKey(targets[1].target.owner_namespace))
-  assert.notEqual(durableIdentityKey(targets[0]), durableIdentityKey(targets[1]))
+  assert.notEqual(legacyMixedIdentityKey(targets[0]), legacyMixedIdentityKey(targets[1]))
   assert.equal(fixture.expectation.status, 'distinct_targets')
 })
 
@@ -102,13 +107,13 @@ test('stale state-scoped refs reject instead of silently acting', async () => {
   assert.equal(fixture.resolution.reacquisition.requires_explicit_retry, true)
 })
 
-test('descriptor reacquisition uses machine facts first and labels only as hints', async () => {
+test('legacy descriptor reacquisition fixture uses machine facts first and labels only as hints', async () => {
   const fixture = await readJson('reacquisition-success.json')
   const selected = fixture.candidates.find((candidate) => candidate.ref === fixture.resolution.selected_ref)
 
   assert.equal(fixture.resolution.status, 'reacquired')
   assert.ok(selected)
-  assert.equal(durableIdentityKey(selected), durableIdentityKey(fixture.previous))
+  assert.equal(legacyMixedIdentityKey(selected), legacyMixedIdentityKey(fixture.previous))
   assert.deepEqual(fixture.resolution.matched_by, [
     'owner_namespace',
     'target_id',
@@ -121,7 +126,7 @@ test('descriptor reacquisition uses machine facts first and labels only as hints
   assert.ok(fixture.previous.reacquisition.hint_fingerprint.label_hints.includes(selected.name))
 })
 
-test('ambiguous same-label reacquisition remains blocked', async () => {
+test('legacy ambiguous same-label reacquisition fixture remains blocked', async () => {
   const fixture = await readJson('ambiguous-reacquisition.json')
 
   assert.equal(fixture.resolution.status, 'ambiguous')
@@ -150,7 +155,7 @@ test('runtime helpers reject label/name-only machine identity', () => {
   )
 })
 
-test('fixture identity fields do not depend on provenance geometry', async () => {
+test('legacy fixture identity fields do not depend on provenance geometry', async () => {
   const fixture = await readJson('same-label-namespaces.json')
 
   for (const target of fixture.semantic_targets) {

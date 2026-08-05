@@ -1,7 +1,15 @@
 # Browser Capture Ladder Projection
 
-**Status:** execution-model projection note plus first browser-compatible prototype bridge
+**Status:** legacy execution-model projection note plus first
+browser-compatible prototype bridge; Gate coupling awaits ADR 0040 migration
 **Tracked by:** https://github.com/michaelblum/agent-os/issues/274
+
+## ADR 0040 Transition Boundary
+
+This note records the current legacy Step Descriptor prototype. Its required
+Workflow Gate fields are fixture/harness coupling, not AOS permission or a
+public execution prerequisite. Runtime migration must remove that coupling or
+make Gate an explicitly invoked caller input.
 
 ## Purpose
 
@@ -69,14 +77,14 @@ The first fixture path uses the existing browser click/status Step descriptor:
 The prototype creates an `aos.workbench.subject` descriptor with
 `subject_type: "aos.step_descriptor_prototype"`, `browser-compatible` capability, and
 one narrow control: `step_descriptor.simulate_once`. The subject records that the
-path is report-only, one-step-only, explicitly workflow-gated, and not a replay,
+current legacy path is report-only, one-step-only, Gate-coupled, and not a replay,
 repair, macro, background loop, broad CLI surface, general Playbook UI, or Wiki
 Subject Browser.
 
 `runBrowserStepDescriptorPrototype()` always calls `runOneStepStepDescriptorHarness()` in
-`simulate` mode. It requires the caller to pass an explicit workflow gate with a
-declared gate ref and token. If the gate is missing or undeclared, the harness
-rejects the run before emitting a Work Record.
+`simulate` mode. The current legacy harness requires a Workflow Gate ref and
+token and rejects when either is missing. That requirement is migration debt,
+not permission to observe or act.
 
 When the saved evidence is good, the result is a Workflow-origin Work Record v0
 with `origin.kind: "workflow"` and verifier profile
@@ -109,9 +117,10 @@ The browser-hosted V0 shell lives at
 `packages/toolkit/components/step-descriptor-workbench/launch.sh`. It is a thin
 surface over this prototype contract: the launch path loads the existing
 browser click/status step fixture and saved evidence fixture, the shell requires
-an explicit workflow gate ref and token before calling
+the current legacy Workflow Gate ref and token before calling
 `runBrowserStepDescriptorPrototype()` in `simulate` mode, and the emitted Work Record
-is handed to the existing read-only Work Record workbench open path.
+is handed to the existing read-only Work Record workbench open path. Those
+required Gate fields are an ADR 0040 migration gap, not authorization.
 
 The shell remains fixture-backed, report-only, and one-step-only. It exposes
 semantic refs for inspection and operation, but it does not add live browser
@@ -131,15 +140,16 @@ verify`, `aos audit`, recorder command, or public replay command.
 
 This is not autonomous replay or repair. The prototype does not repair refs,
 patch execution maps, re-run failed steps, play back macros, or start background
-loops. Any future live execution, replay, or repair must be a separate
-Workflow-gated path that emits a new Work Record or an explicit patch.
+loops. The current fixture models a separate Gate-coupled path that emits a new
+Work Record or explicit patch; Gate is not AOS permission, and runtime migration
+must not preserve it as a mandatory execution prerequisite.
 
 ## Verification
 
 The focused regression is
 `tests/toolkit/browser-step-descriptor-prototype.test.mjs`. It proves that the
-prototype subject validates as an `aos.workbench.subject`, ungated simulation is
-rejected without a Work Record, a gated simulation runs exactly one step through
+prototype subject validates as an `aos.workbench.subject`, the legacy harness
+rejects missing Gate fields, and a Gate-supplied simulation runs one step through
 `runOneStepStepDescriptorHarness()`, the generated Work Record matches the existing
 Workflow-origin fixture and passes the report-only verifier, and the emitted
 record opens read-only through the existing Work Record workbench model.

@@ -518,7 +518,7 @@
               "id" : "save",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Persist full perception in a local agent workspace and return compact JSON refs with conformance/proof; saved-ref actions support canvas click/set-value, validated browser click/fill/hover/scroll/drag/type/key mutation, and stable native AX press/focus/set-value when producer verdict is actionable",
+              "summary" : "Persist full perception in a local agent workspace and return compact JSON saved handles with conformance/proof; current saved-handle actions support canvas click/set-value, validated browser click/fill/hover/scroll/drag/type/key mutation, and native AX press/focus/set-value through the current stable resolution class when the producer verdict is actionable",
               "token" : "--save",
               "value_type" : "bool"
             },
@@ -820,7 +820,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "summary" : "Persist perception through the same bounded daemon-owned native transaction into a local agent workspace; --window warns on full-display fallback, and compact refs retain conformance/proof for canvas, browser, and stable native AX actions",
+          "summary" : "Persist perception through the same bounded daemon-owned native transaction into a local agent workspace; --window warns on full-display fallback, and compact saved handles retain current conformance/proof fields for canvas, browser, and native AX actions",
           "usage" : "aos see capture [<target>|--region <rect>|--canvas <id>|--channel <id>] [--interactive] --save [--mode <mode>] [--workspace <id>] [--name <id>] [--query <text>]"
         },
         {
@@ -4194,7 +4194,7 @@
               "id" : "target",
               "kind" : "positional",
               "required" : false,
-              "summary" : "Stable saved native AX ref with actionable producer verdict; omit for direct --pid/--role form",
+              "summary" : "Saved native AX handle in the current stable resolution class with actionable producer verdict; omit for direct --pid/--role form",
               "value_type" : "string"
             },
             {
@@ -4332,7 +4332,7 @@
             "aos do press --pid 1234 --role AXButton --title Save --dry-run",
             "aos do press --pid 1234 --role AXButton --title Save"
           ],
-          "summary" : "Press stable native AX saved refs or direct AX targets; saved refs validate durable identity before mutation and return post_action.recommended_next_command for recapture with aos see capture --save before verification; direct AX uses current matching with no_foreground proof still not claimed",
+          "summary" : "Press current saved native AX handles or direct AX targets; saved-handle dispatch validates current machine identity facts and returns post_action.recommended_next_command for recapture with aos see capture --save before verification; direct AX uses current matching with no_foreground proof still not claimed",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -4546,7 +4546,7 @@
               "id" : "target",
               "kind" : "positional",
               "required" : false,
-              "summary" : "Stable saved native AX ref with actionable producer verdict; omit for direct --pid/--role form",
+              "summary" : "Saved native AX handle in the current stable resolution class with actionable producer verdict; omit for direct --pid/--role form",
               "value_type" : "string"
             },
             {
@@ -4684,7 +4684,7 @@
             "aos do focus --pid 1234 --role AXTextField --dry-run",
             "aos do focus --pid 1234 --role AXTextField"
           ],
-          "summary" : "Focus stable native AX saved refs or direct AX targets; saved refs validate durable identity before mutation and return post_action.recommended_next_command for recapture with aos see capture --save before verification; direct AX uses current matching with no_foreground proof still not claimed",
+          "summary" : "Focus current saved native AX handles or direct AX targets; saved-handle dispatch validates current machine identity facts and returns post_action.recommended_next_command for recapture with aos see capture --save before verification; direct AX uses current matching with no_foreground proof still not claimed",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -10850,7 +10850,7 @@
               "id" : "workflow-gate",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Specific Repair Plan workflow gate id to bind",
+              "summary" : "Specific workflow gate id in the current legacy repair coupling; this does not authorize AOS action",
               "token" : "--workflow-gate",
               "value_type" : "string"
             },
@@ -10858,7 +10858,7 @@
               "id" : "authorization",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Workflow Gate Authorization JSON path",
+              "summary" : "Current legacy Workflow Gate Authorization JSON path; this records repair coupling and is not an AOS permission grant",
               "token" : "--authorization",
               "value_type" : "string"
             },
@@ -10866,7 +10866,7 @@
               "id" : "gate-record",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Gate record id or JSON path to evaluate as authorization",
+              "summary" : "Gate record id or JSON path for current legacy repair-coupling evaluation; not AOS action authorization",
               "token" : "--gate-record",
               "value_type" : "string"
             },
@@ -10874,7 +10874,7 @@
               "id" : "resume-event",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Gate resume-event JSON path to evaluate as authorization",
+              "summary" : "Gate resume-event JSON path for current legacy repair-coupling evaluation; not AOS action authorization",
               "token" : "--resume-event",
               "value_type" : "string"
             },
@@ -10882,7 +10882,7 @@
               "id" : "continuation-id",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Submitted deferred-gate continuation id to evaluate as authorization",
+              "summary" : "Submitted deferred-gate continuation id for current legacy repair-coupling evaluation; not AOS action authorization",
               "token" : "--continuation-id",
               "value_type" : "string"
             },
@@ -10979,7 +10979,7 @@
               "id" : "operation-id",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Specific planned operation id to execute when more than one allowlisted operation is present",
+              "summary" : "Specific planned current legacy allowlisted fixture operation id; the allowlist is repair implementation, not ambient-authority policy",
               "token" : "--operation-id",
               "value_type" : "string"
             },
@@ -11345,7 +11345,7 @@
               "id" : "workflow-gate",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Specific Repair Plan workflow gate id to authorize",
+              "summary" : "Specific workflow gate id to encode in the current legacy repair request; Gate does not authorize AOS action",
               "token" : "--workflow-gate",
               "value_type" : "string"
             },
@@ -11408,7 +11408,7 @@
               "id" : "workflow-gate",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Specific Repair Plan workflow gate id to check",
+              "summary" : "Specific workflow gate id for current legacy repair-coupling evaluation; the result does not authorize AOS action",
               "token" : "--workflow-gate",
               "value_type" : "string"
             },
@@ -11440,7 +11440,7 @@
               "id" : "json",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Emit stable machine-readable authorization JSON",
+              "summary" : "Emit current legacy repair-coupling evaluation JSON; not an AOS permission grant",
               "token" : "--json",
               "value_type" : "bool"
             }
@@ -11775,7 +11775,7 @@
               "id" : "authorization",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Workflow Gate Authorization JSON path",
+              "summary" : "Current legacy Workflow Gate Authorization JSON path; this records repair coupling and is not an AOS permission grant",
               "token" : "--authorization",
               "value_type" : "string"
             },
@@ -11783,7 +11783,7 @@
               "id" : "gate-record",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Gate record id or JSON path to evaluate as authorization",
+              "summary" : "Gate record id or JSON path for current legacy repair-coupling evaluation; not AOS action authorization",
               "token" : "--gate-record",
               "value_type" : "string"
             },
@@ -11791,7 +11791,7 @@
               "id" : "resume-event",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Gate resume-event JSON path to evaluate as authorization",
+              "summary" : "Gate resume-event JSON path for current legacy repair-coupling evaluation; not AOS action authorization",
               "token" : "--resume-event",
               "value_type" : "string"
             },
@@ -11799,7 +11799,7 @@
               "id" : "continuation-id",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Submitted deferred-gate continuation id to evaluate as authorization",
+              "summary" : "Submitted deferred-gate continuation id for current legacy repair-coupling evaluation; not AOS action authorization",
               "token" : "--continuation-id",
               "value_type" : "string"
             },
@@ -11962,7 +11962,7 @@
               "id" : "authorization",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Workflow Gate Authorization JSON path",
+              "summary" : "Current legacy Workflow Gate Authorization JSON path; this records repair coupling and is not an AOS permission grant",
               "token" : "--authorization",
               "value_type" : "string"
             },
@@ -11970,7 +11970,7 @@
               "id" : "gate-record",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Gate record id or JSON path to evaluate as authorization",
+              "summary" : "Gate record id or JSON path for current legacy repair-coupling evaluation; not AOS action authorization",
               "token" : "--gate-record",
               "value_type" : "string"
             },
@@ -11978,7 +11978,7 @@
               "id" : "resume-event",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Gate resume-event JSON path to evaluate as authorization",
+              "summary" : "Gate resume-event JSON path for current legacy repair-coupling evaluation; not AOS action authorization",
               "token" : "--resume-event",
               "value_type" : "string"
             },
@@ -11986,7 +11986,7 @@
               "id" : "continuation-id",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Submitted deferred-gate continuation id to evaluate as authorization",
+              "summary" : "Submitted deferred-gate continuation id for current legacy repair-coupling evaluation; not AOS action authorization",
               "token" : "--continuation-id",
               "value_type" : "string"
             },
@@ -12872,7 +12872,7 @@
               "token" : "--json",
               "value_type" : "bool",
               "required" : true,
-              "summary" : "Emit a redacted machine-readable validation summary"
+              "summary" : "Emit the bounded validation summary"
             }
           ],
           "stdin" : {
@@ -13012,7 +13012,7 @@
               "token" : "--json",
               "value_type" : "bool",
               "required" : true,
-              "summary" : "Emit a redacted machine-readable installation summary"
+              "summary" : "Emit the bounded installation summary"
             }
           ],
           "stdin" : {
@@ -13218,7 +13218,7 @@
               "token" : "--json",
               "value_type" : "bool",
               "required" : true,
-              "summary" : "Emit a bounded content-free result"
+              "summary" : "Emit the bounded execution result"
             }
           ],
           "stdin" : {
@@ -13488,7 +13488,7 @@
               "token" : "--json",
               "value_type" : "bool",
               "required" : true,
-              "summary" : "Emit a content-free replay summary"
+              "summary" : "Emit the bounded replay result"
             }
           ],
           "stdin" : {

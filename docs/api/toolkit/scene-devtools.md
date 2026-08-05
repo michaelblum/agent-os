@@ -58,10 +58,12 @@ aos scene effect trigger \
   --json
 ```
 
-Remove `--dry-run` only after the exact binding readback is trusted. The daemon
-resolves the current input generation and fails closed if the stage, resource
-revision, affordance, interaction, or program identity changed. Start, update,
-end, and cancel phases share the supplied pointer-session identity.
+The effectful form validates the same exact binding facts itself. Keep
+`--dry-run` only when a non-consuming preview is useful; it is not a prerequisite
+for action. The daemon resolves the current input generation and fails closed if
+the stage, resource revision, affordance, interaction, or program identity
+changed. Start, update, end, and cancel phases share the supplied
+pointer-session identity.
 
 This command triggers the native-effect lifecycle only. It does not synthesize
 macOS input, move the pointer, press Escape, change scene placement, or prove
@@ -98,8 +100,9 @@ aos scene devtools transfer --session devtools-example \
 `aos.desktop-world.devtools.stage.v2`. It reports bounded displays, resources,
 nodes, hit regions, affordances, gestures, routes, allocations, interactions,
 per-display stage-segment performance, events, counters, and last-error facts.
-There is no world-wide or resource-wide performance scalar. Text, prompts,
-audio, scene parameters, and desktop content are excluded.
+There is no world-wide or resource-wide performance scalar. Product text,
+prompts, audio, arbitrary extension state, undeclared engine parameters, and
+desktop pixels remain outside the bounded DevTools observation contract.
 
 Every segment snapshot is bound to its exact `canvasGeneration`,
 `topologyGeneration`, display ID/index, and refresh `request_id`. The daemon
@@ -109,7 +112,8 @@ any partial receipt.
 
 At each inspection read, the daemon adds `native.desktopFrameWarm` and
 `native.nativeEffect`. Warm state contains only `state`, `displayCount`,
-`generation`, and a redacted `errorCode`. Native-effect state contains only its
+`generation`, and a bounded typed `errorCode`.
+Native-effect state contains only its
 lifecycle state, bounded attempt/admission/presentation/completion/disposal/
 failure counters, active runtime/sheet/texture counts, the last native
 trigger-to-presentation latency, last backing-pixel count and percentage, last
@@ -117,9 +121,9 @@ triangle count, retained buffer/texture/view counts, and the canonical owner/res
 identity and digest of the last admitted execution. The browser does not author
 or cache these native facts. A consumer that needs low-latency desktop textures
 should wait for warm `state: "ready"` before triggering an effect. Reading these
-facts does not start capture or request permission, and the snapshot never
-contains pixels, handles, paths, parameters, coordinates, frame timestamps, or
-desktop facts.
+facts does not start capture or request permission. Undeclared engine
+parameters, coordinates, frame timestamps, pixels, private handles and paths,
+product state, and captured desktop facts remain outside this bounded snapshot.
 Browser-authored snapshots omit the native field until the daemon adds
 authoritative facts. `presentedCount` advances only after every display segment
 reports an actual Metal drawable presentation, not when presentation is merely

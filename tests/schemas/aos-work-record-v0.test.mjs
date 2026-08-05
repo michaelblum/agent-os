@@ -208,9 +208,10 @@ test('Work Record contract keeps saved refs, evidence, proof, and replay boundar
     'diff.ref_expectation',
     'diff.ref_expectations[]',
     'must not treat the recipe step as a portable replay instruction',
-    'repair the execution map under an explicit workflow/repair gate',
-    'do not mutate `evidence[]`',
-    'do not replay, repair, or macro-play back from a Work Record',
+    'Current legacy v0 schema/harness behavior routes a drifted ref',
+    'through its Workflow Gate-coupled execution-map repair fields',
+    'coupling is ADR 0040 migration debt and does not authorize action',
+    'do not rewrite Claim text to chase selector drift or mutate `evidence[]`',
     'The v0 verifier and harness remain report-only.',
   ]) {
     assert.ok(

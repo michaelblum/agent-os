@@ -16,8 +16,16 @@ Work Record-compatible `evidence:*` references and handoff metadata for a later
 Work Record builder, but it does not duplicate Work Record `evidence[]`,
 Claims, Postconditions, Claim Results, Verifier Reports, or Health. Workflows
 own orchestration, and `aos.step_descriptor` descriptors may carry
-compatibility step metadata for a gated harness; a Supervised Run records the
-bounded coordination state for one attempt.
+compatibility step metadata for the current harness; a Supervised Run records
+the bounded coordination state for one attempt.
+
+## ADR 0040 Transition Boundary
+
+References to Workflow-gated Step Descriptor execution below describe current
+legacy schema/harness coupling. They do not make Gate an AOS permission grant or
+authorization boundary. Under ADR 0040, Gate is optional neutral structured
+input; runtime migration must remove any mandatory Gate coupling rather than
+preserve it as policy.
 
 ## Top-Level Shape
 
@@ -120,7 +128,8 @@ Supervised Runs align with Work Record v0 and Step Descriptor v0 by keeping the
 boundaries explicit:
 
 - A Workflow can be the orchestration origin for a run; `aos.step_descriptor`
-  supplies step metadata under a gate, not the Work Record origin.
+  supplies step metadata through the current legacy-coupled harness, not the
+  Work Record origin.
 - A Supervised Run coordinates one bounded attempt and human feedback timeline.
 - Work Record v0 remains the durable run artifact with immutable evidence,
   Claims, Postconditions, Claim Results, Verifier Report, and Health.
@@ -137,8 +146,8 @@ creating a second durable run-record format.
 This v0 contract does not add a daemon-backed event channel, public
 `aos test run` command, toolkit console UI, shell harness execution, replay,
 repair, macro playback, live browser execution, or broad workbench rewrite.
-Those are separate future slices and need explicit Workflow gates where they
-touch execution.
+Those are separate future slices. They may accept caller-selected Gates as
+neutral input, but AOS must not require Gate as permission to execute.
 
 ## Examples
 

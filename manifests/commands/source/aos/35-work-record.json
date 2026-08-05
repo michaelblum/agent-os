@@ -291,7 +291,7 @@
               "id": "workflow-gate",
               "kind": "flag",
               "required": false,
-              "summary": "Specific Repair Plan workflow gate id to bind",
+              "summary": "Specific workflow gate id in the current legacy repair coupling; this does not authorize AOS action",
               "token": "--workflow-gate",
               "value_type": "string"
             },
@@ -299,7 +299,7 @@
               "id": "authorization",
               "kind": "flag",
               "required": false,
-              "summary": "Workflow Gate Authorization JSON path",
+              "summary": "Current legacy Workflow Gate Authorization JSON path; this records repair coupling and is not an AOS permission grant",
               "token": "--authorization",
               "value_type": "string"
             },
@@ -307,7 +307,7 @@
               "id": "gate-record",
               "kind": "flag",
               "required": false,
-              "summary": "Gate record id or JSON path to evaluate as authorization",
+              "summary": "Gate record id or JSON path for current legacy repair-coupling evaluation; not AOS action authorization",
               "token": "--gate-record",
               "value_type": "string"
             },
@@ -315,7 +315,7 @@
               "id": "resume-event",
               "kind": "flag",
               "required": false,
-              "summary": "Gate resume-event JSON path to evaluate as authorization",
+              "summary": "Gate resume-event JSON path for current legacy repair-coupling evaluation; not AOS action authorization",
               "token": "--resume-event",
               "value_type": "string"
             },
@@ -323,7 +323,7 @@
               "id": "continuation-id",
               "kind": "flag",
               "required": false,
-              "summary": "Submitted deferred-gate continuation id to evaluate as authorization",
+              "summary": "Submitted deferred-gate continuation id for current legacy repair-coupling evaluation; not AOS action authorization",
               "token": "--continuation-id",
               "value_type": "string"
             },
@@ -420,7 +420,7 @@
               "id": "operation-id",
               "kind": "flag",
               "required": false,
-              "summary": "Specific planned operation id to execute when more than one allowlisted operation is present",
+              "summary": "Specific planned current legacy allowlisted fixture operation id; the allowlist is repair implementation, not ambient-authority policy",
               "token": "--operation-id",
               "value_type": "string"
             },
@@ -786,7 +786,7 @@
               "id": "workflow-gate",
               "kind": "flag",
               "required": false,
-              "summary": "Specific Repair Plan workflow gate id to authorize",
+              "summary": "Specific workflow gate id to encode in the current legacy repair request; Gate does not authorize AOS action",
               "token": "--workflow-gate",
               "value_type": "string"
             },
@@ -849,7 +849,7 @@
               "id": "workflow-gate",
               "kind": "flag",
               "required": false,
-              "summary": "Specific Repair Plan workflow gate id to check",
+              "summary": "Specific workflow gate id for current legacy repair-coupling evaluation; the result does not authorize AOS action",
               "token": "--workflow-gate",
               "value_type": "string"
             },
@@ -881,7 +881,7 @@
               "id": "json",
               "kind": "flag",
               "required": false,
-              "summary": "Emit stable machine-readable authorization JSON",
+              "summary": "Emit current legacy repair-coupling evaluation JSON; not an AOS permission grant",
               "token": "--json",
               "value_type": "bool"
             }

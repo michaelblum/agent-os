@@ -23,6 +23,9 @@ developer command surfaces.
 
 - Keep manifest entries strict, discoverable, and synchronized with help output
   and tests.
+- Describe `--dry-run` as optional mechanics unless the command itself is the
+  explicit dry-run operation. Command help must not teach dry-run, Gate, or a
+  Work Record as permission to perform an otherwise caller-requested action.
 - Edit source manifests first, then run
   `node scripts/generate-command-manifests.mjs` so the generated top-level
   artifacts stay byte-stable.

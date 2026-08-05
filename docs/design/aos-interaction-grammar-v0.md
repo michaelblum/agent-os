@@ -1,7 +1,16 @@
 # AOS Interaction Grammar V0
 
-**Status:** contract note for #430 deterministic fixtures
+**Status:** legacy transition fixture note for #430; superseded as public
+target-handle authority by ADR 0040
 **Depends on:** #429 target descriptor vocabulary and #427 gesture frames
+
+## ADR 0040 Transition Boundary
+
+This note freezes the current pre-ADR-0040 interaction fixtures so runtime
+migration can replace them deliberately. The mixed `target_descriptor` below
+combines Observation Ref and Locator material; it is not the public
+target-handle contract. ADR 0040 defines the ephemeral `(state_id, ref)`
+Observation Ref separately from the action-time re-resolving Locator.
 
 ## Purpose
 
@@ -9,12 +18,13 @@ AOS interaction records are a small family, not one flat event stream. The
 family connects what a target is, what an agent or replay requested, how AOS
 executed it, what input evidence was observed, and what state changed.
 
-Every target-addressed interaction in this contract uses the descriptor
-vocabulary from
+Every target-addressed interaction in this legacy fixture uses the descriptor
+shape from
 [`shared/schemas/aos-semantic-targets.md`](../../shared/schemas/aos-semantic-targets.md):
 
-- immediate action handles are `ref` scoped by `state_id`;
-- durable identity is `target.target_id` scoped by `target.owner_namespace`;
+- immediate action attempts carry `ref` scoped by `state_id`;
+- the mixed fixture also stores `target.target_id` and
+  `target.owner_namespace` as Locator-like material;
 - primitive actions are listed in `actions`;
 - current state lives in `state`;
 - current address and geometry live in `provenance`;
@@ -26,10 +36,10 @@ vocabulary from
 
 ### `target_descriptor`
 
-`target_descriptor` says what target exists and what can be done to it. It is
-the same shape emitted in `semantic_targets[]` for AOS-owned canvases.
+`target_descriptor` freezes the current mixed fixture shape. It is not the
+public type emitted after the ADR 0040 Observation Ref/Locator split.
 
-Required target-addressing fields:
+Required legacy-fixture fields:
 
 - `ref`
 - `state_id`

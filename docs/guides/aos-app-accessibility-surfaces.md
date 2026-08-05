@@ -54,34 +54,37 @@ Mac controls, for example `Open radial menu`, `Brush size`, or `Submit`, not
 `example.radial.action.open.primary`.
 
 Use descriptions or help text only for user-facing clarification. Use AOS
-metadata for state-scoped refs, descriptor identity, routing, and reacquisition
-hints.
+metadata for state-scoped refs, current routing, and future Locator hints.
 
-## AOS Identity Metadata
+## AOS Target Metadata
 
-AOS-specific identity belongs in descriptor metadata, not in labels.
+AOS-specific routing, provenance, and future Locator facts belong in metadata,
+not in labels.
 
-Use metadata channels to answer "which app object is this?" while keeping the
-AX name human-readable. The current descriptor split is:
+Use metadata channels to relate an observed control to app state while keeping
+the AX name human-readable. The current descriptor split is:
 
-- `data-aos-ref` contributes the state-scoped model-facing ref. It is useful
-  for immediate `aos do` calls and may become stale.
-- `data-semantic-target-id` contributes `target.target_id`, the durable machine
-  identity within an owner namespace; it is not derived from the AX name.
-- canvas, surface, app, component-family, and structural-owner metadata form
-  `target.owner_namespace`, the collision domain for durable identity.
-- `data-aos-action` and `data-aos-actions` name daemon/app action ids and
-  primitive capabilities.
+- `data-aos-ref` contributes the `ref` component of a state-scoped Observation
+  Ref. The capture response's top-level `state_id` completes the pair; a stale
+  pair must reject.
+- `data-semantic-target-id` contributes current source-payload metadata. It is
+  not a currently emitted `target.target_id` or durable identity.
+- canvas and surface metadata contribute current provenance and may later help
+  form a Locator owner namespace after the runtime/schema migration.
+- `data-aos-actions` and `data-aos-primitive-actions` name public primitive
+  capabilities. Singular `data-aos-action` is a current app-local action id; it
+  does not populate the public `actions` list.
 - DOM `id`, selectors, bounds, source paths, and parent canvas ids are
-  provenance/current-address evidence or reacquisition hints, not identity by
+  provenance/current-address evidence or future Locator hints, not identity by
   themselves.
-- context groups and marks can help build structural owner facts for non-DOM
-  canvas objects that need spatial identity.
+- context groups and marks can later help build structural Locator facts for
+  non-DOM canvas objects.
 
 Context groups should usually be represented both structurally and
 semantically. For example, a radial menu can be an `AXMenu` or `AXGroup` with
 `AXMenuItem` children, while `data-aos-ref`, `data-semantic-target-id`,
-`data-aos-action`, canvas id, and marks carry AOS routing and descriptor facts.
+`data-aos-action`, canvas id, and marks carry current AOS routing/provenance and
+future Locator hints.
 
 This lets `aos see --xray`, traces, tests, and future structured perception
 join semantic controls back to app state without label pollution.
@@ -125,9 +128,10 @@ before claiming runtime verification. In installed mode, use the installed
 For representative controls, verify:
 
 - `./aos see --xray` exposes raw role/name/value/frame/action evidence. For
-  AOS-owned canvases, check `semantic_targets` for state-scoped refs,
-  `target.target_id`, owner namespace, primitive actions, provenance, current
-  state, and reacquisition hints.
+  AOS-owned canvases, check the response's top-level `state_id` plus each
+  `semantic_targets` entry's `ref`, primitive `actions`, provenance, and current
+  state. Do not expect the current entry to contain `target`, per-entry
+  `state_id`, or `reacquisition`.
 - `./aos do` can operate the control through the daemon/AOS route, not only
   through app-local JavaScript or a synthetic unit test.
 - Screenshots show the intended visual design, with no duplicate agent labels
@@ -145,11 +149,11 @@ AX discovery, or daemon-routed actions.
 
 1. Pick the standard AX role before designing custom metadata.
 2. Give every meaningful control a concise semantic name.
-3. Keep visible text, semantic names, state-scoped refs, and AOS descriptor
-   identity distinct.
-4. Put AOS routing and descriptor facts in `data-aos-ref`,
-   `data-semantic-target-id`, owner namespace metadata, `data-aos-action`,
-   `data-aos-actions`, context groups, and marks.
+3. Keep visible text, semantic names, state-scoped refs, and future Locator
+   facts distinct.
+4. Put current AOS routing/provenance facts in `data-aos-ref`,
+   `data-semantic-target-id`, `data-aos-action`, `data-aos-actions`, context
+   groups, and marks; do not claim they already emit a Locator.
 5. Add a semantic companion layer for canvas/WebGL/Three.js controls.
 6. Route companion actions through the same command path as visible input.
 7. Verify with `./aos ready`, `./aos see --xray`, `./aos do`, screenshots, and

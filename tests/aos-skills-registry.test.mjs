@@ -58,7 +58,7 @@ test('root skill registry covers current direct skill packages', async () => {
 
 test('installable browser and saved-workspace skills preserve split contracts', async () => {
   const browser = await readFile(path.join(repoRoot, 'skills', 'aos-browser', 'SKILL.md'), 'utf8');
-  assert.match(browser, /AOS for browser work that benefits from saved refs/);
+  assert.match(browser, /AOS for browser work that benefits from current saved-workspace handles/);
   assert.match(browser, /upstream Playwright CLI skills/);
   assert.match(browser, /must not vendor/);
   assert.match(browser, /tracing,\s+video[\s\S]*tab management/);
@@ -67,7 +67,7 @@ test('installable browser and saved-workspace skills preserve split contracts', 
   const workspace = await readFile(path.join(repoRoot, 'skills', 'aos-saved-workspace', 'SKILL.md'), 'utf8');
   assert.match(workspace, /observe-act-recapture/);
   assert.match(workspace, /ref:<snapshot-id>:<ref>/);
-  assert.match(workspace, /Coordinate fallback is diagnostic/);
+  assert.match(workspace, /Coordinates selected from perception carry the originating `state_id`/);
 
   const desktop = await readFile(path.join(repoRoot, 'skills', 'aos-desktop', 'SKILL.md'), 'utf8');
   assert.match(desktop, /Playwright CLI for desktop/);

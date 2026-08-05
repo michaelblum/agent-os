@@ -352,8 +352,9 @@ simple guidance descriptors (`callout`, `highlight`, `arrow`, `label`, or
 `overlay`), one capture request (`click`, `point`, `region`, or `annotation`),
 one optional capture result, optional gate/continuation/resume-event links,
 lifecycle state, runtime-mode storage, and explicit redaction policy for prompt
-bodies, free text, and answer payloads. Prompt bodies and answer payloads are
-redacted by default.
+bodies, free text, and answer payloads. The current builder defaults prompt
+bodies and answer payloads to redaction. That convenience default is an ADR
+0040 migration gap; callers own the explicit projection policy.
 
 The toolkit owns reusable presentation policy only. `buildGuidedUserSignalShellPlan`
 turns a durable record into a render/capture plan that can draw guidance and
@@ -430,7 +431,8 @@ state-scoped `data-aos-ref`, local DOM identity in `provenance.dom_id` from
 kind, accessible label, source line range, selector, annotation eligibility,
 and reveal eligibility. Top-level `target_id` is intentionally not part of the
 HTML expression semantic target payload. Accessible labels and selectors help
-humans and reacquisition; they are not durable target identity.
+humans and may become future Locator hints; they are not durable target
+identity and do not make a stale Observation Ref reacquirable.
 
 The AOS-hosted surface lives at
 `packages/toolkit/components/html-workbench-expression/`. It receives
@@ -728,8 +730,9 @@ the Wiki KB graph is the primary pane and the Markdown Workbench content pane is
 closed until a wiki subject selection opens a page. It also accepts a small
 canonical Subject Catalog payload for non-wiki Subjects and can open a
 read-only Work Record through the existing Work Record Workbench. The shell sets
-`window.__wikiSubjectBrowserState` for inspection and exposes stable refs such
-as `wiki-subject-browser-v0:root`, `markdown-workbench:wiki-graph`,
+`window.__wikiSubjectBrowserState` for inspection and exposes surface-local
+inspection selectors such as `wiki-subject-browser-v0:root`,
+`markdown-workbench:wiki-graph`,
 `markdown-workbench:content-pane`, `markdown-workbench:content-close`, and
 `markdown-workbench:source-editor`. Catalog refs include
 `wiki-subject-browser-v0:subject-catalog`,
@@ -1198,21 +1201,26 @@ shell around the existing browser Step Descriptor prototype APIs. It uses
 `createBrowserStepDescriptorPrototype()`,
 `runBrowserStepDescriptorPrototype()`, `runOneStepStepDescriptorHarness()`, and the existing
 read-only Work Record workbench open model. It simulates exactly one saved AOS
-browser action evidence source only after an explicit workflow gate ref and
-token are provided.
+browser action evidence source. The current legacy harness requires an explicit
+workflow gate ref and token before simulation; this is ADR 0040 migration debt,
+not an AOS permission or authorization requirement.
 
 The launch script loads:
 
 - `shared/schemas/fixtures/aos-step-descriptor-v0/valid/browser-click-status.json`
 - `shared/schemas/fixtures/aos-work-record-v0/evidence/aos-browser-click-status.json`
 
-The shell sets `window.__stepDescriptorWorkbenchState` for inspection and exposes
-stable refs such as `step-descriptor-workbench-v0:root`,
+The shell sets `window.__stepDescriptorWorkbenchState` for inspection and
+exposes surface-local inspection selectors such as
+`step-descriptor-workbench-v0:root`,
 `step-descriptor-workbench-v0:gate-ref`, `step-descriptor-workbench-v0:gate-token`,
 `step-descriptor-workbench-v0:simulate`, `step-descriptor-workbench-v0:verifier-status`,
 `step-descriptor-workbench-v0:diagnostics`,
 `step-descriptor-workbench-v0:work-record-summary`, and
 `step-descriptor-workbench-v0:open-work-record`.
+These selectors are bound to the current shell document. They are neither AOS
+Observation Refs nor action-time Locators and must not be cached as durable
+target identity.
 
 V0 message contract:
 
@@ -1220,7 +1228,8 @@ V0 message contract:
   work_record_workbench_url?, work_record_canvas_id? }` and loads the fixture
   payloads into the shell.
 - `step_descriptor_workbench.workflow_gate.set` carries `{ ref, token }` and records
-  the explicit workflow gate candidate without running the harness.
+  the current legacy workflow gate candidate without running the harness. This
+  Gate coupling is a migration gap, not permission to observe or act.
 - `step_descriptor_workbench.simulate.requested` runs the existing prototype in
   `simulate` mode. Missing tokens or undeclared refs are rejected before a Work
   Record is emitted.
@@ -1359,7 +1368,9 @@ re-exports.
 report-only checker for schema-v0 records. It validates internal claim,
 postcondition, evidence, verifier-report, and health references, derives
 verifier indexes from `claim_results[]`, reports diagnostics, and never mutates
-the record. Replay and repair remain gated by explicit workflow policy fields.
+the record. The current legacy replay/repair model still carries explicit
+workflow-Gate policy fields; that is ADR 0040 migration debt, not AOS
+permission.
 The named profile entrypoint is:
 
 ```js

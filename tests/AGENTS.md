@@ -22,6 +22,9 @@ tests.
   stress in separate scenario drivers over shared lifecycle support.
 - Do not weaken assertions to match stale behavior; update the owning contract
   or source when behavior intentionally changes.
+- Policy drift guards must name the exact active source surfaces and prohibited
+  doctrine they protect. Do not globally ban mechanically valid terms such as
+  `dry-run`, `authorization`, `allowlist`, `redaction`, Gate, or Work Record.
 - Preserve cleanup for canvases, daemon state, temporary files, and live
   resources.
 - Proofs that exercise global process cleanup must fail fast while an unrelated

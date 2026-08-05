@@ -1,6 +1,6 @@
 # AOS Execution Model V0
 
-**Status:** Accepted
+**Status:** Accepted; amended by ADR 0040
 **Date:** 2026-05-27
 
 ## Decision
@@ -18,21 +18,22 @@ The V0 model is:
    `aos_command`, repo-owned `shell`, `assert`, and `cleanup`; `gate`,
    `signal`, `condition`, `loop`, and `recipe_call` are reserved until
    orchestration work needs them.
-3. **Recipe** - a bounded, reusable, dry-runnable executable procedure made of
-   blocks and discovered through `aos recipe`.
+3. **Recipe** - a bounded, reusable executable procedure made of blocks and
+   discovered through `aos recipe`; explain and dry-run are optional mechanics.
 4. **Workflow** - orchestration across recipes, agents, gates, retries,
    branches, human decisions, and evidence.
 5. **Run** - one execution instance of ad-hoc work, a recipe, a workflow, or a
    gated harness.
-6. **Work Record** - the durable receipt/proof for one run, including intent,
-   repairable execution map, claims, postconditions, evidence, verifier output,
-   and health.
+6. **Work Record** - an optional durable receipt/proof for one run, including
+   intent, repairable execution map, claims, postconditions, evidence, verifier
+   output, and health. It is not permission to execute.
 7. **Evidence / Trace** - proof material emitted by runs and referenced by Work
    Records. Evidence is active contract vocabulary. A general AOS trace schema
    is reserved until implemented; do not imply that trace capture is available
    beyond existing evidence records and local diagnostic traces.
-8. **Gate / Signal / Checkpoint** - explicit control points for uncertainty,
-   human approval, retry, branching, lifecycle state, or handoff.
+8. **Gate / Signal / Checkpoint** - explicitly invoked structured input and
+   control points for uncertainty, retry, branching, lifecycle state, or
+   handoff. A Gate does not authorize unrelated AOS actions.
 9. **Guide / Playbook** - method guidance that shapes human or agent judgment
    but does not itself execute as the primary substrate.
 
@@ -49,8 +50,9 @@ variables, and schema IDs use recipe-owned names; do not add new `ops` recipe
 implementation vocabulary.
 
 The existing gated descriptor contract is named `aos.step_descriptor`. It is a
-neutral V0 sketch for one Workflow-gated step/evidence bridge; it is not
-precedent for making Playbook the primary executable substrate.
+legacy V0 sketch for one Workflow-gated step/evidence bridge awaiting ADR 0040
+runtime migration. Gate is not AOS permission, and the sketch is not precedent
+for making Playbook the primary executable substrate.
 
 ## Packaging And Activation
 
@@ -80,7 +82,7 @@ downstream projections, not the source of truth for the execution model.
 Capture-oriented work should map onto the platform stack:
 
 ```text
-target control primitive -> capture/evidence block -> reusable capture recipe -> workflow orchestration -> run -> work record + evidence
+target control primitive -> capture/evidence block -> reusable capture recipe -> workflow orchestration -> run -> optional work record + evidence
 ```
 
 This ADR does not implement browser capture workflows, Employer Brand

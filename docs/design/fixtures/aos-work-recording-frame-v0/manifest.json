@@ -1,5 +1,6 @@
 {
   "schema": "aos.work-recording-frame.fixture-pack.v0",
+  "transition_status": "legacy_mixed_handle_and_gate_gap",
   "contract": "../../aos-work-recording-frame-contract-v0.md",
   "depends_on": [
     "../../aos-interaction-grammar-v0.md",

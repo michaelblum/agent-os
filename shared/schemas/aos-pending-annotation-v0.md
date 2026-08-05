@@ -4,8 +4,24 @@ The JSON schema is `shared/schemas/aos-pending-annotation-v0.schema.json`.
 
 Pending annotations are runtime-mode-scoped operator intent records. They are
 created when a human points at a visible target and optionally adds a comment.
-Agents read them as compact JSON, consume them exactly once, and then act from
-the saved-ref or explicit fallback evidence carried by the record.
+Agents read them as compact JSON, consume them exactly once, and use the target
+or explicit fallback evidence under the public target-handle contract.
+
+## ADR 0040 Transition Boundary
+
+`target.saved_ref` is current persisted transport evidence awaiting the target
+handle runtime migration. It is not durable target identity or a third public
+target type. A public Observation Ref is the exact `(state_id, ref)` pair and
+must reject when stale; a Locator is an explicit machine-fact query that
+re-resolves for each operation. Current saved-ref routes that accept bare refs,
+classify them as `snapshot_scoped`, `reacquirable`, or `stable`, or
+automatically reacquire them are implementation facts, not exceptions to that
+contract.
+
+The current native completion event replaces its admitted target `title` and
+`label` fields with `null`; that is an ADR 0040 fidelity gap. Entered text stays
+in the durable pending record, and local paths remain outside the bounded
+completion receipt.
 
 ## Storage
 
@@ -80,8 +96,10 @@ Each record includes:
 - `recommended_next[]` as structured argv arrays;
 - `work_record_links[]` for later action/readback evidence connection.
 
-Saved refs are preferred. A selected target may be represented by explicit
-`target.kind` and `target.summary` without manufacturing fallback evidence.
+Current saved-ref evidence is preferred over coordinate or prose fallback when
+it is available, but it remains subject to the ADR 0040 transition boundary. A
+selected target may be represented by explicit `target.kind` and
+`target.summary` without manufacturing fallback evidence.
 Coordinate, region, screenshot, or prose-only fallback context must be supplied
 as explicit `fallback_evidence[]` with an honest capability status; the
 normalizer does not invent fallback rows for missing refs.
@@ -103,15 +121,15 @@ aos see annotation delete ann-example --json
 
 The native select form persists one record before emitting
 `selection_completed`. Its public event includes the pending annotation id and
-`has_text`, but never repeats entered text. The durable record keeps text only
-in `comment.text`; `desktop_selection` contains no text or filesystem path.
+`has_text`; the durable record keeps entered text in `comment.text`.
+`desktop_selection` contains no duplicated text or filesystem path.
 Freehand paths are limited to 256 points, and native selection starts as honest
-`fallback_only` evidence until a consumer resolves a semantic saved ref through
-the separate perception contract. Target mode stores bounded `element`
+`fallback_only` evidence until separate perception returns target evidence.
+Target mode stores bounded `element`
 geometry with the AX role, nullable title and label, and at most eleven
 ordered ancestor roles. It records `target.kind: native_ax`, but remains
-non-actionable `fallback_only` evidence because selection alone does not prove
-stable reacquisition.
+non-actionable `fallback_only` evidence because selection alone establishes
+neither an action-compatible Observation Ref nor a Locator.
 
 `create --from-json <path|->` accepts create-time annotation fields and
 normalizes missing ids, lifecycle timestamps, default recommended next
@@ -125,11 +143,13 @@ calling create; toolkit runtime helpers must not manufacture this record shape.
 `create --from-capture-json <path|->` projects compact saved perception output
 from `aos see capture --save --json` or `aos see refs --json` into an
 annotation record. Browser, AOS canvas, and native AX saved refs become
-`saved_ref` annotations only when their backend-specific ref class is
-actionable: browser `snapshot_scoped`, AOS canvas `reacquirable`, and native AX
-`stable`. Backend/resolution mismatches become `fallback_only`; missing refs
-become `fallback_only`; stale captures become `stale`; unsupported refs become
-`unsupported`; multiple refs without `--ref <id>` become blocked records with
+`saved_ref` annotations only when the current backend-specific classification
+reports them actionable: browser `snapshot_scoped`, AOS canvas `reacquirable`,
+and native AX `stable`. Those legacy classifications describe current runtime
+projection; they do not define public handle types or prove durable identity.
+Backend/resolution mismatches and missing refs become `fallback_only`; stale
+captures become `stale`; unsupported refs become `unsupported`; multiple refs
+without `--ref <id>` become blocked records with
 `capability.status: ambiguous`.
 
 `link-work-record <id> --work-record <ref>` appends a durable evidence link to

@@ -30,6 +30,13 @@ apps, and tests.
   fallback, and binary identity encoding synchronized with the production Swift
   helper and deterministic fixtures.
 - Shared helpers must stay product-neutral and layer-neutral.
+- Source facts admitted by each bounded public observation contract are exposed
+  faithfully by default; facts outside that contract remain outside it.
+  Sensitivity classification, masking, redaction, persistence, and model
+  projection belong to explicit caller-owned transforms, not shared defaults.
+- Semantic target contracts distinguish state-scoped observation refs from
+  action-time re-resolving locators. Stale observation pairs and missing or
+  ambiguous locator results fail with typed mechanical errors.
 - `swift/ipc/ndjson.swift`, `request-client.swift`, and `event-stream.swift`
   bound every frame. Request reads use one monotonic absolute deadline across
   all partial reads; a peer cannot extend a call by dripping bytes without a

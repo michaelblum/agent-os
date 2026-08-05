@@ -6,6 +6,14 @@ This is the M0 baseline for issue #587. It maps the current AOS command surface
 to the "Playwright CLI, but for the desktop" product model without changing
 runtime behavior.
 
+## ADR 0040 Transition Boundary
+
+Playwright's broad “Locator” analogy does not define AOS target identity. ADR
+0040 separates an ephemeral Observation Ref `(state_id, ref)` from an
+action-time machine-fact Locator. Saved refs and current browser/canvas/native
+AX/coordinate command forms below are implementation transports or storage,
+not additional Locator types.
+
 ## Current Readback
 
 Authoritative sources for this map:
@@ -22,7 +30,7 @@ Authoritative sources for this map:
 | --- | --- |
 | Browser/session | Focus channel, app/window/display target, or browser companion channel |
 | Snapshot/screenshot | `aos see capture`, `--xray`, labels, regions, windows, and `--save` |
-| Locator | Saved ref, native AX ref, canvas ref, browser ref, or coordinate fallback |
+| Locator | ADR 0040 action-time machine query; current saved refs and browser/canvas/native AX/coordinate forms are not Locators |
 | Click/fill/type/key/hover/drag/scroll | `aos do ...` action matrix |
 | Vision mode | Region capture, coordinate fallback, labels, xray, and canvas/visual proof |
 | Capabilities | AOS capability groups in `docs/api/aos-capabilities.md` |
@@ -37,7 +45,7 @@ Authoritative sources for this map:
 | Readiness | `ready`, `status`, `doctor`, `permissions`, `service` |
 | Discovery | `graph displays`, `graph windows`, `see list`, `see cursor`, `see selection` |
 | Capture | `see capture`, `--window`, `--region`, `--canvas`, `--channel`, `--xray`, `--label`, `--save` |
-| Locator-like refs | `see snapshots`, `see refs`, `ref:<snapshot-id>:<ref>`, browser/canvas/native saved-ref classes |
+| Current saved/target handles | `see snapshots`, `see refs`, `ref:<snapshot-id>:<ref>`, and browser/canvas/native saved-ref classes awaiting the ADR 0040 split |
 | Actions | `do click/hover/drag/scroll/type/key/fill/navigate`, `do press/focus/set-value`, `do raise/move/resize` |
 | Sessions | `focus create/update/list/remove` |
 | Browser companion | `aos-browser` skill and `aos skills companion check --name playwright-cli` |

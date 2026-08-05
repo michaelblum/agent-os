@@ -1,6 +1,7 @@
 {
   "schema": "aos.target-descriptor.fixture-pack.v0",
-  "description": "Deterministic fixture pack for the AOS target descriptor V0 contract.",
+  "transition_status": "legacy_mixed_handle_gap",
+  "description": "Deterministic legacy fixture pack for the pre-ADR-0040 descriptor that mixes Observation Ref and Locator fields; not the public target-handle contract.",
   "fixtures": [
     "same-label-namespaces.json",
     "stale-ref.json",

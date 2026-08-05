@@ -71,6 +71,56 @@ policy belongs in `packages/toolkit/`, not in app code and not as
 product-specific branches inside the daemon. A consumer may use toolkit
 windowing, customize it, or bypass it for non-panel surfaces.
 
+### Ambient Authority And Raw Observation
+
+AOS executes with authority already granted by the user to the agent host and
+constrained by macOS TCC. It does not add auth tokens, action allowlists, risk
+labels, mandatory approvals, mandatory dry-run, Work Record permission, default
+core redaction, or assistant/product restrictions. Mechanical correctness still
+requires exact identity, stale/missing/ambiguous rejection, bounded resources and
+timeouts, exactly-once admission where relevant, cleanup, typed errors, and
+receipts.
+
+Facts and channels admitted by each bounded public observation contract are raw
+and fidelity-first; facts outside that contract remain outside it. Masking,
+redaction, persistence, retention, and model projection are explicit
+caller-owned transforms. Gate is an explicit neutral structured-input primitive
+and Work Records are optional evidence/history; neither authorizes unrelated
+actions. ADR 0040 owns this boundary.
+
+### Current Contract Gaps
+
+The following implementation behavior remains current but is not the target
+architecture established by ADR 0040. Fidelity gaps below name facts already
+admitted by their bounded public contracts. They do not widen typed receipts,
+lifecycle events, scene envelopes, or trusted-realm boundaries to adjacent
+inputs, media, source, product state, diagnostics, or private handles:
+
+- direct and saved-ref routes do not consistently enforce the exact
+  `(state_id, ref)` Observation Ref pair, accept bare saved-ref shorthand, and
+  may automatically reacquire rather than expose a distinct Locator;
+- Work Record repair planning/execution still carries Gate-derived
+  authorization and operation-allowlist coupling;
+- Gate persistence still redacts prompt/answer content and continuation source
+  metadata by default instead of making projection and persistence an explicit
+  caller-owned transform;
+- native annotation completion still replaces admitted target `title` and
+  `label` fields with `null` instead of preserving their selected values or
+  applying an explicit caller transform;
+- the semantic-target public decoder still drops the admitted app-local
+  `extension.action_id` fact read from singular `data-aos-action`; that fact is
+  not a primitive capability and does not populate `actions[]`;
+- the Guided User Signal record builder still defaults prompt/answer projection
+  to redaction rather than require an explicit caller choice;
+- Step Descriptor and Supervised Run schema/harness surfaces still retain
+  mandatory Workflow Gate coupling even though Gate is not permission;
+- gateway script execution is not a complete public `run-code` surface, and
+  this document does not claim that public command exists.
+
+These are explicit follow-up gaps. This contract-reset slice does not implement
+the ref/locator runtime migration, Work Record executor refactor, Gate
+persistence refactor, or public run-code productization.
+
 Examples:
 
 ```bash
@@ -318,29 +368,33 @@ button and bridged to DesktopWorld emergence/docking, and an AOS-owned rich
 status palette/popover. A separate click-through menu-bar overlay is not part
 of this contract.
 
-## Target And Handle Ladder
+## Target And Handle Contract
 
-Use the narrowest handle that preserves semantic identity:
+The two public semantic target types are:
 
-1. Saved refs are the primary model-facing handles for normal observe-act
-   loops: `ref:<snapshot-id>:<ref-id>`, with bare `ref:<ref-id>` only when the
-   workspace can resolve it unambiguously.
-2. Direct current-host refs address live browser and canvas targets:
-   `browser:<session>/<ref>` and `canvas:<canvas-id>/<ref>`.
-3. Coordinate fallback uses raw `x,y` plus `--state-id <id>` when an action was
-   chosen from a prior perception state.
-4. Native AX direct actions use selector flags such as `--pid`, `--role`, and
-   filters; there is no current public `ax:` CLI target grammar.
+1. **Observation Ref**: ephemeral `(state_id, ref)` from one perception state.
+   A stale pair rejects and never silently redirects.
+2. **Locator**: a declarative machine query re-resolved for every action. Zero
+   matches return missing; more than one returns ambiguous.
+
+Current command grammar predates that split. Snapshot-qualified saved handles
+(`ref:<snapshot-id>:<ref-id>`), direct browser/canvas strings
+(`browser:<session>/<ref>` and `canvas:<canvas-id>/<ref>`), native AX selector
+flags such as `--pid`, `--role`, and filters, and raw `x,y` plus
+`--state-id <id>` remain callable implementation forms.
+They do not create additional public target types. Bare `ref:<ref-id>` and
+automatic saved-handle reacquisition are explicit migration gaps.
+There is no current public `ax:` CLI target grammar.
 
 The [state model](./aos-capabilities.md#user-facing-state-model) distinguishes
 browser sessions, saved workspaces, focus channels, and evidence state; target
 handles can reference those surfaces, but they do not collapse them into one
 shared state slot.
 
-Pending operator annotations are durable human intent records that sit between
+Pending operator annotations are durable human input records that sit between
 perception and action. They are not target handles themselves; they carry target
-summary, optional comment, saved-ref linkage when available, fallback evidence
-when no stable ref exists, and structured next-command argv for the agent that
+summary, optional comment, saved-handle linkage when available, fallback evidence
+when no observation handle exists, and structured next-command argv for the agent that
 consumes the record.
 
 Semantic Targets are structured perception records that contain refs, bounds,
@@ -357,7 +411,6 @@ dialects.
 aos ready --json
 aos see capture browser:work --save --mode som --workspace default --name before
 aos see refs --workspace default --snapshot before --json
-aos do click ref:before:r2 --workspace default --dry-run
 aos do click ref:before:r2 --workspace default
 aos see capture browser:work --save --mode som --workspace default --name after
 aos see refs --workspace default --diff before..after --expect change --json
@@ -369,8 +422,9 @@ Typical consumer loop:
 2. Read compact snapshots with `aos see snapshots` when choosing prior saved
    state; snapshot entries include `capture_source`, `capture_target`,
    `target`, and saved `query` without opening heavy payloads.
-3. Read compact refs with `aos see refs`; use its structured
-   `recommended_next` descriptors for the scoped dry-run action.
+3. Read compact saved handles with `aos see refs`; use its structured
+   `recommended_next` descriptors when the current implementation recommends a
+   fresh resolution step.
 4. Compare saved snapshots with `aos see refs --diff <from>..<to>` when a
    compact ref-level post-action check is enough; add
    `--expect change|no-change` when a recipe or shell needs a non-zero exit on
@@ -378,8 +432,11 @@ Typical consumer loop:
    `--expect-ref <ref>=added|removed|changed|unchanged|present|missing` for
    ref postconditions. This compares compact saved-ref structure, not artifact
    pixels.
-5. Dry-run the saved-ref action and inspect `resolution_status`.
-6. Dispatch only if the ref validates or reacquires.
+5. Resolve exact current identity. Use `--dry-run` only when an optional
+   non-mutating preview is useful.
+6. Dispatch and handle typed stale, missing, ambiguous, or unsupported results.
+   Current `reacquired` output is saved-handle implementation behavior, not
+   Observation Ref semantics.
 7. Use structured `recommended_next` descriptors and
    `recommended_next_command` when a fresh saved capture is needed before
    reusing refs from the surface.
@@ -508,8 +565,12 @@ Selection evidence is initially `fallback_only` and does not manufacture a
 semantic saved ref. Target mode stores strict positive element bounds, bounded
 role/title/label facts, and at most 11 ordered ancestor roles with
 `target_kind: native_ax`; it remains `fallback_only` until a consumer resolves
-a durable saved ref. The public target completion replaces title and label with
-`null`, reports `has_text: false`, and never exposes target text or local paths.
+a current Observation Ref or constructs an action-time Locator from machine
+facts. Current saved-handle resolution remains migration plumbing, not durable
+public target identity. The public target completion currently replaces its
+admitted title and label facts with `null`; that replacement is an explicit
+ADR 0040 fidelity gap. Target mode does not accept annotation text, and local
+paths remain outside this bounded completion receipt.
 
 Compatibility boundary: archived reports, sealed fixtures, and historical
 experience manifests may still contain config-driven status-item fields. The
@@ -550,12 +611,12 @@ Capture modes are explicit:
   saved under `artifacts/`.
 - `--mode som`: screen-object mode; currently xray-backed where available.
 
-Saved refs use `ref:<snapshot-id>:<ref-id>` or bare `ref:<ref-id>`. The scoped
+The current saved-workspace implementation uses `ref:<snapshot-id>:<ref-id>` or
+bare `ref:<ref-id>`. The scoped
 form is preferred. Bare refs resolve only when unambiguous inside the workspace.
 `REF_AMBIGUOUS` returns candidate snapshot refs plus safe `aos see refs ...`
 inspection commands; `REF_NOT_FOUND` returns the relevant refs inspection
-command. These resolver failures happen before mutation and do not require user
-approval.
+command. These resolver failures are mechanical and happen before mutation.
 Saved-ref mutation follows a backend action matrix. AOS canvas `reacquirable`
 refs can route `click` and `set-value` through the current canvas resolver.
 Browser `snapshot_scoped` `click`, `fill`, `hover`, `scroll`, `drag`, `type`,
@@ -564,17 +625,19 @@ title, label, context, and enabled-state checks. Text-compatible `type` and
 `key` refs use the same current-target validation as browser `fill`.
 `current_validation.current_target` includes current
 bounds when xray provides them; bounds movement alone is tolerated when the
-saved page/frame/navigation and element identity facts still validate. Dry-run
-reports `reacquired` when that validation is sufficient for real dispatch;
-non-dry-run then routes through the underlying `browser:<session>/<ref>` action
+saved page/frame/navigation and element identity facts still validate. When
+explicitly requested, dry-run reports `reacquired` when that current
+implementation validation is sufficient for real dispatch; effectful dispatch
+independently routes through the underlying `browser:<session>/<ref>` action
 target and returns a saved-ref execution envelope with `current_validation`,
 `underlying_result`, `post_action`, structured `post_action.recommended_next`,
 and `recommended_next_command`. Missing,
 stale, ambiguous, disabled, changed, or identity-drifted current targets fail
 closed before dispatch:
 
-The examples below mix backend-specific saved-ref forms. The `press` and
-`focus` examples require stable `native_ax` refs with durable native identity
+The examples below mix backend-specific saved-handle forms. The `press` and
+`focus` examples require the current `native_ax` `stable` resolution class with
+machine identity
 facts and an actionable producer verdict; browser and AOS canvas refs fail
 closed for those actions.
 
@@ -589,10 +652,9 @@ aos do press ref:<snapshot-id>:r6 --workspace default --dry-run
 aos do focus ref:<snapshot-id>:r6 --workspace default --dry-run
 ```
 
-After a dry-run returns a safe status such as `reacquired`, `resolved`, or
-`direct_ax_ready`, dispatch by rerunning the exact saved-ref command without
-`--dry-run`; do not remove `--dry-run` for validation-required, blocked,
-unsupported, or low-confidence refs.
+Dry-run is an optional preview of current saved-handle behavior. Effectful
+dispatch performs its own validation and returns the same typed blockers for
+validation-required, blocked, unsupported, or low-confidence handles.
 
 Saved-ref browser drag requires two saved browser refs from the same snapshot
 and browser session, and validates both endpoints before any dispatch.
@@ -663,13 +725,14 @@ native known-limit fields are preserved in `identity_facts` when present:
 `space_state`, `off_space`, `window_state`, `minimized`, `control_kind`,
 `custom_control`, `surface_kind`, `canvas_surface`, `focus_state`, and
 `focus_cursor_space_baseline.focus`. Those states fail closed until a
-backend-owned validation path and approval-gated live proof can defend them.
+backend-owned validation path can establish current mechanical identity.
 Saved-ref `conformance.proof` records the backend proof story. Browser and AOS
 canvas supported refs report `deterministic_contract_tests_passed` with local
-test evidence. Stable native AX saved refs and direct AX wrapper responses
-report `live_dispatch_proven_no_foreground_not_claimed`; volatile or known-limit
-native AX refs still report `approval_gated_live_proof_not_run` with approval
-gates for the blocked live proof.
+test evidence. The current native AX `stable` saved-handle class and direct AX
+wrapper responses report `live_dispatch_proven_no_foreground_not_claimed`;
+volatile or known-limit native AX refs still report the legacy implementation
+status `approval_gated_live_proof_not_run`. These field names inventory current
+proof; they do not impose action approval under ADR 0040.
 
 Backend conformance levels are intentionally explicit:
 
@@ -677,7 +740,7 @@ Backend conformance levels are intentionally explicit:
 | --- | --- | --- | --- | --- |
 | `aos_canvas` | `reacquirable` `click` and `set-value` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-canvas-refs.sh` and `tests/agent-workspace-saved-ref.sh` |
 | `browser` | `snapshot_scoped` `click`, `fill`, `hover`, `scroll`, `drag`, `type`, and `key` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-browser-refs.sh` and `tests/agent-workspace-saved-ref.sh` |
-| `native_ax` stable saved refs | durable-identity plus producer-verdict `press`, `focus`, and `set-value` | `native_saved_ref_contract_tests_plus_approval_gates` | `live_dispatch_proven_no_foreground_not_claimed` | `tests/agent-workspace-native-refs.sh` and `tests/manual/native-ax-saved-ref-live-proof.sh` |
+| current `native_ax` `stable` saved-handle class | current durable-identity plus producer-verdict `press`, `focus`, and `set-value` implementation | `native_saved_ref_contract_tests_plus_approval_gates` | `live_dispatch_proven_no_foreground_not_claimed` | `tests/agent-workspace-native-refs.sh` and `tests/manual/native-ax-saved-ref-live-proof.sh` |
 | direct AX one-shot wrappers | `--pid` / `--role` `press`, `focus`, and `set-value` | `native_primitive_response_plus_wrapper_contract` | `live_dispatch_proven_no_foreground_not_claimed` | `tests/agent-workspace-native-refs.sh` and `tests/manual/native-ax-saved-ref-live-proof.sh` |
 | `native_ax` volatile or known-limit refs | inspection/readback only | `known_limit_contract` | `approval_gated_live_proof_not_run` | known-limit assertions in `tests/agent-workspace-native-refs.sh` plus HITL live smoke, TCC/manual runtime flow, native repo-mode artifact rebuild, explicit no-foreground/focus/cursor/Space baseline verification |
 | `coordinate_fallback` | diagnostic/fallback-only refs | `known_limit_contract` | `known_limit_refusal_tested` | refused-before-dispatch assertions in `tests/agent-workspace-browser-refs.sh` and `tests/agent-workspace-canvas-refs.sh` and `tests/agent-workspace-native-refs.sh` |
@@ -752,6 +815,12 @@ aos see workspace delete default --i-understand-local-artifacts --json
 
 `aos gate ask` presents a bounded structured decision through the gate service and writes the terminal result to stdout as JSON.
 
+Gate runs only when the caller explicitly requests structured input. Its answer
+is caller data; it does not authorize ordinary `aos see`, `aos do`, `aos show`,
+or other unrelated actions. The persistence behavior documented below is
+current implementation truth, including the ADR 0040 default-redaction gap; it
+is not the target privacy policy.
+
 ```bash
 aos gate ask "Continue?"
 aos gate ask --preset approve_deny --title "Run disruptive test?" --timeout 30
@@ -761,9 +830,9 @@ aos gate ask --json '{"prompt":{"title":"Continue?"},"ui":{"variant":"yes_no_wit
 
 The request contract is `aos.gate.request.v1`. A successful answer returns the typed response object. A human dismissal returns `{ "result": null, "status": "dismissed" }`; a deadline returns `{ "result": null, "status": "timeout" }`. Operational failures exit non-zero with a machine-readable gate error code on stderr.
 
-Every terminal outcome appends one `aos.gate.record.v1` metadata record under the active runtime state root: `~/.config/aos/{repo|installed}/gate/records.jsonl`, or `$AOS_STATE_ROOT/{repo|installed}/gate/records.jsonl` when that override is set. Records include gate id, prompt title, source metadata, receptor, field kinds, timeout, lifecycle timestamps, elapsed time, resolution/status, and operational error details when present. Prompt bodies and answer payloads are redacted by default; callers must opt in with `--store-response` or `metadata.record_response: true` to persist the answer payload.
+Every terminal outcome appends one `aos.gate.record.v1` metadata record under the active runtime state root: `~/.config/aos/{repo|installed}/gate/records.jsonl`, or `$AOS_STATE_ROOT/{repo|installed}/gate/records.jsonl` when that override is set. Records include gate id, prompt title, source metadata, receptor, field kinds, timeout, lifecycle timestamps, elapsed time, resolution/status, and operational error details when present. The current implementation redacts prompt bodies and answer payloads by default; callers must opt in with `--store-response` or `metadata.record_response: true` to persist the answer payload. This is the explicit ADR 0040 Gate-persistence gap above, not the target default.
 Gate records are runtime-root evidence state; they do not create a saved
-workspace, hold current UI state, or authorize implicit replay.
+workspace, hold current UI state, authorize an AOS action, or authorize replay.
 
 Read records without presenting a gate:
 
@@ -791,9 +860,10 @@ active runtime state root and returns immediately with
 `~/.config/aos/{repo|installed}/gate/continuations/<continuation_id>.json`, or
 `$AOS_STATE_ROOT/{repo|installed}/gate/continuations/<continuation_id>.json`
 when a state-root override is set. The record captures the gate id, prompt
-title, redacted source metadata, session id, harness/provider hint, role, cwd,
+title, currently redacted source metadata, session id, harness/provider hint, role, cwd,
 branch, HEAD SHA, dirty summary, lifecycle state, resume policy, resume
-entrypoint metadata, and `auto_resume=false`. The entrypoint is an adapter
+entrypoint metadata, and `auto_resume=false`. That source projection is the ADR
+0040 Gate-persistence gap above, not the target default. The entrypoint is an adapter
 identifier such as `codex_exec_adapter`, not an executable path; the V0 daemon
 does not invoke it directly. Prompt bodies and submitted answer payloads are
 not persisted by default.
@@ -1041,7 +1111,9 @@ aos scene replay \
 ```
 
 Replay validates monotonic sequences and complete gesture lifecycles, caps the
-fixture at 10,000 events and 128 resources, and returns a content-free summary.
+fixture at 10,000 events and 128 resources, and returns its bounded replay
+result. Input event payloads remain in the caller-owned fixture rather than
+being echoed into the result.
 
 `show remove --id <root>` is the daemon-facing cleanup primitive for a selected
 canvas lifecycle tree. Removing a root canvas removes cascade-owned child
@@ -1134,6 +1206,15 @@ envelope there.
 
 ## `aos see`
 
+Each selected `aos see` primitive is fidelity-first within its bounded public
+observation contract. It returns the exact pixels, AX/DOM facts, values, and
+metadata that contract admits, subject to upstream OS withholding and
+mechanical resource bounds. Facts and channels outside the declared contract
+remain outside it; their exclusion is not redaction. AOS does not silently
+classify or mask sensitive-looking admitted content. Callers that need masking,
+redaction, persistence, retention, or a model-safe projection must request or
+apply that transform explicitly across every relevant admitted channel.
+
 Primary public verbs:
 
 | Subcommand | Purpose |
@@ -1201,18 +1282,16 @@ surface captures traverse visible app windows that intersect the captured region
 window captures stay scoped to the captured window owner. For AOS-owned canvas
 captures, `aos see capture --canvas <id> --xray` also runs a fixed semantic
 target probe inside that canvas and returns `semantic_targets`. Those entries
-use the canonical `agent_ui_target` envelope: top-level `ref`, `state_id`,
-`surface`, `role`, `name`, `kind`, `enabled`, `target`, `state`, `actions`,
-`extension`, `provenance`, and `reacquisition`. `ref` is the state-scoped
-action handle. Durable machine identity lives in `target.target_id` scoped by
-`target.owner_namespace`; human labels, accessible text, local DOM ids, canvas
-id, parent canvas id, local geometry, metadata, and the
-`canvas:<canvas-id>/<ref>` action-routing string are presentation,
-provenance/current-address, or hint fields. They are not durable identity. The
-current V0 producer emits or consumes descriptor fields when it can derive them;
-older or partial AOS-owned surfaces may omit some fields until their producers
-migrate. The probe does not use caller-supplied JavaScript; `show eval` remains
-a developer diagnostic bridge, not the agent perception contract.
+use the current emitted fields `ref`, `surface`, `role`, `name`, `kind`,
+`enabled`, `state`, `actions`, `extension`, `provenance`, and optional
+`geometry` and `metadata`. The capture response carries `state_id` at top level;
+that id and an entry's `ref` form the public Observation Ref. Current entries do
+not emit `target`, a per-entry `state_id`, or `reacquisition`. Human labels,
+accessible text, local DOM ids, canvas ids, parent canvas ids, local geometry,
+metadata, and the `canvas:<canvas-id>/<ref>` action-routing string are
+presentation, provenance/current-address, or hint fields, not durable identity.
+The probe does not use caller-supplied JavaScript; `show eval` remains a
+developer diagnostic bridge, not the agent perception contract.
 
 See [`shared/schemas/aos-semantic-targets.md`](../../shared/schemas/aos-semantic-targets.md)
 for the response shape.
@@ -1427,12 +1506,13 @@ surface. Toolkit tests can build a report-only Work Record from structured
 evidence for:
 
 ```text
-see --save -> do ref --dry-run -> do ref -> see --save -> diff/readback -> cleanup
+see --save -> do ref -> see --save -> diff/readback -> cleanup
 ```
 
-The record preserves the selected Saved Ref, resolved underlying target,
-backend, strategy, fallback flag, State IDs, recommended next capture command,
-immutable before/dry-run/action/after/cleanup evidence, and verifier health.
+When a caller chooses to emit it, the record preserves the selected saved
+handle, resolved underlying target, backend, strategy, fallback flag, State IDs,
+recommended next capture command, optional preview evidence,
+action/after/cleanup evidence, and verifier health.
 Stale or ambiguous saved-ref validation is classified as `repairable` or
 `blocked` according to the recorded evidence; cleanup or postcondition failure
 is recorded without rewriting historical evidence. This bridge does not turn
@@ -1441,7 +1521,8 @@ repair.
 
 ## `aos work-record`
 
-`aos work-record` is the model-facing Work Record v0 command family. Most
+`aos work-record` is the optional model-facing Work Record v0 evidence/history
+command family. A Work Record never grants permission to observe or act. Most
 commands are read-only: they can discover records from canonical fixture roots
 or explicit `--root` files/directories, read a record by id or path, run the
 named report-only verifier profile, explain conservative recovery guidance, and
@@ -1465,7 +1546,10 @@ Attempt Artifact into one replacement Work Record plus one Source Supersession
 Index entry under explicit roots.
 In the state model, Work Records are durable evidence and bounded recovery
 material above primitive command output; they are not macro recordings,
-autonomous replay plans, saved workspaces, or live runtime readiness.
+autonomous replay plans, saved workspaces, live runtime readiness, or permission
+grants. The current Gate-derived authorization and operation-allowlist fields in
+repair paths are an explicit ADR 0040 implementation gap, not the ambient
+authority contract.
 
 ```bash
 aos work-record list --json
@@ -1518,34 +1602,36 @@ separately from the current verifier output.
 
 `status` returns the Work Record health verdict, failure classes, diagnostics,
 evidence refs used by the verifier, and recovery guidance for `valid`, `stale`,
-`repairable`, `blocked`, `impossible`, `superseded`, and `retired`. Guidance is
-conservative: stale and repairable records point to re-perception/re-resolution
-or a named workflow gate; blocked records name missing evidence, permission,
-runtime, cleanup, or postcondition blockers; valid records do not recommend
-redundant live proof loops; and impossible, retired, or superseded records do
-not offer replay as the next step.
+`repairable`, `blocked`, `impossible`, `superseded`, and `retired`. Current
+legacy stale/repairable guidance may point to re-perception/re-resolution and a
+Gate field; that coupling is ADR 0040 migration debt, not AOS permission.
+Blocked records name missing evidence, permission, runtime, cleanup, or
+postcondition blockers; valid records do not recommend redundant live proof
+loops; and impossible, retired, or superseded records do not offer replay.
 
 `plan-repair` consumes the same fresh report-only verifier output and emits a
 `work_record.repair_plan` envelope. It is a proposal surface only:
 `mutates_record:false`, `executes_actions:false`, and
 `automatic_replay_allowed:false`. The plan separates current report-derived
-health from embedded historical health, carries failure classes, blockers,
-diagnostics, evidence refs, required workflow gates, proposed read-only or
-approval-gated steps, descriptive candidate patches, and command descriptors
-that are not executed by the planner. Valid records get no repair plan;
-stale/repairable records require fresh perception or re-resolution before any
-future gated mutation; blocked records name the blocker; and impossible,
-superseded, or retired records avoid repair and replay.
+health from embedded historical health and carries failure classes, blockers,
+diagnostics, evidence refs, current legacy Gate fields, proposed read-only
+steps, descriptive candidate patches, and command descriptors that are not
+executed by the planner. Those Gate fields do not authorize action. Valid
+records get no repair plan; stale/repairable records require fresh perception
+or re-resolution before the current legacy mutation path; blocked records name
+the blocker; and impossible, superseded, or retired records avoid repair/replay.
 
-`gate-request` turns the current read-only Repair Plan into an
-`aos.gate.request.v1` request for one required Workflow gate. It is read-only
-and does not call `aos gate ask`, `aos gate defer`, or `aos gate submit`.
+`gate-request` turns the current legacy Repair Plan Gate field into an
+`aos.gate.request.v1` request. This is ADR 0040 migration debt, not a required
+AOS permission step. The command is read-only and does not call `aos gate ask`,
+`aos gate defer`, or `aos gate submit`.
 Generated requests include source Work Record id/path, Repair Plan
 schema/digest identity, Workflow gate id, gated step/candidate patch ids,
 current report-derived health, an `approve_deny` decision field, and metadata
-linking the request to Work Record repair planning. The request asks only for
-authorization of a future gated attempt; it does not execute repair, apply a
-candidate patch, replay actions, or mutate the source Work Record.
+linking the request to Work Record repair planning. The request records the
+current legacy Gate answer for a future attempt; it does not grant AOS
+permission, execute repair, apply a candidate patch, replay actions, or mutate
+the source Work Record.
 The command returns a provenance envelope; pass its nested `gate_request` object
 to `aos gate ask` or `aos gate defer`.
 
@@ -2083,14 +2169,19 @@ aos do click canvas:<canvas-id>/<ref> --state-id <id>
 clicks and browser saved refs reject `--dwell`; use browser click/double/right
 forms without native pointer dwell timing.
 
-Use `ref:<snapshot-id>:<ref>` for refs returned by `aos see refs` or compact
-saved capture output. `aos do <action> ref:<...> --dry-run` reports the resolved
+Use `ref:<snapshot-id>:<ref>` for current saved handles returned by `aos see
+refs` or compact saved capture output. Optional
+`aos do <action> ref:<...> --dry-run` reports the resolved
 underlying command and, for browser refs, the fresh xray current-target
 validation result. Browser `snapshot_scoped` click, fill, hover, scroll, drag,
 type, and key refs can dispatch only after page, frame, navigation, and element
 validation pass. Saved-ref grammar rejects missing, invalid, extra, or unknown
 action arguments and flags with `MISSING_ARG`, `INVALID_ARG`, `UNKNOWN_ARG`, or
 `UNKNOWN_FLAG`.
+Within these saved-handle forms, `press` and `focus` require the current
+`native_ax` `stable` resolution class. That class is current implementation
+behavior, not public target identity; direct AX wrappers instead use current
+`--pid`/role/filter matching.
 Saved browser `type` and `key` are text-compatible saved-ref actions when the
 producer exposes the action in `supported_actions`; they use the same current
 page/frame/navigation and unique enabled element validation as browser `fill`.
@@ -2126,15 +2217,15 @@ Use `canvas:<canvas-id>/<ref>` when a target was discovered in
 `aos see capture --canvas <canvas-id> --xray`. Agents should pass
 `semantic_targets[].provenance.do_target` directly when present;
 `provenance.canvas_id` and `ref` remain available for structured filtering.
-When the originating descriptor also has `state_id`, pass `--state-id <id>` so
-the actuator can detect stale state when that check is available. The CLI
+The Observation Ref contract requires the originating `state_id` with `ref`.
+Current CLI enforcement remains incomplete; pass `--state-id <id>` where the
+route accepts it so the actuator can detect stale state. The CLI
 resolves the current AOS-owned canvas semantic target through the fixed probe
 path, rejects missing, disabled, stale, ambiguous, suspended, noninteractive,
 or unsupported segmented canvases with machine-readable errors, and then
-clicks the resolved `provenance.center` in global CG coordinates. V0 preserves
-historical `state_id` as correlation metadata; the descriptor contract already
-defines stale-ref status so future producers can reject a stale state/ref pair
-without changing target vocabulary.
+clicks the resolved `provenance.center` in global CG coordinates. Routes that
+preserve `state_id` only as correlation metadata are an ADR 0040 implementation
+gap; a stale Observation Ref pair must reject after migration.
 
 Coordinate, browser-target, and canvas-ref actions accept `--state-id <id>` when
 the action was chosen from a prior `aos see capture` response. Direct one-shot
@@ -2176,11 +2267,12 @@ saved-ref durable identity contract; their
 `target_uncertainty.missing_identity_facts` still includes saved-ref-only facts
 such as `enabled`, `action_names`, `permission_state`, and
 `focus_cursor_space_baseline`, and `native_saved_ref_evidence` when the direct
-call did not prove them. Their
-`conformance.proof.status` is
-`live_dispatch_proven_no_foreground_not_claimed` for stable native saved refs
-and direct AX wrappers, while volatile or known-limit native refs still report
-`approval_gated_live_proof_not_run`.
+call did not prove them. Their `conformance.proof.status` is
+`live_dispatch_proven_no_foreground_not_claimed` for the current native
+`stable` saved-handle class and direct AX wrappers, while volatile or
+known-limit native refs still report the legacy implementation status
+`approval_gated_live_proof_not_run`. These conformance names do not authorize
+or prohibit action.
 Native `focus` and `set-value` direct responses also include
 `execution.ax_focused_after`, `execution.ax_value_after`, and
 `execution.ax_value_matches_request` when the primitive can read the resulting
@@ -2219,17 +2311,19 @@ Target-addressed responses include the action, backend, playback mode,
 `execution.strategy`, `execution.backend`, `execution.fallback_used`, the
 correlation `state_id` when supplied, resolved target details, and post-action
 semantic state when the target can be collected after execution. Stale
-state/ref pairs report a machine-readable `stale_ref` status. Descriptor-based
-reacquisition may report `reacquired` only after one current target is found
-through machine facts first; same-label matches without a unique machine
-fingerprint report `ambiguous` with candidates instead of selecting one.
+state/ref pairs report a machine-readable `stale_ref` status. Current
+descriptor-based saved-handle reacquisition may report `reacquired` only after
+one current target is found through machine facts first; same-label matches
+without a unique machine fingerprint report `ambiguous` with candidates instead
+of selecting one. Under ADR 0040 that re-resolving behavior belongs to a
+Locator, never an Observation Ref.
 
-Gesture frames and Work Recording references should carry the same descriptor
-vocabulary: the state-scoped `ref`/`state_id`, durable
-`target.target_id` scoped by `target.owner_namespace`, primitive `actions`,
-current `state`, `provenance` for the current address, and `reacquisition`
-fingerprints for repair. They should not promote labels or coordinates into
-durable target identity.
+Current gesture frames and Work Recording references can carry the
+state-scoped `ref`/`state_id`, primitive `actions`, current `state`, and
+`provenance` for the current address. After the Locator runtime migration they
+may also carry explicit `target.target_id`, `target.owner_namespace`, and
+machine-fact query material. They must not promote labels or coordinates into
+durable target identity or treat a stale Observation Ref as reacquirable.
 
 For the design split between action intents, execution results, optional
 gesture evidence, state patches, and Work Recording replay plans, see
@@ -2303,17 +2397,17 @@ daemon-shutdown cleanup with streamed speech.
 
 ## `aos shortcut`
 
-Run one explicitly authorized Apple Shortcut by exact name:
+Run one caller-selected Apple Shortcut by exact name:
 
 ```bash
 aos shortcut run 'Prepare Focus Mode' --timeout 30s --json
 ```
 
 The adapter invokes `/usr/bin/shortcuts` without a shell, bounds execution to 1
-through 120 seconds, caps combined output at 64 KiB, and returns only status,
-duration, and byte counts. It never returns Shortcut output content. AOS does
-not discover commands, interpret voice phrases, or grant product authority;
-consumer policy must authorize the exact name before invocation.
+through 120 seconds, caps combined output at 64 KiB, and returns a typed receipt
+with status, duration, and byte counts. Captured process streams remain outside
+that bounded receipt. AOS does not discover commands or interpret voice phrases;
+the caller supplies the exact Shortcut name.
 
 ## `aos voice`
 
@@ -2757,8 +2851,10 @@ Consumers:
   daemon-owned, process-lifetime direct desktop-capture capability. It requests
   screen-capture authorization on a dedicated serial worker, then performs one
   bounded in-memory ScreenCaptureKit probe and discards the image. It returns
-  only `capability`, `status`, `capture_persisted=false`, and a redacted
-  `error_code`; permission-request and probe timeouts remain distinct.
+  only `capability`, `status`, `capture_persisted=false`, and a bounded typed
+  `error_code`. The discarded setup frame and arbitrary native diagnostics
+  remain outside this status contract. Permission-request and probe timeouts
+  remain distinct.
   `permissions check` reports the same status passively but never prompts.
   Until a prime succeeds, scene desktop-frame requests fail with
   `DESKTOP_FRAME_CONSENT_REQUIRED` without invoking ScreenCaptureKit.

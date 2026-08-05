@@ -1,7 +1,23 @@
 # ADR 0031: Desktop Pixel Broker And Warm Snapshots
 
-- Status: Accepted
+- Status: Accepted; amended by ADR 0040
 - Date: 2026-07-25
+
+## ADR 0040 Transition Boundary
+
+ADR 0040 amends the AOS authority and observation semantics in this decision.
+ScreenCaptureKit and macOS TCC remain platform-owned mechanical constraints,
+and the broker's bounded serialization, identity checks, settlement, and
+cleanup remain correctness mechanics. The explicit direct-capture consent
+probe and omission or redaction of facts already admitted to bounded public
+health, diagnostic, proof, or inspection observation contracts below are
+current legacy implementation behavior and ADR 0040 migration gaps; they are
+not AOS-owned permission or privacy policy. The target contract uses ambient
+TCC authority, preserves those raw observation facts, and applies omission or
+redaction only as an explicit caller-owned transform. This amendment does not
+widen the trusted projection realm: desktop pixels, native or WebKit handles,
+private broker or stage messages, and product state remain outside bounded
+public scene and DevTools contracts.
 
 ## Context
 

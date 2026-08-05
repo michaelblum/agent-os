@@ -25,6 +25,11 @@ backend validation, and local cleanup.
 
 ## Local Contracts
 
+- The current saved-ref surface predates ADR 0040 and is migration plumbing,
+  not the public target-handle model: it mixes state-scoped Observation Ref
+  facts, backend descriptors, and fallback coordinates rather than exposing
+  either `(state_id, ref)` or an action-time Locator. Do not document saved refs
+  as durable or reacquirable authority.
 - Compact command stdout and readback must not include heavy payload fields such
   as AX/browser element arrays, semantic target arrays, annotations,
   perceptions, screenshots, or base64. Keep heavy payloads file-backed under the
@@ -34,15 +39,18 @@ backend validation, and local cleanup.
   compact stdout must preserve the exact native capture value and fail closed
   if it is missing, without observing displays or creating another capture
   path.
-- Saved refs must fail closed before mutation when confidence, backend,
-  resolution class, action compatibility, current validation, or durable native
-  identity is insufficient.
+- Current saved-ref dispatch must fail closed before mutation when confidence,
+  backend, resolution class, action compatibility, current validation, or the
+  backend's legacy identity evidence is insufficient.
 - Browser saved-ref mutation requires current page/frame/navigation and element
   validation. Canvas saved-ref mutation requires current canvas target
-  resolution. Native AX saved-ref mutation is limited to durable direct-AX facts
-  and keeps no-foreground proof approval-gated.
-- Coordinate fallback refs are diagnostic/fallback-only and must be refused
-  before dispatch.
+  resolution. Native AX saved-ref mutation is currently limited to direct-AX
+  facts. Its no-foreground proof approval requirement is legacy policy coupling
+  and an ADR 0040 migration gap, not AOS permission.
+- Current coordinate fallback refs are refused before dispatch. That is an
+  implementation limitation and ADR 0040 migration gap; coordinates with
+  sufficient action-time context are Locator geometry, not diagnostic-only by
+  policy.
 - Workspace state is local control state, not Work Recording evidence storage.
   Preserve runtime-mode isolation and explicit cleanup acknowledgements.
 - Workspace mutation locks must fail closed for live owners, reap dead-owner

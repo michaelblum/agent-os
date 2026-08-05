@@ -9,6 +9,20 @@ on stdout.
 
 The JSON schema is `shared/schemas/aos-agent-workspace-v0.schema.json`.
 
+## ADR 0040 Transition Boundary
+
+This document also records current implementation behavior that has not yet
+migrated to ADR 0040. A saved ref is workspace storage/dispatch plumbing, not a
+third public target type, durable target handle, or permission grant. The public
+types are an ephemeral Observation Ref `(state_id, ref)` and an action-time
+re-resolving Locator.
+
+The current bare `ref:<ref-id>` shorthand, automatic `reacquired` path,
+`stable`/`reacquirable` resolution-class labels, approval-gate conformance
+fields, and dry-run-to-dispatch sequence below remain accurate implementation
+inventory. They do not establish current architecture policy. Runtime and schema
+migration is intentionally deferred from this contract-reset slice.
+
 ## Storage
 
 Saved data lives under:
@@ -171,8 +185,8 @@ Text-compatible `type` and `key` refs use the same current-target validation as
 browser `fill`. Current-target `bounds` are
 returned in the validation payload as evidence; bounds movement alone is
 tolerated when the saved page/frame/navigation and element identity facts still
-validate. Dry-run reports `reacquired` when that validation is sufficient for
-real dispatch. AOS canvas `reacquirable` click and set-value refs may route
+validate. When explicitly requested, dry-run reports `reacquired` when that
+validation is sufficient for real dispatch. AOS canvas `reacquirable` click and set-value refs may route
 through the current canvas resolver. Native AX
 `volatile` refs are inspection-only and explicitly report that no saved-action
 no-foreground guarantee is made.
@@ -180,8 +194,9 @@ no-foreground guarantee is made.
 `conformance` is the structured proof and safety summary for a saved ref. It
 records `actionability`, `mutation`, `validation`, `proof_level`, a
 `proof` object, a `no_foreground` object, and `target_uncertainty`. The
-`proof` object records `level`, `status`, deterministic test `evidence`, and
-approval-only `approval_gates`. Browser and AOS canvas supported refs report
+`proof` object records `level`, `status`, deterministic test `evidence`, and the
+current legacy `approval_gates` implementation field. That field inventories
+proof prerequisites and is not action authorization. Browser and AOS canvas supported refs report
 `deterministic_contract_tests_passed`; native AX refs report
 `approval_gated_live_proof_not_run` with gates such as HITL live smoke,
 TCC/manual runtime flow, native repo-mode artifact rebuild, and explicit
@@ -222,7 +237,7 @@ marks it actionable with complete known-limit facts.
 | --- | --- | --- | --- | --- |
 | `aos_canvas` | `reacquirable` `click` and `set-value` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-canvas-refs.sh` and `tests/agent-workspace-saved-ref.sh` |
 | `browser` | `snapshot_scoped` `click`, `fill`, `hover`, `scroll`, `drag`, `type`, and `key` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-browser-refs.sh` and `tests/agent-workspace-saved-ref.sh` |
-| `native_ax` stable saved refs | durable-identity plus producer-verdict `press`, `focus`, and `set-value` | `native_saved_ref_contract_tests_plus_approval_gates` | `live_dispatch_proven_no_foreground_not_claimed` | `tests/agent-workspace-native-refs.sh` and `tests/manual/native-ax-saved-ref-live-proof.sh` |
+| current `native_ax` `stable` saved-handle class | current durable-identity plus producer-verdict `press`, `focus`, and `set-value` implementation | `native_saved_ref_contract_tests_plus_approval_gates` | `live_dispatch_proven_no_foreground_not_claimed` | `tests/agent-workspace-native-refs.sh` and `tests/manual/native-ax-saved-ref-live-proof.sh` |
 | direct AX one-shot wrappers | `--pid` / `--role` `press`, `focus`, and `set-value` | `native_primitive_response_plus_wrapper_contract` | `live_dispatch_proven_no_foreground_not_claimed` | `tests/agent-workspace-native-refs.sh` and `tests/manual/native-ax-saved-ref-live-proof.sh` |
 | `native_ax` volatile or known-limit refs | inspection/readback only | `known_limit_contract` | `approval_gated_live_proof_not_run` | known-limit assertions in `tests/agent-workspace-native-refs.sh` plus HITL live smoke, TCC/manual runtime flow, native repo-mode artifact rebuild, explicit no-foreground/focus/cursor/Space baseline verification |
 | `coordinate_fallback` | diagnostic/fallback-only refs | `known_limit_contract` | `known_limit_refusal_tested` | refused-before-dispatch assertions in `tests/agent-workspace-browser-refs.sh` and `tests/agent-workspace-canvas-refs.sh` and `tests/agent-workspace-native-refs.sh` |
@@ -237,11 +252,11 @@ verification step. `resolved_action.saved_state_id` preserves saved provenance
 from the original ref, while `resolved_action.validation_state_id` names the
 fresh validation capture when reacquisition runs. Browser saved-ref dispatch
 passes the validation state to the underlying browser action after reacquiring
-the target instead of reusing stale saved provenance as current state. After a
-dry-run returns a safe status such as `reacquired`, `resolved`, or
-`direct_ax_ready`, dispatch by rerunning the exact saved-ref command without
-`--dry-run`; do not remove `--dry-run` for validation-required, blocked,
-unsupported, or low-confidence refs. Refresh
+the target instead of reusing stale saved provenance as current state. Dry-run
+is an optional preview of statuses such as `reacquired`, `resolved`, or
+`direct_ax_ready`. Effectful dispatch performs its own validation and returns
+the same typed blockers for validation-required, blocked, unsupported, or
+low-confidence handles. Refresh
 recommendations point back to the originating capture source and mode:
 
 ```bash
@@ -285,7 +300,7 @@ known-limit signals are preserved as `identity_facts` such as `space_state`,
 `off_space`, `window_state`, `minimized`, `control_kind`, `custom_control`,
 `surface_kind`, `canvas_surface`, `focus_state`, and
 `focus_cursor_space_baseline.focus`; they block saved-ref mutation until a
-backend-owned validation path and approval-gated live proof can defend them.
+backend-owned validation path can establish current mechanical identity.
 Stable native refs report `live_dispatch_proven_no_foreground_not_claimed` for
 live dispatch proof, while still reporting `not_claimed` no-foreground safety.
 Volatile and known-limit native refs remain `approval_gated_live_proof_not_run`.
@@ -318,9 +333,10 @@ mutation must warn or refuse before dispatching any coordinate-backed action.
 
 ## Saved-Ref Action Grammar Matrix
 
-The `press` and `focus` examples require stable `native_ax` refs with durable
-native identity facts and an actionable producer verdict; browser and AOS canvas
-refs fail closed for those actions.
+The `press` and `focus` examples require the current `native_ax` `stable`
+resolution class, durable native identity facts, and an actionable producer
+verdict; browser and AOS canvas refs fail closed for those actions. This is
+current implementation behavior, not a third public target type.
 
 | action | command form | backend(s) | resolution classes | required args | dry-run | mutation risk | validation / reacquisition | statuses | post-action evidence | known limits |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

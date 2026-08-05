@@ -148,15 +148,17 @@ per-display intersection. Full-stage effects remain explicit temporary
 workloads and return to bounded damage after disposal.
 
 `DESKTOP_WORLD_PERFORMANCE_ACCEPTANCE_THRESHOLDS` and
-`evaluateDesktopWorldPerformanceAcceptance()` provide the content-free engine
-acceptance contract. Historical product renderers are appearance references,
-not performance baselines.
+`evaluateDesktopWorldPerformanceAcceptance()` provide the bounded engine-count
+acceptance contract. Product appearance, arbitrary renderer content, and
+undeclared metrics remain outside it. Historical product renderers are
+appearance references, not performance baselines.
 
 ## Inspection And Cleanup
 
 `host.inspect()` returns `aos.scene.inspection.v1`: identities, implementation
-health, binding IDs, lifecycle metrics, and metadata keys without parameter or
-metadata content. Projection callback failures become redacted counters.
+health, binding IDs, lifecycle metrics, metadata keys, and bounded callback
+failure counters. Parameter values, metadata content, and arbitrary callback
+errors remain outside that typed inspection contract.
 
 Only resources reachable from an owned scene and explicitly supplied
 disposables are released. Do not hand a lifecycle shared textures, materials,

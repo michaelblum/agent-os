@@ -21,8 +21,9 @@ destination with an exclusive atomic directory creation, copies only validated
 payload bytes, and publishes `cartridge.json` last as the activation barrier.
 Readers must treat a destination without that manifest as inactive. Existing
 paths are never overwritten. Scaffolding never installs, mounts, authorizes, or
-executes the result. Output contains relative filenames, byte counts, and
-digests rather than local paths or source text.
+executes the result. Its bounded result contains relative filenames, byte
+counts, and digests. Caller input paths and generated source remain in their
+owning request and created files rather than being echoed into the result.
 
 ## Cartridge Layout
 
@@ -260,9 +261,9 @@ used for new authoring.
 
 Cartridges may supply bounded item labels for native accessibility and exact
 semantic inspection. AOS validates those labels when it creates native hit
-regions, but redacts them from scene and gesture events. Commands and action
-semantics stay in the consumer. Events never carry product text, audio, prompts,
-or scene document content.
+regions. Labels remain outside the bounded product-neutral gesture envelope,
+as do product text, audio, prompts, scene documents, commands, and action
+semantics; those facts stay in their owning consumer or inspection contract.
 
 Candidate region generations remain inactive until every new region is ready
 and every old region can retire. Input stays on the prior generation until the

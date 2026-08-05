@@ -1,5 +1,12 @@
 # AOS Shared Gesture Spine V0
 
+## ADR 0040 Transition Boundary
+
+The current gesture-frame fixture embeds the legacy mixed target descriptor so
+runtime migration can replace it deliberately. That embedded shape is not
+public target-handle authority: ADR 0040 defines Observation Ref `(state_id,
+ref)` separately from an action-time Locator.
+
 ## Purpose
 
 This proof starts the shared pointer/gesture interaction spine for drag-like
@@ -39,11 +46,11 @@ Each frame carries:
 - `origin`, `previous`, `current`, `delta`, and `total_delta` points.
 - `constraints`, `bounds`, and `axis` metadata when the adapter knows them.
 - `semantic_target` and `semantic_action` for the AOS target descriptor and
-  primitive action, such as a slider `set-value` drag. The descriptor carries
-  state-scoped `ref`/`state_id`, durable `target.target_id` scoped by
-  `target.owner_namespace`, current `state`, provenance/current address, and
-  reacquisition hints. Human-facing labels and coordinates may be recorded as
-  hints or observations, but not as target identity.
+  primitive action, such as a slider `set-value` drag. The current legacy
+  fixture combines state-scoped `ref`/`state_id`, `target.target_id`,
+  `target.owner_namespace`, state, provenance, and reacquisition material.
+  Human-facing labels and coordinates remain hints; the mixed descriptor is
+  migration evidence, not a durable Observation Ref.
 - `timing`: timestamp `t` and `frame_index`.
 - `raw_event_type`: the source event type used to create the frame.
 

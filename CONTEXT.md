@@ -7,6 +7,14 @@ implementers.
 
 ## Language
 
+**Ambient Authority**:
+The user grants authority to the agent host, macOS TCC constrains the process,
+and AOS faithfully observes or acts. AOS adds no independent authorization,
+approval, risk, or default privacy policy. Exact identity, stale/ambiguous
+rejection, bounds, cleanup, typed errors, and receipts are mechanical
+correctness, not permission decisions. Defined by ADR 0040.
+_Avoid_: AOS permission token, action approval layer, Work Record authorization.
+
 **Subject**:
 A coherent thing in the system that can be perceived, edited, or verified — an app, a wiki entry, a 3D object, a work record. The unit of identity in AOS.
 _Avoid_: object (overloaded), entity, item.
@@ -32,13 +40,13 @@ An ordered list of Subject Entry Handles describing how a user reached the curre
 _Avoid_: subject chain, breadcrumb (those imply a flat hierarchy; trails can branch and collapse).
 
 **Work Record**:
-The canonical layered artifact for one run of work. Carries an **intent spine** (durable narrative of what the run was for), an **execution map** (structured but repairable: refs, locators, waits, assertions, action hints, artifact routes, replay hints), **evidence** (immutable see/do/see frames, artifacts, traces), and **health** (the verifier's verdict). A Work Record is itself a Subject; the verifier health is its health Layer.
+An optional durable layered evidence/history artifact for one run of work. Carries an **intent spine** (durable narrative of what the run was for), an **execution map** (structured but repairable: refs, locators, waits, assertions, action hints, artifact routes, replay hints), **evidence** (immutable see/do/see frames, artifacts, traces), and **health** (the verifier's verdict). A Work Record is itself a Subject; the verifier health is its health Layer. It never grants permission to observe or act.
 Current v0 schema sketch: `shared/schemas/aos-work-record-v0.md`.
 _Avoid_: log, audit entry, transcript, trace (those are Evidence-Layer terms; a Work Record is the larger composite).
 
 **AOS Execution Model**:
 The canonical execution taxonomy for AOS: Primitive -> Block -> Recipe ->
-Workflow -> Run -> Work Record + Evidence, with Gates, Signals, Checkpoints,
+Workflow -> Run -> optional Work Record + Evidence, with Gates, Signals, Checkpoints,
 Guides, and Playbooks as control/guidance concepts around that stack. Defined
 by ADR-0013.
 _Avoid_: recipe ladder (allowed only as shorthand), execution ladder as the
@@ -57,17 +65,19 @@ repo-owned `shell`, `assert`, and `cleanup`; `gate`, `signal`, `condition`,
 _Avoid_: molecule, opaque script fragment.
 
 **Recipe**:
-A bounded, reusable, dry-runnable executable procedure made of Blocks and
+A bounded, reusable executable procedure made of Blocks and
 discovered through `aos recipe`. Scope: one bounded procedure with explicit
-inputs, outputs, resources, and cleanup behavior where relevant. The historical
+inputs, outputs, resources, and cleanup behavior where relevant. Explain and
+dry-run are optional mechanics, not prerequisites for run. The historical
 `aos ops` command surface is retired. Markdown procedures under
 `docs/guides/` are Guides/SOPs, not executable Recipes.
 _Avoid_: documentation-only recipe, tutorial, molecule.
 
 **Playbook**:
 Method guidance that shapes human or agent judgment but does not itself execute
-as the primary substrate. The current `aos.step_descriptor` V0 schema is a
-neutral Workflow-gated descriptor sketch; it does not make Playbook the general
+as the primary substrate. The current `aos.step_descriptor` V0 schema retains a
+legacy Workflow-Gate-coupled descriptor sketch awaiting ADR 0040 migration;
+Gate is not AOS permission, and the sketch does not make Playbook the general
 workflow engine or evidence log.
 _Avoid_: macro, script, executable recipe, workflow engine.
 
@@ -99,10 +109,10 @@ schema or runtime feature explicitly says it emits traces.
 _Avoid_: using trace as a synonym for every Work Record or evidence bundle.
 
 **Gate / Signal / Checkpoint**:
-Explicit control points for uncertainty, human approval, retry, branching,
-lifecycle state, or handoff. Gates usually require a human or policy decision;
-Signals communicate state or intent; Checkpoints preserve progress and
-resumability.
+Explicit structured-input or control points for uncertainty, retry, branching,
+lifecycle state, or handoff. A Gate is invoked only when a caller wants that
+input; it does not authorize unrelated AOS actions. Signals communicate state
+or intent; Checkpoints preserve progress and resumability.
 _Avoid_: hidden retry, implicit approval, bare status.
 
 **Guide**:
@@ -176,30 +186,49 @@ strings: coordinate actions use raw `x,y` plus optional `--state-id`, and AX
 actions are selected through flags such as `--pid` and `--role`.
 _Avoid_: address (too generic), URL.
 
+**Observation Ref**:
+The ephemeral public handle `(state_id, ref)` produced by one perception state.
+The pair addresses only that observed target in that state; a stale or mismatched
+pair rejects with a typed stale error and is never silently reacquired.
+_Avoid_: durable ref, saved locator, permanent object id.
+
 **Ref**:
-A stable, semantic identifier of an element inside a Target's scope, when that dialect supports refs. In browser/canvas DOMs, materialized as `data-aos-ref`; in AX model terms, materialized as the AX path. Refs are dialect-specific — screen coordinate actions do not have Refs, so coordinates are correlated with a `state_id` for staleness/provenance.
-_Avoid_: id, selector, locator (those are implementation strategies; a Ref is the durable name).
+The dialect-specific `ref` component of an Observation Ref. In browser/canvas
+DOMs it may be materialized as `data-aos-ref`; AX producers may derive it from
+observed AX facts. A bare ref is not a complete public target handle.
+_Avoid_: durable name, locator, selector.
+
+**Locator**:
+A declarative machine query that re-resolves against current state for every
+operation. It must resolve to exactly one action-compatible target; zero matches
+return a typed missing result and multiple matches return a typed ambiguous
+result. Labels and geometry may be hints but are not identity by themselves.
+_Avoid_: saved ref, observation ref, automatic stale-ref reacquisition.
 
 **Target-with-Ref**:
 A complete address for one semantic element inside a Target's scope:
 `<dialect>:<scope-id>/<ref>`. This is the live wire form for browser and
 canvas targets and the target-model shape for other ref-addressed resolvers as
-they converge.
+they converge. It is a current transport string, not a complete Observation Ref
+without its `state_id`, and it is not a Locator unless the command contract
+explicitly defines action-time query resolution.
 _Avoid_: full target (ambiguous), qualified ref.
 
 **Saved Ref**:
-The primary model-facing handle for a persisted perception ref in an agent
+The current implementation's persisted perception handle in an agent
 workspace: `ref:<snapshot-id>:<ref-id>`. Saved Refs are produced by
-`aos see capture --save` and read back with `aos see refs`; use them for normal
-observe-act loops. A Saved Ref names a workspace snapshot record, including
+`aos see capture --save` and read back with `aos see refs`. A Saved Ref names a
+workspace snapshot record, including
 backend, conformance, supported action matrix, and original ref data, and must
 revalidate or reacquire the current target before mutation. It is not a live
-Target-with-Ref: saved browser refs may dispatch through a current
+Observation Ref or Locator: saved browser refs may dispatch through a current
 `browser:<session>/<ref>` target after validation, canvas refs may resolve
-through current canvas semantic refs, stable native AX refs may bridge to
+through current canvas semantic refs, and the current native AX `stable`
+resolution class may bridge to
 direct AX flags, and unsupported or volatile refs fail closed. Bare
-`ref:<ref-id>` is permitted only when unambiguous inside the workspace.
-_Avoid_: saved target, locator, permanent object id, direct target.
+`ref:<ref-id>` acceptance and automatic reacquisition are implementation gaps
+under ADR 0040, not the public target contract.
+_Avoid_: saved target, locator, observation ref, permanent object id.
 
 **Semantic Target**:
 A discovered candidate emitted by perception, typically from `aos see ... --xray`. A structured record carrying ref, name, role, bounds, state, AOS ownership metadata, etc. Not a new address grammar — Semantic Targets *contain* Refs and report what's resolvable inside a Target.
@@ -230,7 +259,12 @@ A Facet that requires Canvas Hosting because it depends on privileged runtime be
 _Avoid_: native (overloaded with macOS-native), canvas-only (correct in effect but loses the "requires runtime privilege" rationale).
 
 **State ID**:
-An opaque perception identifier minted by `aos see capture` that names the state the agent acted from. Guards the *premise* of an action: "I chose this based on this observed state." For **coordinate actions** it is supplied in the live CLI as `--state-id <id>` alongside the raw `x,y` coordinate, because coordinates have no semantic identity without a referenced perception. For **Ref-based actions** it is correlation/provenance metadata — Refs can be re-resolved against the current scope, so a stale State ID does not invalidate a Ref. Today AOS echoes and correlates State IDs but does not reject stale coordinate actions; future enforcement is scoped to coordinate fallbacks only.
+An opaque perception identifier minted by `aos see capture` that names one
+observed state. Paired with `ref`, it forms an Observation Ref; a stale pair must
+reject. Locators re-resolve current state and do not use an old State ID as
+authority. Coordinate actions chosen from perception also carry the State ID.
+Current CLI routes do not consistently enforce these rules; that is an explicit
+ADR 0040 implementation gap.
 _Avoid_: state, version, snapshot id (those are storage-layer terms), perception id (technically equivalent but State ID is the wire term).
 
 **Subject Reference**:
@@ -281,15 +315,22 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
 - Within a Work Record: the **intent spine** is durable, the **execution map** is repairable, **evidence** is immutable, **Verifier Health** can be re-evaluated.
 - **Claims** belong to the intent spine; **Postconditions** belong to the execution map. A Claim references zero or more Postconditions; a Postcondition can exist as a step-local gate without being referenced by any Claim.
 - The verifier produces one **Claim Result** per Claim by evaluating the Claim's referenced Postconditions against captured Evidence; aggregated Claim Results determine the run's **Verifier Health**.
-- A **Target-with-Ref** is the live direct model unit of address for ref-addressed `aos see`/direct `aos do`/`aos show` operations. Live CLI forms currently expose it for browser and canvas targets. An **Anchor** is one role a Target-with-Ref can play (placement reference for `show`); on resolution it becomes an **Anchor Binding** in the display subsystem.
-- A **Saved Ref** (`ref:<snapshot-id>:<ref-id>`) is the preferred model-facing handle for saved perception workspaces and normal `see --save` -> `do` loops. Saved Refs are separate from direct Target-with-Ref address grammar: they carry snapshot/workspace/conformance/action-matrix data and must revalidate, reacquire, or fail closed before dispatching through browser, canvas, or native bridge actions.
-- Refs are dialect-specific: `browser` and `canvas` live CLI targets carry Refs, and AX model targets identify elements by AX path/filters. Screen coordinate actions carry raw coordinates plus `--state-id` instead.
+- A **Target-with-Ref** is a current browser/canvas transport string. The public
+  observed handle is the **Observation Ref** pair `(state_id, ref)`; the public
+  re-resolving handle is a **Locator**. An **Anchor** is one role a target can
+  play; on resolution it becomes an **Anchor Binding** in the display subsystem.
+- A **Saved Ref** (`ref:<snapshot-id>:<ref-id>`) is current workspace storage and
+  dispatch plumbing, not a third public target type. Its automatic revalidation,
+  reacquisition, and bare-ref shorthand remain explicit implementation gaps.
+- Refs are dialect-specific components of Observation Refs. Locators carry
+  declarative machine queries. Screen coordinate actions carry raw coordinates
+  plus the originating `--state-id` when selected from perception.
 - A **Subject** is host-neutral. A **Facet** declares one or more **Hosts** it supports; opening a Facet means picking one of its Hosts and addressing the resulting render through that Host's Target dialect.
 - **Browser-First** is a posture for wiki/editor/artifact Facets; **AOS-Native** is a *requirement* for Facets that depend on AOS runtime privileges. Most Facets fall in between and can declare multiple Hosts.
-- A **State ID** is required-for-correctness on coordinate actions and is passed
-  in the current CLI as `--state-id <id>` next to raw `x,y`; it is
-  recommended-for-provenance on Ref-based actions. Dry-run preserves and echoes
-  the supplied State ID without minting a new perception.
+- A **State ID** plus `ref` is required-for-correctness for an Observation Ref;
+  a stale pair rejects. It also scopes coordinates selected from perception.
+  Dry-run, when explicitly chosen, preserves the supplied State ID without
+  minting a new perception. Current route enforcement is incomplete.
 - `subject_type` names the **kind** of a Subject (`wiki.entity`, `service.runtime`, `artifact.bundle`, etc.) and is stable per Subject. Cross-Subject relationships use **Subject References**, not by switching `subject_type` based on context.
 - A **Subject Reference** carries a Subject Entry Handle (or Facet path) plus optional metadata (relationship type, role); a **Subject Entry Handle** is the resolver address. They are different layers — references express *relationships*; handles express *navigation*.
 - A **Subject Browser** consumes Subject Entry Handles, renders Navigation Trails, and follows Subject References. It is hosted via a normal **Host** (Browser or Canvas). The wiki, Canvas Inspector (when navigating runtime Subjects), and any future Work Record browser are all instances of this surface kind.
@@ -320,12 +361,15 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
   `shared/schemas/aos-work-record-v0.md`; representative Work Record helpers
   now preserve v0 origin/reference data in descriptor projections.
 - AOS Execution Model: **resolved (ADR-0013)**: the formal taxonomy is
-  Primitive -> Block -> Recipe -> Workflow -> Run -> Work Record + Evidence,
-  with Gates, Signals, Checkpoints, Guides, and Playbooks around that stack.
+  Primitive -> Block -> Recipe -> Workflow -> Run -> optional Work Record +
+  Evidence, with Gates, Signals, Checkpoints, Guides, and Playbooks around that
+  stack.
   `Recipe` means executable source-backed procedure; `docs/guides/` is the
   home for Markdown Guides/SOPs.
-- Phase 6 of `aos-grand-unification-plan.md` now treats browser runs as
-  Workflow-gated step evidence rather than Playbook-authored execution.
+- Phase 6 of `aos-grand-unification-plan.md` records the current legacy browser
+  harness as Workflow-gated step evidence rather than Playbook-authored
+  execution. This Gate coupling awaits ADR 0040 migration and is not AOS
+  permission.
   Emitting a Work Record and running the report-only verifier are harness
   obligations around the run, not primitive step actions. Current
   `aos.step_descriptor` descriptors end at the single action + postcondition.
@@ -345,5 +389,5 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
   AOS/domain orchestration Subjects, not persona/session isolation. Do not add
   compatibility files that couple role/persona docks into a separate
   orchestration layer.
-- `stale` — resolved direction: `stale` is a qualified freshness failure, not one global verdict. The field path or namespace owns the recovery path: Patch Result `stale` means refresh Subject/Facet state and submit a new patch; Verifier Health `stale` means the Work Record no longer proves current truth; projection `stale` means re-resolve or re-render the addressed view; State ID freshness is not a first-class enum today, and the active diagnostic remains `state_id_inconsistency`. Bare `stale` in logs, UI, or dashboards is under-namespaced.
+- `stale` — resolved direction: `stale` is a qualified freshness failure, not one global verdict. The field path or namespace owns the recovery path: Patch Result `stale` means refresh Subject/Facet state and submit a new patch; Verifier Health `stale` means the Work Record no longer proves current truth; an Observation Ref stale error means the `(state_id, ref)` pair is no longer current; Locator `missing` or `ambiguous` is a separate action-time resolution result. Current routes have not completed this migration. Bare `stale` in logs, UI, or dashboards is under-namespaced.
 - `validation-result` in patch prose — resolved: validation detail is diagnostic information attached to a `rejected` Patch Result or returned by a separate preflight/validate operation. It is not a terminal Patch Result status, and revised input is a new patch attempt.

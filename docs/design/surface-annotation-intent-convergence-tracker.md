@@ -5,6 +5,11 @@ GitHub tracker: https://github.com/michaelblum/agent-os/issues/294
 Display-first Annotation Mode contract is owned by the neutral toolkit
 annotation-session and overlay APIs documented under `docs/api/toolkit/`.
 
+ADR 0040 boundary: this is an optional caller-selected convergence workflow.
+Approval or Gate input may be useful within that workflow, but it is not AOS
+permission and is not a prerequisite for ordinary live capture or side effects
+already authorized by the user and macOS TCC.
+
 The Employer Brand pilot has exposed a missing platform layer: direct
 human-in-the-loop intent convergence on a live surface. The current evidence
 workflow has strong artifact/control-plane contracts, but the human input loop
@@ -29,7 +34,7 @@ not the abstraction owner.
    surface.
 4. User annotations become structured next-message or event data.
 5. Agent converts the structured intent into a plan, patch, or execution gate.
-6. Agent updates the overlay and repeats until approval.
+6. Agent updates the overlay until the caller's requested convergence condition.
 
 ## Candidate Primitive Blocks
 
@@ -41,7 +46,7 @@ not the abstraction owner.
 | Human annotation layer | Capture user selection, rejection, correction, free-text notes, and approval gestures. |
 | Intent convergence record | Preserve the dialogue between proposals and user corrections as structured evidence. |
 | Patch emission | Convert approved converged intent into a domain patch, plan, or readiness artifact. |
-| Execution gate | Require explicit approval before any destructive, live-capture, or external side-effect step. |
+| Optional execution Gate | Collect explicit caller input when this convergence workflow requests it; never treat Gate as AOS permission. |
 
 ## Relationship To Existing AOS Work
 
@@ -132,8 +137,9 @@ or opening target company URLs.
 - How does the convergence record preserve both the agent proposal and the
   human override?
 - Which fields are neutral and which belong to domain patch emitters?
-- How does the execution gate prevent accidental live capture, crawling,
-  external writes, or bypass work?
+- When a caller selects an execution Gate, what structured input should it
+  collect without becoming permission for live capture, external writes, or
+  other AOS actions?
 
 ## Non-Goals
 

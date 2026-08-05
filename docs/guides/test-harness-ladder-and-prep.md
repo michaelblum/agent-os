@@ -114,9 +114,10 @@ Record verification. A fixed sleep is a temporary low-level harness escape hatch
 only when the condition is not yet observable through AOS; keep it inside a
 named helper or guarded scenario, bound it tightly, and treat promotion to an
 AOS-observed predicate as the cleanup target. If a test needs to prove behavior
-after an action, use the canonical observe-act loop: capture/save refs, dry-run
-the action when supported, act once, recapture, and verify with refs diff/expect
-or a Work Record verifier.
+after an action, use the canonical observe-act loop: capture/save refs,
+optionally dry-run when a non-mutating preview is useful, act once, recapture,
+and verify with refs diff/expect or, when durable evidence is useful, a Work
+Record verifier.
 
 ## Reporting Hooks
 

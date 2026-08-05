@@ -47,6 +47,15 @@ stage internals.
 
 ## Local Contracts
 
+- **ADR 0040 transition boundary:** runtime migration must preserve the raw
+  facts already admitted to a public observation contract by default or require
+  an explicit caller-owned transform. Bounded scene events, engine facts, and
+  proof aggregates are complete for their declared contracts; they are not
+  omissions merely because adjacent private or product data exists. This does
+  not widen the parent trust boundary:
+  arbitrary extension snapshots, product state, source, audio, text, native
+  handles, or desktop pixels remain outside bounded public scene and DevTools
+  contracts, and desktop pixels remain private to the trusted projection realm.
 - Export named, dependency-injected primitives only. Do not bundle Three.js or
   expose private toolkit indexes through this facade.
 - Keep `index.js`, `index.d.ts`, focused `authoring`, `runtime`, `extensions`,
@@ -132,8 +141,9 @@ stage internals.
 - Tap-open radial menus are AOS-owned transient leases. Their item hit regions,
   pointer-move focus/blur lifecycle, press/select lifecycle, Escape
   cancellation, suspension, topology cleanup, and stock rendering stay in the
-  stage. Cartridges provide bounded item IDs, semantic labels, and visual data;
-  labels identify native hit regions but remain absent from scene events.
+  stage. Cartridges provide bounded item IDs, semantic labels, and visual data.
+  Labels support native accessibility and semantic inspection but remain
+  outside the bounded product-neutral gesture event.
   Product commands and product-specific hover art remain in the consumer.
 - Interaction visuals are deterministic models advanced by the existing host
   clock. They must not create a renderer, frame loop, unbounded history, or
@@ -153,20 +163,22 @@ stage internals.
   any member of that identity changes. Topology receipt closes sample readiness
   before queued renderer reconfiguration; no frame or refresh snapshot is
   accepted until the complete segment work has settled for the new identity.
-- Native-effect DevTools facts are content-free lifecycle state and bounded
-  counters only. Presentation means every display segment reported an actual
+- Native-effect DevTools exposes the bounded lifecycle state, counters, and
+  engine facts declared by its public snapshot contract.
+  Presentation means every display segment reported an actual
   Metal drawable presentation; attempts to present are not counted as visible
-  output. Parameters, coordinates, pixels, native handles, and product state
-  remain outside the snapshot.
+  output. Pixels, native handles, and product state remain outside this bounded
+  public observation contract under the parent trust boundary.
 - Native-effect program identity uses the public
   `aos.scene.native-effect-program-digest.v1` canonical binary contract in both
   toolkit JavaScript and daemon Swift. Consumers call the toolkit digest helper;
   they do not hash implementation-specific JSON serialization.
-- Trusted extensions may expose only the exact synchronous
+- Trusted extensions currently expose the exact synchronous
   `inspectInteractionRoute()` contract to DesktopWorld DevTools. AOS validates
-  and stamps these engine-defined route facts. Product state, text, audio,
-  source objects, object IDs, arbitrary diagnostics, and extension-owned
-  snapshot schemas must not enter this boundary.
+  and stamps these engine-defined route facts, which must be projected without
+  further omission or redaction. Product state, text, audio, source objects,
+  arbitrary diagnostics, and extension-owned snapshot schemas remain outside
+  the bounded engine-defined route contract under the parent trust boundary.
 - DevTools display facts use `bounds` for DesktopWorld-local geometry and
   optional `nativeBounds` for native global geometry. A consumer translating
   scene coordinates into native input must require the latter rather than
@@ -229,16 +241,20 @@ stage internals.
   segments remain private until the all-display presentation barrier commits,
   and every exact consumer must acknowledge presentation before the aggregate
   settles. Partial presentation fails closed by clearing every segment.
-  One-shot captures may have bounded temporal skew. Public scene transport,
-  DevTools, diagnostics, and product processes remain pixel-free.
+  One-shot captures may have bounded temporal skew. Current public scene
+  transport, DevTools, diagnostics, and product-process projections omit pixels.
+  That is the trusted-realm capability boundary, not an ADR 0040 raw-observation
+  gap or a caller-content redaction default.
   Consumer extensions own distortion, blur, redaction, masking, and other
   visual recipes. A capture backend change must not widen this lease.
 - Framebuffer proofs are optional digest-bound trusted-extension predicates
   evaluated only through the mounted resource's owning scene session. Callers
   select a named proof but cannot supply coordinates, colors, thresholds, or
   another resource identity. Each segment performs one bounded readback and
-  the all-segment barrier returns content-free aggregate facts. A mismatch is a
-  normal failed assertion; context loss, throttling, stale authority, or GPU
+  the all-segment barrier returns the complete bounded public aggregate. Private
+  per-segment predicate results and pixel reads are outside that public proof
+  contract; their exclusion is not an ADR 0040 raw-output gap. A mismatch is a normal
+  failed assertion; context loss, throttling, stale authority, or GPU
   readback failure is an operation error. Fixture markers and product visuals
   remain in the consumer repository and never become AOS rendering vocabulary.
 

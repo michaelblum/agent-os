@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-step-descriptor-v0.schema.json",
   "title": "AOS Step Descriptor v0",
-  "description": "V0 design-schema sketch for one Workflow-gated AOS step descriptor. A gated harness or saved-evidence bridge emits the Work Record.",
+  "description": "Current legacy V0 design-schema sketch for one Gate-coupled AOS step descriptor. The coupling is ADR 0040 migration debt, Gate is not AOS permission, and the current harness or saved-evidence bridge emits the Work Record.",
   "type": "object",
   "required": [
     "type",

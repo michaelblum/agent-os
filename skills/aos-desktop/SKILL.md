@@ -16,27 +16,28 @@ capability map.
    `./aos help do --json` before relying on arguments.
 3. Discover windows with `./aos graph windows`.
 4. Save perception with `./aos see capture <target> --save --workspace <id>`.
-5. Prefer saved refs or direct native AX selectors over coordinates.
+5. Choose an exact current Observation Ref or Locator when available; current
+   saved-handle and native AX selector forms remain implementation plumbing.
 
 ## Desktop Actions
 
-- Use `./aos do activate --pid <pid> --dry-run` before app activate.
-- Use `./aos do quit --pid <pid> --dry-run` before app quit.
-- Use `./aos do hide --pid <pid> --dry-run` and `./aos do unhide --pid <pid> --dry-run` before app visibility changes.
-- Use `./aos do raise --pid <pid> [--window id] --dry-run` before window raise.
-- Use `./aos do move --pid <pid> --to <x,y> [--window id] --dry-run` before window move.
-- Use `./aos do resize --pid <pid> --to <w,h> [--window id] --dry-run` before window resize.
-- Use `./aos do close --pid <pid> --window <id> --dry-run` before window close.
-- Use `./aos do minimize --pid <pid> --window <id> --dry-run` before window minimize.
-- Use `./aos do maximize --pid <pid> --window <id> --dry-run` and `./aos do restore --pid <pid> --window <id> --dry-run` before window maximize/restore.
+- Use `./aos do activate --pid <pid> [--dry-run]` for app activation.
+- Use `./aos do quit --pid <pid> [--dry-run]` for app quit.
+- Use `./aos do hide --pid <pid> [--dry-run]` and `./aos do unhide --pid <pid> [--dry-run]` for app visibility.
+- Use `./aos do raise --pid <pid> [--window id] [--dry-run]` for window raise.
+- Use `./aos do move --pid <pid> --to <x,y> [--window id] [--dry-run]` for window move.
+- Use `./aos do resize --pid <pid> --to <w,h> [--window id] [--dry-run]` for window resize.
+- Use `./aos do close --pid <pid> --window <id> [--dry-run]` for window close.
+- Use `./aos do minimize --pid <pid> --window <id> [--dry-run]` for window minimize.
+- Use `./aos do maximize --pid <pid> --window <id> [--dry-run]` and `./aos do restore --pid <pid> --window <id> [--dry-run]` for maximize/restore.
 - Window close/minimize/maximize/restore commands require exact `--pid` and
   `--window` identity.
-- Use `./aos do menu --pid <pid> --path File,Save --dry-run` before invoking
-  an app menu path.
-- Use `./aos do press|focus|set-value <ref> --workspace <id> --dry-run` for
-  stable native AX saved refs.
-- Use `./aos do press|focus|set-value --pid <pid> --role <role> ... --dry-run`
+- Use `./aos do menu --pid <pid> --path File,Save [--dry-run]` for an app menu path.
+- Use `./aos do press|focus|set-value <ref> --workspace <id> [--dry-run]` for
+  the current saved native AX handle implementation.
+- Use `./aos do press|focus|set-value --pid <pid> --role <role> ... [--dry-run]`
   for direct native AX current matching.
+- `--dry-run` is an optional mechanical preview, never action permission.
 
 ## Native Status-Item Host Leases
 
@@ -67,7 +68,7 @@ line is the registration result and the initial `ready` event follows. Use its
 exact identity from separate update/inspect/invoke processes. Update requires
 the live generation/current revision and a strictly newer descriptor; use the
 returned revision afterward. Inspect also returns the current action sequence.
-Dry-run reports it without consuming it; effectful invoke consumes it before
+Optional dry-run reports it without consuming it; effectful invoke consumes it before
 delivery. Descriptor updates preserve the sequence, while a new generation
 resets it. Stale values fail closed. End the follow process to clean up the
 lease; there is no separate subscribe or cleanup command. Do not scrape AX menu
@@ -89,21 +90,22 @@ separate dependent slices.
 - Arbitrary third-party menu extras remain unsupported; `status-item` controls
   only AOS-hosted owner-scoped leases.
 - Do not simulate fullscreen, Space switching, or Mission Control with
-  `./aos do key`, AppleScript, or coordinates unless the task explicitly
-  authorizes that lower-level fallback.
+  `./aos do key`, AppleScript, or coordinates unless the caller chose that
+  lower-level fallback.
 - `./aos do tell <app> <script>` is a lower-level scripting escape hatch, not a
   substitute for claiming a semantic desktop verb exists.
-- Coordinates and keyboard fallback act on current focus; use them only when
-  the task authorizes fallback and the target is proven current.
+- Coordinates and keyboard fallback act on current focus; require exact current
+  target/state mechanics.
 
 ## Stop
 
 Stop when a target is off-Space, minimized, stale, missing native identity,
-requires a semantic verb AOS does not expose, or needs live TCC/input proof not
-authorized by the task.
+requires a semantic verb AOS does not expose, or needs live TCC/input proof
+outside the caller's requested scope.
 
 ## References
 
 - `docs/api/aos-capabilities.md`
 - `docs/api/aos.md`
+- `docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md`
 - `docs/design/aos-desktop-playwright-cli-map.md`

@@ -22,8 +22,8 @@ consume-once records, not durable task plans.
 3. List pending annotations, read the selected record, and inspect any saved ref
    or fallback reason before acting.
 4. Consume exactly once only when you are ready to handle the annotation.
-5. If the annotation drives an action, capture before/after evidence and link a
-   Work Record when the command surface supports it.
+5. If the annotation drives an action, optionally capture before/after evidence
+   and link a Work Record when durable history is useful.
 
 ## Boundaries
 
@@ -36,13 +36,13 @@ consume-once records, not durable task plans.
 
 ## Stop
 
-Stop when the annotation lacks a saved ref or actionable target, names a missing
-workspace/snapshot/ref, or returns a next command that would mutate state without
-authorization.
+Stop when the annotation lacks an actionable current target, names a missing
+workspace/snapshot/ref, or cannot satisfy exact identity and lifecycle mechanics.
 
 ## References
 
 - `docs/api/aos.md`
+- `docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md`
 - `docs/api/toolkit/status-item.md`
 - `manifests/commands/source/aos/40-status-item.json`
 - `manifests/commands/source/aos/03-see-04-annotation.json`

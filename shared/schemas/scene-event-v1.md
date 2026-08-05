@@ -7,6 +7,14 @@ the DesktopWorld scene engine. It is delivered as `service: "scene"`,
 `event: "gesture"` data only to a client that subscribed on the same
 owner/resource `scene-follow` lease.
 
+## ADR 0040 Transition Boundary
+
+Runtime migration must expose without omission the raw gesture facts already
+admitted to this bounded public envelope, or require an explicit caller-owned
+transform. This does not widen the envelope to adjacent scene documents,
+scripts, product state, prompts, text, audio, captures, or arbitrary executor
+values; those categories remain outside the product-neutral gesture contract.
+
 ## Identity And Ordering
 
 Every event carries the stage, owner, resource, affordance, interaction,
@@ -27,11 +35,12 @@ native projections, plus a bounded display-topology snapshot. Declarative
 responses are `translate`, `aim_commit`, `drop`, `radial_menu`, or
 `signal_graph`. Drag itself does not imply translation.
 
-`radial_menu` responses contain only bounded visual data and canonical item
-IDs. A tap-open menu keeps a transient AOS-owned hit-region lease after the
+Current `radial_menu` responses contain bounded visual data and canonical item
+IDs. Item labels support native accessibility and semantic inspection but
+remain outside this product-neutral gesture envelope. A
+tap-open menu keeps a transient AOS-owned hit-region lease after the
 trigger gesture. Pointer movement emits focus and blur updates, while item
-selection and menu cancellation retain complete gesture lifecycles. No product
-command or label crosses this event boundary.
+selection and menu cancellation retain complete gesture lifecycles.
 
 An `aim_commit` response keeps the projected object at its origin through
 `start` and `update`. It carries the bounded parent-local destination in
@@ -42,10 +51,12 @@ unchanged.
 
 ## Data Boundary
 
-The schema rejects additional fields. Events never carry scene documents,
-scripts, product state names, prompts, text, audio, captures, or arbitrary
-executor return values. Applied results are limited to revision, boolean
-application state, and bounded signal counts.
+The schema rejects additional fields. Scene documents, scripts, product state
+names, prompts, text, audio, captures, and arbitrary executor return values are
+outside this bounded product-neutral gesture envelope; their exclusion is not
+an ADR 0040 raw-output gap. Current applied results expose revision, boolean
+application state, and bounded signal counts, and those admitted result facts
+must not be silently omitted or redacted.
 
 Run:
 

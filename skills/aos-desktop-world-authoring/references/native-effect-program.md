@@ -229,9 +229,11 @@ aos scene effect trigger \
 ```
 
 Read the exact resource revision and reviewed program identity from the
-consumer artifact and current inspection evidence. Remove `--dry-run` only
-after they agree. Use the same pointer-session identity with `start`, `update`,
-`end`, or `cancel` for gesture-lifecycle effects.
+consumer artifact and current inspection evidence. Effectful invocation checks
+the same identity itself. Keep `--dry-run` only when a non-consuming preview is
+useful; it is not a prerequisite for action. Use the same pointer-session
+identity with `start`, `update`, `end`, or `cancel` for gesture-lifecycle
+effects.
 
 This command resolves the current scene input generation and invokes only the
 native-effect lifecycle. It does not move the pointer, press Escape, reposition

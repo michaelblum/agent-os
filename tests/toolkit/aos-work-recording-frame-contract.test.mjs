@@ -7,6 +7,10 @@ import { dirname, resolve } from 'node:path'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const fixtureDir = resolve(__dirname, '../../docs/design/fixtures/aos-work-recording-frame-v0')
 
+// This suite freezes the current pre-ADR-0040 mixed target and Gate-coupled
+// recording fixtures so migration can delete them deliberately. It does not make
+// Gate an AOS permission or combine Observation Refs and Locators by contract.
+
 async function readJson(name) {
   return JSON.parse(await readFile(resolve(fixtureDir, name), 'utf8'))
 }
@@ -47,11 +51,11 @@ function namespaceKey(namespace = {}) {
   })
 }
 
-function durableIdentityKey(descriptor = {}) {
+function legacyMixedIdentityKey(descriptor = {}) {
   return `${namespaceKey(descriptor.target?.owner_namespace)}\u0000${descriptor.target?.target_id}`
 }
 
-function assertDescriptorShape(descriptor, context = descriptor?.ref || 'descriptor') {
+function assertLegacyMixedDescriptorShape(descriptor, context = descriptor?.ref || 'descriptor') {
   assert.ok(descriptor.ref, `${context} requires state-scoped ref`)
   assert.ok(descriptor.state_id, `${context} requires state_id`)
   assert.ok(descriptor.target?.target_id, `${context} requires target.target_id`)
@@ -84,12 +88,12 @@ function assertTargetRef(fixture, targetRef, context) {
   assert.ok(targetRef.ref, `${context} requires ref`)
   assert.ok(targetRef.state_id, `${context} requires state_id`)
   const descriptor = materializeDescriptor(fixture, targetRef.target_descriptor)
-  assertDescriptorShape(descriptor, context)
+  assertLegacyMixedDescriptorShape(descriptor, context)
   assert.equal(targetRef.ref, descriptor.ref, `${context} ref must match descriptor`)
   assert.equal(targetRef.state_id, descriptor.state_id, `${context} state_id must match descriptor`)
 }
 
-function assertReplayPolicyIsSemanticAndGated(policy) {
+function assertLegacyReplayPolicyShape(policy) {
   assert.equal(policy.mode, 'semantic_reacquire_then_do')
   assert.equal(policy.raw_input_policy, 'do_not_blindly_replay_for_aos_owned_surface')
   assert.equal(policy.work_record_gates.replay_requires_workflow_gate, true)
@@ -105,10 +109,11 @@ function assertReplayPolicyIsSemanticAndGated(policy) {
   assert.equal(resolveStep.missing_result, 'block')
 }
 
-test('fixture manifest lists the recording frame cases', async () => {
+test('fixture manifest marks recording frames as a legacy mixed-handle and Gate gap', async () => {
   const manifest = await readJson('manifest.json')
 
   assert.equal(manifest.schema, 'aos.work-recording-frame.fixture-pack.v0')
+  assert.equal(manifest.transition_status, 'legacy_mixed_handle_and_gate_gap')
   assert.deepEqual(manifest.fixtures.sort(), [
     'blocked-replay-repair-needed.json',
     'periodic-keyframe-checkpoint.json',
@@ -116,21 +121,21 @@ test('fixture manifest lists the recording frame cases', async () => {
   ])
 })
 
-test('baseline and delta frames preserve descriptor identity without label or coordinate identity', async () => {
+test('legacy baseline and delta fixtures preserve their mixed descriptor identity', async () => {
   const fixture = await readJson('toolkit-slider-recording.json')
   const descriptor = fixture.target_descriptor
   const baseline = fixture.frames.find((frame) => frame.frame_type === 'recording_baseline')
   const delta = fixture.frames.find((frame) => frame.frame_type === 'recording_delta_frame')
 
-  assertDescriptorShape(descriptor)
+  assertLegacyMixedDescriptorShape(descriptor)
   assertNoPresentationIdentity(descriptor)
   assert.equal(descriptor.name, 'Brightness')
   assert.equal(baseline.state_id, descriptor.state_id)
-  assert.equal(durableIdentityKey(materializeDescriptor(fixture, baseline.target_descriptors[0])), durableIdentityKey(descriptor))
+  assert.equal(legacyMixedIdentityKey(materializeDescriptor(fixture, baseline.target_descriptors[0])), legacyMixedIdentityKey(descriptor))
 
   assertTargetRef(fixture, delta.action_intents[0].target_ref, 'delta.action_intents[0].target_ref')
   assertTargetRef(fixture, delta.state_patches[0].target_ref, 'delta.state_patches[0].target_ref')
-  assert.equal(durableIdentityKey(materializeDescriptor(fixture, delta.execution_results[0].target.target_descriptor)), durableIdentityKey(descriptor))
+  assert.equal(legacyMixedIdentityKey(materializeDescriptor(fixture, delta.execution_results[0].target.target_descriptor)), legacyMixedIdentityKey(descriptor))
 })
 
 test('delta frames keep interaction records typed instead of collapsing them into an event blob', async () => {
@@ -151,23 +156,23 @@ test('delta frames keep interaction records typed instead of collapsing them int
 test('gesture frames are optional linked evidence/playback frames, not the recording model', async () => {
   const fixture = await readJson('toolkit-slider-recording.json')
   const delta = fixture.frames.find((frame) => frame.frame_type === 'recording_delta_frame')
-  const descriptorKey = durableIdentityKey(fixture.target_descriptor)
+  const descriptorKey = legacyMixedIdentityKey(fixture.target_descriptor)
 
   assert.equal(delta.frame_type, 'recording_delta_frame')
   for (const frame of delta.gesture_frames) {
     assert.equal(frame.schema, 'aos.gesture-frame')
     assert.equal(frame.transaction_id, delta.transaction_id)
     assert.equal(frame.semantic_action, 'set-value')
-    assert.equal(durableIdentityKey(materializeDescriptor(fixture, frame.semantic_target)), descriptorKey)
+    assert.equal(legacyMixedIdentityKey(materializeDescriptor(fixture, frame.semantic_target)), descriptorKey)
   }
   assert.ok(delta.evidence_refs.some((ref) => ref.evidence_id === 'evidence:gesture-trace'))
   assert.ok(delta.observations.some((item) => item.kind === 'surface_inspector_annotation'))
 })
 
-test('replay policy is semantic, machine-first, and preserves Work Record gates', async () => {
+test('legacy replay fixture preserves current mixed-handle and Gate coupling for migration', async () => {
   const fixture = await readJson('toolkit-slider-recording.json')
 
-  assertReplayPolicyIsSemanticAndGated(fixture.recording_replay_policy)
+  assertLegacyReplayPolicyShape(fixture.recording_replay_policy)
   assert.equal(fixture.work_record.execution_map.replay_policy.replay_requires_workflow_gate, true)
   assert.equal(fixture.work_record.execution_map.replay_policy.repair_requires_workflow_gate, true)
 })
@@ -176,7 +181,7 @@ test('keyframes are recovery checkpoints and do not replace semantic deltas', as
   const fixture = await readJson('periodic-keyframe-checkpoint.json')
   const keyframe = fixture.frame
 
-  assertDescriptorShape(fixture.target_descriptor)
+  assertLegacyMixedDescriptorShape(fixture.target_descriptor)
   assertNoPresentationIdentity(fixture.target_descriptor)
   assert.equal(keyframe.frame_type, 'recording_keyframe')
   assert.equal(keyframe.keyframe_reason, 'periodic_recovery_checkpoint')
@@ -190,7 +195,7 @@ test('blocked replay appends repair-needed health without mutating historical fr
   const fixture = await readJson('blocked-replay-repair-needed.json')
   const health = fixture.appended_health_record
 
-  assertDescriptorShape(fixture.previous_target_descriptor)
+  assertLegacyMixedDescriptorShape(fixture.previous_target_descriptor)
   assertNoPresentationIdentity(fixture.previous_target_descriptor)
   assert.equal(fixture.history_mutation_policy, 'append_only')
   assert.equal(fixture.replay_attempt.resolution.status, 'ambiguous')

@@ -65,7 +65,7 @@
     {
       "id": "desktop-window-control-inventory",
       "requirement": "use desktop skill and capability map to inventory app, window, and native AX controls before acting",
-      "prompt": "Fresh agent: decide how to inspect visible windows, identify first-class app/window controls, dry-run app/window control before mutating, and stop on unsupported desktop boundaries.",
+      "prompt": "Fresh agent: decide how to inspect visible windows, identify first-class app/window controls, optionally preview an app/window control, and stop on unsupported desktop boundaries.",
       "selected_skills": [
         "aos-desktop"
       ],
@@ -99,8 +99,8 @@
         "./aos do press --pid <pid> --role <role> --title <title> --dry-run"
       ],
       "captured_output": {
-        "decision": "Treat app activate/quit/hide/unhide, window raise/move/resize/close/minimize/maximize/restore, app menu invocation, AOS-hosted status-item lease invocation, and native AX press/focus/set-value as current AOS desktop controls, and dry-run supported mutating controls before action. Treat arbitrary third-party menu-extra scraping, window fullscreen, Space switching, and Mission Control as follow-up or unsupported until a fail-closed semantic command exists.",
-        "stop_condition": "Stop before using script, key, or coordinate fallback to simulate an unsupported semantic desktop verb unless the task explicitly authorizes that escape hatch.",
+        "decision": "Treat app activate/quit/hide/unhide, window raise/move/resize/close/minimize/maximize/restore, app menu invocation, AOS-hosted status-item lease invocation, and native AX press/focus/set-value as current AOS desktop controls. Use dry-run only when a non-consuming preview is useful; it is not permission to act. Treat arbitrary third-party menu-extra scraping, window fullscreen, Space switching, and Mission Control as follow-up or unsupported until a fail-closed semantic command exists.",
+        "stop_condition": "Stop before using script, key, or coordinate fallback to simulate an unsupported semantic desktop verb unless the caller chose that lower-level escape hatch.",
         "rejected_competing_surfaces": [
           "claiming fullscreen, Space switching, or Mission Control is supported because AppleScript could do it",
           "raw macOS automation without AOS command readback",
@@ -112,8 +112,8 @@
     },
     {
       "id": "saved-workspace-observe-act-recapture",
-      "requirement": "use saved workspace skill to capture, inspect refs, dry-run, act, and recapture",
-      "prompt": "Fresh agent: on an authorized local target, capture current state, choose an actionable saved ref, dry-run the action, perform it once if the dry-run validates, then recapture evidence.",
+      "requirement": "use saved workspace skill to capture, inspect current handles, act, and recapture, with optional preview",
+      "prompt": "Fresh agent: on a caller-selected local target, capture current state, choose an actionable current saved handle, optionally preview the action, perform it once, then recapture evidence.",
       "selected_skills": [
         "aos-saved-workspace"
       ],
@@ -127,10 +127,10 @@
         "./aos see capture <target> --save --mode som --workspace \"$AOS_WORKSPACE\""
       ],
       "captured_output": {
-        "decision": "Prefer the saved ref over prose targets or coordinates. Act only after the dry-run validates the current producer verdict, then recapture into the same workspace for readback.",
+        "decision": "Prefer the current saved handle over prose targets or coordinates. The effectful action validates the target itself; use dry-run only as an optional preview, then recapture into the same workspace for readback.",
         "stop_condition": "Stop if the ref is fallback-only, stale, missing identity, or the command returns a recapture/revalidation recommendation.",
         "rejected_competing_surfaces": [
-          "coordinate click without explicit authorization",
+          "coordinate click without current-state identity",
           "full screenshot dump in place of saved refs"
         ]
       }
@@ -152,7 +152,7 @@
         "./aos do click <x,y> --state-id <state-id> --dry-run"
       ],
       "captured_output": {
-        "decision": "Use xray, labels, regions, and canvas refs to reduce coordinate guessing. Coordinate fallback is diagnostic unless the target is current, the state id is preserved, and the task authorizes fallback action.",
+        "decision": "Use xray, labels, regions, and canvas refs to reduce coordinate guessing. The caller may choose coordinate fallback when the target is current and the state id is preserved; stale or ambiguous coordinates fail mechanically.",
         "stop_condition": "Stop when labels do not identify the target, the canvas ref is not current, or the coordinate would be reused after the screen changed.",
         "rejected_competing_surfaces": [
           "unscoped screenshot dump as proof",
@@ -185,8 +185,8 @@
     },
     {
       "id": "browser-aos-vs-playwright-escape",
-      "requirement": "use browser skill to decide between AOS browser saved refs and raw Playwright CLI escape hatch",
-      "prompt": "Fresh agent: for browser work, choose the AOS path for a durable saved-ref click, but choose upstream Playwright CLI skills for a trace/video task AOS does not wrap.",
+      "requirement": "use browser skill to decide between AOS browser observation handles and the Playwright CLI escape hatch",
+      "prompt": "Fresh agent: for browser work, choose the AOS path for a current observation-handle click, but choose upstream Playwright CLI skills for a trace/video task AOS does not wrap.",
       "selected_skills": [
         "aos-browser"
       ],
@@ -205,7 +205,7 @@
         "playwright-cli install --skills --dry-run"
       ],
       "captured_output": {
-        "decision": "Use AOS for durable browser refs, validation, action envelopes, and Work Record evidence. Stop and consult upstream Playwright CLI skills for trace/video/codegen/tab primitives that AOS does not wrap.",
+        "decision": "Use AOS for current browser observation handles, mechanical validation, and action receipts; add Work Record evidence only when the caller wants durable history. Stop and consult upstream Playwright CLI skills for trace/video/codegen/tab primitives that AOS does not wrap.",
         "stop_condition": "Do not vendor Playwright skill files or run companion installation outside an explicit request and temp-target proof.",
         "rejected_competing_surfaces": [
           "raw Playwright-only path for saved-ref proof",
@@ -215,8 +215,8 @@
     },
     {
       "id": "verification-assertion-loop",
-      "requirement": "use verification skill for recapture, refs diff/expect, exact PNG comparison, gates, and Work Record evidence",
-      "prompt": "Fresh agent: prove a desktop action with before/after saved refs or exact PNG artifacts and decide when Work Record evidence is required.",
+      "requirement": "use verification skill for recapture, refs diff/expect, exact PNG comparison, and optional Work Record evidence",
+      "prompt": "Fresh agent: prove a desktop action with before/after saved refs or exact PNG artifacts and decide when optional Work Record evidence is useful.",
       "selected_skills": [
         "aos-verification",
         "aos-saved-workspace",
@@ -256,8 +256,8 @@
         "./aos see annotation consume <annotation-id> --actor <agent-name> --json"
       ],
       "captured_output": {
-        "decision": "Read before consuming. Validate any linked saved ref, dry-run the intended action, and consume exactly once only when ready to handle the annotation.",
-        "stop_condition": "Stop if the annotation is fallback-only, names a missing workspace/snapshot/ref, or suggests a mutating next command without authorization.",
+        "decision": "Read before consuming. Validate any linked current saved handle, optionally preview the intended action, and consume exactly once when handling the annotation.",
+        "stop_condition": "Stop if the annotation is fallback-only, names a missing workspace/snapshot/ref, or identifies a stale or ambiguous target.",
         "rejected_competing_surfaces": [
           "consume-before-read",
           "treat annotation text as durable task plan"
@@ -280,8 +280,8 @@
         "./aos work-record repair bundle <id-or-path> --output-root \"$AOS_PROOF_ROOT\" --dry-run --json"
       ],
       "captured_output": {
-        "decision": "Choose read, verify, status, and plan-repair first. Keep recovery report-only unless the task explicitly authorizes repair execution or replacement writes.",
-        "stop_condition": "Stop before repair execute, replacement write, supersession write, or live UI/browser/native actions without an explicit gate.",
+        "decision": "Choose read, verify, status, and plan-repair for evidence inspection. Keep recovery report-only unless the caller explicitly requests repair execution or replacement writes.",
+        "stop_condition": "Stop before repair execute, replacement write, supersession write, or live UI/browser/native actions outside the caller's requested scope.",
         "rejected_competing_surfaces": [
           "rewrite Work Record evidence in place",
           "execute repair from a skill instruction"
@@ -302,8 +302,8 @@
         "./aos recipe dry-run runtime/status-snapshot --json"
       ],
       "captured_output": {
-        "decision": "Use recipe list/explain/dry-run for source-backed executable recipes. Do not call a skill, guide, playbook, or generic workflow a recipe.",
-        "stop_condition": "Stop before recipe run when explain or dry-run is sufficient, or when dry-run reports unsafe expansion.",
+        "decision": "Use recipe list/explain for inspection, recipe run for caller-requested execution, and recipe dry-run as an optional preview. Do not call a skill, guide, playbook, or generic workflow a recipe.",
+        "stop_condition": "Stop when recipe expansion is invalid, ambiguous, or outside the caller's requested scope.",
         "rejected_competing_surfaces": [
           "skill install as recipe execution",
           "markdown guide as executable recipe"

@@ -68,11 +68,11 @@ does not replay the uncertain operation, and releases the lease.
 
 For a trusted-extension visual assertion, declare a bounded
 `framebufferProofs` descriptor in the reviewed extension and call
-`session.assertFramebuffer("surface-visible")`. The name selects a
-digest-bound predicate; never accept runtime coordinates, colors, thresholds,
-or arbitrary pixel reads. This proves the current WebGL framebuffer and returns
-content-free aggregate facts only. Temporary marker art belongs to the
-consumer's fixture and must be removed when that fixture is no longer needed.
+`session.assertFramebuffer("surface-visible")`. The name selects a digest-bound
+predicate; never accept runtime coordinates, colors, thresholds, or arbitrary
+pixel reads. The aggregate is the complete bounded public proof result; private
+per-segment results and pixel reads stay outside it, not as ADR 0040 gaps.
+Temporary marker art belongs to the consumer fixture and leaves with it.
 
 Recovery is intentionally narrow. One recoverable transport or stage loss may
 reconnect and restore the last committed document, subscriptions, and
@@ -97,13 +97,13 @@ Only advanced native-input and anchor operations expose explicit display or nati
   follows the pointer and commit a route on release.
 - Bind `drag` to `drop` for destination resolution without product semantics.
 - Bind a stock `radial` recognizer for a bounded radial menu. Give every item a
-  canonical `id` and a short `label`; AOS uses the label for native semantic
-  identity while events expose only the item ID.
+  canonical `id` and short `label`; the label supports native accessibility and
+  inspection while the product-neutral gesture event carries the item ID.
 
 The recognizer lifecycle is `start`, `update`, `end`, and `cancel`. Escape,
 pointer loss, topology change, and owner loss cancel through AOS. Cartridges
-provide bounded IDs, semantic labels, and visual data; consumers map resulting
-ID-only events to product actions.
+provide bounded IDs, semantic labels, and visual data; current consumers map
+the ID-only event projection to product actions during migration.
 
 Declare hover and captured cursor presentation independently as `inherit` or `hidden`; a custom `visual` ID requires `hidden` and cannot alter input ownership.
 `captured: none` remains shorthand for hidden with no custom art. The full contract is in `docs/api/toolkit/scene-authoring.md`.
@@ -162,14 +162,14 @@ Validation does not execute the projection body. Install only the exact independ
 
 When an extension owns a line or wormhole interaction route, implement the
 exact synchronous `inspectInteractionRoute()` hook so AOS DevTools and
-`scene monitor` can observe it. Return only `active`, `kind`, `progress`, and
-global DesktopWorld `origin`/`destination` points. AOS validates the bounded
-shape and stamps the resource identity. Do not expose product text, audio,
-source objects, object IDs, or arbitrary diagnostics through this hook.
+`scene monitor` can observe it. Preserve the returned `active`, `kind`,
+`progress`, and global DesktopWorld `origin`/`destination` facts without
+omission or redaction. Product text, audio, source objects, object IDs, and
+arbitrary diagnostics stay outside this bounded contract, not as ADR 0040 gaps.
 
 ## Inspect, Profile, And Monitor
 
-Use content-free machine-readable facts:
+Use the current machine-readable projections:
 
 ```bash
 aos scene list --json
@@ -178,9 +178,8 @@ aos scene perf --resource companion/main --json
 aos scene monitor --resource companion/main --follow --json
 ```
 
-Monitoring is connection-scoped. Stop it by terminating its owning client.
-Snapshots exclude scene parameters, product text, prompts, audio, and desktop
-content.
+Monitoring is connection-scoped. Stop it by terminating its owning client. The bounded snapshot carries its declared engine facts.
+Product text, prompts, audio, extension content, and desktop pixels remain outside this DevTools contract.
 
 ## Open And Transfer DevTools
 
@@ -222,7 +221,7 @@ event-model behavior, not live visual parity.
 ## Recover Or Stop
 
 1. Read `session.snapshot()` and let the session spend its one recovery attempt.
-2. If it becomes `faulted`, close it and surface the redacted failure.
+2. If it becomes `faulted`, close it and surface the bounded typed failure.
 3. Recreate it only after revalidating ownership and the canonical document.
 4. Stop for implementation mismatch, budget rejection, malformed transport,
    or an extension digest change.

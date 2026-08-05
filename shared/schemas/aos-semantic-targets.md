@@ -1,6 +1,6 @@
 # AOS Semantic Targets And Target Descriptors
 
-Version: `0.2.0`
+Version: `0.3.0`
 
 `semantic_targets` is the AOS-owned canvas target projection emitted by:
 
@@ -15,47 +15,85 @@ canvas already owns:
   controls
 - local geometry in `provenance` from the element's DOM frame in the capture
   image's local coordinate space
-- AOS ownership metadata from `data-aos-ref`, `data-aos-action`,
-  `data-aos-actions`, `data-aos-surface`, `data-semantic-target-id`, and
-  `data-aos-parent-canvas`
+- AOS target metadata from `data-aos-ref`, `data-aos-actions`,
+  `data-aos-primitive-actions`, app-local `data-aos-action`, `data-aos-surface`,
+  `data-semantic-target-id`, and `data-aos-parent-canvas`
+
+The projection is raw and fidelity-first. It does not classify sensitivity,
+mask values, or choose what may reach a model or disk. Callers own any explicit
+masking, redaction, persistence, or projection transform. Values withheld by an
+upstream API remain absent as an upstream/platform fact.
 
 The CLI gathers this data through a fixed internal probe. Agents should prefer
 this field for AOS-owned canvases and reserve `show eval` for developer
 diagnostics.
 
-Each entry is also a V0 target descriptor. The descriptor separates the
-state-scoped model-facing action handle from durable machine identity,
-presentation labels, current address/provenance, state, capabilities, and
-reacquisition hints. Human-facing names, labels, accessible text, UI copy, DOM
-ids, and geometry are not durable target identity.
+Each current emitted entry carries the `ref` component plus presentation,
+address/provenance, state, and capability facts. The capture response carries
+`state_id` at top level; consumers pair it with an entry's `ref` to form the
+Observation Ref. The current projection does not emit a Locator object,
+`target` namespace, structural path, or reacquisition fingerprint. The Locator
+example below is the contract for the later runtime/schema migration, not a
+claim about the current emitted entry shape. Human-facing names, labels,
+accessible text, UI copy, DOM ids, and geometry are not durable target identity.
+
+## Public Handle Types
+
+An **Observation Ref** is exactly the pair returned by one perception state:
+
+```json
+{ "state_id": "see_abc123def456", "ref": "example-menu-item-wiki-graph" }
+```
+
+It is ephemeral. If that pair is not current, action rejects with a typed stale
+result; an Observation Ref is never automatically reacquired.
+
+A **Locator** is a declarative query made from machine facts, for example:
+
+```json
+{
+  "target": {
+    "target_id": "radial-item:wiki-graph",
+    "owner_namespace": {
+      "app_id": "example",
+      "canvas_id": "example-menu",
+      "surface_id": "example-menu",
+      "component_family": "example.menu",
+      "structural_owner": ["example-root", "menu"]
+    }
+  },
+  "role": "button",
+  "structural_path": ["menu", "item:wiki-graph"]
+}
+```
+
+A Locator re-resolves on every operation. Exactly one action-compatible match is
+required; zero matches return `missing` and multiple matches return `ambiguous`
+with bounded candidate descriptors. Labels and source ids may be hints, but a
+caller must not use them as unique identity by themselves.
+
+These examples define semantic types, not a currently callable Locator wire
+grammar. Public command/schema forms arrive with the later runtime migration;
+current transport and emitted-shape discrepancies are inventoried below.
 
 ## Shape
 
 ```json
 {
+  "state_id": "see_abc123def456",
   "semantic_targets": [
     {
       "ref": "example-menu-item-wiki-graph",
-      "state_id": "see_abc123def456",
       "surface": "example-menu",
       "role": "button",
       "name": "Wiki Graph",
       "kind": "semantic_target",
       "enabled": true,
-      "target": {
-        "target_id": "radial-item:wiki-graph",
-        "owner_namespace": {
-          "app_id": "example",
-          "canvas_id": "example-menu",
-          "surface_id": "example-menu",
-          "component_family": "example.menu",
-          "structural_owner": ["example-root", "menu"]
-        }
-      },
       "state": { "current": "true" },
-      "actions": ["wiki-graph"],
+      "actions": ["click"],
       "extension": {
         "dom_id": "wiki-graph",
+        "action_id": "open-wiki-graph",
         "source": { "path": null, "line_start": null, "line_end": null }
       },
       "provenance": {
@@ -66,19 +104,6 @@ ids, and geometry are not durable target identity.
         "bounds": { "x": 40, "y": 24, "width": 56, "height": 56 },
         "frame": { "x": 40, "y": 24, "width": 56, "height": 56 },
         "center": { "x": 68, "y": 52 }
-      },
-      "reacquisition": {
-        "strategy": "owner-structural-fingerprint",
-        "machine_fingerprint": {
-          "role": "button",
-          "structural_path": ["menu", "item:wiki-graph"],
-          "capabilities": ["click", "open"],
-          "nearby_group": "Example menu"
-        },
-        "hint_fingerprint": {
-          "label_hints": ["Wiki Graph"],
-          "source_hints": { "dom_id": "wiki-graph" }
-        }
       }
     }
   ]
@@ -87,24 +112,22 @@ ids, and geometry are not durable target identity.
 
 ## Field Notes
 
-`ref` is the state-scoped model-facing action handle from the current
-perception state. It is convenient for immediate `aos do` calls and may become
-stale after the surface changes. It is not durable identity.
+`ref` is one component of the state-scoped Observation Ref from the current
+perception state. It is not a complete handle without `state_id` and is not
+durable identity.
 
-`state_id` is the perception state that scoped the `ref`, when available. An
-action that carries a stale `state_id`/`ref` pair must reject or report
-machine-readable stale status instead of silently acting on a different target.
+`state_id` is top-level capture-response data for the perception state that
+scoped every emitted `ref`; it is not currently repeated inside each semantic
+target entry. An action that carries a stale `state_id`/`ref` pair must reject
+with machine-readable stale status instead of silently acting on a different
+target.
 
-`target.target_id` is a durable machine identity within
-`target.owner_namespace`. The durable identity key is the pair
-`owner_namespace` + `target_id`; callers must not derive it from `name`,
-`label`, accessible text, DOM ids, display/window geometry, or canvas
-coordinates.
-
-`target.owner_namespace` is the explicit collision domain for the target. It
-contains app, canvas, surface, component/schema family, and structural owner
-facts needed to distinguish same-label or same-local-id controls on different
-surfaces. Geometry and current address facts do not belong here.
+`target.target_id`, `target.owner_namespace`, structural path, and
+`reacquisition` in the Locator example are planned contract material, not
+fields emitted by the current `semantic_targets` projection. Their later wire
+schema must preserve an explicit collision domain and must not derive identity
+from `name`, `label`, accessible text, DOM ids, display/window geometry, or
+canvas coordinates.
 
 `provenance.canvas_id` is the canvas requested by `--canvas`.
 
@@ -118,13 +141,18 @@ and filtering.
 control role.
 
 `name` is the accessible name, usually `aria-label`, not an implementation id.
-It may be displayed to humans and may appear in reacquisition hints, but it is
-not machine identity.
+It may be displayed to humans and may become a Locator hint after migration,
+but it is not machine identity.
 
 `actions` is the canonical primitive action list for the target. It names what
 `aos do` can attempt, such as `click`, `drag`, `set-value`, `focus`, `select`,
-`toggle`, or `open`. The producer converts `data-aos-action` to a one-item list
-when no primitive action list is present.
+`toggle`, or `open`. The current producer reads `data-aos-actions` and
+`data-aos-primitive-actions`; when neither is present it derives defaults from
+the control role. Singular `data-aos-action` does not populate this list.
+
+`extension.action_id` preserves the app-local action identifier supplied by
+singular `data-aos-action` for consumer-owned routing and inspection. It is not
+a primitive `aos do` capability, action authority, or durable target identity.
 
 `surface` and `provenance.parent_canvas_id` identify the AOS surface
 relationship without polluting the accessible name.
@@ -149,30 +177,44 @@ may additionally expose `values`, `min`, `max`, `step`, `orientation`, and
 `metadata` is optional JSON metadata copied from `data-aos-metadata` for
 debugging and higher-level routing. It is not required for target resolution.
 
-`reacquisition` is a bounded fingerprint for searching for a current target
-after a stale ref. Reacquisition must use machine facts first:
-`owner_namespace`, `target_id`, `role`, structural path, capabilities, source
-payload ids, range shape, and nearby groups. Label/accessibility text belongs
-only in hint fields. If the fingerprint matches more than one current target,
-the result must stay explicit with an `ambiguous` status and candidate list;
-callers must not pick the first same-label target.
+Future Locator resolution must use machine facts first: `owner_namespace`,
+`target_id`, `role`, structural path, capabilities, source payload ids, range
+shape, and nearby groups. Label/accessibility text belongs only in hint fields.
+If a Locator matches more than one current target, the result must stay explicit
+with an `ambiguous` status and bounded candidate list; callers must not pick the
+first same-label target.
 
-## Stale Ref And Reacquisition Status
+## Resolution Status
 
-Target-addressed actions that carry both `ref` and `state_id` compare the
-supplied state with the current perception state when that check is available.
-The deterministic statuses are:
+Observation Ref resolution returns:
 
-- `resolved`: the supplied `state_id`/`ref` pair is current and resolves to one
-  enabled target.
-- `stale_ref`: the supplied `state_id` is no longer current or the old `ref`
-  is absent from the current state.
-- `reacquired`: a stale descriptor fingerprint resolved to exactly one current
-  target through machine facts, with labels used only as hints.
-- `ambiguous`: reacquisition found more than one plausible current target.
-- `missing`: neither the ref nor the descriptor fingerprint found a candidate.
-- `unsupported`: the target or surface cannot perform the requested action.
+- `resolved`: the supplied `(state_id, ref)` pair is current and names one
+  enabled, action-compatible observed target.
+- `stale_ref`: the state is no longer current, the ref is absent from that
+  state, or the pair does not match.
+- `unsupported`: the observed target cannot perform the requested action.
 
-Stale and ambiguous outcomes are action blockers. They should return
-machine-readable `status`, `reason`, supplied/current state ids when known,
-and candidate descriptors when ambiguity must be shown to the agent or a human.
+Locator resolution returns:
+
+- `resolved`: the query found exactly one enabled, action-compatible current
+  target.
+- `missing`: the query found no current target.
+- `ambiguous`: the query found more than one current target.
+- `unsupported`: the uniquely located target cannot perform the action.
+
+Stale, missing, ambiguous, and unsupported outcomes block action and return a
+machine-readable `status`, `reason`, supplied/current state ids when relevant,
+and bounded candidate descriptors for ambiguity.
+
+## Current Implementation Gap
+
+Current routes do not consistently require `state_id` with `ref`; saved
+workspace wrappers can accept bare saved handles and report `reacquired` after
+automatic current-target validation. Those are implementation facts awaiting
+the runtime migration, not a third public target type or an exception to the
+Observation Ref/Locator split. The current `semantic_targets` entries also do
+not emit the planned Locator query object or fingerprint fields. The internal
+probe reads singular `data-aos-action` into the admitted app-local
+`extension.action_id` field, but the current public decoder does not preserve
+that field; it neither reaches the emitted entry nor contributes to primitive
+`actions`.

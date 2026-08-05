@@ -27,6 +27,10 @@ part of the installable AOS desktop product pack.
 - Installable AOS skills must be registered, concise or explicitly split into
   references, and backed by docs/API/schema/test authority when they claim
   durable repo behavior.
+- Installable skills inherit AOS ambient authority. They may teach optional
+  previews, explicit caller-requested Gate input, and optional Work Record
+  evidence, but must not turn them into permission prerequisites for ordinary
+  actions or add default privacy/redaction policy.
 - Root skill packages and registry rows describe only current packages. Delete
   superseded skills in the same change as their internal consumer migration;
   do not retain retired statuses, aliases, redirects, or tombstones.
