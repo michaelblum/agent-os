@@ -2,87 +2,171 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
+private enum AOSPublicCaptureWireError: Error {
+    case invalid
+    case topologyMismatch
+}
+
+private func aosPublicCaptureExactInteger(_ value: Any) -> Int? {
+    guard let number = value as? NSNumber,
+          CFGetTypeID(number) != CFBooleanGetTypeID(),
+          number.doubleValue.isFinite,
+          let result = Int(exactly: number.doubleValue),
+          Double(result) == number.doubleValue else {
+        return nil
+    }
+    return result
+}
+
+private func aosPublicCapturePositiveUInt32(_ value: Any) -> UInt32? {
+    guard let integer = aosPublicCaptureExactInteger(value),
+          integer > 0,
+          let result = UInt32(exactly: integer) else {
+        return nil
+    }
+    return result
+}
+
 private struct AOSPublicCaptureWireRequest {
     let captureID: String
     let request: AOSDesktopPixelSnapshotRequest
     let topologyIdentity: String
 
     init(payload: [String: Any]) throws {
-        guard let captureID = payload["capture_id"] as? String,
+        guard Set(payload.keys) == [
+                "capture_id", "display_topology", "displays", "display_ids",
+                "excluded_window_ids", "window_targets",
+                "maximum_pixels_per_display", "shows_cursor",
+              ],
+              let captureID = payload["capture_id"] as? String,
               UUID(uuidString: captureID) != nil,
-              let topologyIdentity = payload["topology_identity"] as? String,
-              topologyIdentity.range(
-                of: #"^sha256:[a-f0-9]{64}$"#,
-                options: .regularExpression
-              ) != nil,
               let rawDisplays = payload["displays"] as? [[String: Any]],
               !rawDisplays.isEmpty,
               rawDisplays.count <= AOSDesktopPixelLimits.maximumDisplayCount,
-              let rawSelected = payload["display_ids"] as? [NSNumber],
+              let rawSelected = payload["display_ids"] as? [Any],
               !rawSelected.isEmpty,
-              let maximumPixels = payload["maximum_pixels_per_display"] as? NSNumber,
+              rawSelected.count <= AOSDesktopPixelLimits.maximumDisplayCount,
+              let maximumPixels = aosPublicCaptureExactInteger(
+                payload["maximum_pixels_per_display"] as Any
+              ),
               let showsCursor = payload["shows_cursor"] as? Bool,
-              let rawExcluded = payload["excluded_window_ids"] as? [NSNumber],
+              let rawExcluded = payload["excluded_window_ids"] as? [Any],
+              rawExcluded.count <= 256,
               let rawWindows = payload["window_targets"] as? [[String: Any]] else {
-            throw AOSDesktopFrameCaptureFailure.captureFailed
+            throw AOSPublicCaptureWireError.invalid
+        }
+        let topology: AOSDisplayTopologySnapshot
+        do {
+            topology = try validateAOSDisplayTopologyWireValue(
+                payload["display_topology"] as Any
+            )
+        } catch {
+            throw AOSPublicCaptureWireError.topologyMismatch
+        }
+        guard topology.displays.count <= AOSDesktopPixelLimits.maximumDisplayCount else {
+            throw AOSPublicCaptureWireError.invalid
         }
         var geometries: [AOSDesktopWorldDisplayGeometry] = []
+        var mappedOrdinals = Set<Int>()
         for item in rawDisplays {
-            guard let displayID = (item["display_id"] as? NSNumber)?.uint32Value,
-                  let index = (item["index"] as? NSNumber)?.intValue,
-                  let native = item["native_bounds"] as? [NSNumber], native.count == 4,
-                  let desktop = item["desktop_world_bounds"] as? [NSNumber], desktop.count == 4,
-                  let scale = (item["scale_factor"] as? NSNumber)?.doubleValue,
+            guard Set(item.keys) == ["display_id", "index", "topology_ordinal"],
+                  let displayID = aosPublicCapturePositiveUInt32(
+                    item["display_id"] as Any
+                  ),
+                  let index = aosPublicCaptureExactInteger(item["index"] as Any),
+                  index >= 0,
+                  index < AOSDesktopPixelLimits.maximumDisplayCount,
+                  let ordinal = aosPublicCaptureExactInteger(
+                    item["topology_ordinal"] as Any
+                  ),
+                  let canonical = topology.displays.first(where: {
+                    $0.ordinal == ordinal
+                  }),
+                  mappedOrdinals.insert(ordinal).inserted,
+                  {
+                    if case .displayIDFallback(let fallbackID) = canonical.memberIdentity {
+                        return fallbackID == displayID
+                    }
+                    return true
+                  }(),
                   let geometry = AOSDesktopWorldDisplayGeometry(
                     displayID: displayID,
                     index: index,
                     desktopWorldBounds: CGRect(
-                        x: desktop[0].doubleValue,
-                        y: desktop[1].doubleValue,
-                        width: desktop[2].doubleValue,
-                        height: desktop[3].doubleValue
+                        x: canonical.desktopWorldBounds.x,
+                        y: canonical.desktopWorldBounds.y,
+                        width: canonical.desktopWorldBounds.width,
+                        height: canonical.desktopWorldBounds.height
                     ),
                     nativePointBounds: CGRect(
-                        x: native[0].doubleValue,
-                        y: native[1].doubleValue,
-                        width: native[2].doubleValue,
-                        height: native[3].doubleValue
+                        x: canonical.nativeBounds.x,
+                        y: canonical.nativeBounds.y,
+                        width: canonical.nativeBounds.width,
+                        height: canonical.nativeBounds.height
                     ),
-                    pointPixelScale: scale
+                    pointPixelScale: canonical.scaleFactor
                   ) else {
-                throw AOSDesktopFrameCaptureFailure.captureFailed
+                throw AOSPublicCaptureWireError.invalid
             }
             geometries.append(geometry)
         }
         guard let layout = AOSDesktopWorldDisplayLayout(displays: geometries) else {
-            throw AOSDesktopFrameCaptureFailure.captureFailed
+            throw AOSPublicCaptureWireError.invalid
         }
-        let selected = rawSelected.map(\.uint32Value)
-        guard layout.matches(displayIDs: selected) else {
-            throw AOSDesktopFrameCaptureFailure.captureFailed
+        let selected = try rawSelected.map { value -> UInt32 in
+            guard let displayID = aosPublicCapturePositiveUInt32(value) else {
+                throw AOSPublicCaptureWireError.invalid
+            }
+            return displayID
+        }
+        guard Set(selected).count == selected.count,
+              selected == layout.displays.map(\.displayID) else {
+            throw AOSPublicCaptureWireError.invalid
+        }
+        let excluded = try rawExcluded.map { value -> Int in
+            guard let windowID = aosPublicCaptureExactInteger(value),
+                  windowID > 0 else {
+                throw AOSPublicCaptureWireError.invalid
+            }
+            return windowID
+        }
+        guard Set(excluded).count == excluded.count,
+              rawWindows.count <= AOSDesktopPixelLimits.maximumDisplayCount else {
+            throw AOSPublicCaptureWireError.invalid
         }
         var windowIDsByDisplay: [UInt32: Int] = [:]
         for target in rawWindows {
-            guard let displayID = (target["display_id"] as? NSNumber)?.uint32Value,
-                  let windowID = (target["window_id"] as? NSNumber)?.intValue,
+            guard Set(target.keys) == ["display_id", "window_id"],
+                  let displayID = aosPublicCapturePositiveUInt32(
+                    target["display_id"] as Any
+                  ),
+                  let windowID = aosPublicCaptureExactInteger(
+                    target["window_id"] as Any
+                  ),
+                  windowID > 0,
+                  selected.contains(displayID),
+                  !excluded.contains(windowID),
                   windowIDsByDisplay.updateValue(windowID, forKey: displayID) == nil else {
-                throw AOSDesktopFrameCaptureFailure.captureFailed
+                throw AOSPublicCaptureWireError.invalid
             }
         }
+        guard Set(windowIDsByDisplay.values).count == windowIDsByDisplay.count else {
+            throw AOSPublicCaptureWireError.invalid
+        }
         self.captureID = captureID.lowercased()
-        self.topologyIdentity = topologyIdentity
+        self.topologyIdentity = topology.identity
         request = AOSDesktopPixelSnapshotRequest(
             displayIDs: selected,
             displayLayout: layout,
-            excludingWindowIDs: rawExcluded.map(\.intValue),
-            maximumPixelsPerDisplay: maximumPixels.intValue,
+            excludingWindowIDs: excluded,
+            maximumPixelsPerDisplay: maximumPixels,
             sizingPolicy: .exactWithinBudget,
             capturePolicy: .publicExplicitExclusions,
             showsCursor: showsCursor,
             windowIDsByDisplay: windowIDsByDisplay
         )
         guard aosDesktopPixelRequestIsValid(request) else {
-            throw AOSDesktopFrameCaptureFailure.captureFailed
+            throw AOSPublicCaptureWireError.invalid
         }
     }
 }
@@ -135,9 +219,9 @@ private final class AOSPublicCaptureOperation: AOSDesktopFrameCancelling {
 final class AOSPublicCaptureController {
     typealias ChunkEmitter = (_ data: [String: Any]) -> Bool
 
-    private let capturer: AOSNativeDesktopFrameCapturer
+    private let capturer: AOSDesktopPixelExclusiveStillCapturing
 
-    init(capturer: AOSNativeDesktopFrameCapturer) {
+    init(capturer: AOSDesktopPixelExclusiveStillCapturing) {
         self.capturer = capturer
     }
 
@@ -150,6 +234,14 @@ final class AOSPublicCaptureController {
         let wire: AOSPublicCaptureWireRequest
         do {
             wire = try AOSPublicCaptureWireRequest(payload: payload)
+        } catch AOSPublicCaptureWireError.topologyMismatch {
+            DispatchQueue.global(qos: .userInitiated).async {
+                completion([
+                    "error": "Capture topology is invalid",
+                    "code": AOSDesktopFrameCaptureFailure.topologyMismatch.code,
+                ])
+            }
+            return AOSDesktopFrameCancellation()
         } catch {
             DispatchQueue.global(qos: .userInitiated).async {
                 completion([
@@ -224,6 +316,18 @@ final class AOSPublicCaptureController {
                   let image = frame.image else {
                 throw AOSDesktopFrameCaptureFailure.captureFailed
             }
+            let requestedWindowID = wire.request.windowIDsByDisplay[displayID]
+            switch frame.source {
+            case .display:
+                guard frame.usedWindowFallback == (requestedWindowID != nil) else {
+                    throw AOSDesktopFrameCaptureFailure.captureFailed
+                }
+            case .window(let windowID):
+                guard !frame.usedWindowFallback,
+                      requestedWindowID == windowID else {
+                    throw AOSDesktopFrameCaptureFailure.captureFailed
+                }
+            }
             let encoded = try autoreleasepool { try aosPublicCapturePNG(image) }
             let transfer = try aosStreamPublicCaptureData(
                 encoded,
@@ -235,7 +339,7 @@ final class AOSPublicCaptureController {
                     !operation.isCanceled && emitChunk(data)
                 }
             )
-            metadata.append([
+            var item: [String: Any] = [
                 "display_id": NSNumber(value: displayID),
                 "frame_index": frameIndex,
                 "chunk_count": transfer.chunkCount,
@@ -243,7 +347,16 @@ final class AOSPublicCaptureController {
                 "sha256": transfer.sha256,
                 "width": frame.width,
                 "height": frame.height,
-            ])
+                "capture_source": {
+                    if case .window = frame.source { return "window" }
+                    return "display"
+                }(),
+                "window_fallback": frame.usedWindowFallback,
+            ]
+            if case .window(let windowID) = frame.source {
+                item["window_id"] = windowID
+            }
+            metadata.append(item)
         }
         return [
             "status": "ok",

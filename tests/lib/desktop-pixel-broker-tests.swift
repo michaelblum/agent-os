@@ -17,6 +17,26 @@ final class FakePixelAcquirer: AOSDesktopPixelAcquiring {
     }
 }
 
+final class FakeRetirementAwarePixelAcquirer: AOSDesktopPixelAcquiring {
+    var captureCount = 0
+    var logicalCompletions: [
+        (Result<AOSDesktopPixelFrameSet, Error>) -> Void
+    ] = []
+    var retirementCompletions: [(Result<Void, Error>) -> Void] = []
+
+    @discardableResult
+    func snapshot(
+        _ request: AOSDesktopPixelSnapshotRequest,
+        completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void
+    ) -> AOSDesktopFrameCancelling {
+        captureCount += 1
+        logicalCompletions.append(completion)
+        return AOSDesktopFrameRetirementCancellation { [self] completion in
+            retirementCompletions.append(completion)
+        }
+    }
+}
+
 func onePixelImage() -> CGImage {
     let context = CGContext(
         data: nil,
@@ -563,11 +583,114 @@ func runDesktopPixelBrokerTests() throws {
     _ = stalledBroker.snapshot(pixelRequest) { postTimeoutResult = $0 }
     if case .failure(let error) = postTimeoutResult {
         require(
-            error as? AOSDesktopFrameCaptureFailure == .retirementUncertain,
-            "stalled retirement did not fault after its deadline"
+            error as? AOSDesktopFrameCaptureFailure == .busy,
+            "stalled retirement did not remain occupied after its deadline"
         )
     } else {
-        require(false, "stalled retirement held or reopened the broker")
+        require(false, "stalled retirement reopened the broker")
+    }
+
+    let lateAcquirer = FakeRetirementAwarePixelAcquirer()
+    let lateBroker = AOSDesktopPixelBroker(
+        acquirer: lateAcquirer,
+        retirementTimeout: 0.02
+    )
+    var lateLogicalCount = 0
+    var lateLogicalFailure: AOSDesktopFrameCaptureFailure?
+    _ = lateBroker.snapshot(pixelRequest) { result in
+        lateLogicalCount += 1
+        if case .failure(let error) = result {
+            lateLogicalFailure = error as? AOSDesktopFrameCaptureFailure
+        }
+    }
+    lateAcquirer.logicalCompletions[0](.failure(
+        AOSDesktopFrameCaptureFailure.retirementUncertain
+    ))
+    require(
+        lateLogicalCount == 1 && lateLogicalFailure == .retirementUncertain,
+        "logical callback deadline did not settle once"
+    )
+    var beforeLateSettlement: Result<AOSDesktopPixelFrameSet, Error>?
+    _ = lateBroker.snapshot(pixelRequest) { beforeLateSettlement = $0 }
+    if case .failure(let error) = beforeLateSettlement {
+        require(
+            error as? AOSDesktopFrameCaptureFailure == .busy,
+            "logical deadline did not retain exact-generation quarantine"
+        )
+    } else {
+        require(false, "logical deadline reopened native admission")
+    }
+    require(
+        lateAcquirer.retirementCompletions.count == 1,
+        "broker did not await authoritative late settlement"
+    )
+    lateAcquirer.retirementCompletions[0](.success(()))
+    _ = lateBroker.snapshot(pixelRequest) { _ in }
+    require(
+        lateAcquirer.captureCount == 2 && lateLogicalCount == 1,
+        "late authoritative settlement altered the old result or kept quarantine"
+    )
+
+    let canceledAwareAcquirer = FakeRetirementAwarePixelAcquirer()
+    let canceledAwareBroker = AOSDesktopPixelBroker(
+        acquirer: canceledAwareAcquirer,
+        retirementTimeout: 0.2
+    )
+    let canceledAwareCapture = canceledAwareBroker.snapshot(pixelRequest) { _ in
+        require(false, "canceled retirement-aware capture redelivered")
+    }
+    var canceledAwareRetirement: Result<Void, Error>?
+    (canceledAwareCapture as! AOSDesktopFrameRetirementAwaiting)
+        .cancelAndAwaitRetirement { canceledAwareRetirement = $0 }
+    canceledAwareAcquirer.logicalCompletions[0](.failure(
+        AOSDesktopFrameCaptureFailure.unauthorized
+    ))
+    var beforeCanceledAuthority: Result<AOSDesktopPixelFrameSet, Error>?
+    _ = canceledAwareBroker.snapshot(pixelRequest) {
+        beforeCanceledAuthority = $0
+    }
+    if case .failure(let error) = beforeCanceledAuthority {
+        require(
+            error as? AOSDesktopFrameCaptureFailure == .busy
+                && canceledAwareRetirement == nil,
+            "logical cancellation result released authoritative ownership"
+        )
+    } else {
+        require(false, "logical cancellation result reopened the broker")
+    }
+    canceledAwareAcquirer.retirementCompletions[0](.success(()))
+    require(
+        {
+            if case .success? = canceledAwareRetirement { return true }
+            return false
+        }(),
+        "authoritative canceled retirement did not settle"
+    )
+    _ = canceledAwareBroker.snapshot(pixelRequest) { _ in }
+    require(
+        canceledAwareAcquirer.captureCount == 2,
+        "authoritative canceled retirement did not reopen later admission"
+    )
+
+    let neverAcquirer = FakeRetirementAwarePixelAcquirer()
+    let neverBroker = AOSDesktopPixelBroker(
+        acquirer: neverAcquirer,
+        retirementTimeout: 0.02
+    )
+    _ = neverBroker.snapshot(pixelRequest) { _ in }
+    neverAcquirer.logicalCompletions[0](.failure(
+        AOSDesktopFrameCaptureFailure.retirementUncertain
+    ))
+    var neverLater: Result<AOSDesktopPixelFrameSet, Error>?
+    _ = neverBroker.snapshot(pixelRequest) { neverLater = $0 }
+    if case .failure(let error) = neverLater {
+        require(
+            error as? AOSDesktopFrameCaptureFailure == .busy
+                && neverAcquirer.captureCount == 1,
+            "never-callback quarantine did not remain stably occupied"
+        )
+    } else {
+        require(false, "never-callback quarantine reopened")
     }
 
     let stalledWarmAcquirer = StalledWarmAcquirer()

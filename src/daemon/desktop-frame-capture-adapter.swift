@@ -77,6 +77,7 @@ enum AOSDesktopFrameCaptureStrategy {
 final class AOSNativeDesktopFrameCapturer:
     AOSDesktopFrameCapturing,
     AOSDesktopFrameRuntimeCapturing,
+    AOSDesktopPixelExclusiveStillCapturing,
     AOSDesktopPixelFrameSetCapturing
 {
     private let broker: AOSDesktopPixelBroker

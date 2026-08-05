@@ -13,6 +13,7 @@ enum AOSDesktopFrameCaptureFailure: Error, Equatable {
     case permissionDenied
     case retirementUncertain
     case staleFrame
+    case topologyMismatch
     case unauthorized
     case unsupported
 
@@ -28,6 +29,7 @@ enum AOSDesktopFrameCaptureFailure: Error, Equatable {
         case .permissionDenied: return "DESKTOP_FRAME_PERMISSION_DENIED"
         case .retirementUncertain: return "DESKTOP_FRAME_RETIREMENT_UNCERTAIN"
         case .staleFrame: return "DESKTOP_FRAME_STALE"
+        case .topologyMismatch: return "DESKTOP_FRAME_TOPOLOGY_MISMATCH"
         case .unauthorized: return "DESKTOP_FRAME_UNAUTHORIZED"
         case .unsupported: return "DESKTOP_FRAME_UNSUPPORTED"
         }
@@ -206,16 +208,31 @@ struct AOSDesktopPixelSnapshotRequest: Equatable {
 }
 
 struct AOSDesktopPixelFrame: @unchecked Sendable {
+    enum Source: Equatable, Sendable {
+        case display
+        case window(Int)
+    }
+
     let capturedAt: Date
     let displayID: UInt32
     let image: CGImage?
     let pixelBuffer: CVPixelBuffer?
+    let source: Source
+    let usedWindowFallback: Bool
 
-    init(capturedAt: Date, displayID: UInt32, image: CGImage) {
+    init(
+        capturedAt: Date,
+        displayID: UInt32,
+        image: CGImage,
+        source: Source = .display,
+        usedWindowFallback: Bool = false
+    ) {
         self.capturedAt = capturedAt
         self.displayID = displayID
         self.image = image
         pixelBuffer = nil
+        self.source = source
+        self.usedWindowFallback = usedWindowFallback
     }
 
     init(capturedAt: Date, displayID: UInt32, pixelBuffer: CVPixelBuffer) {
@@ -223,6 +240,8 @@ struct AOSDesktopPixelFrame: @unchecked Sendable {
         self.displayID = displayID
         image = nil
         self.pixelBuffer = pixelBuffer
+        source = .display
+        usedWindowFallback = false
     }
 
     var height: Int {
@@ -279,6 +298,14 @@ protocol AOSDesktopPixelSnapshotting: AnyObject {
     func shutdown()
 }
 
+protocol AOSDesktopPixelExclusiveStillCapturing: AnyObject {
+    @discardableResult
+    func captureExclusiveStill(
+        _ request: AOSDesktopPixelSnapshotRequest,
+        completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void
+    ) -> AOSDesktopFrameCancelling
+}
+
 protocol AOSDesktopPixelAcquiring: AnyObject {
     @discardableResult
     func snapshot(
@@ -307,6 +334,7 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
     private struct ActiveSnapshot {
         var capture: AOSDesktopFrameCancelling
         let generation: UInt64
+        var retirementDeadlineDelivered: Bool
         var retirementWaiters: [(Result<Void, Error>) -> Void]
         var retiring: Bool
     }
@@ -371,6 +399,7 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
         activeSnapshot = ActiveSnapshot(
             capture: AOSDesktopFrameCancellation(),
             generation: generation,
+            retirementDeadlineDelivered: false,
             retirementWaiters: [],
             retiring: false
         )
@@ -596,6 +625,13 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
             completion(.success(()))
             return
         }
+        if active.retirementDeadlineDelivered {
+            lock.unlock()
+            completion(.failure(
+                AOSDesktopFrameCaptureFailure.retirementUncertain
+            ))
+            return
+        }
         active.retirementWaiters.append(completion)
         if active.retiring {
             activeSnapshot = active
@@ -606,7 +642,10 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
         activeSnapshot = active
         lock.unlock()
         superviseSnapshotRetirement(generation: generation)
-        active.capture.cancel()
+        awaitSnapshotRetirement(
+            capture: active.capture,
+            generation: generation
+        )
     }
 
     private func cancelWarm(
@@ -681,7 +720,9 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
         activeSnapshot = active
         let retiring = active.retiring
         lock.unlock()
-        if retiring { capture.cancel() }
+        if retiring {
+            awaitSnapshotRetirement(capture: capture, generation: generation)
+        }
     }
 
     private func installWarmStartup(
@@ -709,22 +750,93 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
             lock.unlock()
             return
         }
-        activeSnapshot = nil
         let retiring = active.retiring
-        let retirement: Result<Void, Error>
+        let awaitsAuthoritativeRetirement = retiring
+            && active.capture is AOSDesktopFrameRetirementAwaiting
+        let uncertain: Bool
+        let retirementWaiters: [(Result<Void, Error>) -> Void]
         if case .failure(let error) = result,
            error as? AOSDesktopFrameCaptureFailure == .retirementUncertain {
-            terminalFailure = .retirementUncertain
-            retirement = .failure(AOSDesktopFrameCaptureFailure.retirementUncertain)
+            uncertain = true
+            var quarantined = active
+            quarantined.retiring = true
+            if retiring {
+                quarantined.retirementDeadlineDelivered = true
+                quarantined.retirementWaiters = []
+                retirementWaiters = active.retirementWaiters
+            } else {
+                retirementWaiters = []
+            }
+            activeSnapshot = quarantined
+        } else if awaitsAuthoritativeRetirement {
+            uncertain = false
+            retirementWaiters = []
+            activeSnapshot = active
         } else {
-            retirement = .success(())
+            uncertain = false
+            retirementWaiters = active.retirementWaiters
+            activeSnapshot = nil
         }
         lock.unlock()
-        if retiring {
-            active.retirementWaiters.forEach { $0(retirement) }
+        if uncertain {
+            if retiring {
+                let failure: Result<Void, Error> = .failure(
+                    AOSDesktopFrameCaptureFailure.retirementUncertain
+                )
+                retirementWaiters.forEach { $0(failure) }
+            } else {
+                completion(result)
+            }
+            awaitSnapshotRetirement(
+                capture: active.capture,
+                generation: generation
+            )
+            superviseSnapshotRetirement(generation: generation)
+        } else if awaitsAuthoritativeRetirement {
+            // The logical result is not native retirement evidence. The exact
+            // generation remains occupied until cancelAndAwaitRetirement
+            // reports authoritative settlement.
+        } else if retiring {
+            retirementWaiters.forEach { $0(.success(())) }
         } else {
             completion(result)
         }
+    }
+
+    private func awaitSnapshotRetirement(
+        capture: AOSDesktopFrameCancelling,
+        generation: UInt64
+    ) {
+        guard let awaiting = capture as? AOSDesktopFrameRetirementAwaiting else {
+            capture.cancel()
+            return
+        }
+        awaiting.cancelAndAwaitRetirement { [weak self] result in
+            self?.finishAuthoritativeSnapshotRetirement(
+                generation: generation,
+                result: result
+            )
+        }
+    }
+
+    private func finishAuthoritativeSnapshotRetirement(
+        generation: UInt64,
+        result: Result<Void, Error>
+    ) {
+        lock.lock()
+        guard let active = activeSnapshot,
+              active.generation == generation,
+              active.retiring,
+              case .success = result else {
+            lock.unlock()
+            return
+        }
+        activeSnapshot = nil
+        let waiters = active.retirementDeadlineDelivered
+            ? []
+            : active.retirementWaiters
+        lock.unlock()
+        waiters.forEach { $0(.success(())) }
     }
 
     private func finishWarmStart(
@@ -882,19 +994,22 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
 
     private func expireSnapshotRetirement(generation: UInt64) {
         lock.lock()
-        guard let active = activeSnapshot,
+        guard var active = activeSnapshot,
               active.generation == generation,
-              active.retiring else {
+              active.retiring,
+              !active.retirementDeadlineDelivered else {
             lock.unlock()
             return
         }
-        activeSnapshot = nil
-        terminalFailure = .retirementUncertain
+        active.retirementDeadlineDelivered = true
+        let waiters = active.retirementWaiters
+        active.retirementWaiters = []
+        activeSnapshot = active
         lock.unlock()
         let result: Result<Void, Error> = .failure(
             AOSDesktopFrameCaptureFailure.retirementUncertain
         )
-        active.retirementWaiters.forEach { $0(result) }
+        waiters.forEach { $0(result) }
     }
 
     private func expireWarmRetirement(generation: UInt64) {

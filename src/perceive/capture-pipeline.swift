@@ -1009,6 +1009,18 @@ private struct AOSPublicCaptureChunkAccumulator {
     var sha256: String
 }
 
+private struct AOSPublicNativeCaptureResult {
+    let images: [CGDirectDisplayID: CGImage]
+    let usedDisplayFallback: Set<CGDirectDisplayID>
+}
+
+// One absolute foreground budget covers warm quiescence (5s), the two
+// sequential still callback phases (2 x 5s), and bounded warm restoration
+// startup/retirement (under 10s), while retaining margin inside the existing
+// 30s outer consumer deadline.
+let aosPublicCaptureForegroundBudgetMilliseconds =
+    Int(aosPublicCaptureDaemonTransactionBudget * 1_000) + 1_000
+
 private func aosCaptureDigest(_ data: Data) -> String {
     SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
 }
@@ -1023,9 +1035,23 @@ private func aosDecodeCapturePNG(_ data: Data) -> CGImage? {
 }
 
 private func aosPublicCaptureErrorCode(_ daemonCode: String?) -> String {
-    daemonCode == "DESKTOP_FRAME_PERMISSION_DENIED"
-        ? "PERMISSION_DENIED"
-        : "CAPTURE_FAILED"
+    switch daemonCode {
+    case "DESKTOP_FRAME_BUSY":
+        return "CAPTURE_BUSY"
+    case "DESKTOP_FRAME_PERMISSION_DENIED":
+        return "PERMISSION_DENIED"
+    case "DESKTOP_FRAME_DISPLAY_NOT_FOUND",
+         "DESKTOP_FRAME_TOPOLOGY_MISMATCH":
+        return "CAPTURE_TOPOLOGY_MISMATCH"
+    case "DESKTOP_FRAME_CAPTURE_FAILED",
+         "DESKTOP_FRAME_RETIREMENT_UNCERTAIN",
+         "DESKTOP_FRAME_UNAUTHORIZED",
+         "DESKTOP_FRAME_UNSUPPORTED",
+         nil:
+        return "CAPTURE_FAILED"
+    default:
+        return "CAPTURE_FAILED"
+    }
 }
 
 func captureNativeFramesThroughDaemon(
@@ -1034,7 +1060,7 @@ func captureNativeFramesThroughDaemon(
     excludedWindowIDs: [Int],
     windowIDsByDisplay: [CGDirectDisplayID: Int],
     showsCursor: Bool
-) -> [CGDirectDisplayID: CGImage] {
+) -> AOSPublicNativeCaptureResult {
     let selectedSet = Set(selectedDisplayIDs)
     let selectedDisplays = topology.displays.filter {
         selectedSet.contains($0.runtimeDisplayID)
@@ -1066,19 +1092,7 @@ func captureNativeFramesThroughDaemon(
         [
             "display_id": NSNumber(value: display.runtimeDisplayID),
             "index": index,
-            "native_bounds": [
-                display.nativeBounds.x,
-                display.nativeBounds.y,
-                display.nativeBounds.width,
-                display.nativeBounds.height,
-            ],
-            "desktop_world_bounds": [
-                display.desktopWorldBounds.x,
-                display.desktopWorldBounds.y,
-                display.desktopWorldBounds.width,
-                display.desktopWorldBounds.height,
-            ],
-            "scale_factor": display.scaleFactor,
+            "topology_ordinal": display.ordinal,
         ]
     }
     let windowWire = windowIDsByDisplay.map { displayID, windowID in
@@ -1090,12 +1104,18 @@ func captureNativeFramesThroughDaemon(
         (($0["display_id"] as? NSNumber)?.uint32Value ?? 0)
             < (($1["display_id"] as? NSNumber)?.uint32Value ?? 0)
     }
+    let topologyWire: [String: Any]
+    do {
+        topologyWire = try aosDisplayTopologyWireValue(topology)
+    } catch {
+        exitError("Display topology could not be serialized", code: "CAPTURE_TOPOLOGY_MISMATCH")
+    }
     let payload = buildEnvelopePayload(
         service: "see",
         action: "capture",
         data: [
             "capture_id": captureID,
-            "topology_identity": topology.identity,
+            "display_topology": topologyWire,
             "displays": displaysWire,
             "display_ids": selectedDisplayIDs.map { NSNumber(value: $0) },
             "excluded_window_ids": excludedWindowIDs,
@@ -1112,12 +1132,23 @@ func captureNativeFramesThroughDaemon(
     defer { session.disconnect() }
     session.sendOnly(payload)
 
+    let startedAt = DispatchTime.now().uptimeNanoseconds
+    let budgetNanoseconds = UInt64(aosPublicCaptureForegroundBudgetMilliseconds)
+        * 1_000_000
     var accumulators: [Int: AOSPublicCaptureChunkAccumulator] = [:]
     var expectedFrameIndex = 0
     var finalFrames: [[String: Any]]?
     while finalFrames == nil {
-        guard let message = session.readOneJSON(timeoutMs: 15_000) else {
-            exitError("The AOS daemon did not settle capture", code: "DAEMON_UNREACHABLE")
+        let elapsed = DispatchTime.now().uptimeNanoseconds - startedAt
+        guard elapsed < budgetNanoseconds else {
+            exitError("The AOS daemon did not settle capture", code: "CAPTURE_FAILED")
+        }
+        let remainingMilliseconds = max(
+            1,
+            Int((budgetNanoseconds - elapsed + 999_999) / 1_000_000)
+        )
+        guard let message = session.readOneJSON(timeoutMs: remainingMilliseconds) else {
+            exitError("The AOS daemon did not settle capture", code: "CAPTURE_FAILED")
         }
         if message["service"] as? String == "see",
            message["event"] as? String == "capture_chunk",
@@ -1138,7 +1169,14 @@ func captureNativeFramesThroughDaemon(
                   let chunk = Data(base64Encoded: base64),
                   chunkCount > 0,
                   byteCount > 0,
-                  byteCount <= maximumPixels * 5 + 1_048_576,
+                  {
+                    let encodedBudget = maximumPixels.multipliedReportingOverflow(by: 5)
+                    guard !encodedBudget.overflow else { return false }
+                    let overheadBudget = encodedBudget.partialValue
+                        .addingReportingOverflow(1_048_576)
+                    return !overheadBudget.overflow
+                        && byteCount <= overheadBudget.partialValue
+                  }(),
                   chunkIndex >= 0,
                   chunkIndex < chunkCount,
                   chunkIndex <= (byteCount - 1) / aosPublicCaptureChunkBytes,
@@ -1192,8 +1230,15 @@ func captureNativeFramesThroughDaemon(
         exitError("Capture response is incomplete", code: "CAPTURE_FAILED")
     }
     var images: [CGDirectDisplayID: CGImage] = [:]
+    var usedDisplayFallback = Set<CGDirectDisplayID>()
     for (frameIndex, metadata) in finalFrames.enumerated() {
+        let captureSource = metadata["capture_source"] as? String
+        let windowFallback = metadata["window_fallback"] as? Bool
+        let expectedKeys: Set<String> = captureSource == "window"
+            ? ["display_id", "frame_index", "chunk_count", "byte_count", "sha256", "width", "height", "capture_source", "window_fallback", "window_id"]
+            : ["display_id", "frame_index", "chunk_count", "byte_count", "sha256", "width", "height", "capture_source", "window_fallback"]
         guard let displayID = (metadata["display_id"] as? NSNumber)?.uint32Value,
+              Set(metadata.keys) == expectedKeys,
               displayID == selectedDisplayIDs[frameIndex],
               (metadata["frame_index"] as? NSNumber)?.intValue == frameIndex,
               let byteCount = (metadata["byte_count"] as? NSNumber)?.intValue,
@@ -1208,12 +1253,26 @@ func captureNativeFramesThroughDaemon(
               aosCaptureDigest(accumulator.data) == digest,
               let image = aosDecodeCapturePNG(accumulator.data),
               (metadata["width"] as? NSNumber)?.intValue == image.width,
-              (metadata["height"] as? NSNumber)?.intValue == image.height else {
+              (metadata["height"] as? NSNumber)?.intValue == image.height,
+              let captureSource,
+              ["display", "window"].contains(captureSource),
+              let windowFallback,
+              !(captureSource == "window" && windowFallback),
+              !(captureSource == "display"
+                && windowIDsByDisplay[displayID] == nil
+                && windowFallback),
+              captureSource != "window"
+                || (metadata["window_id"] as? NSNumber)?.intValue
+                    == windowIDsByDisplay[displayID] else {
             exitError("Capture digest or geometry failed", code: "CAPTURE_FAILED")
         }
         images[displayID] = image
+        if windowFallback { usedDisplayFallback.insert(displayID) }
     }
-    return images
+    return AOSPublicNativeCaptureResult(
+        images: images,
+        usedDisplayFallback: usedDisplayFallback
+    )
 }
 
 // MARK: - Argument Parsing
@@ -2334,23 +2393,27 @@ func captureCommand(args: [String]) async {
                     in: captureWindows,
                     preferPID: NSWorkspace.shared.frontmostApplication?.processIdentifier
                 )
-            guard let window else {
-                exitError("No window on display \(entry.ordinal)", code: "NO_WINDOW")
-            }
-            if window.frame.width < 10 || window.frame.height < 10 {
-                responseWarning = "Window appears minimized or hidden (frame: \(Int(window.frame.width))x\(Int(window.frame.height))). Falling back to display capture."
-            } else {
+            if let window,
+               window.frame.width >= 10,
+               window.frame.height >= 10 {
                 capturedWindowsByDisplay[displayID] = window
+            } else {
+                responseWarning = "Window capture was unavailable; returned the full display."
             }
         }
     }
-    let nativeImages = captureNativeFramesThroughDaemon(
+    let nativeCapture = captureNativeFramesThroughDaemon(
         topology: displayTopologySnapshot,
         selectedDisplayIDs: selectedCaptureDisplayIDs,
         excludedWindowIDs: opts.excludedWindowIDs,
         windowIDsByDisplay: capturedWindowsByDisplay.mapValues(\.windowID),
         showsCursor: opts.showCursor
     )
+    for displayID in nativeCapture.usedDisplayFallback {
+        capturedWindowsByDisplay.removeValue(forKey: displayID)
+        responseWarning = "Window capture was unavailable; returned the full display."
+    }
+    let nativeImages = nativeCapture.images
 
     // ── Capture loop ──
     var results: [(CGImage, String)] = []

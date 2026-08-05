@@ -64,8 +64,10 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(snapshotNative, /SCShareableContent\.getExcludingDesktopWindows\(/u)
   assert.match(snapshotNative, /SCScreenshotManager\.captureImage\([\s\S]*completionHandler: callback/u)
   assert.doesNotMatch(snapshotNative, /try\s+await\s+(?:SCShareableContent|SCScreenshotManager)/u)
-  assert.match(snapshotNative, /var prepared: \[PreparedDisplayCapture\][\s\S]*pendingDisplayIDs = requested[\s\S]*for entry in prepared/u)
-  assert.match(snapshotNative, /if failure == \.retirementUncertain \|\| firstFailure == nil[\s\S]*guard complete else \{ return \}[\s\S]*firstFailure == \.retirementUncertain/u)
+  assert.match(snapshotNative, /var prepared: \[PreparedDisplayCapture\][\s\S]*displayOutcomes = outcomes[\s\S]*pendingCaptureCallbacks = prepared\.count[\s\S]*for entry in prepared/u)
+  assert.match(snapshotNative, /SCShareableContent\.getExcludingDesktopWindows[\s\S]*prepared\.append\(PreparedDisplayCapture\([\s\S]*source: \.display[\s\S]*if let windowID = requestedWindowID[\s\S]*source: \.window\(windowID\)/u)
+  assert.match(snapshotNative, /aosResolveDesktopPixelStillOutcomes\([\s\S]*displayIDs: request\.displayIDs,[\s\S]*outcomes: outcomes/u)
+  assert.match(snapshotNative, /outstandingNativeCallbacks[\s\S]*authoritativeSettlement:[\s\S]*nativeCallbackSettled/u)
   assert.equal((warmNative.match(/aosDesktopPixelCaptureFilter\(/gu) ?? []).length, 1)
   assert.match(
     warmNative,
@@ -82,6 +84,8 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(nativeOperation, /deadline <= 10/u)
   assert.match(nativeOperation, /\.retirementUncertain/u)
   assert.match(nativeOperation, /if delivered \{[\s\S]*delivery = nil[\s\S]*result = nil/u)
+  assert.match(nativeOperation, /only the native callback settles[\s\S]*settlementObserver/u)
+  assert.match(nativeOperation, /func nativeSettled[\s\S]*settlementObserver = self\.settlementObserver[\s\S]*settlementObserver\?\(\)/u)
   assert.match(retainedNativeOperation, /DispatchQueue\.global\([\s\S]*qos: \.userInitiated/u)
   assert.match(retainedNativeOperation, /executionQueue\.async/u)
   assert.match(
@@ -176,6 +180,9 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(broker, /setTerminalObserver/u)
   assert.match(broker, /superviseSnapshotRetirement/u)
   assert.match(broker, /superviseWarmRetirement/u)
+  assert.match(broker, /retirementDeadlineDelivered/u)
+  assert.match(broker, /awaitSnapshotRetirement[\s\S]*finishAuthoritativeSnapshotRetirement/u)
+  assert.match(broker, /active\.retiring,[\s\S]*!active\.retirementDeadlineDelivered else/u)
   assert.match(pool, /final class AOSDesktopFrameWarmPool/u)
   assert.match(pool, /AOSDesktopFrameWarmSourceIdentity/u)
   assert.match(pool, /excludingWindowIDs: Array\(Set\(excludingWindowIDs\)\)\.sorted\(\)/u)
@@ -187,6 +194,10 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(pool, /retireCurrentOnQueue\(\)[\s\S]*startExclusiveSnapshotOnQueue/u)
   assert.match(pool, /broker\.snapshot\(transaction\.request\)/u)
   assert.match(pool, /request\.capturePolicy == \.publicExplicitExclusions/u)
+  assert.match(pool, /aosPublicCaptureDaemonTransactionBudget: TimeInterval = 24/u)
+  assert.match(pool, /scheduleDeadline[\s\S]*exclusiveStillDeadlineOnQueue/u)
+  assert.match(pool, /topologyDrifted = true/u)
+  assert.match(pool, /transaction\.topologyDrifted && !transaction\.canceled[\s\S]*\.topologyMismatch/u)
   assert.match(pool, /terminalObserver:/u)
   assert.doesNotMatch(
     `${broker}\n${lifecycle}\n${native}\n${pool}`,
@@ -223,9 +234,10 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(perceive, /guard session\.connectWithAutoStart[\s\S]*code: "DAEMON_UNREACHABLE"/u)
   assert.match(perceive, /message\["service"\] as\? String == "see",[\s\S]*message\["event"\] as\? String == "capture_chunk"/u)
   assert.match(perceive, /aosCaptureDigest\(accumulator\.data\) == digest/u)
-  const browserDispatch = perceive.indexOf('if opts.target.hasPrefix("browser:")')
-  const topologyObservation = perceive.indexOf('let displayTopologySnapshot = observeDisplayTopologySnapshot()')
-  const daemonCapture = perceive.indexOf('let nativeImages = captureNativeFramesThroughDaemon(')
+  const captureCommand = perceive.slice(perceive.indexOf('func captureCommand(args: [String]) async'))
+  const browserDispatch = captureCommand.indexOf('if opts.target.hasPrefix("browser:")')
+  const topologyObservation = captureCommand.indexOf('let displayTopologySnapshot = observeDisplayTopologySnapshot()')
+  const daemonCapture = captureCommand.indexOf('captureNativeFramesThroughDaemon(')
   assert.ok(browserDispatch >= 0 && browserDispatch < topologyObservation && topologyObservation < daemonCapture)
   assert.equal((perceive.match(/captureNativeFramesThroughDaemon\(/gu) ?? []).length, 2)
   const savedCaptureCommand = savedCapture.slice(

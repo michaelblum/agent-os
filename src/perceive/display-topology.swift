@@ -64,7 +64,7 @@ struct AOSDisplayTopologyObservationMember {
     let rotation: Double
 }
 
-enum AOSDisplayTopologyMemberIdentity: Encodable, Equatable {
+enum AOSDisplayTopologyMemberIdentity: Codable, Equatable {
     case displayUUID(value: String, bytes: [UInt8])
     case displayIDFallback(UInt32)
 
@@ -85,9 +85,39 @@ enum AOSDisplayTopologyMemberIdentity: Encodable, Equatable {
             try container.encode(displayID, forKey: .displayIDFallback)
         }
     }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(String.self, forKey: .kind)
+        switch kind {
+        case "display_uuid":
+            let value = try container.decode(String.self, forKey: .displayUUID)
+            guard let parsed = UUID(uuidString: value) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .displayUUID,
+                    in: container,
+                    debugDescription: "invalid display UUID"
+                )
+            }
+            self = .displayUUID(
+                value: parsed.uuidString.lowercased(),
+                bytes: parsed.aosRawBytes
+            )
+        case "display_id_fallback":
+            self = .displayIDFallback(
+                try container.decode(UInt32.self, forKey: .displayIDFallback)
+            )
+        default:
+            throw DecodingError.dataCorruptedError(
+                forKey: .kind,
+                in: container,
+                debugDescription: "invalid member identity kind"
+            )
+        }
+    }
 }
 
-struct AOSDisplayTopologyDisplay: Encodable {
+struct AOSDisplayTopologyDisplay: Codable {
     // Runtime-only lookup facts are deliberately omitted from public encoding
     // and from the content identity when a persistent UUID is usable.
     let runtimeDisplayID: UInt32
@@ -116,9 +146,75 @@ struct AOSDisplayTopologyDisplay: Encodable {
         case scaleFactor = "scale_factor"
         case rotation
     }
+
+    init(
+        runtimeDisplayID: UInt32,
+        runtimeDisplayUUID: String?,
+        runtimeLabel: String,
+        runtimeIsMirrored: Bool,
+        ordinal: Int,
+        isMain: Bool,
+        memberIdentity: AOSDisplayTopologyMemberIdentity,
+        nativeBounds: AOSDisplayTopologyBounds,
+        nativeVisibleBounds: AOSDisplayTopologyBounds,
+        desktopWorldBounds: AOSDisplayTopologyBounds,
+        visibleDesktopWorldBounds: AOSDisplayTopologyBounds,
+        scaleFactor: Double,
+        rotation: Double
+    ) {
+        self.runtimeDisplayID = runtimeDisplayID
+        self.runtimeDisplayUUID = runtimeDisplayUUID
+        self.runtimeLabel = runtimeLabel
+        self.runtimeIsMirrored = runtimeIsMirrored
+        self.ordinal = ordinal
+        self.isMain = isMain
+        self.memberIdentity = memberIdentity
+        self.nativeBounds = nativeBounds
+        self.nativeVisibleBounds = nativeVisibleBounds
+        self.desktopWorldBounds = desktopWorldBounds
+        self.visibleDesktopWorldBounds = visibleDesktopWorldBounds
+        self.scaleFactor = scaleFactor
+        self.rotation = rotation
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        ordinal = try container.decode(Int.self, forKey: .ordinal)
+        isMain = try container.decode(Bool.self, forKey: .isMain)
+        memberIdentity = try container.decode(
+            AOSDisplayTopologyMemberIdentity.self,
+            forKey: .memberIdentity
+        )
+        nativeBounds = try container.decode(
+            AOSDisplayTopologyBounds.self,
+            forKey: .nativeBounds
+        )
+        nativeVisibleBounds = try container.decode(
+            AOSDisplayTopologyBounds.self,
+            forKey: .nativeVisibleBounds
+        )
+        desktopWorldBounds = try container.decode(
+            AOSDisplayTopologyBounds.self,
+            forKey: .desktopWorldBounds
+        )
+        visibleDesktopWorldBounds = try container.decode(
+            AOSDisplayTopologyBounds.self,
+            forKey: .visibleDesktopWorldBounds
+        )
+        scaleFactor = try container.decode(Double.self, forKey: .scaleFactor)
+        rotation = try container.decode(Double.self, forKey: .rotation)
+        runtimeDisplayID = 0
+        runtimeLabel = ""
+        runtimeIsMirrored = false
+        if case .displayUUID(let value, _) = memberIdentity {
+            runtimeDisplayUUID = value
+        } else {
+            runtimeDisplayUUID = nil
+        }
+    }
 }
 
-struct AOSDisplayTopologySnapshot: Encodable {
+struct AOSDisplayTopologySnapshot: Codable {
     let schema = "aos.display-topology.v1"
     let identity: String
     let usesDisplayIDFallback: Bool
@@ -141,6 +237,73 @@ struct AOSDisplayTopologySnapshot: Encodable {
         case desktopWorldBounds = "desktop_world_bounds"
         case visibleDesktopWorldBounds = "visible_desktop_world_bounds"
         case displays
+    }
+
+    init(
+        identity: String,
+        usesDisplayIDFallback: Bool,
+        screensHaveSeparateSpaces: Bool,
+        desktopWorldOriginNative: AOSDisplayTopologyPoint,
+        nativeBounds: AOSDisplayTopologyBounds,
+        nativeVisibleBounds: AOSDisplayTopologyBounds,
+        desktopWorldBounds: AOSDisplayTopologyBounds,
+        visibleDesktopWorldBounds: AOSDisplayTopologyBounds,
+        displays: [AOSDisplayTopologyDisplay]
+    ) {
+        self.identity = identity
+        self.usesDisplayIDFallback = usesDisplayIDFallback
+        self.screensHaveSeparateSpaces = screensHaveSeparateSpaces
+        self.desktopWorldOriginNative = desktopWorldOriginNative
+        self.nativeBounds = nativeBounds
+        self.nativeVisibleBounds = nativeVisibleBounds
+        self.desktopWorldBounds = desktopWorldBounds
+        self.visibleDesktopWorldBounds = visibleDesktopWorldBounds
+        self.displays = displays
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let schema = try container.decode(String.self, forKey: .schema)
+        guard schema == "aos.display-topology.v1" else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .schema,
+                in: container,
+                debugDescription: "invalid display topology schema"
+            )
+        }
+        identity = try container.decode(String.self, forKey: .identity)
+        usesDisplayIDFallback = try container.decode(
+            Bool.self,
+            forKey: .usesDisplayIDFallback
+        )
+        screensHaveSeparateSpaces = try container.decode(
+            Bool.self,
+            forKey: .screensHaveSeparateSpaces
+        )
+        desktopWorldOriginNative = try container.decode(
+            AOSDisplayTopologyPoint.self,
+            forKey: .desktopWorldOriginNative
+        )
+        nativeBounds = try container.decode(
+            AOSDisplayTopologyBounds.self,
+            forKey: .nativeBounds
+        )
+        nativeVisibleBounds = try container.decode(
+            AOSDisplayTopologyBounds.self,
+            forKey: .nativeVisibleBounds
+        )
+        desktopWorldBounds = try container.decode(
+            AOSDisplayTopologyBounds.self,
+            forKey: .desktopWorldBounds
+        )
+        visibleDesktopWorldBounds = try container.decode(
+            AOSDisplayTopologyBounds.self,
+            forKey: .visibleDesktopWorldBounds
+        )
+        displays = try container.decode(
+            [AOSDisplayTopologyDisplay].self,
+            forKey: .displays
+        )
     }
 }
 
@@ -757,4 +920,153 @@ func buildAOSDisplayTopologySnapshot(
         visibleDesktopWorldBounds: visibleDesktopUnion,
         displays: displays
     )
+}
+
+enum AOSDisplayTopologyWireError: Error {
+    case invalid
+}
+
+private func aosDisplayTopologyHasExactKeys(
+    _ object: [String: Any],
+    _ expected: Set<String>
+) -> Bool {
+    Set(object.keys) == expected
+}
+
+func aosDisplayTopologyWireValue(
+    _ snapshot: AOSDisplayTopologySnapshot
+) throws -> [String: Any] {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(snapshot)
+    guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        throw AOSDisplayTopologyWireError.invalid
+    }
+    return object
+}
+
+/// Decodes the closed canonical topology object, rebuilds it through the one
+/// production topology builder, and accepts it only when every supplied fact
+/// and its content identity are byte-canonical.
+func validateAOSDisplayTopologyWireValue(
+    _ value: Any
+) throws -> AOSDisplayTopologySnapshot {
+    guard let object = value as? [String: Any],
+          aosDisplayTopologyHasExactKeys(object, [
+            "schema", "identity", "uses_display_id_fallback",
+            "screens_have_separate_spaces", "desktop_world_origin_native",
+            "native_bounds", "native_visible_bounds", "desktop_world_bounds",
+            "visible_desktop_world_bounds", "displays",
+          ]),
+          let point = object["desktop_world_origin_native"] as? [String: Any],
+          aosDisplayTopologyHasExactKeys(point, ["x", "y"]),
+          let native = object["native_bounds"] as? [String: Any],
+          aosDisplayTopologyHasExactKeys(native, ["x", "y", "width", "height"]),
+          let nativeVisible = object["native_visible_bounds"] as? [String: Any],
+          aosDisplayTopologyHasExactKeys(nativeVisible, ["x", "y", "width", "height"]),
+          let desktop = object["desktop_world_bounds"] as? [String: Any],
+          aosDisplayTopologyHasExactKeys(desktop, ["x", "y", "width", "height"]),
+          let desktopVisible = object["visible_desktop_world_bounds"] as? [String: Any],
+          aosDisplayTopologyHasExactKeys(desktopVisible, ["x", "y", "width", "height"]),
+          let displayObjects = object["displays"] as? [[String: Any]],
+          !displayObjects.isEmpty,
+          displayObjects.count <= 16 else {
+        throw AOSDisplayTopologyWireError.invalid
+    }
+    for display in displayObjects {
+        guard aosDisplayTopologyHasExactKeys(display, [
+            "ordinal", "is_main", "member_identity", "native_bounds",
+            "native_visible_bounds", "desktop_world_bounds",
+            "visible_desktop_world_bounds", "scale_factor", "rotation",
+        ]),
+        let member = display["member_identity"] as? [String: Any],
+        let kind = member["kind"] as? String,
+        (kind == "display_uuid"
+            ? aosDisplayTopologyHasExactKeys(member, ["kind", "display_uuid"])
+            : kind == "display_id_fallback"
+                && aosDisplayTopologyHasExactKeys(member, ["kind", "display_id_fallback"])),
+        let nativeBounds = display["native_bounds"] as? [String: Any],
+        aosDisplayTopologyHasExactKeys(nativeBounds, ["x", "y", "width", "height"]),
+        let visibleBounds = display["native_visible_bounds"] as? [String: Any],
+        aosDisplayTopologyHasExactKeys(visibleBounds, ["x", "y", "width", "height"]),
+        let desktopBounds = display["desktop_world_bounds"] as? [String: Any],
+        aosDisplayTopologyHasExactKeys(desktopBounds, ["x", "y", "width", "height"]),
+        let visibleDesktopBounds = display["visible_desktop_world_bounds"] as? [String: Any],
+        aosDisplayTopologyHasExactKeys(visibleDesktopBounds, ["x", "y", "width", "height"]) else {
+            throw AOSDisplayTopologyWireError.invalid
+        }
+    }
+
+    guard JSONSerialization.isValidJSONObject(object) else {
+        throw AOSDisplayTopologyWireError.invalid
+    }
+    let incomingData = try JSONSerialization.data(
+        withJSONObject: object,
+        options: [.sortedKeys]
+    )
+    let decoded = try JSONDecoder().decode(
+        AOSDisplayTopologySnapshot.self,
+        from: incomingData
+    )
+
+    let fallbackIDs = Set(decoded.displays.compactMap { display -> UInt32? in
+        if case .displayIDFallback(let displayID) = display.memberIdentity {
+            return displayID
+        }
+        return nil
+    })
+    var nextSyntheticID: UInt32 = 1
+    func syntheticID() throws -> UInt32 {
+        while fallbackIDs.contains(nextSyntheticID) {
+            guard nextSyntheticID < UInt32.max else {
+                throw AOSDisplayTopologyWireError.invalid
+            }
+            nextSyntheticID += 1
+        }
+        let result = nextSyntheticID
+        guard nextSyntheticID < UInt32.max else {
+            throw AOSDisplayTopologyWireError.invalid
+        }
+        nextSyntheticID += 1
+        return result
+    }
+
+    var observation: [AOSDisplayTopologyObservationMember] = []
+    for display in decoded.displays {
+        let runtimeDisplayID: UInt32
+        let displayUUID: String?
+        switch display.memberIdentity {
+        case .displayUUID(let value, _):
+            runtimeDisplayID = try syntheticID()
+            displayUUID = value
+        case .displayIDFallback(let displayID):
+            runtimeDisplayID = displayID
+            displayUUID = nil
+        }
+        observation.append(AOSDisplayTopologyObservationMember(
+            runtimeDisplayID: runtimeDisplayID,
+            displayUUID: displayUUID,
+            label: "",
+            isMain: display.isMain,
+            isMirrored: false,
+            nativeBounds: display.nativeBounds,
+            nativeVisibleBounds: display.nativeVisibleBounds,
+            scaleFactor: display.scaleFactor,
+            rotation: display.rotation
+        ))
+    }
+    let rebuilt = try buildAOSDisplayTopologySnapshot(
+        observation: observation,
+        screensHaveSeparateSpaces: decoded.screensHaveSeparateSpaces
+    )
+    let rebuiltData = try JSONEncoder().encode(rebuilt)
+    let rebuiltObject = try JSONSerialization.jsonObject(with: rebuiltData)
+    let canonicalRebuiltData = try JSONSerialization.data(
+        withJSONObject: rebuiltObject,
+        options: [.sortedKeys]
+    )
+    guard incomingData == canonicalRebuiltData else {
+        throw AOSDisplayTopologyWireError.invalid
+    }
+    return rebuilt
 }

@@ -65,7 +65,7 @@ Error response:
 |-------------------|---------|----------------------|
 | `see.observe` | Open a perception attention channel and subscribe connection to events. | (none) |
 | `see.snapshot` | Spatial snapshot from the daemon. | (none) |
-| `see.capture` | Private single-owner native still transaction; emits ordered `see.capture_chunk` events before a metadata-only response. | `capture_id`, `topology_identity`, `displays`, `display_ids`, `excluded_window_ids`, `window_targets`, `maximum_pixels_per_display`, `shows_cursor`. |
+| `see.capture` | Private single-owner native still transaction; emits ordered `see.capture_chunk` events before a metadata-only response. | `capture_id`, `display_topology`, `displays`, `display_ids`, `excluded_window_ids`, `window_targets`, `maximum_pixels_per_display`, `shows_cursor`. |
 | `show.create` | Create a canvas. | `id` + one geometry source (`at`, `track`, `surface`, `anchor_window+offset`, `anchor_channel+offset`) + one content source (`html`, `url`). |
 | `show.update` | Mutate canvas fields. | `id`. |
 | `show.eval` | Evaluate JS inside a canvas. | `id`, `js`. |
@@ -98,6 +98,23 @@ Error response:
 | `focus.remove` | Remove a focus channel. | `id`. |
 | `graph.displays` | Display topology graph. | (none) |
 | `graph.windows` | Window topology graph. | (none; optional `display`). |
+
+`see.capture.data` is closed at every nesting level. `display_topology` is the
+complete canonical `aos.display-topology.v1` snapshot. Each `displays[]` item is
+only `{display_id,index,topology_ordinal}`; it maps runtime native IDs to the
+canonical member and carries no independent geometry or identity authority. The
+daemon rebuilds the topology identity and native/DesktopWorld geometry before
+admission. Window targets are unique positive window IDs on selected displays
+and may not name excluded windows. Counts, exact integers, finite geometry,
+selection order, and checked per-display/aggregate pixel budgets are bounded.
+
+One admitted transaction owns warm quiescence, still callbacks, and restoration
+under a 24-second monotonic daemon deadline. A requested window is preferred;
+missing, moved, invalid, or failed window capture uses the full-display still
+from the same content observation and broker transaction. Final frame metadata
+is closed and labels `capture_source="display"|"window"`,
+`window_fallback`, and `window_id` only for a window source. The consumer uses
+one 25-second monotonic foreground budget inside its 30-second outer deadline.
 | `graph.deepen` | Expand a graph node. | `id`. |
 | `graph.collapse` | Collapse a graph node. | `id`. |
 | `content.status` | Query content server status (port + roots). | (none) |
@@ -127,6 +144,12 @@ duplicate-key occurrence.
 | `VOICE_NOT_ALLOCATABLE` | `voice.bind` target exists and is speakable, but policy or availability blocks selection. |
 | `CANVAS_NOT_FOUND` | Referenced canvas `id` does not exist. |
 | `PERMISSION_DENIED` | macOS permission (Accessibility, Screen Recording) missing. |
+| `DESKTOP_FRAME_BUSY` | Another daemon-owned native pixel transaction is active. |
+| `DESKTOP_FRAME_CAPTURE_FAILED` | The admitted native capture or transfer failed. |
+| `DESKTOP_FRAME_DISPLAY_NOT_FOUND` | A selected native display disappeared. |
+| `DESKTOP_FRAME_PERMISSION_DENIED` | The daemon lacks Screen Recording permission. |
+| `DESKTOP_FRAME_RETIREMENT_UNCERTAIN` | Native ownership did not settle authoritatively by its logical deadline. |
+| `DESKTOP_FRAME_TOPOLOGY_MISMATCH` | Canonical topology validation or frozen-source restoration detected drift. |
 | `INPUT_TAP_NOT_ACTIVE` | Daemon is reachable but its global input tap is not active. Emitted by `do`-family preflight when the daemon's `system.ping` reports `input_tap.status != "active"`, and surfaced as `reason` in service install/start/restart responses when the tap-inactive branch is hit. |
 | `INTERNAL` | Unexpected daemon error. |
 | `INVALID_STATUS_ITEM_DESCRIPTOR` | Descriptor data is missing or malformed. |

@@ -3360,6 +3360,9 @@ class UnifiedDaemon {
             flat["action"] = internalAction
             flat["__envelope_ref"] = env.ref ?? ""
             flat["__envelope_active"] = true
+            if internalAction == "capture" {
+                flat["__capture_payload"] = env.data
+            }
             routeAction(internalAction, json: flat, outbound: outbound, connectionID: connectionID)
             return
         }
@@ -3391,7 +3394,7 @@ class UnifiedDaemon {
                 return
             }
             let capture = publicCaptureController.capture(
-                payload: json,
+                payload: (json["__capture_payload"] as? [String: Any]) ?? [:],
                 emitChunk: { data in
                     guard let bytes = envelopeBytes(
                         service: "see",

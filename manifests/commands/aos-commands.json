@@ -667,6 +667,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
+          "summary" : "Capture native targets through one bounded daemon-owned transaction; --window prefers the window and warns when it falls back to the full display",
           "usage" : "aos see capture [<target>] [options]"
         },
         {
@@ -819,7 +820,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "summary" : "Persist perception into a local agent workspace for the canonical ready/capture/ref/action/recapture/verify loop and return compact saved refs with conformance/proof for canvas, browser, and stable native AX actions with actionable producer verdicts",
+          "summary" : "Persist perception through the same bounded daemon-owned native transaction into a local agent workspace; --window warns on full-display fallback, and compact refs retain conformance/proof for canvas, browser, and stable native AX actions",
           "usage" : "aos see capture [<target>|--region <rect>|--canvas <id>|--channel <id>] [--interactive] --save [--mode <mode>] [--workspace <id>] [--name <id>] [--query <text>]"
         },
         {

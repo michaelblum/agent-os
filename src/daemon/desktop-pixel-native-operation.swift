@@ -100,8 +100,8 @@ final class AOSDesktopPixelRetainedNativeOperation: @unchecked Sendable {
 
 /// A deadline may end logical delivery, but only the native callback settles
 /// ownership. A timed-out token therefore self-retains in quarantine until a
-/// late callback arrives; if it never arrives the broker remains terminally
-/// failed and no later ScreenCaptureKit work can be admitted.
+/// late callback arrives; if it never arrives the exact native owner remains
+/// occupied and no later ScreenCaptureKit work can be admitted.
 final class AOSDesktopPixelRetainedCallbackToken<Value>: @unchecked Sendable {
     typealias NativeStart = (@escaping (Value?, Error?) -> Void) -> Void
 
@@ -110,17 +110,20 @@ final class AOSDesktopPixelRetainedCallbackToken<Value>: @unchecked Sendable {
     private var completion: ((Result<Value, Error>) -> Void)?
     private var delivered = false
     private var selfRetain: AOSDesktopPixelRetainedCallbackToken<Value>?
+    private var settlementObserver: (() -> Void)?
     private var settled = false
 
     func start(
         deadline: TimeInterval,
         nativeStart: @escaping NativeStart,
+        authoritativeSettlement: @escaping () -> Void = {},
         completion: @escaping (Result<Value, Error>) -> Void
     ) {
         precondition(deadline > 0 && deadline <= 10)
         lock.lock()
         precondition(self.completion == nil && selfRetain == nil)
         self.completion = completion
+        settlementObserver = authoritativeSettlement
         selfRetain = self
         lock.unlock()
 
@@ -150,6 +153,7 @@ final class AOSDesktopPixelRetainedCallbackToken<Value>: @unchecked Sendable {
 
     private func nativeSettled(value: Value?, error: Error?) {
         let delivery: ((Result<Value, Error>) -> Void)?
+        let settlementObserver: (() -> Void)?
         let result: Result<Value, Error>?
         lock.lock()
         guard !settled else {
@@ -157,6 +161,8 @@ final class AOSDesktopPixelRetainedCallbackToken<Value>: @unchecked Sendable {
             return
         }
         settled = true
+        settlementObserver = self.settlementObserver
+        self.settlementObserver = nil
         if delivered {
             delivery = nil
             result = nil
@@ -175,5 +181,6 @@ final class AOSDesktopPixelRetainedCallbackToken<Value>: @unchecked Sendable {
         selfRetain = nil
         lock.unlock()
         if let result { delivery?(result) }
+        settlementObserver?()
     }
 }

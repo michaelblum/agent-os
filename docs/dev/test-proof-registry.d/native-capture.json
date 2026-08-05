@@ -6,7 +6,13 @@
     {
       "id": "public-native-capture-single-owner-contract",
       "path_patterns": [
-        "tests/public-capture-transfer.test.mjs"
+        "tests/public-capture-transfer.test.mjs",
+        "tests/lib/public-capture-controller-tests.swift",
+        "tests/desktop-pixel-broker-contract.test.mjs",
+        "tests/lib/desktop-frame-warm-pool-tests.swift",
+        "tests/lib/desktop-pixel-broker-tests.swift",
+        "tests/lib/desktop-pixel-native-lifecycle-tests.swift",
+        "tests/toolkit/runtime-canvas-host-runtime.test.mjs"
       ],
       "fixture_patterns": [
         "shared/schemas/fixtures/daemon-event/**/see-capture-*.json"
@@ -14,9 +20,9 @@
       "owner": "daemon-desktop-pixels",
       "harness_level": "model_unit",
       "proof_kind": "public_native_capture_single_owner_contract",
-      "contract": "Direct and saved native capture use one daemon broker transaction, explicit public exclusions, callback-deadline quarantine, strict ordered chunk IPC, and the existing output policy without a second production ScreenCaptureKit owner.",
-      "worth": "This prevents public capture from overlapping warm DesktopWorld streams, reopening after uncertain native callbacks, leaking capture artifacts into transport, or truncating frames above the normal socket queue budget.",
-      "command": "node --test tests/public-capture-transfer.test.mjs tests/desktop-pixel-broker-contract.test.mjs tests/desktop-frame-texture-native.test.mjs && bash tests/daemon-ipc-schema.sh && node --test tests/schemas/daemon-event.test.mjs",
+      "contract": "Direct and saved native capture use one deadline-bounded daemon broker transaction, full canonical topology revalidation, explicit public exclusions, exact-generation callback quarantine, source-labeled window fallback, strict ordered chunk IPC, and the existing output policy without a second production ScreenCaptureKit owner.",
+      "worth": "This prevents public capture from overlapping warm DesktopWorld streams, reopening before uncertain native callbacks settle, trusting duplicated caller geometry, returning stale window pixels, leaking capture artifacts into transport, hanging past the foreground budget, or truncating frames above the normal socket queue budget.",
+      "command": "node --test tests/public-capture-transfer.test.mjs tests/desktop-pixel-broker-contract.test.mjs tests/desktop-frame-texture-native.test.mjs tests/toolkit/runtime-canvas-host-runtime.test.mjs && bash tests/display-topology-contract.sh && bash tests/daemon-ipc-schema.sh && node --test tests/schemas/daemon-event.test.mjs",
       "replaces": [],
       "guard": "focused production Swift owners, fake native callbacks, schema fixtures, and in-memory bytes only; no AOS binary, daemon socket, GUI, TCC, native capture, filesystem artifact, or external process lifecycle",
       "status": "active"

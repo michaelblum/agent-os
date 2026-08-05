@@ -44,25 +44,44 @@ The broker supports two acquisition forms:
 Production `aos see capture` native pixels use the same daemon broker through a
 private strict `see.capture` request. The foreground pipeline observes display
 topology once, resolves display/window/region policy against that immutable
-snapshot, and sends its exact identity and geometry to the daemon. The daemon
+snapshot, and sends the full canonical topology with a display-ID/ordinal
+selection mapping to the daemon. The daemon reconstructs the content identity
+and native/DesktopWorld geometry with the production topology builder; caller
+geometry or a separate hash is not an authority. It rejects unknown nested
+keys, non-exact numeric values, non-finite geometry, duplicates, count overages,
+selection drift, and pixel-budget overflow before native work. The daemon
 quiesces and authoritatively retires any warm owner, admits exactly one public
 still, then restores the still-current desired warm configuration before the
-caller can complete. Reconciliation during this transaction updates the restore
-target without opening a second producer. Browser capture remains daemon-free;
+caller can complete. A 24-second monotonic transaction deadline covers
+quiescence, still callbacks, restoration, and disconnect cleanup; the foreground
+consumer uses one 25-second monotonic deadline inside its existing 30-second
+outer budget. Neither deadline clears an unsettled native owner. Reconciliation
+during this transaction updates the restore target without opening a second
+producer. If the source changes from A to B, B must become ready before A's
+capture fails with topology mismatch; a nil target restores to idle. Browser
+capture remains daemon-free;
 the gated foreground development probe remains a non-production control.
 
 Public still discovery and screenshot acquisition use Apple's completion
 handlers, not unbounded async still awaits. Each callback has a retained token
-and a bounded logical deadline. A missing callback fails the broker terminally
-closed and remains quarantined; a later callback can only release that token,
-never deliver pixels, mutate a newer transaction, or reopen native admission.
+and a bounded logical deadline. A missing callback keeps its exact generation
+owner quarantined and blocks later native admission without converting that
+uncertainty into a global terminal state. Only authoritative settlement of that
+callback releases the quarantine; a late callback cannot redeliver the old
+logical result or mutate a newer transaction. If the callback never arrives,
+the exact owner remains occupied indefinitely.
 Warm streams report post-ready terminal failure to the exact lease generation.
 One current connection interruption may perform one retirement-confirmed
 reopen; a stale callback is ignored and a repeated current failure remains
 unavailable.
 
 Public capture uses explicit excluded window IDs and never implicitly hides the
-AOS process. Encoded PNGs cross the normal bounded outbound writer as ordered
+AOS process. A window request prepares the full-display still and, when the
+window is valid in the same single content observation, the preferred window
+still within one broker transaction. Missing, moved, invalid, or failed window
+capture falls back to the display and emits exact source/fallback metadata plus
+a generic consumer warning; if both stills fail, capture fails. Encoded PNGs
+cross the normal bounded outbound writer as ordered
 384 KiB `see.capture_chunk` events with capture/topology/display/frame/chunk
 identity, total byte count, and SHA-256. The final response contains metadata
 only. This permits frames above the writer's 32 MiB queued-byte ceiling while
@@ -70,6 +89,13 @@ keeping one bounded event admitted at a time and creating no daemon artifact or
 alternate byte channel. The foreground consumer validates order, counts,
 digest, topology identity, and decoded geometry before applying existing crop,
 overlay, perception, saved-ref, or output policy.
+
+The foreground error projection is closed: broker busy maps to `CAPTURE_BUSY`,
+screen-capture permission failure to `PERMISSION_DENIED`, missing display or
+topology drift to `CAPTURE_TOPOLOGY_MISMATCH`, and every other admitted capture,
+transfer, retirement, unsupported, unauthorized, unknown, timeout, or read-loss
+failure to `CAPTURE_FAILED`. `DAEMON_UNREACHABLE` is reserved for failure to
+connect before admission.
 
 Process-level self-exclusion is used only when AOS has an app-bundle identity;
 ScreenCaptureKit listing a raw executable's PID does not prove that application

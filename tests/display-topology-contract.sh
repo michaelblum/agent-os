@@ -206,7 +206,10 @@ assert "screen?." not in observer_body
 daemon_capture_body = pipeline.split("func captureNativeFramesThroughDaemon(", 1)[1].split(
     "// MARK: - Argument Parsing", 1
 )[0]
-assert '"topology_identity": topology.identity' in daemon_capture_body
+assert "topologyWire = try aosDisplayTopologyWireValue(topology)" in daemon_capture_body
+assert '"display_topology": topologyWire' in daemon_capture_body
+assert '"topology_ordinal": display.ordinal' in daemon_capture_body
+assert '"topology_identity": topology.identity' not in daemon_capture_body
 assert '"displays": displaysWire' in daemon_capture_body
 assert '"display_ids": selectedDisplayIDs.map' in daemon_capture_body
 assert "session.connectWithAutoStart" in daemon_capture_body
@@ -214,6 +217,10 @@ assert 'code: "DAEMON_UNREACHABLE"' in daemon_capture_body
 assert "displayID == selectedDisplayIDs[frameIndex]" in daemon_capture_body
 assert "expectedFrameIndex == selectedDisplayIDs.count" in daemon_capture_body
 assert "aosCaptureDigest(accumulator.data) == digest" in daemon_capture_body
+assert "DispatchTime.now().uptimeNanoseconds" in daemon_capture_body
+assert "aosPublicCaptureForegroundBudgetMilliseconds" in daemon_capture_body
+assert "multipliedReportingOverflow(by: 5)" in daemon_capture_body
+assert "addingReportingOverflow(1_048_576)" in daemon_capture_body
 assert "validateAOSCapturedDisplayPixelGeometry(" in capture_body
 assert "func captureDisplay(" not in pipeline
 assert "func captureWindow(" not in pipeline
@@ -225,6 +232,8 @@ assert "func validateAOSDisplayCaptureAlignment(" in topology_owner
 assert "func validateAOSCapturedDisplayPixelGeometry(" in topology_owner
 assert "let pixelWidth = Int(exactly: pixelWidthValue)" in topology_owner
 assert "let pixelHeight = Int(exactly: pixelHeightValue)" in topology_owner
+assert "func validateAOSDisplayTopologyWireValue(" in topology_owner
+assert "buildAOSDisplayTopologySnapshot(" in topology_owner
 
 list_body = pipeline.split("func seeListCommand()", 1)[1].split(
     "// MARK: - Command: cursor", 1

@@ -301,11 +301,17 @@ func runDesktopPixelNativeLifecycleTests() async throws {
 
     let lateCallbackBox = NativeIntCallbackBox()
     let lateCallbackSettled = DispatchSemaphore(value: 0)
+    let lateAuthoritativeSettled = DispatchSemaphore(value: 0)
     let lateCallbackCount = LockedCounter()
+    let lateAuthoritativeCount = LockedCounter()
     let lateCallback = AOSDesktopPixelRetainedCallbackToken<Int>()
     lateCallback.start(
         deadline: 0.02,
         nativeStart: { lateCallbackBox.install($0) },
+        authoritativeSettlement: {
+            lateAuthoritativeCount.increment()
+            lateAuthoritativeSettled.signal()
+        },
         completion: { result in
             lateCallbackCount.increment()
             if case .failure(let error) = result {
@@ -325,10 +331,11 @@ func runDesktopPixelNativeLifecycleTests() async throws {
         "missing callback did not reach its logical deadline"
     )
     lateCallbackBox.settle(9)
-    Thread.sleep(forTimeInterval: 0.03)
     require(
-        lateCallbackCount.get() == 1,
-        "late callback redelivered after terminal quarantine"
+        lateAuthoritativeSettled.wait(timeout: .now() + 1) == .success
+            && lateAuthoritativeCount.get() == 1
+            && lateCallbackCount.get() == 1,
+        "late authoritative callback did not release quarantine exactly once"
     )
 
     let neverCallbackSettled = DispatchSemaphore(value: 0)
@@ -352,6 +359,96 @@ func runDesktopPixelNativeLifecycleTests() async throws {
         neverCallbackSettled.wait(timeout: .now() + 1) == .success,
         "never-callback token failed to become terminal"
     )
+
+    let fallbackAt = Date(timeIntervalSince1970: 20)
+    let displayFallbackFrame = AOSDesktopPixelFrame(
+        capturedAt: fallbackAt,
+        displayID: 42,
+        image: onePixelImage()
+    )
+    let windowFrame = AOSDesktopPixelFrame(
+        capturedAt: fallbackAt,
+        displayID: 42,
+        image: onePixelImage(),
+        source: .window(901)
+    )
+    let windowPreferred = aosResolveDesktopPixelStillOutcomes(
+        displayIDs: [42],
+        outcomes: [42: AOSDesktopPixelStillDisplayOutcome(
+            displayFailure: nil,
+            displayFrame: displayFallbackFrame,
+            requestedWindowID: 901,
+            windowFailure: nil,
+            windowFrame: windowFrame
+        )]
+    )
+    if case .success(let frames) = windowPreferred {
+        require(
+            frames.first?.source == .window(901)
+                && frames.first?.usedWindowFallback == false,
+            "successful window capture did not win its admitted fallback pair"
+        )
+    } else {
+        require(false, "successful window capture unexpectedly failed")
+    }
+    for failure in [
+        AOSDesktopFrameCaptureFailure.displayNotFound,
+        .topologyMismatch,
+        .captureFailed,
+    ] {
+        let fallback = aosResolveDesktopPixelStillOutcomes(
+            displayIDs: [42],
+            outcomes: [42: AOSDesktopPixelStillDisplayOutcome(
+                displayFailure: nil,
+                displayFrame: displayFallbackFrame,
+                requestedWindowID: 901,
+                windowFailure: failure,
+                windowFrame: nil
+            )]
+        )
+        if case .success(let frames) = fallback {
+            require(
+                frames.first?.source == .display
+                    && frames.first?.usedWindowFallback == true,
+                "window failure did not select the admitted display fallback"
+            )
+        } else {
+            require(false, "available display fallback unexpectedly failed")
+        }
+    }
+    let bothFailed = aosResolveDesktopPixelStillOutcomes(
+        displayIDs: [42],
+        outcomes: [42: AOSDesktopPixelStillDisplayOutcome(
+            displayFailure: .captureFailed,
+            displayFrame: nil,
+            requestedWindowID: 901,
+            windowFailure: .displayNotFound,
+            windowFrame: nil
+        )]
+    )
+    if case .failure = bothFailed {
+        // Expected: no candidate escaped as a successful frame.
+    } else {
+        require(false, "failed window and display candidates escaped capture")
+    }
+    let uncertainWindow = aosResolveDesktopPixelStillOutcomes(
+        displayIDs: [42],
+        outcomes: [42: AOSDesktopPixelStillDisplayOutcome(
+            displayFailure: nil,
+            displayFrame: displayFallbackFrame,
+            requestedWindowID: 901,
+            windowFailure: .retirementUncertain,
+            windowFrame: nil
+        )]
+    )
+    if case .failure(let failure) = uncertainWindow {
+        require(
+            failure == .retirementUncertain,
+            "uncertain window callback lost quarantine priority"
+        )
+    } else {
+        require(false, "display fallback escaped an uncertain native callback")
+    }
 
     runDesktopPixelCaptureFilterTests()
     let operationUsedMainThread = LockedBoolean()

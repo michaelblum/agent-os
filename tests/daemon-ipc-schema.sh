@@ -44,15 +44,17 @@ scene_extension = {
     "threeRevision": "183",
 }
 
+display_topology = json.loads((
+    schema_root / "fixtures/display-topology-v1/valid/uuid-members.json"
+).read_text())
+
 see_capture = {
     "capture_id": "11111111-1111-4111-8111-111111111111",
-    "topology_identity": "sha256:" + "a" * 64,
+    "display_topology": display_topology,
     "displays": [{
         "display_id": 42,
         "index": 0,
-        "native_bounds": [0, 0, 1920, 1080],
-        "desktop_world_bounds": [0, 0, 1920, 1080],
-        "scale_factor": 1,
+        "topology_ordinal": 1,
     }],
     "display_ids": [42],
     "excluded_window_ids": [901],
@@ -107,7 +109,8 @@ bad_requests = [
     {"v":1,"service":"show","action":"create","data":{"id":"x","surface":"desktop-world","anchor_window":1,"offset":[0,0,10,10],"html":"<div/>"}},  # surface + anchor
     {"v":1,"service":"show","action":"post","data":{}},  # show.post missing required id
     {"v":1,"service":"see","action":"capture","data":{**see_capture,"maximum_pixels_per_display":67108865}},  # public pixel budget is bounded
-    {"v":1,"service":"see","action":"capture","data":{k:v for k,v in see_capture.items() if k != "topology_identity"}},  # immutable topology identity is required
+    {"v":1,"service":"see","action":"capture","data":{k:v for k,v in see_capture.items() if k != "display_topology"}},  # canonical display topology is required
+    {"v":1,"service":"see","action":"capture","data":{**see_capture,"topology_identity":"sha256:" + "a" * 64}},  # independent identity authority is forbidden
     {"v":1,"service":"see","action":"capture","data":{**see_capture,"path":"/private/capture.png"}},  # transport cannot accept artifact paths
     {"v":1,"service":"status_item","action":"unknown","data":{}},  # status item action vocabulary is closed
     {"v":1,"service":"status_item","action":"register","data":{"descriptor":{**descriptor,"owner":"io..example"}}},  # runtime rejects dot-dot identifiers
