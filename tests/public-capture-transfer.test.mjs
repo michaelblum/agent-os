@@ -189,7 +189,47 @@ if case .chunk(let chunk) = try aosDecodePublicCaptureForegroundMessage(
 } else {
     require(false, "valid chunk did not decode")
 }
-_ = try aosDecodePublicCaptureFrameWireValue(frameMetadata())
+let displayFrame = try aosDecodePublicCaptureFrameWireValue(frameMetadata())
+require(
+    aosPublicCaptureFrameMatchesRequestedWindow(
+        displayFrame,
+        requestedWindowID: nil
+    ),
+    "unrequested display frame was rejected"
+)
+require(
+    !aosPublicCaptureFrameMatchesRequestedWindow(
+        displayFrame,
+        requestedWindowID: 901
+    ),
+    "requested window plus display plus false fallback passed"
+)
+var unexpectedFallbackMetadata = frameMetadata()
+unexpectedFallbackMetadata["window_fallback"] = true
+let unexpectedFallback = try aosDecodePublicCaptureFrameWireValue(
+    unexpectedFallbackMetadata
+)
+require(
+    !aosPublicCaptureFrameMatchesRequestedWindow(
+        unexpectedFallback,
+        requestedWindowID: nil
+    ),
+    "unrequested display plus true fallback passed"
+)
+var windowMetadata = frameMetadata()
+windowMetadata["capture_source"] = "window"
+windowMetadata["window_id"] = 901
+let windowFrame = try aosDecodePublicCaptureFrameWireValue(windowMetadata)
+require(
+    aosPublicCaptureFrameMatchesRequestedWindow(
+        windowFrame,
+        requestedWindowID: 901
+    ) && !aosPublicCaptureFrameMatchesRequestedWindow(
+        windowFrame,
+        requestedWindowID: 902
+    ),
+    "window frame did not require its exact requested window"
+)
 
 require(aosExactJSONInteger(true) == nil, "boolean repaired to an integer")
 require(aosExactJSONInteger(-1, minimum: 0) == nil, "negative integer crossed a bound")

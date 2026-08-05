@@ -190,7 +190,11 @@ canonical display-topology snapshot plus display-ID/ordinal selection mapping.
 It rebuilds identity and geometry through the production topology builder and
 rejects unknown keys, non-exact numbers, duplicate identities, non-finite
 geometry, count overages, selection drift, and pixel-budget overflow before
-native capture. For a requested window, one content observation and one broker
+native capture. Native admission retains that same snapshot and binds each
+selected live display through its canonical UUID or exact display-ID fallback,
+complete CoreGraphics frame including origin, ScreenCaptureKit point size, and
+admitted filter scale before any screenshot callback is started. For a
+requested window, one content observation and one broker
 transaction admit both the preferred window still and a full-display fallback;
 missing, moved, invalid, or failed window capture returns the display with
 explicit source/fallback metadata and a consumer warning. Both native failures

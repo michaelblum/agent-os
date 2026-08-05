@@ -95,6 +95,7 @@ private func providerFact(
 ) -> AOSDisplayCaptureProviderFact {
     AOSDisplayCaptureProviderFact(
         runtimeDisplayID: display.runtimeDisplayID,
+        memberIdentity: display.memberIdentity,
         nativeFrame: frame ?? display.nativeBounds,
         pointWidth: pointWidth ?? Int(display.nativeBounds.width),
         pointHeight: pointHeight ?? Int(display.nativeBounds.height),
@@ -294,6 +295,7 @@ struct DisplayTopologyIdentityHarness {
                 topology: fractionalSnapshot,
                 providerFacts: [AOSDisplayCaptureProviderFact(
                     runtimeDisplayID: 505,
+                    memberIdentity: fractionalSnapshot.displays[0].memberIdentity,
                     nativeFrame: bounds(0, 0, 1, 1),
                     pointWidth: 1,
                     pointHeight: 1,
@@ -319,6 +321,7 @@ struct DisplayTopologyIdentityHarness {
                 topology: boundarySnapshot,
                 providerFacts: [AOSDisplayCaptureProviderFact(
                     runtimeDisplayID: 606,
+                    memberIdentity: boundarySnapshot.displays[0].memberIdentity,
                     nativeFrame: bounds(0, 0, boundaryWidth, 1),
                     pointWidth: Int.max,
                     pointHeight: 1,

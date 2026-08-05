@@ -64,7 +64,7 @@ struct AOSDisplayTopologyObservationMember {
     let rotation: Double
 }
 
-enum AOSDisplayTopologyMemberIdentity: Codable, Equatable {
+enum AOSDisplayTopologyMemberIdentity: Codable, Hashable {
     case displayUUID(value: String, bytes: [UInt8])
     case displayIDFallback(UInt32)
 
@@ -117,7 +117,7 @@ enum AOSDisplayTopologyMemberIdentity: Codable, Equatable {
     }
 }
 
-struct AOSDisplayTopologyDisplay: Codable {
+struct AOSDisplayTopologyDisplay: Codable, Equatable {
     // Runtime-only lookup facts are deliberately omitted from public encoding
     // and from the content identity when a persistent UUID is usable.
     let runtimeDisplayID: UInt32
@@ -214,7 +214,7 @@ struct AOSDisplayTopologyDisplay: Codable {
     }
 }
 
-struct AOSDisplayTopologySnapshot: Codable {
+struct AOSDisplayTopologySnapshot: Codable, Equatable {
     let schema = "aos.display-topology.v1"
     let identity: String
     let usesDisplayIDFallback: Bool
@@ -309,10 +309,16 @@ struct AOSDisplayTopologySnapshot: Codable {
 
 struct AOSDisplayCaptureProviderFact {
     let runtimeDisplayID: UInt32
+    let memberIdentity: AOSDisplayTopologyMemberIdentity
     let nativeFrame: AOSDisplayTopologyBounds
     let pointWidth: Int
     let pointHeight: Int
     let scaleFactor: Double
+}
+
+struct AOSDisplayCaptureSelection: Equatable {
+    let runtimeDisplayID: UInt32
+    let memberIdentity: AOSDisplayTopologyMemberIdentity
 }
 
 struct AOSDisplayCaptureAlignment {
@@ -323,9 +329,12 @@ struct AOSDisplayCaptureAlignment {
 
 enum AOSDisplayCaptureAlignmentError: Error, LocalizedError, CustomStringConvertible {
     case duplicateSelectedDisplayID(UInt32)
+    case duplicateSelectedMemberIdentity
     case duplicateProviderDisplayID(UInt32)
+    case duplicateProviderMemberIdentity
     case selectedDisplayMissingFromTopology(UInt32)
     case selectedDisplayMissingFromProvider(UInt32)
+    case providerMemberIdentityMismatch(UInt32)
     case invalidProviderGeometry(UInt32)
     case providerFrameMismatch(UInt32)
     case providerPointSizeMismatch(UInt32)
@@ -339,12 +348,18 @@ enum AOSDisplayCaptureAlignmentError: Error, LocalizedError, CustomStringConvert
         switch self {
         case .duplicateSelectedDisplayID(let displayID):
             return "selected display list repeats runtime display id \(displayID)"
+        case .duplicateSelectedMemberIdentity:
+            return "selected display list repeats a canonical member identity"
         case .duplicateProviderDisplayID(let displayID):
             return "capture provider repeats runtime display id \(displayID)"
+        case .duplicateProviderMemberIdentity:
+            return "capture provider repeats a canonical member identity"
         case .selectedDisplayMissingFromTopology(let displayID):
             return "selected display \(displayID) is absent from the frozen topology"
         case .selectedDisplayMissingFromProvider(let displayID):
             return "selected display \(displayID) is absent from the capture provider"
+        case .providerMemberIdentityMismatch(let displayID):
+            return "capture provider member identity disagrees with frozen topology for display \(displayID)"
         case .invalidProviderGeometry(let displayID):
             return "capture provider has invalid geometry for display \(displayID)"
         case .providerFrameMismatch(let displayID):
@@ -590,31 +605,71 @@ private func aosDisplayTopologyIdentity(
     return "sha256:\(digest)"
 }
 
+func aosDisplayCaptureProviderMemberIdentity(
+    runtimeDisplayID: UInt32,
+    displayUUID: String?,
+    expectedMemberIdentity: AOSDisplayTopologyMemberIdentity
+) throws -> AOSDisplayTopologyMemberIdentity {
+    switch expectedMemberIdentity {
+    case .displayUUID:
+        guard let displayUUID else {
+            throw AOSDisplayCaptureAlignmentError.providerMemberIdentityMismatch(
+                runtimeDisplayID
+            )
+        }
+        let canonical = try aosCanonicalUUID(
+            displayUUID,
+            displayID: runtimeDisplayID
+        )
+        return .displayUUID(value: canonical.0, bytes: canonical.1)
+    case .displayIDFallback:
+        return .displayIDFallback(runtimeDisplayID)
+    }
+}
+
 func validateAOSDisplayCaptureAlignment(
     topology: AOSDisplayTopologySnapshot,
     providerFacts: [AOSDisplayCaptureProviderFact],
-    selectedDisplayIDs: [UInt32]
+    selectedDisplays: [AOSDisplayCaptureSelection]
 ) throws -> [AOSDisplayCaptureAlignment] {
     var providerByID: [UInt32: AOSDisplayCaptureProviderFact] = [:]
+    var providerIdentities = Set<AOSDisplayTopologyMemberIdentity>()
     for fact in providerFacts {
         guard providerByID.updateValue(fact, forKey: fact.runtimeDisplayID) == nil else {
             throw AOSDisplayCaptureAlignmentError.duplicateProviderDisplayID(fact.runtimeDisplayID)
         }
+        guard providerIdentities.insert(fact.memberIdentity).inserted else {
+            throw AOSDisplayCaptureAlignmentError.duplicateProviderMemberIdentity
+        }
     }
 
-    let topologyByID = Dictionary(uniqueKeysWithValues: topology.displays.map {
-        ($0.runtimeDisplayID, $0)
-    })
+    var topologyByIdentity: [AOSDisplayTopologyMemberIdentity: AOSDisplayTopologyDisplay] = [:]
+    for display in topology.displays {
+        guard topologyByIdentity.updateValue(
+            display,
+            forKey: display.memberIdentity
+        ) == nil else {
+            throw AOSDisplayCaptureAlignmentError.duplicateSelectedMemberIdentity
+        }
+    }
     var selected = Set<UInt32>()
-    return try selectedDisplayIDs.map { displayID in
+    var selectedIdentities = Set<AOSDisplayTopologyMemberIdentity>()
+    return try selectedDisplays.map { selection in
+        let displayID = selection.runtimeDisplayID
         guard selected.insert(displayID).inserted else {
             throw AOSDisplayCaptureAlignmentError.duplicateSelectedDisplayID(displayID)
         }
-        guard let display = topologyByID[displayID] else {
+        guard selectedIdentities.insert(selection.memberIdentity).inserted else {
+            throw AOSDisplayCaptureAlignmentError.duplicateSelectedMemberIdentity
+        }
+        guard let display = topologyByIdentity[selection.memberIdentity] else {
             throw AOSDisplayCaptureAlignmentError.selectedDisplayMissingFromTopology(displayID)
         }
         guard let provider = providerByID[displayID] else {
             throw AOSDisplayCaptureAlignmentError.selectedDisplayMissingFromProvider(displayID)
+        }
+        guard provider.memberIdentity == selection.memberIdentity else {
+            throw AOSDisplayCaptureAlignmentError.providerMemberIdentityMismatch(displayID)
         }
         let providerValues = [
             provider.nativeFrame.x,
@@ -662,6 +717,30 @@ func validateAOSDisplayCaptureAlignment(
             expectedPixelHeight: pixelHeight
         )
     }
+}
+
+func validateAOSDisplayCaptureAlignment(
+    topology: AOSDisplayTopologySnapshot,
+    providerFacts: [AOSDisplayCaptureProviderFact],
+    selectedDisplayIDs: [UInt32]
+) throws -> [AOSDisplayCaptureAlignment] {
+    let topologyByID = Dictionary(uniqueKeysWithValues: topology.displays.map {
+        ($0.runtimeDisplayID, $0)
+    })
+    let selections = try selectedDisplayIDs.map { displayID in
+        guard let display = topologyByID[displayID] else {
+            throw AOSDisplayCaptureAlignmentError.selectedDisplayMissingFromTopology(displayID)
+        }
+        return AOSDisplayCaptureSelection(
+            runtimeDisplayID: displayID,
+            memberIdentity: display.memberIdentity
+        )
+    }
+    return try validateAOSDisplayCaptureAlignment(
+        topology: topology,
+        providerFacts: providerFacts,
+        selectedDisplays: selections
+    )
 }
 
 func aosInteractiveSelectionWindowBounds(

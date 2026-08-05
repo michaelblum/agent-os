@@ -28,7 +28,11 @@ needs, but public command policy and product UI policy belong above it:
   owner. The daemon rebuilds the topology identity and derives native and
   DesktopWorld geometry from that canonical snapshot before admitting selected
   display/window membership; caller-supplied duplicate geometry has no
-  authority. Every returned full-display image must match that geometry before
+  authority. Before screenshot work, each selected live display must match the
+  frozen member identity, complete native frame including origin, point size,
+  and admitted filter scale. UUID-backed members bind through the current
+  CoreGraphics display UUID; fallback members require the exact display ID.
+  Every returned full-display image must match that geometry before
   crop or stitch. A requested window is preferred, but the same content
   observation and broker transaction also admit a full-display fallback whose
   projection is explicitly labeled and warned.

@@ -53,6 +53,7 @@ private struct AOSPublicCaptureWireRequest {
             throw AOSPublicCaptureWireError.invalid
         }
         var geometries: [AOSDesktopWorldDisplayGeometry] = []
+        var selectedMemberByDisplayID: [UInt32: AOSDisplayTopologyMemberIdentity] = [:]
         var mappedOrdinals = Set<Int>()
         for item in rawDisplays {
             guard Set(item.keys) == ["display_id", "index", "topology_ordinal"],
@@ -99,9 +100,24 @@ private struct AOSPublicCaptureWireRequest {
                 throw AOSPublicCaptureWireError.invalid
             }
             geometries.append(geometry)
+            guard selectedMemberByDisplayID.updateValue(
+                canonical.memberIdentity,
+                forKey: displayID
+            ) == nil else {
+                throw AOSPublicCaptureWireError.invalid
+            }
         }
         guard let layout = AOSDesktopWorldDisplayLayout(displays: geometries) else {
             throw AOSPublicCaptureWireError.invalid
+        }
+        let selections = try layout.displayIDs.map { displayID in
+            guard let memberIdentity = selectedMemberByDisplayID[displayID] else {
+                throw AOSPublicCaptureWireError.invalid
+            }
+            return AOSDisplayCaptureSelection(
+                runtimeDisplayID: displayID,
+                memberIdentity: memberIdentity
+            )
         }
         let selected = try rawSelected.map { value -> UInt32 in
             guard let displayID = aosPublicCapturePositiveUInt32(value) else {
@@ -157,6 +173,8 @@ private struct AOSPublicCaptureWireRequest {
             maximumPixelsPerDisplay: maximumPixels,
             sizingPolicy: .exactWithinBudget,
             capturePolicy: .publicExplicitExclusions,
+            publicCaptureSelections: selections,
+            publicCaptureTopology: topology,
             showsCursor: showsCursor,
             windowIDsByDisplay: windowIDsByDisplay
         )

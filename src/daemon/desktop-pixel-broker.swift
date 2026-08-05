@@ -82,6 +82,26 @@ func aosDesktopPixelRequestIsValid(
             || (request.windowIDsByDisplay.isEmpty && !request.showsCursor) else {
         return false
     }
+    switch request.capturePolicy {
+    case .publicExplicitExclusions:
+        guard let topology = request.publicCaptureTopology,
+              request.publicCaptureSelections.map(\.runtimeDisplayID)
+                == request.displayIDs,
+              Set(request.publicCaptureSelections.map(\.memberIdentity)).count
+                == request.publicCaptureSelections.count,
+              request.publicCaptureSelections.allSatisfy({ selection in
+                  topology.displays.contains(where: {
+                      $0.memberIdentity == selection.memberIdentity
+                  })
+              }) else {
+            return false
+        }
+    case .warmSelfExcluding:
+        guard request.publicCaptureTopology == nil,
+              request.publicCaptureSelections.isEmpty else {
+            return false
+        }
+    }
     let total = request.maximumPixelsPerDisplay.multipliedReportingOverflow(
         by: request.displayIDs.count
     )
@@ -182,6 +202,8 @@ struct AOSDesktopPixelSnapshotRequest: Equatable {
     let displayLayout: AOSDesktopWorldDisplayLayout?
     let excludingWindowIDs: [Int]
     let maximumPixelsPerDisplay: Int
+    let publicCaptureSelections: [AOSDisplayCaptureSelection]
+    let publicCaptureTopology: AOSDisplayTopologySnapshot?
     let showsCursor: Bool
     let sizingPolicy: AOSDesktopPixelSizingPolicy
     let windowIDsByDisplay: [UInt32: Int]
@@ -193,6 +215,8 @@ struct AOSDesktopPixelSnapshotRequest: Equatable {
         maximumPixelsPerDisplay: Int,
         sizingPolicy: AOSDesktopPixelSizingPolicy = .fitWithinBudget,
         capturePolicy: AOSDesktopPixelCapturePolicy = .warmSelfExcluding,
+        publicCaptureSelections: [AOSDisplayCaptureSelection] = [],
+        publicCaptureTopology: AOSDisplayTopologySnapshot? = nil,
         showsCursor: Bool = false,
         windowIDsByDisplay: [UInt32: Int] = [:]
     ) {
@@ -201,6 +225,8 @@ struct AOSDesktopPixelSnapshotRequest: Equatable {
         self.displayLayout = displayLayout
         self.excludingWindowIDs = excludingWindowIDs
         self.maximumPixelsPerDisplay = maximumPixelsPerDisplay
+        self.publicCaptureSelections = publicCaptureSelections
+        self.publicCaptureTopology = publicCaptureTopology
         self.showsCursor = showsCursor
         self.sizingPolicy = sizingPolicy
         self.windowIDsByDisplay = windowIDsByDisplay

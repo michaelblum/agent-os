@@ -5,6 +5,7 @@ private final class FakePublicCaptureCapturer:
     AOSDesktopPixelExclusiveStillCapturing
 {
     var captureCount = 0
+    var lastRequest: AOSDesktopPixelSnapshotRequest?
     var result: Result<AOSDesktopPixelFrameSet, Error> = .failure(
         AOSDesktopFrameCaptureFailure.captureFailed
     )
@@ -15,6 +16,7 @@ private final class FakePublicCaptureCapturer:
         completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void
     ) -> AOSDesktopFrameCancelling {
         captureCount += 1
+        lastRequest = request
         completion(result)
         return AOSDesktopFrameCancellation()
     }
@@ -141,6 +143,14 @@ func runPublicCaptureControllerTests() throws {
         admittedCapturer.captureCount == 1
             && admitted["code"] as? String == "DESKTOP_FRAME_CAPTURE_FAILED",
         "valid public capture did not reach the production controller"
+    )
+    let expectedTopology = try publicCaptureTopology()
+    require(
+        admittedCapturer.lastRequest?.publicCaptureTopology?.identity
+            == expectedTopology.identity
+            && admittedCapturer.lastRequest?.publicCaptureSelections.first?
+                .memberIdentity == expectedTopology.displays[0].memberIdentity,
+        "public capture dropped its frozen topology binding before native admission"
     )
 
     let fallback = try successfulPublicCapture(

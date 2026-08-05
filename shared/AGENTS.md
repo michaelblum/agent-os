@@ -30,9 +30,11 @@ apps, and tests.
   fallback, and binary identity encoding synchronized with the production Swift
   helper and deterministic fixtures.
 - Shared helpers must stay product-neutral and layer-neutral.
-- `swift/ipc/ndjson.swift` and `request-client.swift` bound every frame and use
-  one monotonic absolute deadline across all partial reads; a peer cannot extend
-  a call by dripping bytes without a newline.
+- `swift/ipc/ndjson.swift`, `request-client.swift`, and `event-stream.swift`
+  bound every frame. Request reads use one monotonic absolute deadline across
+  all partial reads; a peer cannot extend a call by dripping bytes without a
+  newline. Event streams treat a rejected bounded append as connection loss so
+  the existing reconnect loop owns recovery.
 - Do not hide app-specific semantics in shared schema fields.
 - `swift/ipc/runtime-paths.swift` owns executable identity. Resolve the running
   Mach-O image authoritatively to an absolute, symlink-resolved path and begin

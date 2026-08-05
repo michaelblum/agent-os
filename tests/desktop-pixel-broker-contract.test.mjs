@@ -63,6 +63,18 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(snapshotNative, /policy: request\.capturePolicy/u)
   assert.match(snapshotNative, /SCShareableContent\.getExcludingDesktopWindows\(/u)
   assert.match(snapshotNative, /SCScreenshotManager\.captureImage\([\s\S]*completionHandler: callback/u)
+  assert.match(
+    native,
+    /aosDesktopPixelPublicCaptureProviderFact[\s\S]*CGDisplayCreateUUIDFromDisplayID[\s\S]*CGDisplayBounds/u,
+  )
+  assert.match(
+    snapshotNative,
+    /aosValidateDesktopPixelPublicCaptureAdmission[\s\S]*for entry in prepared[\s\S]*SCScreenshotManager\.captureImage/u,
+  )
+  assert.match(
+    publicCapture,
+    /publicCaptureSelections: selections,[\s\S]*publicCaptureTopology: topology/u,
+  )
   assert.doesNotMatch(snapshotNative, /try\s+await\s+(?:SCShareableContent|SCScreenshotManager)/u)
   assert.match(snapshotNative, /var prepared: \[PreparedDisplayCapture\][\s\S]*displayOutcomes = outcomes[\s\S]*pendingCaptureCallbacks = prepared\.count[\s\S]*for entry in prepared/u)
   assert.match(snapshotNative, /SCShareableContent\.getExcludingDesktopWindows[\s\S]*prepared\.append\(PreparedDisplayCapture\([\s\S]*source: \.display[\s\S]*if let windowID = requestedWindowID[\s\S]*source: \.window\(windowID\)/u)

@@ -12,6 +12,7 @@ const sources = [
   'shared/swift/ipc/ndjson.swift',
   'shared/swift/ipc/request-client.swift',
 ].map((source) => path.join(root, source))
+const eventStreamSource = path.join(root, 'shared/swift/ipc/event-stream.swift')
 
 test('production daemon session enforces one deadline and bounded NDJSON frames', async () => {
   const temp = await mkdtemp(path.join(os.tmpdir(), 'aos-daemon-reader-'))
@@ -104,6 +105,152 @@ print("PASS")
       cwd: root,
       encoding: 'utf8',
       timeout: 10_000,
+    })
+    assert.equal(run.status, 0, run.stderr || run.stdout)
+    assert.match(run.stdout, /PASS/u)
+  } finally {
+    await rm(temp, { recursive: true, force: true })
+  }
+})
+
+test('production event stream reconnects after an oversized unterminated frame', async () => {
+  const temp = await mkdtemp(path.join(os.tmpdir(), 'aos-event-stream-reader-'))
+  try {
+    const main = path.join(temp, 'main.swift')
+    const executable = path.join(temp, 'proof')
+    await writeFile(main, String.raw`
+import Foundation
+
+func require(_ condition: @autoclosure () -> Bool, _ message: String) {
+    if !condition() {
+        fputs(message + "\n", stderr)
+        exit(1)
+    }
+}
+
+func makePair() -> (Int32, Int32) {
+    var descriptors: [Int32] = [-1, -1]
+    require(socketpair(AF_UNIX, SOCK_STREAM, 0, &descriptors) == 0, "socketpair failed")
+    _ = disableSigPipe(descriptors[0])
+    _ = disableSigPipe(descriptors[1])
+    return (descriptors[0], descriptors[1])
+}
+
+func readLine(_ fd: Int32) -> Bool {
+    var byte: UInt8 = 0
+    while read(fd, &byte, 1) == 1 {
+        if byte == UInt8(ascii: "\n") { return true }
+    }
+    return false
+}
+
+@discardableResult
+func writeAll(_ fd: Int32, _ bytes: [UInt8]) -> Bool {
+    var offset = 0
+    while offset < bytes.count {
+        let written = bytes.withUnsafeBytes { raw -> Int in
+            guard let base = raw.baseAddress else { return -1 }
+            return write(fd, base.advanced(by: offset), bytes.count - offset)
+        }
+        guard written > 0 else { return false }
+        offset += written
+    }
+    return true
+}
+
+final class QueuedConnector {
+    private var descriptors: [Int32]
+    private let lock = NSLock()
+    private var storedCalls = 0
+
+    init(_ descriptors: [Int32]) {
+        self.descriptors = descriptors
+    }
+
+    func connect(_ path: String, _ timeout: Int32) -> Int32 {
+        lock.lock()
+        defer { lock.unlock() }
+        storedCalls += 1
+        return descriptors.isEmpty ? -1 : descriptors.removeFirst()
+    }
+
+    var calls: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedCalls
+    }
+}
+
+let first = makePair()
+let second = makePair()
+let connector = QueuedConnector([first.0, second.0])
+let server = DispatchGroup()
+let response = Array("{\"v\":1,\"status\":\"success\",\"data\":{}}\n".utf8)
+let firstPeerRelease = DispatchSemaphore(value: 0)
+
+server.enter()
+DispatchQueue.global(qos: .userInitiated).async {
+    defer {
+        close(first.1)
+        server.leave()
+    }
+    require(readLine(first.1), "first subscription was not received")
+    require(writeAll(first.1, response), "first subscription response failed")
+    usleep(20_000)
+    require(
+        writeAll(first.1, [UInt8](repeating: UInt8(ascii: "x"), count: 65)),
+        "oversized unterminated event frame was not delivered"
+    )
+    require(
+        firstPeerRelease.wait(timeout: .now() + 15) == .success,
+        "first event peer was not released"
+    )
+}
+
+server.enter()
+DispatchQueue.global(qos: .userInitiated).async {
+    defer {
+        close(second.1)
+        server.leave()
+    }
+    require(readLine(second.1), "reconnect subscription was not received")
+    require(writeAll(second.1, response), "reconnect subscription response failed")
+}
+
+let reconnected = DispatchSemaphore(value: 0)
+var stream: DaemonEventStream!
+stream = DaemonEventStream(
+    socketPath: "/unused",
+    initialBackoffSec: 0,
+    maxBackoffSec: 0,
+    connectTimeoutMs: 1,
+    maximumFrameBytes: 64,
+    connector: { connector.connect($0, $1) }
+)
+stream.onReconnect = {
+    stream.stop()
+    reconnected.signal()
+}
+stream.start()
+require(
+    reconnected.wait(timeout: .now() + 10) == .success,
+    "oversized event frame wedged the production read loop"
+)
+require(connector.calls >= 2, "oversized event frame did not reach reconnect")
+firstPeerRelease.signal()
+require(server.wait(timeout: .now() + 5) == .success, "event stream peers did not settle")
+print("PASS")
+`)
+    const compile = spawnSync(
+      'xcrun',
+      ['swiftc', ...sources, eventStreamSource, main, '-o', executable],
+      { cwd: root, encoding: 'utf8' },
+    )
+    assert.equal(compile.status, 0, compile.stderr || compile.stdout)
+    const run = spawnSync(executable, [], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 20_000,
     })
     assert.equal(run.status, 0, run.stderr || run.stdout)
     assert.match(run.stdout, /PASS/u)

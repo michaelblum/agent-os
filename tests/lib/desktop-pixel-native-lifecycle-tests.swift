@@ -277,7 +277,183 @@ func settlePixelRetirements(
     return result.get()
 }
 
+private func runDesktopPixelPublicCaptureAdmissionTests() throws {
+    let topology = try buildAOSDisplayTopologySnapshot(
+        observation: [
+            AOSDisplayTopologyObservationMember(
+                runtimeDisplayID: 42,
+                displayUUID: "11111111-1111-4111-8111-111111111111",
+                label: "main",
+                isMain: true,
+                isMirrored: false,
+                nativeBounds: AOSDisplayTopologyBounds(
+                    x: 0, y: 0, width: 100, height: 80
+                ),
+                nativeVisibleBounds: AOSDisplayTopologyBounds(
+                    x: 0, y: 0, width: 100, height: 80
+                ),
+                scaleFactor: 2,
+                rotation: 0
+            ),
+            AOSDisplayTopologyObservationMember(
+                runtimeDisplayID: 43,
+                displayUUID: "22222222-2222-4222-8222-222222222222",
+                label: "right",
+                isMain: false,
+                isMirrored: false,
+                nativeBounds: AOSDisplayTopologyBounds(
+                    x: 100, y: 0, width: 100, height: 80
+                ),
+                nativeVisibleBounds: AOSDisplayTopologyBounds(
+                    x: 100, y: 0, width: 100, height: 80
+                ),
+                scaleFactor: 1,
+                rotation: 0
+            ),
+            AOSDisplayTopologyObservationMember(
+                runtimeDisplayID: 44,
+                displayUUID: nil,
+                label: "fallback",
+                isMain: false,
+                isMirrored: false,
+                nativeBounds: AOSDisplayTopologyBounds(
+                    x: 200, y: 0, width: 100, height: 80
+                ),
+                nativeVisibleBounds: AOSDisplayTopologyBounds(
+                    x: 200, y: 0, width: 100, height: 80
+                ),
+                scaleFactor: 1,
+                rotation: 0
+            ),
+        ],
+        screensHaveSeparateSpaces: true
+    )
+    let geometries = topology.displays.enumerated().map { index, display in
+        AOSDesktopWorldDisplayGeometry(
+            displayID: display.runtimeDisplayID,
+            index: index,
+            desktopWorldBounds: CGRect(
+                x: display.desktopWorldBounds.x,
+                y: display.desktopWorldBounds.y,
+                width: display.desktopWorldBounds.width,
+                height: display.desktopWorldBounds.height
+            ),
+            nativePointBounds: CGRect(
+                x: display.nativeBounds.x,
+                y: display.nativeBounds.y,
+                width: display.nativeBounds.width,
+                height: display.nativeBounds.height
+            ),
+            pointPixelScale: display.scaleFactor
+        )!
+    }
+    let selections = topology.displays.map {
+        AOSDisplayCaptureSelection(
+            runtimeDisplayID: $0.runtimeDisplayID,
+            memberIdentity: $0.memberIdentity
+        )
+    }
+    let request = AOSDesktopPixelSnapshotRequest(
+        displayIDs: selections.map(\.runtimeDisplayID),
+        displayLayout: AOSDesktopWorldDisplayLayout(displays: geometries),
+        excludingWindowIDs: [],
+        maximumPixelsPerDisplay: 32_000,
+        sizingPolicy: .exactWithinBudget,
+        capturePolicy: .publicExplicitExclusions,
+        publicCaptureSelections: selections,
+        publicCaptureTopology: topology
+    )
+    require(
+        aosDesktopPixelRequestIsValid(request),
+        "canonical public capture topology binding was rejected"
+    )
+    func providerFact(
+        _ display: AOSDisplayTopologyDisplay,
+        memberIdentity: AOSDisplayTopologyMemberIdentity? = nil,
+        nativeFrame: AOSDisplayTopologyBounds? = nil,
+        pointWidth: Int? = nil,
+        pointHeight: Int? = nil,
+        scaleFactor: Double? = nil
+    ) -> AOSDisplayCaptureProviderFact {
+        AOSDisplayCaptureProviderFact(
+            runtimeDisplayID: display.runtimeDisplayID,
+            memberIdentity: memberIdentity ?? display.memberIdentity,
+            nativeFrame: nativeFrame ?? display.nativeBounds,
+            pointWidth: pointWidth ?? Int(display.nativeBounds.width),
+            pointHeight: pointHeight ?? Int(display.nativeBounds.height),
+            scaleFactor: scaleFactor ?? display.scaleFactor
+        )
+    }
+    let matchingFacts = topology.displays.map { providerFact($0) }
+    let alignments = try aosValidateDesktopPixelPublicCaptureAdmission(
+        request: request,
+        providerFacts: matchingFacts
+    )
+    require(
+        alignments.map(\.runtimeDisplayID) == request.displayIDs
+            && alignments[0].expectedPixelWidth == 200
+            && alignments[0].expectedPixelHeight == 160,
+        "canonical public capture topology binding changed admitted geometry"
+    )
+
+    func requireTopologyMismatch(
+        _ label: String,
+        _ facts: [AOSDisplayCaptureProviderFact]
+    ) {
+        do {
+            _ = try aosValidateDesktopPixelPublicCaptureAdmission(
+                request: request,
+                providerFacts: facts
+            )
+            require(false, "\(label) reached native screenshot admission")
+        } catch let failure as AOSDesktopFrameCaptureFailure {
+            require(
+                failure == .topologyMismatch,
+                "\(label) changed its native admission failure"
+            )
+        } catch {
+            require(false, "\(label) escaped the production admission error")
+        }
+    }
+
+    var moved = matchingFacts
+    moved[1] = providerFact(
+        topology.displays[1],
+        nativeFrame: AOSDisplayTopologyBounds(
+            x: 101, y: 0, width: 100, height: 80
+        )
+    )
+    requireTopologyMismatch("same-size display move", moved)
+
+    var swappedUUIDs = matchingFacts
+    swappedUUIDs[0] = providerFact(
+        topology.displays[0],
+        memberIdentity: topology.displays[1].memberIdentity
+    )
+    swappedUUIDs[1] = providerFact(
+        topology.displays[1],
+        memberIdentity: topology.displays[0].memberIdentity
+    )
+    requireTopologyMismatch("UUID runtime-ID swap", swappedUUIDs)
+
+    var fallbackMismatch = matchingFacts
+    fallbackMismatch[2] = providerFact(
+        topology.displays[2],
+        memberIdentity: .displayIDFallback(45)
+    )
+    requireTopologyMismatch("fallback display-ID mismatch", fallbackMismatch)
+
+    var scaleMismatch = matchingFacts
+    scaleMismatch[0] = providerFact(topology.displays[0], scaleFactor: 1)
+    requireTopologyMismatch("capture scale mismatch", scaleMismatch)
+
+    var sizeMismatch = matchingFacts
+    sizeMismatch[0] = providerFact(topology.displays[0], pointWidth: 99)
+    requireTopologyMismatch("capture point-size mismatch", sizeMismatch)
+}
+
 func runDesktopPixelNativeLifecycleTests() async throws {
+    try runDesktopPixelPublicCaptureAdmissionTests()
     let successfulCallbackSettled = DispatchSemaphore(value: 0)
     let successfulCallbackCount = LockedCounter()
     let successfulCallback = AOSDesktopPixelRetainedCallbackToken<Int>()

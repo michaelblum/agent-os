@@ -520,11 +520,46 @@ func runDesktopFrameWarmPoolTests() throws {
         "uncertain retirement admitted a replacement source"
     )
 
+    let publicTopology = try buildAOSDisplayTopologySnapshot(
+        observation: [AOSDisplayTopologyObservationMember(
+            runtimeDisplayID: 42,
+            displayUUID: "11111111-1111-4111-8111-111111111111",
+            label: "fixture",
+            isMain: true,
+            isMirrored: false,
+            nativeBounds: AOSDisplayTopologyBounds(
+                x: 0, y: 0, width: 64, height: 64
+            ),
+            nativeVisibleBounds: AOSDisplayTopologyBounds(
+                x: 0, y: 0, width: 64, height: 64
+            ),
+            scaleFactor: 1,
+            rotation: 0
+        )],
+        screensHaveSeparateSpaces: true
+    )
+    let publicMember = publicTopology.displays[0]
+    let publicLayout = AOSDesktopWorldDisplayLayout(displays: [
+        AOSDesktopWorldDisplayGeometry(
+            displayID: 42,
+            index: 0,
+            desktopWorldBounds: CGRect(x: 0, y: 0, width: 64, height: 64),
+            nativePointBounds: CGRect(x: 0, y: 0, width: 64, height: 64),
+            pointPixelScale: 1
+        )!,
+    ])!
     let publicRequest = AOSDesktopPixelSnapshotRequest(
         displayIDs: [42],
+        displayLayout: publicLayout,
         excludingWindowIDs: [901],
         maximumPixelsPerDisplay: 4_096,
-        capturePolicy: .publicExplicitExclusions
+        sizingPolicy: .exactWithinBudget,
+        capturePolicy: .publicExplicitExclusions,
+        publicCaptureSelections: [AOSDisplayCaptureSelection(
+            runtimeDisplayID: 42,
+            memberIdentity: publicMember.memberIdentity
+        )],
+        publicCaptureTopology: publicTopology
     )
     let transactionSource = FakeWarmSource(failure: nil)
     transactionSource.completesStopImmediately = false

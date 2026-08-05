@@ -48,6 +48,23 @@ struct AOSPublicCaptureTransferDescriptor: Equatable {
     let sha256: String
 }
 
+func aosPublicCaptureFrameMatchesRequestedWindow(
+    _ frame: AOSPublicCaptureFrameWireValue,
+    requestedWindowID: Int?
+) -> Bool {
+    switch frame.captureSource {
+    case "display":
+        return frame.windowID == nil
+            && frame.windowFallback == (requestedWindowID != nil)
+    case "window":
+        return !frame.windowFallback
+            && frame.windowID == requestedWindowID
+            && requestedWindowID != nil
+    default:
+        return false
+    }
+}
+
 func aosPublicCaptureSHA256(_ data: Data) -> String {
     SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
 }

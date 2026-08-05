@@ -1244,11 +1244,10 @@ private func captureNativeFramesThroughDaemon(
               let image = aosDecodeCapturePNG(accumulator.data),
               wire.width == image.width,
               wire.height == image.height,
-              !(wire.captureSource == "display"
-                && windowIDsByDisplay[displayID] == nil
-                && wire.windowFallback),
-              wire.captureSource != "window"
-                || wire.windowID == windowIDsByDisplay[displayID] else {
+              aosPublicCaptureFrameMatchesRequestedWindow(
+                wire,
+                requestedWindowID: windowIDsByDisplay[displayID]
+              ) else {
             exitError("Capture digest or geometry failed", code: "CAPTURE_FAILED")
         }
         images[displayID] = image

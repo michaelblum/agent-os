@@ -241,6 +241,67 @@ private func aosDesktopPixelSourceDimensions(
     return dimensions
 }
 
+func aosValidateDesktopPixelPublicCaptureAdmission(
+    request: AOSDesktopPixelSnapshotRequest,
+    providerFacts: [AOSDisplayCaptureProviderFact]
+) throws -> [AOSDisplayCaptureAlignment] {
+    guard request.capturePolicy == .publicExplicitExclusions,
+          let topology = request.publicCaptureTopology,
+          request.publicCaptureSelections.map(\.runtimeDisplayID)
+            == request.displayIDs else {
+        throw AOSDesktopFrameCaptureFailure.topologyMismatch
+    }
+    do {
+        return try validateAOSDisplayCaptureAlignment(
+            topology: topology,
+            providerFacts: providerFacts,
+            selectedDisplays: request.publicCaptureSelections
+        )
+    } catch {
+        throw AOSDesktopFrameCaptureFailure.topologyMismatch
+    }
+}
+
+@available(macOS 14.0, *)
+private func aosDesktopPixelPublicCaptureProviderFact(
+    display: SCDisplay,
+    filter: SCContentFilter,
+    selection: AOSDisplayCaptureSelection
+) throws -> AOSDisplayCaptureProviderFact {
+    let displayUUID: String? = {
+        guard let unmanaged = CGDisplayCreateUUIDFromDisplayID(
+            display.displayID
+        ) else {
+            return nil
+        }
+        return CFUUIDCreateString(nil, unmanaged.takeRetainedValue()) as String
+    }()
+    let memberIdentity: AOSDisplayTopologyMemberIdentity
+    do {
+        memberIdentity = try aosDisplayCaptureProviderMemberIdentity(
+            runtimeDisplayID: display.displayID,
+            displayUUID: displayUUID,
+            expectedMemberIdentity: selection.memberIdentity
+        )
+    } catch {
+        throw AOSDesktopFrameCaptureFailure.topologyMismatch
+    }
+    let nativeFrame = CGDisplayBounds(display.displayID)
+    return AOSDisplayCaptureProviderFact(
+        runtimeDisplayID: display.displayID,
+        memberIdentity: memberIdentity,
+        nativeFrame: AOSDisplayTopologyBounds(
+            x: nativeFrame.origin.x,
+            y: nativeFrame.origin.y,
+            width: nativeFrame.width,
+            height: nativeFrame.height
+        ),
+        pointWidth: display.width,
+        pointHeight: display.height,
+        scaleFactor: Double(filter.pointPixelScale)
+    )
+}
+
 private final class AOSNativeDesktopPixelStillOperation:
     AOSDesktopFrameRetirementAwaiting,
     @unchecked Sendable
@@ -369,8 +430,13 @@ private final class AOSNativeDesktopPixelStillOperation:
             return
         }
         do {
-            var prepared: [PreparedDisplayCapture] = []
-            var outcomes: [UInt32: AOSDesktopPixelStillDisplayOutcome] = [:]
+            var displayFilters: [UInt32: SCContentFilter] = [:]
+            var providerFacts: [AOSDisplayCaptureProviderFact] = []
+            let selectionByDisplayID = Dictionary(
+                uniqueKeysWithValues: request.publicCaptureSelections.map {
+                    ($0.runtimeDisplayID, $0)
+                }
+            )
             for displayID in request.displayIDs {
                 guard let display = displayByID[displayID] else {
                     throw AOSDesktopFrameCaptureFailure.topologyMismatch
@@ -381,14 +447,58 @@ private final class AOSNativeDesktopPixelStillOperation:
                     excludingWindowIDs: request.excludingWindowIDs,
                     policy: request.capturePolicy
                 )
-                let source = try aosDesktopPixelSourceDimensions(
-                    display: display,
-                    filter: displayFilter,
-                    request: request
+                displayFilters[displayID] = displayFilter
+                if request.capturePolicy == .publicExplicitExclusions {
+                    guard let selection = selectionByDisplayID[displayID] else {
+                        throw AOSDesktopFrameCaptureFailure.topologyMismatch
+                    }
+                    providerFacts.append(
+                        try aosDesktopPixelPublicCaptureProviderFact(
+                            display: display,
+                            filter: displayFilter,
+                            selection: selection
+                        )
+                    )
+                }
+            }
+            let publicAlignments = request.capturePolicy == .publicExplicitExclusions
+                ? try aosValidateDesktopPixelPublicCaptureAdmission(
+                    request: request,
+                    providerFacts: providerFacts
                 )
+                : []
+            let publicAlignmentByDisplayID = Dictionary(
+                uniqueKeysWithValues: publicAlignments.map {
+                    ($0.runtimeDisplayID, $0)
+                }
+            )
+            var prepared: [PreparedDisplayCapture] = []
+            var outcomes: [UInt32: AOSDesktopPixelStillDisplayOutcome] = [:]
+            for displayID in request.displayIDs {
+                guard let display = displayByID[displayID],
+                      let displayFilter = displayFilters[displayID] else {
+                    throw AOSDesktopFrameCaptureFailure.topologyMismatch
+                }
+                let sourceWidth: Int
+                let sourceHeight: Int
+                if request.capturePolicy == .publicExplicitExclusions {
+                    guard let alignment = publicAlignmentByDisplayID[displayID] else {
+                        throw AOSDesktopFrameCaptureFailure.topologyMismatch
+                    }
+                    sourceWidth = alignment.expectedPixelWidth
+                    sourceHeight = alignment.expectedPixelHeight
+                } else {
+                    let source = try aosDesktopPixelSourceDimensions(
+                        display: display,
+                        filter: displayFilter,
+                        request: request
+                    )
+                    sourceWidth = source.width
+                    sourceHeight = source.height
+                }
                 guard let profile = AOSDesktopPixelWarmStreamProfile(
-                    sourceWidth: source.width,
-                    sourceHeight: source.height,
+                    sourceWidth: sourceWidth,
+                    sourceHeight: sourceHeight,
                     maximumPixels: request.maximumPixelsPerDisplay,
                     sizingPolicy: request.sizingPolicy
                 ) else {

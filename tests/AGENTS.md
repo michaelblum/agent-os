@@ -53,7 +53,9 @@ tests.
   compiling focused production owners rather than copied algorithms.
 - Public-capture reader proof must use the production `DaemonSession` over
   disposable socketpairs to cover partial valid frames, byte-drip deadline
-  exhaustion, and bounded oversized-frame rejection.
+  exhaustion, and bounded oversized-frame rejection. It must also exercise the
+  production event-stream read and reconnect loops so an oversized unterminated
+  frame cannot wedge a subscription.
 - Status-item host contract tests must use disposable fake sockets and schema
   fixtures, model startup admission ordering, and prove registration output
   precedes initial events. Fake sockets must emit the complete daemon envelope
@@ -69,7 +71,8 @@ tests.
   direct and saved explicit/interactively selected region response wiring,
   `state_id` separation, and the single-observation source guard. It must also
   reject missing/duplicate live NSScreen sources, selected/provider membership
-  drift, provider frame/point size and production filter-scale drift,
+  drift, UUID/runtime-ID swaps, fallback-ID drift, provider frame/point size and
+  production filter-scale drift,
   fractional/unrepresentable pixel dimensions, and captured full-display pixel
   mismatch. Saved region and interactive summaries must validate through the
   common workspace validator with the canonical sibling topology schema
