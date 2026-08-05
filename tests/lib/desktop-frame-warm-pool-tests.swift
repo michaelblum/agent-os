@@ -90,6 +90,45 @@ final class DeferredWarmAcquirer: AOSDesktopPixelWarmAcquiring {
     }
 }
 
+final class FirstReadyThenDeferredWarmAcquirer: AOSDesktopPixelWarmAcquiring {
+    private var completion: ((Result<AOSDesktopPixelWarmSource, Error>) -> Void)?
+    private let lock = NSLock()
+    private var storedOpenCount = 0
+    private let source: FakeWarmSource
+
+    init(source: FakeWarmSource) {
+        self.source = source
+    }
+
+    var openCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedOpenCount
+    }
+
+    @discardableResult
+    func openWarm(
+        _ request: AOSDesktopPixelSnapshotRequest,
+        completion: @escaping (Result<AOSDesktopPixelWarmSource, Error>) -> Void
+    ) -> AOSDesktopFrameCancelling {
+        lock.lock()
+        storedOpenCount += 1
+        let openCount = storedOpenCount
+        if openCount > 1 { self.completion = completion }
+        lock.unlock()
+        if openCount == 1 { completion(.success(source)) }
+        return AOSDesktopFrameCancellation()
+    }
+
+    func completeRestore() {
+        lock.lock()
+        let completion = self.completion
+        self.completion = nil
+        lock.unlock()
+        completion?(.success(source))
+    }
+}
+
 private func waitForWarmState(
     _ capturer: AOSNativeDesktopFrameCapturer,
     _ expected: AOSDesktopFrameWarmState,
@@ -480,4 +519,383 @@ func runDesktopFrameWarmPoolTests() throws {
         uncertainAcquirer.openCount == 1,
         "uncertain retirement admitted a replacement source"
     )
+
+    let publicRequest = AOSDesktopPixelSnapshotRequest(
+        displayIDs: [42],
+        excludingWindowIDs: [901],
+        maximumPixelsPerDisplay: 4_096,
+        capturePolicy: .publicExplicitExclusions
+    )
+    let transactionSource = FakeWarmSource(failure: nil)
+    transactionSource.completesStopImmediately = false
+    let transactionWarm = FakeWarmAcquirer(source: transactionSource)
+    let transactionStill = FakePixelAcquirer()
+    let transactionCapturer = AOSNativeDesktopFrameCapturer(
+        broker: AOSDesktopPixelBroker(
+            acquirer: transactionStill,
+            warmAcquirer: transactionWarm
+        ),
+        strategy: .prewarmedSnapshot
+    )
+    transactionCapturer.reconcileWarm(configuration)
+    require(
+        waitForWarmState(transactionCapturer, .ready).state == .ready,
+        "exclusive-still fixture did not warm"
+    )
+    let transactionSettled = DispatchSemaphore(value: 0)
+    var transactionResult: Result<AOSDesktopPixelFrameSet, Error>?
+    _ = transactionCapturer.captureExclusiveStill(publicRequest) {
+        transactionResult = $0
+        transactionSettled.signal()
+    }
+    require(
+        waitForCondition { transactionSource.stopCompletion != nil },
+        "exclusive still did not request authoritative warm retirement"
+    )
+    require(
+        transactionStill.captureCount == 0,
+        "exclusive still overlapped unacknowledged warm retirement"
+    )
+    transactionSource.completesStopImmediately = true
+    transactionSource.stopCompletion?(.success(()))
+    require(
+        waitForCondition { transactionStill.captureCount == 1 },
+        "exclusive still did not start after all retirement acknowledgements"
+    )
+    let transactionNow = Date()
+    transactionStill.pending[0](.success(AOSDesktopPixelFrameSet(
+        capturedAt: transactionNow,
+        durationMilliseconds: 1,
+        frames: [AOSDesktopPixelFrame(
+            capturedAt: transactionNow,
+            displayID: 42,
+            image: onePixelImage()
+        )]
+    )))
+    require(
+        transactionSettled.wait(timeout: .now() + 1) == .success,
+        "exclusive still did not settle after exact warm restoration"
+    )
+    let transactionFrameCount: Int
+    if case .success(let frames)? = transactionResult {
+        transactionFrameCount = frames.frames.count
+    } else {
+        transactionFrameCount = 0
+    }
+    require(
+        transactionFrameCount == 1
+            && transactionWarm.openCount == 2
+            && waitForWarmState(transactionCapturer, .ready).state == .ready,
+        "exclusive still returned before the prior warm identity was ready"
+    )
+
+    let coldStill = FakePixelAcquirer()
+    let coldWarm = FakeWarmAcquirer(source: FakeWarmSource(failure: nil))
+    let coldCapturer = AOSNativeDesktopFrameCapturer(
+        broker: AOSDesktopPixelBroker(
+            acquirer: coldStill,
+            warmAcquirer: coldWarm
+        ),
+        strategy: .prewarmedSnapshot
+    )
+    let coldSettled = DispatchSemaphore(value: 0)
+    _ = coldCapturer.captureExclusiveStill(publicRequest) { _ in
+        coldSettled.signal()
+    }
+    require(
+        waitForCondition { coldStill.captureCount == 1 }
+            && coldWarm.openCount == 0,
+        "cold public still synthesized a warm owner"
+    )
+    coldStill.pending[0](.success(AOSDesktopPixelFrameSet(
+        capturedAt: transactionNow,
+        durationMilliseconds: 1,
+        frames: [AOSDesktopPixelFrame(
+            capturedAt: transactionNow,
+            displayID: 42,
+            image: onePixelImage()
+        )]
+    )))
+    require(
+        coldSettled.wait(timeout: .now() + 1) == .success
+            && coldCapturer.warmStatus().state == .idle,
+        "cold public still did not settle without warm restoration"
+    )
+
+    let failureSource = FakeWarmSource(failure: nil)
+    let failureWarm = FakeWarmAcquirer(source: failureSource)
+    let failedStill = FakePixelAcquirer()
+    let failureCapturer = AOSNativeDesktopFrameCapturer(
+        broker: AOSDesktopPixelBroker(
+            acquirer: failedStill,
+            warmAcquirer: failureWarm
+        ),
+        strategy: .prewarmedSnapshot
+    )
+    failureCapturer.reconcileWarm(configuration)
+    require(
+        waitForWarmState(failureCapturer, .ready).state == .ready,
+        "settled-failure fixture did not warm"
+    )
+    let failureSettled = DispatchSemaphore(value: 0)
+    var failureCompletionState: AOSDesktopFrameWarmState?
+    var failureResult: Result<AOSDesktopPixelFrameSet, Error>?
+    _ = failureCapturer.captureExclusiveStill(publicRequest) {
+        failureCompletionState = failureCapturer.warmStatus().state
+        failureResult = $0
+        failureSettled.signal()
+    }
+    require(
+        waitForCondition { failedStill.captureCount == 1 },
+        "settled-failure still did not start"
+    )
+    failedStill.pending[0](.failure(AOSDesktopFrameCaptureFailure.captureFailed))
+    require(
+        failureSettled.wait(timeout: .now() + 1) == .success,
+        "settled snapshot failure did not complete"
+    )
+    require(
+        failureCompletionState == .ready
+            && failureWarm.openCount == 2,
+        "settled snapshot failure escaped before warm restoration"
+    )
+    if case .failure(let error) = failureResult {
+        require(
+            error as? AOSDesktopFrameCaptureFailure == .captureFailed,
+            "settled snapshot failure changed its stable projection"
+        )
+    } else {
+        require(false, "settled snapshot failure unexpectedly succeeded")
+    }
+
+    let interruptedSource = FakeWarmSource(failure: nil)
+    let recoveredTerminalSource = FakeWarmSource(failure: nil)
+    let terminalWarm = SequencedWarmAcquirer(sources: [
+        interruptedSource,
+        recoveredTerminalSource,
+    ])
+    let terminalCapturer = AOSNativeDesktopFrameCapturer(
+        broker: AOSDesktopPixelBroker(
+            acquirer: FakePixelAcquirer(),
+            warmAcquirer: terminalWarm
+        ),
+        strategy: .prewarmedSnapshot
+    )
+    terminalCapturer.reconcileWarm(configuration)
+    require(
+        waitForWarmState(terminalCapturer, .ready).state == .ready,
+        "terminal observer fixture did not warm"
+    )
+    interruptedSource.emitTerminal(
+        AOSDesktopFrameCaptureFailure.connectionInterrupted
+    )
+    require(
+        waitForCondition {
+            terminalWarm.openCount == 2
+                && terminalCapturer.warmStatus().state == .ready
+        },
+        "first post-ready interruption did not perform one confirmed reopen"
+    )
+    interruptedSource.emitTerminal(
+        AOSDesktopFrameCaptureFailure.connectionInterrupted
+    )
+    Thread.sleep(forTimeInterval: 0.03)
+    require(
+        terminalCapturer.warmStatus().state == .ready,
+        "stale terminal callback retired the replacement generation"
+    )
+    recoveredTerminalSource.emitTerminal(
+        AOSDesktopFrameCaptureFailure.connectionInterrupted
+    )
+    require(
+        waitForWarmState(terminalCapturer, .failed).state == .failed
+            && terminalWarm.openCount == 2,
+        "second post-ready interruption reopened more than once"
+    )
+
+    let bufferedTerminalSource = FakeWarmSource(failure: nil)
+    bufferedTerminalSource.emitTerminal(
+        AOSDesktopFrameCaptureFailure.connectionInterrupted
+    )
+    let bufferedRecoverySource = FakeWarmSource(failure: nil)
+    let bufferedTerminalWarm = SequencedWarmAcquirer(sources: [
+        bufferedTerminalSource,
+        bufferedRecoverySource,
+    ])
+    let bufferedTerminalCapturer = AOSNativeDesktopFrameCapturer(
+        broker: AOSDesktopPixelBroker(
+            acquirer: FakePixelAcquirer(),
+            warmAcquirer: bufferedTerminalWarm
+        ),
+        strategy: .prewarmedSnapshot
+    )
+    bufferedTerminalCapturer.reconcileWarm(configuration)
+    require(
+        waitForCondition {
+            bufferedTerminalWarm.openCount == 2
+                && bufferedTerminalCapturer.warmStatus().state == .ready
+        },
+        "buffered terminal failure was dropped before ready lease binding"
+    )
+
+    let quiesceCancelSource = FakeWarmSource(failure: nil)
+    quiesceCancelSource.completesStopImmediately = false
+    let quiesceCancelWarm = FakeWarmAcquirer(source: quiesceCancelSource)
+    let quiesceCancelStill = FakePixelAcquirer()
+    let quiesceCancelCapturer = AOSNativeDesktopFrameCapturer(
+        broker: AOSDesktopPixelBroker(
+            acquirer: quiesceCancelStill,
+            warmAcquirer: quiesceCancelWarm
+        ),
+        strategy: .prewarmedSnapshot
+    )
+    quiesceCancelCapturer.reconcileWarm(configuration)
+    require(
+        waitForWarmState(quiesceCancelCapturer, .ready).state == .ready,
+        "quiescing cancellation fixture did not warm"
+    )
+    let quiesceCompletion = DispatchSemaphore(value: 0)
+    let quiesceRetirement = DispatchSemaphore(value: 0)
+    var quiesceResult: Result<AOSDesktopPixelFrameSet, Error>?
+    let quiesceOperation = quiesceCancelCapturer.captureExclusiveStill(
+        publicRequest
+    ) {
+        quiesceResult = $0
+        quiesceCompletion.signal()
+    }
+    require(
+        waitForCondition { quiesceCancelSource.stopCompletion != nil },
+        "quiescing cancellation did not await warm retirement"
+    )
+    (quiesceOperation as? AOSDesktopFrameRetirementAwaiting)?
+        .cancelAndAwaitRetirement { _ in quiesceRetirement.signal() }
+    quiesceCancelSource.completesStopImmediately = true
+    quiesceCancelSource.stopCompletion?(.success(()))
+    require(
+        quiesceCompletion.wait(timeout: .now() + 1) == .success
+            && quiesceRetirement.wait(timeout: .now() + 1) == .success
+            && quiesceCancelStill.captureCount == 0
+            && quiesceCancelWarm.openCount == 2,
+        "quiescing cancellation escaped before exact warm restoration"
+    )
+    if case .failure(let error) = quiesceResult {
+        require(
+            error as? AOSDesktopFrameCaptureFailure == .unauthorized,
+            "quiescing cancellation changed its caller result"
+        )
+    } else {
+        require(false, "quiescing cancellation unexpectedly succeeded")
+    }
+
+    let capturingCancelStill = FakePixelAcquirer()
+    let capturingCancelCapturer = AOSNativeDesktopFrameCapturer(
+        broker: AOSDesktopPixelBroker(
+            acquirer: capturingCancelStill,
+            warmAcquirer: FakeWarmAcquirer(source: FakeWarmSource(failure: nil))
+        ),
+        strategy: .prewarmedSnapshot
+    )
+    let capturingCompletion = DispatchSemaphore(value: 0)
+    let capturingRetirement = DispatchSemaphore(value: 0)
+    var capturingResult: Result<AOSDesktopPixelFrameSet, Error>?
+    let capturingOperation = capturingCancelCapturer.captureExclusiveStill(
+        publicRequest
+    ) {
+        capturingResult = $0
+        capturingCompletion.signal()
+    }
+    require(
+        waitForCondition { capturingCancelStill.captureCount == 1 },
+        "capturing cancellation fixture did not admit its still"
+    )
+    (capturingOperation as? AOSDesktopFrameRetirementAwaiting)?
+        .cancelAndAwaitRetirement { _ in capturingRetirement.signal() }
+    require(
+        waitForCondition { capturingCancelStill.canceled == 1 },
+        "capturing cancellation did not reach native ownership"
+    )
+    capturingCancelStill.pending[0](
+        .failure(AOSDesktopFrameCaptureFailure.unauthorized)
+    )
+    require(
+        capturingCompletion.wait(timeout: .now() + 1) == .success,
+        "capturing cancellation did not settle its caller"
+    )
+    require(
+        capturingRetirement.wait(timeout: .now() + 1) == .success,
+        "capturing cancellation did not settle its retirement waiter"
+    )
+    require(
+        capturingCancelStill.canceled == 1,
+        "capturing cancellation did not cancel native ownership exactly once (\(capturingCancelStill.canceled))"
+    )
+    if case .failure(let error) = capturingResult {
+        require(
+            error as? AOSDesktopFrameCaptureFailure == .unauthorized,
+            "capturing cancellation changed its caller result"
+        )
+    } else {
+        require(false, "capturing cancellation unexpectedly succeeded")
+    }
+
+    let restoringCancelSource = FakeWarmSource(failure: nil)
+    let restoringCancelWarm = FirstReadyThenDeferredWarmAcquirer(
+        source: restoringCancelSource
+    )
+    let restoringCancelStill = FakePixelAcquirer()
+    let restoringCancelCapturer = AOSNativeDesktopFrameCapturer(
+        broker: AOSDesktopPixelBroker(
+            acquirer: restoringCancelStill,
+            warmAcquirer: restoringCancelWarm
+        ),
+        strategy: .prewarmedSnapshot
+    )
+    restoringCancelCapturer.reconcileWarm(configuration)
+    require(
+        waitForWarmState(restoringCancelCapturer, .ready).state == .ready,
+        "restoring cancellation fixture did not warm"
+    )
+    let restoringCompletion = DispatchSemaphore(value: 0)
+    let restoringRetirement = DispatchSemaphore(value: 0)
+    var restoringResult: Result<AOSDesktopPixelFrameSet, Error>?
+    let restoringOperation = restoringCancelCapturer.captureExclusiveStill(
+        publicRequest
+    ) {
+        restoringResult = $0
+        restoringCompletion.signal()
+    }
+    require(
+        waitForCondition { restoringCancelStill.captureCount == 1 },
+        "restoring cancellation fixture did not admit its still"
+    )
+    restoringCancelStill.pending[0](.success(AOSDesktopPixelFrameSet(
+        capturedAt: transactionNow,
+        durationMilliseconds: 1,
+        frames: [AOSDesktopPixelFrame(
+            capturedAt: transactionNow,
+            displayID: 42,
+            image: onePixelImage()
+        )]
+    )))
+    require(
+        waitForCondition { restoringCancelWarm.openCount == 2 },
+        "restoring cancellation fixture did not enter restore"
+    )
+    (restoringOperation as? AOSDesktopFrameRetirementAwaiting)?
+        .cancelAndAwaitRetirement { _ in restoringRetirement.signal() }
+    restoringCancelWarm.completeRestore()
+    require(
+        restoringCompletion.wait(timeout: .now() + 1) == .success
+            && restoringRetirement.wait(timeout: .now() + 1) == .success
+            && restoringCancelCapturer.warmStatus().state == .ready,
+        "restoring cancellation escaped before warm readiness"
+    )
+    if case .failure(let error) = restoringResult {
+        require(
+            error as? AOSDesktopFrameCaptureFailure == .unauthorized,
+            "restoring cancellation delivered stale success"
+        )
+    } else {
+        require(false, "restoring cancellation unexpectedly succeeded")
+    }
 }

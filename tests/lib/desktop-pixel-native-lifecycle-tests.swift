@@ -55,6 +55,24 @@ final class LockedCounter: @unchecked Sendable {
     }
 }
 
+final class NativeIntCallbackBox: @unchecked Sendable {
+    private var callback: ((Int?, Error?) -> Void)?
+    private let lock = NSLock()
+
+    func install(_ callback: @escaping (Int?, Error?) -> Void) {
+        lock.lock()
+        self.callback = callback
+        lock.unlock()
+    }
+
+    func settle(_ value: Int?, error: Error? = nil) {
+        lock.lock()
+        let callback = self.callback
+        lock.unlock()
+        callback?(value, error)
+    }
+}
+
 final class LockedConcurrencyProbe: @unchecked Sendable {
     private var active = 0
     private let lock = NSLock()
@@ -260,6 +278,81 @@ func settlePixelRetirements(
 }
 
 func runDesktopPixelNativeLifecycleTests() async throws {
+    let successfulCallbackSettled = DispatchSemaphore(value: 0)
+    let successfulCallbackCount = LockedCounter()
+    let successfulCallback = AOSDesktopPixelRetainedCallbackToken<Int>()
+    successfulCallback.start(
+        deadline: 0.1,
+        nativeStart: { callback in callback(7, nil) },
+        completion: { result in
+            successfulCallbackCount.increment()
+            require(
+                (try? result.get()) == 7,
+                "authoritative callback changed its result"
+            )
+            successfulCallbackSettled.signal()
+        }
+    )
+    require(
+        successfulCallbackSettled.wait(timeout: .now() + 1) == .success
+            && successfulCallbackCount.get() == 1,
+        "authoritative callback did not settle exactly once"
+    )
+
+    let lateCallbackBox = NativeIntCallbackBox()
+    let lateCallbackSettled = DispatchSemaphore(value: 0)
+    let lateCallbackCount = LockedCounter()
+    let lateCallback = AOSDesktopPixelRetainedCallbackToken<Int>()
+    lateCallback.start(
+        deadline: 0.02,
+        nativeStart: { lateCallbackBox.install($0) },
+        completion: { result in
+            lateCallbackCount.increment()
+            if case .failure(let error) = result {
+                require(
+                    error as? AOSDesktopFrameCaptureFailure == .retirementUncertain,
+                    "missing callback did not become retirement-uncertain"
+                )
+            } else {
+                require(false, "missing callback unexpectedly succeeded")
+            }
+            lateCallbackSettled.signal()
+        }
+    )
+    require(
+        lateCallbackSettled.wait(timeout: .now() + 1) == .success
+            && lateCallbackCount.get() == 1,
+        "missing callback did not reach its logical deadline"
+    )
+    lateCallbackBox.settle(9)
+    Thread.sleep(forTimeInterval: 0.03)
+    require(
+        lateCallbackCount.get() == 1,
+        "late callback redelivered after terminal quarantine"
+    )
+
+    let neverCallbackSettled = DispatchSemaphore(value: 0)
+    let neverCallback = AOSDesktopPixelRetainedCallbackToken<Int>()
+    neverCallback.start(
+        deadline: 0.02,
+        nativeStart: { _ in },
+        completion: { result in
+            if case .failure(let error) = result {
+                require(
+                    error as? AOSDesktopFrameCaptureFailure == .retirementUncertain,
+                    "never-callback quarantine changed its terminal failure"
+                )
+            } else {
+                require(false, "never-callback token unexpectedly succeeded")
+            }
+            neverCallbackSettled.signal()
+        }
+    )
+    require(
+        neverCallbackSettled.wait(timeout: .now() + 1) == .success,
+        "never-callback token failed to become terminal"
+    )
+
     runDesktopPixelCaptureFilterTests()
     let operationUsedMainThread = LockedBoolean()
     let nativeCompletion = LockedNativeCompletion()

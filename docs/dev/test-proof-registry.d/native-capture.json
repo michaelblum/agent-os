@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof-worth entries for daemon-owned native pixel acquisition and public capture transfer.",
+  "entries": [
+    {
+      "id": "public-native-capture-single-owner-contract",
+      "path_patterns": [
+        "tests/public-capture-transfer.test.mjs"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/daemon-event/**/see-capture-*.json"
+      ],
+      "owner": "daemon-desktop-pixels",
+      "harness_level": "model_unit",
+      "proof_kind": "public_native_capture_single_owner_contract",
+      "contract": "Direct and saved native capture use one daemon broker transaction, explicit public exclusions, callback-deadline quarantine, strict ordered chunk IPC, and the existing output policy without a second production ScreenCaptureKit owner.",
+      "worth": "This prevents public capture from overlapping warm DesktopWorld streams, reopening after uncertain native callbacks, leaking capture artifacts into transport, or truncating frames above the normal socket queue budget.",
+      "command": "node --test tests/public-capture-transfer.test.mjs tests/desktop-pixel-broker-contract.test.mjs tests/desktop-frame-texture-native.test.mjs && bash tests/daemon-ipc-schema.sh && node --test tests/schemas/daemon-event.test.mjs",
+      "replaces": [],
+      "guard": "focused production Swift owners, fake native callbacks, schema fixtures, and in-memory bytes only; no AOS binary, daemon socket, GUI, TCC, native capture, filesystem artifact, or external process lifecycle",
+      "status": "active"
+    }
+  ]
+}

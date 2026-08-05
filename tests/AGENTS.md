@@ -46,6 +46,11 @@ tests.
   coordinator, and keep the development-probe gate closed by default. Static
   verification must never invoke capture or treat these checks as native
   presentation evidence.
+- Public-capture ownership proofs remain offline and TCC-free. They must cover
+  warm quiesce/still/restore ordering, current and stale terminal callbacks,
+  public explicit-exclusion policy, callback deadline quarantine, strict IPC,
+  and ordered digest-verified transfer above the normal 32 MiB socket budget by
+  compiling focused production owners rather than copied algorithms.
 - Status-item host contract tests must use disposable fake sockets and schema
   fixtures, model startup admission ordering, and prove registration output
   precedes initial events. Fake sockets must emit the complete daemon envelope

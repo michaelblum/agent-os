@@ -17,6 +17,7 @@
     "test-proof-registry.d/runtime-readiness.json",
     "test-proof-registry.d/legacy-sigil-fixture.json",
     "test-proof-registry.d/agent-workspace.json",
+    "test-proof-registry.d/native-capture.json",
     "test-proof-registry.d/display-topology.json"
   ]
 }

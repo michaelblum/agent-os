@@ -8,13 +8,15 @@ enum AOSDesktopPixelCaptureFilterSelection: Equatable {
 }
 
 func aosDesktopPixelCaptureFilterSelection(
+    policy: AOSDesktopPixelCapturePolicy = .warmSelfExcluding,
     currentProcessID: pid_t,
     applicationSelfExclusionEligible: Bool,
     availableApplicationProcessIDs: [pid_t],
     requestedWindowIDs: [Int],
     availableWindowIDs: [Int]
 ) -> AOSDesktopPixelCaptureFilterSelection? {
-    if applicationSelfExclusionEligible,
+    if policy == .warmSelfExcluding,
+       applicationSelfExclusionEligible,
        availableApplicationProcessIDs.contains(currentProcessID) {
         return .application(processID: currentProcessID)
     }
@@ -35,10 +37,12 @@ func aosDesktopPixelApplicationSelfExclusionEligible(
 func aosDesktopPixelCaptureFilter(
     content: SCShareableContent,
     display: SCDisplay,
-    excludingWindowIDs: [Int]
+    excludingWindowIDs: [Int],
+    policy: AOSDesktopPixelCapturePolicy = .warmSelfExcluding
 ) throws -> SCContentFilter {
     let currentProcessID = getpid()
     guard let selection = aosDesktopPixelCaptureFilterSelection(
+        policy: policy,
         currentProcessID: currentProcessID,
         applicationSelfExclusionEligible:
             aosDesktopPixelApplicationSelfExclusionEligible(

@@ -124,6 +124,7 @@ pipeline = (root / "src/perceive/capture-pipeline.swift").read_text()
 topology_owner = (root / "src/perceive/display-topology.swift").read_text()
 models = (root / "src/perceive/models.swift").read_text()
 saved_capture = (root / "scripts/lib/agent-workspace/capture.mjs").read_text()
+native_capture = (root / "src/daemon/desktop-pixel-native.swift").read_text()
 
 schema = json.loads((root / "shared/schemas/display-topology-v1.schema.json").read_text())
 validator = Draft202012Validator(schema)
@@ -146,14 +147,14 @@ for forbidden in (
 capture_body = pipeline.split("func captureCommand(args: [String]) async", 1)[1]
 assert capture_body.count("observeDisplayTopologySnapshot()") == 1
 assert "let displays = getCaptureDisplays(from: displayTopologySnapshot)" in capture_body
-assert capture_body.count("content.displays.map") == 1
-assert capture_body.count("let filter = SCContentFilter(display: display, excludingWindows: excludedSCWindows)") == 1
-assert "scaleFactor: Double(filter.pointPixelScale)" in capture_body
-assert "filter: filter" in capture_body
-assert "validateAOSDisplayCaptureAlignment(" in capture_body
+assert "captureNativeFramesThroughDaemon(" in capture_body
+assert "topology: displayTopologySnapshot" in capture_body
 assert "selectedDisplayIDs: selectedCaptureDisplayIDs" in capture_body
-assert "var captureSourcesByID: [CGDirectDisplayID: AOSValidatedDisplayCaptureSource] = [:]" in capture_body
+assert "windowIDsByDisplay: capturedWindowsByDisplay.mapValues(\\.windowID)" in capture_body
 assert "content.displays.first" not in capture_body
+assert "SCShareableContent" not in capture_body
+assert "SCContentFilter" not in capture_body
+assert "SCScreenshotManager" not in capture_body
 assert "/usr/sbin/screencapture" not in capture_body
 assert "interactiveImage" not in capture_body
 assert "showInteractiveSelection(" in capture_body
@@ -163,8 +164,8 @@ assert "if let surface = explicitSurface" in capture_body
 assert "aosInteractiveSelectionGlobalBounds(" in capture_body
 assert "targetDisplayIDs.count == 1" in capture_body
 assert "if opts.region != nil || opts.interactive" in capture_body
-assert capture_body.index("showInteractiveSelection(") < capture_body.index("content.displays.map")
-assert capture_body.index("validateAOSDisplayCaptureAlignment(") < capture_body.index("// ── Capture loop ──")
+assert capture_body.index("showInteractiveSelection(") < capture_body.index("captureNativeFramesThroughDaemon(")
+assert capture_body.index("captureNativeFramesThroughDaemon(") < capture_body.index("// ── Capture loop ──")
 assert "resolveCaptureSurface(opts: opts, displays: displays)" in capture_body
 assert "buildSpatialTopology(displayTopology: displayTopologySnapshot)" in capture_body
 assert "resp.display_topology = displayTopologySnapshot" in capture_body
@@ -202,15 +203,23 @@ assert "return nativeFrame" not in observer_body
 assert "?? 1" not in observer_body
 assert "screen?." not in observer_body
 
-capture_display_body = pipeline.split("func captureDisplay(", 1)[1].split(
-    "func captureWindow(", 1
+daemon_capture_body = pipeline.split("func captureNativeFramesThroughDaemon(", 1)[1].split(
+    "// MARK: - Argument Parsing", 1
 )[0]
-assert "config.width = source.alignment.expectedPixelWidth" in capture_display_body
-assert "config.height = source.alignment.expectedPixelHeight" in capture_display_body
-assert "contentFilter: source.filter" in capture_display_body
-assert "SCContentFilter(" not in capture_display_body
-assert "validateAOSCapturedDisplayPixelGeometry(" in capture_display_body
-assert capture_display_body.index("validateAOSCapturedDisplayPixelGeometry(") < capture_display_body.index("return image")
+assert '"topology_identity": topology.identity' in daemon_capture_body
+assert '"displays": displaysWire' in daemon_capture_body
+assert '"display_ids": selectedDisplayIDs.map' in daemon_capture_body
+assert "session.connectWithAutoStart" in daemon_capture_body
+assert 'code: "DAEMON_UNREACHABLE"' in daemon_capture_body
+assert "displayID == selectedDisplayIDs[frameIndex]" in daemon_capture_body
+assert "expectedFrameIndex == selectedDisplayIDs.count" in daemon_capture_body
+assert "aosCaptureDigest(accumulator.data) == digest" in daemon_capture_body
+assert "validateAOSCapturedDisplayPixelGeometry(" in capture_body
+assert "func captureDisplay(" not in pipeline
+assert "func captureWindow(" not in pipeline
+assert "request.displayLayout?.geometry(" in native_capture
+assert "aosDesktopPixelSourceDimensions(" in native_capture
+assert "image.width == expectedWidth" in native_capture
 assert "struct AOSDisplayCaptureProviderFact" in topology_owner
 assert "func validateAOSDisplayCaptureAlignment(" in topology_owner
 assert "func validateAOSCapturedDisplayPixelGeometry(" in topology_owner

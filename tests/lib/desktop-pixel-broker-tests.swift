@@ -54,6 +54,8 @@ final class FakeWarmSource: AOSDesktopPixelWarmSource {
         }
     }
     var stopResult: Result<Void, Error> = .success(())
+    private var bufferedTerminal: Error?
+    private var terminalObserver: ((Error) -> Void)?
 
     init(failure: AOSDesktopFrameCaptureFailure? = .captureFailed) {
         self.failure = failure
@@ -83,6 +85,23 @@ final class FakeWarmSource: AOSDesktopPixelWarmSource {
         } else {
             stopCompletion = completion
         }
+    }
+
+    func setTerminalObserver(_ observer: @escaping (Error) -> Void) {
+        lock.lock()
+        terminalObserver = observer
+        let delivery = bufferedTerminal
+        bufferedTerminal = nil
+        lock.unlock()
+        if let delivery { observer(delivery) }
+    }
+
+    func emitTerminal(_ error: Error) {
+        lock.lock()
+        let delivery = terminalObserver
+        if delivery == nil { bufferedTerminal = error }
+        lock.unlock()
+        delivery?(error)
     }
 }
 

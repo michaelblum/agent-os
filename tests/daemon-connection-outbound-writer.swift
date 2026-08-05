@@ -105,6 +105,33 @@ private func readLines(
     return lines
 }
 
+private func readLineCount(
+    from fd: Int32,
+    expectedCount: Int,
+    timeoutMilliseconds: Int
+) -> Int {
+    let deadline = DispatchTime.now().uptimeNanoseconds
+        + UInt64(timeoutMilliseconds) * 1_000_000
+    var lineCount = 0
+    var chunk = [UInt8](repeating: 0, count: 64 * 1_024)
+
+    while lineCount < expectedCount && DispatchTime.now().uptimeNanoseconds < deadline {
+        var descriptor = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+        let result = poll(&descriptor, 1, 100)
+        if result < 0 {
+            if errno == EINTR { continue }
+            break
+        }
+        if result == 0 { continue }
+        let count = read(fd, &chunk, chunk.count)
+        if count <= 0 { break }
+        lineCount += chunk[0..<count].reduce(into: 0) { total, byte in
+            if byte == UInt8(ascii: "\n") { total += 1 }
+        }
+    }
+    return lineCount
+}
+
 private func waitUntil(
     timeoutMilliseconds: Int,
     _ condition: () -> Bool
@@ -143,10 +170,12 @@ struct DaemonConnectionOutboundWriterTest {
         let activePair = makeSocketPair()
         let timeoutPair = makeSocketPair()
         let overflowPair = makeSocketPair()
+        let transferPair = makeSocketPair()
         let terminationPair = makeSocketPair()
         setSendBuffer(activePair.writer, bytes: 2_048)
         setSendBuffer(timeoutPair.writer, bytes: 2_048)
         setSendBuffer(overflowPair.writer, bytes: 2_048)
+        setSendBuffer(transferPair.writer, bytes: 2_048)
         setSendBuffer(terminationPair.writer, bytes: 2_048)
 
         let activeLimits = AOSConnectionOutboundLimits(
@@ -178,6 +207,15 @@ struct DaemonConnectionOutboundWriterTest {
             connectionID: UUID(),
             fd: overflowPair.writer,
             limits: overflowLimits
+        )
+        let transferWriter = AOSConnectionOutboundWriter(
+            connectionID: UUID(),
+            fd: transferPair.writer,
+            limits: AOSConnectionOutboundLimits(
+                maxQueuedBytes: 32 * 1024 * 1024,
+                maxQueuedMessages: 128,
+                writeTimeoutMilliseconds: 2_000
+            )
         )
         let terminationWriter = AOSConnectionOutboundWriter(
             connectionID: UUID(),
@@ -292,6 +330,45 @@ struct DaemonConnectionOutboundWriterTest {
             "overflowing subscriber exceeded its message bound"
         )
 
+        let transferLineCount = 90
+        let transferReaderDone = DispatchSemaphore(value: 0)
+        let transferLines = IntegerResult()
+        DispatchQueue.global(qos: .userInitiated).async {
+            transferLines.set(readLineCount(
+                from: transferPair.reader,
+                expectedCount: transferLineCount,
+                timeoutMilliseconds: 20_000
+            ))
+            transferReaderDone.signal()
+        }
+        for sequence in 0..<transferLineCount {
+            require(
+                transferWriter.enqueueAndWait(voiceFrame(
+                    sequence: sequence,
+                    payloadBytes: 384 * 1024
+                )),
+                "bounded transfer frame \(sequence) was rejected"
+            )
+        }
+        require(
+            transferReaderDone.wait(timeout: .now() + 20) == .success,
+            "bounded transfer reader did not settle"
+        )
+        require(
+            transferLines.get() == transferLineCount,
+            "bounded transfer lost ordered NDJSON frames"
+        )
+        let transferSnapshot = transferWriter.snapshot()
+        require(!transferSnapshot.closed, "bounded transfer closed a healthy writer")
+        require(
+            transferSnapshot.maximumObservedMessages == 1,
+            "bounded transfer queued more than one logical frame"
+        )
+        require(
+            transferSnapshot.maximumObservedBytes < 1024 * 1024,
+            "bounded transfer escaped its per-frame byte bound"
+        )
+
         require(
             terminationWriter.enqueue(voiceFrame(sequence: 2, payloadBytes: 4 * 1024 * 1024)),
             "termination writer rejected its initial frame"
@@ -340,10 +417,12 @@ struct DaemonConnectionOutboundWriterTest {
         activeWriter.closeAndWait()
         timeoutWriter.closeAndWait()
         overflowWriter.closeAndWait()
+        transferWriter.closeAndWait()
         terminationWriter.closeAndWait()
         require(peerReachedEOF(activePair.reader), "active voice socket did not close")
         require(peerReachedEOF(timeoutPair.reader), "timed-out subscriber socket did not close")
         require(peerReachedEOF(overflowPair.reader), "overflowing subscriber socket did not close")
+        require(peerReachedEOF(transferPair.reader), "bounded transfer socket did not close")
 
         let staleFD = activePair.writer
         close(activePair.writer)
@@ -352,6 +431,8 @@ struct DaemonConnectionOutboundWriterTest {
         close(timeoutPair.reader)
         close(overflowPair.writer)
         close(overflowPair.reader)
+        close(transferPair.writer)
+        close(transferPair.reader)
         close(terminationPair.writer)
         close(terminationPair.reader)
 

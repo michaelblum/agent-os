@@ -22,13 +22,16 @@ needs, but public command policy and product UI policy belong above it:
   perception, and `see list` must consume that frozen snapshot; spatial
   topology construction may not enumerate displays again. Active displays
   require exactly one NSScreen source with no synthesized visible bounds or
-  scale. Before selected full-display capture, each ScreenCaptureKit filter is
-  created once, admitted against unique membership, frame, point size, and
-  `pointPixelScale`, then retained for capture; every returned full display
-  image must match exact topology-derived integer pixel geometry before crop or
-  stitch. Interactive capture may use the existing overlay only to obtain
-  frozen display-local bounds, then must join this same validated region path
-  without another screen enumeration or image-capture subprocess. Runtime
+  scale. Native public capture sends that one immutable topology observation to
+  the existing unified daemon, whose singleton desktop-pixel broker is the sole
+  production ScreenCaptureKit owner. The daemon admits selected display/window
+  membership and exact topology-derived pixel geometry before capture; every
+  returned full-display image must match that geometry before crop or stitch.
+  Interactive capture may use the existing overlay only to obtain frozen
+  display-local bounds, then must join this same validated region path without
+  another screen enumeration or image-capture subprocess. Browser capture
+  remains daemon-free, and the gated foreground development pixel probe remains
+  the only non-production ScreenCaptureKit exception. Runtime
   labels and UUID-backed display IDs stay outside the identity, while
   missing/duplicate UUIDs use the explicit display-ID fallback;
 - DesktopWorld's per-display Metal projection hosts are generation-bound stage

@@ -10,7 +10,7 @@ async function source(relativePath) {
 }
 
 test('desktop pixel acquisition stays native, serialized, and artifact-free', async () => {
-  const [broker, retirement, nativeOperation, lifecycle, sampleAdmission, displayGeometry, captureFilter, native, pool, adapter, daemon] = await Promise.all([
+  const [broker, retirement, nativeOperation, lifecycle, sampleAdmission, displayGeometry, captureFilter, native, pool, adapter, daemon, publicCapture, publicTransfer, perceive, canvasRuntime, savedCapture] = await Promise.all([
     source('src/daemon/desktop-pixel-broker.swift'),
     source('src/daemon/desktop-pixel-retirement.swift'),
     source('src/daemon/desktop-pixel-native-operation.swift'),
@@ -22,6 +22,11 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
     source('src/daemon/desktop-frame-warm-pool.swift'),
     source('src/daemon/desktop-frame-capture-adapter.swift'),
     source('src/daemon/unified.swift'),
+    source('src/daemon/public-capture-controller.swift'),
+    source('src/daemon/public-capture-transfer.swift'),
+    source('src/perceive/capture-pipeline.swift'),
+    source('packages/toolkit/runtime/canvas-host-runtime.js'),
+    source('scripts/lib/agent-workspace/capture.mjs'),
   ])
 
   const warmNative = native.slice(
@@ -29,7 +34,7 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
     native.indexOf('final class AOSNativeDesktopPixelAcquirer'),
   )
   const snapshotNative = native.slice(
-    native.indexOf('private actor AOSNativeDesktopPixelSnapshotActor'),
+    native.indexOf('private final class AOSNativeDesktopPixelStillOperation'),
     native.indexOf('private struct AOSDesktopPixelLatestSample'),
   )
   const retainedNativeOperation = nativeOperation
@@ -43,7 +48,7 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(native, /static let queueDepth = 3/u)
   assert.match(warmNative, /onScreenWindowsOnly: false/u)
   assert.match(captureFilter, /aosDesktopPixelCaptureFilterSelection/u)
-  assert.match(captureFilter, /applicationSelfExclusionEligible,[\s\S]*availableApplicationProcessIDs\.contains\(currentProcessID\)/u)
+  assert.match(captureFilter, /policy == \.warmSelfExcluding,[\s\S]*applicationSelfExclusionEligible,[\s\S]*availableApplicationProcessIDs\.contains\(currentProcessID\)/u)
   assert.match(captureFilter, /Bundle\.main\.bundleURL/u)
   assert.match(captureFilter, /Bundle\.main\.bundleIdentifier/u)
   assert.match(captureFilter, /excludingApplications: \[application\]/u)
@@ -55,6 +60,12 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
     snapshotNative,
     /content: content,[\s\S]*display: display,[\s\S]*excludingWindowIDs: request\.excludingWindowIDs/u,
   )
+  assert.match(snapshotNative, /policy: request\.capturePolicy/u)
+  assert.match(snapshotNative, /SCShareableContent\.getExcludingDesktopWindows\(/u)
+  assert.match(snapshotNative, /SCScreenshotManager\.captureImage\([\s\S]*completionHandler: callback/u)
+  assert.doesNotMatch(snapshotNative, /try\s+await\s+(?:SCShareableContent|SCScreenshotManager)/u)
+  assert.match(snapshotNative, /var prepared: \[PreparedDisplayCapture\][\s\S]*pendingDisplayIDs = requested[\s\S]*for entry in prepared/u)
+  assert.match(snapshotNative, /if failure == \.retirementUncertain \|\| firstFailure == nil[\s\S]*guard complete else \{ return \}[\s\S]*firstFailure == \.retirementUncertain/u)
   assert.equal((warmNative.match(/aosDesktopPixelCaptureFilter\(/gu) ?? []).length, 1)
   assert.match(
     warmNative,
@@ -66,6 +77,11 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
     /aosStartDesktopPixelStreams[\s\S]*let stream = entry\.stream[\s\S]*startOperation\.start[\s\S]*stream\.startCapture\(completionHandler: nativeCompletion\)[\s\S]*stop:[\s\S]*let stream = entry\.stream[\s\S]*stopOperation\.start[\s\S]*stream\.stopCapture\(completionHandler: nativeCompletion\)/u,
   )
   assert.match(nativeOperation, /final class AOSDesktopPixelRetainedNativeOperation/u)
+  assert.match(nativeOperation, /final class AOSDesktopPixelRetainedCallbackToken/u)
+  assert.match(nativeOperation, /private var selfRetain: AOSDesktopPixelRetainedCallbackToken/u)
+  assert.match(nativeOperation, /deadline <= 10/u)
+  assert.match(nativeOperation, /\.retirementUncertain/u)
+  assert.match(nativeOperation, /if delivered \{[\s\S]*delivery = nil[\s\S]*result = nil/u)
   assert.match(retainedNativeOperation, /DispatchQueue\.global\([\s\S]*qos: \.userInitiated/u)
   assert.match(retainedNativeOperation, /executionQueue\.async/u)
   assert.match(
@@ -108,7 +124,7 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   )
   assert.match(
     warmNative,
-    /nativeStopped: \{ \[weak startOperation, weak stopOperation\] error in[\s\S]*startOperation\?\.settle\(\.failure\(error\)\)[\s\S]*stopOperation\?\.settle\(\.failure\(error\)\)/u,
+    /nativeStopped: \{ \[weak startOperation, weak stopOperation, weak sourceFailure\] error in[\s\S]*sourceFailure\?\.record\(error\)[\s\S]*startOperation\?\.settle\(\.failure\(error\)\)[\s\S]*stopOperation\?\.settle\(\.failure\(error\)\)/u,
   )
   assert.match(native, /start_settled/u)
   assert.match(native, /stop_settled/u)
@@ -153,6 +169,11 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(broker, /defaultRetirementTimeout: TimeInterval = 5/u)
   assert.match(broker, /maximumPixelsPerDisplay = 16_777_216/u)
   assert.match(broker, /maximumTotalPixels = 67_108_864/u)
+  assert.match(broker, /publicCaptureMaximumPixelsPerDisplay = 67_108_864/u)
+  assert.match(broker, /publicCaptureMaximumTotalPixels = 134_217_728/u)
+  assert.match(broker, /enum AOSDesktopPixelCapturePolicy/u)
+  assert.match(broker, /case publicExplicitExclusions/u)
+  assert.match(broker, /setTerminalObserver/u)
   assert.match(broker, /superviseSnapshotRetirement/u)
   assert.match(broker, /superviseWarmRetirement/u)
   assert.match(pool, /final class AOSDesktopFrameWarmPool/u)
@@ -161,12 +182,19 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(pool, /desired\?\.sourceIdentity == configuration\?\.sourceIdentity/u)
   assert.match(pool, /desired = configuration/u)
   assert.match(pool, /broker\.freezeWarm/u)
+  assert.match(pool, /func captureExclusiveStill/u)
+  assert.match(pool, /case quiescing[\s\S]*case capturing[\s\S]*case restoring/u)
+  assert.match(pool, /retireCurrentOnQueue\(\)[\s\S]*startExclusiveSnapshotOnQueue/u)
+  assert.match(pool, /broker\.snapshot\(transaction\.request\)/u)
+  assert.match(pool, /request\.capturePolicy == \.publicExplicitExclusions/u)
+  assert.match(pool, /terminalObserver:/u)
   assert.doesNotMatch(
     `${broker}\n${lifecycle}\n${native}\n${pool}`,
     /base64|CGImageDestination|write\s*\(/iu,
   )
   assert.match(adapter, /CGImageDestinationCreateWithData/u)
   assert.match(adapter, /return broker\.snapshot\(request\)/u)
+  assert.match(adapter, /return warmPool\.captureExclusiveStill/u)
   assert.doesNotMatch(
     adapter,
     /oneShotWarmSnapshot|AOSDesktopFrameWarmSnapshotOperation/u,
@@ -176,5 +204,34 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(daemon, /preflightPermission: \{ CGPreflightScreenCaptureAccess\(\) \}/u)
   assert.match(daemon, /desktopFrameCapturer[\s\S]*strategy: \.prewarmedSnapshot/u)
   assert.match(daemon, /desktopFrameTextureAuthorization/u)
+  assert.match(daemon, /private lazy var publicCaptureController = AOSPublicCaptureController/u)
+  assert.match(daemon, /case \("see", "capture"\):\s+return "capture"/u)
+  assert.match(daemon, /var publicCaptureToken: UUID\?/u)
+  assert.match(daemon, /publicCaptureToken = captureToken[\s\S]*captureAdmitted = true/u)
+  assert.match(daemon, /publicCaptureToken == captureToken[\s\S]*publicCaptureToken = nil/u)
+  assert.match(daemon, /if !ownsCapture \{ capture\.cancel\(\) \}/u)
+  assert.match(publicCapture, /capturer\.captureExclusiveStill\(wire\.request\)/u)
+  assert.match(publicCapture, /aosStreamPublicCaptureData\(/u)
+  assert.match(publicTransfer, /let aosPublicCaptureChunkBytes = 384 \* 1024/u)
+  assert.match(publicTransfer, /"sha256": digest/u)
+  assert.match(publicTransfer, /"bytes_base64": chunk\.base64EncodedString\(\)/u)
+  assert.doesNotMatch(daemon, /capture\.region|handleCaptureRegion/u)
+  assert.doesNotMatch(canvasRuntime, /captureRegion|capture\.region/u)
+  assert.doesNotMatch(perceive, /CaptureSessionLock|SCScreenshotManager|SCShareableContent|SCContentFilter/u)
+  assert.match(perceive, /session\.connectWithAutoStart\(binaryPath:/u)
+  assert.equal((perceive.match(/connectWithAutoStart\(/gu) ?? []).length, 1)
+  assert.match(perceive, /guard session\.connectWithAutoStart[\s\S]*code: "DAEMON_UNREACHABLE"/u)
+  assert.match(perceive, /message\["service"\] as\? String == "see",[\s\S]*message\["event"\] as\? String == "capture_chunk"/u)
+  assert.match(perceive, /aosCaptureDigest\(accumulator\.data\) == digest/u)
+  const browserDispatch = perceive.indexOf('if opts.target.hasPrefix("browser:")')
+  const topologyObservation = perceive.indexOf('let displayTopologySnapshot = observeDisplayTopologySnapshot()')
+  const daemonCapture = perceive.indexOf('let nativeImages = captureNativeFramesThroughDaemon(')
+  assert.ok(browserDispatch >= 0 && browserDispatch < topologyObservation && topologyObservation < daemonCapture)
+  assert.equal((perceive.match(/captureNativeFramesThroughDaemon\(/gu) ?? []).length, 2)
+  const savedCaptureCommand = savedCapture.slice(
+    savedCapture.indexOf('export async function savedCaptureCommand'),
+  )
+  assert.equal((savedCaptureCommand.match(/runNativeSeeSync\(/gu) ?? []).length, 1)
+  assert.match(savedCaptureCommand, /primitive: 'capture'/u)
   assert.doesNotMatch(native, /Task\s*\{\s*@MainActor/u)
 })

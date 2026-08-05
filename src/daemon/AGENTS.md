@@ -79,8 +79,13 @@ DesktopWorld event-routing failures remain reason-coded and observable through
 bounded daemon diagnostics; never log scene payloads, gesture coordinates,
 labels, or product data to diagnose delivery.
 `desktop-pixel-capture-filter.swift` owns qualified app-process self-exclusion
-and raw-host exact-window exclusion. `desktop-pixel-native.swift` owns
-ScreenCaptureKit snapshots and bounded warm streams.
+for warm internal consumers and exact explicit-window exclusion for public
+capture. Public capture must not hide the AOS process implicitly.
+`desktop-pixel-native.swift` owns ScreenCaptureKit snapshots and bounded warm
+streams. Public still discovery and image acquisition use retained completion
+callbacks with a bounded logical deadline; a missing callback leaves the broker
+terminally unavailable, while a late callback only releases its quarantined
+owner and cannot deliver or reopen capture.
 `src/shared/desktop-pixel-sample-admission.swift` owns the common usable-frame
 and producer-advancement rules shared by runtime capture and native proofs.
 `desktop-pixel-native-operation.swift` owns the exactly-once, callback-backed
@@ -154,7 +159,14 @@ authorized DesktopWorld stage. It retains only the broker's latest bounded
 native sample set, freezes on demand, and retires on authorization, consent,
 topology, stage-window, or stage loss. Runtime freezes require
 the exact generation-bound pool configuration and never cold-start
-ScreenCaptureKit. The capture controller gets
+ScreenCaptureKit. A public still is one exclusive transaction on this same
+pool: freeze the desired warm identity, await authoritative retirement, admit
+exactly one broker still, then restore the still-current desired configuration
+before returning. Reconciliation during the transaction updates restoration
+state but cannot open an overlapping producer. Post-ready stream termination is
+observed on the exact lease generation; one interrupted source may retire and
+reopen once, stale callbacks are ignored, and a repeated current failure stays
+unavailable. The capture controller gets
 ordered consumers and excluded stage windows from one main-thread context
 snapshot used for both prewarming and interaction. One-shot consent probes use
 the broker's bounded still-snapshot path. Runtime warm freezes deliver an

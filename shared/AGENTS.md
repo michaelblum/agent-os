@@ -17,6 +17,10 @@ apps, and tests.
 ## Local Contracts
 
 - Schema changes must update fixtures, docs, and tests that assert the contract.
+- `schemas/daemon-{request,event,response}.schema.json` owns the closed private
+  `see.capture` transport. Requests carry one immutable topology identity and
+  bounded display/window selection; ordered capture chunks carry bounded base64
+  bytes plus byte count and SHA-256, never paths or persisted artifact facts.
 - `schemas/display-topology-v1.*` owns the closed content-addressed display
   mapping snapshot embedded by spatial-topology 0.3.0 and explicit or
   interactively selected region captures; keep its canonical ordering,

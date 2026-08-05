@@ -7,7 +7,7 @@ Wire contract between the `aos` CLI (and future SDK/MCP adapter) and the unified
 
 ## Transport
 
-Unix domain socket at `aosSocketPath()` (see `shared/swift/ipc/runtime-paths.swift`). Newline-delimited JSON. One request line → one response line. Event stream (pushed events) follows `daemon-event.schema.json` v1 and shares the same connection once `see.observe` or a future subscribe action opens it.
+Unix domain socket at `aosSocketPath()` (see `shared/swift/ipc/runtime-paths.swift`). Newline-delimited JSON. One request line produces one terminal response line; an action may emit schema-owned events before that response. Event stream (pushed events) follows `daemon-event.schema.json` v1 and shares the same connection once `see.observe`, private `see.capture`, or a future subscribe action opens it.
 
 ## Envelope
 
@@ -65,6 +65,7 @@ Error response:
 |-------------------|---------|----------------------|
 | `see.observe` | Open a perception attention channel and subscribe connection to events. | (none) |
 | `see.snapshot` | Spatial snapshot from the daemon. | (none) |
+| `see.capture` | Private single-owner native still transaction; emits ordered `see.capture_chunk` events before a metadata-only response. | `capture_id`, `topology_identity`, `displays`, `display_ids`, `excluded_window_ids`, `window_targets`, `maximum_pixels_per_display`, `shows_cursor`. |
 | `show.create` | Create a canvas. | `id` + one geometry source (`at`, `track`, `surface`, `anchor_window+offset`, `anchor_channel+offset`) + one content source (`html`, `url`). |
 | `show.update` | Mutate canvas fields. | `id`. |
 | `show.eval` | Evaluate JS inside a canvas. | `id`, `js`. |
@@ -262,7 +263,9 @@ Envelope `v` is an integer, currently `1`. Adding an action or an optional field
 ## Event Envelope Note
 
 The event envelope (`daemon-event.schema.json` v1) uses `service` values
-`perceive|display|act|voice|scene|annotation|status_item`. The `voice` service carries
+`perceive|display|act|voice|scene|annotation|status_item|see`. The private `see`
+service carries only ordered `capture_chunk` data with capture/topology identity,
+bounded base64 bytes, byte counts, and SHA-256; it never carries a path. The `voice` service carries
 generic dictation, microphone-capture, meter, and streamed-system-speech
 lifecycle events. Events never carry audio bytes, spoken text, or local paths;
 transcription and product behavior remain consumer-owned.

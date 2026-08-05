@@ -41,6 +41,36 @@ The broker supports two acquisition forms:
   may remain retained by the latest sample while two bounded producer slots
   permit frame advancement.
 
+Production `aos see capture` native pixels use the same daemon broker through a
+private strict `see.capture` request. The foreground pipeline observes display
+topology once, resolves display/window/region policy against that immutable
+snapshot, and sends its exact identity and geometry to the daemon. The daemon
+quiesces and authoritatively retires any warm owner, admits exactly one public
+still, then restores the still-current desired warm configuration before the
+caller can complete. Reconciliation during this transaction updates the restore
+target without opening a second producer. Browser capture remains daemon-free;
+the gated foreground development probe remains a non-production control.
+
+Public still discovery and screenshot acquisition use Apple's completion
+handlers, not unbounded async still awaits. Each callback has a retained token
+and a bounded logical deadline. A missing callback fails the broker terminally
+closed and remains quarantined; a later callback can only release that token,
+never deliver pixels, mutate a newer transaction, or reopen native admission.
+Warm streams report post-ready terminal failure to the exact lease generation.
+One current connection interruption may perform one retirement-confirmed
+reopen; a stale callback is ignored and a repeated current failure remains
+unavailable.
+
+Public capture uses explicit excluded window IDs and never implicitly hides the
+AOS process. Encoded PNGs cross the normal bounded outbound writer as ordered
+384 KiB `see.capture_chunk` events with capture/topology/display/frame/chunk
+identity, total byte count, and SHA-256. The final response contains metadata
+only. This permits frames above the writer's 32 MiB queued-byte ceiling while
+keeping one bounded event admitted at a time and creating no daemon artifact or
+alternate byte channel. The foreground consumer validates order, counts,
+digest, topology identity, and decoded geometry before applying existing crop,
+overlay, perception, saved-ref, or output policy.
+
 Process-level self-exclusion is used only when AOS has an app-bundle identity;
 ScreenCaptureKit listing a raw executable's PID does not prove that application
 exclusion is viable. Raw and otherwise unqualified hosts exclude the complete
@@ -170,8 +200,8 @@ used by mount, transaction, and inspection results.
 For compatibility, DesktopWorld's existing `desktop_frame.acquire` request now
 uses one warm snapshot internally and retains the exact lease, topology,
 all-segment presentation, expiry, and content-free public contracts from ADR
-0030. `aos see capture` keeps its existing output contract until it is migrated
-behind daemon broker IPC in a separate slice.
+0030. `aos see capture` keeps its existing output and saved-ref contracts while
+its native pixel acquisition is routed through daemon broker IPC.
 
 JPEG encoding remains temporarily at the private WebKit presentation adapter.
 This is not a zero-copy IOSurface-to-WebGL contract. Native acquisition latency,
@@ -189,8 +219,8 @@ already frozen frame set.
 - Capability-scoped DesktopWorld effects pay stream startup before interaction;
   pointer-down performs only a bounded freeze, encode, and presentation.
 - Consent probing and scene capture cannot contend inside one daemon.
-- Native perception still has an independent legacy capture path until its
-  explicit compatibility migration.
+- Native perception and direct/saved `aos see capture` share the daemon's single
+  production native-pixel owner while retaining their existing projections.
 - Browser-native screenshots and AX-only perception remain separate.
 - Predictive hover warming, frame history, continuous texture presentation, and
   persistent desktop textures remain unsupported.

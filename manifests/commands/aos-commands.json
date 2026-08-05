@@ -649,7 +649,7 @@
             "aos see mouse --radius 200"
           ],
           "execution" : {
-            "auto_starts_daemon" : false,
+            "auto_starts_daemon" : true,
             "interactive" : false,
             "mutates_state" : false,
             "mutates_when_flags" : [
@@ -804,7 +804,7 @@
             "aos see refs --workspace default --query Save"
           ],
           "execution" : {
-            "auto_starts_daemon" : false,
+            "auto_starts_daemon" : true,
             "interactive" : false,
             "mutates_state" : true,
             "read_only" : false,

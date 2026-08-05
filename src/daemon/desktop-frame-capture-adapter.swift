@@ -108,6 +108,18 @@ final class AOSNativeDesktopFrameCapturer:
     }
 
     @discardableResult
+    func captureExclusiveStill(
+        _ request: AOSDesktopPixelSnapshotRequest,
+        completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void
+    ) -> AOSDesktopFrameCancelling {
+        guard strategy == .prewarmedSnapshot else {
+            completion(.failure(AOSDesktopFrameCaptureFailure.unauthorized))
+            return AOSDesktopFrameCancellation()
+        }
+        return warmPool.captureExclusiveStill(request, completion: completion)
+    }
+
+    @discardableResult
     func capturePrewarmedFrames(
         _ configuration: AOSDesktopFrameWarmConfiguration,
         completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void

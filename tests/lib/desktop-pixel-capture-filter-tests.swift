@@ -5,6 +5,28 @@ func runDesktopPixelCaptureFilterTests() {
     let processID: pid_t = 4242
     require(
         aosDesktopPixelCaptureFilterSelection(
+            policy: .publicExplicitExclusions,
+            currentProcessID: processID,
+            applicationSelfExclusionEligible: true,
+            availableApplicationProcessIDs: [7, processID],
+            requestedWindowIDs: [30],
+            availableWindowIDs: [30]
+        ) == .windows([30]),
+        "public capture hid the AOS process instead of honoring explicit exclusions"
+    )
+    require(
+        aosDesktopPixelCaptureFilterSelection(
+            policy: .publicExplicitExclusions,
+            currentProcessID: processID,
+            applicationSelfExclusionEligible: true,
+            availableApplicationProcessIDs: [7, processID],
+            requestedWindowIDs: [30],
+            availableWindowIDs: []
+        ) == nil,
+        "public capture accepted an unavailable explicit exclusion"
+    )
+    require(
+        aosDesktopPixelCaptureFilterSelection(
             currentProcessID: processID,
             applicationSelfExclusionEligible: true,
             availableApplicationProcessIDs: [7, processID],

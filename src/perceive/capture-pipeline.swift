@@ -4,11 +4,11 @@
 // crop → overlay → encode → output.
 
 import Cocoa
-import ScreenCaptureKit
 import UniformTypeIdentifiers
 import CoreText
 import ApplicationServices
 import Darwin
+import CryptoKit
 
 // MARK: - Overlay Types
 
@@ -38,52 +38,6 @@ struct ZoneEntry: Codable {
     let crop: String
 }
 
-final class CaptureSessionLock {
-    private var fd: Int32 = -1
-
-    init(timeout: TimeInterval = 15.0) {
-        let mode = aosCurrentRuntimeMode()
-        let stateDir = aosStateDir(for: mode)
-        do {
-            try FileManager.default.createDirectory(atPath: stateDir, withIntermediateDirectories: true)
-        } catch {
-            exitError("Failed to prepare capture state dir: \(error.localizedDescription)", code: "LOCK_ERROR")
-        }
-
-        let lockPath = aosCaptureLockPath(for: mode)
-        let handle = open(lockPath, O_CREAT | O_RDWR, 0o644)
-        guard handle >= 0 else {
-            exitError("open(\(lockPath)) failed: \(errno)", code: "LOCK_ERROR")
-        }
-
-        let deadline = Date().addingTimeInterval(timeout)
-        while flock(handle, LOCK_EX | LOCK_NB) != 0 {
-            if errno != EWOULDBLOCK && errno != EAGAIN {
-                close(handle)
-                exitError("flock(\(lockPath)) failed: \(errno)", code: "LOCK_ERROR")
-            }
-            if Date() >= deadline {
-                close(handle)
-                exitError(
-                    "Another \(mode.rawValue) capture is already in progress. Wait for it to finish and retry.",
-                    code: "CAPTURE_BUSY"
-                )
-            }
-            usleep(50_000)
-        }
-
-        _ = fcntl(handle, F_SETFD, FD_CLOEXEC)
-        fd = handle
-    }
-
-    deinit {
-        guard fd >= 0 else { return }
-        _ = flock(fd, LOCK_UN)
-        close(fd)
-        fd = -1
-    }
-}
-
 // MARK: - Internal Display Model (capture pipeline)
 //
 // This is the richer display model used by the capture pipeline. It carries
@@ -102,6 +56,19 @@ struct CaptureDisplayEntry {
     let type: String
     let arrangement: String
     let resolution: String
+}
+
+struct CaptureApplicationFact {
+    let applicationName: String
+    let processID: pid_t
+}
+
+struct CaptureWindowFact {
+    let frame: CGRect
+    let owningApplication: CaptureApplicationFact?
+    let title: String?
+    let windowID: Int
+    let windowLayer: Int
 }
 
 // MARK: - Color Parsing
@@ -132,18 +99,6 @@ func parseHexColor(_ hex: String) -> CGColor {
         a = 1.0
     }
     return CGColor(srgbRed: r, green: g, blue: b, alpha: a)
-}
-
-// MARK: - Permission Checks
-
-func checkScreenRecordingPermission() {
-    if !CGPreflightScreenCaptureAccess() {
-        CGRequestScreenCaptureAccess()
-        exitError(
-            "Screen recording permission required. A system prompt should appear. Grant access in System Settings > Privacy & Security > Screen Recording, then retry.",
-            code: "PERMISSION_DENIED"
-        )
-    }
 }
 
 func checkAccessibilityPermission(feature: String = "this feature") {
@@ -336,7 +291,7 @@ func getCaptureDisplays() -> [CaptureDisplayEntry] {
     getCaptureDisplays(from: observeDisplayTopologySnapshot())
 }
 
-func displayForWindow(_ window: SCWindow, displays: [CaptureDisplayEntry]) -> CaptureDisplayEntry {
+func displayForWindow(_ window: CaptureWindowFact, displays: [CaptureDisplayEntry]) -> CaptureDisplayEntry {
     let pt = CGPoint(x: window.frame.midX, y: window.frame.midY)
     return displays.first(where: { $0.bounds.contains(pt) }) ?? displays.first(where: { $0.isMain })!
 }
@@ -364,13 +319,47 @@ func displayForMouse(displays: [CaptureDisplayEntry]) -> CaptureDisplayEntry? {
     return displays.first(where: { $0.bounds.contains(pt) }) ?? displays.first(where: { $0.isMain })
 }
 
-func largestWindow(for pid: pid_t, in windows: [SCWindow]) -> SCWindow? {
+func observeCaptureWindowFacts() -> [CaptureWindowFact] {
+    guard let raw = CGWindowListCopyWindowInfo(
+        [.optionOnScreenOnly, .excludeDesktopElements],
+        kCGNullWindowID
+    ) as? [[CFString: Any]] else { return [] }
+    return raw.compactMap { item in
+        guard let number = item[kCGWindowNumber] as? NSNumber,
+              let layer = item[kCGWindowLayer] as? NSNumber,
+              let rawBounds = item[kCGWindowBounds] else {
+            return nil
+        }
+        let bounds = rawBounds as! CFDictionary
+        guard let frame = CGRect(dictionaryRepresentation: bounds) else {
+            return nil
+        }
+        let application: CaptureApplicationFact?
+        if let pid = (item[kCGWindowOwnerPID] as? NSNumber)?.int32Value {
+            application = CaptureApplicationFact(
+                applicationName: item[kCGWindowOwnerName] as? String ?? "",
+                processID: pid
+            )
+        } else {
+            application = nil
+        }
+        return CaptureWindowFact(
+            frame: frame,
+            owningApplication: application,
+            title: item[kCGWindowName] as? String,
+            windowID: number.intValue,
+            windowLayer: layer.intValue
+        )
+    }
+}
+
+func largestWindow(for pid: pid_t, in windows: [CaptureWindowFact]) -> CaptureWindowFact? {
     windows
         .filter { $0.owningApplication?.processID == pid && $0.windowLayer == 0 && $0.frame.width > 0 }
         .max(by: { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height })
 }
 
-func largestWindowOnDisplay(_ entry: CaptureDisplayEntry, in windows: [SCWindow], preferPID: pid_t? = nil) -> SCWindow? {
+func largestWindowOnDisplay(_ entry: CaptureDisplayEntry, in windows: [CaptureWindowFact], preferPID: pid_t? = nil) -> CaptureWindowFact? {
     let onDisplay = windows.filter { w in
         w.windowLayer == 0 && w.frame.width > 100
             && entry.bounds.contains(CGPoint(x: w.frame.midX, y: w.frame.midY))
@@ -400,28 +389,28 @@ func parentPID(of pid: pid_t) -> pid_t {
     return v
 }
 
-func selfieWindow(content: SCShareableContent) -> SCWindow? {
+func selfieWindow(windows: [CaptureWindowFact]) -> CaptureWindowFact? {
     var pid = getpid()
     var visited = Set<pid_t>()
     while pid > 1 && !visited.contains(pid) {
         visited.insert(pid)
-        if let w = largestWindow(for: pid, in: content.windows) { return w }
+        if let w = largestWindow(for: pid, in: windows) { return w }
         pid = parentPID(of: pid)
     }
     if let termProgram = ProcessInfo.processInfo.environment["TERM_PROGRAM"] {
         let needle = termProgram.lowercased()
-        let candidates = content.windows.filter {
+        let candidates = windows.filter {
             guard let app = $0.owningApplication else { return false }
             return $0.windowLayer == 0 && $0.frame.width > 100
                 && (app.applicationName.lowercased().contains(needle)
-                    || app.bundleIdentifier.lowercased().contains(needle))
+                    || app.applicationName.lowercased().contains(needle))
         }
         if let w = candidates.max(by: { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }) {
             return w
         }
     }
     if let frontApp = NSWorkspace.shared.frontmostApplication {
-        return largestWindow(for: frontApp.processIdentifier, in: content.windows)
+        return largestWindow(for: frontApp.processIdentifier, in: windows)
     }
     return nil
 }
@@ -617,7 +606,7 @@ func globalCaptureRect(display: CaptureDisplayEntry, windowFrame: CGRect?, cropR
 }
 
 func xrayAppsIntersectingCapture(
-    windows: [SCWindow],
+    windows: [CaptureWindowFact],
     captureRect: CGRect,
     mapper: CoordinateMapper,
     imageSize: CGSize,
@@ -1010,43 +999,221 @@ func stitchSurfaceSegments(
     return ctx.makeImage() ?? segments[0].image
 }
 
-// MARK: - ScreenCaptureKit Capture
+// MARK: - Daemon-owned native capture
 
-@available(macOS 14.0, *)
-struct AOSValidatedDisplayCaptureSource {
-    let filter: SCContentFilter
-    let alignment: AOSDisplayCaptureAlignment
+private struct AOSPublicCaptureChunkAccumulator {
+    var byteCount: Int
+    var chunkCount: Int
+    var data = Data()
+    var nextChunkIndex = 0
+    var sha256: String
 }
 
-@available(macOS 14.0, *)
-func captureDisplay(
-    _ source: AOSValidatedDisplayCaptureSource,
-    showCursor: Bool
-) async throws -> CGImage {
-    let config = SCStreamConfiguration()
-    config.width = source.alignment.expectedPixelWidth
-    config.height = source.alignment.expectedPixelHeight
-    config.showsCursor = showCursor
-    config.captureResolution = .best
-    let image = try await SCScreenshotManager.captureImage(contentFilter: source.filter, configuration: config)
-    try validateAOSCapturedDisplayPixelGeometry(
-        alignment: source.alignment,
-        actualWidth: image.width,
-        actualHeight: image.height
+private func aosCaptureDigest(_ data: Data) -> String {
+    SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+}
+
+private func aosDecodeCapturePNG(_ data: Data) -> CGImage? {
+    guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+        return nil
+    }
+    return CGImageSourceCreateImageAtIndex(source, 0, [
+        kCGImageSourceShouldCacheImmediately: true,
+    ] as CFDictionary)
+}
+
+private func aosPublicCaptureErrorCode(_ daemonCode: String?) -> String {
+    daemonCode == "DESKTOP_FRAME_PERMISSION_DENIED"
+        ? "PERMISSION_DENIED"
+        : "CAPTURE_FAILED"
+}
+
+func captureNativeFramesThroughDaemon(
+    topology: AOSDisplayTopologySnapshot,
+    selectedDisplayIDs: [CGDirectDisplayID],
+    excludedWindowIDs: [Int],
+    windowIDsByDisplay: [CGDirectDisplayID: Int],
+    showsCursor: Bool
+) -> [CGDirectDisplayID: CGImage] {
+    let selectedSet = Set(selectedDisplayIDs)
+    let selectedDisplays = topology.displays.filter {
+        selectedSet.contains($0.runtimeDisplayID)
+    }.sorted { left, right in
+        guard let leftIndex = selectedDisplayIDs.firstIndex(of: left.runtimeDisplayID),
+              let rightIndex = selectedDisplayIDs.firstIndex(of: right.runtimeDisplayID) else {
+            return left.ordinal < right.ordinal
+        }
+        return leftIndex < rightIndex
+    }
+    guard selectedDisplays.count == selectedDisplayIDs.count,
+          Set(selectedDisplayIDs).count == selectedDisplayIDs.count else {
+        exitError("Capture selection does not match frozen display topology", code: "CAPTURE_TOPOLOGY_MISMATCH")
+    }
+    let maximumPixels = selectedDisplays.reduce(0) { current, display in
+        let dimensions = AOSDesktopPixelDimensions(
+            pointWidth: display.nativeBounds.width,
+            pointHeight: display.nativeBounds.height,
+            pointPixelScale: display.scaleFactor
+        )
+        return max(current, dimensions?.pixelCount ?? Int.max)
+    }
+    guard maximumPixels > 0,
+          maximumPixels <= AOSDesktopPixelLimits.publicCaptureMaximumPixelsPerDisplay else {
+        exitError("Capture exceeds the native pixel budget", code: "CAPTURE_FAILED")
+    }
+    let captureID = UUID().uuidString.lowercased()
+    let displaysWire: [[String: Any]] = selectedDisplays.enumerated().map { index, display in
+        [
+            "display_id": NSNumber(value: display.runtimeDisplayID),
+            "index": index,
+            "native_bounds": [
+                display.nativeBounds.x,
+                display.nativeBounds.y,
+                display.nativeBounds.width,
+                display.nativeBounds.height,
+            ],
+            "desktop_world_bounds": [
+                display.desktopWorldBounds.x,
+                display.desktopWorldBounds.y,
+                display.desktopWorldBounds.width,
+                display.desktopWorldBounds.height,
+            ],
+            "scale_factor": display.scaleFactor,
+        ]
+    }
+    let windowWire = windowIDsByDisplay.map { displayID, windowID in
+        [
+            "display_id": NSNumber(value: displayID),
+            "window_id": windowID,
+        ]
+    }.sorted {
+        (($0["display_id"] as? NSNumber)?.uint32Value ?? 0)
+            < (($1["display_id"] as? NSNumber)?.uint32Value ?? 0)
+    }
+    let payload = buildEnvelopePayload(
+        service: "see",
+        action: "capture",
+        data: [
+            "capture_id": captureID,
+            "topology_identity": topology.identity,
+            "displays": displaysWire,
+            "display_ids": selectedDisplayIDs.map { NSNumber(value: $0) },
+            "excluded_window_ids": excludedWindowIDs,
+            "window_targets": windowWire,
+            "maximum_pixels_per_display": maximumPixels,
+            "shows_cursor": showsCursor,
+        ],
+        ref: captureID
     )
-    return image
-}
+    let session = DaemonSession(socketPath: kDefaultSocketPath)
+    guard session.connectWithAutoStart(binaryPath: aosExecutablePath(), timeoutMs: 1_000) else {
+        exitError("The AOS daemon is unavailable", code: "DAEMON_UNREACHABLE")
+    }
+    defer { session.disconnect() }
+    session.sendOnly(payload)
 
-@available(macOS 14.0, *)
-func captureWindow(_ window: SCWindow, scaleFactor: Double, showCursor: Bool) async throws -> CGImage {
-    let filter = SCContentFilter(desktopIndependentWindow: window)
-    let config = SCStreamConfiguration()
-    config.width = Int(window.frame.width * scaleFactor)
-    config.height = Int(window.frame.height * scaleFactor)
-    config.showsCursor = showCursor
-    config.captureResolution = .best
-    config.ignoreShadowsSingleWindow = true
-    return try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+    var accumulators: [Int: AOSPublicCaptureChunkAccumulator] = [:]
+    var expectedFrameIndex = 0
+    var finalFrames: [[String: Any]]?
+    while finalFrames == nil {
+        guard let message = session.readOneJSON(timeoutMs: 15_000) else {
+            exitError("The AOS daemon did not settle capture", code: "DAEMON_UNREACHABLE")
+        }
+        if message["service"] as? String == "see",
+           message["event"] as? String == "capture_chunk",
+           let data = message["data"] as? [String: Any] {
+            guard data["capture_id"] as? String == captureID,
+                  data["topology_identity"] as? String == topology.identity,
+                  let frameIndex = (data["frame_index"] as? NSNumber)?.intValue,
+                  frameIndex == expectedFrameIndex,
+                  frameIndex < selectedDisplayIDs.count,
+                  let displayID = (data["display_id"] as? NSNumber)?.uint32Value,
+                  displayID == selectedDisplayIDs[frameIndex],
+                  let chunkIndex = (data["chunk_index"] as? NSNumber)?.intValue,
+                  let chunkCount = (data["chunk_count"] as? NSNumber)?.intValue,
+                  let byteCount = (data["byte_count"] as? NSNumber)?.intValue,
+                  let digest = data["sha256"] as? String,
+                  digest.range(of: #"^[a-f0-9]{64}$"#, options: .regularExpression) != nil,
+                  let base64 = data["bytes_base64"] as? String,
+                  let chunk = Data(base64Encoded: base64),
+                  chunkCount > 0,
+                  byteCount > 0,
+                  byteCount <= maximumPixels * 5 + 1_048_576,
+                  chunkIndex >= 0,
+                  chunkIndex < chunkCount,
+                  chunkIndex <= (byteCount - 1) / aosPublicCaptureChunkBytes,
+                  chunk.count == min(
+                    aosPublicCaptureChunkBytes,
+                    byteCount - chunkIndex * aosPublicCaptureChunkBytes
+                  ) else {
+                exitError("Capture chunk contract failed", code: "CAPTURE_FAILED")
+            }
+            var accumulator = accumulators[frameIndex]
+                ?? AOSPublicCaptureChunkAccumulator(
+                    byteCount: byteCount,
+                    chunkCount: chunkCount,
+                    sha256: digest
+                )
+            guard accumulator.byteCount == byteCount,
+                  accumulator.chunkCount == chunkCount,
+                  accumulator.sha256 == digest,
+                  accumulator.nextChunkIndex == chunkIndex,
+                  chunkIndex < chunkCount,
+                  accumulator.data.count <= byteCount - chunk.count else {
+                exitError("Capture chunk order or budget failed", code: "CAPTURE_FAILED")
+            }
+            accumulator.data.append(chunk)
+            accumulator.nextChunkIndex += 1
+            accumulators[frameIndex] = accumulator
+            if accumulator.nextChunkIndex == chunkCount {
+                expectedFrameIndex += 1
+            }
+            continue
+        }
+        if message["status"] as? String == "error" {
+            exitError(
+                "Native capture failed",
+                code: aosPublicCaptureErrorCode(message["code"] as? String)
+            )
+        }
+        guard message["status"] as? String == "success",
+              let data = message["data"] as? [String: Any],
+              data["capture_id"] as? String == captureID,
+              data["topology_identity"] as? String == topology.identity,
+              let frames = data["frames"] as? [[String: Any]] else {
+            exitError("Capture response contract failed", code: "CAPTURE_FAILED")
+        }
+        finalFrames = frames
+    }
+
+    guard let finalFrames,
+          finalFrames.count == selectedDisplayIDs.count,
+          expectedFrameIndex == selectedDisplayIDs.count else {
+        exitError("Capture response is incomplete", code: "CAPTURE_FAILED")
+    }
+    var images: [CGDirectDisplayID: CGImage] = [:]
+    for (frameIndex, metadata) in finalFrames.enumerated() {
+        guard let displayID = (metadata["display_id"] as? NSNumber)?.uint32Value,
+              displayID == selectedDisplayIDs[frameIndex],
+              (metadata["frame_index"] as? NSNumber)?.intValue == frameIndex,
+              let byteCount = (metadata["byte_count"] as? NSNumber)?.intValue,
+              let chunkCount = (metadata["chunk_count"] as? NSNumber)?.intValue,
+              let digest = metadata["sha256"] as? String,
+              let accumulator = accumulators[frameIndex],
+              accumulator.nextChunkIndex == chunkCount,
+              accumulator.chunkCount == chunkCount,
+              accumulator.byteCount == byteCount,
+              accumulator.data.count == byteCount,
+              accumulator.sha256 == digest,
+              aosCaptureDigest(accumulator.data) == digest,
+              let image = aosDecodeCapturePNG(accumulator.data),
+              (metadata["width"] as? NSNumber)?.intValue == image.width,
+              (metadata["height"] as? NSNumber)?.intValue == image.height else {
+            exitError("Capture digest or geometry failed", code: "CAPTURE_FAILED")
+        }
+        images[displayID] = image
+    }
+    return images
 }
 
 // MARK: - Argument Parsing
@@ -2014,35 +2181,14 @@ func captureCommand(args: [String]) async {
         clickCGPos = waitForGlobalClick(timeout: opts.timeout)
     }
 
-    // ── Acquire ScreenCaptureKit session lock ──
-    // Concurrent ScreenCaptureKit sessions can wedge both callers. Serialize
-    // the capture session per runtime mode, similar to daemon singletoning.
-    let captureLock = CaptureSessionLock()
-    defer { _fixLifetime(captureLock) }
-
-    // ── Permission pre-check ──
-    checkScreenRecordingPermission()
-
-    // ── Get ScreenCaptureKit content ──
-    let content: SCShareableContent
-    do {
-        content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-    } catch {
-        exitError(
-            "Screen recording permission denied. Grant in System Settings > Privacy & Security > Screen Recording.",
-            code: "PERMISSION_DENIED"
-        )
-    }
-
     let displayTopologySnapshot = observeDisplayTopologySnapshot()
     let displays = getCaptureDisplays(from: displayTopologySnapshot)
-    let excludedWindowIDs = Set(opts.excludedWindowIDs)
-    let excludedSCWindows = content.windows.filter { excludedWindowIDs.contains(Int($0.windowID)) }
+    let captureWindows = observeCaptureWindowFacts()
     var explicitSurface = resolveCaptureSurface(opts: opts, displays: displays)
 
     // ── Resolve target ──
     var targetDisplayIDs: [CGDirectDisplayID] = []
-    var specificWindow: SCWindow? = nil
+    var specificWindow: CaptureWindowFact? = nil
     var responseWarning: String? = nil
     if explicitSurface == nil {
         switch opts.target {
@@ -2071,14 +2217,14 @@ func captureCommand(args: [String]) async {
             guard let app = NSWorkspace.shared.frontmostApplication else {
                 exitError("No frontmost application", code: "NO_ACTIVE_APP")
             }
-            guard let w = largestWindow(for: app.processIdentifier, in: content.windows) else {
+            guard let w = largestWindow(for: app.processIdentifier, in: captureWindows) else {
                 exitError("No window for active app '\(app.localizedName ?? "?")'", code: "NO_WINDOW")
             }
             specificWindow = w
             targetDisplayIDs = [displayForWindow(w, displays: displays).cgID]
 
         case "selfie":
-            guard let w = selfieWindow(content: content) else {
+            guard let w = selfieWindow(windows: captureWindows) else {
                 exitError("Cannot find hosting app window", code: "SELFIE_NOT_FOUND")
             }
             specificWindow = w
@@ -2171,54 +2317,40 @@ func captureCommand(args: [String]) async {
         )
     }
 
-    // Create each provider filter once. Its frame, point dimensions, and
-    // pointPixelScale are admitted together, and the exact filter is retained
-    // for the later screenshot request.
-    let captureProviderProjection = content.displays.map { display in
-        let filter = SCContentFilter(display: display, excludingWindows: excludedSCWindows)
-        return (
-            fact: AOSDisplayCaptureProviderFact(
-                runtimeDisplayID: display.displayID,
-                nativeFrame: AOSDisplayTopologyBounds(
-                    x: Double(display.frame.origin.x),
-                    y: Double(display.frame.origin.y),
-                    width: Double(display.frame.width),
-                    height: Double(display.frame.height)
-                ),
-                pointWidth: display.width,
-                pointHeight: display.height,
-                scaleFactor: Double(filter.pointPixelScale)
-            ),
-            filter: filter
-        )
+    let selectedCaptureDisplayIDs = (explicitSurface?.segments.map {
+        $0.display.cgID
+    } ?? targetDisplayIDs).reduce(into: [CGDirectDisplayID]()) { ordered, id in
+        if !ordered.contains(id) { ordered.append(id) }
     }
-    let selectedCaptureDisplayIDs = explicitSurface?.segments.map { $0.display.cgID } ?? targetDisplayIDs
-    let captureAlignments: [AOSDisplayCaptureAlignment]
-    do {
-        captureAlignments = try validateAOSDisplayCaptureAlignment(
-            topology: displayTopologySnapshot,
-            providerFacts: captureProviderProjection.map(\.fact),
-            selectedDisplayIDs: selectedCaptureDisplayIDs
-        )
-    } catch {
-        exitError("Capture provider does not align with frozen display topology: \(error)", code: "CAPTURE_TOPOLOGY_MISMATCH")
-    }
-    let providerFiltersByID = Dictionary(uniqueKeysWithValues: captureProviderProjection.map {
-        ($0.fact.runtimeDisplayID, $0.filter)
-    })
-    var captureSourcesByID: [CGDirectDisplayID: AOSValidatedDisplayCaptureSource] = [:]
-    for alignment in captureAlignments {
-        guard let providerFilter = providerFiltersByID[alignment.runtimeDisplayID] else {
-            exitError(
-                "Validated display \(alignment.runtimeDisplayID) has no capture provider",
-                code: "CAPTURE_TOPOLOGY_MISMATCH"
-            )
+    var capturedWindowsByDisplay: [CGDirectDisplayID: CaptureWindowFact] = [:]
+    if opts.windowOnly {
+        for (index, displayID) in selectedCaptureDisplayIDs.enumerated() {
+            guard let entry = displays.first(where: { $0.cgID == displayID }) else {
+                exitError("Capture display is absent from frozen topology", code: "CAPTURE_TOPOLOGY_MISMATCH")
+            }
+            let window = (index == 0 ? specificWindow : nil)
+                ?? largestWindowOnDisplay(
+                    entry,
+                    in: captureWindows,
+                    preferPID: NSWorkspace.shared.frontmostApplication?.processIdentifier
+                )
+            guard let window else {
+                exitError("No window on display \(entry.ordinal)", code: "NO_WINDOW")
+            }
+            if window.frame.width < 10 || window.frame.height < 10 {
+                responseWarning = "Window appears minimized or hidden (frame: \(Int(window.frame.width))x\(Int(window.frame.height))). Falling back to display capture."
+            } else {
+                capturedWindowsByDisplay[displayID] = window
+            }
         }
-        captureSourcesByID[alignment.runtimeDisplayID] = AOSValidatedDisplayCaptureSource(
-            filter: providerFilter,
-            alignment: alignment
-        )
     }
+    let nativeImages = captureNativeFramesThroughDaemon(
+        topology: displayTopologySnapshot,
+        selectedDisplayIDs: selectedCaptureDisplayIDs,
+        excludedWindowIDs: opts.excludedWindowIDs,
+        windowIDsByDisplay: capturedWindowsByDisplay.mapValues(\.windowID),
+        showsCursor: opts.showCursor
+    )
 
     // ── Capture loop ──
     var results: [(CGImage, String)] = []
@@ -2246,17 +2378,8 @@ func captureCommand(args: [String]) async {
 
         var capturedSegments: [CapturedSurfaceSegment] = []
         for segment in surface.segments {
-            guard let captureSource = captureSourcesByID[segment.display.cgID] else {
-                exitError("Display \(segment.display.ordinal) has no validated capture source", code: "CAPTURE_TOPOLOGY_MISMATCH")
-            }
-            let displayImage: CGImage
-            do {
-                displayImage = try await captureDisplay(
-                    captureSource,
-                    showCursor: opts.showCursor
-                )
-            } catch {
-                exitError("Display capture failed: \(error.localizedDescription)", code: "CAPTURE_FAILED")
+            guard let displayImage = nativeImages[segment.display.cgID] else {
+                exitError("Display capture is incomplete", code: "CAPTURE_FAILED")
             }
 
             let pixelRect = capturePixelRect(globalRect: segment.globalBounds, in: segment.display)
@@ -2279,10 +2402,10 @@ func captureCommand(args: [String]) async {
 
         if responseWindow == nil,
            let windowID = surface.windowID,
-           let sw = content.windows.first(where: { Int($0.windowID) == windowID }) {
+           let sw = captureWindows.first(where: { $0.windowID == windowID }) {
             let scale = displayForWindow(sw, displays: displays).scaleFactor
             responseWindow = CaptureWindowJSON(
-                window_id: Int(sw.windowID),
+                window_id: sw.windowID,
                 title: sw.title,
                 app_name: sw.owningApplication?.applicationName ?? "",
                 app_pid: Int(sw.owningApplication?.processID ?? 0),
@@ -2317,7 +2440,7 @@ func captureCommand(args: [String]) async {
 
         if opts.xray {
             if let windowID = surface.windowID,
-               let ownerApp = content.windows.first(where: { Int($0.windowID) == windowID })?.owningApplication {
+               let ownerApp = captureWindows.first(where: { $0.windowID == windowID })?.owningApplication {
                 responseElements = xrayApp(
                     pid: ownerApp.processID,
                     appName: ownerApp.applicationName,
@@ -2326,7 +2449,7 @@ func captureCommand(args: [String]) async {
                 )
             } else {
                 responseElements = xrayAppsIntersectingCapture(
-                    windows: content.windows,
+                    windows: captureWindows,
                     captureRect: surface.globalBounds,
                     mapper: mapper,
                     imageSize: imageSize,
@@ -2375,64 +2498,24 @@ func captureCommand(args: [String]) async {
     } else {
         for (idx, cgID) in targetDisplayIDs.enumerated() {
             guard let entry = displays.first(where: { $0.cgID == cgID }) else { continue }
-            var image: CGImage
-            var capturedWindow: SCWindow? = nil
-
-            // 1. Capture
-            if opts.windowOnly {
-                let window: SCWindow
-                if let sw = specificWindow, idx == 0 {
-                    window = sw
-                } else {
-                    let frontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
-                    guard let w = largestWindowOnDisplay(entry, in: content.windows, preferPID: frontPID) else {
-                        exitError("No window on display \(entry.ordinal)", code: "NO_WINDOW")
-                    }
-                    window = w
-                }
-
-                if window.frame.width < 10 || window.frame.height < 10 {
-                    responseWarning = "Window appears minimized or hidden (frame: \(Int(window.frame.width))x\(Int(window.frame.height))). Falling back to display capture."
-                    guard let captureSource = captureSourcesByID[cgID] else {
-                        exitError("Display \(entry.ordinal) has no validated capture source", code: "CAPTURE_TOPOLOGY_MISMATCH")
-                    }
-                    do {
-                        image = try await captureDisplay(
-                            captureSource,
-                            showCursor: opts.showCursor
-                        )
-                    }
-                    catch { exitError("Display capture failed: \(error.localizedDescription)", code: "CAPTURE_FAILED") }
-                } else {
-                    do {
-                        image = try await captureWindow(window, scaleFactor: entry.scaleFactor, showCursor: opts.showCursor)
-                        capturedWindow = window
-                    }
-                    catch {
-                        responseWarning = "Window capture failed (\(error.localizedDescription)). Falling back to display capture."
-                        guard let captureSource = captureSourcesByID[cgID] else {
-                            exitError("Display \(entry.ordinal) has no validated capture source", code: "CAPTURE_TOPOLOGY_MISMATCH")
-                        }
-                        do {
-                            image = try await captureDisplay(
-                                captureSource,
-                                showCursor: opts.showCursor
-                            )
-                        }
-                        catch { exitError("Display capture also failed: \(error.localizedDescription)", code: "CAPTURE_FAILED") }
-                    }
-                }
-            } else {
-                guard let captureSource = captureSourcesByID[cgID] else {
-                    exitError("Display \(entry.ordinal) has no validated capture source", code: "CAPTURE_TOPOLOGY_MISMATCH")
-                }
+            guard var image = nativeImages[cgID] else {
+                exitError("Display capture is incomplete", code: "CAPTURE_FAILED")
+            }
+            let capturedWindow = capturedWindowsByDisplay[cgID]
+            if capturedWindow == nil {
                 do {
-                    image = try await captureDisplay(
-                        captureSource,
-                        showCursor: opts.showCursor
+                    try validateAOSCapturedDisplayPixelGeometry(
+                        alignment: AOSDisplayCaptureAlignment(
+                            runtimeDisplayID: cgID,
+                            expectedPixelWidth: Int((entry.bounds.width * entry.scaleFactor).rounded()),
+                            expectedPixelHeight: Int((entry.bounds.height * entry.scaleFactor).rounded())
+                        ),
+                        actualWidth: image.width,
+                        actualHeight: image.height
                     )
+                } catch {
+                    exitError("Capture geometry disagrees with frozen topology", code: "CAPTURE_TOPOLOGY_MISMATCH")
                 }
-                catch { exitError("Display capture failed: \(error.localizedDescription)", code: "CAPTURE_FAILED") }
             }
 
             // 2. Cursor highlight
@@ -2471,7 +2554,7 @@ func captureCommand(args: [String]) async {
             let captureRect = globalCaptureRect(display: entry, windowFrame: windowFrame, cropRect: cropRect)
             if responseWindow == nil, let sw = capturedWindow {
                 responseWindow = CaptureWindowJSON(
-                    window_id: Int(sw.windowID),
+                    window_id: sw.windowID,
                     title: sw.title,
                     app_name: sw.owningApplication?.applicationName ?? "",
                     app_pid: Int(sw.owningApplication?.processID ?? 0),
@@ -2509,7 +2592,7 @@ func captureCommand(args: [String]) async {
                     )
                 } else {
                     responseElements = xrayAppsIntersectingCapture(
-                        windows: content.windows,
+                        windows: captureWindows,
                         captureRect: captureRect,
                         mapper: mapper,
                         imageSize: imageSize,
