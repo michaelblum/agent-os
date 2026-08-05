@@ -288,7 +288,10 @@ Envelope `v` is an integer, currently `1`. Adding an action or an optional field
 The event envelope (`daemon-event.schema.json` v1) uses `service` values
 `perceive|display|act|voice|scene|annotation|status_item|see`. The private `see`
 service carries only ordered `capture_chunk` data with capture/topology identity,
-bounded base64 bytes, byte counts, and SHA-256; it never carries a path. The `voice` service carries
+bounded base64 bytes, exact integer metadata, byte counts, and SHA-256; it never
+carries a path. Its correlated final success response is metadata-only and uses
+the closed `SeeCaptureResponseData` shape. Capture consumers enforce one
+absolute read deadline and a bounded NDJSON frame size. The `voice` service carries
 generic dictation, microphone-capture, meter, and streamed-system-speech
 lifecycle events. Events never carry audio bytes, spoken text, or local paths;
 transcription and product behavior remain consumer-owned.

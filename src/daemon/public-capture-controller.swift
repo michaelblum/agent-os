@@ -7,24 +7,8 @@ private enum AOSPublicCaptureWireError: Error {
     case topologyMismatch
 }
 
-private func aosPublicCaptureExactInteger(_ value: Any) -> Int? {
-    guard let number = value as? NSNumber,
-          CFGetTypeID(number) != CFBooleanGetTypeID(),
-          number.doubleValue.isFinite,
-          let result = Int(exactly: number.doubleValue),
-          Double(result) == number.doubleValue else {
-        return nil
-    }
-    return result
-}
-
 private func aosPublicCapturePositiveUInt32(_ value: Any) -> UInt32? {
-    guard let integer = aosPublicCaptureExactInteger(value),
-          integer > 0,
-          let result = UInt32(exactly: integer) else {
-        return nil
-    }
-    return result
+    aosExactJSONUInt32(value, minimum: 1)
 }
 
 private struct AOSPublicCaptureWireRequest {
@@ -46,8 +30,10 @@ private struct AOSPublicCaptureWireRequest {
               let rawSelected = payload["display_ids"] as? [Any],
               !rawSelected.isEmpty,
               rawSelected.count <= AOSDesktopPixelLimits.maximumDisplayCount,
-              let maximumPixels = aosPublicCaptureExactInteger(
-                payload["maximum_pixels_per_display"] as Any
+              let maximumPixels = aosExactJSONInteger(
+                payload["maximum_pixels_per_display"] as Any,
+                minimum: 4,
+                maximum: AOSDesktopPixelLimits.publicCaptureMaximumPixelsPerDisplay
               ),
               let showsCursor = payload["shows_cursor"] as? Bool,
               let rawExcluded = payload["excluded_window_ids"] as? [Any],
@@ -73,11 +59,15 @@ private struct AOSPublicCaptureWireRequest {
                   let displayID = aosPublicCapturePositiveUInt32(
                     item["display_id"] as Any
                   ),
-                  let index = aosPublicCaptureExactInteger(item["index"] as Any),
-                  index >= 0,
-                  index < AOSDesktopPixelLimits.maximumDisplayCount,
-                  let ordinal = aosPublicCaptureExactInteger(
-                    item["topology_ordinal"] as Any
+                  let index = aosExactJSONInteger(
+                    item["index"] as Any,
+                    minimum: 0,
+                    maximum: AOSDesktopPixelLimits.maximumDisplayCount - 1
+                  ),
+                  let ordinal = aosExactJSONInteger(
+                    item["topology_ordinal"] as Any,
+                    minimum: 1,
+                    maximum: AOSDesktopPixelLimits.maximumDisplayCount
                   ),
                   let canonical = topology.displays.first(where: {
                     $0.ordinal == ordinal
@@ -124,11 +114,10 @@ private struct AOSPublicCaptureWireRequest {
             throw AOSPublicCaptureWireError.invalid
         }
         let excluded = try rawExcluded.map { value -> Int in
-            guard let windowID = aosPublicCaptureExactInteger(value),
-                  windowID > 0 else {
+            guard let exactWindowID = aosExactJSONUInt32(value, minimum: 1) else {
                 throw AOSPublicCaptureWireError.invalid
             }
-            return windowID
+            return Int(exactWindowID)
         }
         guard Set(excluded).count == excluded.count,
               rawWindows.count <= AOSDesktopPixelLimits.maximumDisplayCount else {
@@ -140,13 +129,19 @@ private struct AOSPublicCaptureWireRequest {
                   let displayID = aosPublicCapturePositiveUInt32(
                     target["display_id"] as Any
                   ),
-                  let windowID = aosPublicCaptureExactInteger(
-                    target["window_id"] as Any
+                  let exactWindowID = aosExactJSONUInt32(
+                    target["window_id"] as Any,
+                    minimum: 1
                   ),
-                  windowID > 0,
-                  selected.contains(displayID),
-                  !excluded.contains(windowID),
-                  windowIDsByDisplay.updateValue(windowID, forKey: displayID) == nil else {
+                  selected.contains(displayID) else {
+                throw AOSPublicCaptureWireError.invalid
+            }
+            let windowID = Int(exactWindowID)
+            guard !excluded.contains(windowID),
+                  windowIDsByDisplay.updateValue(
+                    windowID,
+                    forKey: displayID
+                  ) == nil else {
                 throw AOSPublicCaptureWireError.invalid
             }
         }

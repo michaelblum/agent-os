@@ -589,6 +589,117 @@ func runDesktopFrameWarmPoolTests() throws {
         "exclusive still returned before the prior warm identity was ready"
     )
 
+    let lateStillNative = FakeRetirementAwarePixelAcquirer()
+    let lateStillWarm = SequencedWarmAcquirer(sources: [
+        FakeWarmSource(failure: nil),
+        FakeWarmSource(failure: nil),
+    ])
+    let lateStillCapturer = AOSNativeDesktopFrameCapturer(
+        broker: AOSDesktopPixelBroker(
+            acquirer: lateStillNative,
+            warmAcquirer: lateStillWarm,
+            retirementTimeout: 0.02
+        ),
+        strategy: .prewarmedSnapshot
+    )
+    lateStillCapturer.reconcileWarm(configuration)
+    require(
+        waitForWarmState(lateStillCapturer, .ready).state == .ready,
+        "late-settlement composition fixture did not warm"
+    )
+    let lateStillSettled = DispatchSemaphore(value: 0)
+    var lateStillCompletionCount = 0
+    var lateStillFailure: AOSDesktopFrameCaptureFailure?
+    _ = lateStillCapturer.captureExclusiveStill(publicRequest) { result in
+        lateStillCompletionCount += 1
+        if case .failure(let error) = result {
+            lateStillFailure = error as? AOSDesktopFrameCaptureFailure
+        }
+        lateStillSettled.signal()
+    }
+    require(
+        waitForCondition { lateStillNative.logicalCompletions.count == 1 },
+        "production pool did not admit the broker still after warm retirement"
+    )
+    lateStillNative.logicalCompletions[0](.failure(
+        AOSDesktopFrameCaptureFailure.retirementUncertain
+    ))
+    require(
+        lateStillSettled.wait(timeout: .now() + 1) == .success
+            && lateStillCompletionCount == 1
+            && lateStillFailure == .retirementUncertain,
+        "logical retirement uncertainty did not settle the old result exactly once"
+    )
+    lateStillCapturer.reconcileWarm(successor)
+    Thread.sleep(forTimeInterval: 0.05)
+    require(
+        lateStillWarm.openCount == 1
+            && lateStillCapturer.warmStatus().state == .failed,
+        "warm source reopened before authoritative native settlement"
+    )
+    require(
+        lateStillNative.retirementCompletions.count == 1,
+        "production broker did not retain the authoritative native waiter"
+    )
+    lateStillNative.retirementCompletions[0](.success(()))
+    require(
+        waitForCondition {
+            lateStillWarm.openCount == 2
+                && lateStillCapturer.warmStatus().state == .ready
+        },
+        "late authoritative settlement did not reconverge the current desired source"
+    )
+    require(
+        lateStillCompletionCount == 1
+            && (try? freeze(
+                lateStillCapturer,
+                configuration: successor
+            ).get().frames.count) == 1,
+        "late settlement redelivered the old result or restored stale authority"
+    )
+
+    let neverStillNative = FakeRetirementAwarePixelAcquirer()
+    let neverStillWarm = SequencedWarmAcquirer(sources: [
+        FakeWarmSource(failure: nil),
+        FakeWarmSource(failure: nil),
+    ])
+    let neverStillCapturer = AOSNativeDesktopFrameCapturer(
+        broker: AOSDesktopPixelBroker(
+            acquirer: neverStillNative,
+            warmAcquirer: neverStillWarm,
+            retirementTimeout: 0.02
+        ),
+        strategy: .prewarmedSnapshot
+    )
+    neverStillCapturer.reconcileWarm(configuration)
+    require(
+        waitForWarmState(neverStillCapturer, .ready).state == .ready,
+        "never-settlement composition fixture did not warm"
+    )
+    let neverStillSettled = DispatchSemaphore(value: 0)
+    _ = neverStillCapturer.captureExclusiveStill(publicRequest) { _ in
+        neverStillSettled.signal()
+    }
+    require(
+        waitForCondition { neverStillNative.logicalCompletions.count == 1 },
+        "never-settlement composition fixture did not capture"
+    )
+    neverStillNative.logicalCompletions[0](.failure(
+        AOSDesktopFrameCaptureFailure.retirementUncertain
+    ))
+    require(
+        neverStillSettled.wait(timeout: .now() + 1) == .success,
+        "never-settlement logical result did not settle"
+    )
+    neverStillCapturer.reconcileWarm(successor)
+    Thread.sleep(forTimeInterval: 0.08)
+    require(
+        neverStillWarm.openCount == 1
+            && neverStillCapturer.warmStatus().errorCode
+                == "DESKTOP_FRAME_RETIREMENT_UNCERTAIN",
+        "never-callback native owner escaped quarantine"
+    )
+
     let coldStill = FakePixelAcquirer()
     let coldWarm = FakeWarmAcquirer(source: FakeWarmSource(failure: nil))
     let coldCapturer = AOSNativeDesktopFrameCapturer(

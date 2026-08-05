@@ -51,6 +51,9 @@ tests.
   public explicit-exclusion policy, callback deadline quarantine, strict IPC,
   and ordered digest-verified transfer above the normal 32 MiB socket budget by
   compiling focused production owners rather than copied algorithms.
+- Public-capture reader proof must use the production `DaemonSession` over
+  disposable socketpairs to cover partial valid frames, byte-drip deadline
+  exhaustion, and bounded oversized-frame rejection.
 - Status-item host contract tests must use disposable fake sockets and schema
   fixtures, model startup admission ordering, and prove registration output
   precedes initial events. Fake sockets must emit the complete daemon envelope

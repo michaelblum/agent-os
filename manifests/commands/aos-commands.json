@@ -667,7 +667,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "summary" : "Capture native targets through one bounded daemon-owned transaction; --window prefers the window and warns when it falls back to the full display",
+          "summary" : "Capture native targets through one bounded daemon-owned transaction with strict deadline-bounded transfer; --window prefers the window and warns when it falls back to the full display",
           "usage" : "aos see capture [<target>] [options]"
         },
         {

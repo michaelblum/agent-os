@@ -39,6 +39,10 @@ needs, but public command policy and product UI policy belong above it:
   the only non-production ScreenCaptureKit exception. Runtime
   labels and UUID-backed display IDs stay outside the identity, while
   missing/duplicate UUIDs use the explicit display-ID fallback;
+  capture IPC accepts only exact integer JSON tokens within the safe-integer
+  range and each field's native bounds, closes chunk/final key sets before
+  decoding, and reads every response under one monotonic deadline and bounded
+  NDJSON frame size;
 - DesktopWorld's per-display Metal projection hosts are generation-bound stage
   infrastructure. They are prepared before native-effect admission, stay
   dormant between effects, and retire only with their display segment, stage,

@@ -1054,7 +1054,7 @@ private func aosPublicCaptureErrorCode(_ daemonCode: String?) -> String {
     }
 }
 
-func captureNativeFramesThroughDaemon(
+private func captureNativeFramesThroughDaemon(
     topology: AOSDisplayTopologySnapshot,
     selectedDisplayIDs: [CGDirectDisplayID],
     excludedWindowIDs: [Int],
@@ -1100,9 +1100,10 @@ func captureNativeFramesThroughDaemon(
             "display_id": NSNumber(value: displayID),
             "window_id": windowID,
         ]
-    }.sorted {
-        (($0["display_id"] as? NSNumber)?.uint32Value ?? 0)
-            < (($1["display_id"] as? NSNumber)?.uint32Value ?? 0)
+    }.sorted { left, right in
+        let leftID = aosExactJSONUInt32(left["display_id"] as Any) ?? 0
+        let rightID = aosExactJSONUInt32(right["display_id"] as Any) ?? 0
+        return leftID < rightID
     }
     let topologyWire: [String: Any]
     do {
@@ -1147,43 +1148,39 @@ func captureNativeFramesThroughDaemon(
             1,
             Int((budgetNanoseconds - elapsed + 999_999) / 1_000_000)
         )
-        guard let message = session.readOneJSON(timeoutMs: remainingMilliseconds) else {
+        guard let message = session.readOneJSON(
+            timeoutMs: Int32(min(remainingMilliseconds, Int(Int32.max)))
+        ) else {
             exitError("The AOS daemon did not settle capture", code: "CAPTURE_FAILED")
         }
-        if message["service"] as? String == "see",
-           message["event"] as? String == "capture_chunk",
-           let data = message["data"] as? [String: Any] {
-            guard data["capture_id"] as? String == captureID,
-                  data["topology_identity"] as? String == topology.identity,
-                  let frameIndex = (data["frame_index"] as? NSNumber)?.intValue,
-                  frameIndex == expectedFrameIndex,
+        let encodedBudget = maximumPixels.multipliedReportingOverflow(by: 5)
+        let overheadBudget = encodedBudget.partialValue.addingReportingOverflow(1_048_576)
+        guard !encodedBudget.overflow, !overheadBudget.overflow else {
+            exitError("Capture byte budget overflowed", code: "CAPTURE_FAILED")
+        }
+        let foregroundMessage: AOSPublicCaptureForegroundMessage
+        do {
+            foregroundMessage = try aosDecodePublicCaptureForegroundMessage(
+                message,
+                captureID: captureID,
+                topologyIdentity: topology.identity,
+                maximumByteCount: overheadBudget.partialValue
+            )
+        } catch {
+            exitError("Capture response contract failed", code: "CAPTURE_FAILED")
+        }
+        switch foregroundMessage {
+        case .chunk(let chunkWire):
+            let frameIndex = chunkWire.frameIndex
+            let displayID = chunkWire.displayID
+            let chunkIndex = chunkWire.chunkIndex
+            let chunkCount = chunkWire.chunkCount
+            let byteCount = chunkWire.byteCount
+            let digest = chunkWire.sha256
+            let chunk = chunkWire.chunk
+            guard frameIndex == expectedFrameIndex,
                   frameIndex < selectedDisplayIDs.count,
-                  let displayID = (data["display_id"] as? NSNumber)?.uint32Value,
-                  displayID == selectedDisplayIDs[frameIndex],
-                  let chunkIndex = (data["chunk_index"] as? NSNumber)?.intValue,
-                  let chunkCount = (data["chunk_count"] as? NSNumber)?.intValue,
-                  let byteCount = (data["byte_count"] as? NSNumber)?.intValue,
-                  let digest = data["sha256"] as? String,
-                  digest.range(of: #"^[a-f0-9]{64}$"#, options: .regularExpression) != nil,
-                  let base64 = data["bytes_base64"] as? String,
-                  let chunk = Data(base64Encoded: base64),
-                  chunkCount > 0,
-                  byteCount > 0,
-                  {
-                    let encodedBudget = maximumPixels.multipliedReportingOverflow(by: 5)
-                    guard !encodedBudget.overflow else { return false }
-                    let overheadBudget = encodedBudget.partialValue
-                        .addingReportingOverflow(1_048_576)
-                    return !overheadBudget.overflow
-                        && byteCount <= overheadBudget.partialValue
-                  }(),
-                  chunkIndex >= 0,
-                  chunkIndex < chunkCount,
-                  chunkIndex <= (byteCount - 1) / aosPublicCaptureChunkBytes,
-                  chunk.count == min(
-                    aosPublicCaptureChunkBytes,
-                    byteCount - chunkIndex * aosPublicCaptureChunkBytes
-                  ) else {
+                  displayID == selectedDisplayIDs[frameIndex] else {
                 exitError("Capture chunk contract failed", code: "CAPTURE_FAILED")
             }
             var accumulator = accumulators[frameIndex]
@@ -1207,21 +1204,14 @@ func captureNativeFramesThroughDaemon(
                 expectedFrameIndex += 1
             }
             continue
-        }
-        if message["status"] as? String == "error" {
+        case .failure(let code):
             exitError(
                 "Native capture failed",
-                code: aosPublicCaptureErrorCode(message["code"] as? String)
+                code: aosPublicCaptureErrorCode(code)
             )
+        case .success(let frames):
+            finalFrames = frames
         }
-        guard message["status"] as? String == "success",
-              let data = message["data"] as? [String: Any],
-              data["capture_id"] as? String == captureID,
-              data["topology_identity"] as? String == topology.identity,
-              let frames = data["frames"] as? [[String: Any]] else {
-            exitError("Capture response contract failed", code: "CAPTURE_FAILED")
-        }
-        finalFrames = frames
     }
 
     guard let finalFrames,
@@ -1232,18 +1222,18 @@ func captureNativeFramesThroughDaemon(
     var images: [CGDirectDisplayID: CGImage] = [:]
     var usedDisplayFallback = Set<CGDirectDisplayID>()
     for (frameIndex, metadata) in finalFrames.enumerated() {
-        let captureSource = metadata["capture_source"] as? String
-        let windowFallback = metadata["window_fallback"] as? Bool
-        let expectedKeys: Set<String> = captureSource == "window"
-            ? ["display_id", "frame_index", "chunk_count", "byte_count", "sha256", "width", "height", "capture_source", "window_fallback", "window_id"]
-            : ["display_id", "frame_index", "chunk_count", "byte_count", "sha256", "width", "height", "capture_source", "window_fallback"]
-        guard let displayID = (metadata["display_id"] as? NSNumber)?.uint32Value,
-              Set(metadata.keys) == expectedKeys,
-              displayID == selectedDisplayIDs[frameIndex],
-              (metadata["frame_index"] as? NSNumber)?.intValue == frameIndex,
-              let byteCount = (metadata["byte_count"] as? NSNumber)?.intValue,
-              let chunkCount = (metadata["chunk_count"] as? NSNumber)?.intValue,
-              let digest = metadata["sha256"] as? String,
+        let wire: AOSPublicCaptureFrameWireValue
+        do {
+            wire = try aosDecodePublicCaptureFrameWireValue(metadata)
+        } catch {
+            exitError("Capture metadata contract failed", code: "CAPTURE_FAILED")
+        }
+        let displayID = wire.displayID
+        let byteCount = wire.byteCount
+        let chunkCount = wire.chunkCount
+        let digest = wire.sha256
+        guard displayID == selectedDisplayIDs[frameIndex],
+              wire.frameIndex == frameIndex,
               let accumulator = accumulators[frameIndex],
               accumulator.nextChunkIndex == chunkCount,
               accumulator.chunkCount == chunkCount,
@@ -1252,22 +1242,17 @@ func captureNativeFramesThroughDaemon(
               accumulator.sha256 == digest,
               aosCaptureDigest(accumulator.data) == digest,
               let image = aosDecodeCapturePNG(accumulator.data),
-              (metadata["width"] as? NSNumber)?.intValue == image.width,
-              (metadata["height"] as? NSNumber)?.intValue == image.height,
-              let captureSource,
-              ["display", "window"].contains(captureSource),
-              let windowFallback,
-              !(captureSource == "window" && windowFallback),
-              !(captureSource == "display"
+              wire.width == image.width,
+              wire.height == image.height,
+              !(wire.captureSource == "display"
                 && windowIDsByDisplay[displayID] == nil
-                && windowFallback),
-              captureSource != "window"
-                || (metadata["window_id"] as? NSNumber)?.intValue
-                    == windowIDsByDisplay[displayID] else {
+                && wire.windowFallback),
+              wire.captureSource != "window"
+                || wire.windowID == windowIDsByDisplay[displayID] else {
             exitError("Capture digest or geometry failed", code: "CAPTURE_FAILED")
         }
         images[displayID] = image
-        if windowFallback { usedDisplayFallback.insert(displayID) }
+        if wire.windowFallback { usedDisplayFallback.insert(displayID) }
     }
     return AOSPublicNativeCaptureResult(
         images: images,

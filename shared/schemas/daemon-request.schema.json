@@ -234,7 +234,7 @@
       "additionalProperties": false,
       "properties": {
         "display_id": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
-        "window_id": { "type": "integer", "minimum": 1 }
+        "window_id": { "type": "integer", "minimum": 1, "maximum": 4294967295 }
       }
     },
     "SeeCaptureData": {
@@ -246,7 +246,7 @@
         "display_topology": { "$ref": "display-topology-v1.schema.json" },
         "displays": { "type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true, "items": { "$ref": "#/$defs/SeeCaptureDisplay" } },
         "display_ids": { "type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true, "items": { "type": "integer", "minimum": 1, "maximum": 4294967295 } },
-        "excluded_window_ids": { "type": "array", "maxItems": 256, "uniqueItems": true, "items": { "type": "integer", "minimum": 1 } },
+        "excluded_window_ids": { "type": "array", "maxItems": 256, "uniqueItems": true, "items": { "type": "integer", "minimum": 1, "maximum": 4294967295 } },
         "window_targets": { "type": "array", "maxItems": 16, "uniqueItems": true, "items": { "$ref": "#/$defs/SeeCaptureWindowTarget" } },
         "maximum_pixels_per_display": { "type": "integer", "minimum": 4, "maximum": 67108864 },
         "shows_cursor": { "type": "boolean" }

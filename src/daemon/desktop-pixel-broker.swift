@@ -332,6 +332,7 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
     }
 
     private struct ActiveSnapshot {
+        let authoritativeSettlementObserver: (() -> Void)?
         var capture: AOSDesktopFrameCancelling
         let generation: UInt64
         var retirementDeadlineDelivered: Bool
@@ -378,6 +379,22 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
         _ request: AOSDesktopPixelSnapshotRequest,
         completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void
     ) -> AOSDesktopFrameCancelling {
+        snapshot(
+            request,
+            authoritativeSettlementObserver: nil,
+            completion: completion
+        )
+    }
+
+    /// The observer is reserved for a logically timed-out snapshot whose native
+    /// owner later reports authoritative settlement. It never redelivers the old
+    /// logical result and does not run for ordinary completion.
+    @discardableResult
+    func snapshot(
+        _ request: AOSDesktopPixelSnapshotRequest,
+        authoritativeSettlementObserver: (() -> Void)?,
+        completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void
+    ) -> AOSDesktopFrameCancelling {
         guard aosDesktopPixelRequestIsValid(request) else {
             completion(.failure(AOSDesktopFrameCaptureFailure.captureFailed))
             return AOSDesktopFrameCancellation()
@@ -397,6 +414,7 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
         if nextGeneration == 0 { nextGeneration = 1 }
         let generation = nextGeneration
         activeSnapshot = ActiveSnapshot(
+            authoritativeSettlementObserver: authoritativeSettlementObserver,
             capture: AOSDesktopFrameCancellation(),
             generation: generation,
             retirementDeadlineDelivered: false,
@@ -832,11 +850,13 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
             return
         }
         activeSnapshot = nil
+        let observer = active.authoritativeSettlementObserver
         let waiters = active.retirementDeadlineDelivered
             ? []
             : active.retirementWaiters
         lock.unlock()
         waiters.forEach { $0(.success(())) }
+        observer?()
     }
 
     private func finishWarmStart(

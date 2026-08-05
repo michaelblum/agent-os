@@ -117,6 +117,227 @@ do {
   }
 })
 
+test('public capture foreground wire decoder rejects non-canonical numbers and shapes', async () => {
+  const temp = await mkdtemp(path.join(os.tmpdir(), 'aos-public-capture-wire-'))
+  try {
+    const main = path.join(temp, 'main.swift')
+    const executable = path.join(temp, 'proof')
+    await writeFile(main, String.raw`
+import Foundation
+
+func require(_ condition: @autoclosure () -> Bool, _ message: String) {
+    if !condition() {
+        fputs(message + "\n", stderr)
+        exit(1)
+    }
+}
+
+func rejected(_ body: () throws -> Void, _ message: String) {
+    do {
+        try body()
+        require(false, message)
+    } catch {}
+}
+
+let captureID = "11111111-1111-4111-8111-111111111111"
+let topologyIdentity = "sha256:" + String(repeating: "a", count: 64)
+let digest = String(repeating: "b", count: 64)
+let byte = Data([0x89]).base64EncodedString()
+
+func chunkMessage() -> [String: Any] {
+    [
+        "v": 1,
+        "service": "see",
+        "event": "capture_chunk",
+        "ts": 1.25,
+        "ref": captureID,
+        "data": [
+            "capture_id": captureID,
+            "topology_identity": topologyIdentity,
+            "display_id": 42,
+            "frame_index": 0,
+            "chunk_index": 0,
+            "chunk_count": 1,
+            "byte_count": 1,
+            "sha256": digest,
+            "bytes_base64": byte,
+        ],
+    ]
+}
+
+func frameMetadata() -> [String: Any] {
+    [
+        "display_id": 42,
+        "frame_index": 0,
+        "chunk_count": 1,
+        "byte_count": 1,
+        "sha256": digest,
+        "width": 1,
+        "height": 1,
+        "capture_source": "display",
+        "window_fallback": false,
+    ]
+}
+
+if case .chunk(let chunk) = try aosDecodePublicCaptureForegroundMessage(
+    chunkMessage(),
+    captureID: captureID,
+    topologyIdentity: topologyIdentity,
+    maximumByteCount: 64
+) {
+    require(chunk.displayID == 42 && chunk.chunk == Data([0x89]), "valid chunk changed")
+} else {
+    require(false, "valid chunk did not decode")
+}
+_ = try aosDecodePublicCaptureFrameWireValue(frameMetadata())
+
+require(aosExactJSONInteger(true) == nil, "boolean repaired to an integer")
+require(aosExactJSONInteger(-1, minimum: 0) == nil, "negative integer crossed a bound")
+require(aosExactJSONInteger(NSNumber(value: 42.0)) == nil, "floating token 42.0 was repaired")
+require(
+    aosExactJSONInteger(NSNumber(value: Int64(9_007_199_254_740_993))) == nil,
+    "lossy JSON integer crossed the safe-integer bound"
+)
+require(
+    aosExactJSONInteger(NSNumber(value: UInt64.max)) == nil,
+    "overflowing unsigned integer wrapped"
+)
+
+var topExtra = chunkMessage()
+topExtra["extra"] = true
+rejected({ _ = try aosDecodePublicCaptureForegroundMessage(
+    topExtra, captureID: captureID, topologyIdentity: topologyIdentity,
+    maximumByteCount: 64
+) }, "extra top-level key passed")
+var topMissing = chunkMessage()
+topMissing.removeValue(forKey: "ref")
+rejected({ _ = try aosDecodePublicCaptureForegroundMessage(
+    topMissing, captureID: captureID, topologyIdentity: topologyIdentity,
+    maximumByteCount: 64
+) }, "missing top-level key passed")
+
+for (name, value) in [
+    ("boolean", true as Any),
+    ("negative", -1 as Any),
+    ("floating", NSNumber(value: 42.0) as Any),
+    ("lossy", NSNumber(value: Int64(9_007_199_254_740_993)) as Any),
+    ("uint32_overflow", NSNumber(value: UInt64(UInt32.max) + 1) as Any),
+] {
+    var message = chunkMessage()
+    var data = message["data"] as! [String: Any]
+    data["display_id"] = value
+    message["data"] = data
+    rejected({ _ = try aosDecodePublicCaptureForegroundMessage(
+        message, captureID: captureID, topologyIdentity: topologyIdentity,
+        maximumByteCount: 64
+    ) }, "\(name) chunk display id passed")
+}
+
+var chunkExtra = chunkMessage()
+var chunkExtraData = chunkExtra["data"] as! [String: Any]
+chunkExtraData["path"] = "/private/frame.png"
+chunkExtra["data"] = chunkExtraData
+rejected({ _ = try aosDecodePublicCaptureForegroundMessage(
+    chunkExtra, captureID: captureID, topologyIdentity: topologyIdentity,
+    maximumByteCount: 64
+) }, "extra chunk key passed")
+var chunkMissing = chunkMessage()
+var chunkMissingData = chunkMissing["data"] as! [String: Any]
+chunkMissingData.removeValue(forKey: "bytes_base64")
+chunkMissing["data"] = chunkMissingData
+rejected({ _ = try aosDecodePublicCaptureForegroundMessage(
+    chunkMissing, captureID: captureID, topologyIdentity: topologyIdentity,
+    maximumByteCount: 64
+) }, "missing chunk key passed")
+var overBudget = chunkMessage()
+var overBudgetData = overBudget["data"] as! [String: Any]
+overBudgetData["byte_count"] = 65
+overBudget["data"] = overBudgetData
+rejected({ _ = try aosDecodePublicCaptureForegroundMessage(
+    overBudget, captureID: captureID, topologyIdentity: topologyIdentity,
+    maximumByteCount: 64
+) }, "chunk byte budget failed open")
+
+let final: [String: Any] = [
+    "v": 1,
+    "status": "success",
+    "ref": captureID,
+    "data": [
+        "capture_id": captureID,
+        "topology_identity": topologyIdentity,
+        "frames": [frameMetadata()],
+    ],
+]
+if case .success(let frames) = try aosDecodePublicCaptureForegroundMessage(
+    final, captureID: captureID, topologyIdentity: topologyIdentity,
+    maximumByteCount: 64
+) {
+    require(frames.count == 1, "valid final frame list changed")
+} else {
+    require(false, "valid final response did not decode")
+}
+
+var finalExtra = final
+finalExtra["service"] = "see"
+rejected({ _ = try aosDecodePublicCaptureForegroundMessage(
+    finalExtra, captureID: captureID, topologyIdentity: topologyIdentity,
+    maximumByteCount: 64
+) }, "extra final envelope key passed")
+var finalMissing = final
+var finalMissingData = finalMissing["data"] as! [String: Any]
+finalMissingData.removeValue(forKey: "frames")
+finalMissing["data"] = finalMissingData
+rejected({ _ = try aosDecodePublicCaptureForegroundMessage(
+    finalMissing, captureID: captureID, topologyIdentity: topologyIdentity,
+    maximumByteCount: 64
+) }, "missing final response key passed")
+
+for (name, value) in [
+    ("boolean", true as Any),
+    ("negative", -1 as Any),
+    ("floating", NSNumber(value: 42.0) as Any),
+    ("lossy", NSNumber(value: Int64(9_007_199_254_740_993)) as Any),
+    ("overflow", NSNumber(value: UInt64(UInt32.max) + 1) as Any),
+] {
+    var metadata = frameMetadata()
+    metadata["display_id"] = value
+    rejected({ _ = try aosDecodePublicCaptureFrameWireValue(metadata) },
+             "\(name) final display id passed")
+}
+var metadataExtra = frameMetadata()
+metadataExtra["extra"] = true
+rejected({ _ = try aosDecodePublicCaptureFrameWireValue(metadataExtra) },
+         "extra final metadata key passed")
+var metadataMissing = frameMetadata()
+metadataMissing.removeValue(forKey: "width")
+rejected({ _ = try aosDecodePublicCaptureFrameWireValue(metadataMissing) },
+         "missing final metadata key passed")
+var windowOverflow = frameMetadata()
+windowOverflow["capture_source"] = "window"
+windowOverflow["window_id"] = NSNumber(value: UInt64(UInt32.max) + 1)
+rejected({ _ = try aosDecodePublicCaptureFrameWireValue(windowOverflow) },
+         "overflowing final window id passed")
+
+print("PASS")
+`)
+    const compile = spawnSync(
+      'xcrun',
+      ['swiftc', transferSource, main, '-o', executable],
+      { cwd: root, encoding: 'utf8' },
+    )
+    assert.equal(compile.status, 0, compile.stderr || compile.stdout)
+    const run = spawnSync(executable, [], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 30_000,
+    })
+    assert.equal(run.status, 0, run.stderr || run.stdout)
+    assert.match(run.stdout, /PASS/u)
+  } finally {
+    await rm(temp, { recursive: true, force: true })
+  }
+})
+
 test('public capture runtime decoder validates canonical topology before capture', async () => {
   const temp = await mkdtemp(path.join(os.tmpdir(), 'aos-public-capture-decoder-'))
   try {

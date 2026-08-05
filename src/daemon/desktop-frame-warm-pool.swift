@@ -156,6 +156,7 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
     private var lastNotifiedStatus: AOSDesktopFrameWarmStatus?
     private var terminalFailure = false
     private var exclusiveStill: ExclusiveStill?
+    private var awaitingAuthoritativeStillSettlement: UUID?
 
     init(
         broker: AOSDesktopPixelBroker,
@@ -289,6 +290,11 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
         if generation == 0 { generation = 1 }
         sourceRecoveryAttempts = 0
         sourceRecoveryBlockedGeneration = nil
+        if awaitingAuthoritativeStillSettlement != nil {
+            state = .failed
+            failure = .retirementUncertain
+            return
+        }
         if retiring { return }
         if let exclusiveStill {
             if exclusiveStill.phase == .restoring {
@@ -310,6 +316,11 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
     private func beginDesiredOnQueue() {
         defer { notifyStatusIfChangedOnQueue() }
         guard !retiring else { return }
+        guard awaitingAuthoritativeStillSettlement == nil else {
+            state = .failed
+            failure = .retirementUncertain
+            return
+        }
         guard let configuration = desired else {
             state = .idle
             failure = nil
@@ -567,9 +578,11 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
         completion: @escaping (Result<AOSDesktopPixelFrameSet, Error>) -> Void
     ) {
         defer { notifyStatusIfChangedOnQueue() }
-        guard exclusiveStill == nil, !terminalFailure else {
+        guard exclusiveStill == nil,
+              awaitingAuthoritativeStillSettlement == nil,
+              !terminalFailure else {
             deliverExclusiveStillCompletion(completion, result: .failure(
-                terminalFailure
+                terminalFailure || awaitingAuthoritativeStillSettlement != nil
                     ? AOSDesktopFrameCaptureFailure.retirementUncertain
                     : AOSDesktopFrameCaptureFailure.busy
             ))
@@ -634,11 +647,19 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
         state = .retiring
         exclusiveStill = transaction
         let id = transaction.id
-        let operation = broker.snapshot(transaction.request) { [weak self] result in
-            self?.queue.async {
-                self?.exclusiveSnapshotSettledOnQueue(id: id, result: result)
+        let operation = broker.snapshot(
+            transaction.request,
+            authoritativeSettlementObserver: { [weak self] in
+                self?.queue.async {
+                    self?.exclusiveSnapshotAuthoritativelySettledOnQueue(id: id)
+                }
+            },
+            completion: { [weak self] result in
+                self?.queue.async {
+                    self?.exclusiveSnapshotSettledOnQueue(id: id, result: result)
+                }
             }
-        }
+        )
         guard var current = exclusiveStill, current.id == id else {
             operation.cancel()
             return
@@ -664,10 +685,26 @@ final class AOSDesktopFrameWarmPool: AOSDesktopFrameWarmPreparing {
            error as? AOSDesktopFrameCaptureFailure == .retirementUncertain {
             state = .failed
             failure = .retirementUncertain
+            awaitingAuthoritativeStillSettlement = id
             finishExclusiveStillOnQueue(restoreFailure: .retirementUncertain)
             return
         }
         beginExclusiveRestoreOnQueue()
+    }
+
+    private func exclusiveSnapshotAuthoritativelySettledOnQueue(id: UUID) {
+        defer { notifyStatusIfChangedOnQueue() }
+        guard awaitingAuthoritativeStillSettlement == id else { return }
+        awaitingAuthoritativeStillSettlement = nil
+        failure = nil
+        sourceRecoveryAttempts = 0
+        sourceRecoveryBlockedGeneration = nil
+        guard !terminalFailure,
+              exclusiveStill == nil,
+              lease == nil,
+              startup == nil,
+              !retiring else { return }
+        beginDesiredOnQueue()
     }
 
     private func beginExclusiveRestoreOnQueue() {

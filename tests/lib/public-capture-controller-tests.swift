@@ -178,6 +178,10 @@ func runPublicCaptureControllerTests() throws {
     extra["path"] = "/private/capture.png"
     requireRejectedBeforeCapture(extra, "extra request key reached capture")
 
+    var missing = try publicCapturePayload()
+    missing.removeValue(forKey: "shows_cursor")
+    requireRejectedBeforeCapture(missing, "missing request key reached capture")
+
     var tooManyExclusions = try publicCapturePayload()
     tooManyExclusions["excluded_window_ids"] = Array(1...257)
     requireRejectedBeforeCapture(
@@ -202,11 +206,39 @@ func runPublicCaptureControllerTests() throws {
         booleanExclusion,
         "boolean exclusion reached capture"
     )
+    var floatingExclusion = try publicCapturePayload()
+    floatingExclusion["excluded_window_ids"] = [NSNumber(value: 42.0)]
+    requireRejectedBeforeCapture(
+        floatingExclusion,
+        "floating-token exclusion reached capture"
+    )
+    var overflowExclusion = try publicCapturePayload()
+    overflowExclusion["excluded_window_ids"] = [
+        NSNumber(value: UInt64(UInt32.max) + 1),
+    ]
+    requireRejectedBeforeCapture(
+        overflowExclusion,
+        "overflowing exclusion reached capture"
+    )
     var fractionalMaximum = try publicCapturePayload()
     fractionalMaximum["maximum_pixels_per_display"] = 8_000.5
     requireRejectedBeforeCapture(
         fractionalMaximum,
         "fractional pixel limit reached capture"
+    )
+    var unsafeMaximum = try publicCapturePayload()
+    unsafeMaximum["maximum_pixels_per_display"] = NSNumber(
+        value: Int64(9_007_199_254_740_993)
+    )
+    requireRejectedBeforeCapture(
+        unsafeMaximum,
+        "lossy JSON integer pixel limit reached capture"
+    )
+    var unsignedMaximum = try publicCapturePayload()
+    unsignedMaximum["maximum_pixels_per_display"] = NSNumber(value: UInt64.max)
+    requireRejectedBeforeCapture(
+        unsignedMaximum,
+        "overflowing unsigned pixel limit reached capture"
     )
     var duplicateSelection = try publicCapturePayload()
     duplicateSelection["display_ids"] = [42, 42]
@@ -219,6 +251,20 @@ func runPublicCaptureControllerTests() throws {
     requireRejectedBeforeCapture(
         negativeDisplay,
         "negative display selection reached capture"
+    )
+    var floatingDisplay = try publicCapturePayload()
+    floatingDisplay["display_ids"] = [NSNumber(value: 42.0)]
+    requireRejectedBeforeCapture(
+        floatingDisplay,
+        "floating-token display selection reached capture"
+    )
+    var overflowingDisplay = try publicCapturePayload()
+    overflowingDisplay["display_ids"] = [
+        NSNumber(value: UInt64(UInt32.max) + 1),
+    ]
+    requireRejectedBeforeCapture(
+        overflowingDisplay,
+        "overflowing display selection reached capture"
     )
     var duplicateOrdinal = try publicCapturePayload()
     duplicateOrdinal["displays"] = [
@@ -238,6 +284,24 @@ func runPublicCaptureControllerTests() throws {
     requireRejectedBeforeCapture(
         mismatchedWindow,
         "window/display mismatch reached capture"
+    )
+    var floatingWindow = try publicCapturePayload()
+    floatingWindow["window_targets"] = [[
+        "display_id": 42,
+        "window_id": NSNumber(value: 42.0),
+    ]]
+    requireRejectedBeforeCapture(
+        floatingWindow,
+        "floating-token window id reached capture"
+    )
+    var overflowingWindow = try publicCapturePayload()
+    overflowingWindow["window_targets"] = [[
+        "display_id": 42,
+        "window_id": NSNumber(value: UInt64(UInt32.max) + 1),
+    ]]
+    requireRejectedBeforeCapture(
+        overflowingWindow,
+        "overflowing window id reached capture"
     )
 
     var displayExtra = try publicCapturePayload()

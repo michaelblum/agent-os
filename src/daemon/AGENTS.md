@@ -87,7 +87,9 @@ callbacks with a bounded logical deadline. A missing callback keeps its exact
 generation owner quarantined and blocks later admission without globally
 poisoning unrelated settled generations. Only that callback's authoritative
 settlement may release the quarantine; a late callback cannot redeliver the old
-result or mutate newer state.
+result or mutate newer state. When a public still has already settled logically,
+that late authority automatically reconverges only the warm pool's still-current
+desired source generation. A never-callback owner remains quarantined.
 `src/shared/desktop-pixel-sample-admission.swift` owns the common usable-frame
 and producer-advancement rules shared by runtime capture and native proofs.
 `desktop-pixel-native-operation.swift` owns the exactly-once, callback-backed

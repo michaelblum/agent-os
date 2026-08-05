@@ -68,8 +68,11 @@ and a bounded logical deadline. A missing callback keeps its exact generation
 owner quarantined and blocks later native admission without converting that
 uncertainty into a global terminal state. Only authoritative settlement of that
 callback releases the quarantine; a late callback cannot redeliver the old
-logical result or mutate a newer transaction. If the callback never arrives,
-the exact owner remains occupied indefinitely.
+logical result or mutate a newer transaction. After a public still has already
+settled logically, late authoritative settlement automatically reconverges only
+the warm pool's still-current desired source generation. It does not reopen the
+frozen source or admit before authority. If the callback never arrives, the
+exact owner remains occupied indefinitely.
 Warm streams report post-ready terminal failure to the exact lease generation.
 One current connection interruption may perform one retirement-confirmed
 reopen; a stale callback is ignored and a repeated current failure remains
@@ -88,7 +91,10 @@ only. This permits frames above the writer's 32 MiB queued-byte ceiling while
 keeping one bounded event admitted at a time and creating no daemon artifact or
 alternate byte channel. The foreground consumer validates order, counts,
 digest, topology identity, and decoded geometry before applying existing crop,
-overlay, perception, saved-ref, or output policy.
+overlay, perception, saved-ref, or output policy. It accepts only exact integer
+JSON tokens within the safe-integer and native field bounds, rejects floating
+tokens and closed-shape drift, and reads bounded NDJSON frames under one
+monotonic absolute deadline even when a peer drips partial bytes.
 
 The foreground error projection is closed: broker busy maps to `CAPTURE_BUSY`,
 screen-capture permission failure to `PERMISSION_DENIED`, missing display or

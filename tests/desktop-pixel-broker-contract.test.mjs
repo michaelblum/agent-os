@@ -192,7 +192,16 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(pool, /func captureExclusiveStill/u)
   assert.match(pool, /case quiescing[\s\S]*case capturing[\s\S]*case restoring/u)
   assert.match(pool, /retireCurrentOnQueue\(\)[\s\S]*startExclusiveSnapshotOnQueue/u)
-  assert.match(pool, /broker\.snapshot\(transaction\.request\)/u)
+  assert.match(
+    pool,
+    /broker\.snapshot\(\s*transaction\.request,[\s\S]*authoritativeSettlementObserver:/u,
+  )
+  assert.match(pool, /awaitingAuthoritativeStillSettlement/u)
+  assert.match(pool, /exclusiveSnapshotAuthoritativelySettledOnQueue/u)
+  assert.match(
+    broker,
+    /activeSnapshot = nil[\s\S]*authoritativeSettlementObserver[\s\S]*observer\?\(\)/u,
+  )
   assert.match(pool, /request\.capturePolicy == \.publicExplicitExclusions/u)
   assert.match(pool, /aosPublicCaptureDaemonTransactionBudget: TimeInterval = 24/u)
   assert.match(pool, /scheduleDeadline[\s\S]*exclusiveStillDeadlineOnQueue/u)
@@ -232,7 +241,11 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   assert.match(perceive, /session\.connectWithAutoStart\(binaryPath:/u)
   assert.equal((perceive.match(/connectWithAutoStart\(/gu) ?? []).length, 1)
   assert.match(perceive, /guard session\.connectWithAutoStart[\s\S]*code: "DAEMON_UNREACHABLE"/u)
-  assert.match(perceive, /message\["service"\] as\? String == "see",[\s\S]*message\["event"\] as\? String == "capture_chunk"/u)
+  assert.match(perceive, /aosDecodePublicCaptureForegroundMessage\(/u)
+  assert.match(
+    publicTransfer,
+    /Set\(message\.keys\) == eventKeys[\s\S]*message\["service"\] as\? String == "see"[\s\S]*message\["event"\] as\? String == "capture_chunk"/u,
+  )
   assert.match(perceive, /aosCaptureDigest\(accumulator\.data\) == digest/u)
   const captureCommand = perceive.slice(perceive.indexOf('func captureCommand(args: [String]) async'))
   const browserDispatch = captureCommand.indexOf('if opts.target.hasPrefix("browser:")')

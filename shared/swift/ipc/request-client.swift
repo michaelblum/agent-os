@@ -19,10 +19,16 @@ import Foundation
 class DaemonSession {
     let socketPath: String
     var fd: Int32 = -1
-    private var reader = NDJSONReader()
+    private let maximumFrameBytes: Int
+    private var reader: NDJSONReader
 
-    init(socketPath: String = kDefaultSocketPath) {
+    init(
+        socketPath: String = kDefaultSocketPath,
+        maximumFrameBytes: Int = aosDaemonMaximumNDJSONFrameBytes
+    ) {
         self.socketPath = socketPath
+        self.maximumFrameBytes = max(1, maximumFrameBytes)
+        reader = NDJSONReader(maximumFrameBytes: maximumFrameBytes)
     }
 
     deinit {
@@ -155,26 +161,39 @@ class DaemonSession {
     /// Read one JSON response from the fd. Used after sendOnly() when the caller
     /// wants to read the response later, or for reading event loop messages.
     ///
-    /// Reads in a loop until a complete newline-delimited JSON object is available,
-    /// so large responses (> 4 KiB) are handled correctly. Each iteration uses the
-    /// full `timeoutMs` budget (only the first call waits; subsequent reads use a
-    /// shorter poll so we don't double-count time for mid-message continuations).
+    /// Reads in a loop until one bounded newline-delimited JSON object is available.
+    /// One monotonic absolute deadline covers every poll and partial read, so a peer
+    /// cannot extend the budget by dripping bytes without a newline.
     func readOneJSON(timeoutMs: Int32 = 2000) -> [String: Any]? {
         guard fd >= 0 else { return nil }
         // Check if we already have a buffered line
         if let json = reader.nextJSON() { return json }
-        // Read chunks until we accumulate a complete newline-terminated line.
-        // First chunk uses the caller's full timeout; continuation chunks use a
-        // shorter poll (100 ms) so we yield quickly if data stops arriving.
-        var firstRead = true
+        let budgetNanoseconds = UInt64(max(0, timeoutMs)) * 1_000_000
+        let startedAt = DispatchTime.now().uptimeNanoseconds
+        let deadline = startedAt.addingReportingOverflow(budgetNanoseconds)
+        guard !deadline.overflow else { return nil }
         var buf = [UInt8](repeating: 0, count: 4096)
         while true {
-            let pollMs: Int32 = firstRead ? timeoutMs : 100
-            let n = readWithTimeout(fd, &buf, buf.count, timeoutMs: pollMs)
+            let now = DispatchTime.now().uptimeNanoseconds
+            guard now < deadline.partialValue else { return nil }
+            let remainingNanoseconds = deadline.partialValue - now
+            let remainingMilliseconds = max(
+                UInt64(1),
+                (remainingNanoseconds + 999_999) / 1_000_000
+            )
+            let pollMilliseconds = Int32(min(
+                remainingMilliseconds,
+                UInt64(Int32.max)
+            ))
+            let n = readWithTimeout(
+                fd,
+                &buf,
+                buf.count,
+                timeoutMs: pollMilliseconds
+            )
             guard n > 0 else { return nil }
-            reader.append(buf, count: n)
+            guard reader.append(buf, count: n) else { return nil }
             if let json = reader.nextJSON() { return json }
-            firstRead = false
         }
     }
 
@@ -191,7 +210,7 @@ class DaemonSession {
             if n <= 0 { break }
             // Discard — we don't need the responses
         }
-        reader = NDJSONReader()
+        reader = NDJSONReader(maximumFrameBytes: maximumFrameBytes)
     }
 
     /// Whether the session has an open connection.
@@ -200,7 +219,7 @@ class DaemonSession {
     /// Close the connection.
     func disconnect() {
         if fd >= 0 { close(fd); fd = -1 }
-        reader = NDJSONReader()
+        reader = NDJSONReader(maximumFrameBytes: maximumFrameBytes)
     }
 
     // MARK: - Private

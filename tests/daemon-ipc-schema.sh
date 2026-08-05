@@ -142,6 +142,7 @@ status_anchor = {
 }
 good_responses = [
     {"v":1,"status":"success","data":{"generation":7},"ref":"register-1"},
+    {"v":1,"status":"success","data":{"capture_id":see_capture["capture_id"],"topology_identity":display_topology["identity"],"frames":[{"display_id":42,"frame_index":0,"chunk_count":1,"byte_count":4,"sha256":"b"*64,"width":2,"height":2,"capture_source":"display","window_fallback":False}]},"ref":see_capture["capture_id"]},
     {"v":1,"status":"dry_run","data":{"owner":"io.example.app","item_id":"tool","action_id":"activate","generation":7,"descriptor_revision":3,"action_sequence":1,"event_type":"primary_activation","bounds":status_bounds,"anchor":status_anchor},"ref":"invoke-1"},
     {"v":1,"status":"error","error":"status item not found","code":"STATUS_ITEM_NOT_FOUND"},
     {"v":1,"status":"error","error":"invalid descriptor","code":"INVALID_STATUS_ITEM_DESCRIPTOR"},
@@ -168,6 +169,9 @@ bad_responses = [
     {"v":1,"status":"error","error":"unknown","code":"SOME_NEW_ERROR"},  # unrelated error vocabulary remains closed
     {"v":1,"status":"error","error":"unknown","code":"STATUS_ITEM_"},  # status item code requires a suffix
     {"v":1,"status":"error","error":"unknown","code":"STATUS_ITEM_FUTURE_ERROR"},  # status item error vocabulary is exact
+    {"v":1,"status":"success","data":{"capture_id":see_capture["capture_id"],"topology_identity":display_topology["identity"],"frames":[{"display_id":42,"frame_index":0,"chunk_count":1,"byte_count":4,"sha256":"b"*64,"width":2,"height":2,"capture_source":"display","window_fallback":False,"extra":True}]},"ref":see_capture["capture_id"]},  # capture frame metadata is closed
+    {"v":1,"status":"success","data":{"capture_id":see_capture["capture_id"],"topology_identity":display_topology["identity"],"frames":[{"display_id":42,"frame_index":0,"chunk_count":1,"byte_count":4,"sha256":"b"*64,"height":2,"capture_source":"display","window_fallback":False}]},"ref":see_capture["capture_id"]},  # capture frame metadata is complete
+    {"v":1,"status":"success","data":{"capture_id":see_capture["capture_id"],"topology_identity":display_topology["identity"],"frames":[{"display_id":42,"frame_index":0,"chunk_count":1,"byte_count":4,"sha256":"b"*64,"width":2,"height":2,"capture_source":"window","window_fallback":True,"window_id":901}]},"ref":see_capture["capture_id"]},  # window success cannot also be fallback
 ]
 for response in bad_responses:
     errors = list(response_validator.iter_errors(response))
