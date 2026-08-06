@@ -4,38 +4,24 @@ import {
   workspaceID,
 } from './core.mjs';
 import {
-  failIncompatibleAction,
-  failLowConfidenceRef,
   failUnsupportedRef,
   loadRefRecord,
-  recommendedRefreshResponseFields,
-  unsafeResolutionForMutation,
 } from './ref-action-resolution.mjs';
-import {
-  parseRefToken,
-  positionalIndexes,
-  stripWorkspaceFlags,
-} from './ref-action-args.mjs';
-import {
-  loadDragDestinationRecord,
-  validateActionArgs,
-} from './ref-action-grammar.mjs';
+import { parseRefToken, positionalIndexes, stripWorkspaceFlags } from './ref-action-args.mjs';
+import { loadDragDestinationRecord, validateActionArgs } from './ref-action-grammar.mjs';
 import {
   appendStateID,
   dispatchResolvedAction,
   emitDryRunEnvelope,
+  resolveLocatorDryRun,
 } from './ref-action-execution.mjs';
 import {
-  validateBrowserCurrentRef,
-  validateBrowserDragPair,
-} from './browser-ref-validation.mjs';
-import { refSummary } from './refs.mjs';
+  validateBrowserObservationRef,
+} from '../target-handle-runtime.mjs';
+import { resolveReviewedObservationRuntime } from '../playwright-cli-runtime.mjs';
 
 function present(value) {
-  if (value === null || value === undefined) return false;
-  if (Array.isArray(value)) return value.length > 0;
-  if (typeof value === 'object') return Object.keys(value).length > 0;
-  return String(value).length > 0;
+  return value !== null && value !== undefined && String(value).length > 0;
 }
 
 function appendFlag(args, flag, value) {
@@ -47,133 +33,144 @@ function nativeAXValueArg(args, targetIndex) {
   if (valueFlagIndex >= 0 && valueFlagIndex + 1 < args.length && !String(args[valueFlagIndex + 1]).startsWith('--')) {
     return args[valueFlagIndex + 1];
   }
-  const positions = positionalIndexes(args);
-  const valueIndex = positions.find((index) => index !== targetIndex);
+  const valueIndex = positionalIndexes(args).find((index) => index !== targetIndex);
   return valueIndex === undefined ? null : args[valueIndex];
 }
 
-function directNativeAXArgs(action, args, targetIndex, record) {
-  const facts = record.identity_facts ?? {};
-  const directArgs = [];
-  appendFlag(directArgs, '--pid', facts.app_pid);
-  appendFlag(directArgs, '--window', facts.window_id);
-  appendFlag(directArgs, '--role', facts.role);
-  appendFlag(directArgs, '--title', facts.title);
-  appendFlag(directArgs, '--label', facts.label);
-  appendFlag(directArgs, '--identifier', facts.ax_identifier);
-  appendFlag(directArgs, '--index', facts.index);
-  appendFlag(directArgs, '--near', facts.near);
-  appendFlag(directArgs, '--match', facts.match);
-  appendFlag(directArgs, '--depth', facts.depth);
-  appendFlag(directArgs, '--timeout', facts.timeout_ms);
+function nativeAXArgs(action, args, targetIndex, handle) {
+  const query = handle.query ?? {};
+  const out = [];
+  appendFlag(out, '--pid', query.pid);
+  appendFlag(out, '--window', query.window_id);
+  appendFlag(out, '--role', query.role);
+  appendFlag(out, '--title', query.title);
+  appendFlag(out, '--label', query.label);
+  appendFlag(out, '--identifier', query.identifier);
+  appendFlag(out, '--index', query.index);
+  appendFlag(out, '--near', query.near);
+  appendFlag(out, '--match', query.match);
+  appendFlag(out, '--depth', query.depth);
+  appendFlag(out, '--timeout', query.timeout_ms);
   if (action === 'set-value') {
-    appendFlag(directArgs, '--value', nativeAXValueArg(args, targetIndex));
+    const value = nativeAXValueArg(args, targetIndex);
+    if (value !== null && value !== undefined) out.push('--value', String(value));
   }
-  return directArgs;
+  if (args.includes('--dry-run')) out.push('--dry-run');
+  return out;
 }
 
-function currentNativeAXValidation(record, action) {
-  const facts = record.identity_facts ?? {};
-  return {
-    status: 'direct_ax_current_matching_required',
-    backend: 'native_ax',
-    action,
-    validation: 'saved durable native facts are converted to direct AX selector flags; the native primitive performs current matching at dispatch',
-    direct_target: {
-      app_pid: facts.app_pid ?? null,
-      window_id: facts.window_id ?? null,
-      role: facts.role ?? null,
-      title: facts.title ?? null,
-      label: facts.label ?? null,
-      ax_identifier: facts.ax_identifier ?? null,
-      stable_path: facts.stable_path ?? null,
-    },
-  };
-}
-
-function assertActionable(record, action, workspace) {
-  if (record.confidence === 'low') {
-    failLowConfidenceRef(record, workspace);
+function validateExplicitState(args, handle) {
+  const indexes = args
+    .map((arg, index) => (arg === '--state-id' ? index : null))
+    .filter((index) => index !== null);
+  if (indexes.length > 1) {
+    exitAgentWorkspaceError('saved-handle actions accept at most one --state-id', 'TARGET_HANDLE_INVALID');
   }
-  if (record.resolution_class === 'coordinate_fallback') {
-    failUnsupportedRef(record, workspace);
+  if (indexes.length === 0) return;
+  const stateID = args[indexes[0] + 1];
+  if (handle?.kind === 'locator') {
+    exitAgentWorkspaceError('Locators do not support --state-id', 'TARGET_STATE_UNSUPPORTED');
   }
-  if (!record.action_target) {
-    failUnsupportedRef(record, workspace);
-  }
-  if (!(record.supported_actions ?? []).includes(action)) {
-    failIncompatibleAction(record, action, workspace);
+  if (stateID !== handle?.state_id) {
+    exitAgentWorkspaceError('explicit state_id does not match the saved Observation Ref', 'TARGET_STATE_STALE', {
+      state_id: stateID ?? null,
+      handle_state_id: handle?.state_id ?? null,
+    });
   }
 }
 
-function validateCurrentTargets(action, record, secondary, workspace, env) {
-  let currentValidation = null;
-  let secondaryCurrentValidation = null;
-  const browserValidationCaptureCache = new Map();
-  const browserValidationIdentityCache = new Map();
-
-  if (record.backend === 'browser' && record.resolution_class === 'snapshot_scoped') {
-    currentValidation = validateBrowserCurrentRef(record, action, workspace, env, browserValidationCaptureCache, browserValidationIdentityCache);
-  }
-  if (secondary?.record.backend === 'browser' && secondary.record.resolution_class === 'snapshot_scoped') {
-    secondaryCurrentValidation = validateBrowserCurrentRef(secondary.record, action, workspace, env, browserValidationCaptureCache, browserValidationIdentityCache);
-  }
-  if (record.backend === 'native_ax' && record.resolution_class === 'stable') {
-    currentValidation = currentNativeAXValidation(record, action);
-  }
-
-  return { currentValidation, secondaryCurrentValidation };
+function assertTypedHandle(record, workspace) {
+  if (!record.handle || record.handle.backend !== record.backend) failUnsupportedRef(record, workspace);
 }
 
-function stateIDForDispatch(record, currentValidation) {
-  return currentValidation?.capture_state_id ?? record.identity_facts?.state_id;
+function validateHandle(record, env) {
+  const handle = record.handle;
+  if (handle?.kind === 'observation_ref' && handle.backend === 'browser') {
+    const runtime = resolveReviewedObservationRuntime({ env });
+    if (runtime.status !== 'ok') {
+      exitAgentWorkspaceError(runtime.error || 'playwright-cli runtime unavailable', runtime.code || 'TARGET_ACTION_UNSUPPORTED');
+    }
+    const resolved = validateBrowserObservationRef(handle, env, runtime.observation_identity);
+    return {
+      status: 'validated', backend: 'browser',
+      backend_version: runtime.version,
+      ...resolved,
+    };
+  }
+  if (handle?.kind === 'locator' && ['aos_canvas', 'native_ax'].includes(handle.backend)) {
+    return { status: 'resolution_required', backend: handle.backend, query: handle.query };
+  }
+  exitAgentWorkspaceError(`Saved handle '${record.ref}' is invalid`, 'TARGET_HANDLE_INVALID', { handle });
+}
+
+function assertDragPair(source, destination) {
+  const a = source.handle;
+  const b = destination.handle;
+  if (a?.kind !== 'observation_ref' || b?.kind !== 'observation_ref' || a.backend !== 'browser' || b.backend !== 'browser') {
+    exitAgentWorkspaceError('saved-handle drag requires two browser Observation Refs', 'TARGET_ACTION_UNSUPPORTED');
+  }
+  if (a.scope.session !== b.scope.session || a.state_id !== b.state_id) {
+    exitAgentWorkspaceError('browser drag endpoints must share one session and capture generation', 'TARGET_STATE_STALE');
+  }
+}
+
+function transformedActionArgs(action, args, targetIndex, record) {
+  const handle = record.handle;
+  if (handle.backend === 'native_ax') return nativeAXArgs(action, args, targetIndex, handle);
+  const out = [...args];
+  out[targetIndex] = handle.backend === 'browser'
+    ? `browser:${handle.scope.session}/${handle.ref}`
+    : `canvas:${handle.query.canvas_id}/${handle.query.ref}`;
+  return out;
 }
 
 function maybeRunRefAction(action, args, env = process.env) {
-  const positions = positionalIndexes(args);
-  const firstIndex = positions[0];
+  const firstIndex = positionalIndexes(args)[0];
   const refToken = firstIndex === undefined ? null : parseRefToken(args[firstIndex]);
   if (!refToken) return false;
 
   const stripped = stripWorkspaceFlags(args);
   const workspace = workspaceID(stripped.workspace, env);
   const explicitSnapshot = stripped.snapshot ? validateLocalID(stripped.snapshot, 'snapshot id') : null;
-  const strippedPositions = positionalIndexes(stripped.args);
-  const strippedTargetIndex = strippedPositions[0];
+  const strippedTargetIndex = positionalIndexes(stripped.args)[0];
   const record = loadRefRecord(workspace, refToken, explicitSnapshot, env);
   const dryRun = stripped.args.includes('--dry-run');
+  validateExplicitState(stripped.args, record.handle);
   validateActionArgs(action, stripped.args, strippedTargetIndex, record);
+  assertTypedHandle(record, workspace);
 
   const secondary = action === 'drag'
     ? loadDragDestinationRecord(stripped.args, strippedTargetIndex, workspace, explicitSnapshot, env)
     : null;
-
-  assertActionable(record, action, workspace);
   if (secondary) {
-    assertActionable(secondary.record, action, workspace);
-    validateBrowserDragPair(record, secondary.record, workspace);
+    assertTypedHandle(secondary.record, workspace);
+    validateExplicitState(stripped.args, secondary.record.handle);
+    assertDragPair(record, secondary.record);
   }
 
-  const { currentValidation, secondaryCurrentValidation } = validateCurrentTargets(action, record, secondary, workspace, env);
-  const unsafe = unsafeResolutionForMutation(record, action, currentValidation);
-  const secondaryUnsafe = secondary ? unsafeResolutionForMutation(secondary.record, action, secondaryCurrentValidation) : null;
-  if (!dryRun && (unsafe || secondaryUnsafe)) {
-    const unsafeRecord = unsafe ? record : secondary.record;
-    const unsafeStatus = unsafe || secondaryUnsafe;
-    exitAgentWorkspaceError(`Ref '${unsafeRecord.ref}' is ${unsafeStatus}; refresh perception before mutating`, 'REF_REVALIDATION_REQUIRED', {
-      status: unsafeStatus,
-      ref: refSummary(unsafeRecord),
-      ...recommendedRefreshResponseFields(workspace, unsafeRecord),
-      requires_user_approval: false,
-    });
+  let currentValidation = validateHandle(record, env);
+  let secondaryCurrentValidation = secondary ? validateHandle(secondary.record, env) : null;
+  if (record.handle.kind === 'observation_ref') {
+    exitAgentWorkspaceError(
+      'browser Observation Ref action is disabled because the backend cannot atomically bind the original capture state to ref resolution',
+      'TARGET_ACTION_UNSUPPORTED',
+      {
+        reason: 'browser_observation_identity_unproven',
+        session: record.handle.scope.session,
+        state_id: record.handle.state_id,
+        ref: record.handle.ref,
+        backend_version: currentValidation.backend_version,
+        recapture_required: true,
+      },
+    );
   }
+  let actionArgs = transformedActionArgs(action, stripped.args, strippedTargetIndex, record);
+  if (secondary) {
+    const handle = secondary.record.handle;
+    actionArgs[secondary.index] = `browser:${handle.scope.session}/${handle.ref}`;
+  }
+  if (record.handle.kind === 'observation_ref') actionArgs = appendStateID(actionArgs, record.handle.state_id);
 
-  const transformed = record.backend === 'native_ax'
-    ? directNativeAXArgs(action, stripped.args, strippedTargetIndex, record)
-    : [...stripped.args];
-  if (record.backend !== 'native_ax') transformed[strippedTargetIndex] = record.action_target;
-  if (secondary) transformed[secondary.index] = secondary.record.action_target;
-  const actionArgs = appendStateID(transformed.filter((arg) => arg !== '--dry-run'), stateIDForDispatch(record, currentValidation));
   const envelopeArgs = {
     action,
     actionArgs,
@@ -182,19 +179,32 @@ function maybeRunRefAction(action, args, env = process.env) {
     secondary,
     currentValidation,
     secondaryCurrentValidation,
-    unsafe,
-    secondaryUnsafe,
   };
-
   if (dryRun) {
+    if (record.handle.kind === 'locator') {
+      const resolution = resolveLocatorDryRun(action, actionArgs, env);
+      currentValidation = {
+        status: 'resolved',
+        backend: record.handle.backend,
+        query: record.handle.query,
+        result: resolution,
+      };
+      envelopeArgs.currentValidation = currentValidation;
+      envelopeArgs.secondaryCurrentValidation = secondaryCurrentValidation;
+    }
     emitDryRunEnvelope(envelopeArgs);
     process.exit(0);
   }
-
+  actionArgs = actionArgs.filter((arg) => arg !== '--dry-run');
+  envelopeArgs.actionArgs = actionArgs;
   dispatchResolvedAction({ ...envelopeArgs, env });
+  return true;
 }
 
 export function runRefAction(action, args, env = process.env) {
   if (maybeRunRefAction(action, args, env)) return;
-  exitAgentWorkspaceError(`aos do ${action} saved-ref route requires a ref:<id> or ref:<snapshot-id>:<id> target`, 'INVALID_REF_TARGET');
+  exitAgentWorkspaceError(
+    `aos do ${action} saved-handle route requires ref:<snapshot-id>:<ref-id>`,
+    'TARGET_HANDLE_INVALID',
+  );
 }

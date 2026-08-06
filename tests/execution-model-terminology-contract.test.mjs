@@ -159,23 +159,21 @@ test('browser target guidance separates public handles from current browser tran
   const maintained = `${architecture}\n${aosApi}\n${browserSkill}\n${seeDo}`;
 
   assert.match(architecture, /Public target semantics distinguish an ephemeral Observation Ref `\(state_id, ref\)` from a Locator/);
-  assert.match(architecture, /current browser implementation predates that split/);
-  assert.match(architecture, /current saved-handle dispatch validates the browser target/);
-  assert.match(aosApi, /Direct browser `type` and `key` remain current-host routes/);
-  assert.match(aosApi, /Saved browser `type` and `key` are text-compatible saved-ref actions/);
-  assert.match(aosApi, /producer exposes the action in `supported_actions`/);
+  assert.match(architecture, /ref-bearing dry-run\/effect requests validate the original pair and return `TARGET_ACTION_UNSUPPORTED` before backend dispatch/);
+  assert.match(aosApi, /Session-only browser actions remain available/);
+  assert.match(aosApi, /Saved and direct requests validate\s+the stored pair but do not dispatch/);
   assert.match(browserSkill, /Observation Ref `\(state_id, ref\)` — ephemeral and stale-rejecting/);
-  assert.match(browserSkill, /Locator — re-resolves current browser state and rejects zero or multiple matches/);
+  assert.match(browserSkill, /Locator — canvas\/native only; re-resolves current state and rejects zero or multiple action-compatible matches/);
+  assert.match(browserSkill, /V1 has no browser Locator grammar/);
+  assert.doesNotMatch(browserSkill, /Locator — re-resolves current browser state/);
   assert.match(browserSkill, /`ref:<snapshot-id>:<ref>` — current saved-workspace handle, not a Locator/);
-  assert.match(browserSkill, /Direct browser refs are current implementation transport strings/);
-  assert.match(browserSkill, /Direct browser `type` and `key` are current-host routes/);
-  assert.match(browserSkill, /Saved-handle `type` and `key` are supported for text-compatible\s+browser refs/);
-  assert.match(browserSkill, /effectful dispatch performs current-target\s+validation/);
+  assert.match(browserSkill, /Direct browser refs and saved browser handles are Observation Refs/);
+  assert.match(browserSkill, /every ref-bearing dry-run\/effect request returns\s+`TARGET_ACTION_UNSUPPORTED` before backend dispatch/);
+  assert.match(browserSkill, /session-only browser `scroll`, `type`, `key`, and `navigate` remain/);
   assert.match(seeDo, /public CLI now documents browser targets through `docs\/api\/aos\.md`/);
-  assert.match(seeDo, /Collection workers should prefer saved refs for normal loops/);
-  assert.match(seeDo, /direct\s+`browser:<session>\/<ref>` targets as current\s+diagnostic\/provenance handles/);
+  assert.match(seeDo, /current ref-bearing actions are intentionally nonactionable/);
   assert.match(seeDo, /external command manifest conditionally dispatches direct browser forms for\nclick, hover, drag, scroll, type, and key/);
-  assert.match(seeDo, /saved-ref `fill`, `type`, and\s+`key` validate current page\/frame\/navigation and element identity/);
+  assert.match(seeDo, /saved-ref `fill`, `type`, and\s+`key` validate the original pair and stop with `TARGET_ACTION_UNSUPPORTED`/);
   assert.match(seeDo, /should not assume typed SDK parity with CLI browser\s+refs/);
   assert.match(browserSkill, /docs\/archive\/superpowers\/specs\/2026-04-24-playwright-browser-adapter-design\.md/);
   for (const action of ['type', 'key']) {
@@ -207,10 +205,10 @@ test('context glossary distinguishes public target types from current saved hand
   assert.match(context, /\*\*Locator\*\*:/);
   assert.match(context, /re-resolves against current state for every\s+operation/);
   assert.match(context, /workspace snapshot record/);
-  assert.match(context, /revalidate or reacquire the current target before mutation/);
-  assert.match(context, /It is not a live\s+Observation Ref or Locator/);
-  assert.match(context, /Bare\s+`ref:<ref-id>` acceptance and automatic reacquisition are implementation gaps/);
-  assert.match(aosApi, /Snapshot-qualified saved handles/);
+  assert.match(context, /storage indirection, not a third live target type/);
+  assert.match(context, /It is not\s+a live Observation Ref or Locator/);
+  assert.match(context, /Bare\s+`ref:<ref-id>` and automatic reacquisition are invalid V1 behavior/);
+  assert.match(aosApi, /snapshot-qualified saved addresses/);
   assert.match(workspaceSchema, /Saved refs are scoped to a snapshot/);
   assert.match(workspaceSchema, /originating capture source and mode/);
   assert.doesNotMatch(workspaceSchema, /originating saved target/);
@@ -226,10 +224,11 @@ test('public API docs define Observation Refs and Locators while inventorying cu
   assert.match(section, /Locator/);
   assert.match(section, /Zero\s+matches return missing; more than one returns ambiguous/);
   assert.match(section, /`ref:<snapshot-id>:<ref-id>`/);
-  assert.match(section, /Bare `ref:<ref-id>` and\s+automatic saved-handle reacquisition are explicit migration gaps/);
-  assert.match(section, /`browser:<session>\/<ref>` and `canvas:<canvas-id>\/<ref>`/);
-  assert.match(section, /raw `x,y` plus\s+`--state-id <id>`/);
-  assert.match(section, /selector\s+flags such as `--pid`, `--role`, and filters/);
+  assert.match(section, /Bare `ref:<ref-id>`\s+and automatic saved-handle reacquisition are invalid V1 behavior/);
+  assert.match(section, /browser Observation Ref strings \(`browser:<session>\/<ref>` plus the original\s+`--state-id`\)/);
+  assert.match(section, /canvas Locator strings \(`canvas:<canvas-id>\/<ref>`\)/);
+  assert.match(section, /Raw coordinate actions\s+remain available but reject `--state-id` with `TARGET_STATE_UNSUPPORTED`/);
+  assert.match(section, /AX Locator\s+flags such as `--pid`, `--role`, and filters/);
   assert.match(section, /no current public `ax:` CLI target grammar/);
   assert.match(section, /Semantic Targets are structured perception records/);
   assert.match(section, /not a separate address grammar/);
@@ -244,10 +243,11 @@ test('README gives the public target types and inventories current grammar', asy
 
   assert.match(section, /ephemeral Observation Ref\s+`\(state_id, ref\)`/);
   assert.match(section, /Locator, which re-resolves at\s+action time and rejects zero or multiple matches/);
-  assert.match(section, /Current saved-workspace\s+handles/);
+  assert.match(section, /saved-workspace address/);
   assert.match(section, /`ref:<snapshot-id>:<ref-id>`/);
-  assert.match(section, /`browser:<session>\/<ref>` and `canvas:<canvas-id>\/<ref>`/);
-  assert.match(section, /raw `x,y` plus `--state-id <id>`/);
+  assert.match(section, /Direct browser Observation Refs use\s+`browser:<session>\/<ref>` plus their original `--state-id`/);
+  assert.match(section, /canvas Locators use\s+`canvas:<canvas-id>\/<ref>`/);
+  assert.match(section, /Coordinate fallback remains raw `x,y` and rejects\s+`--state-id`/);
   assert.match(section, /selector\s+flags such as `--pid` and `--role`/);
   assert.match(section, /not a public `ax:`\s+target grammar/);
   assert.match(section, /Semantic\s+Targets are perception records/);
@@ -261,7 +261,7 @@ test('grand unification plan qualifies screen and AX target-model vocabulary', a
 
   assert.match(plan, /`browser:<session>\/<ref>`: Playwright-backed DOM\/ARIA targets/);
   assert.match(plan, /`canvas:<canvas-id>\/<ref>`: AOS canvas semantic targets/);
-  assert.match(plan, /Screen coordinate fallback: current CLI actions use raw `x,y` plus optional\s+`--state-id`/);
+  assert.match(plan, /Screen coordinate fallback: current CLI actions use raw `x,y` and reject\s+`--state-id`/);
   assert.match(plan, /`screen:<state-id>\/<x,y>` remains target-model\/replay\s+vocabulary, not a current CLI target string/);
   assert.match(plan, /Native AX: current CLI actions select elements through flags such as\s+`--pid` and `--role`/);
   assert.match(plan, /`ax:<\.\.\.>` remains future first-class target-model\s+vocabulary, not a current CLI target string/);
@@ -278,7 +278,7 @@ test('design target examples and subject audit preserve current boundaries', asy
     assert.match(doc, /browser:<session>\/<ref>/);
     assert.match(doc, /canvas:<canvas-id>\/<[^>]+>/);
     assert.match(doc, /ref:<snapshot-id>:<ref-id>/);
-    assert.match(doc, /screen coordinate fallback: raw x,y plus --state-id \(current CLI\); screen:<state-id>\/<x,y> is target-model\/replay shorthand/);
+    assert.match(doc, /screen coordinate fallback: raw x,y with --state-id rejected \(current CLI\); screen:<state-id>\/<x,y> is target-model\/replay shorthand/);
     assert.match(doc, /native AX: selector flags such as --pid and --role \(current CLI\); ax:<\.\.\.> is reserved target-model vocabulary/);
     assert.doesNotMatch(doc, /^ax:<pid>\/<ref>$/m);
     assert.doesNotMatch(doc, /^screen:<state-id>\/<x,y>$/m);
@@ -372,7 +372,8 @@ test('show surface loop uses canvas targets and saved refs instead of private lo
   assert.match(showSection, /`aos show create`, `aos show update`, and `aos show remove`/);
   assert.match(showSection, /`aos show render` for one-shot image rendering/);
   assert.match(showSection, /aos see capture --canvas <id> --xray --save --workspace <workspace>/);
-  assert.match(showSection, /aos do click canvas:<canvas-id>\/<ref> --state-id <id>/);
+  assert.match(showSection, /aos do click canvas:<canvas-id>\/<ref>\n/);
+  assert.doesNotMatch(showSection, /canvas:<canvas-id>\/<ref> --state-id/);
   assert.match(showSection, /aos do set-value canvas:<canvas-id>\/<ref> --value <value>/);
   assert.match(showSection, /aos do drag canvas:<canvas-id>\/<ref> --by <dx>,<dy>/);
   assert.match(showSection, /`semantic_targets\[\]\.provenance\.do_target` is the direct current-host action\s+handle/);

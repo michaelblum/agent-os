@@ -129,10 +129,10 @@ stepping and returns `{ dispose() }`.
 ## AOS Semantic Control Targets
 
 Toolkit sliders stamp the actionable `[data-aos-slider-control]` part with a
-target descriptor. `data-aos-ref` is the `ref` component of a state-scoped
-Observation Ref; callers retain the capture response's `state_id` with it.
-The current, unmigrated `aos do` transport still accepts a bare ref, but that is
-an implementation gap rather than a durable public handle. Likewise,
+target descriptor. `data-aos-ref` is the `ref` component of the canvas Locator
+query emitted by capture; the complete handle also carries the owning
+`canvas_id`. Canvas Locators do not carry or accept the capture `state_id`.
+Likewise,
 `data-semantic-target-id` is current source payload metadata, not an emitted
 `target.target_id` or durable identity. ARIA fields remain accessibility and
 current-state presentation, not identity. The stamped target includes
@@ -142,14 +142,13 @@ current-state presentation, not identity. The stamped target includes
 `data-aos-step`, and `data-aos-thumb-count`.
 
 Single-thumb sliders advertise `data-aos-actions="drag set-value"` and handle
-the internal `aos:semantic-action` event used by the current bare-ref forms
+the internal `aos:semantic-action` event used by the current canvas Locator forms
 `aos do set-value canvas:<canvas-id>/<ref>` and
 `aos do drag canvas:<canvas-id>/<ref> --to-value <value>`. Multi-thumb sliders
 advertise `drag` only until thumb-specific semantic refs exist; they must not be
-treated as safe single-value targets. Those current command forms do not change
-the public contract: a stale Observation Ref rejects, while a future Locator
-will re-resolve from machine facts such as range shape, owner namespace, and
-primitive capabilities. Labels and accessible text are hints only.
+treated as safe single-value targets. Each operation re-resolves the Locator and
+requires exactly one current action-compatible target; zero or multiple matches
+reject with typed errors. Labels and accessible text are hints only.
 
 ## Styling
 

@@ -14,7 +14,7 @@ import {
   writeJSON,
 } from '../lib/pending-annotation-fixtures.mjs';
 
-test('pending annotation CLI creates compact saved-ref record and consumes it once', async () => {
+test('pending annotation CLI creates an explicit target record and consumes it once', async () => {
   const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-'));
   const env = {
     AOS_STATE_ROOT: stateRoot,
@@ -32,12 +32,6 @@ test('pending annotation CLI creates compact saved-ref record and consumes it on
     'Save button in checkout form',
     '--comment',
     'Use this button',
-    '--workspace',
-    'ws1',
-    '--snapshot',
-    'snap1',
-    '--ref',
-    'r2',
     '--artifact',
     'screenshot=/tmp/aos-pending-annotation-test.png',
     '--json',
@@ -46,25 +40,13 @@ test('pending annotation CLI creates compact saved-ref record and consumes it on
   assert.equal(created.status, 'created');
   assert.equal(created.annotation.id, 'ann-test');
   assert.equal(created.annotation.state, 'pending');
-  assert.equal(created.annotation.saved_ref.workspace_id, 'ws1');
-  assert.equal(created.annotation.saved_ref.snapshot_id, 'snap1');
-  assert.equal(created.annotation.saved_ref.ref, 'r2');
+  assert.equal(created.annotation.saved_ref, null);
   assert.equal(created.annotation.recommended_next_count, 1);
 
   const recordPath = created.annotation.path;
   validateJSONFile(recordPath);
   const record = JSON.parse(await fs.readFile(recordPath, 'utf8'));
-  assert.equal(record.target.saved_ref.ref, 'r2');
-  assert.deepEqual(record.recommended_next[0].argv, [
-    'aos',
-    'see',
-    'refs',
-    '--workspace',
-    'ws1',
-    '--snapshot',
-    'snap1',
-    '--json',
-  ]);
+  assert.equal(record.target.saved_ref, null);
   assert.equal(record.artifact_refs[0].role, 'screenshot');
 
   const listed = parseJSON(run(['list', '--json'], env));
@@ -109,7 +91,7 @@ test('pending annotation CLI creates compact saved-ref record and consumes it on
   assert.equal(err.state, 'consumed');
 });
 
-test('pending annotation capture projection maps browser canvas and native saved refs', async () => {
+test('pending annotation capture projection maps every valid typed handle independent of action hints', async () => {
   const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-capture-'));
   const fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-fixtures-'));
   const env = {
@@ -117,12 +99,12 @@ test('pending annotation capture projection maps browser canvas and native saved
     AOS_RUNTIME_MODE: 'repo',
   };
   const cases = [
-    ['browser', 'browser', 'snapshot_scoped'],
-    ['canvas', 'aos_canvas', 'reacquirable'],
-    ['native', 'native_ax', 'stable'],
+    ['browser', 'browser', 'browser'],
+    ['canvas', 'aos_canvas', 'canvas'],
+    ['native', 'native_ax', 'native_ax'],
   ];
 
-  for (const [name, backend, resolutionClass] of cases) {
+  for (const [name, backend, targetKind] of cases) {
     const snapshot = `snap-${name}`;
     const capturePath = await writeJSON(fixtureRoot, `${name}.json`, savedCaptureFixture({
       snapshot,
@@ -130,8 +112,8 @@ test('pending annotation capture projection maps browser canvas and native saved
         ref: 'r1',
         snapshot,
         backend,
-        resolutionClass,
         summary: `${name} selected target`,
+        supportedActions: [],
       })],
     }));
 
@@ -151,7 +133,7 @@ test('pending annotation capture projection maps browser canvas and native saved
     const read = parseJSON(run(['read', `ann-${name}`, '--json'], env));
     assert.equal(created.annotation.state, 'pending');
     assert.equal(created.annotation.capability_status, 'saved_ref');
-    assert.equal(read.annotation.target.kind, name === 'canvas' ? 'canvas' : name === 'native' ? 'native_ax' : 'browser');
+    assert.equal(read.annotation.target.kind, targetKind);
     assert.equal(read.annotation.target.saved_ref.ref, 'r1');
     assert.equal(read.annotation.target.saved_ref.backend, backend);
     assert.equal(read.annotation.source_capture.kind, 'saved_capture');
@@ -194,6 +176,53 @@ test('pending annotation --from-json rejects saved-capture envelopes without pro
   validateJSONFile(projected.annotation.path);
 });
 
+test('pending annotation rejects V0 saved captures before writing a record', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-v0-capture-'));
+  const fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-v0-fixture-'));
+  const env = { AOS_STATE_ROOT: stateRoot, AOS_RUNTIME_MODE: 'repo' };
+  const capturePath = await writeJSON(fixtureRoot, 'capture-v0.json', {
+    ...savedCaptureFixture({ refs: [savedRefFixture()] }),
+    schema_version: 'aos.agent-workspace.v0',
+  });
+
+  const rejected = parseError(run([
+    'create', '--id', 'ann-v0-capture', '--from-capture-json', capturePath, '--json',
+  ], env));
+  assert.equal(rejected.code, 'AGENT_WORKSPACE_SCHEMA_UNSUPPORTED');
+  assert.equal(rejected.recapture_required, true);
+  assert.equal(
+    await readTextIfExists(path.join(stateRoot, 'repo', 'pending-annotations', 'records', 'ann-v0-capture.json')),
+    null,
+  );
+
+  const malformedPath = await writeJSON(fixtureRoot, 'capture-malformed-v1.json', {
+    schema_version: 'aos.agent-workspace.v1',
+    refs: [],
+  });
+  const malformed = parseError(run([
+    'create', '--id', 'ann-malformed-v1', '--from-capture-json', malformedPath, '--json',
+  ], env));
+  assert.equal(malformed.code, 'TARGET_HANDLE_INVALID');
+  assert.equal(
+    await readTextIfExists(path.join(stateRoot, 'repo', 'pending-annotations', 'records', 'ann-malformed-v1.json')),
+    null,
+  );
+
+  const invalidRef = savedRefFixture();
+  delete invalidRef.handle;
+  const malformedRefPath = await writeJSON(fixtureRoot, 'capture-malformed-ref.json', savedCaptureFixture({
+    refs: [invalidRef],
+  }));
+  const malformedRef = parseError(run([
+    'create', '--id', 'ann-malformed-ref', '--from-capture-json', malformedRefPath, '--json',
+  ], env));
+  assert.equal(malformedRef.code, 'TARGET_HANDLE_INVALID');
+  assert.equal(
+    await readTextIfExists(path.join(stateRoot, 'repo', 'pending-annotations', 'records', 'ann-malformed-ref.json')),
+    null,
+  );
+});
+
 test('pending annotation capture projection reports fallback and fail-closed states honestly', async () => {
   const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-capture-state-'));
   const fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-state-fixtures-'));
@@ -218,17 +247,6 @@ test('pending annotation capture projection reports fallback and fail-closed sta
   assert.equal(fallbackRead.annotation.fallback_evidence[0].reason, 'saved_ref_unavailable');
   validateJSONFile(fallback.annotation.path);
 
-  const nonActionablePath = await writeJSON(fixtureRoot, 'non-actionable.json', savedCaptureFixture({
-    snapshot: 'snap-non-actionable',
-    refs: [savedRefFixture({ snapshot: 'snap-non-actionable', resolutionClass: 'volatile' })],
-  }));
-  const nonActionable = parseJSON(run(['create', '--id', 'ann-non-actionable', '--from-capture-json', nonActionablePath, '--json'], env));
-  assert.equal(nonActionable.annotation.state, 'pending');
-  assert.equal(nonActionable.annotation.capability_status, 'fallback_only');
-  const nonActionableRead = parseJSON(run(['read', 'ann-non-actionable', '--json'], env));
-  assert.equal(nonActionableRead.annotation.fallback_evidence[0].reason, 'saved_ref_not_actionable');
-  validateJSONFile(nonActionable.annotation.path);
-
   const stalePath = await writeJSON(fixtureRoot, 'stale.json', savedCaptureFixture({
     snapshot: 'snap-stale',
     status: 'stale',
@@ -245,16 +263,14 @@ test('pending annotation capture projection reports fallback and fail-closed sta
 
   const unsupportedPath = await writeJSON(fixtureRoot, 'unsupported.json', savedCaptureFixture({
     snapshot: 'snap-unsupported',
-    refs: [savedRefFixture({ snapshot: 'snap-unsupported', resolutionClass: 'unsupported' })],
+    refs: [savedRefFixture({ snapshot: 'snap-unsupported', backend: 'unknown' })],
   }));
-  const unsupported = parseJSON(run(['create', '--id', 'ann-unsupported', '--from-capture-json', unsupportedPath, '--json'], env));
-  assert.equal(unsupported.annotation.state, 'unsupported');
-  assert.equal(unsupported.annotation.capability_status, 'unsupported');
-  const unsupportedRead = parseJSON(run(['read', 'ann-unsupported', '--json'], env));
-  const unsupportedConsume = run(['consume', 'ann-unsupported', '--json'], env);
-  assert.notEqual(unsupportedConsume.status, 0);
-  assert.equal(JSON.parse(unsupportedConsume.stderr).capability_status, 'unsupported');
-  validateJSONFile(unsupported.annotation.path);
+  const unsupported = parseError(run(['create', '--id', 'ann-unsupported', '--from-capture-json', unsupportedPath, '--json'], env));
+  assert.equal(unsupported.code, 'TARGET_HANDLE_INVALID');
+  assert.equal(
+    await readTextIfExists(path.join(stateRoot, 'repo', 'pending-annotations', 'records', 'ann-unsupported.json')),
+    null,
+  );
 
   const ambiguousPath = await writeJSON(fixtureRoot, 'ambiguous.json', savedCaptureFixture({
     snapshot: 'snap-ambiguous',
@@ -274,9 +290,7 @@ test('pending annotation capture projection reports fallback and fail-closed sta
 
   for (const annotation of [
     fallbackRead.annotation,
-    nonActionableRead.annotation,
     staleRead.annotation,
-    unsupportedRead.annotation,
     ambiguousRead.annotation,
   ]) {
     assert.equal(annotation.fallback_evidence.length, 1);

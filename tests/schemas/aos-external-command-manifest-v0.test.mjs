@@ -127,6 +127,23 @@ test('generated command manifests advertise source provenance', async () => {
   });
 });
 
+test('target-handle help has no bare saved-ref shorthand or coordinate state validation', async () => {
+  const registry = await loadJson(registryPath);
+  const doCommand = registry.commands.find(({ path: commandPath }) => commandPath.join(' ') === 'do');
+  assert.ok(doCommand, 'do command is missing');
+  assert.doesNotMatch(JSON.stringify(doCommand.forms), /ref:<id>/u);
+
+  for (const action of ['click', 'hover', 'scroll']) {
+    const form = doCommand.forms.find(({ id }) => id === `do-${action}`);
+    assert.ok(form, `do-${action} form is missing`);
+    const coordinateBranches = form.usage.split(/\s+\|\s+/u).filter((branch) => branch.includes('<x,y'));
+    assert.ok(coordinateBranches.length > 0, `do-${action} coordinate usage is missing`);
+    for (const branch of coordinateBranches) {
+      assert.doesNotMatch(branch, /--state-id/u, `do-${action} coordinate usage must not advertise state validation`);
+    }
+  }
+});
+
 test('scene effect dry run describes binding validation without claiming admission', async () => {
   const registry = await loadJson(registryPath);
   const command = registry.commands.find(
@@ -477,7 +494,8 @@ test('private Swift primitives are reachable only through expected direct routes
 
   const directSeeWrapper = await fs.readFile(path.join(repoRoot, 'scripts/aos-see-native.mjs'), 'utf8');
   const savedCaptureOwner = await fs.readFile(path.join(repoRoot, 'scripts/lib/agent-workspace/capture.mjs'), 'utf8');
-  const browserRefValidator = await fs.readFile(path.join(repoRoot, 'scripts/lib/agent-workspace/browser-ref-validation.mjs'), 'utf8');
+  const savedActionOwner = await fs.readFile(path.join(repoRoot, 'scripts/lib/agent-workspace/actions.mjs'), 'utf8');
+  const targetHandleOwner = await fs.readFile(path.join(repoRoot, 'scripts/lib/target-handle-runtime.mjs'), 'utf8');
   assert.ok(
     directSeeWrapper.includes('aosSeeChildRunnerPath'),
     'direct native perception must route through the shared child guardian',
@@ -486,9 +504,10 @@ test('private Swift primitives are reachable only through expected direct routes
     savedCaptureOwner.includes('runNativeSeeSync'),
     'saved native perception must route through the shared child guardian',
   );
-  assert.ok(
-    browserRefValidator.includes('runNativeSeeSync'),
-    'saved browser-ref revalidation must route through the shared child guardian',
+  assert.equal(
+    `${savedActionOwner}\n${targetHandleOwner}`.includes('runNativeSeeSync'),
+    false,
+    'saved browser Observation Ref validation must never recapture through native perception',
   );
 
   const nestedSeeCallers = [];

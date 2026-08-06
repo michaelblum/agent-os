@@ -45,7 +45,15 @@ function getConnection() {
       buffer = buffer.slice(idx + 1);
       try {
         const resp = JSON.parse(line);
-        settlePending(resp.id, 'resolve', resp.result);
+        if (resp.result?.error) {
+          const payload = resp.result.error;
+          const error = new Error(typeof payload === 'string' ? payload : payload.message);
+          error.code = typeof payload === 'string' ? 'AOS_SDK_ERROR' : payload.code;
+          error.details = typeof payload === 'string' ? {} : (payload.details ?? {});
+          settlePending(resp.id, 'reject', error);
+        } else {
+          settlePending(resp.id, 'resolve', resp.result);
+        }
       } catch {}
     }
   });
@@ -108,7 +116,6 @@ const aos = {
   // --- Layer 2: Smart Operations ---
   perceive: () => call('system', 'perceive', {}),
   findWindow: (query) => call('system', 'findWindow', query),
-  clickElement: (label, opts) => call('system', 'clickElement', { label, ...opts }),
   waitFor: (pattern, opts) => call('system', 'waitFor', { pattern, ...opts }),
   showOverlay: (opts) => call('system', 'showOverlay', opts),
   updateOverlay: (id, opts) => call('system', 'updateOverlay', { id, ...opts }),

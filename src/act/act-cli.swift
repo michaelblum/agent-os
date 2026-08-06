@@ -43,7 +43,7 @@ func cliPrintLegacy(
 /// Extract AX targeting flags from CLI args and build common fields for ActionRequest.
 private func axTargetingFields(args: [String]) -> (pid: Int?, role: String?, title: String?, label: String?,
                                                      identifier: String?, index: Int?, near: [Double]?,
-                                                     match: String?, depth: Int?, timeout: Int?) {
+                                                     match: String?, depth: Int?, timeout: Int?, windowID: Int?) {
     let pid = parseInt(getArg(args, "--pid"))
     let role = getArg(args, "--role")
     let title = getArg(args, "--title")
@@ -53,19 +53,87 @@ private func axTargetingFields(args: [String]) -> (pid: Int?, role: String?, tit
     let match = getArg(args, "--match")
     let depth = parseInt(getArg(args, "--depth"))
     let timeout = parseInt(getArg(args, "--timeout"))
+    let windowID = parseInt(getArg(args, "--window"))
 
     var near: [Double]? = nil
     if let nearStr = getArg(args, "--near"), let coords = parseCoords(nearStr) {
         near = [coords.0, coords.1]
     }
 
-    return (pid, role, title, label, identifier, index, near, match, depth, timeout)
+    return (pid, role, title, label, identifier, index, near, match, depth, timeout, windowID)
 }
 
 /// Build a LegacyTargetInfo from AX targeting flags.
 private func axTargetInfo(args: [String]) -> LegacyTargetInfo {
     let t = axTargetingFields(args: args)
-    return LegacyTargetInfo(pid: t.pid, role: t.role, title: t.title, index: t.index)
+    return LegacyTargetInfo(pid: t.pid, role: t.role, title: t.title, index: t.index, window_id: t.windowID)
+}
+
+private func exitAXLocatorError(
+    action: String,
+    state: SessionState,
+    message: String,
+    code: String,
+    candidateCount: Int? = nil,
+    candidates: [AXTargetCandidateFact]? = nil,
+    candidateCountIsLowerBound: Bool? = nil
+) -> Never {
+    var response = ActionResponse(
+        status: "error",
+        action: action,
+        cursor: state.cursor,
+        modifiers: state.modifiers.sorted(),
+        context: state.contextSnapshot(),
+        duration_ms: nil,
+        error: message,
+        code: code
+    )
+    response.candidate_count = candidateCount
+    response.candidate_count_is_lower_bound = candidateCountIsLowerBound
+    response.candidates = candidates
+    writeJSONLine(response, to: .standardError)
+    exit(1)
+}
+
+private func exitAXActionError(_ response: ActionResponse) -> Never {
+    writeJSONLine(response, to: .standardError)
+    exit(1)
+}
+
+private func validateAXLocatorDryRun(_ request: ActionRequest, state: SessionState, action: String) {
+    guard AXIsProcessTrusted() else {
+        exitError("Accessibility permission not granted", code: "PERMISSION_DENIED")
+    }
+    let query = ElementQuery(from: request, context: state.context, profile: state.profile)
+    switch findAXActionTarget(query: query, action: action) {
+    case .found:
+        return
+    case .notFound(let message):
+        exitAXLocatorError(action: action, state: state, message: message, code: "TARGET_NOT_FOUND")
+    case .ambiguous(let count, let candidates, let countIsLowerBound):
+        exitAXLocatorError(
+            action: action,
+            state: state,
+            message: countIsLowerBound
+                ? "Target Locator matched at least \(count) current AX elements"
+                : "Target Locator matched \(count) current AX elements",
+            code: "TARGET_AMBIGUOUS",
+            candidateCount: count,
+            candidates: candidates,
+            candidateCountIsLowerBound: countIsLowerBound
+        )
+    case .incompatible(let message, let code):
+        exitAXLocatorError(action: action, state: state, message: message, code: code)
+    case .invalid(let message):
+        exitAXLocatorError(action: action, state: state, message: message, code: "TARGET_HANDLE_INVALID")
+    case .timeout:
+        exitAXLocatorError(
+            action: action,
+            state: state,
+            message: "Timed out resolving Target Locator",
+            code: "TARGET_RESOLUTION_TIMEOUT"
+        )
+    }
 }
 
 /// Get the first positional argument (not a flag and not a flag value).
@@ -202,20 +270,21 @@ func cliPress(args: [String]) {
 
     let target = axTargetInfo(args: args)
 
-    if dryRun {
-        cliPrintLegacy(action: "press", backend: "ax", target: target, dryRun: true)
-        return
-    }
-
     let req = ActionRequest(
         action: "press",
         pid: t.pid, role: t.role, title: t.title, label: t.label,
         identifier: t.identifier, index: t.index,
-        near: t.near, match: t.match, depth: t.depth, timeout: t.timeout
+        near: t.near, match: t.match, depth: t.depth, timeout: t.timeout,
+        window_id: t.windowID
     )
+    if dryRun {
+        validateAXLocatorDryRun(req, state: state, action: "press")
+        cliPrintLegacy(action: "press", backend: "ax", target: target, dryRun: true)
+        return
+    }
     let resp = handlePress(req, state: state)
     if resp.status == "error" {
-        exitError(resp.error ?? "press failed", code: resp.code ?? "UNKNOWN")
+        exitAXActionError(resp)
     }
     cliPrintLegacy(action: "press", backend: "ax", target: target, dryRun: false, execution: resp.execution)
 }
@@ -245,20 +314,22 @@ func cliSetValue(args: [String]) {
     var target = axTargetInfo(args: args)
     target.text = value
 
-    if dryRun {
-        cliPrintLegacy(action: "set-value", backend: "ax", target: target, dryRun: true)
-        return
-    }
-
     let req = ActionRequest(
         action: "set_value",
         pid: t.pid, role: t.role, title: t.title, label: t.label,
         identifier: t.identifier, value: value, index: t.index,
-        near: t.near, match: t.match, depth: t.depth, timeout: t.timeout
+        near: t.near, match: t.match, depth: t.depth, timeout: t.timeout,
+        window_id: t.windowID
     )
+    if dryRun {
+        let searchReq = setValueLocatorRequest(req)
+        validateAXLocatorDryRun(searchReq, state: state, action: "set-value")
+        cliPrintLegacy(action: "set-value", backend: "ax", target: target, dryRun: true)
+        return
+    }
     let resp = handleSetValue(req, state: state)
     if resp.status == "error" {
-        exitError(resp.error ?? "set-value failed", code: resp.code ?? "UNKNOWN")
+        exitAXActionError(resp)
     }
     cliPrintLegacy(action: "set-value", backend: "ax", target: target, dryRun: false, execution: resp.execution)
 }
@@ -274,6 +345,9 @@ private func cliSetCanvasRefValue(targetString: String, args: [String], position
     guard let value else {
         exitError("set-value requires --value or a positional value", code: "MISSING_ARG")
     }
+    guard let numericValue = parseDouble(value), numericValue.isFinite else {
+        exitError("set-value requires a finite numeric value for canvas sliders", code: "INVALID_VALUE")
+    }
     let resolution = resolveCanvasRefTarget(targetString, primitive: "set-value")
 
     if dryRun {
@@ -284,7 +358,7 @@ private func cliSetCanvasRefValue(targetString: String, args: [String], position
             playback: playback == "auto" ? "immediate" : playback,
             dryRun: true,
             stateID: stateID,
-            detail: "value=\(value)"
+            detail: "value=\(numericValue)"
         )
         return
     }
@@ -292,7 +366,7 @@ private func cliSetCanvasRefValue(targetString: String, args: [String], position
     let result = dispatchCanvasSemanticValueAction(
         canvasID: resolution.target.canvas_id,
         ref: resolution.target.ref,
-        value: value,
+        value: String(numericValue),
         primitive: "set-value"
     )
     let postTarget = currentCanvasTargetSnapshot(
@@ -307,7 +381,7 @@ private func cliSetCanvasRefValue(targetString: String, args: [String], position
         playback: "immediate",
         dryRun: false,
         stateID: stateID,
-        detail: "value=\(value)",
+        detail: "value=\(numericValue)",
         actionResult: result,
         postTarget: postTarget
     )
@@ -328,20 +402,21 @@ func cliFocusElement(args: [String]) {
 
     let target = axTargetInfo(args: args)
 
-    if dryRun {
-        cliPrintLegacy(action: "focus", backend: "ax", target: target, dryRun: true)
-        return
-    }
-
     let req = ActionRequest(
         action: "focus",
         pid: t.pid, role: t.role, title: t.title, label: t.label,
         identifier: t.identifier, index: t.index,
-        near: t.near, match: t.match, depth: t.depth, timeout: t.timeout
+        near: t.near, match: t.match, depth: t.depth, timeout: t.timeout,
+        window_id: t.windowID
     )
+    if dryRun {
+        validateAXLocatorDryRun(req, state: state, action: "focus")
+        cliPrintLegacy(action: "focus", backend: "ax", target: target, dryRun: true)
+        return
+    }
     let resp = handleFocus(req, state: state)
     if resp.status == "error" {
-        exitError(resp.error ?? "focus failed", code: resp.code ?? "UNKNOWN")
+        exitAXActionError(resp)
     }
     cliPrintLegacy(action: "focus", backend: "ax", target: target, dryRun: false, execution: resp.execution)
 }
@@ -651,6 +726,20 @@ private func cliDragCanvasRef(targetString: String, args: [String]) {
     let resolution = resolveCanvasRefTarget(targetString, primitive: "drag")
 
     if let toValue {
+        guard let numericValue = parseDouble(toValue), numericValue.isFinite else {
+            exitError("drag --to-value requires a finite numeric value", code: "INVALID_VALUE")
+        }
+        var humanGeometry: (origin: CGPoint, destination: CGPoint)? = nil
+        if playback == "human" {
+            guard
+                let current = resolution.target.state?.values?.first ?? parseDouble(resolution.target.state?.value),
+                let origin = sliderValuePoint(target: resolution.target, value: current),
+                let destination = sliderValuePoint(target: resolution.target, value: numericValue)
+            else {
+                exitError("Unable to resolve slider value geometry for human playback", code: "TARGET_ACTION_UNSUPPORTED")
+            }
+            humanGeometry = (origin, destination)
+        }
         if dryRun {
             printCanvasTargetActionResult(
                 action: "drag",
@@ -660,25 +749,20 @@ private func cliDragCanvasRef(targetString: String, args: [String]) {
                 playback: playback == "auto" ? "immediate" : playback,
                 dryRun: true,
                 stateID: stateID,
-                detail: "to-value=\(toValue)"
+                detail: "to-value=\(numericValue)"
             )
             return
         }
         if playback == "human" {
-            guard
-                let value = parseDouble(toValue),
-                let current = resolution.target.state?.values?.first ?? parseDouble(resolution.target.state?.value),
-                let origin = sliderValuePoint(target: resolution.target, value: current),
-                let destination = sliderValuePoint(target: resolution.target, value: value)
-            else {
-                exitError("Unable to resolve slider value geometry for human playback", code: "TARGET_GEOMETRY_UNAVAILABLE")
+            guard let humanGeometry else {
+                exitError("Unable to resolve slider value geometry for human playback", code: "TARGET_ACTION_UNSUPPORTED")
             }
             let state = cliSessionState(args: args)
             let req = ActionRequest(
                 action: "drag",
-                x: Double(destination.x),
-                y: Double(destination.y),
-                from: CursorPosition(x: Double(origin.x), y: Double(origin.y)),
+                x: Double(humanGeometry.destination.x),
+                y: Double(humanGeometry.destination.y),
+                from: CursorPosition(x: Double(humanGeometry.origin.x), y: Double(humanGeometry.origin.y)),
                 state_id: stateID
             )
             let resp = handleDrag(req, state: state)
@@ -698,7 +782,7 @@ private func cliDragCanvasRef(targetString: String, args: [String]) {
                 playback: "human",
                 dryRun: false,
                 stateID: stateID,
-                detail: "to-value=\(toValue)",
+                detail: "to-value=\(numericValue)",
                 postTarget: postTarget,
                 terminalEventReceipt: resp.execution?.terminal_event_receipt
             )
@@ -707,7 +791,7 @@ private func cliDragCanvasRef(targetString: String, args: [String]) {
         let result = dispatchCanvasSemanticValueAction(
             canvasID: resolution.target.canvas_id,
             ref: resolution.target.ref,
-            value: toValue,
+            value: String(numericValue),
             primitive: "drag"
         )
         let postTarget = currentCanvasTargetSnapshot(
@@ -722,7 +806,7 @@ private func cliDragCanvasRef(targetString: String, args: [String]) {
             playback: "immediate",
             dryRun: false,
             stateID: stateID,
-            detail: "to-value=\(toValue)",
+            detail: "to-value=\(numericValue)",
             actionResult: result,
             postTarget: postTarget
         )

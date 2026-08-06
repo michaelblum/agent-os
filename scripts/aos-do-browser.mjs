@@ -3,8 +3,15 @@
 import { spawnSync } from 'node:child_process';
 import {
   resolvePlaywrightCliRuntime,
+  resolveReviewedObservationRuntime,
   runPlaywrightCli,
 } from './lib/playwright-cli-runtime.mjs';
+import {
+  TargetHandleError,
+  browserObservationHandle,
+  emitTargetHandleError,
+  validateBrowserObservationRef,
+} from './lib/target-handle-runtime.mjs';
 
 function error(message, code) {
   process.stderr.write(`{\n  "code" : ${JSON.stringify(code)},\n  "error" : ${JSON.stringify(message)}\n}\n`);
@@ -55,19 +62,22 @@ function validateSession(value) {
 
 function validateRef(value) {
   if (!value) throw ['INVALID_TARGET', 'invalid target: empty ref'];
-  if (!/^[A-Za-z0-9]+$/.test(value)) {
-    throw ['INVALID_TARGET', 'invalid target: ref must match [A-Za-z0-9]+'];
+  if (!/^(?:f\d+)?e\d+$/.test(value)) {
+    throw ['TARGET_HANDLE_INVALID', 'invalid target: browser ref must be a Playwright ref like e21 or f2e21'];
   }
 }
 
 function positionalArgs(args, allowedFlags = []) {
   const positional = [];
   const valueFlags = new Set(['--state-id']);
-  const allowed = new Set(['--state-id', ...allowedFlags]);
+  const allowed = new Set(['--state-id', '--dry-run', ...allowedFlags]);
+  const seenValueFlags = new Set();
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (arg.startsWith('--') && !allowed.has(arg)) unknownArg(arg);
     if (valueFlags.has(arg)) {
+      if (seenValueFlags.has(arg)) error(`${arg} may be provided only once`, 'TARGET_HANDLE_INVALID');
+      seenValueFlags.add(arg);
       i += 1;
       if (i >= args.length || args[i].startsWith('--')) error(`${arg} requires a value`, 'MISSING_ARG');
       continue;
@@ -75,6 +85,38 @@ function positionalArgs(args, allowedFlags = []) {
     if (!arg.startsWith('--')) positional.push(arg);
   }
   return positional;
+}
+
+function validateObservationTarget(target, args, backendIdentity = undefined) {
+  const stateID = getArg(args, '--state-id');
+  if (!target.ref) {
+    if (args.includes('--state-id')) {
+      throw new TargetHandleError('TARGET_STATE_UNSUPPORTED', '--state-id is supported only with a browser Observation Ref');
+    }
+    return null;
+  }
+  if (!stateID) throw new TargetHandleError('TARGET_STATE_REQUIRED', 'browser Observation Ref actions require --state-id');
+  const handle = browserObservationHandle(target.session, stateID, target.ref);
+  if (backendIdentity === undefined) {
+    return { session: target.session, state_id: stateID, ref: target.ref };
+  }
+  return validateBrowserObservationRef(handle, process.env, backendIdentity);
+}
+
+function emitDryRun(command, target, stateID, secondaryRef = null) {
+  process.stdout.write(`${JSON.stringify({
+    status: 'dry_run',
+    action: command,
+    ...(target.ref ? { handle: {
+      kind: 'observation_ref',
+      backend: 'browser',
+      state_id: stateID,
+      scope: { session: target.session },
+      ref: target.ref,
+    } } : { target: `browser:${target.session}` }),
+    ...(secondaryRef ? { secondary_ref: secondaryRef } : {}),
+    mutation_performed: false,
+  })}\n`);
 }
 
 function getArg(args, flag) {
@@ -97,10 +139,31 @@ function ensureVersion() {
   }
 }
 
-function runPlaywright(session, verb, args) {
-  const runtime = resolvePlaywrightCliRuntime();
+function reviewedObservationRuntime() {
+  const runtime = resolveReviewedObservationRuntime();
   if (runtime.status !== 'ok') error(runtime.error || 'playwright-cli runtime unavailable', runtime.code || 'PLAYWRIGHT_CLI_NOT_FOUND');
-  const result = runPlaywrightCli(runtime, [`-s=${session}`, verb, ...args], { env: process.env });
+  return runtime;
+}
+
+function rejectUnprovenObservationIdentity(target, stateID, runtime) {
+  throw new TargetHandleError(
+    'TARGET_ACTION_UNSUPPORTED',
+    'browser Observation Ref action is disabled because the backend cannot atomically bind the original capture state to ref resolution',
+    {
+      reason: 'browser_observation_identity_unproven',
+      session: target.session,
+      state_id: stateID,
+      ref: target.ref,
+      backend_version: runtime.version,
+      recapture_required: true,
+    },
+  );
+}
+
+function runPlaywright(session, verb, args, runtime = null) {
+  const resolvedRuntime = runtime ?? resolvePlaywrightCliRuntime();
+  if (resolvedRuntime.status !== 'ok') error(resolvedRuntime.error || 'playwright-cli runtime unavailable', resolvedRuntime.code || 'PLAYWRIGHT_CLI_NOT_FOUND');
+  const result = runPlaywrightCli(resolvedRuntime, [`-s=${session}`, verb, ...args], { env: process.env });
   if (result.error && result.status === null) {
     error(`launch failed: ${result.error.message}`, 'PLAYWRIGHT_CLI_LAUNCH_FAILED');
   }
@@ -152,10 +215,10 @@ function fillCommand(args) {
   }
   const target = parseBrowserTarget(targetString);
   if (!target.ref) error('aos do fill requires a ref (browser:<session>/<ref>)', 'INVALID_TARGET');
-  ensureVersion();
-  const result = runPlaywright(target.session, 'fill', [target.ref, text]);
-  requireSuccess(result, 'fill');
-  emitDoResult(result, 'playwright_fill', getArg(args, '--state-id'));
+  validateObservationTarget(target, args);
+  const runtime = reviewedObservationRuntime();
+  const validated = validateObservationTarget(target, args, runtime.observation_identity);
+  rejectUnprovenObservationIdentity(target, validated.state_id, runtime);
 }
 
 function navigateCommand(args) {
@@ -175,14 +238,24 @@ function navigateCommand(args) {
 function singleTargetCommand(command, args) {
   const positional = positionalArgs(args, command === 'click' ? ['--double', '--right'] : []);
   if (positional.length < 1) error(`Usage: aos do ${command} <browser:<s>[/<ref>]>`, 'MISSING_ARG');
+  if (['click', 'hover'].includes(command) && positional.length > 1) unknownArg(positional[1]);
+  if (['scroll', 'type', 'key'].includes(command) && positional.length > 2) unknownArg(positional[2]);
+  if (['type', 'key'].includes(command) && positional.length < 2) {
+    error(
+      command === 'type' ? 'type requires a text argument' : 'key requires a key combo argument (e.g. cmd+s)',
+      'MISSING_ARG',
+    );
+  }
   const target = parseBrowserTarget(positional[0]);
-  ensureVersion();
+  let validated = validateObservationTarget(target, args);
+  const runtime = target.ref ? reviewedObservationRuntime() : null;
+  if (target.ref) validated = validateObservationTarget(target, args, runtime.observation_identity);
+  if (target.ref) rejectUnprovenObservationIdentity(target, validated.state_id, runtime);
 
   let verb = command;
   let extra = [];
   let strategy = `playwright_${command}`;
   if (command === 'click') {
-    if (positional.length > 1) unknownArg(positional[1]);
     if (args.includes('--double')) {
       verb = 'dblclick';
       strategy = 'playwright_dblclick';
@@ -190,29 +263,27 @@ function singleTargetCommand(command, args) {
       extra = args.includes('--right') ? ['right'] : [];
     }
   } else if (command === 'scroll') {
-    if (positional.length > 2) unknownArg(positional[2]);
     const deltas = positional[1]?.split(',') || [];
     if (deltas.length === 2) extra = [deltas[0], deltas[1]];
     verb = 'mousewheel';
     strategy = 'playwright_mousewheel';
   } else if (command === 'type') {
-    if (positional.length < 2) error('type requires a text argument', 'MISSING_ARG');
-    if (positional.length > 2) unknownArg(positional[2]);
     extra = [positional[1]];
   } else if (command === 'key') {
-    if (positional.length < 2) error('key requires a key combo argument (e.g. cmd+s)', 'MISSING_ARG');
-    if (positional.length > 2) unknownArg(positional[2]);
     verb = 'press';
     strategy = 'playwright_press';
     extra = [positional[1]];
-  } else if (positional.length > 1) {
-    unknownArg(positional[1]);
   }
 
   const argv = [];
   if (target.ref) argv.push(target.ref);
   argv.push(...extra);
-  const result = runPlaywright(target.session, verb, argv);
+  if (args.includes('--dry-run')) {
+    emitDryRun(command, target, validated?.state_id ?? null);
+    return;
+  }
+  if (!target.ref) ensureVersion();
+  const result = runPlaywright(target.session, verb, argv, runtime);
   requireSuccess(result, verb);
   emitDoResult(result, strategy, getArg(args, '--state-id'));
 }
@@ -225,10 +296,16 @@ function dragCommand(args) {
   const to = parseBrowserTarget(positional[1]);
   if (from.session !== to.session) error('drag endpoints must share the same browser session', 'INVALID_TARGET');
   if (!from.ref || !to.ref) error('drag requires ref on both endpoints (browser:<s>/<ref>)', 'INVALID_TARGET');
-  ensureVersion();
-  const result = runPlaywright(from.session, 'drag', [from.ref, to.ref]);
-  requireSuccess(result, 'drag');
-  emitDoResult(result, 'playwright_drag', getArg(args, '--state-id'));
+  const validatedFromShape = validateObservationTarget(from, args);
+  validateObservationTarget(to, args);
+  const runtime = reviewedObservationRuntime();
+  const validatedFrom = validateObservationTarget(from, args, runtime.observation_identity);
+  validateBrowserObservationRef(
+    browserObservationHandle(to.session, validatedFromShape.state_id, to.ref),
+    process.env,
+    runtime.observation_identity,
+  );
+  rejectUnprovenObservationIdentity(from, validatedFrom.state_id, runtime);
 }
 
 try {
@@ -240,5 +317,9 @@ try {
   else error(`Unknown do browser command: ${command ?? ''}`, 'UNKNOWN_COMMAND');
 } catch (err) {
   if (Array.isArray(err)) error(err[1], err[0]);
+  if (err instanceof TargetHandleError) {
+    emitTargetHandleError(err);
+    process.exit(1);
+  }
   error(String(err), 'INTERNAL');
 }

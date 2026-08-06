@@ -155,7 +155,7 @@ Examples:
 browser:<session>/<ref>
 canvas:<canvas-id>/<state-scoped-ref>
 ref:<snapshot-id>:<ref-id>
-screen coordinate fallback: raw x,y plus --state-id (current CLI); screen:<state-id>/<x,y> is target-model/replay shorthand
+screen coordinate fallback: raw x,y with --state-id rejected (current CLI); screen:<state-id>/<x,y> is target-model/replay shorthand
 native AX: selector flags such as --pid and --role (current CLI); ax:<...> is reserved target-model vocabulary
 ```
 
@@ -190,8 +190,8 @@ Tracked in #239.
 ## Computer-Use Control-Plane Lessons
 
 `pi-computer-use` validates a similar semantic-first direction for macOS
-desktop control: ref-first actions, perception state ids, stale-coordinate
-rejection, strict AX/background-safe policies, execution metadata, and quality
+desktop control: ref-first actions, state-scoped Observation Refs, explicit raw
+coordinate fallback, strict AX/background-safe policies, execution metadata, and quality
 benchmarks. AOS should adopt those lessons natively in its `see`, `do`, and
 work-record contracts instead of routing through `pi-computer-use` as a live
 intermediary.

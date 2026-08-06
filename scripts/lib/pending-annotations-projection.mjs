@@ -18,13 +18,24 @@ import {
 } from './agent-workspace/contracts.mjs';
 import {
   annotationCapabilityFromSavedRef,
+  isSavedRefSummaryV1,
 } from './agent-workspace/refs.mjs';
 
 function isSavedCaptureResult(value) {
-  return isObject(value) && (
-    value.schema_version === AGENT_WORKSPACE_SCHEMA_VERSION
-    || (Array.isArray(value.refs) && value.workspace_id && value.snapshot_id)
-  );
+  if (!isObject(value)) return false;
+  const hasSavedCaptureShape = Array.isArray(value.refs) && value.workspace_id && value.snapshot_id;
+  if (value.schema_version !== AGENT_WORKSPACE_SCHEMA_VERSION) {
+    if (!hasSavedCaptureShape && value.schema_version === undefined) return false;
+    fail('Saved capture schema is unsupported; recapture with Agent Workspace V1', 'AGENT_WORKSPACE_SCHEMA_UNSUPPORTED', {
+      schema_version: value.schema_version ?? null,
+      supported_schema_version: AGENT_WORKSPACE_SCHEMA_VERSION,
+      recapture_required: true,
+    });
+  }
+  if (!hasSavedCaptureShape) {
+    fail('Agent Workspace V1 capture is malformed', 'TARGET_HANDLE_INVALID');
+  }
+  return true;
 }
 
 function captureResultEnvelope(input) {
@@ -59,7 +70,7 @@ function compactSourceCapture(capture, selectedRef, selectedRecord = null) {
     query: capture.query ?? null,
     ref_count: Array.isArray(capture.refs) ? capture.refs.length : 0,
     selected_backend: selectedRecord?.backend ?? null,
-    selected_resolution_class: selectedRecord?.resolution_class ?? null,
+    selected_handle_kind: selectedRecord?.handle?.kind ?? null,
   };
 }
 
@@ -124,6 +135,9 @@ export function projectCaptureInput(input) {
   const { capture, selectedRef, overrides } = envelope;
   const workspace = localIDOrNull(overrides.workspace_id ?? overrides.workspace ?? capture.workspace_id, 'workspace id') || 'default';
   const snapshot = localIDOrNull(overrides.snapshot_id ?? overrides.snapshot ?? capture.snapshot_id, 'snapshot id');
+  if (array(capture.refs).some((record) => !isSavedRefSummaryV1(record, capture.workspace_id, capture.snapshot_id))) {
+    fail('Agent Workspace V1 capture contains an invalid saved handle', 'TARGET_HANDLE_INVALID');
+  }
   const { record: refRecord, ambiguous } = selectedCaptureRef(capture, selectedRef);
   const captureArtifacts = uniqueArtifactRefs([
     ...array(capture.artifact_refs),
@@ -209,14 +223,14 @@ export function projectCaptureInput(input) {
     workspace,
     snapshot,
     ref: refRecord.ref,
-    action_target: refRecord.action_target || refRecord.copyable_action_target || null,
+    action_target: refRecord.copyable_action_target || null,
     saved_ref: {
       workspace_id: workspace,
       snapshot_id: snapshot || refRecord.snapshot_id,
       ref: refRecord.ref,
-      action_target: refRecord.action_target || refRecord.copyable_action_target || null,
+      action_target: refRecord.copyable_action_target || null,
       backend: refRecord.backend,
-      resolution_class: refRecord.resolution_class,
+      handle: refRecord.handle,
       confidence: refRecord.confidence ?? null,
     },
     capability: { status: 'saved_ref', reasons: [] },

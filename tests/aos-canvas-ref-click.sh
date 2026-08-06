@@ -68,7 +68,6 @@ HTML
 sleep 0.6
 
 CAPTURE="$(./aos see capture --canvas "$CANVAS_ID" --xray --out "$PNG_PATH" 2>/dev/null)"
-STATE_ID="$(printf '%s' "$CAPTURE" | jq -r '.state_id')"
 
 printf '%s' "$CAPTURE" | jq -e --arg canvas "$CANVAS_ID" '
   .semantic_targets
@@ -105,13 +104,13 @@ if [ "$DO_TARGET" != "canvas:${CANVAS_ID}/contract.primary" ]; then
   exit 1
 fi
 
-DRY_RUN="$(./aos do click "$DO_TARGET" --dry-run --state-id "$STATE_ID")"
-printf '%s' "$DRY_RUN" | jq -e --arg canvas "$CANVAS_ID" --arg state "$STATE_ID" '
+DRY_RUN="$(./aos do click "$DO_TARGET" --dry-run)"
+printf '%s' "$DRY_RUN" | jq -e --arg canvas "$CANVAS_ID" '
   .status == "dry_run"
   and .backend == "cgevent"
   and .execution.strategy == "dry_run_canvas_ref_click"
   and .execution.fallback_used == false
-  and .execution.state_id == $state
+  and (.execution | has("state_id") | not)
   and .target.target_dialect == "canvas"
   and .target.canvas_id == $canvas
   and .target.ref == "contract.primary"
@@ -121,14 +120,14 @@ printf '%s' "$DRY_RUN" | jq -e --arg canvas "$CANVAS_ID" --arg state "$STATE_ID"
   and (.target.click.x | type == "number")
 ' >/dev/null
 
-if ERR="$(./aos do click "canvas:${CANVAS_ID}/contract.missing" --dry-run --state-id "$STATE_ID" 2>&1 >/dev/null)"; then
+if ERR="$(./aos do click "canvas:${CANVAS_ID}/contract.missing" --dry-run 2>&1 >/dev/null)"; then
   echo "FAIL: missing ref unexpectedly succeeded" >&2
   exit 1
 else
-  printf '%s' "$ERR" | jq -e '.code == "REF_NOT_FOUND"' >/dev/null
+  printf '%s' "$ERR" | jq -e '.code == "TARGET_NOT_FOUND"' >/dev/null
 fi
 
-if ERR="$(./aos do click "canvas:${CANVAS_ID}/contract.disabled" --dry-run --state-id "$STATE_ID" 2>&1 >/dev/null)"; then
+if ERR="$(./aos do click "canvas:${CANVAS_ID}/contract.disabled" --dry-run 2>&1 >/dev/null)"; then
   echo "FAIL: disabled ref unexpectedly succeeded" >&2
   exit 1
 else
@@ -141,7 +140,7 @@ fi
   --html '<!doctype html><button data-aos-ref="contract.segmented">Segmented</button>' \
   >/dev/null
 
-if ERR="$(./aos do click "canvas:${DW_CANVAS_ID}/contract.segmented" --dry-run --state-id "$STATE_ID" 2>&1 >/dev/null)"; then
+if ERR="$(./aos do click "canvas:${DW_CANVAS_ID}/contract.segmented" --dry-run 2>&1 >/dev/null)"; then
   echo "FAIL: segmented canvas ref unexpectedly succeeded" >&2
   exit 1
 else
@@ -150,7 +149,7 @@ fi
 
 ./aos show update --id "$CANVAS_ID" --focus >/dev/null
 sleep 0.1
-./aos do click "$DO_TARGET" --state-id "$STATE_ID" >/dev/null
+./aos do click "$DO_TARGET" >/dev/null
 sleep 0.2
 
 CLICKED="$(./aos show eval --id "$CANVAS_ID" --js 'document.body.dataset.clicked || "0"' | jq -r '.result')"

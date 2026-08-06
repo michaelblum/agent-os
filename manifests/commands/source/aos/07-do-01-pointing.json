@@ -44,7 +44,7 @@
               "id": "state-id",
               "kind": "flag",
               "required": false,
-              "summary": "Perception state id this action was chosen from",
+              "summary": "Required original state id for browser Observation Ref targets; coordinates and Locators reject it",
               "token": "--state-id",
               "value_type": "string"
             },
@@ -52,7 +52,7 @@
               "id": "dry-run",
               "kind": "flag",
               "required": false,
-              "summary": "Validate and describe the action without executing it",
+              "summary": "Run the same validation/resolution without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
               "token": "--dry-run",
               "value_type": "bool"
             },
@@ -60,7 +60,7 @@
               "id": "workspace",
               "kind": "flag",
               "required": false,
-              "summary": "Agent workspace id for ref:<id> targets",
+              "summary": "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token": "--workspace",
               "value_type": "string"
             },
@@ -68,7 +68,7 @@
               "id": "snapshot",
               "kind": "flag",
               "required": false,
-              "summary": "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary": "Optional snapshot assertion that must match the scoped ref target",
               "token": "--snapshot",
               "value_type": "string"
             }
@@ -77,10 +77,10 @@
             "aos do click ref:<snapshot-id>:r1 --workspace default --dry-run",
             "aos do click ref:<snapshot-id>:r1 --workspace default",
             "aos do click 500,300",
-            "aos do click canvas:subject-browser/wiki-subject-browser-v0:subject-list:open:record --state-id see_abc123def456",
-            "aos do click browser:todo/e21"
+            "aos do click canvas:subject-browser/wiki-subject-browser-v0:subject-list:open:record",
+            "aos do click browser:todo/e21 --state-id see_abc123def456"
           ],
-          "summary": "Saved-ref click validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
+          "summary": "Coordinate and canvas Locator clicks remain available; browser Observation Refs validate the original pair, then fail closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
@@ -97,7 +97,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "usage": "aos do click <ref:<snapshot-id>:<ref>|x,y|canvas:<canvas-id>/<ref>|browser:<session>/<ref>> [--workspace <id>] [--snapshot <id>] [--right] [--double] [--state-id id] [--dry-run] [--dwell N for x,y or canvas targets]"
+          "usage": "aos do click <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> [--workspace <id>] [--snapshot <id>] [--right] [--double] [--state-id id] [--dry-run] | aos do click <x,y|canvas:<canvas-id>/<ref>> [--right] [--double] [--dwell N] [--dry-run]"
         },
         {
           "args": [
@@ -112,7 +112,7 @@
               "id": "state-id",
               "kind": "flag",
               "required": false,
-              "summary": "Perception state id this action was chosen from",
+              "summary": "Required original state id for browser Observation Ref targets; coordinates reject it",
               "token": "--state-id",
               "value_type": "string"
             },
@@ -120,7 +120,7 @@
               "id": "workspace",
               "kind": "flag",
               "required": false,
-              "summary": "Agent workspace id for ref:<id> targets",
+              "summary": "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token": "--workspace",
               "value_type": "string"
             },
@@ -128,7 +128,7 @@
               "id": "snapshot",
               "kind": "flag",
               "required": false,
-              "summary": "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary": "Optional snapshot assertion that must match the scoped ref target",
               "token": "--snapshot",
               "value_type": "string"
             },
@@ -136,7 +136,7 @@
               "id": "dry-run",
               "kind": "flag",
               "required": false,
-              "summary": "Validate and describe the action without executing it",
+              "summary": "Run the same validation without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
               "token": "--dry-run",
               "value_type": "bool"
             }
@@ -144,10 +144,10 @@
           "examples": [
             "aos do hover ref:<snapshot-id>:r2 --workspace default --dry-run",
             "aos do hover ref:<snapshot-id>:r2 --workspace default",
-            "aos do hover browser:todo/e21",
+            "aos do hover browser:todo/e21 --state-id see_abc123def456",
             "aos do hover 500,300"
           ],
-          "summary": "Saved-ref hover validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
+          "summary": "Coordinate hover remains available; browser Observation Refs validate the original pair, then fail closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
@@ -164,7 +164,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "usage": "aos do hover <ref:<snapshot-id>:<ref>|browser:<session>/<ref>|x,y> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run]"
+          "usage": "aos do hover <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run] | aos do hover <x,y> [--dry-run]"
         },
         {
           "args": [
@@ -186,7 +186,7 @@
               "id": "state-id",
               "kind": "flag",
               "required": false,
-              "summary": "Perception state id this action was chosen from",
+              "summary": "Required original state id for direct browser Observation Ref endpoints",
               "token": "--state-id",
               "value_type": "string"
             },
@@ -194,7 +194,7 @@
               "id": "workspace",
               "kind": "flag",
               "required": false,
-              "summary": "Agent workspace id for ref:<id> targets",
+              "summary": "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token": "--workspace",
               "value_type": "string"
             },
@@ -202,7 +202,7 @@
               "id": "snapshot",
               "kind": "flag",
               "required": false,
-              "summary": "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary": "Optional snapshot assertion that must match the scoped ref target",
               "token": "--snapshot",
               "value_type": "string"
             },
@@ -210,7 +210,7 @@
               "id": "dry-run",
               "kind": "flag",
               "required": false,
-              "summary": "Validate and describe the action without executing it",
+              "summary": "Run the same validation without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
               "token": "--dry-run",
               "value_type": "bool"
             }
@@ -218,9 +218,9 @@
           "examples": [
             "aos do drag ref:<snapshot-id>:r2 ref:<snapshot-id>:r3 --workspace default --dry-run",
             "aos do drag ref:<snapshot-id>:r2 ref:<snapshot-id>:r3 --workspace default",
-            "aos do drag browser:todo/e1 browser:todo/e2"
+            "aos do drag browser:todo/e1 browser:todo/e2 --state-id see_abc123def456"
           ],
-          "summary": "Saved-ref and browser drag validate both endpoints before mutation and return post_action.recommended_next_command for recapture with aos see capture --save before verification",
+          "summary": "Browser Observation Ref drag validates both original pairs, then fails closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
@@ -289,14 +289,6 @@
               }
             },
             {
-              "id": "state-id",
-              "kind": "flag",
-              "required": false,
-              "summary": "Perception state id this action was chosen from",
-              "token": "--state-id",
-              "value_type": "string"
-            },
-            {
               "id": "dry-run",
               "kind": "flag",
               "required": false,
@@ -347,7 +339,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "usage": "aos do drag <canvas:<canvas-id>/<ref>> (--by <dx,dy>|--to-value <value>) [--playback auto|immediate|human] [--state-id id] [--dry-run]"
+          "usage": "aos do drag <canvas:<canvas-id>/<ref>> (--by <dx,dy>|--to-value <value>) [--playback auto|immediate|human] [--dry-run]"
         },
         {
           "args": [
@@ -372,14 +364,6 @@
               "summary": "Native coordinate drag speed in pixels/sec",
               "token": "--speed",
               "value_type": "int"
-            },
-            {
-              "id": "state-id",
-              "kind": "flag",
-              "required": false,
-              "summary": "Perception state id this action was chosen from",
-              "token": "--state-id",
-              "value_type": "string"
             },
             {
               "id": "dry-run",
@@ -411,7 +395,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "usage": "aos do drag <x1,y1> <x2,y2> [--speed N] [--state-id id] [--dry-run]"
+          "usage": "aos do drag <x1,y1> <x2,y2> [--speed N] [--dry-run]"
         },
         {
           "args": [
@@ -449,7 +433,7 @@
               "id": "state-id",
               "kind": "flag",
               "required": false,
-              "summary": "Perception state id this action was chosen from",
+              "summary": "Required original state id for browser Observation Ref targets; coordinates reject it",
               "token": "--state-id",
               "value_type": "string"
             },
@@ -457,7 +441,7 @@
               "id": "workspace",
               "kind": "flag",
               "required": false,
-              "summary": "Agent workspace id for ref:<id> targets",
+              "summary": "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token": "--workspace",
               "value_type": "string"
             },
@@ -465,7 +449,7 @@
               "id": "snapshot",
               "kind": "flag",
               "required": false,
-              "summary": "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary": "Optional snapshot assertion that must match the scoped ref target",
               "token": "--snapshot",
               "value_type": "string"
             },
@@ -473,7 +457,7 @@
               "id": "dry-run",
               "kind": "flag",
               "required": false,
-              "summary": "Validate and describe the action without executing it",
+              "summary": "Run the same validation without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
               "token": "--dry-run",
               "value_type": "bool"
             }
@@ -481,10 +465,10 @@
           "examples": [
             "aos do scroll ref:<snapshot-id>:r2 0,-200 --workspace default --dry-run",
             "aos do scroll ref:<snapshot-id>:r2 0,-200 --workspace default",
-            "aos do scroll browser:todo/e21 0,-200",
+            "aos do scroll browser:todo/e21 0,-200 --state-id see_abc123def456",
             "aos do scroll 500,300 --dy -3"
           ],
-          "summary": "Saved-ref scroll validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
+          "summary": "Coordinate and browser-session scroll remain available; browser Observation Refs validate the original pair, then fail closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
@@ -501,7 +485,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "usage": "aos do scroll <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> <dx,dy> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run] | aos do scroll <x,y> [--dx N] [--dy N] [--state-id id] [--dry-run]"
+          "usage": "aos do scroll <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> <dx,dy> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run] | aos do scroll <x,y> [--dx N] [--dy N] [--dry-run]"
         }
       ],
       "path": [

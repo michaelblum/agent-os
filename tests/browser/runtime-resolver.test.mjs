@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import {
   MIN_PLAYWRIGHT_CLI_VERSION,
   resolvePlaywrightCliRuntime,
+  resolveReviewedObservationRuntime,
 } from '../../scripts/lib/playwright-cli-runtime.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -41,6 +42,37 @@ test('resolver finds explicit env override', () => {
   assert.equal(result.version, '0.1.15');
 });
 
+test('Observation Ref runtime rejects a merely self-reported override version', () => {
+  const root = tempDir();
+  const cli = path.join(root, 'explicit-playwright-cli');
+  writeExecutable(cli, '#!/bin/bash\necho "0.1.15"\n');
+  const result = resolveReviewedObservationRuntime({ repoRoot: root, env: env({ AOS_PLAYWRIGHT_CLI: cli }) });
+  assert.equal(result.status, 'unsupported');
+  assert.equal(result.code, 'TARGET_ACTION_UNSUPPORTED');
+  assert.match(result.error, /package-backed/);
+});
+
+test('Observation Ref runtime identity covers package implementation files beyond the launcher', () => {
+  const root = tempDir();
+  const dir = path.join(root, 'node_modules', '@playwright', 'cli');
+  const cli = path.join(dir, 'playwright-cli');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'package.json'), '{"name":"@playwright/cli","version":"0.1.15"}\n');
+  writeExecutable(cli, '#!/bin/bash\necho stable-launcher\n');
+  fs.writeFileSync(path.join(dir, 'implementation.js'), 'export const implementation = "first";\n');
+  const runtimeEnv = env({ AOS_PLAYWRIGHT_CLI: cli });
+  const first = resolveReviewedObservationRuntime({ repoRoot: root, env: runtimeEnv });
+  assert.equal(first.status, 'ok');
+  assert.equal(first.observation_identity.version_source, 'package.json');
+  assert.match(first.observation_identity.executable_sha256, /^[a-f0-9]{64}$/);
+  assert.match(first.observation_identity.package_closure_sha256, /^[a-f0-9]{64}$/);
+  fs.writeFileSync(path.join(dir, 'implementation.js'), 'export const implementation = "second";\n');
+  const second = resolveReviewedObservationRuntime({ repoRoot: root, env: runtimeEnv });
+  assert.equal(second.status, 'ok');
+  assert.equal(first.observation_identity.executable_sha256, second.observation_identity.executable_sha256);
+  assert.notEqual(first.observation_identity.package_closure_sha256, second.observation_identity.package_closure_sha256);
+});
+
 test('resolver finds fake local repo-owned runtime path', () => {
   const root = tempDir();
   const cli = path.join(root, 'node_modules', '.bin', 'playwright-cli');
@@ -49,6 +81,19 @@ test('resolver finds fake local repo-owned runtime path', () => {
   assert.equal(result.status, 'ok');
   assert.equal(result.path, cli);
   assert.equal(result.source, 'repo:node_modules/.bin/playwright-cli');
+});
+
+test('repo wrapper version comes from its exact package pin, not engine output', () => {
+  const root = tempDir();
+  const cli = path.join(root, 'scripts', 'aos-playwright-cli');
+  writeExecutable(cli, '#!/bin/bash\n# npx @playwright/cli@0.1.15\necho "1.62.0-alpha-engine"\n');
+  const result = resolvePlaywrightCliRuntime({ repoRoot: root, env: env({ AOS_PLAYWRIGHT_CLI_DISABLE_REPO: '0' }) });
+  assert.equal(result.status, 'ok');
+  assert.equal(result.version, '0.1.15');
+  assert.equal(result.version_source, 'repo-wrapper-pin');
+  const reviewed = resolveReviewedObservationRuntime({ repoRoot: root, env: env({ AOS_PLAYWRIGHT_CLI_DISABLE_REPO: '0' }) });
+  assert.equal(reviewed.status, 'unsupported');
+  assert.equal(reviewed.code, 'TARGET_ACTION_UNSUPPORTED');
 });
 
 test('resolver falls back to PATH', () => {
@@ -115,11 +160,6 @@ test('package.json version is preferred over binary --version', () => {
   assert.equal(result.status, 'too_old');
   assert.equal(result.version_source, 'package.json');
   assert.equal(result.version, '0.1.1');
-});
-
-test('browser proof code does not depend on command -v playwright-cli', () => {
-  const proof = fs.readFileSync(path.join(repoRoot, 'tests', 'manual', 'cross-backend-saved-ref-regression-proof.sh'), 'utf8');
-  assert.equal(proof.includes('command -v playwright-cli'), false);
 });
 
 test('Swift browser runtime resolver stays documented as the native bootstrap mirror', () => {

@@ -97,31 +97,21 @@ with the exact command and guard posture.
 `node scripts/aos-dev-workflow.mjs recommend --json` enforces this only for
 changed proof assets; untouched legacy tests remain runnable debt.
 
-For cross-backend agent workspace saved-ref regressions, use:
+For deterministic Target Handle Runtime V1 coverage, use:
 
 ```bash
-bash tests/agent-workspace-cross-backend-proof.sh
+node --test tests/target-handle-runtime.test.mjs tests/agent-workspace-v1.test.mjs
+bash tests/native-target-locator-selection.sh
+bash tests/agent-workspace-contract-drift.sh
 ```
 
-That deterministic fixture lane wraps
-`tests/manual/cross-backend-saved-ref-regression-proof.sh` and verifies the
-artifact shape for browser, AOS canvas, and native AX rows. Manual or live
-reruns must preserve the same `/tmp` proof root, `summary.json`, per-backend
-artifact directories, row statuses, build telemetry, and cleanup evidence.
-For a guarded repo-runtime proof with allowed `blocked_runtime` classifications,
-run:
-
-```bash
-AOS_SAVED_REF_PROOF_MODE=guarded-live bash tests/manual/cross-backend-saved-ref-regression-proof.sh
-```
-
-In guarded-live mode, browser rows use `./aos browser _check-version` for
-runtime resolution. The resolver order is `AOS_PLAYWRIGHT_CLI`, repo-local
-`node_modules/.bin/playwright-cli`, repo-owned `scripts/aos-playwright-cli`, and
-then `playwright-cli` on `PATH`. Browser `click` and `fill` run against a
-harness-owned local HTTP fixture; raw Playwright is allowed only for setup,
-readback, and cleanup, while the mutation path must dispatch through saved-ref
-validation.
+These tests use isolated state roots, fake browser executables, pure schemas,
+and a synthetic Swift selector harness. They prove browser generation
+supersession, minting-backend implementation-closure binding, exact-pair
+validation followed by fail-closed no-dispatch, V0 byte-preserving rejection,
+Locator exact-one/index/near rules, one-shot and native-session coordinate/state
+rejection, schema-valid native handle emission, and removal of active
+reacquisition behavior without executing `./aos` or touching native UI/TCC.
 
 ## Rebuild `./aos` First
 

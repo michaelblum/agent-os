@@ -3,9 +3,13 @@
 import { spawnSync } from 'node:child_process';
 import {
   directNativeAxProofStory,
-  NATIVE_AX_SAVED_REF_REQUIRED_IDENTITY_FACTS,
+  NATIVE_AX_LOCATOR_INPUT_FACTS,
   nativeAxNoForegroundConformance,
 } from './lib/agent-workspace/contracts.mjs';
+import {
+  NATIVE_AX_LOCATOR_MAX_DEPTH,
+  NATIVE_AX_LOCATOR_MAX_TIMEOUT_MS,
+} from './lib/target-handle-runtime.mjs';
 
 function error(message, code) {
   process.stderr.write(`${JSON.stringify({ code, error: message })}\n`);
@@ -100,6 +104,39 @@ function validateFlagTypes(args) {
   }
 }
 
+function validateNativeAXLocatorArgs(verb, args) {
+  if (!['press', 'set-value', 'focus'].includes(verb)) return;
+  const locatorFlags = ['--pid', '--window', '--role', '--title', '--label', '--identifier', '--index', '--near', '--match', '--depth', '--timeout'];
+  for (const flag of locatorFlags) {
+    if (flagIndexes(args, flag).length > 1) error(`native AX Locator accepts ${flag} at most once`, 'TARGET_HANDLE_INVALID');
+  }
+  const positiveFlags = ['--pid', '--window', '--timeout'];
+  for (const flag of positiveFlags) {
+    const value = flagValue(args, flag);
+    if (value !== null && (!isInt(value) || Number(value) <= 0)) error(`${flag} must be a positive integer`, 'TARGET_HANDLE_INVALID');
+  }
+  for (const flag of ['--index', '--depth']) {
+    const value = flagValue(args, flag);
+    if (value !== null && (!isInt(value) || Number(value) < 0)) error(`${flag} must be a non-negative integer`, 'TARGET_HANDLE_INVALID');
+  }
+  const index = flagValue(args, '--index');
+  if (index !== null && Number(index) >= 1024) {
+    error('--index must be less than 1024', 'TARGET_HANDLE_INVALID');
+  }
+  const depth = flagValue(args, '--depth');
+  if (depth !== null && Number(depth) > NATIVE_AX_LOCATOR_MAX_DEPTH) {
+    error(`--depth must be at most ${NATIVE_AX_LOCATOR_MAX_DEPTH}`, 'TARGET_HANDLE_INVALID');
+  }
+  const timeout = flagValue(args, '--timeout');
+  if (timeout !== null && Number(timeout) > NATIVE_AX_LOCATOR_MAX_TIMEOUT_MS) {
+    error(`--timeout must be at most ${NATIVE_AX_LOCATOR_MAX_TIMEOUT_MS} ms`, 'TARGET_HANDLE_INVALID');
+  }
+  const match = flagValue(args, '--match');
+  if (match !== null && !['exact', 'contains', 'regex'].includes(match)) {
+    error('--match must be exact, contains, or regex', 'TARGET_HANDLE_INVALID');
+  }
+}
+
 function setValueSource(args, targetIndex = null) {
   const valueFlagIndexes = flagIndexes(args, '--value');
   if (valueFlagIndexes.length > 1) {
@@ -138,6 +175,13 @@ function normalizeSetValueArgs(args) {
 function validate(verb, args) {
   const pos = positionalArgs(args);
   validateFlagTypes(args);
+  validateNativeAXLocatorArgs(verb, args);
+  if (args.includes('--index') && args.includes('--near')) {
+    error('native AX Locators accept --index or --near, not both', 'TARGET_HANDLE_INVALID');
+  }
+  if (args.includes('--state-id')) {
+    error('Coordinates and native AX Locators do not support --state-id', 'TARGET_STATE_UNSUPPORTED');
+  }
   if (verb !== 'menu' && args.includes('--path')) unknownArg('--path');
   switch (verb) {
     case 'click':
@@ -312,17 +356,17 @@ function directNativeAXConformance(verb, args, payload = null) {
       reasons: [
         'direct AX actions use caller-provided current pid, role, and filter matching instead of saved-ref durable identity',
         dryRun
-          ? 'dry-run validates command shape but does not prove current enabled state, current element uniqueness, or no-foreground behavior'
-          : 'the wrapper reports the native primitive result but has no enabled-state, focus, cursor, Space, permission, or fallback baseline',
+          ? 'dry-run resolves the current AX Locator, requires one enabled action-compatible match, and performs no mutation; it does not prove no-foreground behavior'
+          : 'the wrapper reports the native primitive result but has no focus, cursor, Space, permission, or fallback baseline',
         ...(fallbackReported
           ? ['the underlying native action reported fallback use; no foreground-preservation guarantee is claimed']
           : []),
       ],
-      missing_identity_facts: NATIVE_AX_SAVED_REF_REQUIRED_IDENTITY_FACTS.filter((fact) => !availableSet.has(fact)),
+      missing_identity_facts: NATIVE_AX_LOCATOR_INPUT_FACTS.filter((fact) => !availableSet.has(fact)),
       available_identity_facts: availableIdentityFacts,
     },
     known_limits: [
-      'direct AX actions use current AX matching semantics and do not make saved-ref durable identity claims',
+      'direct AX actions use current AX Locator matching semantics',
       'no foreground, focus, cursor, or Space preservation guarantee is claimed by this wrapper',
       `native ${verb} responses require live HITL proof before no-foreground conformance can be upgraded`,
       ...(fallbackReported

@@ -59,11 +59,14 @@ export function validateJSONFile(instancePath) {
 import json, sys
 from pathlib import Path
 from jsonschema import Draft202012Validator
+from referencing import Registry, Resource
 
 schema = json.loads(Path(sys.argv[1]).read_text())
 instance = json.loads(Path(sys.argv[2]).read_text())
+target_schema = json.loads(Path(sys.argv[3]).read_text())
 Draft202012Validator.check_schema(schema)
-validator = Draft202012Validator(schema)
+registry = Registry().with_resource(target_schema["$id"], Resource.from_contents(target_schema))
+validator = Draft202012Validator(schema, registry=registry)
 errors = sorted(validator.iter_errors(instance), key=lambda e: list(e.path))
 if errors:
     for error in errors[:8]:
@@ -72,6 +75,7 @@ if errors:
 `,
       schemaPath,
       instancePath,
+      path.join(repoRoot, 'shared/schemas/aos-target-handle-v1.schema.json'),
     ],
     { encoding: 'utf8' },
   );
@@ -87,15 +91,19 @@ export function rejectJSONFile(instancePath) {
 import json, sys
 from pathlib import Path
 from jsonschema import Draft202012Validator
+from referencing import Registry, Resource
 
 schema = json.loads(Path(sys.argv[1]).read_text())
 instance = json.loads(Path(sys.argv[2]).read_text())
-validator = Draft202012Validator(schema)
+target_schema = json.loads(Path(sys.argv[3]).read_text())
+registry = Registry().with_resource(target_schema["$id"], Resource.from_contents(target_schema))
+validator = Draft202012Validator(schema, registry=registry)
 errors = sorted(validator.iter_errors(instance), key=lambda e: list(e.path))
 sys.exit(0 if errors else 1)
 `,
       schemaPath,
       instancePath,
+      path.join(repoRoot, 'shared/schemas/aos-target-handle-v1.schema.json'),
     ],
     { encoding: 'utf8' },
   );
@@ -139,7 +147,7 @@ export async function pendingAnnotationTempEnv(prefix = 'aos-pending-annotation-
 
 export function savedCaptureFixture({ snapshot = 'snap1', refs = [], status = 'success' } = {}) {
   return {
-    schema_version: 'aos.agent-workspace.v0',
+    schema_version: 'aos.agent-workspace.v1',
     status,
     workspace_id: 'ws1',
     snapshot_id: snapshot,
@@ -151,24 +159,38 @@ export function savedCaptureFixture({ snapshot = 'snap1', refs = [], status = 's
   };
 }
 
-export function savedRefFixture({ ref = 'r1', snapshot = 'snap1', backend = 'browser', resolutionClass = 'stable', summary = 'Selected target' } = {}) {
+export function savedRefFixture({ ref = 'r1', snapshot = 'snap1', backend = 'browser', summary = 'Selected target', supportedActions = null } = {}) {
+  const handle = backend === 'browser'
+    ? { kind: 'observation_ref', backend: 'browser', state_id: 'see_1', scope: { session: 'fixture' }, ref: 'e1' }
+    : backend === 'aos_canvas'
+      ? { kind: 'locator', backend: 'aos_canvas', query: { canvas_id: 'fixture', ref: 'save' } }
+      : backend === 'native_ax'
+        ? { kind: 'locator', backend: 'native_ax', query: { pid: 42, role: 'AXButton', identifier: 'save' } }
+        : null;
   return {
     ref,
+    ref_scope: 'snapshot',
     workspace_id: 'ws1',
     snapshot_id: snapshot,
+    capture_target: 'browser:fixture',
+    capture_mode: 'som',
     backend,
-    resolution_class: resolutionClass,
+    handle,
     confidence: 'high',
+    supported_actions: supportedActions ?? (backend === 'aos_canvas' ? ['click'] : backend === 'native_ax' ? ['press'] : []),
     target_summary: summary,
-    action_target: `ref:${snapshot}:${ref}`,
+    hint_facts: {},
+    copyable_action_target: `ref:${snapshot}:${ref}`,
     artifact_refs: [{ role: 'ref_summary', path: `/tmp/${snapshot}-${ref}.json` }],
+    warnings: [],
+    known_limits: backend === 'browser' ? ['browser_observation_identity_unproven'] : [],
   };
 }
 
 export function sourceCaptureRecordFixture({ selectedRef = 'r1', refCount = 1 } = {}) {
   return {
     kind: 'saved_capture',
-    schema_version: 'aos.agent-workspace.v0',
+    schema_version: 'aos.agent-workspace.v1',
     status: 'success',
     workspace_id: 'ws1',
     snapshot_id: 'snap1',
@@ -178,6 +200,6 @@ export function sourceCaptureRecordFixture({ selectedRef = 'r1', refCount = 1 } 
     query: 'operator selection',
     ref_count: refCount,
     selected_backend: 'browser',
-    selected_resolution_class: 'stable',
+    selected_handle_kind: 'observation_ref',
   };
 }

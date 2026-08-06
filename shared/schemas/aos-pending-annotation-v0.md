@@ -9,14 +9,11 @@ or explicit fallback evidence under the public target-handle contract.
 
 ## ADR 0040 Transition Boundary
 
-`target.saved_ref` is current persisted transport evidence awaiting the target
-handle runtime migration. It is not durable target identity or a third public
-target type. A public Observation Ref is the exact `(state_id, ref)` pair and
-must reject when stale; a Locator is an explicit machine-fact query that
-re-resolves for each operation. Current saved-ref routes that accept bare refs,
-classify them as `snapshot_scoped`, `reacquirable`, or `stable`, or
-automatically reacquire them are implementation facts, not exceptions to that
-contract.
+`target.saved_ref` is persisted storage indirection to exactly one discriminated
+V1 `handle`. Browser Observation Refs preserve the original `(state_id, ref)`
+pair and session scope; canvas and native AX Locators preserve a machine query
+that re-resolves for each operation. Bare refs and automatic reacquisition are
+unsupported.
 
 The current native completion event replaces its admitted target `title` and
 `label` fields with `null`; that is an ADR 0040 fidelity gap. Entered text stays
@@ -142,12 +139,10 @@ calling create; toolkit runtime helpers must not manufacture this record shape.
 
 `create --from-capture-json <path|->` projects compact saved perception output
 from `aos see capture --save --json` or `aos see refs --json` into an
-annotation record. Browser, AOS canvas, and native AX saved refs become
-`saved_ref` annotations only when the current backend-specific classification
-reports them actionable: browser `snapshot_scoped`, AOS canvas `reacquirable`,
-and native AX `stable`. Those legacy classifications describe current runtime
-projection; they do not define public handle types or prove durable identity.
-Backend/resolution mismatches and missing refs become `fallback_only`; stale
+annotation record. Browser, AOS canvas, and native AX saved records become
+`saved_ref` annotations only when they contain one supported V1 handle and at
+least one supported action. Backend/handle mismatches and missing refs become
+`unsupported`; stale
 captures become `stale`; unsupported refs become `unsupported`; multiple refs
 without `--ref <id>` become blocked records with
 `capability.status: ambiguous`.

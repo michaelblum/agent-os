@@ -22,6 +22,13 @@ tests.
   stress in separate scenario drivers over shared lifecycle support.
 - Do not weaken assertions to match stale behavior; update the owning contract
   or source when behavior intentionally changes.
+- Core Target Handle V1 acceptance tests use isolated state roots, fake Playwright/AOS
+  executables, and pure Swift selection harnesses. They must prove original-pair
+  validation plus fail-closed browser no-dispatch, independently verified
+  minting-backend implementation-closure identity, V0 byte-preserving rejection,
+  exact-one Locator behavior, one-shot and native-session state rejection, and
+  schema-valid native handle emission or omission, and the absence of
+  reacquisition or first-match helpers without executing `./aos`.
 - Policy drift guards must name the exact active source surfaces and prohibited
   doctrine they protect. Do not globally ban mechanically valid terms such as
   `dry-run`, `authorization`, `allowlist`, `redaction`, Gate, or Work Record.
@@ -108,9 +115,10 @@ tests.
 - Keep agent workspace fixture helpers split by domain under
   `tests/lib/agent-workspace-fixtures/`; `tests/lib/agent-workspace-fixtures.sh`
   is only the compatibility shim that sources those files.
-- For cross-backend agent workspace saved-ref regressions, keep the deterministic
-  fixture lane in `tests/agent-workspace-cross-backend-proof.sh` aligned with
-  the artifact-producing manual harness instead of adding ad hoc proof scripts.
+- Keep Target Handle V1 deterministic coverage in
+  `target-handle-runtime.test.mjs`, `agent-workspace-v1.test.mjs`, and
+  `native-target-locator-selection.sh`; guarded legacy live proofs are not V1
+  acceptance evidence.
 
 ## Verification
 

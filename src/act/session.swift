@@ -103,6 +103,15 @@ func runSession(profileName: String) -> Never {
 /// - **Meta actions:** context, status, end
 /// - **Channel binding:** bind
 func dispatchAction(_ req: ActionRequest, state: SessionState) -> ActionResponse {
+    if let code = sessionTargetStateErrorCode(req.state_id) {
+        return errorResponse(
+            req.action,
+            state: state,
+            message: "state_id is unsupported for native session actions",
+            code: code
+        )
+    }
+
     // Re-read channel file before each action if bound
     refreshChannelBinding(state: state)
 

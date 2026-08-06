@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
-# Exercises src/browser/target-parser.swift via the hidden _parse-target helper.
+# Exercises src/browser/target-parser.swift through a focused pure Swift harness.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+BIN="$(mktemp -d)/browser-target-parser-harness"
+trap 'rm -rf "$(dirname "$BIN")"' EXIT
+swiftc \
+    "$ROOT/src/browser/target-parser.swift" \
+    "$ROOT/tests/fixtures/browser-target-parser-harness.swift" \
+    -o "$BIN"
 
 assert_parse() {
     local input="$1" expected_json="$2"
     local actual
-    actual=$(./aos browser _parse-target "$input" 2>&1)
+    actual=$("$BIN" "$input" 2>&1)
     if [[ "$actual" != "$expected_json" ]]; then
         echo "FAIL: input '$input'" >&2
         echo "  expected: $expected_json" >&2
@@ -17,7 +25,7 @@ assert_parse() {
 assert_error() {
     local input="$1" expected_code="$2"
     local actual
-    if actual=$(./aos browser _parse-target "$input" 2>&1); then
+    if actual=$("$BIN" "$input" 2>&1); then
         echo "FAIL: input '$input' — expected error but got success: $actual" >&2
         exit 1
     fi
@@ -54,8 +62,9 @@ assert_error "browser:日本語" "INVALID_TARGET"
 assert_error "browser:ñame/e1" "INVALID_TARGET"
 assert_error "browser:app/ëe1" "INVALID_TARGET"
 assert_error "browser:app/日本" "INVALID_TARGET"
+assert_error "browser:app/button" "INVALID_TARGET"
 
-if out=$(./aos browser _parse-target "browser:todo" extra 2>&1); then
+if out=$("$BIN" "browser:todo" extra 2>&1); then
     echo "FAIL: expected extra argument error, got success: $out" >&2
     exit 1
 fi

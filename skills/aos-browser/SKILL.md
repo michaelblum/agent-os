@@ -15,8 +15,9 @@ Use upstream Playwright CLI skills for browser primitives AOS does not wrap.
    help before using browser arguments.
 2. Use `aos focus` when a named browser session/channel is needed.
 3. Capture browser state through `aos see capture browser:<session> --save`.
-4. Act through an exact current target; use current saved-handle validation as
-   implementation plumbing until Observation Refs and Locators are distinct.
+4. Treat each saved address as storage indirection to one Observation Ref or
+   Locator. Browser Observation Ref actions currently validate, then fail closed
+   before backend dispatch; use only session actions or another explicit route.
 5. Recapture after mutation. Keep raw output or apply an explicit caller-owned
    compacting, persistence, masking, or projection transform.
 
@@ -41,13 +42,16 @@ installation, and use a temp target for tests.
 ## Target Contract
 
 - Observation Ref `(state_id, ref)` — ephemeral and stale-rejecting.
-- Locator — re-resolves current browser state and rejects zero or multiple matches.
+- Locator — canvas/native only; re-resolves current state and rejects zero or multiple action-compatible matches. V1 has no browser Locator grammar.
 - `ref:<snapshot-id>:<ref>` — current saved-workspace handle, not a Locator.
-- Direct browser refs are current implementation transport strings.
-- Direct browser `type` and `key` are current-host routes.
-- Saved-handle `type` and `key` are supported for text-compatible browser refs;
-  dry-run is an optional preview and effectful dispatch performs current-target
-  validation.
+- Direct browser refs and saved browser handles are Observation Refs. A
+  ref-bearing request requires its original `state_id` and validates that pair.
+- The current backend cannot atomically bind ref resolution to the AOS capture
+  generation, so every ref-bearing dry-run/effect request returns
+  `TARGET_ACTION_UNSUPPORTED` before backend dispatch. Never recapture, search
+  by label, or substitute a new state.
+- Direct session-only browser `scroll`, `type`, `key`, and `navigate` remain
+  current-host routes and do not accept `state_id`.
 
 ## Stop
 

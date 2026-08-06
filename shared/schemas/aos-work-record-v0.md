@@ -1475,10 +1475,10 @@ The canonical examples for this sketch are JSON fixtures:
 - [`valid/saved-ref-browser-fill-or-canvas-set-value.json`](fixtures/aos-work-record-v0/valid/saved-ref-browser-fill-or-canvas-set-value.json)
   is generated from
   [`evidence/saved-ref-browser-fill-or-canvas-set-value.json`](fixtures/aos-work-record-v0/evidence/saved-ref-browser-fill-or-canvas-set-value.json).
-  It records a saved-ref browser fill with before saved capture, dry-run,
-  dispatch, after saved capture/readback, cleanup evidence, backend/strategy/
-  fallback metadata, selected Saved Ref, resolved target, recommended next
-  capture command, and health `valid`.
+  It is frozen historical V0 evidence of the superseded browser reacquisition
+  path, including dry-run, dispatch, readback, and cleanup. It is not Target
+  Handle V1 runtime acceptance: current browser Observation Ref effects remain
+  fail-closed unless exact backend identity can be proven.
 - [`valid/repairable-stale-saved-ref.json`](fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json)
   preserves stale saved-ref dry-run/action evidence and classifies health
   `repairable`; its Gate-coupled repair policy is legacy migration evidence,
@@ -1506,14 +1506,6 @@ Schema cannot express alone: every Claim Result must reference an existing
 Claim, every Claim Postcondition reference must resolve inside
 `execution_map.postconditions[]`, and derived verifier indexes must point to
 known Claims.
-
-The guarded-live proof harness
-`tests/manual/cross-backend-saved-ref-regression-proof.sh` emits the same
-record shape for a controlled browser saved-ref fill when
-`AOS_SAVED_REF_PROOF_MODE=guarded-live`. The Work Record lives under the proof
-root at `browser/work-record/fill-work-record.json`; companion source,
-verifier, and summary artifacts stay beside it. That harness is proof
-production, not a public recorder command.
 
 ## Migration Notes
 

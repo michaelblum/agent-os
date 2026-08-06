@@ -61,9 +61,12 @@ private func recordCLIError(message: String, code: String) {
     }
 }
 
-func exitError(_ message: String, code: String) -> Never {
+func exitError(_ message: String, code: String, details: [String: Any] = [:]) -> Never {
     recordCLIError(message: message, code: code)
-    let obj: [String: String] = ["error": message, "code": code]
+    var obj: [String: Any] = ["error": message, "code": code]
+    for (key, value) in details where key != "error" && key != "code" {
+        obj[key] = value
+    }
     if let data = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]),
        let s = String(data: data, encoding: .utf8) {
         FileHandle.standardError.write(s.data(using: .utf8)!)

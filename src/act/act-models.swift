@@ -106,6 +106,9 @@ struct ActionResponse: Encodable {
     // Error fields
     var error: String?
     var code: String?
+    var candidate_count: Int?
+    var candidate_count_is_lower_bound: Bool?
+    var candidates: [AXTargetCandidateFact]?
 
     // Status-specific
     var profile: String?
@@ -117,6 +120,14 @@ struct ActionResponse: Encodable {
 
     // Action introspection (for list_actions)
     var available: [AvailableAction]?
+}
+
+struct AXTargetCandidateFact: Encodable {
+    let role: String?
+    let title: String?
+    let label: String?
+    let identifier: String?
+    let bounds: BoundsJSON?
 }
 
 struct ActionExecutionMetadata: Encodable {
@@ -300,6 +311,7 @@ enum MatchMode: String {
 /// All fields that can identify an AX element.
 struct ElementQuery {
     var pid: pid_t
+    var windowID: Int?
     var role: String?
     var title: String?
     var label: String?
@@ -315,6 +327,7 @@ struct ElementQuery {
     /// Build from an ActionRequest + session context.
     init(from req: ActionRequest, context: SessionContext, profile: BehaviorProfile) {
         self.pid = pid_t(req.pid ?? context.pid ?? 0)
+        self.windowID = req.window_id
         self.role = req.role
         self.title = req.title
         self.label = req.label
@@ -331,11 +344,12 @@ struct ElementQuery {
     }
 
     /// Direct init for internal use (subtree search, CLI commands).
-    init(pid: pid_t, role: String? = nil, title: String? = nil, label: String? = nil,
+    init(pid: pid_t, windowID: Int? = nil, role: String? = nil, title: String? = nil, label: String? = nil,
          identifier: String? = nil, value: String? = nil, index: Int? = nil,
          near: CGPoint? = nil, matchMode: MatchMode = .exact,
          maxDepth: Int = 20, timeoutMs: Int = 5000, subtree: SubtreeSpec? = nil) {
         self.pid = pid
+        self.windowID = windowID
         self.role = role
         self.title = title
         self.label = label

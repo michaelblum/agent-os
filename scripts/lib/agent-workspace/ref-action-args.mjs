@@ -21,9 +21,8 @@ export function parseRefToken(value) {
   if (!value?.startsWith?.('ref:')) return null;
   const body = value.slice('ref:'.length);
   const parts = body.split(':');
-  if (parts.length === 1) return { snapshot_id: null, ref: validateLocalID(parts[0], 'ref id') };
   if (parts.length === 2) return { snapshot_id: validateLocalID(parts[0], 'snapshot id'), ref: validateLocalID(parts[1], 'ref id') };
-  exitAgentWorkspaceError('ref target must be ref:<id> or ref:<snapshot-id>:<id>', 'INVALID_REF_TARGET');
+  exitAgentWorkspaceError('saved handle target must be ref:<snapshot-id>:<ref-id>', 'TARGET_HANDLE_INVALID');
 }
 
 export function stripWorkspaceFlags(args) {

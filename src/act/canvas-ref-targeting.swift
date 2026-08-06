@@ -41,6 +41,25 @@ struct CanvasRefClickResolution {
     let point: CGPoint
 }
 
+private let maxCanvasLocatorCandidateFacts = 8
+
+private func canvasLocatorCandidateFact(_ target: AOSSemanticTargetJSON) -> [String: Any] {
+    var fact: [String: Any] = [
+        "ref": target.ref,
+        "role": target.role,
+        "enabled": target.enabled,
+    ]
+    if let name = target.name { fact["name"] = name }
+    if let surface = target.surface { fact["surface"] = surface }
+    if let bounds = target.provenance.bounds ?? target.provenance.frame {
+        fact["bounds"] = [
+            "x": bounds.x, "y": bounds.y,
+            "width": bounds.width, "height": bounds.height,
+        ]
+    }
+    return fact
+}
+
 func parseCanvasRefTarget(_ raw: String) -> CanvasRefTarget? {
     guard raw.hasPrefix("canvas:") else { return nil }
     let body = String(raw.dropFirst("canvas:".count))
@@ -58,19 +77,19 @@ func resolveCanvasRefTarget(_ rawTarget: String, primitive: String? = nil) -> Ca
     }
 
     guard let canvas = readCanvasInfo(id: parsed.canvasID) else {
-        exitError("Canvas '\(parsed.canvasID)' not found", code: "CANVAS_NOT_FOUND")
+        exitError("Canvas '\(parsed.canvasID)' not found", code: "TARGET_NOT_FOUND")
     }
     if let segments = canvas.segments, !segments.isEmpty {
         exitError(
             "Ref click does not support segmented DesktopWorld canvases in V0: \(parsed.canvasID)",
-            code: "UNSUPPORTED_SURFACE"
+            code: "TARGET_ACTION_UNSUPPORTED"
         )
     }
     if canvas.suspended == true {
-        exitError("Canvas '\(parsed.canvasID)' is suspended", code: "CANVAS_SUSPENDED")
+        exitError("Canvas '\(parsed.canvasID)' is suspended", code: "TARGET_DISABLED")
     }
     if !canvas.interactive {
-        exitError("Canvas '\(parsed.canvasID)' is not interactive", code: "CANVAS_NOT_INTERACTIVE")
+        exitError("Canvas '\(parsed.canvasID)' is not interactive", code: "TARGET_DISABLED")
     }
     guard canvas.at.count == 4, canvas.at[2] > 0, canvas.at[3] > 0 else {
         exitError("Canvas '\(parsed.canvasID)' has invalid bounds", code: "INVALID_CANVAS_BOUNDS")
@@ -89,40 +108,62 @@ func resolveCanvasRefTarget(_ rawTarget: String, primitive: String? = nil) -> Ca
     guard let targets = collectCanvasSemanticTargets(canvasID: parsed.canvasID, scaleFactor: captureScale) else {
         exitError(
             "Unable to collect semantic targets for canvas '\(parsed.canvasID)'",
-            code: "SEMANTIC_TARGETS_UNAVAILABLE"
+            code: "TARGET_RESOLUTION_TIMEOUT"
         )
     }
 
     let matches = targets.filter { target in
         target.provenance.canvas_id == parsed.canvasID && target.ref == parsed.ref
     }
-    guard !matches.isEmpty else {
-        exitError("Ref '\(parsed.ref)' not found on canvas '\(parsed.canvasID)'", code: "REF_NOT_FOUND")
+    let actionCompatibility = primitive.map { action in
+        matches.map { $0.enabled && $0.actions.contains(action) }
     }
-    guard matches.count == 1, let target = matches.first else {
+    let target: AOSSemanticTargetJSON
+    let selection = matches.count == 1
+        ? TargetCandidateSelection.selected(0)
+        : selectTargetCandidate(count: matches.count, actionCompatible: actionCompatibility)
+    switch selection {
+    case .notFound:
+        let reason = matches.isEmpty ? "not found" : "has no action-compatible current match"
+        exitError("Ref '\(parsed.ref)' \(reason) on canvas '\(parsed.canvasID)'", code: "TARGET_NOT_FOUND")
+    case .ambiguous:
+        let ambiguousMatches: [AOSSemanticTargetJSON]
+        if let actionCompatibility {
+            ambiguousMatches = matches.enumerated().compactMap { index, match in
+                actionCompatibility[index] ? match : nil
+            }
+        } else {
+            ambiguousMatches = matches
+        }
         exitError(
-            "Ref '\(parsed.ref)' matched \(matches.count) semantic targets on canvas '\(parsed.canvasID)'",
-            code: "TARGET_AMBIGUOUS"
+            "Ref '\(parsed.ref)' matched \(ambiguousMatches.count) action-compatible semantic targets on canvas '\(parsed.canvasID)'",
+            code: "TARGET_AMBIGUOUS",
+            details: [
+                "candidate_count": ambiguousMatches.count,
+                "candidates": ambiguousMatches.prefix(maxCanvasLocatorCandidateFacts).map(canvasLocatorCandidateFact),
+            ]
         )
+    case .selected(let index):
+        target = matches[index]
     }
     guard target.enabled else {
         exitError("Ref '\(parsed.ref)' on canvas '\(parsed.canvasID)' is disabled", code: "TARGET_DISABLED")
     }
     if let primitive {
-        let actions = target.actions ?? []
+        let actions = target.actions
         guard actions.contains(primitive) else {
             exitError(
                 "Ref '\(parsed.ref)' on canvas '\(parsed.canvasID)' does not support \(primitive)",
-                code: "UNSUPPORTED_ACTION"
+                code: "TARGET_ACTION_UNSUPPORTED"
             )
         }
     }
 
     guard let center = target.provenance.center else {
-        exitError("Ref '\(parsed.ref)' on canvas '\(parsed.canvasID)' has no center", code: "TARGET_GEOMETRY_UNAVAILABLE")
+        exitError("Ref '\(parsed.ref)' on canvas '\(parsed.canvasID)' has no center", code: "TARGET_ACTION_UNSUPPORTED")
     }
     guard let bounds = target.provenance.bounds ?? target.provenance.frame else {
-        exitError("Ref '\(parsed.ref)' on canvas '\(parsed.canvasID)' has no bounds", code: "TARGET_GEOMETRY_UNAVAILABLE")
+        exitError("Ref '\(parsed.ref)' on canvas '\(parsed.canvasID)' has no bounds", code: "TARGET_ACTION_UNSUPPORTED")
     }
 
     let globalX = canvasBounds.origin.x + CGFloat(Double(center.x) / captureScale)
@@ -201,8 +242,23 @@ func dispatchCanvasSemanticValueAction(canvasID: String, ref: String, value: Str
       const primitive = \(encodedPrimitive);
       const clean = (value) => String(value ?? '').replace(/\\s+/g, ' ').trim();
       const matches = Array.from(document.querySelectorAll('[data-aos-ref]')).filter((el) => clean(el.getAttribute('data-aos-ref')) === ref);
-      if (matches.length === 0) return JSON.stringify({ ok: false, code: 'REF_NOT_FOUND', error: `Ref '${ref}' not found` });
-      if (matches.length > 1) return JSON.stringify({ ok: false, code: 'TARGET_AMBIGUOUS', error: `Ref '${ref}' matched ${matches.length} targets` });
+      if (matches.length === 0) return JSON.stringify({ ok: false, code: 'TARGET_NOT_FOUND', error: `Ref '${ref}' not found` });
+      if (matches.length > 1) return JSON.stringify({
+        ok: false,
+        code: 'TARGET_AMBIGUOUS',
+        error: `Ref '${ref}' matched ${matches.length} targets`,
+        candidate_count: matches.length,
+        candidates: matches.slice(0, \(maxCanvasLocatorCandidateFacts)).map((candidate) => {
+          const rect = candidate.getBoundingClientRect?.();
+          return {
+            ref: clean(candidate.getAttribute('data-aos-ref')),
+            role: clean(candidate.getAttribute('role')) || null,
+            name: clean(candidate.getAttribute('aria-label')) || null,
+            enabled: !(candidate.matches?.(':disabled') || candidate.getAttribute('aria-disabled') === 'true'),
+            bounds: rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null,
+          };
+        }),
+      });
       const el = matches[0];
       if (el.matches?.(':disabled') || el.getAttribute('aria-disabled') === 'true') {
         return JSON.stringify({ ok: false, code: 'TARGET_DISABLED', error: `Ref '${ref}' is disabled` });
@@ -210,7 +266,7 @@ func dispatchCanvasSemanticValueAction(canvasID: String, ref: String, value: Str
       const root = el.closest?.('[data-aos-slider-root]');
       const thumbCount = Number(el.getAttribute('data-aos-thumb-count') || root?.querySelectorAll?.('[data-aos-slider-thumb]')?.length || 0);
       if ((el.getAttribute('role') || '').toLowerCase() === 'slider' && thumbCount > 1) {
-        return JSON.stringify({ ok: false, code: 'UNSUPPORTED_ACTION', error: `Ref '${ref}' is a multi-thumb slider` });
+        return JSON.stringify({ ok: false, code: 'TARGET_ACTION_UNSUPPORTED', error: `Ref '${ref}' is a multi-thumb slider` });
       }
       const value = Number(valueText);
       if (!Number.isFinite(value)) return JSON.stringify({ ok: false, code: 'INVALID_VALUE', error: 'set-value requires a numeric value for canvas sliders' });
@@ -223,7 +279,7 @@ func dispatchCanvasSemanticValueAction(canvasID: String, ref: String, value: Str
       const target = root?.querySelector?.('[data-aos-slider-control]') || el;
       return JSON.stringify({
         ok: !defaultAllowed,
-        code: defaultAllowed ? 'ACTION_NOT_HANDLED' : null,
+        code: defaultAllowed ? 'TARGET_ACTION_UNSUPPORTED' : null,
         error: defaultAllowed ? `Ref '${ref}' did not handle ${primitive}` : null,
         value: target?.getAttribute?.('aria-valuenow') || null,
         values: target?.getAttribute?.('data-aos-values') || null,
@@ -236,14 +292,18 @@ func dispatchCanvasSemanticValueAction(canvasID: String, ref: String, value: Str
     if (result["ok"] as? Bool) != true {
         let message = result["error"] as? String ?? "Canvas semantic action failed"
         let code = result["code"] as? String ?? "CANVAS_ACTION_FAILED"
-        exitError(message, code: code)
+        var details = result
+        details.removeValue(forKey: "ok")
+        details.removeValue(forKey: "error")
+        details.removeValue(forKey: "code")
+        exitError(message, code: code, details: details)
     }
     return result
 }
 
 func updateCanvasFrameForSemanticDrag(canvasID: String, dx: Double, dy: Double) {
     guard let canvas = readCanvasInfo(id: canvasID) else {
-        exitError("Canvas '\(canvasID)' not found", code: "CANVAS_NOT_FOUND")
+        exitError("Canvas '\(canvasID)' not found", code: "TARGET_NOT_FOUND")
     }
     guard canvas.at.count == 4 else {
         exitError("Canvas '\(canvasID)' has invalid bounds", code: "INVALID_CANVAS_BOUNDS")
@@ -275,8 +335,10 @@ func updateCanvasFrameForSemanticDrag(canvasID: String, dx: Double, dy: Double) 
 }
 
 func currentCanvasTargetSnapshot(canvasID: String, ref: String, scaleFactor: Double) -> AOSSemanticTargetJSON? {
-    collectCanvasSemanticTargets(canvasID: canvasID, scaleFactor: scaleFactor)?
-        .first(where: { $0.provenance.canvas_id == canvasID && $0.ref == ref })
+    let matches = collectCanvasSemanticTargets(canvasID: canvasID, scaleFactor: scaleFactor)?
+        .filter { $0.provenance.canvas_id == canvasID && $0.ref == ref } ?? []
+    guard case .selected(let index) = selectTargetCandidate(count: matches.count) else { return nil }
+    return matches[index]
 }
 
 func printCanvasRefClickResult(

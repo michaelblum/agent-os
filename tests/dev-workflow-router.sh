@@ -171,26 +171,6 @@ else
     fail "dev recommend deleted proof cleanup behavior drifted"
 fi
 
-if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files tests/manual/native-ax-saved-ref-live-proof.sh 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["status"] == "success", data
-assert data["proof_worth"]["status"] == "passed", data
-assert data["proof_worth"]["commands"] == [], data
-guarded = data["proof_worth"]["guarded"]
-assert guarded and guarded[0]["entry"] == "native-ax-saved-ref-live-proof", data
-assert "real-input approval" in guarded[0]["guard"], data
-assert all(item["command"] != "bash tests/manual/native-ax-saved-ref-live-proof.sh" for item in data["next_commands"]), data
-assert all(item["command"] != "bash <changed-test>" for item in data["verification"]), data
-PY
-then
-    pass "dev recommend reports guarded manual proofs without default verification"
-else
-    fail "dev recommend guarded proof behavior drifted"
-fi
-
 if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files src/daemon/annotation-target-selection.swift scripts/lib/pending-annotations-model.mjs shared/schemas/aos-pending-annotation-v0.schema.json 2>/dev/null)" python3 - <<'PY'
 import json
 import os

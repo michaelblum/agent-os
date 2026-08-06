@@ -62,13 +62,16 @@
     },
     "saved_ref": {
       "type": ["object", "null"],
-      "required": ["workspace_id", "snapshot_id", "ref", "action_target"],
-      "additionalProperties": true,
+      "required": ["workspace_id", "snapshot_id", "ref", "action_target", "handle"],
+      "additionalProperties": false,
       "properties": {
         "workspace_id": { "$ref": "#/$defs/local_id" },
         "snapshot_id": { "$ref": "#/$defs/local_id" },
         "ref": { "$ref": "#/$defs/local_id" },
-        "action_target": { "$ref": "#/$defs/nullable_string" }
+        "action_target": { "$ref": "#/$defs/nullable_string" },
+        "handle": { "$ref": "aos-target-handle-v1.schema.json" },
+        "backend": { "enum": ["browser", "aos_canvas", "native_ax"] },
+        "confidence": { "enum": ["high", "medium", "low"] }
       }
     },
     "artifact_ref": {
@@ -126,7 +129,7 @@
         "query": { "$ref": "#/$defs/nullable_string" },
         "ref_count": { "type": "integer", "minimum": 0 },
         "selected_backend": { "$ref": "#/$defs/nullable_string" },
-        "selected_resolution_class": { "$ref": "#/$defs/nullable_string" }
+        "selected_handle_kind": { "$ref": "#/$defs/nullable_string" }
       }
     },
     "desktop_bounds": {

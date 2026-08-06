@@ -45,8 +45,8 @@ source of truth.
 ### Semantic Refs Before Coordinates
 
 Agents should prefer target refs emitted by `see` over screen coordinates. A
-coordinate action should carry the perception state that produced it and should
-be rejected or revalidated when that state is stale.
+coordinate action is an explicit raw fallback and cannot claim semantic state
+validation; the CLI rejects `state_id` on coordinates.
 
 This applies across target handles and bridge forms:
 
@@ -54,16 +54,16 @@ This applies across target handles and bridge forms:
 browser:<session>/<ref>
 canvas:<canvas-id>/<ref>
 ref:<snapshot-id>:<ref-id>
-screen coordinate fallback: raw x,y plus --state-id (current CLI); screen:<state-id>/<x,y> is target-model/replay shorthand
+screen coordinate fallback: raw x,y with --state-id rejected (current CLI); screen:<state-id>/<x,y> is target-model/replay shorthand
 native AX: selector flags such as --pid and --role (current CLI); ax:<...> is reserved target-model vocabulary
 ```
 
 ### Perception State Ids
 
 Each actionable `see` result should expose a compact state id. Follow-up `do`
-actions can then prove which observed state they came from. This is especially
-important for coordinate fallbacks and screenshots, where stale positions are
-otherwise easy to replay by accident.
+Observation Ref actions then prove which observed state they came from.
+Locators re-resolve current state, while coordinates remain explicit raw input
+and reject `state_id` rather than masquerading as state-validated.
 
 ### Execution Constraints
 

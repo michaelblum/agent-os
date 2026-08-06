@@ -162,6 +162,9 @@ function validateDrag(args) {
 }
 
 function validate(verb, args) {
+  if (flagPresence(args, '--state-id')) {
+    error('Canvas Locators do not support --state-id', 'TARGET_STATE_UNSUPPORTED');
+  }
   switch (verb) {
     case 'click':
       validateClick(args);

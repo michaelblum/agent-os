@@ -1,0 +1,304 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-agent-workspace-v1.schema.json",
+  "title": "AOS Agent Workspace V1",
+  "anyOf": [
+    { "$ref": "#/$defs/summary" },
+    { "$ref": "#/$defs/refs_file" },
+    { "$ref": "#/$defs/snapshot_record" },
+    { "$ref": "#/$defs/workspace_metadata" },
+    { "$ref": "#/$defs/workspace_index" }
+  ],
+  "$defs": {
+    "schema_version": { "const": "aos.agent-workspace.v1" },
+    "local_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$" },
+    "non_empty_string": { "type": "string", "minLength": 1 },
+    "string_array": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/non_empty_string" }
+    },
+    "artifact_ref": {
+      "type": "object",
+      "required": ["role", "path"],
+      "properties": {
+        "role": { "$ref": "#/$defs/non_empty_string" },
+        "path": { "$ref": "#/$defs/non_empty_string" }
+      }
+    },
+    "capture_source": {
+      "type": "object",
+      "required": ["kind", "argv", "display"],
+      "properties": {
+        "kind": { "enum": ["default_target", "target", "source_flags"] },
+        "argv": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/non_empty_string" }
+        },
+        "display": { "$ref": "#/$defs/non_empty_string" }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "required": ["workspace", "snapshot", "snapshot_record", "capture", "summary", "refs", "artifacts"],
+      "properties": {
+        "workspace": { "$ref": "#/$defs/non_empty_string" },
+        "snapshot": { "$ref": "#/$defs/non_empty_string" },
+        "snapshot_record": { "$ref": "#/$defs/non_empty_string" },
+        "capture": { "$ref": "#/$defs/non_empty_string" },
+        "summary": { "$ref": "#/$defs/non_empty_string" },
+        "refs": { "$ref": "#/$defs/non_empty_string" },
+        "artifacts": { "$ref": "#/$defs/non_empty_string" }
+      }
+    },
+    "session": {
+      "type": "object",
+      "required": ["id", "mode", "harness"],
+      "properties": {
+        "id": { "type": ["string", "null"] },
+        "mode": { "enum": ["session_scoped", "anonymous_global"] },
+        "harness": { "$ref": "#/$defs/non_empty_string" }
+      }
+    },
+    "retention": {
+      "type": "object",
+      "required": ["policy", "cleanup_commands"],
+      "properties": {
+        "policy": { "const": "local_until_explicit_cleanup" },
+        "cleanup_commands": { "$ref": "#/$defs/string_array" }
+      }
+    },
+    "ref_record": {
+      "type": "object",
+      "required": [
+        "schema_version", "ref", "ref_scope", "workspace_id", "snapshot_id",
+        "capture_target", "capture_mode", "query", "copyable_action_target", "backend",
+        "handle", "confidence",
+        "supported_actions", "target_summary", "hint_facts", "artifact_refs",
+        "warnings", "known_limits"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "backend": { "const": "browser" },
+                "handle": { "$ref": "aos-target-handle-v1.schema.json#/$defs/browser_observation_ref" },
+                "supported_actions": { "maxItems": 0 },
+                "known_limits": { "contains": { "const": "browser_observation_identity_unproven" } }
+              }
+            },
+            {
+              "properties": {
+                "backend": { "const": "aos_canvas" },
+                "handle": { "$ref": "aos-target-handle-v1.schema.json#/$defs/canvas_locator" },
+                "supported_actions": {
+                  "items": { "enum": ["click", "set-value"] }
+                }
+              }
+            },
+            {
+              "properties": {
+                "backend": { "const": "native_ax" },
+                "handle": { "$ref": "aos-target-handle-v1.schema.json#/$defs/native_ax_locator" },
+                "supported_actions": {
+                  "items": { "enum": ["press", "focus", "set-value"] }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "ref": { "$ref": "#/$defs/local_id" },
+        "ref_scope": { "const": "snapshot" },
+        "workspace_id": { "$ref": "#/$defs/local_id" },
+        "snapshot_id": { "$ref": "#/$defs/local_id" },
+        "capture_target": { "type": "string", "minLength": 1 },
+        "capture_source": { "$ref": "#/$defs/capture_source" },
+        "capture_mode": { "enum": ["ax", "vision", "som"] },
+        "query": { "type": ["string", "null"] },
+        "copyable_action_target": { "type": "string", "pattern": "^ref:[A-Za-z0-9][A-Za-z0-9._-]{0,79}:r[1-9][0-9]*$" },
+        "backend": { "enum": ["browser", "aos_canvas", "native_ax"] },
+        "handle": { "$ref": "aos-target-handle-v1.schema.json" },
+        "confidence": { "enum": ["high", "medium", "low"] },
+        "supported_actions": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "target_summary": { "type": "string", "minLength": 1 },
+        "hint_facts": { "type": "object" },
+        "artifact_refs": { "type": "array", "items": { "$ref": "#/$defs/artifact_ref" } },
+        "warnings": { "$ref": "#/$defs/string_array" },
+        "known_limits": { "$ref": "#/$defs/string_array" }
+      },
+      "not": {
+        "anyOf": [
+          { "required": ["resolution_class"] },
+          { "required": ["short_action_target"] },
+          { "required": ["action_target"] },
+          { "required": ["current_address"] },
+          { "required": ["identity_facts"] }
+        ]
+      }
+    },
+    "ref_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref", "ref_scope", "workspace_id", "snapshot_id", "capture_target",
+        "capture_mode", "copyable_action_target", "backend", "handle", "confidence",
+        "supported_actions", "target_summary", "hint_facts", "artifact_refs",
+        "warnings", "known_limits"
+      ],
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "backend": { "const": "browser" },
+                "handle": { "$ref": "aos-target-handle-v1.schema.json#/$defs/browser_observation_ref" },
+                "supported_actions": { "maxItems": 0 },
+                "known_limits": { "contains": { "const": "browser_observation_identity_unproven" } }
+              }
+            },
+            {
+              "properties": {
+                "backend": { "const": "aos_canvas" },
+                "handle": { "$ref": "aos-target-handle-v1.schema.json#/$defs/canvas_locator" },
+                "supported_actions": { "items": { "enum": ["click", "set-value"] } }
+              }
+            },
+            {
+              "properties": {
+                "backend": { "const": "native_ax" },
+                "handle": { "$ref": "aos-target-handle-v1.schema.json#/$defs/native_ax_locator" },
+                "supported_actions": { "items": { "enum": ["press", "focus", "set-value"] } }
+              }
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "ref": { "$ref": "#/$defs/local_id" },
+        "ref_scope": { "const": "snapshot" },
+        "workspace_id": { "$ref": "#/$defs/local_id" },
+        "snapshot_id": { "$ref": "#/$defs/local_id" },
+        "capture_target": { "$ref": "#/$defs/non_empty_string" },
+        "capture_source": { "$ref": "#/$defs/capture_source" },
+        "capture_mode": { "enum": ["ax", "vision", "som"] },
+        "copyable_action_target": { "type": "string", "pattern": "^ref:[A-Za-z0-9][A-Za-z0-9._-]{0,79}:r[1-9][0-9]*$" },
+        "backend": { "enum": ["browser", "aos_canvas", "native_ax"] },
+        "handle": { "$ref": "aos-target-handle-v1.schema.json" },
+        "confidence": { "enum": ["high", "medium", "low"] },
+        "supported_actions": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/non_empty_string" } },
+        "target_summary": { "$ref": "#/$defs/non_empty_string" },
+        "hint_facts": { "type": "object" },
+        "artifact_refs": { "type": "array", "items": { "$ref": "#/$defs/artifact_ref" } },
+        "warnings": { "$ref": "#/$defs/string_array" },
+        "known_limits": { "$ref": "#/$defs/string_array" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["status", "schema_version", "workspace_id", "snapshot_id", "refs"],
+      "properties": {
+        "status": { "const": "success" },
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "workspace_id": { "$ref": "#/$defs/local_id" },
+        "snapshot_id": { "$ref": "#/$defs/local_id" },
+        "refs": { "type": "array", "items": { "$ref": "#/$defs/ref_summary" } }
+      }
+    },
+    "refs_file": {
+      "type": "object",
+      "required": ["schema_version", "workspace_id", "snapshot_id", "created_at", "refs"],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "workspace_id": { "$ref": "#/$defs/local_id" },
+        "snapshot_id": { "$ref": "#/$defs/local_id" },
+        "created_at": { "type": "string", "minLength": 1 },
+        "refs": { "type": "array", "items": { "$ref": "#/$defs/ref_record" } }
+      }
+    },
+    "snapshot_record": {
+      "type": "object",
+      "required": [
+        "schema_version", "workspace_id", "snapshot_id", "created_at", "runtime_mode",
+        "capture_mode", "capture_target", "ref_scope_grammar", "target", "query",
+        "artifact_refs", "ref_count", "paths", "omitted_from_compact_stdout", "known_limits"
+      ],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "workspace_id": { "$ref": "#/$defs/local_id" },
+        "snapshot_id": { "$ref": "#/$defs/local_id" },
+        "created_at": { "$ref": "#/$defs/non_empty_string" },
+        "runtime_mode": { "enum": ["repo", "installed"] },
+        "capture_mode": { "enum": ["ax", "vision", "som"] },
+        "capture_target": { "$ref": "#/$defs/non_empty_string" },
+        "capture_source": { "$ref": "#/$defs/capture_source" },
+        "ref_scope_grammar": { "const": "saved handles use only ref:<snapshot-id>:<ref>" },
+        "target": { "$ref": "#/$defs/non_empty_string" },
+        "query": { "type": ["string", "null"] },
+        "artifact_refs": { "type": "array", "items": { "$ref": "#/$defs/artifact_ref" } },
+        "ref_count": { "type": "integer", "minimum": 0 },
+        "paths": { "$ref": "#/$defs/paths" },
+        "omitted_from_compact_stdout": { "$ref": "#/$defs/string_array" },
+        "known_limits": { "$ref": "#/$defs/string_array" }
+      }
+    },
+    "workspace_metadata": {
+      "type": "object",
+      "required": [
+        "schema_version", "workspace_id", "runtime_mode", "state_root", "workspace_dir",
+        "created_at", "updated_at", "retention", "session"
+      ],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "workspace_id": { "$ref": "#/$defs/local_id" },
+        "runtime_mode": { "enum": ["repo", "installed"] },
+        "state_root": { "type": "string", "minLength": 1 },
+        "workspace_dir": { "type": "string", "minLength": 1 },
+        "created_at": { "$ref": "#/$defs/non_empty_string" },
+        "updated_at": { "$ref": "#/$defs/non_empty_string" },
+        "retention": { "$ref": "#/$defs/retention" },
+        "session": { "$ref": "#/$defs/session" }
+      }
+    },
+    "snapshot_index_entry": {
+      "type": "object",
+      "required": [
+        "snapshot_id", "created_at", "capture_mode", "capture_target", "target",
+        "query", "ref_count", "artifact_count", "paths"
+      ],
+      "properties": {
+        "snapshot_id": { "$ref": "#/$defs/local_id" },
+        "created_at": { "$ref": "#/$defs/non_empty_string" },
+        "capture_mode": { "enum": ["ax", "vision", "som"] },
+        "capture_target": { "$ref": "#/$defs/non_empty_string" },
+        "capture_source": { "$ref": "#/$defs/capture_source" },
+        "target": { "$ref": "#/$defs/non_empty_string" },
+        "query": { "type": ["string", "null"] },
+        "ref_count": { "type": "integer", "minimum": 0 },
+        "artifact_count": { "type": "integer", "minimum": 0 },
+        "paths": { "$ref": "#/$defs/paths" }
+      }
+    },
+    "workspace_index": {
+      "type": "object",
+      "required": ["schema_version", "workspace_id", "runtime_mode", "current_snapshot_id", "snapshots", "updated_at"],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "workspace_id": { "$ref": "#/$defs/local_id" },
+        "runtime_mode": { "enum": ["repo", "installed"] },
+        "current_snapshot_id": {
+          "anyOf": [
+            { "$ref": "#/$defs/local_id" },
+            { "type": "null" }
+          ]
+        },
+        "snapshots": { "type": "array", "items": { "$ref": "#/$defs/snapshot_index_entry" } },
+        "updated_at": { "$ref": "#/$defs/non_empty_string" }
+      }
+    }
+  }
+}

@@ -7,7 +7,7 @@
         "do",
         "type"
       ],
-      "summary": "Resolve saved browser type ref targets through the agent workspace action dispatcher.",
+      "summary": "Validate saved browser Observation Ref type requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -31,7 +31,7 @@
         "do",
         "type"
       ],
-      "summary": "Type into browser targets through the external do browser command.",
+      "summary": "Type into browser sessions; ref-bearing Observation Refs validate, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -80,7 +80,7 @@
         "do",
         "key"
       ],
-      "summary": "Resolve saved browser key ref targets through the agent workspace action dispatcher.",
+      "summary": "Validate saved browser Observation Ref key requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -104,7 +104,7 @@
         "do",
         "key"
       ],
-      "summary": "Press keys in browser targets through the external do browser command.",
+      "summary": "Press keys in browser sessions; ref-bearing Observation Refs validate, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -153,7 +153,7 @@
         "do",
         "fill"
       ],
-      "summary": "Resolve saved fill ref targets through the agent workspace action dispatcher.",
+      "summary": "Validate saved browser Observation Ref fill requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -177,7 +177,7 @@
         "do",
         "fill"
       ],
-      "summary": "Fill browser targets through the external do browser command.",
+      "summary": "Validate direct browser Observation Ref fill requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",

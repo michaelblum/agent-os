@@ -26,15 +26,17 @@ declare const aos: {
     format?: 'png' | 'jpg';
     out?: string;
   }): Promise<{
-    status: string; base64?: string; elements?: Array<{
+    status: string; state_id?: string; base64?: string; elements?: Array<{
       role: string; label?: string; value?: string;
       frame: { x: number; y: number; width: number; height: number };
+      handle?: AOSTargetHandle;
     }>; semantic_targets?: Array<{
       ref: string;
       surface?: string;
       role: string;
       name?: string;
       kind: string;
+      handle: AOSTargetHandle;
       enabled: boolean;
       state?: {
         current?: string; pressed?: boolean; selected?: boolean;
@@ -120,18 +122,6 @@ declare const aos: {
     candidates: string[];
   }>;
 
-  /** Find a UI element by its label and click it. Captures the screen, finds the element, clicks its center.
-   *  Returns what was clicked, or candidates if the element wasn't found. */
-  clickElement(label: string, opts?: {
-    app?: string;
-    role?: string;
-  }): Promise<{
-    clicked: boolean;
-    element?: { label: string; role: string; frame: unknown };
-    error?: string;
-    candidates?: string[];
-  }>;
-
   /** Poll until a window title or canvas ID appears. Returns the match or times out. */
   waitFor(pattern: {
     window?: string;
@@ -179,5 +169,14 @@ declare const aos: {
   setConfig(key: string, value: string): Promise<{ status: string }>;
 
 };
+
+type AOSTargetHandle =
+  | { kind: 'observation_ref'; backend: 'browser'; state_id: string; scope: { session: string }; ref: string }
+  | { kind: 'locator'; backend: 'aos_canvas'; query: { canvas_id: string; ref: string } }
+  | { kind: 'locator'; backend: 'native_ax'; query: {
+      pid: number; role: string; window_id?: number; title?: string; label?: string;
+      identifier?: string; index?: number; near?: string; match?: 'exact' | 'contains' | 'regex';
+      depth?: number; timeout_ms?: number;
+    } };
 
 declare const params: Record<string, unknown>;

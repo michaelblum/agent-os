@@ -129,9 +129,9 @@ For representative controls, verify:
 
 - `./aos see --xray` exposes raw role/name/value/frame/action evidence. For
   AOS-owned canvases, check the response's top-level `state_id` plus each
-  `semantic_targets` entry's `ref`, primitive `actions`, provenance, and current
-  state. Do not expect the current entry to contain `target`, per-entry
-  `state_id`, or `reacquisition`.
+  `semantic_targets` entry's required canvas Locator `handle`, primitive
+  `actions`, provenance, and current state. Canvas Locators do not carry or
+  accept `state_id`.
 - `./aos do` can operate the control through the daemon/AOS route, not only
   through app-local JavaScript or a synthetic unit test.
 - Screenshots show the intended visual design, with no duplicate agent labels

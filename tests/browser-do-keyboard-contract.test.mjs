@@ -15,7 +15,7 @@ async function createFakeBrowserBin() {
 
   const aosPath = path.join(bin, 'aos');
   await writeFile(aosPath, `#!/usr/bin/env bash
-if [ "$1" = "browser" ] && [ "$2" = "_check-version" ] && [ "$3" = "--json" ]; then
+if [ "$1" = "browser" ] && [ "$2" = "_check-version" ]; then
   printf '{"status":"ok"}\\n'
   exit 0
 fi
@@ -27,8 +27,12 @@ exit 1
   const playwrightLog = path.join(root, 'playwright-argv.jsonl');
   const playwrightCliPath = path.join(bin, 'playwright-cli');
   await writeFile(playwrightCliPath, `#!/usr/bin/env node
-const fs = require('node:fs');
-fs.appendFileSync(process.env.PLAYWRIGHT_ARGV_LOG, JSON.stringify(process.argv.slice(2)) + '\\n');
+	const fs = require('node:fs');
+	if (process.argv[2] === '--version') {
+	  process.stdout.write('0.1.15\\n');
+	  process.exit(0);
+	}
+	fs.appendFileSync(process.env.PLAYWRIGHT_ARGV_LOG, JSON.stringify(process.argv.slice(2)) + '\\n');
 process.stdout.write('ok\\n');
 `);
   await chmod(playwrightCliPath, 0o755);
@@ -49,40 +53,66 @@ async function readPlaywrightCalls(logPath) {
   return text.trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
 }
 
-test('direct browser type and key preserve state id and dispatch Playwright keyboard verbs', async () => {
+test('session-only browser type and key dispatch Playwright keyboard verbs without state', async () => {
   const fake = await createFakeBrowserBin();
   try {
     const env = {
       ...process.env,
       AOS_PATH: fake.aosPath,
+      AOS_PLAYWRIGHT_CLI: path.join(fake.bin, 'playwright-cli'),
       PATH: `${fake.bin}:${process.env.PATH}`,
       PLAYWRIGHT_ARGV_LOG: fake.playwrightLog,
     };
 
-    const typeResult = runBrowserDo(['type', 'browser:work/r7', 'hello world', '--state-id', 'see_type123'], env);
+    const typeResult = runBrowserDo(['type', 'browser:work', 'hello world'], env);
     assert.equal(typeResult.status, 0, typeResult.stderr);
     const typePayload = JSON.parse(typeResult.stdout);
     assert.equal(typePayload.status, 'success');
     assert.equal(typePayload.execution.backend, 'playwright');
     assert.equal(typePayload.execution.strategy, 'playwright_type');
     assert.equal(typePayload.execution.fallback_used, false);
-    assert.equal(typePayload.execution.state_id, 'see_type123');
+    assert.equal(Object.hasOwn(typePayload.execution, 'state_id'), false);
     assert.equal(typePayload.result.stdout, 'ok');
 
-    const keyResult = runBrowserDo(['key', 'browser:work/r7', 'cmd+s', '--state-id', 'see_key123'], env);
+    const keyResult = runBrowserDo(['key', 'browser:work', 'cmd+s'], env);
     assert.equal(keyResult.status, 0, keyResult.stderr);
     const keyPayload = JSON.parse(keyResult.stdout);
     assert.equal(keyPayload.status, 'success');
     assert.equal(keyPayload.execution.backend, 'playwright');
     assert.equal(keyPayload.execution.strategy, 'playwright_press');
     assert.equal(keyPayload.execution.fallback_used, false);
-    assert.equal(keyPayload.execution.state_id, 'see_key123');
+    assert.equal(Object.hasOwn(keyPayload.execution, 'state_id'), false);
     assert.equal(keyPayload.result.stdout, 'ok');
 
     assert.deepEqual(await readPlaywrightCalls(fake.playwrightLog), [
-      ['-s=work', 'type', 'r7', 'hello world'],
-      ['-s=work', 'press', 'r7', 'cmd+s'],
+      ['-s=work', 'type', 'hello world'],
+      ['-s=work', 'press', 'cmd+s'],
     ]);
+  } finally {
+    await rm(fake.root, { recursive: true, force: true });
+  }
+});
+
+test('session-only browser actions reject even an explicitly empty state before backend dispatch', async () => {
+  const fake = await createFakeBrowserBin();
+  try {
+    const env = {
+      ...process.env,
+      AOS_PATH: fake.aosPath,
+      AOS_PLAYWRIGHT_CLI: path.join(fake.bin, 'playwright-cli'),
+      PATH: `${fake.bin}:${process.env.PATH}`,
+      PLAYWRIGHT_ARGV_LOG: fake.playwrightLog,
+    };
+    for (const args of [
+      ['type', 'browser:work', 'hello', '--state-id', ''],
+      ['key', 'browser:work', 'cmd+s', '--state-id', ''],
+      ['scroll', 'browser:work', '0,-200', '--state-id', ''],
+    ]) {
+      const result = runBrowserDo(args, env);
+      assert.equal(result.status, 1, result.stdout);
+      assert.equal(JSON.parse(result.stderr).code, 'TARGET_STATE_UNSUPPORTED');
+    }
+    await assert.rejects(readFile(fake.playwrightLog, 'utf8'), (error) => error?.code === 'ENOENT');
   } finally {
     await rm(fake.root, { recursive: true, force: true });
   }

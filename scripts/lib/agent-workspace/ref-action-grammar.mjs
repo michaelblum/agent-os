@@ -143,7 +143,7 @@ export function loadDragDestinationRecord(args, targetIndex, workspace, explicit
   }
   const destinationToken = parseRefToken(args[destinationIndex]);
   if (!destinationToken) {
-    exitAgentWorkspaceError('drag with a saved ref source requires a saved ref destination', 'INVALID_REF_TARGET');
+    exitAgentWorkspaceError('drag with a saved ref source requires a saved handle destination', 'TARGET_HANDLE_INVALID');
   }
   return {
     index: destinationIndex,

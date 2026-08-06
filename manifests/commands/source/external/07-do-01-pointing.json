@@ -7,7 +7,7 @@
         "do",
         "click"
       ],
-      "summary": "Resolve saved click ref targets through the agent workspace action dispatcher.",
+      "summary": "Resolve saved click handles; canvas Locators may dispatch, while browser Observation Refs fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -31,7 +31,7 @@
         "do",
         "click"
       ],
-      "summary": "Click browser targets through the external do browser command.",
+      "summary": "Route browser click requests; ref-bearing Observation Refs validate, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -105,7 +105,7 @@
         "do",
         "hover"
       ],
-      "summary": "Resolve saved hover ref targets through the agent workspace action dispatcher.",
+      "summary": "Validate saved browser Observation Ref hover requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -129,7 +129,7 @@
         "do",
         "hover"
       ],
-      "summary": "Hover browser targets through the external do browser command.",
+      "summary": "Route browser hover requests; ref-bearing Observation Refs validate, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -178,7 +178,7 @@
         "do",
         "drag"
       ],
-      "summary": "Resolve saved drag ref targets through the agent workspace action dispatcher.",
+      "summary": "Validate saved browser Observation Ref drag requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -202,7 +202,7 @@
         "do",
         "drag"
       ],
-      "summary": "Drag browser targets through the external do browser command.",
+      "summary": "Route browser drag requests; Observation Ref endpoints validate, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -275,7 +275,7 @@
         "do",
         "scroll"
       ],
-      "summary": "Resolve saved scroll ref targets through the agent workspace action dispatcher.",
+      "summary": "Validate saved browser Observation Ref scroll requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -299,7 +299,7 @@
         "do",
         "scroll"
       ],
-      "summary": "Scroll browser targets through the external do browser command.",
+      "summary": "Scroll browser sessions; ref-bearing Observation Refs validate, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",

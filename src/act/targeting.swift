@@ -9,7 +9,171 @@ import Foundation
 enum FindResult {
     case found(AXUIElement)
     case notFound(String)
+    case ambiguous(Int, [AXTargetCandidateFact], Bool)
+    case incompatible(String, String)
+    case invalid(String)
     case timeout
+}
+
+enum AXDeadlineCall<Value> {
+    case value(Value)
+    case timeout
+}
+
+enum AXTargetCompatibilityResolution {
+    case compatible
+    case incompatible(String, String)
+    case timeout
+}
+
+private let maxResolvedCandidates = 1_024
+private let maxReportedCandidateFacts = 8
+let maxNativeLocatorDepth = 128
+let maxNativeLocatorTimeoutMs = 30_000
+
+func axCallBeforeDeadline<Value>(
+    _ element: AXUIElement,
+    deadline: Date,
+    operation: () -> Value
+) -> AXDeadlineCall<Value> {
+    let remaining = deadline.timeIntervalSinceNow
+    guard remaining > 0 else { return .timeout }
+    guard AXUIElementSetMessagingTimeout(element, Float(remaining)) == .success else {
+        return .timeout
+    }
+    let value = operation()
+    guard Date() <= deadline else { return .timeout }
+    return .value(value)
+}
+
+private func axAttributeValueBeforeDeadline(
+    _ element: AXUIElement,
+    _ attribute: CFString,
+    deadline: Date
+) -> AXDeadlineCall<AnyObject?> {
+    axCallBeforeDeadline(element, deadline: deadline) {
+        var value: AnyObject?
+        guard AXUIElementCopyAttributeValue(element, attribute, &value) == .success else { return nil }
+        return value
+    }
+}
+
+private func axStringBeforeDeadline(
+    _ element: AXUIElement,
+    _ attribute: CFString,
+    deadline: Date
+) -> AXDeadlineCall<String?> {
+    switch axAttributeValueBeforeDeadline(element, attribute, deadline: deadline) {
+    case .value(let value): return .value(value as? String)
+    case .timeout: return .timeout
+    }
+}
+
+private func axChildrenBeforeDeadline(
+    _ element: AXUIElement,
+    deadline: Date
+) -> AXDeadlineCall<[AXUIElement]> {
+    switch axAttributeValueBeforeDeadline(element, kAXChildrenAttribute as CFString, deadline: deadline) {
+    case .value(let value): return .value(value as? [AXUIElement] ?? [])
+    case .timeout: return .timeout
+    }
+}
+
+private func axBoundsBeforeDeadline(
+    _ element: AXUIElement,
+    deadline: Date
+) -> AXDeadlineCall<CGRect?> {
+    let positionValue: AnyObject?
+    switch axAttributeValueBeforeDeadline(element, kAXPositionAttribute as CFString, deadline: deadline) {
+    case .value(let value): positionValue = value
+    case .timeout: return .timeout
+    }
+    let sizeValue: AnyObject?
+    switch axAttributeValueBeforeDeadline(element, kAXSizeAttribute as CFString, deadline: deadline) {
+    case .value(let value): sizeValue = value
+    case .timeout: return .timeout
+    }
+    guard let positionValue, let sizeValue,
+          CFGetTypeID(positionValue) == AXValueGetTypeID(),
+          CFGetTypeID(sizeValue) == AXValueGetTypeID() else { return .value(nil) }
+    var position = CGPoint.zero
+    var size = CGSize.zero
+    guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position),
+          AXValueGetValue(sizeValue as! AXValue, .cgSize, &size) else { return .value(nil) }
+    return .value(CGRect(origin: position, size: size))
+}
+
+private func axWindowIDBeforeDeadline(
+    _ element: AXUIElement,
+    deadline: Date
+) -> AXDeadlineCall<Int?> {
+    axCallBeforeDeadline(element, deadline: deadline) {
+        var windowID: CGWindowID = 0
+        guard _AXUIElementGetWindow(element, &windowID) == .success, windowID != 0 else { return nil }
+        return Int(windowID)
+    }
+}
+
+private func candidateFact(
+    _ element: AXUIElement,
+    bounds: CGRect? = nil,
+    deadline: Date
+) -> AXDeadlineCall<AXTargetCandidateFact> {
+    let rect: CGRect?
+    if let bounds {
+        rect = bounds
+    } else {
+        switch axBoundsBeforeDeadline(element, deadline: deadline) {
+        case .value(let value): rect = value
+        case .timeout: return .timeout
+        }
+    }
+    let role: String?
+    switch axStringBeforeDeadline(element, kAXRoleAttribute as CFString, deadline: deadline) {
+    case .value(let value): role = value
+    case .timeout: return .timeout
+    }
+    let title: String?
+    switch axStringBeforeDeadline(element, kAXTitleAttribute as CFString, deadline: deadline) {
+    case .value(let value): title = value
+    case .timeout: return .timeout
+    }
+    let label: String?
+    switch axStringBeforeDeadline(element, kAXDescriptionAttribute as CFString, deadline: deadline) {
+    case .value(let value): label = value
+    case .timeout: return .timeout
+    }
+    let identifier: String?
+    switch axStringBeforeDeadline(element, kAXIdentifierAttribute as CFString, deadline: deadline) {
+    case .value(let value): identifier = value
+    case .timeout: return .timeout
+    }
+    return .value(AXTargetCandidateFact(
+        role: role,
+        title: title,
+        label: label,
+        identifier: identifier,
+        bounds: rect.map { BoundsJSON(x: Int($0.origin.x), y: Int($0.origin.y), width: Int($0.width), height: Int($0.height)) }
+    ))
+}
+
+private func ambiguousResult(
+    _ matches: [(element: AXUIElement, bounds: CGRect?)],
+    deadline: Date,
+    countIsLowerBound: Bool = false
+) -> FindResult {
+    var facts: [AXTargetCandidateFact] = []
+    candidateLoop: for match in matches.prefix(maxReportedCandidateFacts) {
+        switch candidateFact(match.element, bounds: match.bounds, deadline: deadline) {
+        case .value(let fact): facts.append(fact)
+        case .timeout: break candidateLoop
+        }
+    }
+    return .ambiguous(
+        matches.count,
+        facts,
+        countIsLowerBound
+    )
 }
 
 // MARK: - Public API
@@ -17,9 +181,21 @@ enum FindResult {
 /// Find an AX element matching the given query using BFS traversal.
 ///
 /// Traversal respects `query.maxDepth` and `query.timeoutMs`. When `query.subtree`
-/// is set the search is scoped to the first element matching the subtree spec.
+/// is set the search is scoped only when exactly one element matches the subtree spec.
 /// Disambiguation uses `query.index` (N-th match) or `query.near` (closest to point).
-func findElement(query: ElementQuery) -> FindResult {
+func findElement(
+    query: ElementQuery,
+    resolveActionCompatibility: ((AXUIElement, Date) -> AXTargetCompatibilityResolution)? = nil
+) -> FindResult {
+    if query.maxDepth < 0 || query.maxDepth > maxNativeLocatorDepth {
+        return .invalid("Target Locator depth must be between 0 and \(maxNativeLocatorDepth)")
+    }
+    if query.timeoutMs <= 0 || query.timeoutMs > maxNativeLocatorTimeoutMs {
+        return .invalid("Target Locator timeout must be between 1 and \(maxNativeLocatorTimeoutMs) ms")
+    }
+    if let index = query.index, index >= maxResolvedCandidates {
+        return .invalid("Target Locator index must be less than \(maxResolvedCandidates)")
+    }
     let deadline = Date().addingTimeInterval(Double(query.timeoutMs) / 1000.0)
 
     guard query.pid != 0 else {
@@ -37,6 +213,12 @@ func findElement(query: ElementQuery) -> FindResult {
             searchRoot = root
         case .notFound(let msg):
             return .notFound(msg)
+        case .ambiguous(let count, let candidates, let countIsLowerBound):
+            return .ambiguous(count, candidates, countIsLowerBound)
+        case .incompatible(let message, let code):
+            return .incompatible(message, code)
+        case .invalid(let message):
+            return .invalid(message)
         case .timeout:
             return .timeout
         }
@@ -45,7 +227,7 @@ func findElement(query: ElementQuery) -> FindResult {
     }
 
     // No field criteria at all — just return the search root (useful for subtree-only targeting)
-    let hasAnyCriteria = query.role != nil || query.title != nil || query.label != nil
+    let hasAnyCriteria = query.windowID != nil || query.role != nil || query.title != nil || query.label != nil
         || query.identifier != nil || query.value != nil
     if !hasAnyCriteria {
         return .found(searchRoot)
@@ -53,6 +235,8 @@ func findElement(query: ElementQuery) -> FindResult {
 
     // BFS traversal collecting matches
     var matches: [(element: AXUIElement, bounds: CGRect?)] = []
+    var compatibilityCounter = BoundedActionCompatibleCandidateCounter(limit: maxResolvedCandidates)
+    var soleIncompatibility: (message: String, code: String)?
     let needBounds = query.near != nil
 
     // BFS queue: (element, currentDepth)
@@ -65,23 +249,62 @@ func findElement(query: ElementQuery) -> FindResult {
         let (current, depth) = queue[head]
         head += 1
 
-        if elementMatches(current, query: query) {
-            let b = needBounds ? axBounds(current) : nil
-            matches.append((current, b))
-
-            // Fast path: if we need the first match and don't need near disambiguation, return early
-            if query.near == nil && query.index == nil {
-                return .found(current)
+        let matchesCurrent: Bool
+        switch elementMatches(current, query: query, deadline: deadline) {
+        case .value(let value): matchesCurrent = value
+        case .timeout: return .timeout
+        }
+        if matchesCurrent {
+            var includeCurrent = true
+            if let resolveActionCompatibility {
+                let compatibility: AXTargetCompatibilityResolution = resolveActionCompatibility(current, deadline)
+                switch compatibility {
+                case .compatible:
+                    soleIncompatibility = nil
+                    if compatibilityCounter.record(isCompatible: true) == .overflow {
+                        matches.append((current, nil))
+                        return ambiguousResult(matches, deadline: deadline, countIsLowerBound: true)
+                    }
+                case .incompatible(let message, let code):
+                    _ = compatibilityCounter.record(isCompatible: false)
+                    if compatibilityCounter.rawCount == 1 {
+                        soleIncompatibility = (message, code)
+                    } else {
+                        soleIncompatibility = nil
+                    }
+                    includeCurrent = false
+                case .timeout:
+                    return .timeout
+                }
             }
-            // If we only need index N and we have enough matches, return early
-            if let idx = query.index, idx >= 0, matches.count > idx, query.near == nil {
-                return .found(matches[idx].element)
+            if includeCurrent {
+                let b: CGRect?
+                if needBounds {
+                    switch axBoundsBeforeDeadline(current, deadline: deadline) {
+                    case .value(let value): b = value
+                    case .timeout: return .timeout
+                    }
+                } else {
+                    b = nil
+                }
+                matches.append((current, b))
+
+                if resolveActionCompatibility == nil, matches.count > maxResolvedCandidates {
+                    return ambiguousResult(matches, deadline: deadline, countIsLowerBound: true)
+                }
+                if let index = query.index, matches.count > index {
+                    return .found(matches[index].element)
+                }
             }
         }
 
         // Expand children if within depth limit
         if depth < query.maxDepth {
-            let children = axChildren(current)
+            let children: [AXUIElement]
+            switch axChildrenBeforeDeadline(current, deadline: deadline) {
+            case .value(let value): children = value
+            case .timeout: return .timeout
+            }
             for child in children {
                 queue.append((child, depth + 1))
             }
@@ -90,39 +313,50 @@ func findElement(query: ElementQuery) -> FindResult {
 
     // Disambiguation
     if matches.isEmpty {
+        if compatibilityCounter.rawCount == 1, let soleIncompatibility {
+            return .incompatible(soleIncompatibility.message, soleIncompatibility.code)
+        }
+        if compatibilityCounter.rawCount > 0 {
+            return .notFound("\(describeQuery(query)) — no action-compatible current match")
+        }
         return .notFound(describeQuery(query))
     }
 
-    // Near-point disambiguation: return the match whose center is closest to the point
+    var nearDistances: [Double?]? = nil
     if let nearPoint = query.near {
-        var bestElement = matches[0].element
-        var bestDist = Double.greatestFiniteMagnitude
-
-        for m in matches {
-            guard let bounds = m.bounds ?? axBounds(m.element) else { continue }
+        var distances: [Double?] = []
+        for match in matches {
+            if Date() > deadline { return .timeout }
+            let resolvedBounds: CGRect?
+            if let bounds = match.bounds {
+                resolvedBounds = bounds
+            } else {
+                switch axBoundsBeforeDeadline(match.element, deadline: deadline) {
+                case .value(let value): resolvedBounds = value
+                case .timeout: return .timeout
+                }
+            }
+            guard let bounds = resolvedBounds else {
+                distances.append(nil)
+                continue
+            }
             let cx = Double(bounds.midX)
             let cy = Double(bounds.midY)
             let dx = cx - Double(nearPoint.x)
             let dy = cy - Double(nearPoint.y)
-            let dist = dx * dx + dy * dy // no need for sqrt — comparing relative distances
-            if dist < bestDist {
-                bestDist = dist
-                bestElement = m.element
-            }
+            distances.append(dx * dx + dy * dy)
         }
-        return .found(bestElement)
+        nearDistances = distances
     }
-
-    // Index disambiguation
-    if let idx = query.index {
-        if idx >= 0 && idx < matches.count {
-            return .found(matches[idx].element)
-        }
-        return .notFound("\(describeQuery(query)) — index \(idx) out of range (found \(matches.count) match\(matches.count == 1 ? "" : "es"))")
+    switch selectTargetCandidate(count: matches.count, index: query.index, nearDistances: nearDistances) {
+    case .selected(let index):
+        return .found(matches[index].element)
+    case .notFound:
+        let idx = query.index ?? -1
+        return .notFound("\(describeQuery(query)) — index \(idx) out of range (found \(matches.count) action-compatible match\(matches.count == 1 ? "" : "es"))")
+    case .ambiguous:
+        return ambiguousResult(matches, deadline: deadline)
     }
-
-    // Fallback: first match (shouldn't reach here due to fast-path above, but defensive)
-    return .found(matches[0].element)
 }
 
 // MARK: - Subtree Root Finding
@@ -133,24 +367,44 @@ private func findSubtreeRoot(app: AXUIElement, spec: SubtreeSpec, deadline: Date
     var queue: [(AXUIElement, Int)] = [(app, 0)]
     var head = 0
 
+    var matches: [(element: AXUIElement, bounds: CGRect?)] = []
     while head < queue.count {
         if Date() > deadline { return .timeout }
 
         let (current, depth) = queue[head]
         head += 1
 
-        if subtreeMatches(current, spec: spec) {
-            return .found(current)
+        let matchesCurrent: Bool
+        switch subtreeMatches(current, spec: spec, deadline: deadline) {
+        case .value(let value): matchesCurrent = value
+        case .timeout: return .timeout
+        }
+        if matchesCurrent {
+            let bounds: CGRect?
+            switch axBoundsBeforeDeadline(current, deadline: deadline) {
+            case .value(let value): bounds = value
+            case .timeout: return .timeout
+            }
+            matches.append((current, bounds))
+            if matches.count > maxResolvedCandidates {
+                return ambiguousResult(matches, deadline: deadline, countIsLowerBound: true)
+            }
         }
 
         if depth < maxDepth {
-            let children = axChildren(current)
+            let children: [AXUIElement]
+            switch axChildrenBeforeDeadline(current, deadline: deadline) {
+            case .value(let value): children = value
+            case .timeout: return .timeout
+            }
             for child in children {
                 queue.append((child, depth + 1))
             }
         }
     }
 
+    if matches.count == 1 { return .found(matches[0].element) }
+    if matches.count > 1 { return ambiguousResult(matches, deadline: deadline) }
     var parts: [String] = []
     if let r = spec.role { parts.append("role=\(r)") }
     if let t = spec.title { parts.append("title=\"\(t)\"") }
@@ -159,46 +413,85 @@ private func findSubtreeRoot(app: AXUIElement, spec: SubtreeSpec, deadline: Date
 }
 
 /// Check if an element matches a SubtreeSpec (exact matching only).
-private func subtreeMatches(_ element: AXUIElement, spec: SubtreeSpec) -> Bool {
+private func subtreeMatches(
+    _ element: AXUIElement,
+    spec: SubtreeSpec,
+    deadline: Date
+) -> AXDeadlineCall<Bool> {
     if let role = spec.role {
-        guard axString(element, kAXRoleAttribute as String) == role else { return false }
+        switch axStringBeforeDeadline(element, kAXRoleAttribute as CFString, deadline: deadline) {
+        case .value(let value): guard value == role else { return .value(false) }
+        case .timeout: return .timeout
+        }
     }
     if let title = spec.title {
-        guard axString(element, kAXTitleAttribute as String) == title else { return false }
+        switch axStringBeforeDeadline(element, kAXTitleAttribute as CFString, deadline: deadline) {
+        case .value(let value): guard value == title else { return .value(false) }
+        case .timeout: return .timeout
+        }
     }
     if let identifier = spec.identifier {
-        guard axString(element, kAXIdentifierAttribute as String) == identifier else { return false }
+        switch axStringBeforeDeadline(element, kAXIdentifierAttribute as CFString, deadline: deadline) {
+        case .value(let value): guard value == identifier else { return .value(false) }
+        case .timeout: return .timeout
+        }
     }
-    return true
+    return .value(true)
 }
 
 // MARK: - Element Matching
 
 /// Test whether a single AX element matches ALL criteria in the query (AND logic).
-private func elementMatches(_ element: AXUIElement, query: ElementQuery) -> Bool {
+private func elementMatches(
+    _ element: AXUIElement,
+    query: ElementQuery,
+    deadline: Date
+) -> AXDeadlineCall<Bool> {
     let mode = query.matchMode
 
+    if let windowID = query.windowID {
+        switch axWindowIDBeforeDeadline(element, deadline: deadline) {
+        case .value(let value): guard value == windowID else { return .value(false) }
+        case .timeout: return .timeout
+        }
+    }
+
     if let role = query.role {
-        guard let actual = axString(element, kAXRoleAttribute as String),
-              stringMatches(actual, pattern: role, mode: mode) else { return false }
+        switch axStringBeforeDeadline(element, kAXRoleAttribute as CFString, deadline: deadline) {
+        case .value(let actual):
+            guard let actual, stringMatches(actual, pattern: role, mode: mode) else { return .value(false) }
+        case .timeout: return .timeout
+        }
     }
     if let title = query.title {
-        guard let actual = axString(element, kAXTitleAttribute as String),
-              stringMatches(actual, pattern: title, mode: mode) else { return false }
+        switch axStringBeforeDeadline(element, kAXTitleAttribute as CFString, deadline: deadline) {
+        case .value(let actual):
+            guard let actual, stringMatches(actual, pattern: title, mode: mode) else { return .value(false) }
+        case .timeout: return .timeout
+        }
     }
     if let label = query.label {
-        guard let actual = axString(element, kAXDescriptionAttribute as String),
-              stringMatches(actual, pattern: label, mode: mode) else { return false }
+        switch axStringBeforeDeadline(element, kAXDescriptionAttribute as CFString, deadline: deadline) {
+        case .value(let actual):
+            guard let actual, stringMatches(actual, pattern: label, mode: mode) else { return .value(false) }
+        case .timeout: return .timeout
+        }
     }
     if let identifier = query.identifier {
-        guard let actual = axString(element, kAXIdentifierAttribute as String),
-              stringMatches(actual, pattern: identifier, mode: mode) else { return false }
+        switch axStringBeforeDeadline(element, kAXIdentifierAttribute as CFString, deadline: deadline) {
+        case .value(let actual):
+            guard let actual, stringMatches(actual, pattern: identifier, mode: mode) else { return .value(false) }
+        case .timeout: return .timeout
+        }
     }
     if let value = query.value {
-        guard let actual = axString(element, kAXValueAttribute as String),
-              stringMatches(actual, pattern: value, mode: mode) else { return false }
+        switch axStringBeforeDeadline(element, kAXValueAttribute as CFString, deadline: deadline) {
+        case .value(let actual):
+            guard let actual, stringMatches(actual, pattern: value, mode: mode) else { return .value(false) }
+        case .timeout: return .timeout
+        }
     }
-    return true
+    return .value(true)
 }
 
 // MARK: - String Matching
@@ -231,6 +524,7 @@ private func stringMatches(_ actual: String, pattern: String, mode: MatchMode) -
 /// Build a human-readable description of what the query is searching for.
 private func describeQuery(_ query: ElementQuery) -> String {
     var parts: [String] = ["pid=\(query.pid)"]
+    if let windowID = query.windowID { parts.append("window=\(windowID)") }
     if let r = query.role { parts.append("role=\(r)") }
     if let t = query.title { parts.append("title=\"\(t)\"") }
     if let l = query.label { parts.append("label=\"\(l)\"") }

@@ -201,22 +201,6 @@ test('proof-worth evaluator fails existing unregistered tests and allows deleted
   assert.equal(deleted.assets[0].coverage, 'deleted_unregistered_cleanup');
 });
 
-test('proof-worth evaluator reports guarded entries without default commands', async () => {
-  const registry = loadCanonicalRegistry();
-  const result = evaluateProofWorth({
-    changedFiles: ['tests/manual/native-ax-saved-ref-live-proof.sh'],
-    repoRoot,
-    registry,
-    registryPath: 'docs/dev/test-proof-registry.json',
-  });
-
-  assert.equal(result.status, 'passed', result);
-  assert.equal(result.commands.length, 0, result);
-  assert.equal(result.guarded.length, 1, result);
-  assert.equal(result.guarded[0].entry, 'native-ax-saved-ref-live-proof');
-  assert.match(result.guarded[0].guard, /real-input approval/);
-});
-
 test('proof-worth evaluator treats toolkit component launchers as guarded proof assets', async () => {
   const registry = loadCanonicalRegistry();
   const result = evaluateProofWorth({
@@ -292,7 +276,6 @@ test('proof-worth evaluator routes root skills command and forward proofs', asyn
     'node --test tests/aos-skills-companion.test.mjs',
     'node --test tests/aos-skills-forward-proof.test.mjs',
   ]);
-  assert.ok(result.guarded.some((item) => item.entry === 'cross-backend-saved-ref-manual-proof'));
 });
 
 test('proof-worth evaluator routes pre-release product policy proofs', () => {

@@ -176,7 +176,7 @@
     },
     {
       "path": ["do", "click"],
-      "summary": "Resolve saved click ref targets through the agent workspace action dispatcher.",
+      "summary": "Resolve saved click handles; canvas Locators may dispatch, while browser Observation Refs fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-ref.mjs", "click"],
       "cwd": "repo",
@@ -193,7 +193,7 @@
     },
     {
       "path": ["do", "click"],
-      "summary": "Click browser targets through the external do browser command.",
+      "summary": "Route browser click requests; ref-bearing Observation Refs validate, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "click"],
       "cwd": "repo",
@@ -242,7 +242,7 @@
     },
     {
       "path": ["do", "hover"],
-      "summary": "Resolve saved hover ref targets through the agent workspace action dispatcher.",
+      "summary": "Validate saved browser Observation Ref hover requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-ref.mjs", "hover"],
       "cwd": "repo",
@@ -259,7 +259,7 @@
     },
     {
       "path": ["do", "hover"],
-      "summary": "Hover browser targets through the external do browser command.",
+      "summary": "Route browser hover requests; ref-bearing Observation Refs validate, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "hover"],
       "cwd": "repo",
@@ -291,7 +291,7 @@
     },
     {
       "path": ["do", "drag"],
-      "summary": "Resolve saved drag ref targets through the agent workspace action dispatcher.",
+      "summary": "Validate saved browser Observation Ref drag requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-ref.mjs", "drag"],
       "cwd": "repo",
@@ -308,7 +308,7 @@
     },
     {
       "path": ["do", "drag"],
-      "summary": "Drag browser targets through the external do browser command.",
+      "summary": "Route browser drag requests; Observation Ref endpoints validate, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "drag"],
       "cwd": "repo",
@@ -356,7 +356,7 @@
     },
     {
       "path": ["do", "scroll"],
-      "summary": "Resolve saved scroll ref targets through the agent workspace action dispatcher.",
+      "summary": "Validate saved browser Observation Ref scroll requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-ref.mjs", "scroll"],
       "cwd": "repo",
@@ -373,7 +373,7 @@
     },
     {
       "path": ["do", "scroll"],
-      "summary": "Scroll browser targets through the external do browser command.",
+      "summary": "Scroll browser sessions; ref-bearing Observation Refs validate, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "scroll"],
       "cwd": "repo",
@@ -405,7 +405,7 @@
     },
     {
       "path": ["do", "type"],
-      "summary": "Resolve saved browser type ref targets through the agent workspace action dispatcher.",
+      "summary": "Validate saved browser Observation Ref type requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-ref.mjs", "type"],
       "cwd": "repo",
@@ -422,7 +422,7 @@
     },
     {
       "path": ["do", "type"],
-      "summary": "Type into browser targets through the external do browser command.",
+      "summary": "Type into browser sessions; ref-bearing Observation Refs validate, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "type"],
       "cwd": "repo",
@@ -454,7 +454,7 @@
     },
     {
       "path": ["do", "key"],
-      "summary": "Resolve saved browser key ref targets through the agent workspace action dispatcher.",
+      "summary": "Validate saved browser Observation Ref key requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-ref.mjs", "key"],
       "cwd": "repo",
@@ -471,7 +471,7 @@
     },
     {
       "path": ["do", "key"],
-      "summary": "Press keys in browser targets through the external do browser command.",
+      "summary": "Press keys in browser sessions; ref-bearing Observation Refs validate, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "key"],
       "cwd": "repo",
@@ -503,7 +503,7 @@
     },
     {
       "path": ["do", "fill"],
-      "summary": "Resolve saved fill ref targets through the agent workspace action dispatcher.",
+      "summary": "Validate saved browser Observation Ref fill requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-ref.mjs", "fill"],
       "cwd": "repo",
@@ -520,7 +520,7 @@
     },
     {
       "path": ["do", "fill"],
-      "summary": "Fill browser targets through the external do browser command.",
+      "summary": "Validate direct browser Observation Ref fill requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "fill"],
       "cwd": "repo",
@@ -988,7 +988,7 @@
     },
     {
       "path": ["see", "refs"],
-      "summary": "List compact saved refs through external agent-workspace composition; saved-ref mutation follows the backend action matrix.",
+      "summary": "List compact saved records through external agent-workspace composition; each record contains exactly one V1 handle.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-agent-workspace.mjs", "refs"],
       "cwd": "repo",

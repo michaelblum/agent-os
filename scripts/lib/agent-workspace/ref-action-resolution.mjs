@@ -1,8 +1,6 @@
-import path from 'node:path';
-import { exitAgentWorkspaceError, workspaceDir } from './core.mjs';
-import { loadSnapshot, readRefsRecord, requireWorkspace } from './store.mjs';
+import { exitAgentWorkspaceError } from './core.mjs';
+import { loadSnapshot, requireWorkspace } from './store.mjs';
 import { refSummary } from './refs.mjs';
-import { savedRefBackendSupportsRealMutation } from './contracts.mjs';
 
 function commandToken(value) {
   const text = String(value);
@@ -107,110 +105,35 @@ function recommendedRefsCommand(workspace, snapshot = null) {
 }
 
 export function loadRefRecord(workspace, refToken, explicitSnapshot, env = process.env) {
-  const { index } = requireWorkspace(workspace, env);
-  const snapshotIDValue = refToken.snapshot_id || explicitSnapshot;
-  if (snapshotIDValue) {
-    const loaded = loadSnapshot(workspace, snapshotIDValue, env);
-    const record = (loaded.refs.refs ?? []).find((item) => item.ref === refToken.ref);
-    if (!record) {
-      const nextCommand = recommendedRefsCommand(workspace, snapshotIDValue);
-      exitAgentWorkspaceError(`Ref '${refToken.ref}' not found in snapshot '${snapshotIDValue}'`, 'REF_NOT_FOUND', {
-        status: 'not_found',
-        ref: refToken.ref,
-        workspace_id: workspace,
-        snapshot_id: snapshotIDValue,
-        safe_next_action: nextCommand,
-        recommended_next_command: nextCommand,
-        requires_user_approval: false,
-      });
-    }
-    return record;
+  requireWorkspace(workspace, env);
+  if (!refToken.snapshot_id) {
+    exitAgentWorkspaceError('saved handle target must include its snapshot id', 'TARGET_HANDLE_INVALID');
   }
-
-  const matches = [];
-  for (const snapshot of index.snapshots ?? []) {
-    const refsPath = path.join(workspaceDir(workspace, env), 'snapshots', snapshot.snapshot_id, 'refs.json');
-    const refs = readRefsRecord(refsPath, workspace, snapshot.snapshot_id);
-    if (!refs) continue;
-    const record = (refs?.refs ?? []).find((item) => item.ref === refToken.ref);
-    if (record) matches.push(record);
+  if (explicitSnapshot && explicitSnapshot !== refToken.snapshot_id) {
+    exitAgentWorkspaceError('--snapshot does not match the saved handle address', 'TARGET_HANDLE_INVALID', {
+      address_snapshot_id: refToken.snapshot_id,
+      explicit_snapshot_id: explicitSnapshot,
+    });
   }
-  if (matches.length === 0) {
-    const nextCommand = recommendedRefsCommand(workspace);
-    exitAgentWorkspaceError(`Ref '${refToken.ref}' not found in workspace '${workspace}'`, 'REF_NOT_FOUND', {
+  const loaded = loadSnapshot(workspace, refToken.snapshot_id, env);
+  const record = (loaded.refs.refs ?? []).find((item) => item.ref === refToken.ref);
+  if (!record) {
+    const nextCommand = recommendedRefsCommand(workspace, refToken.snapshot_id);
+    exitAgentWorkspaceError(`Saved handle '${refToken.ref}' not found in snapshot '${refToken.snapshot_id}'`, 'TARGET_NOT_FOUND', {
       status: 'not_found',
       ref: refToken.ref,
       workspace_id: workspace,
+      snapshot_id: refToken.snapshot_id,
       safe_next_action: nextCommand,
       recommended_next_command: nextCommand,
-      requires_user_approval: false,
     });
   }
-  if (matches.length > 1) {
-    const snapshots = [...new Set(matches.map((record) => record.snapshot_id).filter(Boolean))];
-    exitAgentWorkspaceError(
-      `Ref '${refToken.ref}' is present in multiple snapshots; pass ref:<snapshot-id>:${refToken.ref} or --snapshot`,
-      'REF_AMBIGUOUS',
-      {
-        status: 'ambiguous',
-        ref: refToken.ref,
-        workspace_id: workspace,
-        candidates: matches.map(refSummary),
-        safe_next_action: `retry with ref:<snapshot-id>:${refToken.ref} from one candidate or pass --snapshot <snapshot-id>`,
-        recommended_next_commands: snapshots.map((snapshot) => recommendedRefsCommand(workspace, snapshot)),
-        requires_user_approval: false,
-      },
-    );
-  }
-  return matches[0];
-}
-
-export function unsafeResolutionForMutation(record, action, currentValidation = null) {
-  if (record.resolution_class === 'stable') return null;
-  if (record.resolution_class === 'reacquirable' && record.backend === 'aos_canvas') return null;
-  if (
-    record.resolution_class === 'snapshot_scoped'
-    && savedRefBackendSupportsRealMutation(record.backend, action)
-    && currentValidation?.status === 'reacquired'
-  ) {
-    return null;
-  }
-  return record.resolution_class || 'unsupported';
+  return record;
 }
 
 export function failUnsupportedRef(record, workspace) {
-  exitAgentWorkspaceError(`Ref '${record.ref}' is not actionable`, 'REF_UNSUPPORTED', {
+  exitAgentWorkspaceError(`Saved handle '${record.ref}' is not actionable`, 'TARGET_ACTION_UNSUPPORTED', {
     status: 'unsupported',
-    ref: refSummary(record),
-    ...recommendedRefreshResponseFields(workspace, record),
-    requires_user_approval: false,
-  });
-}
-
-export function failLowConfidenceRef(record, workspace) {
-  exitAgentWorkspaceError(`Ref '${record.ref}' is low confidence and not safe for saved-ref mutation`, 'REF_UNSUPPORTED', {
-    status: 'unsupported',
-    reason: 'low_confidence_target',
-    ref: refSummary(record),
-    ...recommendedRefreshResponseFields(workspace, record),
-    requires_user_approval: false,
-  });
-}
-
-export function failIncompatibleAction(record, action, workspace) {
-  exitAgentWorkspaceError(`Ref '${record.ref}' does not support ${action}`, 'ACTION_INCOMPATIBLE', {
-    status: 'action_incompatible',
-    ref: refSummary(record),
-    supported_actions: record.supported_actions ?? [],
-    ...recommendedRefreshResponseFields(workspace, record),
-    requires_user_approval: false,
-  });
-}
-
-export function failIncompatibleDragEndpoint(record, workspace, reason) {
-  exitAgentWorkspaceError(`Ref '${record.ref}' cannot be used as a browser drag endpoint: ${reason}`, 'ACTION_INCOMPATIBLE', {
-    status: 'action_incompatible',
-    reason,
     ref: refSummary(record),
     ...recommendedRefreshResponseFields(workspace, record),
     requires_user_approval: false,

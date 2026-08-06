@@ -31,8 +31,11 @@ The public semantic target types are:
 - Locator: a declarative query re-resolved at action time; zero matches return
   missing and multiple matches return ambiguous.
 
-Current saved-ref and direct-ref command routes have not completed this type
-split. See the explicit gap inventory in `docs/api/aos.md` and ADR 0040.
+Target Handle V1 applies this split to active browser, canvas, native AX, and
+saved-workspace routes. Browser refs require their original state and session;
+their action routes currently fail closed because backend state/ref identity is
+not atomically provable. Canvas/native Locators are state-free and require
+exactly one current match.
 
 For the complete manifest-derived command inventory, including internal or
 transitional forms such as `dev` and `browser _check-version`, see
@@ -113,11 +116,10 @@ AOS's Playwright-like observe-act loop is:
 Use the same shape for native apps, browser windows, canvas surfaces, regions,
 and focus channels. The capture source can be a positional target such as
 `main` or `browser:work`, or exactly one source flag such as `--region`,
-`--canvas`, or `--channel`. Current saved handles remain implementation plumbing
-until Observation Ref and Locator routes are separated. Act once, recapture,
-and verify when verification is useful. Add `--dry-run` only when the caller
-wants a non-mutating preview; it is not action permission. Work Record evidence
-is optional.
+`--canvas`, or `--channel`. Saved records are storage indirection to exactly one
+V1 Observation Ref or Locator. Act once, recapture, and verify when verification
+is useful. Add `--dry-run` only when the caller wants identical resolution with
+mutation omitted; it is not action permission. Work Record evidence is optional.
 
 Saved-ref action responses expose `post_action.recommended_next_command` when
 the next safe step is a fresh `aos see capture --save`. Treat that command as
@@ -364,7 +366,7 @@ Status values:
 | Native AX press | AX-backed command | `aos do press <ref> ... [--dry-run]` or `--pid --role ... [--dry-run]` | native AX | Optional | Accessibility | Current saved-handle implementation fails closed on missing identity, off-Space, minimized, or known-limit blockers | Keep |
 | Native AX focus | AX-backed command | `aos do focus <ref> ... [--dry-run]` or `--pid --role ... [--dry-run]` | native AX | Optional | Accessibility | Same native saved-handle known limits | Keep |
 | Native AX set-value | AX-backed command | `aos do set-value <ref> --value ... [--dry-run]` or `--pid --role ...` | native AX/canvas | Optional | Accessibility | Same native saved-handle known limits | Keep |
-| Pointer fallback | first-class command | `aos do click/hover/drag/scroll x,y` | pointer/keyboard input | Some actions | Accessibility/Input Monitoring | Caller-selected current coordinates; use `state_id` when selected from perception | Use when exact target/current-state mechanics are satisfied |
+| Raw coordinates | first-class command | `aos do click/hover/drag/scroll x,y` | pointer/keyboard input | Some actions | Accessibility/Input Monitoring | Caller-selected current coordinates; `state_id` is unsupported | Coordinates are not semantic handles |
 | Keyboard fallback | first-class command | `aos do type`, `aos do key` | keyboard input | Browser refs only for some forms | Accessibility/Input Monitoring | Acts on current focus | Use only with focus proof |
 | App scripting fallback | key/script escape hatch | `aos do tell <app> <script>` | AppleScript | No | Automation/Accessibility likely | App-specific and lower-level | Keep as explicit escape hatch |
 

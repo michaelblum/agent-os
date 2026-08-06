@@ -518,7 +518,7 @@
               "id" : "save",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Persist full perception in a local agent workspace and return compact JSON saved handles with conformance/proof; current saved-handle actions support canvas click/set-value, validated browser click/fill/hover/scroll/drag/type/key mutation, and native AX press/focus/set-value through the current stable resolution class when the producer verdict is actionable",
+              "summary" : "Persist full perception in a local agent workspace and return compact JSON saved handles. Each record contains exactly one V1 browser Observation Ref, canvas Locator, or native AX Locator; actions validate browser state/ref pairs or re-resolve Locators to exactly one current match",
               "token" : "--save",
               "value_type" : "bool"
             },
@@ -566,7 +566,7 @@
               "id" : "query",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Filter compact saved refs by text; saved-ref mutation is limited to the documented backend action matrix",
+              "summary" : "Filter compact saved records by V1 handle facts or target hints",
               "token" : "--query",
               "value_type" : "string"
             }
@@ -716,7 +716,7 @@
               "id" : "save",
               "kind" : "flag",
               "required" : true,
-              "summary" : "Persist full perception in a local agent workspace and return compact JSON refs with conformance/proof for the documented saved-ref action matrix",
+              "summary" : "Persist full perception in a local agent workspace and return compact records containing exactly one V1 handle",
               "token" : "--save",
               "value_type" : "bool"
             },
@@ -764,7 +764,7 @@
               "id" : "query",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Filter compact saved refs by text; saved-ref mutation is limited to the documented backend action matrix",
+              "summary" : "Filter compact saved records by V1 handle facts or target hints",
               "token" : "--query",
               "value_type" : "string"
             }
@@ -820,7 +820,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "summary" : "Persist perception through the same bounded daemon-owned native transaction into a local agent workspace; --window warns on full-display fallback, and compact saved handles retain current conformance/proof fields for canvas, browser, and native AX actions",
+          "summary" : "Persist perception through the same bounded daemon-owned native transaction into a local agent workspace; --window warns on full-display fallback, and each compact saved ref exposes exactly one typed V1 handle plus bounded hint, artifact, and warning facts",
           "usage" : "aos see capture [<target>|--region <rect>|--canvas <id>|--channel <id>] [--interactive] --save [--mode <mode>] [--workspace <id>] [--name <id>] [--query <text>]"
         },
         {
@@ -3314,7 +3314,7 @@
               "id" : "state-id",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Perception state id this action was chosen from",
+              "summary" : "Required original state id for browser Observation Ref targets; coordinates and Locators reject it",
               "token" : "--state-id",
               "value_type" : "string"
             },
@@ -3322,7 +3322,7 @@
               "id" : "dry-run",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Validate and describe the action without executing it",
+              "summary" : "Run the same validation/resolution without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
               "token" : "--dry-run",
               "value_type" : "bool"
             },
@@ -3330,7 +3330,7 @@
               "id" : "workspace",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Agent workspace id for ref:<id> targets",
+              "summary" : "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token" : "--workspace",
               "value_type" : "string"
             },
@@ -3338,7 +3338,7 @@
               "id" : "snapshot",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary" : "Optional snapshot assertion that must match the scoped ref target",
               "token" : "--snapshot",
               "value_type" : "string"
             }
@@ -3347,10 +3347,10 @@
             "aos do click ref:<snapshot-id>:r1 --workspace default --dry-run",
             "aos do click ref:<snapshot-id>:r1 --workspace default",
             "aos do click 500,300",
-            "aos do click canvas:subject-browser/wiki-subject-browser-v0:subject-list:open:record --state-id see_abc123def456",
-            "aos do click browser:todo/e21"
+            "aos do click canvas:subject-browser/wiki-subject-browser-v0:subject-list:open:record",
+            "aos do click browser:todo/e21 --state-id see_abc123def456"
           ],
-          "summary" : "Saved-ref click validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
+          "summary" : "Coordinate and canvas Locator clicks remain available; browser Observation Refs validate the original pair, then fail closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -3367,7 +3367,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do click <ref:<snapshot-id>:<ref>|x,y|canvas:<canvas-id>/<ref>|browser:<session>/<ref>> [--workspace <id>] [--snapshot <id>] [--right] [--double] [--state-id id] [--dry-run] [--dwell N for x,y or canvas targets]"
+          "usage" : "aos do click <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> [--workspace <id>] [--snapshot <id>] [--right] [--double] [--state-id id] [--dry-run] | aos do click <x,y|canvas:<canvas-id>/<ref>> [--right] [--double] [--dwell N] [--dry-run]"
         },
         {
           "args" : [
@@ -3382,7 +3382,7 @@
               "id" : "state-id",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Perception state id this action was chosen from",
+              "summary" : "Required original state id for browser Observation Ref targets; coordinates reject it",
               "token" : "--state-id",
               "value_type" : "string"
             },
@@ -3390,7 +3390,7 @@
               "id" : "workspace",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Agent workspace id for ref:<id> targets",
+              "summary" : "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token" : "--workspace",
               "value_type" : "string"
             },
@@ -3398,7 +3398,7 @@
               "id" : "snapshot",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary" : "Optional snapshot assertion that must match the scoped ref target",
               "token" : "--snapshot",
               "value_type" : "string"
             },
@@ -3406,7 +3406,7 @@
               "id" : "dry-run",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Validate and describe the action without executing it",
+              "summary" : "Run the same validation without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
               "token" : "--dry-run",
               "value_type" : "bool"
             }
@@ -3414,10 +3414,10 @@
           "examples" : [
             "aos do hover ref:<snapshot-id>:r2 --workspace default --dry-run",
             "aos do hover ref:<snapshot-id>:r2 --workspace default",
-            "aos do hover browser:todo/e21",
+            "aos do hover browser:todo/e21 --state-id see_abc123def456",
             "aos do hover 500,300"
           ],
-          "summary" : "Saved-ref hover validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
+          "summary" : "Coordinate hover remains available; browser Observation Refs validate the original pair, then fail closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -3434,7 +3434,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do hover <ref:<snapshot-id>:<ref>|browser:<session>/<ref>|x,y> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run]"
+          "usage" : "aos do hover <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run] | aos do hover <x,y> [--dry-run]"
         },
         {
           "args" : [
@@ -3456,7 +3456,7 @@
               "id" : "state-id",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Perception state id this action was chosen from",
+              "summary" : "Required original state id for direct browser Observation Ref endpoints",
               "token" : "--state-id",
               "value_type" : "string"
             },
@@ -3464,7 +3464,7 @@
               "id" : "workspace",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Agent workspace id for ref:<id> targets",
+              "summary" : "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token" : "--workspace",
               "value_type" : "string"
             },
@@ -3472,7 +3472,7 @@
               "id" : "snapshot",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary" : "Optional snapshot assertion that must match the scoped ref target",
               "token" : "--snapshot",
               "value_type" : "string"
             },
@@ -3480,7 +3480,7 @@
               "id" : "dry-run",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Validate and describe the action without executing it",
+              "summary" : "Run the same validation without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
               "token" : "--dry-run",
               "value_type" : "bool"
             }
@@ -3488,9 +3488,9 @@
           "examples" : [
             "aos do drag ref:<snapshot-id>:r2 ref:<snapshot-id>:r3 --workspace default --dry-run",
             "aos do drag ref:<snapshot-id>:r2 ref:<snapshot-id>:r3 --workspace default",
-            "aos do drag browser:todo/e1 browser:todo/e2"
+            "aos do drag browser:todo/e1 browser:todo/e2 --state-id see_abc123def456"
           ],
-          "summary" : "Saved-ref and browser drag validate both endpoints before mutation and return post_action.recommended_next_command for recapture with aos see capture --save before verification",
+          "summary" : "Browser Observation Ref drag validates both original pairs, then fails closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -3559,14 +3559,6 @@
               }
             },
             {
-              "id" : "state-id",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Perception state id this action was chosen from",
-              "token" : "--state-id",
-              "value_type" : "string"
-            },
-            {
               "id" : "dry-run",
               "kind" : "flag",
               "required" : false,
@@ -3617,7 +3609,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do drag <canvas:<canvas-id>/<ref>> (--by <dx,dy>|--to-value <value>) [--playback auto|immediate|human] [--state-id id] [--dry-run]"
+          "usage" : "aos do drag <canvas:<canvas-id>/<ref>> (--by <dx,dy>|--to-value <value>) [--playback auto|immediate|human] [--dry-run]"
         },
         {
           "args" : [
@@ -3642,14 +3634,6 @@
               "summary" : "Native coordinate drag speed in pixels/sec",
               "token" : "--speed",
               "value_type" : "int"
-            },
-            {
-              "id" : "state-id",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Perception state id this action was chosen from",
-              "token" : "--state-id",
-              "value_type" : "string"
             },
             {
               "id" : "dry-run",
@@ -3681,7 +3665,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do drag <x1,y1> <x2,y2> [--speed N] [--state-id id] [--dry-run]"
+          "usage" : "aos do drag <x1,y1> <x2,y2> [--speed N] [--dry-run]"
         },
         {
           "args" : [
@@ -3719,7 +3703,7 @@
               "id" : "state-id",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Perception state id this action was chosen from",
+              "summary" : "Required original state id for browser Observation Ref targets; coordinates reject it",
               "token" : "--state-id",
               "value_type" : "string"
             },
@@ -3727,7 +3711,7 @@
               "id" : "workspace",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Agent workspace id for ref:<id> targets",
+              "summary" : "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token" : "--workspace",
               "value_type" : "string"
             },
@@ -3735,7 +3719,7 @@
               "id" : "snapshot",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary" : "Optional snapshot assertion that must match the scoped ref target",
               "token" : "--snapshot",
               "value_type" : "string"
             },
@@ -3743,7 +3727,7 @@
               "id" : "dry-run",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Validate and describe the action without executing it",
+              "summary" : "Run the same validation without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
               "token" : "--dry-run",
               "value_type" : "bool"
             }
@@ -3751,10 +3735,10 @@
           "examples" : [
             "aos do scroll ref:<snapshot-id>:r2 0,-200 --workspace default --dry-run",
             "aos do scroll ref:<snapshot-id>:r2 0,-200 --workspace default",
-            "aos do scroll browser:todo/e21 0,-200",
+            "aos do scroll browser:todo/e21 0,-200 --state-id see_abc123def456",
             "aos do scroll 500,300 --dy -3"
           ],
-          "summary" : "Saved-ref scroll validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
+          "summary" : "Coordinate and browser-session scroll remain available; browser Observation Refs validate the original pair, then fail closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -3771,7 +3755,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do scroll <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> <dx,dy> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run] | aos do scroll <x,y> [--dx N] [--dy N] [--state-id id] [--dry-run]"
+          "usage" : "aos do scroll <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> <dx,dy> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run] | aos do scroll <x,y> [--dx N] [--dy N] [--dry-run]"
         },
         {
           "args" : [
@@ -3841,14 +3825,14 @@
               "id" : "state-id",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Perception state id this action was chosen from",
+              "summary" : "Required original state id for a ref-bearing browser target; session-only targets reject it",
               "token" : "--state-id",
               "value_type" : "string"
             }
           ],
           "examples" : [
-            "aos do type browser:todo/e21 \"hello world\"",
-            "aos do type browser:todo \"hello world\" --state-id see_abc123def456"
+            "aos do type browser:todo/e21 \"hello world\" --state-id see_abc123def456",
+            "aos do type browser:todo \"hello world\""
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -3866,7 +3850,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "summary" : "Direct current-host browser text input through Playwright",
+          "summary" : "Direct current-host browser session text input remains available; ref-bearing Observation Ref input validates the original pair, then returns TARGET_ACTION_UNSUPPORTED",
           "usage" : "aos do type <browser:<session>[/<ref>]> <text> [--state-id id]"
         },
         {
@@ -3889,7 +3873,7 @@
               "id" : "dry-run",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Validate and describe a saved-ref type without executing it",
+              "summary" : "Run the same saved Observation Ref validation without mutation; returns TARGET_ACTION_UNSUPPORTED",
               "token" : "--dry-run",
               "value_type" : "bool"
             },
@@ -3897,7 +3881,7 @@
               "id" : "workspace",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Agent workspace id for ref:<id> targets",
+              "summary" : "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token" : "--workspace",
               "value_type" : "string"
             },
@@ -3905,7 +3889,7 @@
               "id" : "snapshot",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary" : "Optional snapshot assertion that must match the scoped ref target",
               "token" : "--snapshot",
               "value_type" : "string"
             }
@@ -3930,7 +3914,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "summary" : "Saved browser type validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
+          "summary" : "Saved browser Observation Ref type validates the original pair, then fails closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
           "usage" : "aos do type <ref:<snapshot-id>:<ref>> <text> [--workspace <id>] [--snapshot <id>] [--dry-run]"
         },
         {
@@ -3985,14 +3969,14 @@
               "id" : "state-id",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Perception state id this action was chosen from",
+              "summary" : "Required original state id for a ref-bearing browser target; session-only targets reject it",
               "token" : "--state-id",
               "value_type" : "string"
             }
           ],
           "examples" : [
-            "aos do key browser:todo/e21 \"Enter\"",
-            "aos do key browser:todo \"cmd+s\" --state-id see_abc123def456"
+            "aos do key browser:todo/e21 \"Enter\" --state-id see_abc123def456",
+            "aos do key browser:todo \"cmd+s\""
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -4010,7 +3994,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "summary" : "Direct current-host browser key press through Playwright",
+          "summary" : "Direct current-host browser session key press remains available; ref-bearing Observation Ref input validates the original pair, then returns TARGET_ACTION_UNSUPPORTED",
           "usage" : "aos do key <browser:<session>[/<ref>]> <combo> [--state-id id]"
         },
         {
@@ -4033,7 +4017,7 @@
               "id" : "dry-run",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Validate and describe a saved-ref key without executing it",
+              "summary" : "Run the same saved Observation Ref validation without mutation; returns TARGET_ACTION_UNSUPPORTED",
               "token" : "--dry-run",
               "value_type" : "bool"
             },
@@ -4041,7 +4025,7 @@
               "id" : "workspace",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Agent workspace id for ref:<id> targets",
+              "summary" : "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token" : "--workspace",
               "value_type" : "string"
             },
@@ -4049,7 +4033,7 @@
               "id" : "snapshot",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary" : "Optional snapshot assertion that must match the scoped ref target",
               "token" : "--snapshot",
               "value_type" : "string"
             }
@@ -4074,7 +4058,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "summary" : "Saved browser key validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
+          "summary" : "Saved browser Observation Ref key validates the original pair, then fails closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
           "usage" : "aos do key <ref:<snapshot-id>:<ref>> <combo> [--workspace <id>] [--snapshot <id>] [--dry-run]"
         },
         {
@@ -4097,7 +4081,7 @@
               "id" : "dry-run",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Validate and describe a saved-ref fill without executing it",
+              "summary" : "Run the same saved Observation Ref validation without mutation; returns TARGET_ACTION_UNSUPPORTED",
               "token" : "--dry-run",
               "value_type" : "bool"
             },
@@ -4105,7 +4089,7 @@
               "id" : "workspace",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Agent workspace id for ref:<id> targets",
+              "summary" : "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token" : "--workspace",
               "value_type" : "string"
             },
@@ -4113,7 +4097,7 @@
               "id" : "snapshot",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary" : "Optional snapshot assertion that must match the scoped ref target",
               "token" : "--snapshot",
               "value_type" : "string"
             },
@@ -4121,7 +4105,7 @@
               "id" : "state-id",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Perception state id for direct browser fill provenance",
+              "summary" : "Required original state id for direct browser Observation Ref fill",
               "token" : "--state-id",
               "value_type" : "string"
             }
@@ -4131,7 +4115,7 @@
             "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default",
             "aos do fill browser:todo/e21 \"buy groceries\" --state-id see_abc123def456"
           ],
-          "summary" : "Saved-ref fill validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
+          "summary" : "Browser Observation Ref fill validates the original pair, then fails closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -4194,7 +4178,7 @@
               "id" : "target",
               "kind" : "positional",
               "required" : false,
-              "summary" : "Saved native AX handle in the current stable resolution class with actionable producer verdict; omit for direct --pid/--role form",
+              "summary" : "Saved native AX Locator; omit for direct --pid/--role Locator form",
               "value_type" : "string"
             },
             {
@@ -4209,7 +4193,7 @@
               "id" : "window",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Window ID carried as saved native identity context",
+              "summary" : "Window ID filter for current Locator resolution",
               "token" : "--window",
               "value_type" : "int"
             },
@@ -4217,7 +4201,7 @@
               "id" : "role",
               "kind" : "flag",
               "required" : false,
-              "summary" : "AX role to match in the direct --pid form; saved refs carry role in identity facts",
+              "summary" : "AX role filter for current Locator resolution",
               "token" : "--role",
               "value_type" : "string"
             },
@@ -4249,7 +4233,7 @@
               "id" : "index",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Match by index",
+              "summary" : "Explicit deterministic index disambiguator among current candidates",
               "token" : "--index",
               "value_type" : "int"
             },
@@ -4257,7 +4241,7 @@
               "id" : "near",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Prefer element near x,y",
+              "summary" : "Require a unique closest bounded candidate to x,y; distance ties are ambiguous",
               "token" : "--near",
               "value_type" : "string"
             },
@@ -4273,7 +4257,7 @@
               "id" : "depth",
               "kind" : "flag",
               "required" : false,
-              "summary" : "AX traversal depth",
+              "summary" : "AX traversal depth (0..128)",
               "token" : "--depth",
               "value_type" : "int"
             },
@@ -4281,7 +4265,7 @@
               "id" : "timeout",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Timeout in ms",
+              "summary" : "Timeout in ms (1..30000)",
               "token" : "--timeout",
               "value_type" : "int"
             },
@@ -4297,7 +4281,7 @@
               "id" : "workspace",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Agent workspace id for ref:<id> targets",
+              "summary" : "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token" : "--workspace",
               "value_type" : "string"
             },
@@ -4305,7 +4289,7 @@
               "id" : "snapshot",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary" : "Optional snapshot assertion that must match the scoped ref target",
               "token" : "--snapshot",
               "value_type" : "string"
             }
@@ -4332,7 +4316,7 @@
             "aos do press --pid 1234 --role AXButton --title Save --dry-run",
             "aos do press --pid 1234 --role AXButton --title Save"
           ],
-          "summary" : "Press current saved native AX handles or direct AX targets; saved-handle dispatch validates current machine identity facts and returns post_action.recommended_next_command for recapture with aos see capture --save before verification; direct AX uses current matching with no_foreground proof still not claimed",
+          "summary" : "Press a saved or direct native AX Locator after current exact-one resolution; --index is explicit and --near requires a unique closest candidate; no_foreground proof is not claimed",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -4372,7 +4356,7 @@
               "id" : "window",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Window ID carried as saved native identity context",
+              "summary" : "Window ID filter for current Locator resolution",
               "token" : "--window",
               "value_type" : "int"
             },
@@ -4380,7 +4364,7 @@
               "id" : "role",
               "kind" : "flag",
               "required" : false,
-              "summary" : "AX role to match in the direct --pid form; saved refs carry role in identity facts",
+              "summary" : "AX role filter for current Locator resolution",
               "token" : "--role",
               "value_type" : "string"
             },
@@ -4427,7 +4411,7 @@
               "id" : "index",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Match by index",
+              "summary" : "Explicit deterministic index disambiguator among current candidates",
               "token" : "--index",
               "value_type" : "int"
             },
@@ -4435,7 +4419,7 @@
               "id" : "near",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Prefer element near x,y",
+              "summary" : "Require a unique closest bounded candidate to x,y; distance ties are ambiguous",
               "token" : "--near",
               "value_type" : "string"
             },
@@ -4451,7 +4435,7 @@
               "id" : "depth",
               "kind" : "flag",
               "required" : false,
-              "summary" : "AX traversal depth",
+              "summary" : "AX traversal depth (0..128)",
               "token" : "--depth",
               "value_type" : "int"
             },
@@ -4467,7 +4451,7 @@
               "id" : "workspace",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Agent workspace id for ref:<id> targets",
+              "summary" : "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token" : "--workspace",
               "value_type" : "string"
             },
@@ -4475,7 +4459,7 @@
               "id" : "snapshot",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary" : "Optional snapshot assertion that must match the scoped ref target",
               "token" : "--snapshot",
               "value_type" : "string"
             },
@@ -4521,7 +4505,7 @@
             "aos do set-value canvas:settings/brightness-slider --value \"42\"",
             "aos do set-value --pid 1234 --role AXTextField --value \"hello\""
           ],
-          "summary" : "Set saved refs, direct canvas semantic refs, or direct AX targets; saved-ref set-value validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
+          "summary" : "Set a saved or direct canvas/native AX Locator after current exact-one resolution; dry-run performs the same resolution before mutation",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -4546,7 +4530,7 @@
               "id" : "target",
               "kind" : "positional",
               "required" : false,
-              "summary" : "Saved native AX handle in the current stable resolution class with actionable producer verdict; omit for direct --pid/--role form",
+              "summary" : "Saved native AX Locator; omit for direct --pid/--role Locator form",
               "value_type" : "string"
             },
             {
@@ -4561,7 +4545,7 @@
               "id" : "window",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Window ID carried as saved native identity context",
+              "summary" : "Window ID filter for current Locator resolution",
               "token" : "--window",
               "value_type" : "int"
             },
@@ -4569,7 +4553,7 @@
               "id" : "role",
               "kind" : "flag",
               "required" : false,
-              "summary" : "AX role to match in the direct --pid form; saved refs carry role in identity facts",
+              "summary" : "AX role filter for current Locator resolution",
               "token" : "--role",
               "value_type" : "string"
             },
@@ -4601,7 +4585,7 @@
               "id" : "index",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Match by index",
+              "summary" : "Explicit deterministic index disambiguator among current candidates",
               "token" : "--index",
               "value_type" : "int"
             },
@@ -4609,7 +4593,7 @@
               "id" : "near",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Prefer element near x,y",
+              "summary" : "Require a unique closest bounded candidate to x,y; distance ties are ambiguous",
               "token" : "--near",
               "value_type" : "string"
             },
@@ -4625,7 +4609,7 @@
               "id" : "depth",
               "kind" : "flag",
               "required" : false,
-              "summary" : "AX traversal depth",
+              "summary" : "AX traversal depth (0..128)",
               "token" : "--depth",
               "value_type" : "int"
             },
@@ -4633,7 +4617,7 @@
               "id" : "timeout",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Timeout in ms",
+              "summary" : "Timeout in ms (1..30000)",
               "token" : "--timeout",
               "value_type" : "int"
             },
@@ -4649,7 +4633,7 @@
               "id" : "workspace",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Agent workspace id for ref:<id> targets",
+              "summary" : "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token" : "--workspace",
               "value_type" : "string"
             },
@@ -4657,7 +4641,7 @@
               "id" : "snapshot",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary" : "Optional snapshot assertion that must match the scoped ref target",
               "token" : "--snapshot",
               "value_type" : "string"
             }
@@ -4684,7 +4668,7 @@
             "aos do focus --pid 1234 --role AXTextField --dry-run",
             "aos do focus --pid 1234 --role AXTextField"
           ],
-          "summary" : "Focus current saved native AX handles or direct AX targets; saved-handle dispatch validates current machine identity facts and returns post_action.recommended_next_command for recapture with aos see capture --save before verification; direct AX uses current matching with no_foreground proof still not claimed",
+          "summary" : "Focus a saved or direct native AX Locator after current exact-one resolution; --index is explicit and --near requires a unique closest candidate; no_foreground proof is not claimed",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,

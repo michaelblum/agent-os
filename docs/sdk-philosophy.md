@@ -25,7 +25,9 @@ Every session rediscovers this plumbing from scratch.
 
 **Fewer good methods beat many precise ones.** Human developers like granular control and tend to appreciate 50 specialized methods. Agents get confused by large surfaces and pick the wrong method. Fifteen methods that each do something obviously are better than fifty that require understanding subtle distinctions.
 
-**Return types are half the design.** If `clickElement` returns `{ clicked: true, element: { label, role, frame } }`, the agent can reason about what happened. If it returns `void`, the agent burns another tool call to check. Every SDK method should return enough for the agent to decide what to do next without calling anything else.
+**Return types are half the design.** A semantic action must return the typed
+target result and bounded mechanical facts needed for the next decision. A
+label-only first-match helper is not a valid substitute for target identity.
 
 **Error messages are agent instructions.** `{ error: "No element matching 'Save' found in Xcode. Found: 'Save As...', 'Save All'" }` tells the agent exactly how to recover. `{ error: "ELEMENT_NOT_FOUND" }` forces another perception cycle.
 
@@ -49,19 +51,10 @@ An agent *can* do everything with only these. It will just spend a lot of tokens
 
 Absorb the mechanical reasoning that every agent session rediscovers.
 
-```typescript
-aos.clickElement("Save", { app: "Xcode" })
-// Internally: capture → find element by label → click its center
-// The agent never sees coordinates
-
-aos.waitFor({ window: "Build Succeeded" }, { timeout: 30000 })
-// Internally: poll getWindows() until match or timeout
-// The agent doesn't write polling loops
-
-aos.showStatus("Building...", { near: "Xcode" })
-// Internally: find window → compute position → create canvas
-// The agent doesn't calculate geometry
-```
+Target Handle Runtime V1 does not expose public smart-action or wait APIs. A
+future semantic action API must consume a typed Observation Ref or Locator,
+re-resolve Locators to exactly one current match, and preserve typed failures.
+It must never choose the first label match.
 
 The boundary between Layer 1 and Layer 2: if an agent would need to call two or more primitives in a predictable sequence to accomplish something, that sequence belongs in Layer 2. If the sequence requires judgment about *what* to do (not just *how*), it stays with the agent.
 
@@ -69,14 +62,9 @@ The boundary between Layer 1 and Layer 2: if an agent would need to call two or 
 
 Scripts composed from Layer 1 and 2, saved in the registry, invoked by name.
 
-```typescript
-// Saved as "check-xcode-build"
-await aos.clickElement("Build", { app: "Xcode" });
-const result = await aos.waitFor({ window: /Build (Succeeded|Failed)/ }, { timeout: 60000 });
-return { status: result.title.includes("Failed") ? "failed" : "success" };
-```
-
-An agent calls `run_os_script({ script_id: "check-xcode-build" })` — one tool call instead of many. The script is tested, deterministic, and reusable across sessions.
+A saved workflow may compose supported primitives, but storage does not create a
+third target-identity model. A saved target remains indirection to exactly one
+typed Observation Ref or Locator.
 
 Over time, the script registry becomes a library of capabilities. New agents inherit what previous agents learned. This is how the system gets smarter without the model getting smarter.
 

@@ -109,16 +109,15 @@ locators.
 
 ## Current Implementation Gaps
 
-This ADR establishes authority; it does not claim the following migrations are
-complete. A fidelity gap exists only where a bounded public contract already
+The Target Handle Runtime V1 migration now enforces the Observation Ref/Locator
+split, original browser pair validation, V1-only saved-handle storage, and
+fail-closed browser action boundary described above. The following separate
+migrations remain incomplete. A fidelity gap exists only where a bounded public contract already
 admits the named fact and current behavior drops, replaces, or defaults a
 transform on that fact. This ADR does not widen typed receipts, lifecycle
 events, product-neutral scene envelopes, or trusted-realm boundaries to
 adjacent inputs, media, source, product state, diagnostics, or private handles:
 
-- current direct and saved-ref routes do not consistently require the exact
-  `(state_id, ref)` pair, accept a bare saved-ref shorthand, and may automatically
-  reacquire a stale saved handle instead of exposing a distinct Locator;
 - current Work Record repair planning/execution still carries Gate-derived
   authorization and operation-allowlist coupling;
 - current Gate persistence redacts prompt/answer content and continuation source
@@ -141,9 +140,9 @@ These are follow-up implementation gaps, not exceptions to the decision.
 
 ## Non-Goals
 
-This slice does not perform the runtime ref/locator migration, refactor Work
-Record executors, refactor Gate persistence, productize the gateway, add generic
-wait/event/cursor/codegen surfaces, or redesign the command tree.
+This decision does not refactor Work Record executors, refactor Gate
+persistence, productize public run-code, add generic wait/event/cursor/codegen
+surfaces, or redesign the command tree.
 
 ## Consequences
 

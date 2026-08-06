@@ -21,11 +21,11 @@ chooses them and AOS enforces current-state mechanics.
 
 ## Action Rules
 
-- Prefer an exact current Observation Ref or Locator when available. Current
-  direct `canvas:<canvas-id>/<ref>` and saved-ref strings remain implementation
-  transport.
-- Use coordinates only with explicit target proof and a `--state-id` when the
-  action was chosen from a prior capture.
+- Prefer an exact current Observation Ref or Locator when available. Direct
+  `canvas:<canvas-id>/<ref>` carries a Locator query; a saved-ref string is
+  storage indirection to one typed handle.
+- Raw coordinates remain available but are not target handles. Coordinate
+  actions reject `--state-id`; recapture when prior perception informed them.
 - Recapture after any visual fallback action.
 - Use `./aos see refs --diff <before>..<after> --expect ...` when compact refs
   can prove the effect.
@@ -41,4 +41,5 @@ live input/TCC state outside the task.
 - `docs/api/aos-capabilities.md`
 - `docs/api/aos.md`
 - `docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md`
-- `tests/agent-workspace-canvas-refs.sh`
+- `tests/native-target-locator-selection.sh`
+- `tests/target-handle-runtime.test.mjs`

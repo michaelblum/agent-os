@@ -190,11 +190,11 @@ rm -f /tmp/aos-see-annotation-bogus.out /tmp/aos-see-annotation-bogus.err
 ANNOTATION_ROOT="$(mktemp -d)"
 cat >/tmp/aos-see-annotation-capture.json <<'JSON'
 {
-  "schema_version": "aos.agent-workspace.v0",
+  "schema_version": "aos.agent-workspace.v1",
   "status": "success",
   "workspace_id": "ws-dispatch",
   "snapshot_id": "snap-dispatch",
-  "capture_target": "browser:dispatch",
+  "capture_target": "canvas:dispatch",
   "capture_mode": "som",
   "artifact_refs": [
     {
@@ -205,14 +205,25 @@ cat >/tmp/aos-see-annotation-capture.json <<'JSON'
   "refs": [
     {
       "ref": "r1",
+      "ref_scope": "snapshot",
       "workspace_id": "ws-dispatch",
       "snapshot_id": "snap-dispatch",
-      "backend": "browser",
-      "resolution_class": "snapshot_scoped",
+      "capture_target": "canvas:dispatch",
+      "capture_mode": "som",
+      "backend": "aos_canvas",
+      "handle": {
+        "kind": "locator",
+        "backend": "aos_canvas",
+        "query": { "canvas_id": "dispatch", "ref": "save" }
+      },
       "confidence": "high",
+      "supported_actions": ["click"],
       "target_summary": "Dispatch saved ref",
-      "action_target": "ref:snap-dispatch:r1",
-      "artifact_refs": []
+      "copyable_action_target": "ref:snap-dispatch:r1",
+      "hint_facts": {},
+      "artifact_refs": [],
+      "warnings": [],
+      "known_limits": []
     }
   ]
 }

@@ -14,10 +14,33 @@ function findAosBinary(): string {
 
 const AOS_BIN = findAosBinary();
 
+export class AOSCommandError extends Error {
+  code: string;
+  details: Record<string, unknown>;
+
+  constructor(code: string, message: string, details: Record<string, unknown> = {}) {
+    super(message);
+    this.name = 'AOSCommandError';
+    this.code = code;
+    this.details = details;
+  }
+}
+
 function runAos(args: string[], timeoutMs = 10000): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(AOS_BIN, args, { timeout: timeoutMs, maxBuffer: 1024 * 1024 * 5 }, (err, stdout, stderr) => {
-      if (err) reject(new Error(`aos ${args.join(' ')} failed: ${err.message}\n${stderr}`));
+      if (err) {
+        let payload: any = null;
+        try { payload = JSON.parse(String(stderr || stdout).trim()); } catch {}
+        if (payload?.code) {
+          const { code, error, ...details } = payload;
+          reject(new AOSCommandError(code, error || err.message, details));
+        } else {
+          reject(new AOSCommandError('AOS_COMMAND_FAILED', `aos ${args.join(' ')} failed: ${err.message}`, {
+            stderr: stderr || null,
+          }));
+        }
+      }
       else resolve(stdout);
     });
   });
@@ -44,6 +67,7 @@ export type AOSSemanticTarget = {
   role: string;
   name?: string;
   kind: string;
+  handle: AOSTargetHandle;
   enabled: boolean;
   state?: {
     value?: string;
@@ -69,10 +93,29 @@ export type AOSSemanticTarget = {
   };
 };
 
+export type AOSTargetHandle =
+  | {
+      kind: 'observation_ref'; backend: 'browser'; state_id: string;
+      scope: { session: string }; ref: string;
+    }
+  | {
+      kind: 'locator'; backend: 'aos_canvas';
+      query: { canvas_id: string; ref: string };
+    }
+  | {
+      kind: 'locator'; backend: 'native_ax';
+      query: {
+        pid: number; role: string; window_id?: number; title?: string;
+        label?: string; identifier?: string; index?: number; near?: string;
+        match?: 'exact' | 'contains' | 'regex'; depth?: number; timeout_ms?: number;
+      };
+    };
+
 export type CaptureResult = {
   status: string;
+  state_id?: string;
   base64?: string;
-  elements?: unknown[];
+  elements?: Array<Record<string, unknown> & { handle?: AOSTargetHandle }>;
   semantic_targets?: AOSSemanticTarget[];
   path?: string;
 };
@@ -294,65 +337,6 @@ export async function findWindow(query: { app?: string; title?: string }): Promi
     found: matches.length > 0,
     window: matches[0] ?? null,
     candidates: windows.map(w => `${w.app}: ${w.title}`).slice(0, 10),
-  };
-}
-
-/** Capture the screen, find an element by label, and click it. One call. */
-export async function clickElement(label: string, opts?: {
-  app?: string;
-  role?: string;
-}): Promise<{
-  clicked: boolean;
-  element?: { label: string; role: string; frame: unknown };
-  error?: string;
-  candidates?: string[];
-}> {
-  // Capture with accessibility tree
-  const captureResult = await capture({ xray: true });
-  const elements = (captureResult as any).elements ?? [];
-
-  if (elements.length === 0) {
-    return { clicked: false, error: 'No accessibility elements found. Is the target app focused?' };
-  }
-
-  // Find matching element
-  const labelLower = label.toLowerCase();
-  let matches = elements.filter((el: any) => {
-    const elLabel = (el.label ?? el.title ?? el.value ?? '').toLowerCase();
-    return elLabel.includes(labelLower);
-  });
-
-  // Filter by app if specified (check window title)
-  if (opts?.role) {
-    matches = matches.filter((el: any) => el.role === opts.role);
-  }
-
-  if (matches.length === 0) {
-    const available = elements
-      .filter((el: any) => el.label || el.title)
-      .map((el: any) => `${el.role}: "${el.label ?? el.title}"`)
-      .slice(0, 15);
-    return {
-      clicked: false,
-      error: `No element matching "${label}" found.`,
-      candidates: available,
-    };
-  }
-
-  const target = matches[0];
-  const frame = target.frame ?? target.bounds;
-  if (!frame) {
-    return { clicked: false, error: `Element "${label}" found but has no frame/bounds.` };
-  }
-
-  // Click the center of the element
-  const cx = frame.x + (frame.width ?? frame.w ?? 0) / 2;
-  const cy = frame.y + (frame.height ?? frame.h ?? 0) / 2;
-  await click({ x: Math.round(cx), y: Math.round(cy) });
-
-  return {
-    clicked: true,
-    element: { label: target.label ?? target.title, role: target.role, frame },
   };
 }
 

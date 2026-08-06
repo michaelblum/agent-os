@@ -11,6 +11,7 @@ import {
 } from '../../scripts/lib/pending-annotations-surface-adapter.mjs';
 import {
   normalizeDesktopSelection,
+  normalizeSavedRef,
 } from '../../scripts/lib/pending-annotations-model.mjs';
 import {
   parseError,
@@ -25,51 +26,30 @@ import {
 } from '../lib/pending-annotation-fixtures.mjs';
 
 test('agent workspace owns annotation capability projection for saved refs', () => {
-  for (const [backend, resolutionClass, targetKind] of [
-    ['browser', 'snapshot_scoped', 'browser'],
-    ['aos_canvas', 'reacquirable', 'canvas'],
-    ['native_ax', 'stable', 'native_ax'],
+  for (const [backend, targetKind] of [
+    ['browser', 'browser'],
+    ['aos_canvas', 'canvas'],
+    ['native_ax', 'native_ax'],
   ]) {
-    assert.deepEqual(annotationCapabilityFromSavedRef(savedRefFixture({
-      backend,
-      resolutionClass,
-    })), {
-      status: 'saved_ref',
-      target_kind: targetKind,
-      reasons: [],
-      saved_ref_available: true,
-    });
+    for (const supportedActions of [undefined, []]) {
+      assert.deepEqual(annotationCapabilityFromSavedRef(savedRefFixture({
+        backend,
+        supportedActions,
+      })), {
+        status: 'saved_ref',
+        target_kind: targetKind,
+        reasons: [],
+        saved_ref_available: true,
+      });
+    }
   }
 
-  for (const [backend, resolutionClass, targetKind] of [
-    ['native_ax', 'snapshot_scoped', 'native_ax'],
-    ['browser', 'stable', 'browser'],
-    ['aos_canvas', 'stable', 'canvas'],
-    ['browser', 'reacquirable', 'browser'],
-    ['browser', 'volatile', 'browser'],
-  ]) {
-    assert.deepEqual(annotationCapabilityFromSavedRef(savedRefFixture({
-      backend,
-      resolutionClass,
-    })), {
-      status: 'fallback_only',
-      target_kind: targetKind,
-      reasons: [`saved_ref_not_actionable:${backend}:${resolutionClass}`],
-      saved_ref_available: false,
-    });
-  }
-
-  for (const resolutionClass of ['stable', 'snapshot_scoped', 'reacquirable']) {
-    assert.deepEqual(annotationCapabilityFromSavedRef(savedRefFixture({
-      backend: 'unknown',
-      resolutionClass,
-    })), {
-      status: 'unsupported',
-      target_kind: null,
-      reasons: [`unsupported_saved_ref:unknown:${resolutionClass}`],
-      saved_ref_available: false,
-    });
-  }
+  assert.deepEqual(annotationCapabilityFromSavedRef(savedRefFixture({ backend: 'unknown' })), {
+    status: 'unsupported',
+    target_kind: null,
+    reasons: ['unsupported_saved_handle:unknown'],
+    saved_ref_available: false,
+  });
 });
 
 test('pending annotation adapter owns conversion from operator selection evidence', () => {
@@ -122,6 +102,14 @@ test('pending annotation projection does not own saved-ref actionability policy 
 test('pending annotation model does not import capture projection', async () => {
   const source = await fs.readFile(path.join(repoRoot, 'scripts/lib/pending-annotations-model.mjs'), 'utf8');
   assert(!source.includes('pending-annotations-projection.mjs'));
+});
+
+test('pending annotation saved refs reject confidence outside the public enum', () => {
+  assert.equal(normalizeSavedRef(savedRefFixture({ backend: 'aos_canvas' })).confidence, 'high');
+  assert.throws(
+    () => normalizeSavedRef({ ...savedRefFixture({ backend: 'aos_canvas' }), confidence: 'bogus' }),
+    (error) => error?.code === 'INVALID_ARG',
+  );
 });
 
 test('pending annotation create rejects saved-ref capability without saved ref', async () => {

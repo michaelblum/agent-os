@@ -8,6 +8,16 @@ export interface SDKSocketOptions {
   socketPath: string;
 }
 
+export function projectSDKError(err: any) {
+  return {
+    error: {
+      code: typeof err?.code === 'string' ? err.code : 'AOS_SDK_ERROR',
+      message: err?.message ?? String(err),
+      details: err?.details ?? {},
+    },
+  };
+}
+
 export function startSDKSocket(opts: SDKSocketOptions) {
   const { socketPath } = opts;
   mkdirSync(dirname(socketPath), { recursive: true });
@@ -42,7 +52,7 @@ async function handleRequest(conn: Socket, line: string) {
       result = { error: `Unknown domain: ${req.domain}` };
     }
   } catch (err: any) {
-    result = { error: err.message };
+    result = projectSDKError(err);
   }
 
   conn.write(JSON.stringify({ id: req.id, result }) + '\n');
@@ -72,7 +82,6 @@ async function handleSystem(method: string, params: any): Promise<unknown> {
     // Layer 2 Smart Operations
     case 'perceive': return aosProxy.perceive();
     case 'findWindow': return aosProxy.findWindow(params);
-    case 'clickElement': return aosProxy.clickElement(params.label, params);
     case 'waitFor': return aosProxy.waitFor(params.pattern ?? params, params);
     case 'showOverlay': return aosProxy.showOverlay(params);
     case 'updateOverlay': return aosProxy.updateOverlay(params.id, params);

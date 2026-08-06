@@ -102,15 +102,22 @@ commands, runtime helpers, wiki tools, and command adapters.
   new behavior there.
 - Native capability stays in `src/`; public schema contracts stay in
   `shared/schemas/`.
-- **ADR 0040 transition boundary:** omission or redaction of facts already
-  admitted to bounded public adapter observations and mixed
-  saved-ref/reacquisition language below describe current implementation gaps,
-  not AOS privacy, authorization, or target-identity policy. Runtime migration
-  must preserve those raw observation facts by default or require an explicit
-  caller-owned transform, and must separate Observation Refs from Locators.
+- **ADR 0040 target boundary:** facts already admitted to bounded public
+  adapter observations remain raw by default unless a caller explicitly
+  transforms them. Saved-handle behavior follows the V1 Observation
+  Ref/Locator split; no third target model or implicit reacquisition is allowed.
   This does not widen bounded lifecycle events or operation receipts to
   adjacent media, source, product, or private transport content that their
   public contracts do not observe.
+- `lib/target-handle-runtime.mjs` owns the one current bounded browser
+  Observation Ref generation per session. `lib/playwright-cli-runtime.mjs`
+  supplies its independently verified package-backed implementation-closure
+  backend identity. Package identity does not prove the backend's current ref
+  map belongs to the AOS capture generation, so browser Observation Ref dry-run
+  and effect requests must fail before backend dispatch; never substitute a
+  separate probe, reacquisition, or merely self-reported version. The same
+  target-handle owner enforces the public native AX Locator caps of depth 128
+  and timeout 30,000 ms before native dispatch.
 - `lib/aos-voice-follow.mjs` owns the bounded daemon-follow lifecycle used by
   public connection-scoped streaming adapters, including
   `listen --source hotkey|microphone --follow`, `say --follow`, `play --follow`,
@@ -187,8 +194,8 @@ commands, runtime helpers, wiki tools, and command adapters.
   it through the bounded completion receipt. The receipt currently replaces
   admitted target `title` and `label` values with `null`, an ADR 0040 fidelity
   gap. The current
-  `fallback_only` AX evidence and saved-ref reacquisition shape are a legacy
-  mixed-handle gap, not a durable target identity contract.
+  `fallback_only` AX evidence remains selection evidence, not a semantic action
+  handle or durable target identity contract.
 
 ## Local Contracts
 
@@ -204,7 +211,12 @@ commands, runtime helpers, wiki tools, and command adapters.
   keep its minimum version and discovery order aligned with the JS resolver
   until native bootstrap extraction removes the direct Swift resolver need.
   Preserve structured missing, too-old, and probe-failure evidence instead of
-  adding ad hoc PATH checks.
+  adding ad hoc PATH checks. Effectful browser Observation Ref actions are
+  additionally restricted to the source-reviewed exact CLI package version
+  declared by `OBSERVATION_REF_IDENTITY_REVIEWED_VERSION`; other versions fail
+  closed until their ref identity implementation is reviewed. Even the reviewed
+  package remains non-actionable for Observation Refs until one backend operation
+  can atomically bind the original AOS capture generation to ref resolution.
 - Development build wrappers must distinguish an actual repo-mode `./aos`
   binary rebuild from no-op checks. Repo-mode builds must not post-sign the
   local binary; ADR 0023 owns this managed-endpoint compatibility contract and
@@ -240,8 +252,9 @@ commands, runtime helpers, wiki tools, and command adapters.
   help reads never trigger builds, service restarts, TCC-sensitive signing, or
   other runtime mutation.
 - Pending annotation records must be closed derived models at persistence and
-  readback: saved-ref actionability is derived from `target.saved_ref`, and
-  `source_capture` is either `null` or the public saved-capture shape.
+  readback: saved-handle actionability is derived from
+  `target.saved_ref.handle`, and `source_capture` is either `null` or the
+  public saved-capture shape.
 - Pending annotation read/list surfaces must not repair durable state. Records
   are the authoritative durable state; `index.json` is an optional cache and
   must not decide mutation success.
@@ -283,4 +296,4 @@ commands, runtime helpers, wiki tools, and command adapters.
 - `lib/aos-skills/AGENTS.md` owns root skill registry helper modules.
 - `lib/` contains shared script helper modules.
 - `lib/agent-workspace/AGENTS.md` owns saved perception workspace helpers,
-  compact readback, saved-ref validation, and backend action dispatch.
+  compact readback, Target Handle validation, and backend action dispatch.

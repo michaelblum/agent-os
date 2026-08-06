@@ -163,19 +163,14 @@ function parseSnapshotDiff(value) {
 }
 
 function stableRefFingerprint(ref) {
-  const identityFacts = { ...(ref.identity_facts ?? {}) };
-  delete identityFacts.state_id;
   return JSON.stringify({
     backend: ref.backend,
-    resolution_class: ref.resolution_class,
+    handle: ref.handle,
     confidence: ref.confidence,
     supported_actions: ref.supported_actions,
-    identity_facts: identityFacts,
     hint_facts: ref.hint_facts,
-    current_address: ref.current_address,
     warnings: ref.warnings,
     known_limits: ref.known_limits,
-    conformance: ref.conformance,
   });
 }
 

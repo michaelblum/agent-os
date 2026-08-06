@@ -25,7 +25,7 @@ export function refsRecommendation(workspace, snapshotIDValue, env = process.env
 export function sampleActionRecommendation(workspace, snapshotIDValue, refs, env = process.env) {
   const display = env.AOS_INVOCATION_DISPLAY_NAME || 'aos';
   const refTarget = (record) => `ref:${snapshotIDValue}:${record.ref}`;
-  const byPreferredAction = (action) => refs.find((record) => record.action_target && (record.supported_actions ?? []).includes(action));
+  const byPreferredAction = (action) => refs.find((record) => record.handle && (record.supported_actions ?? []).includes(action));
   for (const action of ['click', 'set-value', 'fill', 'hover', 'scroll', 'press', 'focus']) {
     const record = byPreferredAction(action);
     if (!record) continue;
@@ -38,7 +38,7 @@ export function sampleActionRecommendation(workspace, snapshotIDValue, refs, env
       snapshot_id: String(snapshotIDValue),
       ref: record.ref,
       backend: record.backend,
-      resolution_class: record.resolution_class,
+      handle_kind: record.handle.kind,
     };
     if (action === 'click' || action === 'hover' || action === 'press' || action === 'focus') {
       const argv = [...baseArgv, '--workspace', String(workspace), '--dry-run'];

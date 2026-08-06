@@ -22,6 +22,12 @@ and focused native owners for exact app, menu, and window lifecycle controls.
   and invocation.
 - `actions.swift`, `session.swift`, `targeting.swift`, and adjacent helpers own
   session-mode action execution and reusable act-module mechanics.
+- `targeting-selection.swift` owns the pure exact-one Locator decision shared
+  by native AX and canvas target resolution, plus the pure native-session
+  target-state admission decision.
+- Native AX set-value dry-run and effectful execution share
+  `setValueLocatorRequest`; it must preserve every Locator field, including
+  `window_id`, while excluding only the mutation value from resolution.
 - `input-delivery-state.swift` owns the single terminal receipt expectation and
   modifier uncertainty state shared by one-shot and persistent actions.
 - `input-receipt-tap.swift` owns the continuously serviced receipt event tap
@@ -48,6 +54,16 @@ and focused native owners for exact app, menu, and window lifecycle controls.
 - After drag down is acknowledged, keep a best-effort mouse-up obligation
   active across every failure path and fulfill it only after terminal up is
   acknowledged.
+- Native AX and canvas Locators must reject zero or multiple current matches.
+  Native `index` is explicit action-compatible BFS-order disambiguation; `near`
+  succeeds only for one unique closest action-compatible bounded candidate and
+  reports bounded candidate facts on ambiguity. Native AX Locator traversal is
+  capped at depth 128 and timeout 30,000 ms at both parsing and execution; the
+  remaining execution deadline is installed on each exact AX object before
+  every synchronous match, traversal, bounds, fact, and compatibility call.
+- Native NDJSON session requests reject every non-null `state_id` with
+  `TARGET_STATE_UNSUPPORTED` before channel refresh or action dispatch; that
+  session has no browser Observation Ref backend.
 
 ## Work Guidance
 
@@ -60,7 +76,9 @@ and focused native owners for exact app, menu, and window lifecycle controls.
 - Run focused Node tests for changed source-shape or command contracts.
 - Run `bash tests/native-action-input-delivery.sh` for terminal receipt and
   modifier uncertainty changes.
-- Run `bash build.sh --no-restart` after Swift edits that should compile into
-  the repo-mode `./aos` binary.
+- Run `bash tests/native-target-locator-selection.sh` for Locator selection.
+- Follow the ADR 0023/test-ladder checkpoint before compiling Swift changes
+  into the repo-mode binary. When native/TCC work is explicitly out of scope,
+  use focused Swift typechecks or harnesses instead.
 
 ## Child DOX Index

@@ -64,8 +64,6 @@ real input, permissions, user idle state, or the shared repo daemon:
 - `tests/scenarios/sigil/radial-menu/real-input-desktop-world-path.sh`
 - `tests/sigil-real-input-status-avatar.sh`
 - `tests/sigil-avatar-controls-real-input.sh`
-- `tests/manual/cross-backend-saved-ref-regression-proof.sh`
-- `tests/manual/native-ax-saved-ref-live-proof.sh`
 
 ## Delete Candidates
 

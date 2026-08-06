@@ -1,6 +1,6 @@
 # AOS Semantic Targets And Target Descriptors
 
-Version: `0.3.0`
+Version: `1.0.0`
 
 `semantic_targets` is the AOS-owned canvas target projection emitted by:
 
@@ -28,21 +28,24 @@ The CLI gathers this data through a fixed internal probe. Agents should prefer
 this field for AOS-owned canvases and reserve `show eval` for developer
 diagnostics.
 
-Each current emitted entry carries the `ref` component plus presentation,
-address/provenance, state, and capability facts. The capture response carries
-`state_id` at top level; consumers pair it with an entry's `ref` to form the
-Observation Ref. The current projection does not emit a Locator object,
-`target` namespace, structural path, or reacquisition fingerprint. The Locator
-example below is the contract for the later runtime/schema migration, not a
-claim about the current emitted entry shape. Human-facing names, labels,
-accessible text, UI copy, DOM ids, and geometry are not durable target identity.
+Each canvas entry carries a required V1 Locator `handle` plus presentation,
+provenance, state, and capability facts. Browser xray elements carry a required
+Observation Ref `handle` containing the response's `state_id`, browser session,
+and Playwright ref. Human-facing names, labels, accessible text, UI copy, DOM
+ids, and geometry are not durable target identity.
 
 ## Public Handle Types
 
 An **Observation Ref** is exactly the pair returned by one perception state:
 
 ```json
-{ "state_id": "see_abc123def456", "ref": "example-menu-item-wiki-graph" }
+{
+  "kind": "observation_ref",
+  "backend": "browser",
+  "state_id": "see_abc123def456",
+  "scope": { "session": "todo" },
+  "ref": "e21"
+}
 ```
 
 It is ephemeral. If that pair is not current, action rejects with a typed stale
@@ -52,18 +55,9 @@ A **Locator** is a declarative query made from machine facts, for example:
 
 ```json
 {
-  "target": {
-    "target_id": "radial-item:wiki-graph",
-    "owner_namespace": {
-      "app_id": "example",
-      "canvas_id": "example-menu",
-      "surface_id": "example-menu",
-      "component_family": "example.menu",
-      "structural_owner": ["example-root", "menu"]
-    }
-  },
-  "role": "button",
-  "structural_path": ["menu", "item:wiki-graph"]
+  "kind": "locator",
+  "backend": "aos_canvas",
+  "query": { "canvas_id": "settings", "ref": "save" }
 }
 ```
 
@@ -72,9 +66,11 @@ required; zero matches return `missing` and multiple matches return `ambiguous`
 with bounded candidate descriptors. Labels and source ids may be hints, but a
 caller must not use them as unique identity by themselves.
 
-These examples define semantic types, not a currently callable Locator wire
-grammar. Public command/schema forms arrive with the later runtime migration;
-current transport and emitted-shape discrepancies are inventoried below.
+The closed union is defined by `aos-target-handle-v1.schema.json`. V1 does not
+expose a general Locator grammar, a browser Locator, or a native Observation
+Ref. Native AX capture emits a Locator handle only when the platform supplies
+a non-empty role and omits empty optional title, label, or identifier fields;
+the raw observation facts remain otherwise unchanged.
 
 ## Shape
 
@@ -112,22 +108,13 @@ current transport and emitted-shape discrepancies are inventoried below.
 
 ## Field Notes
 
-`ref` is one component of the state-scoped Observation Ref from the current
-perception state. It is not a complete handle without `state_id` and is not
-durable identity.
+For canvas semantic targets, `ref` is one machine component of the emitted
+Locator query. The complete canvas handle also carries `canvas_id`; the ref is
+not snapshot identity or a browser Observation Ref.
 
-`state_id` is top-level capture-response data for the perception state that
-scoped every emitted `ref`; it is not currently repeated inside each semantic
-target entry. An action that carries a stale `state_id`/`ref` pair must reject
-with machine-readable stale status instead of silently acting on a different
-target.
-
-`target.target_id`, `target.owner_namespace`, structural path, and
-`reacquisition` in the Locator example are planned contract material, not
-fields emitted by the current `semantic_targets` projection. Their later wire
-schema must preserve an explicit collision domain and must not derive identity
-from `name`, `label`, accessible text, DOM ids, display/window geometry, or
-canvas coordinates.
+The capture response carries `state_id` at top level. Browser element handles
+repeat that value because their original `(state_id, ref)` pair is the
+Observation Ref; canvas Locator handles do not carry or accept state.
 
 `provenance.canvas_id` is the canvas requested by `--canvas`.
 
@@ -141,8 +128,7 @@ and filtering.
 control role.
 
 `name` is the accessible name, usually `aria-label`, not an implementation id.
-It may be displayed to humans and may become a Locator hint after migration,
-but it is not machine identity.
+It may be displayed to humans but is not machine identity.
 
 `actions` is the canonical primitive action list for the target. It names what
 `aos do` can attempt, such as `click`, `drag`, `set-value`, `focus`, `select`,
@@ -150,9 +136,11 @@ but it is not machine identity.
 `data-aos-primitive-actions`; when neither is present it derives defaults from
 the control role. Singular `data-aos-action` does not populate this list.
 
-`extension.action_id` preserves the app-local action identifier supplied by
-singular `data-aos-action` for consumer-owned routing and inspection. It is not
-a primitive `aos do` capability, action authority, or durable target identity.
+`extension.action_id` is produced by the fixed probe from singular
+`data-aos-action`, but the current public decoder does not preserve that field.
+If retained in a later decoder change, it remains consumer-owned routing and
+inspection data, not a primitive `aos do` capability, action authority, or
+durable target identity.
 
 `surface` and `provenance.parent_canvas_id` identify the AOS surface
 relationship without polluting the accessible name.
@@ -177,12 +165,13 @@ may additionally expose `values`, `min`, `max`, `step`, `orientation`, and
 `metadata` is optional JSON metadata copied from `data-aos-metadata` for
 debugging and higher-level routing. It is not required for target resolution.
 
-Future Locator resolution must use machine facts first: `owner_namespace`,
-`target_id`, `role`, structural path, capabilities, source payload ids, range
-shape, and nearby groups. Label/accessibility text belongs only in hint fields.
-If a Locator matches more than one current target, the result must stay explicit
-with an `ambiguous` status and bounded candidate list; callers must not pick the
-first same-label target.
+Current Locator resolution uses the closed backend-specific machine query from
+the handle. It re-resolves at action time and requires exactly one current,
+action-compatible match. Label/accessibility text outside a native AX Locator
+query is a presentation hint only. If a Locator matches more than one target,
+the result remains `TARGET_AMBIGUOUS` with bounded candidate facts; callers must
+not pick the first same-label target. Native traversal depth is capped at 128
+and resolution timeout at 30000 milliseconds.
 
 ## Resolution Status
 
@@ -190,31 +179,26 @@ Observation Ref resolution returns:
 
 - `resolved`: the supplied `(state_id, ref)` pair is current and names one
   enabled, action-compatible observed target.
-- `stale_ref`: the state is no longer current, the ref is absent from that
-  state, or the pair does not match.
-- `unsupported`: the observed target cannot perform the requested action.
+- `TARGET_STATE_STALE`: the state is no longer current, the ref is absent from
+  that state, or the pair does not match.
+- `TARGET_ACTION_UNSUPPORTED`: the observed target cannot perform the requested
+  action.
 
 Locator resolution returns:
 
 - `resolved`: the query found exactly one enabled, action-compatible current
   target.
-- `missing`: the query found no current target.
-- `ambiguous`: the query found more than one current target.
-- `unsupported`: the uniquely located target cannot perform the action.
+- `TARGET_NOT_FOUND`: the query found no current target.
+- `TARGET_AMBIGUOUS`: the query found more than one current target.
+- `TARGET_ACTION_UNSUPPORTED`: the uniquely located target cannot perform the
+  action.
 
 Stale, missing, ambiguous, and unsupported outcomes block action and return a
 machine-readable `status`, `reason`, supplied/current state ids when relevant,
 and bounded candidate descriptors for ambiguity.
 
-## Current Implementation Gap
-
-Current routes do not consistently require `state_id` with `ref`; saved
-workspace wrappers can accept bare saved handles and report `reacquired` after
-automatic current-target validation. Those are implementation facts awaiting
-the runtime migration, not a third public target type or an exception to the
-Observation Ref/Locator split. The current `semantic_targets` entries also do
-not emit the planned Locator query object or fingerprint fields. The internal
-probe reads singular `data-aos-action` into the admitted app-local
-`extension.action_id` field, but the current public decoder does not preserve
-that field; it neither reaches the emitted entry nor contributes to primitive
-`actions`.
+Browser Observation Ref results use `TARGET_STATE_REQUIRED`,
+`TARGET_STATE_STALE`, `TARGET_HANDLE_INVALID`, `TARGET_DISABLED`, or
+`TARGET_ACTION_UNSUPPORTED`. Locator resolution uses `TARGET_NOT_FOUND`,
+`TARGET_AMBIGUOUS`, `TARGET_DISABLED`, `TARGET_ACTION_UNSUPPORTED`, or
+`TARGET_RESOLUTION_TIMEOUT`. Candidate facts are bounded and fidelity-first.

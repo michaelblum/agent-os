@@ -96,9 +96,6 @@ admitted by their bounded public contracts. They do not widen typed receipts,
 lifecycle events, scene envelopes, or trusted-realm boundaries to adjacent
 inputs, media, source, product state, diagnostics, or private handles:
 
-- direct and saved-ref routes do not consistently enforce the exact
-  `(state_id, ref)` Observation Ref pair, accept bare saved-ref shorthand, and
-  may automatically reacquire rather than expose a distinct Locator;
 - Work Record repair planning/execution still carries Gate-derived
   authorization and operation-allowlist coupling;
 - Gate persistence still redacts prompt/answer content and continuation source
@@ -117,9 +114,9 @@ inputs, media, source, product state, diagnostics, or private handles:
 - gateway script execution is not a complete public `run-code` surface, and
   this document does not claim that public command exists.
 
-These are explicit follow-up gaps. This contract-reset slice does not implement
-the ref/locator runtime migration, Work Record executor refactor, Gate
-persistence refactor, or public run-code productization.
+These are explicit follow-up gaps. This target-handle slice does not implement
+the Work Record executor refactor, Gate persistence refactor, or public
+run-code productization.
 
 Examples:
 
@@ -377,13 +374,14 @@ The two public semantic target types are:
 2. **Locator**: a declarative machine query re-resolved for every action. Zero
    matches return missing; more than one returns ambiguous.
 
-Current command grammar predates that split. Snapshot-qualified saved handles
-(`ref:<snapshot-id>:<ref-id>`), direct browser/canvas strings
-(`browser:<session>/<ref>` and `canvas:<canvas-id>/<ref>`), native AX selector
-flags such as `--pid`, `--role`, and filters, and raw `x,y` plus
-`--state-id <id>` remain callable implementation forms.
-They do not create additional public target types. Bare `ref:<ref-id>` and
-automatic saved-handle reacquisition are explicit migration gaps.
+The current command grammar projects those two types through
+snapshot-qualified saved addresses (`ref:<snapshot-id>:<ref-id>`), direct
+browser Observation Ref strings (`browser:<session>/<ref>` plus the original
+`--state-id`), canvas Locator strings (`canvas:<canvas-id>/<ref>`), and native
+AX Locator flags such as `--pid`, `--role`, and filters. Raw coordinate actions
+remain available but reject `--state-id` with `TARGET_STATE_UNSUPPORTED`.
+These forms do not create additional public target types. Bare `ref:<ref-id>`
+and automatic saved-handle reacquisition are invalid V1 behavior.
 There is no current public `ax:` CLI target grammar.
 
 The [state model](./aos-capabilities.md#user-facing-state-model) distinguishes
@@ -434,9 +432,8 @@ Typical consumer loop:
    pixels.
 5. Resolve exact current identity. Use `--dry-run` only when an optional
    non-mutating preview is useful.
-6. Dispatch and handle typed stale, missing, ambiguous, or unsupported results.
-   Current `reacquired` output is saved-handle implementation behavior, not
-   Observation Ref semantics.
+6. Dispatch and handle the typed `TARGET_*` stale, missing, ambiguous,
+   disabled, timeout, or unsupported result.
 7. Use structured `recommended_next` descriptors and
    `recommended_next_command` when a fresh saved capture is needed before
    reusing refs from the surface.
@@ -503,14 +500,16 @@ Saved agent workspaces live under
 `~/.config/aos/{repo|installed}/agent-workspaces/<workspace>/`, or
 `$AOS_STATE_ROOT/{repo|installed}/agent-workspaces/<workspace>/` when the state
 root is overridden. Compact stdout includes counts, artifact refs, compact refs,
-`capture_source`, `capture_target`, `capture_mode`, resolution classes, backend confidence,
-identity facts, hint facts, current address facts, warnings, known limits, and
-structured `conformance` including native `no_foreground` claim fields and
-`target_uncertainty`, plus file paths.
+`capture_source`, `capture_target`, `capture_mode`, one required discriminated
+`handle`, backend confidence, bounded hint facts, warnings, known limits,
+and file paths.
 Full capture JSON, screenshots, base64 payloads, AX/browser element arrays, and
-semantic target arrays stay file-backed under the snapshot directory. The saved
-workspace contract is `aos.agent-workspace.v0`; see
-`shared/schemas/aos-agent-workspace-v0.md`.
+semantic target arrays stay file-backed under the snapshot directory. The
+active contract is `aos.agent-workspace.v1`; see
+`shared/schemas/aos-agent-workspace-v1.md` and
+`shared/schemas/aos-target-handle-v1.md`. Existing V0 files are unchanged and
+active readers reject them with `AGENT_WORKSPACE_SCHEMA_UNSUPPORTED` and
+`recapture_required:true`.
 Saved capture writes are staged under `snapshots/.staging/`, marked with
 `committed.json`, and then atomically renamed into `snapshots/<snapshot-id>/`.
 Readback and `index.json` rebuilds only use committed snapshots, so partial or
@@ -564,10 +563,10 @@ created pending record by its returned annotation id to consume the comment.
 Selection evidence is initially `fallback_only` and does not manufacture a
 semantic saved ref. Target mode stores strict positive element bounds, bounded
 role/title/label facts, and at most 11 ordered ancestor roles with
-`target_kind: native_ax`; it remains `fallback_only` until a consumer resolves
-a current Observation Ref or constructs an action-time Locator from machine
-facts. Current saved-handle resolution remains migration plumbing, not durable
-public target identity. The public target completion currently replaces its
+`target_kind: native_ax`; direct selection remains `fallback_only` unless a
+saved-capture projection supplies exactly one typed V1 handle. A saved ref is
+only storage indirection to that Observation Ref or Locator. The public target
+completion currently replaces its
 admitted title and label facts with `null`; that replacement is an explicit
 ADR 0040 fidelity gap. Target mode does not accept annotation text, and local
 paths remain outside this bounded completion receipt.
@@ -611,139 +610,41 @@ Capture modes are explicit:
   saved under `artifacts/`.
 - `--mode som`: screen-object mode; currently xray-backed where available.
 
-The current saved-workspace implementation uses `ref:<snapshot-id>:<ref-id>` or
-bare `ref:<ref-id>`. The scoped
-form is preferred. Bare refs resolve only when unambiguous inside the workspace.
-`REF_AMBIGUOUS` returns candidate snapshot refs plus safe `aos see refs ...`
-inspection commands; `REF_NOT_FOUND` returns the relevant refs inspection
-command. These resolver failures are mechanical and happen before mutation.
-Saved-ref mutation follows a backend action matrix. AOS canvas `reacquirable`
-refs can route `click` and `set-value` through the current canvas resolver.
-Browser `snapshot_scoped` `click`, `fill`, `hover`, `scroll`, `drag`, `type`,
-and `key` refs run fresh xray validation plus page, frame, navigation, role,
-title, label, context, and enabled-state checks. Text-compatible `type` and
-`key` refs use the same current-target validation as browser `fill`.
-`current_validation.current_target` includes current
-bounds when xray provides them; bounds movement alone is tolerated when the
-saved page/frame/navigation and element identity facts still validate. When
-explicitly requested, dry-run reports `reacquired` when that current
-implementation validation is sufficient for real dispatch; effectful dispatch
-independently routes through the underlying `browser:<session>/<ref>` action
-target and returns a saved-ref execution envelope with `current_validation`,
-`underlying_result`, `post_action`, structured `post_action.recommended_next`,
-and `recommended_next_command`. Missing,
-stale, ambiguous, disabled, changed, or identity-drifted current targets fail
-closed before dispatch:
+The active saved-workspace implementation accepts only
+`ref:<snapshot-id>:<ref-id>`. A record contains one required discriminated
+`handle`; bare refs, resolution classes, coordinate fallback records, and
+alternate action targets are invalid V1 state.
 
-The examples below mix backend-specific saved-handle forms. The `press` and
-`focus` examples require the current `native_ax` `stable` resolution class with
-machine identity
-facts and an actionable producer verdict; browser and AOS canvas refs fail
-closed for those actions.
+Browser records contain an Observation Ref with the original session,
+`state_id`, and Playwright ref. Each AOS browser capture atomically replaces
+the one current generation for that session. Saved and direct requests validate
+the stored pair but do not dispatch: the reviewed backend cannot atomically bind
+the AOS capture generation to its current ref map, so dry-run and effect both
+return `TARGET_ACTION_UNSUPPORTED` with
+`reason:browser_observation_identity_unproven`. They never capture, search by
+label, reacquire, or substitute state. A newer generation returns
+`TARGET_STATE_STALE`. The generation also binds independently verified,
+package-backed Playwright implementation and dependency-closure identity; that
+package identity is necessary but not sufficient to admit an action.
+Session-only browser actions remain available and reject `state_id`.
 
-```bash
-aos do click ref:<snapshot-id>:r1 --workspace default --dry-run
-aos do set-value ref:<snapshot-id>:r2 --workspace default --value "42" --dry-run
-aos do fill ref:<snapshot-id>:r3 "buy groceries" --workspace default --dry-run
-aos do hover ref:<snapshot-id>:r4 --workspace default --dry-run
-aos do scroll ref:<snapshot-id>:r4 0,-200 --workspace default --dry-run
-aos do drag ref:<snapshot-id>:r4 ref:<snapshot-id>:r5 --workspace default --dry-run
-aos do press ref:<snapshot-id>:r6 --workspace default --dry-run
-aos do focus ref:<snapshot-id>:r6 --workspace default --dry-run
-```
+Canvas and native AX records contain Locator queries. Each action re-resolves
+the query and requires one current match. Zero returns `TARGET_NOT_FOUND`;
+multiple returns `TARGET_AMBIGUOUS` with bounded candidate facts. Native
+`--index` explicitly selects BFS match N. Native `--near` succeeds only
+when one bounded candidate has a uniquely smallest distance; ties are
+ambiguous. Locator and coordinate actions reject `state_id` with
+`TARGET_STATE_UNSUPPORTED`. The native NDJSON `aos do session` surface rejects
+every supplied `state_id` before channel refresh or action dispatch because it
+has no browser Observation Ref backend.
 
-Dry-run is an optional preview of current saved-handle behavior. Effectful
-dispatch performs its own validation and returns the same typed blockers for
-validation-required, blocked, unsupported, or low-confidence handles.
-
-Saved-ref browser drag requires two saved browser refs from the same snapshot
-and browser session, and validates both endpoints before any dispatch.
-Native AX
-`volatile` refs are inspection-only and report known limits instead of claiming
-no-foreground saved-action safety. This V0 foundation is not completion of the
-full native saved-ref proof or native no-foreground conformance.
-`conformance.no_foreground.claim` is `not_claimed` for those refs; focus,
-cursor, and Space preservation are `unverified`; permission state is the
-captured native permission value when present, otherwise `unknown`; and fallback
-flags are false because volatile native refs do not attempt saved-ref mutation.
-Native AX refs also report `target_uncertainty.status:
-blocked_missing_native_identity` until saved capture includes durable identity
-and validation facts such as app PID, window id, an actual AX identifier,
-enabled state, action names, permission state, and a captured baseline for
-focus, cursor, and Space state, plus an actionable
-`native_saved_ref_evidence` producer verdict.
-Their `identity_facts` preserve the strongest available captured native hints,
-including `role`, `title`, `label`, `value`, `enabled`, `focused`, `bounds`,
-`context_path`, `app_pid`, `app_name`, `window_id`,
-`ax_identifier_or_stable_path`, `action_names`, `permission_state`, `app_hint`,
-and `window_hint`; these may be listed in `available_identity_facts`, but they
-are not durable enough for saved-ref mutation while the focus/cursor/Space
-baseline or producer verdict is missing.
-The corresponding missing-fact identifiers are `app_pid`, `window_id`,
-`ax_identifier`, `enabled`, `action_names`,
-`permission_state`, `focus_cursor_space_baseline`, and
-`native_saved_ref_evidence`; `enabled` is unsatisfied unless the captured value
-is `true`, `permission_state` is unsatisfied unless the captured value is
-`granted`, and `native_saved_ref_evidence` is unsatisfied unless the producer
-marks it actionable with complete known-limit facts.
-When a native capture includes that full durable identity contract with
-`enabled: true`, `permission_state: granted`, a captured baseline, and
-`native_saved_ref_evidence` as an actionable verdict, the saved ref can become
-`stable` and support only capture-declared native `press`, `focus`, and
-`set-value`. The Swift producer emits native known-limit facts for visible
-native AX captures, including concrete off-Space, minimized-window,
-custom-control, canvas/game-surface, and focus-mismatch signals. Without
-complete known-limit evidence, or when those facts contain a blocker, the saved
-ref remains `volatile`.
-Stable actions convert the saved facts to the existing direct AX selector flags,
-report
-`direct_ax_ready` / `requires_direct_ax_current_matching`, and return the
-direct AX wrapper response under `underlying_result`. Native `focus` and
-`set-value` responses include direct post-action verification fields such as
-`execution.ax_focused_after`, `execution.ax_value_after`, and
-`execution.ax_value_matches_request` when the primitive can read them back.
-They report `live_dispatch_proven_no_foreground_not_claimed` for the live
-dispatch proof status, while still reporting `not_claimed` no-foreground
-safety.
-Stable native saved-ref dispatch preserves `fallback_used` and
-`foreground_fallback_required` from the direct AX wrapper inside
-`underlying_result.conformance.no_foreground`; fallback success remains
-foreground fallback evidence, not no-foreground proof.
-Path-only `stable_path` evidence remains inspection/readback evidence in v0; it
-does not make a native saved ref stable until the native action selector grows a
-real path-matching primitive.
-When durable native identity facts are present but the captured native
-`action_names` do not map to v0 `press`, `focus`, or `set-value`, the ref
-remains `volatile` with
-`native_action_matrix_unsupported` and
-`blocked_unsupported_native_action` rather than reporting missing identity.
-When those durable facts are present but the capture reports an off-Space
-window, minimized window, custom control, canvas/game surface, or focus mismatch,
-the ref remains `volatile` with
-`native_known_limit_blocked` and `blocked_native_known_limit`. The captured
-native known-limit fields are preserved in `identity_facts` when present:
-`space_state`, `off_space`, `window_state`, `minimized`, `control_kind`,
-`custom_control`, `surface_kind`, `canvas_surface`, `focus_state`, and
-`focus_cursor_space_baseline.focus`. Those states fail closed until a
-backend-owned validation path can establish current mechanical identity.
-Saved-ref `conformance.proof` records the backend proof story. Browser and AOS
-canvas supported refs report `deterministic_contract_tests_passed` with local
-test evidence. The current native AX `stable` saved-handle class and direct AX
-wrapper responses report `live_dispatch_proven_no_foreground_not_claimed`;
-volatile or known-limit native AX refs still report the legacy implementation
-status `approval_gated_live_proof_not_run`. These field names inventory current
-proof; they do not impose action approval under ADR 0040.
-
-Backend conformance levels are intentionally explicit:
-
-| backend/path | supported saved-ref surface | conformance level | proof status | evidence or gate |
-| --- | --- | --- | --- | --- |
-| `aos_canvas` | `reacquirable` `click` and `set-value` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-canvas-refs.sh` and `tests/agent-workspace-saved-ref.sh` |
-| `browser` | `snapshot_scoped` `click`, `fill`, `hover`, `scroll`, `drag`, `type`, and `key` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-browser-refs.sh` and `tests/agent-workspace-saved-ref.sh` |
-| current `native_ax` `stable` saved-handle class | current durable-identity plus producer-verdict `press`, `focus`, and `set-value` implementation | `native_saved_ref_contract_tests_plus_approval_gates` | `live_dispatch_proven_no_foreground_not_claimed` | `tests/agent-workspace-native-refs.sh` and `tests/manual/native-ax-saved-ref-live-proof.sh` |
-| direct AX one-shot wrappers | `--pid` / `--role` `press`, `focus`, and `set-value` | `native_primitive_response_plus_wrapper_contract` | `live_dispatch_proven_no_foreground_not_claimed` | `tests/agent-workspace-native-refs.sh` and `tests/manual/native-ax-saved-ref-live-proof.sh` |
-| `native_ax` volatile or known-limit refs | inspection/readback only | `known_limit_contract` | `approval_gated_live_proof_not_run` | known-limit assertions in `tests/agent-workspace-native-refs.sh` plus HITL live smoke, TCC/manual runtime flow, native repo-mode artifact rebuild, explicit no-foreground/focus/cursor/Space baseline verification |
-| `coordinate_fallback` | diagnostic/fallback-only refs | `known_limit_contract` | `known_limit_refusal_tested` | refused-before-dispatch assertions in `tests/agent-workspace-browser-refs.sh` and `tests/agent-workspace-canvas-refs.sh` and `tests/agent-workspace-native-refs.sh` |
+Optional `--dry-run` follows the identical validation/resolution path and
+stops immediately before mutation. Browser drag requires two Observation Refs
+from the same session and generation. Typed failures use
+`TARGET_HANDLE_INVALID`, `TARGET_STATE_REQUIRED`, `TARGET_STATE_STALE`,
+`TARGET_STATE_UNSUPPORTED`, `TARGET_NOT_FOUND`, `TARGET_AMBIGUOUS`,
+`TARGET_DISABLED`, `TARGET_ACTION_UNSUPPORTED`, and
+`TARGET_RESOLUTION_TIMEOUT`.
 
 Browser runtime resolution is deterministic. `scripts/lib/playwright-cli-runtime.mjs`
 is the public script-policy owner for browser helpers and proof harnesses.
@@ -760,36 +661,16 @@ path, discovery source, version, minimum version, and failures such as
 `PLAYWRIGHT_CLI_NOT_FOUND`, `PLAYWRIGHT_CLI_TOO_OLD`, and
 `PLAYWRIGHT_CLI_PROBE_FAILED`.
 
-Guarded-live browser saved-ref proof lives in
-`tests/manual/cross-backend-saved-ref-regression-proof.sh`. In
-`AOS_SAVED_REF_PROOF_MODE=guarded-live`, the harness serves a local browser
-fixture, captures browser saved refs, dispatches `click` and `fill` through
-saved-ref validation, writes post-action readback artifacts, and emits a
-report-only browser fill Work Record under
-`$proof_root/browser/work-record/fill-work-record.json` with a verifier report
-and compact summary beside it. If runtime resolution fails, browser rows stay
-`blocked_runtime` with the resolver JSON as evidence instead of a vague PATH
-failure.
+Legacy guarded-live V0 saved-ref proof remains archival/manual evidence and
+is not active V1 acceptance. Deterministic V1 coverage lives in
+`tests/target-handle-runtime.test.mjs`,
+`tests/agent-workspace-v1.test.mjs`, and
+`tests/native-target-locator-selection.sh`.
 
-Native `open`/`toggle`, explicit `type`/`key` saved-ref attempts that include
-`--workspace` or `--snapshot`, and other unsupported saved-ref forms fail closed
-with structured JSON until the action grammar has a backend-owned current target
-validation path. Plain native `type` / `key` arguments such as literal
-`ref:...` text remain direct command input unless the caller supplies an
-explicit saved-ref scope. See
-`shared/schemas/aos-agent-workspace-v0.md` for the full action grammar matrix.
-
-Post-action and revalidation recommendations are target-aware. A saved browser
-ref captured from `browser:todo` in `som` mode recommends:
-
-```bash
-aos see capture browser:todo --save --workspace <workspace> --mode som
-```
-
-If the saved capture stored a query, the recommendation carries the same
-`--query` value. `coordinate_fallback` is a diagnostic/fallback-only resolution
-class in this slice; normal saved capture generation does not emit coordinate
-fallback refs, and coordinate-backed saved-ref mutation must warn or refuse.
+Post-action recommendations may propose a fresh saved capture. That capture
+creates a new browser generation; it never makes an old Observation Ref
+actionable again. Native AX and canvas Locators simply re-resolve on the next
+action.
 
 Diagnostic and fallback paths are still available when compact saved refs do not
 have parity or when an agent explicitly needs pixels, raw images, or coordinate
@@ -1284,12 +1165,12 @@ captures, `aos see capture --canvas <id> --xray` also runs a fixed semantic
 target probe inside that canvas and returns `semantic_targets`. Those entries
 use the current emitted fields `ref`, `surface`, `role`, `name`, `kind`,
 `enabled`, `state`, `actions`, `extension`, `provenance`, and optional
-`geometry` and `metadata`. The capture response carries `state_id` at top level;
-that id and an entry's `ref` form the public Observation Ref. Current entries do
-not emit `target`, a per-entry `state_id`, or `reacquisition`. Human labels,
-accessible text, local DOM ids, canvas ids, parent canvas ids, local geometry,
-metadata, and the `canvas:<canvas-id>/<ref>` action-routing string are
-presentation, provenance/current-address, or hint fields, not durable identity.
+`geometry` and `metadata`, plus a required canvas Locator `handle`. The capture
+response carries `state_id` at top level, but canvas Locators do not accept it.
+Browser xray `elements` instead carry Observation Ref handles that contain the
+original response `state_id`, browser session, and Playwright ref. Human labels,
+accessible text, local DOM ids, parent canvas ids, local geometry, and metadata
+remain presentation, provenance, or hint fields rather than target identity.
 The probe does not use caller-supplied JavaScript; `show eval` remains a
 developer diagnostic bridge, not the agent perception contract.
 
@@ -1378,7 +1259,7 @@ carry the returned target handle forward:
 
 ```bash
 aos see capture --canvas <id> --xray --save --workspace <workspace>
-aos do click canvas:<canvas-id>/<ref> --state-id <id>
+aos do click canvas:<canvas-id>/<ref>
 aos do set-value canvas:<canvas-id>/<ref> --value <value>
 aos do drag canvas:<canvas-id>/<ref> --by <dx>,<dy>
 ```
@@ -2156,80 +2037,68 @@ Primary public verbs:
 | `session` | interactive action session |
 | `profiles` | inspect behavior profiles |
 
-`click` supports four target forms:
+Every semantic action target is one of two V1 handles:
+
+- A browser Observation Ref is the original `state_id` plus Playwright ref and
+  browser session. A ref-bearing browser request requires `--state-id` and
+  validates that exact pair against the session's current AOS capture
+  generation. Because the reviewed backend cannot atomically bind that
+  generation to ref resolution, direct and saved dry-run/effect requests stop
+  with `TARGET_ACTION_UNSUPPORTED`; they never recapture, search by label,
+  replace state, or dispatch a potentially aliased ref.
+- A canvas or native AX Locator is a machine query re-resolved at action time.
+  Zero action-compatible matches return `TARGET_NOT_FOUND`; more than one
+  returns `TARGET_AMBIGUOUS`. Native `--index` explicitly selects one bounded
+  action-compatible candidate, while `--near` succeeds only for a unique
+  closest action-compatible candidate and rejects ties. Native depth is bounded
+  to `0...128` and timeout to `1...30000` milliseconds.
 
 ```bash
 aos do click 500,300
 aos do click ref:<snapshot-id>:<ref> --workspace <id>
-aos do click browser:<session>/<ref>
-aos do click canvas:<canvas-id>/<ref> --state-id <id>
+aos do click browser:<session>/<ref> --state-id <state-id>
+aos do click canvas:<canvas-id>/<ref>
 ```
 
-`--dwell` is a coordinate/native and AOS canvas click option. Direct browser
-clicks and browser saved refs reject `--dwell`; use browser click/double/right
-forms without native pointer dwell timing.
-
-Use `ref:<snapshot-id>:<ref>` for current saved handles returned by `aos see
-refs` or compact saved capture output. Optional
-`aos do <action> ref:<...> --dry-run` reports the resolved
-underlying command and, for browser refs, the fresh xray current-target
-validation result. Browser `snapshot_scoped` click, fill, hover, scroll, drag,
-type, and key refs can dispatch only after page, frame, navigation, and element
-validation pass. Saved-ref grammar rejects missing, invalid, extra, or unknown
-action arguments and flags with `MISSING_ARG`, `INVALID_ARG`, `UNKNOWN_ARG`, or
-`UNKNOWN_FLAG`.
-Within these saved-handle forms, `press` and `focus` require the current
-`native_ax` `stable` resolution class. That class is current implementation
-behavior, not public target identity; direct AX wrappers instead use current
-`--pid`/role/filter matching.
-Saved browser `type` and `key` are text-compatible saved-ref actions when the
-producer exposes the action in `supported_actions`; they use the same current
-page/frame/navigation and unique enabled element validation as browser `fill`.
-Direct browser `type` and `key` remain current-host routes when the first action
-argument is `browser:<session>/<ref>` or `browser:<session>`:
+Coordinates and Locators reject `--state-id` with
+`TARGET_STATE_UNSUPPORTED`. Native NDJSON session requests likewise reject a
+`state_id` before dispatch. Browser session-only `type` and `key` remain
+available without a ref or state. Ref-bearing browser forms require the state:
 
 ```bash
-aos do type ref:<snapshot-id>:r2 "hello world" --workspace default --dry-run
-aos do key ref:<snapshot-id>:r2 "Enter" --workspace default --dry-run
-aos do type browser:<session>/<ref> "hello world" --state-id <id>
-aos do key browser:<session>/<ref> "Enter" --state-id <id>
+aos do type browser:<session>/<ref> "hello world" --state-id <state-id>
+aos do key browser:<session>/<ref> "Enter" --state-id <state-id>
 aos do type browser:<session> "hello world"
 aos do key browser:<session> "cmd+s"
 ```
 
-Browser focus and text assertions are not separate public actions in this
-slice: `aos do focus` is native AX only, and saved workspaces do not expose
-`aos see assert`. Use direct browser `click`, `fill`, `type`, or `key` where
-those routes intentionally focus as part of Playwright execution, then verify
-through a fresh saved capture, Recipe JSON assertions, or Work Record
-postconditions.
-Refs with `confidence: low` are readback-only for saved-ref mutation and fail
-closed with `REF_UNSUPPORTED` and `reason: low_confidence_target` before dry-run
-validation or dispatch. Non-dry-run mutation refuses unsafe resolution classes or
-missing validation capability with machine-readable errors such as
-`REF_STALE`, `REF_REVALIDATION_REQUIRED`,
-`REF_AMBIGUOUS`, `REF_NOT_FOUND`, `ACTION_INCOMPATIBLE`,
-`AGENT_WORKSPACE_STATE_CORRUPT`, or `AGENT_WORKSPACE_LOCKED`. Workspace locks
-are transient local control state for fail-fast mutation contention; they are
-not part of the persisted schema contract.
+Saved `ref:<snapshot-id>:<ref>` is storage indirection to exactly one of those
+handles. Bare `ref:rN` is unsupported. V0 workspace files are preserved as
+bytes but rejected with `AGENT_WORKSPACE_SCHEMA_UNSUPPORTED` and
+`recapture_required:true`; AOS does not maintain a dual reader. Saved dry-run
+performs the same handle validation or Locator resolution as mutation and stops
+immediately before the effect.
+
+The target result vocabulary is `TARGET_HANDLE_INVALID`,
+`TARGET_STATE_REQUIRED`, `TARGET_STATE_STALE`, `TARGET_STATE_UNSUPPORTED`,
+`TARGET_NOT_FOUND`, `TARGET_AMBIGUOUS`, `TARGET_DISABLED`,
+`TARGET_ACTION_UNSUPPORTED`, and `TARGET_RESOLUTION_TIMEOUT`. Grammar and local
+workspace failures retain their own typed errors. Workspace locks are transient
+local contention controls, not target identity.
+
+`--dwell` is a coordinate/native and AOS canvas click option. Direct browser
+clicks and browser saved refs reject it. Browser focus and text assertions are
+not separate public actions in this slice: `aos do focus` is native AX only,
+and saved workspaces do not expose `aos see assert`.
 
 Use `canvas:<canvas-id>/<ref>` when a target was discovered in
 `aos see capture --canvas <canvas-id> --xray`. Agents should pass
 `semantic_targets[].provenance.do_target` directly when present;
 `provenance.canvas_id` and `ref` remain available for structured filtering.
-The Observation Ref contract requires the originating `state_id` with `ref`.
-Current CLI enforcement remains incomplete; pass `--state-id <id>` where the
-route accepts it so the actuator can detect stale state. The CLI
-resolves the current AOS-owned canvas semantic target through the fixed probe
-path, rejects missing, disabled, stale, ambiguous, suspended, noninteractive,
-or unsupported segmented canvases with machine-readable errors, and then
-clicks the resolved `provenance.center` in global CG coordinates. Routes that
-preserve `state_id` only as correlation metadata are an ADR 0040 implementation
-gap; a stale Observation Ref pair must reject after migration.
-
-Coordinate, browser-target, and canvas-ref actions accept `--state-id <id>` when
-the action was chosen from a prior `aos see capture` response. Direct one-shot
-responses and session responses report an additive `execution` object:
+The CLI re-resolves the current AOS-owned canvas Locator through the fixed probe
+path and requires exactly one enabled, interactive match. Canvas Locators never
+carry snapshot state. Direct one-shot and session responses report an additive
+`execution` object:
 
 ```json
 {
@@ -2253,36 +2122,19 @@ observes that exact event at the session event tap. Continuous hover motion may
 be coalesced by macOS and does not claim this receipt. Callers must not parse or
 construct receipt values.
 
-Direct AX `press`, `focus`, and `set-value --pid ... --role ...` responses also
-include a top-level `conformance` block from the external wrapper. The wrapper
-does not claim no-foreground safety: `conformance.no_foreground.claim` is
-`not_claimed`, focus/cursor/Space preservation are `unverified`, permission
-state is `unknown`, and `conformance.target_uncertainty.status` is
-`direct_ax_current_matching`. If the underlying native result reports
-`fallback_used` or `foreground_fallback_required`, those flags are preserved in
-`conformance.no_foreground`; a foreground fallback success is still not
-no-foreground proof. These direct AX actions use current pid/role/filter
-matching, report `direct_ax_current_matching_semantics`, and do not satisfy the
-saved-ref durable identity contract; their
-`target_uncertainty.missing_identity_facts` still includes saved-ref-only facts
-such as `enabled`, `action_names`, `permission_state`, and
-`focus_cursor_space_baseline`, and `native_saved_ref_evidence` when the direct
-call did not prove them. Their `conformance.proof.status` is
-`live_dispatch_proven_no_foreground_not_claimed` for the current native
-`stable` saved-handle class and direct AX wrappers, while volatile or
-known-limit native refs still report the legacy implementation status
-`approval_gated_live_proof_not_run`. These conformance names do not authorize
-or prohibit action.
-Native `focus` and `set-value` direct responses also include
-`execution.ax_focused_after`, `execution.ax_value_after`, and
-`execution.ax_value_matches_request` when the primitive can read the resulting
-AX state.
+Direct AX `press`, `focus`, and `set-value --pid ... --role ...` use the same
+current exact-one Locator selection as saved native handles. Their wrapper
+continues to report bounded primitive `conformance` evidence without claiming
+foreground, focus, cursor, Space, or TCC acceptance. Native `focus` and
+`set-value` responses also include `execution.ax_focused_after`,
+`execution.ax_value_after`, and `execution.ax_value_matches_request` when the
+primitive can read the resulting AX state.
 
 Canvas ref click responses also include the resolved target details, including
 the target dialect, canvas id, ref, local semantic-target center, global click
 point, coordinate space, capture scale factor, and source
-`aos_semantic_targets`. Coordinate fallback remains available for surfaces that
-do not expose a semantic ref or for unsupported segmented canvases.
+`aos_semantic_targets`. Raw coordinate actions remain separately available for
+surfaces that do not expose a semantic target.
 
 `set-value` and `drag` also accept current AOS canvas semantic refs:
 
@@ -2300,7 +2152,7 @@ the input-tap preflight. Immediate canvas semantic actions resolve the current
 target at action time and do not require agents to choose or pass target
 coordinates.
 
-For V0, single-thumb toolkit sliders support immediate `set-value` and
+For V1, single-thumb toolkit sliders support immediate `set-value` and
 `drag --to-value` through the canvas semantic action route. Multi-thumb sliders
 advertise `drag` but not single-value `set-value` unless a future thumb-specific
 target exists. Toolkit panel drag handles support immediate `drag --by` by
@@ -2308,22 +2160,15 @@ updating the current canvas frame; `--playback human` resolves the current
 target center and uses CGEvent as a visible playback implementation detail.
 
 Target-addressed responses include the action, backend, playback mode,
-`execution.strategy`, `execution.backend`, `execution.fallback_used`, the
-correlation `state_id` when supplied, resolved target details, and post-action
-semantic state when the target can be collected after execution. Stale
-state/ref pairs report a machine-readable `stale_ref` status. Current
-descriptor-based saved-handle reacquisition may report `reacquired` only after
-one current target is found through machine facts first; same-label matches
-without a unique machine fingerprint report `ambiguous` with candidates instead
-of selecting one. Under ADR 0040 that re-resolving behavior belongs to a
-Locator, never an Observation Ref.
+execution metadata, resolved target details, and post-action semantic state
+when available. Browser results preserve the validated Observation Ref
+`state_id`; Locator and coordinate results do not accept state provenance.
+No actionable result reports reacquisition.
 
-Current gesture frames and Work Recording references can carry the
-state-scoped `ref`/`state_id`, primitive `actions`, current `state`, and
-`provenance` for the current address. After the Locator runtime migration they
-may also carry explicit `target.target_id`, `target.owner_namespace`, and
-machine-fact query material. They must not promote labels or coordinates into
-durable target identity or treat a stale Observation Ref as reacquirable.
+Gesture and Work Record projections may carry the exact discriminated V1
+handle plus primitive actions, current state, and provenance. They must not
+promote labels or coordinates into durable identity or treat a stale
+Observation Ref as a Locator.
 
 For the design split between action intents, execution results, optional
 gesture evidence, state patches, and Work Recording replay plans, see

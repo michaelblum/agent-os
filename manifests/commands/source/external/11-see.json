@@ -116,7 +116,7 @@
         "see",
         "refs"
       ],
-      "summary": "List compact saved refs through external agent-workspace composition; saved-ref mutation follows the backend action matrix.",
+      "summary": "List compact saved records through external agent-workspace composition; each record contains exactly one V1 handle.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",

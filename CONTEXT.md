@@ -182,8 +182,9 @@ A scope address in an AOS target dialect. Live ref-addressed CLI target strings
 currently include `browser:<session>[/<ref>]` and
 `canvas:<canvas-id>/<ref>`. `screen` and `ax` remain useful target-model
 vocabulary, but their current CLI wire forms are not `screen:` or `ax:` target
-strings: coordinate actions use raw `x,y` plus optional `--state-id`, and AX
-actions are selected through flags such as `--pid` and `--role`.
+strings: coordinate actions use raw `x,y` and AX actions are selected through
+flags such as `--pid` and `--role`. Coordinate actions reject `--state-id`;
+state validation belongs only to Observation Refs.
 _Avoid_: address (too generic), URL.
 
 **Observation Ref**:
@@ -218,16 +219,13 @@ _Avoid_: full target (ambiguous), qualified ref.
 The current implementation's persisted perception handle in an agent
 workspace: `ref:<snapshot-id>:<ref-id>`. Saved Refs are produced by
 `aos see capture --save` and read back with `aos see refs`. A Saved Ref names a
-workspace snapshot record, including
-backend, conformance, supported action matrix, and original ref data, and must
-revalidate or reacquire the current target before mutation. It is not a live
-Observation Ref or Locator: saved browser refs may dispatch through a current
-`browser:<session>/<ref>` target after validation, canvas refs may resolve
-through current canvas semantic refs, and the current native AX `stable`
-resolution class may bridge to
-direct AX flags, and unsupported or volatile refs fail closed. Bare
-`ref:<ref-id>` acceptance and automatic reacquisition are implementation gaps
-under ADR 0040, not the public target contract.
+workspace snapshot record containing exactly one discriminated Observation Ref
+or Locator. It is storage indirection, not a third live target type. It is not
+a live Observation Ref or Locator. Browser
+Observation Ref requests validate the original session/state/ref pair and then
+fail closed while backend identity is unproven; canvas and native AX Locators
+re-resolve at action time and require exactly one current match. Bare
+`ref:<ref-id>` and automatic reacquisition are invalid V1 behavior.
 _Avoid_: saved target, locator, observation ref, permanent object id.
 
 **Semantic Target**:
@@ -262,9 +260,8 @@ _Avoid_: native (overloaded with macOS-native), canvas-only (correct in effect b
 An opaque perception identifier minted by `aos see capture` that names one
 observed state. Paired with `ref`, it forms an Observation Ref; a stale pair must
 reject. Locators re-resolve current state and do not use an old State ID as
-authority. Coordinate actions chosen from perception also carry the State ID.
-Current CLI routes do not consistently enforce these rules; that is an explicit
-ADR 0040 implementation gap.
+authority. Coordinate actions cannot validate captured semantic state and
+reject a supplied State ID with `TARGET_STATE_UNSUPPORTED`.
 _Avoid_: state, version, snapshot id (those are storage-layer terms), perception id (technically equivalent but State ID is the wire term).
 
 **Subject Reference**:
@@ -320,17 +317,18 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
   re-resolving handle is a **Locator**. An **Anchor** is one role a target can
   play; on resolution it becomes an **Anchor Binding** in the display subsystem.
 - A **Saved Ref** (`ref:<snapshot-id>:<ref-id>`) is current workspace storage and
-  dispatch plumbing, not a third public target type. Its automatic revalidation,
-  reacquisition, and bare-ref shorthand remain explicit implementation gaps.
+  dispatch plumbing, not a third public target type. It stores exactly one
+  Observation Ref or Locator; automatic reacquisition and bare-ref shorthand are
+  invalid V1 behavior.
 - Refs are dialect-specific components of Observation Refs. Locators carry
-  declarative machine queries. Screen coordinate actions carry raw coordinates
-  plus the originating `--state-id` when selected from perception.
+  declarative machine queries. Screen coordinate actions carry only raw
+  coordinates and reject `--state-id`.
 - A **Subject** is host-neutral. A **Facet** declares one or more **Hosts** it supports; opening a Facet means picking one of its Hosts and addressing the resulting render through that Host's Target dialect.
 - **Browser-First** is a posture for wiki/editor/artifact Facets; **AOS-Native** is a *requirement* for Facets that depend on AOS runtime privileges. Most Facets fall in between and can declare multiple Hosts.
 - A **State ID** plus `ref` is required-for-correctness for an Observation Ref;
-  a stale pair rejects. It also scopes coordinates selected from perception.
-  Dry-run, when explicitly chosen, preserves the supplied State ID without
-  minting a new perception. Current route enforcement is incomplete.
+  a stale pair rejects. Locators and coordinates reject State ID. Dry-run, when
+  explicitly chosen, follows identical validation/resolution and stops before
+  mutation without minting a new perception.
 - `subject_type` names the **kind** of a Subject (`wiki.entity`, `service.runtime`, `artifact.bundle`, etc.) and is stable per Subject. Cross-Subject relationships use **Subject References**, not by switching `subject_type` based on context.
 - A **Subject Reference** carries a Subject Entry Handle (or Facet path) plus optional metadata (relationship type, role); a **Subject Entry Handle** is the resolver address. They are different layers — references express *relationships*; handles express *navigation*.
 - A **Subject Browser** consumes Subject Entry Handles, renders Navigation Trails, and follows Subject References. It is hosted via a normal **Host** (Browser or Canvas). The wiki, Canvas Inspector (when navigating runtime Subjects), and any future Work Record browser are all instances of this surface kind.
@@ -389,5 +387,5 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
   AOS/domain orchestration Subjects, not persona/session isolation. Do not add
   compatibility files that couple role/persona docks into a separate
   orchestration layer.
-- `stale` — resolved direction: `stale` is a qualified freshness failure, not one global verdict. The field path or namespace owns the recovery path: Patch Result `stale` means refresh Subject/Facet state and submit a new patch; Verifier Health `stale` means the Work Record no longer proves current truth; an Observation Ref stale error means the `(state_id, ref)` pair is no longer current; Locator `missing` or `ambiguous` is a separate action-time resolution result. Current routes have not completed this migration. Bare `stale` in logs, UI, or dashboards is under-namespaced.
+- `stale` — resolved direction: `stale` is a qualified freshness failure, not one global verdict. The field path or namespace owns the recovery path: Patch Result `stale` means refresh Subject/Facet state and submit a new patch; Verifier Health `stale` means the Work Record no longer proves current truth; an Observation Ref stale error means the `(state_id, ref)` pair is no longer current; Locator `missing` or `ambiguous` is a separate action-time resolution result. V1 target-handle routes enforce that distinction. Bare `stale` in logs, UI, or dashboards is under-namespaced.
 - `validation-result` in patch prose — resolved: validation detail is diagnostic information attached to a `rejected` Patch Result or returned by a separate preflight/validate operation. It is not a terminal Patch Result status, and revised input is a new patch attempt.

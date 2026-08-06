@@ -160,6 +160,11 @@ private func semanticTargetProbeJS(canvasID: String, scaleFactor: Double) -> Str
           role: attr(el, 'role') || nativeRole(el),
           name: targetName(el, id, ref) || null,
           kind: 'semantic_target',
+          handle: {
+            kind: 'locator',
+            backend: 'aos_canvas',
+            query: { canvas_id: canvasId, ref },
+          },
           enabled: !disabled,
           state: stateFor(el),
           actions: actionsFor(el),

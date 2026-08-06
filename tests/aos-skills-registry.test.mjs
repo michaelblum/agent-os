@@ -67,7 +67,7 @@ test('installable browser and saved-workspace skills preserve split contracts', 
   const workspace = await readFile(path.join(repoRoot, 'skills', 'aos-saved-workspace', 'SKILL.md'), 'utf8');
   assert.match(workspace, /observe-act-recapture/);
   assert.match(workspace, /ref:<snapshot-id>:<ref>/);
-  assert.match(workspace, /Coordinates selected from perception carry the originating `state_id`/);
+  assert.match(workspace, /Coordinates are not handles and reject `state_id`/);
 
   const desktop = await readFile(path.join(repoRoot, 'skills', 'aos-desktop', 'SKILL.md'), 'utf8');
   assert.match(desktop, /Playwright CLI for desktop/);

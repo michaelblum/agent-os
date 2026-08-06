@@ -37,6 +37,19 @@ import {
 } from './browser-identity.mjs';
 import { commandToken, compactNextRecommendations } from './recommendations.mjs';
 import { runNativeSeeSync } from '../aos-see-supervision.mjs';
+import { recordBrowserCaptureGeneration } from '../target-handle-runtime.mjs';
+import { resolveReviewedObservationRuntime } from '../playwright-cli-runtime.mjs';
+
+function reviewedBrowserRuntime(env) {
+  const runtime = resolveReviewedObservationRuntime({ env });
+  if (runtime.status !== 'ok') {
+    exitAgentWorkspaceError(
+      runtime.error || 'reviewed browser backend unavailable',
+      runtime.code || 'TARGET_ACTION_UNSUPPORTED',
+    );
+  }
+  return runtime;
+}
 
 function snapshotID(explicit) {
   if (explicit) return validateLocalID(explicit, 'snapshot id');
@@ -349,10 +362,10 @@ function knownLimitsForSnapshot(mode, target) {
     ...savedCaptureModeKnownLimits(mode, target),
   ];
   if ((mode === 'ax' || mode === 'som') && !isBrowserTarget) {
-    limits.push('non-browser tree modes may include native AX refs; stable saved-ref actions require durable native identity facts and still make no saved-action no-foreground guarantee');
+    limits.push('non-browser tree modes may include native AX Locators; actions re-resolve an exact current match and make no no-foreground guarantee');
   }
   if (isBrowserTarget && mode !== 'vision') {
-    limits.push('browser refs are snapshot-scoped and require fresh page/frame/navigation plus element validation before real saved-ref dispatch');
+    limits.push('browser Observation Refs act only through their original session/state/ref while that AOS capture generation remains current');
   }
   return limits;
 }
@@ -372,6 +385,10 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
       const captureArtifact = path.join(stagedArtifactsDir, 'capture.png');
       const captureArgs = captureArgsForMode(parsed.passthrough, parsed.options.mode, captureArtifact, target);
       const createdAt = nowISO();
+      const capturedBrowserSession = browserSessionFromTarget(target);
+      const browserBackendIdentity = capturedBrowserSession
+        ? reviewedBrowserRuntime(env).observation_identity
+        : null;
       const result = runNativeSeeSync({
         primitive: 'capture',
         args: captureArgs,
@@ -384,6 +401,16 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
         maxBuffer: 100 * 1024 * 1024,
       });
       const capture = parsePrimitiveJSON(result, 'aos __see capture');
+      if (capturedBrowserSession) {
+        const identityAfterCapture = reviewedBrowserRuntime(env).observation_identity;
+        if (JSON.stringify(identityAfterCapture) !== JSON.stringify(browserBackendIdentity)) {
+          exitAgentWorkspaceError(
+            'browser backend identity changed while capture was running',
+            'TARGET_STATE_STALE',
+          );
+        }
+        recordBrowserCaptureGeneration(capturedBrowserSession, capture, env, browserBackendIdentity);
+      }
       const requiresDisplayTopology = producesDisplayTopology(captureSource, parsed.passthrough);
       const displayTopology = requiresDisplayTopology
         ? capture.display_topology
@@ -403,7 +430,7 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
         ...rewriteBase64Payload(capture, stagedArtifactsDir, finalArtifactsDir),
       ];
       rewriteCaptureFilePaths(capture, stagedArtifactsDir, finalArtifactsDir);
-      const browserSession = browserSessionFromTarget(target);
+      const browserSession = capturedBrowserSession;
       const browserIdentity = browserSession && (capture.elements?.length ?? 0) > 0
         ? browserIdentityComparable(queryBrowserPageIdentity(browserSession, env))
         : null;
@@ -431,7 +458,7 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
         capture_mode: parsed.options.mode,
         capture_target: target,
         capture_source: captureSource,
-        ref_scope_grammar: 'scoped refs are ref:<snapshot-id>:<ref>; bare ref:<ref> resolves only when unambiguous in the workspace',
+        ref_scope_grammar: 'saved handles use only ref:<snapshot-id>:<ref>',
         target,
         query: parsed.options.query,
         requested_out: parsed.options.requested_out,

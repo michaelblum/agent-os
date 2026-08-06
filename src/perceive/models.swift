@@ -237,6 +237,80 @@ struct BoundsJSON: Codable {
     let height: Int
 }
 
+struct TargetHandleScopeJSON: Codable {
+    let session: String
+}
+
+struct TargetHandleQueryJSON: Codable {
+    let canvas_id: String?
+    let ref: String?
+    let pid: Int?
+    let window_id: Int?
+    let role: String?
+    let title: String?
+    let label: String?
+    let identifier: String?
+    let index: Int?
+    let near: String?
+    let match: String?
+    let depth: Int?
+    let timeout_ms: Int?
+
+    init(
+        canvas_id: String? = nil, ref: String? = nil, pid: Int? = nil,
+        window_id: Int? = nil, role: String? = nil, title: String? = nil,
+        label: String? = nil, identifier: String? = nil, index: Int? = nil,
+        near: String? = nil, match: String? = nil, depth: Int? = nil,
+        timeout_ms: Int? = nil
+    ) {
+        self.canvas_id = canvas_id
+        self.ref = ref
+        self.pid = pid
+        self.window_id = window_id
+        self.role = role
+        self.title = title
+        self.label = label
+        self.identifier = identifier
+        self.index = index
+        self.near = near
+        self.match = match
+        self.depth = depth
+        self.timeout_ms = timeout_ms
+    }
+}
+
+struct TargetHandleJSON: Codable {
+    let kind: String
+    let backend: String
+    let state_id: String?
+    let scope: TargetHandleScopeJSON?
+    let ref: String?
+    let query: TargetHandleQueryJSON?
+
+    static func browser(session: String, stateID: String, ref: String) -> TargetHandleJSON {
+        TargetHandleJSON(
+            kind: "observation_ref", backend: "browser", state_id: stateID,
+            scope: TargetHandleScopeJSON(session: session), ref: ref, query: nil
+        )
+    }
+
+    private static func nonEmpty(_ value: String?) -> String? {
+        guard let value, !value.isEmpty else { return nil }
+        return value
+    }
+
+    static func nativeAX(pid: Int, windowID: Int?, role: String, title: String?, label: String?, identifier: String?) -> TargetHandleJSON? {
+        guard let role = nonEmpty(role) else { return nil }
+        return TargetHandleJSON(
+            kind: "locator", backend: "native_ax", state_id: nil, scope: nil, ref: nil,
+            query: TargetHandleQueryJSON(
+                pid: pid, window_id: windowID, role: role, title: nonEmpty(title),
+                label: nonEmpty(label), identifier: nonEmpty(identifier)
+            )
+        )
+    }
+}
+
 struct NativeFocusCursorSpaceBaselineJSON: Encodable {
     let captured: Bool
     let focus: String
@@ -279,6 +353,7 @@ struct AXElementJSON: Encodable {
     let context_path: [String]
     let bounds: BoundsJSON?
     let ref: String?
+    var handle: TargetHandleJSON?
 
     init(
         app_pid: Int? = nil,
@@ -306,7 +381,8 @@ struct AXElementJSON: Encodable {
         canvas_surface: Bool? = nil,
         context_path: [String],
         bounds: BoundsJSON?,
-        ref: String?
+        ref: String?,
+        handle: TargetHandleJSON? = nil
     ) {
         self.app_pid = app_pid
         self.app_name = app_name
@@ -334,6 +410,7 @@ struct AXElementJSON: Encodable {
         self.context_path = context_path
         self.bounds = bounds
         self.ref = ref
+        self.handle = handle
     }
 }
 
@@ -381,6 +458,7 @@ struct AOSSemanticTargetJSON: Codable {
     let role: String
     let name: String?
     let kind: String
+    let handle: TargetHandleJSON
     let enabled: Bool
     let state: AOSSemanticTargetStateJSON?
     let actions: [String]

@@ -13,6 +13,8 @@ import {
 import {
   normalizeRecommendedNext,
 } from './pending-annotations-recommendations.mjs';
+import { isSavedRefConfidence } from './agent-workspace/contracts.mjs';
+import { validateTargetHandle } from './target-handle-runtime.mjs';
 
 export const SCHEMA_VERSION = 'aos.pending-annotation.v0';
 export const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
@@ -83,14 +85,26 @@ export function normalizeSavedRef(input = {}) {
   const ref = localIDOrNull(input.ref, 'ref id');
   if (!snapshot && !ref) return null;
   if (!snapshot || !ref) fail('saved_ref requires both snapshot_id and ref', 'INVALID_ARG');
+  if (!isObject(input.handle)) fail('saved_ref requires a discriminated V1 handle', 'TARGET_HANDLE_INVALID');
+  try {
+    validateTargetHandle(input.handle);
+  } catch {
+    fail('saved_ref requires a valid discriminated V1 handle', 'TARGET_HANDLE_INVALID');
+  }
+  if (input.backend && input.backend !== input.handle.backend) {
+    fail('saved_ref backend must match its V1 handle backend', 'TARGET_HANDLE_INVALID');
+  }
+  if (input.confidence !== undefined && !isSavedRefConfidence(input.confidence)) {
+    fail('saved_ref confidence must be high, medium, or low', 'INVALID_ARG');
+  }
   return {
     workspace_id: workspace || 'default',
     snapshot_id: snapshot,
     ref,
     action_target: input.action_target ?? null,
+    handle: input.handle,
     ...(input.backend ? { backend: input.backend } : {}),
-    ...(input.resolution_class ? { resolution_class: input.resolution_class } : {}),
-    ...(input.confidence ? { confidence: input.confidence } : {}),
+    ...(input.confidence !== undefined ? { confidence: input.confidence } : {}),
   };
 }
 
@@ -190,7 +204,7 @@ export function normalizeSourceCapture(value) {
     ...optionalNullableText(value, 'capture_mode'),
     ...optionalNullableText(value, 'query'),
     ...optionalNullableText(value, 'selected_backend'),
-    ...optionalNullableText(value, 'selected_resolution_class'),
+    ...optionalNullableText(value, 'selected_handle_kind'),
   };
 }
 
@@ -518,13 +532,28 @@ function assertArtifactRefs(value) {
 }
 
 function assertSavedRef(value) {
-  return value === null || (
-    isObject(value)
-    && SAFE_ID.test(value.workspace_id)
-    && SAFE_ID.test(value.snapshot_id)
-    && SAFE_ID.test(value.ref)
-    && nullableString(value.action_target)
-  );
+  if (value === null) return true;
+  const allowedKeys = new Set([
+    'workspace_id', 'snapshot_id', 'ref', 'action_target',
+    'handle', 'backend', 'confidence',
+  ]);
+  if (
+    !isObject(value)
+    || Object.keys(value).some((key) => !allowedKeys.has(key))
+    || !SAFE_ID.test(value.workspace_id)
+    || !SAFE_ID.test(value.snapshot_id)
+    || !SAFE_ID.test(value.ref)
+    || !nullableString(value.action_target)
+    || !isObject(value.handle)
+    || (value.backend !== undefined && value.backend !== value.handle.backend)
+    || (value.confidence !== undefined && !isSavedRefConfidence(value.confidence))
+  ) return false;
+  try {
+    validateTargetHandle(value.handle);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function assertSourceCapture(value) {
@@ -542,7 +571,7 @@ function assertSourceCapture(value) {
     && optionalNullableString(value, 'capture_mode')
     && optionalNullableString(value, 'query')
     && optionalNullableString(value, 'selected_backend')
-    && optionalNullableString(value, 'selected_resolution_class')
+    && optionalNullableString(value, 'selected_handle_kind')
   );
 }
 

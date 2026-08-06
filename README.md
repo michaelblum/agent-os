@@ -34,11 +34,12 @@ See [docs/api/aos.md](docs/api/aos.md) for the full consumer command table.
 
 The public semantic target types are an ephemeral Observation Ref
 `(state_id, ref)`, which rejects when stale, and a Locator, which re-resolves at
-action time and rejects zero or multiple matches. Current saved-workspace
-handles such as `ref:<snapshot-id>:<ref-id>` and direct browser/canvas strings
-such as `browser:<session>/<ref>` and `canvas:<canvas-id>/<ref>` predate that
-split and remain implementation forms during migration. Coordinate fallback
-remains raw `x,y` plus `--state-id <id>`; native AX direct actions use selector
+action time and rejects zero or multiple matches. A saved-workspace address
+such as `ref:<snapshot-id>:<ref-id>` is storage indirection to exactly one of
+those handles. Direct browser Observation Refs use
+`browser:<session>/<ref>` plus their original `--state-id`; canvas Locators use
+`canvas:<canvas-id>/<ref>`. Coordinate fallback remains raw `x,y` and rejects
+`--state-id`; native AX direct actions use selector
 flags such as `--pid` and `--role`, not a public `ax:` target grammar. Semantic
 Targets are perception records that contain refs and facts, not another address
 system.

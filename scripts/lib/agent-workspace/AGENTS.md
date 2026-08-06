@@ -6,18 +6,19 @@
 
 `scripts/lib/agent-workspace/` owns saved AOS perception workspaces: compact
 saved captures, snapshot/ref/workspace readback, saved-ref action resolution,
-backend validation, and local cleanup.
+typed Target Handle validation, and local cleanup.
 
 ## Ownership
 
 - `capture.mjs`, `store.mjs`, and `commands.mjs` own persisted workspace state,
   compact stdout/readback, atomic snapshot commits, and cleanup commands.
-- Saved native capture and browser-ref revalidation must use
+- Saved native capture must use
   `../aos-see-supervision.mjs` so owner, wrapper, or guardian loss retires the
   exact native process group without weakening synchronous workspace locking.
-- `refs.mjs`, `contracts.mjs`, and `browser-ref-validation.mjs` own saved-ref
-  conformance, backend action matrices, browser current-target validation, and
-  saved-ref capability projections consumed by annotation surfaces.
+- `refs.mjs` and `contracts.mjs` own V1 saved-handle production, backend action
+  matrices, and capability projections consumed by annotation surfaces.
+- `../target-handle-runtime.mjs` owns the bounded browser capture-generation
+  record and original Observation Ref pair validation.
 - `ref-action-*.mjs` and `actions.mjs` own saved-ref grammar, resolution,
   dry-run envelopes, and dispatch wrappers.
 - Native capability facts are produced by `src/`; public contract docs and
@@ -25,11 +26,10 @@ backend validation, and local cleanup.
 
 ## Local Contracts
 
-- The current saved-ref surface predates ADR 0040 and is migration plumbing,
-  not the public target-handle model: it mixes state-scoped Observation Ref
-  facts, backend descriptors, and fallback coordinates rather than exposing
-  either `(state_id, ref)` or an action-time Locator. Do not document saved refs
-  as durable or reacquirable authority.
+- V1 saved refs are storage indirection to exactly one required discriminated
+  handle. Browser handles are Observation Refs; canvas and native AX handles
+  are Locators. No resolution class, bare ref shorthand, coordinate fallback,
+  or alternate action target may re-enter active records.
 - Compact command stdout and readback must not include heavy payload fields such
   as AX/browser element arrays, semantic target arrays, annotations,
   perceptions, screenshots, or base64. Keep heavy payloads file-backed under the
@@ -39,18 +39,17 @@ backend validation, and local cleanup.
   compact stdout must preserve the exact native capture value and fail closed
   if it is missing, without observing displays or creating another capture
   path.
-- Current saved-ref dispatch must fail closed before mutation when confidence,
-  backend, resolution class, action compatibility, current validation, or the
-  backend's legacy identity evidence is insufficient.
-- Browser saved-ref mutation requires current page/frame/navigation and element
-  validation. Canvas saved-ref mutation requires current canvas target
-  resolution. Native AX saved-ref mutation is currently limited to direct-AX
-  facts. Its no-foreground proof approval requirement is legacy policy coupling
-  and an ADR 0040 migration gap, not AOS permission.
-- Current coordinate fallback refs are refused before dispatch. That is an
-  implementation limitation and ADR 0040 migration gap; coordinates with
-  sufficient action-time context are Locator geometry, not diagnostic-only by
-  policy.
+- Browser saved-handle requests validate the stored session/state/ref against
+  the one current AOS capture generation and require the exact independently
+  verified backend identity that minted it. They then fail closed before
+  backend dispatch because current backend ref-map identity is not atomically
+  bound to the AOS generation. They must never capture, search, reacquire, or
+  substitute state, and must never probe-then-act.
+- Canvas and native AX Locators re-resolve at action time. Zero, multiple, and
+  non-unique-near results fail with typed target errors; only explicit native
+  `index` may choose one match deterministically.
+- V0 files remain unchanged historical bytes and active readers reject them
+  with `AGENT_WORKSPACE_SCHEMA_UNSUPPORTED` and a recapture requirement.
 - Workspace state is local control state, not Work Recording evidence storage.
   Preserve runtime-mode isolation and explicit cleanup acknowledgements.
 - Workspace mutation locks must fail closed for live owners, reap dead-owner
@@ -60,30 +59,27 @@ backend validation, and local cleanup.
 ## Work Guidance
 
 - Keep public behavior synchronized with `manifests/commands/aos-commands.json`,
-  `shared/schemas/aos-agent-workspace-v0.*`, `docs/api/aos.md`,
+  `shared/schemas/aos-agent-workspace-v1.*`,
+  `shared/schemas/aos-target-handle-v1.*`, `docs/api/aos.md`,
   `docs/api/aos-capabilities.md`, and the current narrow installable skills:
   `skills/aos-saved-workspace/SKILL.md`,
   `skills/aos-canvas-vision/SKILL.md`,
   `skills/aos-desktop/SKILL.md`,
   `skills/aos-focus-sessions/SKILL.md`, and
   `skills/aos-verification/SKILL.md`.
-- Prefer extending the existing backend action matrix and shared test fixtures
-  over adding one-off parser or dispatch branches.
+- Preserve the two-type handle union when extending backend action matrices.
 - Do not move public command policy into Swift unless a native-boundary
   justification is explicit.
 
 ## Verification
 
-- Run the focused saved-ref/readback test for the changed backend:
-  `bash tests/agent-workspace-storage.sh`,
-  `bash tests/agent-workspace-browser-refs.sh`,
-  `bash tests/agent-workspace-canvas-refs.sh`, or
-  `bash tests/agent-workspace-native-refs.sh`.
+- Run `node --test tests/target-handle-runtime.test.mjs` and
+  `node --test tests/agent-workspace-v1.test.mjs` for handle/storage changes.
+- Run `bash tests/native-target-locator-selection.sh` for canvas/native
+  exact-one selection changes.
 - For contract, schema, docs, skill, or manifest drift, run
   `bash tests/agent-workspace-contract-drift.sh`,
   `bash tests/help-contract.sh`, and
   `node --test tests/schemas/aos-external-command-manifest-v0.test.mjs`.
-- Use `bash tests/agent-workspace-saved-ref.sh` as the aggregate deterministic
-  suite before closeout when behavior spans multiple backends.
 
 ## Child DOX Index

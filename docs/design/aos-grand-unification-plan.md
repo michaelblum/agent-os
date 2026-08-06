@@ -41,7 +41,7 @@ slices with repo evidence and clear exit criteria.
 - Keep target dialects explicit:
   - `browser:<session>/<ref>`: Playwright-backed DOM/ARIA targets.
   - `canvas:<canvas-id>/<ref>`: AOS canvas semantic targets.
-  - Screen coordinate fallback: current CLI actions use raw `x,y` plus optional
+  - Screen coordinate fallback: current CLI actions use raw `x,y` and reject
     `--state-id`; `screen:<state-id>/<x,y>` remains target-model/replay
     vocabulary, not a current CLI target string.
   - Native AX: current CLI actions select elements through flags such as
@@ -84,17 +84,16 @@ slices with repo evidence and clear exit criteria.
 ### Phase 2: Harden The Control Plane
 
 - Normalize AOS target guidance around semantic refs before coordinates.
-- Ensure browser `do` responses carry the same execution metadata shape as
-  desktop `do`: backend, strategy, fallback flag, and state id.
+- Ensure browser `do` responses preserve typed execution/failure metadata;
+  `state_id` belongs only to an Observation Ref.
 - Document stale-state policy:
   - Semantic refs are preferred.
-  - Coordinates require a `state_id`.
-  - Stale coordinate rejection is a future enforcement step, not silently
-    assumed today.
+  - Observation Refs require their original `state_id` and reject stale pairs.
+  - Coordinates are not semantic handles and reject `state_id`.
 - Add focused tests for:
   - Browser xray emits refs.
   - Browser `do` emits execution metadata.
-  - Coordinate dry-run preserves `state_id`.
+  - Coordinate dry-run rejects `state_id` with `TARGET_STATE_UNSUPPORTED`.
   - Canvas semantic xray still exposes stable `data-aos-ref`.
 
 ### Phase 3: Make Subjects The Shared Navigation Model

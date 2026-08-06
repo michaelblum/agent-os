@@ -210,9 +210,11 @@ browser:<session>/<ref>
 
 Saved browser refs come from
 `aos see capture browser:<session> --save --mode som --workspace <id>` plus
-`aos see refs`; saved-ref dispatch then refreshes current browser perception
-and routes through the underlying direct `browser:<session>/<ref>` target after
-validation. Low-level browser xray remains the current-ref producer underneath:
+`aos see refs`. Saved and direct ref-bearing requests validate the original
+`(state_id, ref)` against the one current AOS generation for the session. They
+then return `TARGET_ACTION_UNSUPPORTED` before backend dispatch because the
+current Playwright transport cannot atomically bind ref resolution to that
+generation. Low-level browser xray remains the current-ref producer underneath:
 `aos see capture browser:<session> --xray` parses Playwright snapshot markdown
 into AOS `AXElementJSON` records. Browser xray has refs but usually no bounds;
 `--label` fetches bounds with one eval call per ref.
@@ -221,8 +223,8 @@ The external command manifest conditionally dispatches direct browser forms for
 click, hover, drag, scroll, type, and key when the first target starts with
 `browser:`. Browser-only `do fill` and `do navigate` are implemented as small
 AOS verbs over Playwright's `fill` and `goto`; saved-ref `fill`, `type`, and
-`key` validate current page/frame/navigation and element identity before
-dispatching for refs that expose the matching action in `supported_actions`.
+`key` validate the original pair and stop with `TARGET_ACTION_UNSUPPORTED`.
+Session-only browser `scroll`, `type`, `key`, and `navigate` remain available.
 Anything not wrapped, such as tracing, codegen, tab operations,
 check/select/upload, reload/back, and arbitrary page scripts, remains a raw
 `playwright-cli` escape hatch.
@@ -249,9 +251,9 @@ follow page scroll, zoom, navigation, or DOM mutation. The agent must re-anchor.
 - The public CLI now documents browser targets through `docs/api/aos.md`,
   `aos see capture browser:<session> --save`, and direct `aos do` browser forms
   such as `click`, `fill`, `hover`, `scroll`, `drag`, `type`, `key`, and
-  `navigate`. Collection workers should prefer saved refs for normal loops and
-  use direct `browser:<session>/<ref>` targets as current
-  diagnostic/provenance handles.
+  `navigate`. Collection workers may retain saved Observation Refs as capture
+  provenance, but current ref-bearing actions are intentionally nonactionable;
+  they must not recapture or substitute a different state.
 - Gateway scripts still should not assume typed SDK parity with CLI browser
   refs. A future "gather web source artifacts" worker should either shell out to
   `./aos`, use a named raw Playwright escape hatch, or add an explicit

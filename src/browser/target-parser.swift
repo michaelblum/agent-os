@@ -5,8 +5,8 @@
 //     browser:<session>            -> page target
 //     browser:<session>/<ref>      -> element target
 //
-// Session names match /[A-Za-z0-9_-]+/. Refs match /[A-Za-z0-9]+/ (playwright
-// refs like "e21"). No tab or frame segments in v1.
+// Session names match /[A-Za-z0-9_-]+/. Refs are Playwright Observation Refs
+// like "e21" or "f2e21". No selector/Locator grammar is accepted.
 
 import Foundation
 
@@ -75,7 +75,6 @@ func parseBrowserTarget(_ input: String, env: [String: String] = ProcessInfo.pro
 // in session names leaks downstream into registry JSON paths, playwright-cli
 // argv, and focus-channel ids — reject it at the CLI edge.
 private let sessionAllowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-")
-private let refAllowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
 
 private func validateSession(_ s: String) throws {
     guard !s.isEmpty else { throw BrowserTargetError.invalid("empty session name") }
@@ -86,7 +85,7 @@ private func validateSession(_ s: String) throws {
 
 private func validateRef(_ r: String) throws {
     guard !r.isEmpty else { throw BrowserTargetError.invalid("empty ref") }
-    guard r.rangeOfCharacter(from: refAllowed.inverted) == nil else {
-        throw BrowserTargetError.invalid("ref must match [A-Za-z0-9]+")
+    guard r.range(of: #"^(?:f[0-9]+)?e[0-9]+$"#, options: .regularExpression) != nil else {
+        throw BrowserTargetError.invalid("browser ref must be a Playwright ref like e21 or f2e21")
     }
 }

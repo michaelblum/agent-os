@@ -3,11 +3,11 @@
 A **Target** is an AOS scope address. Live ref-addressed CLI target strings
 currently include `browser:<session>[/<ref>]` and
 `canvas:<canvas-id>/<ref>`. `screen` and `ax` remain target-model vocabulary,
-but the current CLI exposes screen coordinate actions through raw `x,y` plus
-optional `--state-id`, and AX actions through command arguments and flags such
+but the current CLI exposes screen coordinate actions through raw `x,y` and
+rejects `--state-id`, and AX actions through command arguments and flags such
 as `--pid` and `--role`, rather than `screen:` or `ax:` target strings. A
-**Ref** is a stable semantic element id within a Target's scope, when the
-dialect supports refs; a **Target-with-Ref** is the wire-form
+**Ref** is the dialect-specific component of a semantic handle within a
+Target's scope; a **Target-with-Ref** is the wire-form
 `<dialect>:<scope>/<ref>` that `aos see`/`aos do`/`aos show` operate on where a
 live target dialect supports refs. **Anchor** is not a separate primitive — it
 is a *role* a Target-with-Ref plays when `aos show` uses it as a placement

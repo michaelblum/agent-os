@@ -1,7 +1,12 @@
 // test/proxy.test.ts — Unit tests for proxy normalization and Layer 2 logic
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeWindow, type NormalizedWindow } from '../src/aos-proxy.js';
+import { EventEmitter } from 'node:events';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import vm from 'node:vm';
+import { AOSCommandError, normalizeWindow, type NormalizedWindow } from '../src/aos-proxy.js';
+import { projectSDKError } from '../src/sdk-socket.js';
 
 // --- Raw CLI data fixtures ---
 // These match the actual output of `aos see cursor`
@@ -112,90 +117,6 @@ describe('Overlay position calculation', () => {
   });
 });
 
-describe('clickElement error paths', () => {
-  // These test the error return shapes that clickElement produces
-  // without needing a live daemon (the actual function needs capture data)
-
-  function simulateClickElement(
-    elements: Array<{ label?: string; title?: string; role: string; bounds?: unknown }>,
-    searchLabel: string,
-    opts?: { role?: string },
-  ) {
-    if (elements.length === 0) {
-      return { clicked: false, error: 'No accessibility elements found. Is the target app focused?' };
-    }
-
-    const labelLower = searchLabel.toLowerCase();
-    let matches = elements.filter(el => {
-      const elLabel = (el.label ?? el.title ?? '').toLowerCase();
-      return elLabel.includes(labelLower);
-    });
-
-    if (opts?.role) {
-      matches = matches.filter(el => el.role === opts.role);
-    }
-
-    if (matches.length === 0) {
-      const available = elements
-        .filter(el => el.label || el.title)
-        .map(el => `${el.role}: "${el.label ?? el.title}"`)
-        .slice(0, 15);
-      return { clicked: false, error: `No element matching "${searchLabel}" found.`, candidates: available };
-    }
-
-    const target = matches[0];
-    const frame = target.bounds as any;
-    if (!frame) {
-      return { clicked: false, error: `Element "${searchLabel}" found but has no frame/bounds.` };
-    }
-
-    return { clicked: true, element: { label: target.label ?? target.title, role: target.role, frame } };
-  }
-
-  it('returns error when no elements exist', () => {
-    const result = simulateClickElement([], 'Build');
-    assert.equal(result.clicked, false);
-    assert.ok(result.error?.includes('No accessibility elements'));
-  });
-
-  it('returns candidates when label not found', () => {
-    const elements = [
-      { label: 'Run', role: 'AXButton', bounds: { x: 0, y: 0, width: 50, height: 30 } },
-      { label: 'Stop', role: 'AXButton', bounds: { x: 60, y: 0, width: 50, height: 30 } },
-    ];
-    const result = simulateClickElement(elements, 'Build');
-    assert.equal(result.clicked, false);
-    assert.ok(result.candidates?.includes('AXButton: "Run"'));
-    assert.ok(result.candidates?.includes('AXButton: "Stop"'));
-  });
-
-  it('filters by role when specified', () => {
-    const elements = [
-      { label: 'Build', role: 'AXStaticText', bounds: { x: 0, y: 0, width: 50, height: 20 } },
-      { label: 'Build', role: 'AXButton', bounds: { x: 0, y: 30, width: 50, height: 30 } },
-    ];
-    const result = simulateClickElement(elements, 'Build', { role: 'AXButton' });
-    assert.equal(result.clicked, true);
-    assert.equal(result.element?.role, 'AXButton');
-  });
-
-  it('returns error when element has no frame', () => {
-    const elements = [{ label: 'Build', role: 'AXButton' }];
-    const result = simulateClickElement(elements, 'Build');
-    assert.equal(result.clicked, false);
-    assert.ok(result.error?.includes('no frame/bounds'));
-  });
-
-  it('matches partial label (case-insensitive)', () => {
-    const elements = [
-      { label: 'Build and Run', role: 'AXButton', bounds: { x: 10, y: 20, width: 80, height: 30 } },
-    ];
-    const result = simulateClickElement(elements, 'build');
-    assert.equal(result.clicked, true);
-    assert.equal(result.element?.label, 'Build and Run');
-  });
-});
-
 describe('waitFor timeout behavior', () => {
   it('returns found:false and elapsed time on timeout', async () => {
     // Simulate the waitFor polling logic
@@ -214,5 +135,66 @@ describe('waitFor timeout behavior', () => {
 
     assert.ok(elapsed >= timeout - interval); // Allow some timing slack
     assert.ok(elapsed < timeout + 200);       // Shouldn't overshoot by much
+  });
+});
+
+describe('Target Handle gateway and SDK projection', () => {
+  it('preserves typed target failures through the socket envelope', () => {
+    const error = new AOSCommandError('TARGET_AMBIGUOUS', 'multiple current matches', {
+      candidates: [{ role: 'AXButton', label: 'Save' }],
+    });
+    assert.deepEqual(projectSDKError(error), {
+      error: {
+        code: 'TARGET_AMBIGUOUS',
+        message: 'multiple current matches',
+        details: { candidates: [{ role: 'AXButton', label: 'Save' }] },
+      },
+    });
+  });
+
+  it('rejects SDK calls with the original target code and bounded details', async () => {
+    const connection = new EventEmitter() as EventEmitter & {
+      write: (data: string, callback?: (error?: Error) => void) => void;
+      destroy: () => void;
+    };
+    connection.write = (data, callback) => {
+      const request = JSON.parse(data);
+      queueMicrotask(() => connection.emit('data', Buffer.from(`${JSON.stringify({
+        id: request.id,
+        result: {
+          error: {
+            code: 'TARGET_STATE_STALE',
+            message: 'capture generation was superseded',
+            details: { state_id: 'see_old', current_state_id: 'see_new' },
+          },
+        },
+      })}\n`)));
+      callback?.();
+    };
+    connection.destroy = () => {};
+
+    const context: any = {
+      Buffer,
+      clearTimeout,
+      console,
+      queueMicrotask,
+      require: (name: string) => {
+        assert.equal(name, 'node:net');
+        return { createConnection: () => connection };
+      },
+      setTimeout,
+      __aos_config: { gatewaySocket: '/tmp/aos-gateway-test.sock' },
+    };
+    vm.createContext(context);
+    vm.runInContext(readFileSync(resolve('sdk/aos-sdk.js'), 'utf8'), context);
+
+    await assert.rejects(context.aos.capture(), (error: any) => {
+      assert.equal(error.code, 'TARGET_STATE_STALE');
+      assert.deepEqual(
+        JSON.parse(JSON.stringify(error.details)),
+        { state_id: 'see_old', current_state_id: 'see_new' },
+      );
+      return true;
+    });
   });
 });

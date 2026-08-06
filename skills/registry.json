@@ -102,7 +102,7 @@
     {
       "name": "aos-saved-workspace",
       "path": "skills/aos-saved-workspace",
-      "description": "Use current AOS saved perception handles for observe-act-recapture loops while distinguishing them from public Observation Refs and Locators. Trigger when a task needs saved snapshots, current handles, optional previews or actions, snapshot diffs, or compact UI/browser/native evidence.",
+      "description": "Use AOS Target Handle V1 saved perception records for observe-act-recapture loops with browser Observation Refs and canvas/native AX Locators. Trigger when a task needs saved snapshots, scoped handles, optional dry-run/actions, snapshot diffs, or compact UI/browser/native evidence.",
       "status": "installable",
       "installable": true,
       "invocation": "enabled",
@@ -116,15 +116,16 @@
       "references": [
         "docs/api/aos.md",
         "docs/api/aos-capabilities.md",
-        "shared/schemas/aos-agent-workspace-v0.md",
+        "shared/schemas/aos-agent-workspace-v1.md",
         "tests/agent-workspace-contract-drift.sh",
-        "tests/agent-workspace-saved-ref.sh"
+        "tests/agent-workspace-v1.test.mjs",
+        "tests/target-handle-runtime.test.mjs"
       ],
       "claims_durable_behavior": true,
       "backing": [
         "docs/api/aos.md",
         "docs/api/aos-capabilities.md",
-        "shared/schemas/aos-agent-workspace-v0.md",
+        "shared/schemas/aos-agent-workspace-v1.md",
         "tests/agent-workspace-contract-drift.sh"
       ]
     },
@@ -180,7 +181,7 @@
       "references": [
         "docs/api/aos-capabilities.md",
         "docs/api/aos.md",
-        "tests/agent-workspace-canvas-refs.sh"
+        "tests/native-target-locator-selection.sh"
       ],
       "claims_durable_behavior": true,
       "backing": [

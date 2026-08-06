@@ -498,7 +498,10 @@ assert "--snapshot" in tokens, tokens
 dwell = next(arg for arg in form["args"] if arg.get("id") == "dwell")
 assert "coordinate/native and AOS canvas" in dwell["summary"], dwell
 assert "browser targets reject --dwell" in dwell["summary"], dwell
-assert "--dwell N for x,y or canvas targets" in usage, usage
+coordinate_or_canvas_usage = usage.split(" | ", 1)[1]
+assert coordinate_or_canvas_usage.startswith("aos do click <x,y|canvas:<canvas-id>/<ref>>"), usage
+assert "--dwell N" in coordinate_or_canvas_usage, usage
+assert "--state-id" not in coordinate_or_canvas_usage, usage
 PY
 then
     pass "do click help exposes ref target forms"
@@ -512,8 +515,14 @@ if OUT="$(./aos help do --json 2>/dev/null)" \
    SET_VALUE_TEXT="$(./aos help do set-value 2>/dev/null)" \
    FOCUS_TEXT="$(./aos help do focus 2>/dev/null)" \
    SAVED_REF_ACTIONS="$(node --input-type=module <<'JS'
-import { SAVED_REF_V0_ACTIONS_BY_BACKEND } from './scripts/lib/agent-workspace/contracts.mjs';
-console.log(JSON.stringify([...new Set(Object.values(SAVED_REF_V0_ACTIONS_BY_BACKEND).flat())]));
+import {
+  BROWSER_OBSERVATION_REF_REQUEST_ACTIONS,
+  SAVED_HANDLE_V1_ACTIONS_BY_BACKEND,
+} from './scripts/lib/agent-workspace/contracts.mjs';
+console.log(JSON.stringify([...new Set([
+  ...Object.values(SAVED_HANDLE_V1_ACTIONS_BY_BACKEND).flat(),
+  ...BROWSER_OBSERVATION_REF_REQUEST_ACTIONS,
+])]));
 JS
 )" \
    python3 - <<'PY'
@@ -552,27 +561,29 @@ for form in data["forms"]:
 click = next(item for item in data["forms"] if item["id"] == "do-click")
 click_target = next(arg for arg in click["args"] if arg.get("id") == "target")
 assert "Saved ref" in click_target["summary"], click_target
-assert "post_action.recommended_next_command" in click["summary"], click
-assert "aos see capture --save" in click["summary"], click
+assert "canvas Locator clicks remain available" in click["summary"], click
+assert "TARGET_ACTION_UNSUPPORTED" in click["summary"], click
 click_examples = click.get("examples", [])
 assert "aos do click ref:<snapshot-id>:r1 --workspace default --dry-run" in click_examples, click_examples
 assert "aos do click ref:<snapshot-id>:r1 --workspace default" in click_examples, click_examples
 type_browser = next(item for item in data["forms"] if item["id"] == "do-type-browser")
 assert "browser:<session>[/<ref>]" in type_browser["usage"], type_browser["usage"]
 assert "--state-id" in {arg.get("token") for arg in type_browser["args"]}, type_browser
-assert "current-host browser" in type_browser["summary"], type_browser
+assert "browser session text input remains available" in type_browser["summary"], type_browser
+assert "TARGET_ACTION_UNSUPPORTED" in type_browser["summary"], type_browser
 type_ref = next(item for item in data["forms"] if item["id"] == "do-type-ref")
 type_ref_tokens = {arg.get("token") for arg in type_ref["args"]}
 assert {"--workspace", "--snapshot", "--dry-run"} <= type_ref_tokens, type_ref_tokens
-assert "post_action.recommended_next_command" in type_ref["summary"], type_ref
+assert "TARGET_ACTION_UNSUPPORTED" in type_ref["summary"], type_ref
 key_browser = next(item for item in data["forms"] if item["id"] == "do-key-browser")
 assert "browser:<session>[/<ref>]" in key_browser["usage"], key_browser["usage"]
 assert "--state-id" in {arg.get("token") for arg in key_browser["args"]}, key_browser
-assert "current-host browser" in key_browser["summary"], key_browser
+assert "browser session key press remains available" in key_browser["summary"], key_browser
+assert "TARGET_ACTION_UNSUPPORTED" in key_browser["summary"], key_browser
 key_ref = next(item for item in data["forms"] if item["id"] == "do-key-ref")
 key_ref_tokens = {arg.get("token") for arg in key_ref["args"]}
 assert {"--workspace", "--snapshot", "--dry-run"} <= key_ref_tokens, key_ref_tokens
-assert "post_action.recommended_next_command" in key_ref["summary"], key_ref
+assert "TARGET_ACTION_UNSUPPORTED" in key_ref["summary"], key_ref
 fill = next(item for item in data["forms"] if item["id"] == "do-fill")
 fill_tokens = {arg.get("token") for arg in fill["args"]}
 assert "--state-id" in fill_tokens, fill
@@ -581,17 +592,17 @@ assert any("browser:todo/e21" in example and "--state-id" in example for example
 set_value = next(item for item in data["forms"] if item["id"] == "do-set-value")
 set_value_tokens = {arg.get("token") for arg in set_value["args"]}
 assert {"--workspace", "--snapshot", "--value", "--dry-run"} <= set_value_tokens, set_value_tokens
-for action in ["click", "fill", "hover", "scroll", "drag", "set-value", "press", "focus"]:
+for action in ["click", "fill", "hover", "scroll", "drag"]:
     action_form = next(item for item in data["forms"] if item["id"] == f"do-{action}")
     assert "--dry-run" in action_form["usage"], action_form["usage"]
-    assert "post_action.recommended_next_command" in action_form["summary"], action_form
-    assert "aos see capture --save" in action_form["summary"], action_form
+    assert "TARGET_ACTION_UNSUPPORTED" in action_form["summary"], action_form
+    assert "Observation Ref" in action_form["summary"], action_form
     assert has_saved_ref_example(action_form, dry_run=True), action_form
     assert has_saved_ref_example(action_form, dry_run=False), action_form
 assert "canvas:<canvas-id>/<ref>" in set_value["usage"], set_value["usage"]
 assert set_value["usage"].startswith("aos do set-value <ref-target|canvas:<canvas-id>/<ref>>"), set_value["usage"]
 assert "| aos do set-value --pid <pid> --role <role>" in set_value["usage"], set_value["usage"]
-assert "saved refs, direct canvas semantic refs, or direct AX targets" in set_value["summary"], set_value["summary"]
+assert "saved or direct canvas/native AX Locator" in set_value["summary"], set_value["summary"]
 assert "ref:<snapshot-id>:" in " ".join(set_value.get("examples", [])), set_value
 set_value_value = next(arg for arg in set_value["args"] if arg.get("id") == "value")
 assert set_value_value["required"] is False, set_value_value
@@ -611,9 +622,9 @@ assert "| aos do press --pid <pid> --role <role> [filters]" in press["usage"], p
 assert "<ref:<snapshot-id>:<ref>|--pid" not in press["usage"], press["usage"]
 assert "ref:<snapshot-id>:" in " ".join(press.get("examples", [])), press
 press_target = next(arg for arg in press["args"] if arg.get("id") == "target")
-assert press_target["required"] is False and "saved native AX ref" in press_target["summary"], press_target
+assert press_target["required"] is False and "native AX Locator" in press_target["summary"], press_target
 press_role = next(arg for arg in press["args"] if arg.get("id") == "role")
-assert press_role["required"] is False and "direct --pid form" in press_role["summary"], press_role
+assert press_role["required"] is False and "Locator resolution" in press_role["summary"], press_role
 assert required_group(press, "target source") == {("target",), ("pid", "role")}, press
 press_dry_run = next(arg for arg in press["args"] if arg.get("id") == "dry-run")
 assert "saved-ref or direct AX" in press_dry_run["summary"] and "no_foreground" in press_dry_run["summary"] and "proof" in press_dry_run["summary"], press_dry_run
@@ -626,9 +637,9 @@ assert "| aos do focus --pid <pid> --role <role> [filters]" in focus["usage"], f
 assert "<ref:<snapshot-id>:<ref>|--pid" not in focus["usage"], focus["usage"]
 assert "ref:<snapshot-id>:" in " ".join(focus.get("examples", [])), focus
 focus_target = next(arg for arg in focus["args"] if arg.get("id") == "target")
-assert focus_target["required"] is False and "saved native AX ref" in focus_target["summary"], focus_target
+assert focus_target["required"] is False and "native AX Locator" in focus_target["summary"], focus_target
 focus_role = next(arg for arg in focus["args"] if arg.get("id") == "role")
-assert focus_role["required"] is False and "direct --pid form" in focus_role["summary"], focus_role
+assert focus_role["required"] is False and "Locator resolution" in focus_role["summary"], focus_role
 assert required_group(focus, "target source") == {("target",), ("pid", "role")}, focus
 focus_dry_run = next(arg for arg in focus["args"] if arg.get("id") == "dry-run")
 assert "saved-ref or direct AX" in focus_dry_run["summary"] and "no_foreground" in focus_dry_run["summary"] and "proof" in focus_dry_run["summary"], focus_dry_run
@@ -636,8 +647,8 @@ assert "requires one target source: <target> OR --pid + --role" in os.environ["P
 assert "requires one target source: <target> OR --pid + --role" in os.environ["FOCUS_TEXT"], os.environ["FOCUS_TEXT"]
 assert "requires one target source: <target> OR --pid + --role" in os.environ["SET_VALUE_TEXT"], os.environ["SET_VALUE_TEXT"]
 assert "requires one value source: --value OR <value-text>" in os.environ["SET_VALUE_TEXT"], os.environ["SET_VALUE_TEXT"]
-assert "post_action.recommended_next_command" in os.environ["CLICK_TEXT"], os.environ["CLICK_TEXT"]
-assert "aos see capture --save" in os.environ["CLICK_TEXT"], os.environ["CLICK_TEXT"]
+assert "TARGET_ACTION_UNSUPPORTED" in os.environ["CLICK_TEXT"], os.environ["CLICK_TEXT"]
+assert "backend identity is unproven" in os.environ["CLICK_TEXT"], os.environ["CLICK_TEXT"]
 assert "aos do click ref:<snapshot-id>:r1 --workspace default --dry-run" in os.environ["CLICK_TEXT"], os.environ["CLICK_TEXT"]
 assert "aos do click ref:<snapshot-id>:r1 --workspace default" in os.environ["CLICK_TEXT"], os.environ["CLICK_TEXT"]
 fill = next(item for item in data["forms"] if item["id"] == "do-fill")
@@ -663,7 +674,8 @@ assert "--speed" not in drag["usage"], drag["usage"]
 assert "x1,y1" not in drag["usage"], drag["usage"]
 canvas_drag = next(item for item in data["forms"] if item["id"] == "do-drag-canvas")
 canvas_drag_tokens = {arg.get("token") for arg in canvas_drag["args"]}
-assert {"--by", "--to-value", "--playback", "--state-id", "--dry-run"} <= canvas_drag_tokens, canvas_drag_tokens
+assert {"--by", "--to-value", "--playback", "--dry-run"} <= canvas_drag_tokens, canvas_drag_tokens
+assert "--state-id" not in canvas_drag_tokens, canvas_drag_tokens
 assert "canvas:<canvas-id>/<ref>" in canvas_drag["usage"], canvas_drag["usage"]
 assert "--speed" not in canvas_drag["usage"], canvas_drag["usage"]
 assert "ref:<snapshot-id>" not in canvas_drag["usage"], canvas_drag["usage"]
@@ -671,6 +683,7 @@ assert "x1,y1" not in canvas_drag["usage"], canvas_drag["usage"]
 native_drag = next(item for item in data["forms"] if item["id"] == "do-drag-native")
 native_drag_tokens = {arg.get("token") for arg in native_drag["args"]}
 assert "--speed" in native_drag_tokens, native_drag_tokens
+assert "--state-id" not in native_drag_tokens, native_drag_tokens
 assert "--speed N" in native_drag["usage"], native_drag["usage"]
 assert "<x1,y1> <x2,y2>" in native_drag["usage"], native_drag["usage"]
 assert "ref:<snapshot-id>" not in native_drag["usage"], native_drag["usage"]
@@ -695,7 +708,6 @@ import os
 capture = json.loads(os.environ["CAPTURE"])
 capture_form = next(item for item in capture["forms"] if item["id"] == "see-capture")
 capture_save_form = next(item for item in capture["forms"] if item["id"] == "see-capture-save")
-see_list_form = next(item for item in capture["forms"] if item["id"] == "see-list")
 capture_tokens = {arg.get("token") for arg in capture_form["args"]}
 capture_save_tokens = {arg.get("token") for arg in capture_save_form["args"]}
 capture_conflicts = [set(item) for item in capture_form.get("constraints", {}).get("conflicts", [])]
@@ -729,14 +741,13 @@ assert not capture_save_form.get("constraints", {}).get("required_groups"), capt
 assert format_values == {"png", "jpg", "jpeg", "heic"}, format_values
 assert format_arg["default_value"] == "png", format_arg
 assert mode_values == {"ax", "vision", "som"}, mode_values
-assert "stable native AX press/focus/set-value" in save_arg["summary"], save_arg
-assert "documented saved-ref action matrix" in capture_save_arg["summary"], capture_save_arg
+assert "exactly one V1 browser Observation Ref, canvas Locator, or native AX Locator" in save_arg["summary"], save_arg
+assert "exactly one V1 handle" in capture_save_arg["summary"], capture_save_arg
 assert "frozen display_topology" in region_arg["summary"], region_arg
 assert "exact direct display_topology" in perception_arg["summary"], perception_arg
 assert "display_topology" in saved_region_arg["summary"], saved_region_arg
 assert "exact native display_topology" in saved_interactive_arg["summary"], saved_interactive_arg
 assert "DISPLAY_TOPOLOGY_MISSING" in saved_interactive_arg["summary"], saved_interactive_arg
-assert "spatial-topology 0.3.0" in see_list_form["summary"], see_list_form
 assert capture_form["examples"][0].startswith("aos see capture") and "--save" in capture_form["examples"][0], capture_form["examples"]
 assert any("--canvas" in item and "--save" in item for item in capture_save_form["examples"]), capture_save_form["examples"]
 assert any("--interactive" in item and "--save" in item for item in capture_save_form["examples"]), capture_save_form["examples"]
@@ -747,8 +758,10 @@ assert "aos see capture browser:work --save --mode som --workspace default --nam
 assert "aos see snapshots --workspace default" in saved_loop_examples, saved_loop_examples
 assert "aos see refs --workspace default --query Save" in saved_loop_examples, saved_loop_examples
 assert "Persist perception" in capture_save_form["summary"], capture_save_form
-assert "canonical ready/capture/ref/action/recapture/verify loop" in capture_save_form["summary"], capture_save_form
-assert "stable native AX actions" in capture_save_form["summary"], capture_save_form
+assert "each compact saved ref" in capture_save_form["summary"], capture_save_form
+assert "exactly one typed V1 handle" in capture_save_form["summary"], capture_save_form
+assert "bounded hint, artifact, and warning facts" in capture_save_form["summary"], capture_save_form
+assert "conformance/proof" not in capture_save_form["summary"], capture_save_form
 assert "--region <rect>" in capture_save_form["usage"], capture_save_form["usage"]
 assert "--canvas <id>" in capture_save_form["usage"], capture_save_form["usage"]
 assert "--channel <id>" in capture_save_form["usage"], capture_save_form["usage"]
@@ -761,12 +774,11 @@ assert capture_form["output"]["default_mode"] == "json", capture_form["output"]
 assert capture_save_form["execution"]["mutates_state"] is True, capture_save_form["execution"]
 assert capture_save_form["execution"]["read_only"] is False, capture_save_form["execution"]
 assert capture_save_form["execution"]["interactive"] is False, capture_save_form["execution"]
-assert "--save" in capture["summary"], capture["summary"]
 capture_text = os.environ["CAPTURE_TEXT"]
 assert "compact response preserves the exact native display_topology" in capture_text, capture_text
 assert "aos see capture --interactive --save --mode ax --workspace default --name selection" in capture_text, capture_text
-assert "[execution: read-only, mutates-with --save, requires-permissions]" in capture_text, capture_text
-assert "[execution: mutates-state, requires-permissions]" in capture_text, capture_text
+assert "[execution: read-only, mutates-with --save, auto-starts-daemon, requires-permissions]" in capture_text, capture_text
+assert "[execution: mutates-state, auto-starts-daemon, requires-permissions]" in capture_text, capture_text
 assert "[output: json; with --save: json]" not in capture_text, capture_text
 assert "[output: json]" in capture_text, capture_text
 assert "requires one capture source" not in capture_text, capture_text

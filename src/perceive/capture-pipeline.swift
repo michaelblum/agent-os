@@ -2122,9 +2122,19 @@ func captureBrowserTarget(opts: CaptureOptions) async {
             return
         }
         if opts.xray {
-            let elements = try seeCaptureXray(target: bt, withBounds: opts.label)
+            var elements = try seeCaptureXray(target: bt, withBounds: opts.label)
             var resp = SuccessResponse()
-            resp.state_id = makeAOSStateID()
+            let stateID = makeAOSStateID()
+            resp.state_id = stateID
+            for index in elements.indices {
+                if let ref = elements[index].ref {
+                    elements[index].handle = TargetHandleJSON.browser(
+                        session: bt.session,
+                        stateID: stateID,
+                        ref: ref
+                    )
+                }
+            }
             resp.elements = elements
             if opts.label {
                 let anns = buildAnnotations(from: elements)

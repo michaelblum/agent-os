@@ -4,8 +4,8 @@
 
 ADR 0040 supersedes this ADR's loose-ref rule. A public observation ref is the
 ephemeral `(state_id, ref)` pair and rejects when stale. Re-resolution belongs
-to the separate Locator type. The text below is retained as historical context
-for the current implementation discrepancy only.
+to the separate Locator type. The text below is retained as non-normative
+historical context only.
 
 A **State ID** is an opaque perception identifier minted by `aos see capture` that names the state the agent acted from. It guards an action's premise: "I chose this based on this observed state." For **coordinate actions**, the live CLI uses raw `x,y` plus optional `--state-id <id>` because coordinates have no semantic identity without a referenced perception. For **Ref-based actions** (`browser:<session>/<ref>`, `canvas:<canvas-id>/<ref>`, and AX model targets selected through command arguments and flags), the State ID is correlation/provenance metadata only — Refs carry their own semantic identity and can be re-resolved against the current scope, so a stale State ID does not invalidate the action. Dry-run preserves and echoes the supplied State ID; it does not mint a new perception or advance any scope state.
 

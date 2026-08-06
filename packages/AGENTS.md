@@ -20,6 +20,9 @@ and below app-specific product expression.
   the owning external product repository.
 - Do not move native-bound capability into packages when it belongs in `src/` or
   shared Swift/IPC contracts.
+- Gateway and SDK projections preserve discriminated Target Handles and typed
+  target failures. They must not add label-first or first-match semantic action
+  helpers.
 
 ## Work Guidance
 

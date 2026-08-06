@@ -1,6 +1,10 @@
 # SDK First Scripts — Design Sketches
 
-Three real tasks, written as we wish they worked. The gap between these scripts and what the SDK supports today tells us exactly what to build.
+Three real tasks, written as design sketches. They are not an API contract.
+Target Handle Runtime V1 deliberately has no label-first SDK action, public
+general Locator grammar, or public wait primitive. Semantic actions must use a
+typed handle emitted by a supported capture surface and preserve typed target
+failures.
 
 ---
 
@@ -58,8 +62,8 @@ const overlay = await aos.showOverlay({
 });
 // Returns: { id: "overlay-abc123", frame: { x, y, w, h } }
 
-// Do the actual work...
-await aos.clickElement("Build", { app: "Xcode" });
+// Do the actual work through a supported typed target handle.
+// A label such as "Build" is not by itself an actionable target.
 const result = await aos.waitFor(
   { window: /Build (Succeeded|Failed)/ },
   { timeout: 60000 }
@@ -77,7 +81,8 @@ await aos.updateOverlay(overlay.id, {
 - `aos.findWindow({ app })` — find a window by app name (subset of perceive)
 - `aos.showOverlay({ content, near, style })` — create a positioned overlay with smart defaults
 - `aos.updateOverlay(id, changes)` — modify an existing overlay
-- `aos.clickElement(label, { app })` — the big Layer 2 method: perceive + find + click
+- A future semantic action API must accept a typed target handle; it must not
+  infer a first match from label text
 - `aos.waitFor(pattern, { timeout })` — poll until a condition is met
 - `aos.createCanvas()` exists today but requires manual HTML, positioning, and cleanup
 - The `near` parameter means the SDK handles geometry — agent never calculates coordinates
@@ -148,7 +153,7 @@ Comparing "wish it worked" to "what exists today":
 | `aos.setConfig(key, val)` | 1 | **No** | Wrap `aos set` |
 | `aos.perceive()` | 2 | **No** | Compose: windows + cursor + displays |
 | `aos.findWindow(query)` | 2 | **No** | Filter from getWindows |
-| `aos.clickElement(label, opts)` | 2 | **No** | capture + find + click |
+| label-first semantic click | 2 | **Disabled** | Requires a future typed Locator API; label-only first match is forbidden |
 | `aos.waitFor(pattern, opts)` | 2 | **No** | Poll loop with timeout |
 | `aos.showOverlay(opts)` | 2 | **No** | createCanvas + positioning + template |
 | `aos.updateOverlay(id, opts)` | 2 | **No** | evalCanvas with smart diffing |
@@ -160,7 +165,9 @@ Comparing "wish it worked" to "what exists today":
 
 1. **Primitives first** — the 10 Layer 1 methods. Pure wrappers, no intelligence. This is plumbing.
 2. **Self-check script** — uses only primitives. Proves the pipe works end to end. Becomes the first saved workflow.
-3. **Smart ops** — `perceive()`, `clickElement()`, `waitFor()`, `showOverlay()`. These are the high-leverage additions.
+3. **Smart ops** — `perceive()` and `showOverlay()` remain design candidates.
+   Semantic actions require a separately designed typed Locator surface, and
+   waits are outside Target Handle Runtime V1.
 4. **Remaining scripts** — "what's on screen" and "show and clean up" become real saved workflows.
 
 Each step is independently useful. We don't need all 20 methods before the SDK is valuable.

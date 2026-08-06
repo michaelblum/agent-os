@@ -37,6 +37,9 @@ apps, and tests.
 - Semantic target contracts distinguish state-scoped observation refs from
   action-time re-resolving locators. Stale observation pairs and missing or
   ambiguous locator results fail with typed mechanical errors.
+- `schemas/aos-target-handle-v1.*` owns the closed handle union and
+  `schemas/aos-agent-workspace-v1.*` owns saved storage indirection. V0
+  workspace files are historical and unsupported by active readers.
 - `swift/ipc/ndjson.swift`, `request-client.swift`, and `event-stream.swift`
   bound every frame. Request reads use one monotonic absolute deadline across
   all partial reads; a peer cannot extend a call by dripping bytes without a

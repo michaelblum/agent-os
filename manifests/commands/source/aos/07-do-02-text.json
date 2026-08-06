@@ -75,14 +75,14 @@
               "id": "state-id",
               "kind": "flag",
               "required": false,
-              "summary": "Perception state id this action was chosen from",
+              "summary": "Required original state id for a ref-bearing browser target; session-only targets reject it",
               "token": "--state-id",
               "value_type": "string"
             }
           ],
           "examples": [
-            "aos do type browser:todo/e21 \"hello world\"",
-            "aos do type browser:todo \"hello world\" --state-id see_abc123def456"
+            "aos do type browser:todo/e21 \"hello world\" --state-id see_abc123def456",
+            "aos do type browser:todo \"hello world\""
           ],
           "execution": {
             "auto_starts_daemon": false,
@@ -100,7 +100,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "summary": "Direct current-host browser text input through Playwright",
+          "summary": "Direct current-host browser session text input remains available; ref-bearing Observation Ref input validates the original pair, then returns TARGET_ACTION_UNSUPPORTED",
           "usage": "aos do type <browser:<session>[/<ref>]> <text> [--state-id id]"
         },
         {
@@ -123,7 +123,7 @@
               "id": "dry-run",
               "kind": "flag",
               "required": false,
-              "summary": "Validate and describe a saved-ref type without executing it",
+              "summary": "Run the same saved Observation Ref validation without mutation; returns TARGET_ACTION_UNSUPPORTED",
               "token": "--dry-run",
               "value_type": "bool"
             },
@@ -131,7 +131,7 @@
               "id": "workspace",
               "kind": "flag",
               "required": false,
-              "summary": "Agent workspace id for ref:<id> targets",
+              "summary": "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token": "--workspace",
               "value_type": "string"
             },
@@ -139,7 +139,7 @@
               "id": "snapshot",
               "kind": "flag",
               "required": false,
-              "summary": "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary": "Optional snapshot assertion that must match the scoped ref target",
               "token": "--snapshot",
               "value_type": "string"
             }
@@ -164,7 +164,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "summary": "Saved browser type validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
+          "summary": "Saved browser Observation Ref type validates the original pair, then fails closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
           "usage": "aos do type <ref:<snapshot-id>:<ref>> <text> [--workspace <id>] [--snapshot <id>] [--dry-run]"
         },
         {
@@ -219,14 +219,14 @@
               "id": "state-id",
               "kind": "flag",
               "required": false,
-              "summary": "Perception state id this action was chosen from",
+              "summary": "Required original state id for a ref-bearing browser target; session-only targets reject it",
               "token": "--state-id",
               "value_type": "string"
             }
           ],
           "examples": [
-            "aos do key browser:todo/e21 \"Enter\"",
-            "aos do key browser:todo \"cmd+s\" --state-id see_abc123def456"
+            "aos do key browser:todo/e21 \"Enter\" --state-id see_abc123def456",
+            "aos do key browser:todo \"cmd+s\""
           ],
           "execution": {
             "auto_starts_daemon": false,
@@ -244,7 +244,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "summary": "Direct current-host browser key press through Playwright",
+          "summary": "Direct current-host browser session key press remains available; ref-bearing Observation Ref input validates the original pair, then returns TARGET_ACTION_UNSUPPORTED",
           "usage": "aos do key <browser:<session>[/<ref>]> <combo> [--state-id id]"
         },
         {
@@ -267,7 +267,7 @@
               "id": "dry-run",
               "kind": "flag",
               "required": false,
-              "summary": "Validate and describe a saved-ref key without executing it",
+              "summary": "Run the same saved Observation Ref validation without mutation; returns TARGET_ACTION_UNSUPPORTED",
               "token": "--dry-run",
               "value_type": "bool"
             },
@@ -275,7 +275,7 @@
               "id": "workspace",
               "kind": "flag",
               "required": false,
-              "summary": "Agent workspace id for ref:<id> targets",
+              "summary": "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token": "--workspace",
               "value_type": "string"
             },
@@ -283,7 +283,7 @@
               "id": "snapshot",
               "kind": "flag",
               "required": false,
-              "summary": "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary": "Optional snapshot assertion that must match the scoped ref target",
               "token": "--snapshot",
               "value_type": "string"
             }
@@ -308,7 +308,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "summary": "Saved browser key validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
+          "summary": "Saved browser Observation Ref key validates the original pair, then fails closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
           "usage": "aos do key <ref:<snapshot-id>:<ref>> <combo> [--workspace <id>] [--snapshot <id>] [--dry-run]"
         },
         {
@@ -331,7 +331,7 @@
               "id": "dry-run",
               "kind": "flag",
               "required": false,
-              "summary": "Validate and describe a saved-ref fill without executing it",
+              "summary": "Run the same saved Observation Ref validation without mutation; returns TARGET_ACTION_UNSUPPORTED",
               "token": "--dry-run",
               "value_type": "bool"
             },
@@ -339,7 +339,7 @@
               "id": "workspace",
               "kind": "flag",
               "required": false,
-              "summary": "Agent workspace id for ref:<id> targets",
+              "summary": "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token": "--workspace",
               "value_type": "string"
             },
@@ -347,7 +347,7 @@
               "id": "snapshot",
               "kind": "flag",
               "required": false,
-              "summary": "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary": "Optional snapshot assertion that must match the scoped ref target",
               "token": "--snapshot",
               "value_type": "string"
             },
@@ -355,7 +355,7 @@
               "id": "state-id",
               "kind": "flag",
               "required": false,
-              "summary": "Perception state id for direct browser fill provenance",
+              "summary": "Required original state id for direct browser Observation Ref fill",
               "token": "--state-id",
               "value_type": "string"
             }
@@ -365,7 +365,7 @@
             "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default",
             "aos do fill browser:todo/e21 \"buy groceries\" --state-id see_abc123def456"
           ],
-          "summary": "Saved-ref fill validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
+          "summary": "Browser Observation Ref fill validates the original pair, then fails closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,

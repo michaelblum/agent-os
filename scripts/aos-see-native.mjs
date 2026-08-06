@@ -12,6 +12,12 @@ import {
   aosSeeGuardianEnvironment,
   retireAosSeeProcessGroup,
 } from './lib/aos-see-supervision.mjs';
+import {
+  TargetHandleError,
+  emitTargetHandleError,
+  recordBrowserCaptureGeneration,
+} from './lib/target-handle-runtime.mjs';
+import { resolveReviewedObservationRuntime } from './lib/playwright-cli-runtime.mjs';
 
 function error(message, code) {
   process.stderr.write(`${JSON.stringify({ code, error: message })}\n`);
@@ -39,15 +45,38 @@ function processExists(pid) {
   }
 }
 
-async function runNativePrimitive(primitive, args) {
+function reviewedBrowserRuntime() {
+  const runtime = resolveReviewedObservationRuntime();
+  if (runtime.status !== 'ok') {
+    throw new TargetHandleError(runtime.code || 'TARGET_ACTION_UNSUPPORTED', runtime.error || 'reviewed browser backend unavailable');
+  }
+  return runtime;
+}
+
+async function runNativePrimitive(primitive, args, browserSession = null, backendIdentity = null) {
   const ownerPid = process.ppid;
   const child = spawn(process.execPath, [aosSeeChildRunnerPath, primitive, ...args], {
     detached: true,
     env: aosSeeGuardianEnvironment(process.env, ownerPid, aosPath()),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  child.stdout.pipe(process.stdout);
+  const captureChunks = [];
+  let captureBytes = 0;
+  const maxCaptureBytes = 32 * 1024 * 1024;
+  child.stdout.on('data', (chunk) => {
+    if (browserSession && captureBytes <= maxCaptureBytes) {
+      captureBytes += chunk.length;
+      if (captureBytes <= maxCaptureBytes) captureChunks.push(chunk);
+    }
+  });
+  if (!browserSession) child.stdout.pipe(process.stdout);
   child.stderr.pipe(process.stderr);
+
+  const flushBrowserStdout = () => {
+    if (browserSession && captureBytes <= maxCaptureBytes && captureChunks.length > 0) {
+      process.stdout.write(Buffer.concat(captureChunks));
+    }
+  };
 
   let closed = false;
   let requestedSignal = null;
@@ -88,15 +117,50 @@ async function runNativePrimitive(primitive, args) {
   if (result.signal !== null || result.cause) retireAosSeeProcessGroup(child.pid);
 
   if (result.cause) {
+    flushBrowserStdout();
     process.stderr.write(`${JSON.stringify({
       code: 'NATIVE_CAPTURE_LAUNCH_FAILED',
       error: result.cause instanceof Error ? result.cause.message : String(result.cause),
     })}\n`);
     return 1;
   }
-  if (requestedSignal !== null) return SIGNAL_EXIT_CODES.get(requestedSignal) ?? 1;
-  if (result.signal !== null) return SIGNAL_EXIT_CODES.get(result.signal) ?? 1;
+  if (requestedSignal !== null) {
+    flushBrowserStdout();
+    return SIGNAL_EXIT_CODES.get(requestedSignal) ?? 1;
+  }
+  if (result.signal !== null) {
+    flushBrowserStdout();
+    return SIGNAL_EXIT_CODES.get(result.signal) ?? 1;
+  }
+  if ((result.code ?? 1) === 0 && browserSession) {
+    try {
+      if (captureBytes > maxCaptureBytes) {
+        throw new TargetHandleError('TARGET_HANDLE_INVALID', 'browser capture exceeds the bounded generation output limit');
+      }
+      const verifiedAfterCapture = reviewedBrowserRuntime().observation_identity;
+      if (JSON.stringify(verifiedAfterCapture) !== JSON.stringify(backendIdentity)) {
+        throw new TargetHandleError('TARGET_STATE_STALE', 'browser backend identity changed while capture was running');
+      }
+      recordBrowserCaptureGeneration(
+        browserSession,
+        JSON.parse(Buffer.concat(captureChunks).toString('utf8')),
+        process.env,
+        backendIdentity,
+      );
+      flushBrowserStdout();
+    } catch (error) {
+      emitTargetHandleError(error);
+      return 1;
+    }
+  }
+  if ((result.code ?? 1) !== 0) flushBrowserStdout();
   return result.code ?? 1;
+}
+
+function browserSessionFromCaptureTarget(target) {
+  if (!String(target ?? '').startsWith('browser:')) return null;
+  const remainder = String(target).slice('browser:'.length);
+  return remainder.split('/')[0] || process.env.PLAYWRIGHT_CLI_SESSION || null;
 }
 
 function parseNoArgPrimitive(primitive, args) {
@@ -128,8 +192,16 @@ try {
     process.exit(0);
   }
 
-  process.exitCode = await runNativePrimitive(primitive, args);
+  const browserSession = primitive === 'capture'
+    ? browserSessionFromCaptureTarget(savedCapture?.target)
+    : null;
+  const backendIdentity = browserSession ? reviewedBrowserRuntime().observation_identity : null;
+  process.exitCode = await runNativePrimitive(primitive, args, browserSession, backendIdentity);
 } catch (err) {
   if (isAgentWorkspaceError(err)) emitAgentWorkspaceError(err);
-  throw err;
+  else if (err instanceof TargetHandleError) {
+    emitTargetHandleError(err);
+    process.exitCode = 1;
+  }
+  else throw err;
 }

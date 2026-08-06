@@ -328,7 +328,7 @@ This V0 transport is file-backed and toolkit/test-helper scoped; it does not add
 a daemon event channel, public `aos test run` command, replay, repair, macro
 playback, Work Record mutation, or a second evidence viewer.
 
-The current test-console transport stamps state-scoped AOS semantic refs in the
+The current test-console transport stamps AOS canvas Locator refs in the
 `test-console-v0:*` surface namespace,
 including `test-console-v0:response-confirm`, `test-console-v0:response-fail`,
 `test-console-v0:response-blocked`, `test-console-v0:response-note`,
@@ -337,10 +337,10 @@ including `test-console-v0:response-confirm`, `test-console-v0:response-fail`,
 `data-aos-ref`, `data-aos-action`, `data-aos-surface`, and
 `data-semantic-target-id` so `aos see capture --canvas <id> --xray` can expose
 canonical `semantic_targets[]` records whose `provenance.do_target` values are
-used by the current `aos do click` transport. The bare refs and
-`data-semantic-target-id` values are not durable public target identities; the
-public Observation Ref is the exact `(state_id, ref)` pair, and stale pairs must
-reject rather than reacquire.
+used by the current `aos do click` transport. A bare ref is not a complete
+handle, and `data-semantic-target-id` is not target identity. The public canvas
+Locator contains the exact `canvas_id` plus `ref` machine query and must resolve
+to exactly one current match.
 
 The v-next direction keeps wiki document Subjects wiki-oriented and represents
 domain concepts through separate, consumer-owned domain Subjects plus Subject

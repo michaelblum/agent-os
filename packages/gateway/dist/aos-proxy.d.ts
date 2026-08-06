@@ -1,3 +1,8 @@
+export declare class AOSCommandError extends Error {
+    code: string;
+    details: Record<string, unknown>;
+    constructor(code: string, message: string, details?: Record<string, unknown>);
+}
 export type NormalizedWindow = {
     id: string;
     app: string;
@@ -22,6 +27,7 @@ export type AOSSemanticTarget = {
     role: string;
     name?: string;
     kind: string;
+    handle: AOSTargetHandle;
     enabled: boolean;
     state?: {
         value?: string;
@@ -53,10 +59,45 @@ export type AOSSemanticTarget = {
         };
     };
 };
+export type AOSTargetHandle = {
+    kind: 'observation_ref';
+    backend: 'browser';
+    state_id: string;
+    scope: {
+        session: string;
+    };
+    ref: string;
+} | {
+    kind: 'locator';
+    backend: 'aos_canvas';
+    query: {
+        canvas_id: string;
+        ref: string;
+    };
+} | {
+    kind: 'locator';
+    backend: 'native_ax';
+    query: {
+        pid: number;
+        role: string;
+        window_id?: number;
+        title?: string;
+        label?: string;
+        identifier?: string;
+        index?: number;
+        near?: string;
+        match?: 'exact' | 'contains' | 'regex';
+        depth?: number;
+        timeout_ms?: number;
+    };
+};
 export type CaptureResult = {
     status: string;
+    state_id?: string;
     base64?: string;
-    elements?: unknown[];
+    elements?: Array<Record<string, unknown> & {
+        handle?: AOSTargetHandle;
+    }>;
     semantic_targets?: AOSSemanticTarget[];
     path?: string;
 };
@@ -151,20 +192,6 @@ export declare function findWindow(query: {
     window: NormalizedWindow | null;
     candidates: string[];
 }>;
-/** Capture the screen, find an element by label, and click it. One call. */
-export declare function clickElement(label: string, opts?: {
-    app?: string;
-    role?: string;
-}): Promise<{
-    clicked: boolean;
-    element?: {
-        label: string;
-        role: string;
-        frame: unknown;
-    };
-    error?: string;
-    candidates?: string[];
-}>;
 /** Poll until a condition is met, then return the match. */
 export declare function waitFor(pattern: {
     window?: string;
@@ -200,3 +227,4 @@ export declare function updateOverlay(id: string, opts: {
 }): Promise<{
     id: string;
 }>;
+export {};

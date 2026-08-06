@@ -41,7 +41,7 @@ private func okResponse(
 }
 
 /// Build an error response carrying current cursor, modifiers, context, and the error details.
-private func errorResponse(_ action: String, state: SessionState, message: String, code: String) -> ActionResponse {
+func errorResponse(_ action: String, state: SessionState, message: String, code: String) -> ActionResponse {
     return ActionResponse(
         status: "error",
         action: action,
@@ -52,6 +52,88 @@ private func errorResponse(_ action: String, state: SessionState, message: Strin
         error: message,
         code: code
     )
+}
+
+private func targetAmbiguousResponse(
+    _ action: String,
+    state: SessionState,
+    count: Int,
+    candidates: [AXTargetCandidateFact],
+    countIsLowerBound: Bool
+) -> ActionResponse {
+    var response = errorResponse(
+        action,
+        state: state,
+        message: "Target Locator matched more than one current AX element",
+        code: "TARGET_AMBIGUOUS"
+    )
+    response.candidate_count = count
+    response.candidate_count_is_lower_bound = countIsLowerBound
+    response.candidates = candidates
+    return response
+}
+
+func resolveAXTargetCompatibility(
+    _ element: AXUIElement,
+    action: String,
+    deadline: Date
+) -> AXTargetCompatibilityResolution {
+    switch axCallBeforeDeadline(element, deadline: deadline, operation: {
+        axBool(element, kAXEnabledAttribute as String)
+    }) {
+    case .value(let enabled):
+        if enabled == false {
+            return .incompatible("Target Locator resolved to a disabled AX element", "TARGET_DISABLED")
+        }
+    case .timeout:
+        return .timeout
+    }
+    switch action {
+    case "press":
+        switch axCallBeforeDeadline(element, deadline: deadline, operation: { axActions(element) }) {
+        case .value(let actions):
+            if !actions.contains(kAXPressAction as String) {
+                return .incompatible("Target Locator does not support AXPress", "TARGET_ACTION_UNSUPPORTED")
+            }
+        case .timeout:
+            return .timeout
+        }
+    case "set-value":
+        switch axCallBeforeDeadline(element, deadline: deadline, operation: {
+            var settable = DarwinBoolean(false)
+            return AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable) == .success
+                && settable.boolValue
+        }) {
+        case .value(false):
+            return .incompatible("Target Locator does not expose a settable AX value", "TARGET_ACTION_UNSUPPORTED")
+        case .value(true):
+            break
+        case .timeout:
+            return .timeout
+        }
+    case "focus":
+        switch axCallBeforeDeadline(element, deadline: deadline, operation: {
+            var settable = DarwinBoolean(false)
+            return AXUIElementIsAttributeSettable(element, kAXFocusedAttribute as CFString, &settable) == .success
+                && settable.boolValue
+        }) {
+        case .value(false):
+            return .incompatible("Target Locator does not expose settable AX focus", "TARGET_ACTION_UNSUPPORTED")
+        case .value(true):
+            break
+        case .timeout:
+            return .timeout
+        }
+    default:
+        return .incompatible("Unsupported native AX Locator action: \(action)", "TARGET_ACTION_UNSUPPORTED")
+    }
+    return .compatible
+}
+
+func findAXActionTarget(query: ElementQuery, action: String) -> FindResult {
+    findElement(query: query, resolveActionCompatibility: { element, deadline in
+        resolveAXTargetCompatibility(element, action: action, deadline: deadline)
+    })
 }
 
 private func inputDeliveryError(_ action: String, state: SessionState) -> ActionResponse {
@@ -694,20 +776,9 @@ func handlePress(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         return errorResponse("press", state: state, message: "Accessibility permission not granted", code: "PERMISSION_DENIED")
     }
 
-    // If bound to a channel, try resolving element coordinates to use as a near-hint
-    var augmentedReq = req
-    if let channelPoint = resolveChannelElement(req, state: state), req.near == nil {
-        augmentedReq = ActionRequest(
-            action: req.action, pid: req.pid, role: req.role, title: req.title,
-            label: req.label, identifier: req.identifier, value: req.value,
-            index: req.index, near: [channelPoint.x, channelPoint.y],
-            match: req.match, depth: req.depth, timeout: req.timeout
-        )
-    }
+    let query = ElementQuery(from: req, context: state.context, profile: state.profile)
 
-    let query = ElementQuery(from: augmentedReq, context: state.context, profile: state.profile)
-
-    switch findElement(query: query) {
+    switch findAXActionTarget(query: query, action: "press") {
     case .found(let element):
         let foregroundBefore = FrontmostAppSnapshot.current()
         let result = AXUIElementPerformAction(element, kAXPressAction as CFString)
@@ -725,10 +796,39 @@ func handlePress(_ req: ActionRequest, state: SessionState) -> ActionResponse {
             resp.execution?.foreground_preservation = foreground.preservation
         }
     case .notFound(let msg):
-        return errorResponse("press", state: state, message: msg, code: "ELEMENT_NOT_FOUND")
+        return errorResponse("press", state: state, message: msg, code: "TARGET_NOT_FOUND")
+    case .ambiguous(let count, let candidates, let countIsLowerBound):
+        return targetAmbiguousResponse(
+            "press", state: state, count: count, candidates: candidates,
+            countIsLowerBound: countIsLowerBound
+        )
+    case .incompatible(let message, let code):
+        return errorResponse("press", state: state, message: message, code: code)
+    case .invalid(let message):
+        return errorResponse("press", state: state, message: message, code: "TARGET_HANDLE_INVALID")
     case .timeout:
-        return errorResponse("press", state: state, message: "Timed out searching for element", code: "AX_TIMEOUT")
+        return errorResponse("press", state: state, message: "Timed out resolving Target Locator", code: "TARGET_RESOLUTION_TIMEOUT")
     }
+}
+
+/// Build the exact Locator request shared by dry-run and effectful set-value.
+/// `req.value` is the mutation payload, never a search criterion.
+func setValueLocatorRequest(_ req: ActionRequest) -> ActionRequest {
+    ActionRequest(
+        action: req.action,
+        pid: req.pid,
+        role: req.role,
+        title: req.title,
+        label: req.label,
+        identifier: req.identifier,
+        value: nil,
+        index: req.index,
+        near: req.near,
+        match: req.match,
+        depth: req.depth,
+        timeout: req.timeout,
+        window_id: req.window_id
+    )
 }
 
 /// Set the value of an AX element. req.value is the NEW value, not a search criterion.
@@ -743,37 +843,11 @@ func handleSetValue(_ req: ActionRequest, state: SessionState) -> ActionResponse
         return errorResponse("set-value", state: state, message: "Missing 'value' field", code: "MISSING_ARG")
     }
 
-    // Build query without value — value is the payload, not a search criterion
-    let searchReq = ActionRequest(
-        action: req.action,
-        pid: req.pid,
-        role: req.role,
-        title: req.title,
-        label: req.label,
-        identifier: req.identifier,
-        value: nil,
-        index: req.index,
-        near: req.near,
-        match: req.match,
-        depth: req.depth,
-        timeout: req.timeout
-    )
+    let searchReq = setValueLocatorRequest(req)
     let query = ElementQuery(from: searchReq, context: state.context, profile: state.profile)
 
-    switch findElement(query: query) {
+    switch findAXActionTarget(query: query, action: "set-value") {
     case .found(let element):
-        // Check if value attribute is settable
-        var settable: DarwinBoolean = false
-        let settableResult = AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable)
-        if settableResult != .success {
-            return errorResponse("set-value", state: state,
-                message: "Cannot check if value is settable (AX error \(settableResult.rawValue))", code: "AX_ACTION_FAILED")
-        }
-        guard settable.boolValue else {
-            return errorResponse("set-value", state: state,
-                message: "Value attribute is not settable on this element", code: "AX_NOT_SETTABLE")
-        }
-
         let setResult = AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, newValue as CFTypeRef)
         if setResult != .success {
             return errorResponse("set-value", state: state,
@@ -786,9 +860,18 @@ func handleSetValue(_ req: ActionRequest, state: SessionState) -> ActionResponse
         }
 
     case .notFound(let msg):
-        return errorResponse("set-value", state: state, message: msg, code: "ELEMENT_NOT_FOUND")
+        return errorResponse("set-value", state: state, message: msg, code: "TARGET_NOT_FOUND")
+    case .ambiguous(let count, let candidates, let countIsLowerBound):
+        return targetAmbiguousResponse(
+            "set-value", state: state, count: count, candidates: candidates,
+            countIsLowerBound: countIsLowerBound
+        )
+    case .incompatible(let message, let code):
+        return errorResponse("set-value", state: state, message: message, code: code)
+    case .invalid(let message):
+        return errorResponse("set-value", state: state, message: message, code: "TARGET_HANDLE_INVALID")
     case .timeout:
-        return errorResponse("set-value", state: state, message: "Timed out searching for element", code: "AX_TIMEOUT")
+        return errorResponse("set-value", state: state, message: "Timed out resolving Target Locator", code: "TARGET_RESOLUTION_TIMEOUT")
     }
 }
 
@@ -802,7 +885,7 @@ func handleFocus(_ req: ActionRequest, state: SessionState) -> ActionResponse {
 
     let query = ElementQuery(from: req, context: state.context, profile: state.profile)
 
-    switch findElement(query: query) {
+    switch findAXActionTarget(query: query, action: "focus") {
     case .found(let element):
         let result = AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, true as CFTypeRef)
         if result != .success {
@@ -814,9 +897,18 @@ func handleFocus(_ req: ActionRequest, state: SessionState) -> ActionResponse {
             resp.execution?.ax_focused_after = focusedAfter
         }
     case .notFound(let msg):
-        return errorResponse("focus", state: state, message: msg, code: "ELEMENT_NOT_FOUND")
+        return errorResponse("focus", state: state, message: msg, code: "TARGET_NOT_FOUND")
+    case .ambiguous(let count, let candidates, let countIsLowerBound):
+        return targetAmbiguousResponse(
+            "focus", state: state, count: count, candidates: candidates,
+            countIsLowerBound: countIsLowerBound
+        )
+    case .incompatible(let message, let code):
+        return errorResponse("focus", state: state, message: message, code: code)
+    case .invalid(let message):
+        return errorResponse("focus", state: state, message: message, code: "TARGET_HANDLE_INVALID")
     case .timeout:
-        return errorResponse("focus", state: state, message: "Timed out searching for element", code: "AX_TIMEOUT")
+        return errorResponse("focus", state: state, message: "Timed out resolving Target Locator", code: "TARGET_RESOLUTION_TIMEOUT")
     }
 }
 

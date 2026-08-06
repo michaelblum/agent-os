@@ -1,14 +1,13 @@
 ---
 name: aos-saved-workspace
-description: Use current AOS saved perception handles for observe-act-recapture loops while distinguishing them from public Observation Refs and Locators. Trigger when a task needs saved snapshots, current handles, optional previews or actions, snapshot diffs, or compact UI/browser/native evidence.
+description: Use AOS Target Handle V1 saved perception records for observe-act-recapture loops with browser Observation Refs and canvas/native AX Locators. Trigger when a task needs saved snapshots, scoped handles, optional dry-run/actions, snapshot diffs, or compact UI/browser/native evidence.
 ---
 
 # AOS Saved Workspace
 
 Use saved workspaces when a desktop, native AX, canvas, or browser task needs
-repeatable perception and compact targets. Saved refs are the shared
-workspace-storage handle in the current implementation; they are not Locators
-or durable target identity under ADR 0040.
+repeatable perception and compact targets. Each saved ref is storage indirection
+to exactly one V1 Observation Ref or Locator.
 
 ## Loop
 
@@ -18,7 +17,9 @@ or durable target identity under ADR 0040.
 3. Inspect snapshots and refs before acting.
 4. Prefer saved refs such as `ref:<snapshot-id>:<ref>` over coordinates or
    prose targets when the producer says the ref is actionable.
-5. Resolve current identity, optionally dry-run for preview, act once, then recapture.
+5. Optionally dry-run Locator actions using the identical resolution path, act
+   once, then recapture. Browser Observation Ref dry-run/effect requests are
+   currently fail-closed at the atomic identity boundary.
 
 A saved capture source can be a positional target or one source flag such as
 `--region <rect>`, `--canvas <id>`, or `--channel <id>`. The source forms are
@@ -26,27 +27,31 @@ mutually exclusive, and capture defaults to `main` when no source is supplied.
 
 ## Boundaries
 
-- The public Observation Ref is `(state_id, ref)` and rejects when stale; a
-  Locator re-resolves and rejects zero or multiple matches. Current saved-handle
-  reacquisition is an explicit implementation gap.
+- Browser Observation Refs store their session, original `state_id`, and
+  Playwright ref. A newer AOS capture supersedes the generation; no action path
+  recaptures or reacquires them. Until the backend can atomically bind that
+  generation to ref resolution, requests return `TARGET_ACTION_UNSUPPORTED`
+  before backend dispatch.
+- Canvas and native AX Locators re-resolve at action time and reject zero or
+  multiple matches. Native `index` is explicit disambiguation and `near`
+  requires one unique closest candidate.
 - Workspace artifacts are local control state, not durable Work Record
   evidence; optionally use Work Records when a receipt or recovery input is useful.
 - Observation stays raw. The caller chooses whether to keep full captures or
   apply an explicit compacting, masking, persistence, or projection transform.
-- Coordinates selected from perception carry the originating `state_id` and
-  require current-state mechanical validation.
+- Coordinates are not handles and reject `state_id`.
 
 ## Stop
 
-Stop when the saved-ref producer verdict is fallback-only, identity is missing,
-the target cannot be revalidated, or the command returns a post-action
-recapture recommendation.
+Stop on any typed stale, missing, ambiguous, disabled, timeout, invalid, or
+unsupported result. Do not substitute another state or target.
 
 ## References
 
 - `docs/api/aos.md`
 - `docs/api/aos-capabilities.md`
 - `docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md`
-- `shared/schemas/aos-agent-workspace-v0.md`
+- `shared/schemas/aos-agent-workspace-v1.md`
+- `shared/schemas/aos-target-handle-v1.md`
 - `tests/agent-workspace-contract-drift.sh`
-- `tests/agent-workspace-saved-ref.sh`
+- `tests/agent-workspace-v1.test.mjs`

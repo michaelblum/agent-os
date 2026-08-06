@@ -4,6 +4,149 @@
   "summary": "Proof-worth registry entries owned by agent-workspace.",
   "entries": [
     {
+      "id": "target-handle-runtime-v1",
+      "path_patterns": [
+        "tests/target-handle-runtime.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "agent-workspace",
+      "harness_level": "model_unit",
+      "proof_kind": "target_handle_contract",
+      "contract": "Browser Observation Refs are generation-scoped exact pairs and canvas/native targets are state-free Locator queries.",
+      "worth": "This catches stale-state acceptance, ref aliasing, browser selector injection, and a third semantic handle model without native or browser side effects.",
+      "command": "node --test tests/target-handle-runtime.test.mjs",
+      "replaces": [],
+      "guard": "pure isolated state-root and schema checks; does not execute ./aos or require daemon, browser, native UI, or TCC",
+      "status": "active"
+    },
+    {
+      "id": "browser-target-handle-route-v1",
+      "path_patterns": [
+        "tests/browser/do-existing-verbs.test.sh",
+        "tests/browser/do-fill.test.sh",
+        "tests/browser/see-capture.test.sh",
+        "tests/browser/target-parser.test.sh",
+        "tests/browser/runtime-resolver.test.mjs"
+      ],
+      "fixture_patterns": [
+        "tests/browser/fixtures/aos-see-primitive.sh",
+        "tests/fixtures/browser-target-parser-harness.swift"
+      ],
+      "owner": "browser",
+      "harness_level": "shell_router",
+      "proof_kind": "target_handle_contract",
+      "contract": "Browser routes emit typed Observation Refs, require original state for ref requests, reject selector-shaped refs, bind generation records to independently verified backend implementation closure, and fail before dispatch while atomic state/ref identity remains unproven.",
+      "worth": "This catches route-level regressions that pure generation tests cannot observe, including missing state forwarding and unreviewed backend admission.",
+      "command": "bash tests/browser/do-existing-verbs.test.sh && bash tests/browser/do-fill.test.sh && bash tests/browser/see-capture.test.sh && bash tests/browser/target-parser.test.sh && node --test tests/browser/runtime-resolver.test.mjs",
+      "replaces": [],
+      "guard": "direct Node wrappers, a fake native-capture primitive, package-backed fake Playwright, and a pure Swift parser harness only; does not execute ./aos, start the daemon, or access native UI/TCC",
+      "status": "active"
+    },
+    {
+      "id": "browser-session-keyboard-route-v1",
+      "path_patterns": [
+        "tests/browser-do-keyboard-contract.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "browser",
+      "harness_level": "shell_router",
+      "proof_kind": "target_handle_contract",
+      "contract": "Session-only browser type and key remain available without state, every supplied state value is rejected before dispatch, and ref-bearing Observation Ref routes remain separately fail-closed.",
+      "worth": "This prevents the identity blocker from accidentally disabling existing session-only keyboard primitives or attaching false state provenance.",
+      "command": "node --test tests/browser-do-keyboard-contract.test.mjs",
+      "replaces": [],
+      "guard": "fake AOS version probe and fake Playwright executable only; does not execute ./aos or require daemon, browser, native UI, or TCC",
+      "status": "active"
+    },
+    {
+      "id": "agent-workspace-v1-handles",
+      "path_patterns": [
+        "tests/agent-workspace-v1.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "agent-workspace",
+      "harness_level": "shell_router",
+      "proof_kind": "target_handle_contract",
+      "contract": "V1 saved records contain one typed handle, V0 is byte-preserving fail-closed, state is accepted only for browser Observation Refs, and browser requests fail before dispatch while atomic state/ref identity remains unproven.",
+      "worth": "This is the atomic saved-workspace and fake-action regression boundary for the breaking V1 migration.",
+      "command": "node --test tests/agent-workspace-v1.test.mjs",
+      "replaces": [
+        "tests/agent-workspace-browser-refs.sh",
+        "tests/agent-workspace-canvas-refs.sh",
+        "tests/agent-workspace-native-refs.sh"
+      ],
+      "guard": "isolated state root and fake executables only; does not execute ./aos or require daemon, native UI, or TCC",
+      "status": "active"
+    },
+    {
+      "id": "pending-annotation-target-handle-projection-v1",
+      "path_patterns": [
+        "tests/lib/pending-annotation-fixtures.mjs",
+        "tests/toolkit/pending-annotation-cli-lifecycle.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "agent-workspace",
+      "harness_level": "model_unit",
+      "proof_kind": "target_handle_contract",
+      "contract": "Pending annotations project exactly one validated V1 saved handle without reviving resolution classes or alternate target identity.",
+      "worth": "This catches schema/model drift at the mechanically required pending-annotation projection boundary.",
+      "command": "node --test tests/toolkit/pending-annotation-cli-lifecycle.test.mjs tests/toolkit/pending-annotation-model.test.mjs",
+      "replaces": [],
+      "guard": "isolated local state and schema validation only; does not execute ./aos or require daemon/native UI/TCC",
+      "status": "active"
+    },
+    {
+      "id": "native-target-locator-selection",
+      "path_patterns": [
+        "tests/native-target-locator-selection.sh"
+      ],
+      "fixture_patterns": [
+        "tests/fixtures/targeting-selection-harness.swift",
+        "tests/fixtures/native-target-handle-emission-harness.swift"
+      ],
+      "owner": "act",
+      "harness_level": "model_unit",
+      "proof_kind": "target_handle_contract",
+      "contract": "Canvas and native AX Locators reject zero and multiple matches; native index selects deterministically, near requires one unique closest bounded candidate, native NDJSON sessions reject state before dispatch, and AX capture emits only schema-valid Locator handles.",
+      "worth": "Pure Swift harnesses lock exact-one selection, session state admission, and native handle normalization independently of native UI and Accessibility permission.",
+      "command": "bash tests/native-target-locator-selection.sh",
+      "replaces": [],
+      "guard": "Swift compile plus pure synthetic selection and encoding only; does not execute ./aos or access native UI/TCC",
+      "status": "active"
+    },
+    {
+      "id": "gateway-target-handle-projection",
+      "path_patterns": [
+        "tests/gateway-target-handle-projection.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "gateway",
+      "harness_level": "model_unit",
+      "proof_kind": "target_handle_contract",
+      "contract": "Gateway capture types expose state and handles, socket failures preserve target codes/details, SDK rejection preserves the same facts, and label-first clickElement is absent.",
+      "worth": "This proves the public gateway and SDK projection even when the package ts-node loader cannot start under the installed Node runtime.",
+      "command": "npm run build --prefix packages/gateway && node --test tests/gateway-target-handle-projection.test.mjs",
+      "replaces": [],
+      "guard": "TypeScript build plus pure local socket-envelope simulation; does not execute ./aos or access daemon/native UI/TCC",
+      "status": "active"
+    },
+    {
+      "id": "canvas-locator-live-contract",
+      "path_patterns": [
+        "tests/aos-canvas-ref-click.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "act",
+      "harness_level": "real_input",
+      "proof_kind": "target_handle_contract",
+      "contract": "A live AOS canvas Locator re-resolves by canvas id and machine ref without state, rejects missing and disabled current targets mechanically, and dispatches one current unique target.",
+      "worth": "This is the maintained live acceptance proof that canvas Locators do not regain snapshot-state semantics after the V1 migration.",
+      "command": "bash tests/aos-canvas-ref-click.sh",
+      "replaces": [],
+      "guard": "requires explicit live-runtime approval, a current native binary, the ready shared repo daemon, Screen Recording, and input permissions; serializes and mutates only harness-owned canvases; never run in static or default validation",
+      "status": "manual_only"
+    },
+    {
       "id": "agent-workspace-contract-drift",
       "path_patterns": [
         "tests/agent-workspace-contract-drift.sh"
@@ -18,44 +161,6 @@
       "replaces": [],
       "guard": "static Node contract inspection; does not execute ./aos or require daemon/TCC",
       "status": "active"
-    },
-    {
-      "id": "cross-backend-saved-ref-manual-proof",
-      "path_patterns": [
-        "tests/manual/cross-backend-saved-ref-regression-proof.sh"
-      ],
-      "fixture_patterns": [
-        "tests/fixtures/aos-skills/cold-agent-forward-proof-v0.json"
-      ],
-      "owner": "agent-workspace",
-      "harness_level": "guarded_live",
-      "proof_kind": "saved_ref_contract",
-      "contract": "Cross-backend saved-ref regression proof preserves browser, AOS canvas, native AX, summary, and cleanup evidence.",
-      "worth": "This proof is valuable but too environment-sensitive for broad default loops.",
-      "command": "AOS_SAVED_REF_PROOF_MODE=guarded-live bash tests/manual/cross-backend-saved-ref-regression-proof.sh",
-      "replaces": [
-        "tests/agent-workspace-cross-backend-proof.sh"
-      ],
-      "guard": "requires explicit guarded-live approval, isolated proof root, and permission/runtime readiness",
-      "status": "manual_only"
-    },
-    {
-      "id": "native-ax-saved-ref-live-proof",
-      "path_patterns": [
-        "tests/manual/native-ax-saved-ref-live-proof.sh"
-      ],
-      "fixture_patterns": [],
-      "owner": "agent-workspace",
-      "harness_level": "real_input",
-      "proof_kind": "saved_ref_contract",
-      "contract": "Native AX saved-ref live proof exercises the real native accessibility boundary.",
-      "worth": "This catches native-boundary failures that deterministic saved-ref fixtures cannot observe.",
-      "command": "bash tests/manual/native-ax-saved-ref-live-proof.sh",
-      "replaces": [
-        "tests/agent-workspace-cross-backend-proof.sh"
-      ],
-      "guard": "requires explicit real-input approval, native AX permissions, and a user-safe desktop state",
-      "status": "manual_only"
     }
   ]
 }

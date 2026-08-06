@@ -153,8 +153,9 @@ test('active authority map points to existing runtime primitive contract owners'
     ['docs/api/README.md', 'tests/command-manifest-generation.sh'],
     ['docs/api/README.md', 'tests/help-contract.sh'],
     ['skills/aos-saved-workspace/SKILL.md', 'docs/api/aos.md'],
-    ['skills/aos-saved-workspace/SKILL.md', 'shared/schemas/aos-agent-workspace-v0.md'],
-    ['skills/aos-saved-workspace/SKILL.md', 'tests/agent-workspace-saved-ref.sh'],
+    ['skills/aos-saved-workspace/SKILL.md', 'shared/schemas/aos-agent-workspace-v1.md'],
+    ['skills/aos-saved-workspace/SKILL.md', 'shared/schemas/aos-target-handle-v1.md'],
+    ['skills/aos-saved-workspace/SKILL.md', 'tests/agent-workspace-v1.test.mjs'],
   ];
 
   const targetPaths = [...new Set(requiredPointers.map(([, target]) => target))];
@@ -235,13 +236,12 @@ test('ambient authority sources reject mandatory policy while preserving optiona
   assert.match(stepDescriptorJsonSchema, /Gate is not AOS permission/);
   assert.match(desktopWorldDevtoolsJsonSchema, /Bounded engine snapshot shared by CLI, SDK, and host-neutral DevTools views/);
   assert.match(desktopWorldDevtoolsJsonSchema, /private desktop-frame content remain outside it/);
-  assert.match(agentWorkspaceDox, /current saved-ref surface predates ADR 0040 and is migration plumbing/i);
-  assert.match(agentWorkspaceDox, /Do not document saved refs\s+as durable or reacquirable authority/);
-  assert.match(agentWorkspaceDox, /no-foreground proof approval requirement is legacy policy coupling/);
-  assert.match(agentWorkspaceDox, /coordinates with\s+sufficient action-time context are Locator geometry, not diagnostic-only by\s+policy/);
+  assert.match(agentWorkspaceDox, /storage indirection to exactly one required discriminated\s+handle/i);
+  assert.match(agentWorkspaceDox, /must never capture, search, reacquire, or\s+substitute state/i);
+  assert.match(agentWorkspaceDox, /Locators re-resolve at action time/i);
+  assert.match(agentWorkspaceDox, /V0 files remain unchanged historical bytes/i);
 
   for (const gap of [
-    'do not consistently enforce the exact',
     'Gate-derived',
     'redacts prompt/answer content and continuation source',
     'native annotation completion still replaces admitted target',
@@ -361,15 +361,15 @@ test('ambient authority sources reject mandatory policy while preserving optiona
   assert.match(workRecordFinalizationManifest, /current legacy repair-coupling evaluation/);
   assert.match(workRecordFinalizationManifest, /not an AOS permission grant/);
   assert.match(semanticTargets, /capture response carries\s+`state_id` at top level/);
-  assert.match(semanticTargets, /current projection does not emit a Locator object/);
+  assert.match(semanticTargets, /required V1 Locator `handle`/);
   assert.match(semanticTargets, /Singular `data-aos-action` does not populate this list/);
-  assert.match(semanticTargets, /`extension\.action_id` preserves the app-local action identifier/);
-  assert.match(semanticTargets, /It is not\s+a primitive `aos do` capability, action authority, or durable target identity/);
+  assert.match(semanticTargets, /`extension\.action_id` is produced by the fixed probe/);
+  assert.match(semanticTargets, /not a primitive `aos do` capability, action authority, or\s+durable target identity/);
   assert.match(semanticTargets, /current\s+public decoder does not preserve\s+that field/);
-  assert.match(api, /Current entries do\s+not emit `target`, a per-entry `state_id`, or `reacquisition`/);
-  assert.match(api, /remains `fallback_only` until a consumer resolves\s+a current Observation Ref or constructs an action-time Locator/);
-  assert.match(api, /Current saved-handle resolution remains migration plumbing, not durable\s+public target identity/);
-  assert.match(accessibilityGuide, /Do not expect the current entry to contain `target`, per-entry\s+`state_id`, or `reacquisition`/);
+  assert.match(api, /required canvas Locator `handle`/);
+  assert.match(api, /Browser xray `elements` instead carry Observation Ref handles/);
+  assert.match(api, /direct selection remains `fallback_only` unless a\s+saved-capture projection supplies exactly one typed V1 handle/);
+  assert.match(accessibilityGuide, /required canvas Locator `handle`/);
   assert.match(stepDescriptor, /## ADR 0040 Transition Boundary/);
   assert.match(stepDescriptor, /legacy schema\/harness coupling awaiting runtime migration/);
   assert.match(supervisedRun, /## ADR 0040 Transition Boundary/);
@@ -408,7 +408,7 @@ test('ambient authority sources reject mandatory policy while preserving optiona
     ['src/daemon/AGENTS.md', daemonDox],
     ['packages/toolkit/scene/AGENTS.md', sceneDox],
   ]) {
-    assert.match(content, /ADR 0040 transition boundary/i, `${relativePath} must state the transition boundary`);
+    assert.match(content, /ADR 0040 (?:transition|target) boundary/i, `${relativePath} must state the applicable ADR 0040 boundary`);
     assert.match(content, /admitted (?:by|to) (?:each )?(?:bounded |a )?public\s+(?:adapter\s+)?observation/i, `${relativePath} must scope fidelity to admitted public facts`);
   }
   assert.match(externalWorkRecordManifest, /current legacy Gate-coupled Work Record repair path/);

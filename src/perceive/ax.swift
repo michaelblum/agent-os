@@ -635,7 +635,11 @@ func traverseAXElements(
                     x: Int(lcsRect.origin.x), y: Int(lcsRect.origin.y),
                     width: max(1, Int(lcsRect.width)), height: max(1, Int(lcsRect.height))
                 ),
-                ref: nil
+                ref: nil,
+                handle: TargetHandleJSON.nativeAX(
+                    pid: Int(appPID), windowID: windowID, role: role,
+                    title: title, label: label, identifier: axIdentifier
+                )
             ))
         }
     }

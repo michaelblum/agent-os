@@ -13,7 +13,7 @@
               "id": "target",
               "kind": "positional",
               "required": false,
-              "summary": "Saved native AX handle in the current stable resolution class with actionable producer verdict; omit for direct --pid/--role form",
+              "summary": "Saved native AX Locator; omit for direct --pid/--role Locator form",
               "value_type": "string"
             },
             {
@@ -28,7 +28,7 @@
               "id": "window",
               "kind": "flag",
               "required": false,
-              "summary": "Window ID carried as saved native identity context",
+              "summary": "Window ID filter for current Locator resolution",
               "token": "--window",
               "value_type": "int"
             },
@@ -36,7 +36,7 @@
               "id": "role",
               "kind": "flag",
               "required": false,
-              "summary": "AX role to match in the direct --pid form; saved refs carry role in identity facts",
+              "summary": "AX role filter for current Locator resolution",
               "token": "--role",
               "value_type": "string"
             },
@@ -68,7 +68,7 @@
               "id": "index",
               "kind": "flag",
               "required": false,
-              "summary": "Match by index",
+              "summary": "Explicit deterministic index disambiguator among current candidates",
               "token": "--index",
               "value_type": "int"
             },
@@ -76,7 +76,7 @@
               "id": "near",
               "kind": "flag",
               "required": false,
-              "summary": "Prefer element near x,y",
+              "summary": "Require a unique closest bounded candidate to x,y; distance ties are ambiguous",
               "token": "--near",
               "value_type": "string"
             },
@@ -92,7 +92,7 @@
               "id": "depth",
               "kind": "flag",
               "required": false,
-              "summary": "AX traversal depth",
+              "summary": "AX traversal depth (0..128)",
               "token": "--depth",
               "value_type": "int"
             },
@@ -100,7 +100,7 @@
               "id": "timeout",
               "kind": "flag",
               "required": false,
-              "summary": "Timeout in ms",
+              "summary": "Timeout in ms (1..30000)",
               "token": "--timeout",
               "value_type": "int"
             },
@@ -116,7 +116,7 @@
               "id": "workspace",
               "kind": "flag",
               "required": false,
-              "summary": "Agent workspace id for ref:<id> targets",
+              "summary": "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token": "--workspace",
               "value_type": "string"
             },
@@ -124,7 +124,7 @@
               "id": "snapshot",
               "kind": "flag",
               "required": false,
-              "summary": "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary": "Optional snapshot assertion that must match the scoped ref target",
               "token": "--snapshot",
               "value_type": "string"
             }
@@ -151,7 +151,7 @@
             "aos do press --pid 1234 --role AXButton --title Save --dry-run",
             "aos do press --pid 1234 --role AXButton --title Save"
           ],
-          "summary": "Press current saved native AX handles or direct AX targets; saved-handle dispatch validates current machine identity facts and returns post_action.recommended_next_command for recapture with aos see capture --save before verification; direct AX uses current matching with no_foreground proof still not claimed",
+          "summary": "Press a saved or direct native AX Locator after current exact-one resolution; --index is explicit and --near requires a unique closest candidate; no_foreground proof is not claimed",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
@@ -191,7 +191,7 @@
               "id": "window",
               "kind": "flag",
               "required": false,
-              "summary": "Window ID carried as saved native identity context",
+              "summary": "Window ID filter for current Locator resolution",
               "token": "--window",
               "value_type": "int"
             },
@@ -199,7 +199,7 @@
               "id": "role",
               "kind": "flag",
               "required": false,
-              "summary": "AX role to match in the direct --pid form; saved refs carry role in identity facts",
+              "summary": "AX role filter for current Locator resolution",
               "token": "--role",
               "value_type": "string"
             },
@@ -246,7 +246,7 @@
               "id": "index",
               "kind": "flag",
               "required": false,
-              "summary": "Match by index",
+              "summary": "Explicit deterministic index disambiguator among current candidates",
               "token": "--index",
               "value_type": "int"
             },
@@ -254,7 +254,7 @@
               "id": "near",
               "kind": "flag",
               "required": false,
-              "summary": "Prefer element near x,y",
+              "summary": "Require a unique closest bounded candidate to x,y; distance ties are ambiguous",
               "token": "--near",
               "value_type": "string"
             },
@@ -270,7 +270,7 @@
               "id": "depth",
               "kind": "flag",
               "required": false,
-              "summary": "AX traversal depth",
+              "summary": "AX traversal depth (0..128)",
               "token": "--depth",
               "value_type": "int"
             },
@@ -286,7 +286,7 @@
               "id": "workspace",
               "kind": "flag",
               "required": false,
-              "summary": "Agent workspace id for ref:<id> targets",
+              "summary": "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token": "--workspace",
               "value_type": "string"
             },
@@ -294,7 +294,7 @@
               "id": "snapshot",
               "kind": "flag",
               "required": false,
-              "summary": "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary": "Optional snapshot assertion that must match the scoped ref target",
               "token": "--snapshot",
               "value_type": "string"
             },
@@ -340,7 +340,7 @@
             "aos do set-value canvas:settings/brightness-slider --value \"42\"",
             "aos do set-value --pid 1234 --role AXTextField --value \"hello\""
           ],
-          "summary": "Set saved refs, direct canvas semantic refs, or direct AX targets; saved-ref set-value validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
+          "summary": "Set a saved or direct canvas/native AX Locator after current exact-one resolution; dry-run performs the same resolution before mutation",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
@@ -365,7 +365,7 @@
               "id": "target",
               "kind": "positional",
               "required": false,
-              "summary": "Saved native AX handle in the current stable resolution class with actionable producer verdict; omit for direct --pid/--role form",
+              "summary": "Saved native AX Locator; omit for direct --pid/--role Locator form",
               "value_type": "string"
             },
             {
@@ -380,7 +380,7 @@
               "id": "window",
               "kind": "flag",
               "required": false,
-              "summary": "Window ID carried as saved native identity context",
+              "summary": "Window ID filter for current Locator resolution",
               "token": "--window",
               "value_type": "int"
             },
@@ -388,7 +388,7 @@
               "id": "role",
               "kind": "flag",
               "required": false,
-              "summary": "AX role to match in the direct --pid form; saved refs carry role in identity facts",
+              "summary": "AX role filter for current Locator resolution",
               "token": "--role",
               "value_type": "string"
             },
@@ -420,7 +420,7 @@
               "id": "index",
               "kind": "flag",
               "required": false,
-              "summary": "Match by index",
+              "summary": "Explicit deterministic index disambiguator among current candidates",
               "token": "--index",
               "value_type": "int"
             },
@@ -428,7 +428,7 @@
               "id": "near",
               "kind": "flag",
               "required": false,
-              "summary": "Prefer element near x,y",
+              "summary": "Require a unique closest bounded candidate to x,y; distance ties are ambiguous",
               "token": "--near",
               "value_type": "string"
             },
@@ -444,7 +444,7 @@
               "id": "depth",
               "kind": "flag",
               "required": false,
-              "summary": "AX traversal depth",
+              "summary": "AX traversal depth (0..128)",
               "token": "--depth",
               "value_type": "int"
             },
@@ -452,7 +452,7 @@
               "id": "timeout",
               "kind": "flag",
               "required": false,
-              "summary": "Timeout in ms",
+              "summary": "Timeout in ms (1..30000)",
               "token": "--timeout",
               "value_type": "int"
             },
@@ -468,7 +468,7 @@
               "id": "workspace",
               "kind": "flag",
               "required": false,
-              "summary": "Agent workspace id for ref:<id> targets",
+              "summary": "Agent workspace id for ref:<snapshot-id>:<ref> targets",
               "token": "--workspace",
               "value_type": "string"
             },
@@ -476,7 +476,7 @@
               "id": "snapshot",
               "kind": "flag",
               "required": false,
-              "summary": "Snapshot id for ambiguous bare ref:<id> targets",
+              "summary": "Optional snapshot assertion that must match the scoped ref target",
               "token": "--snapshot",
               "value_type": "string"
             }
@@ -503,7 +503,7 @@
             "aos do focus --pid 1234 --role AXTextField --dry-run",
             "aos do focus --pid 1234 --role AXTextField"
           ],
-          "summary": "Focus current saved native AX handles or direct AX targets; saved-handle dispatch validates current machine identity facts and returns post_action.recommended_next_command for recapture with aos see capture --save before verification; direct AX uses current matching with no_foreground proof still not claimed",
+          "summary": "Focus a saved or direct native AX Locator after current exact-one resolution; --index is explicit and --near requires a unique closest candidate; no_foreground proof is not claimed",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
