@@ -104,7 +104,7 @@ second-order coverage gap before its session ended early (external automated
 filter; no technical failure): higher-level callers — Replacement Writer,
 supersession, bundle assembly, and finalizer receipts — still encode the
 retired staged-entry removal phase and do not carry the new
- / leftover receipt fields. Next step: distinguish stale
+`content_scrubbed` / leftover receipt fields. Next step: distinguish stale
 caller tests from an actual caller-contract regression and align those
 callers with the hardened publication contract.
 
