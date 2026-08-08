@@ -57,6 +57,20 @@ async function directChildAgentsPaths() {
   return paths.sort();
 }
 
+async function filesBelow(relativeRoot) {
+  const files = [];
+  async function walk(relativePath) {
+    const entries = await readdir(path.join(repoRoot, relativePath), { withFileTypes: true });
+    for (const entry of entries) {
+      const child = path.join(relativePath, entry.name);
+      if (entry.isDirectory()) await walk(child);
+      else if (entry.isFile()) files.push(child);
+    }
+  }
+  await walk(relativeRoot);
+  return files.sort();
+}
+
 async function activeAuthorityPaths() {
   const { stdout } = await execFileAsync('git', ['ls-files'], { cwd: repoRoot });
   return stdout
@@ -242,12 +256,12 @@ test('ambient authority sources reject mandatory policy while preserving optiona
   assert.match(agentWorkspaceDox, /V0 files remain unchanged historical bytes/i);
 
   for (const gap of [
-    'Gate-derived',
+    'Gate persistence still',
     'redacts prompt/answer content and continuation source',
     'native annotation completion still replaces admitted target',
     'semantic-target public decoder still drops the admitted app-local',
     'Guided User Signal record builder still defaults prompt/answer projection',
-    'Step Descriptor and Supervised Run schema/harness surfaces still retain',
+    'Supervised Run schema/harness surfaces still retain',
     'not a complete public `run-code` surface',
   ]) {
     assert.ok(api.includes(gap), `docs/api/aos.md missing explicit implementation gap: ${gap}`);
@@ -356,10 +370,10 @@ test('ambient authority sources reject mandatory policy while preserving optiona
   assert.match(workRecordSchema, /do not grant permission to observe or act/);
   assert.match(workRecordSchema, /Current legacy v0 schema\/harness\s+behavior routes a drifted ref/);
   assert.match(workRecordSchema, /That\s+coupling is ADR 0040 migration debt and does not authorize action/);
-  assert.match(workRecordManifest, /current legacy repair coupling/);
-  assert.match(workRecordManifest, /not an AOS permission grant/);
-  assert.match(workRecordFinalizationManifest, /current legacy repair-coupling evaluation/);
-  assert.match(workRecordFinalizationManifest, /not an AOS permission grant/);
+  assert.match(workRecordManifest, /plan neutral recovery artifacts/);
+  assert.doesNotMatch(workRecordManifest, /work-record-gate-(?:request|check)|work-record-repair-execute/);
+  assert.match(workRecordFinalizationManifest, /finalize exact replacements/);
+  assert.doesNotMatch(workRecordFinalizationManifest, /work-record-gate-(?:request|check)|work-record-repair-execute/);
   assert.match(semanticTargets, /capture response carries\s+`state_id` at top level/);
   assert.match(semanticTargets, /required V1 Locator `handle`/);
   assert.match(semanticTargets, /Singular `data-aos-action` does not populate this list/);
@@ -411,8 +425,8 @@ test('ambient authority sources reject mandatory policy while preserving optiona
     assert.match(content, /ADR 0040 (?:transition|target) boundary/i, `${relativePath} must state the applicable ADR 0040 boundary`);
     assert.match(content, /admitted (?:by|to) (?:each )?(?:bounded |a )?public\s+(?:adapter\s+)?observation/i, `${relativePath} must scope fidelity to admitted public facts`);
   }
-  assert.match(externalWorkRecordManifest, /current legacy Gate-coupled Work Record repair path/);
-  assert.match(externalWorkRecordManifest, /Gate is not AOS permission/);
+  assert.match(externalWorkRecordManifest, /non-executing mechanical Work Record Repair Plan/);
+  assert.doesNotMatch(externalWorkRecordManifest, /work-record-gate-(?:request|check)|work-record-repair-execute/);
   assert.match(targetDescriptorFixtureManifest, /legacy_mixed_handle_gap/);
   assert.match(recordingFrameFixtureManifest, /legacy_mixed_handle_and_gate_gap/);
   assert.match(interactionGrammarFixtureManifest, /legacy_mixed_handle_gap/);
@@ -428,15 +442,14 @@ test('ambient authority sources reject mandatory policy while preserving optiona
   assert.match(desktopWorldAuthoringSkill, /per-segment results and pixel reads stay outside it, not as ADR 0040 gaps/);
   assert.match(desktopWorldAuthoringSkill, /bounded snapshot carries its declared engine facts/);
   assert.match(desktopWorldAuthoringSkill, /label supports native accessibility and\s+inspection while the product-neutral gesture event carries the item ID/);
-  assert.match(toolkitWorkbench, /current legacy harness requires an explicit\s+workflow gate ref and token/);
-  assert.match(toolkitWorkbench, /not an AOS permission or authorization requirement/);
-  assert.match(toolkitWorkbench, /current legacy replay\/repair model still carries explicit\s+workflow-Gate policy fields/);
+  assert.match(toolkitWorkbench, /does not ask for or retain Gate data/);
+  assert.match(toolkitWorkbench, /Frozen V0 bytes are identified\s+as historical and unsupported/);
   assert.match(sceneDox, /This does\s+not widen the parent trust boundary/);
   assert.match(sceneDox, /desktop pixels remain private to the trusted projection realm/);
   assert.match(sceneDox, /That is the trusted-realm capability boundary, not an ADR 0040 raw-observation\s+gap/);
   assert.match(sceneDox, /all-segment barrier returns the complete bounded public aggregate/);
   assert.match(toolkitWorkbench, /exposes surface-local\s+inspection selectors/);
-  assert.match(toolkitWorkbench, /neither AOS\s+Observation Refs nor action-time Locators/);
+  assert.match(toolkitWorkbench, /not Observation Refs or Locators/);
 
   const grandUnificationPlan = await text('docs/design/aos-grand-unification-plan.md');
   const browserProjection = await text('docs/design/browser-capture-ladder-projection.md');
@@ -449,9 +462,10 @@ test('ambient authority sources reject mandatory policy while preserving optiona
   const installableSkillsAdr = await text('docs/adr/0018-installable-aos-skills.md');
   const sceneManifest = await text('manifests/commands/source/aos/39-scene.json');
   const sceneOverview = await text('docs/api/toolkit/scene.md');
-  assert.match(grandUnificationPlan, /current legacy replay\/repair loop still\s+carries explicit Workflow Gate coupling/);
-  assert.match(browserProjection, /## ADR 0040 Transition Boundary/);
-  assert.match(browserProjection, /required\s+Workflow Gate fields are fixture\/harness coupling, not AOS permission/);
+  assert.match(grandUnificationPlan, /active Work Record V1 contract is optional neutral evidence\/history/);
+  assert.match(grandUnificationPlan, /active Step Descriptor V1 harness has no Gate-derived authority/);
+  assert.match(browserProjection, /## ADR 0040 Boundary/);
+  assert.match(browserProjection, /Neither accepts Gate data, grants\s+permission, classifies risk, requires approval/);
   assert.match(inputSignalProposal, /Gate fields; those fields are ADR 0040\s+migration debt, not AOS permission/);
   assert.match(historicalSeeDoNote, /ADR 0040 transition update/);
   assert.match(historicalSeeDoNote, /legacy fixture\s+material, not durable Observation Ref identity/);
@@ -489,6 +503,77 @@ test('ambient authority sources reject mandatory policy while preserving optiona
   assert.match(shortcutReceipt, /stderr_bytes: stderrBytes/);
   assert.doesNotMatch(shortcutReceipt, /\bstdout:/);
   assert.doesNotMatch(shortcutReceipt, /\bstderr:/);
+});
+
+test('active Work Record and Step Descriptor sources contain no authority bridge or public executor', async () => {
+  const workbenchFiles = (await filesBelow('packages/toolkit/workbench'))
+    .filter((relativePath) => /\/(?:work-record[^/]*|(?:browser-)?step-descriptor[^/]*)\.js$/.test(relativePath));
+  const activePaths = [...new Set([
+    'shared/schemas/aos-work-record-v1.schema.json',
+    'shared/schemas/aos-work-record-v1.md',
+    'shared/schemas/aos-work-record-repair-plan-v1.schema.json',
+    'shared/schemas/aos-work-record-repair-attempt-plan-v1.schema.json',
+    'shared/schemas/aos-work-record-repair-attempt-artifact-v1.schema.json',
+    'shared/schemas/aos-work-record-repair-v1.md',
+    'shared/schemas/aos-step-descriptor-v1.schema.json',
+    'shared/schemas/aos-step-descriptor-v1.md',
+    ...await filesBelow('shared/schemas/fixtures/aos-work-record-v1'),
+    ...await filesBelow('shared/schemas/fixtures/aos-step-descriptor-v1'),
+    ...workbenchFiles,
+    ...await filesBelow('packages/toolkit/components/work-record-workbench'),
+    ...await filesBelow('packages/toolkit/components/step-descriptor-workbench'),
+    'scripts/aos-work-record.mjs',
+    'scripts/lib/work-record-command-families.mjs',
+    'manifests/commands/source/aos/35-work-record.json',
+    'manifests/commands/source/aos/36-work-record-supersession.json',
+    'manifests/commands/source/aos/37-work-record-finalization.json',
+    'manifests/commands/source/external/45-work-record.json',
+    'skills/aos-work-records/SKILL.md',
+  ])].sort();
+  const forbidden = [
+    /["']workflow_gates?["']\s*:/,
+    /["']workflow_gate_authorizations?["']\s*:/,
+    /["']gate_ref["']\s*:/,
+    /["']authorizes_future_attempt["']\s*:/,
+    /["']blocked_authorization(?:_[a-z_]+)?["']/,
+    /["'](?:allowed_operations|operation_allowlist|allowlisted_operation_id)["']\s*:/,
+    /controlled_repair_executor/,
+    /controlled_fixture\.[a-z_]+/,
+    /["']automatic_replay_allowed["']\s*:/,
+    /work-record-gate-(?:request|check)/,
+    /work-record-repair-execute/,
+    /--(?:authorization|gate-record|resume-event)\b/,
+    /workflow-gated/i,
+  ];
+  for (const relativePath of activePaths) {
+    const content = await text(relativePath);
+    for (const pattern of forbidden) {
+      assert.doesNotMatch(content, pattern, `${relativePath} retains active authority coupling`);
+    }
+  }
+
+  const historicalWorkRecord = await text('shared/schemas/aos-work-record-v0.md');
+  const historicalStepDescriptor = await text('shared/schemas/aos-step-descriptor-v0.md');
+  assert.match(historicalWorkRecord, /workflow_gate_authorization/);
+  assert.match(historicalStepDescriptor, /workflow_gates/);
+  assert.match(await text('manifests/commands/source/aos/10-gate.json'), /--continuation-id/);
+
+  for (const removedPath of [
+    'packages/toolkit/workbench/work-record-workflow-gate.js',
+    'packages/toolkit/workbench/work-record-controlled-repair-executor.js',
+    'packages/toolkit/workbench/work-record-controlled-repair-fixtures.js',
+    'scripts/work-record-fixture-operation.mjs',
+  ]) {
+    assert.equal(existsSync(path.join(repoRoot, removedPath)), false, `${removedPath} must remain deleted`);
+  }
+
+  for (const relativePath of [
+    'manifests/commands/aos-commands.json',
+    'manifests/commands/aos-external-commands.json',
+  ]) {
+    const generated = await text(relativePath);
+    assert.doesNotMatch(generated, /work-record-gate-(?:request|check)|work-record-repair-execute/);
+  }
 });
 
 test('root Child DOX Index covers every live top-level child AGENTS file', async () => {

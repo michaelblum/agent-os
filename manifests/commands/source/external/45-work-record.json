@@ -10,7 +10,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs"
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs"
       ],
       "cwd": "repo",
       "env": {
@@ -28,7 +28,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "list"
       ],
       "cwd": "repo",
@@ -47,7 +47,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "read"
       ],
       "cwd": "repo",
@@ -66,7 +66,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "verify"
       ],
       "cwd": "repo",
@@ -85,7 +85,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "status"
       ],
       "cwd": "repo",
@@ -100,31 +100,12 @@
         "work-record",
         "plan-repair"
       ],
-      "summary": "Plan the current legacy Gate-coupled Work Record repair path through an external report-only command; Gate is not AOS permission.",
+      "summary": "Build a non-executing mechanical Work Record Repair Plan through an external report-only command.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "plan-repair"
-      ],
-      "cwd": "repo",
-      "env": {
-        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
-        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
-        "AOS_PATH": "$AOS_PATH"
-      }
-    },
-    {
-      "path": [
-        "work-record",
-        "gate-request"
-      ],
-      "summary": "Build requests for the current legacy Gate-coupled Work Record repair path through an external report-only command; Gate is not AOS permission.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": [
-        "node",
-        "scripts/aos-work-record.mjs",
-        "gate-request"
       ],
       "cwd": "repo",
       "env": {
@@ -142,7 +123,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "plan-attempt"
       ],
       "cwd": "repo",
@@ -162,7 +143,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "repair",
         "guide"
       ],
@@ -183,7 +164,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "repair",
         "bundle"
       ],
@@ -205,7 +186,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "repair",
         "bundle",
         "status"
@@ -228,31 +209,10 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "repair",
         "bundle",
         "inspect"
-      ],
-      "cwd": "repo",
-      "env": {
-        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
-        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
-        "AOS_PATH": "$AOS_PATH"
-      }
-    },
-    {
-      "path": [
-        "work-record",
-        "repair",
-        "execute"
-      ],
-      "summary": "Execute a controlled repo-command/file-fixture Work Record repair attempt through explicit roots.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": [
-        "node",
-        "scripts/aos-work-record.mjs",
-        "repair",
-        "execute"
       ],
       "cwd": "repo",
       "env": {
@@ -271,7 +231,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "repair",
         "finalize"
       ],
@@ -292,7 +252,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "attempt-artifact",
         "validate"
       ],
@@ -309,11 +269,11 @@
         "attempt-artifact",
         "build"
       ],
-      "summary": "Build fixture-driven Work Record Repair Attempt Artifacts through an external report-only command.",
+      "summary": "Build Work Record Repair Attempt Artifacts from caller-supplied outcomes through an external report-only command.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "attempt-artifact",
         "build"
       ],
@@ -334,7 +294,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "replacement-proposal",
         "build"
       ],
@@ -355,7 +315,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "replacement-proposal",
         "validate"
       ],
@@ -376,7 +336,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "replacement-proposal",
         "write"
       ],
@@ -397,7 +357,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "supersession",
         "write"
       ],
@@ -418,7 +378,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "supersession",
         "lookup"
       ],
@@ -439,28 +399,9 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "supersession",
         "validate"
-      ],
-      "cwd": "repo",
-      "env": {
-        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
-        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
-        "AOS_PATH": "$AOS_PATH"
-      }
-    },
-    {
-      "path": [
-        "work-record",
-        "gate-check"
-      ],
-      "summary": "Check terminal gate outcomes against Work Record repair plans through an external report-only command.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": [
-        "node",
-        "scripts/aos-work-record.mjs",
-        "gate-check"
       ],
       "cwd": "repo",
       "env": {
@@ -478,7 +419,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-work-record.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-work-record.mjs",
         "export"
       ],
       "cwd": "repo",

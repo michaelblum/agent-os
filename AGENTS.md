@@ -154,6 +154,11 @@ Default section order:
   inspect the artifact or run readiness. Only after the user replies `finished`
   may the session run the exact next command
   `./aos ready --repair --post-permission --json`, with no intervening command.
+  The private Work Record descriptor-relative N-API addon may compile before
+  Swift source fingerprinting; its ignored current-architecture output is
+  packaged with the reachable Work Record command resource projection and must
+  not transform, inspect, launch, sign, or otherwise interpose on the raw
+  `./aos` artifact.
 - Never attribute commits, PR descriptions, issue comments, or release notes to
   Claude or any AI assistant.
 

@@ -31,6 +31,9 @@ part of the installable AOS desktop product pack.
   previews, explicit caller-requested Gate input, and optional Work Record
   evidence, but must not turn them into permission prerequisites for ordinary
   actions or add default privacy/redaction policy.
+- The Work Record skill may teach V1 evidence inspection, neutral planning,
+  caller-outcome validation, and exact finalization only. It must not route a
+  Gate answer into a Work Record attempt or teach a public repair executor.
 - Root skill packages and registry rows describe only current packages. Delete
   superseded skills in the same change as their internal consumer migration;
   do not retain retired statuses, aliases, redirects, or tombstones.

@@ -116,6 +116,49 @@
       ]
     },
     {
+      "id": "work-record-descriptor-relative-publication",
+      "summary": "Descriptor-relative Work Record publication primitive or its private callers changed.",
+      "patterns": [
+        "src/platform/descriptor-relative-fs-addon.cc",
+        "scripts/build-work-record-native.mjs",
+        "scripts/stage-work-record-runtime.mjs",
+        "scripts/package-aos-runtime",
+        "package.sh",
+        "packages/toolkit/workbench/work-record-atomic-publish.js",
+        "packages/toolkit/workbench/work-record-replacement-writer.js",
+        "packages/toolkit/workbench/work-record-supersession-index.js",
+        "packages/toolkit/workbench/work-record-supersession-plan.js",
+        "packages/toolkit/workbench/work-record-repair-bundle.js",
+        "tests/toolkit/work-record-atomic-publish.test.mjs"
+      ],
+      "classes": [
+        "native",
+        "toolkit",
+        "filesystem_correctness"
+      ],
+      "actions": [
+        "focused_test"
+      ],
+      "hot_swappable": false,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "work-record-native-build",
+          "command": "node scripts/build-work-record-native.mjs --json",
+          "reason": "Build the current-architecture private N-API primitive without rebuilding or launching the AOS binary."
+        },
+        {
+          "id": "work-record-descriptor-relative-publication-proof",
+          "command": "node --test tests/toolkit/work-record-atomic-publish.test.mjs",
+          "reason": "Exercise production descriptor-relative publication, installed resource staging, and adversarial restored-swap, hard-link, symlink, conflict, cleanup, index-scan, and readback races."
+        }
+      ],
+      "verification": [],
+      "notes": [
+        "The primitive is private Darwin N-API infrastructure and fails closed when unavailable. These commands do not execute ./aos, operate the daemon, open native UI, or touch TCC."
+      ]
+    },
+    {
       "id": "root-skill-packages",
       "summary": "Root skill package instructions or registry-backed skill contracts changed.",
       "patterns": [

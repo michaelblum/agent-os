@@ -1,5 +1,5 @@
 import {
-  WORK_RECORD_V0_SCHEMA_VERSION,
+  WORK_RECORD_V1_SCHEMA_VERSION,
 } from './work-record-adapter.js';
 import {
   deriveWorkRecordClaimIndexes,
@@ -16,17 +16,19 @@ import {
   evidenceDigest,
   multilineText,
   objectValue,
+  rawText,
+  requireRawText,
   requireText,
   text,
   workRecordCaptureBaseId,
   workRecordCaptureRecordId,
 } from './work-record-capture-helpers.js';
 
-export function buildWorkRecordV0FromCommandEvidence(source = {}, {
+export function buildWorkRecordV1FromCommandEvidence(source = {}, {
   verifierProfile = WORK_RECORD_REPORT_ONLY_PROFILE,
 } = {}) {
   const evidenceSource = objectValue(source);
-  const command = requireText(evidenceSource.command, 'command');
+  const command = requireRawText(evidenceSource.command, 'command');
   const createdAt = requireText(evidenceSource.created_at, 'created_at');
   const completedAt = text(evidenceSource.completed_at, createdAt);
   const sourceId = requireText(evidenceSource.id, 'id');
@@ -34,8 +36,8 @@ export function buildWorkRecordV0FromCommandEvidence(source = {}, {
   const baseId = workRecordCaptureBaseId(requestedRecordId, sourceId);
   const recordId = workRecordCaptureRecordId(requestedRecordId, baseId);
   const evidenceId = text(evidenceSource.evidence_id, `evidence:${baseId}-command`);
-  const target = text(evidenceSource.target, commandTarget(command));
-  const stateId = text(evidenceSource.state_id);
+  const target = rawText(evidenceSource.target, commandTarget(command));
+  const stateId = rawText(evidenceSource.state_id);
   const expectedExitCode = Number.isFinite(evidenceSource.expected_exit_code)
     ? evidenceSource.expected_exit_code
     : 0;
@@ -55,7 +57,7 @@ export function buildWorkRecordV0FromCommandEvidence(source = {}, {
   const evidencePayload = {
     source_id: sourceId,
     command,
-    cwd: text(evidenceSource.cwd),
+    cwd: rawText(evidenceSource.cwd),
     exit_code: exitCode,
     expected_exit_code: expectedExitCode,
     stdout_excerpt: stdout,
@@ -140,9 +142,9 @@ export function buildWorkRecordV0FromCommandEvidence(source = {}, {
 
   return {
     type: 'aos.work_record',
-    schema_version: WORK_RECORD_V0_SCHEMA_VERSION,
+    schema_version: WORK_RECORD_V1_SCHEMA_VERSION,
     id: recordId,
-    label: text(evidenceSource.label, `Command evidence: ${command}`),
+    label: rawText(evidenceSource.label, `Command evidence: ${command}`),
     created_at: createdAt,
     origin: {
       kind: 'ad_hoc',
@@ -161,7 +163,7 @@ export function buildWorkRecordV0FromCommandEvidence(source = {}, {
       targets: [
         {
           id: `target:${baseId}-repo`,
-          target: text(evidenceSource.cwd, 'repo:.'),
+          target: rawText(evidenceSource.cwd, 'repo:.'),
           dialect: 'repo',
           description: 'Repository checkout where the command evidence was captured.',
         },
@@ -182,7 +184,7 @@ export function buildWorkRecordV0FromCommandEvidence(source = {}, {
             target,
             ...(stateId ? { state_id: stateId } : {}),
             args: {
-              cwd: text(evidenceSource.cwd),
+              cwd: rawText(evidenceSource.cwd),
               command,
             },
           },
@@ -190,7 +192,7 @@ export function buildWorkRecordV0FromCommandEvidence(source = {}, {
           repair_hints: [
             {
               kind: 'rerun_command_manually',
-              note: 'Rerun the command under an explicit workflow gate before producing a new Work Record.',
+              note: 'If a caller reruns the command, bind the new outcome to fresh inputs and record it in a new Work Record.',
             },
           ],
         },
@@ -200,24 +202,17 @@ export function buildWorkRecordV0FromCommandEvidence(source = {}, {
         {
           id: `artifact-route:${baseId}-command-evidence`,
           kind: 'command_evidence',
-          destination: text(evidenceSource.artifact_uri, `artifact:artifacts/work-records/${baseId}/command-output.json`),
+          destination: rawText(evidenceSource.artifact_uri, `artifact:artifacts/work-records/${baseId}/command-output.json`),
           evidence_ref: evidenceId,
         },
       ],
-      replay_policy: {
-        mode: 'report_only',
-        replay_requires_workflow_gate: true,
-        repair_requires_workflow_gate: true,
-        gate_refs: [],
-        notes: 'This Work Record records and verifies command evidence only; it does not authorize autonomous replay or repair.',
-      },
     },
     evidence: [
       {
         id: evidenceId,
         kind: 'repo_command',
         created_at: completedAt,
-        uri: text(evidenceSource.artifact_uri, target),
+        uri: rawText(evidenceSource.artifact_uri, target),
         digest: evidenceDigest(evidencePayload),
         ...(stateId ? { state_id: stateId } : {}),
         target,
@@ -226,7 +221,7 @@ export function buildWorkRecordV0FromCommandEvidence(source = {}, {
         metadata: {
           builder: WORK_RECORD_COMMAND_CAPTURE_BUILDER_VERSION,
           command,
-          cwd: text(evidenceSource.cwd),
+          cwd: rawText(evidenceSource.cwd),
           exit_code: exitCode,
           stdout_excerpt: stdout,
           stderr_excerpt: stderr,
@@ -263,8 +258,6 @@ export function buildWorkRecordV0FromCommandEvidence(source = {}, {
       evaluated_at: completedAt,
       verifier_report_id: verifierReportId,
       confidence: Math.min(...claimResults.map((result) => result.confidence)),
-      repair_gate_refs: [],
-      replay_gate_refs: [],
     },
     metadata: {
       generated_by: WORK_RECORD_COMMAND_CAPTURE_BUILDER_VERSION,

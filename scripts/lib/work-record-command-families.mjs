@@ -3,7 +3,6 @@ import crypto from 'node:crypto';
 import {
   buildWorkRecordRepairAttemptArtifact,
   buildWorkRecordReplacementProposal,
-  executeControlledWorkRecordRepair,
   finalizeWorkRecordRepair,
   lookupWorkRecordSourceSupersession,
   readWorkRecord,
@@ -33,30 +32,14 @@ function failedResult(result) {
     || result.status === 'unsupported'
     || result.status === 'conflict'
     || result.status === 'partial_finalized'
+    || result.status === 'malformed_index'
     || result.status === 'stale'
     || result.status === 'mismatch';
 }
 
-export async function handleRepairFamily({ action, target, rest, options, fail, emitJSON }) {
+export function handleRepairFamily({ action, target, rest, options, fail, emitJSON }) {
   if (rest.length > 0) fail(`Unexpected argument: ${rest[0]}`, 'UNKNOWN_ARG');
   if (target) fail(`Unexpected argument: ${target}`, 'UNKNOWN_ARG');
-  if (action === 'execute') {
-    if (!options.attemptPlan) fail('repair execute requires --attempt-plan <plan-path>', 'MISSING_ARG');
-    if (!options.executionRoot) fail('repair execute requires --execution-root <dir>', 'MISSING_ARG');
-    if (!options.artifactRoot) fail('repair execute requires --artifact-root <dir>', 'MISSING_ARG');
-    const result = await executeControlledWorkRecordRepair({
-      attemptPlanPath: options.attemptPlan,
-      executionRoot: options.executionRoot,
-      artifactRoot: options.artifactRoot,
-      operationId: options.operationId,
-      dryRun: options.dryRun,
-      repoRoot: process.cwd(),
-    });
-    const failed = result.status !== 'dry_run' && result.status !== 'succeeded';
-    emitJSON(result, failed);
-    if (failed) process.exit(1);
-    return true;
-  }
   if (action === 'finalize') {
     if (!options.source) fail('repair finalize requires --source <id-or-path>', 'MISSING_ARG');
     if (!options.attemptPlan) fail('repair finalize requires --attempt-plan <plan-path>', 'MISSING_ARG');
@@ -95,7 +78,11 @@ export function handleAttemptArtifactFamily({ action, target, rest, options, fai
   if (action === 'build') {
     if (target) fail(`Unexpected argument: ${target}`, 'UNKNOWN_ARG');
     if (!options.input) fail('attempt-artifact build requires --input <outcome-input-path>', 'MISSING_ARG');
-    emitJSON(buildWorkRecordRepairAttemptArtifact(readJsonFile(options.input, 'INVALID_REPAIR_ATTEMPT_ARTIFACT_INPUT', fail)));
+    const result = buildWorkRecordRepairAttemptArtifact(readJsonFile(options.input, 'INVALID_REPAIR_ATTEMPT_ARTIFACT_INPUT', fail));
+    const validation = validateWorkRecordRepairAttemptArtifact(result);
+    const failed = failedResult(result) || validation.status !== 'passed';
+    emitJSON(result, failed);
+    if (failed) process.exit(1);
     return true;
   }
   fail(`Unknown attempt-artifact subcommand: ${action || ''}`, 'UNKNOWN_COMMAND');
@@ -150,7 +137,10 @@ export function handleReplacementProposalFamily({ action, target, rest, options,
       source_work_record_digest_after: sourcePath ? digestFile(sourcePath) : beforeDigest,
       proposed_id_seed: options.proposedIdSeed,
     });
-    emitJSON(proposal);
+    const validation = validateWorkRecordReplacementProposal(proposal);
+    const failed = failedResult(proposal) || validation.status !== 'passed';
+    emitJSON(proposal, failed);
+    if (failed) process.exit(1);
     return true;
   }
   fail(`Unknown replacement-proposal subcommand: ${action || ''}`, 'UNKNOWN_COMMAND');
@@ -186,6 +176,7 @@ export function handleSupersessionFamily({ action, target, rest, options, fail, 
     if (!options.source) fail('supersession write requires --source <id-or-path>', 'MISSING_ARG');
     if (!options.replacement) fail('supersession write requires --replacement <id-or-path>', 'MISSING_ARG');
     if (!options.indexRoot) fail('supersession write requires --index-root <dir>', 'MISSING_ARG');
+    if (!options.writerResult) fail('supersession write requires --writer-result <path>', 'MISSING_ARG');
     const result = writeWorkRecordSourceSupersessionIndex({
       sourceRef: options.source,
       replacementRef: options.replacement,

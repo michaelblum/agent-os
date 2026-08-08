@@ -8,9 +8,6 @@ import {
   planWorkRecordRepair,
 } from './work-record-repair-plan.js';
 import {
-  buildWorkRecordGateRequestFromRepairPlan,
-} from './work-record-workflow-gate.js';
-import {
   planWorkRecordRepairAttempt,
 } from './work-record-repair-attempt-plan.js';
 import {
@@ -27,6 +24,10 @@ import {
 import {
   buildBundleRecoverySummary,
 } from './work-record-recovery-summary.js';
+import {
+  inspectTextFileDestination,
+  publishTextFileIfAbsent,
+} from './work-record-atomic-publish.js';
 
 export {
   WORK_RECORD_REPAIR_BUNDLE_IMPLEMENTATION_VERSION,
@@ -37,6 +38,11 @@ export {
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
   return normalized || fallback;
+}
+
+function rawText(value, fallback = '') {
+  const raw = String(value ?? '');
+  return raw || fallback;
 }
 
 function arrayValue(value) {
@@ -60,8 +66,8 @@ function sha256(bytes) {
   return `sha256:${crypto.createHash('sha256').update(bytes).digest('hex')}`;
 }
 
-function fileDigest(file) {
-  return sha256(fs.readFileSync(file));
+function nativeFileDigest(result = {}) {
+  return result.existing_digest ? `sha256:${result.existing_digest}` : '';
 }
 
 function diagnostic(code, message, extra = {}) {
@@ -75,8 +81,8 @@ function diagnostic(code, message, extra = {}) {
 
 function allDescriptors(report = {}) {
   const descriptors = [
-    objectValue(report.next_explicit_command),
-    ...arrayValue(report.alternative_explicit_commands).map(objectValue),
+    objectValue(report.safe_next_command),
+    ...arrayValue(report.alternatives).map(objectValue),
   ].filter((item) => text(item.id));
   const seen = new Set();
   return descriptors.filter((item) => {
@@ -88,8 +94,9 @@ function allDescriptors(report = {}) {
 }
 
 function artifactRelativePathForKind(kind = '') {
-  if (kind === 'workflow_gate_request') return 'artifacts/gate-request.json';
   if (kind === 'repair_attempt_plan') return 'artifacts/repair-attempt-plan.json';
+  if (kind === 'repair_plan') return 'artifacts/repair-plan.json';
+  if (kind === 'repair_attempt_artifact') return 'artifacts/repair-attempt-artifact.json';
   return '';
 }
 
@@ -255,20 +262,23 @@ function rebindArtifactPath(value, pathMap) {
 }
 
 function descriptorStatus(descriptor = {}, materializedKinds = new Set()) {
-  const stdout = objectValue(descriptor.stdout_artifact);
-  if (!stdout.kind) return 'not_applicable';
-  if (materializedKinds.has(text(stdout.kind))) return 'materialized';
-  if (descriptor.mutates_state === true || descriptor.requires_approval === true) return 'not_applicable';
+  const kind = text(descriptor.stdout_artifact);
+  if (!kind) return 'not_applicable';
+  if (materializedKinds.has(kind)) return 'materialized';
+  if (descriptor.mutates_state === true) return 'not_applicable';
   return 'planned_only';
 }
 
 function rebindDescriptor(descriptor = {}, pathMap, materializedKinds) {
   const rebound = rebindArtifactPath(cloneJson(descriptor), pathMap);
-  if (rebound.stdout_artifact?.path) {
-    rebound.save_stdout_to = rebound.stdout_artifact.path;
-    if (rebound.persistence_command) {
-      rebound.persistence_command = `${commandHintFromArgv(rebound.argv)} > ${shellQuoteArg(rebound.stdout_artifact.path)}`;
-    }
+  if (pathMap.has(text(rebound.save_stdout_to))) {
+    rebound.save_stdout_to = pathMap.get(text(rebound.save_stdout_to));
+  }
+  rebound.requires_saved_output_from = arrayValue(rebound.requires_saved_output_from)
+    .map((requiredPath) => pathMap.get(text(requiredPath)) || text(requiredPath))
+    .filter(Boolean);
+  if (text(rebound.save_stdout_to)) {
+    rebound.persistence_command = `${commandHintFromArgv(rebound.argv)} > ${shellQuoteArg(rebound.save_stdout_to)}`;
   }
   rebound.not_run_by_bundle = true;
   rebound.bundle_artifact_status = descriptorStatus(rebound, materializedKinds);
@@ -309,7 +319,7 @@ function plannedArtifact({
 
 function commandConsumers(descriptors = [], relativePath = '') {
   return descriptors
-    .filter((descriptor) => arrayValue(descriptor.requires_saved_output_from).some((requirement) => text(requirement.path) === relativePath))
+    .filter((descriptor) => arrayValue(descriptor.requires_saved_output_from).some((requirement) => text(requirement) === relativePath))
     .map((descriptor) => descriptor.id);
 }
 
@@ -346,8 +356,8 @@ function failureEnvelope({ status, mode, sourceRef, outputRoot, diagnostics = []
     bundle_implementation_version: WORK_RECORD_REPAIR_BUNDLE_IMPLEMENTATION_VERSION,
     status,
     mode,
-    source_work_record: { requested_ref: text(sourceRef) },
-    output_root: text(outputRoot),
+    source_work_record: { requested_ref: rawText(sourceRef) },
+    output_root: rawText(outputRoot),
     guide_report_path: '',
     manifest_path: '',
     artifact_count: 0,
@@ -370,8 +380,6 @@ export function planWorkRecordRepairBundle({
   outputRoot = '',
   roots = [],
   profileId = undefined,
-  authorization = null,
-  gateOutcome = null,
   attemptPlanPath = '',
   attemptArtifactPath = '',
   replacementRoot = '',
@@ -396,8 +404,6 @@ export function planWorkRecordRepairBundle({
   const guide = guideWorkRecordRepair({
     sourceRef,
     ...context,
-    authorization,
-    gateOutcome,
     attemptPlanPath,
     attemptArtifactPath,
     replacementRoot,
@@ -420,37 +426,26 @@ export function planWorkRecordRepairBundle({
   }
 
   const repairPlan = planWorkRecordRepair(sourceRef, context);
-  const gateRequest = buildWorkRecordGateRequestFromRepairPlan(repairPlan);
-  const authorizationInput = authorization || gateOutcome || null;
-  const attemptPlan = authorizationInput
-    ? planWorkRecordRepairAttempt(sourceRef, {
-      ...context,
-      repairPlan,
-      ...(authorization ? { authorization } : {}),
-      ...(!authorization && gateOutcome ? { gateOutcome } : {}),
-    })
-    : null;
+  const attemptPlan = planWorkRecordRepairAttempt(sourceRef, { ...context, repairPlan });
 
   const originalDescriptors = allDescriptors(guide);
   const originalToBundlePath = new Map();
   for (const descriptor of originalDescriptors) {
-    const kind = text(descriptor.stdout_artifact?.kind);
+    const kind = text(descriptor.stdout_artifact);
     const bundlePath = artifactRelativePathForKind(kind);
-    if (descriptor.stdout_artifact?.path && bundlePath) originalToBundlePath.set(descriptor.stdout_artifact.path, bundlePath);
+    if (descriptor.save_stdout_to && bundlePath) originalToBundlePath.set(descriptor.save_stdout_to, bundlePath);
   }
   if (attemptPlanPath) originalToBundlePath.set(attemptPlanPath, 'artifacts/repair-attempt-plan.json');
 
-  const descriptorStdoutKinds = new Set(originalDescriptors.map((descriptor) => text(descriptor.stdout_artifact?.kind)).filter(Boolean));
+  const descriptorStdoutKinds = new Set(originalDescriptors.map((descriptor) => text(descriptor.stdout_artifact)).filter(Boolean));
   const materializedKinds = new Set();
-  if (descriptorStdoutKinds.has('workflow_gate_request') && gateRequest?.status && gateRequest.status !== 'unsupported' && gateRequest.status !== 'not_required') {
-    materializedKinds.add('workflow_gate_request');
-  }
+  if (descriptorStdoutKinds.has('repair_plan') && repairPlan?.type === 'work_record.repair_plan') materializedKinds.add('repair_plan');
   if (descriptorStdoutKinds.has('repair_attempt_plan') && attemptPlan?.status === 'ready') materializedKinds.add('repair_attempt_plan');
 
   const reboundDescriptors = originalDescriptors.map((descriptor) => rebindDescriptor(descriptor, originalToBundlePath, materializedKinds));
   const reboundGuide = rebindArtifactPath(cloneJson(guide), originalToBundlePath);
-  reboundGuide.next_explicit_command = reboundDescriptors[0] || null;
-  reboundGuide.alternative_explicit_commands = reboundDescriptors.slice(1);
+  reboundGuide.safe_next_command = reboundDescriptors[0] || null;
+  reboundGuide.alternatives = reboundDescriptors.slice(1);
   reboundGuide.not_run_by_bundle = true;
 
   const artifacts = [];
@@ -472,13 +467,13 @@ export function planWorkRecordRepairBundle({
       outputRoot: root.outputRoot,
     }));
   }
-  if (materializedKinds.has('workflow_gate_request')) {
+  if (materializedKinds.has('repair_plan')) {
     artifacts.push(plannedArtifact({
-      relativePath: 'artifacts/gate-request.json',
-      artifactKind: 'workflow_gate_request',
-      producer: 'buildWorkRecordGateRequestFromRepairPlan',
-      downstreamConsumers: commandConsumers(reboundDescriptors, 'artifacts/gate-request.json'),
-      value: gateRequest,
+      relativePath: 'artifacts/repair-plan.json',
+      artifactKind: 'repair_plan',
+      producer: 'planWorkRecordRepair',
+      downstreamConsumers: commandConsumers(reboundDescriptors, 'artifacts/repair-plan.json'),
+      value: repairPlan,
       outputRoot: root.outputRoot,
     }));
   }
@@ -510,7 +505,8 @@ export function planWorkRecordRepairBundle({
     conflicts: [],
     diagnostics: [],
     non_execution_flags: { ...WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS },
-    next_recommended_command: reboundGuide.next_explicit_command,
+    guide_report: reboundGuide,
+    next_recommended_command: reboundGuide.safe_next_command,
   };
   const manifest = plannedArtifact({
     relativePath: 'bundle-manifest.json',
@@ -562,8 +558,8 @@ export function writeWorkRecordRepairBundle(options = {}) {
     return publicPlan;
   }
 
-  const outputRoot = text(plan.output_root);
-  const canonicalRoot = text(plan.canonical_output_root || outputRoot);
+  const outputRoot = rawText(plan.output_root);
+  const canonicalRoot = rawText(plan.canonical_output_root || outputRoot);
   const escape = artifacts
     .map((artifact) => artifactPathViolation(outputRoot, canonicalRoot, artifact.path))
     .find((item) => item.escaped);
@@ -583,17 +579,32 @@ export function writeWorkRecordRepairBundle(options = {}) {
   }
 
   const written = [];
-  fs.mkdirSync(outputRoot, { recursive: true });
-  for (const artifact of artifacts) {
-    const bytes = stableJsonBytes(artifact.value);
-    if (fs.existsSync(artifact.path)) {
-      if (fs.lstatSync(artifact.path).isSymbolicLink()) {
+  const writtenArtifactReceipts = () => written.map((item) => ({
+    relative_path: item.relative_path,
+    path: item.path,
+    artifact_kind: item.artifact_kind,
+    digest: item.digest,
+    producer: item.producer,
+    downstream_consumers: item.downstream_consumers,
+    write_mode: item.write_mode,
+    write_status: item.write_status,
+  }));
+  let currentArtifact = null;
+  let currentPublication = null;
+  try {
+    for (const artifact of artifacts) {
+      currentArtifact = artifact;
+      currentPublication = null;
+      const bytes = stableJsonBytes(artifact.value);
+      const existingInspection = inspectTextFileDestination(artifact.path, bytes, { boundaryRoot: outputRoot });
+      if (existingInspection.status === 'inspection_failed') {
         const envelope = {
           ...publicPlan,
-          status: 'blocked_path_escape',
+          status: 'blocked_write_failed',
+          written_artifacts: writtenArtifactReceipts(),
           diagnostics: [
             ...arrayValue(publicPlan.diagnostics),
-            diagnostic('WORK_RECORD_REPAIR_BUNDLE_SYMLINK_ESCAPE', 'A bundle artifact path would write through an existing symlink.', { path: artifact.path, reason: 'symlink_escape' }),
+            diagnostic('WORK_RECORD_REPAIR_BUNDLE_EXISTING_INSPECTION_FAILED', 'Bundle artifact could not be inspected through a pinned no-follow descriptor.', { path: artifact.path, reason: existingInspection.error?.message || existingInspection.status }),
           ],
         };
         return {
@@ -601,14 +612,24 @@ export function writeWorkRecordRepairBundle(options = {}) {
           recovery_summary: buildBundleRecoverySummary(envelope),
         };
       }
-      if (!fs.lstatSync(artifact.path).isFile() || fs.readFileSync(artifact.path, 'utf8') !== bytes) {
+      if (existingInspection.status === 'identical_existing') {
+        written.push({ ...artifact, write_status: 'already_exists', digest: nativeFileDigest(existingInspection) });
+        continue;
+      }
+      if (existingInspection.status !== 'missing') {
+        const pathIdentityConflict = ['symlink', 'non_file', 'multiple_links', 'replaced', 'different_file'].includes(existingInspection.existing_kind);
         const envelope = {
           ...publicPlan,
-          status: 'blocked_conflict',
+          status: pathIdentityConflict ? 'blocked_path_escape' : 'blocked_conflict',
           conflicts: [artifact],
+          written_artifacts: writtenArtifactReceipts(),
           diagnostics: [
             ...arrayValue(publicPlan.diagnostics),
-            diagnostic('WORK_RECORD_REPAIR_BUNDLE_CONFLICT', 'Bundle artifact path already exists with different bytes.', { path: artifact.path }),
+            diagnostic(
+              pathIdentityConflict ? 'WORK_RECORD_REPAIR_BUNDLE_SYMLINK_ESCAPE' : 'WORK_RECORD_REPAIR_BUNDLE_CONFLICT',
+              pathIdentityConflict ? 'Bundle artifact path identity changed or traverses a symlink.' : 'Bundle artifact path already exists with different bytes.',
+              { path: artifact.path, reason: existingInspection.existing_kind },
+            ),
           ],
         };
         return {
@@ -616,18 +637,66 @@ export function writeWorkRecordRepairBundle(options = {}) {
           recovery_summary: buildBundleRecoverySummary(envelope),
         };
       }
-      written.push({ ...artifact, write_status: 'already_exists', digest: fileDigest(artifact.path) });
-      continue;
-    }
-    fs.mkdirSync(path.dirname(artifact.path), { recursive: true });
-    const parentRealpath = fs.realpathSync(path.dirname(artifact.path));
-    if (!isWithin(canonicalRoot, parentRealpath)) {
+      const publication = publishTextFileIfAbsent(artifact.path, bytes, { boundaryRoot: outputRoot });
+      currentPublication = publication;
+      if (publication.status === 'published' || publication.status === 'identical_existing') {
+        written.push({
+          ...artifact,
+          write_status: publication.status === 'published' ? 'written' : 'already_exists',
+          digest: nativeFileDigest(publication),
+        });
+        continue;
+      }
+      const conflict = publication.status === 'conflict';
+      const cleanupFailed = publication.status === 'cleanup_failed';
+      const publishedFailureReceipt = publication.published && publication.existing_digest
+        ? {
+          ...artifact,
+          write_status: cleanupFailed ? 'published_cleanup_failed' : 'published_readback_failed',
+          digest: nativeFileDigest(publication),
+        }
+        : null;
       const envelope = {
         ...publicPlan,
-        status: 'blocked_path_escape',
+        status: conflict ? 'blocked_conflict' : cleanupFailed ? 'blocked_cleanup_failed' : 'blocked_write_failed',
+        conflicts: conflict ? [artifact] : [],
+        written_artifacts: [
+          ...writtenArtifactReceipts(),
+          ...(publishedFailureReceipt ? [{
+            relative_path: publishedFailureReceipt.relative_path,
+            path: publishedFailureReceipt.path,
+            artifact_kind: publishedFailureReceipt.artifact_kind,
+            digest: publishedFailureReceipt.digest,
+            producer: publishedFailureReceipt.producer,
+            downstream_consumers: publishedFailureReceipt.downstream_consumers,
+            write_mode: publishedFailureReceipt.write_mode,
+            write_status: publishedFailureReceipt.write_status,
+          }] : []),
+        ],
+        failed_artifact: {
+          relative_path: artifact.relative_path,
+          path: artifact.path,
+          artifact_kind: artifact.artifact_kind,
+          publication_status: publication.status,
+          destination_published: publication.published,
+          temp_file: publication.temp_file,
+          digest: publishedFailureReceipt?.digest || '',
+        },
         diagnostics: [
           ...arrayValue(publicPlan.diagnostics),
-          diagnostic('WORK_RECORD_REPAIR_BUNDLE_SYMLINK_ESCAPE', 'A bundle artifact parent resolved outside --output-root.', { path: path.dirname(artifact.path), realpath: parentRealpath, reason: 'realpath_escape' }),
+          diagnostic(
+            conflict
+              ? 'WORK_RECORD_REPAIR_BUNDLE_CONFLICT'
+              : cleanupFailed
+                ? 'WORK_RECORD_REPAIR_BUNDLE_TEMP_CLEANUP_FAILED'
+                : 'WORK_RECORD_REPAIR_BUNDLE_WRITE_FAILED',
+            conflict
+              ? 'Bundle artifact path was created concurrently with different bytes; existing bytes were preserved.'
+              : cleanupFailed
+                ? `Bundle artifact temp cleanup failed: ${publication.cleanup_error?.message || 'unknown cleanup failure'}`
+                : `Bundle artifact publication failed: ${publication.error?.message || publication.status}`,
+            { path: artifact.path },
+          ),
         ],
       };
       return {
@@ -635,23 +704,59 @@ export function writeWorkRecordRepairBundle(options = {}) {
         recovery_summary: buildBundleRecoverySummary(envelope),
       };
     }
-    fs.writeFileSync(artifact.path, bytes);
-    written.push({ ...artifact, write_status: 'written', digest: fileDigest(artifact.path) });
+  } catch (error) {
+    const destinationPublished = currentPublication?.published === true;
+    const currentReceipt = destinationPublished ? {
+      relative_path: currentArtifact.relative_path,
+      path: currentArtifact.path,
+      artifact_kind: currentArtifact.artifact_kind,
+      digest: '',
+      producer: currentArtifact.producer,
+      downstream_consumers: currentArtifact.downstream_consumers,
+      write_mode: currentArtifact.write_mode,
+      write_status: 'published_readback_failed',
+    } : null;
+    const envelope = {
+      ...publicPlan,
+      status: 'blocked_write_failed',
+      written_artifacts: [
+        ...writtenArtifactReceipts(),
+        ...(currentReceipt ? [currentReceipt] : []),
+      ],
+      failed_artifact: currentArtifact ? {
+        relative_path: currentArtifact.relative_path,
+        path: currentArtifact.path,
+        artifact_kind: currentArtifact.artifact_kind,
+        publication_status: 'io_failed',
+        destination_published: destinationPublished,
+        temp_file: currentPublication?.temp_file || '',
+        digest: '',
+      } : {
+        relative_path: '',
+        path: outputRoot,
+        artifact_kind: 'bundle_root',
+        publication_status: 'io_failed',
+        destination_published: false,
+        temp_file: '',
+        digest: '',
+      },
+      diagnostics: [
+        ...arrayValue(publicPlan.diagnostics),
+        diagnostic('WORK_RECORD_REPAIR_BUNDLE_IO_FAILED', `Bundle artifact filesystem operation failed: ${error.message}`, {
+          path: currentArtifact?.path || outputRoot,
+        }),
+      ],
+    };
+    return {
+      ...envelope,
+      recovery_summary: buildBundleRecoverySummary(envelope),
+    };
   }
 
   const envelope = {
     ...publicPlan,
     status: 'written',
-    written_artifacts: written.map((artifact) => ({
-      relative_path: artifact.relative_path,
-      path: artifact.path,
-      artifact_kind: artifact.artifact_kind,
-      digest: artifact.digest,
-      producer: artifact.producer,
-      downstream_consumers: artifact.downstream_consumers,
-      write_mode: artifact.write_mode,
-      write_status: artifact.write_status,
-    })),
+    written_artifacts: writtenArtifactReceipts(),
     planned_artifacts: publicPlan.planned_artifacts.map((artifact) => {
       const match = written.find((item) => item.relative_path === artifact.relative_path);
       return match ? { ...artifact, digest: match.digest } : artifact;

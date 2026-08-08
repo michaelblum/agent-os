@@ -1,6 +1,6 @@
 # AOS Work Records And Self-Healing Recipes
 
-**Status:** design seed, not a public API contract
+**Status:** design rationale; active contracts are Work Record V1 and Step Descriptor V1
 **Parent epic:** #234
 **First contract sketch:** #235
 
@@ -10,7 +10,7 @@ AOS has primitives for perception, action, projection, communication, and wiki
 workflows. It also has source-backed executable recipes, browser targets, workbench
 subjects, gateway jobs, and a few specialized traces. Those pieces are useful,
 but they do not yet describe one first-class thing: work that was done and can
-be understood, repaired, replayed, or retired later.
+be understood, used to propose repair, superseded, or retired later.
 
 Raw event replay is too brittle. A click coordinate, selector, or accessibility
 reference can decay quickly. The durable part of a work record is the human or
@@ -26,7 +26,7 @@ This is the work-record specialization of the broader
 **Layered Subject Expression** pattern in
 `docs/design/aos-workbench-pattern.md`. The intent layer is the durable repair
 spine; the execution map, evidence, and health layers make that spine
-executable, inspectable, and trustworthy without turning raw replay data into
+source-bound, inspectable, and trustworthy without turning raw action data into
 the source of truth.
 
 ## Core Vocabulary
@@ -40,15 +40,16 @@ future replay easier.
 recipe can be repaired when target references drift, or retired when the intent
 can no longer be satisfied.
 
-**Workflow:** a chain or graph of recipes, steps, sub-workflows, inputs,
-approval gates, outputs, and artifacts.
+**Workflow:** a caller-owned chain or graph of recipes, steps, sub-workflows,
+structured inputs, outputs, and artifacts.
 
-**Work record:** a durable record tying intent, execution map, evidence, and
-health together for one piece of work.
+**Work record:** an optional durable evidence/history record tying intent,
+execution map, evidence, and health together for one piece of work. It is never
+a permission grant.
 
-**Execution map:** semi-durable structured data that helps execute or replay a
-step: target strings, Playwright-like locators, AX refs, canvas object ids,
-waits, assertions, retry hints, artifact routes, and generated script hints.
+**Execution map:** semi-durable structured evidence that describes a step:
+target strings, Playwright-like locators, AX refs, canvas object ids, waits,
+assertions, repair hints, artifact routes, and generated script hints.
 
 **`do_step`:** the smallest portable unit. It is one intentional action plus the
 perception context that made the action reasonable and the postcondition that
@@ -98,7 +99,7 @@ work record
     -> verify
 ```
 
-Replay should re-perceive before each action:
+Any caller-owned future action should re-perceive and re-resolve before acting:
 
 ```text
 intent -> see -> resolve target -> do -> see -> verify
@@ -131,18 +132,18 @@ state-scoped `ref`/`state_id` with `target.target_id`,
 supersedes that mixed public model with separate Observation Ref and Locator
 types; labels and accessibility text remain hints, not identity.
 
-The first AOS action capture slice is intentionally saved-evidence only. A
-single source records before perception, the AOS `do` result, and after
-perception, then `buildWorkRecordV0FromAosActionEvidence()` normalizes that
-source into Work Record v0. The current legacy implementation uses a
-Workflow-gated step/evidence bridge: a harness can run the same
-`see -> resolve -> do -> see` loop and hand
-the saved evidence envelope to the builder. Work Records and verifier reports
-are harness obligations around the run, not step-authored primitive actions.
-Playbooks remain method guidance rather than the execution substrate. No
-autonomous replay, ref repair, or broad recorder command is implied by this
-capture slice. Gate is not AOS permission, and the coupling awaits ADR 0040
-runtime migration.
+The active AOS action capture slice is intentionally saved-evidence only. A
+single source records before perception, the caller-supplied AOS `do` result,
+and after perception, then `buildWorkRecordV1FromAosActionEvidence()`
+normalizes that source into Work Record V1. The Step Descriptor V1 simulation
+harness reads the same evidence envelope, emits a Work Record V1, and runs the
+report-only verifier. Both simulation and execution-adapter evidence must
+exactly match the descriptor action, target-resolution semantic identity,
+conditions, and promotion identity/scope. An execution-mode harness accepts
+only a caller-supplied adapter; Work Record commands expose no fixture executor. Work Records and
+verifier reports are evidence around a run, not action admission. Gate remains
+a separate structured-input primitive and no Gate answer authorizes a later
+Work Record attempt.
 
 ## Target Dialects
 
@@ -315,26 +316,30 @@ subject executable or inspectable. Tracked in #237.
   evidence.
 - #223 supplies the surface/workbench UI substrate, not the recording model.
 
-## Schema-Shaped Fixtures
+## Historical Design Fixtures
 
-These fixtures are intentionally examples, not contracts:
+These pre-V1 fixtures remain design examples, not active contracts:
 
 - `docs/design/fixtures/aos-work-records/browser-artifact-collection-step.json`
 - `docs/design/fixtures/aos-work-records/desktop-workflow-demo-step.json`
 - `docs/design/fixtures/aos-work-records/canvas-toolkit-control-step.json`
 - `docs/design/fixtures/aos-work-records/recipe-health-retirement.json`
 
-They are parser-tested so future edits do not drift into invalid JSON, but no
-`shared/schemas/` contract exists yet. Promote a schema only after browser,
-desktop, and canvas examples keep the same shape under implementation pressure.
+They remain parser-tested historical inputs. Active ownership now lives in the
+versioned Work Record V1, Step Descriptor V1, Repair Plan V1, Attempt Plan V1,
+and Attempt Artifact V1 contracts under `shared/schemas/`. The old examples do
+not define active producer, replay, repair, or execution behavior.
 
-## First Implementation Path
+## Implemented V1 Path
 
-1. Land this design seed and schema-shaped fixtures (#235).
-2. Add a draft shared schema only after a concrete producer and consumer are
-   selected.
-3. Pick one narrow producer: likely browser collection, supervised run trace,
-   or a workbench-driven manual record.
-4. Pick one narrow consumer: likely a workbench projection that reads fixtures
-   before executing anything.
-5. Only then add runtime recording, replay, or repair logic.
+1. Work Record V1 and Step Descriptor V1 are the active neutral evidence
+   contracts; V0 bytes are historical-only and rejected by active readers.
+2. Capture, verifier, harness, browser prototype, and workbench consumers use
+   the V1 contracts.
+3. Repair Plan V1 and Attempt Plan V1 are non-executing, exact mechanical
+   proposals. `ready` means complete and source-bound, never authorized.
+4. Attempt Artifact V1 records caller-supplied outcomes, evidence, timing,
+   cleanup, rollback, postconditions, and source immutability.
+5. Replacement publication, supersession lookup, bundle inspection, and
+   finalization remain separate bounded mechanics with exact digest checks and
+   receipts. AOS exposes no public Work Record executor.

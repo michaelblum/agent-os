@@ -71,7 +71,7 @@ evidence:
   status, logs, gate records, voice/session presence, and diagnostics.
 - Work Record: optional durable, inspectable evidence and verification material above
   primitive command output. It can verify, explain conservative recovery, plan
-  gated repair, bundle recovery evidence, and write explicit replacement or
+  source-bound mechanical repair, bundle recovery evidence, and write explicit replacement or
   supersession artifacts through bounded commands. It is not a macro recorder,
   autonomous replay surface, automatic repair authority, or permission grant.
 - Content root: the configured or declarative filesystem root for wiki/content

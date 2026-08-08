@@ -40,6 +40,25 @@ apps, and tests.
 - `schemas/aos-target-handle-v1.*` owns the closed handle union and
   `schemas/aos-agent-workspace-v1.*` owns saved storage indirection. V0
   workspace files are historical and unsupported by active readers.
+- `schemas/aos-work-record-v1.*`, `schemas/aos-step-descriptor-v1.*`, and the
+  versioned repair/attempt schemas own neutral evidence, proposal, outcome, and
+  finalization inputs. The V1 repair chain carries at most one atomic candidate
+  patch/outcome so proposal projection cannot silently select among payloads.
+  Plan mechanics and their Artifact mirrors reject nested Gate, authorization,
+  approval, risk, operation-allowlist, resume, and continuation policy fields;
+  caller evidence remains an exact carrier rather than being rewritten.
+  Attempt Artifact candidate-patch outcomes validate proposed execution maps
+  against the Work Record V1 execution-map definition before proposal use.
+  Work Record source labels, commands, targets, State IDs, paths, and URIs are
+  exact carriers. Replacement proposal provenance must fail closed on source
+  metadata key collisions instead of overwriting caller bytes; materialized
+  caller evidence retains exact metadata and caller timing.
+  Step Descriptor V1 supports only its declared action template tokens and
+  expected role/name args; active capture must project promotion identity and
+  scope rather than ignoring them.
+  Their V0 predecessors remain frozen historical bytes and
+  are rejected by active readers; do not add aliases, translation, or a dual
+  active reader.
 - `swift/ipc/ndjson.swift`, `request-client.swift`, and `event-stream.swift`
   bound every frame. Request reads use one monotonic absolute deadline across
   all partial reads; a peer cannot extend a call by dripping bytes without a

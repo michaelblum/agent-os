@@ -39,8 +39,9 @@ export function workRecordSupersessionWriteRecommendation({
   replacement = '',
   indexRoot = '',
   replacementRoot = '',
+  writerResult = '',
 } = {}) {
-  if (!text(source) || !text(replacement) || !text(indexRoot) || !text(replacementRoot)) {
+  if (!text(source) || !text(replacement) || !text(indexRoot) || !text(replacementRoot) || !text(writerResult)) {
     return { argv: [], command_hint: '' };
   }
   return commandRecommendation([
@@ -56,6 +57,8 @@ export function workRecordSupersessionWriteRecommendation({
     indexRoot,
     '--replacement-root',
     replacementRoot,
+    '--writer-result',
+    writerResult,
     '--json',
   ]);
 }

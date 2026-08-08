@@ -1,0 +1,313 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-artifact-v1.schema.json",
+  "title": "AOS Work Record Repair Attempt Artifact v1",
+  "description": "Caller-supplied execution outcomes bound to an exact Attempt Plan and immutable source evidence.",
+  "type": "object",
+  "required": ["type", "schema_version", "status", "source_work_record", "repair_plan", "repair_attempt_plan", "attempt_artifact_identity", "outcome_source", "timing", "planned_operations", "planned_candidate_patches", "planned_evidence_requirements", "operation_outcomes", "evidence_refs", "postcondition_results", "cleanup_results", "rollback_results", "source_work_record_mutation_check", "source_work_record_mutated", "rewrites_historical_evidence", "diagnostics"],
+  "properties": {
+    "type": { "const": "work_record.repair_attempt_artifact" },
+    "schema_version": { "const": "2026-08-work-record-repair-attempt-artifact-v1" },
+    "status": { "enum": ["succeeded", "failed", "partial", "aborted_precondition", "blocked_plan_mismatch", "cleanup_failed", "rollback_failed", "invalid_artifact", "unsupported"] },
+    "source_work_record": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-artifact-v1.schema.json#/$defs/source_identity" },
+    "repair_plan": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-plan-v1.schema.json#/properties/repair_plan" },
+    "repair_attempt_plan": {
+      "type": "object",
+      "required": ["schema_version", "status", "validation_status", "digest", "attempt_identity", "payload"],
+      "properties": {
+        "schema_version": { "const": "2026-08-work-record-repair-attempt-plan-v1" },
+        "status": { "enum": ["ready", "not_required", "blocked_inputs", "not_repairable", "superseded", "retired", "unsupported"] },
+        "validation_status": { "enum": ["passed", "failed"] },
+        "digest": { "type": "string", "minLength": 1 },
+        "attempt_identity": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-plan-v1.schema.json#/$defs/attempt_identity" },
+        "payload": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-plan-v1.schema.json" }
+      },
+      "additionalProperties": false
+    },
+    "attempt_artifact_identity": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-artifact-v1.schema.json#/$defs/attempt_artifact_identity" },
+    "outcome_source": {
+      "type": "object",
+      "required": ["id", "kind", "description"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "const": "caller_supplied" },
+        "version": { "type": "string" },
+        "description": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "timing": {
+      "type": "object",
+      "required": ["started_at", "finished_at", "source"],
+      "properties": {
+        "started_at": { "type": "string", "minLength": 1 },
+        "finished_at": { "type": "string", "minLength": 1 },
+        "source": { "const": "caller_supplied" }
+      },
+      "additionalProperties": false
+    },
+    "planned_operations": {
+      "type": "array",
+      "items": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-plan-v1.schema.json#/$defs/planned_operation" }
+    },
+    "planned_candidate_patches": { "type": "array", "maxItems": 1, "items": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-artifact-v1.schema.json#/$defs/planned_candidate_patch" } },
+    "planned_evidence_requirements": {
+      "type": "array",
+      "items": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-plan-v1.schema.json#/$defs/evidence_requirement" }
+    },
+    "operation_outcomes": { "type": "array", "items": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-artifact-v1.schema.json#/$defs/operation_outcome" } },
+    "candidate_patch_outcomes": {
+      "type": "array",
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "candidate_patch_id", "status", "source_work_record_digest", "proposed_execution_map", "proposed_execution_map_digest", "evidence_ref_ids", "applied_to_source"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "candidate_patch_id": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["produced", "not_produced", "failed"] },
+          "source_work_record_digest": { "type": "string", "minLength": 1 },
+          "proposed_execution_map": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-v1.schema.json#/$defs/execution_map" },
+          "proposed_execution_map_digest": { "type": "string", "minLength": 1 },
+          "evidence_ref_ids": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true
+          },
+          "applied_to_source": { "const": false }
+        },
+        "additionalProperties": false
+      }
+    },
+    "recommended_command_outcomes": { "type": "array", "items": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-artifact-v1.schema.json#/$defs/recommended_command_outcome" } },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "type": "string", "minLength": 1 },
+          {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "digest": { "type": "string" },
+              "path": { "type": "string" },
+              "uri": { "type": "string" },
+              "kind": { "type": "string" },
+              "phase": { "type": "string" },
+              "phase_range": { "type": "string" },
+              "metadata": { "type": "object" }
+            },
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "verifier_before": { "type": ["object", "null"] },
+    "verifier_after": { "type": ["object", "null"] },
+    "final_health": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-artifact-v1.schema.json#/$defs/final_health" },
+    "postcondition_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "status"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["passed", "failed", "not_run", "unknown"] },
+          "evidence_ref_ids": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true,
+            "default": []
+          },
+          "reason": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "cleanup_results": { "type": "array", "items": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-artifact-v1.schema.json#/$defs/cleanup_result" } },
+    "rollback_results": { "type": "array", "items": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-artifact-v1.schema.json#/$defs/rollback_result" } },
+    "source_work_record_mutation_check": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-artifact-v1.schema.json#/$defs/source_mutation_check" },
+    "source_work_record_mutated": { "const": false },
+    "rewrites_historical_evidence": { "const": false },
+    "diagnostics": { "type": "array" },
+    "recommended_next": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-artifact-v1.schema.json#/$defs/recommended_next" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "source_identity": {
+      "type": "object",
+      "required": ["id", "schema_version", "digest"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "path": { "type": "string" },
+        "match": { "type": "string" },
+        "requested_ref": { "type": "string" },
+        "schema_version": { "const": "2026-08-work-record-v1" },
+        "digest": { "type": "string", "minLength": 1 },
+        "summary": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-artifact-v1.schema.json#/$defs/source_summary" }
+      },
+      "additionalProperties": false
+    },
+    "source_summary": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "schema_version": { "const": "2026-08-work-record-v1" },
+        "label": { "type": "string" },
+        "path": { "type": "string" },
+        "repo_relative_path": { "type": "string" },
+        "origin_kind": { "type": "string" },
+        "health_verdict": { "type": "string" },
+        "claims": { "type": "integer", "minimum": 0 },
+        "claim_results": { "type": "integer", "minimum": 0 },
+        "evidence": { "type": "integer", "minimum": 0 },
+        "historical_claim_results_present": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "attempt_artifact_identity": {
+      "type": "object",
+      "required": ["id", "digest", "source_work_record", "repair_plan", "repair_attempt_plan", "planned_operation_ids", "operation_outcome_ids", "evidence_ref_digests", "payload_digest"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "minLength": 1 },
+        "source_work_record": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-artifact-v1.schema.json#/$defs/source_identity" },
+        "repair_plan": {
+          "type": "object",
+          "required": ["schema_version", "digest"],
+          "properties": {
+            "schema_version": { "const": "2026-08-work-record-repair-plan-v1" },
+            "digest": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "repair_attempt_plan": {
+          "type": "object",
+          "required": ["schema_version", "status", "validation_status", "digest", "attempt_id", "attempt_digest"],
+          "properties": {
+            "schema_version": { "const": "2026-08-work-record-repair-attempt-plan-v1" },
+            "status": { "enum": ["ready", "not_required", "blocked_inputs", "not_repairable", "superseded", "retired", "unsupported"] },
+            "validation_status": { "enum": ["passed", "failed"] },
+            "digest": { "type": "string", "minLength": 1 },
+            "attempt_id": { "type": "string", "minLength": 1 },
+            "attempt_digest": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "planned_operation_ids": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "operation_outcome_ids": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "evidence_ref_digests": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "payload_digest": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "operation_outcome": {
+      "type": "object",
+      "required": ["id", "planned_operation_id", "status", "evidence_ref_ids", "cleanup_required", "rollback_required"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "planned_operation_id": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["succeeded", "failed", "skipped", "aborted_precondition", "cleanup_failed", "rollback_failed"] },
+        "evidence_ref_ids": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "cleanup_required": { "type": "boolean" },
+        "rollback_required": { "type": "boolean" },
+        "reason": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "recommended_command_outcome": {
+      "type": "object",
+      "required": ["id", "status"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "command": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["succeeded", "failed", "skipped", "not_run"] },
+        "evidence_ref_ids": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "reason": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "cleanup_result": {
+      "type": "object",
+      "required": ["id", "operation_outcome_id", "cleanup_ref_id", "status"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "operation_outcome_id": { "type": "string", "minLength": 1 },
+        "cleanup_ref_id": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["passed", "failed", "not_required", "not_run", "unknown"] },
+        "evidence_ref_ids": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "reason": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "rollback_result": {
+      "type": "object",
+      "required": ["id", "operation_outcome_id", "rollback_ref_id", "status"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "operation_outcome_id": { "type": "string", "minLength": 1 },
+        "rollback_ref_id": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["passed", "failed", "not_required", "not_run", "unknown"] },
+        "evidence_ref_ids": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "reason": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "source_mutation_check": {
+      "type": "object",
+      "required": ["status", "before_digest", "after_digest"],
+      "properties": {
+        "status": { "enum": ["passed", "failed", "unknown"] },
+        "before_digest": { "type": "string", "minLength": 1 },
+        "after_digest": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "final_health": {
+      "type": "object",
+      "required": ["classification", "derived_from", "verifier_after_health"],
+      "properties": {
+        "classification": { "type": "string", "minLength": 1 },
+        "derived_from": { "enum": ["verifier_after", "caller_outcome"] },
+        "verifier_after_health": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "recommended_next": {
+      "type": "object",
+      "required": ["action", "note"],
+      "properties": {
+        "action": { "enum": ["inspect_replacement_proposal", "fix_artifact_payload", "inspect_attempt_evidence"] },
+        "note": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "planned_candidate_patch": {
+      "type": "object",
+      "required": ["id", "target", "status", "applied", "executes_in_plan", "declared_mutation_paths", "expected_side_effects", "rationale", "failure_classes", "diagnostic_codes", "validation_expectations", "rollback_expectation_refs"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "target": { "type": "string", "minLength": 1 },
+        "status": { "const": "proposed" },
+        "applied": { "const": false },
+        "executes_in_plan": { "const": false },
+        "declared_mutation_paths": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "expected_side_effects": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "rationale": { "type": "string", "minLength": 1 },
+        "failure_classes": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "diagnostic_codes": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "validation_expectations": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "rollback_expectation_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [{
+    "if": { "properties": { "status": { "const": "succeeded" } }, "required": ["status"] },
+    "then": {
+      "properties": { "verifier_after": { "type": "object" } },
+      "required": ["verifier_after"]
+    }
+  }]
+}

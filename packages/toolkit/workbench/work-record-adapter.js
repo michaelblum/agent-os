@@ -2,12 +2,19 @@ import {
   formatSubjectEntryHandle,
   parseSubjectEntryHandle,
 } from './subject-entry-handle.js';
+import validateWorkRecordV1 from './work-record-v1-validator.generated.js';
 
-export const WORK_RECORD_V0_SCHEMA_VERSION = '2026-05-work-record-v0';
+export const WORK_RECORD_V1_SCHEMA_VERSION = '2026-08-work-record-v1';
+export const WORK_RECORD_HISTORICAL_V0_SCHEMA_VERSION = '2026-05-work-record-v0';
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
   return normalized || fallback;
+}
+
+function rawText(value, fallback = '') {
+  const raw = String(value ?? '');
+  return raw || fallback;
 }
 
 function cloneJson(value) {
@@ -35,10 +42,28 @@ function firstText(...values) {
   return '';
 }
 
-export function isWorkRecordV0(record = {}) {
+function firstRawText(...values) {
+  for (const value of values) {
+    const raw = rawText(value);
+    if (raw) return raw;
+  }
+  return '';
+}
+
+export function isWorkRecordV1(record = {}) {
   const value = objectValue(record);
   return text(value.type) === 'aos.work_record'
-    && text(value.schema_version) === WORK_RECORD_V0_SCHEMA_VERSION;
+    && text(value.schema_version) === WORK_RECORD_V1_SCHEMA_VERSION;
+}
+
+export function isHistoricalWorkRecordV0(record = {}) {
+  const value = objectValue(record);
+  return text(value.type) === 'aos.work_record'
+    && text(value.schema_version) === WORK_RECORD_HISTORICAL_V0_SCHEMA_VERSION;
+}
+
+export function isValidWorkRecordV1(record = {}) {
+  return isWorkRecordV1(record) && validateWorkRecordV1(record) === true;
 }
 
 export function workRecordSubjectId(recordId = '') {
@@ -49,70 +74,7 @@ export function workRecordSubjectId(recordId = '') {
   return formatSubjectEntryHandle('work-record', id);
 }
 
-function legacyKind(record = {}) {
-  const kind = text(record.type);
-  if (kind === 'aos.do_step') return 'aos.do_step';
-  if (kind === 'aos.recipe_health_event') return 'aos.recipe_health_event';
-  return 'aos.work_record';
-}
-
-function legacyHealth(record = {}) {
-  const next = objectValue(record.next_health);
-  const current = objectValue(record.health);
-  const state = text(next.state || current.state, 'unknown');
-  return {
-    state,
-    verdict: state,
-    reason: text(next.reason || current.reason),
-  };
-}
-
-function v0Health(record = {}) {
-  const health = objectValue(record.health);
-  const verdict = text(health.verdict, 'unknown');
-  return {
-    ...cloneJson(health),
-    state: verdict,
-    verdict,
-    reason: text(health.reason),
-    confidence: numberValue(health.confidence),
-    repair_gate_refs: arrayValue(health.repair_gate_refs),
-    replay_gate_refs: arrayValue(health.replay_gate_refs),
-  };
-}
-
-function legacyArtifacts(record = {}) {
-  const evidence = objectValue(record.evidence);
-  const artifacts = arrayValue(evidence.artifacts).map((artifact) => objectValue(artifact));
-  if (evidence.last_trace) {
-    artifacts.push({
-      kind: 'trace',
-      path: text(evidence.last_trace),
-    });
-  }
-  return artifacts.filter((artifact) => text(artifact.kind) || text(artifact.path));
-}
-
-function v0Artifacts(record = {}) {
-  return arrayValue(record.evidence)
-    .map((evidence) => {
-      const item = objectValue(evidence);
-      return {
-        id: text(item.id) || null,
-        kind: text(item.kind, 'evidence'),
-        label: firstText(item.summary, item.id, item.kind, item.uri),
-        path: text(item.uri),
-        uri: text(item.uri),
-        state_id: text(item.state_id) || null,
-        target: text(item.target) || null,
-        created_at: text(item.created_at) || null,
-        immutable: item.immutable === true,
-      };
-    })
-    .filter((artifact) => text(artifact.kind) || text(artifact.path) || text(artifact.id));
-}
-
-function normalizeV0Intent(record = {}) {
+function normalizeIntent(record = {}) {
   const intent = objectValue(record.intent);
   return {
     ...cloneJson(intent),
@@ -125,90 +87,95 @@ function normalizeV0Intent(record = {}) {
   };
 }
 
-function normalizeLegacyIntent(record = {}) {
-  const intent = objectValue(record.intent);
+function normalizeHealth(record = {}) {
+  const health = objectValue(record.health);
+  const verdict = text(health.verdict, 'unknown');
   return {
-    ...cloneJson(intent),
-    nl: text(intent.nl),
-    summary: firstText(intent.summary, intent.nl),
-    purpose: text(intent.purpose),
-    acceptance: text(intent.acceptance),
-    constraints: arrayValue(intent.constraints),
-    claim_refs: arrayValue(intent.claim_refs),
+    ...cloneJson(health),
+    state: verdict,
+    verdict,
+    reason: text(health.reason),
+    confidence: numberValue(health.confidence),
   };
 }
 
-function normalizeV0(record = {}) {
-  const intent = normalizeV0Intent(record);
-  const executionMap = objectValue(record.execution_map);
-  const evidence = arrayValue(record.evidence).map((item) => cloneJson(item));
-  const claims = arrayValue(record.claims).map((item) => cloneJson(item));
-  const claimResults = arrayValue(record.claim_results).map((item) => cloneJson(item));
-  const verifierReport = objectValue(record.verifier_report);
-  const replayPolicy = objectValue(executionMap.replay_policy);
+function evidenceArtifacts(record = {}) {
+  return arrayValue(record.evidence)
+    .map((evidence) => {
+      const item = objectValue(evidence);
+      return {
+        id: text(item.id) || null,
+        kind: text(item.kind, 'evidence'),
+        label: firstRawText(item.summary, item.id, item.kind, item.uri),
+        path: rawText(item.uri),
+        uri: rawText(item.uri),
+        state_id: rawText(item.state_id) || null,
+        target: rawText(item.target) || null,
+        created_at: text(item.created_at) || null,
+        immutable: item.immutable === true,
+      };
+    })
+    .filter((artifact) => text(artifact.kind) || text(artifact.path) || text(artifact.id));
+}
+
+function unsupported(record = {}) {
+  const value = objectValue(record);
   return {
-    format: 'v0',
+    format: isHistoricalWorkRecordV0(value) ? 'historical_v0_unsupported' : 'unsupported',
     readOnly: true,
+    supported: false,
+    raw: null,
+    type: text(value.type),
+    schemaVersion: text(value.schema_version),
+    id: text(value.id),
+    label: firstRawText(value.label, value.id),
+    sourceKind: 'unsupported',
+    sourceRecordType: text(value.type),
+    origin: null,
+    references: [],
+    intent: {},
+    executionMap: {},
+    evidence: [],
+    artifacts: [],
+    claims: [],
+    claimResults: [],
+    verifierReport: null,
+    health: { state: 'unsupported', verdict: 'unsupported', reason: '' },
+    surface: null,
+    action: null,
+    hasExecutionMap: false,
+  };
+}
+
+export function normalizeWorkRecord(record = {}) {
+  if (!isValidWorkRecordV1(record)) return unsupported(record);
+  const intent = normalizeIntent(record);
+  const executionMap = objectValue(record.execution_map);
+  return {
+    format: 'v1',
+    readOnly: true,
+    supported: true,
     raw: cloneJson(record),
     type: text(record.type, 'aos.work_record'),
     schemaVersion: text(record.schema_version),
     id: text(record.id),
-    label: firstText(record.label, intent.summary, intent.nl, record.id),
+    label: firstRawText(record.label, intent.summary, intent.nl, record.id),
     sourceKind: 'work_record',
     sourceRecordType: text(record.type, 'aos.work_record'),
     origin: cloneJson(objectValue(record.origin)),
     references: arrayValue(record.references).map((item) => cloneJson(item)),
     intent,
     executionMap,
-    evidence,
-    artifacts: v0Artifacts(record),
-    claims,
-    claimResults,
-    verifierReport: cloneJson(verifierReport),
-    health: v0Health(record),
-    replayPolicy: cloneJson(replayPolicy),
-    surface: null,
-    action: null,
-    automaticReplayAllowed: null,
-    hasExecutionMap: Object.keys(executionMap).length > 0,
-  };
-}
-
-function normalizeLegacy(record = {}) {
-  const kind = legacyKind(record);
-  const intent = normalizeLegacyIntent(record);
-  const executionMap = objectValue(record.execution_map);
-  const health = legacyHealth(record);
-  return {
-    format: 'legacy',
-    readOnly: false,
-    raw: cloneJson(record),
-    type: kind,
-    schemaVersion: text(record.schema_version),
-    id: text(record.id),
-    label: firstText(intent.nl, intent.summary, record.id),
-    sourceKind: kind === 'aos.recipe_health_event' ? 'recipe_health_event' : 'work_record',
-    sourceRecordType: text(record.type, kind),
-    origin: record.origin ? cloneJson(objectValue(record.origin)) : null,
-    references: arrayValue(record.references).map((item) => cloneJson(item)),
-    intent,
-    executionMap,
-    evidence: [],
-    artifacts: legacyArtifacts(record),
+    evidence: arrayValue(record.evidence).map((item) => cloneJson(item)),
+    artifacts: evidenceArtifacts(record),
     claims: arrayValue(record.claims).map((item) => cloneJson(item)),
     claimResults: arrayValue(record.claim_results).map((item) => cloneJson(item)),
-    verifierReport: record.verifier_report ? cloneJson(objectValue(record.verifier_report)) : null,
-    health,
-    replayPolicy: cloneJson(objectValue(executionMap.replay_policy)),
-    surface: text(record.surface) || null,
-    action: objectValue(record.action).verb ? cloneJson(record.action) : null,
-    automaticReplayAllowed: objectValue(record.retirement).automatic_replay_allowed ?? null,
+    verifierReport: cloneJson(objectValue(record.verifier_report)),
+    health: normalizeHealth(record),
+    surface: null,
+    action: null,
     hasExecutionMap: Object.keys(executionMap).length > 0,
   };
-}
-
-export function normalizeWorkRecord(record = {}) {
-  return isWorkRecordV0(record) ? normalizeV0(record) : normalizeLegacy(record);
 }
 
 export function workRecordIsReadOnly(record = {}) {

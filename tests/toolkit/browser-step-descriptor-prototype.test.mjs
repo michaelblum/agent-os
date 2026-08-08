@@ -1,225 +1,46 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  BROWSER_CLICK_STATUS_PROTOTYPE_ID,
-  BROWSER_STEP_DESCRIPTOR_PROTOTYPE_VERSION,
   createBrowserStepDescriptorPrototype,
-  createBrowserStepDescriptorPrototypeWorkRecordOpenMessage,
   runBrowserStepDescriptorPrototype,
-  subjectContracts,
-  subjectFacets,
-  WORK_RECORD_REPORT_ONLY_PROFILE_ID,
-} from '../../packages/toolkit/workbench/index.js';
-import {
-  buildWorkRecordPatchRequest,
-  createWorkRecordWorkbenchState,
-  openWorkRecord,
-  updateWorkRecordIntent,
-  workRecordIsReadOnly,
-  workRecordWorkbenchSnapshot,
-} from '../../packages/toolkit/components/work-record-workbench/model.js';
+} from '../../packages/toolkit/workbench/browser-step-descriptor-prototype.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, '../..');
-const workRecordFixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0');
-const stepDescriptorFixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-step-descriptor-v0');
-const subjectSchemaPath = path.join(repoRoot, 'shared/schemas/aos-workbench-subject.schema.json');
-const WORKFLOW_BROWSER_RECORD_ID = 'work-record:workflow-browser-live-action-status-aos-browser-click-status-2026-05-06';
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const read = (relative) => JSON.parse(fs.readFileSync(path.join(repoRoot, relative), 'utf8'));
 
-function fixture(root, relativePath) {
-  return JSON.parse(fs.readFileSync(path.join(root, relativePath), 'utf8'));
-}
-
-function stepDescriptor() {
-  return fixture(stepDescriptorFixtureRoot, 'valid/browser-click-status.json');
-}
-
-function evidenceSource() {
-  return fixture(workRecordFixtureRoot, 'evidence/aos-browser-click-status.json');
-}
-
-function expectedWorkRecord() {
-  return fixture(workRecordFixtureRoot, 'valid/workflow-browser-click-status.json');
-}
-
-function workflowGate() {
-  return {
-    ref: 'workflow-gate:step-descriptor-browser-click-status-replay',
-    token: 'workflow-gate-token:browser-prototype-test',
-  };
-}
-
-function prototype() {
-  return createBrowserStepDescriptorPrototype({
-    stepDescriptor: stepDescriptor(),
-    evidenceSource: evidenceSource(),
-    workflowGateRef: workflowGate().ref,
+test('browser prototype V1 is a report-only one-step saved-evidence bridge', () => {
+  const prototype = createBrowserStepDescriptorPrototype({
+    stepDescriptor: read('shared/schemas/fixtures/aos-step-descriptor-v1/valid/browser-click-status.json'),
+    evidenceSource: read('shared/schemas/fixtures/aos-work-record-v1/evidence/aos-browser-click-status.json'),
   });
-}
-
-function validateSubject(subject) {
-  return spawnSync(
-    'python3',
-    [
-      '-c',
-      `
-import json, sys
-from pathlib import Path
-from jsonschema import Draft202012Validator
-
-schema = json.loads(Path(sys.argv[1]).read_text())
-instance = json.loads(sys.stdin.read())
-Draft202012Validator.check_schema(schema)
-validator = Draft202012Validator(schema)
-errors = sorted(validator.iter_errors(instance), key=lambda e: list(e.path))
-if errors:
-    for error in errors[:8]:
-        print(error.message)
-    sys.exit(1)
-`,
-      subjectSchemaPath,
-    ],
-    {
-      encoding: 'utf8',
-      input: JSON.stringify(subject),
-    },
-  );
-}
-
-function assertNoReplayOrRepairControls(subject) {
-  const contracts = [
-    ...subjectContracts(subject),
-    ...subjectFacets(subject).flatMap((facet) => facet.contracts || []),
-  ].join(' ');
-  assert.doesNotMatch(contracts, /replay|repair|macro|background/i);
-  assert.equal('controls' in subject, false);
-  assert.equal(subject.state.autonomous_replay_allowed, false);
-  assert.equal(subject.state.autonomous_repair_allowed, false);
-  assert.equal(subject.state.macro_playback_allowed, false);
-  assert.equal(subject.state.background_loop_allowed, false);
-  assert.equal(subject.state.broad_cli_surface_added, false);
-}
-
-test('browser Step Descriptor prototype exposes a browser-compatible one-step subject descriptor', () => {
-  const candidate = prototype();
-  const validation = validateSubject(candidate.subject);
-
-  assert.equal(candidate.type, 'aos.browser_step_descriptor_prototype');
-  assert.equal(candidate.schema_version, BROWSER_STEP_DESCRIPTOR_PROTOTYPE_VERSION);
-  assert.equal(candidate.id, BROWSER_CLICK_STATUS_PROTOTYPE_ID);
-  assert.equal(candidate.run_policy.mode, 'simulate');
-  assert.equal(candidate.run_policy.one_step_only, true);
-  assert.equal(candidate.run_policy.explicit_workflow_gate_required, true);
-  assert.equal(candidate.run_policy.autonomous_replay_allowed, false);
-  assert.equal(candidate.run_policy.autonomous_repair_allowed, false);
-  assert.equal(candidate.subject.subject_type, 'aos.step_descriptor_prototype');
-  assert.deepEqual(candidate.subject.capabilities, ['inspectable', 'verifier-target', 'exportable']);
-  assert.ok(subjectContracts(candidate.subject).includes('step_descriptor.simulate.once'));
-  assert.ok(subjectContracts(candidate.subject).includes('work_record.open.read_only'));
-  assert.ok(subjectFacets(candidate.subject).some((facet) => facet.key === 'step-descriptor-simulate-controls'));
-  assert.equal('views' in candidate.subject, false);
-  assert.equal('controls' in candidate.subject, false);
-  assert.equal(candidate.subject.state.target_dialect, 'browser');
-  assert.equal(candidate.subject.state.target_with_ref, 'browser:work-record-live-action/e2');
-  assert.equal(candidate.subject.metadata.is_wiki_subject_browser, false);
-  assert.equal(candidate.subject.metadata.is_general_step_descriptor_ui, false);
-  assert.equal(candidate.subject.metadata.adds_public_cli_surface, false);
-  assertNoReplayOrRepairControls(candidate.subject);
-  assert.equal(validation.status, 0, `${validation.stdout}${validation.stderr}`);
-});
-
-test('browser Step Descriptor prototype rejects ungated simulation without emitting a Work Record', () => {
-  const result = runBrowserStepDescriptorPrototype(prototype());
-
-  assert.equal(result.status, 'rejected');
-  assert.equal(result.reason, 'workflow_gate_required');
-  assert.equal(result.mode, 'simulate');
-  assert.equal(result.record, null);
-  assert.equal(result.verifier, null);
-  assert.equal(result.workbench_open_message, null);
-  assert.equal(result.diagnostics[0].code, 'workflow_gate_required');
-  assertNoReplayOrRepairControls(result.subject);
-});
-
-test('browser Step Descriptor prototype simulates one gated step through the harness', () => {
-  const result = runBrowserStepDescriptorPrototype(prototype(), {
-    workflowGate: workflowGate(),
+  assert.equal(prototype.schema_version, '2026-08-browser-step-descriptor-prototype-v1');
+  assert.deepEqual(prototype.run_policy, {
+    mode: 'simulate',
+    one_step_only: true,
+    verifier_profile_id: 'aos.verifier.work-record.v1.report-only',
+    evidence_source_required: true,
   });
-
+  const result = runBrowserStepDescriptorPrototype(prototype);
   assert.equal(result.status, 'passed');
-  assert.equal(result.reason, 'record_verified');
-  assert.equal(result.mode, 'simulate');
-  assert.equal(result.harness.type, 'aos.step_descriptor_harness.result');
-  assert.equal(result.harness.mode, 'simulate');
-  assert.equal(result.harness.workflow_gate_ref, workflowGate().ref);
-  assert.equal(result.harness.step_descriptor_id, 'step-descriptor:browser-click-status');
-  assert.deepEqual(result.record, expectedWorkRecord());
-  assert.equal(result.record.origin.kind, 'workflow');
-  assert.equal(result.record.verifier_report.verifier.id, WORK_RECORD_REPORT_ONLY_PROFILE_ID);
-  assert.equal(result.verifier.status, 'passed');
-  assert.equal(result.verifier.profile_id, WORK_RECORD_REPORT_ONLY_PROFILE_ID);
-  assert.deepEqual(result.diagnostics, []);
-  assert.equal(result.subject.state.record_id, WORKFLOW_BROWSER_RECORD_ID);
-  assert.equal(result.subject.state.verifier_status, 'passed');
-  assert.equal(result.record.execution_map.replay_policy.mode, 'report_only');
-  assert.equal(result.record.execution_map.replay_policy.replay_requires_workflow_gate, true);
-  assert.equal(result.record.execution_map.replay_policy.repair_requires_workflow_gate, true);
-  assertNoReplayOrRepairControls(result.subject);
+  assert.equal(result.record.schema_version, '2026-08-work-record-v1');
+  assert.equal(result.workbench_open_message.record.id, result.record.id);
+  assert.equal(result.subject.metadata.emits_work_record_v1, true);
+  assert.doesNotMatch(JSON.stringify(result), /workflow_gate|authorization|approval|required_risk|risk_level|allowlisted|automatic_replay/);
 });
 
-test('browser Step Descriptor prototype enforces the one-step harness boundary', () => {
-  const step = stepDescriptor();
-  const candidate = createBrowserStepDescriptorPrototype({
-    stepDescriptor: {
-      ...step,
-      steps: [step],
-    },
-    evidenceSource: evidenceSource(),
-    workflowGateRef: workflowGate().ref,
-  });
-  const result = runBrowserStepDescriptorPrototype(candidate, {
-    workflowGate: workflowGate(),
-  });
-
+test('browser prototype does not open a Work Record when postcondition state identity drifts', () => {
+  const stepDescriptor = read('shared/schemas/fixtures/aos-step-descriptor-v1/valid/browser-click-status.json');
+  const evidenceSource = read('shared/schemas/fixtures/aos-work-record-v1/evidence/aos-browser-click-status.json');
+  evidenceSource.postcondition.state_id = 'see_unrelated_after_state';
+  const result = runBrowserStepDescriptorPrototype(createBrowserStepDescriptorPrototype({
+    stepDescriptor,
+    evidenceSource,
+  }));
   assert.equal(result.status, 'rejected');
-  assert.equal(result.reason, 'one_step_only');
   assert.equal(result.record, null);
-  assert.equal(result.harness.record, null);
-  assert.equal(result.diagnostics[0].code, 'one_step_only');
-});
-
-test('emitted browser Step Descriptor Work Record opens read-only through the existing workbench model', () => {
-  const result = runBrowserStepDescriptorPrototype(prototype(), {
-    workflowGate: workflowGate(),
-  });
-  const message = createBrowserStepDescriptorPrototypeWorkRecordOpenMessage(result.record, {
-    prototype: prototype(),
-  });
-  const state = createWorkRecordWorkbenchState();
-  const opened = openWorkRecord(state, message);
-  const snapshot = workRecordWorkbenchSnapshot(state);
-
-  assert.equal(message.type, 'work_record.open');
-  assert.equal(message.source.kind, 'browser_step_descriptor_prototype');
-  assert.equal(message.source.read_only, true);
-  assert.equal(opened.status, 'opened');
-  assert.equal(workRecordIsReadOnly(state.record), true);
-  assert.equal(snapshot.source.kind, 'browser_step_descriptor_prototype');
-  assert.equal(snapshot.subject.subject_type, 'aos.work_record');
-  assert.equal(snapshot.subject.source.origin.kind, 'workflow');
-  assert.equal(snapshot.subject.persistence, null);
-  assert.ok(subjectFacets(snapshot.subject).some((facet) => facet.key === 'work_record.verifier_report'));
-  assert.equal('views' in snapshot.subject, false);
-  assert.equal('controls' in snapshot.subject, false);
-  assert.equal(snapshot.diagnostics.read_only, true);
-  assert.equal(snapshot.diagnostics.verifier_status, 'passed');
-
-  const rejectedIntent = updateWorkRecordIntent(state, { summary: 'mutate prototype record' });
-  assert.equal(rejectedIntent.status, 'rejected');
-  assert.equal(rejectedIntent.reason, 'read_only');
-  assert.throws(() => buildWorkRecordPatchRequest(state), /read-only/);
+  assert.equal(result.workbench_open_message, null);
+  assert.equal(result.harness.reason, 'step_descriptor_postcondition_state_binding_mismatch');
 });

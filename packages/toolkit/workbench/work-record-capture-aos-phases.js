@@ -4,6 +4,8 @@ import {
   evidenceEventPayload,
   evidenceTarget,
   objectValue,
+  rawText,
+  requireRawText,
   requireText,
   slug,
   text,
@@ -30,17 +32,17 @@ export function normalizeAosActionEvidencePhases(source = {}) {
   const cleanup = objectValue(evidenceSource.cleanup);
   const postconditionSource = objectValue(evidenceSource.postcondition);
 
-  const beforeStateId = requireText(before.state_id || evidenceSource.state_id, 'before_perception.state_id');
-  const actionStateId = text(action.state_id, beforeStateId);
-  const afterStateId = requireText(after.state_id, 'after_perception.state_id');
+  const beforeStateId = requireRawText(before.state_id || evidenceSource.state_id, 'before_perception.state_id');
+  const actionStateId = rawText(action.state_id, beforeStateId);
+  const afterStateId = requireRawText(after.state_id, 'after_perception.state_id');
   const actionVerb = requireText(action.verb, 'action.verb');
-  const actionCommand = requireText(action.command, 'action.command');
-  const dryRunCommand = text(dryRun.command);
+  const actionCommand = requireRawText(action.command, 'action.command');
+  const dryRunCommand = rawText(dryRun.command);
   const dryRunStatusValue = dryRunCommand ? actionStatus(dryRun) : '';
   const dryRunPassed = !dryRunCommand || ['success', 'reacquired', 'resolved', 'direct_ax_ready'].includes(dryRunStatusValue);
   const actionStatusValue = actionStatus(action);
   const actionPassed = actionStatusValue === 'success';
-  const cleanupCommand = text(cleanup.command);
+  const cleanupCommand = rawText(cleanup.command);
   const cleanupStatusValue = cleanupCommand ? actionStatus(cleanup) : '';
   const cleanupPassed = !cleanupCommand || cleanupStatusValue === 'success';
   if (typeof postconditionSource.passed !== 'boolean') {
@@ -61,8 +63,8 @@ export function normalizeAosActionEvidencePhases(source = {}) {
     cleanupEvidenceId,
   ].filter(Boolean);
 
-  const selectedSavedRef = text(evidenceSource.selected_saved_ref || action.saved_ref || dryRun.saved_ref);
-  const resolvedTarget = text(
+  const selectedSavedRef = rawText(evidenceSource.selected_saved_ref || action.saved_ref || dryRun.saved_ref);
+  const resolvedTarget = rawText(
     evidenceSource.resolved_target
       || objectValue(action.target_resolution).target_with_ref
       || objectValue(dryRun.target_resolution).target_with_ref
@@ -74,7 +76,7 @@ export function normalizeAosActionEvidencePhases(source = {}) {
     ...cloneJson(objectValue(action.current_validation)),
   };
   const recommendedNext = objectValue(evidenceSource.recommended_next);
-  const recommendedNextCommand = text(
+  const recommendedNextCommand = rawText(
     evidenceSource.recommended_next_command
       || action.recommended_next_command
       || dryRun.recommended_next_command,

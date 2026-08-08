@@ -4,291 +4,72 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  applyWorkRecordPatchResult,
-  buildWorkRecordPatchRequest,
   createWorkRecordWorkbenchState,
-  evidenceArtifacts,
-  executionMapJson,
   openWorkRecord,
   updateWorkRecordExecutionMapJson,
   updateWorkRecordIntent,
-  workRecordDiagnostics,
-  workRecordIsReadOnly,
-  workRecordVerifierCheck,
   workRecordWorkbenchSnapshot,
 } from '../../packages/toolkit/components/work-record-workbench/model.js';
-import {
-  subjectContracts,
-  subjectFacets,
-} from '../../packages/toolkit/workbench/subject.js';
+import { isValidWorkRecordV1 } from '../../packages/toolkit/workbench/work-record-adapter.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, '../..');
-const fixtureRoot = path.join(repoRoot, 'docs/design/fixtures/aos-work-records');
-const v0FixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0/valid');
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const read = (relative) => JSON.parse(fs.readFileSync(path.join(repoRoot, relative), 'utf8'));
 
-function fixture(name, root = fixtureRoot) {
-  return JSON.parse(fs.readFileSync(path.join(root, name), 'utf8'));
-}
-
-test('work record workbench opens a do_step and exposes subject snapshot', () => {
+test('Work Record workbench opens active V1 read-only and preserves source evidence', () => {
+  const record = read('shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json');
   const state = createWorkRecordWorkbenchState();
-  const result = openWorkRecord(state, {
-    type: 'work_record.open',
-    source: {
-      kind: 'file',
-      path: '/tmp/work-record.json',
-    },
-    record: fixture('browser-artifact-collection-step.json'),
-  });
+  const opened = openWorkRecord(state, { record, source: { kind: 'file', path: '/tmp/work-record-v1.json' } });
+  assert.equal(opened.status, 'opened');
   const snapshot = workRecordWorkbenchSnapshot(state);
-
-  assert.equal(result.status, 'opened');
-  assert.equal(state.dirty, false);
-  assert.equal(snapshot.subject.type, 'aos.workbench.subject');
-  assert.equal(snapshot.subject.id, 'work-record:collect-company-careers-page');
-  assert.equal(snapshot.subject.subject_type, 'aos.do_step');
-  assert.deepEqual(snapshot.source, { kind: 'file', path: '/tmp/work-record.json' });
-  assert.ok(!snapshot.subject.capabilities.some((capability) => capability.includes('.')));
-  assert.ok(subjectContracts(snapshot.subject).includes('work_record.patch.requested'));
-  assert.equal(snapshot.diagnostics.health_state, 'stale');
-  assert.equal(snapshot.diagnostics.artifact_count, 3);
-});
-
-test('work record workbench edits intent and execution-map JSON', () => {
-  const state = createWorkRecordWorkbenchState({ record: fixture('canvas-toolkit-control-step.json') });
-
-  updateWorkRecordIntent(state, {
-    nl: 'Tune the panel with the updated target.',
-    purpose: 'Manual repair',
-  });
-  assert.equal(state.dirty, true);
-  assert.equal(state.record.intent.nl, 'Tune the panel with the updated target.');
-
-  const applied = updateWorkRecordExecutionMapJson(state, JSON.stringify({
-    target: 'canvas:object-transform-panel/wiki-brain',
-    assertions: [{ kind: 'visible' }],
-  }));
-  assert.equal(applied.status, 'applied');
-  assert.deepEqual(state.record.execution_map.assertions, [{ kind: 'visible' }]);
-
-  const request = buildWorkRecordPatchRequest(state, { requestId: 'patch-1' });
-  assert.equal(request.request_id, 'patch-1');
-  assert.equal(request.record_id, state.record.id);
-  assert.equal(request.source, null);
-  assert.equal(request.patch.intent.nl, 'Tune the panel with the updated target.');
-  assert.equal(request.patch.execution_map.target, 'canvas:object-transform-panel/wiki-brain');
-});
-
-test('work record patch requests preserve file source metadata', () => {
-  const state = createWorkRecordWorkbenchState({
-    record: fixture('browser-artifact-collection-step.json'),
-    source: {
-      kind: 'file',
-      path: '/tmp/source-record.json',
-    },
-  });
-
-  updateWorkRecordIntent(state, { purpose: 'source-preserving edit' });
-  const request = buildWorkRecordPatchRequest(state, { requestId: 'source-patch' });
-
-  assert.deepEqual(request.source, { kind: 'file', path: '/tmp/source-record.json' });
-  assert.deepEqual(workRecordWorkbenchSnapshot(state).source, { kind: 'file', path: '/tmp/source-record.json' });
-});
-
-test('work record workbench opens a v0 fixture read-only without lossy rewriting', () => {
-  const state = createWorkRecordWorkbenchState();
-  const record = fixture('workflow-origin.json', v0FixtureRoot);
-  const result = openWorkRecord(state, {
-    type: 'work_record.open',
-    source: {
-      kind: 'file',
-      path: '/tmp/workflow-origin.json',
-    },
-    record,
-  });
-  const snapshot = workRecordWorkbenchSnapshot(state);
-
-  assert.equal(result.status, 'opened');
-  assert.equal(state.dirty, false);
-  assert.equal(workRecordIsReadOnly(state.record), true);
-  assert.deepEqual(state.record.evidence, record.evidence);
-  assert.equal(snapshot.subject.id, 'work-record:workflow-open-wiki-runtime-modes-2026-05-05');
-  assert.equal(snapshot.subject.subject_type, 'aos.work_record');
-  assert.equal(snapshot.subject.persistence, null);
-  assert.ok(subjectFacets(snapshot.subject).some((facet) => facet.key === 'work_record.verifier_report'));
-  assert.ok(!subjectContracts(snapshot.subject).includes('work_record.patch.requested'));
-  assert.equal('views' in snapshot.subject, false);
-  assert.equal('controls' in snapshot.subject, false);
-  assert.equal(snapshot.diagnostics.health_state, 'valid');
-  assert.equal(snapshot.diagnostics.claim_count, 2);
-  assert.equal(snapshot.diagnostics.claim_result_count, 2);
-  assert.equal(snapshot.diagnostics.postcondition_count, 3);
-  assert.equal(evidenceArtifacts(state.record).length, 3);
-  assert.match(executionMapJson(state.record), /postcondition:runtime-modes-heading-visible/);
-  assert.equal(workRecordVerifierCheck(state.record).status, 'passed');
-
-  const rejectedIntent = updateWorkRecordIntent(state, { summary: 'mutate v0' });
-  assert.equal(rejectedIntent.status, 'rejected');
-  assert.equal(rejectedIntent.reason, 'read_only');
-  assert.equal(state.dirty, false);
-
-  const rejectedMap = updateWorkRecordExecutionMapJson(state, '{}');
-  assert.equal(rejectedMap.status, 'rejected');
-  assert.equal(rejectedMap.reason, 'read_only');
-  assert.throws(() => buildWorkRecordPatchRequest(state), /read-only/);
-});
-
-test('work record workbench opens generated command v0 records read-only', () => {
-  const state = createWorkRecordWorkbenchState();
-  const record = fixture('repo-command-adapter-test.json', v0FixtureRoot);
-  const result = openWorkRecord(state, {
-    type: 'work_record.open',
-    source: {
-      kind: 'file',
-      path: '/tmp/repo-command-adapter-test.json',
-    },
-    record,
-  });
-  const snapshot = workRecordWorkbenchSnapshot(state);
-
-  assert.equal(result.status, 'opened');
-  assert.equal(workRecordIsReadOnly(state.record), true);
-  assert.equal(snapshot.subject.id, 'work-record:repo-command-work-record-adapter-test-2026-05-06');
-  assert.equal(snapshot.subject.subject_type, 'aos.work_record');
-  assert.equal(snapshot.subject.persistence, null);
-  assert.ok(subjectFacets(snapshot.subject).some((facet) => facet.key === 'work_record.verifier_report'));
-  assert.ok(!subjectContracts(snapshot.subject).includes('work_record.patch.requested'));
-  assert.equal('views' in snapshot.subject, false);
-  assert.equal('controls' in snapshot.subject, false);
-  assert.equal(snapshot.diagnostics.format, 'v0');
+  assert.equal(snapshot.diagnostics.format, 'v1');
   assert.equal(snapshot.diagnostics.read_only, true);
-  assert.equal(snapshot.diagnostics.health_state, 'valid');
-  assert.equal(snapshot.diagnostics.verifier_status, 'passed');
-  assert.equal(snapshot.diagnostics.claim_count, 2);
-  assert.equal(snapshot.diagnostics.postcondition_count, 2);
-  assert.equal(workRecordVerifierCheck(state.record).profile_id, 'aos.verifier.work-record.v0.report-only');
+  assert.equal(snapshot.source.path, '/tmp/work-record-v1.json');
+  assert.equal(updateWorkRecordIntent(state, { summary: 'mutate' }).status, 'rejected');
+  assert.equal(updateWorkRecordExecutionMapJson(state, '{}').status, 'rejected');
 });
 
-test('work record workbench opens generated AOS action v0 records read-only', () => {
+test('Work Record workbench rejects frozen V0 at construction and open boundaries', () => {
+  const historical = read('shared/schemas/fixtures/aos-work-record-v0/valid/workflow-origin.json');
+  const state = createWorkRecordWorkbenchState({ record: historical });
+  assert.equal(state.lastResult.status, 'rejected');
+  assert.equal(state.lastResult.reason, 'historical_work_record_v0_unsupported');
+  assert.equal(state.record.schema_version, '2026-08-work-record-v1');
+  assert.equal(isValidWorkRecordV1(state.record), true);
+  const before = structuredClone(state.record);
+  const opened = openWorkRecord(state, { record: historical });
+  assert.equal(opened.status, 'rejected');
+  assert.equal(opened.reason, 'historical_work_record_v0_unsupported');
+  assert.deepEqual(state.record, before);
+});
+
+test('Work Record workbench rejects malformed V1 before projection', () => {
   const state = createWorkRecordWorkbenchState();
-  const record = fixture('aos-browser-click-status.json', v0FixtureRoot);
   const result = openWorkRecord(state, {
-    type: 'work_record.open',
-    source: {
-      kind: 'file',
-      path: '/tmp/aos-browser-click-status.json',
+    record: {
+      type: 'aos.work_record',
+      schema_version: '2026-08-work-record-v1',
+      id: 'work-record:malformed',
     },
-    record,
   });
-  const snapshot = workRecordWorkbenchSnapshot(state);
-
-  assert.equal(result.status, 'opened');
-  assert.equal(workRecordIsReadOnly(state.record), true);
-  assert.equal(snapshot.subject.id, 'work-record:aos-browser-click-status-2026-05-06');
-  assert.equal(snapshot.subject.subject_type, 'aos.work_record');
-  assert.equal(snapshot.subject.persistence, null);
-  assert.ok(subjectFacets(snapshot.subject).some((facet) => facet.key === 'work_record.verifier_report'));
-  assert.ok(!subjectContracts(snapshot.subject).includes('work_record.patch.requested'));
-  assert.equal('views' in snapshot.subject, false);
-  assert.equal('controls' in snapshot.subject, false);
-  assert.equal(snapshot.diagnostics.format, 'v0');
-  assert.equal(snapshot.diagnostics.read_only, true);
-  assert.equal(snapshot.diagnostics.health_state, 'valid');
-  assert.equal(snapshot.diagnostics.verifier_status, 'passed');
-  assert.equal(snapshot.diagnostics.claim_count, 2);
-  assert.equal(snapshot.diagnostics.postcondition_count, 3);
-  assert.equal(evidenceArtifacts(state.record).length, 3);
-  assert.ok(executionMapJson(state.record).includes('browser:work-record-live-action/e2'));
-  assert.equal(workRecordVerifierCheck(state.record).profile_id, 'aos.verifier.work-record.v0.report-only');
-
-  const rejectedIntent = updateWorkRecordIntent(state, { summary: 'mutate action record' });
-  assert.equal(rejectedIntent.status, 'rejected');
-  assert.equal(rejectedIntent.reason, 'read_only');
-  assert.equal(state.dirty, false);
-  assert.throws(() => buildWorkRecordPatchRequest(state), /read-only/);
-});
-
-test('work record workbench opens generated Workflow-origin v0 records read-only', () => {
-  const state = createWorkRecordWorkbenchState();
-  const record = fixture('workflow-browser-click-status.json', v0FixtureRoot);
-  const result = openWorkRecord(state, {
-    type: 'work_record.open',
-    source: {
-      kind: 'file',
-      path: '/tmp/workflow-browser-click-status.json',
-    },
-    record,
-  });
-  const snapshot = workRecordWorkbenchSnapshot(state);
-
-  assert.equal(result.status, 'opened');
-  assert.equal(workRecordIsReadOnly(state.record), true);
-  assert.equal(snapshot.subject.id, 'work-record:workflow-browser-live-action-status-aos-browser-click-status-2026-05-06');
-  assert.equal(snapshot.subject.source.origin.kind, 'workflow');
-  assert.equal(snapshot.subject.source.origin.ref, 'workflow:browser-live-action-status');
-  assert.equal(snapshot.subject.persistence, null);
-  assert.ok(subjectFacets(snapshot.subject).some((facet) => facet.key === 'work_record.verifier_report'));
-  assert.equal('views' in snapshot.subject, false);
-  assert.equal('controls' in snapshot.subject, false);
-  assert.equal(snapshot.diagnostics.verifier_status, 'passed');
-  assert.equal(snapshot.diagnostics.postcondition_count, 3);
-  assert.ok(executionMapJson(state.record).includes('step-descriptor:browser-click-status'));
-  assert.equal(workRecordVerifierCheck(state.record).status, 'passed');
-
-  const rejectedIntent = updateWorkRecordIntent(state, { summary: 'mutate workflow record' });
-  assert.equal(rejectedIntent.status, 'rejected');
-  assert.equal(rejectedIntent.reason, 'read_only');
-  assert.equal(state.dirty, false);
-  assert.throws(() => buildWorkRecordPatchRequest(state), /read-only/);
-});
-
-test('invalid execution-map JSON is rejected without mutating current map', () => {
-  const state = createWorkRecordWorkbenchState({ record: fixture('browser-artifact-collection-step.json') });
-  const before = executionMapJson(state.record);
-  const result = updateWorkRecordExecutionMapJson(state, '{bad');
-
   assert.equal(result.status, 'rejected');
-  assert.equal(result.reason, 'invalid_json');
-  assert.equal(executionMapJson(state.record), before);
+  assert.equal(result.reason, 'invalid_work_record_v1');
+  assert.notEqual(state.record.id, 'work-record:malformed');
 });
 
-test('recipe health records expose evidence and saved patch results', () => {
-  const state = createWorkRecordWorkbenchState({ record: fixture('recipe-health-retirement.json') });
-  const diagnostics = workRecordDiagnostics(state.record);
-  const artifacts = evidenceArtifacts(state.record);
-
-  assert.equal(diagnostics.health_state, 'impossible');
-  assert.equal(artifacts.length, 1);
-  assert.equal(artifacts[0].kind, 'trace');
-
-  updateWorkRecordIntent(state, { nl: 'Keep the retired record searchable.' });
-  assert.equal(state.dirty, true);
-  const saved = applyWorkRecordPatchResult(state, {
-    type: 'work_record.patch.result',
-    status: 'saved',
-    message: 'saved fixture',
-  });
-  assert.equal(saved.status, 'saved');
-  assert.equal(state.dirty, false);
-});
-
-test('saved patch results preserve the sent snapshot when later edits exist', () => {
-  const state = createWorkRecordWorkbenchState({ record: fixture('browser-artifact-collection-step.json') });
-
-  updateWorkRecordIntent(state, { nl: 'sent edit' });
-  const request = buildWorkRecordPatchRequest(state, { requestId: 'pending-save' });
-  updateWorkRecordIntent(state, { nl: 'later edit' });
-
-  const saved = applyWorkRecordPatchResult(state, {
-    type: 'work_record.patch.result',
-    status: 'saved',
-    message: 'saved fixture',
-  });
-
-  assert.equal(saved.status, 'saved');
-  assert.equal(request.record.intent.nl, 'sent edit');
-  assert.equal(state.savedRecord.intent.nl, 'sent edit');
-  assert.equal(state.record.intent.nl, 'later edit');
-  assert.equal(state.dirty, true);
+test('Work Record workbench rejects every unsupported schema without projection', () => {
+  const unsupported = {
+    type: 'aos.work_record',
+    schema_version: '2099-01-work-record-v9',
+    id: 'work-record:unknown',
+  };
+  const state = createWorkRecordWorkbenchState({ record: unsupported });
+  assert.equal(state.lastResult.status, 'rejected');
+  assert.equal(state.lastResult.reason, 'unsupported_work_record_schema');
+  assert.notEqual(state.record.id, unsupported.id);
+  assert.equal(isValidWorkRecordV1(state.record), true);
+  const before = structuredClone(state.record);
+  const result = openWorkRecord(state, { record: unsupported });
+  assert.equal(result.status, 'rejected');
+  assert.equal(result.reason, 'unsupported_work_record_schema');
+  assert.deepEqual(state.record, before);
 });

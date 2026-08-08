@@ -1,20 +1,38 @@
 import crypto from 'node:crypto';
 import {
-  checkWorkRecordGateAuthorizationFromRepairPlan,
-  repairPlanIdentity,
-} from './work-record-workflow-gate.js';
-import {
   planWorkRecordRepair,
+  repairPlanIdentity,
   validateWorkRecordRepairPlan,
   WORK_RECORD_REPAIR_PLAN_SCHEMA_VERSION,
 } from './work-record-repair-plan.js';
+import validateRepairAttemptPlanV1 from './work-record-repair-attempt-plan-v1-validator.generated.js';
 
-export const WORK_RECORD_REPAIR_ATTEMPT_PLAN_SCHEMA_VERSION = '2026-07-work-record-repair-attempt-plan-v0';
+export const WORK_RECORD_REPAIR_ATTEMPT_PLAN_SCHEMA_VERSION = '2026-08-work-record-repair-attempt-plan-v1';
 export const WORK_RECORD_REPAIR_ATTEMPT_PLAN_TYPE = 'work_record.repair_attempt_plan';
+export const WORK_RECORD_REPAIR_ATTEMPT_PLAN_STATUSES = [
+  'ready',
+  'not_required',
+  'blocked_inputs',
+  'not_repairable',
+  'superseded',
+  'retired',
+  'unsupported',
+];
+const READY_PRECONDITION_IDS = [
+  'precondition:source-work-record-bound',
+  'precondition:repair-plan-validates',
+  'precondition:source-remains-immutable',
+  'precondition:attempt-emits-separate-artifact',
+];
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
   return normalized || fallback;
+}
+
+function rawText(value, fallback = '') {
+  const raw = String(value ?? '');
+  return raw || fallback;
 }
 
 function objectValue(value) {
@@ -42,209 +60,70 @@ function canonicalize(value, seen = new WeakSet()) {
 }
 
 function digest(value) {
-  return crypto
-    .createHash('sha256')
-    .update(JSON.stringify(canonicalize(value)))
-    .digest('hex');
+  return crypto.createHash('sha256').update(JSON.stringify(canonicalize(value))).digest('hex');
 }
 
 function uniqueStrings(values = []) {
   return [...new Set(values.map((value) => text(value)).filter(Boolean))].sort();
 }
 
-function mutatingPlanSteps(plan = {}) {
-  return arrayValue(plan.plan_steps).filter((step) => {
-    const item = objectValue(step);
-    return item.read_only === false || item.requires_workflow_gate === true;
-  });
-}
-
-function requiredGateIds(plan = {}) {
-  return uniqueStrings([
-    ...arrayValue(plan.workflow_gates).filter((gate) => objectValue(gate).required === true).map((gate) => objectValue(gate).id),
-    ...mutatingPlanSteps(plan).flatMap((step) => arrayValue(objectValue(step).workflow_gate_refs)),
-    ...arrayValue(plan.candidate_patches).flatMap((patch) => arrayValue(objectValue(patch).workflow_gate_refs)),
-  ]);
-}
-
-function requiredMutatingGateIds(plan = {}) {
-  return uniqueStrings([
-    ...mutatingPlanSteps(plan).flatMap((step) => arrayValue(objectValue(step).workflow_gate_refs)),
-    ...arrayValue(plan.candidate_patches)
-      .filter((patch) => objectValue(patch).applied === false && objectValue(patch).requires_workflow_gate === true)
-      .flatMap((patch) => arrayValue(objectValue(patch).workflow_gate_refs)),
-  ]);
-}
-
 function sourceIdentity(source = {}) {
   const value = objectValue(source);
   return {
     id: text(value.id),
-    path: text(value.path),
-    requested_ref: text(value.requested_ref),
+    path: rawText(value.path),
+    requested_ref: rawText(value.requested_ref),
     schema_version: text(value.schema_version),
+    digest: text(value.digest),
   };
 }
 
-function authorizationIdentity(authorization = {}) {
-  const value = objectValue(authorization);
-  return {
-    type: text(value.type),
-    schema_version: text(value.schema_version),
-    status: text(value.status || value.authorization_status),
-    source_work_record: sourceIdentity(value.source_work_record),
-    repair_plan_digest: text(value.repair_plan?.digest || value.repair_plan?.identity?.digest),
-    workflow_gate_id: text(value.workflow_gate?.id),
-    terminal_gate_record_or_resume_event_id: text(value.terminal_gate_record_or_resume_event_id),
-    digest: digest(value),
-  };
-}
-
-function normalizeAuthorization(plan = {}, options = {}) {
-  if (options.authorization) return cloneJson(options.authorization);
-  if (options.gateOutcome) {
-    return checkWorkRecordGateAuthorizationFromRepairPlan(plan, options.gateOutcome, {
-      workflowGateId: options.workflowGateId,
-    });
-  }
-  return null;
-}
-
-function validateAuthorizationBinding(plan = {}, authorization = {}) {
-  const diagnostics = [];
-  const planIdentity = repairPlanIdentity(plan);
-  const expectedSource = sourceIdentity(plan.source_work_record);
-  const actualSource = sourceIdentity(authorization.source_work_record);
-  const authPlanDigest = text(authorization.repair_plan?.digest || authorization.repair_plan?.identity?.digest);
-  const authSchema = text(authorization.schema_version);
-  const authType = text(authorization.type);
-
-  if (authType !== 'work_record.workflow_gate_authorization') {
-    diagnostics.push({
-      severity: 'error',
-      code: 'UNSUPPORTED_AUTHORIZATION_TYPE',
-      message: 'Repair Attempt Plans require work_record.workflow_gate_authorization input.',
-      path: 'authorization.type',
-    });
-  }
-  if (authSchema !== '2026-07-work-record-workflow-gate-authorization-v0') {
-    diagnostics.push({
-      severity: 'error',
-      code: 'UNSUPPORTED_AUTHORIZATION_SCHEMA',
-      message: 'Workflow Gate Authorization schema_version is not supported.',
-      path: 'authorization.schema_version',
-    });
-  }
-  if (actualSource.id && expectedSource.id && actualSource.id !== expectedSource.id) {
-    diagnostics.push({
-      severity: 'error',
-      code: 'AUTHORIZATION_SOURCE_WORK_RECORD_MISMATCH',
-      message: 'Workflow Gate Authorization source Work Record does not match the current source Work Record.',
-      expected: expectedSource.id,
-      actual: actualSource.id,
-    });
-  }
-  if (!authPlanDigest) {
-    diagnostics.push({
-      severity: 'error',
-      code: 'AUTHORIZATION_REPAIR_PLAN_IDENTITY_MISSING',
-      message: 'Workflow Gate Authorization does not carry a Repair Plan identity digest.',
-      path: 'authorization.repair_plan.digest',
-    });
-  } else if (authPlanDigest !== planIdentity.digest) {
-    diagnostics.push({
-      severity: 'error',
-      code: 'AUTHORIZATION_REPAIR_PLAN_STALE',
-      message: 'Workflow Gate Authorization was produced for a different Repair Plan identity.',
-      expected: planIdentity.digest,
-      actual: authPlanDigest,
-    });
-  }
-
-  const gateId = text(authorization.workflow_gate?.id);
-  const gates = requiredMutatingGateIds(plan);
-  if (gateId && gates.length > 0 && !gates.includes(gateId)) {
-    diagnostics.push({
-      severity: 'error',
-      code: 'AUTHORIZATION_WORKFLOW_GATE_MISMATCH',
-      message: 'Workflow Gate Authorization gate does not match a mutating Repair Plan gate.',
-      expected: gates,
-      actual: gateId,
-    });
-  }
-
-  return diagnostics;
-}
-
-function statusFromPlanAndAuthorization(plan = {}, authorization = null, diagnostics = []) {
-  const validation = validateWorkRecordRepairPlan(plan);
+function statusFromPlan(plan = {}, validation = {}) {
   if (validation.status !== 'passed') return 'unsupported';
-  if (diagnostics.some((diagnostic) => diagnostic.code === 'UNSUPPORTED_AUTHORIZATION_TYPE'
-    || diagnostic.code === 'UNSUPPORTED_AUTHORIZATION_SCHEMA')) return 'unsupported';
-  if (diagnostics.some((diagnostic) => diagnostic.code === 'AUTHORIZATION_REPAIR_PLAN_STALE')) return 'stale';
-  if (diagnostics.some((diagnostic) => diagnostic.code === 'AUTHORIZATION_SOURCE_WORK_RECORD_MISMATCH'
-    || diagnostic.code === 'AUTHORIZATION_WORKFLOW_GATE_MISMATCH')) return 'mismatch';
-  if (diagnostics.some((diagnostic) => diagnostic.code === 'AUTHORIZATION_REPAIR_PLAN_IDENTITY_MISSING')) {
-    return 'blocked_authorization_insufficient';
+  if (text(plan.status) === 'planned') {
+    return arrayValue(plan.candidate_patches).length === 1 ? 'ready' : 'blocked_inputs';
   }
-
-  const gates = requiredMutatingGateIds(plan);
-  if (gates.length === 0) return 'not_required';
-  if (!authorization) return 'blocked_authorization_required';
-
-  const status = text(authorization.status || authorization.authorization_status);
-  if (status === 'authorized') return 'ready';
-  if (status === 'denied' || status === 'dismissed' || status === 'timeout') return 'blocked_authorization_denied';
-  if (status === 'insufficient_evidence') return 'blocked_authorization_insufficient';
-  if (status === 'stale') return 'stale';
-  if (status === 'mismatch') return 'mismatch';
-  if (status === 'unsupported') return 'unsupported';
-  if (status === 'not_required') return 'mismatch';
-  return 'blocked_authorization_required';
+  if (text(plan.status) === 'no_repair_needed') return 'not_required';
+  if (['blocked_inputs', 'not_repairable', 'superseded', 'retired'].includes(text(plan.status))) {
+    return text(plan.status);
+  }
+  return 'unsupported';
 }
 
-function preconditions(plan = {}, status = '') {
-  const planIdentity = repairPlanIdentity(plan);
-  const gates = requiredMutatingGateIds(plan);
+function preconditions(plan = {}) {
+  const identity = repairPlanIdentity(plan);
+  const source = sourceIdentity(plan.source_work_record);
   return [
     {
-      id: 'precondition:source-work-record-resolved',
-      kind: 'source_resolution',
-      status: plan.source_work_record?.id ? 'representable' : 'missing',
-      check: {
-        source_work_record: sourceIdentity(plan.source_work_record),
-      },
+      id: 'precondition:source-work-record-bound',
+      kind: 'source_identity',
+      status: source.id && source.digest ? 'complete' : 'missing',
+      check: { source_work_record: source },
     },
     {
       id: 'precondition:repair-plan-validates',
       kind: 'repair_plan_validation',
-      status: validateWorkRecordRepairPlan(plan).status === 'passed' ? 'representable' : 'failed',
+      status: validateWorkRecordRepairPlan(plan).status === 'passed' ? 'complete' : 'failed',
       check: {
         schema_version: WORK_RECORD_REPAIR_PLAN_SCHEMA_VERSION,
-        digest: planIdentity.digest,
+        digest: identity.digest,
       },
     },
     {
-      id: 'precondition:authorization-matches-current-plan',
-      kind: 'workflow_gate_authorization',
-      status: gates.length === 0 ? 'not_required' : status === 'ready' ? 'representable' : 'blocked',
-      required_workflow_gate_ids: gates,
-    },
-    {
-      id: 'precondition:future-attempt-writes-new-artifact',
-      kind: 'immutability',
-      status: 'representable',
+      id: 'precondition:source-remains-immutable',
+      kind: 'source_immutability',
+      status: 'complete',
       check: {
         source_work_record_immutable: true,
-        allowed_outputs: ['new_work_record', 'explicit_patch_artifact'],
+        expected_digest: source.digest,
       },
     },
     {
-      id: 'precondition:repo-worktree-clean-for-patch-attempt',
-      kind: 'worktree_cleanliness',
-      status: arrayValue(plan.candidate_patches).length > 0 ? 'representable' : 'not_required',
+      id: 'precondition:attempt-emits-separate-artifact',
+      kind: 'output_separation',
+      status: 'complete',
       check: {
-        required_before_future_executor: arrayValue(plan.candidate_patches).length > 0,
+        accepted_outputs: ['repair_attempt_artifact', 'replacement_proposal'],
       },
     },
   ];
@@ -255,37 +134,19 @@ function evidenceRequirements(plan = {}) {
   const base = sourceId.replace(/^work-record:/, '').replace(/[^A-Za-z0-9._-]+/g, '-');
   const requirements = [
     {
-      id: 'evidence_requirement:new-work-record-or-patch-artifact',
-      kind: 'new_artifact',
-      required: true,
-      description: 'A future attempt must emit a new Work Record or explicit patch artifact; it must not rewrite the source Work Record.',
-      expected_artifact_ref: `artifact:artifacts/work-records/${base}/future-attempt.json`,
-    },
-    {
-      id: 'evidence_requirement:gate-authorization-reference',
-      kind: 'authorization_reference',
-      required: requiredMutatingGateIds(plan).length > 0,
-      workflow_gate_ids: requiredMutatingGateIds(plan),
+      id: 'evidence_requirement:attempt-artifact',
+      kind: 'repair_attempt_artifact',
+      required: text(plan.status) === 'planned',
+      description: 'A caller-run attempt records outcomes separately and leaves the source bytes unchanged.',
+      expected_artifact_ref: `artifact:artifacts/work-records/${base}/repair-attempt-artifact.json`,
     },
     {
       id: 'evidence_requirement:before-after-verifier-reports',
       kind: 'verifier_report_pair',
-      required: text(plan.status) !== 'no_repair_needed',
+      required: text(plan.status) === 'planned',
       profile_id: text(plan.depends_on?.verifier_profile_id),
     },
   ];
-
-  for (const command of arrayValue(plan.recommended_commands)) {
-    const item = objectValue(command);
-    requirements.push({
-      id: `evidence_requirement:command:${requirements.length}`,
-      kind: 'command_output',
-      required: false,
-      command: text(item.command),
-      expected_artifact_ref: `artifact:artifacts/work-records/${base}/command-${requirements.length}.json`,
-      command_executes_in_plan: false,
-    });
-  }
   for (const patch of arrayValue(plan.candidate_patches)) {
     const item = objectValue(patch);
     requirements.push({
@@ -293,170 +154,155 @@ function evidenceRequirements(plan = {}) {
       kind: 'patch_digest',
       required: true,
       candidate_patch_id: text(item.id),
-      target: text(item.target),
+      target: rawText(item.target),
       applied_in_plan: false,
     });
   }
   return requirements;
 }
 
-function operationAuthorizationStatus(operation = {}, authorization = null, status = '') {
-  if (operation.requires_workflow_gate !== true) return 'not_required';
-  if (status === 'ready') return 'authorized';
-  if (!authorization) return 'missing';
-  return text(authorization.status || authorization.authorization_status, 'missing');
-}
-
-function controlledExecutorDescriptor(candidatePatch = {}) {
-  const executor = objectValue(candidatePatch.controlled_repair_executor);
-  const registryKind = text(executor.registry_kind);
-  const operationId = text(executor.allowlisted_operation_id);
-  if (registryKind !== 'controlled_repair_fixture_registry') return {};
-  if (!operationId.startsWith('controlled_fixture.')) return {};
+function plannedStepOperation(step = {}) {
+  const item = objectValue(step);
   return {
-    allowlisted_operation_id: operationId,
-    controlled_repair_executor: {
-      registry_kind: registryKind,
-      allowlisted_operation_id: operationId,
-    },
+    id: text(item.id),
+    kind: text(item.kind),
+    source_step_id: text(item.id),
+    proposes_mutation: item.proposes_mutation === true,
+    declared_mutation_paths: uniqueStrings(arrayValue(item.declared_mutation_paths)),
+    target_boundary: item.proposes_mutation === true ? 'caller_attempt' : 'read_only_validation',
+    precondition_refs: ['precondition:source-work-record-bound', 'precondition:repair-plan-validates'],
+    evidence_requirement_refs: [
+      'evidence_requirement:attempt-artifact',
+      'evidence_requirement:before-after-verifier-reports',
+    ],
+    postcondition_refs: ['postcondition:source-work-record-unchanged'],
+    cleanup_refs: ['cleanup_expectation:caller-reports-cleanup'],
+    rollback_refs: item.proposes_mutation === true ? ['rollback_expectation:caller-reports-rollback'] : [],
+    executes_in_plan: false,
+    description: text(item.description),
   };
 }
 
-function plannedOperations(plan = {}, authorization = null, status = '') {
+function plannedCandidatePatchOperation(patch = {}) {
+  const item = objectValue(patch);
+  return {
+    id: `planned_operation:${text(item.id)}`,
+    kind: 'candidate_patch',
+    source_candidate_patch_id: text(item.id),
+    proposes_mutation: true,
+    declared_mutation_paths: uniqueStrings(arrayValue(item.declared_mutation_paths)),
+    target_boundary: text(item.target),
+    precondition_refs: [
+      'precondition:source-work-record-bound',
+      'precondition:repair-plan-validates',
+      'precondition:source-remains-immutable',
+    ],
+    evidence_requirement_refs: [
+      'evidence_requirement:attempt-artifact',
+      'evidence_requirement:before-after-verifier-reports',
+      `evidence_requirement:patch:${text(item.id)}`,
+    ],
+    postcondition_refs: ['postcondition:source-work-record-unchanged', 'postcondition:attempt-artifact-validates'],
+    cleanup_refs: ['cleanup_expectation:caller-reports-cleanup'],
+    rollback_refs: ['rollback_expectation:caller-reports-rollback'],
+    executes_in_plan: false,
+  };
+}
+
+function plannedOperations(plan = {}) {
   return [
-    ...arrayValue(plan.plan_steps).map((step) => {
-      const item = objectValue(step);
-      const gateRefs = arrayValue(item.workflow_gate_refs).map(text).filter(Boolean).sort();
-      return {
-        id: text(item.id),
-        kind: text(item.kind),
-        source_step_id: text(item.id),
-        requires_workflow_gate: item.requires_workflow_gate === true,
-        workflow_gate_refs: gateRefs,
-        authorization_status: operationAuthorizationStatus(item, authorization, status),
-        authorization_ref: text(authorization?.workflow_gate?.id),
-        mutates_state: item.read_only === false,
-        target_boundary: item.read_only === false ? 'future_executor_only' : 'read_only_validation',
-        precondition_refs: ['precondition:source-work-record-resolved', 'precondition:repair-plan-validates'],
-        evidence_requirement_refs: ['evidence_requirement:new-work-record-or-patch-artifact'],
-        postcondition_refs: ['postcondition:source-work-record-unchanged'],
-        cleanup_refs: ['cleanup_expectation:future-executor-records-cleanup'],
-        rollback_refs: item.read_only === false ? ['rollback_expectation:future-executor-reverts-or-records-failure'] : [],
-        executes_in_plan: false,
-        description: text(item.description),
-      };
-    }),
-    ...arrayValue(plan.candidate_patches).map((patch) => {
-      const item = objectValue(patch);
-      const executorDescriptor = controlledExecutorDescriptor(item);
-      return {
-        id: `planned_operation:${text(item.id)}`,
-        kind: 'candidate_patch',
-        source_candidate_patch_id: text(item.id),
-        ...executorDescriptor,
-        requires_workflow_gate: item.requires_workflow_gate === true,
-        workflow_gate_refs: arrayValue(item.workflow_gate_refs).map(text).filter(Boolean).sort(),
-        authorization_status: operationAuthorizationStatus(item, authorization, status),
-        authorization_ref: text(authorization?.workflow_gate?.id),
-        mutates_state: true,
-        target_boundary: text(item.target),
-        precondition_refs: ['precondition:authorization-matches-current-plan', 'precondition:repo-worktree-clean-for-patch-attempt'],
-        evidence_requirement_refs: [`evidence_requirement:patch:${text(item.id)}`],
-        postcondition_refs: ['postcondition:source-work-record-unchanged', 'postcondition:future-artifact-validates'],
-        cleanup_refs: ['cleanup_expectation:future-executor-records-cleanup'],
-        rollback_refs: ['rollback_expectation:future-executor-reverts-or-records-failure'],
-        executes_in_plan: false,
-      };
-    }),
+    ...arrayValue(plan.plan_steps)
+      .slice()
+      .sort((left, right) => text(objectValue(left).id).localeCompare(text(objectValue(right).id)))
+      .map(plannedStepOperation),
+    ...arrayValue(plan.candidate_patches)
+      .slice()
+      .sort((left, right) => text(objectValue(left).id).localeCompare(text(objectValue(right).id)))
+      .map(plannedCandidatePatchOperation),
   ].filter((operation) => text(operation.id));
 }
 
 function candidatePatches(plan = {}) {
-  return arrayValue(plan.candidate_patches).map((patch) => {
-    const item = objectValue(patch);
-    return {
-      ...cloneJson(item),
-      applied: false,
-      executes_in_plan: false,
-      validation_expectations: [
-        'future attempt emits a patch artifact or new Work Record',
-        'future verifier report is captured as evidence',
-      ],
-      rollback_expectation_refs: ['rollback_expectation:future-executor-reverts-or-records-failure'],
-    };
-  });
+  return arrayValue(plan.candidate_patches).slice().sort((left, right) => text(objectValue(left).id).localeCompare(text(objectValue(right).id))).map((patch) => ({
+    ...cloneJson(objectValue(patch)),
+    applied: false,
+    executes_in_plan: false,
+    validation_expectations: [
+      'caller-supplied outcome maps to this exact plan',
+      'attempt artifact includes required evidence and verifier-after health',
+    ],
+    rollback_expectation_refs: ['rollback_expectation:caller-reports-rollback'],
+  }));
 }
 
 function recommendedCommands(plan = {}) {
-  return arrayValue(plan.recommended_commands).map((command) => {
-    const item = objectValue(command);
-    return {
-      ...cloneJson(item),
-      executes_in_plan: false,
-      required_preconditions: ['precondition:source-work-record-resolved'],
-      expected_evidence_artifact: 'future executor command output artifact',
-      warning: item.mutates_state === true
-        ? 'This command would mutate state and requires a future explicit executor plus Workflow gate.'
-        : 'This command is a descriptor only and is not run by the Repair Attempt Plan.',
-    };
-  });
+  return arrayValue(plan.recommended_commands).map((command) => ({
+    ...cloneJson(objectValue(command)),
+    executes_in_plan: false,
+    required_preconditions: ['precondition:source-work-record-bound'],
+    expected_evidence_artifact: 'caller-supplied command outcome artifact',
+  }));
 }
 
-function attemptIdentity(plan = {}, authorization = null, operations = []) {
-  const planIdentity = repairPlanIdentity(plan);
-  const authorizations = authorization ? [authorizationIdentity(authorization)] : [];
+function attemptPlanPayload(attemptPlan = {}) {
+  const payload = cloneJson(objectValue(attemptPlan));
+  delete payload.attempt_identity;
+  return payload;
+}
+
+function expectedAttemptIdentity(attemptPlan = {}) {
+  const value = objectValue(attemptPlan);
   const identity = {
-    source_work_record: sourceIdentity(plan.source_work_record),
+    source_work_record: sourceIdentity(value.source_work_record),
     repair_plan: {
-      schema_version: text(plan.schema_version),
-      digest: planIdentity.digest,
+      schema_version: text(value.repair_plan?.schema_version),
+      digest: text(value.repair_plan?.digest),
     },
-    workflow_gate_authorizations: authorizations,
-    workflow_gate_ids: requiredGateIds(plan),
-    gated_step_ids: uniqueStrings(mutatingPlanSteps(plan).map((step) => objectValue(step).id)),
-    candidate_patch_ids: uniqueStrings(arrayValue(plan.candidate_patches).map((patch) => objectValue(patch).id)),
-    planned_operation_ids: uniqueStrings(operations.map((operation) => operation.id)),
+    candidate_patch_ids: uniqueStrings(arrayValue(value.candidate_patches).map((patch) => objectValue(patch).id)),
+    planned_operation_ids: uniqueStrings(arrayValue(value.planned_operations).map((operation) => objectValue(operation).id)),
+    payload_digest: digest(attemptPlanPayload(value)),
   };
+  const identityDigest = digest(identity);
   return {
     ...identity,
-    digest: digest(identity),
-    attempt_id: `work-record-repair-attempt:${digest(identity).slice(0, 24)}`,
+    digest: identityDigest,
+    attempt_id: `work-record-repair-attempt:${identityDigest.slice(0, 24)}`,
   };
 }
 
-function recommendedNext(status = '', plan = {}) {
+function expectedRepairPlanIdentitySnapshot(snapshot = {}) {
+  const value = objectValue(snapshot);
+  const identity = {
+    schema_version: text(value.schema_version),
+    source_work_record: sourceIdentity(value.source_work_record),
+    health_verdict: text(value.health_verdict),
+    plan_step_ids: uniqueStrings(arrayValue(value.plan_step_ids)),
+    plan_step_bindings: cloneJson(arrayValue(value.plan_step_bindings)),
+    candidate_patch_ids: uniqueStrings(arrayValue(value.candidate_patch_ids)),
+    candidate_patch_bindings: cloneJson(arrayValue(value.candidate_patch_bindings)),
+    evidence_refs: uniqueStrings(arrayValue(value.evidence_refs)),
+    payload_digest: text(value.payload_digest),
+  };
+  return { ...identity, digest: digest(identity) };
+}
+
+function recommendedNext(status = '') {
   if (status === 'ready') {
     return {
-      action: 'hand_to_future_explicit_executor',
-      note: 'Ready means only safe to hand to a future explicit executor; no repair has happened.',
-    };
-  }
-  if (status === 'blocked_authorization_required') {
-    return {
-      action: 'request_or_check_workflow_gate_authorization',
-      commands: [
-        `./aos work-record gate-request ${text(plan.source_work_record?.requested_ref || plan.source_work_record?.id, '<id-or-path>')} --json`,
-        `./aos work-record gate-check ${text(plan.source_work_record?.requested_ref || plan.source_work_record?.id, '<id-or-path>')} --gate-record <gate-record> --json`,
-      ],
+      action: 'collect_caller_supplied_outcomes',
+      note: 'Ready means the proposal inputs are complete, exact, and source-bound; no action has run.',
     };
   }
   if (status === 'not_required') {
-    return {
-      action: 'no_future_repair_attempt_required',
-      reason: 'The current Repair Plan has no gated mutating operation requiring an attempt.',
-    };
+    return { action: 'no_attempt_needed', reason: 'The Repair Plan proposes no repair attempt.' };
   }
-  return {
-    action: 'do_not_execute_repair',
-    reason: `Repair Attempt Plan status is ${status}.`,
-  };
+  return { action: 'resolve_plan_inputs', reason: `Repair Attempt Plan status is ${status}.` };
 }
 
-function envelope({ plan = {}, authorization = null, status = '', diagnostics = [] } = {}) {
-  const operations = plannedOperations(plan, authorization, status);
-  const identity = attemptIdentity(plan, authorization, operations);
+function envelope(plan = {}, status = '', diagnostics = []) {
+  const operations = plannedOperations(plan);
   const planIdentity = repairPlanIdentity(plan);
-  return {
+  const attemptPlan = {
     type: WORK_RECORD_REPAIR_ATTEMPT_PLAN_TYPE,
     schema_version: WORK_RECORD_REPAIR_ATTEMPT_PLAN_SCHEMA_VERSION,
     status,
@@ -466,9 +312,7 @@ function envelope({ plan = {}, authorization = null, status = '', diagnostics = 
       digest: planIdentity.digest,
       identity: planIdentity,
     },
-    workflow_gate_authorizations: authorization ? [cloneJson(authorization)] : [],
-    attempt_identity: identity,
-    preconditions: preconditions(plan, status),
+    preconditions: preconditions(plan),
     planned_operations: operations,
     candidate_patches: candidatePatches(plan),
     recommended_commands: recommendedCommands(plan),
@@ -478,137 +322,239 @@ function envelope({ plan = {}, authorization = null, status = '', diagnostics = 
         id: 'postcondition:source-work-record-unchanged',
         kind: 'immutability',
         required: true,
-        description: 'Future execution must prove the source Work Record bytes or digest stayed unchanged.',
+        expected_digest: text(plan.source_work_record?.digest),
+        description: 'Any later outcome must prove the source Work Record stayed unchanged.',
       },
       {
-        id: 'postcondition:future-artifact-validates',
+        id: 'postcondition:attempt-artifact-validates',
         kind: 'validation',
         required: status === 'ready',
-        description: 'A future executor must validate any emitted Work Record or patch artifact and record diagnostics.',
+        description: 'A caller-supplied Attempt Artifact must validate before finalization.',
       },
     ],
-    cleanup_expectations: [
-      {
-        id: 'cleanup_expectation:future-executor-records-cleanup',
-        kind: 'record_cleanup_result',
-        executes_in_plan: false,
-        description: 'Cleanup belongs to a future executor and must be recorded as evidence or failure diagnostics.',
-      },
-    ],
-    rollback_expectations: [
-      {
-        id: 'rollback_expectation:future-executor-reverts-or-records-failure',
-        kind: 'future_executor_rollback',
-        executes_in_plan: false,
-        description: 'Rollback is descriptive here; a future executor must either revert its own changes or emit failure evidence.',
-      },
-    ],
-    risk: {
-      level: status === 'ready' ? 'bounded_future_mutation' : 'blocked_or_read_only',
-      source_work_record_immutable: true,
-      authorization_required_for_mutation: requiredMutatingGateIds(plan).length > 0,
-    },
+    cleanup_expectations: [{
+      id: 'cleanup_expectation:caller-reports-cleanup',
+      kind: 'record_cleanup_result',
+      executes_in_plan: false,
+      description: 'The caller records cleanup outcomes in the Attempt Artifact.',
+    }],
+    rollback_expectations: [{
+      id: 'rollback_expectation:caller-reports-rollback',
+      kind: 'record_rollback_result',
+      executes_in_plan: false,
+      description: 'The caller records rollback outcomes or failure in the Attempt Artifact.',
+    }],
     known_limits: [
-      'Repair Attempt Plans do not repair anything.',
-      'Repair Attempt Plans do not authorize themselves.',
-      'Workflow Gate Authorization authorizes only a future attempt.',
-      'Future execution must produce new evidence.',
+      'Repair Attempt Plans do not execute actions or apply patches.',
+      'Caller-supplied outcomes must map to the exact plan and source digest.',
       'Source Work Records stay immutable.',
     ],
     executes_repair: false,
     executes_actions: false,
     applies_patches: false,
-    mutates_record: false,
-    automatic_replay_allowed: false,
+    mutates_source: false,
     diagnostics,
-    recommended_next: recommendedNext(status, plan),
+    recommended_next: recommendedNext(status),
   };
+  attemptPlan.attempt_identity = expectedAttemptIdentity(attemptPlan);
+  return attemptPlan;
 }
 
 export function planWorkRecordRepairAttempt(ref, options = {}) {
   const plan = options.repairPlan || planWorkRecordRepair(ref, options);
-  if (plan.status === 'failed' || plan.status === 'unsupported_profile') {
-    return {
-      type: WORK_RECORD_REPAIR_ATTEMPT_PLAN_TYPE,
-      schema_version: WORK_RECORD_REPAIR_ATTEMPT_PLAN_SCHEMA_VERSION,
-      status: 'blocked_precondition',
-      source_work_record: cloneJson(plan.source_work_record || {}),
-      repair_plan: {},
-      workflow_gate_authorizations: [],
-      attempt_identity: {
-        source_work_record: sourceIdentity(plan.source_work_record),
-        digest: digest(plan),
-      },
-      preconditions: [],
-      planned_operations: [],
-      candidate_patches: [],
-      recommended_commands: [],
-      evidence_requirements: [],
-      postconditions: [],
-      cleanup_expectations: [],
-      rollback_expectations: [],
-      risk: { level: 'blocked_or_read_only' },
-      known_limits: ['Repair Attempt Plans do not repair anything.'],
-      executes_repair: false,
-      executes_actions: false,
-      applies_patches: false,
-      mutates_record: false,
-      automatic_replay_allowed: false,
-      diagnostics: arrayValue(plan.diagnostics),
-      recommended_next: { action: 'repair_plan_precondition_failed' },
-    };
+  if (text(plan.status) === 'failed' || !text(plan.schema_version)) {
+    return envelope(plan, 'blocked_inputs', arrayValue(plan.diagnostics));
   }
-
   const validation = validateWorkRecordRepairPlan(plan);
-  const authorization = normalizeAuthorization(plan, options);
-  const bindingDiagnostics = authorization ? validateAuthorizationBinding(plan, authorization) : [];
-  const diagnostics = [
-    ...arrayValue(validation.diagnostics),
-    ...bindingDiagnostics,
-    ...arrayValue(authorization?.diagnostics),
-  ];
-  const status = validation.status !== 'passed'
-    ? 'unsupported'
-    : statusFromPlanAndAuthorization(plan, authorization, bindingDiagnostics);
-  return envelope({ plan, authorization, status, diagnostics });
+  const diagnostics = arrayValue(validation.diagnostics);
+  if (validation.status === 'passed'
+    && text(plan.status) === 'planned'
+    && arrayValue(plan.candidate_patches).length !== 1) {
+    diagnostics.push({
+      severity: 'error',
+      code: 'REPAIR_ATTEMPT_PLAN_CANDIDATE_PATCH_MISSING',
+      message: 'A ready Attempt Plan requires one exact source-bound candidate patch.',
+      path: 'candidate_patches',
+    });
+  }
+  return envelope(
+    plan,
+    statusFromPlan(plan, validation),
+    diagnostics,
+  );
 }
 
 export function validateWorkRecordRepairAttemptPlan(attemptPlan = {}) {
   const value = objectValue(attemptPlan);
   const diagnostics = [];
-  function add(code, message, path) {
-    diagnostics.push({
-      severity: 'error',
-      code,
-      message,
-      path,
-    });
+  const add = (code, message, path) => diagnostics.push({ severity: 'error', code, message, path });
+  if (!validateRepairAttemptPlanV1(value)) {
+    for (const error of arrayValue(validateRepairAttemptPlanV1.errors)) {
+      add('REPAIR_ATTEMPT_PLAN_V1_SCHEMA_INVALID', `Repair Attempt Plan V1 schema validation failed: ${text(objectValue(error).message, 'invalid value')}`, text(objectValue(error).instancePath, 'repair_attempt_plan'));
+    }
   }
-  if (text(value.type) !== WORK_RECORD_REPAIR_ATTEMPT_PLAN_TYPE) {
-    add('INVALID_REPAIR_ATTEMPT_PLAN_TYPE', 'Repair Attempt Plan type must be work_record.repair_attempt_plan.', 'type');
-  }
-  if (text(value.schema_version) !== WORK_RECORD_REPAIR_ATTEMPT_PLAN_SCHEMA_VERSION) {
-    add('INVALID_REPAIR_ATTEMPT_PLAN_SCHEMA_VERSION', 'Repair Attempt Plan schema_version is not supported.', 'schema_version');
-  }
-  for (const field of ['executes_repair', 'executes_actions', 'applies_patches', 'mutates_record', 'automatic_replay_allowed']) {
+  if (text(value.type) !== WORK_RECORD_REPAIR_ATTEMPT_PLAN_TYPE) add('INVALID_REPAIR_ATTEMPT_PLAN_TYPE', 'Repair Attempt Plan type must be work_record.repair_attempt_plan.', 'type');
+  if (text(value.schema_version) !== WORK_RECORD_REPAIR_ATTEMPT_PLAN_SCHEMA_VERSION) add('INVALID_REPAIR_ATTEMPT_PLAN_SCHEMA_VERSION', 'Repair Attempt Plan schema_version is not supported.', 'schema_version');
+  if (!WORK_RECORD_REPAIR_ATTEMPT_PLAN_STATUSES.includes(text(value.status))) add('INVALID_REPAIR_ATTEMPT_PLAN_STATUS', 'Repair Attempt Plan status is not supported.', 'status');
+  for (const field of ['executes_repair', 'executes_actions', 'applies_patches', 'mutates_source']) {
     if (value[field] !== false) add('REPAIR_ATTEMPT_PLAN_EXECUTION_FLAG_NOT_FALSE', `${field} must be false.`, field);
   }
-  arrayValue(value.planned_operations).forEach((operation, index) => {
-    const item = objectValue(operation);
-    if (item.executes_in_plan !== false) {
-      add('PLANNED_OPERATION_EXECUTES_IN_PLAN', 'Planned operations must not execute inside the Repair Attempt Plan.', `planned_operations[${index}].executes_in_plan`);
+  const source = sourceIdentity(value.source_work_record);
+  if (!source.id || !source.digest) add('REPAIR_ATTEMPT_PLAN_SOURCE_IDENTITY_INCOMPLETE', 'Repair Attempt Plans require exact source id and digest.', 'source_work_record');
+  if (text(value.repair_plan?.schema_version) !== WORK_RECORD_REPAIR_PLAN_SCHEMA_VERSION || !text(value.repair_plan?.digest)) {
+    add('REPAIR_ATTEMPT_PLAN_REPAIR_PLAN_IDENTITY_INCOMPLETE', 'Repair Attempt Plans require the exact Repair Plan schema and digest.', 'repair_plan');
+  }
+  const expectedPlanIdentity = expectedRepairPlanIdentitySnapshot(value.repair_plan?.identity);
+  if (digest(expectedPlanIdentity) !== digest(objectValue(value.repair_plan?.identity))
+    || text(value.repair_plan?.digest) !== expectedPlanIdentity.digest) {
+    add('REPAIR_ATTEMPT_PLAN_REPAIR_PLAN_IDENTITY_MISMATCH', 'Repair Attempt Plan repair_plan identity or digest is internally inconsistent.', 'repair_plan.identity');
+  }
+  const expectedIdentity = expectedAttemptIdentity(value);
+  if (digest(expectedIdentity) !== digest(objectValue(value.attempt_identity))) {
+    add('REPAIR_ATTEMPT_PLAN_IDENTITY_MISMATCH', 'Repair Attempt Plan identity does not match its source, Repair Plan, patches, and operations.', 'attempt_identity');
+  }
+  const repairIdentity = objectValue(value.repair_plan?.identity);
+  if (digest(sourceIdentity(repairIdentity.source_work_record)) !== digest(source)) {
+    add('REPAIR_ATTEMPT_PLAN_SOURCE_REPAIR_PLAN_MISMATCH', 'Attempt Plan source identity must exactly match the Repair Plan source identity.', 'source_work_record');
+  }
+  const candidatePatchList = arrayValue(value.candidate_patches).map(objectValue);
+  const candidatePatchIds = candidatePatchList.map((patch) => text(patch.id));
+  if (new Set(candidatePatchIds).size !== candidatePatchIds.length) {
+    add('REPAIR_ATTEMPT_PLAN_CANDIDATE_PATCH_IDS_NOT_UNIQUE', 'Attempt Plan candidate patch ids must be unique.', 'candidate_patches');
+  }
+  if (text(value.status) === 'ready' && candidatePatchIds.length !== 1) {
+    add('REPAIR_ATTEMPT_PLAN_READY_REQUIRES_ONE_CANDIDATE_PATCH', 'Ready Attempt Plan V1 requires exactly one atomic candidate patch.', 'candidate_patches');
+  }
+  if (digest(candidatePatchIds) !== digest(arrayValue(repairIdentity.candidate_patch_ids))) {
+    add('REPAIR_ATTEMPT_PLAN_CANDIDATE_PATCH_IDENTITY_MISMATCH', 'Attempt Plan candidate patches must exactly match Repair Plan candidate patch identity and order.', 'candidate_patches');
+  }
+  const actualPatchBindings = candidatePatchList.map((patch) => {
+    const projected = cloneJson(patch);
+    delete projected.validation_expectations;
+    delete projected.rollback_expectation_refs;
+    return { id: text(projected.id), digest: digest(projected) };
+  });
+  if (digest(actualPatchBindings) !== digest(arrayValue(repairIdentity.candidate_patch_bindings))) {
+    add('REPAIR_ATTEMPT_PLAN_CANDIDATE_PATCH_PAYLOAD_MISMATCH', 'Attempt Plan candidate patch payload must exactly match the Repair Plan committed patch payload.', 'candidate_patches');
+  }
+  const expectedOperationIds = [
+    ...arrayValue(repairIdentity.plan_step_ids),
+    ...arrayValue(repairIdentity.candidate_patch_ids).map((id) => `planned_operation:${text(id)}`),
+  ];
+  const plannedOperationList = arrayValue(value.planned_operations).map(objectValue);
+  const plannedOperationIds = plannedOperationList.map((operation) => text(operation.id));
+  if (new Set(plannedOperationIds).size !== plannedOperationIds.length
+    || digest(plannedOperationIds) !== digest(expectedOperationIds)) {
+    add('REPAIR_ATTEMPT_PLAN_OPERATION_IDENTITY_MISMATCH', 'Attempt Plan operations must exactly match the canonical Repair Plan steps and candidate patch order.', 'planned_operations');
+  }
+  const actualStepBindings = plannedOperationList
+    .filter((operation) => text(operation.source_step_id))
+    .map((operation) => {
+      const projected = {
+        id: text(operation.source_step_id),
+        kind: text(operation.kind),
+        proposes_mutation: operation.proposes_mutation === true,
+        declared_mutation_paths: uniqueStrings(arrayValue(operation.declared_mutation_paths)),
+        description: text(operation.description),
+      };
+      return { id: projected.id, digest: digest(projected) };
+    });
+  if (digest(actualStepBindings) !== digest(arrayValue(repairIdentity.plan_step_bindings))) {
+    add('REPAIR_ATTEMPT_PLAN_STEP_PAYLOAD_MISMATCH', 'Attempt Plan derived step operations must exactly match Repair Plan committed step payloads.', 'planned_operations');
+  }
+  const stepOperationBySourceId = new Map(plannedOperationList
+    .filter((operation) => text(operation.source_step_id))
+    .map((operation) => [text(operation.source_step_id), operation]));
+  const candidatePatchById = new Map(candidatePatchList.map((patch) => [text(patch.id), patch]));
+  const canonicalOperations = [
+    ...arrayValue(repairIdentity.plan_step_ids).map((stepId) => {
+      const operation = objectValue(stepOperationBySourceId.get(text(stepId)));
+      return plannedStepOperation({
+        id: text(stepId),
+        kind: operation.kind,
+        proposes_mutation: operation.proposes_mutation,
+        declared_mutation_paths: operation.declared_mutation_paths,
+        description: operation.description,
+      });
+    }),
+    ...arrayValue(repairIdentity.candidate_patch_ids)
+      .map((patchId) => plannedCandidatePatchOperation(candidatePatchById.get(text(patchId)))),
+  ];
+  if (digest(plannedOperationList) !== digest(canonicalOperations)) {
+    add('REPAIR_ATTEMPT_PLAN_OPERATION_MECHANICS_NONCANONICAL', 'Attempt Plan operations must exactly match the canonical mechanics derived from Repair Plan steps and candidate patches.', 'planned_operations');
+  }
+  for (const patchId of candidatePatchIds) {
+    const operation = plannedOperationList.find((item) => text(item.id) === `planned_operation:${patchId}`);
+    if (text(operation?.source_candidate_patch_id) !== patchId) {
+      add('REPAIR_ATTEMPT_PLAN_PATCH_OPERATION_MISMATCH', 'Each candidate patch requires one exact derived planned operation.', 'planned_operations');
     }
+  }
+  arrayValue(value.planned_operations).forEach((operation, index) => {
+    if (objectValue(operation).executes_in_plan !== false) add('PLANNED_OPERATION_EXECUTES_IN_PLAN', 'Planned operations must not execute inside the Repair Attempt Plan.', `planned_operations[${index}].executes_in_plan`);
   });
   arrayValue(value.candidate_patches).forEach((patch, index) => {
     const item = objectValue(patch);
     if (item.applied !== false) add('CANDIDATE_PATCH_APPLIED_IN_ATTEMPT_PLAN', 'Candidate patches must remain unapplied.', `candidate_patches[${index}].applied`);
+    if (item.executes_in_plan !== false) add('CANDIDATE_PATCH_EXECUTES_IN_ATTEMPT_PLAN', 'Candidate patches must not execute inside the Repair Attempt Plan.', `candidate_patches[${index}].executes_in_plan`);
   });
   arrayValue(value.recommended_commands).forEach((command, index) => {
-    const item = objectValue(command);
-    if (item.executes_in_plan !== false) {
-      add('RECOMMENDED_COMMAND_EXECUTES_IN_ATTEMPT_PLAN', 'Recommended commands must not execute inside the Repair Attempt Plan.', `recommended_commands[${index}].executes_in_plan`);
-    }
+    if (objectValue(command).executes_in_plan !== false) add('RECOMMENDED_COMMAND_EXECUTES_IN_ATTEMPT_PLAN', 'Recommended commands must not execute inside the Repair Attempt Plan.', `recommended_commands[${index}].executes_in_plan`);
   });
+  if (text(value.status) === 'ready') {
+    const preconditionList = arrayValue(value.preconditions).map((item) => objectValue(item));
+    const preconditionIds = preconditionList.map((item) => text(item.id));
+    if (new Set(preconditionIds).size !== preconditionIds.length) {
+      add('REPAIR_ATTEMPT_PLAN_READY_PRECONDITION_DUPLICATE', 'Ready Attempt Plan precondition ids must be unique.', 'preconditions');
+    }
+    if (preconditionList.some((item) => text(item.status) !== 'complete')) {
+      add('REPAIR_ATTEMPT_PLAN_READY_PRECONDITION_INCOMPLETE', 'Every declared precondition in a ready Attempt Plan must be complete.', 'preconditions');
+    }
+    const preconditions = new Map(preconditionList.map((item) => [text(item.id), item]));
+    for (const id of READY_PRECONDITION_IDS) {
+      if (text(preconditions.get(id)?.status) !== 'complete') {
+        add('REPAIR_ATTEMPT_PLAN_READY_PRECONDITION_INCOMPLETE', 'Ready Attempt Plans require every canonical precondition to be present and complete.', 'preconditions');
+        break;
+      }
+    }
+    if (arrayValue(value.planned_operations).length === 0) {
+      add('REPAIR_ATTEMPT_PLAN_READY_OPERATIONS_MISSING', 'Ready Attempt Plans require at least one exact planned operation.', 'planned_operations');
+    }
+    const evidenceRequirements = new Map(arrayValue(value.evidence_requirements).map((item) => [text(objectValue(item).id), objectValue(item)]));
+    const evidenceRequirementIds = new Set(evidenceRequirements.keys());
+    for (const id of ['evidence_requirement:attempt-artifact', 'evidence_requirement:before-after-verifier-reports']) {
+      if (evidenceRequirements.get(id)?.required !== true) add('REPAIR_ATTEMPT_PLAN_READY_EVIDENCE_REQUIREMENT_MISSING', 'Ready Attempt Plans require the canonical caller artifact and verifier report evidence requirements.', 'evidence_requirements');
+    }
+    const postconditions = new Map(arrayValue(value.postconditions).map((item) => [text(objectValue(item).id), objectValue(item)]));
+    const postconditionIds = new Set(postconditions.keys());
+    for (const id of ['postcondition:source-work-record-unchanged', 'postcondition:attempt-artifact-validates']) {
+      if (postconditions.get(id)?.required !== true) add('REPAIR_ATTEMPT_PLAN_READY_POSTCONDITION_MISSING', 'Ready Attempt Plans require source immutability and artifact validation postconditions.', 'postconditions');
+    }
+    const cleanupIds = new Set(arrayValue(value.cleanup_expectations).map((item) => text(objectValue(item).id)).filter(Boolean));
+    const rollbackIds = new Set(arrayValue(value.rollback_expectations).map((item) => text(objectValue(item).id)).filter(Boolean));
+    if (!cleanupIds.has('cleanup_expectation:caller-reports-cleanup')) add('REPAIR_ATTEMPT_PLAN_READY_CLEANUP_EXPECTATION_MISSING', 'Ready Attempt Plans require the caller cleanup receipt expectation.', 'cleanup_expectations');
+    if (!rollbackIds.has('rollback_expectation:caller-reports-rollback')) add('REPAIR_ATTEMPT_PLAN_READY_ROLLBACK_EXPECTATION_MISSING', 'Ready Attempt Plans require the caller rollback receipt expectation.', 'rollback_expectations');
+    arrayValue(value.planned_operations).forEach((operation, index) => {
+      const item = objectValue(operation);
+      if (arrayValue(item.precondition_refs).length === 0
+        || arrayValue(item.evidence_requirement_refs).length === 0
+        || arrayValue(item.postcondition_refs).length === 0
+        || arrayValue(item.cleanup_refs).length === 0
+        || (item.proposes_mutation === true && arrayValue(item.rollback_refs).length === 0)) {
+        add('REPAIR_ATTEMPT_PLAN_OPERATION_REQUIREMENTS_INCOMPLETE', 'Ready planned operations require exact precondition, evidence, postcondition, cleanup, and mutation rollback references.', `planned_operations[${index}]`);
+      }
+      for (const [field, known] of [
+        ['precondition_refs', new Set(preconditions.keys())],
+        ['evidence_requirement_refs', evidenceRequirementIds],
+        ['postcondition_refs', postconditionIds],
+        ['cleanup_refs', cleanupIds],
+        ['rollback_refs', rollbackIds],
+      ]) {
+        for (const ref of arrayValue(item[field]).map(text).filter(Boolean)) {
+          if (!known.has(ref)) add('REPAIR_ATTEMPT_PLAN_OPERATION_REF_UNKNOWN', 'Ready planned operations may reference only declared mechanical requirements.', `planned_operations[${index}].${field}`);
+        }
+      }
+    });
+  }
   return {
     type: 'work_record.repair_attempt_plan.validation',
     schema_version: WORK_RECORD_REPAIR_ATTEMPT_PLAN_SCHEMA_VERSION,

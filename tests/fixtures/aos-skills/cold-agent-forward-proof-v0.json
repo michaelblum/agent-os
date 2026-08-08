@@ -280,8 +280,8 @@
         "./aos work-record repair bundle <id-or-path> --output-root \"$AOS_PROOF_ROOT\" --dry-run --json"
       ],
       "captured_output": {
-        "decision": "Choose read, verify, status, and plan-repair for evidence inspection. Keep recovery report-only unless the caller explicitly requests repair execution or replacement writes.",
-        "stop_condition": "Stop before repair execute, replacement write, supersession write, or live UI/browser/native actions outside the caller's requested scope.",
+        "decision": "Choose read, verify, status, and plan-repair for evidence inspection. Repair and Attempt Plans remain non-executing; a later Attempt Artifact may only record caller-supplied outcomes.",
+        "stop_condition": "Stop before supplying execution outcomes, replacement writes, supersession writes, or live UI/browser/native actions outside the caller's requested scope.",
         "rejected_competing_surfaces": [
           "rewrite Work Record evidence in place",
           "execute repair from a skill instruction"

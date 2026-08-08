@@ -16,7 +16,7 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
-const fixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0/valid');
+const fixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v1/valid');
 const artifactBundleFixturePath = path.join(
   repoRoot,
   'docs/design/fixtures/aos-artifacts/example-design-pass/subject.json',

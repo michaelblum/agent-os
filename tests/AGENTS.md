@@ -32,6 +32,120 @@ tests.
 - Policy drift guards must name the exact active source surfaces and prohibited
   doctrine they protect. Do not globally ban mechanically valid terms such as
   `dry-run`, `authorization`, `allowlist`, `redaction`, Gate, or Work Record.
+- Work Record V1 and Step Descriptor V1 proofs are direct schema/model/command-
+  adapter tests. They must keep V0 bytes frozen and unsupported, reject exact
+  legacy authority symbols on scoped active surfaces, and never invoke the repo
+  `./aos`, daemon, native UI, or TCC state. Any Work Record proof subprocess
+  must pass schema instances through stdin or private fixture files, never argv
+  or environment, so Work Record bytes stay out of process metadata.
+  Repair-finalization proofs must require exact caller evidence and
+  source-bound candidate-patch payloads,
+  preserve raw path/URI carriers, prove the single atomic patch/operation chain
+  and unique evidence identities, require every planned evidence requirement,
+  bind standalone Artifacts to the complete claimed Attempt Plan payload, and
+  prove missing patch outcomes fail closed. Schema and model proofs reject
+  nested authority-policy keys across all plan mechanics and their Artifact mirrors;
+  caller command, cleanup, and rollback receipts bind exact planned bytes and
+  reference tuples, reject duplicates/extras, and reference only present evidence;
+  malformed proposed execution maps must fail before Proposal construction;
+  re-digested Attempt Plans still reject operation boundaries or requirement
+  references that differ from canonical Repair Plan-derived mechanics;
+  zero-patch planned Repair Plans must not produce a `ready` Attempt Plan, and
+  unsupported-profile command payloads must stay schema-shaped while exiting
+  nonzero. Finalizer, Guide, and
+  supersession proofs must reject same-byte source clones at a different path;
+  writer proofs must inject create-if-absent races and prove different
+  destination bytes are never overwritten while partial bundle writes remain
+  receipted. Inject post-link cleanup failures and require published-destination
+  receipts through Writer, supersession, bundle, and finalizer results. Capture
+  proofs preserve repeated whitespace in raw command/target/state carriers,
+  adapter and recovery projections preserve raw labels and command bytes, and
+  verifier proofs reject whitespace-only target or state-identity drift.
+  Replacement proofs preserve raw source labels plus every historical source
+  evidence item and reject reserved provenance-key collisions without
+  overwriting caller metadata. Writer proofs require exact caller evidence
+  metadata and caller timing rather than generated timestamps.
+  Step Descriptor capture proofs must reject internally incoherent descriptors
+  and unrelated simulation or execute-adapter evidence before record emission.
+  Postcondition state identity drift from the bound after perception must fail
+  before Work Record emission or browser-workbench opening.
+  Verifier proofs must reject hollow verified Claim Results and any duplicate,
+  missing, extra, or mismatched advertised Claim digest.
+  Supersession lookup proofs must reject persisted entries whose entry or
+  relationship status is not the canonical active state and must reject
+  unbound Writer-result provenance fields, including Proposal identity fields
+  that differ from the replacement record's embedded Writer provenance.
+  Structured-record and serialized-output digests are checked independently;
+  an exact supersession identity with different serialized index bytes is a
+  conflict rather than an idempotent existing publication.
+  Supersession lookup rejects entries whose claimed root or deterministic path
+  does not match the exact physical file being scanned.
+  Replacement readback rejects same-byte record clones whose physical path
+  differs from the path committed by the supersession entry.
+  persisted Proposal and Writer mirrors are covered by entry identity and
+  replacement readback; added status or temporary-output receipt fields fail
+  validation instead of remaining unbound. Workbench proofs reject V0, unknown
+  schemas, and malformed V1 at both initialization and open boundaries.
+  Subject-catalog and wiki-browser active fixtures use Work Record V1; V0
+  fixtures appear only in explicit unsupported-input proofs.
+  Supplied Proposal type/status tampering
+  fails before supersession publication, while persisted Proposal provenance is
+  the closed id/digest/schema projection. Successful write receipts bind the
+  serialized index-file digest separately from the structured entry identity.
+  Finalizer cleanup-failure proofs cover both newly
+  written and already-existing replacement records. Finalizer proofs also
+  mutate the replacement during supersession publication and require the
+  post-publication re-read to block success, and inject malformed published
+  index readback to require a receipted partial result instead of an exception.
+  Writer and supersession proofs mutate their bound source identities during
+  publication and require a published-side-effect receipt with success
+  downgraded; serialized replacement-byte drift must fail independently of its
+  canonical structured digest. Supersession proofs also race two distinct
+  replacements for one exact source and admit only one canonical active entry,
+  while index disappearance or scan failure after publication returns typed
+  receipts. Inject source raw-digest read failures after replacement and index
+  publication and require Writer, supersession, and finalizer side-effect
+  receipts; post-replacement supersession-plan scans and replacement-root
+  containment failures must also return typed finalizer/lookup results.
+  Existing replacement-output read errors and pre-publication supersession
+  index-scan errors must return typed Writer/planner results rather than throw.
+  Writer proofs reject a regular-file output root in dry-run and write modes,
+  and reject symlink or non-file deterministic destination leaves before
+  idempotency even when a symlink target contains identical bytes. Race proofs
+  exercise the production descriptor-relative native primitive through its
+  content-free deterministic fault seam. They swap and restore the held parent
+  or explicit root, replace leaves with identical symlink clones, create an
+  external hard link to the temp inode before any Work Record write, restore a
+  leaf during pinned inspection or publication readback, race hard-link
+  activity after temp unlink, and replace the temp name immediately before
+  cleanup to prove the unrelated replacement is preserved.
+  Packaging proof stages and loads the installed Work Record command/native
+  resource projection, then resolves its manifest entry from an unrelated
+  caller directory without invoking `./aos`. Every
+  route must fail closed through directory-event, no-follow,
+  inode/type/link-count, and digest checks; external hard-link artifacts must
+  contain zero Work Record bytes. Supersession/finalizer readback races must not
+  produce a successful receipt.
+  Successful Artifact proofs reject a produced candidate patch whose exact
+  planned candidate-patch operation was skipped;
+  lookup proofs reject symlinked index trees, and command proofs require a
+  nonzero exit for typed malformed-index results.
+  Root proofs also reject requested roots nested under regular-file ancestors
+  and non-system symlink ancestors plus a symlinked explicit index root, and
+  inject root-containment I/O failures through the public Writer and planner.
+  Lookup must reject an explicit symlink root even when its index tree is empty.
+  Artifact/proposal command build failures must exit nonzero. Finalizer proofs inject both
+  pre-publication source digest failures. Bundle proofs inject later artifact
+  I/O after an earlier publication and require accumulated receipts.
+  Partial-finalization
+  guidance must not emit a supersession-write
+  command without the required successful Writer Result path. Step Descriptor workbench proofs
+  reject V0, unknown, malformed, or evidence-mismatched inputs before ready
+  state.
+  Proposal/Writer proofs must preserve every source-owned field outside the
+  single `execution_map` patch and reject extra/duplicate/missing evidence or
+  postcondition mappings. Repair Guide proofs must reject a valid Artifact from
+  another source or Attempt Plan.
 - Preserve cleanup for canvases, daemon state, temporary files, and live
   resources.
 - Proofs that exercise global process cleanup must fail fast while an unrelated

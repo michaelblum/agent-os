@@ -1,51 +1,28 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import * as adapter from '../../packages/toolkit/workbench/work-record-adapter.js';
-import * as capture from '../../packages/toolkit/workbench/work-record-capture.js';
-import * as evidenceAdapters from '../../packages/toolkit/workbench/work-record-evidence-adapters.js';
 import * as facade from '../../packages/toolkit/workbench/work-record.js';
-import * as replacementWriter from '../../packages/toolkit/workbench/work-record-replacement-writer.js';
-import * as subject from '../../packages/toolkit/workbench/work-record-subject.js';
-import * as verifier from '../../packages/toolkit/workbench/work-record-verifier.js';
 import * as workbench from '../../packages/toolkit/workbench/index.js';
 
-test('Work Record facade re-exports current build, verify, evidence, adapter, and projection operations', () => {
-  assert.equal(facade.WORK_RECORD_V0_SCHEMA_VERSION, adapter.WORK_RECORD_V0_SCHEMA_VERSION);
-  assert.equal(facade.isWorkRecordV0, adapter.isWorkRecordV0);
-  assert.equal(facade.normalizeWorkRecord, adapter.normalizeWorkRecord);
-  assert.equal(facade.workRecordEvidenceArtifacts, adapter.workRecordEvidenceArtifacts);
+const required = [
+  'buildWorkRecordV1FromAosActionEvidence',
+  'buildWorkRecordV1FromCommandEvidence',
+  'buildWorkRecordV1FromStepDescriptorEvidence',
+  'planWorkRecordRepair',
+  'planWorkRecordRepairAttempt',
+  'buildWorkRecordRepairAttemptArtifact',
+  'buildWorkRecordReplacementProposal',
+  'writeReplacementWorkRecord',
+  'finalizeWorkRecordRepair',
+  'writeWorkRecordSourceSupersessionIndex',
+];
 
-  assert.equal(facade.buildWorkRecordV0FromCommandEvidence, capture.buildWorkRecordV0FromCommandEvidence);
-  assert.equal(facade.buildWorkRecordV0FromAosActionEvidence, capture.buildWorkRecordV0FromAosActionEvidence);
-  assert.equal(facade.buildWorkRecordV0FromStepDescriptorEvidence, capture.buildWorkRecordV0FromStepDescriptorEvidence);
-
-  assert.equal(facade.checkWorkRecordEvidenceAdapters, evidenceAdapters.checkWorkRecordEvidenceAdapters);
-  assert.equal(facade.workRecordEvidenceAdapters, evidenceAdapters.workRecordEvidenceAdapters);
-
-  assert.equal(facade.createWorkRecordSubject, subject.createWorkRecordSubject);
-  assert.equal(facade.createWorkRecordSubjects, subject.createWorkRecordSubjects);
-
-  assert.equal(facade.runWorkRecordVerifierProfile, verifier.runWorkRecordVerifierProfile);
-  assert.equal(facade.checkWorkRecordReportOnly, verifier.checkWorkRecordReportOnly);
-  assert.equal(facade.deriveWorkRecordClaimIndexes, verifier.deriveWorkRecordClaimIndexes);
-  assert.equal(facade.WORK_RECORD_REPORT_ONLY_PROFILE_ID, verifier.WORK_RECORD_REPORT_ONLY_PROFILE_ID);
-
-  assert.equal(facade.writeReplacementWorkRecord, replacementWriter.writeReplacementWorkRecord);
-  assert.equal(facade.materializeReplacementWorkRecord, replacementWriter.materializeReplacementWorkRecord);
-  assert.equal(facade.WORK_RECORD_REPLACEMENT_WRITER_RESULT_SCHEMA_VERSION, replacementWriter.WORK_RECORD_REPLACEMENT_WRITER_RESULT_SCHEMA_VERSION);
+test('public Work Record facade exposes neutral V1 mechanics', () => {
+  for (const name of required) assert.equal(typeof facade[name], 'function', name);
+  for (const name of ['buildWorkRecordGateRequest', 'checkWorkRecordGateAuthorization', 'executeControlledWorkRecordRepair', 'controlledRepairFixtureRegistry']) {
+    assert.equal(name in facade, false, name);
+  }
 });
 
-test('Workbench aggregate exposes the Work Record facade contract', () => {
-  assert.equal(workbench.buildWorkRecordV0FromCommandEvidence, facade.buildWorkRecordV0FromCommandEvidence);
-  assert.equal(workbench.buildWorkRecordV0FromStepDescriptorEvidence, facade.buildWorkRecordV0FromStepDescriptorEvidence);
-  assert.equal(workbench.createWorkRecordSubject, facade.createWorkRecordSubject);
-  assert.equal(workbench.normalizeWorkRecord, facade.normalizeWorkRecord);
-  assert.equal(workbench.runWorkRecordVerifierProfile, facade.runWorkRecordVerifierProfile);
-  assert.equal(workbench.checkWorkRecordEvidenceAdapters, facade.checkWorkRecordEvidenceAdapters);
-  assert.equal(workbench.writeReplacementWorkRecord, facade.writeReplacementWorkRecord);
-});
-
-test('Work Record facade does not expose private persistence projection helpers', () => {
-  assert.equal(Object.hasOwn(facade, 'projectDescriptorPersistence'), false);
-  assert.equal(Object.hasOwn(workbench, 'projectDescriptorPersistence'), false);
+test('Workbench aggregate exposes the same Work Record V1 facade', () => {
+  for (const name of required) assert.equal(workbench[name], facade[name], name);
 });

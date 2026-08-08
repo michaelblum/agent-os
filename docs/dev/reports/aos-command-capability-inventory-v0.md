@@ -19,13 +19,13 @@ current command tree before public CLI and self-hosting boundary changes.
 ## Summary
 
 - Command paths: 68
-- Concrete forms: 233
-- Consumer-discoverable forms: 224
+- Concrete forms: 230
+- Consumer-discoverable forms: 221
 - Internal/transitional command paths: 1
-- Mutating or conditionally mutating forms: 131
+- Mutating or conditionally mutating forms: 130
 - Forms with unspecified mutability metadata: 0
-- Forms with JSON output path: 228
-- Forms with dry-run support: 38
+- Forms with JSON output path: 225
+- Forms with dry-run support: 37
 
 ## Capability Group Counts
 
@@ -49,7 +49,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | Saved workspace | 6 |
 | Skills and recipes | 7 |
 | Storage/config | 5 |
-| Verification/evidence | 28 |
+| Verification/evidence | 25 |
 | Voice and speech | 11 |
 
 ## Command Paths
@@ -97,7 +97,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `wiki` | 16 | Content/wiki | yes | mutates, read-only | --json | `manifests/commands/source/aos/32-wiki.json` | `node scripts/aos-wiki-router.mjs` | `docs/api/aos.md` |
 | `browser` | 9 | Browser companion | no | mutates, read-only | --json, default | `manifests/commands/source/aos/33-browser.json` | `node scripts/aos-browser-internal.mjs` | `docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `help` | 2 | CLI metadata | yes | read-only | --json | `manifests/commands/source/aos/34-help.json` | `node scripts/aos-help-proxy.mjs` | `docs/api/aos.md` |
-| `work-record` | 23 | Verification/evidence | yes | mutates, read-only | --json | `manifests/commands/source/aos/35-work-record.json, manifests/commands/source/aos/36-work-record-supersession.json, manifests/commands/source/aos/37-work-record-finalization.json` | `node scripts/aos-work-record.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record` | 20 | Verification/evidence | yes | mutates, read-only | --json | `manifests/commands/source/aos/35-work-record.json, manifests/commands/source/aos/36-work-record-supersession.json, manifests/commands/source/aos/37-work-record-finalization.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `skills` | 3 | Skills and recipes | yes | mutates, read-only | --json | `manifests/commands/source/aos/38-skills.json` | `node scripts/aos-skills.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `skills companion` | 2 | Browser companion | yes | read-only | --json | `manifests/commands/source/aos/38-skills.json` | `node scripts/aos-skills.mjs companion` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene` | 1 | Overlay/display | yes | mutates | default | `manifests/commands/source/aos/39-scene.json` | `node $AOS_REPO_ROOT/scripts/aos-scene.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
@@ -311,29 +311,26 @@ current command tree before public CLI and self-hosting boundary changes.
 | `browser _resolve-anchor` | `browser-resolve-anchor` | Browser companion | no | read-only | --json | no | `manifests/commands/source/aos/33-browser.json` | `node scripts/aos-browser-internal.mjs _resolve-anchor` | `docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `help` | `help-full` | CLI metadata | yes | read-only | --json | no | `manifests/commands/source/aos/34-help.json` | `node scripts/aos-help-proxy.mjs` | `docs/api/aos.md` |
 | `help` | `help-command` | CLI metadata | yes | read-only | --json | no | `manifests/commands/source/aos/34-help.json` | `node scripts/aos-help-proxy.mjs` | `docs/api/aos.md` |
-| `work-record list` | `work-record-list` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node scripts/aos-work-record.mjs list` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record read` | `work-record-read` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node scripts/aos-work-record.mjs read` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record verify` | `work-record-verify` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node scripts/aos-work-record.mjs verify` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record status` | `work-record-status` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node scripts/aos-work-record.mjs status` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record plan-repair` | `work-record-plan-repair` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node scripts/aos-work-record.mjs plan-repair` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record plan-attempt` | `work-record-plan-attempt` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node scripts/aos-work-record.mjs plan-attempt` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record repair execute` | `work-record-repair-execute` | Verification/evidence | yes | mutates | --json | yes | `manifests/commands/source/aos/35-work-record.json` | `node scripts/aos-work-record.mjs repair execute` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record attempt-artifact validate` | `work-record-attempt-artifact-validate` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node scripts/aos-work-record.mjs attempt-artifact validate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record attempt-artifact build` | `work-record-attempt-artifact-build` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node scripts/aos-work-record.mjs attempt-artifact build` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record replacement-proposal build` | `work-record-replacement-proposal-build` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node scripts/aos-work-record.mjs replacement-proposal build` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record replacement-proposal validate` | `work-record-replacement-proposal-validate` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node scripts/aos-work-record.mjs replacement-proposal validate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record replacement-proposal write` | `work-record-replacement-proposal-write` | Verification/evidence | yes | mutates | --json | yes | `manifests/commands/source/aos/35-work-record.json` | `node scripts/aos-work-record.mjs replacement-proposal write` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record gate-request` | `work-record-gate-request` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node scripts/aos-work-record.mjs gate-request` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record gate-check` | `work-record-gate-check` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node scripts/aos-work-record.mjs gate-check` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record export` | `work-record-export` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node scripts/aos-work-record.mjs export` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record supersession write` | `work-record-supersession-write` | Verification/evidence | yes | mutates | --json | yes | `manifests/commands/source/aos/36-work-record-supersession.json` | `node scripts/aos-work-record.mjs supersession write` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record supersession lookup` | `work-record-supersession-lookup` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/36-work-record-supersession.json` | `node scripts/aos-work-record.mjs supersession lookup` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record supersession validate` | `work-record-supersession-validate` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/36-work-record-supersession.json` | `node scripts/aos-work-record.mjs supersession validate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record repair guide` | `work-record-repair-guide` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/37-work-record-finalization.json` | `node scripts/aos-work-record.mjs repair guide` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record repair bundle` | `work-record-repair-bundle` | Verification/evidence | yes | mutates | --json | yes | `manifests/commands/source/aos/37-work-record-finalization.json` | `node scripts/aos-work-record.mjs repair bundle` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record repair bundle status` | `work-record-repair-bundle-status` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/37-work-record-finalization.json` | `node scripts/aos-work-record.mjs repair bundle status` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record repair bundle inspect` | `work-record-repair-bundle-inspect` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/37-work-record-finalization.json` | `node scripts/aos-work-record.mjs repair bundle inspect` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `work-record repair finalize` | `work-record-repair-finalize` | Verification/evidence | yes | mutates | --json | yes | `manifests/commands/source/aos/37-work-record-finalization.json` | `node scripts/aos-work-record.mjs repair finalize` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record list` | `work-record-list` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs list` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record read` | `work-record-read` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs read` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record verify` | `work-record-verify` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs verify` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record status` | `work-record-status` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs status` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record plan-repair` | `work-record-plan-repair` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs plan-repair` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record plan-attempt` | `work-record-plan-attempt` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs plan-attempt` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record attempt-artifact validate` | `work-record-attempt-artifact-validate` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs attempt-artifact validate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record attempt-artifact build` | `work-record-attempt-artifact-build` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs attempt-artifact build` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record replacement-proposal build` | `work-record-replacement-proposal-build` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs replacement-proposal build` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record replacement-proposal validate` | `work-record-replacement-proposal-validate` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs replacement-proposal validate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record replacement-proposal write` | `work-record-replacement-proposal-write` | Verification/evidence | yes | mutates | --json | yes | `manifests/commands/source/aos/35-work-record.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs replacement-proposal write` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record export` | `work-record-export` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs export` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record supersession write` | `work-record-supersession-write` | Verification/evidence | yes | mutates | --json | yes | `manifests/commands/source/aos/36-work-record-supersession.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs supersession write` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record supersession lookup` | `work-record-supersession-lookup` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/36-work-record-supersession.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs supersession lookup` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record supersession validate` | `work-record-supersession-validate` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/36-work-record-supersession.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs supersession validate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record repair guide` | `work-record-repair-guide` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/37-work-record-finalization.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs repair guide` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record repair bundle` | `work-record-repair-bundle` | Verification/evidence | yes | mutates | --json | yes | `manifests/commands/source/aos/37-work-record-finalization.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs repair bundle` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record repair bundle status` | `work-record-repair-bundle-status` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/37-work-record-finalization.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs repair bundle status` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record repair bundle inspect` | `work-record-repair-bundle-inspect` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/37-work-record-finalization.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs repair bundle inspect` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `work-record repair finalize` | `work-record-repair-finalize` | Verification/evidence | yes | mutates | --json | yes | `manifests/commands/source/aos/37-work-record-finalization.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs repair finalize` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `skills list` | `skills-list` | Skills and recipes | yes | read-only | --json | no | `manifests/commands/source/aos/38-skills.json` | `node scripts/aos-skills.mjs list` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `skills check` | `skills-check` | Skills and recipes | yes | read-only | --json | no | `manifests/commands/source/aos/38-skills.json` | `node scripts/aos-skills.mjs check` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `skills install` | `skills-install` | Skills and recipes | yes | mutates | --json | yes | `manifests/commands/source/aos/38-skills.json` | `node scripts/aos-skills.mjs install` | `docs/api/aos.md, docs/api/aos-capabilities.md` |

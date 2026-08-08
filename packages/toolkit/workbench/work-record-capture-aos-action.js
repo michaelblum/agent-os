@@ -1,5 +1,5 @@
 import {
-  WORK_RECORD_V0_SCHEMA_VERSION,
+  WORK_RECORD_V1_SCHEMA_VERSION,
 } from './work-record-adapter.js';
 import {
   deriveWorkRecordClaimIndexes,
@@ -19,13 +19,15 @@ import {
   healthReasonForVerdict,
   healthVerdictForSource,
   objectValue,
+  rawText,
+  requireRawText,
   requireText,
   resultFor,
   slug,
   text,
 } from './work-record-capture-helpers.js';
 
-export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
+export function buildWorkRecordV1FromAosActionEvidence(source = {}, {
   verifierProfile = WORK_RECORD_REPORT_ONLY_PROFILE,
 } = {}) {
   const phaseModel = normalizeAosActionEvidencePhases(source);
@@ -76,22 +78,27 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
   const cleanupPayload = cleanupPhase.payload;
   const { currentValidation, recommendedNext, recommendedNextCommand, hasSavedRefLane } = savedRefState;
 
+  const descriptorPrecondition = objectValue(evidenceSource.precondition);
   const beforePostcondition = {
-    id: `postcondition:${baseId}-before-perception`,
-    kind: 'aos_see_before',
-    description: 'The before perception captured the target scope and State ID used for the action premise.',
-    target,
+    id: text(descriptorPrecondition.id, `postcondition:${baseId}-before-perception`),
+    kind: text(descriptorPrecondition.kind, 'aos_see_before'),
+    description: text(descriptorPrecondition.description, 'The before perception captured the target scope and State ID used for the action premise.'),
+    target: rawText(descriptorPrecondition.target, target),
     state_id: beforeStateId,
-    check: {
-      kind: 'perception_state_captured',
-      expected: beforeStateId,
-      path: 'before_perception.state_id',
-    },
+    check: Object.keys(objectValue(descriptorPrecondition.check)).length > 0
+      ? cloneJson(objectValue(descriptorPrecondition.check))
+      : {
+        kind: 'perception_state_captured',
+        expected: beforeStateId,
+        path: 'before_perception.state_id',
+      },
     evidence_refs: [beforeEvidenceId],
-    repair_policy: {
-      mode: 'manual_review',
-      notes: 'Before perception drift should be reviewed against the immutable see evidence before patching the execution map.',
-    },
+    repair_policy: Object.keys(objectValue(descriptorPrecondition.repair_policy)).length > 0
+      ? cloneJson(objectValue(descriptorPrecondition.repair_policy))
+      : {
+        mode: 'manual_review',
+        notes: 'Before perception drift should be reviewed against the immutable see evidence before patching the execution map.',
+      },
   };
   const actionPostcondition = {
     id: `postcondition:${baseId}-action-executed`,
@@ -107,7 +114,7 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
     evidence_refs: [actionEvidenceId],
     repair_policy: {
       mode: 'manual_review',
-      notes: 'Action failures require an explicit workflow-gated re-run or execution-map review.',
+      notes: 'Action failures require fresh source-bound validation or execution-map review before a caller records another attempt.',
     },
   };
   const dryRunPostcondition = dryRunCommand ? {
@@ -124,7 +131,7 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
     evidence_refs: [dryRunEvidenceId],
     repair_policy: {
       mode: dryRunPassed ? 'manual_review' : 'patch_execution_map',
-      notes: 'Dry-run failures must re-perceive and re-resolve the saved ref under an explicit workflow gate before dispatch.',
+      notes: 'Dry-run failures require fresh perception and exact saved-ref resolution before any separate caller-run attempt.',
     },
   } : null;
   const afterPostcondition = {
@@ -134,8 +141,8 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
       postconditionSource.description,
       'postcondition.description',
     ),
-    target: text(postconditionSource.target, targetWithRef),
-    state_id: text(postconditionSource.state_id, afterStateId),
+    target: rawText(postconditionSource.target, targetWithRef),
+    state_id: rawText(postconditionSource.state_id, afterStateId),
     check: {
       kind: requireText(objectValue(postconditionSource.check).kind, 'postcondition.check.kind'),
       ...cloneJson(objectValue(postconditionSource.check)),
@@ -145,7 +152,7 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
       mode: text(objectValue(postconditionSource.repair_policy).mode, 'manual_review'),
       notes: text(
         objectValue(postconditionSource.repair_policy).notes,
-        'Patch target refs or post-action checks only under an explicit workflow gate.',
+        'Patch target refs or post-action checks only from fresh source-bound evidence.',
       ),
     },
   };
@@ -154,7 +161,7 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
     kind: text(cleanup.kind, 'aos_cleanup'),
     description: text(cleanup.description, `Cleanup completed for ${target}.`),
     target,
-    state_id: text(cleanup.state_id, afterStateId),
+    state_id: rawText(cleanup.state_id, afterStateId),
     check: {
       kind: 'cleanup_status_equals',
       expected: 'success',
@@ -189,12 +196,12 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
       ],
     },
     {
-      id: `claim:${baseId}-post-action-state-observed`,
+      id: text(evidenceSource.promoted_claim_id, `claim:${baseId}-post-action-state-observed`),
       text: text(
         evidenceSource.claim_text,
         'The post-action AOS perception shows the expected target state.',
       ),
-      scope: 'run',
+      scope: text(evidenceSource.promoted_claim_scope, 'run'),
       acceptance: text(
         evidenceSource.acceptance,
         text(postconditionSource.description),
@@ -284,9 +291,9 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
 
   return {
     type: 'aos.work_record',
-    schema_version: WORK_RECORD_V0_SCHEMA_VERSION,
+    schema_version: WORK_RECORD_V1_SCHEMA_VERSION,
     id: recordId,
-    label: text(evidenceSource.label, `AOS action evidence: ${actionCommand}`),
+    label: rawText(evidenceSource.label, `AOS action evidence: ${actionCommand}`),
     created_at: createdAt,
     origin: {
       kind: 'ad_hoc',
@@ -358,7 +365,7 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
           repair_hints: [
             {
               kind: 'patch_target_ref_or_check',
-              note: 'If the target ref drifts, re-run see under an explicit workflow gate and patch the execution map rather than replaying automatically.',
+              note: 'If the target ref drifts, re-run see and prepare a new source-bound execution-map proposal.',
             },
           ],
         },
@@ -368,48 +375,41 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
         {
           id: `artifact-route:${baseId}-before-see`,
           kind: 'aos_see_capture',
-          destination: requireText(before.artifact_uri, 'before_perception.artifact_uri'),
+          destination: requireRawText(before.artifact_uri, 'before_perception.artifact_uri'),
           evidence_ref: beforeEvidenceId,
         },
         ...(dryRunCommand ? [{
           id: `artifact-route:${baseId}-dry-run`,
           kind: 'aos_do_dry_run',
-          destination: requireText(dryRun.artifact_uri, 'dry_run.artifact_uri'),
+          destination: requireRawText(dryRun.artifact_uri, 'dry_run.artifact_uri'),
           evidence_ref: dryRunEvidenceId,
         }] : []),
         {
           id: `artifact-route:${baseId}-do-action`,
           kind: 'aos_do_action',
-          destination: requireText(action.artifact_uri, 'action.artifact_uri'),
+          destination: requireRawText(action.artifact_uri, 'action.artifact_uri'),
           evidence_ref: actionEvidenceId,
         },
         {
           id: `artifact-route:${baseId}-after-see`,
           kind: 'aos_see_capture',
-          destination: requireText(after.artifact_uri, 'after_perception.artifact_uri'),
+          destination: requireRawText(after.artifact_uri, 'after_perception.artifact_uri'),
           evidence_ref: afterEvidenceId,
         },
         ...(cleanupCommand ? [{
           id: `artifact-route:${baseId}-cleanup`,
           kind: 'aos_cleanup',
-          destination: requireText(cleanup.artifact_uri, 'cleanup.artifact_uri'),
+          destination: requireRawText(cleanup.artifact_uri, 'cleanup.artifact_uri'),
           evidence_ref: cleanupEvidenceId,
         }] : []),
       ],
-      replay_policy: {
-        mode: 'report_only',
-        replay_requires_workflow_gate: true,
-        repair_requires_workflow_gate: true,
-        gate_refs: [],
-        notes: 'This Work Record records and verifies AOS action evidence only; it does not authorize autonomous replay or repair.',
-      },
     },
     evidence: [
       {
         id: beforeEvidenceId,
         kind: 'aos_see_capture',
         created_at: requireText(before.captured_at, 'before_perception.captured_at'),
-        uri: requireText(before.artifact_uri, 'before_perception.artifact_uri'),
+        uri: requireRawText(before.artifact_uri, 'before_perception.artifact_uri'),
         digest: evidenceDigest(beforePayload),
         state_id: beforeStateId,
         target,
@@ -418,7 +418,7 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
         metadata: {
           builder: WORK_RECORD_AOS_ACTION_CAPTURE_BUILDER_VERSION,
           phase: 'before',
-          command: text(before.command),
+          command: rawText(before.command),
           target_dialect: targetDialect,
           target_with_ref: targetWithRef,
           ...(hasSavedRefLane ? { resolved_target: resolvedTarget } : {}),
@@ -436,7 +436,7 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
         id: dryRunEvidenceId,
         kind: 'aos_do_dry_run',
         created_at: requireText(dryRun.executed_at, 'dry_run.executed_at'),
-        uri: requireText(dryRun.artifact_uri, 'dry_run.artifact_uri'),
+        uri: requireRawText(dryRun.artifact_uri, 'dry_run.artifact_uri'),
         digest: evidenceDigest(dryRunPayload),
         state_id: actionStateId,
         target: selectedSavedRef || targetWithRef,
@@ -466,7 +466,7 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
         id: actionEvidenceId,
         kind: 'aos_do_action',
         created_at: requireText(action.executed_at, 'action.executed_at'),
-        uri: requireText(action.artifact_uri, 'action.artifact_uri'),
+        uri: requireRawText(action.artifact_uri, 'action.artifact_uri'),
         digest: evidenceDigest(actionPayload),
         state_id: actionStateId,
         target: targetWithRef,
@@ -497,7 +497,7 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
         id: afterEvidenceId,
         kind: 'aos_see_capture',
         created_at: requireText(after.captured_at, 'after_perception.captured_at'),
-        uri: requireText(after.artifact_uri, 'after_perception.artifact_uri'),
+        uri: requireRawText(after.artifact_uri, 'after_perception.artifact_uri'),
         digest: evidenceDigest(afterPayload),
         state_id: afterStateId,
         target,
@@ -506,7 +506,7 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
         metadata: {
           builder: WORK_RECORD_AOS_ACTION_CAPTURE_BUILDER_VERSION,
           phase: 'after',
-          command: text(after.command),
+          command: rawText(after.command),
           target_dialect: targetDialect,
           target_with_ref: targetWithRef,
           ...(hasSavedRefLane ? { resolved_target: resolvedTarget } : {}),
@@ -524,9 +524,9 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
         id: cleanupEvidenceId,
         kind: 'aos_cleanup',
         created_at: requireText(cleanup.completed_at || cleanup.executed_at, 'cleanup.completed_at'),
-        uri: requireText(cleanup.artifact_uri, 'cleanup.artifact_uri'),
+        uri: requireRawText(cleanup.artifact_uri, 'cleanup.artifact_uri'),
         digest: evidenceDigest(cleanupPayload),
-        state_id: text(cleanup.state_id, afterStateId),
+        state_id: rawText(cleanup.state_id, afterStateId),
         target,
         immutable: true,
         summary: text(cleanup.summary, `Cleanup reported ${cleanupStatusValue}.`),
@@ -576,8 +576,6 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
       evaluated_at: completedAt,
       verifier_report_id: verifierReportId,
       confidence: Math.min(...claimResults.map((result) => result.confidence)),
-      repair_gate_refs: [],
-      replay_gate_refs: [],
     },
     metadata: {
       generated_by: WORK_RECORD_AOS_ACTION_CAPTURE_BUILDER_VERSION,

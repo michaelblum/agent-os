@@ -1,12 +1,18 @@
 import {
-  buildWorkRecordV0FromStepDescriptorEvidence,
+  buildWorkRecordV1FromStepDescriptorEvidence,
 } from './work-record-capture-step-descriptor.js';
 import {
   runWorkRecordVerifierProfile,
   WORK_RECORD_REPORT_ONLY_PROFILE_ID,
 } from './work-record-verifier.js';
+import validateStepDescriptorV1 from './step-descriptor-v1-validator.generated.js';
+import {
+  stepDescriptorContractMismatches,
+  stepDescriptorEvidenceMismatches,
+} from './work-record-capture-helpers.js';
 
-export const STEP_DESCRIPTOR_HARNESS_VERSION = '2026-05-one-step-step-descriptor-harness-v0';
+export const STEP_DESCRIPTOR_SCHEMA_VERSION = '2026-08-step-descriptor-v1';
+export const STEP_DESCRIPTOR_HARNESS_VERSION = '2026-08-one-step-step-descriptor-harness-v1';
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -26,11 +32,22 @@ function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function diagnostic(code, message, path = '', details = {}) {
+  return {
+    severity: 'error',
+    code,
+    failure_class: text(details.failure_class, 'harness_contract'),
+    report_only: true,
+    message,
+    path,
+    ...details,
+  };
+}
+
 function harnessResult({
   status,
   reason,
   stepDescriptor,
-  workflowGate = null,
   mode = 'simulate',
   diagnostics = [],
   record = null,
@@ -43,90 +60,54 @@ function harnessResult({
     mode,
     reason,
     step_descriptor_id: text(objectValue(stepDescriptor).id) || null,
-    workflow_gate_ref: text(objectValue(workflowGate).ref) || null,
     record,
     verifier,
     diagnostics,
   };
 }
 
-function diagnostic(code, message, path = '', details = {}) {
-  return {
-    severity: 'error',
-    code,
-    failure_class: text(details.failure_class, 'workflow_gate'),
-    report_only: true,
-    message,
-    path,
-    ...details,
-  };
-}
-
-export function normalizeStepDescriptorHarnessGate(gate = null) {
-  if (typeof gate === 'string') {
-    return {
-      ref: text(gate),
-      token: '',
-    };
-  }
-  const value = objectValue(gate);
-  return {
-    ...cloneJson(value),
-    ref: text(value.ref || value.gate_ref || value.workflow_gate_ref),
-    token: text(value.token || value.token_ref || value.workflow_gate_token),
-  };
-}
-
-export function checkStepDescriptorHarnessGate(stepDescriptor = {}, gate = null) {
-  const step = objectValue(stepDescriptor);
-  const normalizedGate = normalizeStepDescriptorHarnessGate(gate);
-  const gateRef = text(normalizedGate.ref);
-  const gateToken = text(normalizedGate.token);
-  const allowedRefs = arrayValue(objectValue(step.workflow_gates).gate_refs)
-    .map((ref) => text(ref))
-    .filter(Boolean);
-
-  if (!gateRef || !gateToken) {
-    return {
-      ok: false,
-      gate: normalizedGate,
-      diagnostic: diagnostic(
-        'workflow_gate_required',
-        'Step Descriptor harness execution requires an explicit workflow gate ref and token before any action path can run.',
-        'workflow_gate',
-      ),
-    };
-  }
-
-  if (allowedRefs.length === 0 || !allowedRefs.includes(gateRef)) {
-    return {
-      ok: false,
-      gate: normalizedGate,
-      diagnostic: diagnostic(
-        'workflow_gate_ref_not_allowed',
-        `Workflow gate ${gateRef} is not declared by the Step descriptor.`,
-        'workflow_gate.ref',
-        {
-          gate_ref: gateRef,
-          allowed_gate_refs: allowedRefs,
-        },
-      ),
-    };
-  }
-
-  return {
-    ok: true,
-    gate: normalizedGate,
-  };
-}
-
 function normalizeHarnessMode(mode = 'simulate') {
-  const normalized = text(mode, 'simulate');
-  return normalized === 'execute' ? 'execute' : 'simulate';
+  return text(mode, 'simulate') === 'execute' ? 'execute' : 'simulate';
+}
+
+export function validateStepDescriptor(step = {}) {
+  const diagnostics = [];
+  if (text(step.type) !== 'aos.step_descriptor') {
+    diagnostics.push(diagnostic(
+      'unsupported_step_descriptor_type',
+      'The one-step harness requires type aos.step_descriptor.',
+      'step_descriptor.type',
+    ));
+  }
+  if (text(step.schema_version) !== STEP_DESCRIPTOR_SCHEMA_VERSION) {
+    diagnostics.push(diagnostic(
+      'unsupported_step_descriptor_schema',
+      `The one-step harness accepts only ${STEP_DESCRIPTOR_SCHEMA_VERSION}; historical descriptors are unsupported.`,
+      'step_descriptor.schema_version',
+    ));
+  }
+  if (diagnostics.length === 0 && !validateStepDescriptorV1(step)) {
+    for (const error of arrayValue(validateStepDescriptorV1.errors)) {
+      const item = objectValue(error);
+      diagnostics.push(diagnostic(
+        'step_descriptor_v1_schema_invalid',
+        `Step Descriptor V1 schema validation failed: ${text(item.message, 'invalid value')}`,
+        text(item.instancePath) ? `step_descriptor${text(item.instancePath)}` : 'step_descriptor',
+        { schema_path: text(item.schemaPath) },
+      ));
+    }
+  }
+  if (diagnostics.length === 0) {
+    diagnostics.push(...stepDescriptorContractMismatches(step).map((item) => diagnostic(
+      item.code,
+      item.message,
+      item.path,
+    )));
+  }
+  return diagnostics;
 }
 
 export function runOneStepStepDescriptorHarness(stepDescriptor = {}, {
-  workflowGate = null,
   mode = 'simulate',
   evidenceSource = null,
   executeStep = null,
@@ -140,28 +121,23 @@ export function runOneStepStepDescriptorHarness(stepDescriptor = {}, {
       status: 'rejected',
       reason: 'one_step_only',
       stepDescriptor: step,
-      workflowGate,
       mode: harnessMode,
-      diagnostics: [
-        diagnostic(
-          'one_step_only',
-          'The v0 Step Descriptor harness accepts exactly one step descriptor.',
-          'step_descriptor',
-          { failure_class: 'harness_contract' },
-        ),
-      ],
+      diagnostics: [diagnostic(
+        'one_step_only',
+        'The Step Descriptor harness accepts exactly one descriptor.',
+        'step_descriptor',
+      )],
     });
   }
 
-  const gateCheck = checkStepDescriptorHarnessGate(step, workflowGate);
-  if (!gateCheck.ok) {
+  const descriptorDiagnostics = validateStepDescriptor(step);
+  if (descriptorDiagnostics.length > 0) {
     return harnessResult({
       status: 'rejected',
-      reason: gateCheck.diagnostic.code,
+      reason: descriptorDiagnostics[0].code,
       stepDescriptor: step,
-      workflowGate: gateCheck.gate,
       mode: harnessMode,
-      diagnostics: [gateCheck.diagnostic],
+      diagnostics: descriptorDiagnostics,
     });
   }
 
@@ -172,22 +148,15 @@ export function runOneStepStepDescriptorHarness(stepDescriptor = {}, {
         status: 'rejected',
         reason: 'execute_step_adapter_required',
         stepDescriptor: step,
-        workflowGate: gateCheck.gate,
         mode: harnessMode,
-        diagnostics: [
-          diagnostic(
-            'execute_step_adapter_required',
-            'Execute mode requires a caller-supplied adapter that returns one saved AOS action evidence source.',
-            'executeStep',
-            { failure_class: 'harness_contract' },
-          ),
-        ],
+        diagnostics: [diagnostic(
+          'execute_step_adapter_required',
+          'Execute mode requires a caller-supplied adapter that returns one saved AOS action evidence source.',
+          'executeStep',
+        )],
       });
     }
-    source = objectValue(executeStep({
-      stepDescriptor: cloneJson(step),
-      workflowGate: cloneJson(gateCheck.gate),
-    }));
+    source = objectValue(executeStep({ stepDescriptor: cloneJson(step) }));
   }
 
   if (Object.keys(source).length === 0) {
@@ -195,29 +164,33 @@ export function runOneStepStepDescriptorHarness(stepDescriptor = {}, {
       status: 'rejected',
       reason: 'evidence_source_required',
       stepDescriptor: step,
-      workflowGate: gateCheck.gate,
       mode: harnessMode,
-      diagnostics: [
-        diagnostic(
-          'evidence_source_required',
-          'The v0 harness records through saved AOS action evidence and requires one evidence source.',
-          'evidenceSource',
-          { failure_class: 'harness_contract' },
-        ),
-      ],
+      diagnostics: [diagnostic(
+        'evidence_source_required',
+        'The harness requires one saved AOS action evidence source.',
+        'evidenceSource',
+      )],
     });
   }
 
-  const record = buildWorkRecordV0FromStepDescriptorEvidence(step, source);
-  const verifier = runWorkRecordVerifierProfile(record, { profileId: verifierProfileId });
+  const evidenceDiagnostics = stepDescriptorEvidenceMismatches(step, source)
+    .map((item) => diagnostic(item.code, item.message, item.path));
+  if (evidenceDiagnostics.length > 0) {
+    return harnessResult({
+      status: 'rejected',
+      reason: evidenceDiagnostics[0].code,
+      stepDescriptor: step,
+      mode: harnessMode,
+      diagnostics: evidenceDiagnostics,
+    });
+  }
 
+  const record = buildWorkRecordV1FromStepDescriptorEvidence(step, source);
+  const verifier = runWorkRecordVerifierProfile(record, { profileId: verifierProfileId });
   return harnessResult({
     status: verifier.status,
-    reason: verifier.status === 'passed'
-      ? 'record_verified'
-      : 'verifier_reported_diagnostics',
+    reason: verifier.status === 'passed' ? 'record_verified' : 'verifier_reported_diagnostics',
     stepDescriptor: step,
-    workflowGate: gateCheck.gate,
     mode: harnessMode,
     record,
     verifier,

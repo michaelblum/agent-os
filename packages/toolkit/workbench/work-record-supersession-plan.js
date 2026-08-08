@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {
-  isWorkRecordV0,
+  isWorkRecordV1,
 } from './work-record-adapter.js';
 import {
   readWorkRecord,
@@ -10,6 +10,8 @@ import {
 import {
   digestJson as digestJsonValue,
   digestText as digestTextValue,
+  WORK_RECORD_REPLACEMENT_PROPOSAL_SCHEMA_VERSION,
+  WORK_RECORD_REPLACEMENT_PROPOSAL_TYPE,
 } from './work-record-replacement-proposal.js';
 import {
   WORK_RECORD_REPLACEMENT_WRITER_RESULT_SCHEMA_VERSION,
@@ -18,8 +20,11 @@ import {
 import {
   workRecordSupersessionLookupRecommendation,
 } from './work-record-command-recommendation.js';
+import {
+  readTextFileNoFollow,
+} from './work-record-atomic-publish.js';
 
-export const WORK_RECORD_SOURCE_SUPERSESSION_INDEX_SCHEMA_VERSION = '2026-07-work-record-source-supersession-index-v0';
+export const WORK_RECORD_SOURCE_SUPERSESSION_INDEX_SCHEMA_VERSION = '2026-08-work-record-source-supersession-index-v1';
 export const WORK_RECORD_SOURCE_SUPERSESSION_ENTRY_TYPE = 'work_record.source_supersession_entry';
 
 export const WORK_RECORD_SOURCE_SUPERSESSION_INDEX_STATUSES = [
@@ -99,6 +104,23 @@ function realExistingPath(target) {
   return fs.realpathSync(current);
 }
 
+function ancestorPathViolation(absolutePath) {
+  const parsed = path.parse(absolutePath);
+  const parts = path.relative(parsed.root, absolutePath).split(path.sep).filter(Boolean);
+  let current = parsed.root;
+  for (let index = 0; index < parts.length - 1; index += 1) {
+    current = path.join(current, parts[index]);
+    if (!fs.existsSync(current)) break;
+    const stat = fs.lstatSync(current);
+    if (stat.isSymbolicLink()) {
+      if (index > 0) return { path: current, reason: 'symlink_ancestor' };
+      continue;
+    }
+    if (!stat.isDirectory()) return { path: current, reason: 'parent_not_directory' };
+  }
+  return null;
+}
+
 function containedPath(child, root) {
   const relative = path.relative(root, child);
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
@@ -141,15 +163,56 @@ export function readRecordIdentity(ref, {
     };
   }
   const sourcePath = rawText(read.source?.path);
+  const ancestorViolation = sourcePath ? ancestorPathViolation(sourcePath) : null;
+  const pinnedRead = sourcePath ? readTextFileNoFollow(sourcePath) : { status: 'missing' };
+  if (ancestorViolation?.reason === 'symlink_ancestor' || pinnedRead.status !== 'readable') {
+    const error = pinnedRead.error || new Error(ancestorViolation?.reason === 'symlink_ancestor'
+      ? 'Work Record path traverses a symlinked ancestor.'
+      : `Work Record path identity is not safely readable (${pinnedRead.status}).`);
+    return {
+      status: invalidStatus,
+      diagnostics: [{
+        severity: 'error',
+        code: `SUPERSESSION_INDEX_${diagnosticPrefix}_DIGEST_READ_FAILED`,
+        message: `${diagnosticPrefix === 'SOURCE' ? 'Source' : 'Replacement'} Work Record digest could not be read without following path indirection: ${error.message}`,
+        path: sourcePath || rawText(ref),
+      }],
+    };
+  }
+  let pinnedRecord;
+  try {
+    pinnedRecord = JSON.parse(pinnedRead.bytes);
+  } catch (error) {
+    return {
+      status: invalidStatus,
+      diagnostics: [{
+        severity: 'error',
+        code: `SUPERSESSION_INDEX_${diagnosticPrefix}_DIGEST_READ_FAILED`,
+        message: `${diagnosticPrefix === 'SOURCE' ? 'Source' : 'Replacement'} Work Record pinned bytes could not be parsed: ${error.message}`,
+        path: sourcePath || rawText(ref),
+      }],
+    };
+  }
+  if (digestJsonValue(pinnedRecord) !== digestJsonValue(read.record)) {
+    return {
+      status: invalidStatus,
+      diagnostics: [{
+        severity: 'error',
+        code: `SUPERSESSION_INDEX_${diagnosticPrefix}_DIGEST_READ_FAILED`,
+        message: `${diagnosticPrefix === 'SOURCE' ? 'Source' : 'Replacement'} Work Record changed between validation and pinned identity readback.`,
+        path: sourcePath || rawText(ref),
+      }],
+    };
+  }
   return {
     status: 'success',
-    record: read.record,
+    record: pinnedRecord,
     identity: {
       id: text(read.record?.id || read.summary?.id),
       path: sourcePath,
       requested_ref: rawText(ref),
       schema_version: text(read.record?.schema_version || read.summary?.schema_version),
-      digest: sourcePath && fs.existsSync(sourcePath) ? fileDigest(sourcePath) : digestJsonValue(read.record),
+      digest: pinnedRead.existing_digest,
       digest_algorithm: 'sha256',
     },
   };
@@ -186,6 +249,46 @@ function validateWriterResultObject(value = {}, { allowDryRun = false } = {}) {
       allowDryRun ? 'writer_result must be dry_run, written, or already_exists.' : 'writer_result must be written or already_exists.',
       'writer_result.status',
     );
+  }
+  const replacementProposal = objectValue(value.replacement_proposal);
+  if (text(replacementProposal.type) !== WORK_RECORD_REPLACEMENT_PROPOSAL_TYPE) {
+    addDiagnostic(diagnostics, 'SUPERSESSION_INDEX_WRITER_RESULT_PROPOSAL_TYPE_INVALID', 'writer_result replacement_proposal type is unsupported.', 'writer_result.replacement_proposal.type');
+  }
+  if (text(replacementProposal.schema_version) !== WORK_RECORD_REPLACEMENT_PROPOSAL_SCHEMA_VERSION) {
+    addDiagnostic(diagnostics, 'SUPERSESSION_INDEX_WRITER_RESULT_PROPOSAL_SCHEMA_INVALID', 'writer_result replacement_proposal schema_version is unsupported.', 'writer_result.replacement_proposal.schema_version');
+  }
+  if (text(replacementProposal.status) !== 'proposed') {
+    addDiagnostic(diagnostics, 'SUPERSESSION_INDEX_WRITER_RESULT_PROPOSAL_STATUS_INVALID', 'writer_result replacement_proposal status must be proposed.', 'writer_result.replacement_proposal.status');
+  }
+  for (const [field, candidate] of [
+    ['replacement_proposal.id', value.replacement_proposal?.id],
+    ['replacement_proposal.digest', value.replacement_proposal?.digest],
+    ['replacement_proposal.schema_version', value.replacement_proposal?.schema_version],
+    ['source_work_record.id', value.source_work_record?.id],
+    ['source_work_record.path', value.source_work_record?.path],
+    ['source_work_record.digest', value.source_work_record?.digest],
+    ['written_replacement_work_record.id', value.written_replacement_work_record?.id],
+    ['written_replacement_work_record.digest', value.written_replacement_work_record?.digest],
+    ['written_replacement_work_record.schema_version', value.written_replacement_work_record?.schema_version],
+    ['output.output_path', value.output?.output_path],
+    ['output.digest', value.output?.digest],
+  ]) {
+    if (!rawText(candidate)) addDiagnostic(diagnostics, 'SUPERSESSION_INDEX_WRITER_RESULT_INCOMPLETE', `writer_result ${field} is required.`, `writer_result.${field}`);
+  }
+  const immutability = objectValue(value.source_immutability_check);
+  if (text(immutability.status) !== 'passed'
+    || !text(immutability.expected_digest)
+    || text(immutability.expected_digest) !== text(immutability.actual_digest)) {
+    addDiagnostic(diagnostics, 'SUPERSESSION_INDEX_WRITER_RESULT_SOURCE_CHECK_INVALID', 'writer_result requires a passed exact source immutability check.', 'writer_result.source_immutability_check');
+  }
+  const successful = ['written', 'already_exists'].includes(text(value.status));
+  if (value.writes_replacement_record !== successful
+    || value.would_write_replacement_record !== (text(value.status) === 'dry_run')
+    || value.mutates_source_record !== false
+    || value.executes_repair !== false
+    || value.executes_actions !== false
+    || value.applies_patches !== false) {
+    addDiagnostic(diagnostics, 'SUPERSESSION_INDEX_WRITER_RESULT_FLAGS_INVALID', 'writer_result write and non-execution flags must exactly match its status.', 'writer_result');
   }
   return diagnostics;
 }
@@ -262,27 +365,72 @@ function resolveIndexPath({ indexRoot = '', source = {}, replacement = {}, entry
     return { diagnostics };
   }
   const rootResolved = path.resolve(indexRoot);
-  if (fs.existsSync(rootResolved) && !fs.statSync(rootResolved).isDirectory()) {
-    addDiagnostic(diagnostics, 'SUPERSESSION_INDEX_ROOT_NOT_DIRECTORY', 'index_root must be a directory.', 'index_root');
-    return { diagnostics, index_root: rootResolved };
-  }
-  const rootExistingReal = realExistingPath(rootResolved);
-  if (!rootExistingReal) {
-    addDiagnostic(diagnostics, 'SUPERSESSION_INDEX_ROOT_UNRESOLVABLE', 'Could not resolve index_root containment.', 'index_root');
-    return { diagnostics };
+  let rootExistingReal = '';
+  try {
+    const ancestorViolation = ancestorPathViolation(rootResolved);
+    if (ancestorViolation?.reason === 'symlink_ancestor') {
+      addDiagnostic(diagnostics, 'SUPERSESSION_INDEX_ROOT_SYMLINK_ANCESTOR', 'index_root must not be reached through a symlinked ancestor.', 'index_root', {
+        ancestor_path: ancestorViolation.path,
+      });
+      return { diagnostics, index_root: rootResolved };
+    }
+    if (ancestorViolation?.reason === 'parent_not_directory') {
+      addDiagnostic(diagnostics, 'SUPERSESSION_INDEX_ROOT_ANCESTOR_NOT_DIRECTORY', 'index_root must have only directory ancestors.', 'index_root', {
+        ancestor_path: ancestorViolation.path,
+      });
+      return { diagnostics, index_root: rootResolved };
+    }
+    if (fs.existsSync(rootResolved)) {
+      const rootStat = fs.lstatSync(rootResolved);
+      if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
+        addDiagnostic(diagnostics, 'SUPERSESSION_INDEX_ROOT_NOT_DIRECTORY', 'index_root must be a real directory.', 'index_root');
+        return { diagnostics, index_root: rootResolved };
+      }
+    }
+    rootExistingReal = realExistingPath(rootResolved);
+    if (!rootExistingReal) {
+      addDiagnostic(diagnostics, 'SUPERSESSION_INDEX_ROOT_UNRESOLVABLE', 'Could not resolve index_root containment.', 'index_root');
+      return { diagnostics };
+    }
+    if (!fs.statSync(rootExistingReal).isDirectory()) {
+      addDiagnostic(diagnostics, 'SUPERSESSION_INDEX_ROOT_ANCESTOR_NOT_DIRECTORY', 'index_root must have a directory ancestor.', 'index_root');
+      return { diagnostics, index_root: rootResolved };
+    }
+  } catch (error) {
+    addDiagnostic(diagnostics, 'SUPERSESSION_INDEX_ROOT_UNREADABLE', `index_root containment could not be inspected: ${error.message}`, 'index_root');
+    return { diagnostics, index_root: rootResolved, failure_status: 'blocked_write_failed' };
   }
   const sourceDigest = text(source.digest);
   const replacementDigest = text(replacement.digest);
-  const sourceStem = safeStem(`${text(source.id)}-${sourceDigest.slice(0, 12)}`);
-  const entryStem = safeStem(`${entryId}.json`);
+  const sourceIdentityDigest = digestJsonValue({
+    id: text(source.id),
+    path: rawText(source.path),
+    schema_version: text(source.schema_version),
+    digest: sourceDigest,
+  });
+  const sourceStem = safeStem(`${text(source.id)}-${sourceIdentityDigest.slice(0, 24)}`);
+  const entryStem = safeStem(entryId);
   if (!sourceStem || !entryStem || !sourceDigest || !replacementDigest) {
     addDiagnostic(diagnostics, 'SUPERSESSION_INDEX_IDENTITY_UNSAFE', 'Source Supersession Index identity cannot be mapped to a safe path.', 'index_path');
     return { diagnostics };
   }
-  const entryDir = path.join(rootResolved, 'source-supersession', 'v0', sourceStem);
-  const indexPath = path.join(entryDir, entryStem);
-  const parentExistingReal = realExistingPath(entryDir);
-  const outputExistingReal = fs.existsSync(indexPath) ? realExistingPath(indexPath) : '';
+  const entryDir = path.join(rootResolved, 'source-supersession', 'v1', sourceStem);
+  const indexPath = path.join(entryDir, 'active.json');
+  let parentExistingReal = '';
+  let outputExistingReal = '';
+  try {
+    parentExistingReal = realExistingPath(entryDir);
+    outputExistingReal = fs.existsSync(indexPath) ? realExistingPath(indexPath) : '';
+  } catch (error) {
+    addDiagnostic(diagnostics, 'SUPERSESSION_INDEX_PATH_UNREADABLE', `Index path containment could not be inspected: ${error.message}`, 'index_path');
+    return {
+      diagnostics,
+      index_root: rootResolved,
+      index_path: indexPath,
+      deterministic_filename: 'active.json',
+      failure_status: 'blocked_write_failed',
+    };
+  }
   if (!containedPath(path.resolve(entryDir), rootResolved) || !containedPath(parentExistingReal, rootExistingReal)) {
     addDiagnostic(diagnostics, 'SUPERSESSION_INDEX_PATH_ESCAPE', 'Index path must stay inside index_root.', 'index_path');
   }
@@ -293,7 +441,38 @@ function resolveIndexPath({ indexRoot = '', source = {}, replacement = {}, entry
     diagnostics,
     index_root: rootResolved,
     index_path: indexPath,
-    deterministic_filename: `${entryId}.json`,
+    deterministic_filename: 'active.json',
+  };
+}
+
+function persistedWriterResult(writerResult = {}) {
+  return writerResultIdentityProjection(writerResult);
+}
+
+function proposalIdentityProjection(proposal = {}) {
+  const value = objectValue(proposal);
+  return {
+    id: text(value.id),
+    digest: text(value.digest),
+    schema_version: text(value.schema_version),
+  };
+}
+
+function writerResultIdentityProjection(writerResult = {}) {
+  const value = objectValue(writerResult);
+  const output = objectValue(value.output);
+  return {
+    type: text(value.type),
+    schema_version: text(value.schema_version),
+    id: text(value.id || value.replacement_proposal?.id),
+    replacement_proposal: proposalIdentityProjection(value.replacement_proposal),
+    written_replacement_work_record: cloneJson(objectValue(value.written_replacement_work_record)),
+    output: {
+      output_root: rawText(output.output_root),
+      output_path: rawText(output.output_path),
+      deterministic_filename: text(output.deterministic_filename),
+      digest: text(output.digest),
+    },
   };
 }
 
@@ -313,11 +492,8 @@ function relationshipIdentity({ source = {}, replacement = {}, writerResult = {}
       digest: text(replacement.digest),
       schema_version: text(replacement.schema_version),
     },
-    replacement_writer_result: {
-      id: text(writerResult?.id || writerResult?.replacement_proposal?.id),
-      digest: text(writerResult?.output?.digest || (writerResult && Object.keys(writerResult).length > 0 ? digestJsonValue(writerResult) : '')),
-      schema_version: text(writerResult?.schema_version),
-    },
+    replacement_writer_result: writerResultIdentityProjection(writerResult),
+    replacement_proposal: proposalIdentityProjection(writerResult.replacement_proposal),
   };
   const digest = digestJsonValue(core);
   return {
@@ -363,16 +539,12 @@ function entryFromInputs({
       digest_algorithm: 'sha256',
       identity_core: cloneJson(identity.core),
     },
-    replacement_writer_result: writerResult && Object.keys(writerResult).length > 0 ? {
-      type: text(writerResult.type),
-      schema_version: text(writerResult.schema_version),
-      status: text(writerResult.status),
-      id: text(writerResult.id || writerResult.replacement_proposal?.id),
-      digest: digestJsonValue(writerResult),
-      written_replacement_work_record: cloneJson(objectValue(writerResult.written_replacement_work_record)),
-      output: cloneJson(objectValue(writerResult.output)),
-    } : {},
-    replacement_proposal: writerResult && Object.keys(writerResult).length > 0 ? cloneJson(objectValue(writerResult.replacement_proposal)) : {},
+    replacement_writer_result: writerResult && Object.keys(writerResult).length > 0
+      ? persistedWriterResult(writerResult)
+      : {},
+    replacement_proposal: writerResult && Object.keys(writerResult).length > 0
+      ? proposalIdentityProjection(writerResult.replacement_proposal)
+      : {},
     source_immutability_check: {
       status: 'passed',
       source_path: rawText(source.path),
@@ -389,9 +561,23 @@ function entryFromInputs({
     executes_repair: false,
     executes_actions: false,
     applies_patches: false,
-    automatic_replay_allowed: false,
     diagnostics: [],
   };
+}
+
+function canonicalIndexPathForEntry(indexRoot = '', entry = {}) {
+  const root = path.resolve(indexRoot);
+  const source = objectValue(entry.source_work_record);
+  const sourceIdentityDigest = digestJsonValue({
+    id: text(source.id),
+    path: rawText(source.path),
+    schema_version: text(source.schema_version),
+    digest: text(source.digest),
+  });
+  const sourceStem = safeStem(`${text(source.id)}-${sourceIdentityDigest.slice(0, 24)}`);
+  const entryStem = safeStem(entry.id);
+  if (!sourceStem || !entryStem) return '';
+  return path.join(root, 'source-supersession', 'v1', sourceStem, 'active.json');
 }
 
 export function baseWriteResult({
@@ -406,7 +592,8 @@ export function baseWriteResult({
   diagnostics = [],
 } = {}) {
   const wrote = status === 'written' || status === 'already_exists';
-  const lookupRecommendation = wrote
+  const destinationPublished = wrote || atomicWrite.published === true;
+  const lookupRecommendation = destinationPublished
     ? workRecordSupersessionLookupRecommendation(text(source.id), rawText(index.index_root))
     : null;
   return {
@@ -440,18 +627,18 @@ export function baseWriteResult({
       index_root: rawText(index.index_root),
       index_path: rawText(index.index_path),
       deterministic_filename: text(index.deterministic_filename),
+      digest: text(index.digest),
     },
     idempotency,
     atomic_write: atomicWrite,
-    side_effects: status === 'written' ? ['write_source_supersession_index_entry'] : [],
-    writes_index_entry: status === 'written' || status === 'already_exists',
+    side_effects: destinationPublished ? ['write_source_supersession_index_entry'] : [],
+    writes_index_entry: destinationPublished,
     would_write_index_entry: status === 'dry_run',
     mutates_source_record: false,
     mutates_replacement_record: false,
     executes_repair: false,
     executes_actions: false,
     applies_patches: false,
-    automatic_replay_allowed: false,
     diagnostics,
     recommended_next: wrote
       ? {
@@ -459,7 +646,14 @@ export function baseWriteResult({
         argv: lookupRecommendation.argv,
         command_hint: lookupRecommendation.command_hint,
       }
-      : {
+      : destinationPublished
+        ? {
+          action: 'inspect_published_index_and_cleanup_temp',
+          argv: lookupRecommendation.argv,
+          command_hint: lookupRecommendation.command_hint,
+          temp_file: rawText(atomicWrite.temp_file),
+        }
+        : {
         action: status === 'dry_run' ? 'rerun_without_dry_run_to_write_index' : 'inspect_index_writer_diagnostics',
       },
   };
@@ -477,8 +671,11 @@ export function validateWorkRecordSourceSupersessionEntry(entry = {}) {
   if (text(value.schema_version) !== WORK_RECORD_SOURCE_SUPERSESSION_INDEX_SCHEMA_VERSION) {
     add('SUPERSESSION_ENTRY_SCHEMA_INVALID', 'Supersession entry schema_version is unsupported.', 'schema_version');
   }
-  if (!WORK_RECORD_SOURCE_SUPERSESSION_INDEX_STATUSES.includes(text(value.status))) {
-    add('SUPERSESSION_ENTRY_STATUS_INVALID', 'Supersession entry status is unsupported.', 'status');
+  if (text(value.status) !== 'active') {
+    add('SUPERSESSION_ENTRY_STATUS_INVALID', 'Persisted supersession entries must have status active.', 'status');
+  }
+  if (text(value.relationship_status) !== 'active') {
+    add('SUPERSESSION_ENTRY_RELATIONSHIP_STATUS_INVALID', 'Persisted supersession entries must have relationship_status active.', 'relationship_status');
   }
   if (text(value.relationship) !== 'superseded_by') {
     add('SUPERSESSION_ENTRY_RELATIONSHIP_INVALID', 'Supersession entry relationship must be superseded_by.', 'relationship');
@@ -487,22 +684,87 @@ export function validateWorkRecordSourceSupersessionEntry(entry = {}) {
   const replacement = objectValue(value.replacement_work_record);
   if (!text(source.id) || !text(source.digest)) add('SUPERSESSION_ENTRY_SOURCE_IDENTITY_INCOMPLETE', 'source_work_record requires id and digest.', 'source_work_record');
   if (!text(replacement.id) || !text(replacement.digest)) add('SUPERSESSION_ENTRY_REPLACEMENT_IDENTITY_INCOMPLETE', 'replacement_work_record requires id and digest.', 'replacement_work_record');
+  const claimedIndexRoot = rawText(value.index_root);
+  const claimedIndexPath = rawText(value.index_path);
+  if (!claimedIndexRoot || claimedIndexRoot !== path.resolve(claimedIndexRoot)) {
+    add('SUPERSESSION_ENTRY_INDEX_ROOT_NONCANONICAL', 'Persisted index_root must be an exact absolute path.', 'index_root');
+  }
+  const expectedIndexPath = claimedIndexRoot
+    ? canonicalIndexPathForEntry(claimedIndexRoot, value)
+    : '';
+  if (!claimedIndexPath || claimedIndexPath !== expectedIndexPath) {
+    add('SUPERSESSION_ENTRY_INDEX_PATH_NONCANONICAL', 'Persisted index_path must be the deterministic active.json path for this exact source and entry identity.', 'index_path', {
+      expected_index_path: expectedIndexPath,
+      actual_index_path: claimedIndexPath,
+    });
+  }
   for (const field of [
     'mutates_source_record',
     'mutates_replacement_record',
     'executes_repair',
     'executes_actions',
     'applies_patches',
-    'automatic_replay_allowed',
   ]) {
     if (value[field] !== false) add('SUPERSESSION_ENTRY_NON_EXECUTION_FLAG_INVALID', `${field} must be false.`, field);
   }
   const identity = objectValue(value.supersession_entry_identity);
   const identityCore = objectValue(identity.identity_core);
+  const storedWriterResult = objectValue(value.replacement_writer_result);
+  const storedProposal = objectValue(value.replacement_proposal);
+  if (digestJsonValue(storedProposal) !== digestJsonValue(proposalIdentityProjection(storedProposal))) {
+    add('SUPERSESSION_ENTRY_REPLACEMENT_PROPOSAL_PROJECTION_MISMATCH', 'Persisted replacement_proposal must contain exactly the closed identity projection.', 'replacement_proposal');
+  }
+  const expectedStoredWriterResult = persistedWriterResult(storedWriterResult);
+  if (digestJsonValue(storedWriterResult) !== digestJsonValue(expectedStoredWriterResult)) {
+    add('SUPERSESSION_ENTRY_WRITER_RESULT_PROJECTION_MISMATCH', 'Persisted replacement_writer_result must contain exactly the identity-bound stable Writer projection with no unbound receipt fields.', 'replacement_writer_result');
+  }
+  if (!text(storedProposal.id) || !text(storedProposal.digest) || !text(storedProposal.schema_version)) {
+    add('SUPERSESSION_ENTRY_REPLACEMENT_PROPOSAL_INCOMPLETE', 'replacement_proposal requires exact id, digest, and schema_version provenance.', 'replacement_proposal');
+  }
+  if (digestJsonValue(storedProposal) !== digestJsonValue(storedWriterResult.replacement_proposal)) {
+    add('SUPERSESSION_ENTRY_REPLACEMENT_PROPOSAL_MISMATCH', 'Top-level replacement_proposal must exactly match the persisted Writer Result mirror.', 'replacement_proposal');
+  }
+  const expectedIdentityCore = {
+    schema_version: text(value.schema_version),
+    relationship: text(value.relationship),
+    source_work_record: {
+      id: text(source.id),
+      path: rawText(source.path),
+      digest: text(source.digest),
+      schema_version: text(source.schema_version),
+    },
+    replacement_work_record: {
+      id: text(replacement.id),
+      path: rawText(replacement.path),
+      digest: text(replacement.digest),
+      schema_version: text(replacement.schema_version),
+    },
+    replacement_writer_result: writerResultIdentityProjection(storedWriterResult),
+    replacement_proposal: cloneJson(storedProposal),
+  };
+  if (Object.hasOwn(objectValue(value.replacement_writer_result), 'digest')) {
+    add('SUPERSESSION_ENTRY_WRITER_RESULT_DIGEST_UNSUPPORTED', 'Supersession entries do not store an unverifiable full Writer-result digest; output.digest is the bound provenance digest.', 'replacement_writer_result.digest');
+  }
+  const expectedIdentityDigest = digestJsonValue(expectedIdentityCore);
+  const expectedIdentityId = `source-supersession-entry:${expectedIdentityDigest.slice(0, 24)}`;
   if (!text(identity.id) || !text(identity.digest)) {
     add('SUPERSESSION_ENTRY_IDENTITY_INCOMPLETE', 'supersession_entry_identity requires id and digest.', 'supersession_entry_identity');
-  } else if (Object.keys(identityCore).length > 0 && digestJsonValue(identityCore) !== text(identity.digest)) {
-    add('SUPERSESSION_ENTRY_IDENTITY_DIGEST_MISMATCH', 'supersession_entry_identity digest does not match identity_core.', 'supersession_entry_identity.digest');
+  } else {
+    if (Object.keys(identityCore).length === 0 || digestJsonValue(identityCore) !== expectedIdentityDigest) {
+      add('SUPERSESSION_ENTRY_IDENTITY_CORE_MISMATCH', 'supersession_entry_identity identity_core must exactly match the top-level relationship and record identities.', 'supersession_entry_identity.identity_core');
+    }
+    if (text(identity.digest) !== expectedIdentityDigest) {
+      add('SUPERSESSION_ENTRY_IDENTITY_DIGEST_MISMATCH', 'supersession_entry_identity digest does not match the exact entry identity core.', 'supersession_entry_identity.digest');
+    }
+    if (text(identity.id) !== expectedIdentityId || text(value.id) !== expectedIdentityId) {
+      add('SUPERSESSION_ENTRY_IDENTITY_ID_MISMATCH', 'Entry id and supersession_entry_identity.id must match the exact identity digest.', 'supersession_entry_identity.id');
+    }
+  }
+  const immutability = objectValue(value.source_immutability_check);
+  if (text(immutability.status) !== 'passed'
+    || text(immutability.expected_digest) !== text(source.digest)
+    || text(immutability.actual_digest) !== text(source.digest)) {
+    add('SUPERSESSION_ENTRY_SOURCE_IMMUTABILITY_MISMATCH', 'Source immutability receipt must bind the exact source digest.', 'source_immutability_check');
   }
   return {
     type: 'work_record.source_supersession_entry.validation',
@@ -516,38 +778,89 @@ export function validateWorkRecordSourceSupersessionEntry(entry = {}) {
     executes_repair: false,
     executes_actions: false,
     applies_patches: false,
-    automatic_replay_allowed: false,
     diagnostics,
   };
 }
 
-function validateEntryFile(file) {
-  const loaded = readJsonFile(file);
-  if (loaded.error) {
+function validateEntryFile(scannedFile, indexRoot) {
+  const file = scannedFile.path;
+  const readback = readTextFileNoFollow(file, {
+    boundaryRoot: indexRoot,
+    expectedIdentity: scannedFile.identity,
+  });
+  let value;
+  try {
+    if (readback.status !== 'readable') throw readback.error || new Error(`descriptor-relative read failed (${readback.status})`);
+    value = JSON.parse(readback.bytes);
+  } catch (error) {
     return {
       path: file,
       status: 'malformed_index',
       diagnostics: [{
         severity: 'error',
         code: 'SUPERSESSION_INDEX_ENTRY_JSON_INVALID',
-        message: `Supersession index entry JSON is invalid: ${loaded.error.message}`,
+        message: `Supersession index entry JSON is invalid or changed after enumeration: ${error.message}`,
         path: file,
       }],
     };
   }
-  const validation = validateWorkRecordSourceSupersessionEntry(loaded.value);
+  const validation = validateWorkRecordSourceSupersessionEntry(value);
+  const diagnostics = [...validation.diagnostics];
+  const physicalPath = path.resolve(file);
+  const scannedRoot = path.resolve(indexRoot);
+  if (rawText(value.index_root) !== scannedRoot) {
+    addDiagnostic(
+      diagnostics,
+      'SUPERSESSION_INDEX_ENTRY_ROOT_MISMATCH',
+      'Persisted index_root does not match the explicit root being scanned.',
+      file,
+      { expected_index_root: scannedRoot, actual_index_root: rawText(value.index_root) },
+    );
+  }
+  if (rawText(value.index_path) !== physicalPath) {
+    addDiagnostic(
+      diagnostics,
+      'SUPERSESSION_INDEX_ENTRY_PHYSICAL_PATH_MISMATCH',
+      'Persisted index_path does not match the exact file being scanned.',
+      file,
+      { expected_index_path: physicalPath, actual_index_path: rawText(value.index_path) },
+    );
+  }
   return {
     path: file,
-    status: validation.status === 'passed' ? 'active' : 'malformed_index',
-    entry: validation.status === 'passed' ? loaded.value : undefined,
-    diagnostics: validation.diagnostics,
+    status: diagnostics.length === 0 ? 'active' : 'malformed_index',
+    entry: diagnostics.length === 0 ? value : undefined,
+    diagnostics,
   };
 }
 
 function indexFiles(indexRoot = '') {
   const root = path.resolve(indexRoot);
-  const base = path.join(root, 'source-supersession', 'v0');
+  const base = path.join(root, 'source-supersession', 'v1');
+  const ancestorViolation = ancestorPathViolation(root);
+  if (ancestorViolation) {
+    const error = new Error(ancestorViolation.reason === 'symlink_ancestor'
+      ? 'Source Supersession Index root may not traverse a symlinked ancestor.'
+      : 'Source Supersession Index root must have only directory ancestors.');
+    error.code = 'SUPERSESSION_INDEX_TREE_ESCAPE';
+    throw error;
+  }
+  if (!fs.existsSync(root)) return [];
+  const rootStat = fs.lstatSync(root);
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
+    const error = new Error('Source Supersession Index root must be a real directory.');
+    error.code = 'SUPERSESSION_INDEX_TREE_ESCAPE';
+    throw error;
+  }
+  const rootReal = fs.realpathSync(root);
   if (!fs.existsSync(base)) return [];
+  const baseStat = fs.lstatSync(base);
+  const baseReal = fs.realpathSync(base);
+  if (!baseStat.isDirectory() || baseStat.isSymbolicLink() || !containedPath(baseReal, rootReal)) {
+    const error = new Error('Source Supersession Index tree must be a real directory contained by index_root.');
+    error.code = 'SUPERSESSION_INDEX_TREE_ESCAPE';
+    throw error;
+  }
   const files = [];
   const stack = [base];
   while (stack.length > 0) {
@@ -555,26 +868,56 @@ function indexFiles(indexRoot = '') {
     for (const name of fs.readdirSync(dir).sort()) {
       const next = path.join(dir, name);
       const stat = fs.lstatSync(next);
+      if (stat.isSymbolicLink()) {
+        const error = new Error('Source Supersession Index entries may not traverse symlinks.');
+        error.code = 'SUPERSESSION_INDEX_TREE_ESCAPE';
+        throw error;
+      }
+      const nextReal = fs.realpathSync(next);
+      if (!containedPath(nextReal, rootReal)) {
+        const error = new Error('Source Supersession Index entry resolves outside index_root.');
+        error.code = 'SUPERSESSION_INDEX_TREE_ESCAPE';
+        throw error;
+      }
       if (stat.isDirectory()) stack.push(next);
-      else if (stat.isFile() && name.endsWith('.json')) files.push(next);
+      else if (stat.isFile() && name.endsWith('.json')) {
+        files.push({
+          path: next,
+          identity: {
+            dev: String(stat.dev),
+            ino: String(stat.ino),
+          },
+        });
+      }
     }
   }
-  return files.sort();
+  return files.sort((left, right) => left.path.localeCompare(right.path));
 }
 
 export function existingRelationshipsForSource(indexRoot, source = {}) {
   const matches = [];
   const malformed = [];
   for (const file of indexFiles(indexRoot)) {
-    const checked = validateEntryFile(file);
+    const checked = validateEntryFile(file, indexRoot);
     if (checked.status === 'malformed_index') {
       malformed.push(checked);
       continue;
     }
     const entry = checked.entry;
-    if (text(entry.source_work_record?.id) === text(source.id)
-      || text(entry.source_work_record?.digest) === text(source.digest)) {
-      matches.push({ path: file, entry });
+    const entrySource = {
+      id: text(entry.source_work_record?.id),
+      path: rawText(entry.source_work_record?.path),
+      schema_version: text(entry.source_work_record?.schema_version),
+      digest: text(entry.source_work_record?.digest),
+    };
+    const requestedSource = {
+      id: text(source.id),
+      path: rawText(source.path),
+      schema_version: text(source.schema_version),
+      digest: text(source.digest),
+    };
+    if (digestJsonValue(entrySource) === digestJsonValue(requestedSource)) {
+      matches.push({ path: file.path, entry });
     }
   }
   return { matches, malformed };
@@ -635,7 +978,7 @@ export function buildSourceSupersessionPlan({
       }),
     };
   }
-  if (!isWorkRecordV0(sourceRead.record)) {
+  if (!isWorkRecordV1(sourceRead.record)) {
     return {
       result: baseWriteResult({
         status: 'blocked_invalid_source',
@@ -645,13 +988,13 @@ export function buildSourceSupersessionPlan({
         diagnostics: [{
           severity: 'error',
           code: 'SUPERSESSION_INDEX_SOURCE_SCHEMA_INVALID',
-          message: 'Source Work Record must be a valid Work Record V0 shape.',
+          message: 'Source Work Record must be a valid active Work Record v1 shape.',
           path: 'source_work_record',
         }],
       }),
     };
   }
-  if (!isWorkRecordV0(replacementRead.record)) {
+  if (!isWorkRecordV1(replacementRead.record)) {
     return {
       result: baseWriteResult({
         status: 'blocked_invalid_replacement',
@@ -661,7 +1004,7 @@ export function buildSourceSupersessionPlan({
         diagnostics: [{
           severity: 'error',
           code: 'SUPERSESSION_INDEX_REPLACEMENT_SCHEMA_INVALID',
-          message: 'Replacement Work Record must be a valid Work Record V0 shape.',
+          message: 'Replacement Work Record must be a valid active Work Record v1 shape.',
           path: 'replacement_work_record',
         }],
       }),
@@ -704,22 +1047,60 @@ export function buildSourceSupersessionPlan({
     });
   }
   const writerSource = objectValue(writer.writerResult.source_work_record);
+  const writerProposal = objectValue(writer.writerResult.replacement_proposal);
+  const provenanceProposal = objectValue(relationship.replacement_writer.replacement_proposal);
+  if (text(writerProposal.id) !== text(provenanceProposal.id)
+    || text(writerProposal.digest) !== text(provenanceProposal.digest)
+    || text(writerProposal.schema_version) !== text(provenanceProposal.schema_version)) {
+    addDiagnostic(
+      relationshipDiagnostics,
+      'SUPERSESSION_INDEX_WRITER_RESULT_PROPOSAL_MISMATCH',
+      'Replacement Writer Result proposal identity must exactly match the replacement Work Record embedded writer provenance.',
+      'writer_result.replacement_proposal',
+      {
+        expected_replacement_proposal: cloneJson(provenanceProposal),
+        actual_replacement_proposal: cloneJson(writerProposal),
+      },
+    );
+  }
   if (text(writerSource.id) && text(writerSource.id) !== sourceRead.identity.id) {
     addDiagnostic(relationshipDiagnostics, 'SUPERSESSION_INDEX_WRITER_RESULT_SOURCE_ID_MISMATCH', 'Replacement Writer Result source id does not match source Work Record.', 'writer_result.source_work_record.id');
   }
   if (text(writerSource.digest) && text(writerSource.digest) !== sourceRead.identity.digest) {
     addDiagnostic(relationshipDiagnostics, 'SUPERSESSION_INDEX_WRITER_RESULT_SOURCE_DIGEST_MISMATCH', 'Replacement Writer Result source digest does not match source Work Record digest.', 'writer_result.source_work_record.digest');
   }
+  if (rawText(writerSource.path) && rawText(writerSource.path) !== rawText(sourceRead.identity.path)) {
+    addDiagnostic(relationshipDiagnostics, 'SUPERSESSION_INDEX_WRITER_RESULT_SOURCE_PATH_MISMATCH', 'Replacement Writer Result source path does not match source Work Record.', 'writer_result.source_work_record.path');
+  }
+  const writerSourceCheck = objectValue(writer.writerResult.source_immutability_check);
+  if (rawText(writerSourceCheck.source_path) !== rawText(sourceRead.identity.path)
+    || text(writerSourceCheck.expected_digest) !== sourceRead.identity.digest
+    || text(writerSourceCheck.actual_digest) !== sourceRead.identity.digest) {
+    addDiagnostic(relationshipDiagnostics, 'SUPERSESSION_INDEX_WRITER_RESULT_SOURCE_CHECK_MISMATCH', 'Replacement Writer Result source immutability check must bind the exact source path and digest.', 'writer_result.source_immutability_check');
+  }
   const writerReplacement = objectValue(writer.writerResult.written_replacement_work_record);
   if (text(writerReplacement.id) && text(writerReplacement.id) !== replacementRead.identity.id) {
     addDiagnostic(relationshipDiagnostics, 'SUPERSESSION_INDEX_WRITER_RESULT_REPLACEMENT_ID_MISMATCH', 'Replacement Writer Result replacement id does not match replacement Work Record.', 'writer_result.written_replacement_work_record.id');
   }
-  const writerReplacementDigests = [
-    text(writerReplacement.digest),
-    text(writer.writerResult.output?.digest),
-  ].filter(Boolean);
-  if (writerReplacementDigests.length > 0 && !writerReplacementDigests.some((digest) => [digestJsonValue(replacementRead.record), replacementRead.identity.digest].includes(digest))) {
-    addDiagnostic(relationshipDiagnostics, 'SUPERSESSION_INDEX_WRITER_RESULT_REPLACEMENT_DIGEST_MISMATCH', 'Replacement Writer Result replacement digest does not match replacement Work Record digest.', 'writer_result.written_replacement_work_record.digest');
+  if (text(writerReplacement.schema_version) !== replacementRead.identity.schema_version) {
+    addDiagnostic(relationshipDiagnostics, 'SUPERSESSION_INDEX_WRITER_RESULT_REPLACEMENT_SCHEMA_MISMATCH', 'Replacement Writer Result replacement schema does not match the replacement Work Record.', 'writer_result.written_replacement_work_record.schema_version');
+  }
+  if (rawText(writer.writerResult.output?.output_path) !== rawText(replacementRead.identity.path)) {
+    addDiagnostic(relationshipDiagnostics, 'SUPERSESSION_INDEX_WRITER_RESULT_OUTPUT_PATH_MISMATCH', 'Replacement Writer Result output path does not match the replacement Work Record path.', 'writer_result.output.output_path');
+  }
+  const expectedReplacementRecordDigest = digestJsonValue(replacementRead.record);
+  const expectedReplacementOutputDigest = replacementRead.identity.digest;
+  if (text(writerReplacement.digest) !== expectedReplacementRecordDigest) {
+    addDiagnostic(relationshipDiagnostics, 'SUPERSESSION_INDEX_WRITER_RESULT_RECORD_DIGEST_MISMATCH', 'Replacement Writer Result structured-record digest does not match the exact replacement Work Record payload.', 'writer_result.written_replacement_work_record.digest', {
+      expected_digest: expectedReplacementRecordDigest,
+      actual_digest: text(writerReplacement.digest),
+    });
+  }
+  if (text(writer.writerResult.output?.digest) !== expectedReplacementOutputDigest) {
+    addDiagnostic(relationshipDiagnostics, 'SUPERSESSION_INDEX_WRITER_RESULT_OUTPUT_DIGEST_MISMATCH', 'Replacement Writer Result serialized-output digest does not match the exact replacement Work Record bytes.', 'writer_result.output.digest', {
+      expected_digest: expectedReplacementOutputDigest,
+      actual_digest: text(writer.writerResult.output?.digest),
+    });
   }
   if (relationshipDiagnostics.length > 0) {
     const status = relationshipDiagnostics.some((diagnostic) => diagnostic.code.includes('DIGEST'))
@@ -750,7 +1131,7 @@ export function buildSourceSupersessionPlan({
   if (index.diagnostics.length > 0) {
     return {
       result: baseWriteResult({
-        status: 'blocked_index_escape',
+        status: text(index.failure_status, 'blocked_index_escape'),
         mode,
         source: sourceRead.identity,
         replacement: replacementRead.identity,
@@ -768,7 +1149,27 @@ export function buildSourceSupersessionPlan({
   });
   const content = stableJson(entry);
   const contentDigest = digestTextValue(content);
-  const existing = getExistingRelationships(index.index_root, sourceRead.identity);
+  let existing;
+  try {
+    existing = getExistingRelationships(index.index_root, sourceRead.identity);
+  } catch (error) {
+    return {
+      result: baseWriteResult({
+        status: 'blocked_write_failed',
+        mode,
+        entry,
+        source: sourceRead.identity,
+        replacement: replacementRead.identity,
+        index,
+        diagnostics: [{
+          severity: 'error',
+          code: 'SUPERSESSION_INDEX_SCAN_FAILED',
+          message: `Source Supersession Index could not be scanned: ${error.message}`,
+          path: index.index_root,
+        }],
+      }),
+    };
+  }
   const exactExisting = existing.matches.find((match) => text(match.entry.supersession_entry_identity?.digest) === identity.digest);
   const conflicting = existing.matches.find((match) => text(match.entry.replacement_work_record?.id) !== replacementRead.identity.id
     || text(match.entry.replacement_work_record?.digest) !== replacementRead.identity.digest
@@ -801,13 +1202,39 @@ export function buildSourceSupersessionPlan({
     };
   }
   const existingFile = fs.existsSync(index.index_path);
+  let existingDigest = '';
+  if (existingFile) {
+    try {
+      existingDigest = fileDigest(index.index_path);
+    } catch (error) {
+      return {
+        result: baseWriteResult({
+          status: 'blocked_write_failed',
+          mode,
+          entry,
+          source: sourceRead.identity,
+          replacement: replacementRead.identity,
+          index,
+          diagnostics: [{
+            severity: 'error',
+            code: 'SUPERSESSION_INDEX_EXISTING_DIGEST_READ_FAILED',
+            message: `Existing Source Supersession Index entry digest could not be read: ${error.message}`,
+            path: index.index_path,
+          }],
+        }),
+      };
+    }
+  }
+  const existingContentMatches = Boolean(existingFile) && existingDigest === contentDigest;
   const idempotency = {
-    status: exactExisting || existingFile ? 'identical_existing' : 'new',
+    status: existingContentMatches || (exactExisting && !existingFile)
+      ? 'identical_existing'
+      : existingFile ? 'conflict' : 'new',
     existing: Boolean(exactExisting || existingFile),
     expected_digest: contentDigest,
-    existing_digest: existingFile ? fileDigest(index.index_path) : '',
+    existing_digest: existingDigest,
   };
-  if (existingFile && !exactExisting && idempotency.existing_digest !== contentDigest) {
+  if (existingFile && !existingContentMatches) {
     return {
       result: baseWriteResult({
         status: 'conflict',
@@ -841,7 +1268,7 @@ export function buildSourceSupersessionPlan({
     atomicWrite: {
       planned: !idempotency.existing,
       temp_file: path.join(path.dirname(index.index_path), `.${path.basename(index.index_path)}.${process.pid}.tmp`),
-      rename: !idempotency.existing,
+      create_if_absent: !idempotency.existing,
     },
   });
   return {

@@ -1,256 +1,230 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import {
-  buildWorkRecordGateRequestFromRepairPlan,
   buildWorkRecordRepairAttemptArtifact,
-  planWorkRecordRepair,
-  planWorkRecordRepairAttempt,
+  digestJson,
   validateWorkRecordRepairAttemptArtifact,
   WORK_RECORD_REPAIR_ATTEMPT_ARTIFACT_SCHEMA_VERSION,
-  WORK_RECORD_REPAIR_ATTEMPT_ARTIFACT_STATUSES,
-} from '../../packages/toolkit/workbench/work-record.js';
+} from '../../packages/toolkit/workbench/work-record-repair-attempt-artifact.js';
+import { attemptPlan, successfulAttemptArtifact } from '../lib/work-record-v1-fixtures.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, '../..');
-const repairableFixture = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json');
-
-function runAos(args) {
-  return spawnSync('./aos', args, {
-    cwd: repoRoot,
-    encoding: 'utf8',
-  });
-}
-
-function writeTempJson(value, prefix = 'aos-work-record-attempt-artifact-') {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  const file = path.join(dir, 'payload.json');
-  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
-  return file;
-}
-
-function approvedRecord(request, response = { authorization: 'approve' }) {
-  return {
-    schema_version: 'aos.gate.record.v1',
-    gate_id: request.gate_request.id,
-    request_schema_version: 'aos.gate.request.v1',
-    prompt_title: request.gate_request.prompt.title,
-    source: { surface: 'work_record.repair_plan', session_id: null, agent: null },
-    receptor: 'test',
-    ui_variant: 'approve_deny',
-    field_kinds: ['exclusive_choice'],
-    timeout_ms: 0,
-    created_at: '2026-07-04T00:00:00.000Z',
-    presented_at: '2026-07-04T00:00:00.000Z',
-    resolved_at: '2026-07-04T00:00:01.000Z',
-    elapsed_ms: 1000,
-    resolution: 'answered',
-    status: null,
-    response_stored: true,
-    response,
-  };
-}
-
-function readyAttemptPlan() {
-  const repairPlan = planWorkRecordRepair(repairableFixture, { repoRoot });
-  const request = buildWorkRecordGateRequestFromRepairPlan(repairPlan);
-  return planWorkRecordRepairAttempt(repairableFixture, {
-    repoRoot,
-    gateOutcome: approvedRecord(request),
-  });
-}
-
-function evidenceRequirementIds(plan) {
-  return [...new Set(plan.planned_operations
-    .flatMap((operation) => operation.evidence_requirement_refs || [])
-    .filter(Boolean))]
-    .sort();
-}
-
-function successInput(overrides = {}) {
-  const plan = readyAttemptPlan();
-  const evidenceIds = evidenceRequirementIds(plan);
-  const operationOutcomes = plan.planned_operations.map((operation, index) => ({
-    id: `operation-outcome:${index + 1}`,
-    planned_operation_id: operation.id,
-    kind: operation.kind,
-    status: operation.mutates_state ? 'succeeded' : 'skipped',
-    started_at: '2026-07-04T00:00:00.000Z',
-    finished_at: '2026-07-04T00:00:01.000Z',
-    mutated_state: operation.mutates_state,
-    target_boundary: operation.target_boundary,
-    authorization_ref: operation.authorization_ref,
-    evidence_ref_ids: operation.evidence_requirement_refs || [],
-    cleanup_required: operation.mutates_state,
-    rollback_required: false,
-  }));
-  return {
-    status: 'succeeded',
+function rebuildArtifact(plan, baseline, overrides = {}) {
+  return buildWorkRecordRepairAttemptArtifact({
     repair_attempt_plan: plan,
-    operation_outcomes: operationOutcomes,
-    candidate_patch_outcomes: [{
-      id: 'candidate-patch-outcome:execution-map-refs',
-      candidate_patch_id: 'candidate_patch:execution_map_refs',
-      status: 'applied',
-      applied: true,
-      evidence_ref_ids: ['evidence_requirement:patch:candidate_patch:execution_map_refs'],
-    }],
-    recommended_command_outcomes: plan.recommended_commands.map((command, index) => ({
-      id: `recommended-command-outcome:${index + 1}`,
-      command_ref: command.command,
-      status: 'skipped',
-      executed: false,
-    })),
-    evidence_refs: evidenceIds.map((id) => ({ id, uri: `artifact:${id}.json`, digest: `digest:${id}` })),
-    verifier_before: { status: 'failed', health_verdict: 'repairable' },
-    verifier_after: { status: 'passed', health_verdict: 'valid' },
-    postcondition_results: plan.postconditions.map((postcondition) => ({
-      id: `postcondition-result:${postcondition.id}`,
-      postcondition_id: postcondition.id,
-      status: 'passed',
-      evidence_ref_ids: evidenceIds,
-    })),
-    cleanup_results: operationOutcomes
-      .filter((outcome) => outcome.cleanup_required)
-      .map((outcome) => ({
-        id: `cleanup:${outcome.id}`,
-        operation_outcome_id: outcome.id,
-        status: 'passed',
-        evidence_ref_ids: outcome.evidence_ref_ids,
-      })),
-    rollback_results: [],
-    source_work_record_mutation_check: {
-      status: 'passed',
-      before_digest: 'source-before',
-      after_digest: 'source-before',
-    },
+    status: baseline.status,
+    outcome_source: baseline.outcome_source,
+    timing: baseline.timing,
+    operation_outcomes: baseline.operation_outcomes,
+    candidate_patch_outcomes: baseline.candidate_patch_outcomes,
+    recommended_command_outcomes: baseline.recommended_command_outcomes,
+    evidence_refs: baseline.evidence_refs,
+    verifier_before: baseline.verifier_before,
+    verifier_after: baseline.verifier_after,
+    postcondition_results: baseline.postcondition_results,
+    cleanup_results: baseline.cleanup_results,
+    rollback_results: baseline.rollback_results,
+    source_work_record_mutation_check: baseline.source_work_record_mutation_check,
+    source_work_record_mutated: baseline.source_work_record_mutated,
     ...overrides,
-  };
+  });
 }
 
-function assertValid(artifact) {
-  const validation = validateWorkRecordRepairAttemptArtifact(artifact);
-  assert.equal(validation.status, 'passed', JSON.stringify(validation.diagnostics, null, 2));
-  assert.equal(validation.read_only, true);
-  assert.equal(validation.mutates_state, false);
-  assert.equal(validation.executes_repair, false);
-  assert.equal(validation.executes_actions, false);
-  assert.equal(validation.applies_patches, false);
-  assert.equal(validation.automatic_replay_allowed, false);
-}
+test('Attempt Artifact V1 accepts caller outcomes and retains exact mechanics', () => {
+  const plan = attemptPlan();
+  const artifact = successfulAttemptArtifact(plan);
+  assert.equal(artifact.schema_version, WORK_RECORD_REPAIR_ATTEMPT_ARTIFACT_SCHEMA_VERSION);
+  assert.equal(artifact.outcome_source.kind, 'caller_supplied');
+  assert.equal(artifact.repair_attempt_plan.digest, artifact.attempt_artifact_identity.repair_attempt_plan.digest);
+  assert.equal(artifact.operation_outcomes.length, plan.planned_operations.length);
+  assert.equal(artifact.source_work_record_mutated, false);
+  assert.equal(artifact.rewrites_historical_evidence, false);
+  assert.equal(validateWorkRecordRepairAttemptArtifact(artifact).status, 'passed');
+  assert.doesNotMatch(JSON.stringify(artifact), /workflow_gate|authorization|approval|required_risk|risk_level|allowlisted|allowed_operations|controlled_fixture|automatic_replay/);
+});
 
-function assertInvalid(artifact, code) {
+test('successful artifacts fail closed on verifier, evidence, cleanup, and source drift', () => {
+  for (const mutate of [
+    (artifact) => { artifact.verifier_after = null; },
+    (artifact) => { artifact.evidence_refs = []; },
+    (artifact) => { artifact.postcondition_results = []; },
+    (artifact) => { artifact.cleanup_results = []; },
+    (artifact) => { artifact.rollback_results = []; },
+    (artifact) => { artifact.source_work_record_mutation_check.after_digest = 'different'; },
+    (artifact) => { artifact.operation_outcomes[0].planned_operation_id = 'missing-operation'; },
+    (artifact) => { artifact.operation_outcomes[0].id = 'tampered-outcome'; },
+    (artifact) => { artifact.operation_outcomes.push(structuredClone(artifact.operation_outcomes[0])); },
+    (artifact) => { artifact.evidence_refs.push(structuredClone(artifact.evidence_refs[0])); },
+    (artifact) => { artifact.attempt_artifact_identity.digest = 'stale'; },
+  ]) {
+    const artifact = structuredClone(successfulAttemptArtifact());
+    mutate(artifact);
+    assert.equal(validateWorkRecordRepairAttemptArtifact(artifact).status, 'failed');
+  }
+});
+
+test('builder does not execute and unsupported status fails validation', () => {
+  assert.equal(validateWorkRecordRepairAttemptArtifact({}).status, 'failed');
+  const artifact = buildWorkRecordRepairAttemptArtifact({ repair_attempt_plan: attemptPlan(), status: 'authorized' });
+  assert.equal(validateWorkRecordRepairAttemptArtifact(artifact).status, 'failed');
+
+  const blockedPlan = structuredClone(attemptPlan());
+  blockedPlan.status = 'blocked_inputs';
+  const blockedArtifact = successfulAttemptArtifact(blockedPlan);
+  assert.equal(validateWorkRecordRepairAttemptArtifact(blockedArtifact).status, 'failed');
+
+  const authorityExtra = structuredClone(successfulAttemptArtifact());
+  authorityExtra.authorization = { status: 'approved' };
+  assert.equal(validateWorkRecordRepairAttemptArtifact(authorityExtra).status, 'failed');
+
+  const planAuthorityExtra = structuredClone(attemptPlan());
+  planAuthorityExtra.candidate_patches[0].authorization = { status: 'approved' };
+  planAuthorityExtra.candidate_patches[0].allowed_operations = ['replace_execution_map'];
+  const artifactWithPlanAuthority = rebuildArtifact(
+    planAuthorityExtra,
+    successfulAttemptArtifact(),
+  );
+  assert.equal(validateWorkRecordRepairAttemptArtifact(artifactWithPlanAuthority).status, 'failed');
+  const nestedPolicyValue = structuredClone(successfulAttemptArtifact());
+  nestedPolicyValue.planned_candidate_patches[0].failure_classes.push({ policy: 'caller-owned' });
+  nestedPolicyValue.source_work_record.summary.policy = { decision: 'proceed' };
+  assert.equal(validateWorkRecordRepairAttemptArtifact(nestedPolicyValue).status, 'failed');
+  const outcomePolicy = structuredClone(successfulAttemptArtifact());
+  outcomePolicy.operation_outcomes[0].authorization = { status: 'approved' };
+  outcomePolicy.operation_outcomes[0].allowed_operations = ['replace_execution_map'];
+  const rebuiltOutcomePolicy = rebuildArtifact(
+    attemptPlan(),
+    successfulAttemptArtifact(),
+    { operation_outcomes: outcomePolicy.operation_outcomes },
+  );
+  assert.equal(validateWorkRecordRepairAttemptArtifact(rebuiltOutcomePolicy).status, 'failed');
+
+  const plan = attemptPlan();
+  const missingPatchOutcome = rebuildArtifact(plan, successfulAttemptArtifact(plan), { candidate_patch_outcomes: [] });
+  const missingPatchValidation = validateWorkRecordRepairAttemptArtifact(missingPatchOutcome);
+  assert.equal(missingPatchValidation.status, 'failed');
+  assert.ok(missingPatchValidation.diagnostics.some((item) => item.code === 'CANDIDATE_PATCH_OUTCOME_REQUIRED_FOR_SUCCESS'));
+});
+
+test('successful Artifact requires exact evidence-backed produced-map postcondition coverage', () => {
+  const baseline = successfulAttemptArtifact();
+  const producedIds = new Set(baseline.candidate_patch_outcomes[0].proposed_execution_map.postconditions.map((item) => item.id));
+  const missing = structuredClone(baseline);
+  missing.postcondition_results = missing.postcondition_results
+    .filter((item) => item.id !== [...producedIds][0]);
+  assert.ok(validateWorkRecordRepairAttemptArtifact(missing).diagnostics
+    .some((item) => item.code === 'POSTCONDITION_RESULT_COVERAGE_MISMATCH'));
+
+  const extra = structuredClone(baseline);
+  extra.postcondition_results.push({
+    id: 'postcondition:unplanned-extra',
+    status: 'passed',
+    evidence_ref_ids: [extra.evidence_refs[0].id],
+  });
+  assert.ok(validateWorkRecordRepairAttemptArtifact(extra).diagnostics
+    .some((item) => item.code === 'POSTCONDITION_RESULT_COVERAGE_MISMATCH'));
+
+  const noEvidence = structuredClone(baseline);
+  noEvidence.postcondition_results.find((item) => producedIds.has(item.id)).evidence_ref_ids = [];
+  assert.ok(validateWorkRecordRepairAttemptArtifact(noEvidence).diagnostics
+    .some((item) => item.code === 'PRODUCED_MAP_POSTCONDITION_EVIDENCE_MISSING'));
+});
+
+test('Attempt Artifact binds caller receipts to exact planned command and cleanup/rollback references', () => {
+  const plan = attemptPlan();
+  const baseline = successfulAttemptArtifact(plan);
+  const unplanned = rebuildArtifact(plan, baseline, {
+    recommended_command_outcomes: [{
+      id: 'recommended-command-outcome:unplanned',
+      command: 'not in the exact Attempt Plan',
+      status: 'succeeded',
+      evidence_ref_ids: ['missing-evidence'],
+    }],
+    cleanup_results: [
+      ...baseline.cleanup_results,
+      {
+        id: 'cleanup-result:unplanned',
+        operation_outcome_id: baseline.operation_outcomes[0].id,
+        cleanup_ref_id: 'cleanup_expectation:not-in-plan',
+        status: 'passed',
+        evidence_ref_ids: ['missing-evidence'],
+      },
+    ],
+    rollback_results: [
+      ...baseline.rollback_results,
+      {
+        id: 'rollback-result:unplanned',
+        operation_outcome_id: baseline.operation_outcomes[0].id,
+        rollback_ref_id: 'rollback_expectation:not-in-plan',
+        status: 'passed',
+        evidence_ref_ids: ['missing-evidence'],
+      },
+    ],
+  });
+  const validation = validateWorkRecordRepairAttemptArtifact(unplanned);
+  assert.equal(validation.status, 'failed');
+  for (const code of [
+    'RECOMMENDED_COMMAND_OUTCOME_PLAN_MISMATCH',
+    'RECOMMENDED_COMMAND_OUTCOME_EVIDENCE_REF_MISSING',
+    'CLEANUP_RESULT_REF_UNPLANNED',
+    'CLEANUP_RESULT_EVIDENCE_REF_MISSING',
+    'ROLLBACK_RESULT_REF_UNPLANNED',
+    'ROLLBACK_RESULT_EVIDENCE_REF_MISSING',
+  ]) assert.ok(validation.diagnostics.some((item) => item.code === code), code);
+
+  const duplicate = rebuildArtifact(plan, baseline, {
+    cleanup_results: [
+      ...baseline.cleanup_results,
+      { ...baseline.cleanup_results[0], id: 'cleanup-result:duplicate-tuple' },
+    ],
+    rollback_results: [
+      ...baseline.rollback_results,
+      { ...baseline.rollback_results[0], id: 'rollback-result:duplicate-tuple' },
+    ],
+  });
+  const duplicateValidation = validateWorkRecordRepairAttemptArtifact(duplicate);
+  assert.ok(duplicateValidation.diagnostics.some((item) => item.code === 'CLEANUP_RESULT_MAPPING_DUPLICATE'));
+  assert.ok(duplicateValidation.diagnostics.some((item) => item.code === 'ROLLBACK_RESULT_MAPPING_DUPLICATE'));
+});
+
+test('Attempt Artifact rejects malformed proposed execution-map structure before proposal use', () => {
+  const artifact = structuredClone(successfulAttemptArtifact());
+  const outcome = artifact.candidate_patch_outcomes[0];
+  outcome.proposed_execution_map = { postconditions: {} };
+  outcome.proposed_execution_map_digest = digestJson(outcome.proposed_execution_map);
   const validation = validateWorkRecordRepairAttemptArtifact(artifact);
   assert.equal(validation.status, 'failed');
-  assert.ok(validation.diagnostics.some((diagnostic) => diagnostic.code === code), JSON.stringify(validation.diagnostics, null, 2));
-}
-
-test('fixture builder emits deterministic non-executing Repair Attempt Artifact V0', () => {
-  const input = successInput();
-  const first = buildWorkRecordRepairAttemptArtifact(input);
-  const second = buildWorkRecordRepairAttemptArtifact(input);
-
-  assert.deepEqual(first, second);
-  assert.equal(first.type, 'work_record.repair_attempt_artifact');
-  assert.equal(first.schema_version, WORK_RECORD_REPAIR_ATTEMPT_ARTIFACT_SCHEMA_VERSION);
-  assert.equal(first.status, 'succeeded');
-  assert.equal(first.source_work_record_mutated, false);
-  assert.equal(first.rewrites_historical_evidence, false);
-  assert.equal(first.automatic_replay_allowed, false);
-  assert.equal(first.executor_implemented, false);
-  assert.equal(first.executor.implemented, false);
-  assert.equal(first.final_health.derived_from, 'verifier_after');
-  assert.equal(first.final_health.classification, 'valid');
-  assert.ok(first.attempt_artifact_identity.id.startsWith('work-record-repair-attempt-artifact:'));
-  assertValid(first);
+  assert.ok(validation.diagnostics.some((item) => item.code === 'REPAIR_ATTEMPT_ARTIFACT_V1_SCHEMA_INVALID'));
 });
 
-test('supported terminal and failure statuses validate when evidence semantics match the status', () => {
-  for (const status of WORK_RECORD_REPAIR_ATTEMPT_ARTIFACT_STATUSES) {
-    const input = successInput({ status });
-    if (status === 'failed') input.operation_outcomes[0].status = 'failed';
-    if (status === 'partial') {
-      input.operation_outcomes[0].status = 'failed';
-      input.operation_outcomes[0].rollback_required = true;
-      input.rollback_results = [{
-        id: 'rollback:partial',
-        operation_outcome_id: input.operation_outcomes[0].id,
-        status: 'passed',
-      }];
-    }
-    if (status === 'cleanup_failed') {
-      input.operation_outcomes[1].status = 'cleanup_failed';
-      input.cleanup_results[0].status = 'failed';
-    }
-    if (status === 'rollback_failed') {
-      input.operation_outcomes[1].status = 'failed';
-      input.operation_outcomes[1].rollback_required = true;
-      input.rollback_results = [{
-        id: 'rollback:failed',
-        operation_outcome_id: input.operation_outcomes[1].id,
-        status: 'failed',
-      }];
-    }
-    if (['aborted_precondition', 'blocked_authorization', 'blocked_plan_mismatch', 'invalid_artifact', 'unsupported'].includes(status)) {
-      input.operation_outcomes = [];
-      input.candidate_patch_outcomes = [];
-      input.postcondition_results = [];
-      input.cleanup_results = [];
-      input.verifier_after = null;
-    }
-    assertValid(buildWorkRecordRepairAttemptArtifact(input));
-  }
+test('successful Artifact requires every Attempt Plan evidence requirement marked required', () => {
+  const baseline = successfulAttemptArtifact();
+  const missingId = 'evidence_requirement:before-after-verifier-reports';
+  const missing = structuredClone(baseline);
+  missing.evidence_refs = missing.evidence_refs.filter((item) => item.id !== missingId);
+  const validation = validateWorkRecordRepairAttemptArtifact(missing);
+  assert.equal(validation.status, 'failed');
+  assert.ok(validation.diagnostics.some((item) => item.code === 'PLANNED_REQUIRED_EVIDENCE_MISSING'));
 });
 
-test('validator fails closed for mismatches, missing proof, and optimistic health', () => {
-  const base = buildWorkRecordRepairAttemptArtifact(successInput());
-  const cases = [
-    ['REPAIR_ATTEMPT_PLAN_IDENTITY_MISMATCH', { repair_attempt_plan: { ...base.repair_attempt_plan, digest: 'wrong' } }],
-    ['SOURCE_WORK_RECORD_IDENTITY_MISMATCH', { attempt_artifact_identity: { ...base.attempt_artifact_identity, source_work_record: { ...base.attempt_artifact_identity.source_work_record, id: 'work-record:wrong' } } }],
-    ['OPERATION_OUTCOME_PLAN_MISMATCH', { operation_outcomes: [{ ...base.operation_outcomes[0], planned_operation_id: 'planned_operation:wrong' }] }],
-    ['OPERATION_EVIDENCE_REF_MISSING', { evidence_refs: base.evidence_refs.slice(1) }],
-    ['OPTIMISTIC_FINAL_HEALTH_CONTRADICTS_VERIFIER_AFTER', { final_health: { ...base.final_health, classification: 'valid' }, verifier_after: { status: 'failed', health_verdict: 'repairable' } }],
-    ['SOURCE_WORK_RECORD_MUTATED_ON_SUCCESS', { source_work_record_mutated: true }],
-    ['CANDIDATE_PATCH_APPLIED_WITHOUT_EVIDENCE', { candidate_patch_outcomes: [{ ...base.candidate_patch_outcomes[0], evidence_ref_ids: [] }] }],
-    ['RECOMMENDED_COMMAND_EXECUTION_ARTIFACT_MISSING', { recommended_command_outcomes: [{ id: 'command:missing', status: 'executed', executed: true, command_ref: './aos status' }] }],
-    ['CLEANUP_FAILED_ON_SUCCESS', { cleanup_results: [{ ...base.cleanup_results[0], status: 'failed' }] }],
-    ['ROLLBACK_FAILURE_MUST_FAIL_CLOSED', { status: 'succeeded', rollback_results: [{ id: 'rollback:failed', operation_outcome_id: base.operation_outcomes[0].id, status: 'failed' }] }],
-  ];
-
-  for (const [code, patch] of cases) {
-    assertInvalid({ ...base, ...patch }, code);
-  }
+test('successful Artifact rejects produced candidate patch when its planned operation was skipped', () => {
+  const plan = attemptPlan();
+  const baseline = successfulAttemptArtifact(plan);
+  const candidatePatchOperation = plan.planned_operations.find((operation) => operation.source_candidate_patch_id === 'candidate_patch:execution_map_refs');
+  const contradictoryOutcomes = baseline.operation_outcomes.map((outcome) => (
+    outcome.planned_operation_id === candidatePatchOperation.id
+      ? { ...outcome, status: 'skipped' }
+      : outcome
+  ));
+  const artifact = rebuildArtifact(plan, baseline, { operation_outcomes: contradictoryOutcomes });
+  const validation = validateWorkRecordRepairAttemptArtifact(artifact);
+  assert.equal(validation.status, 'failed');
+  assert.ok(validation.diagnostics.some((item) => item.code === 'CANDIDATE_PATCH_OPERATION_NOT_SUCCEEDED'));
 });
 
-test('public attempt-artifact build and validate commands are read-only and non-executing', () => {
-  const help = runAos(['help', 'work-record', '--json']);
-  assert.equal(help.status, 0, help.stderr);
-  const helpJson = JSON.parse(help.stdout);
-  for (const id of ['work-record-attempt-artifact-build', 'work-record-attempt-artifact-validate']) {
-    const form = helpJson.forms.find((item) => item.id === id);
-    assert.ok(form, `${id} should be in help`);
-    assert.equal(form.execution.read_only, true);
-    assert.equal(form.execution.mutates_state, false);
-    assert.equal(form.execution.executes_repair, false);
-    assert.equal(form.execution.executes_actions, false);
-    assert.equal(form.execution.applies_patches, false);
-    assert.equal(form.execution.automatic_replay_allowed, false);
-  }
-
-  const before = fs.readFileSync(repairableFixture, 'utf8');
-  const inputPath = writeTempJson(successInput(), 'aos-work-record-attempt-artifact-input-');
-  const build = runAos(['work-record', 'attempt-artifact', 'build', '--input', inputPath, '--json']);
-  assert.equal(build.status, 0, build.stderr);
-  const artifact = JSON.parse(build.stdout);
-  assert.equal(artifact.type, 'work_record.repair_attempt_artifact');
-
-  const artifactPath = writeTempJson(artifact);
-  const validate = runAos(['work-record', 'attempt-artifact', 'validate', artifactPath, '--json']);
-  assert.equal(validate.status, 0, validate.stderr);
-  assert.equal(JSON.parse(validate.stdout).status, 'passed');
-  assert.equal(fs.readFileSync(repairableFixture, 'utf8'), before);
+test('standalone Artifact validation binds planned payloads to the exact claimed Attempt Plan', () => {
+  const artifact = structuredClone(successfulAttemptArtifact());
+  artifact.planned_operations[0].description = 'fabricated operation description';
+  const validation = validateWorkRecordRepairAttemptArtifact(artifact);
+  assert.equal(validation.status, 'failed');
+  assert.ok(validation.diagnostics.some((item) => item.code === 'REPAIR_ATTEMPT_PLAN_PAYLOAD_PROJECTION_MISMATCH'));
 });

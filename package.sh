@@ -35,9 +35,10 @@ cp aos "$STAGED_APP/Contents/MacOS/aos"
 rsync -am \
     --include='*/' \
     --include='*.html' --include='*.js' --include='*.mjs' \
-    --include='*.css' --include='*.json' \
+    --include='*.css' --include='*.json' --include='*.node' \
     --exclude='*' \
     packages/toolkit/ "$STAGED_APP/Contents/Resources/agent-os/packages/toolkit/"
+node scripts/stage-work-record-runtime.mjs "$STAGED_APP/Contents/Resources/agent-os"
 
 # ── 4. Info.plist ──────────────────────────────────────────────────
 cat > "$STAGED_APP/Contents/Info.plist" << PLIST

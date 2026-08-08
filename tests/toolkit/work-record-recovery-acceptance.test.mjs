@@ -1,36 +1,26 @@
-import { test } from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import crypto from 'node:crypto';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import {
-  buildWorkRecordGateRequestFromRepairPlan,
-  planWorkRecordRepair,
+  finalizeWorkRecordRepair,
+  guideWorkRecordRepair,
+  inspectWorkRecordRepairBundle,
+  lookupWorkRecordSourceSupersession,
+  statusWorkRecordRepairBundles,
+  writeWorkRecordRepairBundle,
 } from '../../packages/toolkit/workbench/work-record.js';
 import {
-  assertEmptyWorkRecordPersistence,
-  assertWorkRecordPersistenceMatchesCommand,
-  emptyWorkRecordPersistence,
-} from '../lib/work-record-persistence-assertions.mjs';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, '../..');
-const source = 'shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json';
-const sourcePath = path.join(repoRoot, source);
-
-function proofRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), `aos-work-record-recovery-acceptance-${new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15)}Z-`));
-}
+  attemptPlan,
+  repairableWorkRecordPath,
+  repoRoot,
+  successfulAttemptArtifact,
+} from '../lib/work-record-v1-fixtures.mjs';
 
 function digestFile(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-}
-
-function readJson(file) {
-  return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
 function writeJson(file, value) {
@@ -39,514 +29,158 @@ function writeJson(file, value) {
   return file;
 }
 
-function parseJsonResult(result, args) {
-  const text = result.stdout.trim() || result.stderr.trim();
-  assert.ok(text, `missing JSON output for ./aos ${args.join(' ')}`);
-  return JSON.parse(text);
-}
-
-function runAos(args, { ok = [0] } = {}) {
-  const result = spawnSync('./aos', args, {
-    cwd: repoRoot,
-    encoding: 'utf8',
-  });
-  assert.ok(ok.includes(result.status), [
-    `./aos ${args.join(' ')}`,
-    `exit ${result.status}`,
-    result.stdout,
-    result.stderr,
-  ].join('\n'));
-  return {
-    result,
-    json: parseJsonResult(result, args),
-  };
-}
-
-function approvedGateRecord() {
-  const repairPlan = planWorkRecordRepair(source, { repoRoot });
-  const request = buildWorkRecordGateRequestFromRepairPlan(repairPlan);
-  return {
-    schema_version: 'aos.gate.record.v1',
-    gate_id: request.gate_request.id,
-    request_schema_version: 'aos.gate.request.v1',
-    prompt_title: request.gate_request.prompt.title,
-    source: { surface: 'work_record.repair_plan', session_id: null, agent: null },
-    receptor: 'acceptance-test',
-    ui_variant: 'approve_deny',
-    field_kinds: ['exclusive_choice'],
-    timeout_ms: 0,
-    created_at: '2026-07-04T00:00:00.000Z',
-    presented_at: '2026-07-04T00:00:00.000Z',
-    resolved_at: '2026-07-04T00:00:01.000Z',
-    elapsed_ms: 1000,
-    resolution: 'answered',
-    status: null,
-    response_stored: true,
-    response: { authorization: 'approve' },
-  };
-}
-
 function snapshotTree(root) {
-  const files = [];
-  if (!fs.existsSync(root)) return files;
+  if (!fs.existsSync(root)) return [];
+  const entries = [];
   function walk(current) {
-    for (const name of fs.readdirSync(current)) {
+    for (const name of fs.readdirSync(current).sort()) {
       const file = path.join(current, name);
       const stat = fs.lstatSync(file);
-      if (stat.isDirectory()) {
-        walk(file);
-      } else {
-        files.push({
-          relative: path.relative(root, file),
-          size: stat.size,
-          mtimeMs: stat.mtimeMs,
-          digest: digestFile(file),
-        });
-      }
+      if (stat.isDirectory()) walk(file);
+      else entries.push({
+        relative_path: path.relative(root, file),
+        digest: stat.isSymbolicLink() ? 'symlink' : digestFile(file),
+      });
     }
   }
   walk(root);
-  return files.sort((a, b) => a.relative.localeCompare(b.relative));
+  return entries;
 }
 
-function assertNoForbiddenExecutionFlags(value) {
-  for (const key of [
-    'uses_live_ui',
-    'uses_browser',
-    'uses_native_ax',
-    'uses_canvas',
-    'applies_patches',
-    'automatic_replay_allowed',
-    'executes_actions',
-    'mutates_source_record',
-  ]) {
-    if (Object.hasOwn(value, key)) assert.equal(value[key], false, key);
-  }
-}
-
-function assertBundleFilesAreSafe(bundleRoot) {
-  const files = snapshotTree(bundleRoot).map((item) => item.relative).sort();
-  assert.ok(files.includes('bundle-manifest.json'));
-  assert.ok(files.includes('guide-report.json'));
-  assert.ok(files.every((file) => (
-    file === 'bundle-manifest.json'
-    || file === 'guide-report.json'
-    || /^commands\/[^/]+\.json$/.test(file)
-    || /^artifacts\/[^/]+\.json$/.test(file)
-  )), files.join('\n'));
-  assert.equal(files.includes('reports/finalization-dry-run.json'), false);
-  assert.equal(files.includes('reports/supersession-lookup.json'), false);
-}
-
-function assertJsonArtifact(file) {
-  assert.ok(fs.existsSync(file), file);
-  assert.doesNotThrow(() => readJson(file), file);
-}
-
-function assertContainedPath(child, root) {
-  const relative = path.relative(fs.realpathSync(root), fs.realpathSync(child));
-  assert.ok(relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative)), `${child} is not under ${root}`);
-}
-
-function assertSummarySafety(summary) {
-  assert.equal(summary.safety.inspector_ran_command, false);
-  assert.equal(summary.safety.bundle_wrote_replacement, false);
-  assert.equal(summary.safety.bundle_wrote_supersession, false);
-  assert.equal(summary.safety.uses_live_ui, false);
-  assert.equal(summary.safety.automatic_replay_allowed, false);
-}
-
-function assertGuideRecoverySummary(envelope, state) {
-  assert.equal(envelope.recovery_summary.state, state);
-  assert.equal(envelope.recovery_summary.guide_stage, envelope.current_stage);
-  assert.equal(envelope.recovery_summary.guide_stage_status, envelope.stage_status);
-  assert.equal(envelope.recovery_summary.next.command_id, envelope.next_explicit_command?.id || '');
-  assert.deepEqual(envelope.recovery_summary.next.argv, envelope.next_explicit_command?.argv || []);
-  assertWorkRecordPersistenceMatchesCommand(
-    envelope.recovery_summary.next.persistence,
-    envelope.next_explicit_command,
-    { continuable: envelope.recovery_summary.next.argv.length > 0 },
-  );
-  assert.deepEqual(envelope.recovery_summary.next.missing_inputs, envelope.missing_inputs || []);
-  assertSummarySafety(envelope.recovery_summary);
-}
-
-function assertBundleRecoverySummary(envelope, state) {
-  assert.equal(envelope.recovery_summary.state, state);
-  assert.equal(envelope.recovery_summary.bundle_root, envelope.output_root);
-  assert.equal(envelope.recovery_summary.next.command_id, envelope.next_recommended_command?.id || '');
-  assert.deepEqual(envelope.recovery_summary.next.argv, envelope.next_recommended_command?.argv || []);
-  assertWorkRecordPersistenceMatchesCommand(
-    envelope.recovery_summary.next.persistence,
-    envelope.next_recommended_command,
-    { continuable: envelope.recovery_summary.next.argv.length > 0 },
-  );
-  assertSummarySafety(envelope.recovery_summary);
-}
-
-function assertInspectionRecoverySummary(envelope, state) {
-  assert.equal(envelope.recovery_summary.state, state);
-  assert.equal(envelope.recovery_summary.bundle_root, envelope.bundle_root);
-  assert.equal(envelope.recovery_summary.next.command_id, envelope.continuation.safe_next_descriptor_id || '');
-  assert.deepEqual(envelope.recovery_summary.next.argv, envelope.continuation.argv || []);
-  if (envelope.recovery_summary.next.argv.length === 0) {
-    assert.equal(envelope.continuation.safe_next_descriptor_id, '');
-    assert.equal(envelope.continuation.command, '');
-    assertEmptyWorkRecordPersistence(envelope.continuation.persistence);
-    assertEmptyWorkRecordPersistence(envelope.recovery_summary.next.persistence);
-    assert.equal(envelope.continuation.requires_human_approval, false);
-    assert.equal(envelope.continuation.would_mutate_state, false);
-  } else {
-    assert.deepEqual(envelope.recovery_summary.next.persistence, envelope.continuation.persistence);
-  }
-  assertSummarySafety(envelope.recovery_summary);
-}
-
-function assertStatusRowRecoverySummary(row) {
-  assert.equal(row.recovery_summary.state, row.lifecycle_status);
-  assert.equal(row.recovery_summary.bundle_root, row.bundle_root);
-  assert.equal(row.recovery_summary.next.command_id, row.next_command_id || '');
-  assert.deepEqual(row.recovery_summary.next.argv, row.next_argv || []);
-  assert.deepEqual(row.recovery_summary.next.persistence, row.next_persistence || emptyWorkRecordPersistence());
-  assert.deepEqual(row.recovery_summary.next.missing_inputs, row.missing_inputs || []);
-  assertSummarySafety(row.recovery_summary);
-}
-
-test('public Work Record recovery lifecycle composes from repairable fixture to finalized bundle', () => {
-  const root = proofRoot();
-  const bundleParent = path.join(root, 'bundles');
-  const initialBundle = path.join(bundleParent, '01-authorized');
-  const readyFinalizeBundle = path.join(bundleParent, '02-ready-finalize');
-  const finalizedBundle = path.join(bundleParent, '03-finalized');
-  const executionRoot = path.join(root, 'execution-root');
-  const artifactRoot = path.join(root, 'artifact-root');
+test('neutral Work Record recovery composes non-executing plans, caller outcomes, and exact finalization', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-recovery-v1-'));
+  const bundleRoot = path.join(root, 'bundle');
   const replacementRoot = path.join(root, 'replacement-records');
-  const indexRoot = path.join(root, 'source-supersession-index');
-  const sourceBefore = digestFile(sourcePath);
+  const indexRoot = path.join(root, 'supersession-index');
+  const attemptPlanPath = path.join(root, 'caller-inputs', 'attempt-plan.json');
+  const attemptArtifactPath = path.join(root, 'caller-inputs', 'attempt-artifact.json');
+  const sourceDigestBefore = digestFile(repairableWorkRecordPath);
 
-  const help = runAos(['help', '--json']).json;
-  assert.ok(help);
-  const workRecordHelp = runAos(['help', 'work-record', '--json']).json;
-  assert.ok(workRecordHelp.forms.some((form) => form.id === 'work-record-repair-bundle-status'));
+  const initialGuide = guideWorkRecordRepair({ sourceRef: repairableWorkRecordPath, repoRoot });
+  assert.equal(initialGuide.current_stage, 'ready_for_attempt_outcomes');
+  assert.equal(initialGuide.stage_status, 'ready');
+  assert.deepEqual(initialGuide.missing_inputs, ['caller_outcome_input']);
+  assert.equal(initialGuide.safe_next_command.id, 'work-record-attempt-artifact-build');
+  assert.equal(initialGuide.non_execution_flags.executes_actions, false);
 
-  const preflightStatus = runAos(['work-record', 'status', source, '--json'], { ok: [0, 1] }).json;
-  assert.equal(preflightStatus.health_verdict, 'repairable');
-  assert.equal(preflightStatus.recovery.action, 'workflow_gated_repair_required');
-  const preflightGuide = runAos(['work-record', 'repair', 'guide', source, '--json']).json;
-  assert.equal(preflightGuide.current_stage, 'gate_required');
-  assert.equal(preflightGuide.stage_status, 'blocked');
-  assert.equal(preflightGuide.next_explicit_command.id, 'work-record-gate-request');
-  assertGuideRecoverySummary(preflightGuide, 'blocked');
+  const bundle = writeWorkRecordRepairBundle({
+    sourceRef: repairableWorkRecordPath,
+    outputRoot: bundleRoot,
+    repoRoot,
+  });
+  assert.equal(bundle.status, 'written');
+  assert.equal(bundle.non_execution_flags.executes_actions, false);
+  assert.ok(bundle.written_artifacts.some((item) => item.relative_path === 'artifacts/repair-plan.json'));
+  assert.ok(bundle.written_artifacts.some((item) => item.relative_path === 'artifacts/repair-attempt-plan.json'));
+  assert.equal(bundle.written_artifacts.some((item) => /execute|attempt-artifact\.json$/.test(item.relative_path)), false);
 
-  const gateRecordPath = writeJson(path.join(root, 'gate-record.json'), approvedGateRecord());
-  const authorization = runAos(['work-record', 'gate-check', source, '--gate-record', gateRecordPath, '--json']).json;
-  assert.equal(authorization.status, 'authorized');
-  assert.equal(authorization.result, 'approved');
-  assert.equal(authorization.authorizes_future_attempt, true);
-  assertNoForbiddenExecutionFlags(authorization);
-  const authorizationPath = writeJson(path.join(root, 'authorization.json'), authorization);
+  const bundleSnapshot = snapshotTree(bundleRoot);
+  const inspection = inspectWorkRecordRepairBundle({ bundleRoot });
+  assert.equal(inspection.status, 'valid');
+  assert.equal(inspection.lifecycle_status, 'blocked');
+  assert.deepEqual(inspection.missing_inputs, ['caller_outcome_input']);
+  assert.equal(inspection.inspector_ran_commands, false);
+  assert.equal(inspection.inspector_mutated_bundle, false);
+  assert.deepEqual(snapshotTree(bundleRoot), bundleSnapshot);
 
-  const initial = runAos([
-    'work-record',
-    'repair',
-    'bundle',
-    source,
-    '--output-root',
-    initialBundle,
-    '--authorization',
-    authorizationPath,
-    '--json',
-  ]).json;
-  assert.equal(initial.status, 'written');
-  assertBundleRecoverySummary(initial, 'blocked');
-  assertBundleFilesAreSafe(initialBundle);
-  const attemptPlanPath = path.join(initialBundle, 'artifacts/repair-attempt-plan.json');
-  assertJsonArtifact(attemptPlanPath);
-  const attemptPlan = readJson(attemptPlanPath);
-  assert.equal(attemptPlan.status, 'ready');
-  assert.ok(attemptPlan.planned_operations.some((operation) => (
-    operation.allowlisted_operation_id === 'controlled_fixture.write_success'
-    && operation.executes_in_plan === false
-  )));
+  const lifecycle = statusWorkRecordRepairBundles({ bundleRoots: [bundleRoot] });
+  assert.equal(lifecycle.status, 'success');
+  assert.equal(lifecycle.bundle_count, 1);
+  assert.equal(lifecycle.blocked_count, 1);
+  assert.deepEqual(lifecycle.bundles[0].missing_inputs, ['caller_outcome_input']);
 
-  const initialInspection = runAos(['work-record', 'repair', 'bundle', 'inspect', initialBundle, '--json']).json;
-  assert.equal(initialInspection.status, 'valid');
-  assert.equal(initialInspection.continuation.current_guide_stage, 'ready_to_plan_attempt');
-  assertInspectionRecoverySummary(initialInspection, 'ready');
-  const initialLifecycle = runAos(['work-record', 'repair', 'bundle', 'status', '--bundle-root', initialBundle, '--json']).json;
-  assert.equal(initialLifecycle.bundles[0].lifecycle_status, 'ready');
-  assert.deepEqual(initialLifecycle.bundles[0].missing_inputs, ['attempt_plan_path', 'execution_root', 'artifact_root']);
-  assertStatusRowRecoverySummary(initialLifecycle.bundles[0]);
+  const plan = attemptPlan();
+  const artifact = successfulAttemptArtifact(plan);
+  writeJson(attemptPlanPath, plan);
+  writeJson(attemptArtifactPath, artifact);
 
-  fs.mkdirSync(executionRoot, { recursive: true });
-  fs.mkdirSync(artifactRoot, { recursive: true });
-  fs.writeFileSync(path.join(executionRoot, 'input.txt'), 'before\n');
-  const dryRun = runAos([
-    'work-record',
-    'repair',
-    'execute',
-    '--attempt-plan',
+  const readyGuide = guideWorkRecordRepair({
+    sourceRef: repairableWorkRecordPath,
     attemptPlanPath,
-    '--execution-root',
-    executionRoot,
-    '--artifact-root',
-    artifactRoot,
-    '--dry-run',
-    '--json',
-  ]).json;
-  assert.equal(dryRun.status, 'dry_run');
-  assert.equal(dryRun.executes_repair, false);
-  assert.equal(dryRun.would_execute_repair, true);
-  assert.deepEqual(fs.readdirSync(artifactRoot), []);
-
-  const execution = runAos([
-    'work-record',
-    'repair',
-    'execute',
-    '--attempt-plan',
-    attemptPlanPath,
-    '--execution-root',
-    executionRoot,
-    '--artifact-root',
-    artifactRoot,
-    '--json',
-  ]).json;
-  assert.equal(execution.status, 'succeeded');
-  assert.equal(execution.executes_repair, true);
-  assertNoForbiddenExecutionFlags(execution);
-  assert.equal(digestFile(sourcePath), sourceBefore);
-  assert.ok(execution.artifact.path.startsWith(fs.realpathSync(artifactRoot)));
-  assertJsonArtifact(execution.artifact.path);
-
-  const artifactValidation = runAos(['work-record', 'attempt-artifact', 'validate', execution.artifact.path, '--json']).json;
-  assert.equal(artifactValidation.status, 'passed');
-
-  fs.mkdirSync(replacementRoot, { recursive: true });
-  fs.mkdirSync(indexRoot, { recursive: true });
-
-  const readyGuide = runAos([
-    'work-record',
-    'repair',
-    'guide',
-    source,
-    '--authorization',
-    authorizationPath,
-    '--attempt-plan',
-    attemptPlanPath,
-    '--attempt-artifact',
-    execution.artifact.path,
-    '--replacement-root',
+    attemptArtifactPath,
     replacementRoot,
-    '--index-root',
     indexRoot,
-    '--json',
-  ]).json;
+    repoRoot,
+  });
   assert.equal(readyGuide.current_stage, 'ready_to_finalize');
   assert.equal(readyGuide.stage_status, 'ready');
-  assert.equal(readyGuide.next_explicit_command.id, 'work-record-repair-finalize');
-  assert.equal(readyGuide.next_explicit_command.not_run_by_guide, true);
-  assertGuideRecoverySummary(readyGuide, 'ready');
+  assert.equal(readyGuide.safe_next_command.id, 'work-record-repair-finalize-dry-run');
+  assert.equal(readyGuide.finalization_dry_run_summary.status, 'dry_run');
 
-  const readyBundle = runAos([
-    'work-record',
-    'repair',
-    'bundle',
-    source,
-    '--output-root',
-    readyFinalizeBundle,
-    '--authorization',
-    authorizationPath,
-    '--attempt-plan',
+  const finalizationOptions = {
+    sourceRef: repairableWorkRecordPath,
     attemptPlanPath,
-    '--attempt-artifact',
-    execution.artifact.path,
-    '--replacement-root',
+    attemptArtifactPath,
     replacementRoot,
-    '--index-root',
     indexRoot,
-    '--json',
-  ]).json;
-  assert.equal(readyBundle.status, 'written');
-  assertBundleRecoverySummary(readyBundle, 'ready');
-  assertBundleFilesAreSafe(readyFinalizeBundle);
-  assert.equal(fs.existsSync(path.join(readyFinalizeBundle, 'reports/finalization-dry-run.json')), false);
-  assert.equal(fs.existsSync(path.join(readyFinalizeBundle, 'reports/supersession-lookup.json')), false);
-  const readyInspection = runAos(['work-record', 'repair', 'bundle', 'inspect', readyFinalizeBundle, '--json']).json;
-  assert.equal(readyInspection.status, 'valid');
-  assertInspectionRecoverySummary(readyInspection, 'ready');
-  const readyStatus = runAos(['work-record', 'repair', 'bundle', 'status', '--bundle-root', readyFinalizeBundle, '--json']).json;
-  assert.equal(readyStatus.bundles[0].lifecycle_status, 'ready');
-  assertStatusRowRecoverySummary(readyStatus.bundles[0]);
-
+    proposedIdSeed: 'work-record:recovery-acceptance-v1',
+    repoRoot,
+  };
   const replacementBeforeDryRun = snapshotTree(replacementRoot);
   const indexBeforeDryRun = snapshotTree(indexRoot);
-  const finalizeDryRun = runAos([
-    'work-record',
-    'repair',
-    'finalize',
-    '--source',
-    source,
-    '--attempt-plan',
-    attemptPlanPath,
-    '--attempt-artifact',
-    execution.artifact.path,
-    '--replacement-root',
-    replacementRoot,
-    '--index-root',
-    indexRoot,
-    '--dry-run',
-    '--json',
-  ]).json;
-  assert.equal(finalizeDryRun.status, 'dry_run');
-  assert.equal(finalizeDryRun.would_write_replacement_record, true);
-  assert.equal(finalizeDryRun.would_write_supersession_index_entry, true);
-  assert.equal(fs.existsSync(finalizeDryRun.replacement_writer_result.output.output_path), false);
-  assert.equal(fs.existsSync(finalizeDryRun.supersession_index_result.output.index_path), false);
+  const preview = finalizeWorkRecordRepair({ ...finalizationOptions, dryRun: true });
+  assert.equal(preview.status, 'dry_run');
+  assert.equal(preview.would_write_replacement_record, true);
+  assert.equal(preview.would_write_supersession_index_entry, true);
   assert.deepEqual(snapshotTree(replacementRoot), replacementBeforeDryRun);
   assert.deepEqual(snapshotTree(indexRoot), indexBeforeDryRun);
 
-  const finalization = runAos([
-    'work-record',
-    'repair',
-    'finalize',
-    '--source',
-    source,
-    '--attempt-plan',
-    attemptPlanPath,
-    '--attempt-artifact',
-    execution.artifact.path,
-    '--replacement-root',
-    replacementRoot,
-    '--index-root',
-    indexRoot,
-    '--json',
-  ]).json;
-  assert.equal(finalization.status, 'finalized');
-  assert.equal(finalization.wrote_replacement_record, true);
-  assert.equal(finalization.wrote_supersession_index_entry, true);
-  assertNoForbiddenExecutionFlags(finalization);
-  assert.equal(digestFile(sourcePath), sourceBefore);
-  const replacementPath = finalization.replacement_writer_result.output.output_path;
-  const entryPath = finalization.supersession_index_result.output.index_path;
-  assertJsonArtifact(replacementPath);
-  assertJsonArtifact(entryPath);
-  assertContainedPath(replacementPath, replacementRoot);
-  assertContainedPath(entryPath, indexRoot);
+  const finalized = finalizeWorkRecordRepair(finalizationOptions);
+  assert.equal(finalized.status, 'finalized');
+  assert.equal(finalized.wrote_replacement_record, true);
+  assert.equal(finalized.wrote_supersession_index_entry, true);
+  assert.equal(finalized.source_work_record.immutable, true);
+  assert.equal(finalized.repair_attempt_plan.validation.status, 'passed');
+  assert.equal(finalized.repair_attempt_artifact.validation.status, 'passed');
+  assert.equal(finalized.readback.supersession_entry_validation.status, 'passed');
+  assert.equal(digestFile(repairableWorkRecordPath), sourceDigestBefore);
 
-  const repeatedFinalization = runAos([
-    'work-record',
-    'repair',
-    'finalize',
-    '--source',
-    source,
-    '--attempt-plan',
-    attemptPlanPath,
-    '--attempt-artifact',
-    execution.artifact.path,
-    '--replacement-root',
-    replacementRoot,
-    '--index-root',
-    indexRoot,
-    '--json',
-  ]).json;
-  assert.equal(repeatedFinalization.status, 'already_finalized');
+  const replacementPath = finalized.replacement_writer_result.output.output_path;
+  const indexPath = finalized.supersession_index_result.output.index_path;
+  assert.ok(fs.existsSync(replacementPath));
+  assert.ok(fs.existsSync(indexPath));
+  assert.equal(finalizeWorkRecordRepair(finalizationOptions).status, 'already_finalized');
 
-  const replacementRead = runAos(['work-record', 'read', replacementPath, '--root', replacementRoot, '--json']).json;
-  assert.equal(replacementRead.status, 'success');
-  const replacementStatus = runAos(['work-record', 'status', replacementPath, '--root', replacementRoot, '--json']).json;
-  assert.equal(replacementStatus.status, 'passed');
-  assert.equal(replacementStatus.health_verdict, 'valid');
-  const lookup = runAos([
-    'work-record',
-    'supersession',
-    'lookup',
-    '--source',
-    source,
-    '--index-root',
+  const lookup = lookupWorkRecordSourceSupersession({
+    sourceRef: repairableWorkRecordPath,
     indexRoot,
-    '--replacement-root',
-    replacementRoot,
-    '--json',
-  ]).json;
+    replacementRoots: [replacementRoot],
+    repoRoot,
+  });
   assert.equal(lookup.status, 'active');
-  assert.equal(lookup.entries[0].index_path, entryPath);
-  assert.equal(lookup.entries[0].replacement_work_record.path, replacementPath);
-  assert.equal(lookup.entries[0].replacement_work_record.id, replacementRead.record.id);
-  assert.equal(runAos(['work-record', 'supersession', 'validate', entryPath, '--json']).json.status, 'passed');
+  assert.equal(lookup.entries[0].index_path, indexPath);
+  assert.equal(lookup.entries[0].replacement_readback.readable, true);
 
-  const finalizedGuide = runAos([
-    'work-record',
-    'repair',
-    'guide',
-    source,
-    '--authorization',
-    authorizationPath,
-    '--attempt-plan',
+  const completedGuide = guideWorkRecordRepair({
+    sourceRef: repairableWorkRecordPath,
     attemptPlanPath,
-    '--attempt-artifact',
-    execution.artifact.path,
-    '--replacement-root',
+    attemptArtifactPath,
     replacementRoot,
-    '--index-root',
     indexRoot,
-    '--json',
-  ]).json;
-  assert.equal(finalizedGuide.current_stage, 'finalized');
-  assert.equal(finalizedGuide.stage_status, 'complete');
-  assertGuideRecoverySummary(finalizedGuide, 'finalized');
+    repoRoot,
+  });
+  assert.equal(completedGuide.current_stage, 'superseded');
+  assert.equal(completedGuide.stage_status, 'complete');
+  assert.equal(digestFile(repairableWorkRecordPath), sourceDigestBefore);
+  assert.doesNotMatch(
+    JSON.stringify({ initialGuide, bundle, inspection, lifecycle, readyGuide, preview, finalized, lookup, completedGuide }),
+    /workflow_gate|authorization|approval|required_risk|risk_level|allowlisted|allowed_operations|controlled_fixture|automatic_replay|continuation/,
+  );
+});
 
-  const finalizedBundleOutput = runAos([
-    'work-record',
-    'repair',
-    'bundle',
-    source,
-    '--output-root',
-    finalizedBundle,
-    '--authorization',
-    authorizationPath,
-    '--attempt-plan',
-    attemptPlanPath,
-    '--attempt-artifact',
-    execution.artifact.path,
-    '--replacement-root',
-    replacementRoot,
-    '--index-root',
-    indexRoot,
-    '--json',
-  ]).json;
-  assert.equal(finalizedBundleOutput.status, 'written');
-  assertBundleRecoverySummary(finalizedBundleOutput, 'finalized');
-  const finalizedInspection = runAos(['work-record', 'repair', 'bundle', 'inspect', finalizedBundle, '--json']).json;
-  assert.equal(finalizedInspection.status, 'valid');
-  assertInspectionRecoverySummary(finalizedInspection, 'finalized');
-  const finalizedStatus = runAos(['work-record', 'repair', 'bundle', 'status', '--bundle-root', finalizedBundle, '--json']).json;
-  assert.equal(finalizedStatus.bundles[0].lifecycle_status, 'finalized');
-  assertStatusRowRecoverySummary(finalizedStatus.bundles[0]);
-
-  const bundlesBeforeParentStatus = snapshotTree(bundleParent);
-  const parentStatus = runAos(['work-record', 'repair', 'bundle', 'status', '--bundle-parent', bundleParent, '--json']).json;
-  assert.equal(parentStatus.bundle_count, 3);
-  assert.equal(parentStatus.invalid_count, 0);
-  assert.equal(parentStatus.missing_count, 0);
-  assert.equal(parentStatus.unsupported_count, 0);
-  assert.ok(parentStatus.finalized_count >= 1);
-  assert.deepEqual(new Set(parentStatus.bundles.map((bundle) => path.basename(bundle.bundle_root))), new Set(['01-authorized', '02-ready-finalize', '03-finalized']));
-  for (const bundle of parentStatus.bundles) assertStatusRowRecoverySummary(bundle);
-  assert.deepEqual(snapshotTree(bundleParent), bundlesBeforeParentStatus);
-
-  const tamperedBundle = readyFinalizeBundle;
-  fs.writeFileSync(path.join(tamperedBundle, 'guide-report.json'), '{"tampered":true}\n');
-  const tamperedInspect = runAos(['work-record', 'repair', 'bundle', 'inspect', tamperedBundle, '--json'], { ok: [1] }).json;
-  assert.equal(tamperedInspect.status, 'blocked_digest_mismatch');
-  assertInspectionRecoverySummary(tamperedInspect, 'invalid');
-  assert.ok(tamperedInspect.artifacts.some((artifact) => (
-    artifact.relative_path === 'guide-report.json'
-    && artifact.status === 'digest_mismatch'
-  )));
-  const tamperedStatus = runAos(['work-record', 'repair', 'bundle', 'status', '--bundle-root', tamperedBundle, '--json']).json;
-  assert.equal(tamperedStatus.bundles[0].inspection_status, 'blocked_digest_mismatch');
-  assert.equal(tamperedStatus.bundles[0].lifecycle_status, 'invalid');
-  assertStatusRowRecoverySummary(tamperedStatus.bundles[0]);
-
-  assert.equal(digestFile(sourcePath), sourceBefore);
+test('caller-supplied artifact fails closed when the source immutability receipt is false', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-recovery-stale-'));
+  const plan = attemptPlan();
+  const artifact = successfulAttemptArtifact(plan);
+  artifact.source_work_record_mutation_check.after_digest = 'sha256:changed';
+  const result = finalizeWorkRecordRepair({
+    sourceRef: repairableWorkRecordPath,
+    attemptPlanPath: writeJson(path.join(root, 'attempt-plan.json'), plan),
+    attemptArtifactPath: writeJson(path.join(root, 'attempt-artifact.json'), artifact),
+    replacementRoot: path.join(root, 'records'),
+    indexRoot: path.join(root, 'index'),
+    repoRoot,
+    dryRun: true,
+  });
+  assert.equal(result.status, 'blocked_invalid_attempt_artifact');
 });

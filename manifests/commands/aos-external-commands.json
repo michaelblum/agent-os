@@ -2521,7 +2521,7 @@
       "path": ["work-record"],
       "summary": "Consume Work Records through an external report-only command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2533,7 +2533,7 @@
       "path": ["work-record", "list"],
       "summary": "List Work Records through an external report-only command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "list"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "list"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2545,7 +2545,7 @@
       "path": ["work-record", "read"],
       "summary": "Read Work Records through an external report-only command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "read"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "read"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2557,7 +2557,7 @@
       "path": ["work-record", "verify"],
       "summary": "Verify Work Records through an external report-only command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "verify"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "verify"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2569,7 +2569,7 @@
       "path": ["work-record", "status"],
       "summary": "Explain Work Record health and recovery through an external report-only command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "status"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "status"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2579,21 +2579,9 @@
     },
     {
       "path": ["work-record", "plan-repair"],
-      "summary": "Plan the current legacy Gate-coupled Work Record repair path through an external report-only command; Gate is not AOS permission.",
+      "summary": "Build a non-executing mechanical Work Record Repair Plan through an external report-only command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "plan-repair"],
-      "cwd": "repo",
-      "env": {
-        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
-        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
-        "AOS_PATH": "$AOS_PATH"
-      }
-    },
-    {
-      "path": ["work-record", "gate-request"],
-      "summary": "Build requests for the current legacy Gate-coupled Work Record repair path through an external report-only command; Gate is not AOS permission.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "gate-request"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "plan-repair"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2605,7 +2593,7 @@
       "path": ["work-record", "plan-attempt"],
       "summary": "Plan non-executing Work Record repair attempts through an external report-only command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "plan-attempt"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "plan-attempt"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2617,7 +2605,7 @@
       "path": ["work-record", "repair", "guide"],
       "summary": "Guide Work Record repair recovery through a read-only non-executing report.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "repair", "guide"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "repair", "guide"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2629,7 +2617,7 @@
       "path": ["work-record", "repair", "bundle"],
       "summary": "Materialize non-executing Work Record repair guide artifacts under an explicit output root.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "repair", "bundle"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "repair", "bundle"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2641,7 +2629,7 @@
       "path": ["work-record", "repair", "bundle", "status"],
       "summary": "Summarize explicit Work Record Recovery Bundle roots through a read-only external command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "repair", "bundle", "status"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "repair", "bundle", "status"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2653,19 +2641,7 @@
       "path": ["work-record", "repair", "bundle", "inspect"],
       "summary": "Inspect an existing Work Record Recovery Bundle through a read-only external command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "repair", "bundle", "inspect"],
-      "cwd": "repo",
-      "env": {
-        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
-        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
-        "AOS_PATH": "$AOS_PATH"
-      }
-    },
-    {
-      "path": ["work-record", "repair", "execute"],
-      "summary": "Execute a controlled repo-command/file-fixture Work Record repair attempt through explicit roots.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "repair", "execute"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "repair", "bundle", "inspect"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2677,7 +2653,7 @@
       "path": ["work-record", "repair", "finalize"],
       "summary": "Finalize a successful Work Record repair attempt into a replacement record and supersession index entry through explicit roots.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "repair", "finalize"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "repair", "finalize"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2689,7 +2665,7 @@
       "path": ["work-record", "attempt-artifact", "validate"],
       "summary": "Validate Work Record Repair Attempt Artifacts through an external report-only command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "attempt-artifact", "validate"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "attempt-artifact", "validate"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2699,9 +2675,9 @@
     },
     {
       "path": ["work-record", "attempt-artifact", "build"],
-      "summary": "Build fixture-driven Work Record Repair Attempt Artifacts through an external report-only command.",
+      "summary": "Build Work Record Repair Attempt Artifacts from caller-supplied outcomes through an external report-only command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "attempt-artifact", "build"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "attempt-artifact", "build"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2713,7 +2689,7 @@
       "path": ["work-record", "replacement-proposal", "build"],
       "summary": "Build non-writing Work Record Replacement Proposals through an external report-only command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "replacement-proposal", "build"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "replacement-proposal", "build"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2725,7 +2701,7 @@
       "path": ["work-record", "replacement-proposal", "validate"],
       "summary": "Validate Work Record Replacement Proposals through an external report-only command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "replacement-proposal", "validate"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "replacement-proposal", "validate"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2737,7 +2713,7 @@
       "path": ["work-record", "replacement-proposal", "write"],
       "summary": "Write validated Work Record Replacement Proposals under an explicit output root.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "replacement-proposal", "write"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "replacement-proposal", "write"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2749,7 +2725,7 @@
       "path": ["work-record", "supersession", "write"],
       "summary": "Write external Source Supersession Index entries under an explicit index root.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "supersession", "write"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "supersession", "write"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2761,7 +2737,7 @@
       "path": ["work-record", "supersession", "lookup"],
       "summary": "Look up external Source Supersession Index entries without mutating Work Records.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "supersession", "lookup"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "supersession", "lookup"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2773,19 +2749,7 @@
       "path": ["work-record", "supersession", "validate"],
       "summary": "Validate Source Supersession Index entries through a read-only command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "supersession", "validate"],
-      "cwd": "repo",
-      "env": {
-        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
-        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
-        "AOS_PATH": "$AOS_PATH"
-      }
-    },
-    {
-      "path": ["work-record", "gate-check"],
-      "summary": "Check terminal gate outcomes against Work Record repair plans through an external report-only command.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "gate-check"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "supersession", "validate"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2797,7 +2761,7 @@
       "path": ["work-record", "export"],
       "summary": "Export Work Record evidence bundle manifests through an external report-only command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "export"],
+      "argv_prefix": ["node", "$AOS_REPO_ROOT/scripts/aos-work-record.mjs", "export"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",

@@ -1,54 +1,43 @@
 # Browser Capture Ladder Projection
 
-**Status:** legacy execution-model projection note plus first
-browser-compatible prototype bridge; Gate coupling awaits ADR 0040 migration
+**Status:** active Step Descriptor V1 projection note
 **Tracked by:** https://github.com/michaelblum/agent-os/issues/274
 
-## ADR 0040 Transition Boundary
+## ADR 0040 Boundary
 
-This note records the current legacy Step Descriptor prototype. Its required
-Workflow Gate fields are fixture/harness coupling, not AOS permission or a
-public execution prerequisite. Runtime migration must remove that coupling or
-make Gate an explicitly invoked caller input.
+The active browser-compatible prototype uses Step Descriptor V1 and Work Record
+V1. Both are neutral evidence contracts. Neither accepts Gate data, grants
+permission, classifies risk, requires approval, or constrains a caller to an
+operation registry. Gate remains a separate explicitly invoked structured-input
+primitive.
 
-## Purpose
+## Projection
 
-Browser capture is a downstream capability family on top of the AOS Execution
-Model. It is not a taxonomy root and it does not define the ladder. The current
-shape maps browser work onto the existing model:
+Browser capture specializes the existing AOS layers:
 
 ```text
 target/app surface
 -> control primitive
 -> observation/capture/evidence block
--> reusable capture recipe
--> workflow orchestration with gates/retries
--> run
--> work record with evidence/trace
+-> caller-selected run
+-> optional Work Record with evidence
 ```
 
-This note defines that projection and records the first browser-compatible Step
-Descriptor prototype without introducing a general Playbook UI, a new public CLI
-surface, autonomous replay, autonomous repair, or the Wiki Subject Browser.
+The active ownership is:
 
-## Projection Shape
-
-| Layer | Browser Capture Projection | Current repo evidence |
+| Layer | Browser projection | Repository owner |
 | --- | --- | --- |
-| Target/app surface | Browser Host surface addressed through `browser:<session>` and `browser:<session>/<ref>` target strings. | `CONTEXT.md`, `docs/design/see-do-grammar-trace-connections.md`, browser-compatible workbench subjects. |
-| Control primitive | AOS `see` and `do` primitives over browser targets, with State IDs and Target-with-Ref addresses. | `./aos see capture ... --xray`, `./aos do click ... --state-id ...`, saved AOS action evidence fixtures. |
-| Observation/capture/evidence block | A typed block that captures before/action/after evidence and postconditions without deciding broader orchestration. | `shared/schemas/fixtures/aos-work-record-v0/evidence/aos-browser-click-status.json`, `buildWorkRecordV0FromAosActionEvidence()`. |
-| Reusable capture recipe | A source-backed `aos recipe` manifest that can dry-run and run bounded capture steps once the block shape is ready. | Reserved; current live recipes are under `recipes/` and prove the recipe surface, not website capture. |
-| Workflow orchestration | Gates, retries, human review, branch decisions, evidence quality checks, and optional repair paths around one or more recipes or harness runs. | `aos.step_descriptor`, `runOneStepStepDescriptorHarness()`, workflow gate refs, and report-only verifier checks. |
-| Run | One execution instance of a capture recipe, workflow child, or gated harness. | Step Descriptor harness results and Work Record `origin.run_id`. |
-| Work Record with evidence/trace | Durable receipt containing intent, execution map, claims, postconditions, immutable evidence, verifier output, and health. | `shared/schemas/aos-work-record-v0.md` and `workflow-browser-click-status.json`. |
+| Target/app surface | Browser targets and exact state-scoped Observation Refs | ADR 0040 and public `see`/`do` contracts |
+| Control primitive | Caller-selected `see` and `do` operations | AOS command manifests and runtime |
+| Evidence block | Before/action/after evidence with exact State IDs and postconditions | `aos-work-record-v1.schema.json` |
+| Step descriptor | One source-bound descriptive step and evidence requirements | `aos-step-descriptor-v1.schema.json` |
+| Work Record | Optional immutable evidence/history plus report-only verifier health | `aos-work-record-v1.schema.json` |
 
-Existing browser capture work should therefore specialize primitives, blocks,
-recipes, workflows, runs, evidence, and Work Records. It should not add a
-parallel "browser capture" taxonomy or make Employer Brand artifacts the source
-of execution-model terms.
+Step Descriptors and Work Records describe evidence. They do not execute a
+workflow, authorize a future attempt, or add a parallel browser-capture
+taxonomy.
 
-## Current Prototype
+## Active Prototype
 
 The prototype path is:
 
@@ -56,100 +45,50 @@ The prototype path is:
 createBrowserStepDescriptorPrototype()
   -> runBrowserStepDescriptorPrototype()
   -> runOneStepStepDescriptorHarness()
-  -> Workflow-origin Work Record v0
-  -> work_record.open message for the existing Work Record workbench model
+  -> Work Record V1
+  -> report-only Work Record verifier
+  -> work_record.open read-only handoff
 ```
 
-The implementation lives in
-`packages/toolkit/workbench/browser-step-descriptor-prototype.js`. It is pure ESM and
-browser-compatible: callers provide the `aos.step_descriptor` descriptor and the
-saved AOS action evidence as JSON objects, and the module does not use Node
-APIs, daemon APIs, Playwright APIs, or filesystem access.
+The implementation in
+`packages/toolkit/workbench/browser-step-descriptor-prototype.js` is pure ESM.
+Callers provide the descriptor and saved evidence as objects. Simulation reads
+only supplied evidence. Execution requires a caller-supplied adapter and is not
+exposed by the public Work Record command surface.
 
-## Prototype Contract
+Active fixtures:
 
-The first fixture path uses the existing browser click/status Step descriptor:
+- `shared/schemas/fixtures/aos-step-descriptor-v1/valid/browser-click-status.json`
+- `shared/schemas/fixtures/aos-work-record-v1/evidence/aos-browser-click-status.json`
+- `shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json`
 
-- `shared/schemas/fixtures/aos-step-descriptor-v0/valid/browser-click-status.json`
-- `shared/schemas/fixtures/aos-work-record-v0/evidence/aos-browser-click-status.json`
-- `shared/schemas/fixtures/aos-work-record-v0/valid/workflow-browser-click-status.json`
-
-The prototype creates an `aos.workbench.subject` descriptor with
-`subject_type: "aos.step_descriptor_prototype"`, `browser-compatible` capability, and
-one narrow control: `step_descriptor.simulate_once`. The subject records that the
-current legacy path is report-only, one-step-only, Gate-coupled, and not a replay,
-repair, macro, background loop, broad CLI surface, general Playbook UI, or Wiki
-Subject Browser.
-
-`runBrowserStepDescriptorPrototype()` always calls `runOneStepStepDescriptorHarness()` in
-`simulate` mode. The current legacy harness requires a Workflow Gate ref and
-token and rejects when either is missing. That requirement is migration debt,
-not permission to observe or act.
-
-When the saved evidence is good, the result is a Workflow-origin Work Record v0
-with `origin.kind: "workflow"` and verifier profile
-`aos.verifier.work-record.v0.report-only`. The Work Record remains report-only:
-`execution_map.replay_policy.replay_requires_workflow_gate` and
-`execution_map.replay_policy.repair_requires_workflow_gate` stay `true`.
+The prototype is one-step, fixture-backed, and report-only by default. It adds
+no autonomous replay, repair loop, macro playback, background loop, general
+Playbook UI, or Wiki Subject Browser.
 
 ## Workbench Handoff
 
-The prototype exposes
-`createBrowserStepDescriptorPrototypeWorkRecordOpenMessage(record, { prototype })` so
-the emitted Work Record can be opened through the existing Work Record workbench
-model path:
+The Step Descriptor Workbench V1 shell lives at:
 
 ```text
-createWorkRecordWorkbenchState()
-  -> openWorkRecord(state, work_record.open message)
-  -> workRecordWorkbenchSnapshot(state)
+aos://toolkit/components/step-descriptor-workbench/index.html
 ```
 
-Because Work Record v0 records are read-only in the existing workbench model,
-the open subject has no patch persistence and no patch controls. The verifier
-report remains inspectable through the existing `work_record.verifier_report`
-view.
+It loads the V1 descriptor and saved-evidence fixtures, simulates one step, and
+hands the emitted V1 record to the existing read-only Work Record workbench.
+Its controls contain no Gate, approval, risk, or operation-selection fields.
+Its semantic selectors are local inspection selectors, not public Observation
+Refs or action-time Locators.
 
-## Step Descriptor Workbench V0 Shell
+## Historical V0
 
-The browser-hosted V0 shell lives at
-`aos://toolkit/components/step-descriptor-workbench/index.html` and launches through
-`packages/toolkit/components/step-descriptor-workbench/launch.sh`. It is a thin
-surface over this prototype contract: the launch path loads the existing
-browser click/status step fixture and saved evidence fixture, the shell requires
-the current legacy Workflow Gate ref and token before calling
-`runBrowserStepDescriptorPrototype()` in `simulate` mode, and the emitted Work Record
-is handed to the existing read-only Work Record workbench open path. Those
-required Gate fields are an ADR 0040 migration gap, not authorization.
-
-The shell remains fixture-backed, report-only, and one-step-only. It exposes
-semantic refs for inspection and operation, but it does not add live browser
-execution, autonomous replay, repair, macro playback, background loops, broad
-CLI commands, or a second Work Record viewer.
-
-## Non-Goals
-
-This is not the Browser-Hosted Wiki Subject Browser. It does not navigate wiki
-Subjects, resolve Subject Entry Handles, or render graph/facet browsing.
-
-This is not a general Playbook UI. It does not list Playbooks, edit Playbook
-steps, execute multi-step plans, or expose arbitrary adapters.
-
-This is not a new broad command surface. There is no `aos playbook`, `aos
-verify`, `aos audit`, recorder command, or public replay command.
-
-This is not autonomous replay or repair. The prototype does not repair refs,
-patch execution maps, re-run failed steps, play back macros, or start background
-loops. The current fixture models a separate Gate-coupled path that emits a new
-Work Record or explicit patch; Gate is not AOS permission, and runtime migration
-must not preserve it as a mandatory execution prerequisite.
+Step Descriptor V0 and Work Record V0 schemas and fixtures remain frozen
+historical bytes. Active readers and harnesses reject them. They are not
+translated, repaired, replayed, or accepted through a compatibility alias.
 
 ## Verification
 
-The focused regression is
-`tests/toolkit/browser-step-descriptor-prototype.test.mjs`. It proves that the
-prototype subject validates as an `aos.workbench.subject`, the legacy harness
-rejects missing Gate fields, and a Gate-supplied simulation runs one step through
-`runOneStepStepDescriptorHarness()`, the generated Work Record matches the existing
-Workflow-origin fixture and passes the report-only verifier, and the emitted
-record opens read-only through the existing Work Record workbench model.
+- `tests/schemas/aos-step-descriptor-v1.test.mjs`
+- `tests/toolkit/step-descriptor-harness.test.mjs`
+- `tests/toolkit/browser-step-descriptor-prototype.test.mjs`
+- `tests/toolkit/step-descriptor-workbench-v1.test.mjs`

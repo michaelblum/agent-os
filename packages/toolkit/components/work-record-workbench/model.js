@@ -1,5 +1,7 @@
 import {
-  isWorkRecordV0,
+  isHistoricalWorkRecordV0,
+  isWorkRecordV1,
+  isValidWorkRecordV1,
   normalizeWorkRecord,
   workRecordEvidenceArtifacts,
   workRecordIsReadOnly,
@@ -11,12 +13,17 @@ import {
   runWorkRecordVerifierProfile,
 } from '../../workbench/work-record-verifier.js';
 
-export const WORK_RECORD_WORKBENCH_SCHEMA_VERSION = '2026-05-04';
+export const WORK_RECORD_WORKBENCH_SCHEMA_VERSION = '2026-08-work-record-workbench-v1';
 const WORK_RECORD_WORKBENCH_URL = 'aos://toolkit/components/work-record-workbench/index.html';
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
   return normalized || fallback;
+}
+
+function rawText(value, fallback = '') {
+  const raw = String(value ?? '');
+  return raw || fallback;
 }
 
 function objectValue(value) {
@@ -92,29 +99,49 @@ function recordsEqual(a, b) {
 }
 
 function defaultRecord() {
+  const evaluatedAt = '2026-08-06T00:00:00.000Z';
+  const verifierReportId = 'verifier-report:workbench-empty';
   return {
-    type: 'aos.do_step',
-    schema_version: WORK_RECORD_WORKBENCH_SCHEMA_VERSION,
-    id: 'untitled-work-record',
+    type: 'aos.work_record',
+    schema_version: '2026-08-work-record-v1',
+    id: 'work-record:workbench-empty',
+    label: 'No Work Record loaded',
+    created_at: evaluatedAt,
     intent: {
-      nl: '',
-      purpose: '',
-      acceptance: '',
+      summary: 'No Work Record is loaded in the workbench.',
     },
-    execution_map: {},
-    evidence: {
-      artifacts: [],
+    origin: { kind: 'ad_hoc', ref: null },
+    references: [],
+    execution_map: { postconditions: [] },
+    evidence: [],
+    claims: [],
+    claim_results: [],
+    verifier_report: {
+      id: verifierReportId,
+      generated_at: evaluatedAt,
+      verifier: {
+        id: 'aos.verifier.work-record.v1.report-only',
+        kind: 'work_record_v1_report_only',
+        version: '2026-08-report-only-v1',
+      },
+      claim_results_ref: 'claim_results',
+      derived_indexes: { verified: [], failed: [], unverified: [] },
+      evidence_refs: [],
+      feedback: ['Waiting for a complete active Work Record V1 input.'],
     },
     health: {
-      state: 'stale',
-      reason: 'manual draft',
+      verdict: 'blocked',
+      reason: 'No Work Record is loaded.',
+      evaluated_at: evaluatedAt,
+      verifier_report_id: verifierReportId,
+      confidence: 1,
     },
   };
 }
 
 function normalizeRecord(record = {}) {
   const next = objectValue(record);
-  if (isWorkRecordV0(next)) return cloneJson(next);
+  if (isWorkRecordV1(next)) return cloneJson(next);
   const base = defaultRecord();
   return {
     ...base,
@@ -122,20 +149,21 @@ function normalizeRecord(record = {}) {
     type: text(next.type, base.type),
     schema_version: text(next.schema_version, base.schema_version),
     id: text(next.id, base.id),
-    intent: {
-      ...base.intent,
-      ...objectValue(next.intent),
-    },
-    execution_map: objectValue(next.execution_map),
-    evidence: {
-      ...base.evidence,
-      ...objectValue(next.evidence),
-      artifacts: arrayValue(objectValue(next.evidence).artifacts),
-    },
-    health: {
-      ...base.health,
-      ...objectValue(next.health),
-    },
+  };
+}
+
+function rejectedRecordResult(type, candidate = {}, reason = 'unsupported_work_record_schema') {
+  return {
+    type,
+    schema_version: WORK_RECORD_WORKBENCH_SCHEMA_VERSION,
+    status: 'rejected',
+    record_id: text(candidate.id) || null,
+    reason,
+    message: reason === 'historical_work_record_v0_unsupported'
+      ? 'Historical Work Record V0 bytes are opaque and unsupported by the active V1 workbench.'
+      : reason === 'unsupported_work_record_schema'
+        ? 'Only the complete active Work Record V1 schema is supported by this workbench.'
+        : 'Active Work Record V1 bytes must satisfy the complete current schema before the workbench can open them.',
   };
 }
 
@@ -146,7 +174,9 @@ function readOnlyResult(state, type, reason = 'read_only') {
     status: 'rejected',
     record_id: state.record.id,
     reason,
-    message: 'Work Record v0 opens read-only in this workbench.',
+    message: isHistoricalWorkRecordV0(state.record)
+      ? 'Historical Work Record V0 bytes are unsupported for active workbench behavior.'
+      : 'Active Work Records are read-only evidence in this workbench.',
   };
   return state.lastResult;
 }
@@ -170,12 +200,16 @@ function normalizeSource(source = null) {
   return {
     ...cloneJson(source),
     kind,
-    path: text(source.path) || null,
+    path: rawText(source.path) || null,
   };
 }
 
 export function createWorkRecordWorkbenchState({ record = null, source = null } = {}) {
-  const initial = normalizeRecord(record || defaultRecord());
+  const supplied = record !== null && record !== undefined;
+  const candidate = objectValue(supplied ? record : defaultRecord());
+  const historical = supplied && isHistoricalWorkRecordV0(candidate);
+  const invalidActiveInput = supplied && !isValidWorkRecordV1(candidate);
+  const initial = invalidActiveInput ? defaultRecord() : normalizeRecord(candidate);
   return {
     record: initial,
     savedRecord: cloneJson(initial),
@@ -183,14 +217,39 @@ export function createWorkRecordWorkbenchState({ record = null, source = null } 
     dirty: false,
     pendingPatchRecord: null,
     selectedView: 'intent',
-    lastResult: null,
+    lastResult: historical
+      ? rejectedRecordResult('work_record.workbench.initialize.result', candidate, 'historical_work_record_v0_unsupported')
+      : invalidActiveInput
+        ? rejectedRecordResult(
+          'work_record.workbench.initialize.result',
+          candidate,
+          isWorkRecordV1(candidate) ? 'invalid_work_record_v1' : 'unsupported_work_record_schema',
+        )
+        : null,
     errors: [],
   };
 }
 
 export function openWorkRecord(state, message = {}) {
   const payload = unwrapMessage(message);
-  const record = normalizeRecord(recordFromMessage(message));
+  const candidate = objectValue(recordFromMessage(message));
+  if (isHistoricalWorkRecordV0(candidate)) {
+    state.lastResult = rejectedRecordResult(
+      'work_record.open.result',
+      candidate,
+      'historical_work_record_v0_unsupported',
+    );
+    return state.lastResult;
+  }
+  if (!isValidWorkRecordV1(candidate)) {
+    state.lastResult = rejectedRecordResult(
+      'work_record.open.result',
+      candidate,
+      isWorkRecordV1(candidate) ? 'invalid_work_record_v1' : 'unsupported_work_record_schema',
+    );
+    return state.lastResult;
+  }
+  const record = normalizeRecord(candidate);
   state.record = record;
   state.savedRecord = cloneJson(record);
   state.pendingPatchRecord = null;
@@ -326,7 +385,7 @@ export function workRecordDiagnostics(record = {}) {
   const normalized = normalizeRecord(record);
   const adapter = normalizeWorkRecord(normalized);
   const executionMap = objectValue(normalized.execution_map);
-  const verifierCheck = isWorkRecordV0(normalized) ? runWorkRecordVerifierProfile(normalized) : null;
+  const verifierCheck = isWorkRecordV1(normalized) ? runWorkRecordVerifierProfile(normalized) : null;
   return {
     record_id: normalized.id,
     record_type: normalized.type,

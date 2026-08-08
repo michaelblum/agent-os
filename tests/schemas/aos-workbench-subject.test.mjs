@@ -18,11 +18,7 @@ const repoRoot = path.resolve(__dirname, '../..');
 const schemaPath = path.join(repoRoot, 'shared/schemas/aos-workbench-subject.schema.json');
 const workRecordFixturePath = path.join(
   repoRoot,
-  'docs/design/fixtures/aos-work-records/browser-artifact-collection-step.json',
-);
-const v0WorkRecordFixturePath = path.join(
-  repoRoot,
-  'shared/schemas/fixtures/aos-work-record-v0/valid/workflow-origin.json',
+  'shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json',
 );
 const artifactBundleFixturePath = path.join(
   repoRoot,
@@ -47,7 +43,7 @@ from pathlib import Path
 from jsonschema import Draft202012Validator
 
 schema = json.loads(Path(sys.argv[1]).read_text())
-instance = json.loads(sys.argv[2])
+instance = json.load(sys.stdin)
 Draft202012Validator.check_schema(schema)
 errors = sorted(Draft202012Validator(schema).iter_errors(instance), key=lambda e: list(e.path))
 if errors:
@@ -56,9 +52,8 @@ if errors:
     sys.exit(1)
 `,
       schemaPath,
-      JSON.stringify(instance),
     ],
-    { encoding: 'utf8' },
+    { encoding: 'utf8', input: `${JSON.stringify(instance)}\n` },
   );
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
 }
@@ -74,15 +69,14 @@ from pathlib import Path
 from jsonschema import Draft202012Validator
 
 schema = json.loads(Path(sys.argv[1]).read_text())
-instance = json.loads(sys.argv[2])
+instance = json.load(sys.stdin)
 Draft202012Validator.check_schema(schema)
 errors = sorted(Draft202012Validator(schema).iter_errors(instance), key=lambda e: list(e.path))
 sys.exit(0 if errors else 1)
 `,
       schemaPath,
-      JSON.stringify(instance),
     ],
-    { encoding: 'utf8' },
+    { encoding: 'utf8', input: `${JSON.stringify(instance)}\n` },
   );
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
 }
@@ -187,7 +181,6 @@ test('current workbench adopters emit schema-valid subject descriptors', async (
     tags: ['diagnostics', 'runtime'],
   }));
   await validate(createWorkRecordSubject(JSON.parse(await fs.readFile(workRecordFixturePath, 'utf8'))));
-  await validate(createWorkRecordSubject(JSON.parse(await fs.readFile(v0WorkRecordFixturePath, 'utf8'))));
   await validate(createWikiWorkflowSubject({
     root: {
       path: 'aos/concepts/runtime-readiness-workflow.md',
@@ -211,9 +204,6 @@ test('current workbench adopters emit schema-valid subject descriptors', async (
   }));
   await validate(buildWorkRecordWorkbenchSubject(createWorkRecordWorkbenchState({
     record: JSON.parse(await fs.readFile(workRecordFixturePath, 'utf8')),
-  })));
-  await validate(buildWorkRecordWorkbenchSubject(createWorkRecordWorkbenchState({
-    record: JSON.parse(await fs.readFile(v0WorkRecordFixturePath, 'utf8')),
   })));
   await validate(createArtifactBundleSubject(JSON.parse(await fs.readFile(artifactBundleFixturePath, 'utf8'))));
 });

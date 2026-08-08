@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-plan-v1.schema.json",
+  "title": "AOS Work Record Repair Plan v1",
+  "description": "A non-executing, source-bound mechanical repair proposal.",
+  "type": "object",
+  "required": ["type", "schema_version", "status", "source_work_record", "mutates_source", "executes_actions", "plan_steps", "candidate_patches", "recommended_commands", "evidence_refs", "diagnostics"],
+  "properties": {
+    "type": { "const": "work_record.repair_plan" },
+    "schema_version": { "const": "2026-08-work-record-repair-plan-v1" },
+    "source_consumer_schema_version": { "type": "string" },
+    "status": { "enum": ["no_repair_needed", "planned", "blocked_inputs", "not_repairable", "superseded", "retired", "unsupported"] },
+    "source_work_record": { "$ref": "#/$defs/source_identity" },
+    "current_report": { "type": "object" },
+    "current_health": { "type": "string" },
+    "embedded_health": { "type": "string" },
+    "health_verdict": { "type": "string" },
+    "historical_results": { "type": ["array", "object"] },
+    "failure_classes": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "blockers": { "type": "object" },
+    "mutates_source": { "const": false },
+    "executes_actions": { "const": false },
+    "plan_steps": { "type": "array", "items": { "$ref": "#/$defs/plan_step" } },
+    "candidate_patches": { "type": "array", "maxItems": 1, "items": { "$ref": "#/$defs/candidate_patch" } },
+    "recommended_commands": { "type": "array", "items": { "$ref": "#/$defs/recommended_command" } },
+    "evidence_refs": { "type": "array" },
+    "diagnostics": { "type": "array" },
+    "depends_on": { "type": "object" },
+    "followup": { "type": "object" },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "source_identity": {
+      "type": "object",
+      "required": ["id", "schema_version", "digest"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "path": { "type": "string" },
+        "match": { "type": "string" },
+        "requested_ref": { "type": "string" },
+        "schema_version": { "const": "2026-08-work-record-v1" },
+        "digest": { "type": "string", "minLength": 1 },
+        "summary": { "$ref": "#/$defs/source_summary" }
+      },
+      "additionalProperties": false
+    },
+    "source_summary": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "schema_version": { "const": "2026-08-work-record-v1" },
+        "label": { "type": "string" },
+        "path": { "type": "string" },
+        "repo_relative_path": { "type": "string" },
+        "origin_kind": { "type": "string" },
+        "health_verdict": { "type": "string" },
+        "claims": { "type": "integer", "minimum": 0 },
+        "claim_results": { "type": "integer", "minimum": 0 },
+        "evidence": { "type": "integer", "minimum": 0 },
+        "historical_claim_results_present": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "plan_step": {
+      "type": "object",
+      "required": ["id", "title", "kind", "proposes_mutation", "executes_in_plan", "description"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "proposes_mutation": { "type": "boolean" },
+        "declared_mutation_paths": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "executes_in_plan": { "const": false },
+        "blocker": {
+          "type": "object",
+          "required": ["category", "codes", "required_external_action"],
+          "properties": {
+            "category": { "type": "string", "minLength": 1 },
+            "codes": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+            "required_external_action": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "replacement_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "description": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "candidate_patch": {
+      "type": "object",
+      "required": ["id", "target", "status", "applied", "executes_in_plan", "declared_mutation_paths", "expected_side_effects", "rationale", "failure_classes", "diagnostic_codes"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "target": { "type": "string", "minLength": 1 },
+        "status": { "const": "proposed" },
+        "applied": { "const": false },
+        "executes_in_plan": { "const": false },
+        "declared_mutation_paths": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "expected_side_effects": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "rationale": { "type": "string", "minLength": 1 },
+        "failure_classes": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "diagnostic_codes": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+      },
+      "additionalProperties": false
+    },
+    "recommended_command": {
+      "type": "object",
+      "required": ["command", "read_only", "mutates_state", "executes_in_plan", "purpose"],
+      "properties": {
+        "command": { "type": "string", "minLength": 1 },
+        "read_only": { "type": "boolean" },
+        "mutates_state": { "type": "boolean" },
+        "executes_in_plan": { "const": false },
+        "purpose": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  }
+}
