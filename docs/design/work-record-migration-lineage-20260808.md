@@ -35,15 +35,10 @@ Core doctrine established there:
 Orchestrator thread `019fd2cb-0e5c-7e03-8b8d-ae1d21e55664` (retired
 2026-08-08; do not resume — its world model is stale). It ran from
 `/Users/Michael/Code` as a cross-repo overseer, not inside any single repo's
-instruction stack. Relevant repos in order of salience: `agent-os`; `ascend`
-(the project that spurred the most recent workstream); `sigil` (the PR #90
-workstream this effort forked from); `openhuman` (sigil draws inspiration);
-`openCLI` (sigil may draw inspiration); `creative-workshop` (progenitor of
-sigil); and `open-design` (progenitor of creative-workshop — upstream fixes,
-features, skills, and templates are periodically adopted up the chain toward
-sigil, without compromising sigil's private stature). Reference worktrees are
-pulled in as needed. This document covers the agent-os lane only. Operating pattern it established,
-still in force:
+instruction stack; sister repos were pulled in as needed, and that broader
+cross-repo context remains available in agent memory and history. This
+document covers the agent-os lane only, which forked from the sigil PR #90
+workstream. Operating pattern it established, still in force:
 
 - One writer; fresh frontier-model (`xhigh`) review gates on every completed
   slice. (Its proactive sub-chat delegation was a 2026-08 usage-pressure choice,
