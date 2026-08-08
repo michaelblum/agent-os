@@ -76,9 +76,13 @@ match current behavior; change the implementation.
 - **Commit after every validated increment** to
   `wip/work-record-v1-migration-checkpoint`. No more than one step of
   uncommitted work at any time. (See root `AGENTS.md` checkpoint invariant.)
-- Sequential writers only; parallel readers/researchers are fine. No `./aos`,
-  daemon, native UI, TCC, Sigil, push, PR, or GitHub mutation. Session
-  orchestration method is intentionally unprescribed.
+- Use sub-agents freely; all work coordinates on the single shared worktree.
+  Serial writers only on agent-os: the `aos` binary owns TCC permissions, so
+  parallel worktrees/binaries — and concurrent `aos` consumers such as sigil —
+  conflict in insidious ways. Side-quest worktrees are permitted only if they
+  neither build/own an `aos` binary nor interfere with others working on the
+  machine. No `./aos`, daemon, native UI, TCC, Sigil, push, PR, or GitHub
+  mutation. Session orchestration method is otherwise intentionally unprescribed.
 - All platform facts needed are already verified locally (SDK headers and the
   platform contract probe). **No external research is required** for this
   implementation.
