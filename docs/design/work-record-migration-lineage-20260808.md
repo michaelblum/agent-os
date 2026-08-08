@@ -36,8 +36,10 @@ Orchestrator thread `019fd2cb-0e5c-7e03-8b8d-ae1d21e55664` (retired
 2026-08-08; do not resume — its world model is stale). Operating pattern it
 established, still in force:
 
-- One writer; bounded read-only delegation to sub-chats; fresh frontier-model
-  (`xhigh`) review gates on every completed slice; cost-effective delegation.
+- One writer; fresh frontier-model (`xhigh`) review gates on every completed
+  slice. (Its proactive sub-chat delegation was a 2026-08 usage-pressure choice,
+  retired as standing doctrine on 2026-08-08: session orchestration method is now
+  intentionally unprescribed so the agent stack’s own orchestration is not subverted.)
 - No `./aos`, daemon, native UI, TCC, Sigil, push, PR, or GitHub mutation.
 - Verified truth first: it reconciled repo/GitHub/worktree state, built the
   active-authority inventory, and proposed single atomic implementation
@@ -107,5 +109,4 @@ recorded in the `agent-filter-resilience` skill and its trigger registry.
 (`docs/design/work-record-publish-hardening-handoff-20260808.md`) and this
 lineage first; short single-purpose turns; correctness vocabulary; no
 external platform research; commit after every validated increment (root
-AGENTS.md invariant); one writer with bounded read-only delegation and fresh
-review gates.
+AGENTS.md invariant); one writer and fresh review gates.

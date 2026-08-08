@@ -76,8 +76,8 @@ match current behavior; change the implementation.
 - **Commit after every validated increment** to
   `wip/work-record-v1-migration-checkpoint`. No more than one step of
   uncommitted work at any time. (See root `AGENTS.md` checkpoint invariant.)
-- One writer. Bounded read-only delegation only. No `./aos`, daemon, native
-  UI, TCC, Sigil, push, PR, or GitHub mutation.
+- One writer. No `./aos`, daemon, native UI, TCC, Sigil, push, PR, or GitHub
+  mutation. Session orchestration method is intentionally unprescribed.
 - All platform facts needed are already verified locally (SDK headers and the
   platform contract probe). **No external research is required** for this
   implementation.
