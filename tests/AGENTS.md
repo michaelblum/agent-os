@@ -94,10 +94,11 @@ tests.
   the closed id/digest/schema projection. Successful write receipts bind the
   serialized index-file digest separately from the structured entry identity.
   Finalizer scrub-receipt proofs cover failed replacement and supersession
-  transfers with both newly written and already-existing replacement records.
+  transfers with both newly written and already-existing replacement records,
+  plus successful finalization after an idempotent raced publication.
   Finalizer proofs also mutate the replacement during supersession publication
-  and require the post-publication re-read to block success, and inject malformed published
-  index readback to require a receipted partial result instead of an exception.
+  and require the post-publication re-read to block success, and inject malformed
+  published index readback to require a receipted partial result instead of an exception.
   Writer and supersession proofs mutate their bound source identities during
   publication and require a published-side-effect receipt with success
   downgraded; serialized replacement-byte drift must fail independently of its
@@ -118,8 +119,8 @@ tests.
   or explicit root, replace leaves with identical symlink clones, create an
   external hard link to the temp inode before any Work Record write, restore a
   leaf during pinned inspection or publication readback, race hard-link
-  activity after temp unlink, and replace the temp name immediately before
-  cleanup to prove the unrelated replacement is preserved.
+  activity after atomic transfer, and replace the temp name immediately before
+  rollback to prove the unrelated replacement is preserved.
   Packaging proof stages and loads the installed Work Record command/native
   resource projection, then resolves its manifest entry from an unrelated
   caller directory without invoking `./aos`. Every

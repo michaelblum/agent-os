@@ -314,6 +314,36 @@ test('Finalizer points recovery at a scrubbed replacement destination receipt', 
   assert.equal(fs.statSync(leaked).size, 0);
 });
 
+test('Finalizer surfaces an idempotent-race receipt after successful finalization', () => {
+  const paths = fixtureSet();
+  let injected = false;
+  const result = withAtomicPublishHook((event) => {
+    if (!injected && event.operation === 'publish' && event.phase === 'before_publish_link') {
+      injected = true;
+      fs.writeFileSync(event.destination_path, fs.readFileSync(event.temp_file), { flag: 'wx' });
+    }
+  }, () => finalizeWorkRecordRepair({
+      sourceRef: repairableWorkRecordPath,
+      ...paths,
+      repoRoot,
+    }));
+  assert.equal(injected, true);
+  assert.equal(result.status, 'finalized');
+  assert.equal(result.replacement_writer_result.status, 'already_exists');
+  assert.equal(result.replacement_writer_result.atomic_write.content_scrubbed, true);
+  assert.equal(result.replacement_writer_result.atomic_write.temp_file_leftover, true);
+  assert.equal(result.recovery.action, 'lookup_or_read_replacement');
+  assert.equal(result.recovery.publication_receipts.length, 1);
+  assert.equal(result.recovery.publication_receipts[0].action, 'inspect_replacement_publication_receipt');
+  assert.equal(result.recovery.publication_receipts[0].content_scrubbed, true);
+  assert.equal(result.recovery.publication_receipts[0].temp_file_leftover, true);
+  assert.equal(result.recovery.publication_receipts[0].destination_file_leftover, false);
+  assert.ok(result.recovery.recommendations.some((item) => item.action === 'inspect_replacement_publication_receipt'));
+  assert.equal(fs.existsSync(result.replacement_writer_result.atomic_write.temp_file), true);
+  assert.equal(fs.statSync(result.replacement_writer_result.atomic_write.temp_file).size, 0);
+  fs.rmSync(result.replacement_writer_result.atomic_write.temp_file, { force: true });
+});
+
 test('Finalizer retains replacement receipt when post-publication source digest readback fails', () => {
   const paths = fixtureSet();
   const originalReadFileSync = fs.readFileSync;

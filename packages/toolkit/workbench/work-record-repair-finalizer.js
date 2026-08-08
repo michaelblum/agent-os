@@ -200,7 +200,38 @@ function hasPublicationReceipt(atomicWrite = {}) {
   return receipt.temp_file_leftover === true || receipt.destination_file_leftover === true;
 }
 
+function supersessionPublicationReceipt(result = {}) {
+  const supersession = objectValue(result);
+  if (!hasPublicationReceipt(supersession.atomic_write)) return null;
+  return {
+    action: 'inspect_supersession_publication_receipt',
+    temp_file: rawText(supersession.atomic_write.temp_file),
+    index_path: rawText(supersession.output?.index_path),
+    temp_file_leftover: supersession.atomic_write.temp_file_leftover === true,
+    destination_file_leftover: supersession.atomic_write.destination_file_leftover === true,
+    content_scrubbed: supersession.atomic_write.content_scrubbed === true,
+  };
+}
+
+function replacementPublicationReceipt(result = {}) {
+  const writer = objectValue(result);
+  if (!hasPublicationReceipt(writer.atomic_write)) return null;
+  return {
+    action: 'inspect_replacement_publication_receipt',
+    temp_file: rawText(writer.atomic_write.temp_file),
+    replacement_path: rawText(writer.output?.output_path),
+    temp_file_leftover: writer.atomic_write.temp_file_leftover === true,
+    destination_file_leftover: writer.atomic_write.destination_file_leftover === true,
+    content_scrubbed: writer.atomic_write.content_scrubbed === true,
+  };
+}
+
 function recoveryGuidance(status = '', result = {}) {
+  const supersession = objectValue(result.supersession_index_result);
+  const writer = objectValue(result.replacement_writer_result);
+  const supersessionReceipt = supersessionPublicationReceipt(supersession);
+  const writerReceipt = replacementPublicationReceipt(writer);
+  const publicationReceipts = [supersessionReceipt, writerReceipt].filter(Boolean);
   if (status === 'finalized' || status === 'already_finalized') {
     const lookupRecommendation = workRecordSupersessionLookupRecommendation(
       result.source_work_record?.id || result.source_work_record?.path,
@@ -212,7 +243,9 @@ function recoveryGuidance(status = '', result = {}) {
     );
     return {
       action: 'lookup_or_read_replacement',
+      publication_receipts: publicationReceipts.map(cloneJson),
       recommendations: [
+        ...publicationReceipts.map(cloneJson),
         {
           action: 'lookup_source_supersession_entry',
           argv: lookupRecommendation.argv,
@@ -231,27 +264,15 @@ function recoveryGuidance(status = '', result = {}) {
       action: 'rerun_without_dry_run_to_finalize',
     };
   }
-  const supersession = objectValue(result.supersession_index_result);
-  const writer = objectValue(result.replacement_writer_result);
-  if (hasPublicationReceipt(supersession.atomic_write)) {
+  if (supersessionReceipt) {
     return {
-      action: 'inspect_supersession_publication_receipt',
-      temp_file: rawText(supersession.atomic_write.temp_file),
-      index_path: rawText(supersession.output?.index_path),
-      temp_file_leftover: supersession.atomic_write.temp_file_leftover === true,
-      destination_file_leftover: supersession.atomic_write.destination_file_leftover === true,
-      content_scrubbed: supersession.atomic_write.content_scrubbed === true,
+      ...supersessionReceipt,
       recommendations: [cloneJson(objectValue(supersession.recommended_next))],
     };
   }
-  if (hasPublicationReceipt(writer.atomic_write)) {
+  if (writerReceipt) {
     return {
-      action: 'inspect_replacement_publication_receipt',
-      temp_file: rawText(writer.atomic_write.temp_file),
-      replacement_path: rawText(writer.output?.output_path),
-      temp_file_leftover: writer.atomic_write.temp_file_leftover === true,
-      destination_file_leftover: writer.atomic_write.destination_file_leftover === true,
-      content_scrubbed: writer.atomic_write.content_scrubbed === true,
+      ...writerReceipt,
       recommendations: [cloneJson(objectValue(writer.recommended_next))],
     };
   }

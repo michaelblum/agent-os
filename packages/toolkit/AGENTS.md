@@ -180,10 +180,12 @@ Replacement and supersession publication must use create-if-absent semantics, re
 destinations for exact idempotency, and never overwrite different existing
 bytes. Failed publication scrubs invocation-owned staged content through its
 held descriptor, preserves any empty temp or destination leftover, and carries
-the exact leftover and scrub flags through caller and bundle receipts. The
-Replacement Writer re-checks exact source bytes after publishing, and the
-Supersession Writer re-checks exact source and replacement identities after
-publishing; drift downgrades success while retaining the publication receipt.
+the exact leftover and scrub flags through caller and bundle receipts. Finalizer
+guidance surfaces preserved receipts even when idempotent publication
+completes. The Replacement Writer re-checks exact source bytes after
+publishing, and the Supersession Writer re-checks exact source and replacement
+identities after publishing; drift downgrades success while retaining the
+publication receipt.
 Each exact source identity owns one canonical create-if-absent active entry, so
 competing replacement relationships cannot both publish successfully.
 Persisted supersession
