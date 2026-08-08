@@ -898,50 +898,11 @@ std::string RandomTempName() {
   return result;
 }
 
-bool RemoveOwnedEntry(int parent, const std::string& name, const struct stat& expected) {
-  EntryWatcher watcher;
-  int watcherError = 0;
-  if (!watcher.Start(parent, &watcherError)) {
-    errno = watcherError;
-    return false;
-  }
-  struct stat before {};
-  struct stat immediatelyBefore {};
-  if (fstatat(parent, name.c_str(), &before, AT_SYMLINK_NOFOLLOW) != 0) return errno == ENOENT;
-  if (!S_ISREG(before.st_mode) || !SameIdentity(before, expected)) {
-    errno = ESTALE;
-    return false;
-  }
-  if (watcher.Changed(&watcherError)) {
-    errno = watcherError == 0 ? ESTALE : watcherError;
-    return false;
-  }
-  if (fstatat(parent, name.c_str(), &immediatelyBefore, AT_SYMLINK_NOFOLLOW) != 0) return errno == ENOENT;
-  if (!S_ISREG(immediatelyBefore.st_mode)
-      || !SameIdentity(before, immediatelyBefore)
-      || !SameIdentity(immediatelyBefore, expected)) {
-    errno = ESTALE;
-    return false;
-  }
-  if (watcher.Changed(&watcherError)) {
-    errno = watcherError == 0 ? ESTALE : watcherError;
-    return false;
-  }
-  return unlinkat(parent, name.c_str(), AT_SYMLINK_NOFOLLOW_ANY | AT_RESOLVE_BENEATH) == 0
-    || errno == ENOENT;
-}
-
 bool OwnedEntryPresent(int parent, const std::string& name, const struct stat& expected) {
   struct stat atPath {};
   return fstatat(parent, name.c_str(), &atPath, AT_SYMLINK_NOFOLLOW) == 0
     && S_ISREG(atPath.st_mode)
     && SameIdentity(atPath, expected);
-}
-
-bool DiscardTempContent(int parent, const std::string& tempName, int descriptor, const struct stat& expected) {
-  bool scrubbed = ftruncate(descriptor, 0) == 0 && fsync(descriptor) == 0;
-  RemoveOwnedEntry(parent, tempName, expected);
-  return scrubbed && !OwnedEntryPresent(parent, tempName, expected) && fsync(parent) == 0;
 }
 
 bool StableLinkCount(
@@ -978,31 +939,29 @@ NativeResult RollbackContent(
   const std::string& tempName,
   int tempDescriptor,
   const struct stat& expected,
-  bool destinationLinked,
   const std::string& errorCode,
   const std::string& errorMessage,
   const std::string& existingKind = "",
   const std::string& failureStatus = "write_failed"
 ) {
   bool scrubbed = ftruncate(tempDescriptor, 0) == 0 && fsync(tempDescriptor) == 0;
-  if (destinationLinked) RemoveOwnedEntry(parent, leaf, expected);
-  RemoveOwnedEntry(parent, tempName, expected);
-  bool destinationRemoved = !destinationLinked || !OwnedEntryPresent(parent, leaf, expected);
-  bool tempRemoved = !OwnedEntryPresent(parent, tempName, expected);
-  bool parentSynced = fsync(parent) == 0;
+  bool destinationLeftover = OwnedEntryPresent(parent, leaf, expected);
+  bool tempLeftover = OwnedEntryPresent(parent, tempName, expected);
   NativeResult result = Failure(
-    scrubbed && destinationRemoved && tempRemoved && parentSynced ? failureStatus : "cleanup_failed",
+    scrubbed ? failureStatus : "cleanup_failed",
     errorCode,
     errorMessage
   );
   result.tempFile = evidence.tempFile;
-  result.tempFileLeftover = !tempRemoved;
+  result.tempFileLeftover = tempLeftover;
+  result.destinationFileLeftover = destinationLeftover;
+  result.contentScrubbed = scrubbed;
   result.existingKind = existingKind;
   result.rootIdentity = evidence.rootIdentity;
   result.directoryChain = evidence.directoryChain;
   if (result.status == "cleanup_failed") {
     result.cleanupErrorCode = "PUBLICATION_ROLLBACK_FAILED";
-    result.cleanupErrorMessage = "Could not completely scrub and remove invocation-owned publication entries.";
+    result.cleanupErrorMessage = "Could not scrub invocation-owned staged content through its held descriptor.";
   }
   return result;
 }
@@ -1013,8 +972,7 @@ NativeResult RejectHardlinkLeak(
   const std::string& leaf,
   const std::string& tempName,
   int tempDescriptor,
-  const struct stat& expected,
-  bool destinationLinked
+  const struct stat& expected
 ) {
   return RollbackContent(
     evidence,
@@ -1023,7 +981,6 @@ NativeResult RejectHardlinkLeak(
     tempName,
     tempDescriptor,
     expected,
-    destinationLinked,
     "EXTERNAL_HARDLINK_DETECTED",
     "Unexpected hard-link activity invalidated descriptor-relative publication.",
     "multiple_links"
@@ -1041,7 +998,7 @@ NativeResult RejectPublishedLinkChange(
   uint64_t expectedLinks
 ) {
   if (static_cast<uint64_t>(observed.st_nlink) >= expectedLinks) {
-    return RejectHardlinkLeak(evidence, parent, leaf, tempName, tempDescriptor, expected, true);
+    return RejectHardlinkLeak(evidence, parent, leaf, tempName, tempDescriptor, expected);
   }
   return RollbackContent(
     evidence,
@@ -1050,7 +1007,6 @@ NativeResult RejectPublishedLinkChange(
     tempName,
     tempDescriptor,
     expected,
-    true,
     "DESTINATION_IDENTITY_CHANGED",
     "Published destination link identity changed during descriptor-relative publication.",
     "replaced",
@@ -1094,7 +1050,7 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
     if (!GuardStable(chain, watcher, &watcherError)) {
       return Failure("write_failed", "DIRECTORY_CHAIN_CHANGED", "Directory identity changed before descriptor-relative temp creation.");
     }
-    int descriptor = openat(parent, tempName.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+    int descriptor = openat(parent, tempName.c_str(), O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
     if (descriptor >= 0) {
       temp.reset(descriptor);
       break;
@@ -1106,38 +1062,65 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
   NativeResult evidence;
   AttachChainEvidence(chain, &evidence);
   evidence.tempFile = JoinPath(request.rootPath, request.relativeSegments, request.relativeSegments.size() - 1U) + "/" + tempName;
-  LinkWatcher tempLinkWatcher;
+  struct stat tempStat {};
+  if (fstat(temp.value, &tempStat) != 0) {
+    return RollbackContent(
+      evidence,
+      parent,
+      leaf,
+      tempName,
+      temp.value,
+      tempStat,
+      "TEMP_STAT_FAILED",
+      ErrnoMessage(errno)
+    );
+  }
+
+  LinkWatcher linkWatcher;
   int linkWatchError = 0;
-  if (!tempLinkWatcher.Start(temp.value, &linkWatchError)) {
-    struct stat created {};
-    if (fstat(temp.value, &created) == 0) RemoveOwnedEntry(parent, tempName, created);
-    NativeResult result = Failure("write_failed", "HARDLINK_WATCH_UNAVAILABLE", ErrnoMessage(linkWatchError));
-    result.tempFile = evidence.tempFile;
-    return result;
+  if (!linkWatcher.Start(temp.value, &linkWatchError)) {
+    return RollbackContent(
+      evidence,
+      parent,
+      leaf,
+      tempName,
+      temp.value,
+      tempStat,
+      "HARDLINK_WATCH_UNAVAILABLE",
+      ErrnoMessage(linkWatchError)
+    );
   }
   HookOutcome afterOpen = CallHook(env, request, "publish", "after_temp_open", destinationPath, evidence.tempFile);
   if (afterOpen.callbackFailed || !GuardStable(chain, watcher, &watcherError)) {
-    struct stat tempStat {};
-    if (fstat(temp.value, &tempStat) == 0) RemoveOwnedEntry(parent, tempName, tempStat);
-    NativeResult result = Failure("write_failed", "DIRECTORY_CHAIN_CHANGED", "Directory identity changed after descriptor-relative temp creation.");
-    result.tempFile = evidence.tempFile;
-    result.rootIdentity = evidence.rootIdentity;
-    result.directoryChain = evidence.directoryChain;
-    return result;
+    return RollbackContent(
+      evidence,
+      parent,
+      leaf,
+      tempName,
+      temp.value,
+      tempStat,
+      "DIRECTORY_CHAIN_CHANGED",
+      "Directory identity changed after descriptor-relative temp creation."
+    );
   }
 
-  struct stat tempStat {};
   struct stat tempAtPath {};
   int tempGuardError = 0;
-  if (!StableLinkCount(temp.value, 1U, tempLinkWatcher, &tempStat, &tempGuardError)) {
-    return RejectHardlinkLeak(evidence, parent, leaf, tempName, temp.value, tempStat, false);
+  if (!StableLinkCount(temp.value, 1U, linkWatcher, &tempStat, &tempGuardError)) {
+    return RejectHardlinkLeak(evidence, parent, leaf, tempName, temp.value, tempStat);
   }
   if (fstatat(parent, tempName.c_str(), &tempAtPath, AT_SYMLINK_NOFOLLOW) != 0
       || !SameIdentity(tempStat, tempAtPath)) {
-    RemoveOwnedEntry(parent, tempName, tempStat);
-    NativeResult result = Failure("write_failed", "TEMP_IDENTITY_CHANGED", "Temp file identity changed before content write.");
-    result.tempFile = evidence.tempFile;
-    return result;
+    return RollbackContent(
+      evidence,
+      parent,
+      leaf,
+      tempName,
+      temp.value,
+      tempStat,
+      "TEMP_IDENTITY_CHANGED",
+      "Temp file identity changed before content write."
+    );
   }
 
   int writeError = 0;
@@ -1150,13 +1133,12 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
       tempName,
       temp.value,
       tempStat,
-      false,
       "TEMP_WRITE_FAILED",
       ErrnoMessage(saved)
     );
   }
-  if (!StableLinkCount(temp.value, 1U, tempLinkWatcher, &tempStat, &tempGuardError)) {
-    return RejectHardlinkLeak(evidence, parent, leaf, tempName, temp.value, tempStat, false);
+  if (!StableLinkCount(temp.value, 1U, linkWatcher, &tempStat, &tempGuardError)) {
+    return RejectHardlinkLeak(evidence, parent, leaf, tempName, temp.value, tempStat);
   }
   if (fstatat(parent, tempName.c_str(), &tempAtPath, AT_SYMLINK_NOFOLLOW) != 0
       || !SameIdentity(tempStat, tempAtPath)) {
@@ -1167,7 +1149,6 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
       tempName,
       temp.value,
       tempStat,
-      false,
       "TEMP_IDENTITY_CHANGED",
       "Temp file identity changed before publication."
     );
@@ -1182,13 +1163,26 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
       tempName,
       temp.value,
       tempStat,
-      false,
       "DESTINATION_LINK_FAILED",
       "Injected destination link failure."
     );
   }
-  if (!StableLinkCount(temp.value, 1U, tempLinkWatcher, &tempStat, &tempGuardError)) {
-    return RejectHardlinkLeak(evidence, parent, leaf, tempName, temp.value, tempStat, false);
+  if (!StableLinkCount(temp.value, 1U, linkWatcher, &tempStat, &tempGuardError)) {
+    return RejectHardlinkLeak(evidence, parent, leaf, tempName, temp.value, tempStat);
+  }
+  if (fstatat(parent, tempName.c_str(), &tempAtPath, AT_SYMLINK_NOFOLLOW) != 0
+      || !S_ISREG(tempAtPath.st_mode)
+      || !SameIdentity(tempStat, tempAtPath)) {
+    return RollbackContent(
+      evidence,
+      parent,
+      leaf,
+      tempName,
+      temp.value,
+      tempStat,
+      "TEMP_IDENTITY_CHANGED",
+      "Temp file identity changed immediately before publication."
+    );
   }
   if (!GuardStable(chain, watcher, &watcherError)) {
     return RollbackContent(
@@ -1198,56 +1192,59 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
       tempName,
       temp.value,
       tempStat,
-      false,
       "DIRECTORY_CHAIN_CHANGED",
       "Directory identity changed before descriptor-relative publication."
     );
   }
-  if (linkat(
+  unsigned int renameFlags = RENAME_EXCL | RENAME_NOFOLLOW_ANY | RENAME_RESOLVE_BENEATH;
+  if (renameatx_np(
         parent,
         tempName.c_str(),
         parent,
         leaf.c_str(),
-        AT_SYMLINK_NOFOLLOW_ANY | AT_RESOLVE_BENEATH | AT_UNIQUE
+        renameFlags
       ) != 0) {
-    int linkError = errno;
-    struct stat failedLinkStat {};
-    if (!StableLinkCount(temp.value, 1U, tempLinkWatcher, &failedLinkStat, &tempGuardError)) {
-      return RejectHardlinkLeak(evidence, parent, leaf, tempName, temp.value, failedLinkStat, false);
+    int renameError = errno;
+    struct stat failedRenameStat {};
+    if (!StableLinkCount(temp.value, 1U, linkWatcher, &failedRenameStat, &tempGuardError)) {
+      return RejectHardlinkLeak(evidence, parent, leaf, tempName, temp.value, failedRenameStat);
     }
-    bool tempRemoved = DiscardTempContent(parent, tempName, temp.value, tempStat);
-    if (!tempRemoved) {
-      NativeResult result = Failure("cleanup_failed", "DESTINATION_LINK_FAILED", ErrnoMessage(linkError));
-      result.cleanupErrorCode = "TEMP_CLEANUP_FAILED";
-      result.cleanupErrorMessage = "Descriptor-relative temp cleanup failed after publication conflict.";
-      result.tempFile = evidence.tempFile;
-      result.tempFileLeftover = true;
-      return result;
-    }
-    if (linkError == EEXIST) {
+    NativeResult rollback = RollbackContent(
+      evidence,
+      parent,
+      leaf,
+      tempName,
+      temp.value,
+      tempStat,
+      renameError == EINVAL || renameError == ENOTSUP
+        ? "DESCRIPTOR_RELATIVE_RENAME_UNSUPPORTED"
+        : "DESTINATION_LINK_FAILED",
+      ErrnoMessage(renameError)
+    );
+    if (!rollback.contentScrubbed) return rollback;
+    if (renameError == EEXIST) {
       EntryWatcher entryWatcher;
       if (!entryWatcher.Start(parent, &tempGuardError)) {
-        NativeResult result = Failure("inspection_failed", "ENTRY_WATCH_UNAVAILABLE", ErrnoMessage(tempGuardError));
-        result.tempFile = evidence.tempFile;
+        NativeResult result = rollback;
+        result.status = "inspection_failed";
+        result.errorCode = "ENTRY_WATCH_UNAVAILABLE";
+        result.errorMessage = ErrnoMessage(tempGuardError);
         return result;
       }
       NativeResult result = InspectWithChain(env, request, chain, watcher, &entryWatcher, "publish", destinationPath);
       result.tempFile = evidence.tempFile;
       result.published = false;
-      result.tempFileLeftover = false;
+      result.tempFileLeftover = rollback.tempFileLeftover;
+      result.destinationFileLeftover = rollback.destinationFileLeftover;
+      result.contentScrubbed = rollback.contentScrubbed;
       return result;
     }
-    NativeResult result = Failure(
-      "write_failed",
-      linkError == EINVAL || linkError == ENOTSUP ? "DESCRIPTOR_RELATIVE_LINK_UNSUPPORTED" : "DESTINATION_LINK_FAILED",
-      ErrnoMessage(linkError)
-    );
-    result.tempFile = evidence.tempFile;
-    return result;
+    return rollback;
   }
-  LinkWatcher publishedLinkWatcher;
-  if (!publishedLinkWatcher.Start(temp.value, &linkWatchError)) {
-    return RejectHardlinkLeak(evidence, parent, leaf, tempName, temp.value, tempStat, true);
+
+  struct stat linkedTemp {};
+  if (!StableLinkCount(temp.value, 1U, linkWatcher, &linkedTemp, &tempGuardError)) {
+    return RejectPublishedLinkChange(evidence, parent, leaf, tempName, temp.value, tempStat, linkedTemp, 1U);
   }
   EntryWatcher publishedEntryWatcher;
   if (!publishedEntryWatcher.Start(parent, &tempGuardError)) {
@@ -1258,16 +1255,14 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
       tempName,
       temp.value,
       tempStat,
-      true,
       "ENTRY_WATCH_UNAVAILABLE",
       ErrnoMessage(tempGuardError)
     );
   }
 
   HookOutcome afterLink = CallHook(env, request, "publish", "after_publish_link", destinationPath, evidence.tempFile);
-  struct stat linkedTemp {};
-  if (!StableLinkCount(temp.value, 2U, publishedLinkWatcher, &linkedTemp, &tempGuardError)) {
-    return RejectPublishedLinkChange(evidence, parent, leaf, tempName, temp.value, tempStat, linkedTemp, 2U);
+  if (!StableLinkCount(temp.value, 1U, linkWatcher, &linkedTemp, &tempGuardError)) {
+    return RejectPublishedLinkChange(evidence, parent, leaf, tempName, temp.value, tempStat, linkedTemp, 1U);
   }
   if (afterLink.callbackFailed || !GuardStable(chain, watcher, &watcherError)) {
     return RollbackContent(
@@ -1277,7 +1272,6 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
       tempName,
       temp.value,
       tempStat,
-      true,
       "DIRECTORY_CHAIN_CHANGED",
       "Directory identity changed after descriptor-relative publication."
     );
@@ -1290,22 +1284,26 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
       tempName,
       temp.value,
       tempStat,
-      true,
       "DESTINATION_IDENTITY_CHANGED",
-      "Publication entries changed after descriptor-relative linking.",
+      "Publication entries changed after descriptor-relative transfer.",
       "replaced",
       "conflict"
     );
   }
 
   struct stat destinationAtPath {};
-  if (fstatat(parent, leaf.c_str(), &destinationAtPath, AT_SYMLINK_NOFOLLOW) != 0
+  struct stat tempAfterRename {};
+  errno = 0;
+  bool tempNameAbsent = fstatat(parent, tempName.c_str(), &tempAfterRename, AT_SYMLINK_NOFOLLOW) != 0
+    && errno == ENOENT;
+  if (!tempNameAbsent
+      || fstatat(parent, leaf.c_str(), &destinationAtPath, AT_SYMLINK_NOFOLLOW) != 0
       || !S_ISREG(destinationAtPath.st_mode)
       || !SameIdentity(linkedTemp, destinationAtPath)
-      || linkedTemp.st_nlink != 2) {
-    bool externalLinks = linkedTemp.st_nlink > 2;
+      || linkedTemp.st_nlink != 1) {
+    bool externalLinks = linkedTemp.st_nlink > 1;
     if (externalLinks) {
-      return RejectHardlinkLeak(evidence, parent, leaf, tempName, temp.value, tempStat, true);
+      return RejectHardlinkLeak(evidence, parent, leaf, tempName, temp.value, tempStat);
     }
     return RollbackContent(
       evidence,
@@ -1314,128 +1312,13 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
       tempName,
       temp.value,
       tempStat,
-      true,
       "DESTINATION_IDENTITY_CHANGED",
-      "Published destination did not retain the temp inode.",
+      "Published destination did not retain the atomically transferred staged inode.",
       S_ISLNK(destinationAtPath.st_mode) ? "symlink" : "replaced",
       "conflict"
     );
   }
 
-  UniqueFD destination(openat(parent, leaf.c_str(), O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC));
-  struct stat openedDestination {};
-  if (destination.value < 0
-      || fstat(destination.value, &openedDestination) != 0
-      || !S_ISREG(openedDestination.st_mode)
-      || !SameIdentity(tempStat, openedDestination)) {
-    struct stat currentTemp {};
-    if (!StableLinkCount(temp.value, 2U, publishedLinkWatcher, &currentTemp, &tempGuardError)) {
-      return RejectPublishedLinkChange(evidence, parent, leaf, tempName, temp.value, tempStat, currentTemp, 2U);
-    }
-    return RollbackContent(
-      evidence,
-      parent,
-      leaf,
-      tempName,
-      temp.value,
-      tempStat,
-      true,
-      "DESTINATION_OPEN_FAILED",
-      "Published destination could not be opened through its held parent descriptor.",
-      "replaced",
-      "conflict"
-    );
-  }
-
-  HookOutcome beforeUnlink = CallHook(env, request, "publish", "before_temp_unlink", destinationPath, evidence.tempFile);
-  if (!StableLinkCount(temp.value, 2U, publishedLinkWatcher, &linkedTemp, &tempGuardError)) {
-    return RejectPublishedLinkChange(evidence, parent, leaf, tempName, temp.value, tempStat, linkedTemp, 2U);
-  }
-  if (publishedEntryWatcher.Changed(&tempGuardError)) {
-    return RollbackContent(
-      evidence,
-      parent,
-      leaf,
-      tempName,
-      temp.value,
-      tempStat,
-      true,
-      "TEMP_IDENTITY_CHANGED",
-      "Publication entries changed before descriptor-relative cleanup.",
-      "replaced",
-      "write_failed"
-    );
-  }
-  if (!OwnedEntryPresent(parent, tempName, tempStat)) {
-    return RollbackContent(
-      evidence,
-      parent,
-      leaf,
-      tempName,
-      temp.value,
-      tempStat,
-      true,
-      "TEMP_IDENTITY_CHANGED",
-      "Temp entry identity changed before descriptor-relative cleanup.",
-      "replaced",
-      "write_failed"
-    );
-  }
-  bool cleanupFailed = beforeUnlink.callbackFailed || beforeUnlink.failOperation == "unlink_temp";
-  int cleanupError = cleanupFailed ? EIO : 0;
-  if (!cleanupFailed && !RemoveOwnedEntry(parent, tempName, tempStat)) {
-    cleanupFailed = true;
-    cleanupError = errno == 0 ? EBUSY : errno;
-  }
-  LinkWatcher finalLinkWatcher;
-  if (!finalLinkWatcher.Start(destination.value, &linkWatchError)) {
-    return RejectHardlinkLeak(evidence, parent, leaf, tempName, temp.value, tempStat, true);
-  }
-  EntryWatcher finalEntryWatcher;
-  if (!finalEntryWatcher.Start(parent, &tempGuardError)) {
-    return RollbackContent(
-      evidence,
-      parent,
-      leaf,
-      tempName,
-      temp.value,
-      tempStat,
-      true,
-      "ENTRY_WATCH_UNAVAILABLE",
-      ErrnoMessage(tempGuardError)
-    );
-  }
-  if (!cleanupFailed) {
-    HookOutcome afterUnlink = CallHook(env, request, "publish", "after_temp_unlink", destinationPath, evidence.tempFile);
-    if (afterUnlink.callbackFailed || !GuardStable(chain, watcher, &watcherError)) {
-      return RollbackContent(
-        evidence,
-        parent,
-        leaf,
-        tempName,
-        temp.value,
-        tempStat,
-        true,
-        "DIRECTORY_CHAIN_CHANGED",
-        "Directory identity changed during descriptor-relative cleanup."
-      );
-    }
-    if (finalEntryWatcher.Changed(&tempGuardError)) {
-      return RollbackContent(
-        evidence,
-        parent,
-        leaf,
-        tempName,
-        temp.value,
-        tempStat,
-        true,
-        "DESTINATION_IDENTITY_CHANGED",
-        "Publication entries changed after descriptor-relative temp cleanup.",
-        "replaced",
-        "conflict"
-      );
-    }
-  }
   if (fsync(parent) != 0) {
     int syncError = errno;
     return RollbackContent(
@@ -1445,17 +1328,15 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
       tempName,
       temp.value,
       tempStat,
-      true,
       "DIRECTORY_SYNC_FAILED",
       ErrnoMessage(syncError)
     );
   }
 
   HookOutcome beforeReadback = CallHook(env, request, "publish", "before_readback", destinationPath, evidence.tempFile);
-  uint64_t expectedLinks = cleanupFailed ? 2U : 1U;
   struct stat beforeRead {};
-  if (!StableLinkCount(destination.value, expectedLinks, finalLinkWatcher, &beforeRead, &tempGuardError)) {
-    return RejectPublishedLinkChange(evidence, parent, leaf, tempName, temp.value, tempStat, beforeRead, expectedLinks);
+  if (!StableLinkCount(temp.value, 1U, linkWatcher, &beforeRead, &tempGuardError)) {
+    return RejectPublishedLinkChange(evidence, parent, leaf, tempName, temp.value, tempStat, beforeRead, 1U);
   }
   if (beforeReadback.callbackFailed || !GuardStable(chain, watcher, &watcherError)) {
     return RollbackContent(
@@ -1465,12 +1346,11 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
       tempName,
       temp.value,
       tempStat,
-      true,
       "DIRECTORY_CHAIN_CHANGED",
       "Directory identity changed before final descriptor-relative readback."
     );
   }
-  if (finalEntryWatcher.Changed(&tempGuardError)) {
+  if (publishedEntryWatcher.Changed(&tempGuardError)) {
     return RollbackContent(
       evidence,
       parent,
@@ -1478,7 +1358,6 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
       tempName,
       temp.value,
       tempStat,
-      true,
       "DESTINATION_IDENTITY_CHANGED",
       "Published entry changed before final descriptor-relative readback.",
       "replaced",
@@ -1487,7 +1366,7 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
   }
   std::vector<uint8_t> readback;
   int readError = 0;
-  if (!ReadBoundedFile(destination.value, beforeRead, &readback, &readError)) {
+  if (!ReadBoundedFile(temp.value, beforeRead, &readback, &readError)) {
     return RollbackContent(
       evidence,
       parent,
@@ -1495,15 +1374,14 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
       tempName,
       temp.value,
       tempStat,
-      true,
       "DESTINATION_READBACK_FAILED",
       ErrnoMessage(readError)
     );
   }
   HookOutcome afterReadback = CallHook(env, request, "publish", "after_readback", destinationPath, evidence.tempFile);
   struct stat afterRead {};
-  if (!StableLinkCount(destination.value, expectedLinks, finalLinkWatcher, &afterRead, &tempGuardError)) {
-    return RejectPublishedLinkChange(evidence, parent, leaf, tempName, temp.value, tempStat, afterRead, expectedLinks);
+  if (!StableLinkCount(temp.value, 1U, linkWatcher, &afterRead, &tempGuardError)) {
+    return RejectPublishedLinkChange(evidence, parent, leaf, tempName, temp.value, tempStat, afterRead, 1U);
   }
   if (afterReadback.callbackFailed || !GuardStable(chain, watcher, &watcherError)) {
     return RollbackContent(
@@ -1513,12 +1391,11 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
       tempName,
       temp.value,
       tempStat,
-      true,
       "DIRECTORY_CHAIN_CHANGED",
       "Directory identity changed after final descriptor-relative readback."
     );
   }
-  if (finalEntryWatcher.Changed(&tempGuardError)) {
+  if (publishedEntryWatcher.Changed(&tempGuardError)) {
     return RollbackContent(
       evidence,
       parent,
@@ -1526,7 +1403,6 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
       tempName,
       temp.value,
       tempStat,
-      true,
       "DESTINATION_IDENTITY_CHANGED",
       "Published entry changed during final descriptor-relative readback.",
       "replaced",
@@ -1539,9 +1415,9 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
   if (fstatat(parent, leaf.c_str(), &finalAtPath, AT_SYMLINK_NOFOLLOW) != 0
       || !SameSnapshot(beforeRead, afterRead)
       || !SameIdentity(beforeRead, finalAtPath)
-      || static_cast<uint64_t>(finalAtPath.st_nlink) != expectedLinks
+      || static_cast<uint64_t>(finalAtPath.st_nlink) != 1U
       || !exactBytes
-      || finalEntryWatcher.Changed(&tempGuardError)) {
+      || publishedEntryWatcher.Changed(&tempGuardError)) {
     return RollbackContent(
       evidence,
       parent,
@@ -1549,7 +1425,6 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
       tempName,
       temp.value,
       tempStat,
-      true,
       exactBytes ? "DESTINATION_IDENTITY_CHANGED" : "CONTENT_MISMATCH",
       "Final descriptor-relative destination proof failed.",
       S_ISLNK(finalAtPath.st_mode) ? "symlink" : "replaced",
@@ -1558,19 +1433,15 @@ NativeResult Publish(napi_env env, const ParsedRequest& request) {
   }
 
   NativeResult result;
-  result.status = cleanupFailed ? "cleanup_failed" : "published";
+  result.status = "published";
   result.published = true;
-  result.tempFileLeftover = cleanupFailed;
+  result.tempFileLeftover = false;
   result.tempFile = evidence.tempFile;
   result.existingKind = "file";
   result.existingDigest = Sha256(readback.data(), readback.size());
   result.identity = IdentityFromStat(afterRead);
   result.rootIdentity = evidence.rootIdentity;
   result.directoryChain = evidence.directoryChain;
-  if (cleanupFailed) {
-    result.cleanupErrorCode = "TEMP_CLEANUP_FAILED";
-    result.cleanupErrorMessage = ErrnoMessage(cleanupError);
-  }
   return result;
 }
 

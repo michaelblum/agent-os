@@ -210,9 +210,13 @@ conflicts even when following them would yield identical bytes. Inspect and
 read destination bytes through the private descriptor-relative native
 primitive. It opens the complete physical explicit-root-to-parent chain with
 no-follow directory traversal and holds those descriptors through temp-file
-creation, writes, create-if-absent `linkat`, `unlinkat` cleanup, conflict
-inspection, and final readback. Directory rename/revoke detection plus exact
-inode, regular-file type, single-link, byte, and digest proof must reject
+creation, writes, one atomic no-replace descriptor-relative transfer, conflict
+inspection, and final readback. One staged-entry link observer remains
+continuous from before content write through readback. Failure rollback scrubs
+through the held descriptor, preserves the empty staged inode under any
+remaining invocation-owned name, and receipts temp or destination leftovers
+without path-named removal. Directory rename/revoke detection plus exact inode,
+regular-file type, single-link, byte, and digest proof must reject
 swap-and-restore, symlink-clone, and external-hard-link races. There is no
 pathname fallback when the native primitive is unavailable. Supersession and
 finalizer replacement readback use the same physical-file proof; an identical

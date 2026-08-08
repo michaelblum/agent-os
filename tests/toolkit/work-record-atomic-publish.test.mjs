@@ -197,7 +197,9 @@ test('descriptor-relative publication detects an external hard link before writi
   assert.equal(result.published, false);
   assert.equal(fs.existsSync(paths.destination), false);
   assert.equal(fs.readFileSync(leaked).length, 0);
-  assert.equal(fs.existsSync(result.temp_file), false);
+  assert.equal(result.content_scrubbed, true);
+  assert.equal(result.temp_file_leftover, true);
+  assert.equal(fs.readFileSync(result.temp_file).length, 0);
 });
 
 test('descriptor-relative publication scrubs a hard link raced after the content write', () => {
@@ -216,7 +218,9 @@ test('descriptor-relative publication scrubs a hard link raced after the content
   assert.equal(result.status, 'write_failed');
   assert.equal(result.error.code, 'EXTERNAL_HARDLINK_DETECTED');
   assert.equal(result.published, false);
-  assert.equal(fs.existsSync(paths.destination), false);
+  assert.equal(result.content_scrubbed, true);
+  assert.equal(result.temp_file_leftover, true);
+  assert.equal(fs.readFileSync(result.temp_file).length, 0);
   assert.equal(fs.readFileSync(leaked).length, 0);
 });
 
@@ -236,7 +240,9 @@ test('descriptor-relative publication scrubs a hard link raced after destination
   assert.equal(result.status, 'write_failed');
   assert.equal(result.error.code, 'EXTERNAL_HARDLINK_DETECTED');
   assert.equal(result.published, false);
-  assert.equal(fs.existsSync(paths.destination), false);
+  assert.equal(result.content_scrubbed, true);
+  assert.equal(result.destination_file_leftover, true);
+  assert.equal(fs.readFileSync(paths.destination).length, 0);
   assert.equal(fs.readFileSync(leaked).length, 0);
 });
 
@@ -256,12 +262,14 @@ test('descriptor-relative publication scrubs a destination hard link raced durin
   assert.equal(result.status, 'write_failed');
   assert.equal(result.error.code, 'EXTERNAL_HARDLINK_DETECTED');
   assert.equal(result.published, false);
-  assert.equal(fs.existsSync(paths.destination), false);
+  assert.equal(result.content_scrubbed, true);
+  assert.equal(result.destination_file_leftover, true);
+  assert.equal(fs.readFileSync(paths.destination).length, 0);
   assert.equal(fs.readFileSync(leaked).length, 0);
 });
 
-test('descriptor-relative publication rejects restored hard-link activity after temp unlink', () => {
-  const paths = fixture('aos-work-record-hardlink-postunlink-v1-');
+test('descriptor-relative publication rejects transient hard-link activity after atomic transfer', () => {
+  const paths = fixture('aos-work-record-hardlink-posttransfer-v1-');
   const external = path.join(paths.outer, 'external');
   const leaked = path.join(external, 'transient-destination-link');
   fs.mkdirSync(external);
@@ -269,7 +277,7 @@ test('descriptor-relative publication rejects restored hard-link activity after 
   let injected = false;
   let observedDigest = '';
   const result = withHook((event) => {
-    if (event.operation !== 'publish' || event.phase !== 'after_temp_unlink' || injected) return undefined;
+    if (event.operation !== 'publish' || event.phase !== 'after_publish_link' || injected) return undefined;
     injected = true;
     fs.linkSync(event.destination_path, leaked);
     observedDigest = crypto.createHash('sha256').update(fs.readFileSync(leaked)).digest('hex');
@@ -281,7 +289,9 @@ test('descriptor-relative publication rejects restored hard-link activity after 
   assert.equal(result.status, 'write_failed');
   assert.equal(result.error.code, 'EXTERNAL_HARDLINK_DETECTED');
   assert.equal(result.published, false);
-  assert.equal(fs.existsSync(paths.destination), false);
+  assert.equal(result.content_scrubbed, true);
+  assert.equal(result.destination_file_leftover, true);
+  assert.equal(fs.readFileSync(paths.destination).length, 0);
   assert.equal(fs.existsSync(leaked), false);
 });
 
@@ -305,7 +315,9 @@ test('descriptor-relative publication rejects a destination swap restored before
   assert.equal(result.status, 'conflict');
   assert.equal(result.error.code, 'DESTINATION_IDENTITY_CHANGED');
   assert.equal(result.published, false);
-  assert.equal(fs.existsSync(paths.destination), false);
+  assert.equal(result.content_scrubbed, true);
+  assert.equal(result.destination_file_leftover, true);
+  assert.equal(fs.readFileSync(paths.destination).length, 0);
   assert.equal(fs.readFileSync(clone, 'utf8'), bytes);
 });
 
@@ -324,46 +336,49 @@ test('descriptor-relative publication preserves create-if-absent races without o
   assert.equal(result.published, false);
   assert.equal(result.existing_kind, 'file');
   assert.equal(fs.readFileSync(paths.destination, 'utf8'), raced);
-  assert.equal(fs.existsSync(result.temp_file), false);
+  assert.equal(result.content_scrubbed, true);
+  assert.equal(result.temp_file_leftover, true);
+  assert.equal(fs.readFileSync(result.temp_file).length, 0);
 });
 
-test('descriptor-relative publication receipts a published destination when temp unlink fails', () => {
-  const paths = fixture('aos-work-record-cleanup-v1-');
-  const bytes = 'cleanup receipt bytes\n';
+test('descriptor-relative publication consumes the staged name without a temp unlink phase', () => {
+  const paths = fixture('aos-work-record-transfer-v1-');
+  const bytes = 'atomic transfer bytes\n';
+  const phases = [];
   const result = withHook((event) => {
-    if (event.operation === 'publish' && event.phase === 'before_temp_unlink') {
-      return { fail_operation: 'unlink_temp' };
-    }
+    if (event.operation === 'publish') phases.push(event.phase);
     return undefined;
   }, () => publishTextFileIfAbsent(paths.destination, bytes, { boundaryRoot: paths.root }));
-  assert.equal(result.status, 'cleanup_failed');
+  assert.equal(result.status, 'published');
   assert.equal(result.published, true);
-  assert.equal(result.cleanup_error.code, 'TEMP_CLEANUP_FAILED');
-  assert.equal(result.temp_file_leftover, true);
+  assert.equal(result.temp_file_leftover, false);
   assert.equal(fs.readFileSync(paths.destination, 'utf8'), bytes);
-  assert.equal(fs.existsSync(result.temp_file), true);
-  fs.unlinkSync(result.temp_file);
+  assert.equal(fs.existsSync(result.temp_file), false);
+  assert.equal(phases.includes('before_temp_unlink'), false);
+  assert.equal(phases.includes('after_temp_unlink'), false);
 });
 
-test('descriptor-relative temp cleanup never unlinks a replacement victim', () => {
-  const paths = fixture('aos-work-record-temp-cleanup-swap-v1-');
+test('descriptor-relative rollback never unlinks a replacement at the staged name', () => {
+  const paths = fixture('aos-work-record-temp-rollback-swap-v1-');
   const parked = path.join(paths.parent, 'parked-invocation-temp');
   const victim = 'unrelated victim sentinel\n';
   let injected = false;
   let originalTemp = '';
   const result = withHook((event) => {
-    if (event.operation !== 'publish' || event.phase !== 'before_temp_unlink' || injected) return undefined;
+    if (event.operation !== 'publish' || event.phase !== 'before_publish_link' || injected) return undefined;
     injected = true;
     originalTemp = event.temp_file;
     fs.renameSync(originalTemp, parked);
     fs.writeFileSync(originalTemp, victim, { flag: 'wx' });
     return undefined;
-  }, () => publishTextFileIfAbsent(paths.destination, 'temp unlink binding proof\n', { boundaryRoot: paths.root }));
+  }, () => publishTextFileIfAbsent(paths.destination, 'rollback binding proof\n', { boundaryRoot: paths.root }));
   assert.equal(injected, true);
   assert.equal(result.status, 'write_failed');
   assert.equal(result.error.code, 'TEMP_IDENTITY_CHANGED');
   assert.equal(result.published, false);
   assert.equal(fs.existsSync(paths.destination), false);
+  assert.equal(result.content_scrubbed, true);
+  assert.equal(result.temp_file_leftover, false);
   assert.equal(fs.readFileSync(originalTemp, 'utf8'), victim);
   assert.equal(fs.readFileSync(parked).length, 0);
   fs.unlinkSync(originalTemp);
