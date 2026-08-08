@@ -104,9 +104,13 @@ second-order coverage gap before its session ended early (external automated
 filter; no technical failure): higher-level callers — Replacement Writer,
 supersession, bundle assembly, and finalizer receipts — still encode the
 retired staged-entry removal phase and do not carry the new
-`content_scrubbed` / leftover receipt fields. Next step: distinguish stale
-caller tests from an actual caller-contract regression and align those
-callers with the hardened publication contract.
+`content_scrubbed` / leftover receipt fields. RESOLVED as confirmed 2026-08-08:
+the completed review (docs/design/work-record-publish-hardening-review-20260808.md)
+verifies the addon and catalog changes PASS, and characterizes the caller
+gap as 11 failing tests across 4 suites in three classes (mechanical test
+rework, receipt/operator-guidance alignment, and one owner decision point
+on identical-bytes-during-publication idempotency). Remediation is
+dispatchable as a bounded JS-layer task per that report.
 
 ## Prior context (historical, do not re-execute)
 
