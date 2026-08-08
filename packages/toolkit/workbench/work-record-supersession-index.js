@@ -363,14 +363,7 @@ export function writeWorkRecordSourceSupersessionIndex({
 
   const publication = publishTextFileIfAbsent(index.index_path, content, { boundaryRoot: index.index_root });
   const publishedIndexReadback = publication.published === true
-    ? publication.status === 'cleanup_failed' && publication.existing_digest
-      ? {
-        status: 'passed',
-        digest: publication.existing_digest,
-        identity: cloneJson(publication.identity),
-        diagnostics: [],
-      }
-      : indexDigestReadback(index.index_path, index.index_root, publication.identity)
+    ? indexDigestReadback(index.index_path, index.index_root, publication.identity)
     : null;
   const postPublicationSource = publication.published === true
     ? identityAfterPublication(source, {
@@ -394,7 +387,6 @@ export function writeWorkRecordSourceSupersessionIndex({
     ...arrayValue(publishedIndexReadback?.diagnostics),
   ];
   if (publication.published === true && postPublicationDiagnostics.length > 0) {
-    const cleanupFailed = publication.status === 'cleanup_failed';
     const identityChanged = postPublicationSource?.status === 'failed'
       || postPublicationReplacement?.status === 'failed';
     return baseWriteResult({
@@ -411,21 +403,14 @@ export function writeWorkRecordSourceSupersessionIndex({
         temp_file: publication.temp_file,
         create_if_absent: true,
         published: true,
-        cleanup_failed: cleanupFailed,
         temp_file_leftover: publication.temp_file_leftover === true,
+        destination_file_leftover: publication.destination_file_leftover === true,
+        content_scrubbed: publication.content_scrubbed === true,
         destination_identity: cloneJson(publication.identity),
         source_identity_after_publication: cloneJson(postPublicationSource?.identity),
         replacement_identity_after_publication: cloneJson(postPublicationReplacement?.identity),
       },
-      diagnostics: [
-        ...postPublicationDiagnostics,
-        ...(cleanupFailed ? [{
-          severity: 'error',
-          code: 'SUPERSESSION_INDEX_TEMP_CLEANUP_FAILED',
-          message: `Source Supersession Index failed to clean temp file: ${publication.cleanup_error?.message || 'unknown cleanup failure'}`,
-          path: 'index_path',
-        }] : []),
-      ],
+      diagnostics: postPublicationDiagnostics,
     });
   }
   if (publication.status === 'identical_existing') {
@@ -460,6 +445,9 @@ export function writeWorkRecordSourceSupersessionIndex({
         create_if_absent: true,
         raced: true,
         published: false,
+        temp_file_leftover: publication.temp_file_leftover === true,
+        destination_file_leftover: publication.destination_file_leftover === true,
+        content_scrubbed: publication.content_scrubbed === true,
         destination_identity: cloneJson(publication.identity),
       },
     });
@@ -476,7 +464,7 @@ export function writeWorkRecordSourceSupersessionIndex({
           ? 'SUPERSESSION_INDEX_CONFLICT'
           : 'SUPERSESSION_INDEX_WRITE_FAILED',
       message: cleanupFailed
-        ? `Source Supersession Index failed to clean temp file: ${error?.message || 'unknown cleanup failure'}`
+        ? `Source Supersession Index could not scrub invocation-owned staged content before preserving its publication receipt: ${error?.message || 'unknown scrub failure'}`
         : conflict
           ? 'Index path was created concurrently with different content; existing bytes were preserved.'
           : `Source Supersession Index failed to publish atomically: ${error?.message || publication.status}`,
@@ -498,6 +486,9 @@ export function writeWorkRecordSourceSupersessionIndex({
         raced: conflict,
         published: publication.published,
         cleanup_failed: cleanupFailed,
+        temp_file_leftover: publication.temp_file_leftover === true,
+        destination_file_leftover: publication.destination_file_leftover === true,
+        content_scrubbed: publication.content_scrubbed === true,
         destination_identity: publication.published ? cloneJson(publication.identity) : {},
       },
       diagnostics,
@@ -516,6 +507,8 @@ export function writeWorkRecordSourceSupersessionIndex({
       create_if_absent: true,
       published: true,
       temp_file_leftover: publication.temp_file_leftover === true,
+      destination_file_leftover: publication.destination_file_leftover === true,
+      content_scrubbed: publication.content_scrubbed === true,
       destination_identity: cloneJson(publication.identity),
     },
   });

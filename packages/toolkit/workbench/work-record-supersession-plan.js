@@ -648,7 +648,7 @@ export function baseWriteResult({
       }
       : destinationPublished
         ? {
-          action: 'inspect_published_index_and_cleanup_temp',
+          action: 'inspect_published_index_receipt',
           argv: lookupRecommendation.argv,
           command_hint: lookupRecommendation.command_hint,
           temp_file: rawText(atomicWrite.temp_file),

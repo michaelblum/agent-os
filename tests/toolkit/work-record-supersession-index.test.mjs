@@ -402,7 +402,11 @@ test('Source Supersession never overwrites an index entry created during publica
   assert.equal(result.status, 'conflict');
   assert.equal(result.atomic_write.raced, true);
   assert.equal(fs.readFileSync(preview.output.index_path, 'utf8'), racedBytes);
-  assert.equal(fs.existsSync(result.atomic_write.temp_file), false);
+  assert.equal(result.atomic_write.content_scrubbed, true);
+  assert.equal(result.atomic_write.temp_file_leftover, true);
+  assert.equal(fs.existsSync(result.atomic_write.temp_file), true);
+  assert.equal(fs.statSync(result.atomic_write.temp_file).size, 0);
+  fs.rmSync(result.atomic_write.temp_file, { force: true });
 });
 
 test('Source Supersession rejects an incomplete supplied Replacement Writer Result', () => {
@@ -867,7 +871,7 @@ test('Source Supersession lookup rejects a symlinked explicit empty index root',
   assert.ok(result.diagnostics.some((item) => item.code === 'SUPERSESSION_LOOKUP_INDEX_READ_FAILED'));
 });
 
-test('Source Supersession receipts a published entry when temp cleanup fails', () => {
+test('Source Supersession receipts a scrubbed staged file when publication fails', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-supersession-cleanup-v1-'));
   const replacementRoot = path.join(root, 'records');
   const writer = writeReplacementWorkRecord({ proposal: replacementProposal(), outputRoot: replacementRoot });
@@ -882,18 +886,21 @@ test('Source Supersession receipts a published entry when temp cleanup fails', (
   const preview = writeWorkRecordSourceSupersessionIndex({ ...options, dryRun: true });
   let injected = false;
   const result = withAtomicPublishHook((event) => {
-    if (!injected && event.operation === 'publish' && event.phase === 'before_temp_unlink') {
+    if (!injected && event.operation === 'publish' && event.phase === 'before_publish_link') {
       injected = true;
-      return { fail_operation: 'unlink_temp' };
+      return { fail_operation: 'link_destination' };
     }
     return undefined;
   }, () => writeWorkRecordSourceSupersessionIndex(options));
-  assert.equal(result.status, 'blocked_cleanup_failed');
-  assert.equal(result.atomic_write.published, true);
-  assert.equal(result.writes_index_entry, true);
-  assert.deepEqual(result.side_effects, ['write_source_supersession_index_entry']);
-  assert.equal(result.recommended_next.action, 'inspect_published_index_and_cleanup_temp');
-  assert.equal(fs.existsSync(preview.output.index_path), true);
-  assert.ok(result.output.digest);
+  assert.equal(result.status, 'blocked_write_failed');
+  assert.equal(result.atomic_write.published, false);
+  assert.equal(result.atomic_write.content_scrubbed, true);
+  assert.equal(result.atomic_write.temp_file_leftover, true);
+  assert.equal(result.writes_index_entry, false);
+  assert.deepEqual(result.side_effects, []);
+  assert.equal(result.recommended_next.action, 'inspect_index_writer_diagnostics');
+  assert.equal(fs.existsSync(preview.output.index_path), false);
+  assert.equal(fs.existsSync(result.atomic_write.temp_file), true);
+  assert.equal(fs.statSync(result.atomic_write.temp_file).size, 0);
   fs.rmSync(result.atomic_write.temp_file, { force: true });
 });
