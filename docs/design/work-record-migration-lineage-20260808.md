@@ -33,8 +33,14 @@ Core doctrine established there:
 ## 2. Orchestration phase (2026-08-05 → 2026-08-07)
 
 Orchestrator thread `019fd2cb-0e5c-7e03-8b8d-ae1d21e55664` (retired
-2026-08-08; do not resume — its world model is stale). Operating pattern it
-established, still in force:
+2026-08-08; do not resume — its world model is stale). It ran from
+`/Users/Michael/Code` as a cross-repo overseer, not inside any single repo's
+instruction stack: this Work Record workstream (agent-os) was one lane of a
+broader coordination spanning `sigil` (PR #90 workstream, which this effort
+forked from), `creative-workshop`, `wcag`, `st-design-system-react`,
+`med-ops`, and reference worktrees, with repos pulled in as needed. This
+document covers the agent-os lane only. Operating pattern it established,
+still in force:
 
 - One writer; fresh frontier-model (`xhigh`) review gates on every completed
   slice. (Its proactive sub-chat delegation was a 2026-08 usage-pressure choice,
@@ -104,6 +110,11 @@ recorded in the `agent-filter-resilience` skill and its trigger registry.
    user's own push/PR — agents do not mutate GitHub).
 3. Deferred items from the migration, unchanged: Gate persistence/redaction,
    continuation-provider metadata, Guided User Signal, ask/defer semantics.
+4. **Cross-repo downstream (overseer scope):** after the migration lands in
+   agent-os, Sigil's pinned AOS SHA goes stale — bump the pin and re-validate
+   Sigil PR #90 (open, cleanly mergeable at `8b454dd9` as of 2026-08-05;
+   verify current truth). Other sister repos consume AOS only through the
+   pin, so no further coordination is expected.
 
 **Dispatch rules for the next orchestrator:** read the work card
 (`docs/design/work-record-publish-hardening-handoff-20260808.md`) and this
