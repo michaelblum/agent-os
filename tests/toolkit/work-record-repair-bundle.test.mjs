@@ -74,7 +74,11 @@ test('Recovery Bundle preserves raced-in bytes and reports prior partial writes'
   assert.equal(result.failed_artifact.publication_status, 'conflict');
   assert.equal(result.failed_artifact.destination_published, false);
   assert.equal(fs.readFileSync(result.failed_artifact.path, 'utf8'), racedBytes);
-  assert.equal(fs.existsSync(result.failed_artifact.temp_file), false);
+  assert.equal(result.failed_artifact.content_scrubbed, true);
+  assert.equal(result.failed_artifact.temp_file_leftover, true);
+  assert.equal(fs.existsSync(result.failed_artifact.temp_file), true);
+  assert.equal(fs.statSync(result.failed_artifact.temp_file).size, 0);
+  fs.rmSync(result.failed_artifact.temp_file, { force: true });
 });
 
 test('Recovery Bundle receipts survive a conflict appearing between artifact publications', () => {
@@ -90,9 +94,13 @@ test('Recovery Bundle receipts survive a conflict appearing between artifact pub
     }
   }, () => writeWorkRecordRepairBundle({ sourceRef: repairableWorkRecordPath, outputRoot, repoRoot }));
   assert.equal(result.status, 'blocked_conflict');
-  assert.equal(result.written_artifacts.length, 1);
-  assert.equal(result.written_artifacts[0].relative_path, preview.planned_artifacts[0].relative_path);
-  assert.equal(result.written_artifacts[0].write_status, 'written');
+  assert.equal(result.written_artifacts.length, 0);
+  assert.equal(result.failed_artifact.relative_path, preview.planned_artifacts[0].relative_path);
+  assert.equal(result.failed_artifact.destination_published, false);
+  assert.equal(result.failed_artifact.content_scrubbed, true);
+  assert.equal(result.failed_artifact.destination_file_leftover, true);
+  assert.equal(fs.existsSync(result.failed_artifact.path), true);
+  assert.equal(fs.statSync(result.failed_artifact.path).size, 0);
   assert.equal(fs.readFileSync(racedArtifactPath, 'utf8'), racedBytes);
 });
 
@@ -114,21 +122,26 @@ test('Recovery Bundle retains partial receipts when later artifact I/O throws', 
   assert.ok(result.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_WRITE_FAILED'));
 });
 
-test('Recovery Bundle receipts a published artifact when temp cleanup fails', () => {
+test('Recovery Bundle receipts a scrubbed staged file when publication fails', () => {
   const outputRoot = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'aos-bundle-cleanup-v1-')), 'bundle');
   let injected = false;
   const result = withAtomicPublishHook((event) => {
-    if (!injected && event.operation === 'publish' && event.phase === 'before_temp_unlink') {
+    if (!injected && event.operation === 'publish' && event.phase === 'before_publish_link') {
       injected = true;
-      return { fail_operation: 'unlink_temp' };
+      return { fail_operation: 'link_destination' };
     }
     return undefined;
   }, () => writeWorkRecordRepairBundle({ sourceRef: repairableWorkRecordPath, outputRoot, repoRoot }));
-  assert.equal(result.status, 'blocked_cleanup_failed');
-  assert.equal(result.failed_artifact.destination_published, true);
-  assert.ok(result.failed_artifact.digest);
-  assert.equal(result.written_artifacts.length, 1);
-  assert.equal(result.written_artifacts[0].write_status, 'published_cleanup_failed');
-  assert.equal(fs.existsSync(result.failed_artifact.path), true);
+  assert.equal(result.status, 'blocked_write_failed');
+  assert.equal(result.failed_artifact.publication_status, 'write_failed');
+  assert.equal(result.failed_artifact.destination_published, false);
+  assert.equal(result.failed_artifact.content_scrubbed, true);
+  assert.equal(result.failed_artifact.temp_file_leftover, true);
+  assert.equal(result.failed_artifact.destination_file_leftover, false);
+  assert.equal(result.failed_artifact.digest, '');
+  assert.equal(result.written_artifacts.length, 0);
+  assert.equal(fs.existsSync(result.failed_artifact.path), false);
+  assert.equal(fs.existsSync(result.failed_artifact.temp_file), true);
+  assert.equal(fs.statSync(result.failed_artifact.temp_file).size, 0);
   fs.rmSync(result.failed_artifact.temp_file, { force: true });
 });

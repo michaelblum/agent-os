@@ -588,6 +588,10 @@ export function writeWorkRecordRepairBundle(options = {}) {
     downstream_consumers: item.downstream_consumers,
     write_mode: item.write_mode,
     write_status: item.write_status,
+    temp_file: rawText(item.temp_file),
+    temp_file_leftover: item.temp_file_leftover === true,
+    destination_file_leftover: item.destination_file_leftover === true,
+    content_scrubbed: item.content_scrubbed === true,
   }));
   let currentArtifact = null;
   let currentPublication = null;
@@ -613,7 +617,15 @@ export function writeWorkRecordRepairBundle(options = {}) {
         };
       }
       if (existingInspection.status === 'identical_existing') {
-        written.push({ ...artifact, write_status: 'already_exists', digest: nativeFileDigest(existingInspection) });
+        written.push({
+          ...artifact,
+          write_status: 'already_exists',
+          digest: nativeFileDigest(existingInspection),
+          temp_file: '',
+          temp_file_leftover: false,
+          destination_file_leftover: false,
+          content_scrubbed: false,
+        });
         continue;
       }
       if (existingInspection.status !== 'missing') {
@@ -644,43 +656,31 @@ export function writeWorkRecordRepairBundle(options = {}) {
           ...artifact,
           write_status: publication.status === 'published' ? 'written' : 'already_exists',
           digest: nativeFileDigest(publication),
+          temp_file: rawText(publication.temp_file),
+          temp_file_leftover: publication.temp_file_leftover === true,
+          destination_file_leftover: publication.destination_file_leftover === true,
+          content_scrubbed: publication.content_scrubbed === true,
         });
         continue;
       }
       const conflict = publication.status === 'conflict';
       const cleanupFailed = publication.status === 'cleanup_failed';
-      const publishedFailureReceipt = publication.published && publication.existing_digest
-        ? {
-          ...artifact,
-          write_status: cleanupFailed ? 'published_cleanup_failed' : 'published_readback_failed',
-          digest: nativeFileDigest(publication),
-        }
-        : null;
       const envelope = {
         ...publicPlan,
         status: conflict ? 'blocked_conflict' : cleanupFailed ? 'blocked_cleanup_failed' : 'blocked_write_failed',
         conflicts: conflict ? [artifact] : [],
-        written_artifacts: [
-          ...writtenArtifactReceipts(),
-          ...(publishedFailureReceipt ? [{
-            relative_path: publishedFailureReceipt.relative_path,
-            path: publishedFailureReceipt.path,
-            artifact_kind: publishedFailureReceipt.artifact_kind,
-            digest: publishedFailureReceipt.digest,
-            producer: publishedFailureReceipt.producer,
-            downstream_consumers: publishedFailureReceipt.downstream_consumers,
-            write_mode: publishedFailureReceipt.write_mode,
-            write_status: publishedFailureReceipt.write_status,
-          }] : []),
-        ],
+        written_artifacts: writtenArtifactReceipts(),
         failed_artifact: {
           relative_path: artifact.relative_path,
           path: artifact.path,
           artifact_kind: artifact.artifact_kind,
-          publication_status: publication.status,
-          destination_published: publication.published,
-          temp_file: publication.temp_file,
-          digest: publishedFailureReceipt?.digest || '',
+          publication_status: rawText(publication.status),
+          destination_published: publication.published === true,
+          temp_file: rawText(publication.temp_file),
+          temp_file_leftover: publication.temp_file_leftover === true,
+          destination_file_leftover: publication.destination_file_leftover === true,
+          content_scrubbed: publication.content_scrubbed === true,
+          digest: '',
         },
         diagnostics: [
           ...arrayValue(publicPlan.diagnostics),
@@ -693,7 +693,7 @@ export function writeWorkRecordRepairBundle(options = {}) {
             conflict
               ? 'Bundle artifact path was created concurrently with different bytes; existing bytes were preserved.'
               : cleanupFailed
-                ? `Bundle artifact temp cleanup failed: ${publication.cleanup_error?.message || 'unknown cleanup failure'}`
+                ? `Bundle artifact staged content could not be scrubbed through its held descriptor: ${publication.cleanup_error?.message || 'unknown scrub failure'}`
                 : `Bundle artifact publication failed: ${publication.error?.message || publication.status}`,
             { path: artifact.path },
           ),
@@ -715,6 +715,10 @@ export function writeWorkRecordRepairBundle(options = {}) {
       downstream_consumers: currentArtifact.downstream_consumers,
       write_mode: currentArtifact.write_mode,
       write_status: 'published_readback_failed',
+      temp_file: rawText(currentPublication?.temp_file),
+      temp_file_leftover: currentPublication?.temp_file_leftover === true,
+      destination_file_leftover: currentPublication?.destination_file_leftover === true,
+      content_scrubbed: currentPublication?.content_scrubbed === true,
     } : null;
     const envelope = {
       ...publicPlan,
@@ -729,7 +733,10 @@ export function writeWorkRecordRepairBundle(options = {}) {
         artifact_kind: currentArtifact.artifact_kind,
         publication_status: 'io_failed',
         destination_published: destinationPublished,
-        temp_file: currentPublication?.temp_file || '',
+        temp_file: rawText(currentPublication?.temp_file),
+        temp_file_leftover: currentPublication?.temp_file_leftover === true,
+        destination_file_leftover: currentPublication?.destination_file_leftover === true,
+        content_scrubbed: currentPublication?.content_scrubbed === true,
         digest: '',
       } : {
         relative_path: '',
@@ -738,6 +745,9 @@ export function writeWorkRecordRepairBundle(options = {}) {
         publication_status: 'io_failed',
         destination_published: false,
         temp_file: '',
+        temp_file_leftover: false,
+        destination_file_leftover: false,
+        content_scrubbed: false,
         digest: '',
       },
       diagnostics: [
