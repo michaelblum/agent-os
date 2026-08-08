@@ -178,8 +178,9 @@ lookup with proven readable replacement roots. All post-publication JSON and
 digest readback failures return receipted partial results rather than throwing.
 Replacement and supersession publication must use create-if-absent semantics, re-read raced
 destinations for exact idempotency, and never overwrite different existing
-bytes; bundle failures retain partial-write receipts. Post-publication cleanup
-failures retain the destination side-effect receipt and recovery path. The
+bytes. Failed publication scrubs invocation-owned staged content through its
+held descriptor, preserves any empty temp or destination leftover, and carries
+the exact leftover and scrub flags through caller and bundle receipts. The
 Replacement Writer re-checks exact source bytes after publishing, and the
 Supersession Writer re-checks exact source and replacement identities after
 publishing; drift downgrades success while retaining the publication receipt.

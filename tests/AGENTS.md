@@ -56,8 +56,9 @@ tests.
   supersession proofs must reject same-byte source clones at a different path;
   writer proofs must inject create-if-absent races and prove different
   destination bytes are never overwritten while partial bundle writes remain
-  receipted. Inject post-link cleanup failures and require published-destination
-  receipts through Writer, supersession, bundle, and finalizer results. Capture
+  receipted. Inject failed transfers and post-transfer invalidation, then
+  require exact scrubbed temp or destination leftovers through Writer,
+  supersession, bundle, and finalizer results. Capture
   proofs preserve repeated whitespace in raw command/target/state carriers,
   adapter and recovery projections preserve raw labels and command bytes, and
   verifier proofs reject whitespace-only target or state-identity drift.
@@ -92,10 +93,10 @@ tests.
   fails before supersession publication, while persisted Proposal provenance is
   the closed id/digest/schema projection. Successful write receipts bind the
   serialized index-file digest separately from the structured entry identity.
-  Finalizer cleanup-failure proofs cover both newly
-  written and already-existing replacement records. Finalizer proofs also
-  mutate the replacement during supersession publication and require the
-  post-publication re-read to block success, and inject malformed published
+  Finalizer scrub-receipt proofs cover failed replacement and supersession
+  transfers with both newly written and already-existing replacement records.
+  Finalizer proofs also mutate the replacement during supersession publication
+  and require the post-publication re-read to block success, and inject malformed published
   index readback to require a receipted partial result instead of an exception.
   Writer and supersession proofs mutate their bound source identities during
   publication and require a published-side-effect receipt with success

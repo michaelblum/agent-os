@@ -277,9 +277,41 @@ test('Finalizer receipts a scrubbed replacement staging file when publication fa
   assert.equal(result.replacement_writer_result.atomic_write.temp_file_leftover, true);
   assert.equal(fs.existsSync(result.replacement_writer_result.atomic_write.temp_file), true);
   assert.equal(fs.statSync(result.replacement_writer_result.atomic_write.temp_file).size, 0);
-  assert.equal(result.recovery.action, 'inspect_finalization_diagnostics');
+  assert.equal(result.recovery.action, 'inspect_replacement_publication_receipt');
+  assert.equal(result.recovery.content_scrubbed, true);
+  assert.equal(result.recovery.temp_file_leftover, true);
+  assert.equal(result.recovery.destination_file_leftover, false);
   assert.equal(JSON.stringify(result.recovery).includes('write_source_supersession_entry'), false);
   fs.rmSync(result.replacement_writer_result.atomic_write.temp_file, { force: true });
+});
+
+test('Finalizer points recovery at a scrubbed replacement destination receipt', () => {
+  const paths = fixtureSet();
+  const leaked = path.join(paths.root, 'replacement-hard-link-receipt');
+  let injected = false;
+  const result = withAtomicPublishHook((event) => {
+    if (!injected && event.operation === 'publish' && event.phase === 'after_publish_link') {
+      injected = true;
+      fs.linkSync(event.destination_path, leaked);
+    }
+  }, () => finalizeWorkRecordRepair({
+      sourceRef: repairableWorkRecordPath,
+      ...paths,
+      repoRoot,
+    }));
+  assert.equal(injected, true);
+  assert.equal(result.status, 'blocked_replacement_write');
+  assert.equal(result.replacement_writer_result.status, 'blocked_write_failed');
+  assert.equal(result.replacement_writer_result.atomic_write.published, false);
+  assert.equal(result.replacement_writer_result.atomic_write.content_scrubbed, true);
+  assert.equal(result.replacement_writer_result.atomic_write.temp_file_leftover, false);
+  assert.equal(result.replacement_writer_result.atomic_write.destination_file_leftover, true);
+  assert.equal(result.recovery.action, 'inspect_replacement_publication_receipt');
+  assert.equal(result.recovery.content_scrubbed, true);
+  assert.equal(result.recovery.temp_file_leftover, false);
+  assert.equal(result.recovery.destination_file_leftover, true);
+  assert.equal(fs.statSync(result.replacement_writer_result.output.output_path).size, 0);
+  assert.equal(fs.statSync(leaked).size, 0);
 });
 
 test('Finalizer retains replacement receipt when post-publication source digest readback fails', () => {
@@ -379,7 +411,10 @@ test('Finalizer receipts a scrubbed supersession staging file when publication f
   assert.equal(result.supersession_index_result.atomic_write.temp_file_leftover, true);
   assert.equal(fs.existsSync(result.supersession_index_result.atomic_write.temp_file), true);
   assert.equal(fs.statSync(result.supersession_index_result.atomic_write.temp_file).size, 0);
-  assert.equal(result.recovery.action, 'persist_writer_result_then_write_supersession');
+  assert.equal(result.recovery.action, 'inspect_supersession_publication_receipt');
+  assert.equal(result.recovery.content_scrubbed, true);
+  assert.equal(result.recovery.temp_file_leftover, true);
+  assert.equal(result.recovery.destination_file_leftover, false);
   fs.rmSync(result.supersession_index_result.atomic_write.temp_file, { force: true });
 });
 
@@ -414,7 +449,10 @@ test('Finalizer receipts a scrubbed supersession staging file when replacement a
   assert.equal(result.supersession_index_result.atomic_write.temp_file_leftover, true);
   assert.equal(result.status, 'blocked_supersession_write');
   assert.equal(result.wrote_supersession_index_entry, false);
-  assert.equal(result.recovery.action, 'inspect_finalization_diagnostics');
+  assert.equal(result.recovery.action, 'inspect_supersession_publication_receipt');
+  assert.equal(result.recovery.content_scrubbed, true);
+  assert.equal(result.recovery.temp_file_leftover, true);
+  assert.equal(result.recovery.destination_file_leftover, false);
   assert.equal(fs.existsSync(result.supersession_index_result.atomic_write.temp_file), true);
   assert.equal(fs.statSync(result.supersession_index_result.atomic_write.temp_file).size, 0);
   fs.rmSync(result.supersession_index_result.atomic_write.temp_file, { force: true });
