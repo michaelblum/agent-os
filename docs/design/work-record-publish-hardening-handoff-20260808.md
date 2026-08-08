@@ -108,9 +108,9 @@ retired staged-entry removal phase and do not carry the new
 the completed review (docs/design/work-record-publish-hardening-review-20260808.md)
 verifies the addon and catalog changes PASS, and characterizes the caller
 gap as 11 failing tests across 4 suites in three classes (mechanical test
-rework, receipt/operator-guidance alignment, and one owner decision point
-on identical-bytes-during-publication idempotency). Remediation is
-dispatchable as a bounded JS-layer task per that report.
+rework, receipt/operator-guidance alignment, and identical-bytes-during-
+publication idempotency — DECIDED 2026-08-08 as idempotent-accept).
+Remediation is dispatchable as a bounded JS-layer task per that report.
 
 ## Prior context (historical, do not re-execute)
 

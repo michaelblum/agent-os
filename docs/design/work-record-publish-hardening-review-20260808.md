@@ -91,17 +91,16 @@ zero length).
   describes the retired deletion-based cleanup. Propagate the new fields and
   reword.
 
-**Class C — one genuine decision point (1 test).**
+**Class C — DECIDED 2026-08-08 (owner): idempotent-accept.**
 "Replacement Writer treats identical bytes created during publication as
 idempotent" injects identical content at the destination at
-`before_publish_link`. Formerly this resolved idempotently; under
-`RENAME_EXCL` the transfer fails `EEXIST` and flows through conflict
-inspection. Decide: is identical-bytes-during-publication a *conflict
-receipt* (defensible: create-if-absent semantics) or should the EEXIST
-inspection path map identical digests to the idempotent `already_exists`
-result (preserves prior operator experience)? If idempotent-accept is chosen,
-the change belongs in the JS-layer mapping of the inspection result, not the
-addon. This needs an owner decision before the test is rewritten.
+`before_publish_link`. Under `RENAME_EXCL` the transfer fails `EEXIST` and
+flows through conflict inspection. Decision: the EEXIST inspection path must
+map identical digests to the idempotent `already_exists` result, preserving
+the existing consumer-facing behavior — repair/finalizer flows retry by
+design, and a retry racing its own earlier attempt must finalize cleanly
+rather than receipt a conflict. The change belongs in the JS-layer mapping of
+the inspection result, not the addon.
 
 ## 4. Remediation dispatchability
 
@@ -110,7 +109,7 @@ rework — no sensitive-domain immersion required. It is suitable for a bounded
 Codex session dispatched against this report: "align the caller chain with
 the hardened publication contract per
 `docs/design/work-record-publish-hardening-review-20260808.md`; Classes A and
-B are mechanical; Class C is decided as: <decision>." Acceptance: all four
+B are mechanical; Class C is decided: idempotent-accept (see §3)." Acceptance: all four
 caller suites green, plus the four original suites staying green.
 
 ## 5. Landing recommendation

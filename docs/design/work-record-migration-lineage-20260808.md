@@ -72,6 +72,15 @@ filesystem entries it did not own when entries were legitimately replaced
 between a check and a later name-based operation. The migration stayed
 uncommitted by deliberate decision.
 
+Scope traceability (verified 2026-08-08 against the course-correction handoff
+in docs/archive): the migration deleted repair *execution* machinery
+(`work-record-controlled-repair-executor.js` plus fixtures/tests) while
+retaining the repair *record-keeping* pipeline (guide, plan, attempt, bundle,
+finalizer, writer, supersession) as agent-invoked receipts with no autonomous
+behavior. Repair execution was the course correction’s target; honest
+receipts are its retained core. The retained pipeline is therefore in-doctrine,
+not superseded.
+
 ## 4. Publication-hardening attempts (2026-08-07)
 
 Three sessions — implementation `019fde86`, its reviewer `019fdf29`, and a
@@ -113,10 +122,14 @@ recorded in the `agent-filter-resilience` skill and its trigger registry.
 3. Deferred items from the migration, unchanged: Gate persistence/redaction,
    continuation-provider metadata, Guided User Signal, ask/defer semantics.
 4. **Cross-repo downstream (overseer scope):** after the migration lands in
-   agent-os, Sigil's pinned AOS SHA goes stale — bump the pin and re-validate
+   agent-os, Sigil’s pinned AOS SHA goes stale — bump the pin and re-validate
    Sigil PR #90 (open, cleanly mergeable at `8b454dd9` as of 2026-08-05;
    verify current truth). Other sister repos consume AOS only through the
    pin, so no further coordination is expected.
+5. **Post-landing architectural review:** re-evaluate the retained repair
+   pipeline’s scope (guided-recovery state machine, bundle assembly,
+   finalizer) against the course correction’s optional-evidence framing —
+   does the elaborateness still earn its keep? Not a landing blocker.
 
 **Dispatch rules for the next orchestrator:** read the work card
 (`docs/design/work-record-publish-hardening-handoff-20260808.md`) and this
