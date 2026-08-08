@@ -97,6 +97,17 @@ match current behavior; change the implementation.
   the addon source but are not yet populated by rollback logic or compiled
   into the staged binary.
 
+## Follow-up surface (identified 2026-08-08, review thread 019fe29a)
+
+A fresh review verified the acceptance suites green and then identified a
+second-order coverage gap before its session ended early (external automated
+filter; no technical failure): higher-level callers — Replacement Writer,
+supersession, bundle assembly, and finalizer receipts — still encode the
+retired staged-entry removal phase and do not carry the new
+ / leftover receipt fields. Next step: distinguish stale
+caller tests from an actual caller-contract regression and align those
+callers with the hardened publication contract.
+
 ## Prior context (historical, do not re-execute)
 
 Threads 019fd8c1 (migration), 019fde86 / 019fdf29 / 019fdf45 (hardening
