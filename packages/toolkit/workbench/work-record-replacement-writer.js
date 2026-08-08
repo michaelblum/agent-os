@@ -189,7 +189,7 @@ function baseResult({
       }
       : destinationPublished
         ? {
-          action: 'inspect_published_replacement_and_cleanup_temp',
+          action: 'inspect_published_replacement_receipt',
           argv: readRecommendation.argv,
           command_hint: readRecommendation.command_hint,
           temp_file: rawText(atomicWrite.temp_file),
@@ -819,6 +819,8 @@ export function writeReplacementWorkRecord({
         published: true,
         cleanup_failed: cleanupFailed,
         temp_file_leftover: publication.temp_file_leftover === true,
+        destination_file_leftover: publication.destination_file_leftover === true,
+        content_scrubbed: publication.content_scrubbed === true,
         destination_identity: { ...objectValue(publication.identity) },
       },
       diagnostics: [
@@ -826,27 +828,50 @@ export function writeReplacementWorkRecord({
         ...(cleanupFailed ? [{
           severity: 'error',
           code: 'REPLACEMENT_WRITER_TEMP_CLEANUP_FAILED',
-          message: `Replacement Writer failed to clean temp file: ${publication.cleanup_error?.message || 'unknown cleanup failure'}`,
+          message: `Replacement Writer could not scrub invocation-owned staged content before preserving its publication receipt: ${publication.cleanup_error?.message || 'unknown scrub failure'}`,
           path: 'output_path',
         }] : []),
       ],
     });
   }
-  if (publication.status === 'identical_existing') {
+  const publicationIdentity = objectValue(publication.identity);
+  const inspectedConflictIsIdentical = publication.status === 'conflict'
+    && publication.published !== true
+    && publication.existing_kind === 'file'
+    && publication.existing_digest === contentDigest
+    && text(publicationIdentity.dev)
+    && text(publicationIdentity.ino)
+    && text(publicationIdentity.nlink) === '1'
+    && !publication.error;
+  if (publication.status === 'identical_existing' || inspectedConflictIsIdentical) {
     return baseResult({
       status: 'already_exists',
       mode,
       proposal,
       replacementRecord,
-      output: { ...output, digest: contentDigest },
-      idempotency: { ...idempotency, status: 'identical_existing', existing: true, existing_digest: contentDigest },
+      output: {
+        ...output,
+        digest: contentDigest,
+        temp_file_leftover: publication.temp_file_leftover === true,
+        destination_file_leftover: publication.destination_file_leftover === true,
+        content_scrubbed: publication.content_scrubbed === true,
+      },
+      idempotency: {
+        ...idempotency,
+        status: 'identical_existing',
+        existing: true,
+        existing_digest: publication.existing_digest || contentDigest,
+      },
       sourceCheck: sourceCheckAfterPublication,
       atomicWrite: {
         temp_file: publication.temp_file,
         create_if_absent: true,
         raced: true,
         published: false,
-        destination_identity: { ...objectValue(publication.identity) },
+        temp_file_leftover: publication.temp_file_leftover === true,
+        destination_file_leftover: publication.destination_file_leftover === true,
+        content_scrubbed: publication.content_scrubbed === true,
+        destination_identity: { ...publicationIdentity },
       },
     });
   }
@@ -862,7 +887,7 @@ export function writeReplacementWorkRecord({
           ? 'REPLACEMENT_WRITER_OUTPUT_CONFLICT'
           : 'REPLACEMENT_WRITER_WRITE_FAILED',
       message: cleanupFailed
-        ? `Replacement Writer failed to clean temp file: ${error?.message || 'unknown cleanup failure'}`
+        ? `Replacement Writer could not scrub invocation-owned staged content before preserving its publication receipt: ${error?.message || 'unknown scrub failure'}`
         : conflict
           ? 'Output path was created concurrently with different content; existing bytes were preserved.'
           : `Replacement Writer failed to publish atomically: ${error?.message || publication.status}`,
@@ -882,6 +907,9 @@ export function writeReplacementWorkRecord({
         raced: conflict,
         published: publication.published,
         cleanup_failed: cleanupFailed,
+        temp_file_leftover: publication.temp_file_leftover === true,
+        destination_file_leftover: publication.destination_file_leftover === true,
+        content_scrubbed: publication.content_scrubbed === true,
         destination_identity: publication.published
           ? { ...objectValue(publication.identity) }
           : {},
@@ -899,6 +927,8 @@ export function writeReplacementWorkRecord({
       ...output,
       digest: contentDigest,
       temp_file_leftover: publication.temp_file_leftover === true,
+      destination_file_leftover: publication.destination_file_leftover === true,
+      content_scrubbed: publication.content_scrubbed === true,
     },
     idempotency,
     sourceCheck: sourceCheckAfterPublication,
@@ -907,6 +937,8 @@ export function writeReplacementWorkRecord({
       create_if_absent: true,
       published: true,
       temp_file_leftover: publication.temp_file_leftover === true,
+      destination_file_leftover: publication.destination_file_leftover === true,
+      content_scrubbed: publication.content_scrubbed === true,
       destination_identity: { ...objectValue(publication.identity) },
     },
   });

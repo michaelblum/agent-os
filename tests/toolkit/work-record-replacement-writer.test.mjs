@@ -273,7 +273,11 @@ test('Replacement Writer never overwrites a destination created during publicati
   assert.equal(result.status, 'blocked_conflict');
   assert.equal(result.atomic_write.raced, true);
   assert.equal(fs.readFileSync(preview.output.output_path, 'utf8'), racedBytes);
-  assert.equal(fs.existsSync(result.atomic_write.temp_file), false);
+  assert.equal(result.atomic_write.content_scrubbed, true);
+  assert.equal(result.atomic_write.temp_file_leftover, true);
+  assert.equal(fs.existsSync(result.atomic_write.temp_file), true);
+  assert.equal(fs.statSync(result.atomic_write.temp_file).size, 0);
+  fs.rmSync(result.atomic_write.temp_file, { force: true });
 });
 
 test('Replacement Writer treats identical bytes created during publication as idempotent', () => {
@@ -288,7 +292,11 @@ test('Replacement Writer treats identical bytes created during publication as id
   }, () => writeReplacementWorkRecord({ proposal, outputRoot }));
   assert.equal(result.status, 'already_exists');
   assert.equal(result.atomic_write.raced, true);
-  assert.equal(fs.existsSync(result.atomic_write.temp_file), false);
+  assert.equal(result.atomic_write.content_scrubbed, true);
+  assert.equal(result.atomic_write.temp_file_leftover, true);
+  assert.equal(fs.existsSync(result.atomic_write.temp_file), true);
+  assert.equal(fs.statSync(result.atomic_write.temp_file).size, 0);
+  fs.rmSync(result.atomic_write.temp_file, { force: true });
 });
 
 test('Replacement Writer returns typed failure when an existing output is unreadable', () => {
@@ -426,21 +434,24 @@ test('Replacement Writer receipts a published replacement when source digest rea
   }
 });
 
-test('Replacement Writer receipts a published destination when temp cleanup fails', () => {
+test('Replacement Writer receipts a scrubbed staged file when publication fails', () => {
   const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-replacement-cleanup-v1-'));
   const proposal = replacementProposal();
   const preview = writeReplacementWorkRecord({ proposal, outputRoot, dryRun: true });
   const result = withAtomicPublishHook((event) => (
-    event.operation === 'publish' && event.phase === 'before_temp_unlink'
-      ? { fail_operation: 'unlink_temp' }
+    event.operation === 'publish' && event.phase === 'before_publish_link'
+      ? { fail_operation: 'link_destination' }
       : undefined
   ), () => writeReplacementWorkRecord({ proposal, outputRoot }));
-  assert.equal(result.status, 'blocked_cleanup_failed');
-  assert.equal(result.atomic_write.published, true);
-  assert.equal(result.writes_replacement_record, true);
-  assert.deepEqual(result.side_effects, ['write_replacement_work_record']);
-  assert.equal(result.recommended_next.action, 'inspect_published_replacement_and_cleanup_temp');
-  assert.equal(fs.existsSync(preview.output.output_path), true);
-  assert.ok(result.output.digest);
+  assert.equal(result.status, 'blocked_write_failed');
+  assert.equal(result.atomic_write.published, false);
+  assert.equal(result.atomic_write.content_scrubbed, true);
+  assert.equal(result.atomic_write.temp_file_leftover, true);
+  assert.equal(result.writes_replacement_record, false);
+  assert.deepEqual(result.side_effects, []);
+  assert.equal(result.recommended_next.action, 'inspect_writer_diagnostics');
+  assert.equal(fs.existsSync(preview.output.output_path), false);
+  assert.equal(fs.existsSync(result.atomic_write.temp_file), true);
+  assert.equal(fs.statSync(result.atomic_write.temp_file).size, 0);
   fs.rmSync(result.atomic_write.temp_file, { force: true });
 });
