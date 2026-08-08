@@ -16,6 +16,7 @@ import {
 import {
   normalizeSubjectEntryHandle,
 } from './subject-entry-handle.js';
+import { isValidWorkRecordV1 } from './work-record-adapter.js';
 
 export const SUBJECT_CATALOG_SCHEMA_VERSION = '2026-05-06-subject-catalog-v0';
 export const SUBJECT_CATALOG_LOAD_TYPE = 'subject_catalog.load';
@@ -219,6 +220,9 @@ export function createWorkRecordSubjectCatalogEntry(record = {}, {
   key = '',
   source = null,
 } = {}) {
+  if (!isValidWorkRecordV1(record)) {
+    throw new TypeError('work record subject catalog entry requires a valid Work Record V1 record');
+  }
   const subject = createWorkRecordSubject(record);
   const normalizedSource = source && typeof source === 'object'
     ? cloneJson(source)
