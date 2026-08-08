@@ -252,13 +252,13 @@ test('Finalizer dry-run and write preserve repeated-space replacement/index iden
   assert.equal(written.supersession_index_result.supersession_entry.digest, preview.supersession_index_result.supersession_entry.digest);
 });
 
-test('Finalizer reports partial finalization when replacement publication succeeds but temp cleanup fails', () => {
+test('Finalizer receipts a scrubbed replacement staging file when publication fails', () => {
   const paths = fixtureSet();
-  let cleanupInjected = false;
+  let publicationFailureInjected = false;
   const result = withAtomicPublishHook((event) => {
-    if (!cleanupInjected && event.operation === 'publish' && event.phase === 'before_temp_unlink') {
-      cleanupInjected = true;
-      return { fail_operation: 'unlink_temp' };
+    if (!publicationFailureInjected && event.operation === 'publish' && event.phase === 'before_publish_link') {
+      publicationFailureInjected = true;
+      return { fail_operation: 'link_destination' };
     }
     return undefined;
   }, () => finalizeWorkRecordRepair({
@@ -266,13 +266,18 @@ test('Finalizer reports partial finalization when replacement publication succee
       ...paths,
       repoRoot,
     }));
-  assert.equal(cleanupInjected, true);
-  assert.equal(result.status, 'partial_finalized');
-  assert.equal(result.writes_replacement_record, true);
-  assert.equal(result.wrote_replacement_record, true);
+  assert.equal(publicationFailureInjected, true);
+  assert.equal(result.status, 'blocked_replacement_write');
+  assert.equal(result.replacement_writer_result.status, 'blocked_write_failed');
+  assert.equal(result.writes_replacement_record, false);
+  assert.equal(result.wrote_replacement_record, false);
   assert.equal(result.writes_supersession_index_entry, false);
-  assert.equal(result.replacement_writer_result.atomic_write.published, true);
-  assert.equal(result.recovery.action, 'inspect_published_replacement_and_cleanup_temp');
+  assert.equal(result.replacement_writer_result.atomic_write.published, false);
+  assert.equal(result.replacement_writer_result.atomic_write.content_scrubbed, true);
+  assert.equal(result.replacement_writer_result.atomic_write.temp_file_leftover, true);
+  assert.equal(fs.existsSync(result.replacement_writer_result.atomic_write.temp_file), true);
+  assert.equal(fs.statSync(result.replacement_writer_result.atomic_write.temp_file).size, 0);
+  assert.equal(result.recovery.action, 'inspect_finalization_diagnostics');
   assert.equal(JSON.stringify(result.recovery).includes('write_source_supersession_entry'), false);
   fs.rmSync(result.replacement_writer_result.atomic_write.temp_file, { force: true });
 });
@@ -350,13 +355,13 @@ test('Finalizer retains replacement receipt when supersession planning cannot sc
   assert.ok(result.diagnostics.some((item) => item.code === 'SUPERSESSION_INDEX_SCAN_FAILED'));
 });
 
-test('Finalizer receipts a supersession entry published before temp cleanup failure', () => {
+test('Finalizer receipts a scrubbed supersession staging file when publication fails', () => {
   const paths = fixtureSet();
-  let cleanupCalls = 0;
+  let publicationCalls = 0;
   const result = withAtomicPublishHook((event) => {
-    if (event.operation === 'publish' && event.phase === 'before_temp_unlink') {
-      cleanupCalls += 1;
-      if (cleanupCalls === 2) return { fail_operation: 'unlink_temp' };
+    if (event.operation === 'publish' && event.phase === 'before_publish_link') {
+      publicationCalls += 1;
+      if (publicationCalls === 2) return { fail_operation: 'link_destination' };
     }
     return undefined;
   }, () => finalizeWorkRecordRepair({
@@ -365,15 +370,20 @@ test('Finalizer receipts a supersession entry published before temp cleanup fail
       repoRoot,
     }));
   assert.equal(result.status, 'partial_finalized');
-  assert.equal(result.writes_supersession_index_entry, true);
-  assert.equal(result.wrote_supersession_index_entry, true);
-  assert.equal(result.supersession_index_result.status, 'blocked_cleanup_failed');
-  assert.equal(result.supersession_index_result.atomic_write.published, true);
-  assert.equal(fs.existsSync(result.supersession_index_result.output.index_path), true);
+  assert.equal(result.replacement_writer_result.status, 'written');
+  assert.equal(result.writes_supersession_index_entry, false);
+  assert.equal(result.wrote_supersession_index_entry, false);
+  assert.equal(result.supersession_index_result.status, 'blocked_write_failed');
+  assert.equal(result.supersession_index_result.atomic_write.published, false);
+  assert.equal(result.supersession_index_result.atomic_write.content_scrubbed, true);
+  assert.equal(result.supersession_index_result.atomic_write.temp_file_leftover, true);
+  assert.equal(fs.existsSync(result.supersession_index_result.atomic_write.temp_file), true);
+  assert.equal(fs.statSync(result.supersession_index_result.atomic_write.temp_file).size, 0);
+  assert.equal(result.recovery.action, 'persist_writer_result_then_write_supersession');
   fs.rmSync(result.supersession_index_result.atomic_write.temp_file, { force: true });
 });
 
-test('Finalizer preserves supersession cleanup recovery when replacement already exists', () => {
+test('Finalizer receipts a scrubbed supersession staging file when replacement already exists', () => {
   const paths = fixtureSet();
   const proposedIdSeed = 'work-record:repairable-stale-saved-ref-replacement-v1';
   const prewritten = writeReplacementWorkRecord({
@@ -381,11 +391,11 @@ test('Finalizer preserves supersession cleanup recovery when replacement already
     outputRoot: paths.replacementRoot,
   });
   assert.equal(prewritten.status, 'written');
-  let cleanupInjected = false;
+  let publicationFailureInjected = false;
   const result = withAtomicPublishHook((event) => {
-    if (!cleanupInjected && event.operation === 'publish' && event.phase === 'before_temp_unlink') {
-      cleanupInjected = true;
-      return { fail_operation: 'unlink_temp' };
+    if (!publicationFailureInjected && event.operation === 'publish' && event.phase === 'before_publish_link') {
+      publicationFailureInjected = true;
+      return { fail_operation: 'link_destination' };
     }
     return undefined;
   }, () => finalizeWorkRecordRepair({
@@ -394,14 +404,19 @@ test('Finalizer preserves supersession cleanup recovery when replacement already
       proposedIdSeed,
       repoRoot,
     }));
-  assert.equal(cleanupInjected, true);
+  assert.equal(publicationFailureInjected, true);
   assert.equal(result.replacement_writer_result.status, 'already_exists');
-  assert.equal(result.supersession_index_result.status, 'blocked_cleanup_failed');
-  assert.equal(result.supersession_index_result.atomic_write.published, true);
-  assert.equal(result.status, 'partial_finalized');
-  assert.equal(result.wrote_supersession_index_entry, true);
-  assert.equal(result.recovery.action, 'inspect_published_supersession_and_cleanup_temp');
-  assert.equal(result.recovery.temp_file, result.supersession_index_result.atomic_write.temp_file);
+  assert.equal(result.replacement_record_already_existed, true);
+  assert.equal(result.wrote_replacement_record, false);
+  assert.equal(result.supersession_index_result.status, 'blocked_write_failed');
+  assert.equal(result.supersession_index_result.atomic_write.published, false);
+  assert.equal(result.supersession_index_result.atomic_write.content_scrubbed, true);
+  assert.equal(result.supersession_index_result.atomic_write.temp_file_leftover, true);
+  assert.equal(result.status, 'blocked_supersession_write');
+  assert.equal(result.wrote_supersession_index_entry, false);
+  assert.equal(result.recovery.action, 'inspect_finalization_diagnostics');
+  assert.equal(fs.existsSync(result.supersession_index_result.atomic_write.temp_file), true);
+  assert.equal(fs.statSync(result.supersession_index_result.atomic_write.temp_file).size, 0);
   fs.rmSync(result.supersession_index_result.atomic_write.temp_file, { force: true });
 });
 

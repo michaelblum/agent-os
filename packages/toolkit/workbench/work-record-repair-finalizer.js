@@ -231,7 +231,7 @@ function recoveryGuidance(status = '', result = {}) {
     const writer = objectValue(result.replacement_writer_result);
     if (supersession.atomic_write?.published === true && supersession.atomic_write?.cleanup_failed === true) {
       return {
-        action: 'inspect_published_supersession_and_cleanup_temp',
+        action: 'inspect_published_supersession_receipt',
         temp_file: rawText(supersession.atomic_write.temp_file),
         published_index_path: rawText(supersession.output?.index_path),
         recommendations: [cloneJson(objectValue(supersession.recommended_next))],
@@ -247,7 +247,7 @@ function recoveryGuidance(status = '', result = {}) {
     }
     if (writer.atomic_write?.published === true && writer.atomic_write?.cleanup_failed === true) {
       return {
-        action: 'inspect_published_replacement_and_cleanup_temp',
+        action: 'inspect_published_replacement_receipt',
         temp_file: rawText(writer.atomic_write.temp_file),
         published_replacement_path: rawText(writer.output?.output_path),
         recommendations: [cloneJson(objectValue(writer.recommended_next))],
