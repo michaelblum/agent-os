@@ -40,11 +40,12 @@ cross-repo context remains available in agent memory and history. This
 document covers the agent-os lane only, which forked from the sigil PR #90
 workstream. Operating pattern it established, still in force:
 
-- Sub-agents freely, coordinating on the single shared worktree; serial
-  writers only on agent-os (the `aos` binary owns TCC permissions — parallel
-  worktrees/binaries and concurrent `aos` consumers conflict insidiously).
-  Side-quest worktrees must not own an `aos` binary or interfere with others
-  on the machine. Fresh frontier-model (`xhigh`) review gates on every slice. (Its proactive sub-chat delegation was a 2026-08 usage-pressure choice,
+- Sub-agents freely, coordinating on the single shared worktree. Never
+  create worktrees that own an `aos` binary/daemon or compete for singleton
+  resources (TCC, daemon identity); concurrent `aos` consumers conflict
+  insidiously. Writes serial by default; parallel writer sub-agents permitted
+  when intelligently bounded (sub-agents can message/steer each other). Fresh
+  frontier-model (`xhigh`) review gates on every slice. (Its proactive sub-chat delegation was a 2026-08 usage-pressure choice,
   retired as standing doctrine on 2026-08-08: session orchestration method is now
   intentionally unprescribed so the agent stack’s own orchestration is not subverted.)
 - No `./aos`, daemon, native UI, TCC, Sigil, push, PR, or GitHub mutation.
@@ -121,6 +122,7 @@ recorded in the `agent-filter-resilience` skill and its trigger registry.
 (`docs/design/work-record-publish-hardening-handoff-20260808.md`) and this
 lineage first; short single-purpose turns; correctness vocabulary; no
 external platform research; commit after every validated increment (root
-AGENTS.md invariant); serial writers on the single shared worktree
-(sub-agents coordinate freely; side-quest worktrees must not own an `aos`
-binary) and fresh review gates.
+AGENTS.md invariant); a single shared worktree (no worktrees owning an
+`aos` binary/daemon or competing for singleton resources; writes serial by
+default, parallel writer sub-agents permitted when intelligently bounded) and
+fresh review gates.

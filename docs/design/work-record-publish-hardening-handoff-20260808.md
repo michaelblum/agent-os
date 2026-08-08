@@ -77,11 +77,12 @@ match current behavior; change the implementation.
   `wip/work-record-v1-migration-checkpoint`. No more than one step of
   uncommitted work at any time. (See root `AGENTS.md` checkpoint invariant.)
 - Use sub-agents freely; all work coordinates on the single shared worktree.
-  Serial writers only on agent-os: the `aos` binary owns TCC permissions, so
-  parallel worktrees/binaries — and concurrent `aos` consumers such as sigil —
-  conflict in insidious ways. Side-quest worktrees are permitted only if they
-  neither build/own an `aos` binary nor interfere with others working on the
-  machine. No `./aos`, daemon, native UI, TCC, Sigil, push, PR, or GitHub
+  Never create worktrees that own an `aos` binary/daemon or compete for
+  singleton resources (TCC, daemon identity): concurrent `aos` consumers such
+  as sigil conflict in insidious ways. Writes are serial by default; parallel
+  writer sub-agents are permitted when the orchestrator bounds them
+  intelligently within the shared worktree (sub-agents can message/steer each
+  other). No `./aos`, daemon, native UI, TCC, Sigil, push, PR, or GitHub
   mutation. Session orchestration method is otherwise intentionally unprescribed.
 - All platform facts needed are already verified locally (SDK headers and the
   platform contract probe). **No external research is required** for this
