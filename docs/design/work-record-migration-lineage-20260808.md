@@ -139,3 +139,47 @@ AGENTS.md invariant); a single shared worktree (no worktrees owning an
 `aos` binary/daemon or competing for singleton resources; writes serial by
 default, parallel writer sub-agents permitted when intelligently bounded) and
 fresh review gates.
+
+## 7. Amendment — AOS bridge access for Perplexity sessions (owner decision 2026-08-08)
+
+Recorded post-landing (2026-08-09) by the foreman session; the decision
+predates the landing and governed the 2026-08-08 dispatch work.
+
+The "no `./aos`" gate in §2 was written for contract-lane Codex sessions and
+remains in force for those dispatches unless a work card says otherwise. It
+is amended for Perplexity foreman sessions on the owner's Mac (via the `pc`
+device bridge), which are authorized to use AOS under a tiered protocol. This
+is agent-host and bridge operating policy; it changes no AOS authorization or
+runtime behavior.
+
+- **Passive diagnostic tier (standing):** `aos status`/`doctor`/plain
+  `ready`, work-record discovery and report-only verification, and other
+  commands whose current manifest proves they are passive and daemon-free.
+- **Existing-daemon observation tier (standing after the singleton check):**
+  non-interactive `aos see` queries and capture plus `aos focus`/`graph`
+  reads. These commands may consume an existing daemon, but the bridge must
+  not let them auto-start one. Saved capture may persist local workspace
+  evidence. Interactive selection, clipboard projection, click waiting,
+  input injection, and UI projection are excluded from this tier.
+- **Action tier (per-task, explicit owner authorization):** `aos do`,
+  `aos show` (heads-up prompted, focused collaboration only), daemon
+  lifecycle (`serve`/`service`/`clean`/`reset`), `aos tell`/`say`/`listen`,
+  config mutations, annotation create/consume/delete.
+- **Singleton-competition check** before every daemon-backed operation:
+  daemon ownership and runtime mode (repo versus installed), Sigil runtime,
+  and concurrent agent consumers. If ownership is unclear or an observation
+  would need daemon auto-start, stop for action-tier authorization.
+- **Bridge hazards:** the bridge cannot bind sockets (daemon launch must
+  come from the owner's terminal or an authorized agent session), output
+  truncates ~5 KB (full text lands in the local tool-output cache), and
+  System Events UI-scripting is categorically blocked — `aos see` is the
+  available AX probe.
+
+Full protocol, rationale, invocation rules, and provenance for the
+bridge-specific hazard claims: the 2026-08-08 library-persisted version of
+the `aos-bridge-access` Perplexity user skill. Those claims describe that
+external bridge version, not AOS product guarantees, and must be re-verified
+when the skill or bridge changes. This section cites the skill by name without
+duplicating its operational detail; the repo skills under `skills/` remain the
+operational authority for HOW to drive AOS and are read in place, never
+mirrored.
