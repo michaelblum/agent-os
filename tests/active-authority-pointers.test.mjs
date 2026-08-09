@@ -72,6 +72,11 @@ async function filesBelow(relativeRoot) {
 }
 
 async function activeAuthorityPaths() {
+  const frozenHistoricalContracts = new Set([
+    'shared/schemas/aos-agent-workspace-v0.md',
+    'shared/schemas/aos-step-descriptor-v0.md',
+    'shared/schemas/aos-work-record-v0.md',
+  ]);
   const { stdout } = await execFileAsync('git', ['ls-files'], { cwd: repoRoot });
   return stdout
     .split(/\r?\n/)
@@ -94,6 +99,7 @@ async function activeAuthorityPaths() {
     ))
     .filter((relativePath) => !relativePath.startsWith('docs/archive/'))
     .filter((relativePath) => !relativePath.startsWith('docs/dev/reports/'))
+    .filter((relativePath) => !frozenHistoricalContracts.has(relativePath))
     .sort();
 }
 
@@ -143,6 +149,8 @@ test('active authority map points to existing runtime primitive contract owners'
     ['CONTEXT-MAP.md', 'docs/api/aos-capabilities.md'],
     ['CONTEXT-MAP.md', 'shared/schemas/'],
     ['CONTEXT-MAP.md', 'shared/schemas/CONTRACT-GOVERNANCE.md'],
+    ['CONTEXT-MAP.md', 'shared/schemas/aos-work-record-v1.schema.json'],
+    ['CONTEXT-MAP.md', 'shared/schemas/aos-step-descriptor-v1.schema.json'],
     ['CONTEXT-MAP.md', 'manifests/commands/source/'],
     ['CONTEXT-MAP.md', 'manifests/commands/aos-commands.json'],
     ['CONTEXT-MAP.md', 'manifests/commands/aos-external-commands.json'],
@@ -261,7 +269,8 @@ test('ambient authority sources reject mandatory policy while preserving optiona
     'native annotation completion still replaces admitted target',
     'semantic-target public decoder still drops the admitted app-local',
     'Guided User Signal record builder still defaults prompt/answer projection',
-    'Supervised Run schema/harness surfaces still retain',
+    'legacy Supervised Run V0 schema still projects',
+    'complete public generic-wait, event-cursor subscription, and semantic-codegen',
     'not a complete public `run-code` surface',
   ]) {
     assert.ok(api.includes(gap), `docs/api/aos.md missing explicit implementation gap: ${gap}`);
@@ -293,7 +302,6 @@ test('ambient authority sources reject mandatory policy while preserving optiona
     'docs/design/aos-desktop-playwright-cli-map.md',
     'docs/design/surface-annotation-intent-convergence-tracker.md',
     'docs/adr/0018-installable-aos-skills.md',
-    'shared/schemas/aos-work-record-v0.md',
     'tests/toolkit/aos-target-descriptor-contract.test.mjs',
     'tests/toolkit/aos-work-recording-frame-contract.test.mjs',
     'tests/fixtures/aos-skills/cold-agent-forward-proof-v0.json',
@@ -387,9 +395,12 @@ test('ambient authority sources reject mandatory policy while preserving optiona
   assert.match(stepDescriptor, /## ADR 0040 Transition Boundary/);
   assert.match(stepDescriptor, /legacy schema\/harness coupling awaiting runtime migration/);
   assert.match(supervisedRun, /## ADR 0040 Transition Boundary/);
+  assert.match(supervisedRun, /This schema and its harness contain no Gate field/);
+  assert.match(supervisedRun, /`work_record_projection\.target_schema`[\s\S]*fixed to the frozen\s+`2026-05-work-record-v0` contract/);
   assert.match(sceneAuthoring, /Labels remain outside the bounded product-neutral gesture envelope/);
   assert.match(sceneRuntime, /Parameter values, metadata content, and arbitrary callback\s+errors remain outside/);
-  assert.match(subjectCapabilities, /Current Gate fields on transitional descriptors are legacy coupling/);
+  assert.match(subjectCapabilities, /A Work Record execution map, repair hint, or Step Descriptor is neutral evidence\/descriptive input/);
+  assert.match(subjectCapabilities, /does not by itself make a Subject replayable/);
   assert.match(sceneExtensions, /these contract exclusions are not ADR 0040 raw-output gaps/);
   assert.match(sceneExtensions, /Pixels and private frame\s+handles\s+remain inside the trusted projection realm/);
   assert.match(sceneDevtools, /Product text,\s+prompts, audio, arbitrary extension state, undeclared engine parameters, and\s+desktop pixels remain outside/);

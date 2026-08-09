@@ -107,35 +107,28 @@ test('current code and docs use Step Descriptor instead of Playbook Step substra
   );
 });
 
-test('legacy Gate-coupled harness remains documented as migration debt, not AOS permission', async () => {
-  const plan = await text('docs/design/aos-grand-unification-plan.md');
+test('active V1 harness remains neutral and historical Gate coupling is not current authority', async () => {
   const context = await text('CONTEXT.md');
   const workRecords = await text('docs/design/aos-work-records-and-self-healing-recipes.md');
   const adr = await text('docs/adr/0013-aos-execution-model-v0.md');
+  const workRecordV1 = await text('shared/schemas/aos-work-record-v1.md');
+  const stepDescriptorV1 = await text('shared/schemas/aos-step-descriptor-v1.md');
 
-  assert.match(plan, /### Phase 6: Browser Step Evidence And Legacy Workflow-Gated Runs/);
-  assert.match(plan, /Workflow Gate is not\s+AOS permission/);
-  assert.match(plan, /coupling must not survive ADR 0040 runtime migration/);
-  assert.match(plan, /not Playbook-authored execution/);
-  assert.match(plan, /Work Records and verifier reports are harness obligations around the run/);
-  assert.match(plan, /First candidate legacy Workflow-gated browser run/);
-  assert.match(plan, /emit a Work Record through the harness/);
-  assert.match(plan, /run the report-only verifier profile/);
-  assert.match(plan, /`claim_results\[\]`/);
-  assert.match(plan, /derived indexes: `verified`, `failed`, `unverified`/);
-  assert.match(context, /current legacy browser\s+harness as Workflow-gated step evidence/);
-  assert.match(context, /Gate coupling awaits ADR 0040 migration and is not AOS\s+permission/);
+  assert.match(context, /active Step Descriptor V1 harness is neutral/);
+  assert.match(context, /no Workflow Gate, approval,\s+risk, or operation-registry field authorizes execution/);
   assert.match(context, /use\s+`claim_results\[\]` as the source of truth/);
-  assert.match(workRecords, /current legacy implementation uses a\s+Workflow-gated step\/evidence bridge/);
-  assert.match(workRecords, /Gate is not AOS permission/);
-  assert.match(workRecords, /Work Records and verifier reports\s+are harness obligations around the run/);
-  assert.match(workRecords, /Playbooks remain method guidance rather than the execution substrate/);
-  assert.match(adr, /legacy V0 sketch for one Workflow-gated step\/evidence bridge awaiting ADR 0040/);
-  assert.match(adr, /Gate is not AOS permission/);
-  assert.doesNotMatch(plan, /### Phase 6: Browser Playbooks/);
-  assert.doesNotMatch(plan, /A playbook step is/);
-  assert.doesNotMatch(plan, /save a work record/);
-  assert.doesNotMatch(plan, /run verifier report/);
+  assert.match(workRecords, /active AOS action capture slice is intentionally saved-evidence only/);
+  assert.match(workRecords, /execution-mode harness accepts\s+only a caller-supplied adapter/);
+  assert.match(workRecords, /Work Record commands expose no fixture executor/);
+  assert.match(adr, /active descriptor contract is `aos\.step_descriptor` V1/);
+  assert.match(adr, /descriptor carries no Workflow Gate, approval, risk, or AOS-owned operation\s+registry/);
+  assert.match(workRecordV1, /active neutral evidence\/history contract/);
+  assert.match(workRecordV1, /does not grant\s+permission/);
+  assert.match(stepDescriptorV1, /active neutral one-step descriptor contract/);
+  assert.match(stepDescriptorV1, /does not\s+grant permission/);
+  const activeV1 = `${context}\n${workRecords}\n${adr}\n${workRecordV1}\n${stepDescriptorV1}`;
+  assert.doesNotMatch(activeV1, /current legacy browser\s+harness as Workflow-gated/);
+  assert.doesNotMatch(activeV1, /Gate coupling awaits ADR 0040 migration/);
   assert.doesNotMatch(workRecords, /Playbook-step substrate/);
   assert.doesNotMatch(workRecords, /future Playbook harness/);
   assert.doesNotMatch(context, /Pending: plan revision/);
@@ -145,8 +138,8 @@ test('browser capture remains a projection, not a taxonomy source', async () => 
   const browser = await text('docs/design/browser-capture-ladder-projection.md');
   const adr = await text('docs/adr/0013-aos-execution-model-v0.md');
 
-  assert.match(browser, /not a taxonomy root/);
-  assert.match(browser, /target\/app surface\n-> control primitive\n-> observation\/capture\/evidence block\n-> reusable capture recipe\n-> workflow orchestration with gates\/retries\n-> run\n-> work record with evidence\/trace/);
+  assert.match(browser, /do not execute a\s+workflow, authorize a future attempt, or add a parallel browser-capture\s+taxonomy/);
+  assert.match(browser, /target\/app surface\n-> control primitive\n-> observation\/capture\/evidence block\n-> caller-selected run\n-> optional Work Record with evidence/);
   assert.match(adr, /downstream projections, not the source of truth/);
 });
 
@@ -321,7 +314,7 @@ test('show anchors stay placement roles instead of target dialects', async () =>
 
   assert.match(context, /\*\*Anchor \(role\)\*\*:/);
   assert.match(context, /A role played by a Target-with-Ref when `aos show` uses it as a placement reference/);
-  assert.match(context, /not a parallel target dialect/);
+  assert.match(context, /not a parallel target\s+dialect/);
   assert.match(context, /\*\*Anchor Binding\*\*:/);
   assert.match(context, /resolved, stored representation of an Anchor inside the display subsystem/);
   assert.match(context, /re-resolve an Anchor Binding without changing the original Target-with-Ref string/);

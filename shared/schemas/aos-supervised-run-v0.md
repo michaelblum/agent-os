@@ -1,6 +1,7 @@
 # AOS Supervised Run v0 Sketch
 
-Status: schema-backed design sketch. The JSON Schema in
+Status: legacy schema-backed design sketch, retained for its own fixtures and
+not active Work Record or Step Descriptor authority. The JSON Schema in
 [`aos-supervised-run-v0.schema.json`](aos-supervised-run-v0.schema.json)
 validates example fixtures under
 [`fixtures/aos-supervised-run-v0/`](fixtures/aos-supervised-run-v0/).
@@ -11,21 +12,22 @@ A Supervised Run coordinates one bounded piece of agent work while a human can
 observe, steer, confirm, fail, block, or annotate the run. It is a
 coordination/event layer, not the durable evidence artifact for the run.
 
-The durable artifact remains Work Record v0. A Supervised Run may carry
-Work Record-compatible `evidence:*` references and handoff metadata for a later
-Work Record builder, but it does not duplicate Work Record `evidence[]`,
-Claims, Postconditions, Claim Results, Verifier Reports, or Health. Workflows
-own orchestration, and `aos.step_descriptor` descriptors may carry
-compatibility step metadata for the current harness; a Supervised Run records
-the bounded coordination state for one attempt.
+The active durable artifact is Work Record V1. This legacy Supervised Run V0
+may carry `evidence:*` references and handoff metadata for its historical V0
+projection, but it does not duplicate Work Record `evidence[]`, Claims,
+Postconditions, Claim Results, Verifier Reports, or Health. Workflows own
+orchestration. Active `aos.step_descriptor` V1 descriptors are neutral input to
+a caller-selected harness; a Supervised Run records the bounded coordination
+state for one attempt.
 
 ## ADR 0040 Transition Boundary
 
-References to Workflow-gated Step Descriptor execution below describe current
-legacy schema/harness coupling. They do not make Gate an AOS permission grant or
-authorization boundary. Under ADR 0040, Gate is optional neutral structured
-input; runtime migration must remove any mandatory Gate coupling rather than
-preserve it as policy.
+This schema and its harness contain no Gate field. Its actual migration debt is
+`work_record_projection.target_schema`, which is fixed to the frozen
+`2026-05-work-record-v0` contract. Active Work Record and Step Descriptor V1
+readers do not consume or translate that projection. A future owner must either
+migrate Supervised Run explicitly to the active neutral contracts or retire it;
+this document does not promote the V0 projection to current authority.
 
 ## Top-Level Shape
 
@@ -52,10 +54,11 @@ preserve it as policy.
 }
 ```
 
-`operating_path` is required because the run's authority, sensors, and
-verification obligations are part of the contract. A future console can present
-the same run as a test, collection review, or workflow collaboration surface,
-but the persisted contract should not use old standalone `test.*` event names.
+`operating_path` records the run environment, available sensors, and
+verification context; it is descriptive and grants no authority. A future
+console can present the same run as a test, collection review, or workflow
+collaboration surface, but the persisted contract should not use old standalone
+`test.*` event names.
 
 ## Timeline Events
 
@@ -124,30 +127,32 @@ Work Record schema.
 
 ## Work Record And Step Descriptor Alignment
 
-Supervised Runs align with Work Record v0 and Step Descriptor v0 by keeping the
-boundaries explicit:
+Supervised Run V0 predates the active Work Record and Step Descriptor V1
+contracts. Its surviving boundaries are:
 
-- A Workflow can be the orchestration origin for a run; `aos.step_descriptor`
-  supplies step metadata through the current legacy-coupled harness, not the
-  Work Record origin.
+- A Workflow can be the orchestration origin for a run; an active
+  `aos.step_descriptor` V1 supplies neutral step metadata to a caller-selected
+  harness, not the Work Record origin or execution authority.
 - A Supervised Run coordinates one bounded attempt and human feedback timeline.
-- Work Record v0 remains the durable run artifact with immutable evidence,
-  Claims, Postconditions, Claim Results, Verifier Report, and Health.
+- Work Record V1 is the active optional durable run artifact with immutable
+  evidence, Claims, Postconditions, Claim Results, Verifier Report, and Health.
 
 `evidence_refs[]` deliberately stores references such as `evidence:after-see`
 instead of embedding Work Record evidence objects with URI, digest, immutable
 metadata, or verifier payloads. `work_record_projection` is optional handoff
-metadata for a future builder. It names the target Work Record schema, candidate
-record id, projected evidence refs, and any Claim-promotion hints without
-creating a second durable run-record format.
+metadata for a future builder. In this V0 schema it names only the frozen
+`2026-05-work-record-v0` target, candidate record id, projected evidence refs,
+and Claim-promotion hints. No active V1 builder consumes or translates that
+projection; keeping the fixture valid does not make it a current bridge.
 
 ## Non-Goals
 
 This v0 contract does not add a daemon-backed event channel, public
 `aos test run` command, toolkit console UI, shell harness execution, replay,
 repair, macro playback, live browser execution, or broad workbench rewrite.
-Those are separate future slices. They may accept caller-selected Gates as
-neutral input, but AOS must not require Gate as permission to execute.
+Those are separate future slices. This schema has no Gate field; any future
+coordination layer may accept caller-selected Gates as neutral input, but AOS
+must not require Gate as permission to execute.
 
 ## Examples
 

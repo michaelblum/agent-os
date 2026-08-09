@@ -9,7 +9,7 @@ otherwise.
 | ADR | Status | Authority note |
 | --- | --- | --- |
 | [0001](0001-facets-belong-to-layers.md) | Accepted | Active. |
-| [0002](0002-work-records-and-playbooks-are-distinct-artifacts.md) | Accepted, amended | ADR 0013 owns the broader execution model; ADR 0040 makes Work Records optional evidence, never permission. |
+| [0002](0002-work-records-and-playbooks-are-distinct-artifacts.md) | Accepted, amended | ADR 0013 owns the broader execution model; ADR 0040 and Work Record V1 make records optional neutral evidence, never permission. V0 is frozen history. |
 | [0003](0003-claims-and-postconditions-split-along-intent-and-execution.md) | Accepted | Active. |
 | [0004](0004-anchor-is-a-role-resolved-into-a-binding.md) | Accepted | Active. |
 | [0005](0005-subjects-are-host-neutral-facets-declare-hosts.md) | Accepted | Active. |
@@ -20,7 +20,7 @@ otherwise.
 | [0010](0010-capabilities-are-named-contracts-not-buttons-or-facets.md) | Accepted | Active. |
 | [0011](0011-host-neutral-surfaces-use-capability-bounded-hosts.md) | Accepted clarification | Active. |
 | [0012](0012-toolkit-platform-strategy.md) | Accepted | Active. |
-| [0013](0013-aos-execution-model-v0.md) | Accepted, amended | ADR 0040 makes dry-run optional, Gate explicit, and Work Records optional evidence. |
+| [0013](0013-aos-execution-model-v0.md) | Accepted, amended | ADR 0040 makes dry-run optional and Gate explicit; active Work Record and Step Descriptor V1 contracts are neutral and V0 is frozen history. |
 | [0014](0014-visual-object-descriptor-contract.md) | Accepted | Active. |
 | [0015](0015-aos-tcc-capability-broker-boundary.md) | Accepted | Active; aligned with ADR 0040 ambient authority. |
 | 0016-0017 | Unassigned | No ADR files use these numbers. |

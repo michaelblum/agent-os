@@ -77,10 +77,12 @@ source root. This file is a routing map, not a replacement for those sources.
 ## Workbench Subjects And Work Records
 
 - Source root: `packages/toolkit/workbench/`.
-- Schemas: `shared/schemas/aos-workbench-subject.schema.json`,
-  `shared/schemas/aos-work-record-v0.schema.json`, and related workbench,
+- Schemas: `shared/schemas/aos-workbench-subject.schema.json`, active
+  `shared/schemas/aos-work-record-v1.schema.json`, active
+  `shared/schemas/aos-step-descriptor-v1.schema.json`, and related workbench,
   evidence, checkpoint, subject-tree, and browser-evidence schemas in
-  `shared/schemas/`.
+  `shared/schemas/`. Work Record and Step Descriptor V0 schemas are frozen
+  historical input, not active authority.
 - API docs: `docs/api/toolkit/workbench.md`.
 - Transitional Guide/SOP and design context:
   `docs/guides/layered-subject-expressions.md`,

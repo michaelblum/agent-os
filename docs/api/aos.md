@@ -107,14 +107,19 @@ inputs, media, source, product state, diagnostics, or private handles:
   not a primitive capability and does not populate `actions[]`;
 - the Guided User Signal record builder still defaults prompt/answer projection
   to redaction rather than require an explicit caller choice;
-- Supervised Run schema/harness surfaces still retain mandatory Workflow Gate
-  coupling even though Gate is not permission;
+- the legacy Supervised Run V0 schema still projects to
+  `2026-05-work-record-v0`; it has no Gate field, and the active Step Descriptor
+  V1 harness is already neutral, so migration or retirement of that projection
+  remains separate schema debt;
+- complete public generic-wait, event-cursor subscription, and semantic-codegen
+  contracts are not yet implemented or claimed;
 - gateway script execution is not a complete public `run-code` surface, and
   this document does not claim that public command exists.
 
 These are explicit follow-up gaps and do not reopen the completed Work Record
-authority-excision migration. This slice does not implement the Gate
-persistence refactor or public `run-code` productization.
+authority-excision or Step Descriptor V1 migrations. This slice does not
+implement the Gate persistence refactor, Supervised Run V0 disposition, generic
+observation mechanics, or public `run-code` productization.
 
 Examples:
 

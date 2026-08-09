@@ -118,8 +118,6 @@ transform on that fact. This ADR does not widen typed receipts, lifecycle
 events, product-neutral scene envelopes, or trusted-realm boundaries to
 adjacent inputs, media, source, product state, diagnostics, or private handles:
 
-- current Work Record repair planning/execution still carries Gate-derived
-  authorization and operation-allowlist coupling;
 - current Gate persistence redacts prompt/answer content and continuation source
   metadata by default instead of making projection and persistence an explicit
   caller-owned transform;
@@ -131,8 +129,12 @@ adjacent inputs, media, source, product state, diagnostics, or private handles:
   not a primitive capability and must not populate `actions[]`;
 - the current Guided User Signal record builder defaults prompt/answer
   projection to redaction instead of requiring an explicit caller choice;
-- current Step Descriptor and Supervised Run schema/harness surfaces retain
-  mandatory Workflow Gate coupling even though Gate is not permission;
+- the legacy Supervised Run V0 schema still projects to
+  `2026-05-work-record-v0`; it has no Gate field, and the active Step Descriptor
+  V1 harness is already neutral, so migration or retirement of that projection
+  is separate schema debt rather than an authority boundary;
+- complete public generic-wait, event-cursor subscription, and semantic-codegen
+  contracts are not yet implemented or claimed;
 - existing gateway script execution is not a complete public `run-code`
   contract, and no public run-code form is claimed by this decision.
 
@@ -140,9 +142,11 @@ These are follow-up implementation gaps, not exceptions to the decision.
 
 ## Non-Goals
 
-This decision does not refactor Work Record executors, refactor Gate
-persistence, productize public run-code, add generic wait/event/cursor/codegen
-surfaces, or redesign the command tree.
+This decision does not refactor Gate persistence, migrate or retire Supervised
+Run V0, productize public run-code, add generic wait/event-cursor/codegen
+surfaces, or redesign the command tree. Work Record authority excision and the
+Step Descriptor V1 migration are completed implementation consequences, not
+remaining non-goals.
 
 ## Consequences
 
