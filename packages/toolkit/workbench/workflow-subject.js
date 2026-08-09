@@ -277,7 +277,7 @@ export function createWikiWorkflowSubject(input = {}) {
     },
     capabilities: [
       'inspectable',
-      'replayable',
+      ...(hasInvocableChildren ? ['replayable'] : []),
     ],
     contracts: [
       'wiki.read',
@@ -296,7 +296,10 @@ export function createWikiWorkflowSubject(input = {}) {
           namespace,
           plugin: root.plugin,
         },
-        capabilities: ['inspectable', 'replayable'],
+        capabilities: [
+          'inspectable',
+          ...(hasInvocableChildren ? ['replayable'] : []),
+        ],
         contracts: [
           'workflow.project',
           'workflow.chain.inspect',

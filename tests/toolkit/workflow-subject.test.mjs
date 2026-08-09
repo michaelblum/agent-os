@@ -12,6 +12,9 @@ import {
   subjectContracts,
   subjectFacets,
 } from '../../packages/toolkit/workbench/subject.js';
+import {
+  deriveWorkbenchSubjectControls,
+} from '../../packages/toolkit/workbench/subject-controls.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -92,6 +95,30 @@ test('createWikiWorkflowSubject emits a workflow-chain workbench subject', () =>
   assert.equal('views' in subject, false);
   assert.equal('controls' in subject, false);
   assert.equal(subject.state.workflow.steps[0].target.subject_id, 'wiki:aos/concepts/runtime-modes.md');
+});
+
+test('workflow subject without an invocation contract is inspectable but not replayable', () => {
+  const markdown = `# Runtime Evidence Map
+
+| Stage | Canonical Page | Output |
+| --- | --- | --- |
+| Inspect | [Runtime Modes](runtime-modes.md) | Runtime mode identified |
+| Record | [Daemon](../entities/daemon.md) | Runtime evidence recorded |
+`;
+  const subject = createWikiWorkflowSubject({
+    root: pages[0],
+    pages: [pages[0], pages[1], pages[3]],
+    markdown,
+  });
+
+  assert.equal(subject.metadata.child_workflow_count, 0);
+  assert.deepEqual(subjectCapabilities(subject), ['inspectable']);
+  assert.equal(subjectContracts(subject).includes('wiki.invoke'), false);
+  assert.deepEqual(subjectFacets(subject)[0].capabilities, ['inspectable']);
+  assert.equal(
+    deriveWorkbenchSubjectControls(subject).some((control) => control.id === 'replay'),
+    false,
+  );
 });
 
 test('workflow descriptor marks unresolved linked workflow targets repairable', () => {
