@@ -308,8 +308,8 @@ compile_helper() {
 }
 
 typed_failure_summary() {
-  local status="$1"
-  if (( status == 124 )); then
+  local command_status="$1"
+  if (( command_status == 124 )); then
     print -r -- '{"cleanup_complete":false,"error_code":"PROOF_TIMEOUT","microphone_requested":false,"pixels_persisted":false,"raw_capture_logged":false,"status":"failed"}'
   else
     print -r -- '{"cleanup_complete":false,"error_code":"NATIVE_PROOF_FAILED","microphone_requested":false,"pixels_persisted":false,"raw_capture_logged":false,"status":"failed"}'
@@ -349,7 +349,11 @@ apply_post_cleanup_outcome() {
         [130, "PROOF_INTERRUPTED"],
         [143, "PROOF_TERMINATED"],
       ]);
-      if (summary.status === "passed" || typeof summary.error_code !== "string") {
+      if (
+        summary.status === "passed"
+        || typeof summary.error_code !== "string"
+        || summary.error_code === "NATIVE_PROOF_FAILED"
+      ) {
         summary.error_code = supervisorCodes.get(commandStatus) || "NATIVE_PROOF_FAILED";
       }
       summary.status = "failed";
@@ -572,6 +576,43 @@ case "$MODE" in
     print -r -- '{"live_unrelated_group_preserved":true,"unresolved_group_record_preserved":true,"status":"passed"}'
     ;;
   --postflight-cleanup-failure-self-test)
+    SUMMARY="$(typed_failure_summary 124)"
+    STATUS=124
+    POST_CLEANUP_PIXELS_PERSISTED=0
+    RECOVERY_ROOT_RETAINED=0
+    apply_post_cleanup_outcome
+    if (( STATUS != 124 )) || ! /usr/bin/env node -e '
+      const summary = JSON.parse(process.argv[1]);
+      if (summary.status !== "failed") process.exit(1);
+      if (summary.error_code !== "PROOF_TIMEOUT") process.exit(1);
+      if (summary.cleanup_complete !== false) process.exit(1);
+    ' "$SUMMARY"; then
+      print -r -- '{"cleanup_failure_forced_failure":false,"status":"failed"}'
+      exit 1
+    fi
+
+    for SELFTEST_FAILURE_CASE in \
+      "1:NATIVE_PROOF_FAILED" \
+      "125:PROOF_SUPERVISION_FAILED" \
+      "130:PROOF_INTERRUPTED" \
+      "143:PROOF_TERMINATED"; do
+      STATUS="${SELFTEST_FAILURE_CASE%%:*}"
+      EXPECTED_FAILURE_CODE="${SELFTEST_FAILURE_CASE#*:}"
+      SUMMARY="$(typed_failure_summary "$STATUS")"
+      POST_CLEANUP_PIXELS_PERSISTED=0
+      RECOVERY_ROOT_RETAINED=0
+      apply_post_cleanup_outcome
+      if ! /usr/bin/env node -e '
+        const summary = JSON.parse(process.argv[1]);
+        if (summary.status !== "failed") process.exit(1);
+        if (summary.error_code !== process.argv[2]) process.exit(1);
+        if (summary.cleanup_complete !== false) process.exit(1);
+      ' "$SUMMARY" "$EXPECTED_FAILURE_CODE"; then
+        print -r -- '{"cleanup_failure_forced_failure":false,"status":"failed"}'
+        exit 1
+      fi
+    done
+
     SUMMARY='{"cleanup_complete":true,"pixels_persisted":false,"status":"passed"}'
     STATUS=0
     POST_CLEANUP_PIXELS_PERSISTED=0
