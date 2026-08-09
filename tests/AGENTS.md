@@ -182,6 +182,22 @@ tests.
   exhaustion, and bounded oversized-frame rejection. It must also exercise the
   production event-stream read and reconnect loops so an oversized unterminated
   frame cannot wedge a subscription.
+- Exact focus-channel native acceptance is a separate explicitly approved
+  manual proof against the already-running repo daemon. It must use two
+  deterministic overlapping windows from one synthetic AppKit process, passive
+  public status/service/permission/build-attestation preflights, public `focus`
+  and `see capture --channel` evidence routes, an owner-bounded process-group
+  watchdog, and content-free output. It must reject a sibling-window subtree,
+  prove the occluded target's pixels and AX membership, preserve and recapture
+  the last good publication after a rejected refresh, fail closed when the
+  target is missing, remove all channel/window/temp state, preserve every
+  stable public identity/configuration field of unrelated channels while
+  tolerating documented native refresh metadata, and preserve the shared
+  daemon. Any recovery-root comparison material must contain only ephemeral-key
+  digests, never raw channel entries, URLs, or session identifiers. It must
+  never use a private
+  application, `--base64`, a direct daemon socket or channel-file read, daemon
+  lifecycle commands, an implicit rebuild, or a new TCC permission request.
 - Status-item host contract tests must use disposable fake sockets and schema
   fixtures, model startup admission ordering, and prove registration output
   precedes initial events. Fake sockets must emit the complete daemon envelope

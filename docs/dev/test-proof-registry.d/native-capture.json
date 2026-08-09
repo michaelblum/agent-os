@@ -29,6 +29,25 @@
       "replaces": [],
       "guard": "focused production Swift owners, fake native callbacks, schema fixtures, in-memory bytes, and hermetic temporary compiler/test artifacts only; no production AOS binary, daemon socket, GUI, TCC, or native capture",
       "status": "active"
+    },
+    {
+      "id": "exact-focus-channel-native-proof-tool",
+      "path_patterns": [
+        "tests/exact-focus-channel-native-proof-contract.test.mjs",
+        "tests/manual/exact-focus-channel-native-proof.mjs",
+        "tests/manual/exact-focus-channel-native-proof.sh",
+        "tests/manual/exact-focus-channel-native-proof.swift"
+      ],
+      "fixture_patterns": [],
+      "owner": "daemon-desktop-pixels",
+      "harness_level": "guarded_live",
+      "proof_kind": "exact_focus_channel_native_tool_contract",
+      "contract": "The reusable supervised proof uses two overlapping layer-zero windows from one synthetic process to verify exact channel pixels, exact AX membership, sibling-subtree rejection, rejected-refresh preservation, missing-target no-fallback failure, and complete cleanup through public focus and see commands.",
+      "worth": "This detects the live regression where a channel could label display-cropped pixels or whole-app AX facts as one selected window, while keeping private application content, retained or logged raw pixels, daemon lifecycle, and new permission requests outside the proof.",
+      "command": "node --test tests/exact-focus-channel-native-proof-contract.test.mjs",
+      "replaces": [],
+      "guard": "The registered command performs static assertions, Swift typecheck, classifier self-test, and owned-process cleanup tests only; recovery state contains keyed digests rather than raw unrelated-channel metadata, and the explicit AOS_EXACT_FOCUS_CHANNEL_NATIVE_PROOF_OK=1 route is the separate supervised live proof against the already-running repo daemon.",
+      "status": "active"
     }
   ]
 }

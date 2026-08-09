@@ -357,6 +357,22 @@ test('proof-worth evaluator routes plain repo build proofs', async () => {
   ]);
 });
 
+test('proof-worth evaluator routes registered manual Swift helpers', () => {
+  const registry = loadCanonicalRegistry();
+  const result = evaluateProofWorth({
+    changedFiles: ['tests/manual/exact-focus-channel-native-proof.swift'],
+    repoRoot,
+    registry,
+    registryPath: 'docs/dev/test-proof-registry.json',
+  });
+
+  assert.equal(result.status, 'passed', result);
+  assert.deepEqual(result.commands.map((item) => item.command), [
+    'node --test tests/exact-focus-channel-native-proof-contract.test.mjs',
+  ]);
+  assert.equal(result.assets[0].kind, 'manual_test');
+});
+
 test('proof-worth evaluator routes toolkit input identity normalization', async () => {
   const registry = loadCanonicalRegistry();
   const result = evaluateProofWorth({
