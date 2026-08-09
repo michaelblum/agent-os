@@ -69,6 +69,33 @@ help and the full consumer JSON registry filter it out. Maintainer workflows
 that are only repo-development tooling must not be registered as hidden AOS
 commands.
 
+## Top-Level Family Admission
+
+A new public top-level command family requires evidence that the capability
+cannot fit coherently under an existing family without breaking capability
+ownership, compatibility, or consumer discovery. Subcommand count, command
+depth, and analogy to another CLI are not sufficient evidence either to create
+a family or to migrate an accepted public capability out of AOS.
+
+The admitting change must include, in one converged increment:
+
+- the product-neutral capability owner and any controlling ADR;
+- a source-manifest `path_prefix` and capability-group assignment;
+- an external route or an explicit native/bootstrap ownership reason;
+- generated help and machine-readable command metadata;
+- consumer docs, focused behavioral/drift tests, and compatibility posture.
+
+Public families such as `scene`, `status-item`, and `work-record` are stable
+capability contracts, not implementation internals merely because they are
+deep. The AOS Execution Model, installable Skills/Recipes, product layering,
+and command discoverability are separate classifications and must not be
+collapsed into a new “core versus capability” ladder.
+
+If flat root help proves difficult for agents, record that evidence as a
+bounded help-discoverability slice and reuse the existing capability groups.
+If capability-group metadata becomes part of public help, move it into one
+manifest-owned generated source rather than adding another handwritten map.
+
 ## Public CLI And Self-Hosting
 
 The agent-facing maintainer workflow interface is retained local skills backed

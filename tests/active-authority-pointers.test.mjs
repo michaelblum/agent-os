@@ -89,6 +89,7 @@ async function activeAuthorityPaths() {
       || relativePath.startsWith('scripts/')
       || relativePath.startsWith('skills/')
       || relativePath.startsWith('docs/api/')
+      || relativePath.startsWith('docs/agents/')
       || relativePath.startsWith('docs/guides/')
       || relativePath.startsWith('docs/design/work-cards/')
       || relativePath === 'docs/adr/0025-native-annotation-selection-and-shortcut-execution.md'
@@ -473,8 +474,9 @@ test('ambient authority sources reject mandatory policy while preserving optiona
   const installableSkillsAdr = await text('docs/adr/0018-installable-aos-skills.md');
   const sceneManifest = await text('manifests/commands/source/aos/39-scene.json');
   const sceneOverview = await text('docs/api/toolkit/scene.md');
-  assert.match(grandUnificationPlan, /active Work Record V1 contract is optional neutral evidence\/history/);
-  assert.match(grandUnificationPlan, /active Step Descriptor V1 harness has no Gate-derived authority/);
+  assert.match(grandUnificationPlan, /retired May 2026 implementation lineage; not the current roadmap/);
+  assert.match(grandUnificationPlan, /former phase plan remains available in Git history/);
+  assert.match(grandUnificationPlan, /Do not restore the retired phase plan/);
   assert.match(browserProjection, /## ADR 0040 Boundary/);
   assert.match(browserProjection, /Neither accepts Gate data, grants\s+permission, classifies risk, requires approval/);
   assert.match(inputSignalProposal, /Gate fields; those fields are ADR 0040\s+migration debt, not AOS permission/);
@@ -484,8 +486,10 @@ test('ambient authority sources reject mandatory policy while preserving optiona
   assert.match(userSignalSurface, /ADR 0040 migration gap, not the target policy/);
   assert.match(gestureSpineNote, /## ADR 0040 Transition Boundary/);
   assert.match(gestureSpineNote, /mixed descriptor is\s+migration evidence, not a durable Observation Ref/);
-  assert.match(desktopPlaywrightMap, /## ADR 0040 Transition Boundary/);
-  assert.match(desktopPlaywrightMap, /current saved refs and browser\/canvas\/native AX\/coordinate forms are not Locators/);
+  assert.match(desktopPlaywrightMap, /## ADR 0040 Target Boundary/);
+  assert.match(desktopPlaywrightMap, /Target\s+Handle Runtime V1 implements ADR 0040's split/);
+  assert.match(desktopPlaywrightMap, /saved\s+addresses are storage indirection to one of those handles/);
+  assert.doesNotMatch(desktopPlaywrightMap, /awaiting the ADR 0040 split/);
   assert.match(annotationConvergenceTracker, /ADR 0040 boundary/);
   assert.match(annotationConvergenceTracker, /it is not AOS\s+permission and is not a prerequisite for ordinary live capture or side effects/);
   assert.match(installableSkillsAdr, /current AOS browser observation handles\/proof/);
@@ -612,6 +616,17 @@ test('root AGENTS stays a DOX rail instead of an orchestration contract', async 
 test('root Child DOX Index has no stale removed child docs', async () => {
   const rootAgents = await text('AGENTS.md');
   assert.doesNotMatch(rootAgents, /ai-agents\/AGENTS\.md/);
+});
+
+test('retired project-agent dispatch files stay absent', () => {
+  const retiredPaths = [
+    'docs/design/aos-grand-unification-next-session-goal.md',
+    'docs/design/notes/codex-goal-rebuild-pause-guard-plan-2026-05-24.md',
+    'docs/design/workbench-subject-vnext-cutover-foreman-note.md',
+  ];
+  for (const relativePath of retiredPaths) {
+    assert.equal(existsSync(path.join(repoRoot, relativePath)), false, `${relativePath} must stay retired`);
+  }
 });
 
 test('active authority contains no retired Foreman or GDI role vocabulary', async () => {

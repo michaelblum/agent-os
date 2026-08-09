@@ -40,6 +40,10 @@ developer command surfaces.
   `constraints.required_groups` so JSON help and rendered help can explain the
   valid choices without marking direct-form-only flags as unconditionally
   required.
+- Admit a new public top-level family only with evidence that it cannot fit an
+  existing family, plus a source-manifest prefix, capability-group assignment,
+  route or native ownership reason, generated help, consumer docs, focused
+  tests, and compatibility posture. Depth or analogy alone is not sufficient.
 - Do not add commands that bypass the sanctioned `./aos` control surface unless
   the lower-level adapter is the explicit subject.
 

@@ -37,8 +37,8 @@ their action routes currently fail closed because backend state/ref identity is
 not atomically provable. Canvas/native Locators are state-free and require
 exactly one current match.
 
-For the complete manifest-derived command inventory, including internal or
-transitional forms such as `dev` and `browser _check-version`, see
+For the complete manifest-derived command inventory, including internal forms
+such as `browser _check-version`, see
 `docs/dev/reports/aos-command-capability-inventory-v0.md`. That report is a
 development audit artifact, not a consumer API contract.
 
@@ -401,7 +401,8 @@ Do not vendor Playwright CLI skill content into AOS.
 Use the canonical action loop across desktop, native AX, canvas, and browser
 targets:
 
-1. Gate runtime with `./aos ready --json` or passive `./aos status --json`.
+1. Check runtime readiness with `./aos ready --json` or passive
+   `./aos status --json`.
 2. Capture with `./aos see capture ... --save --workspace <id> --mode som`.
 3. Inspect `./aos see refs --workspace <id> --json`.
 4. Prefer `ref:<snapshot-id>:<ref>` over prose or coordinates.

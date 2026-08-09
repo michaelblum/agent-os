@@ -249,17 +249,21 @@ test('README gives the public target types and inventories current grammar', asy
   assert.doesNotMatch(section, /`ax:<`/);
 });
 
-test('grand unification plan qualifies screen and AX target-model vocabulary', async () => {
+test('retired grand unification lineage routes readers to current authority', async () => {
   const plan = await text('docs/design/aos-grand-unification-plan.md');
+  const projection = JSON.parse(await text('docs/wiki/repo-docs-projection-v0.json'));
 
-  assert.match(plan, /`browser:<session>\/<ref>`: Playwright-backed DOM\/ARIA targets/);
-  assert.match(plan, /`canvas:<canvas-id>\/<ref>`: AOS canvas semantic targets/);
-  assert.match(plan, /Screen coordinate fallback: current CLI actions use raw `x,y` and reject\s+`--state-id`/);
-  assert.match(plan, /`screen:<state-id>\/<x,y>` remains target-model\/replay\s+vocabulary, not a current CLI target string/);
-  assert.match(plan, /Native AX: current CLI actions select elements through flags such as\s+`--pid` and `--role`/);
-  assert.match(plan, /`ax:<\.\.\.>` remains future first-class target-model\s+vocabulary, not a current CLI target string/);
-  assert.doesNotMatch(plan, /`screen:<state-id>\/<x,y>`: coordinate fallback with state guard/);
-  assert.doesNotMatch(plan, /`ax:<\.\.\.>`: future first-class macOS AX refs/);
+  assert.match(plan, /retired May 2026 implementation lineage; not the current roadmap/);
+  assert.match(plan, /former phase plan remains available in Git history/);
+  assert.match(plan, /`docs\/adr\/README\.md`/);
+  assert.match(plan, /`docs\/api\/aos\.md` and `docs\/api\/aos-capabilities\.md`/);
+  assert.match(plan, /Source command manifests and their generated artifacts own exact callable/);
+  assert.doesNotMatch(plan, /^## Implementation Phases$/m);
+  assert.doesNotMatch(plan, /^### Phase \d/m);
+  assert.equal(
+    projection.entries.some((entry) => entry.source_path === 'docs/design/aos-grand-unification-plan.md'),
+    false,
+  );
 });
 
 test('design target examples and subject audit preserve current boundaries', async () => {
