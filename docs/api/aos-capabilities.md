@@ -350,7 +350,7 @@ Status values:
 | App quit | first-class command | `aos do quit --pid <pid> [--dry-run]` | AppKit app lifecycle | Optional | Accessibility/TCC state | Sends graceful terminate request to exactly one running pid | Keep |
 | App hide/unhide | first-class command | `aos do hide --pid <pid> [--dry-run]` / `aos do unhide --pid <pid> [--dry-run]` | AppKit app lifecycle | Optional | Accessibility/TCC state | Pid-scoped app visibility, not Space switching | Keep |
 | Window list | first-class command | `aos graph windows [--display N]` | AOS display/window graph | Read-only | No special TCC in manifest | Lists visible graph state only | Keep |
-| Window focus | first-class command | `aos focus create --id <name> --window <wid>` | AOS focus channel | No | No special TCC in manifest | Tracks a window channel; not a raise command | Keep |
+| Window focus | first-class command | `aos focus create --id <name> --window <wid>` | Exact owner-bound AOS focus channel | No | Accessibility for native window channels | Requires one current layer-zero CG window and one exact AX window/subtree root; does not raise the window | Keep |
 | Window raise | first-class command | `aos do raise --pid <pid> [--window id] [--dry-run]` | native window control | Optional | Accessibility | May fail under Space/minimized constraints | Keep |
 | Window move | first-class command | `aos do move --pid <pid> --to <x,y> [--window id] [--dry-run]` | native window control | Optional | Accessibility | Requires current resolvable window | Keep |
 | Window resize | first-class command | `aos do resize --pid <pid> --to <w,h> [--window id] [--dry-run]` | native window control | Optional | Accessibility | Requires current resolvable window | Keep |
@@ -363,6 +363,12 @@ Status values:
 | Space detection | unsupported | none | macOS Space state unavailable in public AOS command | No | Accessibility/Screen Recording likely | Current Space identity is not stable public evidence | Design primitive first |
 | Space switching | deferred follow-up | none | key/native Mission Control likely | No | Accessibility/Input Monitoring | Mutates global desktop context | Design an exact primitive first |
 | Mission Control / app expose | unsupported | none | key/native Mission Control | No | Accessibility/Input Monitoring | Global UI mode, not a stable ref target | Keep unsupported unless a use case proves need |
+
+The combined `focus create` and `focus update` forms, plus channel
+`graph deepen`/`graph collapse`, conservatively declare
+`requires_permissions=true` because they can enter the native AX channel path.
+A `browser://` focus target still uses its separate browser registry and does
+not consume native Accessibility authority.
 | Native AX press | AX-backed command | `aos do press <ref> ... [--dry-run]` or `--pid --role ... [--dry-run]` | native AX | Optional | Accessibility | Current saved-handle implementation fails closed on missing identity, off-Space, minimized, or known-limit blockers | Keep |
 | Native AX focus | AX-backed command | `aos do focus <ref> ... [--dry-run]` or `--pid --role ... [--dry-run]` | native AX | Optional | Accessibility | Same native saved-handle known limits | Keep |
 | Native AX set-value | AX-backed command | `aos do set-value <ref> --value ... [--dry-run]` or `--pid --role ...` | native AX/canvas | Optional | Accessibility | Same native saved-handle known limits | Keep |

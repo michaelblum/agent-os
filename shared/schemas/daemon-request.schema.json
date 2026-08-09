@@ -230,11 +230,24 @@
     },
     "SeeCaptureWindowTarget": {
       "type": "object",
-      "required": ["display_id", "window_id"],
+      "required": ["display_id", "window_id", "owner_pid", "expected_bounds", "fallback"],
       "additionalProperties": false,
       "properties": {
         "display_id": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
-        "window_id": { "type": "integer", "minimum": 1, "maximum": 4294967295 }
+        "window_id": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
+        "owner_pid": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+        "expected_bounds": {
+          "type": "object",
+          "required": ["x", "y", "width", "height"],
+          "additionalProperties": false,
+          "properties": {
+            "x": { "type": "integer" },
+            "y": { "type": "integer" },
+            "width": { "type": "integer", "minimum": 10 },
+            "height": { "type": "integer", "minimum": 10 }
+          }
+        },
+        "fallback": { "type": "string", "enum": ["display", "none"] }
       }
     },
     "SeeCaptureData": {
@@ -463,7 +476,7 @@
         "id": { "type": "string", "minLength": 1 },
         "window_id": { "type": "integer" },
         "pid": { "type": "integer" },
-        "depth": { "type": "integer" },
+        "depth": { "type": "integer", "minimum": 0, "maximum": 15 },
         "subtree": { "$ref": "#/$defs/FocusSubtree" }
       },
       "additionalProperties": true
@@ -473,7 +486,7 @@
       "required": ["id"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
-        "depth": { "type": "integer" },
+        "depth": { "type": "integer", "minimum": 0, "maximum": 15 },
         "subtree": { "$ref": "#/$defs/FocusSubtree" }
       },
       "additionalProperties": true
@@ -498,7 +511,7 @@
       "required": ["id"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
-        "depth": { "type": "integer" },
+        "depth": { "type": "integer", "minimum": 0, "maximum": 15 },
         "subtree": { "$ref": "#/$defs/FocusSubtree" }
       },
       "additionalProperties": true
@@ -508,7 +521,7 @@
       "required": ["id"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
-        "depth": { "type": "integer" }
+        "depth": { "type": "integer", "minimum": 0, "maximum": 15 }
       },
       "additionalProperties": true
     }

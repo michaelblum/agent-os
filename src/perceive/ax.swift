@@ -131,6 +131,22 @@ func nativeAXWindowElement(_ element: AXUIElement) -> AXUIElement? {
     return nil
 }
 
+func nativeAXWindowElement(appPID: pid_t, windowID: Int) -> AXUIElement? {
+    let app = AXUIElementCreateApplication(appPID)
+    var windowsValue: AnyObject?
+    guard AXUIElementCopyAttributeValue(
+        app,
+        kAXWindowsAttribute as CFString,
+        &windowsValue
+    ) == .success,
+    let windows = windowsValue as? [AXUIElement] else {
+        return nil
+    }
+    let matches = windows.filter { axWindowID($0) == windowID }
+    guard matches.count == 1 else { return nil }
+    return matches[0]
+}
+
 func nativeAXWindowOnCurrentSpace(windowID: Int?) -> Bool? {
     guard let windowID else { return nil }
     guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else {
@@ -558,9 +574,18 @@ func traverseAXElements(
     contextPath: [String],
     depth: Int,
     maxDepth: Int,
+    windowScopeID: Int? = nil,
     results: inout [AXElementJSON]
 ) {
     guard depth < maxDepth else { return }
+
+    let observedWindowID = axWindowID(element)
+    if let windowScopeID,
+       let observedWindowID,
+       observedWindowID != windowScopeID {
+        return
+    }
+    let windowID = observedWindowID ?? windowScopeID
 
     let role = axString(element, kAXRoleAttribute) ?? ""
     let title = axString(element, kAXTitleAttribute)
@@ -580,7 +605,6 @@ func traverseAXElements(
 
     let enabled = axBool(element, kAXEnabledAttribute) ?? true
     let focused = axBool(element, kAXFocusedAttribute as String)
-    let windowID = axWindowID(element)
     let axIdentifier = axString(element, kAXIdentifierAttribute as String)
     let actionNames = nativeAXSavedActionNames(element)
     let focusCursorSpaceBaseline = nativeAXFocusCursorSpaceBaseline()
@@ -661,8 +685,37 @@ func traverseAXElements(
         traverseAXElements(child, appPID: appPID, appName: appName, permissionState: permissionState,
                           mapper: mapper, imageSize: imageSize,
                           contextPath: childPath, depth: depth + 1,
-                          maxDepth: maxDepth, results: &results)
+                          maxDepth: maxDepth, windowScopeID: windowScopeID,
+                          results: &results)
     }
+}
+
+func xrayWindow(
+    pid: pid_t,
+    appName: String,
+    windowID: Int,
+    mapper: CoordinateMapper,
+    imageSize: CGSize
+) -> [AXElementJSON]? {
+    guard let window = nativeAXWindowElement(appPID: pid, windowID: windowID) else {
+        return nil
+    }
+    var results: [AXElementJSON] = []
+    let permissionState = AXIsProcessTrusted() ? "granted" : "unknown"
+    traverseAXElements(
+        window,
+        appPID: pid,
+        appName: appName,
+        permissionState: permissionState,
+        mapper: mapper,
+        imageSize: imageSize,
+        contextPath: ["app:\(appName)", "window:\(windowID)"],
+        depth: 0,
+        maxDepth: 15,
+        windowScopeID: windowID,
+        results: &results
+    )
+    return results
 }
 
 /// Run --xray on a specific app by PID, returning elements in LCS coordinates.

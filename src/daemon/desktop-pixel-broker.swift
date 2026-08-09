@@ -58,6 +58,18 @@ enum AOSDesktopPixelCapturePolicy: Equatable {
     case publicExplicitExclusions
 }
 
+enum AOSDesktopPixelWindowFallback: String, Equatable {
+    case display
+    case none
+}
+
+struct AOSDesktopPixelWindowTarget: Equatable {
+    let windowID: Int
+    let ownerPID: Int
+    let expectedBounds: CGRect
+    let fallback: AOSDesktopPixelWindowFallback
+}
+
 func aosDesktopPixelRequestIsValid(
     _ request: AOSDesktopPixelSnapshotRequest
 ) -> Bool {
@@ -75,11 +87,27 @@ func aosDesktopPixelRequestIsValid(
             || request.displayLayout?.matches(displayIDs: request.displayIDs) == true,
           request.sizingPolicy != .exactWithinBudget
             || request.displayLayout != nil,
-          Set(request.windowIDsByDisplay.keys).isSubset(of: Set(request.displayIDs)),
-          request.windowIDsByDisplay.values.allSatisfy({ $0 > 0 }),
-          Set(request.windowIDsByDisplay.values).count == request.windowIDsByDisplay.count,
+          Set(request.windowTargetsByDisplay.keys).isSubset(of: Set(request.displayIDs)),
+          request.windowTargetsByDisplay.values.allSatisfy({ target in
+              target.windowID > 0
+                  && target.ownerPID > 0
+                  && !target.expectedBounds.isNull
+                  && !target.expectedBounds.isInfinite
+                  && target.expectedBounds == target.expectedBounds.integral
+                  && target.expectedBounds.origin.x.isFinite
+                  && target.expectedBounds.origin.y.isFinite
+                  && target.expectedBounds.width.isFinite
+                  && target.expectedBounds.height.isFinite
+                  && target.expectedBounds.width >= 10
+                  && target.expectedBounds.height >= 10
+          }),
+          Set(request.windowTargetsByDisplay.values.map(\.windowID)).count
+            == request.windowTargetsByDisplay.count,
+          Set(request.windowTargetsByDisplay.values.map(\.windowID)).isDisjoint(
+            with: Set(request.excludingWindowIDs)
+          ),
           request.capturePolicy == .publicExplicitExclusions
-            || (request.windowIDsByDisplay.isEmpty && !request.showsCursor) else {
+            || (request.windowTargetsByDisplay.isEmpty && !request.showsCursor) else {
         return false
     }
     switch request.capturePolicy {
@@ -93,6 +121,22 @@ func aosDesktopPixelRequestIsValid(
                   topology.displays.contains(where: {
                       $0.memberIdentity == selection.memberIdentity
                   })
+              }),
+              request.windowTargetsByDisplay.allSatisfy({ displayID, target in
+                  guard let geometry = request.displayLayout?.geometry(
+                    displayID: displayID
+                  ) else { return false }
+                  switch target.fallback {
+                  case .display:
+                      return geometry.nativePointBounds.contains(CGPoint(
+                        x: target.expectedBounds.midX,
+                        y: target.expectedBounds.midY
+                      ))
+                  case .none:
+                      return geometry.nativePointBounds.contains(
+                        target.expectedBounds
+                      )
+                  }
               }) else {
             return false
         }
@@ -206,7 +250,7 @@ struct AOSDesktopPixelSnapshotRequest: Equatable {
     let publicCaptureTopology: AOSDisplayTopologySnapshot?
     let showsCursor: Bool
     let sizingPolicy: AOSDesktopPixelSizingPolicy
-    let windowIDsByDisplay: [UInt32: Int]
+    let windowTargetsByDisplay: [UInt32: AOSDesktopPixelWindowTarget]
 
     init(
         displayIDs: [UInt32],
@@ -218,7 +262,7 @@ struct AOSDesktopPixelSnapshotRequest: Equatable {
         publicCaptureSelections: [AOSDisplayCaptureSelection] = [],
         publicCaptureTopology: AOSDisplayTopologySnapshot? = nil,
         showsCursor: Bool = false,
-        windowIDsByDisplay: [UInt32: Int] = [:]
+        windowTargetsByDisplay: [UInt32: AOSDesktopPixelWindowTarget] = [:]
     ) {
         self.capturePolicy = capturePolicy
         self.displayIDs = displayIDs
@@ -229,7 +273,7 @@ struct AOSDesktopPixelSnapshotRequest: Equatable {
         self.publicCaptureTopology = publicCaptureTopology
         self.showsCursor = showsCursor
         self.sizingPolicy = sizingPolicy
-        self.windowIDsByDisplay = windowIDsByDisplay
+        self.windowTargetsByDisplay = windowTargetsByDisplay
     }
 }
 

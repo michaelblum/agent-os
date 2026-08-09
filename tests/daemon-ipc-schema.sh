@@ -63,11 +63,25 @@ see_capture = {
     "shows_cursor": False,
 }
 
+window_target = {
+    "display_id": 42,
+    "window_id": 902,
+    "owner_pid": 7001,
+    "expected_bounds": {"x": 10, "y": 10, "width": 40, "height": 30},
+    "fallback": "display",
+}
+
 good_requests = [
     {"v":1,"service":"system","action":"ping","data":{}},
     {"v":1,"service":"see","action":"observe","data":{"depth":1,"scope":"cursor"}},
     {"v":1,"service":"see","action":"snapshot","data":{}},
     {"v":1,"service":"see","action":"capture","data":see_capture,"ref":see_capture["capture_id"]},
+    {"v":1,"service":"see","action":"capture","data":{**see_capture,"window_targets":[window_target]},"ref":see_capture["capture_id"]},
+    {"v":1,"service":"see","action":"capture","data":{**see_capture,"window_targets":[{**window_target,"fallback":"none"}]},"ref":see_capture["capture_id"]},
+    {"v":1,"service":"focus","action":"create","data":{"id":"work","window_id":902,"depth":0}},
+    {"v":1,"service":"focus","action":"update","data":{"id":"work","depth":15}},
+    {"v":1,"service":"graph","action":"deepen","data":{"id":"work","depth":15}},
+    {"v":1,"service":"graph","action":"collapse","data":{"id":"work","depth":0}},
     {"v":1,"service":"show","action":"create","data":{"id":"x","at":[0,0,10,10],"html":"<div/>"}},
     {"v":1,"service":"show","action":"create","data":{"id":"hit","at":[0,0,10,10],"window_level":"screen_saver","html":"<div/>"}},
     {"v":1,"service":"show","action":"create","data":{"id":"world","surface":"desktop-world","url":"aos://toolkit/components/surface-inspector/index.html"}},
@@ -112,6 +126,13 @@ bad_requests = [
     {"v":1,"service":"see","action":"capture","data":{k:v for k,v in see_capture.items() if k != "display_topology"}},  # canonical display topology is required
     {"v":1,"service":"see","action":"capture","data":{**see_capture,"topology_identity":"sha256:" + "a" * 64}},  # independent identity authority is forbidden
     {"v":1,"service":"see","action":"capture","data":{**see_capture,"path":"/private/capture.png"}},  # transport cannot accept artifact paths
+    {"v":1,"service":"see","action":"capture","data":{**see_capture,"window_targets":[{k:v for k,v in window_target.items() if k != "fallback"}]}},  # fallback policy is required
+    {"v":1,"service":"see","action":"capture","data":{**see_capture,"window_targets":[{**window_target,"fallback":"crop"}]}},  # fallback policy is closed
+    {"v":1,"service":"see","action":"capture","data":{**see_capture,"window_targets":[{**window_target,"expected_bounds":{**window_target["expected_bounds"],"x":10.2}}]}},  # expected bounds are canonical integers
+    {"v":1,"service":"focus","action":"create","data":{"id":"work","window_id":902,"depth":-1}},  # focus depth is non-negative
+    {"v":1,"service":"focus","action":"update","data":{"id":"work","depth":16}},  # focus depth is bounded
+    {"v":1,"service":"graph","action":"deepen","data":{"id":"work","depth":16}},  # graph depth is bounded
+    {"v":1,"service":"graph","action":"collapse","data":{"id":"work","depth":-1}},  # graph depth is non-negative
     {"v":1,"service":"status_item","action":"unknown","data":{}},  # status item action vocabulary is closed
     {"v":1,"service":"status_item","action":"register","data":{"descriptor":{**descriptor,"owner":"io..example"}}},  # runtime rejects dot-dot identifiers
     {"v":1,"service":"status_item","action":"update","data":{"owner":"io.example.app","item_id":"status","generation":7,"descriptor":{**descriptor,"revision":4}}},  # missing current revision

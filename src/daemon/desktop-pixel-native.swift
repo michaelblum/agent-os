@@ -55,7 +55,7 @@ private func aosDesktopPixelNativeError(
 struct AOSDesktopPixelStillDisplayOutcome {
     var displayFailure: AOSDesktopFrameCaptureFailure?
     var displayFrame: AOSDesktopPixelFrame?
-    let requestedWindowID: Int?
+    let windowTarget: AOSDesktopPixelWindowTarget?
     var windowFailure: AOSDesktopFrameCaptureFailure?
     var windowFrame: AOSDesktopPixelFrame?
 }
@@ -77,9 +77,11 @@ func aosResolveDesktopPixelStillOutcomes(
             failures.append(.captureFailed)
             continue
         }
-        if outcome.requestedWindowID != nil,
+        if outcome.windowTarget != nil,
            let windowFrame = outcome.windowFrame {
             frames.append(windowFrame)
+        } else if outcome.windowTarget.map(\.fallback) == .some(.none) {
+            failures.append(outcome.windowFailure ?? .captureFailed)
         } else if let displayFrame = outcome.displayFrame,
                   let image = displayFrame.image {
             frames.append(AOSDesktopPixelFrame(
@@ -87,7 +89,7 @@ func aosResolveDesktopPixelStillOutcomes(
                 displayID: displayID,
                 image: image,
                 source: .display,
-                usedWindowFallback: outcome.requestedWindowID != nil
+                usedWindowFallback: outcome.windowTarget != nil
             ))
         } else {
             failures.append(
@@ -99,6 +101,27 @@ func aosResolveDesktopPixelStillOutcomes(
     }
     if let failure = failures.first { return .failure(failure) }
     return .success(frames)
+}
+
+private func aosDesktopPixelWindowMatchesTarget(
+    _ window: SCWindow,
+    target: AOSDesktopPixelWindowTarget,
+    displayBounds: CGRect
+) -> Bool {
+    guard Int(window.windowID) == target.windowID,
+          Int(window.owningApplication?.processID ?? 0) == target.ownerPID,
+          window.frame.integral == target.expectedBounds.integral else {
+        return false
+    }
+    switch target.fallback {
+    case .display:
+        return displayBounds.contains(CGPoint(
+            x: window.frame.midX,
+            y: window.frame.midY
+        ))
+    case .none:
+        return displayBounds.contains(window.frame.integral)
+    }
 }
 
 private final class AOSDesktopPixelNativeTrace: @unchecked Sendable {
@@ -504,48 +527,57 @@ private final class AOSNativeDesktopPixelStillOperation:
                 ) else {
                     throw AOSDesktopFrameCaptureFailure.captureFailed
                 }
-                let requestedWindowID = request.windowIDsByDisplay[display.displayID]
+                let windowTarget = request.windowTargetsByDisplay[display.displayID]
                 outcomes[display.displayID] = AOSDesktopPixelStillDisplayOutcome(
                     displayFailure: nil,
                     displayFrame: nil,
-                    requestedWindowID: requestedWindowID,
+                    windowTarget: windowTarget,
                     windowFailure: nil,
                     windowFrame: nil
                 )
-                prepared.append(PreparedDisplayCapture(
-                    displayID: display.displayID,
-                    filter: displayFilter,
-                    height: profile.height,
-                    source: .display,
-                    width: profile.width
-                ))
-                if let windowID = requestedWindowID,
-                   !request.excludingWindowIDs.contains(windowID),
-                   let window = content.windows.first(where: {
-                              Int($0.windowID) == windowID
-                          }),
+                if windowTarget.map(\.fallback) != .some(.none) {
+                    prepared.append(PreparedDisplayCapture(
+                        displayID: display.displayID,
+                        filter: displayFilter,
+                        height: profile.height,
+                        source: .display,
+                        width: profile.width
+                    ))
+                }
+                let matchingWindows = windowTarget.map { target in
+                    content.windows.filter {
+                        Int($0.windowID) == target.windowID
+                    }
+                } ?? []
+                if let windowTarget,
+                   !request.excludingWindowIDs.contains(windowTarget.windowID),
+                   matchingWindows.count == 1,
+                   let window = matchingWindows.first,
                    let geometry = request.displayLayout?.geometry(
-                              displayID: display.displayID
-                          ),
-                   geometry.nativePointBounds.contains(CGPoint(
-                              x: window.frame.midX,
-                              y: window.frame.midY
-                          )),
+                       displayID: display.displayID
+                   ),
+                   aosDesktopPixelWindowMatchesTarget(
+                       window,
+                       target: windowTarget,
+                       displayBounds: geometry.nativePointBounds
+                   ),
                    let dimensions = AOSDesktopPixelDimensions(
-                              pointWidth: window.frame.width,
-                              pointHeight: window.frame.height,
-                              pointPixelScale: geometry.pointPixelScale
-                          ),
+                       pointWidth: windowTarget.expectedBounds.width,
+                       pointHeight: windowTarget.expectedBounds.height,
+                       pointPixelScale: geometry.pointPixelScale
+                   ),
                    dimensions.pixelCount.map({
-                              $0 <= request.maximumPixelsPerDisplay
-                          }) == true {
+                       $0 <= request.maximumPixelsPerDisplay
+                   }) == true {
                     prepared.append(PreparedDisplayCapture(
                         displayID: display.displayID,
                         filter: SCContentFilter(desktopIndependentWindow: window),
                         height: dimensions.height,
-                        source: .window(windowID),
+                        source: .window(windowTarget.windowID),
                         width: dimensions.width
                     ))
+                } else if windowTarget.map(\.fallback) == .some(.none) {
+                    throw AOSDesktopFrameCaptureFailure.topologyMismatch
                 }
             }
             lock.lock()

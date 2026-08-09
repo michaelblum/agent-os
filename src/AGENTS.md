@@ -32,10 +32,13 @@ needs, but public command policy and product UI policy belong above it:
   frozen member identity, complete native frame including origin, point size,
   and admitted filter scale. UUID-backed members bind through the current
   CoreGraphics display UUID; fallback members require the exact display ID.
-  Every returned full-display image must match that geometry before
-  crop or stitch. A requested window is preferred, but the same content
-  observation and broker transaction also admit a full-display fallback whose
-  projection is explicitly labeled and warned.
+  Every returned full-display image must match that geometry before crop or
+  stitch. Window targets are closed owner/bounds/display facts with an explicit
+  fallback policy. Ordinary best-effort window capture admits the preferred
+  window and a labeled full-display fallback from one content observation and
+  broker transaction. Exact focus-channel capture uses `fallback=none`, admits
+  only the matching direct window still, and prepares or streams no display
+  fallback bytes.
   Interactive capture may use the existing overlay only to obtain frozen
   display-local bounds, then must join this same validated region path without
   another screen enumeration or image-capture subprocess. Browser capture

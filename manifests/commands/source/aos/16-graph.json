@@ -76,7 +76,7 @@
               "id": "depth",
               "kind": "flag",
               "required": false,
-              "summary": "Depth increment",
+              "summary": "Target traversal depth from 0 through 15",
               "token": "--depth",
               "value_type": "int"
             },
@@ -113,7 +113,7 @@
             "interactive": false,
             "mutates_state": true,
             "read_only": false,
-            "requires_permissions": false,
+            "requires_permissions": true,
             "streaming": false,
             "supports_dry_run": false
           },
@@ -140,7 +140,7 @@
               "id": "depth",
               "kind": "flag",
               "required": false,
-              "summary": "Depth decrement",
+              "summary": "Target traversal depth from 0 through 15",
               "token": "--depth",
               "value_type": "int"
             }
@@ -153,7 +153,7 @@
             "interactive": false,
             "mutates_state": true,
             "read_only": false,
-            "requires_permissions": false,
+            "requires_permissions": true,
             "streaming": false,
             "supports_dry_run": false
           },

@@ -546,7 +546,14 @@ struct CaptureSurfaceSelection {
     let id: String?
     let globalBounds: CGRect
     let windowID: Int?
+    let windowPID: Int?
     let segments: [CaptureSurfaceSegmentSelection]
+}
+
+private struct ResolvedExactChannelCapture {
+    let plan: AOSExactChannelCapturePlan
+    let display: CaptureDisplayEntry
+    let window: CaptureWindowFact
 }
 
 struct CaptureSurfaceSegmentSelection {
@@ -746,6 +753,7 @@ func resolveCaptureSurface(opts: CaptureOptions, displays: [CaptureDisplayEntry]
             id: canvasID,
             globalBounds: bounds,
             windowID: canvas.windowNumbers?.first ?? canvas.anchorWindow,
+            windowPID: nil,
             segments: resolveSurfaceSegments(bounds, displays: displays)
         )
     }
@@ -763,7 +771,10 @@ func resolveCaptureSurface(opts: CaptureOptions, displays: [CaptureDisplayEntry]
             id: channelID,
             globalBounds: bounds,
             windowID: channel.target.window_id,
-            segments: resolveSurfaceSegments(bounds, displays: displays)
+            windowPID: channel.target.pid,
+            // Stored bounds are recency evidence only. Exact channel planning
+            // resolves current bounds and display membership before segments.
+            segments: []
         )
     }
     if let regionSpec = opts.region {
@@ -773,6 +784,7 @@ func resolveCaptureSurface(opts: CaptureOptions, displays: [CaptureDisplayEntry]
             id: nil,
             globalBounds: region,
             windowID: nil,
+            windowPID: nil,
             segments: resolveSurfaceSegments(region, displays: displays)
         )
     }
@@ -1058,7 +1070,7 @@ private func captureNativeFramesThroughDaemon(
     topology: AOSDisplayTopologySnapshot,
     selectedDisplayIDs: [CGDirectDisplayID],
     excludedWindowIDs: [Int],
-    windowIDsByDisplay: [CGDirectDisplayID: Int],
+    windowTargetsByDisplay: [CGDirectDisplayID: AOSDesktopPixelWindowTarget],
     showsCursor: Bool
 ) -> AOSPublicNativeCaptureResult {
     let selectedSet = Set(selectedDisplayIDs)
@@ -1095,11 +1107,19 @@ private func captureNativeFramesThroughDaemon(
             "topology_ordinal": display.ordinal,
         ]
     }
-    let windowWire = windowIDsByDisplay.map { displayID, windowID in
+    let windowWire = windowTargetsByDisplay.map { displayID, target in
         [
             "display_id": NSNumber(value: displayID),
-            "window_id": windowID,
-        ]
+            "window_id": target.windowID,
+            "owner_pid": target.ownerPID,
+            "expected_bounds": [
+                "x": target.expectedBounds.origin.x,
+                "y": target.expectedBounds.origin.y,
+                "width": target.expectedBounds.width,
+                "height": target.expectedBounds.height,
+            ],
+            "fallback": target.fallback.rawValue,
+        ] as [String: Any]
     }.sorted { left, right in
         let leftID = aosExactJSONUInt32(left["display_id"] as Any) ?? 0
         let rightID = aosExactJSONUInt32(right["display_id"] as Any) ?? 0
@@ -1246,8 +1266,10 @@ private func captureNativeFramesThroughDaemon(
               wire.height == image.height,
               aosPublicCaptureFrameMatchesRequestedWindow(
                 wire,
-                requestedWindowID: windowIDsByDisplay[displayID]
-              ) else {
+                requestedWindowID: windowTargetsByDisplay[displayID]?.windowID
+              ),
+              !(windowTargetsByDisplay[displayID].map(\.fallback) == .some(.none)
+                && wire.windowFallback) else {
             exitError("Capture digest or geometry failed", code: "CAPTURE_FAILED")
         }
         images[displayID] = image
@@ -2366,17 +2388,76 @@ func captureCommand(args: [String]) async {
             id: nil,
             globalBounds: globalBounds,
             windowID: nil,
+            windowPID: nil,
             segments: resolveSurfaceSegments(globalBounds, displays: displays)
         )
     }
 
-    let selectedCaptureDisplayIDs = (explicitSurface?.segments.map {
-        $0.display.cgID
-    } ?? targetDisplayIDs).reduce(into: [CGDirectDisplayID]()) { ordered, id in
+    var exactChannelCapture: ResolvedExactChannelCapture? = nil
+    if let surface = explicitSurface {
+        do {
+            if let plan = try aosExactChannelCapturePlan(
+                surface: AOSExactChannelCaptureSurface(
+                    kind: surface.kind,
+                    windowID: surface.windowID,
+                    ownerPID: surface.windowPID
+                ),
+                windows: captureWindows.map {
+                    AOSExactChannelCaptureWindow(
+                        windowID: $0.windowID,
+                        ownerPID: $0.owningApplication.map { Int($0.processID) },
+                        layer: $0.windowLayer,
+                        frame: $0.frame
+                    )
+                },
+                displays: displays.map {
+                    AOSExactChannelCaptureDisplay(
+                        displayID: $0.cgID,
+                        bounds: $0.bounds,
+                        scaleFactor: $0.scaleFactor,
+                        mirrored: $0.isMirrored
+                    )
+                }
+            ) {
+                guard let window = captureWindows.first(where: { $0.windowID == plan.windowID }),
+                      let display = displays.first(where: { $0.cgID == plan.displayID }) else {
+                    exitError("Exact channel window capture plan lost its observed target", code: "CAPTURE_TOPOLOGY_MISMATCH")
+                }
+                let resolvedSurface = CaptureSurfaceSelection(
+                    kind: surface.kind,
+                    id: surface.id,
+                    globalBounds: plan.globalBounds,
+                    windowID: plan.windowID,
+                    windowPID: plan.ownerPID,
+                    segments: resolveSurfaceSegments(plan.globalBounds, displays: displays)
+                )
+                explicitSurface = resolvedSurface
+                exactChannelCapture = ResolvedExactChannelCapture(
+                    plan: plan,
+                    display: display,
+                    window: window
+                )
+            }
+        } catch AOSExactChannelCapturePlanError.missingIdentity {
+            exitError("Channel is missing exact window identity", code: "CHANNEL_STALE")
+        } catch AOSExactChannelCapturePlanError.windowNotFound {
+            exitError("Channel window is no longer available", code: "WINDOW_NOT_FOUND")
+        } catch AOSExactChannelCapturePlanError.ownerMismatch {
+            exitError("Channel window owner changed", code: "CHANNEL_STALE")
+        } catch {
+            exitError("Channel window identity is not uniquely capturable", code: "CAPTURE_TOPOLOGY_MISMATCH")
+        }
+    }
+
+    let selectedCaptureDisplayIDs = (exactChannelCapture.map { [$0.display.cgID] }
+        ?? explicitSurface?.segments.map { $0.display.cgID }
+        ?? targetDisplayIDs).reduce(into: [CGDirectDisplayID]()) { ordered, id in
         if !ordered.contains(id) { ordered.append(id) }
     }
     var capturedWindowsByDisplay: [CGDirectDisplayID: CaptureWindowFact] = [:]
-    if opts.windowOnly {
+    if let exactChannelCapture {
+        capturedWindowsByDisplay[exactChannelCapture.display.cgID] = exactChannelCapture.window
+    } else if opts.windowOnly {
         for (index, displayID) in selectedCaptureDisplayIDs.enumerated() {
             guard let entry = displays.first(where: { $0.cgID == displayID }) else {
                 exitError("Capture display is absent from frozen topology", code: "CAPTURE_TOPOLOGY_MISMATCH")
@@ -2396,13 +2477,36 @@ func captureCommand(args: [String]) async {
             }
         }
     }
+    var windowTargetsByDisplay: [CGDirectDisplayID: AOSDesktopPixelWindowTarget] = [:]
+    for displayID in Array(capturedWindowsByDisplay.keys) {
+        guard let window = capturedWindowsByDisplay[displayID] else { continue }
+        guard let ownerPID = window.owningApplication.map({ Int($0.processID) }),
+              ownerPID > 0 else {
+            if exactChannelCapture != nil {
+                exitError("Exact channel window owner is unavailable", code: "CHANNEL_STALE")
+            }
+            capturedWindowsByDisplay.removeValue(forKey: displayID)
+            responseWarning = "Window capture was unavailable; returned the full display."
+            continue
+        }
+        windowTargetsByDisplay[displayID] = AOSDesktopPixelWindowTarget(
+            windowID: window.windowID,
+            ownerPID: ownerPID,
+            expectedBounds: window.frame.integral,
+            fallback: exactChannelCapture == nil ? .display : .none
+        )
+    }
     let nativeCapture = captureNativeFramesThroughDaemon(
         topology: displayTopologySnapshot,
         selectedDisplayIDs: selectedCaptureDisplayIDs,
         excludedWindowIDs: opts.excludedWindowIDs,
-        windowIDsByDisplay: capturedWindowsByDisplay.mapValues(\.windowID),
+        windowTargetsByDisplay: windowTargetsByDisplay,
         showsCursor: opts.showCursor
     )
+    if let exactChannelCapture,
+       nativeCapture.usedDisplayFallback.contains(exactChannelCapture.display.cgID) {
+        exitError("Exact channel window pixels were unavailable", code: "CAPTURE_FAILED")
+    }
     for displayID in nativeCapture.usedDisplayFallback {
         capturedWindowsByDisplay.removeValue(forKey: displayID)
         responseWarning = "Window capture was unavailable; returned the full display."
@@ -2425,27 +2529,40 @@ func captureCommand(args: [String]) async {
     var responsePerceptions: [CapturePerceptionJSON] = []
 
     if let surface = explicitSurface {
-        let captureScale = max(surface.segments.map { $0.display.scaleFactor }.max() ?? 1.0, 1.0)
-        let stitchedRect = CGRect(
-            x: 0,
-            y: 0,
-            width: surface.globalBounds.width * captureScale,
-            height: surface.globalBounds.height * captureScale
-        ).integral
-
-        var capturedSegments: [CapturedSurfaceSegment] = []
-        for segment in surface.segments {
-            guard let displayImage = nativeImages[segment.display.cgID] else {
-                exitError("Display capture is incomplete", code: "CAPTURE_FAILED")
+        let captureScale = exactChannelCapture?.plan.captureScaleFactor
+            ?? max(surface.segments.map { $0.display.scaleFactor }.max() ?? 1.0, 1.0)
+        var image: CGImage
+        if let exactChannelCapture {
+            guard let windowImage = nativeImages[exactChannelCapture.display.cgID] else {
+                exitError("Exact channel window capture is incomplete", code: "CAPTURE_FAILED")
             }
+            let expectedWidth = Int((surface.globalBounds.width * captureScale).rounded())
+            let expectedHeight = Int((surface.globalBounds.height * captureScale).rounded())
+            guard windowImage.width == expectedWidth,
+                  windowImage.height == expectedHeight else {
+                exitError("Exact channel window geometry disagrees with the captured frame", code: "CAPTURE_TOPOLOGY_MISMATCH")
+            }
+            image = windowImage
+        } else {
+            let stitchedRect = CGRect(
+                x: 0,
+                y: 0,
+                width: surface.globalBounds.width * captureScale,
+                height: surface.globalBounds.height * captureScale
+            ).integral
+            var capturedSegments: [CapturedSurfaceSegment] = []
+            for segment in surface.segments {
+                guard let displayImage = nativeImages[segment.display.cgID] else {
+                    exitError("Display capture is incomplete", code: "CAPTURE_FAILED")
+                }
 
-            let pixelRect = capturePixelRect(globalRect: segment.globalBounds, in: segment.display)
-            let cropped = cropImage(displayImage, to: pixelRect)
-            let localRect = captureLocalRect(globalRect: segment.globalBounds, within: surface.globalBounds, scaleFactor: captureScale)
-            capturedSegments.append(CapturedSurfaceSegment(segment: segment, image: cropped, localRect: localRect))
+                let pixelRect = capturePixelRect(globalRect: segment.globalBounds, in: segment.display)
+                let cropped = cropImage(displayImage, to: pixelRect)
+                let localRect = captureLocalRect(globalRect: segment.globalBounds, within: surface.globalBounds, scaleFactor: captureScale)
+                capturedSegments.append(CapturedSurfaceSegment(segment: segment, image: cropped, localRect: localRect))
+            }
+            image = stitchSurfaceSegments(capturedSegments, canvasSize: stitchedRect.size)
         }
-
-        var image = stitchSurfaceSegments(capturedSegments, canvasSize: stitchedRect.size)
         if opts.interactive {
             interactiveBounds = BoundsJSON(x: 0, y: 0, width: image.width, height: image.height)
         }
@@ -2496,7 +2613,18 @@ func captureCommand(args: [String]) async {
         }
 
         if opts.xray {
-            if let windowID = surface.windowID,
+            if let exactChannelCapture {
+                guard let elements = xrayWindow(
+                    pid: pid_t(exactChannelCapture.plan.ownerPID),
+                    appName: exactChannelCapture.window.owningApplication?.applicationName ?? "",
+                    windowID: exactChannelCapture.plan.windowID,
+                    mapper: mapper,
+                    imageSize: imageSize
+                ) else {
+                    exitError("Exact channel AX window is unavailable", code: "WINDOW_NOT_FOUND")
+                }
+                responseElements = elements
+            } else if let windowID = surface.windowID,
                let ownerApp = captureWindows.first(where: { $0.windowID == windowID })?.owningApplication {
                 responseElements = xrayApp(
                     pid: ownerApp.processID,
@@ -2686,6 +2814,7 @@ func captureCommand(args: [String]) async {
                         id: nil,
                         globalBounds: sw.frame.integral,
                         windowID: Int(sw.windowID),
+                        windowPID: sw.owningApplication.map { Int($0.processID) },
                         segments: [CaptureSurfaceSegmentSelection(display: entry, globalBounds: sw.frame.integral)]
                     )
                 }
@@ -2694,6 +2823,7 @@ func captureCommand(args: [String]) async {
                     id: opts.target == "all" ? "display-\(entry.ordinal)" : opts.target,
                     globalBounds: captureRect,
                     windowID: nil,
+                    windowPID: nil,
                     segments: [CaptureSurfaceSegmentSelection(display: entry, globalBounds: captureRect)]
                 )
             }()

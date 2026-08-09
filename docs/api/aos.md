@@ -1134,6 +1134,18 @@ Useful capture modifiers include:
 - `--exclude-window <CGWindowID>` to omit specific windows from a display/region capture
 - `--perception` to attach spatial metadata alongside the image payload
 
+Ordinary `--window` capture is best effort: it requests a direct window still
+and may return the containing display with an explicit warning and
+`window_fallback` metadata if the window source is unavailable. A native
+`--channel` capture is exact instead. It re-resolves one current layer-zero
+window with the channel's window ID and owner PID, requires its full live bounds
+to fit one non-mirrored display, and sends the daemon an owner/bounds-bound
+`fallback=none` target. The daemon prepares only the direct window still; it
+does not capture or stream display fallback bytes. Missing, duplicated, moved,
+owner-changed, cross-display, or failed exact targets fail closed. Cross-display
+and compound-window exact capture remain separate future contracts rather than
+implicit stitching or fallback behavior.
+
 Capture responses include an opaque `state_id` such as `see_abc123def456`.
 Work-record and recipe layers can carry that id into the next action as the
 perception state the agent acted from. The id is a correlation handle, not a
@@ -1163,7 +1175,11 @@ resolve the element explicitly under the cursor.
 `--xray` returns raw visible bounded AX elements in `elements`; the daemon does
 not role-whitelist them into an "interactive" vocabulary. Display, region, and
 surface captures traverse visible app windows that intersect the captured region;
-window captures stay scoped to the captured window owner. For AOS-owned canvas
+ordinary window captures stay scoped to the captured window owner. Exact native
+channel capture resolves exactly one AX window root, traverses only that root,
+inherits its proven window ID for unattributed descendants, and prunes foreign
+non-null window IDs. Focus-channel create/refresh also fails without that exact
+owner/root/subtree evidence instead of publishing a freshly empty channel. For AOS-owned canvas
 captures, `aos see capture --canvas <id> --xray` also runs a fixed semantic
 target probe inside that canvas and returns `semantic_targets`. Those entries
 use the current emitted fields `ref`, `surface`, `role`, `name`, `kind`,
