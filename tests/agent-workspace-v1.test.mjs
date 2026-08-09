@@ -20,6 +20,10 @@ import {
 import { resolveReviewedObservationRuntime } from '../scripts/lib/playwright-cli-runtime.mjs';
 
 const repo = path.resolve(new URL('..', import.meta.url).pathname);
+const displayTopologyFixture = JSON.parse(fs.readFileSync(path.join(
+  repo,
+  'shared/schemas/fixtures/display-topology-v1/valid/uuid-members.json',
+), 'utf8'));
 
 function root() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'aos-workspace-v1-'));
@@ -45,16 +49,45 @@ from referencing import Registry, Resource
 
 schema = json.loads(Path(sys.argv[1]).read_text())
 handle_schema = json.loads(Path(sys.argv[2]).read_text())
-instance = json.loads(Path(sys.argv[3]).read_text())
-registry = Registry().with_resource(handle_schema["$id"], Resource.from_contents(handle_schema))
+topology_schema = json.loads(Path(sys.argv[3]).read_text())
+instance = json.loads(Path(sys.argv[4]).read_text())
+registry = Registry()
+for dependency in (handle_schema, topology_schema):
+    registry = registry.with_resource(dependency["$id"], Resource.from_contents(dependency))
 sys.exit(0 if Draft202012Validator(schema, registry=registry).is_valid(instance) else 1)
 `,
     path.join(repo, 'shared/schemas/aos-agent-workspace-v1.schema.json'),
     path.join(repo, 'shared/schemas/aos-target-handle-v1.schema.json'),
+    path.join(repo, 'shared/schemas/display-topology-v1.schema.json'),
     file,
   ], { cwd: repo, encoding: 'utf8' });
   return result.status === 0;
 }
+
+test('compact V1 summaries validate optional display topology exactly', () => {
+  const state = root();
+  try {
+    const summary = {
+      status: 'success',
+      schema_version: 'aos.agent-workspace.v1',
+      workspace_id: 'default',
+      snapshot_id: 'snap1',
+      refs: [],
+      display_topology: structuredClone(displayTopologyFixture),
+    };
+    const validFile = path.join(state, 'summary-valid.json');
+    writeJSON(validFile, summary);
+    assert.equal(workspaceSchemaAccepts(validFile), true);
+
+    const invalidFile = path.join(state, 'summary-invalid.json');
+    const invalid = structuredClone(summary);
+    invalid.display_topology.identity = 7;
+    writeJSON(invalidFile, invalid);
+    assert.equal(workspaceSchemaAccepts(invalidFile), false);
+  } finally {
+    fs.rmSync(state, { recursive: true, force: true });
+  }
+});
 
 function fakePlaywrightRuntime(state, name, script, version = '0.1.15') {
   const dir = path.join(state, name, 'node_modules', '@playwright', 'cli');

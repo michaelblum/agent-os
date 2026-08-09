@@ -206,6 +206,7 @@
         "schema_version": { "$ref": "#/$defs/schema_version" },
         "workspace_id": { "$ref": "#/$defs/local_id" },
         "snapshot_id": { "$ref": "#/$defs/local_id" },
+        "display_topology": { "$ref": "display-topology-v1.schema.json" },
         "refs": { "type": "array", "items": { "$ref": "#/$defs/ref_summary" } }
       }
     },

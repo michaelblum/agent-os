@@ -15,6 +15,16 @@ const json = (file) => JSON.parse(text(file))
 assert.equal(AGENT_WORKSPACE_SCHEMA_VERSION, 'aos.agent-workspace.v1')
 assert.equal(json('shared/schemas/aos-agent-workspace-v1.schema.json').$defs.schema_version.const, AGENT_WORKSPACE_SCHEMA_VERSION)
 assert.equal(json('shared/schemas/aos-agent-workspace-v0.schema.json').$defs.schema_version.const, 'aos.agent-workspace.v0')
+assert.equal(
+  json('shared/schemas/aos-agent-workspace-v1.schema.json').$defs.summary.properties.display_topology.$ref,
+  'display-topology-v1.schema.json',
+)
+
+const activeFixtureHelper = text('tests/lib/agent-workspace-fixtures/common.sh')
+assert.match(activeFixtureHelper, /aos-agent-workspace-v1\.schema\.json/)
+assert.doesNotMatch(activeFixtureHelper, /aos-agent-workspace-v0\.schema\.json/)
+assert.match(activeFixtureHelper, /aos-target-handle-v1\.schema\.json/)
+assert.match(activeFixtureHelper, /display-topology-v1\.schema\.json/)
 
 const target = json('shared/schemas/aos-target-handle-v1.schema.json')
 assert.deepEqual(target.oneOf.map((entry) => entry.$ref), [
