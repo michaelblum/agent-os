@@ -20,6 +20,7 @@ import {
   materializeReplacementWorkRecord,
 } from './work-record-replacement-writer.js';
 import {
+  WORK_RECORD_SOURCE_SUPERSESSION_INDEX_SCHEMA_VERSION,
   lookupWorkRecordSourceSupersession,
   validateWorkRecordSourceSupersessionEntry,
   writeWorkRecordSourceSupersessionIndex,
@@ -30,12 +31,14 @@ import {
 import {
   workRecordReadRecommendation,
   workRecordSupersessionLookupRecommendation,
-  workRecordSupersessionWriteRecommendation,
 } from './work-record-command-recommendation.js';
+import {
+  readTextFileNoFollow,
+} from './work-record-atomic-publish.js';
 
-export const WORK_RECORD_REPAIR_FINALIZATION_RESULT_SCHEMA_VERSION = '2026-07-work-record-repair-finalization-result-v0';
+export const WORK_RECORD_REPAIR_FINALIZATION_RESULT_SCHEMA_VERSION = '2026-08-work-record-repair-finalization-result-v1';
 export const WORK_RECORD_REPAIR_FINALIZATION_RESULT_TYPE = 'work_record.repair_finalization_result';
-export const WORK_RECORD_REPAIR_FINALIZER_IMPLEMENTATION_VERSION = '2026-07-work-record-repair-finalizer-v0';
+export const WORK_RECORD_REPAIR_FINALIZER_IMPLEMENTATION_VERSION = '2026-08-work-record-repair-finalizer-v1';
 
 export const WORK_RECORD_REPAIR_FINALIZATION_STATUSES = [
   'dry_run',
@@ -78,6 +81,29 @@ function arrayValue(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function readPinnedJsonFile(file = '', boundaryRoot = '', expectedIdentity = null) {
+  const read = readTextFileNoFollow(file, {
+    boundaryRoot,
+    expectedIdentity,
+  });
+  if (read.status !== 'readable') {
+    return {
+      path: file,
+      digest: '',
+      error: read.error || new Error(`Path identity is not safely readable (${read.status}).`),
+    };
+  }
+  try {
+    return {
+      path: file,
+      digest: read.existing_digest,
+      value: JSON.parse(read.bytes),
+    };
+  } catch (error) {
+    return { path: file, digest: read.existing_digest, error };
+  }
+}
+
 function cloneJson(value) {
   if (value === undefined) return undefined;
   return JSON.parse(JSON.stringify(value));
@@ -86,16 +112,33 @@ function cloneJson(value) {
 function readJsonFile(file = '') {
   const resolved = path.resolve(file);
   try {
+    const bytes = fs.readFileSync(resolved);
     return {
       path: resolved,
-      value: JSON.parse(fs.readFileSync(resolved, 'utf8')),
-      digest: fileDigest(resolved),
+      value: JSON.parse(bytes.toString('utf8')),
+      digest: crypto.createHash('sha256').update(bytes).digest('hex'),
     };
   } catch (error) {
     return {
       path: resolved,
       error,
       digest: '',
+    };
+  }
+}
+
+function readFileDigest(file = '') {
+  const resolved = path.resolve(file);
+  try {
+    return {
+      path: resolved,
+      digest: fileDigest(resolved),
+    };
+  } catch (error) {
+    return {
+      path: resolved,
+      digest: '',
+      error,
     };
   }
 }
@@ -107,8 +150,8 @@ function fileDigest(file) {
 function sourceIdentityFromRead(sourceRef = '', sourceRead = {}, digest = '') {
   return {
     id: text(sourceRead.record?.id || sourceRead.summary?.id),
-    path: text(sourceRead.source?.path),
-    requested_ref: text(sourceRef),
+    path: rawText(sourceRead.source?.path),
+    requested_ref: rawText(sourceRef),
     schema_version: text(sourceRead.record?.schema_version || sourceRead.summary?.schema_version),
     digest: text(digest),
     digest_algorithm: 'sha256',
@@ -152,7 +195,43 @@ function sideEffects({ writer = {}, supersession = {} } = {}) {
   ];
 }
 
+function hasPublicationReceipt(atomicWrite = {}) {
+  const receipt = objectValue(atomicWrite);
+  return receipt.temp_file_leftover === true || receipt.destination_file_leftover === true;
+}
+
+function supersessionPublicationReceipt(result = {}) {
+  const supersession = objectValue(result);
+  if (!hasPublicationReceipt(supersession.atomic_write)) return null;
+  return {
+    action: 'inspect_supersession_publication_receipt',
+    temp_file: rawText(supersession.atomic_write.temp_file),
+    index_path: rawText(supersession.output?.index_path),
+    temp_file_leftover: supersession.atomic_write.temp_file_leftover === true,
+    destination_file_leftover: supersession.atomic_write.destination_file_leftover === true,
+    content_scrubbed: supersession.atomic_write.content_scrubbed === true,
+  };
+}
+
+function replacementPublicationReceipt(result = {}) {
+  const writer = objectValue(result);
+  if (!hasPublicationReceipt(writer.atomic_write)) return null;
+  return {
+    action: 'inspect_replacement_publication_receipt',
+    temp_file: rawText(writer.atomic_write.temp_file),
+    replacement_path: rawText(writer.output?.output_path),
+    temp_file_leftover: writer.atomic_write.temp_file_leftover === true,
+    destination_file_leftover: writer.atomic_write.destination_file_leftover === true,
+    content_scrubbed: writer.atomic_write.content_scrubbed === true,
+  };
+}
+
 function recoveryGuidance(status = '', result = {}) {
+  const supersession = objectValue(result.supersession_index_result);
+  const writer = objectValue(result.replacement_writer_result);
+  const supersessionReceipt = supersessionPublicationReceipt(supersession);
+  const writerReceipt = replacementPublicationReceipt(writer);
+  const publicationReceipts = [supersessionReceipt, writerReceipt].filter(Boolean);
   if (status === 'finalized' || status === 'already_finalized') {
     const lookupRecommendation = workRecordSupersessionLookupRecommendation(
       result.source_work_record?.id || result.source_work_record?.path,
@@ -164,7 +243,9 @@ function recoveryGuidance(status = '', result = {}) {
     );
     return {
       action: 'lookup_or_read_replacement',
+      publication_receipts: publicationReceipts.map(cloneJson),
       recommendations: [
+        ...publicationReceipts.map(cloneJson),
         {
           action: 'lookup_source_supersession_entry',
           argv: lookupRecommendation.argv,
@@ -183,20 +264,45 @@ function recoveryGuidance(status = '', result = {}) {
       action: 'rerun_without_dry_run_to_finalize',
     };
   }
-  if (status === 'partial_finalized') {
-    const writeRecommendation = workRecordSupersessionWriteRecommendation({
-      source: result.source_work_record?.id || result.source_work_record?.path,
-      replacement: result.replacement_writer_result?.output?.output_path,
-      indexRoot: result.supersession_index_result?.output?.index_root,
-      replacementRoot: result.replacement_writer_result?.output?.output_root,
-    });
+  if (supersessionReceipt) {
     return {
-      action: 'recover_by_writing_supersession_index',
-      recommendations: [{
-        action: 'write_source_supersession_entry',
-        argv: writeRecommendation.argv,
-        command_hint: writeRecommendation.command_hint,
-      }],
+      ...supersessionReceipt,
+      recommendations: [cloneJson(objectValue(supersession.recommended_next))],
+    };
+  }
+  if (writerReceipt) {
+    return {
+      ...writerReceipt,
+      recommendations: [cloneJson(objectValue(writer.recommended_next))],
+    };
+  }
+  if (status === 'partial_finalized') {
+    if (supersession.atomic_write?.published === true) {
+      return {
+        action: 'inspect_published_finalization_state',
+        published_index_path: rawText(supersession.output?.index_path),
+        published_replacement_path: rawText(writer.output?.output_path),
+        recommendations: [cloneJson(objectValue(supersession.recommended_next))],
+      };
+    }
+    if (['written', 'already_exists'].includes(text(writer.status))) {
+      return {
+        action: 'persist_writer_result_then_write_supersession',
+        required_input: {
+          id: 'writer_result_path',
+          source: 'replacement_writer_result',
+          accepted_statuses: ['written', 'already_exists'],
+        },
+        source: rawText(result.source_work_record?.requested_ref || result.source_work_record?.path),
+        replacement: rawText(writer.output?.output_path),
+        index_root: rawText(supersession.output?.index_root),
+        replacement_root: rawText(writer.output?.output_root),
+        recommendations: [],
+      };
+    }
+    return {
+      action: 'inspect_finalization_diagnostics',
+      recommendations: [],
     };
   }
   return {
@@ -234,12 +340,13 @@ function baseResult({
     status,
     mode,
     dry_run: mode === 'dry_run',
-    writes_replacement_record: ['written', 'already_exists'].includes(text(writerResult.status)),
-    writes_supersession_index_entry: ['written', 'already_exists'].includes(text(supersessionResult.status)),
-    wrote_replacement_record: text(writerResult.status) === 'written',
+    writes_replacement_record: writerResult.writes_replacement_record === true || ['written', 'already_exists'].includes(text(writerResult.status)),
+    writes_supersession_index_entry: supersessionResult.writes_index_entry === true || ['written', 'already_exists'].includes(text(supersessionResult.status)),
+    wrote_replacement_record: text(writerResult.status) === 'written' || writerResult.atomic_write?.published === true,
     replacement_record_already_existed: text(writerResult.status) === 'already_exists',
     would_write_replacement_record: text(writerResult.status) === 'dry_run' && writerResult.idempotency?.existing !== true,
-    wrote_supersession_index_entry: text(supersessionResult.status) === 'written',
+    wrote_supersession_index_entry: text(supersessionResult.status) === 'written'
+      || supersessionResult.atomic_write?.published === true,
     supersession_index_entry_already_existed: text(supersessionResult.status) === 'already_exists',
     would_write_supersession_index_entry: text(supersessionResult.status) === 'dry_run' && supersessionResult.idempotency?.existing !== true,
     source_work_record: {
@@ -249,7 +356,7 @@ function baseResult({
       immutable: text(source.digest) && text(sourceDigestAfter, text(source.digest)) === text(source.digest),
     },
     repair_attempt_plan: {
-      path: text(attemptPlanPath),
+      path: rawText(attemptPlanPath),
       type: text(attemptPlan.type),
       schema_version: text(attemptPlan.schema_version),
       status: text(attemptPlan.status),
@@ -257,7 +364,7 @@ function baseResult({
       validation: attemptPlanValidation ? cloneJson(attemptPlanValidation) : null,
     },
     repair_attempt_artifact: {
-      path: text(attemptArtifactPath),
+      path: rawText(attemptArtifactPath),
       type: text(attemptArtifact.type),
       schema_version: text(attemptArtifact.schema_version),
       status: text(attemptArtifact.status),
@@ -288,7 +395,6 @@ function baseResult({
     uses_canvas: false,
     applies_patches: false,
     mutates_source_record: false,
-    automatic_replay_allowed: false,
     diagnostics,
   };
   result.recovery = recoveryGuidance(status, result);
@@ -314,7 +420,7 @@ export function finalizeWorkRecordRepair({
     return baseResult({
       status: 'blocked_invalid_source',
       mode,
-      source: { requested_ref: text(sourceRef) },
+      source: { requested_ref: rawText(sourceRef) },
       diagnostics: arrayValue(sourceRead.diagnostics).length > 0 ? sourceRead.diagnostics : [{
         severity: 'error',
         code: 'REPAIR_FINALIZATION_SOURCE_READ_FAILED',
@@ -323,8 +429,27 @@ export function finalizeWorkRecordRepair({
       }],
     });
   }
-  const sourcePath = text(sourceRead.source?.path);
-  const sourceDigestBefore = sourcePath && fs.existsSync(sourcePath) ? fileDigest(sourcePath) : digestJson(sourceRead.record);
+  const sourcePath = rawText(sourceRead.source?.path);
+  const sourceDigestReadBefore = sourcePath
+    ? readFileDigest(sourcePath)
+    : { path: '', digest: digestJson(sourceRead.record) };
+  if (sourceDigestReadBefore.error) {
+    return baseResult({
+      status: 'blocked_invalid_source',
+      mode,
+      source: {
+        requested_ref: rawText(sourceRef),
+        path: sourcePath,
+      },
+      diagnostics: [{
+        severity: 'error',
+        code: 'REPAIR_FINALIZATION_SOURCE_DIGEST_READ_FAILED',
+        message: `Source Work Record digest could not be read: ${sourceDigestReadBefore.error.message}`,
+        path: 'source_work_record.path',
+      }],
+    });
+  }
+  const sourceDigestBefore = sourceDigestReadBefore.digest;
   const source = sourceIdentityFromRead(sourceRef, sourceRead, sourceDigestBefore);
 
   const attemptPlanRead = readJsonFile(attemptPlanPath);
@@ -396,7 +521,31 @@ export function finalizeWorkRecordRepair({
     });
   }
 
-  const sourceDigestAfterProposalRead = sourcePath && fs.existsSync(sourcePath) ? fileDigest(sourcePath) : sourceDigestBefore;
+  const sourceDigestAfterProposal = sourcePath
+    ? readFileDigest(sourcePath)
+    : { path: '', digest: sourceDigestBefore };
+  if (sourceDigestAfterProposal.error) {
+    return baseResult({
+      status: 'blocked_source_mutated',
+      mode,
+      source,
+      attemptPlan,
+      attemptPlanPath: attemptPlanRead.path,
+      attemptPlanDigest,
+      attemptPlanValidation,
+      attemptArtifact,
+      attemptArtifactPath: attemptArtifactRead.path,
+      attemptArtifactDigest,
+      attemptArtifactValidation,
+      diagnostics: [{
+        severity: 'error',
+        code: 'REPAIR_FINALIZATION_SOURCE_DIGEST_READBACK_FAILED',
+        message: `Source Work Record digest readback failed before proposal construction: ${sourceDigestAfterProposal.error.message}`,
+        path: 'source_work_record.path',
+      }],
+    });
+  }
+  const sourceDigestAfterProposalRead = sourceDigestAfterProposal.digest;
   const proposal = buildWorkRecordReplacementProposal({
     source_work_record: {
       ...sourceRead.summary,
@@ -442,11 +591,11 @@ export function finalizeWorkRecordRepair({
   const supersessionPlan = writerPlan.status === 'dry_run'
     ? planWorkRecordSourceSupersessionFromRecords({
       sourceRef,
-      replacementRef: text(writerPlan.output?.output_path),
+      replacementRef: rawText(writerPlan.output?.output_path),
       sourceRecord: sourceRead.record,
       replacementRecord,
       sourcePath,
-      replacementPath: text(writerPlan.output?.output_path),
+      replacementPath: rawText(writerPlan.output?.output_path),
       indexRoot,
       sourceRoots: roots,
       replacementRoots: [replacementRoot],
@@ -540,7 +689,7 @@ export function finalizeWorkRecordRepair({
   });
   if (!['written', 'already_exists'].includes(text(writerResult.status))) {
     return baseResult({
-      status: finalStatusFromWriter(text(writerResult.status)),
+      status: writerResult.writes_replacement_record === true ? 'partial_finalized' : finalStatusFromWriter(text(writerResult.status)),
       mode,
       source,
       sourceDigestAfter: sourceDigestAfterProposalRead,
@@ -587,20 +736,82 @@ export function finalizeWorkRecordRepair({
     });
   }
 
-  const supersessionResult = writeWorkRecordSourceSupersessionIndex({
-    sourceRef,
-    replacementRef: replacementPath,
-    indexRoot,
-    sourceRoots: roots,
-    replacementRoots: [replacementRoot],
-    writerResult,
-    dryRun: false,
-    repoRoot,
-  });
-  const sourceDigestAfter = sourcePath && fs.existsSync(sourcePath) ? fileDigest(sourcePath) : sourceDigestBefore;
+  let supersessionResult;
+  try {
+    supersessionResult = writeWorkRecordSourceSupersessionIndex({
+      sourceRef,
+      replacementRef: replacementPath,
+      indexRoot,
+      sourceRoots: roots,
+      replacementRoots: [replacementRoot],
+      writerResult,
+      dryRun: false,
+      repoRoot,
+    });
+  } catch (error) {
+    supersessionResult = {
+      type: 'work_record.source_supersession_index_writer_result',
+      schema_version: WORK_RECORD_SOURCE_SUPERSESSION_INDEX_SCHEMA_VERSION,
+      status: 'blocked_write_failed',
+      mode: 'write',
+      index_writer_result: {
+        status: 'blocked_write_failed',
+        index_root: rawText(indexRoot),
+        index_path: '',
+        relationship: 'superseded_by',
+      },
+      source_work_record: cloneJson(source),
+      replacement_work_record: cloneJson(writerResult.written_replacement_work_record),
+      output: {
+        index_root: rawText(indexRoot),
+        index_path: '',
+        deterministic_filename: 'active.json',
+        digest: '',
+      },
+      atomic_write: {
+        published: false,
+      },
+      side_effects: [],
+      writes_index_entry: false,
+      would_write_index_entry: false,
+      mutates_source_record: false,
+      mutates_replacement_record: false,
+      executes_repair: false,
+      executes_actions: false,
+      applies_patches: false,
+      diagnostics: [{
+        severity: 'error',
+        code: 'REPAIR_FINALIZATION_SUPERSESSION_WRITE_FAILED',
+        message: `Source Supersession planning or write failed after replacement publication: ${error.message}`,
+        path: 'supersession_index_result',
+      }],
+      recommended_next: {
+        action: 'inspect_index_writer_diagnostics',
+      },
+    };
+  }
+  const sourceDigestReadAfter = sourcePath
+    ? readFileDigest(sourcePath)
+    : { path: '', digest: sourceDigestBefore };
+  const sourceDigestAfter = text(sourceDigestReadAfter.digest);
+  const sourceReadbackDiagnostics = sourceDigestReadAfter.error ? [{
+    severity: 'error',
+    code: 'REPAIR_FINALIZATION_SOURCE_READBACK_FAILED',
+    message: `Source Work Record digest readback failed after publication: ${sourceDigestReadAfter.error.message}`,
+    path: 'source_work_record.path',
+  }] : [];
   if (!['written', 'already_exists'].includes(text(supersessionResult.status))) {
+    const supersessionPublished = supersessionResult.atomic_write?.published === true;
+    const replacementReadbackAfterFailure = supersessionPublished
+      ? readWorkRecord(replacementPath, {
+        roots: [replacementRoot],
+        repoRoot,
+      })
+      : replacementRead;
     return baseResult({
-      status: writerResult.status === 'written' ? 'partial_finalized' : finalStatusFromSupersession(text(supersessionResult.status)),
+      status: writerResult.status === 'written' || supersessionPublished
+        ? 'partial_finalized'
+        : finalStatusFromSupersession(text(supersessionResult.status)),
       mode,
       source,
       sourceDigestAfter,
@@ -616,34 +827,110 @@ export function finalizeWorkRecordRepair({
       proposalValidation,
       writerResult,
       supersessionResult,
-      replacementReadback: replacementRead,
-      diagnostics: supersessionResult.diagnostics,
+      replacementReadback: replacementReadbackAfterFailure,
+      diagnostics: [
+        ...arrayValue(supersessionResult.diagnostics),
+        ...arrayValue(replacementReadbackAfterFailure.diagnostics),
+        ...sourceReadbackDiagnostics,
+      ],
     });
   }
 
   const entryPath = rawText(supersessionResult.output?.index_path);
-  const entry = entryPath && fs.existsSync(entryPath) ? JSON.parse(fs.readFileSync(entryPath, 'utf8')) : null;
-  const supersessionValidation = entry ? validateWorkRecordSourceSupersessionEntry(entry) : {
+  const entryRead = entryPath ? readPinnedJsonFile(
+    entryPath,
+    indexRoot,
+    supersessionResult.atomic_write?.destination_identity,
+  ) : {
+    path: '',
+    digest: '',
+    error: new Error('Supersession writer returned no index path.'),
+  };
+  const entry = entryRead.error ? null : objectValue(entryRead.value);
+  let supersessionValidation = entry ? validateWorkRecordSourceSupersessionEntry(entry) : {
     status: 'failed',
     diagnostics: [{
       severity: 'error',
-      code: 'REPAIR_FINALIZATION_SUPERSESSION_ENTRY_MISSING',
-      message: 'Supersession writer reported success but no entry file was readable.',
+      code: 'REPAIR_FINALIZATION_SUPERSESSION_ENTRY_READBACK_FAILED',
+      message: `Supersession writer reported success but its entry could not be read and parsed: ${entryRead.error?.message || 'missing index path'}`,
       path: 'supersession_index_result.output.index_path',
     }],
   };
-  const lookup = lookupWorkRecordSourceSupersession({
-    sourceRef,
-    indexRoot,
-    sourceRoots: roots,
-    repoRoot,
-  });
-  const sourceUnchanged = sourceDigestAfter === sourceDigestBefore;
-  const replacementMatches = replacementRead.status === 'success'
-    && text(replacementRead.record?.id) === text(writerResult.written_replacement_work_record?.id);
-  const supersessionValid = supersessionValidation.status === 'passed' && lookup.status === 'active';
+  if (supersessionValidation.status === 'passed'
+    && text(entryRead.digest) !== text(supersessionResult.output?.digest)) {
+    supersessionValidation = {
+      status: 'failed',
+      diagnostics: [{
+        severity: 'error',
+        code: 'REPAIR_FINALIZATION_SUPERSESSION_ENTRY_DIGEST_MISMATCH',
+        message: 'Supersession entry readback bytes do not match the Index Writer output digest.',
+        path: 'supersession_index_result.output.digest',
+        expected_digest: text(supersessionResult.output?.digest),
+        actual_digest: text(entryRead.digest),
+      }],
+    };
+  }
+  let lookup;
+  try {
+    lookup = lookupWorkRecordSourceSupersession({
+      sourceRef,
+      indexRoot,
+      sourceRoots: roots,
+      replacementRoots: [replacementRoot],
+      repoRoot,
+    });
+  } catch (error) {
+    lookup = {
+      status: 'malformed_index',
+      relationship_status: 'malformed_index',
+      entries: [],
+      diagnostics: [{
+        severity: 'error',
+        code: 'REPAIR_FINALIZATION_SUPERSESSION_LOOKUP_FAILED',
+        message: `Post-publication Source Supersession lookup failed: ${error.message}`,
+        path: 'supersession_index_result.output.index_root',
+      }],
+    };
+  }
+  const replacementFileRead = replacementPath ? readPinnedJsonFile(
+    replacementPath,
+    replacementRoot,
+    writerResult.atomic_write?.destination_identity,
+  ) : {
+    path: '',
+    digest: '',
+    error: new Error('Replacement Writer returned no output path.'),
+  };
+  const replacementReadAfter = replacementFileRead.error
+    ? {
+      status: 'failed',
+      diagnostics: [{
+        severity: 'error',
+        code: 'REPAIR_FINALIZATION_REPLACEMENT_READBACK_FAILED',
+        message: `Published replacement Work Record could not be read and parsed: ${replacementFileRead.error.message}`,
+        path: 'replacement_writer_result.output.output_path',
+      }],
+    }
+    : readWorkRecord(replacementPath, {
+      roots: [replacementRoot],
+      repoRoot,
+    });
+  const sourceUnchanged = !sourceDigestReadAfter.error && sourceDigestAfter === sourceDigestBefore;
+  const replacementMatches = !replacementFileRead.error
+    && replacementReadAfter.status === 'success'
+    && text(replacementReadAfter.record?.id) === text(writerResult.written_replacement_work_record?.id)
+    && digestJson(replacementReadAfter.record) === text(writerResult.written_replacement_work_record?.digest)
+    && digestJson(replacementFileRead.value) === text(writerResult.written_replacement_work_record?.digest)
+    && text(replacementFileRead.digest) === text(writerResult.output?.digest);
+  const lookupReplacementProven = lookup.status === 'active'
+    && arrayValue(lookup.entries).length === 1
+    && arrayValue(lookup.entries).every((item) => text(objectValue(item).replacement_readback?.status) === 'readable');
+  const supersessionValid = supersessionValidation.status === 'passed' && lookupReplacementProven;
+  const postPublicationReadFailed = Boolean(sourceDigestReadAfter.error || entryRead.error || replacementFileRead.error);
   const finalStatus = sourceUnchanged && replacementMatches && supersessionValid
     ? (writerResult.status === 'already_exists' && supersessionResult.status === 'already_exists' ? 'already_finalized' : 'finalized')
+    : postPublicationReadFailed
+      ? 'partial_finalized'
     : !sourceUnchanged
       ? 'blocked_source_mutated'
       : 'partial_finalized';
@@ -666,11 +953,13 @@ export function finalizeWorkRecordRepair({
     writerResult,
     supersessionResult,
     sourceReadback: lookup,
-    replacementReadback: replacementRead,
+    replacementReadback: replacementReadAfter,
     supersessionValidation,
     diagnostics: finalStatus === 'finalized' || finalStatus === 'already_finalized' ? [] : [
       ...arrayValue(supersessionValidation.diagnostics),
       ...arrayValue(lookup.diagnostics),
+      ...arrayValue(replacementReadAfter.diagnostics),
+      ...sourceReadbackDiagnostics,
     ],
   });
 }

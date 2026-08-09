@@ -992,7 +992,8 @@ V0 supports the first non-wiki route: Work Record descriptors with an
 `inspectable` capability, canonical `work_record.*` contracts, and a
 `work-record-workbench` Host entry can produce a `subject.open.requested`
 message whose `open_message` is the existing `work_record.open` payload. This
-opens the stock read-only Work Record Workbench path for schema-v0 records.
+opens the stock read-only Work Record Workbench path for active schema-v1
+records; historical V0 inputs remain unsupported.
 
 V0 boundaries:
 
@@ -1181,80 +1182,43 @@ to consume wiki graph snapshots with `nodes[]`, `links[]`, `raw`, and
 `config.graphView`; Subject graph index V0 consumes Workbench Subject
 descriptors and catalog entries.
 
-### Step Descriptor Workbench V0
+### Step Descriptor Workbench V1
 
-The named V0 shell lives at:
+The V1 shell lives at:
 
 ```text
 aos://toolkit/components/step-descriptor-workbench/index.html
 ```
 
-Launch the fixture-backed shell in repo mode with:
+Its surface id is `step-descriptor-workbench-v1`. It loads the active fixtures:
 
-```bash
-packages/toolkit/components/step-descriptor-workbench/launch.sh
-```
+- `shared/schemas/fixtures/aos-step-descriptor-v1/valid/browser-click-status.json`
+- `shared/schemas/fixtures/aos-work-record-v1/evidence/aos-browser-click-status.json`
 
-The shell surface id is `step-descriptor-workbench-v0`; the manifest name is
-`step-descriptor-workbench`. It is a browser-hosted, fixture-backed, report-only
-shell around the existing browser Step Descriptor prototype APIs. It uses
-`createBrowserStepDescriptorPrototype()`,
-`runBrowserStepDescriptorPrototype()`, `runOneStepStepDescriptorHarness()`, and the existing
-read-only Work Record workbench open model. It simulates exactly one saved AOS
-browser action evidence source. The current legacy harness requires an explicit
-workflow gate ref and token before simulation; this is ADR 0040 migration debt,
-not an AOS permission or authorization requirement.
+The shell is a fixture-backed, report-only view over
+`createBrowserStepDescriptorPrototype()` and
+`runOneStepStepDescriptorHarness()`. Simulation consumes supplied saved
+evidence, emits one Work Record V1, and runs the report-only V1 verifier. It
+does not ask for or retain Gate data and it performs no live browser action.
+Before capture, descriptor promotion identity/scope and the supported action
+template, state source, role/name args, target-resolution semantic identity,
+preconditions, and postconditions must match the supplied saved evidence.
+The workbench validates those contracts before installing a prototype or
+reporting `ready`; V0, unknown, malformed, and evidence-mismatched inputs are
+rejected at initialization or load.
 
-The launch script loads:
+The V1 message contract is:
 
-- `shared/schemas/fixtures/aos-step-descriptor-v0/valid/browser-click-status.json`
-- `shared/schemas/fixtures/aos-work-record-v0/evidence/aos-browser-click-status.json`
+- `step_descriptor_workbench.load` supplies the descriptor and evidence source.
+- `step_descriptor_workbench.simulate.requested` runs the one-step simulation.
+- `step_descriptor_workbench.simulate.result` reports harness, verifier, and emitted-record state.
+- `step_descriptor_workbench.work_record.open.requested` and
+  `step_descriptor_workbench.work_record.open.result` hand the emitted V1
+  record to the existing read-only Work Record workbench.
 
-The shell sets `window.__stepDescriptorWorkbenchState` for inspection and
-exposes surface-local inspection selectors such as
-`step-descriptor-workbench-v0:root`,
-`step-descriptor-workbench-v0:gate-ref`, `step-descriptor-workbench-v0:gate-token`,
-`step-descriptor-workbench-v0:simulate`, `step-descriptor-workbench-v0:verifier-status`,
-`step-descriptor-workbench-v0:diagnostics`,
-`step-descriptor-workbench-v0:work-record-summary`, and
-`step-descriptor-workbench-v0:open-work-record`.
-These selectors are bound to the current shell document. They are neither AOS
-Observation Refs nor action-time Locators and must not be cached as durable
-target identity.
-
-V0 message contract:
-
-- `step_descriptor_workbench.load` carries `{ step_descriptor, evidence_source,
-  work_record_workbench_url?, work_record_canvas_id? }` and loads the fixture
-  payloads into the shell.
-- `step_descriptor_workbench.workflow_gate.set` carries `{ ref, token }` and records
-  the current legacy workflow gate candidate without running the harness. This
-  Gate coupling is a migration gap, not permission to observe or act.
-- `step_descriptor_workbench.simulate.requested` runs the existing prototype in
-  `simulate` mode. Missing tokens or undeclared refs are rejected before a Work
-  Record is emitted.
-- `step_descriptor_workbench.simulate.result` reports harness status, reason, verifier
-  status, diagnostics, and the emitted Work Record id when present.
-- `step_descriptor_workbench.work_record.open.requested` creates a `work_record.open`
-  payload with `source.kind: "browser_step_descriptor_prototype"` and opens it through
-  the existing Work Record workbench model. The UI also attempts to spawn the
-  stock `work-record-workbench` canvas and post the same `work_record.open`
-  message to it.
-- `step_descriptor_workbench.work_record.open.result` reports the read-only handoff
-  status, Work Record id, and child Work Record workbench canvas id.
-
-V0 boundaries:
-
-- The shell is not a general Playbook UI and does not list, edit, or execute
-  arbitrary Playbooks.
-- The shell does not add `aos playbook`, `aos verify`, `aos audit`, recorder,
-  replay, repair, or macro command surfaces.
-- The shell does not perform live browser execution, autonomous replay,
-  autonomous repair, macro playback, or a background loop.
-- The shell does not create a second Work Record viewer. It shows only an
-  emitted-record summary and hands off the full record to the existing
-  read-only Work Record workbench path.
-
+The shell has no execution, recording, repair, replay, macro, policy, or
+background-loop control. Its selectors are surface-local inspection selectors,
+not Observation Refs or Locators.
 Before migration, older helper output often looked like this:
 
 ```json
@@ -1332,30 +1296,23 @@ invocation stays with existing `aos wiki invoke` or agent-driven workflow
 instructions, and run/evidence/repair layers attach later through the
 work-record model.
 
-Work-record subject ids use `work-record:<id>`. They expose the natural-language
-intent, execution map, evidence artifacts, and health state as workbench Facets.
-The helper is a projection layer only; recording, replay, repair, and retirement
-remain owned by the work-record model in
-[`docs/design/aos-work-records-and-self-healing-recipes.md`](../../design/aos-work-records-and-self-healing-recipes.md).
-The Work Record payload adapter accepts both the older helper-shaped records and
-schema-v0 records from `shared/schemas/fixtures/aos-work-record-v0/`. Legacy
-records keep their existing edit handoff. Schema-v0 records project as
-read-only `aos.work_record` Subjects with intent, execution-map postconditions,
-evidence, claims, claim results, verifier report, and health Facets.
+Work-record subject ids use `work-record:<id>`. Active V1 records expose intent,
+execution-map postconditions, evidence, claims, verifier output, and health as
+read-only workbench Facets. The payload adapter accepts only
+`2026-08-work-record-v1` for active projection. Frozen V0 bytes are identified
+as historical and unsupported rather than silently adapted.
 
 The stock work-record workbench lives at:
 
 - `aos://toolkit/components/work-record-workbench/index.html`
 
-It accepts `work_record.open` and `work_record.patch.result`, emits
-`work-record-workbench/patch.requested`, and intentionally stays manual-first:
-it edits the NL intent and execution-map JSON while displaying health and
-evidence. `work_record.open` may include a file `source`, which is preserved in
-snapshots and patch requests. The companion
-`packages/toolkit/components/work-record-workbench/save-current.sh` helper can
-persist the current edited record JSON back to that file source or an explicit
-output path. Schema-v0 records are opened read-only and do not emit patch
-requests. It does not record, replay, repair, or retire recipes by itself.
+It accepts `work_record.open` and displays V1 health and evidence read-only.
+`work_record.open` may include a file `source`, which is preserved in snapshots.
+Historical V0, unknown schemas, and malformed V1 records are rejected at
+workbench initialization and open boundaries; their bytes are not loaded into
+active state and never emit active patch, planning, verification, or
+finalization behavior. Rejected and waiting states retain only the workbench's
+complete schema-valid empty V1 record.
 
 The public Work Record facade lives at
 `packages/toolkit/workbench/work-record.js`. Consumers that need Work Record
@@ -1364,25 +1321,46 @@ prefer that facade over importing multiple Work Record internal helper files.
 The facade is shallow; behavior remains owned by the focused helper modules it
 re-exports.
 
+Replacement, repair-bundle, and source-supersession writers publish through the
+private `work-record-atomic-publish.js` adapter. On Darwin it requires the
+production-packaged descriptor-relative N-API primitive: the explicit boundary
+root and complete destination-parent chain stay open with no-follow traversal
+while temp creation, writing, create-if-absent linking, cleanup, conflict
+inspection, and exact readback remain relative to held descriptors. Success
+proves a regular single-link destination with the exact published inode and
+digest. Directory swaps, restored swaps, symlink clones, external hard links,
+and unavailable native support fail closed with typed results; the correctness
+route has no pathname fallback. This helper remains private and does not widen
+the public Work Record facade.
+
+Both app packaging routes stage that private implementation with the
+current-platform addon, toolkit ESM marker, bundled-root sentinel, Work Record
+command adapter/helper, active default records, and a Work Record-only
+projection of the generated external-command manifest. Packaging fails when
+the addon or command family is absent, so installed `aos work-record` cannot
+silently degrade to an unreachable or pathname-based implementation.
+
 `packages/toolkit/workbench/work-record-verifier.js` exposes a deterministic
-report-only checker for schema-v0 records. It validates internal claim,
+report-only checker for schema-v1 records. It validates internal claim,
 postcondition, evidence, verifier-report, and health references, derives
 verifier indexes from `claim_results[]`, reports diagnostics, and never mutates
-the record. The current legacy replay/repair model still carries explicit
-workflow-Gate policy fields; that is ADR 0040 migration debt, not AOS
-permission.
+the record. Verified Claim Results require exact evidence-backed coverage of
+their owning Claim postconditions. Advertised Claim digests are one-to-one and
+must match the exact Claim payload. Semantic refs remain bound to their
+enclosing evidence target when a candidate omits a full Target-with-Ref, and
+exact falsy expected values are still evaluated.
 The named profile entrypoint is:
 
 ```js
 runWorkRecordVerifierProfile(record, {
-  profileId: 'aos.verifier.work-record.v0.report-only',
+  profileId: 'aos.verifier.work-record.v1.report-only',
 })
 ```
 
 `packages/toolkit/workbench/work-record-capture.js` exposes the first narrow
-capture builders. `buildWorkRecordV0FromCommandEvidence()` turns one bounded
-repo command evidence source into a completed Work Record v0.
-`buildWorkRecordV0FromAosActionEvidence()` does the same for one saved AOS
+capture builders. `buildWorkRecordV1FromCommandEvidence()` turns one bounded
+repo command evidence source into a completed Work Record v1.
+`buildWorkRecordV1FromAosActionEvidence()` does the same for one saved AOS
 `see -> do -> see` action evidence source, preserving before perception, action
 metadata, after perception, target dialect, selected action target, State IDs
 where available, immutable evidence refs, Claims, Postconditions, Claim

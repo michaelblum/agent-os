@@ -10,6 +10,7 @@
 # Build artifacts
 /aos
 .build/
+/packages/toolkit/workbench/native/build/
 dist/
 packages/hand-off/hand-off
 tools/dogfood/__pycache__/

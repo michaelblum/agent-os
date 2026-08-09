@@ -144,8 +144,8 @@ slices with repo evidence and clear exit criteria.
 
 ### Phase 5: Work Records And Verifiers
 
-- Add a report-only work-record verifier first.
-- A work record captures:
+- The active Work Record V1 contract is optional neutral evidence/history.
+- A Work Record captures:
   - the intent
   - the selected subject/facet
   - prior `see` state
@@ -154,31 +154,31 @@ slices with repo evidence and clear exit criteria.
   - post-action `see` state
   - artifacts
   - claims
-- Verifier v0 consumes saved evidence and emits a structured report.
-- No autonomous reprompting in v0.
-- Auto-feedback may draft findings. The current legacy replay/repair loop still
-  carries explicit Workflow Gate coupling; this is ADR 0040 migration debt, not
-  AOS permission.
+- The V1 verifier consumes saved evidence and emits a structured report.
+- Repair Plans and Attempt Plans are exact non-executing proposals. Attempt
+  Artifacts accept caller-supplied outcomes. Finalization validates exact
+  digests before writing a replacement and supersession entry.
+- Historical V0 bytes remain frozen and unsupported by active readers.
 
-### Phase 6: Browser Step Evidence And Legacy Workflow-Gated Runs
+### Phase 6: Browser Step Evidence
 
-This phase records the current legacy harness coupling. Workflow Gate is not
-AOS permission, and the coupling must not survive ADR 0040 runtime migration.
+The active Step Descriptor V1 harness has no Gate-derived authority or public
+fixture executor.
 
 - Add browser step descriptors as recorded, evidence-backed units, not raw
   macro recordings and not Playbook-authored execution.
-- The current legacy Workflow-gated harness step is:
+- The descriptive harness step is:
   - re-see target
   - resolve semantic ref
   - check precondition
-  - execute `aos do`
+  - accept supplied action evidence, or use a caller-supplied adapter
   - re-see
   - verify postcondition
 - Work Records and verifier reports are harness obligations around the run, not
   step-authored primitive actions.
 - Keep raw `playwright-cli` traces, screenshots, video, and codegen as attached
   evidence or hints, not canonical truth.
-- First candidate legacy Workflow-gated browser run:
+- First candidate browser evidence flow:
   - open browser-hosted wiki browser
   - locate the Runtime Modes subject
   - follow its menu facet/resource

@@ -32,24 +32,7 @@ function workRecordId(record = {}) {
   return id;
 }
 
-function legacyWorkRecordFacetKeys(kind) {
-  const base = [
-    'work_record.intent',
-    'work_record.execution_map.json',
-    'work_record.evidence',
-    'work_record.health',
-  ];
-  if (kind === 'aos.do_step') return [...base, 'work_record.step.timeline'];
-  if (kind === 'aos.recipe_health_event') return [
-    'work_record.intent',
-    'work_record.evidence',
-    'work_record.health',
-    'work_record.retirement',
-  ];
-  return base;
-}
-
-function v0WorkRecordFacetKeys() {
+function v1WorkRecordFacetKeys() {
   return [
     'work_record.intent',
     'work_record.execution_map.json',
@@ -63,8 +46,7 @@ function v0WorkRecordFacetKeys() {
 }
 
 function workRecordFacetKeys(record) {
-  if (record.format === 'v0') return v0WorkRecordFacetKeys();
-  return legacyWorkRecordFacetKeys(record.type);
+  return record.format === 'v1' ? v1WorkRecordFacetKeys() : [];
 }
 
 function labelFromKey(key = '') {
@@ -153,11 +135,7 @@ function workRecordContracts(record) {
   ]);
 }
 
-function legacyWorkRecordCapabilities() {
-  return ['inspectable', 'editable', 'verifier-target', 'exportable'];
-}
-
-function v0WorkRecordCapabilities() {
+function v1WorkRecordCapabilities() {
   return [
     'inspectable',
     'verifier-target',
@@ -166,8 +144,8 @@ function v0WorkRecordCapabilities() {
 }
 
 function workRecordCapabilities(record) {
-  if (record.format === 'v0') return v0WorkRecordCapabilities();
-  return legacyWorkRecordCapabilities();
+  if (record.format === 'v1') return v1WorkRecordCapabilities();
+  return ['inspectable'];
 }
 
 function workRecordSource(record) {
@@ -233,11 +211,9 @@ export function createWorkRecordSubject(record = {}) {
       health: normalized.health,
       surface: normalized.surface,
       action: normalized.action,
-      automatic_replay_allowed: normalized.automaticReplayAllowed,
       read_only: normalized.readOnly,
       origin: normalized.origin ? cloneJson(normalized.origin) : null,
       verifier_report_id: text(normalized.verifierReport?.id) || null,
-      replay_policy: normalized.replayPolicy ? cloneJson(normalized.replayPolicy) : null,
     },
     metadata: {
       schema_version: normalized.schemaVersion,

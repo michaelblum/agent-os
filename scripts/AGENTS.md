@@ -18,6 +18,26 @@ commands, runtime helpers, wiki tools, and command adapters.
   standalone validator derived from `shared/schemas/input-event-v2.schema.json`;
   Ajv is a toolkit dev dependency, its referenced helper is inlined from the
   installed package, and no runtime package import may remain.
+- `generate-work-record-contract-validators.mjs` owns checked standalone
+  validators for the active Work Record, Step Descriptor, Repair Plan, Attempt
+  Plan, and Attempt Artifact V1 schemas. Register every owned schema before
+  compilation so cross-contract refs inline into dependency-free validators.
+  Active consumers use those generated validators and reject historical or
+  malformed bytes before projection, verification, planning, or harness work.
+- `build-work-record-native.mjs` owns the direct current-architecture Darwin
+  N-API build for the private descriptor-relative Work Record filesystem
+  primitive. It uses system `xcrun clang++` plus the current Node headers,
+  fingerprints source and builder inputs, installs no dependencies, and writes
+  only the ignored toolkit-native build directory. Root `build.sh` invokes it
+  before the one permitted Swift link, and packaged-runtime assembly must carry
+  the resulting `.node` resource with the private workbench implementation.
+- `stage-work-record-runtime.mjs` owns the narrow installed-runtime projection
+  for Work Records. Both packaging routes use it to carry the private workbench
+  and current-architecture addon, toolkit ESM marker, bundled-root sentinel,
+  command adapter and helper, active default fixtures, and a Work Record-only
+  projection of the generated external-command manifest. It must fail when the
+  addon or generated command family is absent instead of packaging an
+  unreachable or pathname-fallback route.
 - `lib/` owns shared JavaScript helpers for scripts.
 - `lib/aos-readiness.mjs` owns the effective permission view, readiness
   decision model, and reusable status/doctor/permissions projections. The
@@ -201,6 +221,9 @@ commands, runtime helpers, wiki tools, and command adapters.
 
 - Keep script behavior aligned with `./aos help`, manifests, schemas, and tests.
 - Prefer structured JSON output for machine surfaces.
+- Work Record planning commands return schema-shaped `unsupported` payloads
+  and a nonzero exit for unsupported verifier profiles; automation must not
+  treat an unsupported plan as success.
 - Avoid direct daemon/socket/launchd bypasses unless the script is the sanctioned
   adapter for that lower-level operation.
 - Browser helpers must resolve `playwright-cli` through
@@ -264,9 +287,20 @@ commands, runtime helpers, wiki tools, and command adapters.
 
 ## Work Guidance
 
+- `aos-work-record.mjs` exposes only Work Record V1 evidence, neutral planning,
+  caller-outcome artifact, replacement, supersession, and exact finalization
+  forms. Keep Gate request/check, authority inputs, and fixture repair execution
+  out of this command adapter. Supersession write requires an explicit
+  Replacement Writer Result path because Writer provenance is mandatory.
+  Typed malformed supersession indexes are command failures and must exit
+  nonzero for automation. Artifact and replacement-proposal build forms also
+  exit nonzero when their emitted payload is unusable.
+
 - For shell scripts, preserve macOS Bash 3.2 compatibility.
 - For Node scripts, use existing repo helper modules before inventing new
   parsing or routing conventions.
+- Native Work Record builder checks and tests must never invoke `./aos`, run the
+  daemon, install dependencies, or touch UI/TCC state.
 - Treat `generate-command-manifests.mjs` as command-surface infrastructure:
   source files stay under `manifests/commands/source/`, and top-level command
   manifests remain generated artifacts.

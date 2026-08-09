@@ -47,6 +47,12 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
+WORK_RECORD_NATIVE_BUILD_ARGS=(--json)
+if [[ "$BUILD_MODE" == "release" ]]; then
+    WORK_RECORD_NATIVE_BUILD_ARGS+=(--release)
+fi
+node scripts/build-work-record-native.mjs "${WORK_RECORD_NATIVE_BUILD_ARGS[@]}"
+
 SOURCES=()
 while IFS= read -r file; do
     SOURCES+=("$file")

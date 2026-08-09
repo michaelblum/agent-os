@@ -2,7 +2,7 @@ import { createWorkbenchSubject } from './subject.js';
 import { runOneStepStepDescriptorHarness } from './step-descriptor-harness.js';
 import { WORK_RECORD_REPORT_ONLY_PROFILE_ID } from './work-record-verifier.js';
 
-export const BROWSER_STEP_DESCRIPTOR_PROTOTYPE_VERSION = '2026-05-browser-step-descriptor-prototype-v0';
+export const BROWSER_STEP_DESCRIPTOR_PROTOTYPE_VERSION = '2026-08-browser-step-descriptor-prototype-v1';
 export const BROWSER_CLICK_STATUS_PROTOTYPE_ID = 'step-descriptor-prototype:browser-click-status';
 export const STEP_DESCRIPTOR_WORKBENCH_URL = 'aos://toolkit/components/step-descriptor-workbench/index.html';
 
@@ -11,6 +11,11 @@ const DEFAULT_OWNER = 'aos-step-descriptor-prototype';
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
   return normalized || fallback;
+}
+
+function rawText(value, fallback = '') {
+  const raw = String(value ?? '');
+  return raw || fallback;
 }
 
 function objectValue(value) {
@@ -34,27 +39,10 @@ function requireObject(value, label) {
   return normalized;
 }
 
-function uniqueStrings(values = []) {
-  const seen = new Set();
-  const result = [];
-  for (const value of values.map((item) => text(item)).filter(Boolean)) {
-    if (!seen.has(value)) {
-      seen.add(value);
-      result.push(value);
-    }
-  }
-  return result;
-}
-
 function prototypeLabel({ label, stepDescriptor, id }) {
-  return text(
-    label,
-    text(stepDescriptor.label, `Browser Step Descriptor prototype: ${text(stepDescriptor.id, id)}`),
-  );
-}
-
-function prototypeGateRefs(stepDescriptor = {}) {
-  return uniqueStrings(arrayValue(objectValue(stepDescriptor.workflow_gates).gate_refs));
+  return rawText(label)
+    || rawText(stepDescriptor.label)
+    || `Browser Step Descriptor prototype: ${text(stepDescriptor.id, id)}`;
 }
 
 function prototypeArtifacts({ stepDescriptor, evidenceSource, record = null }) {
@@ -79,7 +67,7 @@ function prototypeArtifacts({ stepDescriptor, evidenceSource, record = null }) {
     artifacts.push({
       id: 'artifact:browser-step-descriptor-work-record',
       kind: 'aos.work_record',
-      label: 'Emitted Workflow-origin Work Record v0',
+      label: 'Emitted Workflow-origin Work Record v1',
       ref: text(record.id),
       immutable: true,
       read_only: true,
@@ -157,11 +145,9 @@ export function createBrowserStepDescriptorPrototypeSubject({
   stepDescriptor = {},
   evidenceSource = {},
   harnessResult = null,
-  workflowGateRef = '',
 } = {}) {
   const step = objectValue(stepDescriptor);
   const evidence = objectValue(evidenceSource);
-  const gateRefs = prototypeGateRefs(step);
   const targetResolution = objectValue(step.target_resolution);
   const record = objectValue(objectValue(harnessResult).record);
   const verifier = objectValue(objectValue(harnessResult).verifier);
@@ -178,7 +164,7 @@ export function createBrowserStepDescriptorPrototypeSubject({
     owner: DEFAULT_OWNER,
     source: {
       kind: 'browser_step_descriptor_prototype',
-      format: 'one-step-report-only-v0',
+      format: 'one-step-report-only-v1',
       workflow_ref: text(step.workflow_ref),
       step_descriptor_id: text(step.id),
       evidence_source_id: text(evidence.id),
@@ -206,18 +192,11 @@ export function createBrowserStepDescriptorPrototypeSubject({
     }),
     state: {
       target_dialect: text(step.target_dialect),
-      target: text(targetResolution.target),
-      target_with_ref: text(targetResolution.target_with_ref),
+      target: rawText(targetResolution.target),
+      target_with_ref: rawText(targetResolution.target_with_ref),
       one_step_only: true,
       mode: 'simulate',
-      explicit_workflow_gate_required: true,
-      workflow_gate_ref: text(workflowGateRef, gateRefs[0] || null),
-      workflow_gate_refs: gateRefs,
       report_only: true,
-      autonomous_replay_allowed: false,
-      autonomous_repair_allowed: false,
-      macro_playback_allowed: false,
-      background_loop_allowed: false,
       broad_cli_surface_added: false,
       record_id: recordId || null,
       verifier_profile_id: verifierProfileId,
@@ -233,7 +212,7 @@ export function createBrowserStepDescriptorPrototypeSubject({
       is_wiki_subject_browser: false,
       is_general_step_descriptor_ui: false,
       adds_public_cli_surface: false,
-      emits_work_record_v0: !!recordId,
+      emits_work_record_v1: !!recordId,
       verifier_profile_id: verifierProfileId,
       evidence_source_shape: text(evidence.type),
     },
@@ -245,7 +224,6 @@ export function createBrowserStepDescriptorPrototype({
   label = '',
   stepDescriptor,
   evidenceSource,
-  workflowGateRef = '',
 } = {}) {
   const step = requireObject(stepDescriptor, 'stepDescriptor');
   const evidence = requireObject(evidenceSource, 'evidenceSource');
@@ -262,26 +240,17 @@ export function createBrowserStepDescriptorPrototype({
       label,
       stepDescriptor: step,
       evidenceSource: evidence,
-      workflowGateRef,
     }),
     run_policy: {
       mode: 'simulate',
       one_step_only: true,
-      explicit_workflow_gate_required: true,
-      workflow_gate_refs: prototypeGateRefs(step),
       verifier_profile_id: WORK_RECORD_REPORT_ONLY_PROFILE_ID,
-      replay_requires_workflow_gate: true,
-      repair_requires_workflow_gate: true,
-      autonomous_replay_allowed: false,
-      autonomous_repair_allowed: false,
-      macro_playback_allowed: false,
-      background_loop_allowed: false,
+      evidence_source_required: true,
     },
     non_goals: [
       'wiki_subject_browser',
       'general_step_descriptor_ui',
       'public_cli_surface',
-      'autonomous_replay',
       'autonomous_repair',
       'macro_playback',
       'background_loop',
@@ -310,7 +279,6 @@ export function createBrowserStepDescriptorPrototypeWorkRecordOpenMessage(record
 }
 
 export function runBrowserStepDescriptorPrototype(prototype = {}, {
-  workflowGate = null,
   verifierProfileId = WORK_RECORD_REPORT_ONLY_PROFILE_ID,
 } = {}) {
   const value = requireObject(prototype, 'prototype');
@@ -318,7 +286,6 @@ export function runBrowserStepDescriptorPrototype(prototype = {}, {
   const evidence = requireObject(value.evidence_source, 'prototype.evidence_source');
 
   const harness = runOneStepStepDescriptorHarness(step, {
-    workflowGate,
     mode: 'simulate',
     evidenceSource: evidence,
     verifierProfileId,
@@ -326,11 +293,10 @@ export function runBrowserStepDescriptorPrototype(prototype = {}, {
   const record = harness.record ? cloneJson(harness.record) : null;
   const subject = createBrowserStepDescriptorPrototypeSubject({
     id: text(value.id, BROWSER_CLICK_STATUS_PROTOTYPE_ID),
-    label: text(value.label),
+    label: rawText(value.label),
     stepDescriptor: step,
     evidenceSource: evidence,
     harnessResult: harness,
-    workflowGateRef: text(harness.workflow_gate_ref),
   });
 
   return {

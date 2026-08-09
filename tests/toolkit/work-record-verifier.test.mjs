@@ -4,297 +4,223 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  checkWorkRecordReportOnly,
-  classifyWorkRecordHealth,
-  deriveCurrentWorkRecordHealth,
-  deriveWorkRecordClaimIndexes,
   runWorkRecordVerifierProfile,
   WORK_RECORD_REPORT_ONLY_PROFILE_ID,
-  workRecordVerifierProfile,
-  workRecordVerifierProfiles,
 } from '../../packages/toolkit/workbench/work-record-verifier.js';
-import {
-  checkWorkRecordEvidenceAdapters,
-  WORK_RECORD_EVIDENCE_ADAPTER_IDS,
-  workRecordEvidenceAdapters,
-} from '../../packages/toolkit/workbench/work-record-evidence-adapters.js';
+import { materializeReplacementWorkRecord } from '../../packages/toolkit/workbench/work-record-replacement-writer.js';
+import { replacementProposal } from '../lib/work-record-v1-fixtures.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, '../..');
-const v0FixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0/valid');
-const reportOnlyFailureFixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0/report-only-failures');
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const read = (relative) => JSON.parse(fs.readFileSync(path.join(repoRoot, relative), 'utf8'));
 
-function fixture(name) {
-  return JSON.parse(fs.readFileSync(path.join(v0FixtureRoot, name), 'utf8'));
-}
-
-function reportOnlyFailureFixture(name) {
-  return JSON.parse(fs.readFileSync(path.join(reportOnlyFailureFixtureRoot, name), 'utf8'));
-}
-
-function markPostconditionFailed(record, postconditionId, reason) {
-  for (const claimResult of record.claim_results) {
-    let changed = false;
-    for (const postconditionResult of claimResult.postcondition_results) {
-      if (postconditionResult.postcondition_id !== postconditionId) continue;
-      postconditionResult.status = 'failed';
-      postconditionResult.reason = reason;
-      changed = true;
-    }
-    if (changed) {
-      claimResult.status = 'failed';
-      claimResult.confidence = 0.2;
-      claimResult.reason = reason;
-    }
-  }
-  record.verifier_report.derived_indexes = deriveWorkRecordClaimIndexes(record);
-  record.health.verdict = 'blocked';
-  record.health.reason = reason;
-}
-
-test('report-only verifier checker derives indexes and does not mutate valid v0 records', () => {
-  const record = fixture('workflow-origin.json');
-  const before = JSON.stringify(record);
-  const result = checkWorkRecordReportOnly(record);
-
-  assert.equal(result.status, 'passed');
-  assert.equal(result.mode, 'report_only');
-  assert.equal(result.mutates_record, false);
-  assert.equal(result.summary.claims, 2);
-  assert.equal(result.summary.claim_results, 2);
-  assert.equal(result.summary.evidence, 3);
-  assert.equal(result.summary.postconditions, 3);
-  assert.equal(result.summary.replay_gated, true);
-  assert.equal(result.summary.repair_gated, true);
-  assert.deepEqual(result.diagnostics, []);
-  assert.deepEqual(result.derived_indexes, {
-    verified: [
-      'claim:before-action-after-evidence-captured',
-      'claim:runtime-modes-subject-opened',
-    ],
-    failed: [],
-    unverified: [],
-  });
-  assert.deepEqual(deriveWorkRecordClaimIndexes(record), result.derived_indexes);
-  assert.equal(JSON.stringify(record), before);
+test('V1 verifier is deterministic, report-only, and authority-neutral', () => {
+  const record = read('shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json');
+  const first = runWorkRecordVerifierProfile(record);
+  const second = runWorkRecordVerifierProfile(record);
+  assert.equal(WORK_RECORD_REPORT_ONLY_PROFILE_ID, 'aos.verifier.work-record.v1.report-only');
+  assert.deepEqual(first, second);
+  assert.equal(first.status, 'passed');
+  assert.equal(first.mutates_record, false);
+  assert.doesNotMatch(JSON.stringify(first), /authorization|approval|required_gate|risk_level|allowed_operations|automatic_replay/);
 });
 
-test('named report-only verifier profile runs the deterministic checker', () => {
-  const record = fixture('repo-command-adapter-test.json');
-  const before = JSON.stringify(record);
-  const profile = workRecordVerifierProfile(WORK_RECORD_REPORT_ONLY_PROFILE_ID);
-  const result = runWorkRecordVerifierProfile(record, { profileId: WORK_RECORD_REPORT_ONLY_PROFILE_ID });
-
-  assert.equal(profile.id, WORK_RECORD_REPORT_ONLY_PROFILE_ID);
-  assert.ok(workRecordVerifierProfiles().some((item) => item.id === WORK_RECORD_REPORT_ONLY_PROFILE_ID));
-  assert.equal(result.status, 'passed');
-  assert.equal(result.profile_id, WORK_RECORD_REPORT_ONLY_PROFILE_ID);
-  assert.equal(result.profile.mode, 'report_only');
-  assert.equal(result.profile.mutates_record, false);
-  assert.deepEqual(result.diagnostics, []);
-  assert.equal(JSON.stringify(record), before);
-});
-
-test('report-only verifier checker reports internal reference and gate drift', () => {
-  const record = fixture('workflow-origin.json');
-  record.intent.claim_refs.push('claim:missing');
-  record.claims[0].postcondition_refs.push('postcondition:missing');
-  record.execution_map.postconditions[0].evidence_refs.push('evidence:missing');
-  record.evidence[0].immutable = false;
+test('V1 verifier fails closed on broken claim/evidence references', () => {
+  const record = read('shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json');
   record.claim_results[0].claim_id = 'claim:missing';
-  record.claim_results[1].postcondition_results[0].evidence_refs.push('evidence:missing');
-  record.verifier_report.derived_indexes.verified = [];
-  record.verifier_report.evidence_refs.push('evidence:missing');
-  record.health.verifier_report_id = 'verifier-report:missing';
-  record.execution_map.replay_policy.replay_requires_workflow_gate = false;
-  record.execution_map.replay_policy.repair_requires_workflow_gate = false;
-
-  const result = checkWorkRecordReportOnly(record);
-  const codes = new Set(result.diagnostics.map((diagnostic) => diagnostic.code));
-
+  const result = runWorkRecordVerifierProfile(record);
   assert.equal(result.status, 'failed');
-  assert.ok(codes.has('unknown_intent_claim_ref'));
-  assert.ok(codes.has('unknown_claim_postcondition_ref'));
-  assert.ok(codes.has('unknown_postcondition_evidence_ref'));
-  assert.ok(codes.has('mutable_evidence'));
-  assert.ok(codes.has('unknown_result_claim_id'));
-  assert.ok(codes.has('missing_claim_result'));
-  assert.ok(codes.has('unknown_postcondition_result_evidence_ref'));
-  assert.ok(codes.has('derived_index_mismatch'));
-  assert.ok(codes.has('unknown_verifier_report_evidence_ref'));
-  assert.ok(codes.has('health_report_mismatch'));
-  assert.ok(codes.has('replay_gate_not_required'));
-  assert.ok(codes.has('repair_gate_not_required'));
-  assert.ok(result.failure_classes.includes('evidence_ref_drift'));
-  assert.ok(result.failure_classes.includes('workflow_gate_drift'));
+  assert.ok(result.diagnostics.length > 0);
 });
 
-test('report-only verifier checker rejects unsupported legacy records', () => {
-  const result = checkWorkRecordReportOnly({
-    type: 'aos.do_step',
-    id: 'legacy-step',
-  });
+test('V1 verifier rejects malformed schema bytes and duplicate identity-bearing entries', () => {
+  const malformed = {
+    type: 'aos.work_record',
+    schema_version: '2026-08-work-record-v1',
+    id: 'work-record:malformed',
+  };
+  const malformedResult = runWorkRecordVerifierProfile(malformed);
+  assert.equal(malformedResult.status, 'failed');
+  assert.ok(malformedResult.diagnostics.some((item) => item.code === 'work_record_v1_schema_invalid'));
 
-  assert.equal(result.status, 'unsupported');
-  assert.equal(result.record_id, 'legacy-step');
-  assert.equal(result.diagnostics[0].code, 'unsupported_record_shape');
+  const duplicate = read('shared/schemas/fixtures/aos-work-record-v1/valid/ad-hoc.json');
+  duplicate.evidence.push({ ...duplicate.evidence[0], uri: 'artifact:conflicting-duplicate' });
+  const duplicateResult = runWorkRecordVerifierProfile(duplicate);
+  assert.equal(duplicateResult.status, 'failed');
+  assert.ok(duplicateResult.diagnostics.some((item) => item.code === 'duplicate_evidence_id'));
 });
 
-test('report-only verifier reads every Work Record health verdict classification', () => {
-  const base = fixture('workflow-origin.json');
-  for (const verdict of ['valid', 'stale', 'repairable', 'blocked', 'impossible', 'superseded', 'retired']) {
-    const record = structuredClone(base);
-    record.health.verdict = verdict;
-    const result = checkWorkRecordReportOnly(record);
-
-    assert.equal(classifyWorkRecordHealth(record), verdict);
-    assert.equal(result.health_verdict, verdict);
-    assert.equal(result.summary.health_verdict, verdict);
-  }
-});
-
-test('report-only verifier derives current health from diagnostics, not optimistic embedded health', () => {
-  const record = fixture('cleanup-or-postcondition-failed.json');
-  record.health.verdict = 'valid';
-  record.health.reason = 'forced optimistic embedded health';
-  const before = JSON.stringify(record);
-  const result = checkWorkRecordReportOnly(record);
-
-  assert.equal(classifyWorkRecordHealth(record), 'valid');
-  assert.equal(deriveCurrentWorkRecordHealth(record, {
-    status: result.status,
-    diagnostics: result.diagnostics,
-  }), 'blocked');
-  assert.equal(result.status, 'failed');
-  assert.equal(result.embedded_health_verdict, 'valid');
-  assert.equal(result.health_verdict, 'blocked');
-  assert.equal(result.summary.embedded_health_verdict, 'valid');
-  assert.equal(result.summary.health_verdict, 'blocked');
-  assert.equal(JSON.stringify(record), before);
-});
-
-test('report-only verifier reads saved-ref repairable and blocked fixture health without mutating records', () => {
-  for (const [name, verdict] of [
-    ['repairable-stale-saved-ref.json', 'repairable'],
-    ['cleanup-or-postcondition-failed.json', 'blocked'],
-  ]) {
-    const record = fixture(name);
-    const before = JSON.stringify(record);
-    const result = checkWorkRecordReportOnly(record);
-
-    assert.equal(result.summary.health_verdict, verdict);
-    assert.equal(classifyWorkRecordHealth(record), verdict);
-    assert.equal(JSON.stringify(record), before);
-  }
-});
-
-test('report-only verifier checks structured browser, canvas, and artifact metadata evidence', () => {
-  const record = fixture('evidence-adapter-browser-canvas.json');
-  const before = JSON.stringify(record);
-  const adapterIds = new Set(workRecordEvidenceAdapters().map((adapter) => adapter.id));
-  const adapterReport = checkWorkRecordEvidenceAdapters(record);
-  const result = checkWorkRecordReportOnly(record);
-
-  assert.ok(adapterIds.has(WORK_RECORD_EVIDENCE_ADAPTER_IDS.browserSemanticTargets));
-  assert.ok(adapterIds.has(WORK_RECORD_EVIDENCE_ADAPTER_IDS.canvasSemanticTargets));
-  assert.ok(adapterIds.has(WORK_RECORD_EVIDENCE_ADAPTER_IDS.artifactMetadata));
-  assert.equal(adapterReport.status, 'passed');
-  assert.equal(adapterReport.mutates_record, false);
-  assert.equal(adapterReport.summary.checked, 3);
-  assert.deepEqual(adapterReport.diagnostics, []);
-  assert.equal(result.status, 'passed');
-  assert.equal(result.summary.evidence_adapter_checks, 3);
-  assert.equal(result.summary.evidence_adapter_failures, 0);
-  assert.deepEqual(result.diagnostics, []);
-  assert.equal(JSON.stringify(record), before);
-});
-
-test('report-only verifier reports adapter-backed evidence failure classes without mutating records', () => {
-  const record = reportOnlyFailureFixture('evidence-adapter-failures.json');
-  const before = JSON.stringify(record);
-  const result = checkWorkRecordReportOnly(record);
-  const codes = new Set(result.diagnostics.map((diagnostic) => diagnostic.code));
-
-  assert.equal(result.status, 'failed');
-  assert.ok(codes.has('evidence_target_ref_drift'));
-  assert.ok(codes.has('missing_semantic_target'));
-  assert.ok(codes.has('semantic_target_value_mismatch'));
-  assert.ok(codes.has('semantic_target_role_name_mismatch'));
-  assert.ok(codes.has('artifact_metadata_mismatch'));
-  assert.ok(result.failure_classes.includes('target_ref_drift'));
-  assert.ok(result.failure_classes.includes('semantic_target_missing'));
-  assert.ok(result.failure_classes.includes('semantic_value_mismatch'));
-  assert.ok(result.failure_classes.includes('semantic_role_name_mismatch'));
-  assert.ok(result.failure_classes.includes('artifact_metadata_mismatch'));
-  assert.equal(result.summary.evidence_adapter_checks, 5);
-  assert.ok(result.summary.evidence_adapter_failures >= 5);
-  assert.ok(result.diagnostics.every((diagnostic) => diagnostic.report_only === true));
-  assert.ok(result.diagnostics.every((diagnostic) => diagnostic.source === 'work_record_evidence_adapter'));
-  assert.equal(JSON.stringify(record), before);
-});
-
-test('report-only verifier classifies target/ref drift without mutating the Work Record', () => {
-  const record = fixture('workflow-browser-click-status.json');
-  const before = JSON.stringify(record);
-  record.execution_map.steps[0].action.target = 'browser:work-record-live-action/e99';
-
-  const mutated = JSON.stringify(record);
-  const result = checkWorkRecordReportOnly(record);
-  const targetDiagnostics = result.diagnostics.filter((item) => item.code === 'target_ref_drift');
-
-  assert.equal(result.status, 'failed');
-  assert.ok(targetDiagnostics.length >= 1);
-  assert.ok(targetDiagnostics.every((item) => item.failure_class === 'target_ref_drift'));
-  assert.ok(result.failure_classes.includes('target_ref_drift'));
-  assert.equal(JSON.stringify(record), mutated);
-  assert.notEqual(mutated, before);
-});
-
-test('report-only verifier classifies precondition, action, and postcondition failures', () => {
-  const cases = [
-    {
-      postconditionId: 'postcondition:aos-browser-click-status-2026-05-06-before-perception',
-      code: 'precondition_failed',
-      failureClass: 'precondition_failure',
-    },
-    {
-      postconditionId: 'postcondition:aos-browser-click-status-2026-05-06-action-executed',
-      code: 'action_failed',
-      failureClass: 'action_failure',
-    },
-    {
-      postconditionId: 'postcondition:aos-browser-click-status-after-status',
-      code: 'postcondition_failed',
-      failureClass: 'postcondition_failure',
+test('V1 verifier requires exact evidence-backed postcondition coverage for verified Claim Results', () => {
+  const mutations = [
+    (result) => { result.postcondition_results = []; result.evidence_refs = []; },
+    (result) => { result.postcondition_results.shift(); result.evidence_refs.shift(); },
+    (result) => { result.postcondition_results[0].status = 'unchecked'; },
+    (result) => { result.postcondition_results[0].evidence_refs = []; },
+    (result, record) => {
+      result.postcondition_results.push({
+        ...structuredClone(record.claim_results[1].postcondition_results[0]),
+      });
+      result.evidence_refs.push(...record.claim_results[1].evidence_refs);
     },
   ];
-
-  for (const item of cases) {
-    const record = fixture('workflow-browser-click-status.json');
-    markPostconditionFailed(record, item.postconditionId, `${item.failureClass} fixture`);
-    const before = JSON.stringify(record);
-    const result = checkWorkRecordReportOnly(record);
-    const diagnostics = result.diagnostics.filter((diagnostic) => diagnostic.code === item.code);
-
+  for (const mutate of mutations) {
+    const record = read('shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json');
+    mutate(record.claim_results[0], record);
+    const result = runWorkRecordVerifierProfile(record);
     assert.equal(result.status, 'failed');
-    assert.ok(diagnostics.length >= 1, `expected ${item.code}`);
-    assert.ok(diagnostics.every((diagnostic) => diagnostic.failure_class === item.failureClass));
-    assert.ok(result.failure_classes.includes(item.failureClass));
-    assert.equal(JSON.stringify(record), before);
+    assert.ok(result.diagnostics.some((item) => [
+      'claim_result_postcondition_coverage_mismatch',
+      'claim_result_evidence_mapping_mismatch',
+      'verified_claim_result_not_proven',
+    ].includes(item.code)));
   }
 });
 
-test('report-only verifier classifies State ID inconsistency without mutating the Work Record', () => {
-  const record = fixture('workflow-browser-click-status.json');
-  record.execution_map.postconditions[0].state_id = 'see_browserlive999';
-  const before = JSON.stringify(record);
+test('V1 verifier validates one exact digest row for every Claim when advertised', () => {
+  const baseline = materializeReplacementWorkRecord(replacementProposal());
+  assert.equal(runWorkRecordVerifierProfile(baseline).status, 'passed');
+  const mutations = [
+    (record) => { record.claims[0].text = 'fabricated replacement claim text'; },
+    (record) => { record.verifier_report.claims_digest.shift(); },
+    (record) => { record.verifier_report.claims_digest.push(structuredClone(record.verifier_report.claims_digest[0])); },
+    (record) => { record.verifier_report.claims_digest[0].digest = 'sha256:mismatch'; },
+  ];
+  for (const mutate of mutations) {
+    const record = structuredClone(baseline);
+    mutate(record);
+    const result = runWorkRecordVerifierProfile(record);
+    assert.equal(result.status, 'failed');
+    assert.ok(result.diagnostics.some((item) => [
+      'duplicate_claim_digest_id',
+      'claim_digest_coverage_mismatch',
+      'claim_digest_mismatch',
+    ].includes(item.code)));
+  }
+});
 
-  const result = checkWorkRecordReportOnly(record);
-  const diagnostic = result.diagnostics.find((item) => item.code === 'state_id_inconsistency');
-
+test('V1 verifier binds bare semantic refs to their enclosing evidence target', () => {
+  const record = read('shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json');
+  const after = record.evidence.find((item) => /after-see$/.test(item.id));
+  after.target = 'browser:unrelated-surface';
+  delete after.metadata.semantic_targets.find((item) => item.ref === 'e3').target;
+  const result = runWorkRecordVerifierProfile(record);
   assert.equal(result.status, 'failed');
-  assert.equal(diagnostic.failure_class, 'state_id_inconsistency');
-  assert.equal(diagnostic.expected_state_id, 'see_browserlive999');
-  assert.equal(diagnostic.actual_state_id, 'see_browserlive001');
-  assert.equal(JSON.stringify(record), before);
+  assert.ok(result.diagnostics.some((item) => item.code === 'evidence_target_ref_drift'));
+});
+
+test('V1 verifier does not collapse whitespace in semantic target identity', () => {
+  const record = read('shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json');
+  const postcondition = record.execution_map.postconditions
+    .find((item) => item.id === 'postcondition:aos-browser-click-status-after-status');
+  postcondition.target = postcondition.target.replace('/e3', '/  e3');
+  const result = runWorkRecordVerifierProfile(record);
+  assert.equal(result.status, 'failed');
+  assert.ok(result.diagnostics.some((item) => item.code === 'evidence_target_ref_drift'));
+});
+
+test('V1 verifier compares action targets and State IDs as exact byte carriers', () => {
+  const targetRecord = read('shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json');
+  const step = targetRecord.execution_map.steps[0];
+  const exactTarget = step.action.target;
+  const oneSpaceTarget = exactTarget.replace('/e2', '/ e2');
+  step.action.target = exactTarget.replace('/e2', '/  e2');
+  step.action.args.target_with_ref = oneSpaceTarget;
+  step.action.args.target_resolution.target_with_ref = oneSpaceTarget;
+  targetRecord.execution_map.targets
+    .filter((target) => target.target === exactTarget)
+    .forEach((target) => { target.target = oneSpaceTarget; });
+  targetRecord.execution_map.targets
+    .flatMap((target) => target.candidates)
+    .filter((candidate) => candidate.target === exactTarget)
+    .forEach((candidate) => { candidate.target = oneSpaceTarget; });
+  targetRecord.evidence
+    .filter((item) => item.target === exactTarget)
+    .forEach((item) => { item.target = oneSpaceTarget; });
+  targetRecord.evidence
+    .filter((item) => item.metadata?.target_with_ref === exactTarget)
+    .forEach((item) => { item.metadata.target_with_ref = oneSpaceTarget; });
+  const targetResult = runWorkRecordVerifierProfile(targetRecord);
+  assert.equal(targetResult.status, 'failed');
+  assert.ok(targetResult.diagnostics.some((item) => item.code === 'target_ref_drift'));
+
+  const stateRecord = read('shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json');
+  const postcondition = stateRecord.execution_map.postconditions[0];
+  const evidence = stateRecord.evidence.find((item) => item.id === postcondition.evidence_refs[0]);
+  postcondition.state_id = 'state  exact  identity';
+  evidence.state_id = 'state exact identity';
+  const stateResult = runWorkRecordVerifierProfile(stateRecord);
+  assert.equal(stateResult.status, 'failed');
+  assert.ok(stateResult.diagnostics.some((item) => item.code === 'state_id_inconsistency'));
+});
+
+test('V1 verifier evaluates exact falsy semantic expectations', () => {
+  const record = read('shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json');
+  const postcondition = record.execution_map.postconditions
+    .find((item) => item.id === 'postcondition:aos-browser-click-status-after-status');
+  postcondition.check = { kind: 'semantic_target_value_equals', ref: 'e3', expected: '' };
+  const result = runWorkRecordVerifierProfile(record);
+  assert.equal(result.status, 'failed');
+  assert.ok(result.diagnostics.some((item) => item.code === 'semantic_target_value_mismatch'));
+});
+
+test('V1 verifier rejects known but unrelated evidence substituted into a Claim Result', () => {
+  const record = read('shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json');
+  const result = record.claim_results
+    .find((item) => /post-action-state-observed$/.test(item.claim_id));
+  result.evidence_refs = ['evidence:aos-browser-click-status-before-see'];
+  result.postcondition_results[0].evidence_refs = ['evidence:aos-browser-click-status-before-see'];
+  const report = runWorkRecordVerifierProfile(record);
+  assert.equal(report.status, 'failed');
+  assert.ok(report.diagnostics.some((item) => item.code === 'postcondition_result_evidence_mismatch'));
+});
+
+test('V1 verifier requires every supplied semantic identity constraint to match one candidate', () => {
+  const record = read('shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json');
+  const postcondition = record.execution_map.postconditions
+    .find((item) => item.id === 'postcondition:aos-browser-click-status-after-status');
+  postcondition.check.semantic_ref = 'fabricated.semantic.target';
+  const report = runWorkRecordVerifierProfile(record);
+  assert.equal(report.status, 'failed');
+  assert.ok(report.diagnostics.some((item) => item.code === 'semantic_target_identity_mismatch'));
+});
+
+test('V1 verifier treats missing required semantic enabled state as unproven', () => {
+  const record = read('shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json');
+  const postcondition = record.execution_map.postconditions
+    .find((item) => item.id === 'postcondition:aos-browser-click-status-after-status');
+  postcondition.check.enabled = true;
+  const afterEvidence = record.evidence.find((item) => /after-see$/.test(item.id));
+  delete afterEvidence.metadata.semantic_targets.find((item) => item.ref === 'e3').enabled;
+  const executionTarget = record.execution_map.targets.find((item) => /postcondition-ref$/.test(item.id));
+  delete executionTarget.candidates.find((item) => item.ref === 'e3').enabled;
+  const report = runWorkRecordVerifierProfile(record);
+  assert.equal(report.status, 'failed');
+  assert.ok(report.diagnostics.some((item) => item.code === 'semantic_target_state_mismatch'));
+});
+
+test('V1 verifier evaluates primitive role and name equality expectations', () => {
+  for (const [kind, expected] of [
+    ['semantic_target_role_equals', 'button'],
+    ['semantic_target_name_equals', 'Fabricated status name'],
+  ]) {
+    const record = read('shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json');
+    const postcondition = record.execution_map.postconditions
+      .find((item) => item.id === 'postcondition:aos-browser-click-status-after-status');
+    postcondition.check = { kind, ref: 'e3', expected };
+    const report = runWorkRecordVerifierProfile(record);
+    assert.equal(report.status, 'failed');
+    assert.ok(report.diagnostics.some((item) => item.code === 'semantic_target_role_name_mismatch'));
+  }
+
+  const incomplete = read('shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json');
+  const postcondition = incomplete.execution_map.postconditions
+    .find((item) => item.id === 'postcondition:aos-browser-click-status-after-status');
+  postcondition.check = { kind: 'semantic_target_role_name_equals', ref: 'e3', expected: { role: 'status' } };
+  const report = runWorkRecordVerifierProfile(incomplete);
+  assert.equal(report.status, 'failed');
+  assert.ok(report.diagnostics.some((item) => item.code === 'semantic_target_role_name_expectation_incomplete'));
+});
+
+test('V1 verifier rejects V0 rather than dual-reading it', () => {
+  const historical = read('shared/schemas/fixtures/aos-work-record-v0/valid/workflow-origin.json');
+  assert.equal(runWorkRecordVerifierProfile(historical).status, 'unsupported');
 });

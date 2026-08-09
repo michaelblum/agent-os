@@ -52,7 +52,7 @@
             {
               "id": "writer-result",
               "kind": "flag",
-              "required": false,
+              "required": true,
               "summary": "Replacement Writer Result JSON used for provenance checks",
               "token": "--writer-result",
               "value_type": "string"
@@ -75,8 +75,8 @@
             }
           ],
           "examples": [
-            "aos work-record supersession write --source source.json --replacement replacement.json --index-root \"$(pwd -P)/.aos-work/work-record-index\" --dry-run --json",
-            "aos work-record supersession write --source source.json --replacement replacement.json --index-root \"$(pwd -P)/.aos-work/work-record-index\" --json"
+            "aos work-record supersession write --source source.json --replacement replacement.json --index-root \"$(pwd -P)/.aos-work/work-record-index\" --writer-result replacement-writer-result.json --dry-run --json",
+            "aos work-record supersession write --source source.json --replacement replacement.json --index-root \"$(pwd -P)/.aos-work/work-record-index\" --writer-result replacement-writer-result.json --json"
           ],
           "execution": {
             "auto_starts_daemon": false,
@@ -92,7 +92,6 @@
             "executes_repair": false,
             "executes_actions": false,
             "applies_patches": false,
-            "automatic_replay_allowed": false,
             "mutation_scope": "explicit_index_root_only"
           },
           "id": "work-record-supersession-write",
@@ -102,7 +101,7 @@
             "streaming": false,
             "supports_json_flag": true
           },
-          "usage": "aos work-record supersession write --source <id-or-path> --replacement <id-or-path> --index-root <dir> [--root path ...] [--replacement-root path ...] [--writer-result path] [--dry-run] [--json]"
+          "usage": "aos work-record supersession write --source <id-or-path> --replacement <id-or-path> --index-root <dir> --writer-result <path> [--root path ...] [--replacement-root path ...] [--dry-run] [--json]"
         },
         {
           "args": [
@@ -162,8 +161,7 @@
             "mutates_replacement_record": false,
             "executes_repair": false,
             "executes_actions": false,
-            "applies_patches": false,
-            "automatic_replay_allowed": false
+            "applies_patches": false
           },
           "id": "work-record-supersession-lookup",
           "output": {
@@ -207,8 +205,7 @@
             "mutates_replacement_record": false,
             "executes_repair": false,
             "executes_actions": false,
-            "applies_patches": false,
-            "automatic_replay_allowed": false
+            "applies_patches": false
           },
           "id": "work-record-supersession-validate",
           "output": {
@@ -223,7 +220,7 @@
       "path": [
         "work-record"
       ],
-      "summary": "Work Records — discover, read, verify, explain recovery, plan gated repair attempts, and export read-only evidence manifests"
+      "summary": "Work Records - discover, read, verify, plan neutral recovery artifacts, finalize exact replacements, and export evidence manifests"
     }
   ]
 }

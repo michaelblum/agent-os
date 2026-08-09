@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-repair-attempt-plan-v1.schema.json",
+  "title": "AOS Work Record Repair Attempt Plan v1",
+  "description": "A non-executing exact proposal whose ready status means inputs are complete and source-bound.",
+  "type": "object",
+  "required": ["type", "schema_version", "status", "source_work_record", "repair_plan", "attempt_identity", "preconditions", "planned_operations", "candidate_patches", "evidence_requirements", "postconditions", "cleanup_expectations", "rollback_expectations", "executes_repair", "executes_actions", "applies_patches", "mutates_source", "diagnostics"],
+  "properties": {
+    "type": { "const": "work_record.repair_attempt_plan" },
+    "schema_version": { "const": "2026-08-work-record-repair-attempt-plan-v1" },
+    "status": { "enum": ["ready", "not_required", "blocked_inputs", "not_repairable", "superseded", "retired", "unsupported"] },
+    "source_work_record": { "$ref": "#/$defs/source_identity" },
+    "repair_plan": {
+      "type": "object",
+      "required": ["schema_version", "digest", "identity"],
+      "properties": {
+        "schema_version": { "const": "2026-08-work-record-repair-plan-v1" },
+        "digest": { "type": "string", "minLength": 1 },
+        "identity": { "$ref": "#/$defs/repair_plan_identity" }
+      },
+      "additionalProperties": false
+    },
+    "attempt_identity": { "$ref": "#/$defs/attempt_identity" },
+    "preconditions": { "type": "array", "items": { "$ref": "#/$defs/precondition" } },
+    "planned_operations": { "type": "array", "items": { "$ref": "#/$defs/planned_operation" } },
+    "candidate_patches": { "type": "array", "maxItems": 1, "items": { "$ref": "#/$defs/candidate_patch" } },
+    "recommended_commands": { "type": "array", "items": { "$ref": "#/$defs/recommended_command" } },
+    "evidence_requirements": { "type": "array", "items": { "$ref": "#/$defs/evidence_requirement" } },
+    "postconditions": { "type": "array", "items": { "$ref": "#/$defs/postcondition" } },
+    "cleanup_expectations": { "type": "array", "items": { "$ref": "#/$defs/outcome_expectation" } },
+    "rollback_expectations": { "type": "array", "items": { "$ref": "#/$defs/outcome_expectation" } },
+    "known_limits": { "type": "array", "items": { "type": "string" } },
+    "executes_repair": { "const": false },
+    "executes_actions": { "const": false },
+    "applies_patches": { "const": false },
+    "mutates_source": { "const": false },
+    "diagnostics": { "type": "array", "items": { "$ref": "#/$defs/diagnostic" } },
+    "recommended_next": { "$ref": "#/$defs/recommended_next" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "source_identity": {
+      "type": "object",
+      "required": ["id", "schema_version", "digest"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "path": { "type": "string" },
+        "match": { "type": "string" },
+        "requested_ref": { "type": "string" },
+        "schema_version": { "const": "2026-08-work-record-v1" },
+        "digest": { "type": "string", "minLength": 1 },
+        "summary": { "$ref": "#/$defs/source_summary" }
+      },
+      "additionalProperties": false
+    },
+    "source_summary": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "schema_version": { "const": "2026-08-work-record-v1" },
+        "label": { "type": "string" },
+        "path": { "type": "string" },
+        "repo_relative_path": { "type": "string" },
+        "origin_kind": { "type": "string" },
+        "health_verdict": { "type": "string" },
+        "claims": { "type": "integer", "minimum": 0 },
+        "claim_results": { "type": "integer", "minimum": 0 },
+        "evidence": { "type": "integer", "minimum": 0 },
+        "historical_claim_results_present": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "identity_binding": {
+      "type": "object",
+      "required": ["id", "digest"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "repair_plan_identity": {
+      "type": "object",
+      "required": ["schema_version", "source_work_record", "health_verdict", "plan_step_ids", "plan_step_bindings", "candidate_patch_ids", "candidate_patch_bindings", "evidence_refs", "payload_digest", "digest"],
+      "properties": {
+        "schema_version": { "const": "2026-08-work-record-repair-plan-v1" },
+        "source_work_record": { "$ref": "#/$defs/source_identity" },
+        "health_verdict": { "type": "string" },
+        "plan_step_ids": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "plan_step_bindings": { "type": "array", "items": { "$ref": "#/$defs/identity_binding" } },
+        "candidate_patch_ids": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "candidate_patch_bindings": { "type": "array", "items": { "$ref": "#/$defs/identity_binding" } },
+        "evidence_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "payload_digest": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "attempt_identity": {
+      "type": "object",
+      "required": ["source_work_record", "repair_plan", "candidate_patch_ids", "planned_operation_ids", "payload_digest", "digest", "attempt_id"],
+      "properties": {
+        "source_work_record": { "$ref": "#/$defs/source_identity" },
+        "repair_plan": {
+          "type": "object",
+          "required": ["schema_version", "digest"],
+          "properties": {
+            "schema_version": { "const": "2026-08-work-record-repair-plan-v1" },
+            "digest": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "candidate_patch_ids": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "planned_operation_ids": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "payload_digest": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "minLength": 1 },
+        "attempt_id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "precondition": {
+      "type": "object",
+      "required": ["id", "kind", "status", "check"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["complete", "missing", "failed"] },
+        "check": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["source_work_record"],
+              "properties": { "source_work_record": { "$ref": "#/$defs/source_identity" } },
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": ["schema_version", "digest"],
+              "properties": {
+                "schema_version": { "const": "2026-08-work-record-repair-plan-v1" },
+                "digest": { "type": "string", "minLength": 1 }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": ["source_work_record_immutable", "expected_digest"],
+              "properties": {
+                "source_work_record_immutable": { "const": true },
+                "expected_digest": { "type": "string", "minLength": 1 }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": ["accepted_outputs"],
+              "properties": {
+                "accepted_outputs": {
+                  "type": "array",
+                  "items": { "enum": ["repair_attempt_artifact", "replacement_proposal"] },
+                  "uniqueItems": true
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "planned_operation": {
+      "type": "object",
+      "required": ["id", "kind", "proposes_mutation", "declared_mutation_paths", "target_boundary", "precondition_refs", "evidence_requirement_refs", "postcondition_refs", "cleanup_refs", "rollback_refs", "executes_in_plan"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "source_step_id": { "type": "string", "minLength": 1 },
+        "source_candidate_patch_id": { "type": "string", "minLength": 1 },
+        "proposes_mutation": { "type": "boolean" },
+        "declared_mutation_paths": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "target_boundary": { "type": "string", "minLength": 1 },
+        "precondition_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "evidence_requirement_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "postcondition_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "cleanup_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "rollback_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "executes_in_plan": { "const": false },
+        "description": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "candidate_patch": {
+      "type": "object",
+      "required": ["id", "target", "status", "applied", "executes_in_plan", "declared_mutation_paths", "expected_side_effects", "rationale", "failure_classes", "diagnostic_codes", "validation_expectations", "rollback_expectation_refs"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "target": { "type": "string", "minLength": 1 },
+        "status": { "const": "proposed" },
+        "applied": { "const": false },
+        "executes_in_plan": { "const": false },
+        "declared_mutation_paths": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "expected_side_effects": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "rationale": { "type": "string", "minLength": 1 },
+        "failure_classes": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "diagnostic_codes": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "validation_expectations": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "rollback_expectation_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+      },
+      "additionalProperties": false
+    },
+    "recommended_command": {
+      "type": "object",
+      "required": ["command", "read_only", "mutates_state", "executes_in_plan", "purpose", "required_preconditions", "expected_evidence_artifact"],
+      "properties": {
+        "command": { "type": "string", "minLength": 1 },
+        "read_only": { "type": "boolean" },
+        "mutates_state": { "type": "boolean" },
+        "executes_in_plan": { "const": false },
+        "purpose": { "type": "string", "minLength": 1 },
+        "required_preconditions": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "expected_evidence_artifact": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "evidence_requirement": {
+      "type": "object",
+      "required": ["id", "kind", "required"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "required": { "type": "boolean" },
+        "description": { "type": "string", "minLength": 1 },
+        "expected_artifact_ref": { "type": "string", "minLength": 1 },
+        "profile_id": { "type": "string" },
+        "candidate_patch_id": { "type": "string", "minLength": 1 },
+        "target": { "type": "string", "minLength": 1 },
+        "applied_in_plan": { "const": false }
+      },
+      "additionalProperties": false
+    },
+    "postcondition": {
+      "type": "object",
+      "required": ["id", "kind", "required", "description"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "required": { "type": "boolean" },
+        "expected_digest": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "outcome_expectation": {
+      "type": "object",
+      "required": ["id", "kind", "executes_in_plan", "description"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "executes_in_plan": { "const": false },
+        "description": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "diagnostic": {
+      "type": "object",
+      "required": ["severity", "code", "message", "path"],
+      "properties": {
+        "severity": { "const": "error" },
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "recommended_next": {
+      "type": "object",
+      "required": ["action"],
+      "properties": {
+        "action": { "type": "string", "minLength": 1 },
+        "note": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  }
+}

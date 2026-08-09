@@ -10571,7 +10571,7 @@
           ],
           "examples" : [
             "aos work-record list --json",
-            "aos work-record list --root shared/schemas/fixtures/aos-work-record-v0/valid --json"
+            "aos work-record list --root shared/schemas/fixtures/aos-work-record-v1/valid --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -10619,7 +10619,7 @@
           ],
           "examples" : [
             "aos work-record read work-record:workflow-open-service-catalog-2026-05-05 --json",
-            "aos work-record read shared/schemas/fixtures/aos-work-record-v0/valid/workflow-origin.json --json"
+            "aos work-record read shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -10675,7 +10675,7 @@
           ],
           "examples" : [
             "aos work-record verify work-record:workflow-open-service-catalog-2026-05-05 --json",
-            "aos work-record verify shared/schemas/fixtures/aos-work-record-v0/valid/workflow-origin.json --profile aos.verifier.work-record.v0.report-only --json"
+            "aos work-record verify shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json --profile aos.verifier.work-record.v1.report-only --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -10831,46 +10831,6 @@
               "value_type" : "string"
             },
             {
-              "id" : "workflow-gate",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Specific workflow gate id in the current legacy repair coupling; this does not authorize AOS action",
-              "token" : "--workflow-gate",
-              "value_type" : "string"
-            },
-            {
-              "id" : "authorization",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Current legacy Workflow Gate Authorization JSON path; this records repair coupling and is not an AOS permission grant",
-              "token" : "--authorization",
-              "value_type" : "string"
-            },
-            {
-              "id" : "gate-record",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Gate record id or JSON path for current legacy repair-coupling evaluation; not AOS action authorization",
-              "token" : "--gate-record",
-              "value_type" : "string"
-            },
-            {
-              "id" : "resume-event",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Gate resume-event JSON path for current legacy repair-coupling evaluation; not AOS action authorization",
-              "token" : "--resume-event",
-              "value_type" : "string"
-            },
-            {
-              "id" : "continuation-id",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Submitted deferred-gate continuation id for current legacy repair-coupling evaluation; not AOS action authorization",
-              "token" : "--continuation-id",
-              "value_type" : "string"
-            },
-            {
               "id" : "json",
               "kind" : "flag",
               "required" : false,
@@ -10879,37 +10839,8 @@
               "value_type" : "bool"
             }
           ],
-          "constraints" : {
-            "conflicts" : [
-              [
-                "authorization",
-                "gate-record"
-              ],
-              [
-                "authorization",
-                "resume-event"
-              ],
-              [
-                "authorization",
-                "continuation-id"
-              ],
-              [
-                "gate-record",
-                "resume-event"
-              ],
-              [
-                "gate-record",
-                "continuation-id"
-              ],
-              [
-                "resume-event",
-                "continuation-id"
-              ]
-            ]
-          },
           "examples" : [
-            "aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json",
-            "aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --authorization workflow-gate-authorization.json --json"
+            "aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v1/valid/repairable-stale-saved-ref.json --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -10921,8 +10852,7 @@
             "supports_dry_run" : false,
             "executes_repair" : false,
             "executes_actions" : false,
-            "applies_patches" : false,
-            "automatic_replay_allowed" : false
+            "applies_patches" : false
           },
           "id" : "work-record-plan-attempt",
           "output" : {
@@ -10931,101 +10861,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
-          "usage" : "aos work-record plan-attempt <id-or-path> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--workflow-gate id] [--json]"
-        },
-        {
-          "args" : [
-            {
-              "id" : "attempt-plan",
-              "kind" : "flag",
-              "required" : true,
-              "summary" : "Ready Repair Attempt Plan JSON path",
-              "token" : "--attempt-plan",
-              "value_type" : "string"
-            },
-            {
-              "id" : "execution-root",
-              "kind" : "flag",
-              "required" : true,
-              "summary" : "Explicit existing execution root for the named deterministic file-fixture registry operation",
-              "token" : "--execution-root",
-              "value_type" : "string"
-            },
-            {
-              "id" : "artifact-root",
-              "kind" : "flag",
-              "required" : true,
-              "summary" : "Explicit existing artifact root for the Repair Attempt Artifact output",
-              "token" : "--artifact-root",
-              "value_type" : "string"
-            },
-            {
-              "id" : "operation-id",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Specific planned current legacy allowlisted fixture operation id; the allowlist is repair implementation, not ambient-authority policy",
-              "token" : "--operation-id",
-              "value_type" : "string"
-            },
-            {
-              "id" : "dry-run",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Report command identity, argv, roots, artifact path, timeout, allowed mutations, cleanup/rollback, and expected side effects without executing",
-              "token" : "--dry-run",
-              "value_type" : "bool"
-            },
-            {
-              "id" : "json",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Emit stable machine-readable Controlled Repair Executor result JSON",
-              "token" : "--json",
-              "value_type" : "bool"
-            }
-          ],
-          "examples" : [
-            "aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --dry-run --json",
-            "aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --json"
-          ],
-          "execution" : {
-            "auto_starts_daemon" : false,
-            "interactive" : false,
-            "mutates_state" : true,
-            "read_only" : false,
-            "requires_permissions" : false,
-            "streaming" : false,
-            "supports_dry_run" : true,
-            "executes_repair" : true,
-            "executes_actions" : false,
-            "applies_patches" : false,
-            "automatic_replay_allowed" : false,
-            "mutates_source_record" : false,
-            "writes_repair_attempt_artifact" : true,
-            "uses_browser" : false,
-            "uses_native_ax" : false,
-            "uses_canvas" : false,
-            "mutation_scope" : "explicit_execution_root_and_artifact_root_only",
-            "operation_scope" : "controlled_fixture_registry_only",
-            "unsupported_live_surfaces" : [
-              "browser",
-              "native_ax",
-              "canvas",
-              "coordinates",
-              "screenshots",
-              "image_matching",
-              "tcc_gated_surfaces"
-            ],
-            "rejects_arbitrary_shell" : true
-          },
-          "id" : "work-record-repair-execute",
-          "output" : {
-            "default_mode" : "json",
-            "error_mode" : "json_stderr",
-            "streaming" : false,
-            "supports_json_flag" : true
-          },
-          "usage" : "aos work-record repair execute --attempt-plan <plan-path> --execution-root <dir> --artifact-root <dir> [--operation-id id] [--dry-run] [--json]"
+          "usage" : "aos work-record plan-attempt <id-or-path> [--profile id] [--root path ...] [--json]"
         },
         {
           "args" : [
@@ -11058,8 +10894,7 @@
             "supports_dry_run" : false,
             "executes_repair" : false,
             "executes_actions" : false,
-            "applies_patches" : false,
-            "automatic_replay_allowed" : false
+            "applies_patches" : false
           },
           "id" : "work-record-attempt-artifact-validate",
           "output" : {
@@ -11076,7 +10911,7 @@
               "id" : "input",
               "kind" : "flag",
               "required" : true,
-              "summary" : "Fixture/outcome input JSON path",
+              "summary" : "Caller-supplied execution-outcome input JSON path",
               "token" : "--input",
               "value_type" : "string"
             },
@@ -11102,8 +10937,7 @@
             "supports_dry_run" : false,
             "executes_repair" : false,
             "executes_actions" : false,
-            "applies_patches" : false,
-            "automatic_replay_allowed" : false
+            "applies_patches" : false
           },
           "id" : "work-record-attempt-artifact-build",
           "output" : {
@@ -11158,7 +10992,7 @@
             }
           ],
           "examples" : [
-            "aos work-record replacement-proposal build --source shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --json"
+            "aos work-record replacement-proposal build --source shared/schemas/fixtures/aos-work-record-v1/valid/repairable-stale-saved-ref.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -11172,8 +11006,7 @@
             "mutates_source_record" : false,
             "executes_repair" : false,
             "executes_actions" : false,
-            "applies_patches" : false,
-            "automatic_replay_allowed" : false
+            "applies_patches" : false
           },
           "id" : "work-record-replacement-proposal-build",
           "output" : {
@@ -11217,8 +11050,7 @@
             "mutates_source_record" : false,
             "executes_repair" : false,
             "executes_actions" : false,
-            "applies_patches" : false,
-            "automatic_replay_allowed" : false
+            "applies_patches" : false
           },
           "id" : "work-record-replacement-proposal-validate",
           "output" : {
@@ -11288,7 +11120,6 @@
             "executes_repair" : false,
             "executes_actions" : false,
             "applies_patches" : false,
-            "automatic_replay_allowed" : false,
             "mutation_scope" : "explicit_output_root_only"
           },
           "id" : "work-record-replacement-proposal-write",
@@ -11299,169 +11130,6 @@
             "supports_json_flag" : true
           },
           "usage" : "aos work-record replacement-proposal write <proposal-path> --output-root <dir> [--output-path path] [--dry-run] [--json]"
-        },
-        {
-          "args" : [
-            {
-              "id" : "ref",
-              "kind" : "positional",
-              "required" : true,
-              "summary" : "Work Record id, Subject Entry Handle, or JSON path",
-              "value_type" : "string"
-            },
-            {
-              "id" : "profile",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Report-only verifier profile id",
-              "token" : "--profile",
-              "value_type" : "string"
-            },
-            {
-              "id" : "root",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Explicit Work Record file or directory root; repeatable",
-              "token" : "--root",
-              "value_type" : "string"
-            },
-            {
-              "id" : "workflow-gate",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Specific workflow gate id to encode in the current legacy repair request; Gate does not authorize AOS action",
-              "token" : "--workflow-gate",
-              "value_type" : "string"
-            },
-            {
-              "id" : "json",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Emit stable machine-readable gate request JSON",
-              "token" : "--json",
-              "value_type" : "bool"
-            }
-          ],
-          "examples" : [
-            "aos work-record gate-request shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json"
-          ],
-          "execution" : {
-            "auto_starts_daemon" : false,
-            "interactive" : false,
-            "mutates_state" : false,
-            "read_only" : true,
-            "requires_permissions" : false,
-            "streaming" : false,
-            "supports_dry_run" : false
-          },
-          "id" : "work-record-gate-request",
-          "output" : {
-            "default_mode" : "json",
-            "error_mode" : "json_stderr",
-            "streaming" : false,
-            "supports_json_flag" : true
-          },
-          "usage" : "aos work-record gate-request <id-or-path> [--profile id] [--root path ...] [--workflow-gate id] [--json]"
-        },
-        {
-          "args" : [
-            {
-              "id" : "ref",
-              "kind" : "positional",
-              "required" : true,
-              "summary" : "Work Record id, Subject Entry Handle, or JSON path",
-              "value_type" : "string"
-            },
-            {
-              "id" : "profile",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Report-only verifier profile id",
-              "token" : "--profile",
-              "value_type" : "string"
-            },
-            {
-              "id" : "root",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Explicit Work Record file or directory root; repeatable",
-              "token" : "--root",
-              "value_type" : "string"
-            },
-            {
-              "id" : "workflow-gate",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Specific workflow gate id for current legacy repair-coupling evaluation; the result does not authorize AOS action",
-              "token" : "--workflow-gate",
-              "value_type" : "string"
-            },
-            {
-              "id" : "gate-record",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Gate record id or JSON path",
-              "token" : "--gate-record",
-              "value_type" : "string"
-            },
-            {
-              "id" : "resume-event",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Gate resume-event JSON path",
-              "token" : "--resume-event",
-              "value_type" : "string"
-            },
-            {
-              "id" : "continuation-id",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Submitted deferred-gate continuation id",
-              "token" : "--continuation-id",
-              "value_type" : "string"
-            },
-            {
-              "id" : "json",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Emit current legacy repair-coupling evaluation JSON; not an AOS permission grant",
-              "token" : "--json",
-              "value_type" : "bool"
-            }
-          ],
-          "constraints" : {
-            "required_groups" : [
-              [
-                "gate-record"
-              ],
-              [
-                "resume-event"
-              ],
-              [
-                "continuation-id"
-              ]
-            ]
-          },
-          "examples" : [
-            "aos work-record gate-check shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --gate-record gate-record.json --json"
-          ],
-          "execution" : {
-            "auto_starts_daemon" : false,
-            "interactive" : false,
-            "mutates_state" : false,
-            "read_only" : true,
-            "requires_permissions" : false,
-            "streaming" : false,
-            "supports_dry_run" : false
-          },
-          "id" : "work-record-gate-check",
-          "output" : {
-            "default_mode" : "json",
-            "error_mode" : "json_stderr",
-            "streaming" : false,
-            "supports_json_flag" : true
-          },
-          "usage" : "aos work-record gate-check <id-or-path> (--gate-record id-or-path|--resume-event path|--continuation-id id) [--profile id] [--root path ...] [--workflow-gate id] [--json]"
         },
         {
           "args" : [
@@ -11563,7 +11231,7 @@
             {
               "id" : "writer-result",
               "kind" : "flag",
-              "required" : false,
+              "required" : true,
               "summary" : "Replacement Writer Result JSON used for provenance checks",
               "token" : "--writer-result",
               "value_type" : "string"
@@ -11586,8 +11254,8 @@
             }
           ],
           "examples" : [
-            "aos work-record supersession write --source source.json --replacement replacement.json --index-root \"$(pwd -P)/.aos-work/work-record-index\" --dry-run --json",
-            "aos work-record supersession write --source source.json --replacement replacement.json --index-root \"$(pwd -P)/.aos-work/work-record-index\" --json"
+            "aos work-record supersession write --source source.json --replacement replacement.json --index-root \"$(pwd -P)/.aos-work/work-record-index\" --writer-result replacement-writer-result.json --dry-run --json",
+            "aos work-record supersession write --source source.json --replacement replacement.json --index-root \"$(pwd -P)/.aos-work/work-record-index\" --writer-result replacement-writer-result.json --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -11603,7 +11271,6 @@
             "executes_repair" : false,
             "executes_actions" : false,
             "applies_patches" : false,
-            "automatic_replay_allowed" : false,
             "mutation_scope" : "explicit_index_root_only"
           },
           "id" : "work-record-supersession-write",
@@ -11613,7 +11280,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
-          "usage" : "aos work-record supersession write --source <id-or-path> --replacement <id-or-path> --index-root <dir> [--root path ...] [--replacement-root path ...] [--writer-result path] [--dry-run] [--json]"
+          "usage" : "aos work-record supersession write --source <id-or-path> --replacement <id-or-path> --index-root <dir> --writer-result <path> [--root path ...] [--replacement-root path ...] [--dry-run] [--json]"
         },
         {
           "args" : [
@@ -11673,8 +11340,7 @@
             "mutates_replacement_record" : false,
             "executes_repair" : false,
             "executes_actions" : false,
-            "applies_patches" : false,
-            "automatic_replay_allowed" : false
+            "applies_patches" : false
           },
           "id" : "work-record-supersession-lookup",
           "output" : {
@@ -11718,8 +11384,7 @@
             "mutates_replacement_record" : false,
             "executes_repair" : false,
             "executes_actions" : false,
-            "applies_patches" : false,
-            "automatic_replay_allowed" : false
+            "applies_patches" : false
           },
           "id" : "work-record-supersession-validate",
           "output" : {
@@ -11756,38 +11421,6 @@
               "value_type" : "string"
             },
             {
-              "id" : "authorization",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Current legacy Workflow Gate Authorization JSON path; this records repair coupling and is not an AOS permission grant",
-              "token" : "--authorization",
-              "value_type" : "string"
-            },
-            {
-              "id" : "gate-record",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Gate record id or JSON path for current legacy repair-coupling evaluation; not AOS action authorization",
-              "token" : "--gate-record",
-              "value_type" : "string"
-            },
-            {
-              "id" : "resume-event",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Gate resume-event JSON path for current legacy repair-coupling evaluation; not AOS action authorization",
-              "token" : "--resume-event",
-              "value_type" : "string"
-            },
-            {
-              "id" : "continuation-id",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Submitted deferred-gate continuation id for current legacy repair-coupling evaluation; not AOS action authorization",
-              "token" : "--continuation-id",
-              "value_type" : "string"
-            },
-            {
               "id" : "attempt-plan",
               "kind" : "flag",
               "required" : false,
@@ -11801,22 +11434,6 @@
               "required" : false,
               "summary" : "Repair Attempt Artifact JSON path to validate",
               "token" : "--attempt-artifact",
-              "value_type" : "string"
-            },
-            {
-              "id" : "execution-root",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Explicit execution root to use in recommended repair execute commands",
-              "token" : "--execution-root",
-              "value_type" : "string"
-            },
-            {
-              "id" : "artifact-root",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Explicit artifact root to use in recommended repair execute commands",
-              "token" : "--artifact-root",
               "value_type" : "string"
             },
             {
@@ -11844,37 +11461,8 @@
               "value_type" : "bool"
             }
           ],
-          "constraints" : {
-            "conflicts" : [
-              [
-                "authorization",
-                "gate-record"
-              ],
-              [
-                "authorization",
-                "resume-event"
-              ],
-              [
-                "authorization",
-                "continuation-id"
-              ],
-              [
-                "gate-record",
-                "resume-event"
-              ],
-              [
-                "gate-record",
-                "continuation-id"
-              ],
-              [
-                "resume-event",
-                "continuation-id"
-              ]
-            ]
-          },
           "examples" : [
-            "aos work-record repair guide shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json",
-            "aos work-record repair guide source.json --authorization workflow-gate-authorization.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root \"$(pwd -P)/.aos-work/work-records\" --index-root \"$(pwd -P)/.aos-work/work-record-index\" --json"
+            "aos work-record repair guide shared/schemas/fixtures/aos-work-record-v1/valid/repairable-stale-saved-ref.json --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -11894,10 +11482,7 @@
             "uses_native_ax" : false,
             "uses_canvas" : false,
             "applies_patches" : false,
-            "automatic_replay_allowed" : false,
             "runs_recommended_commands" : false,
-            "starts_workflow_engine" : false,
-            "auto_resumes" : false,
             "composition_scope" : "read_only_guided_recovery_report"
           },
           "id" : "work-record-repair-guide",
@@ -11907,7 +11492,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
-          "usage" : "aos work-record repair guide <id-or-path> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--attempt-plan path] [--attempt-artifact path] [--execution-root dir] [--artifact-root dir] [--replacement-root dir] [--index-root dir] [--json]"
+          "usage" : "aos work-record repair guide <id-or-path> [--profile id] [--root path ...] [--attempt-plan path] [--attempt-artifact path] [--replacement-root dir] [--index-root dir] [--json]"
         },
         {
           "args" : [
@@ -11940,38 +11525,6 @@
               "required" : false,
               "summary" : "Explicit Work Record file or directory root; repeatable",
               "token" : "--root",
-              "value_type" : "string"
-            },
-            {
-              "id" : "authorization",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Current legacy Workflow Gate Authorization JSON path; this records repair coupling and is not an AOS permission grant",
-              "token" : "--authorization",
-              "value_type" : "string"
-            },
-            {
-              "id" : "gate-record",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Gate record id or JSON path for current legacy repair-coupling evaluation; not AOS action authorization",
-              "token" : "--gate-record",
-              "value_type" : "string"
-            },
-            {
-              "id" : "resume-event",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Gate resume-event JSON path for current legacy repair-coupling evaluation; not AOS action authorization",
-              "token" : "--resume-event",
-              "value_type" : "string"
-            },
-            {
-              "id" : "continuation-id",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Submitted deferred-gate continuation id for current legacy repair-coupling evaluation; not AOS action authorization",
-              "token" : "--continuation-id",
               "value_type" : "string"
             },
             {
@@ -12023,37 +11576,8 @@
               "value_type" : "bool"
             }
           ],
-          "constraints" : {
-            "conflicts" : [
-              [
-                "authorization",
-                "gate-record"
-              ],
-              [
-                "authorization",
-                "resume-event"
-              ],
-              [
-                "authorization",
-                "continuation-id"
-              ],
-              [
-                "gate-record",
-                "resume-event"
-              ],
-              [
-                "gate-record",
-                "continuation-id"
-              ],
-              [
-                "resume-event",
-                "continuation-id"
-              ]
-            ]
-          },
           "examples" : [
-            "aos work-record repair bundle shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --output-root \"$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref\" --dry-run --json",
-            "aos work-record repair bundle source.json --output-root \"$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref\" --authorization workflow-gate-authorization.json --json"
+            "aos work-record repair bundle shared/schemas/fixtures/aos-work-record-v1/valid/repairable-stale-saved-ref.json --output-root \"$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref\" --dry-run --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -12074,10 +11598,7 @@
             "uses_native_ax" : false,
             "uses_canvas" : false,
             "applies_patches" : false,
-            "automatic_replay_allowed" : false,
             "runs_recommended_commands" : false,
-            "starts_workflow_engine" : false,
-            "auto_resumes" : false,
             "mutation_scope" : "explicit_output_root_bundle_artifacts_only",
             "composition_scope" : "non_mutating_guide_planning_artifact_materialization"
           },
@@ -12088,7 +11609,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
-          "usage" : "aos work-record repair bundle <id-or-path> --output-root <dir> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--attempt-plan path] [--attempt-artifact path] [--replacement-root dir] [--index-root dir] [--dry-run] [--json]"
+          "usage" : "aos work-record repair bundle <id-or-path> --output-root <dir> [--profile id] [--root path ...] [--attempt-plan path] [--attempt-artifact path] [--replacement-root dir] [--index-root dir] [--dry-run] [--json]"
         },
         {
           "args" : [
@@ -12152,10 +11673,7 @@
             "uses_native_ax" : false,
             "uses_canvas" : false,
             "applies_patches" : false,
-            "automatic_replay_allowed" : false,
             "runs_recommended_commands" : false,
-            "starts_workflow_engine" : false,
-            "auto_resumes" : false,
             "inspection_scope" : "explicit_bundle_roots_and_non_recursive_parent_children_only",
             "composition_scope" : "read_only_recovery_bundle_lifecycle_status_index"
           },
@@ -12210,10 +11728,7 @@
             "uses_native_ax" : false,
             "uses_canvas" : false,
             "applies_patches" : false,
-            "automatic_replay_allowed" : false,
             "runs_recommended_commands" : false,
-            "starts_workflow_engine" : false,
-            "auto_resumes" : false,
             "inspection_scope" : "explicit_bundle_root_only",
             "composition_scope" : "read_only_recovery_bundle_validation"
           },
@@ -12323,7 +11838,6 @@
             "uses_native_ax" : false,
             "uses_canvas" : false,
             "applies_patches" : false,
-            "automatic_replay_allowed" : false,
             "runs_recommended_commands" : false,
             "mutation_scope" : "explicit_replacement_root_and_index_root_only",
             "composition_scope" : "repair_attempt_artifact_to_replacement_writer_to_source_supersession_index"
@@ -12341,7 +11855,7 @@
       "path" : [
         "work-record"
       ],
-      "summary" : "Work Records — discover, read, verify, explain recovery, plan gated repair attempts, and export read-only evidence manifests"
+      "summary" : "Work Records - discover, read, verify, plan neutral recovery artifacts, finalize exact replacements, and export evidence manifests"
     },
     {
       "forms" : [

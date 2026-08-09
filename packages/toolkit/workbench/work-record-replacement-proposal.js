@@ -1,9 +1,14 @@
 import crypto from 'node:crypto';
 import {
   validateWorkRecordRepairAttemptArtifact,
+  WORK_RECORD_REPAIR_ATTEMPT_ARTIFACT_SCHEMA_VERSION,
 } from './work-record-repair-attempt-artifact.js';
+import {
+  validateWorkRecordRepairAttemptPlan,
+  WORK_RECORD_REPAIR_ATTEMPT_PLAN_SCHEMA_VERSION,
+} from './work-record-repair-attempt-plan.js';
 
-export const WORK_RECORD_REPLACEMENT_PROPOSAL_SCHEMA_VERSION = '2026-07-work-record-replacement-proposal-v0';
+export const WORK_RECORD_REPLACEMENT_PROPOSAL_SCHEMA_VERSION = '2026-08-work-record-replacement-proposal-v1';
 export const WORK_RECORD_REPLACEMENT_PROPOSAL_TYPE = 'work_record.replacement_proposal';
 
 export const WORK_RECORD_REPLACEMENT_PROPOSAL_STATUSES = [
@@ -12,6 +17,7 @@ export const WORK_RECORD_REPLACEMENT_PROPOSAL_STATUSES = [
   'blocked_attempt_failed',
   'blocked_attempt_partial',
   'blocked_missing_evidence',
+  'blocked_source_metadata_collision',
   'blocked_source_mutated',
   'blocked_health_mismatch',
   'stale',
@@ -23,15 +29,28 @@ const BLOCKED_ATTEMPT_STATUSES = new Set(['failed', 'cleanup_failed', 'rollback_
 const PARTIAL_ATTEMPT_STATUSES = new Set(['partial']);
 const UNSUPPORTED_ATTEMPT_STATUSES = new Set([
   'aborted_precondition',
-  'blocked_authorization',
   'blocked_plan_mismatch',
   'invalid_artifact',
   'unsupported',
 ]);
 
+const REPLACEMENT_METADATA_KEYS = Object.freeze([
+  'replacement_proposal',
+  'writes_replacement_record',
+  'proposal_only',
+  'persisted',
+  'persisted_by_writer',
+  'replacement_writer',
+]);
+
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
   return normalized || fallback;
+}
+
+function rawText(value, fallback = '') {
+  const raw = String(value ?? '');
+  return raw || fallback;
 }
 
 function objectValue(value) {
@@ -73,14 +92,95 @@ function uniqueStrings(values = []) {
   return [...new Set(values.map((value) => text(value)).filter(Boolean))].sort();
 }
 
+function orderedUniqueStrings(values = []) {
+  return [...new Set(values.map((value) => text(value)).filter(Boolean))];
+}
+
 function sourceIdentity(source = {}) {
   const value = objectValue(source);
   return {
     id: text(value.id),
-    path: text(value.path),
-    requested_ref: text(value.requested_ref),
+    path: rawText(value.path),
+    requested_ref: rawText(value.requested_ref),
     schema_version: text(value.schema_version),
     digest: text(value.digest),
+  };
+}
+
+export function workRecordImmutableSourceFields(record = {}) {
+  const value = objectValue(record);
+  return {
+    type: text(value.type),
+    schema_version: text(value.schema_version),
+    label: rawText(value.label),
+    origin: cloneJson(objectValue(value.origin)),
+    references: cloneJson(arrayValue(value.references)),
+    intent: cloneJson(objectValue(value.intent)),
+    claims: cloneJson(arrayValue(value.claims)),
+    metadata: cloneJson(objectValue(value.metadata)),
+  };
+}
+
+function replacementMetadataCollisions(metadata = {}) {
+  const value = objectValue(metadata);
+  return REPLACEMENT_METADATA_KEYS.filter((key) => Object.hasOwn(value, key));
+}
+
+export function replacementProposalReferences({ sourceRecord = {}, sourceId = '', planAttemptId = '', artifactId = '' } = {}) {
+  return [
+    ...arrayValue(sourceRecord.references).map(cloneJson),
+    {
+      id: 'supersedes-source-work-record',
+      relationship: 'supersedes',
+      ref: text(sourceId),
+      subject_type: 'aos.work_record',
+    },
+    {
+      id: 'derived-from-repair-attempt-plan',
+      relationship: 'derived_from',
+      ref: text(planAttemptId),
+      subject_type: 'work_record.repair_attempt_plan',
+    },
+    {
+      id: 'derived-from-repair-attempt-artifact',
+      relationship: 'derived_from',
+      ref: text(artifactId),
+      subject_type: 'work_record.repair_attempt_artifact',
+    },
+  ];
+}
+
+function proposalIdentityCore(proposal = {}) {
+  const value = objectValue(proposal);
+  return {
+    source_work_record: sourceIdentity(value.source_work_record),
+    immutable_source_fields_digest: text(value.source_work_record?.immutable_fields_digest),
+    repair_attempt_plan: {
+      schema_version: text(value.repair_attempt_plan?.schema_version),
+      digest: text(value.repair_attempt_plan?.digest),
+      attempt_id: text(value.repair_attempt_plan?.attempt_id),
+    },
+    repair_attempt_artifact: cloneJson(objectValue(value.repair_attempt_artifact)),
+    proposed_replacement_work_record_id: text(value.proposed_replacement_work_record?.id),
+    proposed_replacement_work_record_digest: digestJson(value.proposed_replacement_work_record),
+    carried_forward_evidence: cloneJson(arrayValue(value.carried_forward_evidence)),
+    new_evidence: cloneJson(arrayValue(value.new_evidence)),
+    postcondition_evidence_map: cloneJson(arrayValue(value.postcondition_evidence_map)),
+    supersedes: cloneJson(objectValue(value.supersedes)),
+    claim_provenance: cloneJson(arrayValue(value.claim_provenance)),
+    verifier_before: cloneJson(objectValue(value.verifier_before)),
+    verifier_after: cloneJson(objectValue(value.verifier_after)),
+    final_proposed_health: cloneJson(objectValue(value.final_proposed_health)),
+  };
+}
+
+function expectedProposalIdentity(proposal = {}) {
+  const core = proposalIdentityCore(proposal);
+  const identityDigest = digestJson(core);
+  return {
+    id: `work-record-replacement-proposal:${identityDigest.slice(0, 24)}`,
+    digest: identityDigest,
+    ...core,
   };
 }
 
@@ -90,7 +190,8 @@ function recordEvidenceIds(record = {}) {
 
 function refId(ref = {}) {
   if (typeof ref === 'string') return ref;
-  return text(objectValue(ref).id || objectValue(ref).ref || objectValue(ref).uri);
+  const value = objectValue(ref);
+  return text(value.id || value.ref) || rawText(value.uri);
 }
 
 function artifactEvidenceRefs(artifact = {}) {
@@ -110,14 +211,29 @@ function verifierHealth(report = {}) {
 
 function proposalStatus({ source = {}, plan = {}, artifact = {}, validation = {} } = {}) {
   const sourceId = text(source.record?.id);
-  const artifactSourceId = text(artifact.source_work_record?.id);
-  const planSourceId = text(plan.source_work_record?.id);
+  const currentSourceIdentity = sourceIdentity({
+    id: sourceId,
+    path: source.path,
+    requested_ref: source.requested_ref,
+    schema_version: source.record?.schema_version || source.schema_version,
+    digest: source.digest,
+  });
+  const planSourceIdentity = sourceIdentity(plan.source_work_record);
+  const artifactSourceIdentity = sourceIdentity(artifact.source_work_record);
   if (!source.record || !sourceId) return 'unsupported';
   if (plan.type !== 'work_record.repair_attempt_plan') return 'unsupported';
-  if (planSourceId && planSourceId !== sourceId) return 'mismatch';
-  if (artifactSourceId && artifactSourceId !== sourceId) return 'mismatch';
+  if (validateWorkRecordRepairAttemptPlan(plan).status !== 'passed') return 'unsupported';
+  if (text(plan.status) !== 'ready') return text(plan.status) === 'not_required' ? 'not_required' : 'unsupported';
+  if (planSourceIdentity.id !== currentSourceIdentity.id || artifactSourceIdentity.id !== currentSourceIdentity.id) return 'mismatch';
+  if (planSourceIdentity.digest !== currentSourceIdentity.digest || artifactSourceIdentity.digest !== currentSourceIdentity.digest) return 'stale';
+  if (digestJson(planSourceIdentity) !== digestJson(currentSourceIdentity)
+    || digestJson(artifactSourceIdentity) !== digestJson(currentSourceIdentity)) return 'mismatch';
+  if (digestJson(artifact.repair_plan) !== digestJson(plan.repair_plan)) return 'stale';
   if (text(artifact.repair_attempt_plan?.digest) && text(artifact.repair_attempt_plan.digest) !== digestJson(plan)) return 'stale';
-  if (text(plan.status) === 'not_required') return 'not_required';
+  if (digestJson(artifact.repair_attempt_plan?.attempt_identity) !== digestJson(plan.attempt_identity)) return 'stale';
+  if (digestJson(artifact.planned_operations) !== digestJson(plan.planned_operations)) return 'stale';
+  if (digestJson(artifact.planned_candidate_patches) !== digestJson(plan.candidate_patches)) return 'stale';
+  if (digestJson(artifact.planned_evidence_requirements) !== digestJson(plan.evidence_requirements)) return 'stale';
   if (artifact.source_work_record_mutated === true) return 'blocked_source_mutated';
   const mutationCheck = objectValue(artifact.source_work_record_mutation_check);
   if (text(mutationCheck.status) && text(mutationCheck.status) !== 'passed') return 'blocked_source_mutated';
@@ -147,13 +263,12 @@ function proposalStatus({ source = {}, plan = {}, artifact = {}, validation = {}
 function buildCarriedForwardEvidence(record = {}, evidencePolicy = {}) {
   const policy = objectValue(evidencePolicy);
   const explicit = arrayValue(policy.carried_forward_evidence);
-  const evidenceIds = recordEvidenceIds(record);
   const carryIds = explicit.length > 0
-    ? uniqueStrings(explicit.map((item) => text(objectValue(item).source_evidence_id || objectValue(item).id || item)))
-    : evidenceIds;
+    ? orderedUniqueStrings(explicit.map((item) => text(objectValue(item).source_evidence_id || objectValue(item).id || item)))
+    : orderedUniqueStrings(arrayValue(record.evidence).map((item) => objectValue(item).id));
   return carryIds.map((id) => ({
     source_evidence_id: id,
-    source_path: text(policy.source_path, 'source_work_record.evidence'),
+    source_path: rawText(policy.source_path, 'source_work_record.evidence'),
     carry_reason: text(policy.carry_reason, 'preserve_source_work_record_evidence'),
     claim_refs: uniqueStrings(arrayValue(record.claims)
       .filter((claim) => arrayValue(objectValue(claim).evidence_refs).includes(id))
@@ -166,7 +281,7 @@ function buildNewEvidence(artifact = {}) {
   const postconditionRefsByEvidence = new Map();
   for (const result of arrayValue(artifact.postcondition_results)) {
     const item = objectValue(result);
-    const postconditionId = text(item.postcondition_id);
+    const postconditionId = text(item.id);
     if (!postconditionId) continue;
     for (const evidenceRef of arrayValue(item.evidence_ref_ids).map(text).filter(Boolean)) {
       const refs = postconditionRefsByEvidence.get(evidenceRef) || [];
@@ -176,41 +291,40 @@ function buildNewEvidence(artifact = {}) {
   }
   return artifactEvidenceRefs(artifact).map((ref) => {
     const id = refId(ref);
+    const createdAt = rawText(ref.created_at)
+      || rawText(ref.captured_at)
+      || rawText(ref.completed_at)
+      || rawText(objectValue(artifact.timing).finished_at);
     return {
       artifact_evidence_id: id,
-      artifact_path: text(ref.uri || ref.path || ref.artifact_path, `artifact:${id}`),
+      artifact_path: rawText(ref.uri || ref.path || ref.artifact_path, `artifact:${id}`),
       new_record_evidence_id: `replacement:${id}`,
       claim_refs: [],
       postcondition_refs: uniqueStrings(postconditionRefsByEvidence.get(id) || []),
       digest: text(ref.digest),
       phase: text(ref.phase),
       phase_range: text(ref.phase_range),
+      kind: text(ref.kind),
+      created_at: createdAt,
+      metadata: cloneJson(objectValue(ref.metadata)),
     };
   });
 }
 
 function buildPostconditionEvidenceMap({ record = {}, newEvidence = [] } = {}) {
   const artifactToReplacement = new Map(newEvidence.map((item) => [text(item.artifact_evidence_id), text(item.new_record_evidence_id)]));
-  const defaultRepairEvidence = text(newEvidence.find((item) => text(item.artifact_evidence_id).includes('new-work-record-or-patch-artifact'))?.new_record_evidence_id
-    || newEvidence.find((item) => text(item.artifact_evidence_id).includes('patch:'))?.new_record_evidence_id
-    || newEvidence[0]?.new_record_evidence_id);
   return arrayValue(record.execution_map?.postconditions).map((postcondition) => {
     const value = objectValue(postcondition);
     const mappedEvidence = uniqueStrings(arrayValue(newEvidence)
       .filter((item) => arrayValue(item.postcondition_refs).map(text).includes(text(value.id)))
       .map((item) => text(item.new_record_evidence_id)));
-    const semanticRepairEvidence = text(value.check?.kind).startsWith('semantic_') && defaultRepairEvidence
-      ? [defaultRepairEvidence]
-      : [];
     const legacyEvidence = uniqueStrings(arrayValue(value.evidence_refs)
       .map((id) => artifactToReplacement.get(text(id)) || text(id)));
     return {
       postcondition_id: text(value.id),
-      evidence_refs: mappedEvidence.length > 0 ? mappedEvidence : semanticRepairEvidence.length > 0 ? semanticRepairEvidence : legacyEvidence,
+      evidence_refs: mappedEvidence.length > 0 ? mappedEvidence : legacyEvidence,
       source: mappedEvidence.length > 0
         ? 'repair_attempt_artifact.postcondition_results'
-        : semanticRepairEvidence.length > 0
-          ? 'repair_attempt_artifact.default_semantic_repair_evidence'
         : 'source_work_record.execution_map.postconditions',
     };
   }).filter((item) => item.postcondition_id);
@@ -229,6 +343,31 @@ function buildClaimProvenance(record = {}, artifact = {}) {
   });
 }
 
+function producedExecutionMap(artifact = {}) {
+  const outcomes = arrayValue(artifact.candidate_patch_outcomes)
+    .map((item) => objectValue(item))
+    .filter((item) => text(item.status) === 'produced' && objectValue(item.proposed_execution_map).postconditions);
+  return cloneJson(objectValue(outcomes.length === 1 ? outcomes[0].proposed_execution_map : {}));
+}
+
+function applyPostconditionEvidenceMap(executionMap = {}, postconditionEvidenceMap = []) {
+  const mapped = new Map(arrayValue(postconditionEvidenceMap).map((item) => [
+    text(objectValue(item).postcondition_id),
+    arrayValue(objectValue(item).evidence_refs).map(text).filter(Boolean),
+  ]));
+  return {
+    ...cloneJson(objectValue(executionMap)),
+    postconditions: arrayValue(executionMap.postconditions).map((postcondition) => {
+      const value = objectValue(postcondition);
+      const evidenceRefs = mapped.get(text(value.id));
+      return {
+        ...cloneJson(value),
+        evidence_refs: evidenceRefs && evidenceRefs.length > 0 ? evidenceRefs : cloneJson(arrayValue(value.evidence_refs)),
+      };
+    }),
+  };
+}
+
 function proposedRecordShape({
   record = {},
   source = {},
@@ -239,6 +378,8 @@ function proposedRecordShape({
   newEvidence = [],
   claimProvenance = [],
   postconditionEvidenceMap = [],
+  replacementExecutionMap = {},
+  sourceMetadataCollisions = [],
 } = {}) {
   const proposedId = text(proposedIdSeed, `${text(record.id)}:replacement:${digestJson({
     source: sourceIdentity(source),
@@ -249,7 +390,7 @@ function proposedRecordShape({
     type: text(record.type, 'aos.work_record'),
     schema_version: text(record.schema_version),
     id: proposedId,
-    label: text(record.label, `Replacement proposal for ${text(record.id)}`),
+    label: rawText(record.label, `Replacement proposal for ${text(record.id)}`),
     proposal_only: true,
     persisted: false,
     source_work_record_id: text(record.id),
@@ -260,39 +401,14 @@ function proposedRecordShape({
       repair_attempt_artifact_id: text(artifact.attempt_artifact_identity?.id),
     },
     origin: cloneJson(record.origin || {}),
-    references: [
-      ...arrayValue(record.references).map(cloneJson),
-      {
-        id: 'supersedes-source-work-record',
-        relationship: 'supersedes',
-        ref: text(record.id),
-        subject_type: 'aos.work_record',
-      },
-      {
-        id: 'derived-from-repair-attempt-plan',
-        relationship: 'derived_from',
-        ref: text(plan.attempt_identity?.attempt_id),
-        subject_type: 'work_record.repair_attempt_plan',
-      },
-      {
-        id: 'derived-from-repair-attempt-artifact',
-        relationship: 'derived_from',
-        ref: text(artifact.attempt_artifact_identity?.id),
-        subject_type: 'work_record.repair_attempt_artifact',
-      },
-    ],
+    references: replacementProposalReferences({
+      sourceRecord: record,
+      sourceId: record.id,
+      planAttemptId: plan.attempt_identity?.attempt_id,
+      artifactId: artifact.attempt_artifact_identity?.id,
+    }),
     intent: cloneJson(record.intent || {}),
-    execution_map: {
-      ...cloneJson(record.execution_map || {}),
-      postconditions: arrayValue(record.execution_map?.postconditions).map((postcondition) => {
-        const value = objectValue(postcondition);
-        const mapping = postconditionEvidenceMap.find((item) => text(item.postcondition_id) === text(value.id));
-        return {
-          ...cloneJson(value),
-          evidence_refs: mapping ? cloneJson(mapping.evidence_refs) : cloneJson(arrayValue(value.evidence_refs)),
-        };
-      }),
-    },
+    execution_map: applyPostconditionEvidenceMap(replacementExecutionMap, postconditionEvidenceMap),
     evidence_refs: [
       ...carriedForwardEvidence.map((item) => item.source_evidence_id),
       ...newEvidence.map((item) => item.new_record_evidence_id),
@@ -306,11 +422,14 @@ function proposedRecordShape({
       source_work_record_id: text(record.id),
       repair_attempt_artifact_id: text(artifact.attempt_artifact_identity?.id),
     },
-    metadata: {
-      replacement_proposal: true,
-      writes_replacement_record: false,
-      persisted_by_writer: false,
-    },
+    metadata: sourceMetadataCollisions.length > 0
+      ? cloneJson(objectValue(record.metadata))
+      : {
+        ...cloneJson(objectValue(record.metadata)),
+        replacement_proposal: true,
+        writes_replacement_record: false,
+        persisted_by_writer: false,
+      },
   };
 }
 
@@ -322,24 +441,29 @@ export function buildWorkRecordReplacementProposal(input = {}) {
   const validation = validateWorkRecordRepairAttemptArtifact(artifact);
   const sourceDigestBefore = text(source.digest || input.source_work_record_digest || digestJson(record));
   const sourceDigestAfter = text(input.source_work_record_digest_after || sourceDigestBefore);
-  const sourcePath = text(source.path);
+  const sourcePath = rawText(source.path);
   const sourceIdentityValue = {
     id: text(record.id || source.id),
     path: sourcePath,
-    requested_ref: text(source.requested_ref || input.requested_ref),
+    requested_ref: rawText(source.requested_ref || input.requested_ref),
     schema_version: text(record.schema_version || source.schema_version),
     digest: sourceDigestBefore,
   };
-  const status = proposalStatus({
+  const sourceMetadataCollisions = replacementMetadataCollisions(record.metadata);
+  const status = sourceMetadataCollisions.length > 0
+    ? 'blocked_source_metadata_collision'
+    : proposalStatus({
     source: { record, ...sourceIdentityValue },
     plan,
     artifact,
     validation,
-  });
+    });
   const carriedForwardEvidence = buildCarriedForwardEvidence(record, input.evidence_policy);
   const newEvidence = buildNewEvidence(artifact);
-  const postconditionEvidenceMap = buildPostconditionEvidenceMap({ record, newEvidence });
+  const replacementExecutionMap = producedExecutionMap(artifact);
+  const postconditionEvidenceMap = buildPostconditionEvidenceMap({ record: { execution_map: replacementExecutionMap }, newEvidence });
   const claimProvenance = buildClaimProvenance(record, artifact);
+  const immutableFields = workRecordImmutableSourceFields(record);
   const proposedReplacement = proposedRecordShape({
     record,
     source: sourceIdentityValue,
@@ -350,6 +474,8 @@ export function buildWorkRecordReplacementProposal(input = {}) {
     newEvidence,
     claimProvenance,
     postconditionEvidenceMap,
+    replacementExecutionMap,
+    sourceMetadataCollisions,
   });
   const identityCore = {
     source_work_record: sourceIdentityValue,
@@ -364,8 +490,8 @@ export function buildWorkRecordReplacementProposal(input = {}) {
       id: text(artifact.attempt_artifact_identity?.id),
     },
     proposed_replacement_work_record_id: proposedReplacement.id,
-    carried_forward_evidence_ids: carriedForwardEvidence.map((item) => item.source_evidence_id),
-    new_evidence_ids: newEvidence.map((item) => item.new_record_evidence_id),
+    carried_forward_evidence: cloneJson(carriedForwardEvidence),
+    new_evidence: cloneJson(newEvidence),
     postcondition_evidence_map: postconditionEvidenceMap,
     final_proposed_health: text(proposedReplacement.health.verdict),
   };
@@ -376,6 +502,8 @@ export function buildWorkRecordReplacementProposal(input = {}) {
     status,
     source_work_record: {
       ...sourceIdentityValue,
+      immutable_fields: immutableFields,
+      immutable_fields_digest: digestJson(immutableFields),
       evidence_ids: recordEvidenceIds(record),
       match: text(source.match),
       immutable_readback: {
@@ -389,6 +517,13 @@ export function buildWorkRecordReplacementProposal(input = {}) {
       status: text(artifact.status),
       validation_status: validation.status,
       evidence_ids: artifactEvidenceRefs(artifact).map(refId),
+      evidence_refs: artifactEvidenceRefs(artifact),
+      timing: cloneJson(objectValue(artifact.timing)),
+      postcondition_results: cloneJson(arrayValue(artifact.postcondition_results)),
+      candidate_patch_outcomes: cloneJson(arrayValue(artifact.candidate_patch_outcomes)),
+      verifier_before: cloneJson(objectValue(artifact.verifier_before)),
+      verifier_after: cloneJson(objectValue(artifact.verifier_after)),
+      final_health: cloneJson(objectValue(artifact.final_health)),
     },
     replacement_proposal_identity: {
       id: `work-record-replacement-proposal:${identityDigest.slice(0, 24)}`,
@@ -435,7 +570,6 @@ export function buildWorkRecordReplacementProposal(input = {}) {
     executes_repair: false,
     executes_actions: false,
     applies_patches: false,
-    automatic_replay_allowed: false,
     diagnostics: validation.status === 'passed' ? [] : validation.diagnostics,
     recommended_next: status === 'proposed'
       ? {
@@ -448,7 +582,15 @@ export function buildWorkRecordReplacementProposal(input = {}) {
       },
     metadata: cloneJson(objectValue(input.metadata)),
   };
+  proposal.replacement_proposal_identity = expectedProposalIdentity(proposal);
   const checked = validateWorkRecordReplacementProposal(proposal);
+  if (sourceMetadataCollisions.length > 0) {
+    return {
+      ...proposal,
+      status: 'blocked_source_metadata_collision',
+      diagnostics: checked.diagnostics,
+    };
+  }
   if (proposal.status === 'proposed' && checked.status !== 'passed') {
     return {
       ...proposal,
@@ -488,7 +630,6 @@ export function validateWorkRecordReplacementProposal(proposal = {}) {
     'executes_repair',
     'executes_actions',
     'applies_patches',
-    'automatic_replay_allowed',
   ]) {
     if (value[field] !== false) add('REPLACEMENT_PROPOSAL_NON_WRITING_FLAG_NOT_FALSE', `${field} must be false.`, field);
   }
@@ -497,14 +638,110 @@ export function validateWorkRecordReplacementProposal(proposal = {}) {
   if (!source.id || !source.schema_version || !source.digest) {
     add('REPLACEMENT_PROPOSAL_SOURCE_IDENTITY_INCOMPLETE', 'source_work_record must include id, schema_version, and digest.', 'source_work_record');
   }
-  if (text(value.repair_attempt_plan?.schema_version) !== '2026-07-work-record-repair-attempt-plan-v0') {
+  const immutableFields = objectValue(value.source_work_record?.immutable_fields);
+  if (text(value.source_work_record?.immutable_fields_digest) !== digestJson(immutableFields)) {
+    add('REPLACEMENT_PROPOSAL_SOURCE_FIELDS_DIGEST_MISMATCH', 'Immutable source-field snapshot digest must match its exact payload.', 'source_work_record.immutable_fields_digest');
+  }
+  if (text(value.repair_attempt_plan?.schema_version) !== WORK_RECORD_REPAIR_ATTEMPT_PLAN_SCHEMA_VERSION) {
     add('REPLACEMENT_PROPOSAL_ATTEMPT_PLAN_SCHEMA_UNSUPPORTED', 'Repair Attempt Plan schema_version is unsupported.', 'repair_attempt_plan.schema_version');
   }
-  if (text(value.repair_attempt_artifact?.schema_version) !== '2026-07-work-record-repair-attempt-artifact-v0') {
+  if (text(value.repair_attempt_artifact?.schema_version) !== WORK_RECORD_REPAIR_ATTEMPT_ARTIFACT_SCHEMA_VERSION) {
     add('REPLACEMENT_PROPOSAL_ATTEMPT_ARTIFACT_SCHEMA_UNSUPPORTED', 'Repair Attempt Artifact schema_version is unsupported.', 'repair_attempt_artifact.schema_version');
   }
   if (text(value.repair_attempt_artifact?.validation_status) !== 'passed') {
     add('REPLACEMENT_PROPOSAL_ATTEMPT_ARTIFACT_INVALID', 'Repair Attempt Artifact must validate before proposal build.', 'repair_attempt_artifact.validation_status');
+  }
+  const identity = objectValue(value.replacement_proposal_identity);
+  const expectedIdentity = expectedProposalIdentity(value);
+  if (digestJson(identity) !== digestJson(expectedIdentity)) {
+    add('REPLACEMENT_PROPOSAL_IDENTITY_MISMATCH', 'Replacement Proposal identity must exactly bind the source, plan, artifact, evidence mapping, health, and proposed record.', 'replacement_proposal_identity');
+  }
+  if (text(value.supersedes?.source_work_record_id) !== source.id
+    || text(value.supersedes?.proposed_replacement_work_record_id) !== text(value.proposed_replacement_work_record?.id)
+    || text(value.supersedes?.repair_attempt_artifact_id) !== text(value.repair_attempt_artifact?.id)) {
+    add('REPLACEMENT_PROPOSAL_SUPERSESSION_MISMATCH', 'Supersession mirrors must match the exact source, artifact, and proposed replacement identities.', 'supersedes');
+  }
+  const expectedSupersedes = {
+    source_work_record_id: source.id,
+    proposed_replacement_work_record_id: text(value.proposed_replacement_work_record?.id),
+    relationship: 'supersedes',
+    repair_attempt_artifact_id: text(value.repair_attempt_artifact?.id),
+    verifier_before_health: verifierHealth(value.repair_attempt_artifact?.verifier_before),
+    verifier_after_health: verifierHealth(value.repair_attempt_artifact?.verifier_after),
+    summary: `Proposes ${text(value.proposed_replacement_work_record?.id)} as a replacement for ${source.id} without writing it.`,
+    persisted: false,
+  };
+  if (digestJson(value.supersedes) !== digestJson(expectedSupersedes)) {
+    add('REPLACEMENT_PROPOSAL_SUPERSESSION_PROJECTION_MISMATCH', 'Supersession provenance must exactly project source, artifact, verifier health, and persistence state.', 'supersedes');
+  }
+  if (digestJson(value.verifier_before) !== digestJson(value.repair_attempt_artifact?.verifier_before)
+    || digestJson(value.verifier_after) !== digestJson(value.repair_attempt_artifact?.verifier_after)) {
+    add('REPLACEMENT_PROPOSAL_VERIFIER_PROJECTION_MISMATCH', 'Verifier mirrors must exactly preserve the Attempt Artifact verifier reports.', 'verifier_before');
+  }
+  if (text(value.proposed_replacement_work_record?.source_work_record_id) !== source.id
+    || text(value.proposed_replacement_work_record?.supersedes?.source_work_record_id) !== source.id
+    || text(value.proposed_replacement_work_record?.supersedes?.proposed_replacement_work_record_id) !== text(value.proposed_replacement_work_record?.id)) {
+    add('REPLACEMENT_PROPOSAL_RECORD_IDENTITY_MISMATCH', 'Proposed replacement identity fields must match the source and proposed record id.', 'proposed_replacement_work_record');
+  }
+  if (Object.hasOwn(objectValue(value.proposed_replacement_work_record), 'claim_results')) {
+    add('REPLACEMENT_PROPOSAL_CLAIM_RESULTS_FORBIDDEN', 'Replacement Proposals must not supply Claim Results; the Writer derives them only from exact Attempt Artifact postcondition mappings.', 'proposed_replacement_work_record.claim_results');
+  }
+  const proposedRecord = objectValue(value.proposed_replacement_work_record);
+  for (const field of ['type', 'schema_version', 'label', 'origin', 'intent', 'claims']) {
+    if (digestJson(proposedRecord[field]) !== digestJson(immutableFields[field])) {
+      add('REPLACEMENT_PROPOSAL_SOURCE_FIELD_REWRITE_FORBIDDEN', `Proposed replacement must preserve source-owned ${field} exactly.`, `proposed_replacement_work_record.${field}`);
+    }
+  }
+  const expectedReferences = replacementProposalReferences({
+    sourceRecord: immutableFields,
+    sourceId: source.id,
+    planAttemptId: value.repair_attempt_plan?.attempt_id,
+    artifactId: value.repair_attempt_artifact?.id,
+  });
+  if (digestJson(proposedRecord.references) !== digestJson(expectedReferences)) {
+    add('REPLACEMENT_PROPOSAL_REFERENCE_PROJECTION_MISMATCH', 'Proposed replacement references must exactly preserve source references plus the three defined repair provenance links.', 'proposed_replacement_work_record.references');
+  }
+  const sourceMetadataCollisions = replacementMetadataCollisions(immutableFields.metadata);
+  if (sourceMetadataCollisions.length > 0) {
+    add(
+      'REPLACEMENT_PROPOSAL_SOURCE_METADATA_COLLISION',
+      `Source-owned metadata uses reserved replacement provenance keys: ${sourceMetadataCollisions.join(', ')}.`,
+      'source_work_record.immutable_fields.metadata',
+      { collision_keys: sourceMetadataCollisions },
+    );
+  }
+  const expectedMetadata = sourceMetadataCollisions.length > 0
+    ? cloneJson(objectValue(immutableFields.metadata))
+    : {
+      ...cloneJson(objectValue(immutableFields.metadata)),
+      replacement_proposal: true,
+      writes_replacement_record: false,
+      persisted_by_writer: false,
+    };
+  if (digestJson(proposedRecord.metadata) !== digestJson(expectedMetadata)) {
+    add('REPLACEMENT_PROPOSAL_METADATA_PROJECTION_MISMATCH', 'Proposed replacement metadata must preserve source metadata plus only the defined proposal markers.', 'proposed_replacement_work_record.metadata');
+  }
+  const producedPatches = arrayValue(value.repair_attempt_artifact?.candidate_patch_outcomes)
+    .map((item) => objectValue(item))
+    .filter((item) => text(item.status) === 'produced' && objectValue(item.proposed_execution_map).postconditions);
+  const producedPatch = producedPatches.length === 1 ? producedPatches[0] : null;
+  if (text(value.status) === 'proposed' && producedPatches.length !== 1) {
+    add('REPLACEMENT_PROPOSAL_PATCH_OUTCOME_MISSING', 'A proposed replacement requires exactly one produced execution-map patch outcome.', 'repair_attempt_artifact.candidate_patch_outcomes');
+  }
+  if (producedPatch) {
+    if (text(producedPatch.source_work_record_digest) !== source.digest) {
+      add('REPLACEMENT_PROPOSAL_PATCH_SOURCE_MISMATCH', 'The produced execution-map patch must bind the exact source Work Record digest.', 'repair_attempt_artifact.candidate_patch_outcomes.source_work_record_digest');
+    }
+    if (text(producedPatch.proposed_execution_map_digest) !== digestJson(producedPatch.proposed_execution_map)) {
+      add('REPLACEMENT_PROPOSAL_PATCH_DIGEST_MISMATCH', 'The produced execution-map patch digest must match its exact payload.', 'repair_attempt_artifact.candidate_patch_outcomes.proposed_execution_map_digest');
+    }
+    const expectedExecutionMap = applyPostconditionEvidenceMap(producedPatch.proposed_execution_map, value.postcondition_evidence_map);
+    if (digestJson(value.proposed_replacement_work_record?.execution_map) !== digestJson(expectedExecutionMap)) {
+      add('REPLACEMENT_PROPOSAL_PATCH_PROJECTION_MISMATCH', 'The proposed replacement must exactly project the caller-supplied execution-map patch and evidence mapping.', 'proposed_replacement_work_record.execution_map');
+    }
+  }
+  if (text(value.source_work_record?.immutable_readback?.digest) !== source.digest) {
+    add('REPLACEMENT_PROPOSAL_SOURCE_READBACK_MISMATCH', 'Source immutable readback must match the exact source digest.', 'source_work_record.immutable_readback.digest');
   }
   const mutationCheck = objectValue(value.source_work_record_mutation_check);
   if (text(mutationCheck.status) !== 'passed') {
@@ -517,6 +754,20 @@ export function validateWorkRecordReplacementProposal(proposal = {}) {
   const proposedEvidence = new Set(arrayValue(value.proposed_replacement_work_record?.evidence_refs));
   const sourceEvidence = new Set(arrayValue(value.source_work_record?.evidence_ids).map(text).filter(Boolean));
   const artifactEvidence = new Set(arrayValue(value.repair_attempt_artifact?.evidence_ids).map(text).filter(Boolean));
+  if (carried.size !== arrayValue(value.carried_forward_evidence).length
+    || carried.size !== sourceEvidence.size
+    || [...sourceEvidence].some((id) => !carried.has(id))) {
+    add('REPLACEMENT_PROPOSAL_SOURCE_EVIDENCE_COVERAGE_MISMATCH', 'Every source Work Record evidence item must be carried forward exactly once.', 'carried_forward_evidence');
+  }
+  const expectedProposedEvidence = [
+    ...arrayValue(value.carried_forward_evidence).map((item) => text(objectValue(item).source_evidence_id)).filter(Boolean),
+    ...arrayValue(value.new_evidence).map((item) => text(objectValue(item).new_record_evidence_id)).filter(Boolean),
+  ];
+  const actualProposedEvidence = arrayValue(value.proposed_replacement_work_record?.evidence_refs).map(text).filter(Boolean);
+  if (new Set(actualProposedEvidence).size !== actualProposedEvidence.length
+    || digestJson(actualProposedEvidence) !== digestJson(expectedProposedEvidence)) {
+    add('REPLACEMENT_PROPOSAL_EVIDENCE_PROJECTION_MISMATCH', 'Proposed replacement evidence_refs must exactly equal the ordered carried and new evidence policy with no duplicates.', 'proposed_replacement_work_record.evidence_refs');
+  }
   for (const item of arrayValue(value.carried_forward_evidence)) {
     const evidenceId = text(objectValue(item).source_evidence_id);
     if (!evidenceId) add('CARRIED_FORWARD_EVIDENCE_ID_MISSING', 'Carried-forward evidence requires source_evidence_id.', 'carried_forward_evidence');
@@ -534,10 +785,55 @@ export function validateWorkRecordReplacementProposal(proposal = {}) {
       add('NEW_EVIDENCE_NOT_IN_ARTIFACT', 'New evidence must trace to the Repair Attempt Artifact.', 'new_evidence.artifact_evidence_id', { evidence_ref_id: artifactId });
     }
     if (!proposedEvidence.has(newId)) add('NEW_EVIDENCE_NOT_IN_PROPOSED_RECORD', 'Proposed record must reference new evidence ids.', 'proposed_replacement_work_record.evidence_refs', { evidence_ref_id: newId });
+    const sourceRef = artifactEvidenceRefs(value.repair_attempt_artifact).find((ref) => refId(ref) === artifactId);
+    if (sourceRef) {
+      const expectedPath = rawText(sourceRef.uri || sourceRef.path || sourceRef.artifact_path, `artifact:${artifactId}`);
+      if (rawText(objectValue(item).artifact_path) !== expectedPath) {
+        add('NEW_EVIDENCE_ARTIFACT_PATH_MISMATCH', 'New evidence path must exactly preserve the caller Artifact evidence path.', 'new_evidence.artifact_path', { evidence_ref_id: artifactId });
+      }
+      if (text(objectValue(item).digest) !== text(sourceRef.digest)) {
+        add('NEW_EVIDENCE_DIGEST_MISMATCH', 'New evidence digest must match the exact caller Artifact evidence ref.', 'new_evidence.digest', { evidence_ref_id: artifactId });
+      }
+      if (digestJson(objectValue(item).metadata) !== digestJson(objectValue(sourceRef.metadata))) {
+        add('NEW_EVIDENCE_METADATA_MISMATCH', 'New evidence metadata must exactly preserve the caller Artifact evidence payload.', 'new_evidence.metadata', { evidence_ref_id: artifactId });
+      }
+      const expectedCreatedAt = rawText(sourceRef.created_at)
+        || rawText(sourceRef.captured_at)
+        || rawText(sourceRef.completed_at)
+        || rawText(value.repair_attempt_artifact?.timing?.finished_at);
+      if (!expectedCreatedAt || rawText(objectValue(item).created_at) !== expectedCreatedAt) {
+        add('NEW_EVIDENCE_CREATED_AT_MISMATCH', 'New evidence created_at must exactly preserve caller timing from the Artifact evidence ref or Artifact completion receipt.', 'new_evidence.created_at', { evidence_ref_id: artifactId });
+      }
+    }
+    const expectedPostconditionRefs = uniqueStrings(arrayValue(value.repair_attempt_artifact?.postcondition_results)
+      .filter((result) => arrayValue(objectValue(result).evidence_ref_ids).map(text).includes(artifactId))
+      .map((result) => text(objectValue(result).id)));
+    if (digestJson(uniqueStrings(arrayValue(objectValue(item).postcondition_refs))) !== digestJson(expectedPostconditionRefs)) {
+      add('NEW_EVIDENCE_POSTCONDITION_MAP_MISMATCH', 'New evidence postcondition refs must exactly match caller Artifact result mappings.', 'new_evidence.postcondition_refs', { evidence_ref_id: artifactId });
+    }
   }
   const postconditionIds = new Set(arrayValue(value.proposed_replacement_work_record?.execution_map?.postconditions)
     .map((item) => text(objectValue(item).id))
     .filter(Boolean));
+  const expectedPostconditionEvidenceMap = arrayValue(value.proposed_replacement_work_record?.execution_map?.postconditions).map((postcondition) => {
+    const item = objectValue(postcondition);
+    const id = text(item.id);
+    const hasArtifactMapping = arrayValue(value.new_evidence)
+      .some((entry) => arrayValue(objectValue(entry).postcondition_refs).map(text).includes(id));
+    return {
+      postcondition_id: id,
+      evidence_refs: uniqueStrings(arrayValue(item.evidence_refs)),
+      source: hasArtifactMapping
+        ? 'repair_attempt_artifact.postcondition_results'
+        : 'source_work_record.execution_map.postconditions',
+    };
+  });
+  const actualPostconditionMapIds = arrayValue(value.postcondition_evidence_map)
+    .map((item) => text(objectValue(item).postcondition_id)).filter(Boolean);
+  if (new Set(actualPostconditionMapIds).size !== actualPostconditionMapIds.length
+    || digestJson(value.postcondition_evidence_map) !== digestJson(expectedPostconditionEvidenceMap)) {
+    add('POSTCONDITION_EVIDENCE_MAP_PROJECTION_MISMATCH', 'Postcondition evidence map must contain exactly one ordered mapping for every proposed postcondition.', 'postcondition_evidence_map');
+  }
   for (const item of arrayValue(value.postcondition_evidence_map)) {
     const postconditionId = text(objectValue(item).postcondition_id);
     if (!postconditionId) add('POSTCONDITION_EVIDENCE_MAP_ID_MISSING', 'Postcondition evidence mapping requires postcondition_id.', 'postcondition_evidence_map');
@@ -554,18 +850,52 @@ export function validateWorkRecordReplacementProposal(proposal = {}) {
     if (!text(objectValue(item).omit_reason)) add('OMITTED_EVIDENCE_REASON_MISSING', 'Omitted evidence requires omit_reason.', 'omitted_evidence');
     if (!text(objectValue(item).replacement_impact)) add('OMITTED_EVIDENCE_IMPACT_MISSING', 'Omitted evidence requires replacement_impact.', 'omitted_evidence');
   }
+  if (arrayValue(value.omitted_evidence).length > 0) {
+    add('REPLACEMENT_PROPOSAL_EVIDENCE_OMISSION_FORBIDDEN', 'Execution-map-only replacement must not omit source or caller Artifact evidence.', 'omitted_evidence');
+  }
   for (const item of arrayValue(value.claim_provenance)) {
     if (objectValue(item).historical_claim_results_rewritten !== false) {
       add('CLAIM_PROVENANCE_REWRITES_HISTORY', 'Claim provenance must not rewrite historical Claim Results.', 'claim_provenance.historical_claim_results_rewritten');
     }
   }
+  const expectedClaimProvenance = buildClaimProvenance(
+    { claims: arrayValue(immutableFields.claims) },
+    { verifier_after: objectValue(value.repair_attempt_artifact?.verifier_after) },
+  );
+  if (digestJson(value.claim_provenance) !== digestJson(expectedClaimProvenance)
+    || digestJson(value.proposed_replacement_work_record?.claim_result_provenance) !== digestJson(expectedClaimProvenance)) {
+    add('CLAIM_PROVENANCE_PROJECTION_MISMATCH', 'Claim provenance must exactly project every immutable source claim and verifier-after health.', 'claim_provenance');
+  }
+  if (digestJson(value.proposed_replacement_work_record?.verifier_report) !== digestJson(value.repair_attempt_artifact?.verifier_after)) {
+    add('REPLACEMENT_RECORD_VERIFIER_PROJECTION_MISMATCH', 'Proposed replacement verifier report must exactly preserve the Attempt Artifact verifier-after report.', 'proposed_replacement_work_record.verifier_report');
+  }
   const finalHealth = text(value.final_proposed_health?.classification);
   const afterHealth = text(value.final_proposed_health?.verifier_after_health);
+  const expectedFinalHealth = {
+    classification: text(value.repair_attempt_artifact?.final_health?.classification || value.proposed_replacement_work_record?.health?.verdict),
+    derived_from: 'repair_attempt_artifact.final_health',
+    verifier_after_health: verifierHealth(value.repair_attempt_artifact?.verifier_after),
+  };
+  if (digestJson(value.final_proposed_health) !== digestJson(expectedFinalHealth)) {
+    add('REPLACEMENT_PROPOSAL_FINAL_HEALTH_PROJECTION_MISMATCH', 'Final proposed health must exactly project the Attempt Artifact final health and verifier-after report.', 'final_proposed_health');
+  }
   if (afterHealth && finalHealth !== afterHealth) {
     add('REPLACEMENT_PROPOSAL_HEALTH_MISMATCH', 'final_proposed_health must match verifier-after health.', 'final_proposed_health.classification', {
       expected: afterHealth,
       actual: finalHealth,
     });
+  }
+  if (finalHealth !== text(value.proposed_replacement_work_record?.health?.verdict)) {
+    add('REPLACEMENT_PROPOSAL_RECORD_HEALTH_MISMATCH', 'Proposed replacement health must match final_proposed_health.', 'proposed_replacement_work_record.health.verdict');
+  }
+  const expectedRecordHealth = {
+    verdict: expectedFinalHealth.classification || 'blocked',
+    derived_from: 'repair_attempt_artifact.verifier_after',
+    source_work_record_id: source.id,
+    repair_attempt_artifact_id: text(value.repair_attempt_artifact?.id),
+  };
+  if (digestJson(value.proposed_replacement_work_record?.health) !== digestJson(expectedRecordHealth)) {
+    add('REPLACEMENT_RECORD_HEALTH_PROJECTION_MISMATCH', 'Proposed replacement health must exactly project the Attempt Artifact and source identities.', 'proposed_replacement_work_record.health');
   }
   if (text(value.status) === 'proposed') {
     if (!carried.size) add('PROPOSED_REPLACEMENT_CARRIED_FORWARD_EVIDENCE_REQUIRED', 'Proposed status requires explicit carried-forward evidence policy.', 'carried_forward_evidence');
@@ -587,7 +917,6 @@ export function validateWorkRecordReplacementProposal(proposal = {}) {
     executes_repair: false,
     executes_actions: false,
     applies_patches: false,
-    automatic_replay_allowed: false,
     diagnostics,
   };
 }

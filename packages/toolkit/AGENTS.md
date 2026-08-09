@@ -122,7 +122,8 @@ the scoped API file for the layer you are changing:
 For `workbench/` Work Record filesystem paths, preserve raw path strings in
 stored identities, readback fields, and argv-backed recommendations. Use
 whitespace-normalizing helpers only for semantic fields such as ids, statuses,
-schema versions, and display text.
+schema versions, and generated explanatory text; source-owned labels remain
+raw evidence.
 
 For `workbench/` Work Record APIs, keep `work-record.js` as the stable public
 facade and keep private projections, planners, and test conveniences out of
@@ -130,6 +131,126 @@ that export surface. Internal capture modules own command evidence, AOS action
 phases, step-descriptor promotion, shared helpers, and builder versions;
 recovery helpers may be shared by direct internal imports, but not through the
 public facade for testing convenience.
+
+Active Work Record V1 and Step Descriptor V1 behavior is neutral evidence and
+mechanics. Repair and Attempt Plans never execute; Attempt Artifacts accept
+caller-supplied outcomes. An Attempt Plan is `ready` only when its validated
+Repair Plan supplies exactly one complete source-bound candidate patch; a
+zero-patch planned proposal remains `blocked_inputs`. Nested authority-policy
+fields invalidate plan mechanics rather than being copied into later plan or
+Artifact projections. A successful Artifact must carry an exact
+source-digest-bound outcome and the complete validated Attempt Plan payload for
+the single atomic V1 candidate patch, including
+the complete schema-valid proposed execution-map payload/digest, unique evidence identities,
+every required Attempt Plan evidence requirement, and evidence mapping. Repair
+Plan identity commits the exact projected steps and patch payload; Attempt Plan
+operations must reproduce that canonical chain. Derived operation boundaries
+and precondition, evidence, postcondition, cleanup, and rollback references
+must equal the mechanics reconstructed from the committed Repair Plan step or
+candidate patch.
+When a successful Artifact reports that candidate patch as produced, the exact
+derived candidate-patch operation outcome must be `succeeded`; a skipped
+operation cannot support a produced patch receipt.
+Proposal and Writer validate and copy those bytes without applying the patch,
+synthesizing observations, accepting caller-supplied Claim Results, or rewriting
+historical Claim Results. Materialized caller evidence preserves its exact
+metadata and caller-supplied timing; replacement provenance stays outside that
+metadata. Because V1 patches only `execution_map`, Proposal and
+Writer preserve source-owned type/schema/label/origin/references/intent/claims/
+metadata exactly and permit only defined provenance, evidence, verifier, health,
+and repair-history additions. Fail closed when source metadata already owns a
+reserved replacement-provenance key instead of overwriting it. Source labels,
+commands, targets, state ids, and
+evidence carriers preserve raw whitespace. Every source evidence item is
+carried exactly once; omission is invalid. Evidence refs and postcondition maps
+are exact and one-to-one. Bundle outputs retain the guide recovery handoff, and
+repair guides must bind supplied Artifacts to the current source and derived
+Attempt Plan.
+The report-only verifier requires exact evidence-backed Claim-to-postcondition
+coverage and validates every advertised Claim digest.
+Finalization
+preserves exact source, plan, evidence, destination, and supersession
+identities, including raw source path; requested refs remain provenance while
+ID- and path-based reads of that same canonical source resolve the same entry.
+Final success requires a post-supersession replacement re-read whose canonical
+record digest and serialized file digest still match the Writer receipt, plus a
+lookup with proven readable replacement roots. All post-publication JSON and
+digest readback failures return receipted partial results rather than throwing.
+Replacement and supersession publication must use create-if-absent semantics, re-read raced
+destinations for exact idempotency, and never overwrite different existing
+bytes. Failed publication scrubs invocation-owned staged content through its
+held descriptor, preserves any empty temp or destination leftover, and carries
+the exact leftover and scrub flags through caller and bundle receipts. Finalizer
+guidance surfaces preserved receipts even when idempotent publication
+completes. The Replacement Writer re-checks exact source bytes after
+publishing, and the Supersession Writer re-checks exact source and replacement
+identities after publishing; drift downgrades success while retaining the
+publication receipt.
+Each exact source identity owns one canonical create-if-absent active entry, so
+competing replacement relationships cannot both publish successfully.
+Persisted supersession
+entries must carry canonical active/active status before lookup treats them as
+active. Supersession writes bind a supplied Writer Result to the exact Proposal
+identity embedded in the replacement record, validate the structured-record and
+serialized-output digests independently against canonical content and exact raw
+replacement-file bytes respectively, and commit persisted Proposal/Writer
+mirrors into the supersession entry identity. Persist only the stable Writer
+projection covered by that identity; do not retain unbound status or temporary
+publication receipt fields in the entry. The Proposal mirror is a closed
+id/digest/schema projection; supplied Proposal type and status must validate
+before publication. Successful supersession receipts include the exact
+serialized index-file digest separately from the structured entry identity.
+Index digest or lookup read failures after publication remain typed and
+receipted. Partial-finalization guidance must not emit a supersession-write argv
+until a persisted successful Writer Result path is available. Existing-output
+digest reads and supersession index scans also fail as typed public results;
+filesystem I/O failures must not escape the Writer or supersession APIs.
+Replacement and index roots reject non-system symlink ancestors before dry-run
+or publication, and containment inspection failures return typed results.
+The deterministic replacement destination must be absent or a regular
+non-symlink file before byte comparison; symlink and non-file leaves are
+conflicts even when following them would yield identical bytes. Inspect and
+read destination bytes through the private descriptor-relative native
+primitive. It opens the complete physical explicit-root-to-parent chain with
+no-follow directory traversal and holds those descriptors through temp-file
+creation, writes, one atomic no-replace descriptor-relative transfer, conflict
+inspection, and final readback. One staged-entry link observer remains
+continuous from before content write through readback. Failure rollback scrubs
+through the held descriptor, preserves the empty staged inode under any
+remaining invocation-owned name, and receipts temp or destination leftovers
+without path-named removal. Directory rename/revoke detection plus exact inode,
+regular-file type, single-link, byte, and digest proof must reject
+swap-and-restore, symlink-clone, and external-hard-link races. There is no
+pathname fallback when the native primitive is unavailable. Supersession and
+finalizer replacement readback use the same physical-file proof; an identical
+symlink clone is not the indexed replacement.
+Persisted supersession entries bind their claimed root and deterministic
+canonical path to the exact physical file admitted by lookup.
+Replacement readback must prove the exact indexed physical path, not an
+ID/digest-identical clone found elsewhere under supplied roots.
+Replacement roots must resolve as directories before dry-run, and supersession
+index enumeration rejects a symlinked explicit root, symlinked trees, or entries
+outside the explicit root. Bundle publication catches later artifact I/O and
+retains every accumulated or already-published artifact receipt.
+Do not add Gate-derived authority,
+approval/risk policy, operation registries, a public fixture executor, or a V0
+compatibility reader. Active record and descriptor consumers must validate the
+complete current source schema through the checked generated validators before
+projection or execution-mode adapter dispatch. The active Work Record workbench
+rejects historical V0, unknown schemas, and malformed V1 at initialization and
+open boundaries while retaining only a schema-valid empty waiting record.
+Subject-catalog and wiki-browser defaults must use an active V1 Work Record;
+historical V0 fixtures are reserved for explicit unsupported-input proofs.
+The Step Descriptor workbench validates the complete active descriptor and its
+exact evidence bindings before it installs a prototype or reports ready.
+Execution-mode Step Descriptor
+harnesses require a caller-supplied adapter. Both simulation and adapter output
+must exactly match descriptor dialect, action target, target resolution,
+supported action template/args/state, preconditions, postconditions, and
+claim-promotion identity/scope/references before capture. Semantic evidence refs
+are target-scope bound, including when candidates omit their full target.
+Promoted postcondition state identity must exactly match the bound after
+perception before any Work Record is emitted.
 
 ## Child DOX Index
 

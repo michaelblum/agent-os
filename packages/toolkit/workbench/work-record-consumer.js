@@ -2,17 +2,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {
-  isWorkRecordV0,
+  isWorkRecordV1,
   normalizeWorkRecord,
   workRecordSubjectId,
-  WORK_RECORD_V0_SCHEMA_VERSION,
+  WORK_RECORD_V1_SCHEMA_VERSION,
 } from './work-record-adapter.js';
 import {
   runWorkRecordVerifierProfile,
   WORK_RECORD_REPORT_ONLY_PROFILE_ID,
 } from './work-record-verifier.js';
+import validateWorkRecordV1 from './work-record-v1-validator.generated.js';
 
-export const WORK_RECORD_CONSUMER_VERSION = '2026-07-consumption-recovery-v0';
+export const WORK_RECORD_CONSUMER_VERSION = '2026-08-consumption-recovery-v1';
 
 const HEALTH_VERDICTS = Object.freeze([
   'valid',
@@ -51,6 +52,10 @@ function uniqueStrings(values = []) {
   return [...new Set(values.map((value) => text(value)).filter(Boolean))].sort();
 }
 
+function uniqueRawStrings(values = []) {
+  return [...new Set(values.map((value) => rawText(value)).filter(Boolean))].sort();
+}
+
 function looksLikeJsonFile(file) {
   return file.endsWith('.json');
 }
@@ -62,8 +67,8 @@ function repoRelative(file, repoRoot = process.cwd()) {
 
 export function defaultWorkRecordRoots(repoRoot = process.cwd()) {
   return [
-    path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0/valid'),
-    path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0/report-only-failures'),
+    path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v1/valid'),
+    path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v1/report-only-failures'),
   ];
 }
 
@@ -119,11 +124,11 @@ function loadJsonFile(file) {
 
 function contractDiagnostics(record, file = '') {
   const diagnostics = [];
-  if (!isWorkRecordV0(record)) {
+  if (!isWorkRecordV1(record)) {
     diagnostics.push({
       severity: 'error',
       code: 'UNSUPPORTED_WORK_RECORD_SCHEMA',
-      message: `Expected ${WORK_RECORD_V0_SCHEMA_VERSION} Work Record`,
+      message: `Expected active ${WORK_RECORD_V1_SCHEMA_VERSION} Work Record; historical schemas are unsupported`,
       path: file,
       record_id: text(objectValue(record).id),
       record_schema_version: text(objectValue(record).schema_version),
@@ -131,43 +136,19 @@ function contractDiagnostics(record, file = '') {
     return diagnostics;
   }
 
-  const origin = objectValue(record.origin);
-  if (text(origin.kind) === 'ad_hoc' && origin.ref !== null) {
-    diagnostics.push({
-      severity: 'error',
-      code: 'AD_HOC_ORIGIN_REF_NOT_NULL',
-      message: 'ad_hoc Work Record origins must use ref:null',
-      path: 'origin.ref',
-      record_id: text(record.id),
-    });
-  }
-  if (Object.hasOwn(objectValue(record), 'postconditions')) {
-    diagnostics.push({
-      severity: 'error',
-      code: 'TOP_LEVEL_POSTCONDITIONS_UNSUPPORTED',
-      message: 'Work Record postconditions must live under execution_map.postconditions[]',
-      path: 'postconditions',
-      record_id: text(record.id),
-    });
-  }
-  const replayPolicy = objectValue(objectValue(record.execution_map).replay_policy);
-  if (replayPolicy.replay_requires_workflow_gate !== true) {
-    diagnostics.push({
-      severity: 'error',
-      code: 'REPLAY_GATE_NOT_REQUIRED',
-      message: 'execution_map.replay_policy.replay_requires_workflow_gate must be true',
-      path: 'execution_map.replay_policy.replay_requires_workflow_gate',
-      record_id: text(record.id),
-    });
-  }
-  if (replayPolicy.repair_requires_workflow_gate !== true) {
-    diagnostics.push({
-      severity: 'error',
-      code: 'REPAIR_GATE_NOT_REQUIRED',
-      message: 'execution_map.replay_policy.repair_requires_workflow_gate must be true',
-      path: 'execution_map.replay_policy.repair_requires_workflow_gate',
-      record_id: text(record.id),
-    });
+  if (!validateWorkRecordV1(record)) {
+    for (const error of arrayValue(validateWorkRecordV1.errors)) {
+      const instancePath = text(objectValue(error).instancePath);
+      diagnostics.push({
+        severity: 'error',
+        code: 'WORK_RECORD_V1_SCHEMA_INVALID',
+        message: `Work Record V1 schema validation failed: ${text(objectValue(error).message, 'invalid value')}`,
+        path: instancePath ? `work_record${instancePath}` : 'work_record',
+        source_path: file,
+        record_id: text(record.id),
+        schema_path: text(objectValue(error).schemaPath),
+      });
+    }
   }
   return diagnostics;
 }
@@ -398,10 +379,11 @@ function recommendedCaptureCommands(record = {}) {
   const commands = [];
   for (const step of arrayValue(objectValue(record.execution_map).steps)) {
     const args = objectValue(objectValue(step.action).args);
-    const direct = text(args.recommended_next_command || objectValue(args.post_action).recommended_next_command);
+    const direct = rawText(args.recommended_next_command)
+      || rawText(objectValue(args.post_action).recommended_next_command);
     if (direct) commands.push(direct);
   }
-  return uniqueStrings(commands);
+  return uniqueRawStrings(commands);
 }
 
 function replacementRefs(record = {}) {
@@ -416,11 +398,6 @@ export function recoveryGuidanceForWorkRecord(record = {}, verifierReport = {}) 
   const verdict = text(verifierReport.health_verdict, embeddedVerdict);
   const diagnostics = arrayValue(verifierReport.diagnostics);
   const failureClasses = uniqueStrings(arrayValue(verifierReport.failure_classes));
-  const gates = uniqueStrings([
-    ...arrayValue(objectValue(record.health).repair_gate_refs),
-    ...arrayValue(objectValue(record.health).replay_gate_refs),
-    ...arrayValue(objectValue(objectValue(record.execution_map).replay_policy).gate_refs),
-  ]);
   const captureCommands = recommendedCaptureCommands(record);
   const blockers = diagnosticSummary(diagnostics);
   const base = {
@@ -428,11 +405,8 @@ export function recoveryGuidanceForWorkRecord(record = {}, verifierReport = {}) 
     embedded_record_health: embeddedVerdict,
     conservative: true,
     mutates_record: false,
-    automatic_replay_allowed: false,
     failure_classes: failureClasses,
-    workflow_gate_refs: gates,
     next_commands: [],
-    next_gates: [],
     blockers,
     notes: [],
   };
@@ -453,24 +427,21 @@ export function recoveryGuidanceForWorkRecord(record = {}, verifierReport = {}) 
       ...base,
       action: 'reperceive_and_create_new_record',
       next_commands: captureCommands,
-      next_gates: gates.length > 0 ? gates : ['workflow_gate_required:reperceive_before_mutation'],
-      notes: ['Re-perceive or re-resolve the target before any mutation; keep this historical Work Record unchanged.'],
+      notes: ['Re-perceive or re-resolve the target before preparing a new attempt; keep this historical Work Record unchanged.'],
     };
   }
   if (verdict === 'repairable') {
     return {
       ...base,
-      action: 'workflow_gated_repair_required',
+      action: 'repair_proposal_available',
       next_commands: captureCommands,
-      next_gates: gates.length > 0 ? gates : ['workflow_gate_required:repair_work_record_execution_map'],
-      notes: ['Repairable means a workflow-gated repair may patch future execution-map refs; this verifier does not repair automatically.'],
+      notes: ['Repairable means a separate source-bound proposal may patch future execution-map refs; this verifier does not repair or execute anything.'],
     };
   }
   if (verdict === 'blocked') {
     return {
       ...base,
       action: 'resolve_blocker_before_reuse',
-      next_gates: gates.length > 0 ? gates : ['workflow_gate_required:blocker_triage'],
       notes: ['Blocked records require the named missing evidence, permission, runtime, cleanup, or postcondition problem to be resolved before reuse.'],
     };
   }
@@ -502,7 +473,6 @@ export function recoveryGuidanceForWorkRecord(record = {}, verifierReport = {}) 
     ...base,
     verdict: 'blocked',
     action: 'resolve_unknown_health',
-    next_gates: ['workflow_gate_required:unknown_work_record_health'],
     notes: ['Unknown health is treated as blocked.'],
   };
 }
@@ -578,7 +548,7 @@ export function explainWorkRecordStatus(ref, options = {}) {
 }
 
 function localArtifactPath(uri = '', recordPath = '') {
-  const value = text(uri);
+  const value = rawText(uri);
   if (!value) return '';
   if (value.startsWith('file://')) return new URL(value).pathname;
   if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return '';
@@ -595,7 +565,7 @@ function fileDigest(file) {
 function evidenceBundleEntries(record = {}, recordPath = '') {
   return arrayValue(record.evidence).map((item) => {
     const evidence = objectValue(item);
-    const uri = text(evidence.uri || evidence.artifact_uri || objectValue(evidence.metadata).artifact_uri);
+    const uri = rawText(evidence.uri || evidence.artifact_uri || objectValue(evidence.metadata).artifact_uri);
     const artifactPath = localArtifactPath(uri, recordPath);
     let stat = null;
     if (artifactPath && fs.existsSync(artifactPath) && fs.statSync(artifactPath).isFile()) {

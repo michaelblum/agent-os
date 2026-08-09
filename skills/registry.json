@@ -314,13 +314,15 @@
       "references": [
         "docs/api/aos.md",
         "manifests/commands/source/aos/35-work-record.json",
-        "tests/design/aos-work-record-fixtures.test.mjs"
+        "tests/schemas/aos-work-record-v1.test.mjs",
+        "tests/toolkit/work-record-recovery-acceptance.test.mjs"
       ],
       "claims_durable_behavior": true,
       "backing": [
         "docs/api/aos.md",
-        "shared/schemas/aos-work-record-v0.md",
-        "tests/design/aos-work-record-fixtures.test.mjs"
+        "shared/schemas/aos-work-record-v1.md",
+        "tests/schemas/aos-work-record-v1.test.mjs",
+        "tests/toolkit/work-record-recovery-acceptance.test.mjs"
       ]
     },
     {

@@ -1,6 +1,6 @@
 import { applySemanticTargetAttributes } from '../../runtime/semantic-targets.js';
 
-export const STEP_DESCRIPTOR_WORKBENCH_SURFACE = 'step-descriptor-workbench-v0';
+export const STEP_DESCRIPTOR_WORKBENCH_SURFACE = 'step-descriptor-workbench-v1';
 export const STEP_DESCRIPTOR_WORKBENCH_MANIFEST = 'step-descriptor-workbench';
 export const STEP_DESCRIPTOR_WORKBENCH_URL = 'aos://toolkit/components/step-descriptor-workbench/index.html';
 
@@ -8,10 +8,6 @@ const REF_IDS = Object.freeze({
   root: 'root',
   stepDescriptor: 'step-descriptor',
   targetSummary: 'target-summary',
-  gateRef: 'gate-ref',
-  gateToken: 'gate-token',
-  gateApply: 'gate-apply',
-  gateStatus: 'gate-status',
   simulate: 'simulate',
   verifierStatus: 'verifier-status',
   diagnostics: 'diagnostics',

@@ -106,6 +106,18 @@ needs, but public command policy and product UI policy belong above it:
   successfully published artifacts only after its checked v2 receipt. The
   comparator never captures, performs interactive preflight, requests
   permissions, polls, or starts native runtime lifecycle;
+- `src/platform/descriptor-relative-fs-addon.cc` owns the private Darwin N-API
+  filesystem primitive used only for Work Record atomic publication and exact
+  readback. It must hold the physical root-to-destination-parent descriptor
+  chain with no-follow traversal and keep temp creation, writes, atomic
+  no-replace transfer, conflict inspection, and final readback
+  descriptor-relative. One staged-entry link observer must remain continuous
+  from before content write through final readback. Failure rollback scrubs the
+  held staged descriptor with truncate and fsync, preserves path-named entries,
+  and receipts staged or destination leftovers without unlinking by name.
+  Directory rename/revoke events and exact inode, type, link-count, and digest
+  proofs fail closed. Fault events, errors, and temp names remain content-free,
+  and unsupported or unavailable builds have no pathname fallback;
 - daemon socket admission begins only after AppKit finishes launch and services
   one queued main-loop action, so clients cannot invoke native hosts against a
   merely initialized but not yet running application connection;

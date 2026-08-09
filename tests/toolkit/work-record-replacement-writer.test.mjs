@@ -3,464 +3,455 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import crypto from 'node:crypto';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import {
-  buildWorkRecordGateRequestFromRepairPlan,
+  materializeReplacementWorkRecord,
+  writeReplacementWorkRecord,
+} from '../../packages/toolkit/workbench/work-record-replacement-writer.js';
+import {
   buildWorkRecordRepairAttemptArtifact,
-  buildWorkRecordReplacementProposal,
+  validateWorkRecordRepairAttemptArtifact,
+} from '../../packages/toolkit/workbench/work-record-repair-attempt-artifact.js';
+import {
   planWorkRecordRepair,
   planWorkRecordRepairAttempt,
-  readWorkRecord,
-  writeReplacementWorkRecord,
-  WORK_RECORD_REPLACEMENT_WRITER_RESULT_SCHEMA_VERSION,
-  WORK_RECORD_REPLACEMENT_WRITER_STATUSES,
 } from '../../packages/toolkit/workbench/work-record.js';
 import {
-  commandHintFromArgv,
-} from '../../packages/toolkit/workbench/work-record-command-recommendation.js';
+  attemptPlan,
+  readJson,
+  repairableWorkRecordPath,
+  replacementProposal,
+  repoRoot,
+  successfulAttemptArtifact,
+} from '../lib/work-record-v1-fixtures.mjs';
+import { validateJsonSchema } from '../lib/json-schema-validation.mjs';
+import { installWorkRecordAtomicPublishTestHook } from '../../packages/toolkit/workbench/work-record-atomic-publish.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, '../..');
-const repairableFixture = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json');
-
-function runAos(args) {
-  return spawnSync('./aos', args, {
-    cwd: repoRoot,
-    encoding: 'utf8',
-  });
+function withAtomicPublishHook(callback, run) {
+  const restore = installWorkRecordAtomicPublishTestHook(callback);
+  try {
+    return run();
+  } finally {
+    restore();
+  }
 }
 
-function writeTempJson(value, prefix = 'aos-work-record-replacement-writer-') {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  const file = path.join(dir, 'payload.json');
-  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
-  return file;
-}
-
-function digestFile(file) {
-  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-}
-
-function validateWorkRecordSchema(file) {
-  return spawnSync(
-    'python3',
-    [
-      '-c',
-      `
-import json, sys
-from pathlib import Path
-from jsonschema import Draft202012Validator
-
-schema = json.loads(Path(sys.argv[1]).read_text())
-instance = json.loads(Path(sys.argv[2]).read_text())
-validator = Draft202012Validator(schema)
-errors = sorted(validator.iter_errors(instance), key=lambda e: list(e.path))
-if errors:
-    for error in errors[:8]:
-        print(error.message)
-    sys.exit(1)
-`,
-      path.join(repoRoot, 'shared/schemas/aos-work-record-v0.schema.json'),
-      file,
-    ],
-    { encoding: 'utf8' },
-  );
-}
-
-function approvedRecord(request, response = { authorization: 'approve' }) {
-  return {
-    schema_version: 'aos.gate.record.v1',
-    gate_id: request.gate_request.id,
-    request_schema_version: 'aos.gate.request.v1',
-    prompt_title: request.gate_request.prompt.title,
-    source: { surface: 'work_record.repair_plan', session_id: null, agent: null },
-    receptor: 'test',
-    ui_variant: 'approve_deny',
-    field_kinds: ['exclusive_choice'],
-    timeout_ms: 0,
-    created_at: '2026-07-04T00:00:00.000Z',
-    presented_at: '2026-07-04T00:00:00.000Z',
-    resolved_at: '2026-07-04T00:00:01.000Z',
-    elapsed_ms: 1000,
-    resolution: 'answered',
-    status: null,
-    response_stored: true,
-    response,
-  };
-}
-
-function readyAttemptPlan() {
-  const repairPlan = planWorkRecordRepair(repairableFixture, { repoRoot });
-  const request = buildWorkRecordGateRequestFromRepairPlan(repairPlan);
-  return planWorkRecordRepairAttempt(repairableFixture, {
-    repoRoot,
-    gateOutcome: approvedRecord(request),
-  });
-}
-
-function evidenceRequirementIds(plan) {
-  return [...new Set([
-    ...plan.planned_operations.flatMap((operation) => operation.evidence_requirement_refs || []),
-    ...plan.evidence_requirements
-      .filter((requirement) => requirement.required === true)
-      .map((requirement) => requirement.id),
-  ]
-    .filter(Boolean))]
-    .sort();
-}
-
-function successArtifactInput({ status = 'succeeded', overrides = {} } = {}) {
-  const plan = readyAttemptPlan();
-  const evidenceIds = evidenceRequirementIds(plan);
-  const operationOutcomes = plan.planned_operations.map((operation, index) => ({
-    id: `operation-outcome:${index + 1}`,
-    planned_operation_id: operation.id,
-    kind: operation.kind,
-    status: operation.mutates_state ? 'succeeded' : 'skipped',
-    started_at: '2026-07-04T00:00:00.000Z',
-    finished_at: '2026-07-04T00:00:01.000Z',
-    mutated_state: operation.mutates_state,
-    target_boundary: operation.target_boundary,
-    authorization_ref: operation.authorization_ref,
-    evidence_ref_ids: operation.evidence_requirement_refs || [],
-    cleanup_required: operation.mutates_state,
-    rollback_required: false,
-  }));
-  return {
-    status,
+function rebuildArtifact(plan, baseline, overrides = {}) {
+  return buildWorkRecordRepairAttemptArtifact({
     repair_attempt_plan: plan,
-    operation_outcomes: operationOutcomes,
-    candidate_patch_outcomes: [{
-      id: 'candidate-patch-outcome:execution-map-refs',
-      candidate_patch_id: 'candidate_patch:execution_map_refs',
-      status: 'applied',
-      applied: true,
-      evidence_ref_ids: ['evidence_requirement:patch:candidate_patch:execution_map_refs'],
-    }],
-    recommended_command_outcomes: plan.recommended_commands.map((command, index) => ({
-      id: `recommended-command-outcome:${index + 1}`,
-      command_ref: command.command,
-      status: 'skipped',
-      executed: false,
-    })),
-    evidence_refs: evidenceIds.map((id) => ({ id, uri: `artifact:${id}.json`, digest: `digest:${id}` })),
-    verifier_before: { status: 'failed', health_verdict: 'repairable' },
-    verifier_after: { status: 'passed', health_verdict: 'valid' },
-    postcondition_results: plan.postconditions.map((postcondition) => ({
-      id: `postcondition-result:${postcondition.id}`,
-      postcondition_id: postcondition.id,
-      status: 'passed',
-      evidence_ref_ids: evidenceIds,
-    })),
-    cleanup_results: operationOutcomes
-      .filter((outcome) => outcome.cleanup_required)
-      .map((outcome) => ({
-        id: `cleanup:${outcome.id}`,
-        operation_outcome_id: outcome.id,
-        status: 'passed',
-        evidence_ref_ids: outcome.evidence_ref_ids,
-      })),
-    rollback_results: [],
-    source_work_record_mutation_check: {
-      status: 'passed',
-      before_digest: digestFile(repairableFixture),
-      after_digest: digestFile(repairableFixture),
-    },
+    status: baseline.status,
+    outcome_source: baseline.outcome_source,
+    timing: baseline.timing,
+    operation_outcomes: baseline.operation_outcomes,
+    candidate_patch_outcomes: baseline.candidate_patch_outcomes,
+    recommended_command_outcomes: baseline.recommended_command_outcomes,
+    evidence_refs: baseline.evidence_refs,
+    verifier_before: baseline.verifier_before,
+    verifier_after: baseline.verifier_after,
+    postcondition_results: baseline.postcondition_results,
+    cleanup_results: baseline.cleanup_results,
+    rollback_results: baseline.rollback_results,
+    source_work_record_mutation_check: baseline.source_work_record_mutation_check,
+    source_work_record_mutated: baseline.source_work_record_mutated,
     ...overrides,
-  };
+  });
 }
 
-function sourceInput() {
-  const read = readWorkRecord(repairableFixture, { repoRoot });
-  assert.equal(read.status, 'success');
-  return {
-    ...read.summary,
-    ...read.source,
-    record: read.record,
-    requested_ref: repairableFixture,
-    digest: digestFile(repairableFixture),
-  };
-}
+test('Replacement Writer V1 dry-runs then atomically writes a valid V1 record', () => {
+  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-replacement-v1-'));
+  const proposal = replacementProposal();
+  const preview = writeReplacementWorkRecord({ proposal, outputRoot, dryRun: true });
+  assert.equal(preview.status, 'dry_run');
+  assert.equal(fs.existsSync(preview.output.output_path), false);
+  const written = writeReplacementWorkRecord({ proposal, outputRoot });
+  assert.equal(written.status, 'written');
+  assert.equal(written.source_immutability_check.status, 'passed');
+  const record = JSON.parse(fs.readFileSync(written.output.output_path, 'utf8'));
+  const source = readJson(repairableWorkRecordPath);
+  assert.deepEqual(record.metadata.generated_by, source.metadata.generated_by);
+  assert.deepEqual(record.metadata.evidence_source_id, source.metadata.evidence_source_id);
+  assert.deepEqual(record.claims, source.claims);
+  assert.deepEqual(record.origin, source.origin);
+  assert.deepEqual(record.intent, source.intent);
+  assert.deepEqual(validateJsonSchema(path.join(repoRoot, 'shared/schemas/aos-work-record-v1.schema.json'), record), []);
+  assert.deepEqual(JSON.parse(JSON.stringify(materializeReplacementWorkRecord(proposal))), record);
+  assert.equal(writeReplacementWorkRecord({ proposal, outputRoot }).status, 'already_exists');
+});
 
-function buildProposal({ proposedIdSeed = 'work-record:repairable-stale-saved-ref-writer-test', artifactInput = successArtifactInput(), proposalPatch = {} } = {}) {
-  const artifact = buildWorkRecordRepairAttemptArtifact(artifactInput);
-  return {
-    ...buildWorkRecordReplacementProposal({
-      source_work_record: sourceInput(),
-      repair_attempt_plan: artifactInput.repair_attempt_plan,
-      repair_attempt_artifact: artifact,
-      source_work_record_digest_after: digestFile(repairableFixture),
-      proposed_id_seed: proposedIdSeed,
-    }),
-    ...proposalPatch,
-  };
-}
+test('Replacement Writer preserves historical failures and upgrades only exact caller-mapped results', () => {
+  const plan = attemptPlan();
+  const baseline = successfulAttemptArtifact(plan);
+  const mappedEvidenceId = 'caller-evidence:after-value';
+  const rawEvidencePath = '/tmp/aos  caller  evidence.json';
+  const evidenceRefs = baseline.evidence_refs.map((ref) => (
+    ref.id === mappedEvidenceId ? { ...ref, path: rawEvidencePath } : ref
+  ));
+  const artifact = rebuildArtifact(plan, baseline, {
+    evidence_refs: evidenceRefs,
+  });
+  assert.equal(validateWorkRecordRepairAttemptArtifact(artifact).status, 'passed');
+  const proposal = replacementProposal(plan, artifact);
+  assert.equal(proposal.status, 'proposed');
+  const mapped = proposal.new_evidence.find((item) => item.artifact_evidence_id === mappedEvidenceId);
+  assert.equal(mapped.artifact_path, rawEvidencePath);
+  assert.deepEqual(mapped.postcondition_refs, ['postcondition:repairable-stale-saved-ref-after-value']);
 
-test('Replacement Writer statuses are declared', () => {
-  for (const status of [
-    'dry_run',
-    'written',
-    'already_exists',
-    'blocked_invalid_proposal',
-    'blocked_invalid_replacement_record',
-    'blocked_source_changed',
-    'blocked_output_escape',
-    'blocked_conflict',
-    'blocked_write_failed',
-    'blocked_cleanup_failed',
-    'unsupported',
+  const replacement = materializeReplacementWorkRecord(proposal);
+  const source = readJson(repairableWorkRecordPath);
+  assert.deepEqual(replacement.metadata.replacement_writer.historical_source_claim_results, source.claim_results);
+  assert.ok(replacement.metadata.replacement_writer.historical_source_claim_results.every((result) => result.status === 'failed'));
+  const historicalActionResults = replacement.metadata.replacement_writer.historical_source_claim_results
+    .flatMap((result) => result.postcondition_results)
+    .filter((result) => /dry-run|action-executed/.test(result.postcondition_id));
+  assert.ok(historicalActionResults.length >= 2);
+  assert.ok(historicalActionResults.every((result) => result.status === 'failed'));
+  const materializedEvidence = replacement.evidence.find((item) => item.id === mapped.new_record_evidence_id);
+  assert.equal(materializedEvidence.uri, rawEvidencePath);
+  assert.equal(materializedEvidence.created_at, artifact.timing.finished_at);
+  assert.deepEqual(materializedEvidence.metadata, mapped.metadata);
+
+  const activeResults = new Map(replacement.claim_results.map((result) => [result.claim_id, result]));
+  const multiPostcondition = activeResults.get('claim:repairable-stale-saved-ref-2026-07-04-see-do-see-captured');
+  assert.equal(multiPostcondition.status, 'verified');
+  const newDryRun = multiPostcondition.postcondition_results.find((result) => /dry-run$/.test(result.postcondition_id));
+  const newAction = multiPostcondition.postcondition_results.find((result) => /action-executed$/.test(result.postcondition_id));
+  assert.equal(newDryRun.status, 'passed');
+  assert.equal(newAction.status, 'passed');
+  assert.deepEqual(newDryRun.evidence_refs, ['replacement:caller-evidence:dry-run-resolved']);
+  assert.deepEqual(newAction.evidence_refs, ['replacement:caller-evidence:action-succeeded']);
+  const exactMapped = activeResults.get('claim:repairable-stale-saved-ref-2026-07-04-post-action-state-observed');
+  assert.equal(exactMapped.status, 'verified');
+  assert.equal(exactMapped.postcondition_results[0].status, 'passed');
+});
+
+test('Replacement Writer rejects evidence policy tamper bound by Proposal identity', () => {
+  for (const mutate of [
+    (proposal) => { proposal.new_evidence[0].digest = 'sha256:tampered'; },
+    (proposal) => { proposal.new_evidence[0].artifact_path = '/tmp/tampered-evidence'; },
+    (proposal) => { proposal.carried_forward_evidence[0].carry_reason = 'tampered-reason'; },
   ]) {
-    assert.ok(WORK_RECORD_REPLACEMENT_WRITER_STATUSES.includes(status));
+    const proposal = structuredClone(replacementProposal());
+    mutate(proposal);
+    const result = writeReplacementWorkRecord({
+      proposal,
+      outputRoot: fs.mkdtempSync(path.join(os.tmpdir(), 'aos-replacement-tamper-v1-')),
+      dryRun: true,
+    });
+    assert.equal(result.status, 'blocked_invalid_proposal');
   }
 });
 
-test('dry-run reports exact output and does not write', () => {
-  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-writer-dry-run-'));
-  const proposal = buildProposal();
-  const result = writeReplacementWorkRecord({ proposal, outputRoot, dryRun: true });
+test('Replacement Writer rejects and never materializes caller-supplied Claim Results', () => {
+  const proposal = structuredClone(replacementProposal());
+  proposal.proposed_replacement_work_record.claim_results = [{
+    id: 'claim-result:fabricated',
+    claim_id: proposal.proposed_replacement_work_record.claims[0].id,
+    status: 'verified',
+    confidence: 1,
+    reason: 'fabricated caller assertion',
+    evidence_refs: ['evidence:repairable-stale-saved-ref-after-see'],
+    postcondition_results: [],
+  }];
+  const materialized = materializeReplacementWorkRecord(proposal);
+  assert.doesNotMatch(JSON.stringify(materialized.claim_results), /fabricated caller assertion/);
+  const result = writeReplacementWorkRecord({
+    proposal,
+    outputRoot: fs.mkdtempSync(path.join(os.tmpdir(), 'aos-replacement-claim-tamper-v1-')),
+    dryRun: true,
+  });
+  assert.equal(result.status, 'blocked_invalid_proposal');
+  assert.ok(result.diagnostics.some((item) => item.code === 'REPLACEMENT_PROPOSAL_CLAIM_RESULTS_FORBIDDEN'));
+});
 
-  assert.equal(result.schema_version, WORK_RECORD_REPLACEMENT_WRITER_RESULT_SCHEMA_VERSION);
-  assert.equal(result.status, 'dry_run');
-  assert.equal(result.mode, 'dry_run');
+test('Replacement Writer rejects path escape', () => {
+  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-replacement-root-'));
+  const result = writeReplacementWorkRecord({ proposal: replacementProposal(), outputRoot, outputPath: '../outside.json', dryRun: true });
+  assert.equal(result.status, 'blocked_output_escape');
+});
+
+test('Replacement Writer rejects a regular file output root before dry-run or write', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-replacement-root-file-v1-'));
+  const outputRoot = path.join(root, 'not-a-directory');
+  fs.writeFileSync(outputRoot, 'existing file\n');
+  const proposal = replacementProposal();
+  for (const dryRun of [true, false]) {
+    const result = writeReplacementWorkRecord({ proposal, outputRoot, dryRun });
+    assert.equal(result.status, 'blocked_output_escape');
+    assert.equal(result.writes_replacement_record, false);
+    assert.ok(result.diagnostics.some((item) => item.code === 'REPLACEMENT_WRITER_OUTPUT_ROOT_NOT_DIRECTORY'));
+  }
+  assert.equal(fs.readFileSync(outputRoot, 'utf8'), 'existing file\n');
+});
+
+test('Replacement Writer rejects an output root nested under a regular file', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-replacement-root-ancestor-file-v1-'));
+  const ancestor = path.join(root, 'not-a-directory');
+  const outputRoot = path.join(ancestor, 'records');
+  fs.writeFileSync(ancestor, 'existing file\n');
+  for (const dryRun of [true, false]) {
+    const result = writeReplacementWorkRecord({ proposal: replacementProposal(), outputRoot, dryRun });
+    assert.equal(result.status, 'blocked_output_escape');
+    assert.ok(result.diagnostics.some((item) => item.code === 'REPLACEMENT_WRITER_OUTPUT_ROOT_ANCESTOR_NOT_DIRECTORY'));
+  }
+  assert.equal(fs.readFileSync(ancestor, 'utf8'), 'existing file\n');
+});
+
+test('Replacement Writer rejects a non-system symlink ancestor before dry-run or write', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-replacement-root-ancestor-symlink-v1-'));
+  const lexicalParent = path.join(root, 'lexical-parent');
+  const outside = path.join(root, 'outside');
+  fs.mkdirSync(lexicalParent);
+  fs.mkdirSync(outside);
+  fs.symlinkSync(outside, path.join(lexicalParent, 'link'));
+  const outputRoot = path.join(lexicalParent, 'link', 'records');
+  for (const dryRun of [true, false]) {
+    const result = writeReplacementWorkRecord({ proposal: replacementProposal(), outputRoot, dryRun });
+    assert.equal(result.status, 'blocked_output_escape');
+    assert.ok(result.diagnostics.some((item) => item.code === 'REPLACEMENT_WRITER_OUTPUT_ROOT_SYMLINK_ANCESTOR'));
+  }
+  assert.equal(fs.existsSync(path.join(outside, 'records')), false);
+});
+
+test('Replacement Writer rejects symlink and non-file destination leaves before idempotency', () => {
+  const proposal = replacementProposal();
+  for (const leafKind of ['symlink', 'directory']) {
+    const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), `aos-replacement-${leafKind}-leaf-v1-`));
+    const preview = writeReplacementWorkRecord({ proposal, outputRoot, dryRun: true });
+    const outputPath = preview.output.output_path;
+    if (leafKind === 'symlink') {
+      const identicalTarget = path.join(outputRoot, 'identical-replacement.blob');
+      fs.writeFileSync(identicalTarget, `${JSON.stringify(materializeReplacementWorkRecord(proposal), null, 2)}\n`);
+      fs.symlinkSync(identicalTarget, outputPath);
+    } else {
+      fs.mkdirSync(outputPath);
+    }
+    for (const dryRun of [true, false]) {
+      const result = writeReplacementWorkRecord({ proposal, outputRoot, dryRun });
+      assert.equal(result.status, 'blocked_conflict');
+      assert.equal(result.idempotency.status, 'conflict');
+      assert.equal(result.idempotency.existing_kind, leafKind === 'symlink' ? 'symlink' : 'non_file');
+      assert.equal(result.writes_replacement_record, false);
+      assert.ok(result.diagnostics.some((item) => item.code === 'REPLACEMENT_WRITER_OUTPUT_NOT_REGULAR_FILE'));
+    }
+    assert.equal(fs.lstatSync(outputPath).isSymbolicLink(), leafKind === 'symlink');
+  }
+});
+
+test('Replacement Writer returns a typed preflight failure when root containment I/O fails', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-replacement-root-realpath-failure-v1-'));
+  const outputRoot = path.join(root, 'records');
+  const originalRealpathSync = fs.realpathSync;
+  fs.realpathSync = (target, ...args) => {
+    if (path.resolve(String(target)) === path.resolve(root)) {
+      const error = new Error('injected output root containment failure');
+      error.code = 'EIO';
+      throw error;
+    }
+    return originalRealpathSync(target, ...args);
+  };
+  let result;
+  try {
+    result = writeReplacementWorkRecord({ proposal: replacementProposal(), outputRoot, dryRun: true });
+  } finally {
+    fs.realpathSync = originalRealpathSync;
+  }
+  assert.equal(result.status, 'blocked_write_failed');
+  assert.ok(result.diagnostics.some((item) => item.code === 'REPLACEMENT_WRITER_OUTPUT_ROOT_UNREADABLE'));
+});
+
+test('Replacement Writer never overwrites a destination created during publication', () => {
+  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-replacement-race-v1-'));
+  const proposal = replacementProposal();
+  const preview = writeReplacementWorkRecord({ proposal, outputRoot, dryRun: true });
+  const racedBytes = 'concurrent replacement bytes\n';
+  let injected = false;
+  const result = withAtomicPublishHook((event) => {
+    if (event.operation === 'publish' && event.phase === 'before_publish_link' && !injected) {
+      injected = true;
+      fs.writeFileSync(event.destination_path, racedBytes, { flag: 'wx' });
+    }
+  }, () => writeReplacementWorkRecord({ proposal, outputRoot }));
+  assert.equal(result.status, 'blocked_conflict');
+  assert.equal(result.atomic_write.raced, true);
+  assert.equal(fs.readFileSync(preview.output.output_path, 'utf8'), racedBytes);
+  assert.equal(result.atomic_write.content_scrubbed, true);
+  assert.equal(result.atomic_write.temp_file_leftover, true);
+  assert.equal(fs.existsSync(result.atomic_write.temp_file), true);
+  assert.equal(fs.statSync(result.atomic_write.temp_file).size, 0);
+  fs.rmSync(result.atomic_write.temp_file, { force: true });
+});
+
+test('Replacement Writer treats identical bytes created during publication as idempotent', () => {
+  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-replacement-identical-race-v1-'));
+  const proposal = replacementProposal();
+  let injected = false;
+  const result = withAtomicPublishHook((event) => {
+    if (event.operation === 'publish' && event.phase === 'before_publish_link' && !injected) {
+      injected = true;
+      fs.writeFileSync(event.destination_path, fs.readFileSync(event.temp_file), { flag: 'wx' });
+    }
+  }, () => writeReplacementWorkRecord({ proposal, outputRoot }));
+  assert.equal(result.status, 'already_exists');
+  assert.equal(result.atomic_write.raced, true);
+  assert.equal(result.atomic_write.content_scrubbed, true);
+  assert.equal(result.atomic_write.temp_file_leftover, true);
+  assert.equal(fs.existsSync(result.atomic_write.temp_file), true);
+  assert.equal(fs.statSync(result.atomic_write.temp_file).size, 0);
+  fs.rmSync(result.atomic_write.temp_file, { force: true });
+});
+
+test('Replacement Writer returns typed failure when an existing output is unreadable', () => {
+  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-replacement-existing-read-v1-'));
+  const proposal = replacementProposal();
+  const written = writeReplacementWorkRecord({ proposal, outputRoot });
+  assert.equal(written.status, 'written');
+  const result = withAtomicPublishHook((event) => {
+    if (event.operation === 'inspect' && event.phase === 'after_leaf_open') {
+      throw new Error('injected existing output inspection failure');
+    }
+  }, () => writeReplacementWorkRecord({ proposal, outputRoot }));
+  assert.equal(result.status, 'blocked_write_failed');
+  assert.equal(result.idempotency.status, 'unreadable_existing');
   assert.equal(result.writes_replacement_record, false);
-  assert.equal(result.would_write_replacement_record, true);
-  assert.equal(result.mutates_source_record, false);
-  assert.equal(result.executes_repair, false);
-  assert.equal(result.executes_actions, false);
-  assert.equal(result.applies_patches, false);
-  assert.equal(result.automatic_replay_allowed, false);
-  assert.equal(result.idempotency.status, 'new');
-  assert.equal(result.source_immutability_check.status, 'passed');
-  assert.equal(path.basename(result.output.output_path), 'work-record:repairable-stale-saved-ref-writer-test.json');
-  assert.equal(fs.existsSync(result.output.output_path), false);
+  assert.ok(result.diagnostics.some((item) => item.code === 'REPLACEMENT_WRITER_EXISTING_OUTPUT_INSPECTION_FAILED'));
 });
 
-test('write is atomic, idempotent, discoverable, and source-immutable', () => {
-  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-writer-write-'));
-  const sourceBefore = fs.readFileSync(repairableFixture, 'utf8');
-  const proposal = buildProposal();
-  const result = writeReplacementWorkRecord({ proposal, outputRoot });
+test('Replacement Writer rejects a leaf swapped to a symlink between inspection and open', () => {
+  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-replacement-open-race-v1-'));
+  const proposal = replacementProposal();
+  const written = writeReplacementWorkRecord({ proposal, outputRoot });
+  assert.equal(written.status, 'written');
+  const identicalTarget = path.join(outputRoot, 'identical-replacement.blob');
+  fs.copyFileSync(written.output.output_path, identicalTarget);
+  let swapped = false;
+  const result = withAtomicPublishHook((event) => {
+    if (!swapped && event.operation === 'inspect' && event.phase === 'after_leaf_open') {
+      swapped = true;
+      fs.unlinkSync(written.output.output_path);
+      fs.symlinkSync(identicalTarget, written.output.output_path);
+    }
+  }, () => writeReplacementWorkRecord({ proposal, outputRoot }));
+  assert.equal(swapped, true);
+  assert.equal(result.status, 'blocked_conflict');
+  assert.equal(result.idempotency.existing_kind, 'symlink');
+  assert.equal(result.writes_replacement_record, false);
+});
 
-  assert.equal(result.status, 'written', JSON.stringify(result.diagnostics, null, 2));
+test('Replacement Writer rejects a newly published leaf swapped away from the linked inode', () => {
+  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-replacement-linked-inode-race-v1-'));
+  const proposal = replacementProposal();
+  const preview = writeReplacementWorkRecord({ proposal, outputRoot, dryRun: true });
+  const identicalTarget = path.join(outputRoot, 'identical-replacement.blob');
+  fs.writeFileSync(identicalTarget, `${JSON.stringify(materializeReplacementWorkRecord(proposal), null, 2)}\n`);
+  let swapped = false;
+  const result = withAtomicPublishHook((event) => {
+    if (!swapped && event.operation === 'publish' && event.phase === 'after_publish_link') {
+      swapped = true;
+      fs.unlinkSync(event.destination_path);
+      fs.symlinkSync(identicalTarget, event.destination_path);
+    }
+  }, () => writeReplacementWorkRecord({ proposal, outputRoot }));
+  assert.equal(result.status, 'blocked_conflict');
+  assert.equal(result.atomic_write.published, false);
+  assert.equal(result.writes_replacement_record, false);
+  assert.ok(result.diagnostics.some((item) => item.code === 'REPLACEMENT_WRITER_OUTPUT_CONFLICT'));
+  assert.equal(fs.lstatSync(preview.output.output_path).isSymbolicLink(), true);
+});
+
+test('Replacement Writer blocks publication when the pinned parent is swapped to a symlink', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-replacement-parent-race-v1-'));
+  const outputRoot = path.join(root, 'records');
+  const displacedRoot = path.join(root, 'records-displaced');
+  const outsideRoot = path.join(root, 'outside');
+  fs.mkdirSync(outputRoot);
+  fs.mkdirSync(outsideRoot);
+  const proposal = replacementProposal();
+  let swapped = false;
+  const result = withAtomicPublishHook((event) => {
+    if (!swapped && event.operation === 'publish' && event.phase === 'before_temp_open') {
+      swapped = true;
+      fs.renameSync(outputRoot, displacedRoot);
+      fs.symlinkSync(outsideRoot, outputRoot);
+    }
+  }, () => writeReplacementWorkRecord({ proposal, outputRoot }));
+  assert.equal(swapped, true);
+  assert.equal(result.status, 'blocked_write_failed');
+  assert.equal(result.writes_replacement_record, false);
+  assert.deepEqual(fs.readdirSync(outsideRoot), []);
+});
+
+test('Replacement Writer receipts a published replacement when its source changes during publication', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-replacement-source-race-v1-'));
+  const sourcePath = path.join(root, 'source.json');
+  fs.copyFileSync(repairableWorkRecordPath, sourcePath);
+  const repairPlan = planWorkRecordRepair(sourcePath, { repoRoot });
+  const plan = planWorkRecordRepairAttempt(sourcePath, { repoRoot, repairPlan });
+  const artifact = successfulAttemptArtifact(plan);
+  const proposal = replacementProposal(plan, artifact, sourcePath);
+  const outputRoot = path.join(root, 'records');
+  let injected = false;
+  const result = withAtomicPublishHook((event) => {
+    if (!injected && event.operation === 'publish' && event.phase === 'after_publish_link') {
+      injected = true;
+      fs.appendFileSync(sourcePath, ' ');
+    }
+  }, () => writeReplacementWorkRecord({ proposal, outputRoot }));
+  assert.equal(result.status, 'blocked_source_changed');
+  assert.equal(result.atomic_write.published, true);
   assert.equal(result.writes_replacement_record, true);
-  assert.equal(result.output.temp_file_leftover, false);
-  assert.equal(fs.existsSync(result.atomic_write.temp_file), false);
-  assert.equal(fs.readFileSync(repairableFixture, 'utf8'), sourceBefore);
-
-  const written = JSON.parse(fs.readFileSync(result.output.output_path, 'utf8'));
-  const schemaCheck = validateWorkRecordSchema(result.output.output_path);
-  assert.equal(schemaCheck.status, 0, `${schemaCheck.stdout}${schemaCheck.stderr}`);
-  assert.equal(written.id, 'work-record:repairable-stale-saved-ref-writer-test');
-  assert.equal(written.metadata.replacement_writer.supersedes_source.source_work_record_id, proposal.source_work_record.id);
-  assert.equal(written.metadata.replacement_writer.supersedes_source.source_record_edited, false);
-  assert.equal(written.metadata.replacement_writer.executes_repair, false);
-  assert.equal(written.metadata.replacement_writer.executes_actions, false);
-  assert.equal(written.metadata.replacement_writer.applies_patches, false);
-
-  const list = runAos(['work-record', 'list', '--root', outputRoot, '--json']);
-  assert.equal(list.status, 0, list.stderr);
-  assert.ok(JSON.parse(list.stdout).records.some((record) => record.id === written.id));
-
-  const read = runAos(['work-record', 'read', written.id, '--root', outputRoot, '--json']);
-  assert.equal(read.status, 0, read.stderr);
-  assert.equal(JSON.parse(read.stdout).record.id, written.id);
-
-  const repeat = writeReplacementWorkRecord({ proposal, outputRoot });
-  assert.equal(repeat.status, 'already_exists');
-  assert.equal(repeat.idempotency.status, 'identical_existing');
+  assert.equal(result.source_immutability_check.status, 'failed');
+  assert.ok(result.diagnostics.some((item) => item.code === 'REPLACEMENT_WRITER_SOURCE_DIGEST_CHANGED'));
+  assert.equal(fs.existsSync(result.output.output_path), true);
 });
 
-test('writer read follow-up is argv-backed and preserves shell metacharacter roots', () => {
-  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), "aos writer root ; quoted '$ROOT-"));
-  const proposal = buildProposal({
-    proposedIdSeed: 'work-record:repairable-stale-saved-ref-writer-special-root',
-  });
-  const result = writeReplacementWorkRecord({ proposal, outputRoot });
-  assert.equal(result.status, 'written', JSON.stringify(result.diagnostics, null, 2));
-  assert.deepEqual(result.recommended_next.argv, [
-    './aos',
-    'work-record',
-    'read',
-    result.written_replacement_work_record.id,
-    '--root',
-    outputRoot,
-    '--json',
-  ]);
-  assert.equal(result.recommended_next.argv[5], outputRoot);
-  assert.equal(result.recommended_next.command_hint, commandHintFromArgv(result.recommended_next.argv));
-  assert.ok(result.recommended_next.command_hint.includes(`--root '${outputRoot.replace(/'/g, "'\\''")}'`));
-  assert.ok(!result.recommended_next.command_hint.includes(`--root ${outputRoot} --json`));
-
-  const read = spawnSync(result.recommended_next.argv[0], result.recommended_next.argv.slice(1), {
-    cwd: repoRoot,
-    encoding: 'utf8',
-  });
-  assert.equal(read.status, 0, read.stderr);
-  assert.equal(JSON.parse(read.stdout).record.id, result.written_replacement_work_record.id);
+test('Replacement Writer receipts a published replacement when source digest readback fails', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-replacement-source-readback-v1-'));
+  const sourcePath = path.join(root, 'source.json');
+  fs.copyFileSync(repairableWorkRecordPath, sourcePath);
+  const repairPlan = planWorkRecordRepair(sourcePath, { repoRoot });
+  const plan = planWorkRecordRepairAttempt(sourcePath, { repoRoot, repairPlan });
+  const artifact = successfulAttemptArtifact(plan);
+  const proposal = replacementProposal(plan, artifact, sourcePath);
+  const originalReadFileSync = fs.readFileSync;
+  let published = false;
+  fs.readFileSync = (file, ...args) => {
+    if (published && path.resolve(String(file)) === path.resolve(sourcePath)) {
+      const error = new Error('injected source digest read failure');
+      error.code = 'EIO';
+      throw error;
+    }
+    return originalReadFileSync(file, ...args);
+  };
+  try {
+    const result = withAtomicPublishHook((event) => {
+      if (event.operation === 'publish' && event.phase === 'after_publish_link') published = true;
+    }, () => writeReplacementWorkRecord({ proposal, outputRoot: path.join(root, 'records') }));
+    assert.equal(result.status, 'blocked_source_changed');
+    assert.equal(result.atomic_write.published, true);
+    assert.equal(result.writes_replacement_record, true);
+    assert.ok(result.diagnostics.some((item) => item.code === 'REPLACEMENT_WRITER_SOURCE_DIGEST_READ_FAILED'));
+  } finally {
+    fs.readFileSync = originalReadFileSync;
+  }
 });
 
-test('writer materializes distinct evidence refs per postcondition', () => {
-  const source = sourceInput();
-  const [firstPostcondition, secondPostcondition] = source.record.execution_map.postconditions;
-  const baseInput = successArtifactInput();
-  const artifactInput = successArtifactInput({
-    overrides: {
-      evidence_refs: [
-        ...baseInput.evidence_refs,
-        { id: 'evidence:postcondition-one', uri: 'artifact:evidence-one.json', digest: 'digest:evidence-one' },
-        { id: 'evidence:postcondition-two', uri: 'artifact:evidence-two.json', digest: 'digest:evidence-two' },
-      ],
-      postcondition_results: [
-        {
-          id: `postcondition-result:${firstPostcondition.id}`,
-          postcondition_id: firstPostcondition.id,
-          status: 'passed',
-          evidence_ref_ids: ['evidence:postcondition-one'],
-        },
-        {
-          id: `postcondition-result:${secondPostcondition.id}`,
-          postcondition_id: secondPostcondition.id,
-          status: 'passed',
-          evidence_ref_ids: ['evidence:postcondition-two'],
-        },
-      ],
-    },
-  });
-  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-writer-postconditions-'));
-  const proposal = buildProposal({
-    proposedIdSeed: 'work-record:writer-postcondition-evidence-test',
-    artifactInput,
-  });
-  const result = writeReplacementWorkRecord({ proposal, outputRoot });
-  assert.equal(result.status, 'written', JSON.stringify(result.diagnostics, null, 2));
-
-  const written = JSON.parse(fs.readFileSync(result.output.output_path, 'utf8'));
-  const firstWritten = written.execution_map.postconditions.find((item) => item.id === firstPostcondition.id);
-  const secondWritten = written.execution_map.postconditions.find((item) => item.id === secondPostcondition.id);
-  assert.deepEqual(firstWritten.evidence_refs, ['replacement:evidence:postcondition-one']);
-  assert.deepEqual(secondWritten.evidence_refs, ['replacement:evidence:postcondition-two']);
-  assert.notDeepEqual(firstWritten.evidence_refs, secondWritten.evidence_refs);
-});
-
-test('writer blocks conflicts, invalid inputs, source drift, traversal, and symlink escape', () => {
-  const proposal = buildProposal({ proposedIdSeed: 'work-record:writer-negative-test' });
-  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-writer-negative-'));
-
-  const invalidProposal = writeReplacementWorkRecord({
-    proposal: { ...proposal, writes_replacement_record: true },
-    outputRoot,
-  });
-  assert.equal(invalidProposal.status, 'blocked_invalid_proposal');
-
-  const invalidReplacement = writeReplacementWorkRecord({
-    proposal: {
-      ...proposal,
-      proposed_replacement_work_record: {
-        ...proposal.proposed_replacement_work_record,
-        execution_map: {
-          ...proposal.proposed_replacement_work_record.execution_map,
-          replay_policy: {
-            ...proposal.proposed_replacement_work_record.execution_map.replay_policy,
-            repair_requires_workflow_gate: false,
-          },
-        },
-      },
-    },
-    outputRoot,
-  });
-  assert.equal(invalidReplacement.status, 'blocked_invalid_replacement_record');
-
-  const changedSource = writeReplacementWorkRecord({
-    proposal: {
-      ...proposal,
-      source_work_record: {
-        ...proposal.source_work_record,
-        digest: 'sha256:not-the-current-source-digest',
-      },
-    },
-    outputRoot,
-  });
-  assert.equal(changedSource.status, 'blocked_source_changed');
-
-  const traversal = writeReplacementWorkRecord({
-    proposal,
-    outputRoot,
-    outputPath: path.join(outputRoot, '..', 'work-record:writer-negative-test.json'),
-  });
-  assert.equal(traversal.status, 'blocked_output_escape');
-
-  const external = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-writer-external-'));
-  const symlinkPath = path.join(outputRoot, 'work-record:writer-negative-test.json');
-  fs.writeFileSync(path.join(external, 'escaped.json'), '{}\n');
-  fs.symlinkSync(path.join(external, 'escaped.json'), symlinkPath);
-  const symlinkEscape = writeReplacementWorkRecord({
-    proposal,
-    outputRoot,
-    outputPath: symlinkPath,
-  });
-  assert.equal(symlinkEscape.status, 'blocked_output_escape');
-});
-
-test('writer refuses overwriting different existing content', () => {
-  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-writer-conflict-'));
-  const proposal = buildProposal({ proposedIdSeed: 'work-record:writer-conflict-test' });
-  const first = writeReplacementWorkRecord({ proposal, outputRoot });
-  assert.equal(first.status, 'written');
-
-  fs.writeFileSync(first.output.output_path, '{"type":"aos.work_record","id":"different"}\n');
-  const conflict = writeReplacementWorkRecord({ proposal, outputRoot });
-  assert.equal(conflict.status, 'blocked_conflict');
-  assert.equal(conflict.idempotency.status, 'conflict');
-});
-
-test('public replacement-proposal write command exposes stable JSON and never runs repair', () => {
-  const help = runAos(['help', 'work-record', '--json']);
-  assert.equal(help.status, 0, help.stderr);
-  const helpJson = JSON.parse(help.stdout);
-  const form = helpJson.forms.find((item) => item.id === 'work-record-replacement-proposal-write');
-  assert.ok(form, 'help should expose work-record-replacement-proposal-write');
-  assert.equal(form.execution.read_only, false);
-  assert.equal(form.execution.mutates_state, true);
-  assert.equal(form.execution.supports_dry_run, true);
-  assert.equal(form.execution.writes_replacement_record, true);
-  assert.equal(form.execution.mutates_source_record, false);
-  assert.equal(form.execution.executes_repair, false);
-  assert.equal(form.execution.executes_actions, false);
-  assert.equal(form.execution.applies_patches, false);
-  assert.equal(form.execution.automatic_replay_allowed, false);
-
-  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-writer-cli-'));
-  const proposalPath = writeTempJson(buildProposal({ proposedIdSeed: 'work-record:writer-cli-test' }));
-  const dryRun = runAos([
-    'work-record',
-    'replacement-proposal',
-    'write',
-    proposalPath,
-    '--output-root',
-    outputRoot,
-    '--dry-run',
-    '--json',
-  ]);
-  assert.equal(dryRun.status, 0, dryRun.stderr);
-  assert.equal(JSON.parse(dryRun.stdout).status, 'dry_run');
-
-  const write = runAos([
-    'work-record',
-    'replacement-proposal',
-    'write',
-    proposalPath,
-    '--output-root',
-    outputRoot,
-    '--json',
-  ]);
-  assert.equal(write.status, 0, write.stderr);
-  const writeJson = JSON.parse(write.stdout);
-  assert.equal(writeJson.status, 'written');
-  assert.equal(writeJson.mutates_source_record, false);
-  assert.equal(writeJson.executes_repair, false);
-  assert.equal(writeJson.executes_actions, false);
-  assert.equal(writeJson.applies_patches, false);
-  assert.equal(writeJson.automatic_replay_allowed, false);
+test('Replacement Writer receipts a scrubbed staged file when publication fails', () => {
+  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-replacement-cleanup-v1-'));
+  const proposal = replacementProposal();
+  const preview = writeReplacementWorkRecord({ proposal, outputRoot, dryRun: true });
+  const result = withAtomicPublishHook((event) => (
+    event.operation === 'publish' && event.phase === 'before_publish_link'
+      ? { fail_operation: 'link_destination' }
+      : undefined
+  ), () => writeReplacementWorkRecord({ proposal, outputRoot }));
+  assert.equal(result.status, 'blocked_write_failed');
+  assert.equal(result.atomic_write.published, false);
+  assert.equal(result.atomic_write.content_scrubbed, true);
+  assert.equal(result.atomic_write.temp_file_leftover, true);
+  assert.equal(result.writes_replacement_record, false);
+  assert.deepEqual(result.side_effects, []);
+  assert.equal(result.recommended_next.action, 'inspect_writer_diagnostics');
+  assert.equal(fs.existsSync(preview.output.output_path), false);
+  assert.equal(fs.existsSync(result.atomic_write.temp_file), true);
+  assert.equal(fs.statSync(result.atomic_write.temp_file).size, 0);
+  fs.rmSync(result.atomic_write.temp_file, { force: true });
 });

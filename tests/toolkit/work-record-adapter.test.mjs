@@ -4,62 +4,52 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  isWorkRecordV0,
+  isHistoricalWorkRecordV0,
+  isWorkRecordV1,
   normalizeWorkRecord,
   workRecordEvidenceArtifacts,
   workRecordIsReadOnly,
-  workRecordSubjectId,
 } from '../../packages/toolkit/workbench/work-record-adapter.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, '../..');
-const legacyFixtureRoot = path.join(repoRoot, 'docs/design/fixtures/aos-work-records');
-const v0FixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0/valid');
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const read = (relative) => JSON.parse(fs.readFileSync(path.join(repoRoot, relative), 'utf8'));
 
-function fixture(root, name) {
-  return JSON.parse(fs.readFileSync(path.join(root, name), 'utf8'));
-}
-
-test('adapter preserves legacy work-record read behavior', () => {
-  const record = fixture(legacyFixtureRoot, 'browser-artifact-collection-step.json');
+test('adapter projects active Work Record V1 as read-only evidence', () => {
+  const record = read('shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json');
   const normalized = normalizeWorkRecord(record);
-
-  assert.equal(isWorkRecordV0(record), false);
-  assert.equal(normalized.format, 'legacy');
-  assert.equal(normalized.readOnly, false);
-  assert.equal(workRecordIsReadOnly(record), false);
-  assert.equal(normalized.type, 'aos.do_step');
-  assert.equal(normalized.id, 'collect-company-careers-page');
-  assert.equal(normalized.health.state, 'stale');
-  assert.equal(normalized.surface, 'browser');
-  assert.equal(normalized.action.verb, 'navigate');
-  assert.equal(normalized.artifacts.length, 3);
-  assert.equal(workRecordSubjectId(normalized.id), 'work-record:collect-company-careers-page');
-});
-
-test('adapter reads v0 records without rewriting evidence or claim arrays', () => {
-  const record = fixture(v0FixtureRoot, 'workflow-origin.json');
-  const normalized = normalizeWorkRecord(record);
-
-  assert.equal(isWorkRecordV0(record), true);
-  assert.equal(normalized.format, 'v0');
+  assert.equal(isWorkRecordV1(record), true);
+  assert.equal(normalized.supported, true);
+  assert.equal(normalized.format, 'v1');
   assert.equal(normalized.readOnly, true);
   assert.equal(workRecordIsReadOnly(record), true);
-  assert.equal(normalized.id, 'work-record:workflow-open-wiki-runtime-modes-2026-05-05');
-  assert.equal(workRecordSubjectId(normalized.id), normalized.id);
-  assert.equal(normalized.intent.nl, record.intent.summary);
-  assert.equal(normalized.evidence.length, record.evidence.length);
-  assert.equal(normalized.claims.length, record.claims.length);
-  assert.equal(normalized.claimResults.length, record.claim_results.length);
-  assert.equal(normalized.health.state, 'valid');
-  assert.deepEqual(normalized.raw.evidence, record.evidence);
-  assert.equal(workRecordEvidenceArtifacts(record)[0].path, 'artifact:artifacts/work-records/workflow-open-wiki-runtime-modes/before-see.json');
+  assert.equal(workRecordEvidenceArtifacts(record).length, record.evidence.length);
+  assert.equal('replayPolicy' in normalized, false);
+  assert.equal('automaticReplayAllowed' in normalized, false);
 });
 
-test('adapter formats Work Record subject ids through Subject Entry Handles', () => {
-  assert.equal(workRecordSubjectId('collect-company-careers-page'), 'work-record:collect-company-careers-page');
-  assert.equal(workRecordSubjectId('work-record:collect-company-careers-page'), 'work-record:collect-company-careers-page');
-  assert.equal(workRecordSubjectId('work-record:example:with-colon'), 'work-record:example:with-colon');
-  assert.equal(workRecordSubjectId('wiki:aos/concepts/runtime-modes.md'), 'work-record:wiki:aos/concepts/runtime-modes.md');
-  assert.equal(workRecordSubjectId(''), '');
+test('adapter preserves raw evidence URI carriers', () => {
+  const record = read('shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json');
+  const rawUri = '/tmp/aos  evidence  artifact.json';
+  record.evidence[0].uri = rawUri;
+  const normalized = normalizeWorkRecord(record);
+  assert.equal(normalized.supported, true);
+  assert.equal(normalized.evidence[0].uri, rawUri);
+  assert.equal(normalized.artifacts[0].uri, rawUri);
+  assert.equal(normalized.artifacts[0].path, rawUri);
+});
+
+test('adapter preserves raw source-owned labels', () => {
+  const record = read('shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json');
+  record.label = 'Workflow  evidence  label';
+  record.evidence[0].summary = 'Before  perception  evidence';
+  const normalized = normalizeWorkRecord(record);
+  assert.equal(normalized.label, record.label);
+  assert.equal(normalized.artifacts[0].label, record.evidence[0].summary);
+});
+
+test('adapter rejects frozen V0 and unknown records without adapting their bytes', () => {
+  const historical = read('shared/schemas/fixtures/aos-work-record-v0/valid/workflow-origin.json');
+  assert.equal(isHistoricalWorkRecordV0(historical), true);
+  assert.equal(normalizeWorkRecord(historical).format, 'historical_v0_unsupported');
+  assert.equal(normalizeWorkRecord({ type: 'aos.work_record', schema_version: 'future', id: 'x' }).format, 'unsupported');
 });

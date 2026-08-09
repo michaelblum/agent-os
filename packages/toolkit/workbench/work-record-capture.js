@@ -5,11 +5,11 @@ export {
   WORK_RECORD_STEP_DESCRIPTOR_CAPTURE_BUILDER_VERSION,
 } from './work-record-capture-versions.js';
 export {
-  buildWorkRecordV0FromCommandEvidence,
+  buildWorkRecordV1FromCommandEvidence,
 } from './work-record-capture-command.js';
 export {
-  buildWorkRecordV0FromAosActionEvidence,
+  buildWorkRecordV1FromAosActionEvidence,
 } from './work-record-capture-aos-action.js';
 export {
-  buildWorkRecordV0FromStepDescriptorEvidence,
+  buildWorkRecordV1FromStepDescriptorEvidence,
 } from './work-record-capture-step-descriptor.js';

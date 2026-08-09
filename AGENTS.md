@@ -154,6 +154,15 @@ Default section order:
   inspect the artifact or run readiness. Only after the user replies `finished`
   may the session run the exact next command
   `./aos ready --repair --post-permission --json`, with no intervening command.
+  The private Work Record descriptor-relative N-API addon may compile before
+  Swift source fingerprinting; its ignored current-architecture output is
+  packaged with the reachable Work Record command resource projection and must
+  not transform, inspect, launch, sign, or otherwise interpose on the raw
+  `./aos` artifact.
+- Checkpoint after every validated increment: commit to the working branch
+  before starting the next step so an interrupted session never strands more
+  than one step of uncommitted work. A large uncommitted accumulation across
+  many files is a hazard to be checkpointed immediately, not progress.
 - Never attribute commits, PR descriptions, issue comments, or release notes to
   Claude or any AI assistant.
 

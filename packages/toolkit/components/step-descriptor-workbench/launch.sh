@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# launch.sh - Open the fixture-backed Step Descriptor Workbench V0 shell.
+# launch.sh - Open the fixture-backed Step Descriptor Workbench V1 shell.
 
 set -euo pipefail
 
@@ -8,13 +8,13 @@ ROOT="$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null || pwd)"
 source "$ROOT/scripts/aos-content-scope.sh"
 
 AOS="${AOS:-$ROOT/aos}"
-CANVAS_ID="${CANVAS_ID:-step-descriptor-workbench-v0}"
-WORK_RECORD_CANVAS_ID="${WORK_RECORD_CANVAS_ID:-step-descriptor-workbench-v0-work-record}"
+CANVAS_ID="${CANVAS_ID:-step-descriptor-workbench-v1}"
+WORK_RECORD_CANVAS_ID="${WORK_RECORD_CANVAS_ID:-step-descriptor-workbench-v1-work-record}"
 PANEL_W="${AOS_STEP_DESCRIPTOR_WORKBENCH_W:-1240}"
 PANEL_H="${AOS_STEP_DESCRIPTOR_WORKBENCH_H:-760}"
 TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(aos_content_root_key_for toolkit "$ROOT")}"
-STEP_DESCRIPTOR_FIXTURE="${STEP_DESCRIPTOR_FIXTURE:-$ROOT/shared/schemas/fixtures/aos-step-descriptor-v0/valid/browser-click-status.json}"
-EVIDENCE_FIXTURE="${EVIDENCE_FIXTURE:-$ROOT/shared/schemas/fixtures/aos-work-record-v0/evidence/aos-browser-click-status.json}"
+STEP_DESCRIPTOR_FIXTURE="${STEP_DESCRIPTOR_FIXTURE:-$ROOT/shared/schemas/fixtures/aos-step-descriptor-v1/valid/browser-click-status.json}"
+EVIDENCE_FIXTURE="${EVIDENCE_FIXTURE:-$ROOT/shared/schemas/fixtures/aos-work-record-v1/evidence/aos-browser-click-status.json}"
 
 if [[ ! -x "$AOS" ]]; then
   echo "aos binary not found at $AOS" >&2
@@ -69,7 +69,7 @@ read -r X Y W H <<<"$GEOMETRY"
 "$AOS" show wait \
   --id "$CANVAS_ID" \
   --manifest step-descriptor-workbench \
-  --js 'typeof window.__stepDescriptorWorkbenchState === "object" && document.querySelector("[data-aos-ref=\"step-descriptor-workbench-v0:root\"]")' \
+  --js 'typeof window.__stepDescriptorWorkbenchState === "object" && document.querySelector("[data-aos-ref=\"step-descriptor-workbench-v1:root\"]")' \
   --timeout 5s \
   --json >/dev/null
 
@@ -99,7 +99,7 @@ print(json.dumps({
   --timeout 5s \
   --json >/dev/null
 
-echo "Step Descriptor Workbench V0 launched at ${X},${Y} (${W}x${H})"
+echo "Step Descriptor Workbench V1 launched at ${X},${Y} (${W}x${H})"
 echo "Canvas: $CANVAS_ID"
 echo "Work Record Canvas: $WORK_RECORD_CANVAS_ID"
 echo "URL: aos://$TOOLKIT_CONTENT_ROOT/components/step-descriptor-workbench/index.html"

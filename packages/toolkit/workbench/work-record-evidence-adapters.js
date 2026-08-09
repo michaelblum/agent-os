@@ -55,6 +55,11 @@ function text(value, fallback = '') {
   return normalized || fallback;
 }
 
+function rawText(value, fallback = '') {
+  const raw = String(value ?? '');
+  return raw || fallback;
+}
+
 function objectValue(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
@@ -83,7 +88,7 @@ function mapById(values = []) {
 }
 
 function targetRef(target = '') {
-  const value = text(target);
+  const value = rawText(target);
   const schemeIndex = value.indexOf(':');
   const slashIndex = value.lastIndexOf('/');
   if (schemeIndex < 0 || slashIndex <= schemeIndex + 1 || slashIndex === value.length - 1) {
@@ -93,7 +98,7 @@ function targetRef(target = '') {
 }
 
 function targetDialect(target = '') {
-  const value = text(target);
+  const value = rawText(target);
   const schemeIndex = value.indexOf(':');
   return schemeIndex > 0 ? value.slice(0, schemeIndex) : '';
 }
@@ -113,15 +118,25 @@ function addDiagnostic(diagnostics, code, message, path, details = {}) {
 
 function normalizedCandidate(candidate = {}) {
   const value = objectValue(candidate);
+  const valueSource = Object.hasOwn(value, 'value')
+    ? value.value
+    : (Object.hasOwn(value, 'text')
+      ? value.text
+      : (Object.hasOwn(value, 'text_content') ? value.text_content : value.inner_text));
+  const textSource = Object.hasOwn(value, 'text')
+    ? value.text
+    : (Object.hasOwn(value, 'text_content')
+      ? value.text_content
+      : (Object.hasOwn(value, 'inner_text') ? value.inner_text : value.value));
   return {
     raw: value,
     ref: text(value.ref || value.id || value.object_id || value.ax_path),
-    target: text(value.target),
+    target: rawText(value.target),
     semanticRef: text(value.semantic_ref || value.data_aos_ref || value.aos_ref),
     role: text(value.role || value.ax_role || value.aria_role || value.semantic_role),
     name: text(value.name || value.label || value.aria_label || value.ax_label),
-    value: text(value.value ?? value.text ?? value.text_content ?? value.inner_text),
-    text: text(value.text ?? value.text_content ?? value.inner_text ?? value.value),
+    value: valueSource,
+    text: textSource,
     enabled: typeof value.enabled === 'boolean' ? value.enabled : undefined,
   };
 }
@@ -155,27 +170,54 @@ function expectedObject(check = {}) {
 
 function expectedPrimitive(check = {}) {
   const value = objectValue(check).expected;
-  return value && typeof value === 'object' ? '' : text(objectValue(check).expected);
+  return value && typeof value === 'object' ? { present: false, value: undefined } : {
+    present: Object.hasOwn(objectValue(check), 'expected'),
+    value,
+  };
+}
+
+function expectedField(check = {}, expected = {}, field = '') {
+  if (Object.hasOwn(expected, field)) return { present: true, value: expected[field] };
+  if (Object.hasOwn(objectValue(check), field)) return { present: true, value: objectValue(check)[field] };
+  return { present: false, value: undefined };
 }
 
 function semanticSpec(postcondition = {}) {
   const value = objectValue(postcondition);
   const check = objectValue(value.check);
+  const checkKind = text(check.kind);
   const expected = expectedObject(check);
-  const target = text(check.target || expected.target || value.target);
+  const primitive = expectedPrimitive(check);
+  const valueExpectation = expectedField(check, expected, 'value');
+  const textExpectation = expectedField(check, expected, 'text');
+  const containsExpectation = Object.hasOwn(expected, 'contains')
+    ? { present: true, value: expected.contains }
+    : (Object.hasOwn(expected, 'value_contains')
+      ? { present: true, value: expected.value_contains }
+      : expectedField(check, expected, 'contains'));
+  const roleExpectation = expectedField(check, expected, 'role');
+  const nameExpectation = expectedField(check, expected, 'name');
+  const primitiveRole = checkKind === 'semantic_target_role_equals' ? primitive : { present: false, value: undefined };
+  const primitiveName = checkKind === 'semantic_target_name_equals' ? primitive : { present: false, value: undefined };
+  const target = rawText(check.target || expected.target || value.target);
   const ref = text(check.ref || expected.ref || targetRef(target));
 
   return {
-    checkKind: text(check.kind),
+    checkKind,
     target,
     targetRef: targetRef(target),
     ref,
     semanticRef: text(check.semantic_ref || check.data_aos_ref || expected.semantic_ref || expected.data_aos_ref),
-    role: text(check.role || check.expected_role || expected.role),
-    name: text(check.name || check.expected_name || expected.name),
-    value: text(expected.value ?? check.value ?? expectedPrimitive(check)),
-    text: text(expected.text ?? check.text),
-    contains: text(expected.contains ?? expected.value_contains ?? check.contains),
+    role: roleExpectation.present ? roleExpectation.value : primitiveRole.value,
+    rolePresent: roleExpectation.present || primitiveRole.present,
+    name: nameExpectation.present ? nameExpectation.value : primitiveName.value,
+    namePresent: nameExpectation.present || primitiveName.present,
+    value: valueExpectation.present ? valueExpectation.value : primitive.value,
+    valuePresent: valueExpectation.present || primitive.present,
+    text: textExpectation.value,
+    textPresent: textExpectation.present,
+    contains: containsExpectation.value,
+    containsPresent: containsExpectation.present,
     enabled: typeof expected.enabled === 'boolean'
       ? expected.enabled
       : (typeof check.enabled === 'boolean' ? check.enabled : undefined),
@@ -185,7 +227,7 @@ function semanticSpec(postcondition = {}) {
 function specIdentities(spec = {}) {
   return new Set([
     text(spec.ref),
-    text(spec.target),
+    rawText(spec.target),
     targetRef(spec.target),
     text(spec.semanticRef),
   ].filter(Boolean));
@@ -232,6 +274,10 @@ function semanticValueForKind(candidate = {}, checkKind = '') {
   return normalized.value;
 }
 
+function exactSemanticValue(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 function checkExpectedText({
   diagnostics,
   postcondition,
@@ -250,40 +296,47 @@ function checkExpectedText({
     return;
   }
 
-  const expectedContains = checkKind.endsWith('_contains') ? spec.value || spec.text || spec.contains : spec.contains;
-  const expectedEquals = checkKind.endsWith('_equals') || checkKind === 'semantic_target_matches'
-    ? spec.value || spec.text
-    : '';
+  const isTextCheck = checkKind.includes('_text_');
+  const expectedContains = isTextCheck && spec.textPresent
+    ? { present: true, value: spec.text }
+    : (spec.valuePresent
+      ? { present: true, value: spec.value }
+      : { present: spec.containsPresent, value: spec.contains });
+  const expectedEquals = isTextCheck
+    ? { present: spec.textPresent || spec.valuePresent, value: spec.textPresent ? spec.text : spec.value }
+    : { present: spec.valuePresent, value: spec.value };
   const actual = semanticValueForKind(candidate, checkKind);
   const postconditionId = text(postcondition.id, `postconditions[${postconditionIndex}]`);
 
-  if (expectedContains && !actual.includes(expectedContains)) {
+  if (checkKind.endsWith('_contains') && expectedContains.present
+    && !String(actual ?? '').includes(String(expectedContains.value ?? ''))) {
     addDiagnostic(
       diagnostics,
       'semantic_target_value_mismatch',
-      `postcondition ${postconditionId} expected semantic target ${text(spec.ref, spec.target)} to contain ${expectedContains}`,
+      `postcondition ${postconditionId} expected semantic target ${text(spec.ref, spec.target)} to contain ${String(expectedContains.value ?? '')}`,
       `execution_map.postconditions[${postconditionIndex}].check.expected`,
       {
         failure_class: 'semantic_value_mismatch',
         adapter_id: semanticAdapterId(postcondition, candidate),
         postcondition_id: postconditionId,
-        expected_value: expectedContains,
+        expected_value: expectedContains.value,
         actual_value: actual,
       },
     );
   }
 
-  if (expectedEquals && actual !== expectedEquals) {
+  if ((checkKind.endsWith('_equals') || checkKind === 'semantic_target_matches')
+    && expectedEquals.present && !exactSemanticValue(actual, expectedEquals.value)) {
     addDiagnostic(
       diagnostics,
       'semantic_target_value_mismatch',
-      `postcondition ${postconditionId} expected semantic target ${text(spec.ref, spec.target)} value ${expectedEquals}`,
+      `postcondition ${postconditionId} expected semantic target ${text(spec.ref, spec.target)} value ${String(expectedEquals.value ?? '')}`,
       `execution_map.postconditions[${postconditionIndex}].check.expected`,
       {
         failure_class: 'semantic_value_mismatch',
         adapter_id: semanticAdapterId(postcondition, candidate),
         postcondition_id: postconditionId,
-        expected_value: expectedEquals,
+        expected_value: expectedEquals.value,
         actual_value: actual,
       },
     );
@@ -297,10 +350,26 @@ function checkExpectedRoleName({
   candidate,
   spec,
 }) {
-  if (!spec.role && !spec.name) return;
+  if (spec.checkKind === 'semantic_target_role_name_equals'
+    && (!spec.rolePresent || !spec.namePresent)) {
+    const postconditionId = text(postcondition.id, `postconditions[${postconditionIndex}]`);
+    addDiagnostic(
+      diagnostics,
+      'semantic_target_role_name_expectation_incomplete',
+      `postcondition ${postconditionId} role_name_equals requires both expected role and name`,
+      `execution_map.postconditions[${postconditionIndex}].check.expected`,
+      {
+        failure_class: 'semantic_role_name_mismatch',
+        adapter_id: semanticAdapterId(postcondition, candidate),
+        postcondition_id: postconditionId,
+      },
+    );
+    return;
+  }
+  if (!spec.rolePresent && !spec.namePresent) return;
   const normalized = normalizedCandidate(candidate);
-  const roleMismatch = spec.role && normalized.role !== spec.role;
-  const nameMismatch = spec.name && normalized.name !== spec.name;
+  const roleMismatch = spec.rolePresent && !exactSemanticValue(normalized.role, spec.role);
+  const nameMismatch = spec.namePresent && !exactSemanticValue(normalized.name, spec.name);
   if (!roleMismatch && !nameMismatch) return;
 
   const postconditionId = text(postcondition.id, `postconditions[${postconditionIndex}]`);
@@ -313,9 +382,9 @@ function checkExpectedRoleName({
       failure_class: 'semantic_role_name_mismatch',
       adapter_id: semanticAdapterId(postcondition, candidate),
       postcondition_id: postconditionId,
-      expected_role: spec.role || null,
+      expected_role: spec.rolePresent ? spec.role : null,
       actual_role: normalized.role || null,
-      expected_name: spec.name || null,
+      expected_name: spec.namePresent ? spec.name : null,
       actual_name: normalized.name || null,
     },
   );
@@ -374,18 +443,57 @@ function checkSemanticTarget({
   }
 
   const normalized = normalizedCandidate(match.candidate);
-  if (spec.target && normalized.target && spec.target !== normalized.target) {
+  const matchedRef = normalized.ref || targetRef(normalized.target);
+  if (spec.ref && matchedRef !== spec.ref) {
     addDiagnostic(
       diagnostics,
       'evidence_target_ref_drift',
-      `postcondition ${postconditionId} target ${spec.target} does not match evidence target ${normalized.target}`,
+      `postcondition ${postconditionId} ref ${spec.ref} does not match evidence candidate ref ${matchedRef}`,
+      `execution_map.postconditions[${postconditionIndex}].check.ref`,
+      {
+        failure_class: 'target_ref_drift',
+        adapter_id: semanticAdapterId(postcondition, match.candidate),
+        postcondition_id: postconditionId,
+        expected_ref: spec.ref,
+        actual_ref: matchedRef,
+      },
+    );
+  }
+  if (spec.semanticRef && normalized.semanticRef !== spec.semanticRef) {
+    addDiagnostic(
+      diagnostics,
+      'semantic_target_identity_mismatch',
+      `postcondition ${postconditionId} semantic identity ${spec.semanticRef} does not match evidence candidate ${normalized.semanticRef}`,
+      `execution_map.postconditions[${postconditionIndex}].check.semantic_ref`,
+      {
+        failure_class: 'semantic_identity_mismatch',
+        adapter_id: semanticAdapterId(postcondition, match.candidate),
+        postcondition_id: postconditionId,
+        expected_semantic_ref: spec.semanticRef,
+        actual_semantic_ref: normalized.semanticRef,
+      },
+    );
+  }
+  const enclosingEvidenceTarget = rawText(objectValue(match.evidence).target);
+  const expectedScope = spec.targetRef && spec.target.endsWith(`/${spec.targetRef}`)
+    ? spec.target.slice(0, -(spec.targetRef.length + 1))
+    : spec.target;
+  const actualBoundTarget = normalized.target || enclosingEvidenceTarget;
+  const targetMatches = normalized.target
+    ? spec.target === normalized.target
+    : (enclosingEvidenceTarget === expectedScope || enclosingEvidenceTarget === spec.target);
+  if (spec.target && !targetMatches) {
+    addDiagnostic(
+      diagnostics,
+      'evidence_target_ref_drift',
+      `postcondition ${postconditionId} target ${spec.target} does not match evidence target ${actualBoundTarget}`,
       `execution_map.postconditions[${postconditionIndex}].target`,
       {
         failure_class: 'target_ref_drift',
         adapter_id: semanticAdapterId(postcondition, match.candidate),
         postcondition_id: postconditionId,
         expected_target: spec.target,
-        actual_target: normalized.target,
+        actual_target: actualBoundTarget,
       },
     );
   }
@@ -405,7 +513,7 @@ function checkSemanticTarget({
     spec,
   });
 
-  if (typeof spec.enabled === 'boolean' && normalized.enabled !== undefined && normalized.enabled !== spec.enabled) {
+  if (typeof spec.enabled === 'boolean' && normalized.enabled !== spec.enabled) {
     addDiagnostic(
       diagnostics,
       'semantic_target_state_mismatch',
@@ -432,7 +540,7 @@ function artifactMetadata(evidence = {}) {
   const dimensions = objectValue(metadata.dimensions);
   const attachment = objectValue(metadata.attachment);
   return {
-    uri: text(value.uri),
+    uri: rawText(value.uri),
     digest: text(value.digest),
     kind: text(value.kind),
     width: numberValue(metadata.width) ?? numberValue(dimensions.width),
@@ -449,7 +557,7 @@ function artifactExpectation(check = {}) {
   const expected = expectedObject(value);
   const dimensions = objectValue(expected.dimensions);
   const result = {
-    uri: text(expected.uri),
+    uri: rawText(expected.uri),
     digest: text(expected.digest),
     kind: text(expected.kind),
     content_type: text(expected.content_type || expected.mime_type),
@@ -463,7 +571,7 @@ function artifactExpectation(check = {}) {
   if (Number.isFinite(dimensions.height)) result.height = dimensions.height;
   if (Number.isFinite(expected.size_bytes)) result.size_bytes = expected.size_bytes;
 
-  if (value.kind === 'artifact_uri_equals') result.uri = text(value.expected);
+  if (value.kind === 'artifact_uri_equals') result.uri = rawText(value.expected);
   if (value.kind === 'artifact_digest_equals') result.digest = text(value.expected);
   if (value.kind === 'artifact_dimensions_equal') {
     result.width = Number.isFinite(expected.width) ? expected.width : dimensions.width;

@@ -1,6 +1,5 @@
 import { esc } from '../../runtime/bridge.js';
 import { renderButtonHtml } from '../../controls/button.js';
-import { renderTextFieldHtml } from '../../controls/text-field.js';
 import {
   STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES,
   STEP_DESCRIPTOR_WORKBENCH_MANIFEST,
@@ -11,7 +10,6 @@ import {
   loadStepDescriptorWorkbenchFixture,
   openStepDescriptorWorkbenchWorkRecord,
   stepDescriptorWorkbenchSnapshot,
-  setStepDescriptorWorkbenchWorkflowGate,
   simulateStepDescriptorWorkbench,
 } from './model.js';
 import {
@@ -61,16 +59,6 @@ function stableJson(value) {
 
 function summaryRows(rows = []) {
   return renderWorkbenchSummaryRows({ rowClassName: 'step-descriptor-workbench-row', rows });
-}
-
-function compactList(items = [], empty = 'None') {
-  const values = items.map((item) => text(item)).filter(Boolean);
-  if (values.length === 0) return `<p class="step-descriptor-workbench-muted">${esc(empty)}</p>`;
-  return (
-    '<ol class="step-descriptor-workbench-list">'
-      + values.map((item) => `<li>${esc(item)}</li>`).join('')
-    + '</ol>'
-  );
 }
 
 function renderDiagnostics(diagnostics = []) {
@@ -150,7 +138,7 @@ export default function StepDescriptorWorkbench(options = {}) {
 
   function syncTitle() {
     const step = state.step_summary || {};
-    host?.setTitle?.(`Step Descriptor Workbench V0 - ${text(step.id, 'waiting for fixture')}`);
+    host?.setTitle?.(`Step Descriptor Workbench V1 - ${text(step.id, 'waiting for fixture')}`);
   }
 
   function syncDebugState() {
@@ -160,7 +148,6 @@ export default function StepDescriptorWorkbench(options = {}) {
   function sync() {
     const snapshot = stepDescriptorWorkbenchSnapshot(state);
     const step = snapshot.step_summary || {};
-    const gate = snapshot.gate_status || {};
     const verifier = snapshot.verifier_summary || {};
     const record = snapshot.work_record_summary || {};
     const recordReady = !!text(record.id);
@@ -189,15 +176,6 @@ export default function StepDescriptorWorkbench(options = {}) {
       ['Ref', step.ref || 'none'],
       ['Semantic ref', step.semantic_ref || 'none'],
     ]);
-    dom.gateRefs.innerHTML = compactList(gate.allowed_gate_refs || [], 'No declared gates');
-    dom.gateStatus.innerHTML = summaryRows([
-      ['Status', gate.status || 'unknown'],
-      ['Reason', gate.reason || 'none'],
-      ['Ref', gate.ref || 'none'],
-      ['Token', gate.token_present ? 'present' : 'missing'],
-    ]);
-    dom.gateRef.value = text(state.workflow_gate.ref);
-    dom.gateToken.value = text(state.workflow_gate.token);
     dom.simulate.disabled = !fixtureReady;
     dom.openWorkRecord.disabled = !recordReady;
     dom.verifierStatus.innerHTML = summaryRows([
@@ -208,8 +186,6 @@ export default function StepDescriptorWorkbench(options = {}) {
       ['Claims', String(verifier.claims || 0)],
       ['Evidence', String(verifier.evidence || 0)],
       ['Postconditions', String(verifier.postconditions || 0)],
-      ['Replay gated', verifier.replay_gated ? 'true' : 'false'],
-      ['Repair gated', verifier.repair_gated ? 'true' : 'false'],
     ]);
     dom.diagnostics.innerHTML = renderDiagnostics(snapshot.diagnostics);
     dom.workRecordSummary.innerHTML = recordReady
@@ -222,7 +198,6 @@ export default function StepDescriptorWorkbench(options = {}) {
         ['Claims', String(record.claims || 0)],
         ['Evidence', String(record.evidence || 0)],
         ['Verifier report', record.verifier_report_id || 'none'],
-        ['Replay policy', record.replay_policy?.mode || 'none'],
       ])
       : '<p class="step-descriptor-workbench-muted">No Work Record emitted</p>';
     dom.workRecordJson.textContent = recordReady ? stableJson(state.record) : '{}';
@@ -237,18 +212,7 @@ export default function StepDescriptorWorkbench(options = {}) {
     syncDebugState();
   }
 
-  function applyGateFromInputs() {
-    const result = setStepDescriptorWorkbenchWorkflowGate(state, {
-      ref: dom.gateRef.value,
-      token: dom.gateToken.value,
-    });
-    emit(STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workflowGateSet, result);
-    sync();
-    return result;
-  }
-
-  function simulateFromCurrentGate() {
-    applyGateFromInputs();
+  function simulateCurrentFixture() {
     const result = simulateStepDescriptorWorkbench(state);
     emit(STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.simulateResult, result);
     sync();
@@ -294,7 +258,7 @@ export default function StepDescriptorWorkbench(options = {}) {
     rootEl.className = 'step-descriptor-workbench-root';
     applyRef(rootEl, {
       id: 'root',
-      name: 'Step Descriptor Workbench V0',
+      name: 'Step Descriptor Workbench V1',
       value: 'fixture-backed report-only one-step shell',
     });
     rootEl.innerHTML = `
@@ -303,19 +267,10 @@ export default function StepDescriptorWorkbench(options = {}) {
         className: 'step-descriptor-workbench-toolbar',
         content: `
         <div class="step-descriptor-workbench-title">
-          <strong>Step Descriptor Workbench V0</strong>
+          <strong>Step Descriptor Workbench V1</strong>
           <span data-role="surface">${esc(STEP_DESCRIPTOR_WORKBENCH_SURFACE)}</span>
         </div>
-        <label class="step-descriptor-workbench-gate-field">
-          <span>Gate ref</span>
-          ${renderTextFieldHtml({ spellcheck: false, dataset: { role: 'gate-ref' }, attributes: { autocomplete: 'off' } })}
-        </label>
-        <label class="step-descriptor-workbench-gate-field">
-          <span>Gate token</span>
-          ${renderTextFieldHtml({ spellcheck: false, dataset: { role: 'gate-token' }, attributes: { autocomplete: 'off' } })}
-        </label>
         <div class="step-descriptor-workbench-action-group aos-segmented" role="group" aria-label="Step Descriptor actions">
-          ${renderButtonHtml({ includeBaseClass: false, label: 'Apply Gate', dataset: { action: 'gate-apply' } })}
           ${renderButtonHtml({ includeBaseClass: false, label: 'Simulate', dataset: { action: 'simulate' } })}
           ${renderButtonHtml({ includeBaseClass: false, label: 'Open Work Record', dataset: { action: 'open-work-record' } })}
         </div>
@@ -331,11 +286,7 @@ export default function StepDescriptorWorkbench(options = {}) {
           <pre data-role="step-json" class="step-descriptor-workbench-code"></pre>
         </section>
         <div class="step-descriptor-workbench-run-stack">
-          <section class="step-descriptor-workbench-pane step-descriptor-workbench-run-pane" aria-label="Gate and verifier status">
-            ${renderWorkbenchSectionTitle({ title: 'Declared Gates', baseClassName: 'step-descriptor-workbench-pane-title' })}
-            <div data-role="gate-refs"></div>
-            ${renderWorkbenchSectionTitle({ title: 'Gate Status', baseClassName: 'step-descriptor-workbench-pane-title' })}
-            <div data-role="gate-status" class="step-descriptor-workbench-summary"></div>
+          <section class="step-descriptor-workbench-pane step-descriptor-workbench-run-pane" aria-label="Verifier status">
             ${renderWorkbenchSectionTitle({ title: 'Verifier Status', baseClassName: 'step-descriptor-workbench-pane-title' })}
             <div data-role="verifier-status" class="step-descriptor-workbench-summary"></div>
             ${renderWorkbenchSectionTitle({ title: 'Diagnostics', baseClassName: 'step-descriptor-workbench-pane-title' })}
@@ -356,11 +307,6 @@ export default function StepDescriptorWorkbench(options = {}) {
     dom.stepDescriptor = rootEl.querySelector('[data-role="step-descriptor"]');
     dom.stepJson = rootEl.querySelector('[data-role="step-json"]');
     dom.targetSummary = rootEl.querySelector('[data-role="target-summary"]');
-    dom.gateRefs = rootEl.querySelector('[data-role="gate-refs"]');
-    dom.gateStatus = rootEl.querySelector('[data-role="gate-status"]');
-    dom.gateRef = rootEl.querySelector('[data-role="gate-ref"]');
-    dom.gateToken = rootEl.querySelector('[data-role="gate-token"]');
-    dom.gateApply = rootEl.querySelector('[data-action="gate-apply"]');
     dom.simulate = rootEl.querySelector('[data-action="simulate"]');
     dom.verifierStatus = rootEl.querySelector('[data-role="verifier-status"]');
     dom.diagnostics = rootEl.querySelector('[data-role="diagnostics"]');
@@ -396,18 +342,13 @@ export default function StepDescriptorWorkbench(options = {}) {
 
     applyRef(dom.stepDescriptor, { id: 'step-descriptor', name: 'Step Descriptor' });
     applyRef(dom.targetSummary, { id: 'target-summary', name: 'Step Descriptor target and ref summary' });
-    applyRef(dom.gateRef, { id: 'gate-ref', name: 'Workflow gate ref', role: 'AXTextField', action: 'set_gate_ref' });
-    applyRef(dom.gateToken, { id: 'gate-token', name: 'Workflow gate token', role: 'AXTextField', action: 'set_gate_token' });
-    applyRef(dom.gateApply, { id: 'gate-apply', name: 'Apply workflow gate', role: 'AXButton', action: 'apply_gate' });
-    applyRef(dom.gateStatus, { id: 'gate-status', name: 'Workflow gate status' });
     applyRef(dom.simulate, { id: 'simulate', name: 'Simulate saved step', role: 'AXButton', action: 'simulate_once' });
     applyRef(dom.verifierStatus, { id: 'verifier-status', name: 'Report-only verifier status' });
     applyRef(dom.diagnostics, { id: 'diagnostics', name: 'Step Descriptor workbench diagnostics' });
     applyRef(dom.workRecordSummary, { id: 'work-record-summary', name: 'Emitted Work Record summary' });
     applyRef(dom.openWorkRecord, { id: 'open-work-record', name: 'Open emitted Work Record read-only', role: 'AXButton', action: 'open_work_record' });
 
-    dom.gateApply.addEventListener('click', applyGateFromInputs);
-    dom.simulate.addEventListener('click', simulateFromCurrentGate);
+    dom.simulate.addEventListener('click', simulateCurrentFixture);
     dom.openWorkRecord.addEventListener('click', () => {
       openCurrentWorkRecord().catch((error) => {
         state.last_result = {
@@ -427,19 +368,16 @@ export default function StepDescriptorWorkbench(options = {}) {
   return {
     manifest: {
       name: STEP_DESCRIPTOR_WORKBENCH_MANIFEST,
-      title: 'Step Descriptor Workbench V0',
+      title: 'Step Descriptor Workbench V1',
       accepts: [
         STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.load,
-        STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workflowGateSet,
         STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.simulateRequested,
         STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workRecordOpenRequested,
         'load',
-        'workflow_gate.set',
         'simulate.requested',
         'work_record.open.requested',
       ],
       emits: [
-        STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workflowGateSet,
         STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.simulateResult,
         STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workRecordOpenResult,
       ],
@@ -458,9 +396,6 @@ export default function StepDescriptorWorkbench(options = {}) {
       const payload = messagePayload(message);
       if (matchesType(type, STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.load)) {
         loadStepDescriptorWorkbenchFixture(state, payload);
-        sync();
-      } else if (matchesType(type, STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workflowGateSet)) {
-        setStepDescriptorWorkbenchWorkflowGate(state, payload);
         sync();
       } else if (matchesType(type, STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.simulateRequested)) {
         simulateStepDescriptorWorkbench(state, payload);

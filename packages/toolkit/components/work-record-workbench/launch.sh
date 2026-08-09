@@ -13,7 +13,7 @@ if [[ "${1:-}" == "--allow-start" ]]; then
   ALLOW_START="true"
   shift
 fi
-TARGET="${1:-$ROOT/docs/design/fixtures/aos-work-records/browser-artifact-collection-step.json}"
+TARGET="${1:-$ROOT/shared/schemas/fixtures/aos-work-record-v1/valid/workflow-browser-click-status.json}"
 PANEL_W="${AOS_WORK_RECORD_WORKBENCH_W:-1180}"
 PANEL_H="${AOS_WORK_RECORD_WORKBENCH_H:-720}"
 TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(aos_content_root_key_for toolkit "$ROOT")}"

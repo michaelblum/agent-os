@@ -4,244 +4,87 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  buildWorkRecordV0FromAosActionEvidence,
-  buildWorkRecordV0FromCommandEvidence,
-  buildWorkRecordV0FromStepDescriptorEvidence,
-  WORK_RECORD_AOS_ACTION_CAPTURE_BUILDER_VERSION,
-  WORK_RECORD_COMMAND_CAPTURE_BUILDER_VERSION,
-  WORK_RECORD_STEP_DESCRIPTOR_CAPTURE_BUILDER_VERSION,
+  buildWorkRecordV1FromAosActionEvidence,
+  buildWorkRecordV1FromCommandEvidence,
+  buildWorkRecordV1FromStepDescriptorEvidence,
 } from '../../packages/toolkit/workbench/work-record-capture.js';
-import {
-  runWorkRecordVerifierProfile,
-  WORK_RECORD_REPORT_ONLY_PROFILE_ID,
-} from '../../packages/toolkit/workbench/work-record-verifier.js';
+import { runWorkRecordVerifierProfile } from '../../packages/toolkit/workbench/work-record-verifier.js';
+import { validateJsonSchema } from '../lib/json-schema-validation.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, '../..');
-const fixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0');
-const stepDescriptorFixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-step-descriptor-v0');
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const read = (relative) => JSON.parse(fs.readFileSync(path.join(repoRoot, relative), 'utf8'));
+const schemaPath = path.join(repoRoot, 'shared/schemas/aos-work-record-v1.schema.json');
+const forbidden = /workflow_gates|authorization|approval_required|risk_level|allowed_operations|operation_allowlist|automatic_replay/;
 
-function fixture(relativePath) {
-  return JSON.parse(fs.readFileSync(path.join(fixtureRoot, relativePath), 'utf8'));
-}
-
-function stepDescriptorFixture(relativePath) {
-  return JSON.parse(fs.readFileSync(path.join(stepDescriptorFixtureRoot, relativePath), 'utf8'));
-}
-
-test('command evidence builder emits the generated Work Record v0 fixture', () => {
-  const source = fixture('evidence/repo-command-adapter-test.json');
-  const expected = fixture('valid/repo-command-adapter-test.json');
-  const record = buildWorkRecordV0FromCommandEvidence(source);
-
-  assert.deepEqual(record, expected);
-  assert.equal(record.type, 'aos.work_record');
-  assert.equal(record.metadata.generated_by, WORK_RECORD_COMMAND_CAPTURE_BUILDER_VERSION);
-  assert.equal(record.verifier_report.verifier.id, WORK_RECORD_REPORT_ONLY_PROFILE_ID);
-  assert.equal(record.execution_map.replay_policy.mode, 'report_only');
-  assert.equal(record.execution_map.replay_policy.replay_requires_workflow_gate, true);
-  assert.equal(record.execution_map.replay_policy.repair_requires_workflow_gate, true);
+test('AOS action evidence builder emits neutral schema-valid Work Record V1', () => {
+  const source = read('shared/schemas/fixtures/aos-work-record-v1/evidence/aos-browser-click-status.json');
+  const record = buildWorkRecordV1FromAosActionEvidence(source);
+  assert.equal(record.schema_version, '2026-08-work-record-v1');
+  assert.deepEqual(validateJsonSchema(schemaPath, record), []);
+  assert.doesNotMatch(JSON.stringify(record), forbidden);
+  assert.equal(runWorkRecordVerifierProfile(record).status, 'passed');
 });
 
-test('command evidence builder formats requested Work Record ids as Subject Entry Handles', () => {
-  const source = {
-    ...fixture('evidence/repo-command-adapter-test.json'),
-    record_id: 'repo-command-custom-record',
+test('capture builders preserve caller label and command bytes exactly', () => {
+  const actionSource = read('shared/schemas/fixtures/aos-work-record-v1/evidence/aos-browser-click-status.json');
+  actionSource.label = 'Browser  action  evidence';
+  actionSource.before_perception.artifact_uri = 'artifact:/tmp/before  exact.json';
+  actionSource.action.artifact_uri = 'artifact:/tmp/action  exact.json';
+  actionSource.after_perception.artifact_uri = 'artifact:/tmp/after  exact.json';
+  const actionRecord = buildWorkRecordV1FromAosActionEvidence(actionSource);
+  assert.equal(actionRecord.label, actionSource.label);
+  for (const phase of ['before_perception', 'action', 'after_perception']) {
+    const uri = actionSource[phase].artifact_uri;
+    assert.ok(actionRecord.execution_map.artifact_routes.some((route) => route.destination === uri));
+    assert.ok(actionRecord.evidence.some((item) => item.uri === uri));
+  }
+
+  const commandSource = {
+    id: 'command-source:raw-fidelity',
+    label: 'Command  evidence  label',
+    command: 'node  --test  exact-command.test.mjs',
+    cwd: '/tmp/aos  command  root',
+    created_at: '2026-08-06T00:00:00.000Z',
+    exit_code: 0,
+    intent: { summary: 'Capture exact command evidence.' },
   };
-  const record = buildWorkRecordV0FromCommandEvidence(source);
-
-  assert.equal(record.id, 'work-record:repo-command-custom-record');
-  assert.equal(record.evidence[0].id, 'evidence:repo-command-custom-record-command');
+  const commandRecord = buildWorkRecordV1FromCommandEvidence(commandSource);
+  assert.equal(commandRecord.label, commandSource.label);
+  assert.equal(commandRecord.evidence[0].metadata.command, commandSource.command);
+  assert.equal(commandRecord.execution_map.steps[0].action.args.command, commandSource.command);
+  assert.equal(commandRecord.execution_map.steps[0].action.args.cwd, commandSource.cwd);
+  assert.equal(commandRecord.execution_map.steps[0].action.target, `command:${commandSource.command}`);
 });
 
-test('generated command Work Record passes the named report-only verifier profile', () => {
-  const record = fixture('valid/repo-command-adapter-test.json');
-  const result = runWorkRecordVerifierProfile(record, {
-    profileId: WORK_RECORD_REPORT_ONLY_PROFILE_ID,
-  });
-
-  assert.equal(result.status, 'passed');
-  assert.equal(result.profile_id, WORK_RECORD_REPORT_ONLY_PROFILE_ID);
-  assert.equal(result.mutates_record, false);
-  assert.deepEqual(result.diagnostics, []);
-  assert.deepEqual(result.derived_indexes, record.verifier_report.derived_indexes);
-  assert.equal(result.summary.replay_gated, true);
-  assert.equal(result.summary.repair_gated, true);
-});
-
-test('AOS action evidence builder emits the generated Work Record v0 fixture', () => {
-  const source = fixture('evidence/aos-browser-click-status.json');
-  const expected = fixture('valid/aos-browser-click-status.json');
-  const record = buildWorkRecordV0FromAosActionEvidence(source);
-
-  assert.deepEqual(record, expected);
-  assert.equal(record.type, 'aos.work_record');
-  assert.equal(record.metadata.generated_by, WORK_RECORD_AOS_ACTION_CAPTURE_BUILDER_VERSION);
-  assert.equal(record.metadata.target_dialect, 'browser');
-  assert.equal(record.metadata.target_with_ref, 'browser:work-record-live-action/e2');
-  assert.equal(record.verifier_report.verifier.id, WORK_RECORD_REPORT_ONLY_PROFILE_ID);
-  assert.equal(record.execution_map.replay_policy.mode, 'report_only');
-  assert.equal(record.execution_map.replay_policy.replay_requires_workflow_gate, true);
-  assert.equal(record.execution_map.replay_policy.repair_requires_workflow_gate, true);
-  assert.equal(record.evidence.length, 3);
-  assert.deepEqual(record.evidence.map((item) => item.kind), [
-    'aos_see_capture',
-    'aos_do_action',
-    'aos_see_capture',
-  ]);
-  assert.equal(record.evidence[0].state_id, 'see_browserlive001');
-  assert.equal(record.evidence[1].target, 'browser:work-record-live-action/e2');
-  assert.equal(record.evidence[2].state_id, 'see_browserlive002');
-});
-
-test('generated AOS action Work Record passes the named report-only verifier profile', () => {
-  const record = fixture('valid/aos-browser-click-status.json');
-  const result = runWorkRecordVerifierProfile(record, {
-    profileId: WORK_RECORD_REPORT_ONLY_PROFILE_ID,
-  });
-
-  assert.equal(result.status, 'passed');
-  assert.equal(result.profile_id, WORK_RECORD_REPORT_ONLY_PROFILE_ID);
-  assert.equal(result.mutates_record, false);
-  assert.deepEqual(result.diagnostics, []);
-  assert.deepEqual(result.derived_indexes, record.verifier_report.derived_indexes);
-  assert.equal(result.summary.evidence, 3);
-  assert.equal(result.summary.postconditions, 3);
-  assert.equal(result.summary.replay_gated, true);
-  assert.equal(result.summary.repair_gated, true);
-});
-
-test('saved-ref AOS action evidence builder emits valid dry-run dispatch readback cleanup fixture', () => {
-  const source = fixture('evidence/saved-ref-browser-fill-or-canvas-set-value.json');
-  const expected = fixture('valid/saved-ref-browser-fill-or-canvas-set-value.json');
-  const record = buildWorkRecordV0FromAosActionEvidence(source);
-  const result = runWorkRecordVerifierProfile(record, {
-    profileId: WORK_RECORD_REPORT_ONLY_PROFILE_ID,
-  });
-
-  assert.deepEqual(record, expected);
-  assert.equal(record.health.verdict, 'valid');
-  assert.equal(record.metadata.selected_saved_ref, 'ref:snap_before_0704:input.name');
-  assert.equal(record.metadata.resolved_target, 'browser:work-record-saved-ref-demo/input.name');
-  assert.equal(record.execution_map.steps[0].action.args.dry_run_status, 'reacquired');
-  assert.equal(record.execution_map.steps[0].action.args.execution.backend, 'playwright');
-  assert.equal(record.execution_map.steps[0].action.args.execution.fallback_used, false);
-  assert.equal(record.execution_map.steps[0].action.args.recommended_next_command, './aos see capture browser:work-record-saved-ref-demo --save --workspace work-record-proof --mode ax');
-  assert.deepEqual(record.evidence.map((item) => item.kind), [
-    'aos_see_capture',
-    'aos_do_dry_run',
-    'aos_do_action',
-    'aos_see_capture',
-    'aos_cleanup',
-  ]);
-  assert.equal(result.status, 'passed');
-  assert.equal(result.summary.health_verdict, 'valid');
-});
-
-test('saved-ref AOS action evidence builder classifies stale validation as repairable', () => {
-  const source = fixture('evidence/repairable-stale-saved-ref.json');
-  const expected = fixture('valid/repairable-stale-saved-ref.json');
-  const record = buildWorkRecordV0FromAosActionEvidence(source);
-  const result = runWorkRecordVerifierProfile(record, {
-    profileId: WORK_RECORD_REPORT_ONLY_PROFILE_ID,
-  });
-
-  assert.deepEqual(record, expected);
-  assert.equal(record.health.verdict, 'repairable');
-  assert.equal(record.metadata.selected_saved_ref, 'ref:snap_old_0704:input.name');
-  assert.equal(record.execution_map.steps[0].action.args.dry_run_status, 'stale');
-  assert.equal(record.execution_map.steps[0].action.args.current_validation.status, 'stale');
-  assert.match(record.execution_map.postconditions.find((item) => item.kind === 'aos_do_dry_run').repair_policy.notes, /re-perceive and re-resolve/);
-  assert.equal(result.status, 'failed');
-  assert.equal(result.summary.health_verdict, 'repairable');
-  assert.ok(result.failure_classes.includes('action_failure'));
-});
-
-test('saved-ref AOS action evidence builder records cleanup failure without rewriting action evidence', () => {
-  const source = fixture('evidence/cleanup-or-postcondition-failed.json');
-  const expected = fixture('valid/cleanup-or-postcondition-failed.json');
-  const record = buildWorkRecordV0FromAosActionEvidence(source);
-  const result = runWorkRecordVerifierProfile(record, {
-    profileId: WORK_RECORD_REPORT_ONLY_PROFILE_ID,
-  });
-  const actionEvidence = record.evidence.find((item) => item.kind === 'aos_do_action');
-  const cleanupEvidence = record.evidence.find((item) => item.kind === 'aos_cleanup');
-
-  assert.deepEqual(record, expected);
-  assert.equal(record.health.verdict, 'blocked');
-  assert.equal(actionEvidence.metadata.status, 'success');
-  assert.equal(actionEvidence.immutable, true);
-  assert.equal(cleanupEvidence.metadata.status, 'failed');
-  assert.equal(cleanupEvidence.immutable, true);
-  assert.equal(result.status, 'failed');
-  assert.equal(result.summary.health_verdict, 'blocked');
-  assert.ok(result.failure_classes.includes('postcondition_failure'));
-});
-
-test('AOS action evidence builder ignores optimistic source health when evidence failed', () => {
-  const source = fixture('evidence/cleanup-or-postcondition-failed.json');
-  source.health = {
-    verdict: 'valid',
-    reason: 'forced optimistic health should not override failed evidence',
-  };
-  const record = buildWorkRecordV0FromAosActionEvidence(source);
-  const result = runWorkRecordVerifierProfile(record, {
-    profileId: WORK_RECORD_REPORT_ONLY_PROFILE_ID,
-  });
-
-  assert.equal(record.health.verdict, 'blocked');
-  assert.equal(result.status, 'failed');
-  assert.equal(result.embedded_health_verdict, 'blocked');
-  assert.equal(result.summary.health_verdict, 'blocked');
-});
-
-test('Step descriptor evidence builder emits the generated Workflow-origin Work Record v0 fixture', () => {
-  const step = stepDescriptorFixture('valid/browser-click-status.json');
-  const source = fixture('evidence/aos-browser-click-status.json');
-  const expected = fixture('valid/workflow-browser-click-status.json');
-  const record = buildWorkRecordV0FromStepDescriptorEvidence(step, source);
-  const actionStep = record.execution_map.steps[0];
-  const promotedClaim = record.claims.find((claim) => (
-    claim.id === 'claim:aos-browser-click-status-2026-05-06-post-action-state-observed'
-  ));
-
-  assert.deepEqual(record, expected);
-  assert.equal(record.id, 'work-record:workflow-browser-live-action-status-aos-browser-click-status-2026-05-06');
+test('Step Descriptor V1 capture requires no authority input and preserves workflow provenance only', () => {
+  const step = read('shared/schemas/fixtures/aos-step-descriptor-v1/valid/browser-click-status.json');
+  const source = read('shared/schemas/fixtures/aos-work-record-v1/evidence/aos-browser-click-status.json');
+  const record = buildWorkRecordV1FromStepDescriptorEvidence(step, source);
   assert.equal(record.origin.kind, 'workflow');
-  assert.equal(record.origin.ref, 'workflow:browser-live-action-status');
-  assert.equal(record.metadata.generated_by, WORK_RECORD_STEP_DESCRIPTOR_CAPTURE_BUILDER_VERSION);
-  assert.equal(record.metadata.action_evidence_builder, WORK_RECORD_AOS_ACTION_CAPTURE_BUILDER_VERSION);
-  assert.equal(actionStep.precondition_refs[0], 'postcondition:aos-browser-click-status-2026-05-06-before-perception');
-  assert.equal(actionStep.action.args.step_descriptor_id, 'step-descriptor:browser-click-status');
-  assert.equal(actionStep.action.args.target_resolution.target_with_ref, 'browser:work-record-live-action/e2');
-  assert.deepEqual(actionStep.action.args.claim_promotion_refs, [
-    'claim-promotion:browser-click-status-recorded',
-  ]);
-  assert.equal(promotedClaim.metadata.promoted_from.postcondition_ref, 'postcondition:aos-browser-click-status-after-status');
-  assert.deepEqual(record.execution_map.replay_policy.gate_refs, step.workflow_gates.gate_refs);
-  assert.deepEqual(record.health.replay_gate_refs, step.workflow_gates.gate_refs);
-  assert.deepEqual(record.health.repair_gate_refs, step.workflow_gates.gate_refs);
+  assert.equal(record.origin.ref, step.workflow_ref);
+  assert.deepEqual(validateJsonSchema(schemaPath, record), []);
+  assert.doesNotMatch(JSON.stringify(record), forbidden);
 });
 
-test('generated Workflow-origin Work Record passes the named report-only verifier profile', () => {
-  const record = fixture('valid/workflow-browser-click-status.json');
-  const result = runWorkRecordVerifierProfile(record, {
-    profileId: WORK_RECORD_REPORT_ONLY_PROFILE_ID,
-  });
+test('Step Descriptor capture rejects malformed V1 and frozen V0 before projection', () => {
+  const source = read('shared/schemas/fixtures/aos-work-record-v1/evidence/aos-browser-click-status.json');
+  assert.throws(
+    () => buildWorkRecordV1FromStepDescriptorEvidence({ id: 'step:malformed', workflow_ref: 'workflow:malformed' }, source),
+    /Step Descriptor V1 schema validation failed/,
+  );
+  const historical = read('shared/schemas/fixtures/aos-step-descriptor-v0/valid/browser-click-status.json');
+  assert.throws(
+    () => buildWorkRecordV1FromStepDescriptorEvidence(historical, source),
+    /Step Descriptor V1 schema validation failed/,
+  );
+});
 
-  assert.equal(result.status, 'passed');
-  assert.equal(result.profile_id, WORK_RECORD_REPORT_ONLY_PROFILE_ID);
-  assert.equal(result.mutates_record, false);
-  assert.deepEqual(result.diagnostics, []);
-  assert.equal(record.origin.kind, 'workflow');
-  assert.equal(record.origin.ref, 'workflow:browser-live-action-status');
-  assert.deepEqual(record.intent.claim_refs, record.claims.map((claim) => claim.id));
-  assert.deepEqual(record.verifier_report.evidence_refs, record.evidence.map((item) => item.id));
-  assert.deepEqual(result.derived_indexes, record.verifier_report.derived_indexes);
-  assert.deepEqual(record.claim_results.map((resultItem) => resultItem.claim_id), record.claims.map((claim) => claim.id));
-  assert.equal(record.health.verifier_report_id, record.verifier_report.id);
-  assert.equal(result.summary.evidence, 3);
-  assert.equal(result.summary.postconditions, 3);
-  assert.equal(result.summary.replay_gated, true);
-  assert.equal(result.summary.repair_gated, true);
+test('Step Descriptor capture rejects evidence that does not exactly match descriptor identity', () => {
+  const step = read('shared/schemas/fixtures/aos-step-descriptor-v1/valid/browser-click-status.json');
+  const source = read('shared/schemas/fixtures/aos-work-record-v1/evidence/aos-browser-click-status.json');
+  source.action.verb = 'type';
+  assert.throws(
+    () => buildWorkRecordV1FromStepDescriptorEvidence(step, source),
+    /Step Descriptor V1 evidence binding failed/,
+  );
 });

@@ -96,8 +96,6 @@ admitted by their bounded public contracts. They do not widen typed receipts,
 lifecycle events, scene envelopes, or trusted-realm boundaries to adjacent
 inputs, media, source, product state, diagnostics, or private handles:
 
-- Work Record repair planning/execution still carries Gate-derived
-  authorization and operation-allowlist coupling;
 - Gate persistence still redacts prompt/answer content and continuation source
   metadata by default instead of making projection and persistence an explicit
   caller-owned transform;
@@ -109,14 +107,14 @@ inputs, media, source, product state, diagnostics, or private handles:
   not a primitive capability and does not populate `actions[]`;
 - the Guided User Signal record builder still defaults prompt/answer projection
   to redaction rather than require an explicit caller choice;
-- Step Descriptor and Supervised Run schema/harness surfaces still retain
-  mandatory Workflow Gate coupling even though Gate is not permission;
+- Supervised Run schema/harness surfaces still retain mandatory Workflow Gate
+  coupling even though Gate is not permission;
 - gateway script execution is not a complete public `run-code` surface, and
   this document does not claim that public command exists.
 
-These are explicit follow-up gaps. This target-handle slice does not implement
-the Work Record executor refactor, Gate persistence refactor, or public
-run-code productization.
+These are explicit follow-up gaps and do not reopen the completed Work Record
+authority-excision migration. This slice does not implement the Gate
+persistence refactor or public `run-code` productization.
 
 Examples:
 
@@ -161,7 +159,7 @@ The current top-level commands are:
 | `aos status` | read-only runtime/session status snapshot |
 | `aos skills` | installable AOS root skills: list, check installed state, install, and dry-run install plans |
 | `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
-| `aos work-record` | Work Record discovery, report-only verification, recovery guidance, repair/attempt planning, controlled fixture repair execution, non-executing replacement proposals, explicit-root replacement writing, repair finalization, and external source supersession lookup/indexing |
+| `aos work-record` | Work Record V1 discovery, report-only verification, neutral repair/attempt planning, caller-outcome artifact validation, non-executing replacement proposals, explicit-root replacement writing, exact repair finalization, and external source supersession lookup/indexing |
 | `aos see` | Perception and artifact verification: cursor state, captures, observation streams, zones, and exact comparison of existing PNG files |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
 | `aos show` | Projection: canvas create/update/remove/list/eval/render |
@@ -1382,7 +1380,7 @@ saved-ref diff gate over two existing snapshots; recipe assertions can inspect
 cite the command output as immutable evidence rather than treating the recipe as
 replay or repair authority.
 
-Work Record v0 has a deterministic saved-ref bridge above the primitive command
+Work Record v1 has a deterministic saved-ref evidence builder above the primitive command
 surface. Toolkit tests can build a report-only Work Record from structured
 evidence for:
 
@@ -1398,614 +1396,119 @@ Stale or ambiguous saved-ref validation is classified as `repairable` or
 `blocked` according to the recorded evidence; cleanup or postcondition failure
 is recorded without rewriting historical evidence. This bridge does not turn
 `aos do` into a macro recorder and does not authorize autonomous replay or
-repair.
+future execution.
 
 ## `aos work-record`
 
-`aos work-record` is the optional model-facing Work Record v0 evidence/history
-command family. A Work Record never grants permission to observe or act. Most
-commands are read-only: they can discover records from canonical fixture roots
-or explicit `--root` files/directories, read a record by id or path, run the
-named report-only verifier profile, explain conservative recovery guidance, and
-emit read-only Repair Plan, Workflow Gate Authorization, Repair Attempt Plan,
-Replacement Proposal, Source Supersession Index lookup, Guided Recovery report,
-or compact evidence bundle JSON. `repair guide` composes the current status,
-Repair Plan, optional gate authorization, optional Attempt Artifact validation,
-optional finalization dry-run, and optional supersession lookup into one
-non-executing recovery report with exact command descriptors. `repair bundle`
-materializes the guide/report/planning side of that recovery report under an
-explicit operator-owned `--output-root`; it is a handoff bundle writer, not a
-repair executor, finalizer, gate submitter, replay loop, or auto-resume surface.
-The narrow mutating exceptions are `repair execute`, which runs only an allowlisted
-deterministic repo-command/file-fixture operation under an explicit
-`--execution-root` and writes a Repair Attempt Artifact under an explicit
-`--artifact-root`; `replacement-proposal write`, which writes only a new
-replacement Work Record under an explicit `--output-root`; `supersession
-write`, which writes only an external relationship entry under an explicit
-`--index-root`; and `repair finalize`, which composes a successful Repair
-Attempt Artifact into one replacement Work Record plus one Source Supersession
-Index entry under explicit roots.
-In the state model, Work Records are durable evidence and bounded recovery
-material above primitive command output; they are not macro recordings,
-autonomous replay plans, saved workspaces, live runtime readiness, or permission
-grants. The current Gate-derived authorization and operation-allowlist fields in
-repair paths are an explicit ADR 0040 implementation gap, not the ambient
-authority contract.
+Work Records are optional durable evidence and history. The active
+`2026-08-work-record-v1` contract records exact intent, source-bound targets,
+postconditions, immutable evidence, claim results, verifier output, and health.
+It never grants permission. The frozen Work Record V0 schema, documentation,
+and fixtures remain opaque historical bytes and are rejected by active
+planning, verification, repair, and finalization readers.
+
+Step Descriptors use `2026-08-step-descriptor-v1`. They describe one exact
+source-bound step and its evidence requirements without carrying a workflow
+Gate, approval requirement, risk classification, or operation registry.
+
+The report-only command family is:
 
 ```bash
-aos work-record list --json
-aos work-record read work-record:workflow-open-service-catalog-2026-05-05 --json
-aos work-record verify shared/schemas/fixtures/aos-work-record-v0/valid/workflow-origin.json --json
-aos work-record status work-record:workflow-open-service-catalog-2026-05-05 --json
-aos work-record plan-repair work-record:repairable-stale-saved-ref-2026-07-04 --json
-aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
-aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --authorization workflow-gate-authorization.json --json
-aos work-record repair guide shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
-aos work-record repair guide source.json --authorization workflow-gate-authorization.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root "$(pwd -P)/.aos-work/work-records" --index-root "$(pwd -P)/.aos-work/work-record-index" --json
-aos work-record repair bundle shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --output-root "$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref" --dry-run --json
-aos work-record repair bundle source.json --output-root "$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref" --authorization workflow-gate-authorization.json --json
-aos work-record repair bundle status --bundle-root "$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref" --json
-aos work-record repair bundle status --bundle-parent "$(pwd -P)/.aos-work/repair-bundles" --json
-aos work-record repair bundle inspect "$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref" --json
-aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --dry-run --json
-aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --json
-aos work-record repair finalize --source source.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root "$(pwd -P)/.aos-work/work-records" --index-root "$(pwd -P)/.aos-work/work-record-index" --dry-run --json
-aos work-record repair finalize --source source.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root "$(pwd -P)/.aos-work/work-records" --index-root "$(pwd -P)/.aos-work/work-record-index" --json
+aos work-record list [--root path ...] --json
+aos work-record read <id-or-path> [--root path ...] --json
+aos work-record verify <id-or-path> [--profile aos.verifier.work-record.v1.report-only] [--root path ...] --json
+aos work-record status <id-or-path> [--profile id] [--root path ...] --json
+aos work-record plan-repair <id-or-path> [--profile id] [--root path ...] --json
+aos work-record plan-attempt <id-or-path> [--profile id] [--root path ...] --json
+aos work-record export <id-or-path> [--profile id] [--root path ...] --json
+```
+
+Discovery is bounded to explicit roots plus the documented repository-local
+defaults. `read`, `verify`, `status`, and both planners accept only active
+V1 records. Unsupported historical or unknown schemas fail closed without
+rewriting their source bytes.
+
+`plan-repair` emits
+`2026-08-work-record-repair-plan-v1`, a non-executing mechanical proposal.
+`plan-attempt` emits
+`2026-08-work-record-repair-attempt-plan-v1`, bound to the exact source and
+Repair Plan digests. Attempt Plan status `ready` means only that the proposal
+inputs are complete, exact, and source-bound. Neither planner runs commands,
+applies patches, mutates the source, or decides whether a caller may act.
+
+A caller records separately obtained outcomes with:
+
+```bash
+aos work-record attempt-artifact build --input caller-outcomes.json --json
 aos work-record attempt-artifact validate repair-attempt-artifact.json --json
-aos work-record attempt-artifact build --input repair-attempt-outcome-input.json --json
-aos work-record replacement-proposal build --source shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --json
-aos work-record replacement-proposal validate replacement-proposal.json --json
-aos work-record replacement-proposal write replacement-proposal.json --output-root "$(pwd -P)/.aos-work/work-records" --dry-run --json
-aos work-record replacement-proposal write replacement-proposal.json --output-root "$(pwd -P)/.aos-work/work-records" --json
-aos work-record supersession write --source source.json --replacement replacement.json --index-root "$(pwd -P)/.aos-work/work-record-index" --dry-run --json
-aos work-record supersession lookup --source source.json --index-root "$(pwd -P)/.aos-work/work-record-index" --replacement-root "$(pwd -P)/.aos-work/work-records" --json
-aos work-record supersession validate source-supersession-entry.json --json
-aos work-record gate-request shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
-aos work-record gate-check shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --gate-record gate-record.json --json
-aos work-record export work-record:workflow-open-service-catalog-2026-05-05 --json
 ```
 
-For `repair bundle`, `--output-root` must resolve through real, non-symlinked
-ancestors. On macOS, `/tmp` is a symlinked ancestor and is not safe for these
-copy-paste examples. Use a caller-owned real directory such as the physical
-workspace path from `pwd -P`, or another verified non-symlinked root.
-Replacement writer, supersession writer, and finalization surfaces enforce
-their own explicit-root traversal, symlink-escape, and containment checks; keep
-their examples on the same caller-owned real-root pattern without implying the
-bundle-specific symlinked-ancestor rule applies identically to every writer.
+The active Attempt Artifact schema is
+`2026-08-work-record-repair-attempt-artifact-v1`. It retains exact plan and
+source identities, operation-to-outcome mapping, timing, evidence references,
+postconditions, cleanup, rollback, verifier-before/after health, and source
+immutability. Successful artifacts fail closed unless required outcomes,
+evidence, verifier-after health, cleanup, and matching source before/after
+digests are present. Every planned candidate patch also requires an exact
+caller-supplied outcome containing the source digest, complete proposed
+execution-map payload and digest validated against the Work Record V1
+execution-map definition, and evidence refs. Postcondition results use
+their canonical `id` and may map exact caller evidence. The builder accepts
+these outcomes; it does not execute or apply them. Builder payloads that are
+unsupported or mismatched are command failures and exit nonzero.
 
-The current verifier profile is
-`aos.verifier.work-record.v0.report-only`. It reads Work Records and returns a
-fresh diagnostic report with `mutates_record:false`; it does not patch
-evidence, rewrite Claims, repair refs, or replay actions. Embedded
-`claim_results[]` remain historical record contents and are reported
-separately from the current verifier output.
+Read-only recovery guidance and bounded bundle materialization are:
 
-`status` returns the Work Record health verdict, failure classes, diagnostics,
-evidence refs used by the verifier, and recovery guidance for `valid`, `stale`,
-`repairable`, `blocked`, `impossible`, `superseded`, and `retired`. Current
-legacy stale/repairable guidance may point to re-perception/re-resolution and a
-Gate field; that coupling is ADR 0040 migration debt, not AOS permission.
-Blocked records name missing evidence, permission, runtime, cleanup, or
-postcondition blockers; valid records do not recommend redundant live proof
-loops; and impossible, retired, or superseded records do not offer replay.
-
-`plan-repair` consumes the same fresh report-only verifier output and emits a
-`work_record.repair_plan` envelope. It is a proposal surface only:
-`mutates_record:false`, `executes_actions:false`, and
-`automatic_replay_allowed:false`. The plan separates current report-derived
-health from embedded historical health and carries failure classes, blockers,
-diagnostics, evidence refs, current legacy Gate fields, proposed read-only
-steps, descriptive candidate patches, and command descriptors that are not
-executed by the planner. Those Gate fields do not authorize action. Valid
-records get no repair plan; stale/repairable records require fresh perception
-or re-resolution before the current legacy mutation path; blocked records name
-the blocker; and impossible, superseded, or retired records avoid repair/replay.
-
-`gate-request` turns the current legacy Repair Plan Gate field into an
-`aos.gate.request.v1` request. This is ADR 0040 migration debt, not a required
-AOS permission step. The command is read-only and does not call `aos gate ask`,
-`aos gate defer`, or `aos gate submit`.
-Generated requests include source Work Record id/path, Repair Plan
-schema/digest identity, Workflow gate id, gated step/candidate patch ids,
-current report-derived health, an `approve_deny` decision field, and metadata
-linking the request to Work Record repair planning. The request records the
-current legacy Gate answer for a future attempt; it does not grant AOS
-permission, execute repair, apply a candidate patch, replay actions, or mutate
-the source Work Record.
-The command returns a provenance envelope; pass its nested `gate_request` object
-to `aos gate ask` or `aos gate defer`.
-
-`gate-check` reads an existing terminal `aos.gate.record.v1` record,
-`aos.gate.resume-event.v1` file, or submitted deferred continuation id and
-returns `work_record.workflow_gate_authorization` JSON. Status values are
-`not_required`, `pending`, `authorized`, `denied`, `dismissed`, `timeout`,
-`stale`, `mismatch`, `insufficient_evidence`, and `unsupported`. Positive
-authorization requires a matching source Work Record, matching Repair Plan
-identity, matching Workflow gate, and an inspectable affirmative stored answer.
-A terminal `answered` record without stored response payload is
-`insufficient_evidence`; use `--store-response` or
-`metadata.record_response:true` when the gate response must later prove
-authorization. Authorization sets `authorizes_future_attempt:true` only for
-positive approval and always reports `executes_repair:false` and
-`mutates_record:false`.
-
-`plan-attempt` consumes the current Repair Plan plus either a supplied
-`work_record.workflow_gate_authorization` JSON file or enough gate input to
-derive one (`--gate-record`, `--resume-event`, or `--continuation-id`). It
-emits `work_record.repair_attempt_plan` with schema version
-`2026-07-work-record-repair-attempt-plan-v0`. Status values are
-`not_required`, `ready`, `blocked_authorization_required`,
-`blocked_authorization_denied`, `blocked_authorization_insufficient`,
-`blocked_precondition`, `stale`, `mismatch`, and `unsupported`. The plan
-includes source Work Record identity, current Repair Plan schema/version/digest,
-current authorization identity when supplied, stable attempt identity,
-preconditions, planned operations, candidate patch refs, recommended command
-descriptors, evidence requirements, postconditions, cleanup expectations,
-rollback expectations, risk, and known limits.
-
-`ready` means only "safe to hand to a future explicit executor." The command
-does not execute repair, replay UI actions, apply candidate patches, run
-recommended commands, patch execution maps, mutate Work Records, or auto-resume
-agents. Positive readiness requires the current Repair Plan to validate, source
-and Repair Plan identities to match the supplied authorization, every mutating
-planned operation to have an authorized matching Workflow gate, representable
-preconditions, unapplied candidate patches, and unexecuted recommended
-commands. Missing, denied, dismissed, timeout, insufficient, stale, wrong
-record, wrong plan, wrong gate, invalid, and unsupported authorization all fail
-closed.
-
-`repair guide` is the Guided Recovery Workflow V0 surface. It accepts a source
-Work Record plus optional `--authorization`, `--gate-record`, `--resume-event`,
-or `--continuation-id`; optional `--attempt-plan`; optional
-`--attempt-artifact`; optional `--execution-root`, `--artifact-root`,
-`--replacement-root`, and `--index-root`; and returns
-`work_record.repair_guided_recovery` with schema version
-`2026-07-work-record-repair-guided-recovery-v0`. The guide classifies the
-current recovery stage, carries summaries of the lower-level reports it used,
-names blockers and missing inputs, recommends deterministic artifact paths, and
-emits command descriptors with `id`, `purpose`, `command`, `argv`,
-`mutates_state`, approval/root requirements, expected output, next stage, and
-`not_run_by_guide:true`. Descriptors whose JSON stdout must become a later
-artifact include `stdout_artifact`, `save_stdout_to`, and downstream
-`requires_saved_output_from` fields; `argv` remains the direct process
-invocation and never relies on shell redirection. `command` and
-`persistence_command` are display-only shell-quoted text derived from `argv`
-and the structural saved-output fields; consumers execute `argv` directly and
-must not parse either display string.
-
-Guide stages are `valid_no_repair_needed`, `superseded`,
-`retired_or_impossible`, `repair_plan_unavailable`, `gate_required`,
-`authorization_pending`, `authorization_denied`,
-`authorization_insufficient`, `attempt_plan_blocked`, `ready_to_plan_attempt`,
-`ready_to_execute`, `attempt_artifact_invalid`, `ready_to_finalize`,
-`finalization_blocked`, `finalized`, and `unsupported`. `ready_to_plan_attempt`
-means the Repair Attempt Plan is ready in memory but still needs persisted JSON
-stdout before execute can be ready. `ready_to_execute` with `stage_status:"ready"`
-requires a supplied `--attempt-plan`, `--execution-root`, and `--artifact-root`;
-otherwise it is blocked with matching `missing_inputs`. `ready_to_finalize` is
-reported only after a supplied Attempt Artifact validates and finalization
-dry-run can compute the replacement and supersession outputs; `finalized` is
-reported only when supersession lookup resolves a readable replacement with
-status output.
-
-`repair guide`, `repair bundle`, `repair bundle inspect`, and each
-`repair bundle status` row include a compact `recovery_summary` object for
-scan-first continuation. Consumers should read `recovery_summary.state`,
-`why`, `source_work_record`, `bundle_root`, `guide_stage`,
-`guide_stage_status`, `next`, `artifacts`, `safety`, and
-`diagnostic_codes` before drilling into full guide reports, manifests,
-descriptors, artifacts, or diagnostics. `next.argv` is the only executable
-continuation form; `next.persistence` is the structural stdout persistence
-contract with `stdout_required`, `stdout_artifact`, `save_stdout_to`,
-`requires_saved_output_from`, and display-only `persistence_command`.
-Display strings remain display-only. Invalid, missing, unsupported, or
-unknown summaries do not expose a safe continuation argv or actionable
-persistence path.
-Incomplete bundle-owned artifacts or descriptors, digest mismatches,
-descriptor mismatches, invalid manifests, path escapes, forbidden artifacts,
-unsupported schemas, missing roots, and unknown inspection statuses fail closed
-without `next.command_id`, `next.argv`, or top-level inspect `continuation`
-executable fields. Inspection summaries, inspect `continuation`, and lifecycle
-status rows use the same classifier for `ready`, `blocked`, `finalized`,
-`invalid`, `missing`, `unsupported`, and `unknown`.
-`safety` reports that inspectors did not run commands, bundles did not write
-replacement or supersession outputs, live UI is not involved, and automatic
-replay is not allowed. The summary is derived from existing validated guide,
-bundle, inspection, or lifecycle fields and is not a second recovery state
-machine.
-
-The guide may run only read-only/report-only/planning checks and existing
-non-mutating dry-runs. It never runs recommended commands, never executes
-repair, never calls `repair finalize` in write mode, never calls
-`replacement-proposal write` or `supersession write`, never calls `aos do` or
-`aos gate ask/defer/submit`, never uses browser/native AX/canvas/live UI/TCC
-surfaces, never applies patches, never mutates source Work Records, never
-writes replacement or supersession outputs, never starts a Workflow engine, and
-never auto-resumes agents. Mutating commands can appear only as explicit
-descriptors marked `not_run_by_guide:true`.
-
-`repair bundle` is the Work Record Recovery Bundle V0 surface. It accepts a
-source Work Record plus required `--output-root`; optional `--profile` and
-repeatable `--root`; at most one of `--authorization`, `--gate-record`,
-`--resume-event`, or `--continuation-id`; optional `--attempt-plan`,
-`--attempt-artifact`, `--replacement-root`, and `--index-root`; optional
-`--dry-run`; and returns `work_record.repair_recovery_bundle` with schema
-version `2026-07-work-record-repair-recovery-bundle-v0`. The bundle writes only
-under the explicit output root. Dry-run writes nothing and reports the planned
-file set.
-
-Recovery Bundle V0 is greenfield and has no legacy compatibility contract.
-Current writer output is the contract. Same-schema manifests missing canonical
-required `non_execution_flags` such as `mutates_record`, `writes_bundle`, or
-`repairs_bundle` are invalid; old generated smoke/test bundle directories
-should be regenerated. Any future compatibility support requires an explicit
-schema/versioned migration stance, not inspector leniency.
-
-Bundle writes are limited to `bundle-manifest.json`, `guide-report.json`,
-`commands/*.json` descriptors, and safe JSON stdout artifacts explicitly
-described by guide descriptors such as `artifacts/gate-request.json` and
-`artifacts/repair-attempt-plan.json`. Finalization dry-run and supersession
-lookup remain explicit follow-up command descriptors only; the bundle does not
-run those helpers and does not materialize their reports. Every planned or
-written artifact reports path, digest, producer, downstream consumers, write
-mode, and whether bytes are known at plan time. Descriptor paths are rebound so
-`stdout_artifact.path`, `save_stdout_to`, and `requires_saved_output_from`
-point at bundle-local artifacts when those artifacts are materialized;
-descriptors also carry `not_run_by_bundle:true` and a
-`bundle_artifact_status`.
-
-The bundle rejects path traversal, symlinked output roots, symlinked
-not-yet-created output-root ancestors, symlinked bundle child paths, output-root
-file conflicts, and conflicting existing artifacts. Matching existing files are
-idempotent. It preserves source Work Record bytes and never writes replacement
-Work Records, Source Supersession Index entries, source Work Records, gate
-records, gate responses, Repair Attempt Artifacts, arbitrary patch output, or
-anything outside `--output-root`. It never runs `repair execute`, `repair
-finalize`, `replacement-proposal write`, `supersession lookup`,
-`supersession write`, `aos gate ask/defer/submit`, `aos do`,
-browser/native AX/canvas/TCC operations, replay, auto-resume, or a Workflow
-engine.
-
-`repair bundle status` is the read-only Work Record Recovery Bundle Lifecycle
-Status V0 surface. It accepts repeatable explicit `--bundle-root` values and
-repeatable explicit `--bundle-parent` values. Parent scanning is bounded and
-non-recursive:
-only immediate children containing `bundle-manifest.json` are candidates. It
-does not perform global search, infer roots from Work Record ids, read manifest
-paths to discover more bundles, write an index, or run recovery. Each candidate
-is inspected through `repair bundle inspect`, then summarized as `ready`,
-`blocked`, `invalid`, `missing`, `unsupported`, `finalized`, or `unknown` with
-source Work Record identity, saved guide stage, saved-output readiness, and the
-exact next command id/`argv` only when the inspected bundle is validated enough
-to continue and required saved outputs are present. The envelope also exposes a
-top-level `attention_queue` and `attention_summary` for scan-first
-multi-bundle triage. Agents should read the first queue item before drilling
-into rows; the queue is derived only from inspected rows, ranks ready
-continuations before blocked, missing, invalid, unsupported, unknown, and
-finalized bundles, and exposes empty `next.argv` for non-ready rows instead of
-recovering executable argv. Ready queue items also carry
-`next.persistence`, matching the row `recovery_summary.next.persistence`, so a
-consumer can run `next.argv` and save JSON stdout without reading descriptor
-files. Non-ready queue items expose empty argv and empty/non-actionable
-persistence. Each row also carries the same information in `recovery_summary`.
-Missing or invalid bundle roots stay represented in the same report instead of
-aborting other roots. The command returns
-`work_record.repair_recovery_bundle_lifecycle_status` with schema version
-`2026-07-work-record-repair-recovery-bundle-lifecycle-status-v0`, reports
-`ready_count`, `blocked_count`, `invalid_count`, `missing_count`,
-`unsupported_count`, `finalized_count`, and `unknown_count`, and reports
-canonical non-execution flags: no bundle writes, repairs, action execution,
-gate submission, finalization, replay, live UI, browser/native AX/canvas/TCC,
-patch application, Workflow engine start, or auto-resume.
-
-`repair bundle inspect` is the Work Record Recovery Bundle Inspection V0
-surface. It accepts only an existing `<bundle-root>` and returns
-`work_record.repair_recovery_bundle_inspection` with schema version
-`2026-07-work-record-repair-recovery-bundle-inspection-v0`. The inspector is
-read-only, reads only the explicit bundle root by default, validates
-`bundle-manifest.json`, `guide-report.json`, `commands/*.json`, manifest
-artifact paths, manifest `non_execution_flags`, descriptor rebinding,
-materialized artifact existence and digests, required saved-output presence,
-forbidden bundle-owned outputs, and path containment. Manifest artifact paths
-must exactly match the writer-owned path resolved from `relative_path`; the
-inspector reads and digests the `relative_path` target, not an independent
-manifest path claim. Manifest non-execution flags must contain every required
-no-execution flag as boolean `false`; missing flags, non-boolean values, `true`
-execution/write/live/replay claims, and unknown non-false claims fail closed. It
-reports the saved guide stage, the safe next descriptor id, the exact `argv`
-only when the inspection is continuable, whether saved outputs are present,
-missing artifact paths, human-approval and mutation indicators, and a
-sanitized `continuation.persistence` object that matches
-`recovery_summary.next.persistence`. `recovery_summary` carries the scan-first
-continuation state and a reminder that the command was not run. Invalid,
-missing, unsupported, unknown, and incomplete bundle-owned artifact or
-descriptor states sanitize top-level `continuation` executable and persistence
-fields and report no executable `recovery_summary.next.argv` or actionable
-persistence path.
-Descriptor `command` and `persistence_command` values are display-only
-shell-quoted text; `argv`, `stdout_artifact`, `save_stdout_to`, and
-`requires_saved_output_from` are the execution and persistence contract.
-
-The inspector never writes or repairs bundle files, never re-runs `repair
-guide`, planning, finalization dry-run, supersession lookup, gates, repair
-execution, replacement writing, replay, Workflow engine work, or live UI/TCC
-work. Forbidden bundle-owned outputs such as
-`reports/finalization-dry-run.json`, `reports/supersession-lookup.json`,
-`repair-attempt-artifact.json`, `replacement-records/**`,
-`source-supersession-index/**`, `gate-record*.json`, and
-`gate-response*.json` block continuation.
-
-`repair execute` is the Controlled Repair Executor V0 command. It accepts a
-ready Repair Attempt Plan JSON path plus explicit existing `--execution-root`
-and `--artifact-root` directories. Dry-run reports the allowlisted operation id,
-direct argv command identity, execution root, artifact path, timeout, allowed
-mutations, cleanup/rollback plan, and expected side effects without executing.
-Execute mode runs only the explicitly named fixture registry for repo-owned
-deterministic file-fixture operations. The executor core is separate from that
-fixture registry; fixture operations are not the product repair abstraction.
-Execution uses `shell:false`, deterministic environment keys, bounded
-stdout/stderr capture, timeout enforcement, named phase snapshots
-(`before`, `after_primary`, optional `after_cleanup`, optional
-`after_rollback`, and `final`), source Work Record immutability proof, Repair
-Attempt Artifact writing, and artifact validation. Final artifact evidence uses
-`before..final` file-change and digest evidence; cleanup and rollback phase
-evidence stays inspectable.
-
-The executor result envelope is `work_record.controlled_repair_executor_result`
-with schema version
-`2026-07-work-record-controlled-repair-executor-result-v0`. Status values
-include `dry_run`, `succeeded`, `failed`, `partial`,
-`aborted_precondition`, `blocked_plan_not_ready`, `blocked_authorization`,
-`blocked_unsupported_operation`, `blocked_unsafe_command`,
-`blocked_workspace_escape`, `blocked_timeout`, `artifact_invalid`,
-`finalize_blocked`, `cleanup_failed`, `rollback_failed`, and `unsupported`.
-Every result reports `mutates_source_record:false`, `executes_actions:false`,
-`uses_live_ui:false`, `uses_browser:false`, `uses_native_ax:false`,
-`uses_canvas:false`, `applies_patches:false`, and
-`automatic_replay_allowed:false`. Browser, native AX, canvas, coordinate,
-screenshot, image matching, TCC-gated, arbitrary shell, unregistered command,
-source-record mutation, generic patch execution, Workflow engine, and
-auto-resume behavior are unsupported. Replacement writing and supersession
-indexing remain separate explicit commands; executor finalization is not part of
-this V0 public command.
-
-`attempt-artifact validate` validates an existing
-`work_record.repair_attempt_artifact` JSON artifact with schema version
-`2026-07-work-record-repair-attempt-artifact-v0`. Artifact statuses are
-`succeeded`, `failed`, `partial`, `aborted_precondition`,
-`blocked_authorization`, `blocked_plan_mismatch`, `cleanup_failed`,
-`rollback_failed`, `invalid_artifact`, and `unsupported`.
-
-`attempt-artifact build` consumes explicit fixture/outcome JSON and emits a
-deterministic Repair Attempt Artifact. The input supplies the Repair Attempt
-Plan plus operation outcomes, candidate patch outcomes, recommended command
-outcomes, evidence refs, verifier-before and verifier-after reports,
-postcondition results, cleanup results, rollback results, and the source Work
-Record mutation check. The builder does not execute repair, replay UI actions,
-apply candidate patches, run recommended commands, patch execution maps, mutate
-source Work Records, mint replacement Work Records, or auto-resume agents.
-
-The validator checks consistency rather than inventing a second verifier health
-authority. Success requires matching source Work Record identity, matching
-Repair Plan and Repair Attempt Plan digests, planned-vs-actual operation
-matching, required evidence refs, passed postconditions, passed or not-required
-cleanup, unchanged source Work Record, and `final_health` derived from
-`verifier_after` when present. Missing evidence, verifier contradiction,
-operation mismatch, stale plan, wrong record, wrong authorization, failed
-cleanup, failed rollback, source-record mutation, candidate patch application
-without evidence, and command execution without command/stdout/stderr/exit
-artifacts fail closed.
-
-Both attempt-artifact commands are read-only command surfaces:
-`mutates_state:false`, `executes_repair:false`, `executes_actions:false`,
-`applies_patches:false`, and `automatic_replay_allowed:false`.
-
-`repair finalize` is the bounded Repair Finalization V0 composition step after
-an already-produced successful Repair Attempt Artifact. It accepts a source
-Work Record, Repair Attempt Plan JSON, Repair Attempt Artifact JSON, explicit
-`--replacement-root`, and explicit `--index-root`; then it builds the
-Replacement Proposal internally, validates the existing plan/artifact/proposal
-contracts, preflights the Replacement Writer output and Source Supersession
-Index entry through their owning planners, calls the Replacement Writer, calls
-the Source Supersession Index writer, and returns one
-`work_record.repair_finalization_result` envelope.
-`--replacement-output-path` is optional and must remain under
-`--replacement-root` with the deterministic replacement id filename.
-
-Finalization does not replace the lower-level commands. It is a single
-deterministic path for the common successful case:
-
-```text
-Repair Attempt Artifact -> Replacement Proposal -> Replacement Writer -> Source Supersession Index -> Finalization Result
+```bash
+aos work-record repair guide <id-or-path> [--attempt-plan path] [--attempt-artifact path] [--replacement-root dir] [--index-root dir] --json
+aos work-record repair bundle <id-or-path> --output-root <dir> [--attempt-plan path] [--attempt-artifact path] [--replacement-root dir] [--index-root dir] [--dry-run] --json
+aos work-record repair bundle inspect <bundle-root> --json
+aos work-record repair bundle status --bundle-root <dir> [--bundle-root <dir> ...] [--bundle-parent <dir> ...] --json
 ```
 
-Dry-run mode writes nothing. It reports the intended replacement output and
-supersession index identity/path when they can be computed safely. Execute mode
-validates both durable output targets before writing the replacement Work
-Record, then writes only the replacement Work Record under `--replacement-root`
-and the external supersession entry under `--index-root`; it never mutates the
-source Work Record. Repeating the same finalization is idempotent when both
-existing outputs match and returns `already_finalized`.
+The guide and bundle never run their descriptors. Bundle writes are contained
+under the explicit output root, reject traversal and symlink escapes, preserve
+artifact digests, and carry explicit non-execution flags. Inspection and status
+verify manifest, artifact, descriptor, digest, missing-input, and bounded-path
+state without exposing a permission or continuation projection.
 
-The finalization result records schema/version, finalizer implementation
-version, status, source Work Record path and before/after digest, Repair
-Attempt Plan digest/status/validation, Repair Attempt Artifact
-digest/status/validation, Replacement Proposal identity/digest/status,
-Replacement Writer result, Source Supersession Index writer result, readback
-validation, side effects, explicit audit facts for wrote/already-existed/would
-write replacement and supersession outputs, recovery guidance, and exact
-non-execution flags:
-`executes_repair:false`, `executes_actions:false`, `uses_live_ui:false`,
-`uses_browser:false`, `uses_native_ax:false`, `uses_canvas:false`,
-`applies_patches:false`, `mutates_source_record:false`, and
-`automatic_replay_allowed:false`.
+Replacement and supersession remain separate exact finalization mechanics:
 
-Finalization statuses include `dry_run`, `finalized`,
-`already_finalized`, `not_required`, `blocked_invalid_source`,
-`blocked_invalid_attempt_plan`, `blocked_invalid_attempt_artifact`,
-`blocked_attempt_not_successful`, `blocked_missing_evidence`,
-`blocked_source_mutated`, `blocked_health_mismatch`,
-`blocked_replacement_proposal`, `blocked_replacement_write`,
-`blocked_supersession_write`, `blocked_path_escape`, `blocked_conflict`,
-`partial_finalized`, `stale`, `mismatch`, and `unsupported`. Preflightable
-invalid roots, path escapes, relationship mismatches, and writer-result
-provenance mismatches fail before durable finalization writes begin. Partial
-states are first-class failures reserved for post-preflight durable failures:
-if the replacement write succeeds but supersession writing then fails, the
-command exits non-zero with `partial_finalized`, exposes the replacement path,
-and recommends the explicit supersession recovery command.
+```bash
+aos work-record replacement-proposal build --source <id-or-path> --attempt-plan plan.json --attempt-artifact artifact.json --json
+aos work-record replacement-proposal validate proposal.json --json
+aos work-record replacement-proposal write proposal.json --output-root <dir> [--dry-run] --json
+aos work-record repair finalize --source <id-or-path> --attempt-plan plan.json --attempt-artifact artifact.json --replacement-root <dir> --index-root <dir> [--dry-run] --json
+aos work-record supersession write --source <id-or-path> --replacement <id-or-path> --index-root <dir> --writer-result <path> [--dry-run] --json
+aos work-record supersession lookup --source <id-or-path> --index-root <dir> --json
+aos work-record supersession validate <entry-path> --json
+```
 
-Recovery guidance is structured: `finalized` and `already_finalized` expose
-argv-backed recommendations for supersession lookup and replacement read, and
-`partial_finalized` exposes an argv-backed recommendation for `supersession
-write`. `command_hint`, when present, is display-only shell-quoted text derived
-from the same argv. Consumers execute `argv` directly and must not parse display
-strings.
+Finalization validates the exact source, Repair Plan, Attempt Plan, Attempt
+Artifact, replacement proposal, destination preflight, and supersession
+digests. Replacement Proposal projects the exact caller-supplied execution-map
+patch and evidence mapping; Replacement Writer copies those bytes and never
+synthesizes observations from expected values or upgrades historical Claim
+Results without exact new evidence. It preserves the source bytes and writes
+only under explicit replacement and index roots. `supersession write` requires
+the exact Replacement Writer Result. Replacement and supersession writers
+re-check their bound source identities after publication, and finalization
+returns receipted partial state for post-publication readback failure rather
+than dropping already-completed side effects. One canonical create-if-absent
+active entry per exact source identity prevents concurrent distinct
+replacements from both becoming active. Partial recovery requires the caller to
+persist the successful Replacement Writer Result before a supersession-write
+command can be formed. Explicit roots and their existing ancestors are checked
+before dry-run or write; non-system symlink ancestors and symlinked index trees
+fail closed, containment inspection failures return typed results, and later
+bundle I/O failures retain receipts for every artifact already published.
 
-`repair finalize` does not execute repair, replay actions, run recommended
-commands, apply patches, use browser/native AX/canvas/live UI surfaces, start a
-Workflow engine, or auto-resume agents.
-
-The Work Record CLI adapter delegates nested command families to separate
-script handlers for repair execution, attempt artifacts, replacement proposals,
-and supersession indexes. The split is an adapter-maintenance boundary only; it
-does not redesign unrelated AOS command routing.
-
-`replacement-proposal build` consumes an explicit source Work Record, Repair
-Attempt Plan JSON, and validated Repair Attempt Artifact JSON. It emits a
-`work_record.replacement_proposal` envelope with schema version
-`2026-07-work-record-replacement-proposal-v0`. The proposal includes source
-Work Record identity/path/digest, Repair Attempt Plan schema/digest, Repair
-Attempt Artifact schema/digest, replacement proposal identity, proposed
-replacement Work Record id seed, proposed `supersedes` metadata,
-carried-forward evidence refs, new evidence refs, per-postcondition evidence
-mapping, omitted evidence reasons, claim provenance, verifier-before and
-verifier-after health, final proposed health, source Work Record mutation check,
-diagnostics, and recommended next step.
-
-Replacement Proposals are not writers. The build and validate commands always
-report `writes_replacement_record:false`, `mutates_source_record:false`,
-`rewrites_historical_evidence:false`, `executes_repair:false`,
-`executes_actions:false`, `applies_patches:false`, and
-`automatic_replay_allowed:false`. Supersession is proposed metadata only; the
-source Work Record is not edited to say it is superseded, and no replacement
-Work Record exists until the Replacement Writer persists one.
-
-Proposal statuses are `proposed`, `not_required`, `blocked_attempt_failed`,
-`blocked_attempt_partial`, `blocked_missing_evidence`,
-`blocked_source_mutated`, `blocked_health_mismatch`, `stale`, `mismatch`, and
-`unsupported`. `proposed` requires source identity, Repair Attempt Plan
-identity, Repair Attempt Artifact identity, unchanged source digest,
-verifier-after health, required new evidence from the artifact, and explicit
-carried-forward evidence from the source Work Record to match. Failed, partial,
-cleanup-failed, rollback-failed, missing-evidence, verifier-contradicted,
-mismatched-plan, wrong-source, source-mutated, and unsupported artifacts fail
-closed.
-
-`replacement-proposal write` is the Replacement Writer V0 command. It accepts a
-validated `work_record.replacement_proposal` and an explicit `--output-root`;
-`--output-path` is optional but must stay under that root and use the
-deterministic replacement id filename. Dry-run mode reports the exact output
-path, replacement id, content digest, idempotency result, source immutability
-check, planned temp file, and side effects without writing. Write mode validates
-the proposal, materializes the proposed replacement as a Work Record v0 shape,
-checks source Work Record digest when source path/digest are present, rejects
-path traversal and symlink escape, writes through a temp file plus atomic
-rename, removes the temp file on success, treats identical existing content as
-`already_exists`, and refuses different existing content as `blocked_conflict`.
-
-The writer result envelope is `work_record.replacement_writer_result` with
-schema version `2026-07-work-record-replacement-writer-result-v0`. Statuses are
-`dry_run`, `written`, `already_exists`, `blocked_invalid_proposal`,
-`blocked_invalid_replacement_record`, `blocked_source_changed`,
-`blocked_output_escape`, `blocked_conflict`, `blocked_write_failed`,
-`blocked_cleanup_failed`, and `unsupported`. Successful writes report
-`writes_replacement_record:true`; dry-run reports
-`would_write_replacement_record:true` instead. Every status reports
-`mutates_source_record:false`, `rewrites_historical_evidence:false`,
-`executes_repair:false`, `executes_actions:false`, `applies_patches:false`, and
-`automatic_replay_allowed:false`.
-
-Successful Replacement Writer results expose `recommended_next.argv` for
-reading the written replacement Work Record. `recommended_next.command_hint` is
-display-only shell-quoted text derived from that argv; execute the argv
-directly instead of reparsing the display string.
-
-The written replacement Work Record records supersession only on the replacement
-record, not on the source. Its metadata links the source Work Record,
-Replacement Proposal, Repair Attempt Plan, and Repair Attempt Artifact; carries
-forward source evidence only through the proposal policy; includes new evidence
-from the Repair Attempt Artifact/proposal; and does not claim repair execution
-happened during the write. Existing `aos work-record list/read --root
-<output-root>` can discover and read the resulting JSON file.
-
-`supersession write` is the Source Supersession Index V0 writer. It accepts a
-source Work Record ref, a replacement Work Record ref, and an explicit
-`--index-root`; `--replacement-root` can be repeated when replacement lookup
-needs an explicit root, and `--writer-result` can supply the Replacement Writer
-Result JSON for stronger provenance checks. Toolkit callers can supply the same
-Replacement Writer Result in memory; `repair finalize` uses that path so
-standalone supersession writing and finalization share one relationship
-identity model. Dry-run reports the exact index path, source identity,
-replacement identity, idempotency result, planned temp file, and side effects
-without writing. Write mode validates both Work Record identities, verifies
-that the replacement declares supersession of the source, checks source
-id/digest against Replacement Writer provenance when available, rejects
-traversal and symlink escape, writes through a temp file plus atomic rename,
-removes the temp file on success, treats an equivalent existing entry as
-`already_exists`, and refuses conflicting source-to-replacement entries,
-including same source/replacement entries with a different relationship
-identity.
-
-The index entry is `work_record.source_supersession_entry` with schema version
-`2026-07-work-record-source-supersession-index-v0`. Writer statuses include
-`dry_run`, `written`, `already_exists`, `conflict`,
-`blocked_invalid_source`, `blocked_invalid_replacement`,
-`blocked_source_changed`, `blocked_relationship_mismatch`,
-`blocked_index_escape`, `blocked_write_failed`, `blocked_cleanup_failed`, and
-`unsupported`. Every status reports `mutates_source_record:false`,
-`mutates_replacement_record:false`, `executes_repair:false`,
-`executes_actions:false`, `applies_patches:false`, and
-`automatic_replay_allowed:false`.
-
-`supersession lookup` is read-only and scans only the explicit `--index-root`.
-It reports missing index data as `not_found`, malformed entry data as
-`malformed_index`, conflicting active replacements as `conflict`, and active
-relationships as external discovery metadata with source id/digest,
-replacement id/path/digest, relationship status, and replacement readback
-status. Without `--replacement-root`, lookup reports replacement readback as
-`index_only`, leaves the read command hint empty, and does not claim readability
-was proven. With one or more `--replacement-root` values, lookup resolves the
-replacement through those roots, validates replacement id/digest against the
-index entry, emits structured `recommended_next.argv` for `aos work-record
-read` only when the replacement is readable, and reports
-`replacement_readback.status` such as
-`readable`, `not_found`, `digest_mismatch`, `id_mismatch`, or `path_mismatch`.
-Root-backed readback failures return `blocked_invalid_replacement` instead of
-masquerading as a fully proven active relationship. Lookup does not change
-verifier health and does not claim the source Work Record was mutated. Any
-`recommended_next.command_hint` is shell-quoted display text derived from the
-argv; execute the argv directly instead of reparsing the display string.
-`supersession validate` validates one entry file without mutating state.
-
-`export` emits a read-only bundle manifest. It preserves evidence refs,
-artifact paths, and metadata such as digest and size when available, but it does
-not inline screenshots, traces, AX dumps, browser payloads, or other heavy UI
-artifacts into model context.
-
-`recipe run` supports read-only recipes, mutating canvas recipes with explicit
-owned cleanup, and bounded repo-owned shell helpers for substrate workflows.
-Owned resources that require cleanup, such as canvases, must be cleaned by
-`finally` steps that only target resources declared by the current run. Runtime,
-configuration, process, and surface ownership is reported as local live state
-without pretending that every mutation has a cleanup action. Without `--json`,
-successful runs emit a concise text summary.
-
-`--json` follows the global process contract: success and dry-run success emit
-JSON on stdout with exit code `0`; failure or partial cleanup emits JSON on
-stderr with non-zero exit.
-
+Gate remains a separate, explicitly invoked neutral structured-input primitive.
+No Gate record, answer, resume event, or deferred continuation is accepted by a
+Work Record command, changes an Attempt Plan status, or authorizes later
+finalization or unrelated mutation. There is no public Work Record fixture
+executor, operation registry, repair-execute form, gate-request form, or
+gate-check form.
 ## `aos do`
 
 Primary public verbs:

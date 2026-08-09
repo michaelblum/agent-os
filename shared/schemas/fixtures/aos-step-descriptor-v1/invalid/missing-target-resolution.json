@@ -1,0 +1,143 @@
+{
+  "type": "aos.step_descriptor",
+  "schema_version": "2026-08-step-descriptor-v1",
+  "id": "step-descriptor:browser-click-status",
+  "label": "Click the browser live action button and verify status",
+  "workflow_ref": "workflow:browser-live-action-status",
+  "version": "v1",
+  "target_dialect": "browser",
+  "intent": {
+    "summary": "Click the browser live action commit button and verify that the status output changes.",
+    "purpose": "Prove a Step Descriptor can describe the existing AOS browser click/status evidence bridge without becoming the Work Record run evidence.",
+    "acceptance": "A generated Work Record validates, preserves origin.kind workflow, and verifies the promoted status-change Claim through the report-only verifier.",
+    "constraints": [
+      "Use AOS browser Target-with-Ref addresses instead of raw Playwright selectors.",
+      "Re-see and re-resolve the semantic target before any caller-selected future execution.",
+      "Keep replay and repair behind explicit caller-selected workflows."
+    ]
+  },
+  "references": [
+    {
+      "id": "github-issue-272",
+      "relationship": "guided_by",
+      "ref": "https://github.com/michaelblum/agent-os/issues/272",
+      "subject_type": "github.issue",
+      "layer": "narrative",
+      "role": "workstream_tracker"
+    },
+    {
+      "id": "work-record-schema",
+      "relationship": "bridges_to",
+      "ref": "repo:shared/schemas/aos-work-record-v1.md",
+      "subject_type": "schema.sketch",
+      "layer": "descriptor",
+      "role": "generated_run_contract"
+    }
+  ],
+  "preconditions": [
+    {
+      "id": "precondition:browser-click-status-ready",
+      "kind": "browser_xray_text",
+      "description": "The before perception exposes the Live action status output in the Ready state.",
+      "target": "browser:work-record-live-action/e3",
+      "state_id_source": "before_perception.state_id",
+      "see": {
+        "target": "browser:work-record-live-action",
+        "xray": true,
+        "command_template": "./aos see capture browser:work-record-live-action --xray"
+      },
+      "check": {
+        "kind": "semantic_target_value_contains",
+        "ref": "e3",
+        "expected": "Ready",
+        "path": "before_perception.semantic_targets[ref=e3].value"
+      },
+      "repair_policy": {
+        "mode": "patch_execution_map",
+        "notes": "If the status ref drifts, patch the precondition ref or locator hints after fresh source validation."
+      }
+    }
+  ],
+  "action": {
+    "verb": "click",
+    "target": "browser:work-record-live-action/e2",
+    "state_id_source": "before_perception.state_id",
+    "command_template": "./aos do click {{target_with_ref}} --state-id {{before_state_id}}",
+    "args": {
+      "expected_role": "button",
+      "expected_name": "Commit live action"
+    }
+  },
+  "postconditions": [
+    {
+      "id": "postcondition:aos-browser-click-status-after-status",
+      "kind": "browser_xray_text",
+      "description": "The after perception shows the Live action status output changed to Action recorded.",
+      "target": "browser:work-record-live-action/e3",
+      "state_id_source": "after_perception.state_id",
+      "see": {
+        "target": "browser:work-record-live-action",
+        "xray": true,
+        "command_template": "./aos see capture browser:work-record-live-action --xray"
+      },
+      "check": {
+        "kind": "semantic_target_value_contains",
+        "ref": "e3",
+        "expected": "Action recorded",
+        "path": "after_perception.semantic_targets[ref=e3].value"
+      },
+      "repair_policy": {
+        "mode": "patch_execution_map",
+        "notes": "If the status ref or value path drifts, patch the execution-map postcondition rather than editing the promoted Claim text."
+      }
+    }
+  ],
+  "repair_hints": [
+    {
+      "kind": "patch_target_resolution",
+      "note": "Re-run see under the fresh target validation and patch target_resolution candidate hints if e2 no longer resolves."
+    },
+    {
+      "kind": "patch_postcondition",
+      "note": "Patch the status postcondition ref or value path under the repair proposal if the browser facet changes."
+    }
+  ],
+  "claim_promotions": [
+    {
+      "id": "claim-promotion:browser-click-status-recorded",
+      "postcondition_ref": "postcondition:aos-browser-click-status-after-status",
+      "claim_id_template": "claim:{{record_slug}}-post-action-state-observed",
+      "claim_text": "The bounded AOS browser click changed the live action status to Action recorded.",
+      "scope": "run",
+      "acceptance": "After perception semantic target e3 contains Action recorded.",
+      "metadata": {
+        "promotion_boundary": "postcondition_to_work_record_claim",
+        "source": "step_descriptor_v0"
+      }
+    }
+  ],
+  "evidence_requirements": [
+    {
+      "id": "evidence-requirement:before-see",
+      "kind": "aos_see_capture",
+      "phase": "before",
+      "required": true
+    },
+    {
+      "id": "evidence-requirement:do-click",
+      "kind": "aos_do_action",
+      "phase": "action",
+      "required": true
+    },
+    {
+      "id": "evidence-requirement:after-see",
+      "kind": "aos_see_capture",
+      "phase": "after",
+      "required": true
+    }
+  ],
+  "metadata": {
+    "fixture_status": "schema_valid",
+    "bridge_source_evidence": "shared/schemas/fixtures/aos-work-record-v1/evidence/aos-browser-click-status.json"
+  }
+}

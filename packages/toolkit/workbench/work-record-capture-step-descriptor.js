@@ -1,11 +1,12 @@
 import {
   workRecordSubjectId,
 } from './work-record-adapter.js';
+import validateStepDescriptorV1 from './step-descriptor-v1-validator.generated.js';
 import {
   WORK_RECORD_REPORT_ONLY_PROFILE,
 } from './work-record-verifier.js';
 import {
-  buildWorkRecordV0FromAosActionEvidence,
+  buildWorkRecordV1FromAosActionEvidence,
 } from './work-record-capture-aos-action.js';
 import {
   WORK_RECORD_AOS_ACTION_CAPTURE_BUILDER_VERSION,
@@ -18,31 +19,45 @@ import {
   objectValue,
   requireText,
   slug,
+  stepDescriptorContractMismatches,
+  stepDescriptorEvidenceMismatches,
   stepDescriptorEvidenceSource,
   stepDescriptorRunId,
   text,
-  uniqueStrings,
   workRecordHandleSubjectId,
 } from './work-record-capture-helpers.js';
 
-export function buildWorkRecordV0FromStepDescriptorEvidence(stepDescriptor = {}, source = {}, {
+export function buildWorkRecordV1FromStepDescriptorEvidence(stepDescriptor = {}, source = {}, {
   verifierProfile = WORK_RECORD_REPORT_ONLY_PROFILE,
 } = {}) {
   const step = objectValue(stepDescriptor);
   const evidenceSource = objectValue(source);
+  if (!validateStepDescriptorV1(step)) {
+    const details = arrayValue(validateStepDescriptorV1.errors)
+      .map((error) => `${text(objectValue(error).instancePath, '/')} ${text(objectValue(error).message, 'is invalid')}`)
+      .join('; ');
+    throw new TypeError(`Step Descriptor V1 schema validation failed: ${details}`);
+  }
+  const contractMismatches = stepDescriptorContractMismatches(step);
+  if (contractMismatches.length > 0) {
+    throw new TypeError(`Step Descriptor V1 contract failed: ${contractMismatches[0].message}`);
+  }
+  const evidenceMismatches = stepDescriptorEvidenceMismatches(step, evidenceSource);
+  if (evidenceMismatches.length > 0) {
+    throw new TypeError(`Step Descriptor V1 evidence binding failed: ${evidenceMismatches[0].message}`);
+  }
   const stepId = requireText(step.id, 'step_descriptor.id');
   const workflowRef = requireText(step.workflow_ref, 'step_descriptor.workflow_ref');
-  const gates = objectValue(step.workflow_gates);
-  const gateRefs = uniqueStrings(arrayValue(gates.gate_refs));
   const promotions = arrayValue(step.claim_promotions).map((promotion) => objectValue(promotion));
   const promotionRefs = promotions.map((promotion) => text(promotion.id)).filter(Boolean);
 
-  const record = buildWorkRecordV0FromAosActionEvidence(
+  const record = buildWorkRecordV1FromAosActionEvidence(
     stepDescriptorEvidenceSource(step, evidenceSource),
     { verifierProfile },
   );
+  const descriptorPreconditionId = text(objectValue(arrayValue(step.preconditions)[0]).id);
   const beforePostcondition = arrayValue(record.execution_map.postconditions)
-    .find((postcondition) => text(objectValue(postcondition).kind) === 'aos_see_before');
+    .find((postcondition) => text(objectValue(postcondition).id) === descriptorPreconditionId);
   const runStep = objectValue(arrayValue(record.execution_map.steps)[0]);
 
   record.id = workRecordSubjectId(`workflow-${slug(workRecordHandleSubjectId(workflowRef).replace(/^workflow:/, ''))}-${workRecordHandleSubjectId(record.id)}`);
@@ -50,7 +65,7 @@ export function buildWorkRecordV0FromStepDescriptorEvidence(stepDescriptor = {},
     kind: 'workflow',
     ref: workflowRef,
     run_id: text(evidenceSource.run_id, stepDescriptorRunId(step, evidenceSource)),
-    version: text(step.version, 'v0'),
+    version: text(step.version, 'v1'),
     subject_type: 'aos.workflow',
     description: text(
       objectValue(step.intent).summary,
@@ -86,6 +101,7 @@ export function buildWorkRecordV0FromStepDescriptorEvidence(stepDescriptor = {},
   }
   runStep.action.args = {
     ...objectValue(runStep.action.args),
+    descriptor_action: cloneJson(objectValue(step.action)),
     workflow_ref: workflowRef,
     step_descriptor_id: stepId,
     target_resolution: cloneJson(objectValue(step.target_resolution)),
@@ -95,17 +111,6 @@ export function buildWorkRecordV0FromStepDescriptorEvidence(stepDescriptor = {},
     ...arrayValue(runStep.repair_hints).map((hint) => cloneJson(hint)),
     ...arrayValue(step.repair_hints).map((hint) => cloneJson(hint)),
   ];
-
-  record.execution_map.replay_policy = {
-    mode: text(gates.mode, 'report_only'),
-    replay_requires_workflow_gate: true,
-    repair_requires_workflow_gate: true,
-    gate_refs: gateRefs,
-    notes: text(
-      gates.notes,
-      'This Workflow-origin Work Record is report-only and does not authorize autonomous replay or repair.',
-    ),
-  };
 
   for (const promotion of promotions) {
     const postconditionRef = text(promotion.postcondition_ref);
@@ -122,13 +127,12 @@ export function buildWorkRecordV0FromStepDescriptorEvidence(stepDescriptor = {},
         step_descriptor_id: stepId,
         claim_promotion_id: text(promotion.id),
         postcondition_ref: postconditionRef,
+        metadata: cloneJson(objectValue(promotion.metadata)),
       },
       promotion_boundary: 'postcondition_to_work_record_claim',
     };
   }
 
-  record.health.repair_gate_refs = gateRefs;
-  record.health.replay_gate_refs = gateRefs;
   record.metadata = {
     ...objectValue(record.metadata),
     generated_by: WORK_RECORD_STEP_DESCRIPTOR_CAPTURE_BUILDER_VERSION,
@@ -138,7 +142,22 @@ export function buildWorkRecordV0FromStepDescriptorEvidence(stepDescriptor = {},
     step_descriptor_schema_version: text(step.schema_version),
     step_descriptor_version: text(step.version),
     claim_promotion_refs: promotionRefs,
-    workflow_gate_refs: gateRefs,
+    step_descriptor_evidence_requirements: cloneJson(arrayValue(step.evidence_requirements)),
+    step_descriptor_evidence_requirement_results: arrayValue(step.evidence_requirements).map((requirement) => {
+      const item = objectValue(requirement);
+      const phaseSource = item.phase === 'before'
+        ? objectValue(evidenceSource.before_perception)
+        : (item.phase === 'after' ? objectValue(evidenceSource.after_perception) : objectValue(evidenceSource.action));
+      const evidenceId = text(phaseSource.evidence_id);
+      return {
+        evidence_requirement_id: text(item.id),
+        kind: text(item.kind),
+        phase: text(item.phase),
+        required: item.required === true,
+        status: evidenceId ? 'satisfied' : 'not_supplied',
+        evidence_refs: evidenceId ? [evidenceId] : [],
+      };
+    }),
   };
 
   return record;
