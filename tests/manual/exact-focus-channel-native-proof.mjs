@@ -21,6 +21,26 @@ const DRIVER_PATH = fileURLToPath(import.meta.url);
 const SNAPSHOT_KEY_ENV = 'AOS_EXACT_FOCUS_CHANNEL_SNAPSHOT_KEY';
 const PROGRESS_SCHEMA = 'aos.exact-focus-channel-native-progress.v1';
 const PROGRESS_MAX_BYTES = 2_048;
+const AOS_COMMAND_ERROR_MAX_BYTES = 2_048;
+const AOS_COMMAND_ERROR_CODES = new Set([
+  'CHANNEL_NOT_FOUND',
+  'CHANNEL_STALE',
+  'DAEMON_UNREACHABLE',
+  'DAEMON_UNAVAILABLE',
+  'DUPLICATE_ID',
+  'INTERNAL',
+  'INVALID_DEPTH',
+  'NATIVE_AX_ROOT_MISMATCH',
+  'WINDOW_NOT_FOUND',
+]);
+const AOS_PRECOMMIT_REJECTION_CODES = new Set([
+  'CHANNEL_NOT_FOUND',
+  'CHANNEL_STALE',
+  'DUPLICATE_ID',
+  'INVALID_DEPTH',
+  'NATIVE_AX_ROOT_MISMATCH',
+  'WINDOW_NOT_FOUND',
+]);
 // This content-free observation cap exceeds the shell's conservative
 // 1,720,000ms outer live deadline, including failure and catch cleanup.
 const PROGRESS_MAX_ELAPSED_MS = 1_800_000;
@@ -57,10 +77,21 @@ const COMMAND_CLASS_TIMEOUT_MS = Object.freeze({
 });
 
 class ProofError extends Error {
-  constructor(code, { ambiguous = false } = {}) {
+  constructor(
+    code,
+    {
+      ambiguous = false,
+      commandAdmissionAmbiguous = false,
+      commandErrorCode = null,
+    } = {},
+  ) {
     super(code);
     this.code = code;
     this.ambiguous = ambiguous;
+    this.commandAdmissionAmbiguous = commandAdmissionAmbiguous === true;
+    this.commandErrorCode = AOS_COMMAND_ERROR_CODES.has(commandErrorCode)
+      ? commandErrorCode
+      : null;
   }
 }
 
@@ -260,6 +291,62 @@ function errorCode(payload) {
   }
   if (payload.data && typeof payload.data === 'object') return errorCode(payload.data);
   return null;
+}
+
+function allowlistedAOSCommandErrorFromText(text) {
+  if (typeof text !== 'string') return null;
+  const size = Buffer.byteLength(text, 'utf8');
+  if (size < 1 || size > AOS_COMMAND_ERROR_MAX_BYTES) return null;
+  try {
+    const payload = JSON.parse(text.trim());
+    const code = errorCode(payload);
+    return typeof code === 'string'
+      && /^[A-Z][A-Z0-9_]*$/u.test(code)
+      && AOS_COMMAND_ERROR_CODES.has(code)
+      ? code
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function allowlistedAOSCommandError(result) {
+  return allowlistedAOSCommandErrorFromText(result?.stderr)
+    ?? allowlistedAOSCommandErrorFromText(result?.stdout);
+}
+
+function aosCommandMayAdmitMutation(args) {
+  return (args[0] === 'focus' && ['create', 'remove', 'update'].includes(args[1]))
+    || (args[0] === 'see' && args[1] === 'capture');
+}
+
+function aosCommandProofError(
+  code,
+  args,
+  result,
+  { executionAmbiguous = false, unexpectedSuccess = false } = {},
+) {
+  const commandErrorCode = unexpectedSuccess
+    ? null
+    : allowlistedAOSCommandError(result);
+  const commandAdmissionAmbiguous = unexpectedSuccess
+    || (aosCommandMayAdmitMutation(args)
+      && !AOS_PRECOMMIT_REJECTION_CODES.has(commandErrorCode));
+  return new ProofError(code, {
+    ambiguous: executionAmbiguous || commandAdmissionAmbiguous,
+    commandAdmissionAmbiguous,
+    commandErrorCode,
+  });
+}
+
+function commandFailureFields(error) {
+  return {
+    error_code: error instanceof ProofError ? error.code : 'NATIVE_PROOF_FAILED',
+    command_error_code: error instanceof ProofError ? error.commandErrorCode : null,
+    command_admission_ambiguous: error instanceof ProofError
+      ? error.commandAdmissionAmbiguous
+      : false,
+  };
 }
 
 function processExists(pid) {
@@ -637,6 +724,190 @@ function runProgramTimeoutSelfTest(args) {
   process.exitCode = 1;
 }
 
+function commandTelemetrySelfTest() {
+  const rawSentinel = 'éRAW_AOS_COMMAND_SENTINEL_MUST_NOT_LEAK';
+  const options = { aos: '/offline/fake-aos', root: '/offline/fake-root' };
+  const mutation = ['focus', 'create'];
+  const result = (code, error = rawSentinel, stream = 'stderr') => ({
+    status: 1,
+    signal: null,
+    stdout: stream === 'stdout' ? JSON.stringify({ code, error }) : '',
+    stderr: stream === 'stderr' ? JSON.stringify({ code, error }) : '',
+  });
+  const execute = (candidate) => () => candidate;
+  const captureProofError = (operation) => {
+    let observed = null;
+    try {
+      operation();
+    } catch (error) {
+      observed = error;
+    }
+    fail(observed instanceof ProofError, 'COMMAND_TELEMETRY_SELF_TEST_FAILED');
+    return observed;
+  };
+  const resultAtExactBytes = (code, byteCount) => {
+    const payload = { code, error: rawSentinel, padding: '' };
+    const baseByteCount = Buffer.byteLength(JSON.stringify(payload), 'utf8');
+    fail(baseByteCount <= byteCount, 'COMMAND_TELEMETRY_SELF_TEST_FAILED');
+    payload.padding = 'x'.repeat(byteCount - baseByteCount);
+    const stderr = JSON.stringify(payload);
+    fail(Buffer.byteLength(stderr, 'utf8') === byteCount, 'COMMAND_TELEMETRY_SELF_TEST_FAILED');
+    return { status: 1, signal: null, stdout: '', stderr };
+  };
+  const precommitCodes = [
+    'CHANNEL_NOT_FOUND',
+    'CHANNEL_STALE',
+    'DUPLICATE_ID',
+    'INVALID_DEPTH',
+    'NATIVE_AX_ROOT_MISMATCH',
+    'WINDOW_NOT_FOUND',
+  ];
+  const rejections = precommitCodes.map((typedCode) => captureProofError(() => (
+    runAOSSuccess(options, mutation, 'FOCUS_CREATE_FAILED', execute(result(typedCode)))
+  )));
+  const expectedFailure = runAOSFailure(
+    options,
+    mutation,
+    'WINDOW_NOT_FOUND',
+    'SIBLING_SUBTREE_NOT_REJECTED',
+    execute(result('WINDOW_NOT_FOUND', rawSentinel, 'stdout')),
+  );
+  const stderrPriority = captureProofError(() => runAOSFailure(
+    options,
+    mutation,
+    'WINDOW_NOT_FOUND',
+    'SIBLING_SUBTREE_NOT_REJECTED',
+    execute({
+      status: 1,
+      signal: null,
+      stdout: JSON.stringify({ code: 'WINDOW_NOT_FOUND', error: rawSentinel }),
+      stderr: JSON.stringify({ code: 'INTERNAL', error: rawSentinel }),
+    }),
+  ));
+  const typedAmbiguous = ['DAEMON_UNREACHABLE', 'DAEMON_UNAVAILABLE', 'INTERNAL'].map(
+    (typedCode) => captureProofError(() => (
+      runAOSSuccess(options, mutation, 'FOCUS_CREATE_FAILED', execute(result(typedCode)))
+    )),
+  );
+  const exactLimit = captureProofError(() => runAOSSuccess(
+    options,
+    mutation,
+    'FOCUS_CREATE_FAILED',
+    execute(resultAtExactBytes('INTERNAL', AOS_COMMAND_ERROR_MAX_BYTES)),
+  ));
+  const overLimit = captureProofError(() => runAOSSuccess(
+    options,
+    mutation,
+    'FOCUS_CREATE_FAILED',
+    execute(resultAtExactBytes('INTERNAL', AOS_COMMAND_ERROR_MAX_BYTES + 1)),
+  ));
+  const untypedAmbiguous = [
+    { status: null, signal: 'SIGKILL', stdout: '', stderr: rawSentinel },
+    result('UNRECOGNIZED_UPPERCASE_CODE'),
+    { status: 1, signal: null, stdout: '', stderr: '' },
+    { status: 0, signal: null, stdout: rawSentinel, stderr: '' },
+  ].map((candidate) => captureProofError(() => (
+    runAOSSuccess(options, mutation, 'FOCUS_CREATE_FAILED', execute(candidate))
+  )));
+  const executionAmbiguous = [
+    'COMMAND_TIMEOUT',
+    'COMMAND_LAUNCH_FAILED',
+    'COMMAND_INTERRUPTED',
+  ].map((executionCode) => captureProofError(() => runAOSSuccess(
+    options,
+    mutation,
+    'FOCUS_CREATE_FAILED',
+    () => { throw new ProofError(executionCode, { ambiguous: true }); },
+  )));
+  const unexpectedSuccess = captureProofError(() => runAOSFailure(
+    options,
+    mutation,
+    'WINDOW_NOT_FOUND',
+    'SIBLING_SUBTREE_NOT_REJECTED',
+    execute({ status: 0, signal: null, stdout: rawSentinel, stderr: '' }),
+  ));
+  const readOnlyUntyped = captureProofError(() => runAOSSuccess(
+    options,
+    ['focus', 'list'],
+    'FOCUS_LIST_FAILED',
+    execute({ status: 1, signal: null, stdout: '', stderr: rawSentinel }),
+  ));
+  const observed = [
+    ...rejections,
+    stderrPriority,
+    ...typedAmbiguous,
+    exactLimit,
+    overLimit,
+    ...untypedAmbiguous,
+    ...executionAmbiguous,
+    unexpectedSuccess,
+    readOnlyUntyped,
+  ].map(commandFailureFields);
+
+  fail(
+    rejections.every((error, index) => (
+      error.commandErrorCode === precommitCodes[index]
+        && error.commandAdmissionAmbiguous === false
+    )),
+    'COMMAND_TELEMETRY_SELF_TEST_FAILED',
+  );
+  fail(expectedFailure === undefined, 'COMMAND_TELEMETRY_SELF_TEST_FAILED');
+  fail(
+    stderrPriority.commandErrorCode === 'INTERNAL'
+      && stderrPriority.commandAdmissionAmbiguous === true,
+    'COMMAND_TELEMETRY_SELF_TEST_FAILED',
+  );
+  fail(
+    typedAmbiguous.every((error) => (
+      error.commandAdmissionAmbiguous === true && error.commandErrorCode !== null
+    )),
+    'COMMAND_TELEMETRY_SELF_TEST_FAILED',
+  );
+  fail(
+    exactLimit.commandErrorCode === 'INTERNAL'
+      && exactLimit.commandAdmissionAmbiguous === true
+      && overLimit.commandErrorCode === null
+      && overLimit.commandAdmissionAmbiguous === true,
+    'COMMAND_TELEMETRY_SELF_TEST_FAILED',
+  );
+  fail(
+    untypedAmbiguous.every((error) => (
+      error.commandAdmissionAmbiguous === true && error.commandErrorCode === null
+    )),
+    'COMMAND_TELEMETRY_SELF_TEST_FAILED',
+  );
+  fail(
+    executionAmbiguous.every((error) => (
+      error.ambiguous === true
+        && error.commandAdmissionAmbiguous === true
+        && error.commandErrorCode === null
+    )),
+    'COMMAND_TELEMETRY_SELF_TEST_FAILED',
+  );
+  fail(
+    unexpectedSuccess.commandAdmissionAmbiguous === true
+      && unexpectedSuccess.commandErrorCode === null,
+    'COMMAND_TELEMETRY_SELF_TEST_FAILED',
+  );
+  fail(readOnlyUntyped.commandAdmissionAmbiguous === false, 'COMMAND_TELEMETRY_SELF_TEST_FAILED');
+  fail(!JSON.stringify(observed).includes(rawSentinel), 'COMMAND_TELEMETRY_SELF_TEST_FAILED');
+
+  process.stdout.write(`${JSON.stringify({
+    allowlisted_command_error_code: true,
+    ambiguous_command_admission: true,
+    exact_utf8_byte_boundaries: true,
+    precommit_rejection_nonambiguous: true,
+    raw_command_output_reflected: false,
+    read_only_failure_nonadmitting: true,
+    status: 'passed',
+    stderr_priority: true,
+    terminal_failure_projection: true,
+    unknown_command_error_suppressed: true,
+    unexpected_success_ambiguous: true,
+    wrappers_exercised: true,
+  })}\n`);
+}
+
 function proofEnvironment() {
   const environment = { ...process.env, ...NO_AUTOSTART_ENV };
   delete environment[SNAPSHOT_KEY_ENV];
@@ -688,26 +959,53 @@ function aosCommandClass(args) {
   return args[0] === 'see' && args[1] === 'capture' ? 'capture' : 'aos';
 }
 
-function runAOSSuccess(options, args, code) {
-  const result = runProgram(options.aos, args, {
-    commandClass: aosCommandClass(args),
-    cwd: options.root,
-  });
-  fail(result.status === 0, code);
-  const payload = parseJSON(result.stdout, `${code}_JSON_INVALID`);
-  fail(errorCode(payload) === null, code);
+function runAOSSuccess(options, args, code, execute = runProgram) {
+  let result;
+  try {
+    result = execute(options.aos, args, {
+      commandClass: aosCommandClass(args),
+      cwd: options.root,
+    });
+  } catch (error) {
+    if (error instanceof ProofError) {
+      throw aosCommandProofError(error.code, args, null, {
+        executionAmbiguous: error.ambiguous,
+      });
+    }
+    throw error;
+  }
+  if (result.status !== 0) throw aosCommandProofError(code, args, result);
+  let payload;
+  try {
+    payload = parseJSON(result.stdout, `${code}_JSON_INVALID`);
+  } catch {
+    throw aosCommandProofError(`${code}_JSON_INVALID`, args, result);
+  }
+  if (errorCode(payload) !== null) throw aosCommandProofError(code, args, result);
   return payload;
 }
 
-function runAOSFailure(options, args, expectedCode, code) {
-  const result = runProgram(options.aos, args, {
-    commandClass: aosCommandClass(args),
-    cwd: options.root,
-  });
-  fail(result.status !== 0, code);
-  const payload = parseJSON(result.stderr || result.stdout, `${code}_JSON_INVALID`);
-  fail(errorCode(payload) === expectedCode, code);
-  return payload;
+function runAOSFailure(options, args, expectedCode, code, execute = runProgram) {
+  let result;
+  try {
+    result = execute(options.aos, args, {
+      commandClass: aosCommandClass(args),
+      cwd: options.root,
+    });
+  } catch (error) {
+    if (error instanceof ProofError) {
+      throw aosCommandProofError(error.code, args, null, {
+        executionAmbiguous: error.ambiguous,
+      });
+    }
+    throw error;
+  }
+  if (result.status === 0) {
+    throw aosCommandProofError(code, args, result, { unexpectedSuccess: true });
+  }
+  const commandErrorCode = allowlistedAOSCommandError(result);
+  if (commandErrorCode !== expectedCode) throw aosCommandProofError(code, args, result);
+  return undefined;
 }
 
 function focusEntries(payload) {
@@ -1504,6 +1802,8 @@ async function main() {
 
     const summary = {
       status: 'passed',
+      command_error_code: null,
+      command_admission_ambiguous: false,
       repo_revision: options.runtimeRevision,
       build_source_fingerprint: buildFingerprint,
       daemon_path_start_order_bound: true,
@@ -1601,7 +1901,7 @@ async function main() {
     }
     const summary = {
       status: 'failed',
-      error_code: error instanceof ProofError ? error.code : 'NATIVE_PROOF_FAILED',
+      ...commandFailureFields(error),
       channel_removed: channelRemoved,
       fixture_windows_removed: fixtureWindowsRemoved,
       fixture_process_reaped: fixtureProcessReaped,
@@ -1644,6 +1944,8 @@ if (mode === '--supervise-command') {
   await progressHangSelfTest(modeArgs);
 } else if (mode === '--run-program-timeout-self-test') {
   runProgramTimeoutSelfTest(modeArgs);
+} else if (mode === '--command-telemetry-self-test') {
+  commandTelemetrySelfTest();
 } else if (mode === '--sanitize-progress-receipt') {
   await sanitizeProgressReceipt(modeArgs);
 } else if (mode === '--cleanup-only') {

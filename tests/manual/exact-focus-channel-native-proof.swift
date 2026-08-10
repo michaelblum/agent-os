@@ -89,7 +89,7 @@ private final class SolidSiblingView: NSView {
 }
 
 @MainActor
-private final class FixtureController: NSObject {
+private final class FixtureController: NSObject, NSApplicationDelegate {
     private let metadataURL: URL
     private let closeRequestURL: URL
     private let closeAckURL: URL
@@ -97,6 +97,7 @@ private final class FixtureController: NSObject {
     private let cleanupURL: URL
     private let ownershipToken: String
     private var timer: Timer?
+    private var started = false
     private var targetClosed = false
     private var stopStarted = false
     private var readinessAttempts = 0
@@ -105,6 +106,8 @@ private final class FixtureController: NSObject {
 
     private let targetWindow: NSWindow
     private let siblingWindow: NSWindow
+    private let targetControl: NSButton
+    private let siblingControl: NSButton
 
     init(
         metadataURL: URL,
@@ -140,12 +143,13 @@ private final class FixtureController: NSObject {
         targetWindow.backgroundColor = .black
         targetWindow.sharingType = .readOnly
         let targetView = SplitTargetView(frame: targetContent)
-        let targetControl = NSButton(title: "Exact Target", target: nil, action: nil)
-        targetControl.setAccessibilityIdentifier(targetIdentifier)
-        targetControl.setAccessibilityChildren([])
-        targetControl.frame = NSRect(x: 165, y: 135, width: 150, height: 42)
-        targetView.addSubview(targetControl)
+        let targetButton = NSButton(title: "Exact Target", target: nil, action: nil)
+        targetButton.setAccessibilityIdentifier(targetIdentifier)
+        targetButton.setAccessibilityChildren([])
+        targetButton.frame = NSRect(x: 165, y: 135, width: 150, height: 42)
+        targetView.addSubview(targetButton)
         targetWindow.contentView = targetView
+        targetControl = targetButton
 
         let siblingContent = NSRect(x: 0, y: 0, width: 340, height: 250)
         siblingWindow = NSWindow(
@@ -162,11 +166,12 @@ private final class FixtureController: NSObject {
         siblingWindow.backgroundColor = .black
         siblingWindow.sharingType = .readOnly
         let siblingView = SolidSiblingView(frame: siblingContent)
-        let siblingControl = NSButton(title: "Exact Sibling", target: nil, action: nil)
-        siblingControl.setAccessibilityIdentifier(siblingIdentifier)
-        siblingControl.frame = NSRect(x: 95, y: 100, width: 150, height: 42)
-        siblingView.addSubview(siblingControl)
+        let siblingButton = NSButton(title: "Exact Sibling", target: nil, action: nil)
+        siblingButton.setAccessibilityIdentifier(siblingIdentifier)
+        siblingButton.frame = NSRect(x: 95, y: 100, width: 150, height: 42)
+        siblingView.addSubview(siblingButton)
         siblingWindow.contentView = siblingView
+        siblingControl = siblingButton
 
         let targetFrame = targetWindow.frame
         let targetOrigin = NSPoint(
@@ -183,7 +188,13 @@ private final class FixtureController: NSObject {
         super.init()
     }
 
-    func start() {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        start()
+    }
+
+    private func start() {
+        guard !started else { return }
+        started = true
         targetWindow.orderFront(nil)
         siblingWindow.orderFront(nil)
         targetWindow.order(.below, relativeTo: siblingWindow.windowNumber)
@@ -240,7 +251,17 @@ private final class FixtureController: NSObject {
               windowPID(entries[targetIndex]) == Int(getpid()),
               windowPID(entries[siblingIndex]) == Int(getpid()),
               windowLayer(entries[targetIndex]) == 0,
-              windowLayer(entries[siblingIndex]) == 0 else {
+              windowLayer(entries[siblingIndex]) == 0,
+              controlIsLocallyAccessibilityReady(
+                targetControl,
+                identifier: targetIdentifier,
+                window: targetWindow
+              ),
+              controlIsLocallyAccessibilityReady(
+                siblingControl,
+                identifier: siblingIdentifier,
+                window: siblingWindow
+              ) else {
             return nil
         }
 
@@ -271,6 +292,25 @@ private final class FixtureController: NSObject {
             target_center_occluded: true,
             overlap_fraction: overlapFraction
         )
+    }
+
+    private func controlIsLocallyAccessibilityReady(
+        _ control: NSButton,
+        identifier: String,
+        window: NSWindow
+    ) -> Bool {
+        let frame = control.accessibilityFrame()
+        return control.window === window
+            && (control.accessibilityWindow() as? NSWindow) === window
+            && control.accessibilityIdentifier() == identifier
+            && control.isAccessibilityElement()
+            && control.accessibilityRole() == .button
+            && frame.origin.x.isFinite
+            && frame.origin.y.isFinite
+            && frame.width.isFinite
+            && frame.height.isFinite
+            && frame.width > 0
+            && frame.height > 0
     }
 
     private func waitForWindowRemoval(windowID: Int, attemptsRemaining: Int, completion: @escaping (Bool) -> Void) {
@@ -630,7 +670,7 @@ private enum ExactFocusChannelNativeProof {
                     cleanupURL: URL(fileURLWithPath: cleanup),
                     ownershipToken: ownershipToken
                 )
-                controller.start()
+                app.delegate = controller
                 withExtendedLifetime(controller) {
                     app.run()
                 }

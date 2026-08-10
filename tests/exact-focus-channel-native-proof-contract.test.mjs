@@ -40,12 +40,42 @@ test('exact focus-channel pixel classifier has an offline deterministic self-tes
 
 test('exact focus-channel fixture is synthetic, same-process, overlapping, and AX-distinct', () => {
   const helper = fs.readFileSync(helperPath, 'utf8');
+  const fixtureMain = helper.slice(helper.indexOf('if args.first == "--fixture"'));
+  const localReadiness = helper.slice(
+    helper.indexOf('private func currentMetadata()'),
+    helper.indexOf('private func waitForWindowRemoval'),
+  );
+  const delegateIndex = fixtureMain.indexOf('app.delegate = controller');
+  const lifetimeIndex = fixtureMain.indexOf('withExtendedLifetime(controller)');
+  const runIndex = fixtureMain.indexOf('app.run()');
 
   assert.match(helper, /SplitTargetView/u);
   assert.match(helper, /SolidSiblingView/u);
   assert.match(helper, /aos-exact-target-control/u);
   assert.match(helper, /aos-exact-sibling-control/u);
-  assert.match(helper, /targetControl\.setAccessibilityChildren\(\[\]\)/u);
+  assert.match(helper, /targetButton\.setAccessibilityChildren\(\[\]\)/u);
+  assert.match(helper, /FixtureController: NSObject, NSApplicationDelegate/u);
+  assert.match(helper, /private let targetControl: NSButton/u);
+  assert.match(helper, /private let siblingControl: NSButton/u);
+  assert.match(
+    helper,
+    /func applicationDidFinishLaunching\(_ notification: Notification\) \{\s+start\(\)\s+\}/u,
+  );
+  assert.notEqual(delegateIndex, -1);
+  assert.ok(lifetimeIndex > delegateIndex);
+  assert.ok(runIndex > lifetimeIndex);
+  assert.match(fixtureMain, /withExtendedLifetime\(controller\) \{\s+app\.run\(\)\s+\}/u);
+  assert.doesNotMatch(fixtureMain, /controller\.start\(\)/u);
+  assert.match(localReadiness, /controlIsLocallyAccessibilityReady\(\s+targetControl/u);
+  assert.match(localReadiness, /controlIsLocallyAccessibilityReady\(\s+siblingControl/u);
+  assert.match(localReadiness, /control\.window === window/u);
+  assert.match(localReadiness, /control\.accessibilityWindow\(\) as\? NSWindow/u);
+  assert.match(localReadiness, /control\.accessibilityIdentifier\(\) == identifier/u);
+  assert.match(localReadiness, /control\.isAccessibilityElement\(\)/u);
+  assert.match(localReadiness, /control\.accessibilityRole\(\) == \.button/u);
+  assert.match(localReadiness, /frame\.width > 0/u);
+  assert.match(localReadiness, /frame\.height > 0/u);
+  assert.doesNotMatch(localReadiness, /sleep|asyncAfter/u);
   assert.match(helper, /ownership_token/u);
   assert.match(helper, /windowPID\(entries\[targetIndex\]\) == Int\(getpid\(\)\)/u);
   assert.match(helper, /windowPID\(entries\[siblingIndex\]\) == Int\(getpid\(\)\)/u);
@@ -72,9 +102,26 @@ test('exact focus-channel live driver uses passive public preflights and bounded
     runner.indexOf('cleanup() {'),
     runner.indexOf('trap cleanup EXIT'),
   );
+  const driverMainCatchStart = driver.indexOf('  } catch (error) {\n    const admissionAmbiguous');
+  const driverMainCatch = driver.slice(
+    driverMainCatchStart,
+    driver.indexOf('\n  }\n}\n\nconst [mode', driverMainCatchStart),
+  );
+  const liveRun = runner.slice(
+    runner.indexOf('  --run)'),
+    runner.indexOf('  --runner-preflight-self-test)'),
+  );
   const supervisorBody = driver.slice(
     driver.indexOf('async function superviseCommand'),
     driver.indexOf('async function ownedGroupWrapper'),
+  );
+  const processTreeSelfTest = runner.slice(
+    runner.indexOf('--process-tree-self-test)'),
+    runner.indexOf('--progress-timeout-self-test)'),
+  );
+  const progressTimeoutSelfTest = runner.slice(
+    runner.indexOf('--progress-timeout-self-test)'),
+    runner.indexOf('--run-program-timeout-self-test)'),
   );
 
   assert.match(driver, /'focus', 'create'/u);
@@ -112,6 +159,23 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   assert.match(driver, /pixels_persisted: false/u);
   assert.match(driver, /const PROGRESS_SCHEMA = 'aos\.exact-focus-channel-native-progress\.v1'/u);
   assert.match(driver, /const PROGRESS_MAX_BYTES = 2_048/u);
+  assert.match(driver, /const AOS_COMMAND_ERROR_MAX_BYTES = 2_048/u);
+  assert.match(driver, /const AOS_COMMAND_ERROR_CODES = new Set/u);
+  assert.match(driver, /'DAEMON_UNREACHABLE'/u);
+  assert.match(driver, /const AOS_PRECOMMIT_REJECTION_CODES = new Set/u);
+  assert.match(driver, /commandAdmissionAmbiguous/u);
+  assert.match(driver, /commandErrorCode/u);
+  assert.match(driver, /command_error_code:/u);
+  assert.match(driver, /command_admission_ambiguous:/u);
+  assert.match(driver, /allowlistedAOSCommandError\(result\)/u);
+  assert.match(driver, /aosCommandMayAdmitMutation/u);
+  assert.match(driver, /unexpectedSuccess: true/u);
+  assert.match(driver, /function commandFailureFields\(error\)/u);
+  assert.match(driver, /execute = runProgram/u);
+  assert.match(
+    driverMainCatch,
+    /const summary = \{\s+status: 'failed',\s+\.\.\.commandFailureFields\(error\),/u,
+  );
   assert.match(driver, /const PROGRESS_MAX_ELAPSED_MS = 1_800_000/u);
   assert.match(driver, /const PROGRESS_MAX_ORDINAL = PROGRESS_STAGES\.length \* 2/u);
   assert.match(driver, /fs\.openSync\(tempFile, 'wx', 0o600\)/u);
@@ -169,6 +233,9 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   assert.match(runner, /candidate\.progress_elapsed_ms <= maxProgressElapsedMs/u);
   assert.match(runner, /"\$PROGRESS_RECEIPT_MAX_ELAPSED_MS"/u);
   assert.match(runner, /run_driver_with_deadline "\$LIVE_PROOF_TIMEOUT_MS"/u);
+  assert.match(processTreeSelfTest, /run_driver_with_deadline 500/u);
+  assert.match(progressTimeoutSelfTest, /run_driver_with_deadline 1000/u);
+  assert.match(progressTimeoutSelfTest, /Allow progress and grandchild initialization under load/u);
   assert.match(runner, /progress-sanitizer\.stdout/u);
   assert.match(runner, /progress-sanitizer\.stderr/u);
   assert.match(runner, /run_supervised_to_files \\\s+"\$PROGRESS_SANITIZER_TIMEOUT_MS"/u);
@@ -179,7 +246,26 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   assert.match(runner, /stop_owned_group/u);
   assert.match(runner, /stop_owned_fixture/u);
   assert.match(runner, /channel-cleanup-armed/u);
-  assert.match(runner, /if \[\[ ! -x "\$ROOT\/aos" \]\]; then\s+cleanup_failed=1/u);
+  assert.match(runner, /COMMAND_ADMISSION_AMBIGUOUS=1/u);
+  assert.match(runner, /summary_admission_is_nonambiguous/u);
+  assert.match(liveRun, /adopt_driver_summary "\$SUMMARY" "\$STATUS"/u);
+  const liveRunCleanupOrder = [
+    'LIVE_CLEANUP_ARMED=1',
+    'COMMAND_ADMISSION_AMBIGUOUS=1',
+    'run_driver_with_deadline',
+    'adopt_driver_summary',
+    'trap - EXIT',
+    "trap '' INT TERM",
+    '\n    cleanup\n',
+  ].map((needle) => liveRun.indexOf(needle));
+  assert.ok(liveRunCleanupOrder.every((index) => index >= 0));
+  assert.deepEqual(liveRunCleanupOrder, [...liveRunCleanupOrder].sort((a, b) => a - b));
+  assert.match(runner, /if \(\( COMMAND_ADMISSION_AMBIGUOUS == 1 \)\); then/u);
+  assert.match(runner, /elif \[\[ ! -x "\$ROOT\/aos" \]\]; then\s+cleanup_failed=1/u);
+  assert.ok(
+    cleanupBody.indexOf('COMMAND_ADMISSION_AMBIGUOUS == 1')
+      < cleanupBody.indexOf('run_channel_cleanup'),
+  );
   assert.ok(cleanupBody.indexOf('capture_sanitized_progress') >= 0);
   assert.ok(cleanupBody.indexOf('merge_sanitized_progress') > cleanupBody.indexOf('capture_sanitized_progress'));
   assert.ok(cleanupBody.indexOf('rm -f \\') > cleanupBody.indexOf('merge_sanitized_progress'));
@@ -376,6 +462,31 @@ test('exact focus-channel unrelated-channel snapshot tolerates refresh metadata 
   });
 });
 
+test('exact focus-channel command telemetry is allowlisted, admission-aware, and non-reflective', () => {
+  const rawSentinel = 'RAW_AOS_COMMAND_SENTINEL_MUST_NOT_LEAK';
+  const result = spawnSync('node', [driverPath, '--command-telemetry-self-test'], {
+    cwd: root,
+    encoding: 'utf8',
+    timeout: 2_000,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout.trim()), {
+    allowlisted_command_error_code: true,
+    ambiguous_command_admission: true,
+    exact_utf8_byte_boundaries: true,
+    precommit_rejection_nonambiguous: true,
+    raw_command_output_reflected: false,
+    read_only_failure_nonadmitting: true,
+    status: 'passed',
+    stderr_priority: true,
+    terminal_failure_projection: true,
+    unknown_command_error_suppressed: true,
+    unexpected_success_ambiguous: true,
+    wrappers_exercised: true,
+  });
+  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, new RegExp(rawSentinel, 'u'));
+});
+
 test('exact focus-channel watchdog reaps its owned process group and descendants', () => {
   const timeout = spawnSync('zsh', [runnerPath, '--timeout-self-test'], {
     cwd: root,
@@ -445,6 +556,21 @@ test('exact focus-channel watchdog reaps its owned process group and descendants
   assert.equal(postflightCleanupFailure.status, 0, postflightCleanupFailure.stderr);
   assert.deepEqual(JSON.parse(postflightCleanupFailure.stdout.trim()), {
     cleanup_failure_forced_failure: true,
+    status: 'passed',
+  });
+
+  const ambiguousAdmissionCleanup = spawnSync(
+    'zsh',
+    [runnerPath, '--ambiguous-admission-cleanup-self-test'],
+    {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 8_000,
+    },
+  );
+  assert.equal(ambiguousAdmissionCleanup.status, 0, ambiguousAdmissionCleanup.stderr);
+  assert.deepEqual(JSON.parse(ambiguousAdmissionCleanup.stdout.trim()), {
+    ambiguous_admission_cleanup_safe: true,
     status: 'passed',
   });
 

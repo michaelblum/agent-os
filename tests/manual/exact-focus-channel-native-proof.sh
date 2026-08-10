@@ -24,6 +24,7 @@ SUPERVISOR_FINAL_REAP_COMPLETE_FILE=""
 SUPERVISOR_SELFTEST_SIGNAL_RECEIPT_FILE=""
 GROUP_PID_FILE="$TMP_ROOT/active-process-group.pid"
 LIVE_CLEANUP_ARMED=0
+COMMAND_ADMISSION_AMBIGUOUS=0
 CHANNEL_ID="aos-exact-native-${TMP_ROOT##*.}"
 NEGATIVE_CHANNEL_ID="${CHANNEL_ID}-negative"
 FIXTURE_PID_FILE="$TMP_ROOT/fixture.pid"
@@ -546,7 +547,11 @@ cleanup() {
     fi
 
     if (( LIVE_CLEANUP_ARMED == 1 )) && [[ -f "$TMP_ROOT/channel-cleanup-armed" ]]; then
-      if [[ ! -x "$ROOT/aos" ]]; then
+      if (( COMMAND_ADMISSION_AMBIGUOUS == 1 )); then
+        # A delayed shared-daemon commit cannot be excluded. Preserve the exact
+        # recovery marker and never race it with a compensating channel write.
+        cleanup_failed=1
+      elif [[ ! -x "$ROOT/aos" ]]; then
         cleanup_failed=1
       else
         if run_channel_cleanup; then
@@ -599,24 +604,70 @@ compile_helper() {
 typed_failure_summary() {
   local command_status="$1"
   if (( command_status == 124 )); then
-    print -r -- '{"cleanup_complete":false,"error_code":"PROOF_TIMEOUT","microphone_requested":false,"pixels_persisted":false,"raw_capture_logged":false,"status":"failed"}'
+    print -r -- '{"cleanup_complete":false,"command_admission_ambiguous":true,"command_error_code":null,"error_code":"PROOF_TIMEOUT","microphone_requested":false,"pixels_persisted":false,"raw_capture_logged":false,"status":"failed"}'
   else
-    print -r -- '{"cleanup_complete":false,"error_code":"NATIVE_PROOF_FAILED","microphone_requested":false,"pixels_persisted":false,"raw_capture_logged":false,"status":"failed"}'
+    print -r -- '{"cleanup_complete":false,"command_admission_ambiguous":true,"command_error_code":null,"error_code":"NATIVE_PROOF_FAILED","microphone_requested":false,"pixels_persisted":false,"raw_capture_logged":false,"status":"failed"}'
   fi
 }
 
 validated_summary() {
   local candidate="$1"
   /usr/bin/env node -e '
+    const commandErrorCodes = new Set([
+      "CHANNEL_NOT_FOUND",
+      "CHANNEL_STALE",
+      "DAEMON_UNAVAILABLE",
+      "DAEMON_UNREACHABLE",
+      "DUPLICATE_ID",
+      "INTERNAL",
+      "INVALID_DEPTH",
+      "NATIVE_AX_ROOT_MISMATCH",
+      "WINDOW_NOT_FOUND",
+    ]);
     try {
       const value = JSON.parse(process.argv[1]);
       if (!value || typeof value !== "object" || Array.isArray(value)) process.exit(1);
       if (value.status !== "passed" && value.status !== "failed") process.exit(1);
+      if (typeof value.command_admission_ambiguous !== "boolean") process.exit(1);
+      if (value.command_error_code !== null && !commandErrorCodes.has(value.command_error_code)) {
+        process.exit(1);
+      }
+      if (
+        value.status === "passed"
+        && (value.command_admission_ambiguous !== false || value.command_error_code !== null)
+      ) process.exit(1);
       process.stdout.write(JSON.stringify(value));
     } catch {
       process.exit(1);
     }
   ' "$candidate"
+}
+
+summary_admission_is_nonambiguous() {
+  local candidate="$1"
+  /usr/bin/env node -e '
+    try {
+      const value = JSON.parse(process.argv[1]);
+      process.exit(value.command_admission_ambiguous === false ? 0 : 1);
+    } catch {
+      process.exit(1);
+    }
+  ' "$candidate"
+}
+
+adopt_driver_summary() {
+  local candidate="$1"
+  local command_status="$2"
+  local validated=""
+  COMMAND_ADMISSION_AMBIGUOUS=1
+  if [[ -n "$candidate" ]] && validated="$(validated_summary "$candidate")"; then
+    SUMMARY="$validated"
+    if summary_admission_is_nonambiguous "$SUMMARY"; then
+      COMMAND_ADMISSION_AMBIGUOUS=0
+    fi
+  else
+    SUMMARY="$(typed_failure_summary "$command_status")"
+  fi
 }
 
 merge_sanitized_progress() {
@@ -807,6 +858,7 @@ case "$MODE" in
     fi
     compile_helper
     LIVE_CLEANUP_ARMED=1
+    COMMAND_ADMISSION_AMBIGUOUS=1
     set +e
     run_driver_with_deadline "$LIVE_PROOF_TIMEOUT_MS" \
       /usr/bin/env node "$DRIVER" \
@@ -820,9 +872,7 @@ case "$MODE" in
     STATUS="$?"
     set -e
     SUMMARY="$(tail -n 1 "$DRIVER_STDOUT" 2>/dev/null || true)"
-    if [[ -z "$SUMMARY" ]] || ! SUMMARY="$(validated_summary "$SUMMARY")"; then
-      SUMMARY="$(typed_failure_summary "$STATUS")"
-    fi
+    adopt_driver_summary "$SUMMARY" "$STATUS"
     trap - EXIT
     trap '' INT TERM
     cleanup
@@ -881,7 +931,9 @@ case "$MODE" in
   --progress-timeout-self-test)
     GRANDCHILD_PID_FILE="$TMP_ROOT/progress-grandchild.pid"
     set +e
-    run_driver_with_deadline 500 \
+    # Allow progress and grandchild initialization under load while still
+    # forcing the deliberately nonterminating driver through timeout cleanup.
+    run_driver_with_deadline 1000 \
       /usr/bin/env node "$DRIVER" \
         --progress-hang-self-test \
         --progress "$PROGRESS_FILE" \
@@ -1289,6 +1341,79 @@ case "$MODE" in
     fi
     unset SUMMARY
     print -r -- '{"shell_progress_transition_coherence":true,"status":"passed"}'
+    ;;
+  --ambiguous-admission-cleanup-self-test)
+    adopt_driver_summary \
+      '{"command_admission_ambiguous":false,"command_error_code":null,"status":"passed"}' 0
+    if (( COMMAND_ADMISSION_AMBIGUOUS != 0 )); then
+      print -r -- '{"ambiguous_admission_cleanup_safe":false,"status":"failed"}'
+      exit 1
+    fi
+    adopt_driver_summary '{"status":"failed"}' 1
+    if (( COMMAND_ADMISSION_AMBIGUOUS != 1 )); then
+      print -r -- '{"ambiguous_admission_cleanup_safe":false,"status":"failed"}'
+      exit 1
+    fi
+    adopt_driver_summary \
+      '{"command_admission_ambiguous":"false","command_error_code":null,"status":"failed"}' 1
+    if (( COMMAND_ADMISSION_AMBIGUOUS != 1 )); then
+      print -r -- '{"ambiguous_admission_cleanup_safe":false,"status":"failed"}'
+      exit 1
+    fi
+    adopt_driver_summary \
+      '{"command_admission_ambiguous":true,"command_error_code":"INTERNAL","status":"failed"}' 1
+    if (( COMMAND_ADMISSION_AMBIGUOUS != 1 )); then
+      print -r -- '{"ambiguous_admission_cleanup_safe":false,"status":"failed"}'
+      exit 1
+    fi
+
+    ROOT="$TMP_ROOT/fake-repo"
+    mkdir -p "$ROOT"
+    print -r -- '#!/bin/zsh
+print -r -- invoked > "${0:h}/aos-cleanup-invoked"
+exit 1' > "$ROOT/aos"
+    chmod 700 "$ROOT/aos"
+    print -r -- '{}' > "$DAEMON_IDENTITY_FILE"
+    print -r -- '[]' > "$TMP_ROOT/unrelated-channel-digests.json"
+    print -r -- 'armed' > "$TMP_ROOT/channel-cleanup-armed"
+    print -r -- 'pixel' > "$TMP_ROOT/exact-window.png"
+    print -r -- 'pixel' > "$TMP_ROOT/preserved-window.png"
+    print -r -- 'pixel' > "$TMP_ROOT/missing-window.png"
+
+    BINARY="/bin/zsh"
+    FIXTURE_SELFTEST_TOKEN="0123456789abcdef0123456789abcdef"
+    /bin/zsh -c 'trap "" TERM; zmodload zsh/zselect; while true; do zselect -t 100 || true; done' \
+      fixture-cleanup-self-test --ownership-token "$FIXTURE_SELFTEST_TOKEN" &
+    FIXTURE_SELFTEST_PID="$!"
+    print -r -- "$FIXTURE_SELFTEST_PID $FIXTURE_SELFTEST_TOKEN" > "$FIXTURE_PID_FILE"
+
+    LIVE_CLEANUP_ARMED=1
+    STATUS=1
+    trap - EXIT
+    trap '' INT TERM
+    cleanup
+    apply_post_cleanup_outcome
+    if [[ -e "$ROOT/aos-cleanup-invoked" ]] \
+      || [[ -e "$TMP_ROOT/exact-window.png" ]] \
+      || [[ -e "$TMP_ROOT/preserved-window.png" ]] \
+      || [[ -e "$TMP_ROOT/missing-window.png" ]] \
+      || kill -0 "$FIXTURE_SELFTEST_PID" 2>/dev/null \
+      || [[ ! -f "$TMP_ROOT/channel-cleanup-armed" ]] \
+      || (( RECOVERY_ROOT_RETAINED != 1 )) \
+      || ! /usr/bin/env node -e '
+        const summary = JSON.parse(process.argv[1]);
+        if (summary.status !== "failed") process.exit(1);
+        if (summary.cleanup_complete !== false) process.exit(1);
+        if (summary.command_admission_ambiguous !== true) process.exit(1);
+        if (summary.recovery_root_retained !== true) process.exit(1);
+        if (summary.pixels_persisted !== false) process.exit(1);
+      ' "$SUMMARY"; then
+      rm -rf "$TMP_ROOT"
+      print -r -- '{"ambiguous_admission_cleanup_safe":false,"status":"failed"}'
+      exit 1
+    fi
+    rm -rf "$TMP_ROOT"
+    print -r -- '{"ambiguous_admission_cleanup_safe":true,"status":"passed"}'
     ;;
   --missing-aos-cleanup-self-test)
     ROOT="$TMP_ROOT/repo-without-aos"
