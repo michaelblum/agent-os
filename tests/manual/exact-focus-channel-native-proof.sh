@@ -58,10 +58,11 @@ typeset -r EXACT_CLEANUP_MAX_AOS_COMMANDS=$((
   CHANNEL_CLEANUP_R2_AOS_COMMANDS + POST_CLEANUP_ATTESTATION_AOS_COMMANDS
 ))
 typeset -r CLEANUP_MAX_AOS_COMMANDS=60
-# Exact worst late failure + catch is 44 + R(1) + R(1) + 9 = 149. The exact
-# 149-call review ceiling includes the pre-close target refresh and its strict
-# public re-read; eight local commands cover repeated git provenance helpers.
-typeset -r LIVE_PRE_CLEANUP_AOS_COMMANDS=44
+# Exact worst late failure + catch is 40 + R(1) + R(1) + 9 = 145. The retained
+# 149-call review ceiling leaves four calls of margin after the pre-close target
+# refresh and its single public focus-list observation; eight local commands
+# cover repeated git provenance helpers.
+typeset -r LIVE_PRE_CLEANUP_AOS_COMMANDS=40
 typeset -r EXACT_LIVE_FAILURE_CATCH_MAX_AOS_COMMANDS=$((
   LIVE_PRE_CLEANUP_AOS_COMMANDS
   + CHANNEL_CLEANUP_R1_AOS_COMMANDS

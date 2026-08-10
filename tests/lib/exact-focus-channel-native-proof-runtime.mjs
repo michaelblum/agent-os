@@ -382,10 +382,26 @@ export function strictFocusEntries(options, identity) {
   return entries;
 }
 
-export function focusEntry(options, identity, id) {
-  const matches = strictFocusEntries(options, identity).filter((entry) => entry?.id === id);
+function uniqueFocusEntry(entries, id) {
+  const matches = entries.filter((entry) => entry?.id === id);
   fail(matches.length <= 1, 'FOCUS_ID_AMBIGUOUS');
   return matches[0] ?? null;
+}
+
+export function singlePublicFocusEntry(options, id, execute = runProgram) {
+  // Immediate post-update freshness observation only; later phases use the
+  // daemon-bracketed focusEntry route.
+  const entries = focusEntries(runAOSSuccess(
+    options,
+    ['focus', 'list'],
+    'FOCUS_LIST_FAILED',
+    execute,
+  ));
+  return uniqueFocusEntry(entries, id);
+}
+
+export function focusEntry(options, identity, id) {
+  return uniqueFocusEntry(strictFocusEntries(options, identity), id);
 }
 
 export async function removeChannelsQuiescent(options, identity, ids) {

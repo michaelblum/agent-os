@@ -43,6 +43,7 @@ import {
   removeFile,
   runAOSFailure,
   runAOSSuccess,
+  singlePublicFocusEntry,
   startFixture,
   stopFixture,
   strictFocusEntries,
@@ -338,7 +339,7 @@ async function main() {
       '--depth', '15',
       '--subtree-identifier', metadata.target_identifier,
     ], 'TARGET_REFRESH_BEFORE_CLOSE_FAILED');
-    const refreshedBeforeClose = focusEntry(options, identity, options.channel);
+    const refreshedBeforeClose = singlePublicFocusEntry(options, options.channel);
     fail(refreshedBeforeClose !== null, 'TARGET_REFRESH_BEFORE_CLOSE_MISSING');
     fail(
       equalJSON(stableFocusProjection(refreshedBeforeClose), preservedProjection),

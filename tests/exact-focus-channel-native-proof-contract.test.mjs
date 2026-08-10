@@ -12,6 +12,7 @@ import {
   MISSING_TARGET_CAPTURE_MAX_PUBLICATION_AGE_MS,
   missingTargetCaptureFreshnessIsValid,
 } from './lib/exact-focus-channel-native-proof-model.mjs';
+import { singlePublicFocusEntry } from './lib/exact-focus-channel-native-proof-runtime.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const helperPath = path.join(root, 'tests/manual/exact-focus-channel-native-proof.swift');
@@ -145,6 +146,47 @@ test('missing-target live capture stays inside the exact planner freshness envel
   assert.match(
     fs.readFileSync(capturePipelinePath, 'utf8'),
     /catch AOSExactChannelCapturePlanError\.windowNotFound \{\s+exitError\("Channel window is no longer available", code: "WINDOW_NOT_FOUND"\)/u,
+  );
+});
+
+test('pre-close public focus observation is one exact list command and unique by id', () => {
+  const options = { aos: '/unused/aos', root: '/unused/root' };
+  const owned = { id: 'owned-channel', kind: 'window', updated_at: '2026-08-10T12:00:00Z' };
+  const observe = (channels) => {
+    const calls = [];
+    const entry = singlePublicFocusEntry(options, owned.id, (file, args, execution) => {
+      calls.push({ args, execution, file });
+      return {
+        signal: null,
+        status: 0,
+        stderr: '',
+        stdout: JSON.stringify({ data: { channels } }),
+      };
+    });
+    assert.deepEqual(calls, [{
+      args: ['focus', 'list'],
+      execution: { commandClass: 'aos', cwd: options.root },
+      file: options.aos,
+    }]);
+    return entry;
+  };
+  assert.deepEqual(observe([owned]), owned);
+  assert.equal(observe([]), null);
+  assert.throws(
+    () => observe([owned, { ...owned }]),
+    (error) => error?.code === 'FOCUS_ID_AMBIGUOUS',
+  );
+  assert.throws(
+    () => singlePublicFocusEntry(options, owned.id, () => ({
+      signal: null, status: 0, stderr: '', stdout: '{"data":{}}',
+    })),
+    (error) => error?.code === 'FOCUS_LIST_INVALID',
+  );
+  assert.throws(
+    () => singlePublicFocusEntry(options, owned.id, () => ({
+      signal: null, status: 1, stderr: '', stdout: '',
+    })),
+    (error) => error?.code === 'FOCUS_LIST_FAILED',
   );
 });
 
@@ -335,6 +377,10 @@ test('exact focus-channel live driver uses passive public preflights and bounded
     proofRuntime.indexOf('export function runAOSSuccess'),
     proofRuntime.indexOf('export function runAOSFailure'),
   );
+  const singlePublicFocusEntryRoute = proofRuntime.slice(
+    proofRuntime.indexOf('export function singlePublicFocusEntry'),
+    proofRuntime.indexOf('export function focusEntry'),
+  );
   const successSummaryStart = driver.indexOf("    const summary = {\n      status: 'passed'");
   const failureSummaryStart = driver.indexOf("    const summary = {\n      status: 'failed'");
   assert.ok(successSummaryStart >= 0 && failureSummaryStart > successSummaryStart);
@@ -365,9 +411,21 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   assert.match(driver, /REJECTED_REFRESH_CHANGED_AX/u);
   assert.match(targetClose, /'focus', 'update'/u);
   assert.match(targetClose, /metadata\.target_identifier/u);
+  assert.match(targetClose, /singlePublicFocusEntry\(options, options\.channel\)/u);
+  assert.equal(targetClose.match(/singlePublicFocusEntry/g)?.length, 1);
+  assert.equal(driver.match(/singlePublicFocusEntry\(options, options\.channel\)/g)?.length, 1);
+  assert.doesNotMatch(targetClose, /focusEntry\(options, identity/u);
   assert.match(targetClose, /refreshedBeforeClose\.updated_at/u);
   assert.match(targetClose, /TARGET_REFRESH_BEFORE_CLOSE_STALE/u);
-  assert.ok(targetClose.indexOf("'focus', 'update'") < targetClose.indexOf("files.closeRequest"));
+  const targetCloseOrder = [
+    "'focus', 'update'",
+    'singlePublicFocusEntry(options, options.channel)',
+    'stableFocusProjection(refreshedBeforeClose)',
+    'missingTargetCaptureFreshnessIsValid',
+    'files.closeRequest',
+  ].map((needle) => targetClose.indexOf(needle));
+  assert.ok(targetCloseOrder.every((index) => index >= 0));
+  assert.deepEqual(targetCloseOrder, [...targetCloseOrder].sort((a, b) => a - b));
   assert.doesNotMatch(targetClose, /sleep\(1_250\)/u);
   assert.match(targetClose, /waitForFile\(files\.closeAck, 3_000\)/u);
   assert.match(targetClose, /closeAck\.target_window_removed === true/u);
@@ -387,6 +445,7 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   assert.match(missingCapture, /'WINDOW_NOT_FOUND', 'MISSING_TARGET_CAPTURE_NOT_REJECTED'/u);
   assert.match(missingCapture, /commandClass: MISSING_TARGET_CAPTURE_COMMAND_CLASS/u);
   assert.match(missingRefresh, /'WINDOW_NOT_FOUND', 'MISSING_TARGET_REFRESH_NOT_REJECTED'/u);
+  assert.match(missingRefresh, /focusEntry\(options, identity, options\.channel\)/u);
   assert.match(missingRefresh, /afterMissingRefresh !== null/u);
   assert.match(missingRefresh, /MISSING_REFRESH_CHANGED_PUBLICATION/u);
   assert.match(
@@ -398,6 +457,8 @@ test('exact focus-channel live driver uses passive public preflights and bounded
       < proofContract.indexOf("'missing_target_refresh'"),
   );
   assert.match(proofRuntime, /SHARED_DAEMON_CHANGED/u);
+  assert.match(singlePublicFocusEntryRoute, /\['focus', 'list'\]/u);
+  assert.doesNotMatch(singlePublicFocusEntryRoute, /assertSameDaemon|strictFocusEntries|service.*status/u);
   assert.match(combined, /'runtime', 'build-attestation', '--json'/u);
   assert.match(proofRuntime, /'service', 'status', '--mode', 'repo', '--json'/u);
   assert.match(driver, /daemon_path_start_order_bound: true/u);
@@ -631,10 +692,11 @@ test('exact focus-channel outer budgets dominate exact cleanup and late-failure 
   assert.equal(exactCleanupCalls, 60);
   assert.equal(cleanupAOSCeiling, 60);
   assert.ok(cleanupAOSCeiling >= exactCleanupCalls);
-  assert.equal(livePrefixCalls, 44);
-  assert.equal(exactLateFailureCatchCalls, 149);
+  assert.equal(livePrefixCalls, 40);
+  assert.equal(exactLateFailureCatchCalls, 145);
   assert.equal(liveAOSCeiling, 149);
   assert.ok(liveAOSCeiling >= exactLateFailureCatchCalls);
+  assert.equal(liveAOSCeiling - exactLateFailureCatchCalls, 4);
   assert.equal(liveLocalCeiling, 8);
   assert.equal(fixtureCheckpointWaits, 4);
   assert.equal(fixtureCheckpointWaitMilliseconds, 2_000);
