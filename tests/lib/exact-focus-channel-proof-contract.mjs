@@ -23,7 +23,7 @@ export const AOS_PRECOMMIT_REJECTION_CODE_LIST = Object.freeze([
   'NATIVE_AX_ROOT_MISMATCH',
   'WINDOW_NOT_FOUND',
 ]);
-export const PROGRESS_SCHEMA = 'aos.exact-focus-channel-native-progress.v1';
+export const PROGRESS_SCHEMA = 'aos.exact-focus-channel-native-progress.v2';
 export const PROGRESS_MAX_BYTES = 2_048;
 export const PROGRESS_MAX_ELAPSED_MS = 1_800_000;
 export const PROGRESS_STAGES = Object.freeze([
@@ -36,8 +36,8 @@ export const PROGRESS_STAGES = Object.freeze([
   'rejected_refresh',
   'preserved_capture',
   'target_close',
-  'missing_target_refresh',
   'missing_target_capture',
+  'missing_target_refresh',
   'channel_cleanup',
   'fixture_cleanup',
   'postflight_attestation',

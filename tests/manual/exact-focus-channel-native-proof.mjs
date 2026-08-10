@@ -11,17 +11,20 @@ import {
   writeProgressReceipt as publishProgressReceipt,
 } from '../lib/exact-focus-channel-proof-contract.mjs';
 import {
+  MISSING_TARGET_CAPTURE_COMMAND_TIMEOUT_MS,
   SNAPSHOT_KEY_ENV,
   ProofError,
   boundsEqual,
   commandFailureFields,
   equalJSON,
   fail,
+  missingTargetCaptureFreshnessIsValid,
   parseJSON,
   stableFocusProjection,
   stablePublicChannelDigests,
 } from '../lib/exact-focus-channel-native-proof-model.mjs';
 import {
+  MISSING_TARGET_CAPTURE_COMMAND_CLASS,
   armChannelCleanup,
   assertBuildAttestation,
   assertEnvironmentScope,
@@ -40,7 +43,6 @@ import {
   removeFile,
   runAOSFailure,
   runAOSSuccess,
-  sleep,
   startFixture,
   stopFixture,
   strictFocusEntries,
@@ -330,12 +332,47 @@ async function main() {
     progress.complete('preserved_capture');
 
     progress.start('target_close');
+    runAOSSuccess(options, [
+      'focus', 'update',
+      '--id', options.channel,
+      '--depth', '15',
+      '--subtree-identifier', metadata.target_identifier,
+    ], 'TARGET_REFRESH_BEFORE_CLOSE_FAILED');
+    const refreshedBeforeClose = focusEntry(options, identity, options.channel);
+    fail(refreshedBeforeClose !== null, 'TARGET_REFRESH_BEFORE_CLOSE_MISSING');
+    fail(
+      equalJSON(stableFocusProjection(refreshedBeforeClose), preservedProjection),
+      'TARGET_REFRESH_BEFORE_CLOSE_CHANGED_PUBLICATION',
+    );
+    const targetRefreshObservedAt = Date.now();
+    fail(missingTargetCaptureFreshnessIsValid({
+      updatedAt: refreshedBeforeClose.updated_at,
+      observedAtMilliseconds: targetRefreshObservedAt,
+      launchAtMilliseconds: targetRefreshObservedAt,
+      commandTimeoutMilliseconds: MISSING_TARGET_CAPTURE_COMMAND_TIMEOUT_MS,
+    }), 'TARGET_REFRESH_BEFORE_CLOSE_STALE');
     fs.writeFileSync(files.closeRequest, 'close\n', { mode: 0o600 });
     await waitForFile(files.closeAck, 3_000);
     const closeAck = parseJSON(fs.readFileSync(files.closeAck, 'utf8'), 'TARGET_CLOSE_INVALID');
     fail(closeAck.target_window_removed === true, 'TARGET_WINDOW_STILL_PRESENT');
-    await sleep(1_250);
     progress.complete('target_close');
+
+    progress.start('missing_target_capture');
+    removeFile(files.failedCapture);
+    const missingTargetCaptureLaunchAt = Date.now();
+    fail(missingTargetCaptureFreshnessIsValid({
+      updatedAt: refreshedBeforeClose.updated_at,
+      observedAtMilliseconds: targetRefreshObservedAt,
+      launchAtMilliseconds: missingTargetCaptureLaunchAt,
+      commandTimeoutMilliseconds: MISSING_TARGET_CAPTURE_COMMAND_TIMEOUT_MS,
+    }), 'MISSING_TARGET_CAPTURE_RECENCY_EXPIRED');
+    runAOSFailure(options, [
+      'see', 'capture', '--channel', options.channel, '--out', files.failedCapture,
+    ], 'WINDOW_NOT_FOUND', 'MISSING_TARGET_CAPTURE_NOT_REJECTED', {
+      commandClass: MISSING_TARGET_CAPTURE_COMMAND_CLASS,
+    });
+    fail(!fs.existsSync(files.failedCapture), 'FAILED_CAPTURE_ARTIFACT_PRESENT');
+    progress.complete('missing_target_capture');
 
     progress.start('missing_target_refresh');
     runAOSFailure(options, [
@@ -345,14 +382,6 @@ async function main() {
     fail(afterMissingRefresh !== null, 'MISSING_REFRESH_REMOVED_CHANNEL');
     fail(equalJSON(stableFocusProjection(afterMissingRefresh), preservedProjection), 'MISSING_REFRESH_CHANGED_PUBLICATION');
     progress.complete('missing_target_refresh');
-
-    progress.start('missing_target_capture');
-    removeFile(files.failedCapture);
-    runAOSFailure(options, [
-      'see', 'capture', '--channel', options.channel, '--out', files.failedCapture,
-    ], 'WINDOW_NOT_FOUND', 'MISSING_TARGET_CAPTURE_NOT_REJECTED');
-    fail(!fs.existsSync(files.failedCapture), 'FAILED_CAPTURE_ARTIFACT_PRESENT');
-    progress.complete('missing_target_capture');
 
     progress.start('channel_cleanup');
     channelRemoved = await removeChannelsQuiescent(options, identity, channelIDs);

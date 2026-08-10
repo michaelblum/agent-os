@@ -352,7 +352,13 @@ test('shared command-error, progress, and command-runner contracts are exact', (
     'CHANNEL_NOT_FOUND', 'CHANNEL_STALE', 'DUPLICATE_ID', 'INVALID_DEPTH',
     'NATIVE_AX_ROOT_MISMATCH', 'WINDOW_NOT_FOUND',
   ]);
-  assert.equal(PROGRESS_STAGES.length, 14);
+  assert.deepEqual(PROGRESS_STAGES, [
+    'runtime_preflight', 'unrelated_channel_snapshot', 'fixture_startup',
+    'sibling_subtree_rejection', 'target_channel_creation', 'initial_capture',
+    'rejected_refresh', 'preserved_capture', 'target_close',
+    'missing_target_capture', 'missing_target_refresh', 'channel_cleanup',
+    'fixture_cleanup', 'postflight_attestation',
+  ]);
   assert.match(driver, /from '\.\.\/lib\/exact-focus-channel-proof-contract\.mjs'/u);
   assert.match(runner, /--validate-driver-summary|--summary-admission-is-nonambiguous/u);
   assert.match(runner, /--merge-sanitized-progress/u);

@@ -58,10 +58,10 @@ typeset -r EXACT_CLEANUP_MAX_AOS_COMMANDS=$((
   CHANNEL_CLEANUP_R2_AOS_COMMANDS + POST_CLEANUP_ATTESTATION_AOS_COMMANDS
 ))
 typeset -r CLEANUP_MAX_AOS_COMMANDS=60
-# Exact worst late failure + catch is 38 + R(1) + R(1) + 9 = 143. Retain the
-# stricter 149-call review ceiling and include eight local commands because a
-# late catch can repeat the two git provenance helpers.
-typeset -r LIVE_PRE_CLEANUP_AOS_COMMANDS=38
+# Exact worst late failure + catch is 44 + R(1) + R(1) + 9 = 149. The exact
+# 149-call review ceiling includes the pre-close target refresh and its strict
+# public re-read; eight local commands cover repeated git provenance helpers.
+typeset -r LIVE_PRE_CLEANUP_AOS_COMMANDS=44
 typeset -r EXACT_LIVE_FAILURE_CATCH_MAX_AOS_COMMANDS=$((
   LIVE_PRE_CLEANUP_AOS_COMMANDS
   + CHANNEL_CLEANUP_R1_AOS_COMMANDS
@@ -513,7 +513,7 @@ case "$MODE" in
     ;;
   --cleanup-signal-self-test)
     PROGRESS_TEMP_FILE="$TMP_ROOT/.progress-self-test.tmp"
-    print -r -- '{"schema":"aos.exact-focus-channel-native-progress.v1","ordinal":1,"last_started_stage":"runtime_preflight","last_completed_stage":null,"elapsed_ms":7}' > "$PROGRESS_TEMP_FILE"
+    print -r -- '{"schema":"aos.exact-focus-channel-native-progress.v2","ordinal":1,"last_started_stage":"runtime_preflight","last_completed_stage":null,"elapsed_ms":7}' > "$PROGRESS_TEMP_FILE"
     chmod 600 "$PROGRESS_TEMP_FILE"
     mv "$PROGRESS_TEMP_FILE" "$PROGRESS_FILE"
     SUMMARY='{"cleanup_complete":true,"cleanup_signal_deferred":true,"status":"passed"}'

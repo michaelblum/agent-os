@@ -11,6 +11,7 @@ import { createRunProgram } from './exact-focus-channel-command-runner.mjs';
 import { extractAOSCommandErrorCode } from './exact-focus-channel-proof-contract.mjs';
 import {
   FIXTURE_RESULT_MAX_BYTES,
+  MISSING_TARGET_CAPTURE_COMMAND_TIMEOUT_MS,
   SNAPSHOT_KEY_ENV,
   ProofError,
   allowlistedAOSCommandError,
@@ -33,7 +34,13 @@ const NO_AUTOSTART_ENV = Object.freeze({
 const COMMAND_RESPONSE_DEADLINE_MS = 3_000;
 const CLEAN_ABSENCE_SETTLE_MS = COMMAND_RESPONSE_DEADLINE_MS + 250;
 const FIXTURE_GEOMETRY_CHECKPOINT_WAIT_MS = 2_000;
-const COMMAND_CLASS_TIMEOUT_MS = Object.freeze({ capture: 30_000, aos: 10_000, local: 10_000 });
+export const MISSING_TARGET_CAPTURE_COMMAND_CLASS = 'missing_target_capture';
+const COMMAND_CLASS_TIMEOUT_MS = Object.freeze({
+  capture: 30_000,
+  [MISSING_TARGET_CAPTURE_COMMAND_CLASS]: MISSING_TARGET_CAPTURE_COMMAND_TIMEOUT_MS,
+  aos: 10_000,
+  local: 10_000,
+});
 
 export function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -160,11 +167,34 @@ export function runAOSSuccess(options, args, code, execute = runProgram) {
   return payload;
 }
 
-export function runAOSFailure(options, args, expectedCode, code, execute = runProgram) {
+function failureCommandExecution(execution, args) {
+  if (typeof execution === 'function') {
+    return { execute: execution, commandClass: aosCommandClass(args) };
+  }
+  if (execution === undefined) {
+    return { execute: runProgram, commandClass: aosCommandClass(args) };
+  }
+  fail(execution !== null && typeof execution === 'object' && !Array.isArray(execution),
+    'COMMAND_CLASS_INVALID');
+  fail(Object.keys(execution).every((key) => ['commandClass', 'execute'].includes(key)),
+    'COMMAND_CLASS_INVALID');
+  const execute = Object.hasOwn(execution, 'execute') ? execution.execute : runProgram;
+  const commandClass = Object.hasOwn(execution, 'commandClass')
+    ? execution.commandClass
+    : aosCommandClass(args);
+  fail(typeof execute === 'function'
+    && typeof commandClass === 'string'
+    && Object.hasOwn(COMMAND_CLASS_TIMEOUT_MS, commandClass),
+  'COMMAND_CLASS_INVALID');
+  return { execute, commandClass };
+}
+
+export function runAOSFailure(options, args, expectedCode, code, execution = undefined) {
+  const { execute, commandClass } = failureCommandExecution(execution, args);
   let result;
   try {
     result = execute(options.aos, args, {
-      commandClass: aosCommandClass(args),
+      commandClass,
       cwd: options.root,
     });
   } catch (error) {

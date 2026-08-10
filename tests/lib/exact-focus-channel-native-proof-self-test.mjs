@@ -67,17 +67,45 @@ export function commandTelemetrySelfTest() {
     'SIBLING_SUBTREE_NOT_REJECTED',
     execute(result('WINDOW_NOT_FOUND', rawSentinel, 'stdout')),
   );
+  let observedFailureCommandClass = null;
+  const classedFailure = runAOSFailure(
+    options,
+    ['see', 'capture'],
+    'WINDOW_NOT_FOUND',
+    'MISSING_TARGET_CAPTURE_NOT_REJECTED',
+    {
+      commandClass: 'missing_target_capture',
+      execute: (_file, _args, executionOptions) => {
+        observedFailureCommandClass = executionOptions.commandClass;
+        return result('WINDOW_NOT_FOUND', rawSentinel, 'stdout');
+      },
+    },
+  );
   const stderrPriority = captureProofError(() => runAOSFailure(
     options,
     mutation,
     'WINDOW_NOT_FOUND',
     'SIBLING_SUBTREE_NOT_REJECTED',
-    execute({
+    { execute: execute({
       status: 1,
       signal: null,
       stdout: JSON.stringify({ code: 'WINDOW_NOT_FOUND', error: rawSentinel }),
       stderr: JSON.stringify({ code: 'INTERNAL', error: rawSentinel }),
-    }),
+    }) },
+  ));
+  const mismatchedPrecommitCode = captureProofError(() => runAOSFailure(
+    options,
+    ['see', 'capture'],
+    'WINDOW_NOT_FOUND',
+    'MISSING_TARGET_CAPTURE_NOT_REJECTED',
+    { execute: execute(result('CHANNEL_STALE', rawSentinel, 'stdout')) },
+  ));
+  const invalidFailureExecution = captureProofError(() => runAOSFailure(
+    options,
+    mutation,
+    'WINDOW_NOT_FOUND',
+    'SIBLING_SUBTREE_NOT_REJECTED',
+    { execute: null },
   ));
   const typedAmbiguous = ['DAEMON_UNREACHABLE', 'DAEMON_UNAVAILABLE', 'INTERNAL'].map(
     (typedCode) => captureProofError(() => (
@@ -144,7 +172,7 @@ export function commandTelemetrySelfTest() {
     mutation,
     'WINDOW_NOT_FOUND',
     'SIBLING_SUBTREE_NOT_REJECTED',
-    execute({ status: 0, signal: null, stdout: rawSentinel, stderr: '' }),
+    { execute: execute({ status: 0, signal: null, stdout: rawSentinel, stderr: '' }) },
   ));
   const readOnlyUntyped = captureProofError(() => runAOSSuccess(
     options,
@@ -171,6 +199,15 @@ export function commandTelemetrySelfTest() {
       && error.commandAdmissionAmbiguous === false
   )), 'COMMAND_TELEMETRY_SELF_TEST_FAILED');
   fail(expectedFailure === undefined, 'COMMAND_TELEMETRY_SELF_TEST_FAILED');
+  fail(classedFailure === undefined
+    && observedFailureCommandClass === 'missing_target_capture',
+  'COMMAND_TELEMETRY_SELF_TEST_FAILED');
+  fail(mismatchedPrecommitCode.commandErrorCode === 'CHANNEL_STALE'
+    && mismatchedPrecommitCode.commandAdmissionAmbiguous === false,
+  'COMMAND_TELEMETRY_SELF_TEST_FAILED');
+  fail(invalidFailureExecution.code === 'COMMAND_CLASS_INVALID'
+    && invalidFailureExecution.commandAdmissionAmbiguous === false,
+  'COMMAND_TELEMETRY_SELF_TEST_FAILED');
   fail(stderrPriority.commandErrorCode === 'INTERNAL'
     && stderrPriority.commandAdmissionAmbiguous === true,
   'COMMAND_TELEMETRY_SELF_TEST_FAILED');
@@ -206,7 +243,11 @@ export function commandTelemetrySelfTest() {
   process.stdout.write(`${JSON.stringify({
     allowlisted_command_error_code: true,
     ambiguous_command_admission: true,
+    dedicated_missing_target_timeout_class: true,
     exact_utf8_byte_boundaries: true,
+    invalid_failure_execution_rejected: true,
+    legacy_failure_executor_supported: true,
+    mismatched_precommit_code_preserved: true,
     precommit_rejection_nonambiguous: true,
     raw_command_output_reflected: false,
     read_only_failure_nonadmitting: true,

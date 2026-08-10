@@ -5,6 +5,13 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import {
+  MISSING_TARGET_CAPTURE_CHANNEL_TTL_MS,
+  MISSING_TARGET_CAPTURE_COMMAND_TIMEOUT_MS,
+  MISSING_TARGET_CAPTURE_MAX_LAUNCH_DELAY_MS,
+  MISSING_TARGET_CAPTURE_MAX_PUBLICATION_AGE_MS,
+  missingTargetCaptureFreshnessIsValid,
+} from './lib/exact-focus-channel-native-proof-model.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const helperPath = path.join(root, 'tests/manual/exact-focus-channel-native-proof.swift');
@@ -17,6 +24,8 @@ const proofRuntimePath = path.join(root, 'tests/lib/exact-focus-channel-native-p
 const proofSelfTestPath = path.join(root, 'tests/lib/exact-focus-channel-native-proof-self-test.mjs');
 const driverPath = path.join(root, 'tests/manual/exact-focus-channel-native-proof.mjs');
 const runnerPath = path.join(root, 'tests/manual/exact-focus-channel-native-proof.sh');
+const channelSourcePath = path.join(root, 'src/display/channel.swift');
+const capturePipelinePath = path.join(root, 'src/perceive/capture-pipeline.swift');
 const expectedFixtureFailureCodes = Object.freeze([
   'FIXTURE_ARGUMENTS_INVALID',
   'FIXTURE_HELPER_FAILED',
@@ -103,6 +112,40 @@ test('native proof model, runtime, self-test, and command runner are import-safe
     assert.equal(imported.stdout, '');
     assert.equal(imported.stderr, '');
   }
+});
+
+test('missing-target live capture stays inside the exact planner freshness envelope', () => {
+  const updatedAt = '2026-08-10T12:00:00Z';
+  const updatedAtMilliseconds = Date.parse(updatedAt);
+  const candidate = ({ publicationAge = 1_999, launchDelay = 3_999,
+    timeout = MISSING_TARGET_CAPTURE_COMMAND_TIMEOUT_MS, value = updatedAt } = {}) => (
+    missingTargetCaptureFreshnessIsValid({
+      updatedAt: value,
+      observedAtMilliseconds: updatedAtMilliseconds + publicationAge,
+      launchAtMilliseconds: updatedAtMilliseconds + publicationAge + launchDelay,
+      commandTimeoutMilliseconds: timeout,
+    })
+  );
+  assert.equal(candidate(), true);
+  assert.equal(candidate({ publicationAge: MISSING_TARGET_CAPTURE_MAX_PUBLICATION_AGE_MS }), false);
+  assert.equal(candidate({ launchDelay: MISSING_TARGET_CAPTURE_MAX_LAUNCH_DELAY_MS }), false);
+  assert.equal(candidate({ timeout: MISSING_TARGET_CAPTURE_COMMAND_TIMEOUT_MS + 1 }), false);
+  assert.equal(candidate({ publicationAge: -1 }), false);
+  assert.equal(candidate({ launchDelay: -1 }), false);
+  assert.equal(candidate({ value: 'not-a-timestamp' }), false);
+  assert.ok(
+    MISSING_TARGET_CAPTURE_MAX_PUBLICATION_AGE_MS
+      + MISSING_TARGET_CAPTURE_MAX_LAUNCH_DELAY_MS
+      + MISSING_TARGET_CAPTURE_COMMAND_TIMEOUT_MS < MISSING_TARGET_CAPTURE_CHANNEL_TTL_MS,
+  );
+  const channelTTLMatch = fs.readFileSync(channelSourcePath, 'utf8')
+    .match(/timeIntervalSince\(updated\) > ([0-9]+(?:\.[0-9]+)?)/u);
+  assert.ok(channelTTLMatch);
+  assert.equal(Number(channelTTLMatch[1]) * 1_000, MISSING_TARGET_CAPTURE_CHANNEL_TTL_MS);
+  assert.match(
+    fs.readFileSync(capturePipelinePath, 'utf8'),
+    /catch AOSExactChannelCapturePlanError\.windowNotFound \{\s+exitError\("Channel window is no longer available", code: "WINDOW_NOT_FOUND"\)/u,
+  );
 });
 
 test('exact focus-channel pixel classifier has an offline deterministic self-test', () => {
@@ -253,6 +296,21 @@ test('exact focus-channel live driver uses passive public preflights and bounded
     fixtureStartupStart,
     driver.indexOf("    progress.complete('fixture_startup');", fixtureStartupStart),
   );
+  const targetCloseStart = driver.indexOf("    progress.start('target_close');");
+  const targetClose = driver.slice(
+    targetCloseStart,
+    driver.indexOf("    progress.complete('target_close');", targetCloseStart),
+  );
+  const missingCaptureStart = driver.indexOf("    progress.start('missing_target_capture');");
+  const missingCapture = driver.slice(
+    missingCaptureStart,
+    driver.indexOf("    progress.complete('missing_target_capture');", missingCaptureStart),
+  );
+  const missingRefreshStart = driver.indexOf("    progress.start('missing_target_refresh');");
+  const missingRefresh = driver.slice(
+    missingRefreshStart,
+    driver.indexOf("    progress.complete('missing_target_refresh');", missingRefreshStart),
+  );
   const liveRun = runner.slice(
     runner.indexOf('  --run)'),
     runner.indexOf('  --runner-preflight-self-test)'),
@@ -305,7 +363,40 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   assert.match(driver, /createdEntry\?\.elements_count === 1/u);
   assert.match(driver, /REJECTED_REFRESH_CHANGED_DECODED_PIXELS/u);
   assert.match(driver, /REJECTED_REFRESH_CHANGED_AX/u);
-  assert.match(driver, /MISSING_TARGET_CAPTURE_NOT_REJECTED/u);
+  assert.match(targetClose, /'focus', 'update'/u);
+  assert.match(targetClose, /metadata\.target_identifier/u);
+  assert.match(targetClose, /refreshedBeforeClose\.updated_at/u);
+  assert.match(targetClose, /TARGET_REFRESH_BEFORE_CLOSE_STALE/u);
+  assert.ok(targetClose.indexOf("'focus', 'update'") < targetClose.indexOf("files.closeRequest"));
+  assert.doesNotMatch(targetClose, /sleep\(1_250\)/u);
+  assert.match(targetClose, /waitForFile\(files\.closeAck, 3_000\)/u);
+  assert.match(targetClose, /closeAck\.target_window_removed === true/u);
+  assert.ok(missingCaptureStart < missingRefreshStart);
+  assert.match(missingCapture, /missingTargetCaptureFreshnessIsValid/u);
+  assert.match(missingCapture, /MISSING_TARGET_CAPTURE_RECENCY_EXPIRED/u);
+  assert.ok(
+    missingCapture.indexOf('removeFile(files.failedCapture)')
+      < missingCapture.indexOf('const missingTargetCaptureLaunchAt = Date.now()')
+      && missingCapture.indexOf('const missingTargetCaptureLaunchAt = Date.now()')
+        < missingCapture.indexOf('missingTargetCaptureFreshnessIsValid')
+      && missingCapture.indexOf('missingTargetCaptureFreshnessIsValid')
+        < missingCapture.indexOf('runAOSFailure')
+      && missingCapture.indexOf('runAOSFailure')
+        < missingCapture.indexOf('FAILED_CAPTURE_ARTIFACT_PRESENT'),
+  );
+  assert.match(missingCapture, /'WINDOW_NOT_FOUND', 'MISSING_TARGET_CAPTURE_NOT_REJECTED'/u);
+  assert.match(missingCapture, /commandClass: MISSING_TARGET_CAPTURE_COMMAND_CLASS/u);
+  assert.match(missingRefresh, /'WINDOW_NOT_FOUND', 'MISSING_TARGET_REFRESH_NOT_REJECTED'/u);
+  assert.match(missingRefresh, /afterMissingRefresh !== null/u);
+  assert.match(missingRefresh, /MISSING_REFRESH_CHANGED_PUBLICATION/u);
+  assert.match(
+    proofRuntime,
+    /\[MISSING_TARGET_CAPTURE_COMMAND_CLASS\]: MISSING_TARGET_CAPTURE_COMMAND_TIMEOUT_MS/u,
+  );
+  assert.ok(
+    proofContract.indexOf("'missing_target_capture'")
+      < proofContract.indexOf("'missing_target_refresh'"),
+  );
   assert.match(proofRuntime, /SHARED_DAEMON_CHANGED/u);
   assert.match(combined, /'runtime', 'build-attestation', '--json'/u);
   assert.match(proofRuntime, /'service', 'status', '--mode', 'repo', '--json'/u);
@@ -323,7 +414,7 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   assert.match(driver, /fixtureProcessReaped/u);
   assert.match(driver, /raw_capture_logged: false/u);
   assert.match(driver, /pixels_persisted: false/u);
-  assert.match(proofContract, /export const PROGRESS_SCHEMA = 'aos\.exact-focus-channel-native-progress\.v1'/u);
+  assert.match(proofContract, /export const PROGRESS_SCHEMA = 'aos\.exact-focus-channel-native-progress\.v2'/u);
   assert.match(proofContract, /export const PROGRESS_MAX_BYTES = 2_048/u);
   assert.match(proofContract, /export const AOS_COMMAND_ERROR_MAX_BYTES = 2_048/u);
   assert.match(proofModel, /export const FIXTURE_RESULT_MAX_BYTES = 2_048/u);
@@ -540,7 +631,8 @@ test('exact focus-channel outer budgets dominate exact cleanup and late-failure 
   assert.equal(exactCleanupCalls, 60);
   assert.equal(cleanupAOSCeiling, 60);
   assert.ok(cleanupAOSCeiling >= exactCleanupCalls);
-  assert.equal(exactLateFailureCatchCalls, 143);
+  assert.equal(livePrefixCalls, 44);
+  assert.equal(exactLateFailureCatchCalls, 149);
   assert.equal(liveAOSCeiling, 149);
   assert.ok(liveAOSCeiling >= exactLateFailureCatchCalls);
   assert.equal(liveLocalCeiling, 8);
@@ -577,7 +669,7 @@ test('exact focus-channel progress sanitizer fails closed without reflecting unt
     progress_elapsed_ms: null,
   };
   const validReceipt = {
-    schema: 'aos.exact-focus-channel-native-progress.v1',
+    schema: 'aos.exact-focus-channel-native-progress.v2',
     ordinal: 5,
     last_started_stage: 'fixture_startup',
     last_completed_stage: 'unrelated_channel_snapshot',
@@ -700,7 +792,11 @@ test('exact focus-channel command telemetry is allowlisted, admission-aware, and
   assert.deepEqual(JSON.parse(result.stdout.trim()), {
     allowlisted_command_error_code: true,
     ambiguous_command_admission: true,
+    dedicated_missing_target_timeout_class: true,
     exact_utf8_byte_boundaries: true,
+    invalid_failure_execution_rejected: true,
+    legacy_failure_executor_supported: true,
+    mismatched_precommit_code_preserved: true,
     precommit_rejection_nonambiguous: true,
     raw_command_output_reflected: false,
     read_only_failure_nonadmitting: true,

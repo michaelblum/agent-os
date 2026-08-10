@@ -8,6 +8,10 @@ import {
 export const SNAPSHOT_KEY_ENV = 'AOS_EXACT_FOCUS_CHANNEL_SNAPSHOT_KEY';
 export const FIXTURE_RESULT_MAX_BYTES = 2_048;
 export const FIXTURE_METADATA_SCHEMA = 'aos.exact-focus-channel-native-fixture.v1';
+export const MISSING_TARGET_CAPTURE_CHANNEL_TTL_MS = 10_000;
+export const MISSING_TARGET_CAPTURE_MAX_PUBLICATION_AGE_MS = 2_000;
+export const MISSING_TARGET_CAPTURE_MAX_LAUNCH_DELAY_MS = 4_000;
+export const MISSING_TARGET_CAPTURE_COMMAND_TIMEOUT_MS = 3_000;
 const FIXTURE_READINESS_FAILURE_CODES = Object.freeze([
   'FIXTURE_WINDOW_LIST_UNAVAILABLE',
   'FIXTURE_WINDOW_OWNERSHIP_MISMATCH',
@@ -70,6 +74,27 @@ export class ProofError extends Error {
 }
 export function fail(condition, code, options) {
   if (!condition) throw new ProofError(code, options);
+}
+export function missingTargetCaptureFreshnessIsValid({
+  updatedAt,
+  observedAtMilliseconds,
+  launchAtMilliseconds,
+  commandTimeoutMilliseconds = MISSING_TARGET_CAPTURE_COMMAND_TIMEOUT_MS,
+}) {
+  const updatedAtMilliseconds = Date.parse(updatedAt);
+  if (![updatedAtMilliseconds, observedAtMilliseconds, launchAtMilliseconds,
+    commandTimeoutMilliseconds].every(Number.isSafeInteger)) return false;
+  const publicationAgeMilliseconds = observedAtMilliseconds - updatedAtMilliseconds;
+  const launchDelayMilliseconds = launchAtMilliseconds - observedAtMilliseconds;
+  return publicationAgeMilliseconds >= 0
+    && publicationAgeMilliseconds < MISSING_TARGET_CAPTURE_MAX_PUBLICATION_AGE_MS
+    && launchDelayMilliseconds >= 0
+    && launchDelayMilliseconds < MISSING_TARGET_CAPTURE_MAX_LAUNCH_DELAY_MS
+    && commandTimeoutMilliseconds > 0
+    && commandTimeoutMilliseconds <= MISSING_TARGET_CAPTURE_COMMAND_TIMEOUT_MS
+    && publicationAgeMilliseconds
+      + launchDelayMilliseconds
+      + commandTimeoutMilliseconds < MISSING_TARGET_CAPTURE_CHANNEL_TTL_MS;
 }
 export function parseJSON(text, code = 'INVALID_JSON') {
   try {
