@@ -19,6 +19,42 @@ const SUPERVISOR_KILL_GRACE_MS = 3_000;
 const SUPERVISOR_PARENT_POLL_MS = 100;
 const DRIVER_PATH = fileURLToPath(import.meta.url);
 const SNAPSHOT_KEY_ENV = 'AOS_EXACT_FOCUS_CHANNEL_SNAPSHOT_KEY';
+const PROGRESS_SCHEMA = 'aos.exact-focus-channel-native-progress.v1';
+const PROGRESS_MAX_BYTES = 2_048;
+// This content-free observation cap exceeds the shell's conservative
+// 1,720,000ms outer live deadline, including failure and catch cleanup.
+const PROGRESS_MAX_ELAPSED_MS = 1_800_000;
+const PROGRESS_STAGES = Object.freeze([
+  'runtime_preflight',
+  'unrelated_channel_snapshot',
+  'fixture_startup',
+  'sibling_subtree_rejection',
+  'target_channel_creation',
+  'initial_capture',
+  'rejected_refresh',
+  'preserved_capture',
+  'target_close',
+  'missing_target_refresh',
+  'missing_target_capture',
+  'channel_cleanup',
+  'fixture_cleanup',
+  'postflight_attestation',
+]);
+const PROGRESS_MAX_ORDINAL = PROGRESS_STAGES.length * 2;
+const PROGRESS_STAGE_SET = new Set(PROGRESS_STAGES);
+const COMMAND_CLASS_TIMEOUT_MS = Object.freeze({
+  // A product capture is allowed 25 seconds; leave five seconds for wrapper
+  // startup and response serialization without making the command unbounded.
+  capture: 30_000,
+  // Public AOS queries/mutations have their own three-second response bound.
+  // Ten seconds also covers process startup and typed response serialization.
+  aos: 10_000,
+  // Local git and offline pixel-analysis helpers must also fail finitely.
+  local: 10_000,
+  // Offline-only behavioral proof that a timed-out admitted command remains
+  // ambiguous until its owning outer process group is reaped.
+  timeoutSelfTest: 100,
+});
 
 class ProofError extends Error {
   constructor(code, { ambiguous = false } = {}) {
@@ -48,9 +84,11 @@ function parseArguments(args) {
     root: valueAfter(args, '--root'),
     tempRoot: valueAfter(args, '--temp-root'),
     channel: valueAfter(args, '--channel'),
+    progress: valueAfter(args, '--progress'),
     runtimeRevision: valueAfter(args, '--runtime-source-revision'),
   };
   fail(Object.values(options).every((value) => typeof value === 'string' && value.length > 0), 'INVALID_ARGUMENTS');
+  fail(path.dirname(options.progress) === options.tempRoot, 'INVALID_ARGUMENTS');
   return options;
 }
 
@@ -60,6 +98,152 @@ function parseJSON(text, code = 'INVALID_JSON') {
   } catch {
     throw new ProofError(code);
   }
+}
+
+function monotonicElapsedMilliseconds(startedAt) {
+  const elapsed = Number((process.hrtime.bigint() - startedAt) / 1_000_000n);
+  return Math.min(Math.max(elapsed, 0), PROGRESS_MAX_ELAPSED_MS);
+}
+
+function writeProgressReceipt(file, receipt) {
+  const tempFile = path.join(
+    path.dirname(file),
+    `.${path.basename(file)}.${process.pid}.${receipt.ordinal}.tmp`,
+  );
+  let descriptor = null;
+  try {
+    descriptor = fs.openSync(tempFile, 'wx', 0o600);
+    fs.writeFileSync(descriptor, `${JSON.stringify(receipt)}\n`, { encoding: 'utf8' });
+    fs.fchmodSync(descriptor, 0o600);
+    fs.fsyncSync(descriptor);
+    fs.closeSync(descriptor);
+    descriptor = null;
+    fs.renameSync(tempFile, file);
+  } catch {
+    if (descriptor !== null) {
+      try { fs.closeSync(descriptor); } catch {}
+    }
+    try { fs.unlinkSync(tempFile); } catch {}
+    throw new ProofError('PROGRESS_RECEIPT_WRITE_FAILED');
+  }
+}
+
+function createProgressReporter(file) {
+  const startedAt = process.hrtime.bigint();
+  let ordinal = 0;
+  let activeStage = null;
+  let lastCompletedStage = null;
+  const persist = () => {
+    ordinal += 1;
+    fail(ordinal <= PROGRESS_MAX_ORDINAL, 'PROGRESS_RECEIPT_WRITE_FAILED');
+    writeProgressReceipt(file, {
+      schema: PROGRESS_SCHEMA,
+      ordinal,
+      last_started_stage: activeStage,
+      last_completed_stage: lastCompletedStage,
+      elapsed_ms: monotonicElapsedMilliseconds(startedAt),
+    });
+  };
+  return Object.freeze({
+    start(stage) {
+      fail(PROGRESS_STAGE_SET.has(stage), 'PROGRESS_STAGE_INVALID');
+      activeStage = stage;
+      persist();
+    },
+    complete(stage) {
+      fail(PROGRESS_STAGE_SET.has(stage) && activeStage === stage, 'PROGRESS_STAGE_INVALID');
+      lastCompletedStage = stage;
+      persist();
+    },
+  });
+}
+
+function unknownSanitizedProgress() {
+  return {
+    progress_receipt_valid: false,
+    progress_ordinal: null,
+    last_started_stage: 'unknown',
+    last_completed_stage: 'unknown',
+    progress_elapsed_ms: null,
+  };
+}
+
+function progressTransitionIsCoherent(ordinal, lastStartedStage, lastCompletedStage) {
+  if (!Number.isSafeInteger(ordinal) || ordinal < 1 || ordinal > PROGRESS_MAX_ORDINAL) return false;
+  const stageIndex = Math.floor((ordinal - 1) / 2);
+  const expectedStage = PROGRESS_STAGES[stageIndex];
+  const transitionCompleted = ordinal % 2 === 0;
+  const expectedCompletedStage = transitionCompleted
+    ? expectedStage
+    : (stageIndex === 0 ? null : PROGRESS_STAGES[stageIndex - 1]);
+  return lastStartedStage === expectedStage && lastCompletedStage === expectedCompletedStage;
+}
+
+function validatedProgressReceipt(file) {
+  try {
+    const noFollow = fs.constants.O_NOFOLLOW;
+    if (!Number.isInteger(noFollow) || noFollow === 0) return null;
+    const descriptor = fs.openSync(file, fs.constants.O_RDONLY | noFollow);
+    try {
+      const metadata = fs.fstatSync(descriptor);
+      if (!metadata.isFile() || metadata.size < 1 || metadata.size > PROGRESS_MAX_BYTES) return null;
+      if ((metadata.mode & 0o777) !== 0o600) return null;
+      const bytes = Buffer.alloc(metadata.size);
+      if (fs.readSync(descriptor, bytes, 0, bytes.length, 0) !== bytes.length) return null;
+      const receipt = JSON.parse(bytes.toString('utf8'));
+      if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) return null;
+      const expectedKeys = [
+        'elapsed_ms',
+        'last_completed_stage',
+        'last_started_stage',
+        'ordinal',
+        'schema',
+      ];
+      if (JSON.stringify(Object.keys(receipt).sort()) !== JSON.stringify(expectedKeys)) return null;
+      if (receipt.schema !== PROGRESS_SCHEMA) return null;
+      if (!progressTransitionIsCoherent(
+        receipt.ordinal,
+        receipt.last_started_stage,
+        receipt.last_completed_stage,
+      )) return null;
+      if (!Number.isSafeInteger(receipt.elapsed_ms)
+        || receipt.elapsed_ms < 0
+        || receipt.elapsed_ms > PROGRESS_MAX_ELAPSED_MS) return null;
+      return receipt;
+    } finally {
+      fs.closeSync(descriptor);
+    }
+  } catch {
+    return null;
+  }
+}
+
+async function sanitizeProgressReceipt(args) {
+  const file = valueAfter(args, '--path');
+  const selfTestDelayValue = valueAfter(args, '--self-test-delay-ms');
+  const selfTestDelayMilliseconds = selfTestDelayValue === null
+    ? 0
+    : parseInteger(selfTestDelayValue);
+  if (!Number.isSafeInteger(selfTestDelayMilliseconds) || selfTestDelayMilliseconds > 10_000) {
+    process.stdout.write(`${JSON.stringify(unknownSanitizedProgress())}\n`);
+    return;
+  }
+  if (selfTestDelayMilliseconds > 0) await sleep(selfTestDelayMilliseconds);
+  if (typeof file !== 'string' || file.length === 0) {
+    process.stdout.write(`${JSON.stringify(unknownSanitizedProgress())}\n`);
+    return;
+  }
+  const receipt = validatedProgressReceipt(file);
+  const sanitized = receipt === null
+    ? unknownSanitizedProgress()
+    : {
+      progress_receipt_valid: true,
+      progress_ordinal: receipt.ordinal,
+      last_started_stage: receipt.last_started_stage,
+      last_completed_stage: receipt.last_completed_stage,
+      progress_elapsed_ms: receipt.elapsed_ms,
+    };
+  process.stdout.write(`${JSON.stringify(sanitized)}\n`);
 }
 
 function nestedData(payload) {
@@ -127,59 +311,107 @@ async function retireProcessGroup(pgid) {
   return waitForProcessGroupGone(pgid, SUPERVISOR_KILL_GRACE_MS);
 }
 
+function writeDurableAtomicFile(file, contents, tag) {
+  const tempFile = `${file}.${process.pid}.${tag}.tmp`;
+  let descriptor = null;
+  try {
+    descriptor = fs.openSync(tempFile, 'wx', 0o600);
+    fs.writeFileSync(descriptor, contents, { encoding: 'utf8' });
+    fs.fchmodSync(descriptor, 0o600);
+    fs.fsyncSync(descriptor);
+    fs.closeSync(descriptor);
+    descriptor = null;
+    fs.renameSync(tempFile, file);
+  } catch (error) {
+    if (descriptor !== null) {
+      try { fs.closeSync(descriptor); } catch {}
+    }
+    try { fs.unlinkSync(tempFile); } catch {}
+    throw error;
+  }
+}
+
 async function superviseCommand(args) {
   const separator = args.indexOf('--');
-  const ownerPID = parseInteger(valueAfter(args.slice(0, separator), '--owner-pid'));
-  const groupPIDFile = valueAfter(args.slice(0, separator), '--group-pid-file');
-  const timeoutMilliseconds = parseInteger(valueAfter(args.slice(0, separator), '--timeout-ms'));
+  const supervisorArgs = args.slice(0, separator);
+  const ownerPID = parseInteger(valueAfter(supervisorArgs, '--owner-pid'));
+  const groupPIDFile = valueAfter(supervisorArgs, '--group-pid-file');
+  const readyFile = valueAfter(supervisorArgs, '--ready-file');
+  const timeoutMilliseconds = parseInteger(valueAfter(supervisorArgs, '--timeout-ms'));
+  const readyDelayValue = valueAfter(supervisorArgs, '--self-test-ready-delay-ms');
+  const readyDelayMilliseconds = readyDelayValue === null ? 0 : parseInteger(readyDelayValue);
+  const preRecordDelayValue = valueAfter(
+    supervisorArgs,
+    '--self-test-post-spawn-pre-record-delay-ms',
+  );
+  const preRecordDelayMilliseconds = preRecordDelayValue === null
+    ? 0
+    : parseInteger(preRecordDelayValue);
+  const postSpawnFile = valueAfter(supervisorArgs, '--self-test-post-spawn-file');
+  const finalReapDelayValue = valueAfter(
+    supervisorArgs,
+    '--self-test-final-reap-delay-ms',
+  );
+  const finalReapDelayMilliseconds = finalReapDelayValue === null
+    ? 0
+    : parseInteger(finalReapDelayValue);
+  const finalReapFile = valueAfter(supervisorArgs, '--self-test-final-reap-file');
+  const finalReapCompleteFile = valueAfter(
+    supervisorArgs,
+    '--self-test-final-reap-complete-file',
+  );
   fail(separator >= 0 && separator + 1 < args.length, 'SUPERVISOR_ARGUMENTS_INVALID');
   fail(Number.isSafeInteger(ownerPID) && ownerPID > 1, 'SUPERVISOR_ARGUMENTS_INVALID');
   fail(typeof groupPIDFile === 'string' && groupPIDFile.length > 0, 'SUPERVISOR_ARGUMENTS_INVALID');
+  fail(typeof readyFile === 'string' && readyFile.length > 0, 'SUPERVISOR_ARGUMENTS_INVALID');
   fail(Number.isSafeInteger(timeoutMilliseconds) && timeoutMilliseconds >= 1, 'SUPERVISOR_ARGUMENTS_INVALID');
+  fail(Number.isSafeInteger(readyDelayMilliseconds) && readyDelayMilliseconds <= 10_000, 'SUPERVISOR_ARGUMENTS_INVALID');
+  fail(Number.isSafeInteger(preRecordDelayMilliseconds) && preRecordDelayMilliseconds <= 10_000, 'SUPERVISOR_ARGUMENTS_INVALID');
+  fail(Number.isSafeInteger(finalReapDelayMilliseconds) && finalReapDelayMilliseconds <= 10_000, 'SUPERVISOR_ARGUMENTS_INVALID');
+  fail(
+    preRecordDelayMilliseconds === 0
+      || (typeof postSpawnFile === 'string' && postSpawnFile.length > 0),
+    'SUPERVISOR_ARGUMENTS_INVALID',
+  );
+  fail(
+    finalReapDelayMilliseconds === 0
+      || (typeof finalReapFile === 'string'
+        && finalReapFile.length > 0
+        && typeof finalReapCompleteFile === 'string'
+        && finalReapCompleteFile.length > 0),
+    'SUPERVISOR_ARGUMENTS_INVALID',
+  );
 
   const ownershipToken = crypto.randomBytes(16).toString('hex');
   const command = args.slice(separator + 1);
-  const child = spawn(process.execPath, [
-    DRIVER_PATH,
-    '--owned-group-wrapper',
-    '--ownership-token', ownershipToken,
-    '--',
-    ...command,
-  ], {
-    cwd: process.cwd(),
-    detached: true,
-    env: { ...process.env, ...NO_AUTOSTART_ENV },
-    stdio: 'inherit',
-  });
+  let child = null;
   let groupRecorded = false;
-  if (Number.isSafeInteger(child.pid) && child.pid > 1) {
-    try {
-      fs.writeFileSync(groupPIDFile, `${child.pid} ${ownershipToken}\n`, { mode: 0o600 });
-      groupRecorded = true;
-    } catch (error) {
-      await retireProcessGroup(child.pid);
-      throw error;
-    }
-  }
   let reason = null;
   let childResult = null;
   let terminationStarted = false;
   let escalationTimer = null;
 
-  const requestTermination = (nextReason) => {
-    if (terminationStarted || !Number.isSafeInteger(child.pid)) return;
+  const beginTermination = (allowUnrecorded = false) => {
+    if (reason === null) return;
+    if (terminationStarted || !Number.isSafeInteger(child?.pid)) return;
+    if (!groupRecorded && !allowUnrecorded) return;
     terminationStarted = true;
-    reason = nextReason;
     signalProcessGroup(child.pid, 'SIGTERM');
     escalationTimer = setTimeout(() => {
       signalProcessGroup(child.pid, 'SIGKILL');
     }, SUPERVISOR_TERM_GRACE_MS);
   };
+  const requestTermination = (nextReason) => {
+    if (reason === null) reason = nextReason;
+    beginTermination();
+  };
   const signalHandlers = new Map([
     ['SIGINT', () => requestTermination('SIGINT')],
     ['SIGTERM', () => requestTermination('SIGTERM')],
   ]);
-  for (const [signal, handler] of signalHandlers) process.once(signal, handler);
+  // Persistent handlers keep repeated same-type signals idempotent while an
+  // admitted group is still awaiting its durable ownership record.
+  for (const [signal, handler] of signalHandlers) process.on(signal, handler);
 
   const parentMonitor = setInterval(() => {
     if (process.ppid !== ownerPID || !processExists(ownerPID)) requestTermination('PARENT_LOST');
@@ -187,49 +419,111 @@ async function superviseCommand(args) {
   const deadline = setTimeout(() => requestTermination('TIMEOUT'), timeoutMilliseconds);
 
   try {
-    childResult = await new Promise((resolve) => {
-      child.once('spawn', () => {
-        if (groupRecorded) return;
-        try {
-          fs.writeFileSync(groupPIDFile, `${child.pid} ${ownershipToken}\n`, { mode: 0o600 });
-          groupRecorded = true;
-        } catch (error) {
-          requestTermination('GROUP_RECORD_FAILED');
-          resolve({ code: null, signal: null, error });
-        }
+    try {
+      // Signal, parent-loss, and deadline handling are active before detached
+      // admission. Any pre-record request remains pending until exact ownership
+      // has been durably recorded.
+      child = spawn(process.execPath, [
+        DRIVER_PATH,
+        '--owned-group-wrapper',
+        '--ownership-token', ownershipToken,
+        '--',
+        ...command,
+      ], {
+        cwd: process.cwd(),
+        detached: true,
+        env: { ...process.env, ...NO_AUTOSTART_ENV },
+        stdio: 'inherit',
       });
-      child.once('error', (error) => resolve({ code: null, signal: null, error }));
-      child.once('close', (code, signal) => resolve({ code, signal, error: null }));
-    });
+      const childResultPromise = new Promise((resolve) => {
+        child.once('error', (error) => resolve({ code: null, signal: null, error }));
+        child.once('close', (code, signal) => resolve({ code, signal, error: null }));
+      });
+      const spawnResult = await new Promise((resolve) => {
+        child.once('spawn', () => resolve({ error: null }));
+        child.once('error', (error) => resolve({ error }));
+      });
+      if (spawnResult.error || !Number.isSafeInteger(child.pid) || child.pid <= 1) {
+        childResult = await childResultPromise;
+      } else {
+        if (preRecordDelayMilliseconds > 0) {
+          writeDurableAtomicFile(postSpawnFile, `${child.pid}\n`, 'post-spawn');
+          await sleep(preRecordDelayMilliseconds);
+        }
+        try {
+          writeDurableAtomicFile(
+            groupPIDFile,
+            `${child.pid} ${ownershipToken}\n`,
+            'group-owner',
+          );
+          groupRecorded = true;
+          beginTermination();
+        } catch {
+          if (reason === null) reason = 'GROUP_RECORD_FAILED';
+          beginTermination(true);
+        }
+        if (groupRecorded && reason === null) {
+          if (readyDelayMilliseconds > 0) await sleep(readyDelayMilliseconds);
+          beginTermination();
+          if (reason === null) {
+            // Ready means handlers, owner monitoring, deadline, and the exact
+            // durable group record are all active.
+            writeDurableAtomicFile(readyFile, `${process.pid}\n`, 'ready');
+          }
+        }
+        childResult = await childResultPromise;
+      }
+    } catch (error) {
+      childResult = { code: null, signal: null, error };
+      if (Number.isSafeInteger(child?.pid)) {
+        if (reason === null) reason = 'GROUP_RECORD_FAILED';
+        beginTermination(true);
+      }
+    } finally {
+      clearInterval(parentMonitor);
+      clearTimeout(deadline);
+    }
+
+    if (finalReapDelayMilliseconds > 0 && Number.isSafeInteger(child?.pid)) {
+      try {
+        writeDurableAtomicFile(finalReapFile, `${child.pid}\n`, 'final-reap');
+      } catch {
+        if (reason === null) reason = 'GROUP_RECORD_FAILED';
+      }
+      await sleep(finalReapDelayMilliseconds);
+    }
+
+    const groupGone = Number.isSafeInteger(child?.pid) ? await retireProcessGroup(child.pid) : true;
+    if (groupGone) {
+      try {
+        fs.unlinkSync(groupPIDFile);
+      } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
+      }
+    } else {
+      process.stderr.write(`${JSON.stringify({ code: 'PROCESS_GROUP_NOT_REAPED', status: 'failed' })}\n`);
+      return 125;
+    }
+    if (finalReapDelayMilliseconds > 0) {
+      writeDurableAtomicFile(finalReapCompleteFile, 'complete\n', 'final-reap-complete');
+    }
+
+    if (reason === 'TIMEOUT') return 124;
+    if (reason === 'SIGINT') return 130;
+    if (reason === 'SIGTERM') return 143;
+    if (reason === 'PARENT_LOST') return 125;
+    if (reason === 'GROUP_RECORD_FAILED') return 125;
+    if (childResult?.error) return 125;
+    if (childResult?.signal === 'SIGINT') return 130;
+    if (childResult?.signal === 'SIGTERM') return 143;
+    if (childResult?.signal !== null) return 128;
+    return childResult?.code ?? 1;
   } finally {
-    clearInterval(parentMonitor);
-    clearTimeout(deadline);
     if (escalationTimer !== null) clearTimeout(escalationTimer);
+    // Signals remain handled until retirement proves the exact group gone and
+    // the durable ownership record has been removed.
     for (const [signal, handler] of signalHandlers) process.off(signal, handler);
   }
-
-  const groupGone = Number.isSafeInteger(child.pid) ? await retireProcessGroup(child.pid) : true;
-  if (groupGone) {
-    try {
-      fs.unlinkSync(groupPIDFile);
-    } catch (error) {
-      if (error?.code !== 'ENOENT') throw error;
-    }
-  } else {
-    process.stderr.write(`${JSON.stringify({ code: 'PROCESS_GROUP_NOT_REAPED', status: 'failed' })}\n`);
-    return 125;
-  }
-
-  if (reason === 'TIMEOUT') return 124;
-  if (reason === 'SIGINT') return 130;
-  if (reason === 'SIGTERM') return 143;
-  if (reason === 'PARENT_LOST') return 125;
-  if (reason === 'GROUP_RECORD_FAILED') return 125;
-  if (childResult?.error) return 125;
-  if (childResult?.signal === 'SIGINT') return 130;
-  if (childResult?.signal === 'SIGTERM') return 143;
-  if (childResult?.signal !== null) return 128;
-  return childResult?.code ?? 1;
 }
 
 async function ownedGroupWrapper(args) {
@@ -269,6 +563,80 @@ async function hangWithGrandchild(args) {
   await new Promise(() => {});
 }
 
+async function exitWithTermIgnoringDescendant(args) {
+  const pidFile = valueAfter(args, '--pid-file');
+  fail(typeof pidFile === 'string' && pidFile.length > 0, 'INVALID_ARGUMENTS');
+  const child = spawn('/bin/zsh', ['-c', 'trap "" TERM; exec /bin/sleep 30'], {
+    stdio: 'ignore',
+  });
+  await new Promise((resolve, reject) => {
+    child.once('spawn', resolve);
+    child.once('error', reject);
+  });
+  fs.writeFileSync(pidFile, `${child.pid}\n`, { mode: 0o600 });
+  child.unref();
+}
+
+async function progressHangSelfTest(args) {
+  const progressFile = valueAfter(args, '--progress');
+  const pidFile = valueAfter(args, '--pid-file');
+  fail(typeof progressFile === 'string' && progressFile.length > 0, 'INVALID_ARGUMENTS');
+  fail(typeof pidFile === 'string' && pidFile.length > 0, 'INVALID_ARGUMENTS');
+  fail(path.dirname(progressFile) === path.dirname(pidFile), 'INVALID_ARGUMENTS');
+  const progress = createProgressReporter(progressFile);
+  for (const stage of PROGRESS_STAGES.slice(0, 5)) {
+    progress.start(stage);
+    progress.complete(stage);
+  }
+  progress.start('initial_capture');
+  const child = spawn('/bin/zsh', ['-c', 'trap "" TERM; exec /bin/sleep 30'], {
+    stdio: 'ignore',
+  });
+  await new Promise((resolve, reject) => {
+    child.once('spawn', resolve);
+    child.once('error', reject);
+  });
+  fs.writeFileSync(pidFile, `${child.pid}\n`, { mode: 0o600 });
+  process.on('SIGTERM', () => {});
+  await new Promise(() => {});
+}
+
+function runProgramTimeoutSelfTest(args) {
+  const pidFile = valueAfter(args, '--pid-file');
+  fail(typeof pidFile === 'string' && pidFile.length > 0, 'INVALID_ARGUMENTS');
+  const rawSentinel = 'RAW_PROGRESS_SENTINEL_MUST_NOT_LEAK';
+  process.env.AOS_RUN_PROGRAM_TIMEOUT_PID_FILE = pidFile;
+  process.env.AOS_RUN_PROGRAM_TIMEOUT_SENTINEL = rawSentinel;
+  let caught = null;
+  try {
+    runProgram('/bin/zsh', ['-c', `
+      print -r -- "$AOS_RUN_PROGRAM_TIMEOUT_SENTINEL"
+      print -u2 -r -- "$AOS_RUN_PROGRAM_TIMEOUT_SENTINEL"
+      /bin/zsh -c 'trap "" TERM; exec /bin/sleep 30' &
+      descendant_pid="$!"
+      print -r -- "$descendant_pid" > "$AOS_RUN_PROGRAM_TIMEOUT_PID_FILE"
+      wait "$descendant_pid"
+    `], { commandClass: 'timeoutSelfTest' });
+  } catch (error) {
+    caught = error;
+  } finally {
+    delete process.env.AOS_RUN_PROGRAM_TIMEOUT_PID_FILE;
+    delete process.env.AOS_RUN_PROGRAM_TIMEOUT_SENTINEL;
+  }
+  const descendantPID = parseInteger(fs.readFileSync(pidFile, 'utf8').trim());
+  fail(caught instanceof ProofError && caught.code === 'COMMAND_TIMEOUT', 'COMMAND_TIMEOUT_SELF_TEST_FAILED');
+  fail(caught.ambiguous === true, 'COMMAND_TIMEOUT_SELF_TEST_FAILED');
+  fail(Number.isSafeInteger(descendantPID) && descendantPID > 1, 'COMMAND_TIMEOUT_SELF_TEST_FAILED');
+  fail(processExists(descendantPID), 'COMMAND_TIMEOUT_SELF_TEST_FAILED');
+  process.stdout.write(`${JSON.stringify({
+    admission_ambiguous: true,
+    descendant_live_before_outer_reap: true,
+    error_code: 'COMMAND_TIMEOUT',
+    status: 'failed',
+  })}\n`);
+  process.exitCode = 1;
+}
+
 function proofEnvironment() {
   const environment = { ...process.env, ...NO_AUTOSTART_ENV };
   delete environment[SNAPSHOT_KEY_ENV];
@@ -291,13 +659,24 @@ function assertEnvironmentScope() {
   fail(/^[a-f0-9]{64}$/u.test(process.env[SNAPSHOT_KEY_ENV] ?? ''), 'SNAPSHOT_KEY_UNAVAILABLE');
 }
 
-function runProgram(executable, args, { cwd, maxBuffer = 64 * 1024 * 1024 } = {}) {
+function runProgram(
+  executable,
+  args,
+  { cwd, commandClass = 'local', maxBuffer = 64 * 1024 * 1024 } = {},
+) {
+  const timeout = COMMAND_CLASS_TIMEOUT_MS[commandClass];
+  fail(Number.isSafeInteger(timeout) && timeout > 0, 'COMMAND_CLASS_INVALID');
   const result = spawnSync(executable, args, {
     cwd,
     encoding: 'utf8',
     env: proofEnvironment(),
+    killSignal: 'SIGKILL',
     maxBuffer,
+    timeout,
   });
+  if (result.error?.code === 'ETIMEDOUT') {
+    throw new ProofError('COMMAND_TIMEOUT', { ambiguous: true });
+  }
   if (result.error) throw new ProofError('COMMAND_LAUNCH_FAILED', { ambiguous: true });
   if (result.signal !== null || result.status === null) {
     throw new ProofError('COMMAND_INTERRUPTED', { ambiguous: true });
@@ -305,8 +684,15 @@ function runProgram(executable, args, { cwd, maxBuffer = 64 * 1024 * 1024 } = {}
   return result;
 }
 
+function aosCommandClass(args) {
+  return args[0] === 'see' && args[1] === 'capture' ? 'capture' : 'aos';
+}
+
 function runAOSSuccess(options, args, code) {
-  const result = runProgram(options.aos, args, { cwd: options.root });
+  const result = runProgram(options.aos, args, {
+    commandClass: aosCommandClass(args),
+    cwd: options.root,
+  });
   fail(result.status === 0, code);
   const payload = parseJSON(result.stdout, `${code}_JSON_INVALID`);
   fail(errorCode(payload) === null, code);
@@ -314,7 +700,10 @@ function runAOSSuccess(options, args, code) {
 }
 
 function runAOSFailure(options, args, expectedCode, code) {
-  const result = runProgram(options.aos, args, { cwd: options.root });
+  const result = runProgram(options.aos, args, {
+    commandClass: aosCommandClass(args),
+    cwd: options.root,
+  });
   fail(result.status !== 0, code);
   const payload = parseJSON(result.stderr || result.stdout, `${code}_JSON_INVALID`);
   fail(errorCode(payload) === expectedCode, code);
@@ -890,6 +1279,7 @@ async function cleanupOnly(args) {
 async function main() {
   assertEnvironmentScope();
   const options = parseArguments(process.argv.slice(2));
+  const progress = createProgressReporter(options.progress);
   const negativeChannel = `${options.channel}-negative`;
   const files = {
     metadata: path.join(options.tempRoot, 'fixture.json'),
@@ -920,6 +1310,7 @@ async function main() {
   let binaryIdentity = null;
 
   try {
+    progress.start('runtime_preflight');
     binaryIdentity = assertRuntimeSource(options);
     buildFingerprint = assertBuildAttestation(
       runAOSSuccess(options, ['runtime', 'build-attestation', '--json'], 'BUILD_ATTESTATION_FAILED'),
@@ -945,7 +1336,9 @@ async function main() {
       service_pid: runtime.service_pid,
     };
     writeDaemonIdentity(files.daemonIdentity, identity);
+    progress.complete('runtime_preflight');
 
+    progress.start('unrelated_channel_snapshot');
     const preexistingEntries = strictFocusEntries(options, identity);
     fail(channelIDs.every((id) => !preexistingEntries.some((entry) => entry?.id === id)), 'CHANNEL_ID_COLLISION');
     unrelatedDigestsBefore = stablePublicChannelDigests(
@@ -955,7 +1348,9 @@ async function main() {
     );
     writeJSONFile(files.unrelatedDigests, unrelatedDigestsBefore);
     armChannelCleanup(files);
+    progress.complete('unrelated_channel_snapshot');
 
+    progress.start('fixture_startup');
     fixture = await startFixture(options, files);
     await waitForFile(files.metadata, 5_000);
     const metadata = parseJSON(fs.readFileSync(files.metadata, 'utf8'), 'FIXTURE_METADATA_INVALID');
@@ -970,7 +1365,9 @@ async function main() {
     fail(metadata.sibling_above_target === true, 'FIXTURE_ORDER_MISMATCH');
     fail(metadata.target_center_occluded === true, 'FIXTURE_OCCLUSION_MISSING');
     fail(Number(metadata.overlap_fraction) >= 0.35, 'FIXTURE_OVERLAP_INSUFFICIENT');
+    progress.complete('fixture_startup');
 
+    progress.start('sibling_subtree_rejection');
     runAOSFailure(options, [
       'focus', 'create',
       '--id', negativeChannel,
@@ -980,7 +1377,9 @@ async function main() {
       '--subtree-identifier', metadata.sibling_identifier,
     ], 'WINDOW_NOT_FOUND', 'SIBLING_SUBTREE_NOT_REJECTED');
     fail(focusEntry(options, identity, negativeChannel) === null, 'NEGATIVE_CHANNEL_PUBLISHED');
+    progress.complete('sibling_subtree_rejection');
 
+    progress.start('target_channel_creation');
     runAOSSuccess(options, [
       'focus', 'create',
       '--id', options.channel,
@@ -993,11 +1392,15 @@ async function main() {
     fail(createdEntry?.kind === 'window', 'FOCUS_CHANNEL_KIND_MISMATCH');
     fail(createdEntry?.window_id === metadata.target_window_id, 'FOCUS_CHANNEL_WINDOW_MISMATCH');
     fail(createdEntry?.elements_count === 1, 'FOCUS_CHANNEL_SUBTREE_CARDINALITY');
+    progress.complete('target_channel_creation');
 
+    progress.start('initial_capture');
     const initial = verifyCapture(options, metadata, files.capture, 'INITIAL');
     removeFile(files.capture);
     fail(!fs.existsSync(files.capture), 'CAPTURE_ARTIFACT_CLEANUP_FAILED');
+    progress.complete('initial_capture');
 
+    progress.start('rejected_refresh');
     const beforeRejectedRefresh = focusEntry(options, identity, options.channel);
     fail(beforeRejectedRefresh !== null, 'LAST_GOOD_CHANNEL_MISSING');
     const preservedProjection = stableFocusProjection(beforeRejectedRefresh);
@@ -1010,6 +1413,9 @@ async function main() {
     const afterRejectedRefresh = focusEntry(options, identity, options.channel);
     fail(afterRejectedRefresh !== null, 'REJECTED_REFRESH_REMOVED_CHANNEL');
     fail(equalJSON(stableFocusProjection(afterRejectedRefresh), preservedProjection), 'REJECTED_REFRESH_CHANGED_PUBLICATION');
+    progress.complete('rejected_refresh');
+
+    progress.start('preserved_capture');
     const preserved = verifyCapture(options, metadata, files.preservedCapture, 'PRESERVED');
     fail(
       preserved.analysis.decoded_rgba_sha256 === initial.analysis.decoded_rgba_sha256,
@@ -1019,36 +1425,48 @@ async function main() {
     fail(equalJSON(preserved.targetProjection, initial.targetProjection), 'REJECTED_REFRESH_CHANGED_TARGET_AX');
     removeFile(files.preservedCapture);
     fail(!fs.existsSync(files.preservedCapture), 'PRESERVED_CAPTURE_ARTIFACT_CLEANUP_FAILED');
+    progress.complete('preserved_capture');
 
+    progress.start('target_close');
     fs.writeFileSync(files.closeRequest, 'close\n', { mode: 0o600 });
     await waitForFile(files.closeAck, 3_000);
     const closeAck = parseJSON(fs.readFileSync(files.closeAck, 'utf8'), 'TARGET_CLOSE_INVALID');
     fail(closeAck.target_window_removed === true, 'TARGET_WINDOW_STILL_PRESENT');
     await sleep(1_250);
+    progress.complete('target_close');
 
+    progress.start('missing_target_refresh');
     runAOSFailure(options, [
       'focus', 'update', '--id', options.channel, '--depth', '15',
     ], 'WINDOW_NOT_FOUND', 'MISSING_TARGET_REFRESH_NOT_REJECTED');
     const afterMissingRefresh = focusEntry(options, identity, options.channel);
     fail(afterMissingRefresh !== null, 'MISSING_REFRESH_REMOVED_CHANNEL');
     fail(equalJSON(stableFocusProjection(afterMissingRefresh), preservedProjection), 'MISSING_REFRESH_CHANGED_PUBLICATION');
+    progress.complete('missing_target_refresh');
 
+    progress.start('missing_target_capture');
     removeFile(files.failedCapture);
     runAOSFailure(options, [
       'see', 'capture', '--channel', options.channel, '--out', files.failedCapture,
     ], 'WINDOW_NOT_FOUND', 'MISSING_TARGET_CAPTURE_NOT_REJECTED');
     fail(!fs.existsSync(files.failedCapture), 'FAILED_CAPTURE_ARTIFACT_PRESENT');
+    progress.complete('missing_target_capture');
 
+    progress.start('channel_cleanup');
     channelRemoved = await removeChannelsQuiescent(options, identity, channelIDs);
     fail(channelRemoved, 'CHANNEL_RESIDUE_PRESENT');
     disarmChannelCleanup(files);
+    progress.complete('channel_cleanup');
 
+    progress.start('fixture_cleanup');
     const fixtureCleanup = await stopFixture(files, fixture);
     fixtureWindowsRemoved = fixtureCleanup.fixtureWindowsRemoved;
     fixtureProcessReaped = fixtureCleanup.fixtureProcessReaped;
     fail(fixtureWindowsRemoved, 'FIXTURE_CLEANUP_FAILED');
     fail(fixtureProcessReaped, 'FIXTURE_PROCESS_NOT_REAPED');
+    progress.complete('fixture_cleanup');
 
+    progress.start('postflight_attestation');
     const unrelatedDigestsAfter = stablePublicChannelDigests(
       strictFocusEntries(options, identity),
       channelIDs,
@@ -1082,6 +1500,7 @@ async function main() {
     assertServiceBinding(options, serviceAfter, runtimeAfter, postBinaryIdentity, statusAfterObservedAt);
     runtimeProvenancePreserved = true;
     sharedDaemonPreserved = true;
+    progress.complete('postflight_attestation');
 
     const summary = {
       status: 'passed',
@@ -1219,6 +1638,14 @@ if (mode === '--supervise-command') {
   }
 } else if (mode === '--hang-with-grandchild') {
   await hangWithGrandchild(modeArgs);
+} else if (mode === '--exit-with-term-ignoring-descendant') {
+  await exitWithTermIgnoringDescendant(modeArgs);
+} else if (mode === '--progress-hang-self-test') {
+  await progressHangSelfTest(modeArgs);
+} else if (mode === '--run-program-timeout-self-test') {
+  runProgramTimeoutSelfTest(modeArgs);
+} else if (mode === '--sanitize-progress-receipt') {
+  await sanitizeProgressReceipt(modeArgs);
 } else if (mode === '--cleanup-only') {
   try {
     await cleanupOnly(modeArgs);
