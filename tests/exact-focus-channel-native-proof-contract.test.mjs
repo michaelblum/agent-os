@@ -109,13 +109,14 @@ test('exact focus-channel fixture is synthetic, same-process, overlapping, and A
   assert.match(helper, /aos-exact-sibling-control/u);
   assert.match(
     helper,
-    /let targetButton = NSButton[^\n]+\n\s+targetButton\.setAccessibilityElement\(true\)/u,
+    /let targetButton = NSButton[^\n]+\n\s+targetButton\.setAccessibilityElement\(true\)\n\s+targetButton\.setAccessibilityRole\(\.button\)/u,
   );
   assert.match(
     helper,
-    /let siblingButton = NSButton[^\n]+\n\s+siblingButton\.setAccessibilityElement\(true\)/u,
+    /let siblingButton = NSButton[^\n]+\n\s+siblingButton\.setAccessibilityElement\(true\)\n\s+siblingButton\.setAccessibilityRole\(\.button\)/u,
   );
   assert.equal(helper.match(/\.setAccessibilityElement\(true\)/gu)?.length, 2);
+  assert.equal(helper.match(/\.setAccessibilityRole\(\.button\)/gu)?.length, 2);
   assert.match(helper, /targetButton\.setAccessibilityChildren\(\[\]\)/u);
   assert.match(helper, /FixtureController: NSObject, NSApplicationDelegate/u);
   assert.match(helper, /private let targetControl: NSButton/u);
@@ -212,6 +213,8 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   assert.match(driver, /'--perception'/u);
   assert.match(driver, /'--out', outputFile/u);
   assert.match(driver, /verifyCapture\(options, metadata, files\.capture, 'INITIAL'\)/u);
+  assert.match(driver, /fail\(target\.role === 'AXButton', `\$\{codePrefix\}_TARGET_AX_ROLE`\);/u);
+  assert.match(driver, /fail\(query\?\.role === 'AXButton', `\$\{codePrefix\}_TARGET_HANDLE_ROLE`\);/u);
   assert.match(driver, /'focus', 'update'/u);
   assert.match(driver, /REJECTED_REFRESH_CHANGED_PUBLICATION/u);
   assert.match(driver, /verifyCapture\(options, metadata, files\.preservedCapture, 'PRESERVED'\)/u);
