@@ -64,6 +64,22 @@
       "replaces": [],
       "guard": "The registered command performs direct checkpoint and supervision module tests, static assertions, Swift typecheck, classifier self-test, and owned-process cleanup tests only; recovery state contains keyed digests rather than raw unrelated-channel metadata, and the explicit AOS_EXACT_FOCUS_CHANNEL_NATIVE_PROOF_OK=1 route is the separate supervised live proof against the already-running repo daemon.",
       "status": "active"
+    },
+    {
+      "id": "exact-focus-channel-native-proof-20260810-report",
+      "path_patterns": [
+        "docs/dev/reports/exact-focus-channel-native-proof-2026-08-10.md"
+      ],
+      "fixture_patterns": [],
+      "owner": "daemon-desktop-pixels",
+      "harness_level": "proof_report",
+      "proof_kind": "proof_report",
+      "contract": "The dated exact focus-channel report remains content-free historical evidence for one guarded synthetic-fixture run, not a standing runtime or product authority.",
+      "worth": "This preserves the qualifying live result and its cleanup, provenance, isolation, and non-retention claims without preserving captured pixels, raw accessibility payloads, fixture geometry, or unrelated-channel metadata.",
+      "command": "git diff --check docs/dev/reports/exact-focus-channel-native-proof-2026-08-10.md",
+      "replaces": [],
+      "guard": "report-only historical evidence; use current source contracts and routed tests before relying on or repeating the guarded live proof",
+      "status": "manual_only"
     }
   ]
 }
