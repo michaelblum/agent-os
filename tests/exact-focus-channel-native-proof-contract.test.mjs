@@ -16,8 +16,16 @@ const expectedFixtureFailureCodes = Object.freeze([
   'FIXTURE_WINDOW_LIST_UNAVAILABLE',
   'FIXTURE_WINDOW_OWNERSHIP_MISMATCH',
   'FIXTURE_WINDOW_LAYER_MISMATCH',
-  'FIXTURE_TARGET_CONTROL_NOT_READY',
-  'FIXTURE_SIBLING_CONTROL_NOT_READY',
+  'FIXTURE_TARGET_CONTROL_WINDOW_MISMATCH',
+  'FIXTURE_TARGET_CONTROL_IDENTIFIER_MISMATCH',
+  'FIXTURE_TARGET_CONTROL_NOT_ACCESSIBILITY_ELEMENT',
+  'FIXTURE_TARGET_CONTROL_ROLE_MISMATCH',
+  'FIXTURE_TARGET_CONTROL_FRAME_INVALID',
+  'FIXTURE_SIBLING_CONTROL_WINDOW_MISMATCH',
+  'FIXTURE_SIBLING_CONTROL_IDENTIFIER_MISMATCH',
+  'FIXTURE_SIBLING_CONTROL_NOT_ACCESSIBILITY_ELEMENT',
+  'FIXTURE_SIBLING_CONTROL_ROLE_MISMATCH',
+  'FIXTURE_SIBLING_CONTROL_FRAME_INVALID',
   'FIXTURE_WINDOW_ORDER_MISMATCH',
   'FIXTURE_WINDOW_GEOMETRY_INVALID',
   'FIXTURE_DISPLAY_UNAVAILABLE',
@@ -99,6 +107,15 @@ test('exact focus-channel fixture is synthetic, same-process, overlapping, and A
   assert.match(helper, /SolidSiblingView/u);
   assert.match(helper, /aos-exact-target-control/u);
   assert.match(helper, /aos-exact-sibling-control/u);
+  assert.match(
+    helper,
+    /let targetButton = NSButton[^\n]+\n\s+targetButton\.setAccessibilityElement\(true\)/u,
+  );
+  assert.match(
+    helper,
+    /let siblingButton = NSButton[^\n]+\n\s+siblingButton\.setAccessibilityElement\(true\)/u,
+  );
+  assert.equal(helper.match(/\.setAccessibilityElement\(true\)/gu)?.length, 2);
   assert.match(helper, /targetButton\.setAccessibilityChildren\(\[\]\)/u);
   assert.match(helper, /FixtureController: NSObject, NSApplicationDelegate/u);
   assert.match(helper, /private let targetControl: NSButton/u);
@@ -116,8 +133,8 @@ test('exact focus-channel fixture is synthetic, same-process, overlapping, and A
   assert.match(fixtureMain, /writeFixtureFailureEnvelope\(\s+\.argumentsInvalid,/u);
   assert.match(fixtureMain, /writeFixtureFailureEnvelope\(\s+\.displayUnavailable,/u);
   assert.match(fixtureMain, /writeFixtureFailureEnvelope\(\s+\.helperFailed,/u);
-  assert.match(localReadiness, /controlIsLocallyAccessibilityReady\(\s+targetControl/u);
-  assert.match(localReadiness, /controlIsLocallyAccessibilityReady\(\s+siblingControl/u);
+  assert.match(localReadiness, /controlReadinessChecks\(\s+targetControl/u);
+  assert.match(localReadiness, /controlReadinessChecks\(\s+siblingControl/u);
   assert.match(localReadiness, /control\.window === window/u);
   assert.doesNotMatch(localReadiness, /accessibilityWindow/u);
   assert.match(localReadiness, /control\.accessibilityIdentifier\(\) == identifier/u);
@@ -125,7 +142,6 @@ test('exact focus-channel fixture is synthetic, same-process, overlapping, and A
   assert.match(localReadiness, /control\.accessibilityRole\(\) == \.button/u);
   assert.match(localReadiness, /frame\.width > 0/u);
   assert.match(localReadiness, /frame\.height > 0/u);
-  assert.doesNotMatch(helper, /setAccessibilityElement/u);
   assert.match(helper, /firstFixtureReadinessFailure/u);
   assert.match(helper, /FixtureFailureEnvelope\(status: "failed", error_code: failure\)/u);
   assert.match(helper, /try\? data\.write\(to: URL\(fileURLWithPath: metadataPath\), options: \.atomic\)/u);
@@ -181,6 +197,10 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   const progressTimeoutSelfTest = runner.slice(
     runner.indexOf('--progress-timeout-self-test)'),
     runner.indexOf('--run-program-timeout-self-test)'),
+  );
+  const progressHangSelfTest = driver.slice(
+    driver.indexOf('async function progressHangSelfTest'),
+    driver.indexOf('function runProgramTimeoutSelfTest'),
   );
 
   assert.match(driver, /'focus', 'create'/u);
@@ -302,8 +322,24 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   assert.match(runner, /run_driver_with_deadline "\$LIVE_PROOF_TIMEOUT_MS"/u);
   assert.match(processTreeSelfTest, /run_driver_with_deadline 1000/u);
   assert.match(processTreeSelfTest, /Allow group and grandchild initialization under load/u);
-  assert.match(progressTimeoutSelfTest, /run_driver_with_deadline 2000/u);
-  assert.match(progressTimeoutSelfTest, /Give progress and grandchild initialization two seconds under load/u);
+  assert.match(progressTimeoutSelfTest, /run_driver_with_deadline 5000/u);
+  assert.match(progressTimeoutSelfTest, /Give progress and grandchild initialization five seconds under load/u);
+  assert.equal((progressHangSelfTest.match(/writeProgressReceipt\(/gu) ?? []).length, 1);
+  assert.match(
+    progressHangSelfTest,
+    /writeProgressReceipt\(progressFile, \{\s*schema: PROGRESS_SCHEMA,\s*ordinal: 11,\s*last_started_stage: 'initial_capture',\s*last_completed_stage: 'target_channel_creation',\s*elapsed_ms: monotonicElapsedMilliseconds\(startedAt\),\s*\}\);/u,
+  );
+  assert.doesNotMatch(progressHangSelfTest, /createProgressReporter|progress\.start|progress\.complete/u);
+  for (const errorCode of [
+    'PROGRESS_TIMEOUT_STATUS_MISMATCH',
+    'PROGRESS_TIMEOUT_PID_MISSING_OR_INVALID',
+    'PROGRESS_TIMEOUT_DESCENDANT_RETAINED',
+    'PROGRESS_TIMEOUT_GROUP_RECORD_RETAINED',
+    'PROGRESS_TIMEOUT_CLEANUP_ROOT_RETAINED',
+  ]) {
+    assert.match(progressTimeoutSelfTest, new RegExp(`"error_code":"${errorCode}"`, 'u'));
+  }
+  assert.doesNotMatch(progressTimeoutSelfTest, /PROGRESS_TIMEOUT_SELF_TEST_FAILED/u);
   assert.match(runner, /progress-sanitizer\.stdout/u);
   assert.match(runner, /progress-sanitizer\.stderr/u);
   assert.match(runner, /run_supervised_to_files \\\s+"\$PROGRESS_SANITIZER_TIMEOUT_MS"/u);
@@ -570,6 +606,7 @@ test('exact focus-channel fixture result parser is bounded, allowlisted, and non
     malformed_unknown_fail_closed: true,
     raw_fixture_output_reflected: false,
     regular_file_enforced: true,
+    retired_aggregate_codes_rejected: true,
     status: 'passed',
   });
   assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, new RegExp(rawSentinel, 'u'));
@@ -697,22 +734,29 @@ test('exact focus-channel timeout retains one sanitized stage receipt after reap
   const result = spawnSync('zsh', [runnerPath, '--progress-timeout-self-test'], {
     cwd: root,
     encoding: 'utf8',
-    timeout: 12_000,
+    timeout: 30_000,
   });
-  assert.equal(result.status, 124, result.stderr);
-  assert.equal(result.stdout.trim().split('\n').length, 1);
-  const receipt = JSON.parse(result.stdout.trim());
-  assert.equal(receipt.status, 'failed');
-  assert.equal(receipt.error_code, 'PROOF_TIMEOUT');
-  assert.equal(receipt.cleanup_complete, true);
-  assert.equal(receipt.recovery_root_retained, false);
-  assert.equal(receipt.pixels_persisted, false);
-  assert.equal(receipt.raw_capture_logged, false);
-  assert.equal(receipt.progress_receipt_valid, true);
-  assert.equal(receipt.last_started_stage, 'initial_capture');
-  assert.equal(receipt.last_completed_stage, 'target_channel_creation');
-  assert.ok(Number.isSafeInteger(receipt.progress_elapsed_ms));
-  assert.ok(receipt.progress_elapsed_ms >= 0 && receipt.progress_elapsed_ms <= 1_800_000);
+  const diagnostics = `captured stdout:\n${result.stdout}\ncaptured stderr:\n${result.stderr}`;
+  assert.equal(result.status, 124, diagnostics);
+  assert.equal(result.stdout.trim().split('\n').length, 1, diagnostics);
+  let receipt = null;
+  assert.doesNotThrow(() => {
+    receipt = JSON.parse(result.stdout.trim());
+  }, diagnostics);
+  assert.equal(receipt.status, 'failed', diagnostics);
+  assert.equal(receipt.error_code, 'PROOF_TIMEOUT', diagnostics);
+  assert.equal(receipt.cleanup_complete, true, diagnostics);
+  assert.equal(receipt.recovery_root_retained, false, diagnostics);
+  assert.equal(receipt.pixels_persisted, false, diagnostics);
+  assert.equal(receipt.raw_capture_logged, false, diagnostics);
+  assert.equal(receipt.progress_receipt_valid, true, diagnostics);
+  assert.equal(receipt.last_started_stage, 'initial_capture', diagnostics);
+  assert.equal(receipt.last_completed_stage, 'target_channel_creation', diagnostics);
+  assert.ok(Number.isSafeInteger(receipt.progress_elapsed_ms), diagnostics);
+  assert.ok(
+    receipt.progress_elapsed_ms >= 0 && receipt.progress_elapsed_ms <= 1_800_000,
+    diagnostics,
+  );
 });
 
 test('exact focus-channel runProgram timeout stays ambiguous until the outer owner reaps descendants', () => {

@@ -28,8 +28,16 @@ const FIXTURE_READINESS_FAILURE_CODES = Object.freeze([
   'FIXTURE_WINDOW_LIST_UNAVAILABLE',
   'FIXTURE_WINDOW_OWNERSHIP_MISMATCH',
   'FIXTURE_WINDOW_LAYER_MISMATCH',
-  'FIXTURE_TARGET_CONTROL_NOT_READY',
-  'FIXTURE_SIBLING_CONTROL_NOT_READY',
+  'FIXTURE_TARGET_CONTROL_WINDOW_MISMATCH',
+  'FIXTURE_TARGET_CONTROL_IDENTIFIER_MISMATCH',
+  'FIXTURE_TARGET_CONTROL_NOT_ACCESSIBILITY_ELEMENT',
+  'FIXTURE_TARGET_CONTROL_ROLE_MISMATCH',
+  'FIXTURE_TARGET_CONTROL_FRAME_INVALID',
+  'FIXTURE_SIBLING_CONTROL_WINDOW_MISMATCH',
+  'FIXTURE_SIBLING_CONTROL_IDENTIFIER_MISMATCH',
+  'FIXTURE_SIBLING_CONTROL_NOT_ACCESSIBILITY_ELEMENT',
+  'FIXTURE_SIBLING_CONTROL_ROLE_MISMATCH',
+  'FIXTURE_SIBLING_CONTROL_FRAME_INVALID',
   'FIXTURE_WINDOW_ORDER_MISMATCH',
   'FIXTURE_WINDOW_GEOMETRY_INVALID',
   'FIXTURE_DISPLAY_UNAVAILABLE',
@@ -707,12 +715,14 @@ async function progressHangSelfTest(args) {
   fail(typeof progressFile === 'string' && progressFile.length > 0, 'INVALID_ARGUMENTS');
   fail(typeof pidFile === 'string' && pidFile.length > 0, 'INVALID_ARGUMENTS');
   fail(path.dirname(progressFile) === path.dirname(pidFile), 'INVALID_ARGUMENTS');
-  const progress = createProgressReporter(progressFile);
-  for (const stage of PROGRESS_STAGES.slice(0, 5)) {
-    progress.start(stage);
-    progress.complete(stage);
-  }
-  progress.start('initial_capture');
+  const startedAt = process.hrtime.bigint();
+  writeProgressReceipt(progressFile, {
+    schema: PROGRESS_SCHEMA,
+    ordinal: 11,
+    last_started_stage: 'initial_capture',
+    last_completed_stage: 'target_channel_creation',
+    elapsed_ms: monotonicElapsedMilliseconds(startedAt),
+  });
   const child = spawn('/bin/zsh', ['-c', 'trap "" TERM; exec /bin/sleep 30'], {
     stdio: 'ignore',
   });
@@ -1401,6 +1411,8 @@ function fixtureResultParserSelfTest() {
       Buffer.from(`{${rawSentinel}`, 'utf8'),
       encode({ status: 'failed', error_code: `UNKNOWN_${rawSentinel}` }),
       encode({ status: 'failed', error_code: 'FIXTURE_HELPER_FAILED', raw: rawSentinel }),
+      encode({ status: 'failed', error_code: 'FIXTURE_TARGET_CONTROL_NOT_READY' }),
+      encode({ status: 'failed', error_code: 'FIXTURE_SIBLING_CONTROL_NOT_READY' }),
     ];
     const observed = untrusted.map(caughtCode);
     fail(
@@ -1429,6 +1441,7 @@ function fixtureResultParserSelfTest() {
       malformed_unknown_fail_closed: true,
       raw_fixture_output_reflected: false,
       regular_file_enforced: true,
+      retired_aggregate_codes_rejected: true,
       status: 'passed',
     };
   } finally {

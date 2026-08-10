@@ -21,8 +21,16 @@ private enum FixtureFailureCode: String, CaseIterable, Codable, Error {
     case windowListUnavailable = "FIXTURE_WINDOW_LIST_UNAVAILABLE"
     case windowOwnershipMismatch = "FIXTURE_WINDOW_OWNERSHIP_MISMATCH"
     case windowLayerMismatch = "FIXTURE_WINDOW_LAYER_MISMATCH"
-    case targetControlNotReady = "FIXTURE_TARGET_CONTROL_NOT_READY"
-    case siblingControlNotReady = "FIXTURE_SIBLING_CONTROL_NOT_READY"
+    case targetControlWindowMismatch = "FIXTURE_TARGET_CONTROL_WINDOW_MISMATCH"
+    case targetControlIdentifierMismatch = "FIXTURE_TARGET_CONTROL_IDENTIFIER_MISMATCH"
+    case targetControlNotAccessibilityElement = "FIXTURE_TARGET_CONTROL_NOT_ACCESSIBILITY_ELEMENT"
+    case targetControlRoleMismatch = "FIXTURE_TARGET_CONTROL_ROLE_MISMATCH"
+    case targetControlFrameInvalid = "FIXTURE_TARGET_CONTROL_FRAME_INVALID"
+    case siblingControlWindowMismatch = "FIXTURE_SIBLING_CONTROL_WINDOW_MISMATCH"
+    case siblingControlIdentifierMismatch = "FIXTURE_SIBLING_CONTROL_IDENTIFIER_MISMATCH"
+    case siblingControlNotAccessibilityElement = "FIXTURE_SIBLING_CONTROL_NOT_ACCESSIBILITY_ELEMENT"
+    case siblingControlRoleMismatch = "FIXTURE_SIBLING_CONTROL_ROLE_MISMATCH"
+    case siblingControlFrameInvalid = "FIXTURE_SIBLING_CONTROL_FRAME_INVALID"
     case windowOrderMismatch = "FIXTURE_WINDOW_ORDER_MISMATCH"
     case windowGeometryInvalid = "FIXTURE_WINDOW_GEOMETRY_INVALID"
     case displayUnavailable = "FIXTURE_DISPLAY_UNAVAILABLE"
@@ -68,11 +76,27 @@ private struct FixtureReadinessChecks {
     var windowList = true
     var ownership = true
     var layer = true
-    var targetControl = true
-    var siblingControl = true
+    var targetControlWindow = true
+    var targetControlIdentifier = true
+    var targetControlAccessibilityElement = true
+    var targetControlRole = true
+    var targetControlFrame = true
+    var siblingControlWindow = true
+    var siblingControlIdentifier = true
+    var siblingControlAccessibilityElement = true
+    var siblingControlRole = true
+    var siblingControlFrame = true
     var order = true
     var geometry = true
     var display = true
+}
+
+private struct ControlReadinessChecks {
+    let window: Bool
+    let identifier: Bool
+    let accessibilityElement: Bool
+    let role: Bool
+    let frame: Bool
 }
 
 private func firstFixtureReadinessFailure(
@@ -81,8 +105,16 @@ private func firstFixtureReadinessFailure(
     if !checks.windowList { return .windowListUnavailable }
     if !checks.ownership { return .windowOwnershipMismatch }
     if !checks.layer { return .windowLayerMismatch }
-    if !checks.targetControl { return .targetControlNotReady }
-    if !checks.siblingControl { return .siblingControlNotReady }
+    if !checks.targetControlWindow { return .targetControlWindowMismatch }
+    if !checks.targetControlIdentifier { return .targetControlIdentifierMismatch }
+    if !checks.targetControlAccessibilityElement { return .targetControlNotAccessibilityElement }
+    if !checks.targetControlRole { return .targetControlRoleMismatch }
+    if !checks.targetControlFrame { return .targetControlFrameInvalid }
+    if !checks.siblingControlWindow { return .siblingControlWindowMismatch }
+    if !checks.siblingControlIdentifier { return .siblingControlIdentifierMismatch }
+    if !checks.siblingControlAccessibilityElement { return .siblingControlNotAccessibilityElement }
+    if !checks.siblingControlRole { return .siblingControlRoleMismatch }
+    if !checks.siblingControlFrame { return .siblingControlFrameInvalid }
     if !checks.order { return .windowOrderMismatch }
     if !checks.geometry { return .windowGeometryInvalid }
     if !checks.display { return .displayUnavailable }
@@ -200,6 +232,7 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
         targetWindow.sharingType = .readOnly
         let targetView = SplitTargetView(frame: targetContent)
         let targetButton = NSButton(title: "Exact Target", target: nil, action: nil)
+        targetButton.setAccessibilityElement(true)
         targetButton.setAccessibilityIdentifier(targetIdentifier)
         targetButton.setAccessibilityChildren([])
         targetButton.frame = NSRect(x: 165, y: 135, width: 150, height: 42)
@@ -223,6 +256,7 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
         siblingWindow.sharingType = .readOnly
         let siblingView = SolidSiblingView(frame: siblingContent)
         let siblingButton = NSButton(title: "Exact Sibling", target: nil, action: nil)
+        siblingButton.setAccessibilityElement(true)
         siblingButton.setAccessibilityIdentifier(siblingIdentifier)
         siblingButton.frame = NSRect(x: 95, y: 100, width: 150, height: 42)
         siblingView.addSubview(siblingButton)
@@ -330,22 +364,32 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
             && overlapFraction >= 0.35
             && siblingBounds!.contains(CGPoint(x: targetBounds!.midX, y: targetBounds!.midY))
         let display = boundsReady ? soleContainingDisplay(for: targetBounds!) : nil
+        let targetControlReadiness = controlReadinessChecks(
+            targetControl,
+            identifier: targetIdentifier,
+            window: targetWindow
+        )
+        let siblingControlReadiness = controlReadinessChecks(
+            siblingControl,
+            identifier: siblingIdentifier,
+            window: siblingWindow
+        )
         let checks = FixtureReadinessChecks(
             windowList: windowListReady,
             ownership: targetEntry.flatMap { windowPID($0) } == Int(getpid())
                 && siblingEntry.flatMap { windowPID($0) } == Int(getpid()),
             layer: targetEntry.flatMap { windowLayer($0) } == 0
                 && siblingEntry.flatMap { windowLayer($0) } == 0,
-            targetControl: controlIsLocallyAccessibilityReady(
-                targetControl,
-                identifier: targetIdentifier,
-                window: targetWindow
-            ),
-            siblingControl: controlIsLocallyAccessibilityReady(
-                siblingControl,
-                identifier: siblingIdentifier,
-                window: siblingWindow
-            ),
+            targetControlWindow: targetControlReadiness.window,
+            targetControlIdentifier: targetControlReadiness.identifier,
+            targetControlAccessibilityElement: targetControlReadiness.accessibilityElement,
+            targetControlRole: targetControlReadiness.role,
+            targetControlFrame: targetControlReadiness.frame,
+            siblingControlWindow: siblingControlReadiness.window,
+            siblingControlIdentifier: siblingControlReadiness.identifier,
+            siblingControlAccessibilityElement: siblingControlReadiness.accessibilityElement,
+            siblingControlRole: siblingControlReadiness.role,
+            siblingControlFrame: siblingControlReadiness.frame,
             order: siblingIndex.map { sibling in targetIndex.map { sibling < $0 } ?? false } ?? false,
             geometry: geometryReady,
             display: display != nil
@@ -379,22 +423,25 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
         ))
     }
 
-    private func controlIsLocallyAccessibilityReady(
+    private func controlReadinessChecks(
         _ control: NSButton,
         identifier: String,
         window: NSWindow
-    ) -> Bool {
+    ) -> ControlReadinessChecks {
         let frame = control.accessibilityFrame()
-        return control.window === window
-            && control.accessibilityIdentifier() == identifier
-            && control.isAccessibilityElement()
-            && control.accessibilityRole() == .button
-            && frame.origin.x.isFinite
+        let frameValid = frame.origin.x.isFinite
             && frame.origin.y.isFinite
             && frame.width.isFinite
             && frame.height.isFinite
             && frame.width > 0
             && frame.height > 0
+        return ControlReadinessChecks(
+            window: control.window === window,
+            identifier: control.accessibilityIdentifier() == identifier,
+            accessibilityElement: control.isAccessibilityElement(),
+            role: control.accessibilityRole() == .button,
+            frame: frameValid
+        )
     }
 
     private func waitForWindowRemoval(windowID: Int, attemptsRemaining: Int, completion: @escaping (Bool) -> Void) {
@@ -503,8 +550,16 @@ private let fixtureReadinessFailureCodes: [FixtureFailureCode] = [
     .windowListUnavailable,
     .windowOwnershipMismatch,
     .windowLayerMismatch,
-    .targetControlNotReady,
-    .siblingControlNotReady,
+    .targetControlWindowMismatch,
+    .targetControlIdentifierMismatch,
+    .targetControlNotAccessibilityElement,
+    .targetControlRoleMismatch,
+    .targetControlFrameInvalid,
+    .siblingControlWindowMismatch,
+    .siblingControlIdentifierMismatch,
+    .siblingControlNotAccessibilityElement,
+    .siblingControlRoleMismatch,
+    .siblingControlFrameInvalid,
     .windowOrderMismatch,
     .windowGeometryInvalid,
     .displayUnavailable,
@@ -518,8 +573,16 @@ private func markFixtureReadinessFailure(
     case .windowListUnavailable: checks.windowList = false
     case .windowOwnershipMismatch: checks.ownership = false
     case .windowLayerMismatch: checks.layer = false
-    case .targetControlNotReady: checks.targetControl = false
-    case .siblingControlNotReady: checks.siblingControl = false
+    case .targetControlWindowMismatch: checks.targetControlWindow = false
+    case .targetControlIdentifierMismatch: checks.targetControlIdentifier = false
+    case .targetControlNotAccessibilityElement: checks.targetControlAccessibilityElement = false
+    case .targetControlRoleMismatch: checks.targetControlRole = false
+    case .targetControlFrameInvalid: checks.targetControlFrame = false
+    case .siblingControlWindowMismatch: checks.siblingControlWindow = false
+    case .siblingControlIdentifierMismatch: checks.siblingControlIdentifier = false
+    case .siblingControlNotAccessibilityElement: checks.siblingControlAccessibilityElement = false
+    case .siblingControlRoleMismatch: checks.siblingControlRole = false
+    case .siblingControlFrameInvalid: checks.siblingControlFrame = false
     case .windowOrderMismatch: checks.order = false
     case .windowGeometryInvalid: checks.geometry = false
     case .displayUnavailable: checks.display = false

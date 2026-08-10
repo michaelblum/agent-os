@@ -933,9 +933,9 @@ case "$MODE" in
   --progress-timeout-self-test)
     GRANDCHILD_PID_FILE="$TMP_ROOT/progress-grandchild.pid"
     set +e
-    # Give progress and grandchild initialization two seconds under load while
+    # Give progress and grandchild initialization five seconds under load while
     # still forcing the deliberately nonterminating driver through cleanup.
-    run_driver_with_deadline 2000 \
+    run_driver_with_deadline 5000 \
       /usr/bin/env node "$DRIVER" \
         --progress-hang-self-test \
         --progress "$PROGRESS_FILE" \
@@ -943,11 +943,20 @@ case "$MODE" in
     STATUS="$?"
     set -e
     GRANDCHILD_PID="$(tr -d '[:space:]' < "$GRANDCHILD_PID_FILE" 2>/dev/null || true)"
-    if (( STATUS != 124 )) \
-      || [[ "$GRANDCHILD_PID" != <-> ]] \
-      || kill -0 "$GRANDCHILD_PID" 2>/dev/null \
-      || [[ -e "$GROUP_PID_FILE" ]]; then
-      print -r -- '{"cleanup_complete":false,"error_code":"PROGRESS_TIMEOUT_SELF_TEST_FAILED","status":"failed"}'
+    if (( STATUS != 124 )); then
+      print -r -- '{"cleanup_complete":false,"error_code":"PROGRESS_TIMEOUT_STATUS_MISMATCH","status":"failed"}'
+      exit 1
+    fi
+    if [[ "$GRANDCHILD_PID" != <-> ]]; then
+      print -r -- '{"cleanup_complete":false,"error_code":"PROGRESS_TIMEOUT_PID_MISSING_OR_INVALID","status":"failed"}'
+      exit 1
+    fi
+    if kill -0 "$GRANDCHILD_PID" 2>/dev/null; then
+      print -r -- '{"cleanup_complete":false,"error_code":"PROGRESS_TIMEOUT_DESCENDANT_RETAINED","status":"failed"}'
+      exit 1
+    fi
+    if [[ -e "$GROUP_PID_FILE" ]]; then
+      print -r -- '{"cleanup_complete":false,"error_code":"PROGRESS_TIMEOUT_GROUP_RECORD_RETAINED","status":"failed"}'
       exit 1
     fi
     SUMMARY='{"cleanup_complete":true,"error_code":"PROOF_TIMEOUT","microphone_requested":false,"pixels_persisted":false,"raw_capture_logged":false,"status":"failed"}'
@@ -956,7 +965,7 @@ case "$MODE" in
     cleanup
     apply_post_cleanup_outcome
     if [[ -e "$TMP_ROOT" ]]; then
-      print -r -- '{"cleanup_complete":false,"error_code":"PROGRESS_TIMEOUT_SELF_TEST_FAILED","status":"failed"}'
+      print -r -- '{"cleanup_complete":false,"error_code":"PROGRESS_TIMEOUT_CLEANUP_ROOT_RETAINED","status":"failed"}'
       exit 1
     fi
     print -r -- "$SUMMARY"
