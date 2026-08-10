@@ -1,6 +1,7 @@
 import AppKit
 import CoreGraphics
 import CryptoKit
+import Darwin
 import Foundation
 import ImageIO
 
@@ -34,37 +35,6 @@ private enum FixtureFailureCode: String, CaseIterable, Codable, Error {
     case windowOrderMismatch = "FIXTURE_WINDOW_ORDER_MISMATCH"
     case windowGeometryInvalid = "FIXTURE_WINDOW_GEOMETRY_INVALID"
     case displayUnavailable = "FIXTURE_DISPLAY_UNAVAILABLE"
-}
-
-private struct FixtureBounds: Codable {
-    let x: Int
-    let y: Int
-    let width: Int
-    let height: Int
-}
-
-private struct FixtureMetadata: Codable {
-    let schema: String
-    let pid: Int
-    let target_window_id: Int
-    let sibling_window_id: Int
-    let target_bounds: FixtureBounds
-    let sibling_bounds: FixtureBounds
-    let display_id: Int
-    let scale_factor: Double
-    let target_identifier: String
-    let sibling_identifier: String
-    let ownership_token: String
-    let same_process_windows: Bool
-    let layer_zero_windows: Bool
-    let sibling_above_target: Bool
-    let target_center_occluded: Bool
-    let overlap_fraction: Double
-}
-
-private struct FixtureReadyEnvelope: Codable {
-    let status: String
-    let metadata: FixtureMetadata
 }
 
 private struct FixtureFailureEnvelope: Codable {
@@ -183,9 +153,13 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
     private let closeAckURL: URL
     private let stopRequestURL: URL
     private let cleanupURL: URL
+    private let checkpointRequestURL: URL
+    private let checkpointReceiptURL: URL
+    private let checkpointService: FixtureGeometryCheckpointService
     private let ownershipToken: String
     private var timer: Timer?
     private var started = false
+    private var metadataPublished = false
     private var targetClosed = false
     private var stopStarted = false
     private var readinessAttempts = 0
@@ -203,6 +177,9 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
         closeAckURL: URL,
         stopRequestURL: URL,
         cleanupURL: URL,
+        checkpointRequestURL: URL,
+        checkpointReceiptURL: URL,
+        checkpointKey: SymmetricKey,
         ownershipToken: String
     ) throws {
         self.metadataURL = metadataURL
@@ -210,6 +187,9 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
         self.closeAckURL = closeAckURL
         self.stopRequestURL = stopRequestURL
         self.cleanupURL = cleanupURL
+        self.checkpointRequestURL = checkpointRequestURL
+        self.checkpointReceiptURL = checkpointReceiptURL
+        self.checkpointService = FixtureGeometryCheckpointService(key: checkpointKey)
         self.ownershipToken = ownershipToken
 
         guard let screen = NSScreen.main, screen.visibleFrame.width >= 760, screen.visibleFrame.height >= 560 else {
@@ -303,8 +283,11 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
         if !FileManager.default.fileExists(atPath: metadataURL.path) {
             readinessAttempts += 1
             switch currentMetadata() {
-            case .success(let metadata):
-                writeJSON(FixtureReadyEnvelope(status: "ready", metadata: metadata), to: metadataURL)
+            case .success(let observation):
+                metadataPublished = writeJSON(
+                    FixtureReadyEnvelope(status: "ready", metadata: observation.metadata),
+                    to: metadataURL
+                )
             case .failure(let failure) where readinessAttempts > 80:
                 writeJSON(FixtureFailureEnvelope(status: "failed", error_code: failure), to: metadataURL)
             case .failure:
@@ -312,7 +295,19 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
             }
         }
 
-        if !targetClosed, FileManager.default.fileExists(atPath: closeRequestURL.path) {
+        let stopRequested = FileManager.default.fileExists(atPath: stopRequestURL.path)
+        let closeRequested = FileManager.default.fileExists(atPath: closeRequestURL.path)
+        if !stopStarted, stopRequested {
+            stopStarted = true
+            targetWindow.orderOut(nil)
+            targetWindow.close()
+            siblingWindow.orderOut(nil)
+            siblingWindow.close()
+            waitForFixtureRemoval(attemptsRemaining: 40)
+            return
+        }
+
+        if !targetClosed, closeRequested {
             targetClosed = true
             targetWindow.orderOut(nil)
             targetWindow.close()
@@ -323,19 +318,27 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
                     to: self.closeAckURL
                 )
             }
+            return
         }
 
-        if !stopStarted, FileManager.default.fileExists(atPath: stopRequestURL.path) {
-            stopStarted = true
-            targetWindow.orderOut(nil)
-            targetWindow.close()
-            siblingWindow.orderOut(nil)
-            siblingWindow.close()
-            waitForFixtureRemoval(attemptsRemaining: 40)
+        if fixtureGeometryCheckpointServiceAllowed(
+            metadataPublished: metadataPublished,
+            targetClosed: targetClosed,
+            stopStarted: stopStarted,
+            closeRequested: closeRequested,
+            stopRequested: stopRequested
+        ) {
+            checkpointService.serviceIfRequested(
+                requestURL: checkpointRequestURL,
+                receiptURL: checkpointReceiptURL
+            ) { [unowned self] in
+                guard case .success(let observation) = self.currentMetadata() else { return nil }
+                return observation.geometry
+            }
         }
     }
 
-    private func currentMetadata() -> Result<FixtureMetadata, FixtureFailureCode> {
+    private func currentMetadata() -> Result<FixtureObservation, FixtureFailureCode> {
         let entries = onScreenWindowEntries()
         let targetIndex = entries.firstIndex(where: { windowID($0) == targetWindowID })
         let siblingIndex = entries.firstIndex(where: { windowID($0) == siblingWindowID })
@@ -365,7 +368,10 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
         let geometryReady = boundsReady
             && overlapFraction >= 0.35
             && siblingBounds!.contains(CGPoint(x: targetBounds!.midX, y: targetBounds!.midY))
-        let display = boundsReady ? soleContainingDisplay(for: targetBounds!) : nil
+        let targetDisplay = boundsReady ? soleContainingDisplay(for: targetBounds!) : nil
+        let siblingDisplay = boundsReady ? soleContainingDisplay(for: siblingBounds!) : nil
+        let targetScale = targetWindow.backingScaleFactor
+        let siblingScale = siblingWindow.backingScaleFactor
         let targetControlReadiness = controlReadinessChecks(
             targetControl,
             identifier: targetIdentifier,
@@ -394,26 +400,32 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
             siblingControlFrame: siblingControlReadiness.frame,
             order: siblingIndex.map { sibling in targetIndex.map { sibling < $0 } ?? false } ?? false,
             geometry: geometryReady,
-            display: display != nil
+            display: targetDisplay != nil
+                && siblingDisplay != nil
+                && fixtureGeometryScaleIsValid(targetScale)
+                && fixtureGeometryScaleIsValid(siblingScale)
         )
         if let failure = firstFixtureReadinessFailure(checks) {
             return .failure(failure)
         }
         guard let targetBounds,
               let siblingBounds,
-              let display else {
+              let targetDisplay,
+              let siblingDisplay,
+              let targetOwnerPID = targetEntry.flatMap({ windowPID($0) }),
+              let siblingOwnerPID = siblingEntry.flatMap({ windowPID($0) }) else {
             return .failure(.helperFailed)
         }
 
-        return .success(FixtureMetadata(
+        let metadata = FixtureMetadata(
             schema: "aos.exact-focus-channel-native-fixture.v1",
             pid: Int(getpid()),
             target_window_id: targetWindowID,
             sibling_window_id: siblingWindowID,
             target_bounds: fixtureBounds(targetBounds),
             sibling_bounds: fixtureBounds(siblingBounds),
-            display_id: Int(display),
-            scale_factor: targetWindow.backingScaleFactor,
+            display_id: Int(targetDisplay),
+            scale_factor: targetScale,
             target_identifier: targetIdentifier,
             sibling_identifier: siblingIdentifier,
             ownership_token: ownershipToken,
@@ -422,6 +434,25 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
             sibling_above_target: true,
             target_center_occluded: true,
             overlap_fraction: overlapFraction
+        )
+        return .success(FixtureObservation(
+            metadata: metadata,
+            geometry: FixtureGeometryObservation(
+                target: FixtureGeometryFact(
+                    ownerPID: targetOwnerPID,
+                    windowID: targetWindowID,
+                    bounds: fixtureBounds(targetBounds),
+                    displayID: targetDisplay,
+                    scaleFactor: targetScale
+                ),
+                sibling: FixtureGeometryFact(
+                    ownerPID: siblingOwnerPID,
+                    windowID: siblingWindowID,
+                    bounds: fixtureBounds(siblingBounds),
+                    displayID: siblingDisplay,
+                    scaleFactor: siblingScale
+                )
+            )
         ))
     }
 
@@ -528,9 +559,15 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
         )
     }
 
-    private func writeJSON<T: Encodable>(_ value: T, to url: URL) {
-        guard let data = try? JSONEncoder.sorted.encode(value) else { return }
-        try? data.write(to: url, options: .atomic)
+    @discardableResult
+    private func writeJSON<T: Encodable>(_ value: T, to url: URL) -> Bool {
+        guard let data = try? JSONEncoder.sorted.encode(value) else { return false }
+        do {
+            try data.write(to: url, options: .atomic)
+            return true
+        } catch {
+            return false
+        }
     }
 
     private func writeJSON(_ value: [String: Any], to url: URL) {
@@ -878,8 +915,11 @@ private enum ExactFocusChannelNativeProof {
                       let closeAck = value(after: "--close-ack", in: args),
                       let stopRequest = value(after: "--stop-request", in: args),
                       let cleanup = value(after: "--cleanup-report", in: args),
+                      let checkpointRequest = value(after: "--checkpoint-request", in: args),
+                      let checkpointReceipt = value(after: "--checkpoint-receipt", in: args),
                       let ownershipToken = value(after: "--ownership-token", in: args),
-                      !ownershipToken.isEmpty else {
+                      !ownershipToken.isEmpty,
+                      let checkpointKey = fixtureGeometryCheckpointKeyFromEnvironment() else {
                     throw ProofFailure.invalidArguments
                 }
                 let app = NSApplication.shared
@@ -890,6 +930,9 @@ private enum ExactFocusChannelNativeProof {
                     closeAckURL: URL(fileURLWithPath: closeAck),
                     stopRequestURL: URL(fileURLWithPath: stopRequest),
                     cleanupURL: URL(fileURLWithPath: cleanup),
+                    checkpointRequestURL: URL(fileURLWithPath: checkpointRequest),
+                    checkpointReceiptURL: URL(fileURLWithPath: checkpointReceipt),
+                    checkpointKey: checkpointKey,
                     ownershipToken: ownershipToken
                 )
                 app.delegate = controller

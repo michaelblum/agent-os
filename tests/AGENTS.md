@@ -187,7 +187,20 @@ tests.
   deterministic overlapping windows from one synthetic AppKit process, passive
   public status/service/permission/build-attestation preflights, public `focus`
   and `see capture --channel` evidence routes, an owner-bounded process-group
-  watchdog, and content-free output. It must reject a sibling-window subtree,
+  watchdog, and content-free output. Every admitted group must have durable
+  exact ownership before retirement and bounded descendant reaping; every
+  lifecycle receipt and process-outcome normalization must be singly owned by
+  an import-safe protocol module consumed by the process-owning helper and
+  `exact-focus-channel-proof-protocol-contract.test.mjs` and
+  `exact-focus-channel-supervision-contract.test.mjs`; command execution,
+  executable offline self-test payloads, pure proof modeling, and live proof
+  operations must remain separate import-safe helpers, with stdout/tempfs
+  effects owned by `exact-focus-channel-native-proof-self-test.mjs`, bounded
+  file opening in the runtime rather than the model, and
+  an acyclic driver-to-runtime-to-model dependency; every capture must bind
+  contemporaneous stable target/sibling geometry
+  to coherent public surface, segment, perception, and decoded-pixel facts. It
+  must reject a sibling-window subtree,
   prove the occluded target's pixels and AX membership, preserve and recapture
   the last good publication after a rejected refresh, fail closed when the
   target is missing, remove all channel/window/temp state, preserve every

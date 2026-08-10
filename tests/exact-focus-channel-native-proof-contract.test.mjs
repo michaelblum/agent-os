@@ -8,6 +8,13 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const helperPath = path.join(root, 'tests/manual/exact-focus-channel-native-proof.swift');
+const checkpointSwiftPath = path.join(root, 'tests/lib/exact-focus-channel-geometry-checkpoint.swift');
+const checkpointNodePath = path.join(root, 'tests/lib/exact-focus-channel-geometry-checkpoint.mjs');
+const proofContractPath = path.join(root, 'tests/lib/exact-focus-channel-proof-contract.mjs');
+const commandRunnerPath = path.join(root, 'tests/lib/exact-focus-channel-command-runner.mjs');
+const proofModelPath = path.join(root, 'tests/lib/exact-focus-channel-native-proof-model.mjs');
+const proofRuntimePath = path.join(root, 'tests/lib/exact-focus-channel-native-proof-runtime.mjs');
+const proofSelfTestPath = path.join(root, 'tests/lib/exact-focus-channel-native-proof-self-test.mjs');
 const driverPath = path.join(root, 'tests/manual/exact-focus-channel-native-proof.mjs');
 const runnerPath = path.join(root, 'tests/manual/exact-focus-channel-native-proof.sh');
 const expectedFixtureFailureCodes = Object.freeze([
@@ -31,19 +38,71 @@ const expectedFixtureFailureCodes = Object.freeze([
   'FIXTURE_DISPLAY_UNAVAILABLE',
 ]);
 const expectedFixtureReadinessCodes = expectedFixtureFailureCodes.slice(2);
-
 function shellIntegerConstant(source, name) {
   const match = source.match(new RegExp(`typeset -r ${name}=([0-9]+)`, 'u'));
   assert.ok(match, `missing integer shell constant ${name}`);
   return Number(match[1]);
 }
 
+function childDiagnostics(result) {
+  return JSON.stringify({ signal: result.signal, status: result.status,
+    stderr: result.stderr, stdout: result.stdout });
+}
+function compileHelperBinary(temporaryRoot, binary) {
+  execFileSync('swiftc', [
+    '-parse-as-library',
+    '-module-cache-path', path.join(temporaryRoot, 'module-cache'),
+    '-framework', 'AppKit',
+    '-framework', 'ImageIO',
+    checkpointSwiftPath,
+    helperPath,
+    '-o', binary,
+  ], {
+    cwd: root,
+    stdio: 'pipe',
+    timeout: 45_000,
+  });
+}
 test('exact focus-channel native helper typechecks without opening windows or capturing pixels', () => {
   execFileSync('zsh', [runnerPath, '--typecheck'], {
     cwd: root,
     stdio: 'pipe',
     timeout: 45_000,
   });
+});
+
+test('native proof model, runtime, self-test, and command runner are import-safe focused boundaries', () => {
+  const driver = fs.readFileSync(driverPath, 'utf8');
+  const model = fs.readFileSync(proofModelPath, 'utf8');
+  const runtime = fs.readFileSync(proofRuntimePath, 'utf8');
+  const selfTest = fs.readFileSync(proofSelfTestPath, 'utf8');
+  assert.ok(driver.split('\n').length - 1 <= 700);
+  assert.ok(model.split('\n').length - 1 <= 700);
+  assert.ok(runtime.split('\n').length - 1 <= 700);
+  assert.ok(selfTest.split('\n').length - 1 <= 700);
+  assert.match(runtime, /from '\.\/exact-focus-channel-native-proof-model\.mjs'/u);
+  assert.match(runtime, /from '\.\/exact-focus-channel-command-runner\.mjs'/u);
+  assert.doesNotMatch(model, /exact-focus-channel-native-proof-runtime|manual\/exact-focus/u);
+  assert.doesNotMatch(model, /node:fs|node:os|node:path|process\.stdout|mkdtempSync|openSync/u);
+  assert.match(selfTest, /from '\.\/exact-focus-channel-native-proof-runtime\.mjs'/u);
+  assert.match(selfTest, /export function commandTelemetrySelfTest\(\)/u);
+  assert.match(selfTest, /export function fixtureResultParserSelfTest\(\)/u);
+  assert.match(selfTest, /export function channelSnapshotSelfTest\(\)/u);
+  assert.match(driver, /await import\(\s+'\.\.\/lib\/exact-focus-channel-native-proof-self-test\.mjs'/u);
+  assert.doesNotMatch(
+    runtime,
+    /from ['"][^'"]*manual\/exact-focus-channel-native-proof\.mjs['"]/u,
+  );
+  assert.doesNotMatch(driver, /function (?:runAOSSuccess|verifyCapture|parseFixtureResultFile)/u);
+  for (const modulePath of [commandRunnerPath, proofModelPath, proofRuntimePath, proofSelfTestPath]) {
+    const imported = spawnSync('node', ['--input-type=module', '-e',
+      `await import(${JSON.stringify(`file://${modulePath}`)})`], {
+      cwd: root, encoding: 'utf8', timeout: 2_000,
+    });
+    assert.equal(imported.status, 0, childDiagnostics(imported));
+    assert.equal(imported.stdout, '');
+    assert.equal(imported.stderr, '');
+  }
 });
 
 test('exact focus-channel pixel classifier has an offline deterministic self-test', () => {
@@ -63,18 +122,7 @@ test('exact focus-channel fixture readiness classifier is pure, ordered, and all
   const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-fixture-readiness-self-test-'));
   const binary = path.join(temporaryRoot, 'fixture-readiness-self-test');
   try {
-    execFileSync('swiftc', [
-      '-parse-as-library',
-      '-module-cache-path', path.join(temporaryRoot, 'module-cache'),
-      '-framework', 'AppKit',
-      '-framework', 'ImageIO',
-      helperPath,
-      '-o', binary,
-    ], {
-      cwd: root,
-      stdio: 'pipe',
-      timeout: 45_000,
-    });
+    compileHelperBinary(temporaryRoot, binary);
     const result = spawnSync(binary, ['--readiness-classifier-self-test'], {
       cwd: root,
       encoding: 'utf8',
@@ -94,10 +142,15 @@ test('exact focus-channel fixture readiness classifier is pure, ordered, and all
 
 test('exact focus-channel fixture is synthetic, same-process, overlapping, and AX-distinct', () => {
   const helper = fs.readFileSync(helperPath, 'utf8');
+  const checkpointHelper = fs.readFileSync(checkpointSwiftPath, 'utf8');
   const fixtureMain = helper.slice(helper.indexOf('if args.first == "--fixture"'));
   const localReadiness = helper.slice(
     helper.indexOf('private func currentMetadata()'),
     helper.indexOf('private func waitForWindowRemoval'),
+  );
+  const checkpointTick = helper.slice(
+    helper.indexOf('private func tick()'),
+    helper.indexOf('private func currentMetadata()'),
   );
   const delegateIndex = fixtureMain.indexOf('app.delegate = controller');
   const lifetimeIndex = fixtureMain.indexOf('withExtendedLifetime(controller)');
@@ -157,17 +210,34 @@ test('exact focus-channel fixture is synthetic, same-process, overlapping, and A
   assert.match(localReadiness, /siblingBounds!\.contains\(CGPoint\(x: targetBounds!\.midX, y: targetBounds!\.midY\)\)/u);
   assert.match(helper, /CGDisplayMirrorsDisplay/u);
   assert.match(helper, /CGDisplayBounds\(\$0\)\.contains\(bounds\)/u);
-  assert.doesNotMatch(helper, /ScreenCaptureKit|SCScreenshotManager|SCStream/u);
-  assert.doesNotMatch(helper, /CGWindowListCreateImage|CGDisplayCreateImage/u);
+  assert.doesNotMatch(`${helper}\n${checkpointHelper}`, /ScreenCaptureKit|SCScreenshotManager|SCStream/u);
+  assert.doesNotMatch(`${helper}\n${checkpointHelper}`, /CGWindowListCreateImage|CGDisplayCreateImage/u);
+  assert.match(helper, /FixtureGeometryCheckpointService\(key: checkpointKey\)/u);
+  assert.match(checkpointTick, /fixtureGeometryCheckpointServiceAllowed/u);
+  assert.match(checkpointTick, /checkpointService\.serviceIfRequested/u);
+  assert.ok(checkpointTick.indexOf('stopRequested') < checkpointTick.indexOf('checkpointService.serviceIfRequested'));
+  assert.ok(checkpointTick.indexOf('closeRequested') < checkpointTick.indexOf('checkpointService.serviceIfRequested'));
+  assert.match(checkpointHelper, /private func publishFixtureGeometryReceipt/u);
+  assert.match(checkpointHelper, /getenv\(fixtureGeometryCheckpointKeyEnvironment\)/u);
+  assert.ok(
+    checkpointHelper.indexOf('unsetenv(fixtureGeometryCheckpointKeyEnvironment)')
+      > checkpointHelper.indexOf('getenv(fixtureGeometryCheckpointKeyEnvironment)'),
+  );
+  assert.doesNotMatch(fixtureMain, /ProcessInfo\.processInfo\.environment\[\s*fixtureGeometryCheckpointKeyEnvironment/u);
 });
 
 test('exact focus-channel live driver uses passive public preflights and bounded public evidence routes', () => {
   const driver = fs.readFileSync(driverPath, 'utf8');
+  const checkpointHelper = fs.readFileSync(checkpointNodePath, 'utf8');
+  const proofContract = fs.readFileSync(proofContractPath, 'utf8');
+  const proofModel = fs.readFileSync(proofModelPath, 'utf8');
+  const proofRuntime = fs.readFileSync(proofRuntimePath, 'utf8');
+  const proofSelfTest = fs.readFileSync(proofSelfTestPath, 'utf8');
   const runner = fs.readFileSync(runnerPath, 'utf8');
-  const combined = `${driver}\n${runner}`;
-  const progressValidator = driver.slice(
-    driver.indexOf('function validatedProgressReceipt'),
-    driver.indexOf('async function sanitizeProgressReceipt'),
+  const combined = `${driver}\n${proofModel}\n${proofRuntime}\n${runner}`;
+  const progressValidator = proofContract.slice(
+    proofContract.indexOf('export function validatedProgressReceipt'),
+    proofContract.indexOf('export function sanitizedProgressFromFile'),
   );
   const cleanupBody = runner.slice(
     runner.indexOf('cleanup() {'),
@@ -187,117 +257,171 @@ test('exact focus-channel live driver uses passive public preflights and bounded
     runner.indexOf('  --run)'),
     runner.indexOf('  --runner-preflight-self-test)'),
   );
-  const supervisorBody = driver.slice(
-    driver.indexOf('async function superviseCommand'),
-    driver.indexOf('async function ownedGroupWrapper'),
+  const cleanupSignalMode = runner.slice(
+    runner.indexOf('  --cleanup-signal-self-test)'),
+    runner.indexOf('  --cleanup-self-test)'),
   );
-  const processTreeSelfTest = runner.slice(
-    runner.indexOf('--process-tree-self-test)'),
-    runner.indexOf('--progress-timeout-self-test)'),
+  const checkpointRequestRoute = proofRuntime.slice(
+    proofRuntime.indexOf('async function requestFixtureGeometryCheckpoint'),
+    proofRuntime.indexOf('export function canonicalExistingPath'),
   );
-  const progressTimeoutSelfTest = runner.slice(
-    runner.indexOf('--progress-timeout-self-test)'),
-    runner.indexOf('--run-program-timeout-self-test)'),
+  const fixtureStart = proofRuntime.slice(
+    proofRuntime.indexOf('export async function startFixture'),
+    proofRuntime.indexOf('export async function stopFixture'),
   );
-  const progressHangSelfTest = driver.slice(
-    driver.indexOf('async function progressHangSelfTest'),
-    driver.indexOf('function runProgramTimeoutSelfTest'),
+  const captureCheckpoint = proofRuntime.slice(
+    proofRuntime.indexOf('async function captureCheckpointBracket'),
+    proofRuntime.indexOf('export function writeDaemonIdentity'),
   );
+  const runAOSSuccessRoute = proofRuntime.slice(
+    proofRuntime.indexOf('export function runAOSSuccess'),
+    proofRuntime.indexOf('export function runAOSFailure'),
+  );
+  const successSummaryStart = driver.indexOf("    const summary = {\n      status: 'passed'");
+  const failureSummaryStart = driver.indexOf("    const summary = {\n      status: 'failed'");
+  assert.ok(successSummaryStart >= 0 && failureSummaryStart > successSummaryStart);
+  const terminalSummaries = `${driver.slice(
+    successSummaryStart,
+    driver.indexOf('    process.stdout.write', successSummaryStart),
+  )}\n${driver.slice(
+    failureSummaryStart,
+    driver.indexOf('    process.stdout.write', failureSummaryStart),
+  )}`;
 
   assert.match(driver, /'focus', 'create'/u);
   assert.match(driver, /'--subtree-identifier', metadata\.sibling_identifier/u);
   assert.match(driver, /'--subtree-identifier', metadata\.target_identifier/u);
-  assert.match(driver, /'see', 'capture'/u);
-  assert.match(driver, /'--channel', options\.channel/u);
-  assert.match(driver, /'--xray'/u);
-  assert.match(driver, /'--perception'/u);
-  assert.match(driver, /'--out', outputFile/u);
-  assert.match(driver, /verifyCapture\(options, metadata, files\.capture, 'INITIAL'\)/u);
-  assert.match(driver, /fail\(target\.role === 'AXButton', `\$\{codePrefix\}_TARGET_AX_ROLE`\);/u);
-  assert.match(driver, /fail\(query\?\.role === 'AXButton', `\$\{codePrefix\}_TARGET_HANDLE_ROLE`\);/u);
+  assert.match(proofRuntime, /'see', 'capture'/u);
+  assert.match(proofRuntime, /'--channel', options\.channel/u);
+  assert.match(proofRuntime, /'--xray'/u);
+  assert.match(proofRuntime, /'--perception'/u);
+  assert.match(proofRuntime, /'--out', outputFile/u);
+  assert.match(driver, /const initial = await verifyCapture\(\s+options,\s+metadata,\s+files,\s+fixture,\s+files\.capture,\s+'INITIAL'/u);
+  assert.match(proofModel, /fail\(target\.role === 'AXButton', `\$\{codePrefix\}_TARGET_AX_ROLE`\);/u);
+  assert.match(proofModel, /fail\(query\?\.role === 'AXButton', `\$\{codePrefix\}_TARGET_HANDLE_ROLE`\);/u);
   assert.match(driver, /'focus', 'update'/u);
   assert.match(driver, /REJECTED_REFRESH_CHANGED_PUBLICATION/u);
-  assert.match(driver, /verifyCapture\(options, metadata, files\.preservedCapture, 'PRESERVED'\)/u);
+  assert.match(driver, /const preserved = await verifyCapture\(\s+options,\s+metadata,\s+files,\s+fixture,\s+files\.preservedCapture,\s+'PRESERVED'/u);
   assert.match(driver, /createdEntry\?\.elements_count === 1/u);
   assert.match(driver, /REJECTED_REFRESH_CHANGED_DECODED_PIXELS/u);
   assert.match(driver, /REJECTED_REFRESH_CHANGED_AX/u);
   assert.match(driver, /MISSING_TARGET_CAPTURE_NOT_REJECTED/u);
-  assert.match(driver, /SHARED_DAEMON_CHANGED/u);
-  assert.match(driver, /'runtime', 'build-attestation', '--json'/u);
-  assert.match(driver, /'service', 'status', '--mode', 'repo', '--json'/u);
+  assert.match(proofRuntime, /SHARED_DAEMON_CHANGED/u);
+  assert.match(combined, /'runtime', 'build-attestation', '--json'/u);
+  assert.match(proofRuntime, /'service', 'status', '--mode', 'repo', '--json'/u);
   assert.match(driver, /daemon_path_start_order_bound: true/u);
   assert.doesNotMatch(driver, /daemon_binary_bound/u);
-  assert.match(driver, /'permissions', 'check', '--json'/u);
-  assert.match(driver, /--untracked-files=all/u);
-  assert.match(driver, /AOS_DISABLE_DAEMON_AUTOSTART/u);
-  assert.match(driver, /AOS_ALLOW_DAEMON_AUTOSTART/u);
+  assert.match(combined, /'permissions', 'check', '--json'/u);
+  assert.match(proofRuntime, /--untracked-files=all/u);
+  assert.match(proofRuntime, /AOS_DISABLE_DAEMON_AUTOSTART/u);
+  assert.match(proofRuntime, /AOS_ALLOW_DAEMON_AUTOSTART/u);
   assert.match(driver, /stablePublicChannelDigests/u);
-  assert.match(driver, /createHmac\('sha256', key\)/u);
+  assert.match(proofModel, /createHmac\('sha256', key\)/u);
   assert.match(runner, /unrelated-channel-digests\.json/u);
   assert.match(runner, /randomBytes\(32\)\.toString\("hex"\)/u);
-  assert.match(driver, /CLEAN_ABSENCE_SETTLE_MS/u);
+  assert.match(proofRuntime, /CLEAN_ABSENCE_SETTLE_MS/u);
   assert.match(driver, /fixtureProcessReaped/u);
   assert.match(driver, /raw_capture_logged: false/u);
   assert.match(driver, /pixels_persisted: false/u);
-  assert.match(driver, /const PROGRESS_SCHEMA = 'aos\.exact-focus-channel-native-progress\.v1'/u);
-  assert.match(driver, /const PROGRESS_MAX_BYTES = 2_048/u);
-  assert.match(driver, /const AOS_COMMAND_ERROR_MAX_BYTES = 2_048/u);
-  assert.match(driver, /const FIXTURE_RESULT_MAX_BYTES = 2_048/u);
-  assert.match(driver, /const FIXTURE_FAILURE_CODES = new Set/u);
-  assert.match(driver, /fs\.openSync\(file, fs\.constants\.O_RDONLY \| noFollow\)/u);
-  assert.match(driver, /fs\.fstatSync\(descriptor\)/u);
-  assert.match(driver, /hasExactKeys\(envelope, \['error_code', 'status'\]\)/u);
-  assert.match(driver, /hasExactKeys\(envelope, \['metadata', 'status'\]\)/u);
+  assert.match(proofContract, /export const PROGRESS_SCHEMA = 'aos\.exact-focus-channel-native-progress\.v1'/u);
+  assert.match(proofContract, /export const PROGRESS_MAX_BYTES = 2_048/u);
+  assert.match(proofContract, /export const AOS_COMMAND_ERROR_MAX_BYTES = 2_048/u);
+  assert.match(proofModel, /export const FIXTURE_RESULT_MAX_BYTES = 2_048/u);
+  assert.match(proofModel, /const FIXTURE_FAILURE_CODES = new Set/u);
+  assert.match(proofRuntime, /fs\.openSync\(file, fs\.constants\.O_RDONLY \| noFollow\)/u);
+  assert.match(proofRuntime, /fs\.fstatSync\(descriptor\)/u);
+  assert.match(proofModel, /hasExactKeys\(envelope, \['error_code', 'status'\]\)/u);
+  assert.match(proofModel, /hasExactKeys\(envelope, \['metadata', 'status'\]\)/u);
   assert.match(driverFixtureStartup, /const metadata = parseFixtureResultFile\(files\.metadata\)/u);
   assert.doesNotMatch(driverFixtureStartup, /readFileSync\(files\.metadata/u);
-  assert.match(driver, /const AOS_COMMAND_ERROR_CODES = new Set/u);
-  assert.match(driver, /'DAEMON_UNREACHABLE'/u);
-  assert.match(driver, /const AOS_PRECOMMIT_REJECTION_CODES = new Set/u);
-  assert.match(driver, /commandAdmissionAmbiguous/u);
-  assert.match(driver, /commandErrorCode/u);
+  assert.match(proofContract, /const AOS_COMMAND_ERROR_CODES = new Set/u);
+  assert.match(proofContract, /'DAEMON_UNREACHABLE'/u);
+  assert.match(proofContract, /const AOS_PRECOMMIT_REJECTION_CODES = new Set/u);
+  assert.match(proofRuntime, /const FIXTURE_GEOMETRY_CHECKPOINT_WAIT_MS = 2_000/u);
+  assert.match(proofRuntime, /from '\.\/exact-focus-channel-geometry-checkpoint\.mjs'/u);
+  assert.match(driver, /from '\.\.\/lib\/exact-focus-channel-proof-contract\.mjs'/u);
+  assert.match(driver, /from '\.\.\/lib\/exact-focus-channel-native-proof-model\.mjs'/u);
+  assert.match(driver, /from '\.\.\/lib\/exact-focus-channel-native-proof-runtime\.mjs'/u);
+  assert.doesNotMatch(driver, /exact-focus-channel-supervision\.mjs/u);
+  for (const runtimePath of [
+    'tests/exact-focus-channel-geometry-checkpoint.test.mjs',
+    'tests/exact-focus-channel-proof-protocol-contract.test.mjs',
+    'tests/exact-focus-channel-supervision-contract.test.mjs',
+    'tests/lib/exact-focus-channel-command-runner.mjs',
+    'tests/lib/exact-focus-channel-geometry-checkpoint-harness.swift',
+    'tests/lib/exact-focus-channel-geometry-checkpoint.mjs',
+    'tests/lib/exact-focus-channel-geometry-checkpoint.swift',
+    'tests/lib/exact-focus-channel-native-proof-model.mjs',
+    'tests/lib/exact-focus-channel-native-proof-runtime.mjs',
+    'tests/lib/exact-focus-channel-native-proof-self-test.mjs',
+    'tests/lib/exact-focus-channel-proof-contract.mjs',
+    'tests/lib/exact-focus-channel-supervision-protocol.mjs',
+    'tests/lib/exact-focus-channel-supervision-self-test.mjs',
+    'tests/lib/exact-focus-channel-supervision.mjs',
+    'tests/lib/exact-focus-channel-supervision-scenarios.zsh',
+    'tests/lib/exact-focus-channel-supervision.zsh',
+  ]) assert.match(proofRuntime, new RegExp(runtimePath.replaceAll('.', '\\.'), 'u'));
+  assert.match(runner, /CHECKPOINT_SOURCE="\$ROOT\/tests\/lib\/exact-focus-channel-geometry-checkpoint\.swift"/u);
+  assert.match(runner, /SUPERVISION_NODE_SOURCE="\$ROOT\/tests\/lib\/exact-focus-channel-supervision\.mjs"/u);
+  assert.match(runner, /SUPERVISION_SCENARIO_SOURCE="\$ROOT\/tests\/lib\/exact-focus-channel-supervision-scenarios\.zsh"/u);
+  assert.match(runner, /SUPERVISION_SHELL_SOURCE="\$ROOT\/tests\/lib\/exact-focus-channel-supervision\.zsh"/u);
+  assert.match(runner, /\. "\$SUPERVISION_SHELL_SOURCE"/u);
+  assert.match(checkpointRequestRoute, /fixture\.checkpointRequester\.begin\(phase\)/u);
+  assert.match(checkpointRequestRoute, /await waitForFile\(files\.checkpointReceipt, FIXTURE_GEOMETRY_CHECKPOINT_WAIT_MS\)/u);
+  assert.match(checkpointRequestRoute, /fixture\.checkpointRequester\.read\(transaction\)/u);
+  assert.match(checkpointRequestRoute, /finally \{\s+fixture\?\.checkpointRequester\?\.cleanup\(\);/u);
+  assert.match(checkpointHelper, /class GeometryCheckpointRequester/u);
+  assert.match(fixtureStart, /'--checkpoint-request', files\.checkpointRequest[\s\S]+'--checkpoint-receipt', files\.checkpointReceipt/u);
+  const fixtureArgv = fixtureStart.slice(
+    fixtureStart.indexOf('child = spawn'),
+    fixtureStart.indexOf('], {'),
+  );
+  assert.doesNotMatch(fixtureArgv, /GEOMETRY_CHECKPOINT_KEY_ENV/u);
+  assert.match(fixtureStart, /\[GEOMETRY_CHECKPOINT_KEY_ENV\]: checkpointKey\.toString\('hex'\)/u);
+  assert.match(fixtureStart, /child\.kill\('SIGTERM'\)[\s\S]+waitForChildExit\(child, 1_000\)[\s\S]+child\.kill\('SIGKILL'\)/u);
+  assert.match(proofRuntime.slice(
+    proofRuntime.indexOf('export function proofEnvironment'),
+    proofRuntime.indexOf('export function assertEnvironmentScope'),
+  ), /delete environment\[GEOMETRY_CHECKPOINT_KEY_ENV\]/u);
+  assert.match(captureCheckpoint, /const pre = await requestFixtureGeometryCheckpoint[\s\S]+const capture = await captureOperation\(\)[\s\S]+const post = await requestFixtureGeometryCheckpoint/u);
+  assert.match(captureCheckpoint, /`\$\{phasePrefix\}_pre`[\s\S]+`\$\{phasePrefix\}_post`/u);
+  assert.match(captureCheckpoint, /verifyCaptureGeometryCheckpoint\(\{/u);
+  assert.match(captureCheckpoint, /decodedHeight: analysis\.height[\s\S]+decodedWidth: analysis\.width/u);
+  assert.doesNotMatch(captureCheckpoint, /metadata\.target_bounds/u);
+  // Threat scope: startup metadata bounds remain accepted controlled synthetic-fixture
+  // evidence; checkpoint files add only nonce, phase, status, typed code, and HMACs.
+  assert.doesNotMatch(terminalSummaries, /nonce|_hmac|checkpoint|target_bounds|sibling_bounds/u);
+  assert.match(proofModel, /commandAdmissionAmbiguous/u);
+  assert.match(proofModel, /commandErrorCode/u);
   assert.match(driver, /command_error_code:/u);
   assert.match(driver, /command_admission_ambiguous:/u);
-  assert.match(driver, /allowlistedAOSCommandError\(result\)/u);
-  assert.match(driver, /aosCommandMayAdmitMutation/u);
-  assert.match(driver, /unexpectedSuccess: true/u);
-  assert.match(driver, /function commandFailureFields\(error\)/u);
-  assert.match(driver, /execute = runProgram/u);
+  assert.match(proofRuntime, /allowlistedAOSCommandError\(result\)/u);
+  assert.match(proofModel, /aosCommandMayAdmitMutation/u);
+  assert.match(runAOSSuccessRoute,
+    /allowlistedAOSCommandError\(result\) !== null[\s\S]+unexpectedSuccess: true[\s\S]+parseJSON\(result\.stdout[\s\S]+extractAOSCommandErrorCode\(payload\) !== null/u);
+  assert.match(proofSelfTest,
+    /statusZeroTypedEnvelope[\s\S]+status: 0[\s\S]+code: 'WINDOW_NOT_FOUND'[\s\S]+commandErrorCode === null/u);
+  assert.match(proofSelfTest,
+    /statusZeroTypedStderr[\s\S]+data: \{ channels: \[\] \}[\s\S]+stdout[\s\S]+stderr: JSON\.stringify\(\{ code: 'WINDOW_NOT_FOUND'[\s\S]+statusZeroTypedStderr\.every/u);
+  assert.match(proofModel, /export function commandFailureFields\(error\)/u);
+  assert.match(proofRuntime, /execute = runProgram/u);
   assert.match(
     driverMainCatch,
     /const summary = \{\s+status: 'failed',\s+\.\.\.commandFailureFields\(error\),/u,
   );
-  assert.match(driver, /const PROGRESS_MAX_ELAPSED_MS = 1_800_000/u);
-  assert.match(driver, /const PROGRESS_MAX_ORDINAL = PROGRESS_STAGES\.length \* 2/u);
-  assert.match(driver, /fs\.openSync\(tempFile, 'wx', 0o600\)/u);
-  assert.match(driver, /fs\.renameSync\(tempFile, file\)/u);
-  assert.match(driver, /const noFollow = fs\.constants\.O_NOFOLLOW/u);
-  assert.match(driver, /if \(!Number\.isInteger\(noFollow\) \|\| noFollow === 0\) return null/u);
-  assert.match(driver, /fs\.openSync\(file, fs\.constants\.O_RDONLY \| noFollow\)/u);
+  assert.match(proofContract, /export const PROGRESS_MAX_ELAPSED_MS = 1_800_000/u);
+  assert.match(proofContract, /export const PROGRESS_MAX_ORDINAL = PROGRESS_STAGES\.length \* 2/u);
+  assert.match(proofContract, /fs\.openSync\(tempFile, 'wx', 0o600\)/u);
+  assert.match(proofContract, /fs\.renameSync\(tempFile, file\)/u);
+  assert.match(proofContract, /const noFollow = fs\.constants\.O_NOFOLLOW/u);
+  assert.match(proofContract, /if \(!Number\.isInteger\(noFollow\) \|\| noFollow === 0\) return null/u);
+  assert.match(proofRuntime, /const noFollow = fs\.constants\.O_NOFOLLOW;\s+fail\(Number\.isInteger\(noFollow\) && noFollow !== 0, errorCode\);/u);
+  assert.match(proofSelfTest, /mkdtempSync[\s\S]+parseFixtureResultFile[\s\S]+rmSync/u);
+  assert.match(proofContract, /fs\.openSync\(file, fs\.constants\.O_RDONLY \| noFollow\)/u);
   assert.doesNotMatch(progressValidator, /lstatSync/u);
-  assert.match(driver, /capture: 30_000/u);
-  assert.match(driver, /aos: 10_000/u);
-  assert.match(driver, /local: 10_000/u);
-  assert.match(driver, /new ProofError\('COMMAND_TIMEOUT', \{ ambiguous: true \}\)/u);
-  assert.match(driver, /print -r -- "\$AOS_RUN_PROGRAM_TIMEOUT_SENTINEL"/u);
-  assert.match(driver, /fs\.fsyncSync\(descriptor\)/u);
-  assert.ok(supervisorBody.indexOf('const signalHandlers') < supervisorBody.indexOf('child = spawn'));
-  assert.ok(supervisorBody.indexOf('const parentMonitor') < supervisorBody.indexOf('child = spawn'));
-  assert.ok(supervisorBody.indexOf('const deadline') < supervisorBody.indexOf('child = spawn'));
-  assert.match(supervisorBody, /process\.on\(signal, handler\)/u);
-  assert.doesNotMatch(supervisorBody, /process\.once\(signal, handler\)/u);
-  assert.ok(
-    supervisorBody.lastIndexOf('process.off(signal, handler)')
-      > supervisorBody.indexOf('await retireProcessGroup(child.pid)'),
-  );
-  assert.ok(
-    supervisorBody.lastIndexOf('process.off(signal, handler)')
-      > supervisorBody.indexOf('fs.unlinkSync(groupPIDFile)'),
-  );
-  assert.ok(
-    supervisorBody.indexOf('writeDurableAtomicFile(\n          groupPIDFile,')
-      < supervisorBody.indexOf('writeDurableAtomicFile(readyFile'),
-  );
-
+  assert.match(proofRuntime, /capture: 30_000/u);
+  assert.match(proofRuntime, /aos: 10_000/u);
+  assert.match(proofRuntime, /local: 10_000/u);
   assert.match(runner, /AOS_EXACT_FOCUS_CHANNEL_NATIVE_PROOF_OK/u);
   assert.match(runner, /typeset -r LIVE_MAX_NON_CAPTURE_AOS_COMMANDS=149/u);
   assert.match(runner, /typeset -r LIVE_MAX_CAPTURE_COMMANDS=3/u);
@@ -305,52 +429,18 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   assert.match(runner, /LIVE_MAX_NON_CAPTURE_AOS_COMMANDS \* AOS_COMMAND_TIMEOUT_MS/u);
   assert.match(runner, /LIVE_MAX_CAPTURE_COMMANDS \* CAPTURE_COMMAND_TIMEOUT_MS/u);
   assert.match(runner, /LIVE_MAX_LOCAL_COMMANDS \* LOCAL_COMMAND_TIMEOUT_MS/u);
+  assert.match(runner, /typeset -r LIVE_FIXTURE_GEOMETRY_CHECKPOINT_WAITS=4/u);
+  assert.match(runner, /typeset -r LIVE_FIXTURE_GEOMETRY_CHECKPOINT_WAIT_MS=2000/u);
+  assert.match(runner, /typeset -r LIVE_FIXTURE_GEOMETRY_CHECKPOINT_TOTAL_MS=9000/u);
+  assert.match(runner, /\+ LIVE_FIXTURE_GEOMETRY_CHECKPOINT_TOTAL_MS/u);
   assert.match(runner, /typeset -r CLEANUP_MAX_AOS_COMMANDS=60/u);
   assert.match(runner, /typeset -r CLEANUP_MAX_LOCAL_COMMANDS=2/u);
   assert.match(runner, /CLEANUP_MAX_AOS_COMMANDS \* AOS_COMMAND_TIMEOUT_MS/u);
   assert.match(runner, /CLEANUP_MAX_LOCAL_COMMANDS \* LOCAL_COMMAND_TIMEOUT_MS/u);
   assert.match(runner, /typeset -r PROGRESS_SANITIZER_TIMEOUT_MS=2000/u);
-  assert.match(runner, /typeset -r SUPERVISOR_STOP_TERM_GRACE_HUNDREDTHS=1000/u);
-  assert.match(runner, /typeset -r SUPERVISOR_STOP_POLL_HUNDREDTHS=5/u);
-  assert.match(
-    runner,
-    /attempt \* SUPERVISOR_STOP_POLL_HUNDREDTHS < SUPERVISOR_STOP_TERM_GRACE_HUNDREDTHS/u,
-  );
-  assert.match(runner, /print -r -- sent-twice/u);
-  assert.match(runner, /print -r -- descendant-live-after-two-terms-final-reap/u);
-  assert.match(runner, /--supervisor-final-reap-signal-self-test/u);
-  assert.match(runner, /typeset -r PROGRESS_RECEIPT_MAX_ELAPSED_MS=1800000/u);
-  assert.match(runner, /candidate\.progress_elapsed_ms <= maxProgressElapsedMs/u);
-  assert.match(runner, /"\$PROGRESS_RECEIPT_MAX_ELAPSED_MS"/u);
-  assert.match(runner, /run_driver_with_deadline "\$LIVE_PROOF_TIMEOUT_MS"/u);
-  assert.match(processTreeSelfTest, /run_driver_with_deadline 1000/u);
-  assert.match(processTreeSelfTest, /Allow group and grandchild initialization under load/u);
-  assert.match(progressTimeoutSelfTest, /run_driver_with_deadline 5000/u);
-  assert.match(progressTimeoutSelfTest, /Give progress and grandchild initialization five seconds under load/u);
-  assert.equal((progressHangSelfTest.match(/writeProgressReceipt\(/gu) ?? []).length, 1);
-  assert.match(
-    progressHangSelfTest,
-    /writeProgressReceipt\(progressFile, \{\s*schema: PROGRESS_SCHEMA,\s*ordinal: 11,\s*last_started_stage: 'initial_capture',\s*last_completed_stage: 'target_channel_creation',\s*elapsed_ms: monotonicElapsedMilliseconds\(startedAt\),\s*\}\);/u,
-  );
-  assert.doesNotMatch(progressHangSelfTest, /createProgressReporter|progress\.start|progress\.complete/u);
-  for (const errorCode of [
-    'PROGRESS_TIMEOUT_STATUS_MISMATCH',
-    'PROGRESS_TIMEOUT_PID_MISSING_OR_INVALID',
-    'PROGRESS_TIMEOUT_DESCENDANT_RETAINED',
-    'PROGRESS_TIMEOUT_GROUP_RECORD_RETAINED',
-    'PROGRESS_TIMEOUT_CLEANUP_ROOT_RETAINED',
-  ]) {
-    assert.match(progressTimeoutSelfTest, new RegExp(`"error_code":"${errorCode}"`, 'u'));
-  }
-  assert.doesNotMatch(progressTimeoutSelfTest, /PROGRESS_TIMEOUT_SELF_TEST_FAILED/u);
   assert.match(runner, /progress-sanitizer\.stdout/u);
   assert.match(runner, /progress-sanitizer\.stderr/u);
-  assert.match(runner, /run_supervised_to_files \\\s+"\$PROGRESS_SANITIZER_TIMEOUT_MS"/u);
-  assert.match(runner, /--ready-file "\$SUPERVISOR_READY_FILE"/u);
-  assert.match(runner, /"\$ready_pid" != "\$supervised_pid"/u);
   assert.match(runner, /trap '' INT TERM/u);
-  assert.match(runner, /--supervise-command/u);
-  assert.match(runner, /stop_owned_group/u);
   assert.match(runner, /stop_owned_fixture/u);
   assert.match(runner, /channel-cleanup-armed/u);
   assert.match(runner, /COMMAND_ADMISSION_AMBIGUOUS=1/u);
@@ -359,7 +449,7 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   const liveRunCleanupOrder = [
     'LIVE_CLEANUP_ARMED=1',
     'COMMAND_ADMISSION_AMBIGUOUS=1',
-    'run_driver_with_deadline',
+    'exact_focus_supervision_run_driver',
     'adopt_driver_summary',
     'trap - EXIT',
     "trap '' INT TERM",
@@ -367,6 +457,16 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   ].map((needle) => liveRun.indexOf(needle));
   assert.ok(liveRunCleanupOrder.every((index) => index >= 0));
   assert.deepEqual(liveRunCleanupOrder, [...liveRunCleanupOrder].sort((a, b) => a - b));
+  const cleanupSignalOrder = [
+    "trap '' INT TERM",
+    'cleanup-signal-sender',
+    '\n    cleanup\n',
+  ].map((needle) => cleanupSignalMode.indexOf(needle));
+  assert.ok(cleanupSignalOrder.every((index) => index >= 0));
+  assert.deepEqual(cleanupSignalOrder, [...cleanupSignalOrder].sort((a, b) => a - b));
+  assert.match(cleanupSignalMode, /progress-sanitizer\.stdout/u);
+  assert.match(cleanupSignalMode, /-f "\$2" && ! -L "\$2"[\s\S]+"\$mode" == 600/u);
+  assert.doesNotMatch(cleanupSignalMode, /self-test-delay-ms|\/bin\/sleep/u);
   assert.match(runner, /if \(\( COMMAND_ADMISSION_AMBIGUOUS == 1 \)\); then/u);
   assert.match(runner, /elif \[\[ ! -x "\$ROOT\/aos" \]\]; then\s+cleanup_failed=1/u);
   assert.ok(
@@ -402,6 +502,18 @@ test('exact focus-channel outer budgets dominate exact cleanup and late-failure 
   const liveAOSCeiling = shellIntegerConstant(runner, 'LIVE_MAX_NON_CAPTURE_AOS_COMMANDS');
   const liveCaptureCeiling = shellIntegerConstant(runner, 'LIVE_MAX_CAPTURE_COMMANDS');
   const liveLocalCeiling = shellIntegerConstant(runner, 'LIVE_MAX_LOCAL_COMMANDS');
+  const fixtureCheckpointWaits = shellIntegerConstant(
+    runner,
+    'LIVE_FIXTURE_GEOMETRY_CHECKPOINT_WAITS',
+  );
+  const fixtureCheckpointWaitMilliseconds = shellIntegerConstant(
+    runner,
+    'LIVE_FIXTURE_GEOMETRY_CHECKPOINT_WAIT_MS',
+  );
+  const fixtureCheckpointTotalMilliseconds = shellIntegerConstant(
+    runner,
+    'LIVE_FIXTURE_GEOMETRY_CHECKPOINT_TOTAL_MS',
+  );
   const cleanupAOSCeiling = shellIntegerConstant(runner, 'CLEANUP_MAX_AOS_COMMANDS');
   const cleanupLocalCeiling = shellIntegerConstant(runner, 'CLEANUP_MAX_LOCAL_COMMANDS');
   const progressElapsedCeiling = shellIntegerConstant(runner, 'PROGRESS_RECEIPT_MAX_ELAPSED_MS');
@@ -416,7 +528,8 @@ test('exact focus-channel outer budgets dominate exact cleanup and late-failure 
   const liveDeadlineMilliseconds = liveAOSCeiling * 10_000
     + liveCaptureCeiling * 30_000
     + liveLocalCeiling * 10_000
-    + 60_000;
+    + 60_000
+    + fixtureCheckpointTotalMilliseconds;
   const cleanupDeadlineMilliseconds = cleanupAOSCeiling * 10_000
     + cleanupLocalCeiling * 10_000
     + 30_000;
@@ -431,7 +544,14 @@ test('exact focus-channel outer budgets dominate exact cleanup and late-failure 
   assert.equal(liveAOSCeiling, 149);
   assert.ok(liveAOSCeiling >= exactLateFailureCatchCalls);
   assert.equal(liveLocalCeiling, 8);
-  assert.equal(liveDeadlineMilliseconds, 1_720_000);
+  assert.equal(fixtureCheckpointWaits, 4);
+  assert.equal(fixtureCheckpointWaitMilliseconds, 2_000);
+  assert.equal(fixtureCheckpointTotalMilliseconds, 9_000);
+  assert.equal(
+    fixtureCheckpointTotalMilliseconds,
+    fixtureCheckpointWaits * fixtureCheckpointWaitMilliseconds + 1_000,
+  );
+  assert.equal(liveDeadlineMilliseconds, 1_729_000);
   assert.equal(cleanupDeadlineMilliseconds, 650_000);
   assert.equal(progressElapsedCeiling, 1_800_000);
   assert.ok(progressElapsedCeiling > liveDeadlineMilliseconds);
@@ -465,7 +585,7 @@ test('exact focus-channel progress sanitizer fails closed without reflecting unt
   };
   const sanitize = (candidate) => spawnSync(
     'node',
-    [driverPath, '--sanitize-progress-receipt', '--path', candidate],
+    [proofContractPath, '--sanitize-progress-receipt', '--path', candidate],
     { cwd: root, encoding: 'utf8', timeout: 2_000 },
   );
   try {
@@ -615,234 +735,35 @@ test('exact focus-channel fixture result parser is bounded, allowlisted, and non
   assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, new RegExp(rawSentinel, 'u'));
 });
 
-test('exact focus-channel watchdog reaps its owned process group and descendants', () => {
-  const timeout = spawnSync('zsh', [runnerPath, '--timeout-self-test'], {
-    cwd: root,
-    encoding: 'utf8',
-    timeout: 2_000,
-  });
-  assert.equal(timeout.status, 0, timeout.stderr);
-  assert.deepEqual(JSON.parse(timeout.stdout.trim()), {
-    owned_process_group_reaped: true,
-    status: 'passed',
-  });
-
-  const tree = spawnSync('zsh', [runnerPath, '--process-tree-self-test'], {
-    cwd: root,
-    encoding: 'utf8',
-    timeout: 12_000,
-  });
-  assert.equal(tree.status, 0, tree.stderr);
-  assert.deepEqual(JSON.parse(tree.stdout.trim()), {
-    owned_descendant_reaped: true,
-    status: 'passed',
-  });
-
-  const cleanup = spawnSync('zsh', [runnerPath, '--cleanup-self-test'], {
-    cwd: root,
-    encoding: 'utf8',
-    timeout: 2_000,
-  });
-  assert.equal(cleanup.status, 0, cleanup.stderr);
-  assert.deepEqual(JSON.parse(cleanup.stdout.trim()), {
-    owned_child_reaped: true,
-    status: 'passed',
-  });
-
-  const fixtureOwnership = spawnSync('zsh', [runnerPath, '--fixture-ownership-self-test'], {
-    cwd: root,
-    encoding: 'utf8',
-    timeout: 4_000,
-  });
-  assert.equal(fixtureOwnership.status, 0, fixtureOwnership.stderr);
-  assert.deepEqual(JSON.parse(fixtureOwnership.stdout.trim()), {
-    long_argv_fixture_reaped: true,
-    status: 'passed',
-  });
-
-  const pidfileReuse = spawnSync('zsh', [runnerPath, '--pidfile-reuse-self-test'], {
-    cwd: root,
-    encoding: 'utf8',
-    timeout: 5_000,
-  });
-  assert.equal(pidfileReuse.status, 0, pidfileReuse.stderr);
-  assert.deepEqual(JSON.parse(pidfileReuse.stdout.trim()), {
-    live_unrelated_group_preserved: true,
-    unresolved_group_record_preserved: true,
-    status: 'passed',
-  });
-
-  const postflightCleanupFailure = spawnSync(
-    'zsh',
-    [runnerPath, '--postflight-cleanup-failure-self-test'],
-    {
-      cwd: root,
-      encoding: 'utf8',
-      timeout: 2_000,
-    },
-  );
-  assert.equal(postflightCleanupFailure.status, 0, postflightCleanupFailure.stderr);
-  assert.deepEqual(JSON.parse(postflightCleanupFailure.stdout.trim()), {
-    cleanup_failure_forced_failure: true,
-    status: 'passed',
-  });
-
-  const ambiguousAdmissionCleanup = spawnSync(
-    'zsh',
-    [runnerPath, '--ambiguous-admission-cleanup-self-test'],
-    {
-      cwd: root,
-      encoding: 'utf8',
-      timeout: 8_000,
-    },
-  );
-  assert.equal(ambiguousAdmissionCleanup.status, 0, ambiguousAdmissionCleanup.stderr);
-  assert.deepEqual(JSON.parse(ambiguousAdmissionCleanup.stdout.trim()), {
-    ambiguous_admission_cleanup_safe: true,
-    status: 'passed',
-  });
-
-  const missingAOSCleanup = spawnSync(
-    'zsh',
-    [runnerPath, '--missing-aos-cleanup-self-test'],
-    {
-      cwd: root,
-      encoding: 'utf8',
-      timeout: 2_000,
-    },
-  );
-  assert.equal(missingAOSCleanup.status, 0, missingAOSCleanup.stderr);
-  assert.deepEqual(JSON.parse(missingAOSCleanup.stdout.trim()), {
-    missing_aos_cleanup_retained_root: true,
-    status: 'passed',
-  });
-
-  const progressMerge = spawnSync(
-    'zsh',
-    [runnerPath, '--progress-merge-coherence-self-test'],
-    {
-      cwd: root,
-      encoding: 'utf8',
-      timeout: 3_000,
-    },
-  );
-  assert.equal(progressMerge.status, 0, progressMerge.stderr);
-  assert.deepEqual(JSON.parse(progressMerge.stdout.trim()), {
-    shell_progress_transition_coherence: true,
-    status: 'passed',
-  });
+test('exact focus-channel cleanup preserves fixture and recovery ownership', () => {
+  for (const [mode, timeout, expected] of [
+    ['--cleanup-self-test', 2_000, { owned_child_reaped: true, status: 'passed' }],
+    ['--fixture-ownership-self-test', 4_000,
+      { long_argv_fixture_reaped: true, status: 'passed' }],
+    ['--pidfile-reuse-self-test', 5_000, {
+      live_unrelated_group_preserved: true, status: 'passed',
+      unresolved_group_record_preserved: true,
+    }],
+    ['--postflight-cleanup-failure-self-test', 2_000,
+      { cleanup_failure_forced_failure: true, status: 'passed' }],
+    ['--ambiguous-admission-cleanup-self-test', 8_000,
+      { ambiguous_admission_cleanup_safe: true, status: 'passed' }],
+    ['--missing-aos-cleanup-self-test', 2_000,
+      { missing_aos_cleanup_retained_root: true, status: 'passed' }],
+    ['--progress-merge-coherence-self-test', 3_000,
+      { shell_progress_transition_coherence: true, status: 'passed' }],
+  ]) {
+    const result = spawnSync('zsh', [runnerPath, mode], { cwd: root, encoding: 'utf8', timeout });
+    assert.equal(result.status, 0, childDiagnostics(result));
+    assert.deepEqual(JSON.parse(result.stdout.trim()), expected, childDiagnostics(result));
+  }
 });
 
-test('exact focus-channel timeout retains one sanitized stage receipt after reaping descendants', () => {
-  const result = spawnSync('zsh', [runnerPath, '--progress-timeout-self-test'], {
-    cwd: root,
-    encoding: 'utf8',
-    timeout: 30_000,
-  });
-  const diagnostics = `captured stdout:\n${result.stdout}\ncaptured stderr:\n${result.stderr}`;
-  assert.equal(result.status, 124, diagnostics);
-  assert.equal(result.stdout.trim().split('\n').length, 1, diagnostics);
-  let receipt = null;
-  assert.doesNotThrow(() => {
-    receipt = JSON.parse(result.stdout.trim());
-  }, diagnostics);
-  assert.equal(receipt.status, 'failed', diagnostics);
-  assert.equal(receipt.error_code, 'PROOF_TIMEOUT', diagnostics);
-  assert.equal(receipt.cleanup_complete, true, diagnostics);
-  assert.equal(receipt.recovery_root_retained, false, diagnostics);
-  assert.equal(receipt.pixels_persisted, false, diagnostics);
-  assert.equal(receipt.raw_capture_logged, false, diagnostics);
-  assert.equal(receipt.progress_receipt_valid, true, diagnostics);
-  assert.equal(receipt.last_started_stage, 'initial_capture', diagnostics);
-  assert.equal(receipt.last_completed_stage, 'target_channel_creation', diagnostics);
-  assert.ok(Number.isSafeInteger(receipt.progress_elapsed_ms), diagnostics);
-  assert.ok(
-    receipt.progress_elapsed_ms >= 0 && receipt.progress_elapsed_ms <= 1_800_000,
-    diagnostics,
-  );
-});
-
-test('exact focus-channel runProgram timeout stays ambiguous until the outer owner reaps descendants', () => {
-  const rawSentinel = 'RAW_PROGRESS_SENTINEL_MUST_NOT_LEAK';
-  const result = spawnSync('zsh', [runnerPath, '--run-program-timeout-self-test'], {
-    cwd: root,
-    encoding: 'utf8',
-    timeout: 12_000,
-  });
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout.trim().split('\n').length, 1);
-  const receipt = JSON.parse(result.stdout.trim());
-  assert.equal(receipt.status, 'passed');
-  assert.equal(receipt.run_program_timeout_ambiguous, true);
-  assert.equal(receipt.timeout_descendant_reaped, true);
-  assert.equal(receipt.captured_output_reflected, false);
-  assert.equal(receipt.cleanup_complete, true);
-  assert.equal(receipt.recovery_root_retained, false);
-  assert.equal(receipt.progress_receipt_valid, false);
-  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, new RegExp(rawSentinel, 'u'));
-});
-
-test('exact focus-channel cleanup bounds its sanitizer and ignores signals through its final receipt', () => {
-  const sanitizerTimeout = spawnSync(
-    'zsh',
-    [runnerPath, '--progress-sanitizer-timeout-self-test'],
-    { cwd: root, encoding: 'utf8', timeout: 12_000 },
-  );
-  assert.equal(sanitizerTimeout.status, 0, sanitizerTimeout.stderr);
-  assert.equal(sanitizerTimeout.stdout.trim().split('\n').length, 1);
-  const timeoutReceipt = JSON.parse(sanitizerTimeout.stdout.trim());
-  assert.equal(timeoutReceipt.status, 'passed');
-  assert.equal(timeoutReceipt.sanitizer_timeout_bounded, true);
-  assert.equal(timeoutReceipt.cleanup_complete, true);
-  assert.equal(timeoutReceipt.recovery_root_retained, false);
-  assert.equal(timeoutReceipt.progress_receipt_valid, false);
-  assert.equal(timeoutReceipt.last_started_stage, 'unknown');
-  assert.equal(timeoutReceipt.last_completed_stage, 'unknown');
-
-  const delayedHandshake = spawnSync(
-    'zsh',
-    [runnerPath, '--supervisor-handshake-delay-self-test'],
-    { cwd: root, encoding: 'utf8', timeout: 18_000 },
-  );
-  assert.equal(delayedHandshake.status, 0, delayedHandshake.stderr);
-  assert.equal(delayedHandshake.stdout.trim().split('\n').length, 1);
-  assert.deepEqual(JSON.parse(delayedHandshake.stdout.trim()), {
-    supervisor_start_handshake_fail_closed: true,
-    status: 'passed',
-  });
-
-  const preRecordSignal = spawnSync(
-    'zsh',
-    [runnerPath, '--supervisor-pre-record-signal-self-test'],
-    { cwd: root, encoding: 'utf8', timeout: 15_000 },
-  );
-  assert.equal(preRecordSignal.status, 0, preRecordSignal.stderr);
-  assert.equal(preRecordSignal.stdout.trim().split('\n').length, 1);
-  assert.deepEqual(JSON.parse(preRecordSignal.stdout.trim()), {
-    pre_record_signal_fail_closed: true,
-    status: 'passed',
-  });
-
-  const finalReapSignal = spawnSync(
-    'zsh',
-    [runnerPath, '--supervisor-final-reap-signal-self-test'],
-    { cwd: root, encoding: 'utf8', timeout: 15_000 },
-  );
-  assert.equal(finalReapSignal.status, 0, finalReapSignal.stderr);
-  assert.equal(finalReapSignal.stderr, '');
-  assert.equal(finalReapSignal.stdout.trim().split('\n').length, 1);
-  const finalReapReceipt = JSON.parse(finalReapSignal.stdout.trim());
-  assert.equal(finalReapReceipt.status, 'passed');
-  assert.equal(finalReapReceipt.final_reap_signal_idempotent, true);
-  assert.equal(finalReapReceipt.cleanup_complete, true);
-  assert.equal(finalReapReceipt.recovery_root_retained, false);
-
+test('exact focus-channel cleanup defers signals through its final receipt', () => {
   const cleanupSignal = spawnSync('zsh', [runnerPath, '--cleanup-signal-self-test'], {
-    cwd: root,
-    encoding: 'utf8',
-    timeout: 6_000,
+    cwd: root, encoding: 'utf8', timeout: 6_000,
   });
-  assert.equal(cleanupSignal.status, 0, cleanupSignal.stderr);
+  assert.equal(cleanupSignal.status, 0, childDiagnostics(cleanupSignal));
   assert.equal(cleanupSignal.stderr, '');
   assert.equal(cleanupSignal.stdout.trim().split('\n').length, 1);
   const signalReceipt = JSON.parse(cleanupSignal.stdout.trim());
