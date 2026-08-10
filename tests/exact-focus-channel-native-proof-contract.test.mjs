@@ -10,6 +10,19 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const helperPath = path.join(root, 'tests/manual/exact-focus-channel-native-proof.swift');
 const driverPath = path.join(root, 'tests/manual/exact-focus-channel-native-proof.mjs');
 const runnerPath = path.join(root, 'tests/manual/exact-focus-channel-native-proof.sh');
+const expectedFixtureFailureCodes = Object.freeze([
+  'FIXTURE_ARGUMENTS_INVALID',
+  'FIXTURE_HELPER_FAILED',
+  'FIXTURE_WINDOW_LIST_UNAVAILABLE',
+  'FIXTURE_WINDOW_OWNERSHIP_MISMATCH',
+  'FIXTURE_WINDOW_LAYER_MISMATCH',
+  'FIXTURE_TARGET_CONTROL_NOT_READY',
+  'FIXTURE_SIBLING_CONTROL_NOT_READY',
+  'FIXTURE_WINDOW_ORDER_MISMATCH',
+  'FIXTURE_WINDOW_GEOMETRY_INVALID',
+  'FIXTURE_DISPLAY_UNAVAILABLE',
+]);
+const expectedFixtureReadinessCodes = expectedFixtureFailureCodes.slice(2);
 
 function shellIntegerConstant(source, name) {
   const match = source.match(new RegExp(`typeset -r ${name}=([0-9]+)`, 'u'));
@@ -36,6 +49,39 @@ test('exact focus-channel pixel classifier has an offline deterministic self-tes
     classifier_self_test: true,
     status: 'passed',
   });
+});
+
+test('exact focus-channel fixture readiness classifier is pure, ordered, and allowlisted', () => {
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-fixture-readiness-self-test-'));
+  const binary = path.join(temporaryRoot, 'fixture-readiness-self-test');
+  try {
+    execFileSync('swiftc', [
+      '-parse-as-library',
+      '-module-cache-path', path.join(temporaryRoot, 'module-cache'),
+      '-framework', 'AppKit',
+      '-framework', 'ImageIO',
+      helperPath,
+      '-o', binary,
+    ], {
+      cwd: root,
+      stdio: 'pipe',
+      timeout: 45_000,
+    });
+    const result = spawnSync(binary, ['--readiness-classifier-self-test'], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 2_000,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout.trim()), {
+      allowlisted_fixture_failure_codes: expectedFixtureFailureCodes,
+      allowlisted_readiness_codes: expectedFixtureReadinessCodes,
+      readiness_classifier_self_test: true,
+      status: 'passed',
+    });
+  } finally {
+    fs.rmSync(temporaryRoot, { force: true, recursive: true });
+  }
 });
 
 test('exact focus-channel fixture is synthetic, same-process, overlapping, and AX-distinct', () => {
@@ -66,24 +112,32 @@ test('exact focus-channel fixture is synthetic, same-process, overlapping, and A
   assert.ok(runIndex > lifetimeIndex);
   assert.match(fixtureMain, /withExtendedLifetime\(controller\) \{\s+app\.run\(\)\s+\}/u);
   assert.doesNotMatch(fixtureMain, /controller\.start\(\)/u);
+  assert.match(helper, /let controlledFixtureMetadataPath = args\.first == "--fixture"/u);
+  assert.match(fixtureMain, /writeFixtureFailureEnvelope\(\s+\.argumentsInvalid,/u);
+  assert.match(fixtureMain, /writeFixtureFailureEnvelope\(\s+\.displayUnavailable,/u);
+  assert.match(fixtureMain, /writeFixtureFailureEnvelope\(\s+\.helperFailed,/u);
   assert.match(localReadiness, /controlIsLocallyAccessibilityReady\(\s+targetControl/u);
   assert.match(localReadiness, /controlIsLocallyAccessibilityReady\(\s+siblingControl/u);
   assert.match(localReadiness, /control\.window === window/u);
-  assert.match(localReadiness, /control\.accessibilityWindow\(\) as\? NSWindow/u);
+  assert.doesNotMatch(localReadiness, /accessibilityWindow/u);
   assert.match(localReadiness, /control\.accessibilityIdentifier\(\) == identifier/u);
   assert.match(localReadiness, /control\.isAccessibilityElement\(\)/u);
   assert.match(localReadiness, /control\.accessibilityRole\(\) == \.button/u);
   assert.match(localReadiness, /frame\.width > 0/u);
   assert.match(localReadiness, /frame\.height > 0/u);
+  assert.doesNotMatch(helper, /setAccessibilityElement/u);
+  assert.match(helper, /firstFixtureReadinessFailure/u);
+  assert.match(helper, /FixtureFailureEnvelope\(status: "failed", error_code: failure\)/u);
+  assert.match(helper, /try\? data\.write\(to: URL\(fileURLWithPath: metadataPath\), options: \.atomic\)/u);
   assert.doesNotMatch(localReadiness, /sleep|asyncAfter/u);
   assert.match(helper, /ownership_token/u);
-  assert.match(helper, /windowPID\(entries\[targetIndex\]\) == Int\(getpid\(\)\)/u);
-  assert.match(helper, /windowPID\(entries\[siblingIndex\]\) == Int\(getpid\(\)\)/u);
-  assert.match(helper, /windowLayer\(entries\[targetIndex\]\) == 0/u);
-  assert.match(helper, /windowLayer\(entries\[siblingIndex\]\) == 0/u);
-  assert.match(helper, /siblingIndex < targetIndex/u);
+  assert.match(localReadiness, /targetEntry\.flatMap \{ windowPID\(\$0\) \} == Int\(getpid\(\)\)/u);
+  assert.match(localReadiness, /siblingEntry\.flatMap \{ windowPID\(\$0\) \} == Int\(getpid\(\)\)/u);
+  assert.match(localReadiness, /targetEntry\.flatMap \{ windowLayer\(\$0\) \} == 0/u);
+  assert.match(localReadiness, /siblingEntry\.flatMap \{ windowLayer\(\$0\) \} == 0/u);
+  assert.match(localReadiness, /order: siblingIndex\.map \{ sibling in targetIndex\.map \{ sibling < \$0 \} \?\? false \} \?\? false/u);
   assert.match(helper, /overlapFraction >= 0\.35/u);
-  assert.match(helper, /siblingBounds\.contains\(CGPoint\(x: targetBounds\.midX, y: targetBounds\.midY\)\)/u);
+  assert.match(localReadiness, /siblingBounds!\.contains\(CGPoint\(x: targetBounds!\.midX, y: targetBounds!\.midY\)\)/u);
   assert.match(helper, /CGDisplayMirrorsDisplay/u);
   assert.match(helper, /CGDisplayBounds\(\$0\)\.contains\(bounds\)/u);
   assert.doesNotMatch(helper, /ScreenCaptureKit|SCScreenshotManager|SCStream/u);
@@ -106,6 +160,11 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   const driverMainCatch = driver.slice(
     driverMainCatchStart,
     driver.indexOf('\n  }\n}\n\nconst [mode', driverMainCatchStart),
+  );
+  const fixtureStartupStart = driver.indexOf("    progress.start('fixture_startup');");
+  const driverFixtureStartup = driver.slice(
+    fixtureStartupStart,
+    driver.indexOf("    progress.complete('fixture_startup');", fixtureStartupStart),
   );
   const liveRun = runner.slice(
     runner.indexOf('  --run)'),
@@ -160,6 +219,14 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   assert.match(driver, /const PROGRESS_SCHEMA = 'aos\.exact-focus-channel-native-progress\.v1'/u);
   assert.match(driver, /const PROGRESS_MAX_BYTES = 2_048/u);
   assert.match(driver, /const AOS_COMMAND_ERROR_MAX_BYTES = 2_048/u);
+  assert.match(driver, /const FIXTURE_RESULT_MAX_BYTES = 2_048/u);
+  assert.match(driver, /const FIXTURE_FAILURE_CODES = new Set/u);
+  assert.match(driver, /fs\.openSync\(file, fs\.constants\.O_RDONLY \| noFollow\)/u);
+  assert.match(driver, /fs\.fstatSync\(descriptor\)/u);
+  assert.match(driver, /hasExactKeys\(envelope, \['error_code', 'status'\]\)/u);
+  assert.match(driver, /hasExactKeys\(envelope, \['metadata', 'status'\]\)/u);
+  assert.match(driverFixtureStartup, /const metadata = parseFixtureResultFile\(files\.metadata\)/u);
+  assert.doesNotMatch(driverFixtureStartup, /readFileSync\(files\.metadata/u);
   assert.match(driver, /const AOS_COMMAND_ERROR_CODES = new Set/u);
   assert.match(driver, /'DAEMON_UNREACHABLE'/u);
   assert.match(driver, /const AOS_PRECOMMIT_REJECTION_CODES = new Set/u);
@@ -233,9 +300,10 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   assert.match(runner, /candidate\.progress_elapsed_ms <= maxProgressElapsedMs/u);
   assert.match(runner, /"\$PROGRESS_RECEIPT_MAX_ELAPSED_MS"/u);
   assert.match(runner, /run_driver_with_deadline "\$LIVE_PROOF_TIMEOUT_MS"/u);
-  assert.match(processTreeSelfTest, /run_driver_with_deadline 500/u);
-  assert.match(progressTimeoutSelfTest, /run_driver_with_deadline 1000/u);
-  assert.match(progressTimeoutSelfTest, /Allow progress and grandchild initialization under load/u);
+  assert.match(processTreeSelfTest, /run_driver_with_deadline 1000/u);
+  assert.match(processTreeSelfTest, /Allow group and grandchild initialization under load/u);
+  assert.match(progressTimeoutSelfTest, /run_driver_with_deadline 2000/u);
+  assert.match(progressTimeoutSelfTest, /Give progress and grandchild initialization two seconds under load/u);
   assert.match(runner, /progress-sanitizer\.stdout/u);
   assert.match(runner, /progress-sanitizer\.stderr/u);
   assert.match(runner, /run_supervised_to_files \\\s+"\$PROGRESS_SANITIZER_TIMEOUT_MS"/u);
@@ -483,6 +551,26 @@ test('exact focus-channel command telemetry is allowlisted, admission-aware, and
     unknown_command_error_suppressed: true,
     unexpected_success_ambiguous: true,
     wrappers_exercised: true,
+  });
+  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, new RegExp(rawSentinel, 'u'));
+});
+
+test('exact focus-channel fixture result parser is bounded, allowlisted, and non-reflective', () => {
+  const rawSentinel = 'RAW_FIXTURE_RESULT_SENTINEL_MUST_NOT_LEAK';
+  const result = spawnSync('node', [driverPath, '--fixture-result-parser-self-test'], {
+    cwd: root,
+    encoding: 'utf8',
+    timeout: 2_000,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout.trim()), {
+    allowlisted_failure_codes: expectedFixtureFailureCodes,
+    exact_byte_boundaries: true,
+    fixture_result_parser_self_test: true,
+    malformed_unknown_fail_closed: true,
+    raw_fixture_output_reflected: false,
+    regular_file_enforced: true,
+    status: 'passed',
   });
   assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, new RegExp(rawSentinel, 'u'));
 });

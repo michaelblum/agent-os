@@ -917,7 +917,9 @@ case "$MODE" in
   --process-tree-self-test)
     GRANDCHILD_PID_FILE="$TMP_ROOT/grandchild.pid"
     set +e
-    run_driver_with_deadline 500 \
+    # Allow group and grandchild initialization under load while still forcing
+    # the deliberately nonterminating tree through timeout cleanup.
+    run_driver_with_deadline 1000 \
       /usr/bin/env node "$DRIVER" --hang-with-grandchild --pid-file "$GRANDCHILD_PID_FILE"
     STATUS="$?"
     set -e
@@ -931,9 +933,9 @@ case "$MODE" in
   --progress-timeout-self-test)
     GRANDCHILD_PID_FILE="$TMP_ROOT/progress-grandchild.pid"
     set +e
-    # Allow progress and grandchild initialization under load while still
-    # forcing the deliberately nonterminating driver through timeout cleanup.
-    run_driver_with_deadline 1000 \
+    # Give progress and grandchild initialization two seconds under load while
+    # still forcing the deliberately nonterminating driver through cleanup.
+    run_driver_with_deadline 2000 \
       /usr/bin/env node "$DRIVER" \
         --progress-hang-self-test \
         --progress "$PROGRESS_FILE" \

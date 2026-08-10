@@ -3,6 +3,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,6 +22,42 @@ const DRIVER_PATH = fileURLToPath(import.meta.url);
 const SNAPSHOT_KEY_ENV = 'AOS_EXACT_FOCUS_CHANNEL_SNAPSHOT_KEY';
 const PROGRESS_SCHEMA = 'aos.exact-focus-channel-native-progress.v1';
 const PROGRESS_MAX_BYTES = 2_048;
+const FIXTURE_RESULT_MAX_BYTES = 2_048;
+const FIXTURE_METADATA_SCHEMA = 'aos.exact-focus-channel-native-fixture.v1';
+const FIXTURE_READINESS_FAILURE_CODES = Object.freeze([
+  'FIXTURE_WINDOW_LIST_UNAVAILABLE',
+  'FIXTURE_WINDOW_OWNERSHIP_MISMATCH',
+  'FIXTURE_WINDOW_LAYER_MISMATCH',
+  'FIXTURE_TARGET_CONTROL_NOT_READY',
+  'FIXTURE_SIBLING_CONTROL_NOT_READY',
+  'FIXTURE_WINDOW_ORDER_MISMATCH',
+  'FIXTURE_WINDOW_GEOMETRY_INVALID',
+  'FIXTURE_DISPLAY_UNAVAILABLE',
+]);
+const FIXTURE_FAILURE_CODE_LIST = Object.freeze([
+  'FIXTURE_ARGUMENTS_INVALID',
+  'FIXTURE_HELPER_FAILED',
+  ...FIXTURE_READINESS_FAILURE_CODES,
+]);
+const FIXTURE_FAILURE_CODES = new Set(FIXTURE_FAILURE_CODE_LIST);
+const FIXTURE_METADATA_KEYS = Object.freeze([
+  'display_id',
+  'layer_zero_windows',
+  'overlap_fraction',
+  'ownership_token',
+  'pid',
+  'same_process_windows',
+  'scale_factor',
+  'schema',
+  'sibling_above_target',
+  'sibling_bounds',
+  'sibling_identifier',
+  'sibling_window_id',
+  'target_bounds',
+  'target_center_occluded',
+  'target_identifier',
+  'target_window_id',
+]);
 const AOS_COMMAND_ERROR_MAX_BYTES = 2_048;
 const AOS_COMMAND_ERROR_CODES = new Set([
   'CHANNEL_NOT_FOUND',
@@ -1224,6 +1261,182 @@ function isRegularFile(file) {
   }
 }
 
+function hasExactKeys(value, keys) {
+  return value !== null
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && JSON.stringify(Object.keys(value).sort()) === JSON.stringify(keys);
+}
+
+function fixtureMetadataFromResultBytes(bytes) {
+  fail(
+    Buffer.isBuffer(bytes)
+      && bytes.length >= 1
+      && bytes.length <= FIXTURE_RESULT_MAX_BYTES,
+    'FIXTURE_METADATA_INVALID',
+  );
+  const text = bytes.toString('utf8');
+  fail(Buffer.from(text, 'utf8').equals(bytes), 'FIXTURE_METADATA_INVALID');
+  let envelope;
+  try {
+    envelope = JSON.parse(text);
+  } catch {
+    throw new ProofError('FIXTURE_METADATA_INVALID');
+  }
+  if (envelope?.status === 'failed') {
+    fail(hasExactKeys(envelope, ['error_code', 'status']), 'FIXTURE_METADATA_INVALID');
+    fail(FIXTURE_FAILURE_CODES.has(envelope.error_code), 'FIXTURE_METADATA_INVALID');
+    throw new ProofError(envelope.error_code);
+  }
+  fail(envelope?.status === 'ready', 'FIXTURE_METADATA_INVALID');
+  fail(hasExactKeys(envelope, ['metadata', 'status']), 'FIXTURE_METADATA_INVALID');
+  const metadata = envelope.metadata;
+  fail(hasExactKeys(metadata, FIXTURE_METADATA_KEYS), 'FIXTURE_METADATA_INVALID');
+  fail(metadata.schema === FIXTURE_METADATA_SCHEMA, 'FIXTURE_METADATA_INVALID');
+  fail(hasExactKeys(metadata.target_bounds, ['height', 'width', 'x', 'y']), 'FIXTURE_METADATA_INVALID');
+  fail(hasExactKeys(metadata.sibling_bounds, ['height', 'width', 'x', 'y']), 'FIXTURE_METADATA_INVALID');
+  return metadata;
+}
+
+function parseFixtureResultFile(file) {
+  const noFollow = fs.constants.O_NOFOLLOW;
+  fail(Number.isInteger(noFollow) && noFollow !== 0, 'FIXTURE_METADATA_INVALID');
+  let descriptor = null;
+  try {
+    descriptor = fs.openSync(file, fs.constants.O_RDONLY | noFollow);
+    const metadata = fs.fstatSync(descriptor);
+    fail(
+      metadata.isFile()
+        && metadata.size >= 1
+        && metadata.size <= FIXTURE_RESULT_MAX_BYTES,
+      'FIXTURE_METADATA_INVALID',
+    );
+    const bytes = Buffer.alloc(metadata.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = fs.readSync(descriptor, bytes, offset, bytes.length - offset, null);
+      fail(count > 0, 'FIXTURE_METADATA_INVALID');
+      offset += count;
+    }
+    const trailingByte = Buffer.alloc(1);
+    fail(fs.readSync(descriptor, trailingByte, 0, 1, null) === 0, 'FIXTURE_METADATA_INVALID');
+    return fixtureMetadataFromResultBytes(bytes);
+  } catch (error) {
+    if (error instanceof ProofError) throw error;
+    throw new ProofError('FIXTURE_METADATA_INVALID');
+  } finally {
+    if (descriptor !== null) {
+      try { fs.closeSync(descriptor); } catch {}
+    }
+  }
+}
+
+function fixtureResultParserSelfTest() {
+  const rawSentinel = 'RAW_FIXTURE_RESULT_SENTINEL_MUST_NOT_LEAK';
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-fixture-result-parser-'));
+  const resultFile = path.join(temporaryRoot, 'fixture-result.json');
+  const metadata = {
+    schema: FIXTURE_METADATA_SCHEMA,
+    pid: 101,
+    target_window_id: 201,
+    sibling_window_id: 202,
+    target_bounds: { x: 10, y: 20, width: 480, height: 320 },
+    sibling_bounds: { x: 80, y: 55, width: 340, height: 250 },
+    display_id: 1,
+    scale_factor: 2,
+    target_identifier: 'target',
+    sibling_identifier: 'sibling',
+    ownership_token: '0123456789abcdef0123456789abcdef',
+    same_process_windows: true,
+    layer_zero_windows: true,
+    sibling_above_target: true,
+    target_center_occluded: true,
+    overlap_fraction: 0.5,
+  };
+  const encode = (value) => Buffer.from(JSON.stringify(value), 'utf8');
+  const parseBytes = (bytes) => {
+    fs.writeFileSync(resultFile, bytes, { mode: 0o600 });
+    return parseFixtureResultFile(resultFile);
+  };
+  const caughtCode = (bytes) => {
+    try {
+      parseBytes(bytes);
+      return null;
+    } catch (error) {
+      return error instanceof ProofError ? error.code : 'FIXTURE_PARSER_SELF_TEST_FAILED';
+    }
+  };
+  let receipt;
+  try {
+    const parsed = parseBytes(encode({ status: 'ready', metadata }));
+    fail(parsed.schema === FIXTURE_METADATA_SCHEMA, 'FIXTURE_PARSER_SELF_TEST_FAILED');
+    const allowlisted = FIXTURE_FAILURE_CODE_LIST;
+    fail(
+      allowlisted.every((errorCodeValue) => caughtCode(encode({
+        status: 'failed',
+        error_code: errorCodeValue,
+      })) === errorCodeValue),
+      'FIXTURE_PARSER_SELF_TEST_FAILED',
+    );
+    const boundaryEnvelope = JSON.stringify({
+      status: 'failed',
+      error_code: 'FIXTURE_HELPER_FAILED',
+    });
+    const exactBoundary = Buffer.from(
+      boundaryEnvelope.padEnd(FIXTURE_RESULT_MAX_BYTES, ' '),
+      'utf8',
+    );
+    const overBoundary = Buffer.from(
+      boundaryEnvelope.padEnd(FIXTURE_RESULT_MAX_BYTES + 1, ' '),
+      'utf8',
+    );
+    fail(
+      exactBoundary.length === FIXTURE_RESULT_MAX_BYTES
+        && caughtCode(exactBoundary) === 'FIXTURE_HELPER_FAILED'
+        && overBoundary.length === FIXTURE_RESULT_MAX_BYTES + 1
+        && caughtCode(overBoundary) === 'FIXTURE_METADATA_INVALID',
+      'FIXTURE_PARSER_SELF_TEST_FAILED',
+    );
+    const untrusted = [
+      Buffer.from(`{${rawSentinel}`, 'utf8'),
+      encode({ status: 'failed', error_code: `UNKNOWN_${rawSentinel}` }),
+      encode({ status: 'failed', error_code: 'FIXTURE_HELPER_FAILED', raw: rawSentinel }),
+    ];
+    const observed = untrusted.map(caughtCode);
+    fail(
+      observed.every((code) => code === 'FIXTURE_METADATA_INVALID'),
+      'FIXTURE_PARSER_SELF_TEST_FAILED',
+    );
+    const symlinkTarget = path.join(temporaryRoot, 'symlink-target.json');
+    const symlinkResult = path.join(temporaryRoot, 'symlink-result.json');
+    fs.writeFileSync(symlinkTarget, encode({
+      status: 'failed',
+      error_code: 'FIXTURE_HELPER_FAILED',
+    }), { mode: 0o600 });
+    fs.symlinkSync(symlinkTarget, symlinkResult);
+    let symlinkCode = null;
+    try {
+      parseFixtureResultFile(symlinkResult);
+    } catch (error) {
+      symlinkCode = error instanceof ProofError ? error.code : null;
+    }
+    fail(symlinkCode === 'FIXTURE_METADATA_INVALID', 'FIXTURE_PARSER_SELF_TEST_FAILED');
+    fail(!JSON.stringify(observed).includes(rawSentinel), 'FIXTURE_PARSER_SELF_TEST_FAILED');
+    receipt = {
+      allowlisted_failure_codes: FIXTURE_FAILURE_CODE_LIST,
+      exact_byte_boundaries: true,
+      fixture_result_parser_self_test: true,
+      malformed_unknown_fail_closed: true,
+      raw_fixture_output_reflected: false,
+      regular_file_enforced: true,
+      status: 'passed',
+    };
+  } finally {
+    fs.rmSync(temporaryRoot, { force: true, recursive: true });
+  }
+  process.stdout.write(`${JSON.stringify(receipt)}\n`);
+}
+
 function removeFile(file) {
   try {
     fs.unlinkSync(file);
@@ -1651,8 +1864,7 @@ async function main() {
     progress.start('fixture_startup');
     fixture = await startFixture(options, files);
     await waitForFile(files.metadata, 5_000);
-    const metadata = parseJSON(fs.readFileSync(files.metadata, 'utf8'), 'FIXTURE_METADATA_INVALID');
-    fail(metadata?.schema === 'aos.exact-focus-channel-native-fixture.v1', 'FIXTURE_METADATA_INVALID');
+    const metadata = parseFixtureResultFile(files.metadata);
     fail(metadata.pid === fixture.child.pid && metadata.ownership_token === fixture.ownershipToken, 'FIXTURE_IDENTITY_MISMATCH');
     fail(processExists(fixture.child.pid), 'FIXTURE_PROCESS_MISSING');
     fail(Number.isInteger(metadata.target_window_id) && metadata.target_window_id > 0, 'FIXTURE_WINDOW_ID_INVALID');
@@ -1946,6 +2158,8 @@ if (mode === '--supervise-command') {
   runProgramTimeoutSelfTest(modeArgs);
 } else if (mode === '--command-telemetry-self-test') {
   commandTelemetrySelfTest();
+} else if (mode === '--fixture-result-parser-self-test') {
+  fixtureResultParserSelfTest();
 } else if (mode === '--sanitize-progress-receipt') {
   await sanitizeProgressReceipt(modeArgs);
 } else if (mode === '--cleanup-only') {

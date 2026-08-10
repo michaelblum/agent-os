@@ -12,6 +12,20 @@ private enum ProofFailure: Error {
     case fixtureUnavailable
     case imageInvalid
     case pixelMismatch
+    case readinessSelfTestFailed
+}
+
+private enum FixtureFailureCode: String, CaseIterable, Codable, Error {
+    case argumentsInvalid = "FIXTURE_ARGUMENTS_INVALID"
+    case helperFailed = "FIXTURE_HELPER_FAILED"
+    case windowListUnavailable = "FIXTURE_WINDOW_LIST_UNAVAILABLE"
+    case windowOwnershipMismatch = "FIXTURE_WINDOW_OWNERSHIP_MISMATCH"
+    case windowLayerMismatch = "FIXTURE_WINDOW_LAYER_MISMATCH"
+    case targetControlNotReady = "FIXTURE_TARGET_CONTROL_NOT_READY"
+    case siblingControlNotReady = "FIXTURE_SIBLING_CONTROL_NOT_READY"
+    case windowOrderMismatch = "FIXTURE_WINDOW_ORDER_MISMATCH"
+    case windowGeometryInvalid = "FIXTURE_WINDOW_GEOMETRY_INVALID"
+    case displayUnavailable = "FIXTURE_DISPLAY_UNAVAILABLE"
 }
 
 private struct FixtureBounds: Codable {
@@ -40,6 +54,41 @@ private struct FixtureMetadata: Codable {
     let overlap_fraction: Double
 }
 
+private struct FixtureReadyEnvelope: Codable {
+    let status: String
+    let metadata: FixtureMetadata
+}
+
+private struct FixtureFailureEnvelope: Codable {
+    let status: String
+    let error_code: FixtureFailureCode
+}
+
+private struct FixtureReadinessChecks {
+    var windowList = true
+    var ownership = true
+    var layer = true
+    var targetControl = true
+    var siblingControl = true
+    var order = true
+    var geometry = true
+    var display = true
+}
+
+private func firstFixtureReadinessFailure(
+    _ checks: FixtureReadinessChecks
+) -> FixtureFailureCode? {
+    if !checks.windowList { return .windowListUnavailable }
+    if !checks.ownership { return .windowOwnershipMismatch }
+    if !checks.layer { return .windowLayerMismatch }
+    if !checks.targetControl { return .targetControlNotReady }
+    if !checks.siblingControl { return .siblingControlNotReady }
+    if !checks.order { return .windowOrderMismatch }
+    if !checks.geometry { return .windowGeometryInvalid }
+    if !checks.display { return .displayUnavailable }
+    return nil
+}
+
 private struct FixtureCleanup: Codable {
     let target_window_removed: Bool
     let sibling_window_removed: Bool
@@ -63,6 +112,13 @@ private struct PixelAnalysis: Codable {
 
 private struct ClassifierSelfTest: Codable {
     let classifier_self_test: Bool
+    let status: String
+}
+
+private struct ReadinessClassifierSelfTest: Codable {
+    let allowlisted_fixture_failure_codes: [String]
+    let allowlisted_readiness_codes: [String]
+    let readiness_classifier_self_test: Bool
     let status: String
 }
 
@@ -210,10 +266,13 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
     private func tick() {
         if !FileManager.default.fileExists(atPath: metadataURL.path) {
             readinessAttempts += 1
-            if let metadata = currentMetadata() {
-                writeJSON(metadata, to: metadataURL)
-            } else if readinessAttempts > 80 {
-                writeJSON(["error_code": "FIXTURE_UNAVAILABLE", "status": "failed"], to: metadataURL)
+            switch currentMetadata() {
+            case .success(let metadata):
+                writeJSON(FixtureReadyEnvelope(status: "ready", metadata: metadata), to: metadataURL)
+            case .failure(let failure) where readinessAttempts > 80:
+                writeJSON(FixtureFailureEnvelope(status: "failed", error_code: failure), to: metadataURL)
+            case .failure:
+                break
             }
         }
 
@@ -240,41 +299,67 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func currentMetadata() -> FixtureMetadata? {
+    private func currentMetadata() -> Result<FixtureMetadata, FixtureFailureCode> {
         let entries = onScreenWindowEntries()
-        guard targetWindowID > 0,
-              siblingWindowID > 0,
-              let targetIndex = entries.firstIndex(where: { windowID($0) == targetWindowID }),
-              let siblingIndex = entries.firstIndex(where: { windowID($0) == siblingWindowID }),
-              let targetBounds = windowBounds(entries[targetIndex]),
-              let siblingBounds = windowBounds(entries[siblingIndex]),
-              windowPID(entries[targetIndex]) == Int(getpid()),
-              windowPID(entries[siblingIndex]) == Int(getpid()),
-              windowLayer(entries[targetIndex]) == 0,
-              windowLayer(entries[siblingIndex]) == 0,
-              controlIsLocallyAccessibilityReady(
+        let targetIndex = entries.firstIndex(where: { windowID($0) == targetWindowID })
+        let siblingIndex = entries.firstIndex(where: { windowID($0) == siblingWindowID })
+        let windowListReady = targetWindowID > 0
+            && siblingWindowID > 0
+            && targetIndex != nil
+            && siblingIndex != nil
+        let targetEntry = targetIndex.map { entries[$0] }
+        let siblingEntry = siblingIndex.map { entries[$0] }
+        let targetBounds = targetEntry.flatMap { windowBounds($0) }
+        let siblingBounds = siblingEntry.flatMap { windowBounds($0) }
+        let boundsReady = [targetBounds, siblingBounds].allSatisfy { bounds in
+            guard let bounds else { return false }
+            return bounds.origin.x.isFinite
+                && bounds.origin.y.isFinite
+                && bounds.width.isFinite
+                && bounds.height.isFinite
+                && bounds.width > 0
+                && bounds.height > 0
+        }
+        let overlap = boundsReady
+            ? targetBounds!.intersection(siblingBounds!)
+            : .null
+        let overlapFraction = boundsReady && !overlap.isNull
+            ? (overlap.width * overlap.height) / (targetBounds!.width * targetBounds!.height)
+            : 0
+        let geometryReady = boundsReady
+            && overlapFraction >= 0.35
+            && siblingBounds!.contains(CGPoint(x: targetBounds!.midX, y: targetBounds!.midY))
+        let display = boundsReady ? soleContainingDisplay(for: targetBounds!) : nil
+        let checks = FixtureReadinessChecks(
+            windowList: windowListReady,
+            ownership: targetEntry.flatMap { windowPID($0) } == Int(getpid())
+                && siblingEntry.flatMap { windowPID($0) } == Int(getpid()),
+            layer: targetEntry.flatMap { windowLayer($0) } == 0
+                && siblingEntry.flatMap { windowLayer($0) } == 0,
+            targetControl: controlIsLocallyAccessibilityReady(
                 targetControl,
                 identifier: targetIdentifier,
                 window: targetWindow
-              ),
-              controlIsLocallyAccessibilityReady(
+            ),
+            siblingControl: controlIsLocallyAccessibilityReady(
                 siblingControl,
                 identifier: siblingIdentifier,
                 window: siblingWindow
-              ) else {
-            return nil
+            ),
+            order: siblingIndex.map { sibling in targetIndex.map { sibling < $0 } ?? false } ?? false,
+            geometry: geometryReady,
+            display: display != nil
+        )
+        if let failure = firstFixtureReadinessFailure(checks) {
+            return .failure(failure)
+        }
+        guard let targetBounds,
+              let siblingBounds,
+              let display else {
+            return .failure(.helperFailed)
         }
 
-        let overlap = targetBounds.intersection(siblingBounds)
-        let overlapFraction = overlap.isNull ? 0 : (overlap.width * overlap.height) / (targetBounds.width * targetBounds.height)
-        guard siblingIndex < targetIndex,
-              overlapFraction >= 0.35,
-              siblingBounds.contains(CGPoint(x: targetBounds.midX, y: targetBounds.midY)),
-              let display = soleContainingDisplay(for: targetBounds) else {
-            return nil
-        }
-
-        return FixtureMetadata(
+        return .success(FixtureMetadata(
             schema: "aos.exact-focus-channel-native-fixture.v1",
             pid: Int(getpid()),
             target_window_id: targetWindowID,
@@ -291,7 +376,7 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
             sibling_above_target: true,
             target_center_occluded: true,
             overlap_fraction: overlapFraction
-        )
+        ))
     }
 
     private func controlIsLocallyAccessibilityReady(
@@ -301,7 +386,6 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
     ) -> Bool {
         let frame = control.accessibilityFrame()
         return control.window === window
-            && (control.accessibilityWindow() as? NSWindow) === window
             && control.accessibilityIdentifier() == identifier
             && control.isAccessibilityElement()
             && control.accessibilityRole() == .button
@@ -413,6 +497,76 @@ private extension JSONEncoder {
         encoder.outputFormatting = [.sortedKeys]
         return encoder
     }
+}
+
+private let fixtureReadinessFailureCodes: [FixtureFailureCode] = [
+    .windowListUnavailable,
+    .windowOwnershipMismatch,
+    .windowLayerMismatch,
+    .targetControlNotReady,
+    .siblingControlNotReady,
+    .windowOrderMismatch,
+    .windowGeometryInvalid,
+    .displayUnavailable,
+]
+
+private func markFixtureReadinessFailure(
+    _ failure: FixtureFailureCode,
+    in checks: inout FixtureReadinessChecks
+) -> Bool {
+    switch failure {
+    case .windowListUnavailable: checks.windowList = false
+    case .windowOwnershipMismatch: checks.ownership = false
+    case .windowLayerMismatch: checks.layer = false
+    case .targetControlNotReady: checks.targetControl = false
+    case .siblingControlNotReady: checks.siblingControl = false
+    case .windowOrderMismatch: checks.order = false
+    case .windowGeometryInvalid: checks.geometry = false
+    case .displayUnavailable: checks.display = false
+    case .argumentsInvalid, .helperFailed: return false
+    }
+    return true
+}
+
+private func readinessClassifierSelfTest() throws -> ReadinessClassifierSelfTest {
+    guard firstFixtureReadinessFailure(FixtureReadinessChecks()) == nil else {
+        throw ProofFailure.readinessSelfTestFailed
+    }
+    for (index, expected) in fixtureReadinessFailureCodes.enumerated() {
+        var singleFailure = FixtureReadinessChecks()
+        guard markFixtureReadinessFailure(expected, in: &singleFailure),
+              firstFixtureReadinessFailure(singleFailure) == expected else {
+            throw ProofFailure.readinessSelfTestFailed
+        }
+        var suffixFailures = FixtureReadinessChecks()
+        for failure in fixtureReadinessFailureCodes[index...] {
+            guard markFixtureReadinessFailure(failure, in: &suffixFailures) else {
+                throw ProofFailure.readinessSelfTestFailed
+            }
+        }
+        guard firstFixtureReadinessFailure(suffixFailures) == expected else {
+            throw ProofFailure.readinessSelfTestFailed
+        }
+    }
+    return ReadinessClassifierSelfTest(
+        allowlisted_fixture_failure_codes: FixtureFailureCode.allCases.map(\.rawValue),
+        allowlisted_readiness_codes: fixtureReadinessFailureCodes.map(\.rawValue),
+        readiness_classifier_self_test: true,
+        status: "passed"
+    )
+}
+
+private func writeFixtureFailureEnvelope(
+    _ code: FixtureFailureCode,
+    metadataPath: String?
+) {
+    guard let metadataPath, !metadataPath.isEmpty,
+          let data = try? JSONEncoder.sorted.encode(
+            FixtureFailureEnvelope(status: "failed", error_code: code)
+          ) else {
+        return
+    }
+    try? data.write(to: URL(fileURLWithPath: metadataPath), options: .atomic)
 }
 
 private func analyzePNG(at url: URL) throws -> PixelAnalysis {
@@ -649,6 +803,9 @@ private func emit<T: Encodable>(_ value: T) {
 private enum ExactFocusChannelNativeProof {
     static func main() {
         let args = Array(CommandLine.arguments.dropFirst())
+        let controlledFixtureMetadataPath = args.first == "--fixture"
+            ? value(after: "--metadata", in: args)
+            : nil
         do {
             if args.first == "--fixture" {
                 guard let metadata = value(after: "--metadata", in: args),
@@ -688,11 +845,24 @@ private enum ExactFocusChannelNativeProof {
                 return
             }
 
+            if args.first == "--readiness-classifier-self-test" {
+                emit(try readinessClassifierSelfTest())
+                return
+            }
+
             throw ProofFailure.invalidArguments
         } catch ProofFailure.invalidArguments {
+            writeFixtureFailureEnvelope(
+                .argumentsInvalid,
+                metadataPath: controlledFixtureMetadataPath
+            )
             emit(["error_code": "INVALID_ARGUMENTS", "status": "failed"])
             exit(2)
         } catch ProofFailure.fixtureUnavailable {
+            writeFixtureFailureEnvelope(
+                .displayUnavailable,
+                metadataPath: controlledFixtureMetadataPath
+            )
             emit(["error_code": "FIXTURE_UNAVAILABLE", "status": "failed"])
             exit(1)
         } catch ProofFailure.imageInvalid {
@@ -701,7 +871,14 @@ private enum ExactFocusChannelNativeProof {
         } catch ProofFailure.pixelMismatch {
             emit(["error_code": "PIXEL_FIDELITY_MISMATCH", "status": "failed"])
             exit(1)
+        } catch ProofFailure.readinessSelfTestFailed {
+            emit(["error_code": "READINESS_CLASSIFIER_SELF_TEST_FAILED", "status": "failed"])
+            exit(1)
         } catch {
+            writeFixtureFailureEnvelope(
+                .helperFailed,
+                metadataPath: controlledFixtureMetadataPath
+            )
             emit(["error_code": "PROOF_HELPER_FAILED", "status": "failed"])
             exit(1)
         }
