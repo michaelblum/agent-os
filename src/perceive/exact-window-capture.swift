@@ -100,3 +100,25 @@ func aosExactChannelCapturePlan(
         captureScaleFactor: display.scaleFactor
     )
 }
+
+func aosExactChannelCaptureIsStable(
+    admitted: AOSExactChannelCapturePlan,
+    windows: [AOSExactChannelCaptureWindow],
+    displays: [AOSExactChannelCaptureDisplay]
+) -> Bool {
+    let observed: AOSExactChannelCapturePlan?
+    do {
+        observed = try aosExactChannelCapturePlan(
+            surface: AOSExactChannelCaptureSurface(
+                kind: "channel",
+                windowID: admitted.windowID,
+                ownerPID: admitted.ownerPID
+            ),
+            windows: windows,
+            displays: displays
+        )
+    } catch {
+        return false
+    }
+    return observed == admitted
+}

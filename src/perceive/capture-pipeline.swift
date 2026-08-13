@@ -556,6 +556,69 @@ private struct ResolvedExactChannelCapture {
     let window: CaptureWindowFact
 }
 
+private func observeExactChannelCaptureDisplays() -> [AOSExactChannelCaptureDisplay]? {
+    let maximumDisplayCount: UInt32 = 64
+    var activeDisplayIDs = [CGDirectDisplayID](
+        repeating: 0,
+        count: Int(maximumDisplayCount)
+    )
+    var activeDisplayCount: UInt32 = 0
+    guard CGGetActiveDisplayList(
+        maximumDisplayCount,
+        &activeDisplayIDs,
+        &activeDisplayCount
+    ) == .success,
+        activeDisplayCount <= maximumDisplayCount else {
+        return nil
+    }
+
+    let activeIDs = Array(activeDisplayIDs.prefix(Int(activeDisplayCount)))
+    let activeIDSet = Set(activeIDs)
+    let observed = NSScreen.screens.compactMap { screen -> AOSExactChannelCaptureDisplay? in
+        guard let displayID = screen.deviceDescription[
+            NSDeviceDescriptionKey("NSScreenNumber")
+        ] as? CGDirectDisplayID,
+            activeIDSet.contains(displayID) else {
+            return nil
+        }
+        return AOSExactChannelCaptureDisplay(
+            displayID: displayID,
+            bounds: CGDisplayBounds(displayID),
+            scaleFactor: Double(screen.backingScaleFactor),
+            mirrored: CGDisplayMirrorsDisplay(displayID) != kCGNullDirectDisplay
+        )
+    }
+    guard observed.count == activeIDs.count,
+          Set(observed.map(\.displayID)).count == observed.count else {
+        return nil
+    }
+    return observed
+}
+
+private func requireExactChannelCaptureStability(
+    _ admitted: AOSExactChannelCapturePlan
+) {
+    let currentWindows = observeCaptureWindowFacts().map {
+        AOSExactChannelCaptureWindow(
+            windowID: $0.windowID,
+            ownerPID: $0.owningApplication.map { Int($0.processID) },
+            layer: $0.windowLayer,
+            frame: $0.frame
+        )
+    }
+    guard let currentDisplays = observeExactChannelCaptureDisplays(),
+          aosExactChannelCaptureIsStable(
+            admitted: admitted,
+            windows: currentWindows,
+            displays: currentDisplays
+          ) else {
+        exitError(
+            "Exact channel window changed during capture",
+            code: "CAPTURE_TOPOLOGY_MISMATCH"
+        )
+    }
+}
+
 struct CaptureSurfaceSegmentSelection {
     let display: CaptureDisplayEntry
     let globalBounds: CGRect
@@ -2503,6 +2566,9 @@ func captureCommand(args: [String]) async {
         windowTargetsByDisplay: windowTargetsByDisplay,
         showsCursor: opts.showCursor
     )
+    if let exactChannelCapture {
+        requireExactChannelCaptureStability(exactChannelCapture.plan)
+    }
     if let exactChannelCapture,
        nativeCapture.usedDisplayFallback.contains(exactChannelCapture.display.cgID) {
         exitError("Exact channel window pixels were unavailable", code: "CAPTURE_FAILED")
@@ -2677,6 +2743,10 @@ func captureCommand(args: [String]) async {
                     segments: surfaceJSON.segments
                 )
             )
+        }
+
+        if let exactChannelCapture {
+            requireExactChannelCaptureStability(exactChannelCapture.plan)
         }
 
         results.append((image, opts.resolvedOutputPath))

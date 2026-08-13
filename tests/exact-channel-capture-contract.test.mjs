@@ -65,6 +65,97 @@ require(plan?.windowID == 778, "window identity drifted")
 require(plan?.ownerPID == 40229, "owner identity drifted")
 require(plan?.globalBounds == window.frame.integral, "current window bounds were not authoritative")
 require(plan?.captureScaleFactor == 2, "capture scale drifted")
+guard let admitted = plan else {
+    preconditionFailure("exact channel plan was not admitted")
+}
+
+let sameIntegralWindow = AOSExactChannelCaptureWindow(
+    windowID: 778,
+    ownerPID: 40229,
+    layer: 0,
+    frame: CGRect(x: 276.25, y: 106.15, width: 959.5, height: 659.6)
+)
+require(
+    aosExactChannelCaptureIsStable(
+        admitted: admitted,
+        windows: [sameIntegralWindow],
+        displays: [display]
+    ),
+    "equivalent integral window observation was rejected"
+)
+require(
+    !aosExactChannelCaptureIsStable(
+        admitted: admitted,
+        windows: [],
+        displays: [display]
+    ),
+    "missing window was admitted"
+)
+require(
+    !aosExactChannelCaptureIsStable(
+        admitted: admitted,
+        windows: [AOSExactChannelCaptureWindow(
+            windowID: 779,
+            ownerPID: 40229,
+            layer: 0,
+            frame: window.frame
+        )],
+        displays: [display]
+    ),
+    "window ID drift was admitted"
+)
+require(
+    !aosExactChannelCaptureIsStable(
+        admitted: admitted,
+        windows: [AOSExactChannelCaptureWindow(
+            windowID: 778,
+            ownerPID: 40230,
+            layer: 0,
+            frame: window.frame
+        )],
+        displays: [display]
+    ),
+    "owner PID drift was admitted"
+)
+require(
+    !aosExactChannelCaptureIsStable(
+        admitted: admitted,
+        windows: [AOSExactChannelCaptureWindow(
+            windowID: 778,
+            ownerPID: 40229,
+            layer: 0,
+            frame: window.frame.offsetBy(dx: 1, dy: 0)
+        )],
+        displays: [display]
+    ),
+    "integral bounds drift was admitted"
+)
+require(
+    !aosExactChannelCaptureIsStable(
+        admitted: admitted,
+        windows: [window],
+        displays: [AOSExactChannelCaptureDisplay(
+            displayID: 43,
+            bounds: display.bounds,
+            scaleFactor: 2,
+            mirrored: false
+        )]
+    ),
+    "display ID drift was admitted"
+)
+require(
+    !aosExactChannelCaptureIsStable(
+        admitted: admitted,
+        windows: [window],
+        displays: [AOSExactChannelCaptureDisplay(
+            displayID: 42,
+            bounds: display.bounds,
+            scaleFactor: 1,
+            mirrored: false
+        )]
+    ),
+    "display scale drift was admitted"
+)
 
 let canvas = AOSExactChannelCaptureSurface(
     kind: "canvas",
@@ -223,6 +314,41 @@ test('channel integration uses exact window pixels and an exact AX window root',
     /let windowImage = nativeImages\[exactChannelCapture\.display\.cgID\][\s\S]*image = windowImage/,
   )
   assert.match(pipeline, /guard let elements = xrayWindow\(/)
+  assert.match(
+    pipeline,
+    /private func requireExactChannelCaptureStability\([\s\S]*observeCaptureWindowFacts\(\)[\s\S]*observeExactChannelCaptureDisplays\(\)[\s\S]*aosExactChannelCaptureIsStable\(/,
+  )
+  assert.match(
+    pipeline,
+    /Exact channel window changed during capture"[\s\S]*code: "CAPTURE_TOPOLOGY_MISMATCH"/,
+  )
+
+  const captureCommand = pipeline.slice(pipeline.indexOf('func captureCommand(args: [String]) async'))
+  const nativeSettlement = captureCommand.indexOf('let nativeCapture = captureNativeFramesThroughDaemon(')
+  const captureLoop = captureCommand.indexOf('// ── Capture loop ──')
+  const stabilityCheckpoints = [
+    ...captureCommand.matchAll(/requireExactChannelCaptureStability\(exactChannelCapture\.plan\)/g),
+  ].map((match) => match.index)
+  assert.equal(stabilityCheckpoints.length, 2, 'exact channel capture should have two stability checkpoints')
+  assert.ok(nativeSettlement !== -1, 'native screenshot settlement should be present')
+  assert.ok(
+    stabilityCheckpoints[0] > nativeSettlement && stabilityCheckpoints[0] < captureLoop,
+    'the first stability checkpoint should follow native screenshot settlement',
+  )
+
+  const surfaceBranch = captureCommand.indexOf('if let surface = explicitSurface {', captureLoop)
+  const optionalAX = captureCommand.indexOf('if opts.xray {', surfaceBranch)
+  const optionalPerception = captureCommand.indexOf('responsePerceptions.append(', surfaceBranch)
+  const resultPublication = captureCommand.indexOf(
+    'results.append((image, opts.resolvedOutputPath))',
+    surfaceBranch,
+  )
+  assert.ok(
+    stabilityCheckpoints[1] > optionalAX
+      && stabilityCheckpoints[1] > optionalPerception
+      && stabilityCheckpoints[1] < resultPublication,
+    'the final stability checkpoint should follow optional AX/perception projection',
+  )
 
   assert.match(ax, /func nativeAXWindowElement\(appPID: pid_t, windowID: Int\)/)
   assert.match(ax, /let matches = windows\.filter \{ axWindowID\(\$0\) == windowID \}/)
