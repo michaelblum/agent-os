@@ -166,6 +166,7 @@
         "tests/toolkit/wiki-subject-browser.test.mjs",
         "tests/toolkit/wiki-subject-opening.test.mjs",
         "tests/toolkit/wiki-subject.test.mjs",
+        "tests/toolkit/workflow-subject.test.mjs",
         "tests/toolkit/workbench-shell.test.mjs"
       ],
       "fixture_patterns": [
@@ -176,7 +177,7 @@
       "proof_kind": "subject_workbench_contract",
       "contract": "UX trees, menu subjects, wiki subjects, entry handles, and workbench shells remain generic descriptor and host contracts.",
       "worth": "This retains reusable subject/workbench behavior after removing the embedded product subject adapter.",
-      "command": "node --test tests/schemas/aos-ux-tree-v0.test.mjs tests/schemas/aos-workbench-subject.test.mjs tests/toolkit/radial-menu-subject.test.mjs tests/toolkit/runtime-menu-activation.test.mjs tests/toolkit/runtime-radial-menu-config.test.mjs tests/toolkit/subject-entry-handle.test.mjs tests/toolkit/ux-tree-subject.test.mjs tests/toolkit/wiki-subject-browser.test.mjs tests/toolkit/wiki-subject-opening.test.mjs tests/toolkit/wiki-subject.test.mjs tests/toolkit/workbench-shell.test.mjs",
+      "command": "node --test tests/schemas/aos-ux-tree-v0.test.mjs tests/schemas/aos-workbench-subject.test.mjs tests/toolkit/radial-menu-subject.test.mjs tests/toolkit/runtime-menu-activation.test.mjs tests/toolkit/runtime-radial-menu-config.test.mjs tests/toolkit/subject-entry-handle.test.mjs tests/toolkit/ux-tree-subject.test.mjs tests/toolkit/wiki-subject-browser.test.mjs tests/toolkit/wiki-subject-opening.test.mjs tests/toolkit/wiki-subject.test.mjs tests/toolkit/workflow-subject.test.mjs tests/toolkit/workbench-shell.test.mjs",
       "replaces": [
         "embedded product UX-tree and subject renderer tests"
       ],
