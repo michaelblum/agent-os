@@ -49,10 +49,12 @@ teach it as a callable command. Recipe implementation files, environment
 variables, and schema IDs use recipe-owned names; do not add new `ops` recipe
 implementation vocabulary.
 
-The existing gated descriptor contract is named `aos.step_descriptor`. It is a
-legacy V0 sketch for one Workflow-gated step/evidence bridge awaiting ADR 0040
-runtime migration. Gate is not AOS permission, and the sketch is not precedent
-for making Playbook the primary executable substrate.
+The active descriptor contract is `aos.step_descriptor` V1. It is neutral
+descriptive input for one source-bound action, its postconditions, claim
+promotions, and evidence requirements. A caller selects the harness; the
+descriptor carries no Workflow Gate, approval, risk, or AOS-owned operation
+registry. The Gate-coupled V0 schema and fixtures are frozen historical input
+and active harnesses reject them.
 
 ## Packaging And Activation
 
@@ -87,7 +89,8 @@ target control primitive -> capture/evidence block -> reusable capture recipe ->
 
 This ADR does not implement browser capture workflows, Employer Brand
 collection, replay, repair, export, or schema migration. Those need separate
-Workflow-gated slices. The current browser projection note is
+owner-scoped implementation slices; Gate may be caller-selected input but is
+not an AOS authorization requirement. The current browser projection note is
 `docs/design/browser-capture-ladder-projection.md`.
 
 ## Consequences

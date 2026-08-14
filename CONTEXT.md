@@ -41,7 +41,8 @@ _Avoid_: subject chain, breadcrumb (those imply a flat hierarchy; trails can bra
 
 **Work Record**:
 An optional durable layered evidence/history artifact for one run of work. Carries an **intent spine** (durable narrative of what the run was for), an **execution map** (structured but repairable: refs, locators, waits, assertions, action hints, artifact routes, replay hints), **evidence** (immutable see/do/see frames, artifacts, traces), and **health** (the verifier's verdict). A Work Record is itself a Subject; the verifier health is its health Layer. It never grants permission to observe or act.
-Current v0 schema sketch: `shared/schemas/aos-work-record-v0.md`.
+The active contract is `shared/schemas/aos-work-record-v1.md`. V0 is frozen
+historical input and active readers reject it.
 _Avoid_: log, audit entry, transcript, trace (those are Evidence-Layer terms; a Work Record is the larger composite).
 
 **AOS Execution Model**:
@@ -75,10 +76,11 @@ _Avoid_: documentation-only recipe, tutorial, molecule.
 
 **Playbook**:
 Method guidance that shapes human or agent judgment but does not itself execute
-as the primary substrate. The current `aos.step_descriptor` V0 schema retains a
-legacy Workflow-Gate-coupled descriptor sketch awaiting ADR 0040 migration;
-Gate is not AOS permission, and the sketch does not make Playbook the general
-workflow engine or evidence log.
+as the primary substrate. The active `aos.step_descriptor` V1 contract is
+neutral descriptive input to a caller-selected harness; it has no Workflow
+Gate, approval, risk, or operation-registry fields. The frozen V0 sketch is
+historical input and does not make Playbook the general workflow engine or
+evidence log.
 _Avoid_: macro, script, executable recipe, workflow engine.
 
 **Workflow**:
@@ -162,7 +164,11 @@ Do not use it as current product vocabulary.
 _Avoid_: workflow run, Workflow run, automation run.
 
 **Verifier Health**:
-The terminal verdict the verifier writes to a Work Record's health Layer. One of: `valid`, `stale`, `repairable`, `blocked`, `impossible`, `superseded`, `retired`. Drives whether a run can be replayed, must be repaired, or has aged out of relevance.
+The terminal verdict the verifier writes to a Work Record's health Layer. One
+of: `valid`, `stale`, `repairable`, `blocked`, `impossible`, `superseded`,
+`retired`. It describes whether the evidence remains valid and source-bound and
+whether a caller may need a new run or a proposed repair; it does not authorize
+replay, repair, or mutation.
 _Avoid_: status, state (overloaded with `state_id`).
 
 **Claim**:
@@ -273,7 +279,17 @@ A surface (Browser-Hosted or Canvas-Hosted) that lets a user or agent open Subje
 _Avoid_: wiki (Subject Browser is the abstraction; the wiki is one instance), navigator, explorer.
 
 **Capability**:
-A named contract a Subject promises to support — not a button label, not a Facet name. Used by consumers (Subject Browsers, verifiers, exporters, replay tooling) to *negotiate* which behaviors the Subject implements. The v0 high-level set is: `inspectable` (read-only viewing baseline), `editable` (has at least one controls/editor Facet plus a persistence or patch contract), `verifier-target` (has enough claims/evidence/health structure for verifier evaluation), `replayable` (has an origin or execution map that can be re-run under policy), `exportable` (can produce or expose serializable artifact bundles). Each Capability has a documented contract in `shared/schemas/aos-subject-capabilities.md`.
+A named contract a Subject promises to support — not a button label, not a
+Facet name. Used by consumers (Subject Browsers, verifiers, exporters, replay
+tooling) to *negotiate* which behaviors the Subject implements. The v0
+high-level set is: `inspectable` (read-only viewing baseline), `editable` (has
+at least one controls/editor Facet plus a persistence or patch contract),
+`verifier-target` (has enough claims/evidence/health structure for verifier
+evaluation), `replayable` (advertises a current source-backed executable
+Workflow or Recipe; a Work Record or Step Descriptor alone is insufficient),
+and `exportable` (can produce or expose serializable artifact bundles). Each
+Capability has a documented contract in
+`shared/schemas/aos-subject-capabilities.md`.
 _Avoid_: feature, role, ability (too generic); permission (overloaded with macOS permissions).
 
 **Control (Verb)**:
@@ -302,9 +318,9 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
   Playbooks directly, because trust attaches to what actually happened.
 - **Workflows** may invoke **Recipes**, gated harnesses, agent tasks, or
   human decisions. A Recipe may be one executable child of a Workflow, but a
-  Recipe does not orchestrate multi-system gates and child runs. Work Record
-  origins use the current v0 `origin.kind` values (`ad_hoc | recipe |
-  workflow`). Markdown Guides/SOPs that shaped a run without executing should
+  Recipe does not orchestrate multi-system gates and child runs. Active Work
+  Record V1 origins use `origin.kind` values (`ad_hoc | recipe | workflow`).
+  Markdown Guides/SOPs that shaped a run without executing should
   be cited via `references[]` (`relationship: "guided_by"`), not as `origin`.
 - Historical **Dock** and project-agent role material are archived outside the
   active repo tree. They do not define current AOS session routing, Workflow
@@ -351,37 +367,42 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
 - `capabilities[]` now contains only high-level registry names such as `inspectable`, `editable`, `verifier-target`, `replayable`, and `exportable` in live writer output. Dotted operation/event strings like `markdown_document.text.patch`, `wiki.invoke`, `work_record.execution_map.edit`, and `canvas_object.effects.patch` are live `contracts[]` values. Reader fallback for archived descriptors stays isolated in compatibility helpers and should not drive new Subject Browser behavior.
 - "subject chain" — resolved: this is a **Navigation Trail** of Subject Entry Handles, not a chain of Subjects. Toolkit now defines the canonical `<facet-key>:<subject-id>` handle helper; only a future shared JSON schema for handles, if desired, remains pending.
 - Work Record `origin` field shape — **resolved (ADR-0009, refined by
-  ADR-0013)**: `origin: { kind, ref }` where `kind ∈ ad_hoc | recipe |
-  workflow` in the current v0 schema. Markdown Guides/SOPs and Playbooks are
+  ADR-0013 and ADR-0040)**: `origin: { kind, ref }` where `kind ∈ ad_hoc |
+  recipe | workflow` in active Work Record V1. Markdown Guides/SOPs and Playbooks are
   *not* origins unless a live executable Workflow or Recipe wraps them; guidance
   is cited via a separate `references[]` array with `relationship: "guided_by"`.
-  Schema sketch:
-  `shared/schemas/aos-work-record-v0.md`; representative Work Record helpers
-  now preserve v0 origin/reference data in descriptor projections.
+  Active contract: `shared/schemas/aos-work-record-v1.md`; V0 is frozen
+  historical input and active readers reject it.
 - AOS Execution Model: **resolved (ADR-0013)**: the formal taxonomy is
   Primitive -> Block -> Recipe -> Workflow -> Run -> optional Work Record +
   Evidence, with Gates, Signals, Checkpoints, Guides, and Playbooks around that
   stack.
   `Recipe` means executable source-backed procedure; `docs/guides/` is the
   home for Markdown Guides/SOPs.
-- Phase 6 of `aos-grand-unification-plan.md` records the current legacy browser
-  harness as Workflow-gated step evidence rather than Playbook-authored
-  execution. This Gate coupling awaits ADR 0040 migration and is not AOS
-  permission.
-  Emitting a Work Record and running the report-only verifier are harness
-  obligations around the run, not primitive step actions. Current
-  `aos.step_descriptor` descriptors end at the single action + postcondition.
+- The active Step Descriptor V1 harness is neutral: descriptors end at one
+  source-bound action plus postconditions, claim promotions, and evidence
+  requirements. The caller selects the harness; no Workflow Gate, approval,
+  risk, or operation-registry field authorizes execution. When a caller elects
+  to invoke the harness, it emits a Work Record V1 and runs the report-only
+  verifier. The Gate-coupled V0 schema and fixtures are frozen history.
 - Verifier Report shape — resolved direction (ADR-0003): use
   `claim_results[]` as the source of truth, with `verified`, `failed`, and
   `unverified` as derived indexes of Claim IDs, not independent storage. When a
   Verifier Report is embedded in a Work Record it should not echo the full
   `claims` list (single source of truth); when reports travel standalone, they
-  include a `claims_digest` for auditability. The v0 sketch keeps
+  include a `claims_digest` for auditability. Active Work Record V1 keeps
   `claim_results[]` top-level and makes report indexes derived.
-- Step descriptors need explicit syntax to *promote* a step Postcondition into a Work Record Claim for the gated harness bridge. The v0 Work Record examples show promoted run Claims referencing execution-map Postconditions.
-- `--anchor-browser` (and sibling `--anchor-window`, `--anchor-channel`) is a *role flag* whose value is a regular Target-with-Ref, not a parallel target dialect. The plan now says this explicitly; longer-term a generic `--anchor <target>` flag may consolidate them, but that is a future cleanup, not a plan rewrite. See ADR-0004.
+- Claim promotion — **resolved in Step Descriptor V1**: `claim_promotions[]`
+  maps exact descriptor postconditions into Work Record V1 Claims. Promotion
+  is evidence projection, not a Gate or action-admission field.
+- `--anchor-browser` (and sibling `--anchor-window`, `--anchor-channel`) is a
+  *role flag* whose value is a regular Target-with-Ref, not a parallel target
+  dialect. Longer-term a generic `--anchor <target>` flag may consolidate them,
+  but that is a separate cleanup. See ADR-0004 and `docs/api/aos.md`.
 - `facets[].host` enum (`"browser" | "canvas" | "either"`) was considered and rejected as too coarse — a Facet may have *multiple Host implementations* with different entry points, target dialects, or fidelity. Resolved direction: `facets[].hosts[]` array of `{ kind, target_dialect, entry, ... }` records, with optional preference ordering. Initial sketch: `shared/schemas/aos-workbench-subject-vnext.md`.
-- "Dual-hosting" (used in `aos-grand-unification-plan.md` Phase 4) — resolved meaning: shipping a Facet with both Browser-Host and Canvas-Host implementations. The plan now says every editor Facet does not need to ship both Browser-Host and Canvas-Host implementations.
+- "Dual-hosting" — resolved meaning: shipping a Facet with both Browser-Host
+  and Canvas-Host implementations. A Facet may expose one or multiple Hosts;
+  dual-hosting is never a blanket requirement for every editor Facet.
 - Dock vs Workflow — resolved: **Dock** and **Docked Session** are retired
   historical persona/session-isolation concepts. Keep **Workflow** reserved for
   AOS/domain orchestration Subjects, not persona/session isolation. Do not add

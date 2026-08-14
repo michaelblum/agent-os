@@ -78,6 +78,22 @@
       "status": "active"
     },
     {
+      "id": "request-client-no-autostart-contract",
+      "path_patterns": [
+        "tests/request-client-autostart-disabled.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "runtime_policy",
+      "contract": "Daemon-backed request adapters, including native focus mutation routes, honor AOS_DISABLE_DAEMON_AUTOSTART and fail without creating a socket when no daemon is reachable.",
+      "worth": "This prevents guarded proofs and callers from silently starting or replacing a shared daemon after their preflight identity snapshot.",
+      "command": "bash tests/request-client-autostart-disabled.sh",
+      "replaces": [],
+      "guard": "uses an isolated AOS_STATE_ROOT, forces daemon auto-start disabled, and asserts that no isolated socket is created; it never contacts the shared repo daemon",
+      "status": "active"
+    },
+    {
       "id": "worktree-runtime-policy-contract",
       "path_patterns": [
         "tests/agent-os-worktree-runtime-policy.sh"

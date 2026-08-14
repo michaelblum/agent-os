@@ -77,7 +77,18 @@ test('desktop pixel acquisition stays native, serialized, and artifact-free', as
   )
   assert.doesNotMatch(snapshotNative, /try\s+await\s+(?:SCShareableContent|SCScreenshotManager)/u)
   assert.match(snapshotNative, /var prepared: \[PreparedDisplayCapture\][\s\S]*displayOutcomes = outcomes[\s\S]*pendingCaptureCallbacks = prepared\.count[\s\S]*for entry in prepared/u)
-  assert.match(snapshotNative, /SCShareableContent\.getExcludingDesktopWindows[\s\S]*prepared\.append\(PreparedDisplayCapture\([\s\S]*source: \.display[\s\S]*if let windowID = requestedWindowID[\s\S]*source: \.window\(windowID\)/u)
+  assert.match(
+    snapshotNative,
+    /SCShareableContent\.getExcludingDesktopWindows[\s\S]*if windowTarget\.map\(\\\.fallback\) != \.some\(\.none\)[\s\S]*source: \.display[\s\S]*matchingWindows\.count == 1[\s\S]*SCContentFilter\(desktopIndependentWindow: window\)[\s\S]*source: \.window\(windowTarget\.windowID\)[\s\S]*else if windowTarget\.map\(\\\.fallback\) == \.some\(\.none\)[\s\S]*throw AOSDesktopFrameCaptureFailure\.topologyMismatch/u,
+  )
+  assert.match(
+    snapshotNative,
+    /windowTarget\.map\(\\\.fallback\) != \.some\(\.none\)[\s\S]*prepared\.append\(PreparedDisplayCapture\([\s\S]*source: \.display/u,
+  )
+  assert.match(
+    native,
+    /else if outcome\.windowTarget\.map\(\\\.fallback\) == \.some\(\.none\)[\s\S]*failures\.append/u,
+  )
   assert.match(snapshotNative, /aosResolveDesktopPixelStillOutcomes\([\s\S]*displayIDs: request\.displayIDs,[\s\S]*outcomes: outcomes/u)
   assert.match(snapshotNative, /outstandingNativeCallbacks[\s\S]*authoritativeSettlement:[\s\S]*nativeCallbackSettled/u)
   assert.equal((warmNative.match(/aosDesktopPixelCaptureFilter\(/gu) ?? []).length, 1)

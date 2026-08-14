@@ -182,6 +182,79 @@ tests.
   exhaustion, and bounded oversized-frame rejection. It must also exercise the
   production event-stream read and reconnect loops so an oversized unterminated
   frame cannot wedge a subscription.
+- Exact focus-channel native acceptance is a separate explicitly approved
+  manual proof against the already-running repo daemon. It must use two
+  deterministic overlapping windows from one synthetic AppKit process, passive
+  public status/service/permission/build-attestation preflights, public `focus`
+  and `see capture --channel` evidence routes, an owner-bounded process-group
+  watchdog, and content-free output. Every admitted group must have durable
+  exact ownership before retirement and bounded descendant reaping; every
+  lifecycle receipt and process-outcome normalization must be singly owned by
+  an import-safe protocol module consumed by the process-owning helper and
+  `exact-focus-channel-proof-protocol-contract.test.mjs` and
+  `exact-focus-channel-supervision-contract.test.mjs`;
+  `exact-focus-channel-supervision-record-contract.test.mjs` owns private
+  lifecycle-record framing and signal-time PID-identity reuse proofs. The detached exact-token
+  guardian must lead and remain live in its process group from admission through
+  descendant retirement, hold INT/TERM before publishing ownership, emit one
+  exact validated payload outcome only after admission commits, and be awaited
+  before group absence is accepted. Deterministic crash coverage must kill the
+  supervisor after that outcome while a TERM-ignoring descendant remains, then
+  require the outer shell to authenticate the live guardian command, token, and
+  PGID before bounded reaping without touching an unrelated live group. Never
+  act on a dead numeric ownership record. Command execution,
+  executable offline self-test payloads, pure proof modeling, and live proof
+  operations must remain separate import-safe helpers, with stdout/tempfs
+  effects owned by `exact-focus-channel-native-proof-self-test.mjs`.
+  `exact-focus-channel-private-records.mjs` owns bounded held-file opening,
+  exact JSON-line parsing, purpose shape validation, and recovery publication;
+  it may depend on the model but not the runtime or driver.
+  `exact-focus-channel-private-records.swift` owns the matching pure Swift
+  publisher, and its non-AppKit harness owns deterministic publication proofs.
+  Supervision owner, supervisor-ready, and progress records must use the shared
+  bounded supervision-protocol reader and exact CLI projections; shell cleanup
+  may consume those projections but must never reopen the record pathname.
+  The five lifecycle destinations, including the derived admission acknowledgment,
+  must be distinct by absolute lexical path plus the real path of the existing
+  parent and the leaf basename; never resolve the leaf itself. Null, unresolvable,
+  or aliased identities must reject before payload admission or record writes.
+  Grouped owner cleanup must authenticate every present sibling and require
+  exact identity agreement; ready cleanup must match the expected supervisor PID.
+  Supervisor failures use a per-sequence private no-replace receipt, never
+  payload stderr; readers require the exact canonical one-line serialization
+  and remove only a revalidated valid receipt. Direct supervisor and fixture
+  signals must reauthenticate their exact process identity immediately before
+  TERM and again before KILL so a reused PID is never signal authority.
+  Direct supervisor identity also binds a shell-minted cryptographic per-run
+  32-hex token, present exactly once before `--` and retained until quiescence.
+  Broken record symlinks are present-invalid lifecycle state, never absence;
+  reconciliation and quiescence must retain them and fail closed.
+  Private recovery,
+  fixture-result, close-ack, and cleanup-report JSON readers must use held
+  no-follow/nonblocking descriptors with exact owner-only mode, UTF-8, byte,
+  and one-line bounds, retrying bounded concurrent producers until readiness.
+  Private writers serialize once, create the final destination exclusively at
+  mode `000`, verify its held/name identity and durability, then make `0600`
+  the final readiness transition. Never delete a pathname on writer failure.
+  This is a cooperative private-root protocol, not adversarial linearizability:
+  arbitrary same-UID mutation after the final preactivation ownership check is
+  out of scope and is equivalent to mutation after publication.
+  Keep each purpose maximum aligned and prove pathname/growth races, boundaries,
+  special-file rejection, and replacement preservation through named offline tests. Keep
+  an acyclic driver-to-runtime-to-private-record/model dependency; every capture must bind
+  contemporaneous stable target/sibling geometry
+  to coherent public surface, segment, perception, and decoded-pixel facts. It
+  must reject a sibling-window subtree,
+  prove the occluded target's pixels and AX membership, preserve and recapture
+  the last good publication after a rejected refresh, fail closed when the
+  target is missing, remove all channel/window/temp state, preserve every
+  stable public identity/configuration field of unrelated channels while
+  tolerating documented native refresh metadata, and preserve the shared
+  daemon. Any recovery-root comparison material must contain only ephemeral-key
+  digests, never raw channel entries, URLs, or session identifiers. It must
+  never use a private
+  application, `--base64`, a direct daemon socket or channel-file read, daemon
+  lifecycle commands, an implicit rebuild, or a new TCC permission request.
 - Status-item host contract tests must use disposable fake sockets and schema
   fixtures, model startup admission ordering, and prove registration output
   precedes initial events. Fake sockets must emit the complete daemon envelope

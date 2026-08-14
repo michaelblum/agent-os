@@ -19,8 +19,10 @@ apps, and tests.
 - Schema changes must update fixtures, docs, and tests that assert the contract.
 - `schemas/daemon-{request,event,response}.schema.json` owns the closed private
   `see.capture` transport. Requests carry one full canonical topology snapshot
-  and bounded display-ID/ordinal and window selection; the daemon independently
-  rebuilds its identity and geometry before capture. Ordered capture chunks
+  and bounded display-ID/ordinal selection. Each optional window target is a
+  closed display ID, window ID, owner PID, integral expected-bounds, and
+  `display|none` fallback tuple; the daemon independently rebuilds topology,
+  identity, geometry, and current window membership before capture. Ordered capture chunks
   carry bounded base64 bytes plus byte count and SHA-256, never paths or
   persisted artifact facts. Final frame metadata labels display/window source
   and window fallback exactly.

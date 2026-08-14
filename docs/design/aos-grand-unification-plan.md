@@ -1,259 +1,47 @@
-# AOS Grand Unification Plan
+# AOS Grand Unification Plan — Retired Lineage
 
-**Status:** implementation plan, not a public API contract
-**Checkpointed:** 2026-05-05
+**Status:** retired May 2026 implementation lineage; not the current roadmap,
+public API, or implementation dispatch
+**Retired:** 2026-08-09
 
-## Summary
+This path is retained so accepted ADRs, frozen fixtures, and historical links do
+not break. The former phase plan remains available in Git history, but its phase
+ordering, commands, schemas, and “next” work must not be used to dispatch a new
+agent session.
 
-Build AOS around one coherent loop:
+## Current Authority
 
-```text
-see -> decide -> do -> see -> record -> verify
-```
+Use the narrowest current owner instead:
 
-AOS remains the canonical control plane. `pi-computer-use` supplies
-semantic-first computer-use lessons, `playwright-cli` remains the browser
-backend under AOS `browser:<session>/<ref>` targets, Open Design informs
-browser-compatible artifact workbenches, the wiki becomes the first Subject
-Browser, and work records become the durable evidence/replay/verifier substrate.
+1. `AGENTS.md`, `docs/adr/README.md`, and accepted ADRs own architecture and
+   authority boundaries.
+2. `docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md`
+   owns ambient authority, fidelity-first observation, Target Handle Runtime
+   V1, Gate, and optional Work Record boundaries.
+3. `docs/api/aos.md` and `docs/api/aos-capabilities.md` own consumer-facing
+   behavior and the explicit current-gap ledger.
+4. Source command manifests and their generated artifacts own exact callable
+   command truth.
+5. Active V1 schemas under `shared/schemas/` own Work Record and Step
+   Descriptor contracts; their V0 predecessors are frozen historical bytes.
+6. A current scoped work card may dispatch one bounded gap, but it does not
+   supersede an ADR, API contract, source manifest, or schema.
 
-Chosen defaults:
+## Durable Decisions Promoted Elsewhere
 
-- First milestone: foundation hardening.
-- Host posture: browser-first for wiki/editor/artifact workbenches.
-- Replay posture: record + verify before guided replay.
+The useful decisions from the former plan now have stronger owners:
 
-Architecture-deepening audit input is tracked separately in
-`docs/design/2026-05-07-architecture-deepening-audit-triage.md`. Treat that
-note as advisory triage, not as new scope for this plan. Promote only bounded
-slices with repo evidence and clear exit criteria.
+- the AOS Execution Model is owned by ADR 0013;
+- Subjects, Layers, Facets, Hosts, and Subject Browser semantics are owned by
+  ADRs 0001 and 0005–0012 plus the active workbench schema/API;
+- browser capture is a projection of the execution model, not another taxonomy;
+- Work Record V1 is optional neutral evidence/history and Step Descriptor V1 is
+  neutral caller-selected harness input;
+- Target Handle Runtime V1 distinguishes stale-rejecting Observation Refs from
+  re-resolving Locators;
+- AOS-native runtime and diagnostic surfaces remain AOS-native while external
+  products own product meaning and acceptance.
 
-## Key Interfaces
-
-- Extend AOS docs/help around existing browser targets:
-  - `aos see capture browser:<session> --xray`
-  - `aos do click browser:<session>/<ref>`
-  - `aos do fill browser:<session>/<ref> <text>`
-  - `aos show create --anchor-browser browser:<session>/<ref>`
-- Treat `--anchor-browser browser:<session>/<ref>` as the current CLI role flag
-  for using a browser Target-with-Ref as a `show` Anchor. It is not a separate
-  target dialect; resolution produces the display Anchor Binding.
-- Keep target dialects explicit:
-  - `browser:<session>/<ref>`: Playwright-backed DOM/ARIA targets.
-  - `canvas:<canvas-id>/<ref>`: AOS canvas semantic targets.
-  - Screen coordinate fallback: current CLI actions use raw `x,y` and reject
-    `--state-id`; `screen:<state-id>/<x,y>` remains target-model/replay
-    vocabulary, not a current CLI target string.
-  - Native AX: current CLI actions select elements through flags such as
-    `--pid` and `--role`; `ax:<...>` remains future first-class target-model
-    vocabulary, not a current CLI target string.
-- Evolve `aos.workbench.subject` in a compatible way:
-  - Add optional `links`, `facets`, `edit_targets`, and `verification` fields
-    after design/schema tests prove the shape.
-  - Do not turn wiki pages into editors; wiki pages link to subjects and
-    facets.
-- Define a work-record v0 contract:
-  - `intent`
-  - `execution_map`
-  - `evidence`
-  - `health`
-  - `claims`
-  - `verifier_report`
-- Define verifier report v0:
-  - `status`
-  - `confidence`
-  - `claim_results[]`
-  - derived indexes: `verified`, `failed`, `unverified`
-  - `evidence_refs`
-  - `feedback`
-
-## Implementation Phases
-
-### Phase 1: Stop Losing The Existing Thread
-
-- Add a design note that maps AOS, Pi, Playwright, Open Design, wiki subjects,
-  work records, and verifiers into one architecture.
-- Update `docs/api/aos.md`, `ARCHITECTURE.md`, and command help examples so
-  agents can discover browser targets without prior memory.
-- Add regression tests that fail if browser-target examples disappear from
-  `aos help see --json`, `aos help do --json`, or `aos help show --json`.
-- Preserve current reference clones as local research inputs only:
-  - `/Users/Michael/Code/pi-computer-use`
-  - `/Users/Michael/Code/open-design`
-
-### Phase 2: Harden The Control Plane
-
-- Normalize AOS target guidance around semantic refs before coordinates.
-- Ensure browser `do` responses preserve typed execution/failure metadata;
-  `state_id` belongs only to an Observation Ref.
-- Document stale-state policy:
-  - Semantic refs are preferred.
-  - Observation Refs require their original `state_id` and reject stale pairs.
-  - Coordinates are not semantic handles and reject `state_id`.
-- Add focused tests for:
-  - Browser xray emits refs.
-  - Browser `do` emits execution metadata.
-  - Coordinate dry-run rejects `state_id` with `TARGET_STATE_UNSUPPORTED`.
-  - Canvas semantic xray still exposes stable `data-aos-ref`.
-
-### Phase 3: Make Subjects The Shared Navigation Model
-
-- Treat wiki as a subject browser, not an editor.
-- Promote the workbench subject descriptor as the shared object model for:
-  - wiki pages
-  - markdown documents
-  - work records
-  - radial menu facets/resources
-  - canvas object registry facets/resources
-  - generated artifact bundles
-- Add optional subject links:
-  - Wiki Markdown links can resolve to subjects.
-  - Subjects can link to source files, schemas, workbench facets, and child
-    subjects.
-- Add one real Navigation Trail of Subject Entry Handles:
-  - `wiki:aos/concepts/runtime-modes.md`
-  - `menu-config:aos.menu:example.main`
-  - `item-config:aos.menu:example.main/item/wiki-graph`
-  - `object-controls:aos.menu:example.main/item/wiki-graph`
-  - Each handle resolves through a Subject, Facet, Host, or resource path. This
-    is not a literal chain of wiki/domain Subjects, and it does not make every
-    menu item or `canvas_object` part a graph node by default.
-
-### Phase 4: Browser-Hosted Wiki Subject Browser
-
-- The wiki is the first **Subject Browser** (a class of surfaces — see
-  `CONTEXT.md` and ADR-0008 — not a wiki-only concept). Phase 4 builds the
-  Browser-Hosted instance.
-- Make the wiki graph/browser run cleanly in a real browser session as the
-  default compatible host.
-- Keep AOS canvas hosting available for runtime-integrated surfaces, but do not
-  require every editor Facet to ship both Browser-Host and Canvas-Host
-  implementations.
-- The browser-hosted wiki browser must support:
-  - graph browsing
-  - markdown facet viewing
-  - followable subject links
-  - stable semantic controls for `aos see/do browser:<session>/<ref>`
-  - opening controls/editor-layer facets when the Subject advertises an
-    `editable` capability
-- Use the titlebar/path idea only as a locator/trail, not as graph ontology:
-  - `*` means return to graph origin.
-  - `/` means followed exploration path.
-  - Long browsing history collapses.
-  - Edit-root/object-path context stays visible during decomposition.
-
-### Phase 5: Work Records And Verifiers
-
-- The active Work Record V1 contract is optional neutral evidence/history.
-- A Work Record captures:
-  - the intent
-  - the selected subject/facet
-  - prior `see` state
-  - `do` action
-  - execution metadata
-  - post-action `see` state
-  - artifacts
-  - claims
-- The V1 verifier consumes saved evidence and emits a structured report.
-- Repair Plans and Attempt Plans are exact non-executing proposals. Attempt
-  Artifacts accept caller-supplied outcomes. Finalization validates exact
-  digests before writing a replacement and supersession entry.
-- Historical V0 bytes remain frozen and unsupported by active readers.
-
-### Phase 6: Browser Step Evidence
-
-The active Step Descriptor V1 harness has no Gate-derived authority or public
-fixture executor.
-
-- Add browser step descriptors as recorded, evidence-backed units, not raw
-  macro recordings and not Playbook-authored execution.
-- The descriptive harness step is:
-  - re-see target
-  - resolve semantic ref
-  - check precondition
-  - accept supplied action evidence, or use a caller-supplied adapter
-  - re-see
-  - verify postcondition
-- Work Records and verifier reports are harness obligations around the run, not
-  step-authored primitive actions.
-- Keep raw `playwright-cli` traces, screenshots, video, and codegen as attached
-  evidence or hints, not canonical truth.
-- First candidate browser evidence flow:
-  - open browser-hosted wiki browser
-  - locate the Runtime Modes subject
-  - follow its menu facet/resource
-  - inspect/edit one object transform
-  - emit a Work Record through the harness
-  - run the report-only verifier profile
-
-### Phase 7: AOS-Native Runtime Surfaces Stay Native
-
-- Keep these primarily AOS-native:
-  - Surface Inspector
-  - DesktopWorld overlays
-  - input routing diagnostics
-  - spatial telemetry
-  - permission/readiness surfaces
-- They still expose semantic targets so agents can operate them with `aos
-  see/do`.
-- They can appear as subjects in the wiki browser, but their runtime projection
-  remains AOS-owned.
-- Surface Inspector *may* implement AOS-Native **Subject Browser** behavior when
-  navigating live runtime Subjects (canvas registry, input routes, permission
-  state). That does not force every diagnostic panel into the full Subject
-  Browser contract — it is an additive capability, not a requirement. See
-  ADR-0008.
-
-## Test Plan
-
-- Command/help contract:
-  - `tests/help-contract.sh`
-  - new assertions for browser target examples in `see`, `do`, and `show`.
-- Browser adapter:
-  - `tests/browser/see-capture.test.sh`
-  - `tests/browser/do-existing-verbs.test.sh`
-  - `tests/browser/do-fill.test.sh`
-  - `tests/browser/show-anchor.test.sh`
-- Toolkit/subject contracts:
-  - `tests/schemas/aos-workbench-subject.test.mjs`
-  - wiki subject tests
-  - radial item subject tests
-  - work-record subject tests
-- Live verification for browser-compatible workbenches:
-  - launch browser session with `aos focus create --target browser://new`.
-  - run `aos see capture browser:<session> --xray`.
-  - act using `aos do ... browser:<session>/<ref>`.
-  - verify post-state through AOS, not raw Playwright alone.
-- Live verification for AOS-native surfaces:
-  - `./aos ready`
-  - `./aos show wait`
-  - `./aos see capture --canvas <id> --xray`
-  - one real-input or captured-routing check for bugs observed by human input.
-
-## Assumptions
-
-- AOS does not depend on `pi-computer-use` at runtime.
-- AOS does not import Open Design wholesale.
-- Playwright remains an adapter behind AOS browser targets.
-- Browser-compatible workbenches are preferred for wiki/editor/artifact
-  workflows.
-- Surface Inspector and runtime diagnostics remain AOS-native.
-- Record + verify ships before guided replay.
-- Macro playback is explicitly out of scope for the first implementation wave.
-
-## Source Map
-
-- AOS primitives and repo contract: `AGENTS.md`, `ARCHITECTURE.md`
-- Layered subjects: `docs/guides/layered-subject-expressions.md`,
-  `docs/design/aos-workbench-pattern.md`
-- Work records: `docs/design/aos-work-records-and-self-healing-recipes.md`
-- Browser recording and grammar: `docs/design/see-do-grammar-trace-connections.md`
-- Pi lessons: `docs/design/pi-computer-use-lessons-for-aos-see-do.md`
-- Architecture deepening audit triage:
-  `docs/design/2026-05-07-architecture-deepening-audit-triage.md`
-- Local reference checkouts:
-  - `/Users/Michael/Code/pi-computer-use`
-  - `/Users/Michael/Code/open-design`
-- External references:
-  - https://github.com/injaneity/pi-computer-use
-  - https://github.com/nexu-io/open-design
+Do not restore the retired phase plan to resolve a disagreement. Repair the
+stronger owner directly, add a drift test where the convention is mechanical,
+and delete competing guidance once its durable requirements are promoted.

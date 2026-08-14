@@ -357,6 +357,31 @@ test('proof-worth evaluator routes plain repo build proofs', async () => {
   ]);
 });
 
+test('proof-worth evaluator routes every exact focus-channel helper through all offline roots', () => {
+  const registry = loadCanonicalRegistry();
+  const entry = registry.entries.find(({ id }) => id === 'exact-focus-channel-native-proof-tool');
+  const expectedCommand = 'node --test tests/exact-focus-channel-geometry-checkpoint.test.mjs tests/exact-focus-channel-proof-protocol-contract.test.mjs tests/exact-focus-channel-supervision-contract.test.mjs tests/exact-focus-channel-supervision-record-contract.test.mjs tests/exact-focus-channel-native-proof-contract.test.mjs';
+  assert.ok(entry);
+  for (const required of [
+    'tests/exact-focus-channel-native-proof-contract.test.mjs',
+    'tests/manual/exact-focus-channel-native-proof.mjs',
+    'tests/manual/exact-focus-channel-native-proof.sh',
+  ]) assert.ok(entry.path_patterns.includes(required), required);
+  const commandRoots = expectedCommand.match(/tests\/[^ ]+\.test\.mjs/gu) ?? [];
+  assert.equal(commandRoots.length, 5);
+  assert.equal(new Set(commandRoots).size, 5);
+  for (const pattern of entry.path_patterns) {
+    const result = evaluateProofWorth({
+      changedFiles: [pattern], repoRoot, registry,
+      registryPath: 'docs/dev/test-proof-registry.json',
+    });
+    assert.equal(result.status, 'passed', `${pattern}: ${JSON.stringify(result)}`);
+    assert.deepEqual(result.commands.map((item) => item.command), [expectedCommand], pattern);
+    assert.equal(result.assets.length, 1, pattern);
+    assert.deepEqual(result.assets[0].entries, [entry.id], pattern);
+  }
+});
+
 test('proof-worth evaluator routes toolkit input identity normalization', async () => {
   const registry = loadCanonicalRegistry();
   const result = evaluateProofWorth({

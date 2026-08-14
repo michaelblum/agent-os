@@ -150,7 +150,8 @@ assert "let displays = getCaptureDisplays(from: displayTopologySnapshot)" in cap
 assert "captureNativeFramesThroughDaemon(" in capture_body
 assert "topology: displayTopologySnapshot" in capture_body
 assert "selectedDisplayIDs: selectedCaptureDisplayIDs" in capture_body
-assert "windowIDsByDisplay: capturedWindowsByDisplay.mapValues(\\.windowID)" in capture_body
+assert "windowTargetsByDisplay: windowTargetsByDisplay" in capture_body
+assert "fallback: exactChannelCapture == nil ? .display : .none" in capture_body
 assert "content.displays.first" not in capture_body
 assert "SCShareableContent" not in capture_body
 assert "SCContentFilter" not in capture_body

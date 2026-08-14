@@ -16,6 +16,13 @@ Keep the stable primitive model:
 - `aos focus` for session/channel lifecycle;
 - `aos show` for overlay/display surfaces.
 
+This desktop grouping is not a new hierarchy over all AOS commands. Accepted
+product-neutral public capability families such as `scene`, `status-item`, and
+`work-record` remain first-class contracts; command depth does not make them
+product code or implementation internals. Gate remains an explicit neutral
+structured-input Primitive, not a desktop action verb. Public `run-code` and
+semantic codegen remain separate gaps and must not be conflated.
+
 Use `docs/api/aos-capabilities.md` and installable AOS desktop skills to teach
 the desktop Playwright model. If new desktop ergonomics are needed, prefer
 source-manifest-backed semantic verbs under `aos do` after each verb has a
@@ -33,6 +40,12 @@ fail-closed design.
   minimized window, and Space behavior designed first.
 
 ## Follow-Up Criteria
+
+Before adding any new top-level family, apply the admission contract in
+`docs/dev/command-surface.md`: prove the capability cannot fit an existing
+family and land its manifest prefix, capability group, implementation route,
+help, docs, tests, and compatibility posture together. CLI analogy or a flat
+help tree is not sufficient by itself.
 
 Add a semantic desktop verb only when all of these are true:
 

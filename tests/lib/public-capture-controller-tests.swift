@@ -61,6 +61,26 @@ private func publicCapturePayload() throws -> [String: Any] {
     ]
 }
 
+private func publicCaptureWindowTarget(
+    displayID: Int = 42,
+    windowID: Any = 901,
+    ownerPID: Any = 7001,
+    fallback: String = "display"
+) -> [String: Any] {
+    [
+        "display_id": displayID,
+        "window_id": windowID,
+        "owner_pid": ownerPID,
+        "expected_bounds": [
+            "x": 10,
+            "y": 10,
+            "width": 40,
+            "height": 30,
+        ],
+        "fallback": fallback,
+    ]
+}
+
 private func publicCaptureResponse(
     controller: AOSPublicCaptureController,
     payload: [String: Any]
@@ -111,7 +131,8 @@ private func publicCaptureImage() -> CGImage {
 
 private func successfulPublicCapture(
     source: AOSDesktopPixelFrame.Source,
-    usedWindowFallback: Bool
+    usedWindowFallback: Bool,
+    fallback: String = "display"
 ) throws -> [String: Any] {
     let capturer = FakePublicCaptureCapturer()
     capturer.result = .success(AOSDesktopPixelFrameSet(
@@ -126,7 +147,7 @@ private func successfulPublicCapture(
         )]
     ))
     var payload = try publicCapturePayload()
-    payload["window_targets"] = [["display_id": 42, "window_id": 901]]
+    payload["window_targets"] = [publicCaptureWindowTarget(fallback: fallback)]
     return publicCaptureResponse(
         controller: AOSPublicCaptureController(capturer: capturer),
         payload: payload
@@ -151,6 +172,25 @@ func runPublicCaptureControllerTests() throws {
             && admittedCapturer.lastRequest?.publicCaptureSelections.first?
                 .memberIdentity == expectedTopology.displays[0].memberIdentity,
         "public capture dropped its frozen topology binding before native admission"
+    )
+
+    let projectedCapturer = FakePublicCaptureCapturer()
+    var projectedPayload = try publicCapturePayload()
+    projectedPayload["window_targets"] = [publicCaptureWindowTarget(fallback: "none")]
+    _ = publicCaptureResponse(
+        controller: AOSPublicCaptureController(capturer: projectedCapturer),
+        payload: projectedPayload
+    )
+    let projectedTarget = projectedCapturer.lastRequest?.windowTargetsByDisplay[42]
+    require(
+        projectedTarget?.windowID == 901
+            && projectedTarget?.ownerPID == 7001
+            && projectedTarget?.expectedBounds.origin.x == 10
+            && projectedTarget?.expectedBounds.origin.y == 10
+            && projectedTarget?.expectedBounds.width == 40
+            && projectedTarget?.expectedBounds.height == 30
+            && projectedTarget.map(\.fallback) == .some(.none),
+        "exact window target lost identity, geometry, or fallback policy: \(String(describing: projectedTarget))"
     )
 
     let fallback = try successfulPublicCapture(
@@ -182,6 +222,23 @@ func runPublicCaptureControllerTests() throws {
     require(
         impossible["code"] as? String == "DESKTOP_FRAME_CAPTURE_FAILED",
         "impossible window fallback metadata failed open"
+    )
+    let forbiddenFallback = try successfulPublicCapture(
+        source: .display,
+        usedWindowFallback: true,
+        fallback: "none"
+    )
+    require(
+        forbiddenFallback["code"] as? String == "DESKTOP_FRAME_CAPTURE_FAILED",
+        "forbidden display fallback reached the public stream"
+    )
+    let wrongWindow = try successfulPublicCapture(
+        source: .window(902),
+        usedWindowFallback: false
+    )
+    require(
+        wrongWindow["code"] as? String == "DESKTOP_FRAME_CAPTURE_FAILED",
+        "wrong window source reached the public stream"
     )
 
     var extra = try publicCapturePayload()
@@ -287,31 +344,39 @@ func runPublicCaptureControllerTests() throws {
         "duplicate topology ordinal reached capture"
     )
     var mismatchedWindow = try publicCapturePayload()
-    mismatchedWindow["window_targets"] = [[
-        "display_id": 43,
-        "window_id": 901,
-    ]]
+    mismatchedWindow["window_targets"] = [publicCaptureWindowTarget(displayID: 43)]
     requireRejectedBeforeCapture(
         mismatchedWindow,
         "window/display mismatch reached capture"
     )
     var floatingWindow = try publicCapturePayload()
-    floatingWindow["window_targets"] = [[
-        "display_id": 42,
-        "window_id": NSNumber(value: 42.0),
-    ]]
+    floatingWindow["window_targets"] = [publicCaptureWindowTarget(
+        windowID: NSNumber(value: 42.0)
+    )]
     requireRejectedBeforeCapture(
         floatingWindow,
         "floating-token window id reached capture"
     )
     var overflowingWindow = try publicCapturePayload()
-    overflowingWindow["window_targets"] = [[
-        "display_id": 42,
-        "window_id": NSNumber(value: UInt64(UInt32.max) + 1),
-    ]]
+    overflowingWindow["window_targets"] = [publicCaptureWindowTarget(
+        windowID: NSNumber(value: UInt64(UInt32.max) + 1)
+    )]
     requireRejectedBeforeCapture(
         overflowingWindow,
         "overflowing window id reached capture"
+    )
+    var fractionalBounds = try publicCapturePayload()
+    var fractionalTarget = publicCaptureWindowTarget()
+    fractionalTarget["expected_bounds"] = [
+        "x": 10.2,
+        "y": 10,
+        "width": 40,
+        "height": 30,
+    ]
+    fractionalBounds["window_targets"] = [fractionalTarget]
+    requireRejectedBeforeCapture(
+        fractionalBounds,
+        "non-canonical fractional window bounds reached capture"
     )
 
     var displayExtra = try publicCapturePayload()
@@ -323,11 +388,9 @@ func runPublicCaptureControllerTests() throws {
         "nested display key reached capture"
     )
     var windowExtra = try publicCapturePayload()
-    windowExtra["window_targets"] = [[
-        "display_id": 42,
-        "window_id": 901,
-        "extra": true,
-    ]]
+    var extraTarget = publicCaptureWindowTarget()
+    extraTarget["extra"] = true
+    windowExtra["window_targets"] = [extraTarget]
     requireRejectedBeforeCapture(
         windowExtra,
         "nested window key reached capture"

@@ -103,6 +103,8 @@ test('AOS capability map preserves unsupported desktop verbs and browser boundar
   const doc = await read('docs/api/aos-capabilities.md');
   const design = await read('docs/design/aos-desktop-playwright-cli-map.md');
   const decision = await read('docs/design/aos-desktop-command-vocabulary-decision.md');
+  const commandSurface = await read('docs/dev/command-surface.md');
+  const manifestDox = await read('manifests/AGENTS.md');
 
   for (const phrase of [
     'Window fullscreen',
@@ -127,11 +129,24 @@ test('AOS capability map preserves unsupported desktop verbs and browser boundar
     assert.match(doc, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
 
-  assert.match(design, /Follow-Up Card Seeds/);
-  assert.match(design, /Do not add a new `aos desktop` noun yet/);
+  assert.match(design, /This crosswalk does not assign gaps, severity, owners, priority, or future\s+command shapes/);
+  assert.match(design, /ref-bearing\s+browser target string plus its original `--state-id` carry an Observation Ref\s+pair/);
+  assert.doesNotMatch(design, /^## Remaining Gaps$/m);
+  assert.doesNotMatch(design, /^## Maintenance And Follow-Up Cards$/m);
+  assert.doesNotMatch(design, /^## Decision$/m);
+  assert.doesNotMatch(design, /browser target(?:s| strings) carry Observation Refs/);
   assert.match(decision, /Do not add a new `aos desktop` command noun/);
   assert.match(decision, /Do not add a new .*desktop:<target>.* target/s);
   assert.match(decision, /prefer\s+source-manifest-backed semantic verbs under `aos do`/);
+  assert.match(decision, /Accepted\s+product-neutral public capability families such as `scene`, `status-item`, and\s+`work-record` remain first-class contracts/);
+  assert.match(decision, /Public `run-code` and\s+semantic codegen remain separate gaps/);
+  assert.match(commandSurface, /A new public top-level command family requires evidence/);
+  assert.match(commandSurface, /Subcommand count, command\s+depth, and analogy to another CLI are not sufficient evidence/);
+  assert.match(commandSurface, /must not be\s+collapsed into a new “core versus capability” ladder/);
+  assert.match(manifestDox, /Admit a new public top-level family only with evidence that it cannot fit an\s+existing family/);
+  assert.match(doc, /Check runtime readiness with `\.\/aos ready --json`/);
+  assert.doesNotMatch(doc, /Gate runtime with `\.\/aos ready/);
+  assert.doesNotMatch(doc, /internal or\s+transitional forms such as `dev`/);
 });
 
 test('AOS keeps Space and Mission Control semantic verbs out of manifests until identity proof exists', async () => {

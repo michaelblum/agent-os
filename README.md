@@ -14,7 +14,7 @@ commands, a typed MCP gateway for external consumers, and a Node.js agent host.
 | Group | Tier | Role |
 |-------|------|------|
 | `aos see` | Primitive | Perception: screenshots, AX tree, cursor queries, focus channels, graph navigation, Observation Ref facts, and current saved-workspace handles |
-| `aos do` | Primitive | Action: current saved handles/direct browser/canvas forms, native AX, coordinates, keyboard, AppleScript, and behavior profiles; public Observation Ref/Locator migration remains pending |
+| `aos do` | Primitive | Action: V1 saved/direct handle validation, canvas/native AX Locator actions, coordinates, keyboard, AppleScript, and behavior profiles; stale refs and ambiguous locators reject, while browser Observation Ref actions currently fail closed as unsupported |
 | `aos show` | Primitive | Projection: persistent WKWebView canvases, overlays, HTML-to-bitmap render, anchors, shared surfaces |
 | `aos tell` | Primitive | Outbound communication: human, channel, direct session, and future sinks |
 | `aos listen` | Primitive | Inbound communication: channel/direct-session reads, exact global hotkeys, and bounded microphone capture |

@@ -39,6 +39,12 @@ function aosPath() {
   return process.env.AOS_PATH || path.join(process.cwd(), 'aos');
 }
 
+function daemonAutoStartDisabled() {
+  return ['1', 'true', 'yes', 'on'].includes(
+    process.env.AOS_DISABLE_DAEMON_AUTOSTART?.toLowerCase(),
+  );
+}
+
 function valueAfter(args, key) {
   const idx = args.indexOf(key);
   return idx >= 0 && idx + 1 < args.length ? args[idx + 1] : undefined;
@@ -99,6 +105,10 @@ function startDaemon() {
 async function connectWithAutoStart(autoStart = true) {
   let socket = await connectOnce();
   if (socket || !autoStart) return socket;
+  if (daemonAutoStartDisabled()) {
+    process.stderr.write('ipc: daemon auto-start disabled by AOS_DISABLE_DAEMON_AUTOSTART\n');
+    return null;
+  }
   startDaemon();
   for (let i = 0; i < 30; i += 1) {
     await new Promise((resolve) => setTimeout(resolve, 100));

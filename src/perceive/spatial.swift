@@ -15,9 +15,34 @@ import Foundation
 // MARK: - Spatial Model
 
 class SpatialModel {
+    private struct ChannelRefreshPreparation {
+        let bounds: ChannelBounds
+        let display: Int
+        let elements: [ChannelElement]
+        let scaleFactor: Double
+    }
+
+    private struct ChannelPublication {
+        let file: ChannelData
+        let state: ChannelState
+    }
+
+    private enum ChannelPublicationExpectation {
+        case absent
+        case revision(instanceID: UUID, value: UInt64)
+    }
+
+    private enum ChannelPublicationResult {
+        case published(ChannelState)
+        case evidenceUnavailable
+        case conflict
+        case writeFailed
+    }
+
     /// Active channels keyed by ID — access only under channelsLock
     private var channels: [String: ChannelState] = [:]
     private let channelsLock = NSLock()
+    private let channelPublications = AOSChannelPublicationSerializer()
 
     /// Callback when a channel is updated (daemon relays to subscribers)
     var onChannelUpdated: ((String) -> Void)?
@@ -68,25 +93,29 @@ class SpatialModel {
 
         // Check each channel's window bounds for movement
         for (id, state) in snapshot {
-            guard let winInfo = windowInfoForID(state.windowID) else { continue }
+            guard let winInfo = windowInfoForID(state.windowID),
+                  winInfo.pid == state.pid else { continue }
             let newBounds = winInfo.bounds
             let old = state.lastBounds
             let windowMoved = abs(newBounds.x - old.x) > 0.5 || abs(newBounds.y - old.y) > 0.5 ||
                               abs(newBounds.w - old.w) > 0.5 || abs(newBounds.h - old.h) > 0.5
 
             if windowMoved {
-                channelsLock.lock()
-                if var current = channels[id] {
-                    current.lastBounds = newBounds
-                    current.revision += 1
-                    channels[id] = current
+                refreshChannel(
+                    id: id,
+                    expectedInstanceID: state.instanceID
+                ) { [weak self] published in
+                    self?.onWindowMoved?(
+                        published.windowID,
+                        published.lastBounds
+                    )
                 }
-                channelsLock.unlock()
-                refreshChannel(id: id)
-                onWindowMoved?(state.windowID, newBounds)
             } else if forceRefresh {
                 // Periodic full refresh to catch UI content changes
-                refreshChannel(id: id)
+                refreshChannel(
+                    id: id,
+                    expectedInstanceID: state.instanceID
+                )
             }
         }
 
@@ -103,18 +132,35 @@ class SpatialModel {
     // MARK: - Channel CRUD
 
     func createChannel(id: String, windowID: Int, pid: Int?, subtree: ChannelSubtree?, depth: Int?) -> SpatialResponse {
-        // Look up window info
+        channelsLock.lock()
+        let duplicate = channels[id] != nil
+        channelsLock.unlock()
+        guard !duplicate else {
+            return .fail("Channel '\(id)' already exists", code: "DUPLICATE_ID")
+        }
+
         guard let winInfo = windowInfoForID(windowID) else {
             return .fail("Window \(windowID) not found", code: "WINDOW_NOT_FOUND")
         }
+        guard pid == nil || pid == winInfo.pid else {
+            return .fail(
+                "Window \(windowID) owner does not match pid \(pid!)",
+                code: "NATIVE_AX_ROOT_MISMATCH"
+            )
+        }
 
-        let resolvedPID = pid ?? winInfo.pid
         let resolvedDepth = depth ?? 3
-
+        guard aosChannelTraversalDepthIsValid(resolvedDepth) else {
+            return .fail(
+                "Depth \(resolvedDepth) must be between 0 and \(aosMaximumChannelTraversalDepth)",
+                code: "INVALID_DEPTH"
+            )
+        }
         let state = ChannelState(
             id: id,
+            instanceID: UUID(),
             windowID: windowID,
-            pid: resolvedPID,
+            pid: winInfo.pid,
             app: winInfo.appName,
             bundleID: winInfo.bundleID,
             display: winInfo.display,
@@ -125,11 +171,25 @@ class SpatialModel {
             createdAt: iso8601Now()
         )
 
-        channelsLock.lock()
-        channels[id] = state
-        channelsLock.unlock()
-        refreshChannel(id: id)
-        return .ok
+        guard let publication = preparedChannelPublication(state) else {
+            return .fail(
+                "Window \(windowID) has no stable non-empty Accessibility evidence",
+                code: "WINDOW_NOT_FOUND"
+            )
+        }
+        switch commitChannelPublication(publication, expectation: .absent) {
+        case .published:
+            return .ok
+        case .conflict:
+            return .fail("Channel '\(id)' already exists", code: "DUPLICATE_ID")
+        case .writeFailed:
+            return .fail("Channel '\(id)' could not be published", code: "INTERNAL")
+        case .evidenceUnavailable:
+            return .fail(
+                "Window \(windowID) has no stable non-empty Accessibility evidence",
+                code: "WINDOW_NOT_FOUND"
+            )
+        }
     }
 
     func updateChannel(id: String, subtree: ChannelSubtree?, depth: Int?) -> SpatialResponse {
@@ -138,26 +198,60 @@ class SpatialModel {
             channelsLock.unlock()
             return .fail("Channel '\(id)' not found", code: "CHANNEL_NOT_FOUND")
         }
-        if let s = subtree { state.subtree = s }
-        if let d = depth { state.depth = d }
-        state.revision += 1
-        channels[id] = state
+        let expectedRevision = state.revision
         channelsLock.unlock()
-        refreshChannel(id: id)
-        return .ok
+        if let d = depth {
+            guard aosChannelTraversalDepthIsValid(d) else {
+                return .fail(
+                    "Depth \(d) must be between 0 and \(aosMaximumChannelTraversalDepth)",
+                    code: "INVALID_DEPTH"
+                )
+            }
+            state.depth = d
+        }
+        if let s = subtree { state.subtree = s }
+        guard state.revision < UInt64.max else {
+            return .fail("Channel '\(id)' revision is exhausted", code: "INTERNAL")
+        }
+        state.revision += 1
+        switch publishChannelCandidate(
+            state,
+            expectedRevision: expectedRevision
+        ) {
+        case .published:
+            return .ok
+        case .evidenceUnavailable:
+            return .fail(
+                "Channel '\(id)' exact window or subtree is unavailable",
+                code: "WINDOW_NOT_FOUND"
+            )
+        case .conflict:
+            return .fail("Channel '\(id)' changed during refresh", code: "CHANNEL_STALE")
+        case .writeFailed:
+            return .fail("Channel '\(id)' could not be published", code: "INTERNAL")
+        }
     }
 
     func removeChannel(id: String) -> SpatialResponse {
-        channelsLock.lock()
-        guard channels.removeValue(forKey: id) != nil else {
+        channelPublications.sync {
+            channelsLock.lock()
+            guard channels[id] != nil else {
+                channelsLock.unlock()
+                return .fail("Channel '\(id)' not found", code: "CHANNEL_NOT_FOUND")
+            }
+            let path = "\(kDisplayChannelDirectory)/\(id).json"
+            do {
+                if FileManager.default.fileExists(atPath: path) {
+                    try FileManager.default.removeItem(atPath: path)
+                }
+            } catch {
+                channelsLock.unlock()
+                return .fail("Channel '\(id)' could not be removed", code: "INTERNAL")
+            }
+            channels.removeValue(forKey: id)
             channelsLock.unlock()
-            return .fail("Channel '\(id)' not found", code: "CHANNEL_NOT_FOUND")
+            return .ok
         }
-        channelsLock.unlock()
-        // Delete channel file
-        let path = "\(kDisplayChannelDirectory)/\(id).json"
-        try? FileManager.default.removeItem(atPath: path)
-        return .ok
     }
 
     func listChannels() -> SpatialResponse {
@@ -288,41 +382,60 @@ class SpatialModel {
             channelsLock.unlock()
             return .fail("Channel '\(id)' not found", code: "CHANNEL_NOT_FOUND")
         }
+        let expectedRevision = state.revision
+        channelsLock.unlock()
 
+        if let d = depth, !aosChannelTraversalDepthIsValid(d) {
+            return .fail(
+                "Depth \(d) must be between 0 and \(aosMaximumChannelTraversalDepth)",
+                code: "INVALID_DEPTH"
+            )
+        }
         if let sub = subtree {
             // Focus deeper into a subtree — update subtree spec and optionally increase depth
             state.subtree = sub
             if let d = depth {
                 state.depth = d
             } else {
-                // Default: increase depth by 2 when focusing into subtree
-                state.depth = state.depth + 2
+                guard state.depth <= aosMaximumChannelTraversalDepth - 2 else {
+                    return .fail("Channel '\(id)' is already at maximum depth", code: "INVALID_DEPTH")
+                }
+                state.depth += 2
             }
         } else if let d = depth {
             // Just increase depth (must be >= current)
             guard d >= state.depth else {
-                channelsLock.unlock()
                 return .fail("Depth \(d) is less than current depth \(state.depth). Use graph-collapse to reduce depth.",
                              code: "INVALID_DEPTH")
             }
             state.depth = d
         } else {
             // No subtree, no depth — default: increase depth by 2
-            state.depth = state.depth + 2
+            guard state.depth <= aosMaximumChannelTraversalDepth - 2 else {
+                return .fail("Channel '\(id)' is already at maximum depth", code: "INVALID_DEPTH")
+            }
+            state.depth += 2
         }
 
+        guard state.revision < UInt64.max else {
+            return .fail("Channel '\(id)' revision is exhausted", code: "INTERNAL")
+        }
         state.revision += 1
-        channels[id] = state
-        channelsLock.unlock()
-        refreshChannel(id: id)
-
-        channelsLock.lock()
-        let elCount = channels[id]?.lastElementCount
-        channelsLock.unlock()
-
-        var resp = SpatialResponse.ok
-        resp.elements_count = elCount
-        return resp
+        switch publishChannelCandidate(state, expectedRevision: expectedRevision) {
+        case .published(let published):
+            var resp = SpatialResponse.ok
+            resp.elements_count = published.lastElementCount
+            return resp
+        case .evidenceUnavailable:
+            return .fail(
+                "Channel '\(id)' exact window or subtree is unavailable",
+                code: "WINDOW_NOT_FOUND"
+            )
+        case .conflict:
+            return .fail("Channel '\(id)' changed during refresh", code: "CHANNEL_STALE")
+        case .writeFailed:
+            return .fail("Channel '\(id)' could not be published", code: "INTERNAL")
+        }
     }
 
     // MARK: - Graph: Collapse Channel
@@ -333,121 +446,261 @@ class SpatialModel {
             channelsLock.unlock()
             return .fail("Channel '\(id)' not found", code: "CHANNEL_NOT_FOUND")
         }
+        let expectedRevision = state.revision
+        channelsLock.unlock()
 
         let targetDepth = depth ?? 1
-
-        guard targetDepth < state.depth else {
-            channelsLock.unlock()
+        guard aosChannelTraversalDepthIsValid(targetDepth),
+              targetDepth < state.depth else {
             return .fail("Target depth \(targetDepth) is not less than current depth \(state.depth). Use graph-deepen to increase depth.",
                          code: "INVALID_DEPTH")
         }
 
         state.depth = targetDepth
-
-        // Clear subtree focus when collapsing to shallow depth
         if targetDepth <= 1 {
             state.subtree = nil
         }
-
+        guard state.revision < UInt64.max else {
+            return .fail("Channel '\(id)' revision is exhausted", code: "INTERNAL")
+        }
         state.revision += 1
-        channels[id] = state
-        channelsLock.unlock()
-        refreshChannel(id: id)
-
-        channelsLock.lock()
-        let elCount = channels[id]?.lastElementCount
-        channelsLock.unlock()
-
-        var resp = SpatialResponse.ok
-        resp.elements_count = elCount
-        return resp
+        switch publishChannelCandidate(state, expectedRevision: expectedRevision) {
+        case .published(let published):
+            var resp = SpatialResponse.ok
+            resp.elements_count = published.lastElementCount
+            return resp
+        case .evidenceUnavailable:
+            return .fail(
+                "Channel '\(id)' exact window or subtree is unavailable",
+                code: "WINDOW_NOT_FOUND"
+            )
+        case .conflict:
+            return .fail("Channel '\(id)' changed during refresh", code: "CHANNEL_STALE")
+        case .writeFailed:
+            return .fail("Channel '\(id)' could not be published", code: "INTERNAL")
+        }
     }
 
     // MARK: - Channel Refresh (AX traversal + file write)
 
-    func refreshChannel(id: String) {
-        channelsLock.lock()
-        guard let state = channels[id] else {
-            channelsLock.unlock()
-            return
+    private func prepareChannelRefresh(
+        _ state: ChannelState
+    ) -> ChannelRefreshPreparation? {
+        guard aosChannelTraversalDepthIsValid(state.depth),
+              let winInfo = windowInfoForID(state.windowID),
+              winInfo.pid == state.pid,
+              let elements = traverseForChannel(
+                pid: pid_t(state.pid),
+                windowID: state.windowID,
+                subtree: state.subtree,
+                depth: state.depth,
+                windowBounds: winInfo.bounds,
+                scaleFactor: winInfo.scaleFactor
+              ),
+              !elements.isEmpty,
+              let settledWinInfo = windowInfoForID(state.windowID),
+              aosChannelWindowObservationIsStable(
+                before: channelWindowObservation(winInfo),
+                after: channelWindowObservation(settledWinInfo),
+                expectedPID: state.pid
+              ) else {
+            return nil
         }
-        let refreshRevision = state.revision
-        channelsLock.unlock()
-
-        // Get current window bounds
-        guard let winInfo = windowInfoForID(state.windowID) else { return }
-        let bounds = winInfo.bounds
-
-        // Traverse AX tree for channel elements
-        let elements = traverseForChannel(
-            pid: pid_t(state.pid),
-            subtree: state.subtree,
-            depth: state.depth,
-            windowBounds: bounds,
-            scaleFactor: state.scaleFactor
+        return ChannelRefreshPreparation(
+            bounds: settledWinInfo.bounds,
+            display: settledWinInfo.display,
+            elements: elements,
+            scaleFactor: settledWinInfo.scaleFactor
         )
+    }
 
-        channelsLock.lock()
-        guard var current = channels[id], current.revision == refreshRevision else {
-            channelsLock.unlock()
-            return
-        }
-        current.lastBounds = bounds
-        current.lastElementCount = elements.count
-        current.lastUpdated = iso8601Now()
-        channels[id] = current
-        channelsLock.unlock()
-
-        // Build channel file using ChannelData from display/channel.swift
-        let file = ChannelData(
-            channel_id: id,
-            created_by: "aos",
-            created_at: current.createdAt,
-            updated_at: current.lastUpdated,
-            target: ChannelTarget(
-                pid: current.pid,
-                app: current.app,
-                bundle_id: current.bundleID,
-                window_id: current.windowID,
-                display: current.display,
-                scale_factor: current.scaleFactor
+    private func channelWindowObservation(
+        _ entry: SpatialWindowEntry
+    ) -> AOSChannelWindowObservation {
+        AOSChannelWindowObservation(
+            pid: entry.pid,
+            bounds: CGRect(
+                x: entry.bounds.x,
+                y: entry.bounds.y,
+                width: entry.bounds.w,
+                height: entry.bounds.h
             ),
-            focus: ChannelFocus(subtree: current.subtree, depth: current.depth),
+            display: entry.display,
+            scaleFactor: entry.scaleFactor
+        )
+    }
+
+    private func channelFile(
+        state: ChannelState,
+        bounds: ChannelBounds,
+        elements: [ChannelElement]
+    ) -> ChannelData {
+        ChannelData(
+            channel_id: state.id,
+            created_by: "aos",
+            created_at: state.createdAt,
+            updated_at: state.lastUpdated,
+            target: ChannelTarget(
+                pid: state.pid,
+                app: state.app,
+                bundle_id: state.bundleID,
+                window_id: state.windowID,
+                display: state.display,
+                scale_factor: state.scaleFactor
+            ),
+            focus: ChannelFocus(subtree: state.subtree, depth: state.depth),
             window_bounds: bounds,
             elements: elements
         )
+    }
 
-        // Write to disk
-        writeChannelFile(file)
-        onChannelUpdated?(id)
+    @discardableResult
+    func refreshChannel(
+        id: String,
+        expectedInstanceID: UUID,
+        afterCommit: ((ChannelState) -> Void)? = nil
+    ) -> Bool {
+        channelsLock.lock()
+        guard var state = channels[id],
+              state.instanceID == expectedInstanceID else {
+            channelsLock.unlock()
+            return false
+        }
+        let expectedRevision = state.revision
+        channelsLock.unlock()
+        guard state.revision < UInt64.max else { return false }
+        state.revision += 1
+        switch publishChannelCandidate(
+            state,
+            expectedRevision: expectedRevision,
+            afterCommit: afterCommit
+        ) {
+        case .published:
+            return true
+        case .evidenceUnavailable, .conflict, .writeFailed:
+            return false
+        }
+    }
+
+    private func preparedChannelPublication(
+        _ candidate: ChannelState
+    ) -> ChannelPublication? {
+        guard let preparation = prepareChannelRefresh(candidate) else {
+            return nil
+        }
+        var published = candidate
+        published.lastBounds = preparation.bounds
+        published.display = preparation.display
+        published.lastElementCount = preparation.elements.count
+        published.lastUpdated = iso8601Now()
+        published.scaleFactor = preparation.scaleFactor
+        return ChannelPublication(
+            file: channelFile(
+                state: published,
+                bounds: preparation.bounds,
+                elements: preparation.elements
+            ),
+            state: published
+        )
+    }
+
+    private func publishChannelCandidate(
+        _ candidate: ChannelState,
+        expectedRevision: UInt64,
+        afterCommit: ((ChannelState) -> Void)? = nil
+    ) -> ChannelPublicationResult {
+        guard let publication = preparedChannelPublication(candidate) else {
+            return .evidenceUnavailable
+        }
+        return commitChannelPublication(
+            publication,
+            expectation: .revision(
+                instanceID: candidate.instanceID,
+                value: expectedRevision
+            ),
+            afterCommit: afterCommit
+        )
+    }
+
+    private func commitChannelPublication(
+        _ publication: ChannelPublication,
+        expectation: ChannelPublicationExpectation,
+        afterCommit: ((ChannelState) -> Void)? = nil
+    ) -> ChannelPublicationResult {
+        channelPublications.sync {
+            channelsLock.lock()
+            let admitted: Bool
+            switch expectation {
+            case .absent:
+                admitted = channels[publication.state.id] == nil
+            case .revision(let expectedInstanceID, let expectedRevision):
+                if let current = channels[publication.state.id] {
+                    admitted = aosChannelPublicationIdentityIsCurrent(
+                        currentInstanceID: current.instanceID,
+                        currentRevision: current.revision,
+                        expectedInstanceID: expectedInstanceID,
+                        expectedRevision: expectedRevision
+                    )
+                } else {
+                    admitted = false
+                }
+            }
+            guard admitted else {
+                channelsLock.unlock()
+                return .conflict
+            }
+            guard writeChannelFile(publication.file) else {
+                channelsLock.unlock()
+                return .writeFailed
+            }
+            channels[publication.state.id] = publication.state
+            channelsLock.unlock()
+            onChannelUpdated?(publication.state.id)
+            afterCommit?(publication.state)
+            return .published(publication.state)
+        }
     }
 
     // MARK: - AX Traversal for Channel Elements
 
-    private func traverseForChannel(pid: pid_t, subtree: ChannelSubtree?, depth: Int,
-                                     windowBounds: ChannelBounds, scaleFactor: Double) -> [ChannelElement] {
-        let app = AXUIElementCreateApplication(pid)
+    private func traverseForChannel(pid: pid_t, windowID: Int, subtree: ChannelSubtree?, depth: Int,
+                                     windowBounds: ChannelBounds, scaleFactor: Double) -> [ChannelElement]? {
+        guard let window = nativeAXWindowElement(appPID: pid, windowID: windowID) else {
+            return nil
+        }
 
-        // Find search root (subtree or app root)
-        var root = app
+        // Find search root inside the exact channel window.
+        var root = window
         if let sub = subtree {
-            if let found = findSubtreeRoot(app: app, subtree: sub) {
-                root = found
-            }
+            guard let found = findSubtreeRoot(
+                root: window,
+                windowID: windowID,
+                subtree: sub
+            ) else { return nil }
+            root = found
         }
 
         var elements: [ChannelElement] = []
-        traverseAXForChannel(root, depth: 0, maxDepth: depth,
+        traverseAXForChannel(root, windowID: windowID, depth: 0, maxDepth: depth,
                               windowBounds: windowBounds, scaleFactor: scaleFactor,
                               results: &elements)
         return elements
     }
 
-    private func findSubtreeRoot(app: AXUIElement, subtree: ChannelSubtree) -> AXUIElement? {
+    private func findSubtreeRoot(
+        root: AXUIElement,
+        windowID: Int,
+        subtree: ChannelSubtree
+    ) -> AXUIElement? {
         // BFS to find element matching subtree spec
-        var queue: [AXUIElement] = [app]
+        var queue: [AXUIElement] = [root]
+        var matched: AXUIElement?
         while !queue.isEmpty {
             let current = queue.removeFirst()
+            if let observedWindowID = axWindowID(current),
+               observedWindowID != windowID {
+                continue
+            }
             let role = axString(current, kAXRoleAttribute)
             let title = axString(current, kAXTitleAttribute)
             let ident = axString(current, "AXIdentifier")
@@ -458,17 +711,23 @@ class SpatialModel {
             if let i = subtree.identifier, i != ident { match = false }
 
             if match && (subtree.role != nil || subtree.title != nil || subtree.identifier != nil) {
-                return current
+                guard matched == nil else { return nil }
+                matched = current
             }
             queue.append(contentsOf: axChildren(current))
         }
-        return nil
+        return matched
     }
 
-    private func traverseAXForChannel(_ element: AXUIElement, depth: Int, maxDepth: Int,
+    private func traverseAXForChannel(_ element: AXUIElement, windowID: Int,
+                                       depth: Int, maxDepth: Int,
                                        windowBounds: ChannelBounds, scaleFactor: Double,
                                        results: inout [ChannelElement]) {
         guard depth <= maxDepth else { return }
+        if let observedWindowID = axWindowID(element),
+           observedWindowID != windowID {
+            return
+        }
 
         let role = axString(element, kAXRoleAttribute) ?? ""
 
@@ -476,7 +735,8 @@ class SpatialModel {
         guard let globalBounds = axBounds(element) else {
             // No bounds — still recurse children
             for child in axChildren(element) {
-                traverseAXForChannel(child, depth: depth + 1, maxDepth: maxDepth,
+                traverseAXForChannel(child, windowID: windowID,
+                                      depth: depth + 1, maxDepth: maxDepth,
                                       windowBounds: windowBounds, scaleFactor: scaleFactor,
                                       results: &results)
             }
@@ -528,7 +788,8 @@ class SpatialModel {
 
         // Recurse children
         for child in axChildren(element) {
-            traverseAXForChannel(child, depth: depth + 1, maxDepth: maxDepth,
+            traverseAXForChannel(child, windowID: windowID,
+                                  depth: depth + 1, maxDepth: maxDepth,
                                   windowBounds: windowBounds, scaleFactor: scaleFactor,
                                   results: &results)
         }
@@ -537,8 +798,19 @@ class SpatialModel {
     // MARK: - Window Info Helpers
 
     private func windowInfoForID(_ windowID: Int) -> SpatialWindowEntry? {
-        guard let infoList = CGWindowListCopyWindowInfo([.optionIncludingWindow], CGWindowID(windowID)) as? [[String: Any]],
-              let info = infoList.first else { return nil }
+        guard windowID > 0,
+              let infoList = CGWindowListCopyWindowInfo(
+                [.optionIncludingWindow],
+                CGWindowID(windowID)
+              ) as? [[String: Any]] else { return nil }
+        let matches = infoList.filter { info in
+            if let number = info[kCGWindowNumber as String] as? NSNumber {
+                return number.intValue == windowID
+            }
+            return false
+        }
+        guard matches.count == 1 else { return nil }
+        let info = matches[0]
 
         guard let boundsDict = info[kCGWindowBounds as String] as? [String: Any],
               let x = boundsDict["X"] as? Double,
@@ -546,7 +818,16 @@ class SpatialModel {
               let w = boundsDict["Width"] as? Double,
               let h = boundsDict["Height"] as? Double else { return nil }
 
-        let pid = info[kCGWindowOwnerPID as String] as? Int ?? 0
+        let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue
+        let pid = (info[kCGWindowOwnerPID as String] as? NSNumber)?.intValue ?? 0
+        guard layer == 0,
+              pid > 0,
+              x.isFinite,
+              y.isFinite,
+              w.isFinite,
+              h.isFinite,
+              w >= 10,
+              h >= 10 else { return nil }
         let appName = info[kCGWindowOwnerName as String] as? String ?? "Unknown"
 
         // Look up bundle ID
@@ -557,38 +838,40 @@ class SpatialModel {
             bundleID = nil
         }
 
-        // Determine which display this window is on
-        let centerX = x + w / 2
-        let centerY = y + h / 2
-        let displays = getDisplays()
-        var display = 1
-        var scaleFactor = 2.0
-        for d in displays {
-            if d.bounds.contains(CGPoint(x: centerX, y: centerY)) {
-                display = d.ordinal
-                scaleFactor = d.scaleFactor
-                break
-            }
+        // Exact channels are single-display facts until cross-display scaling
+        // has an explicit contract.
+        let windowBounds = CGRect(x: x, y: y, width: w, height: h).integral
+        let displayMatches = getDisplays().filter {
+            CGDisplayMirrorsDisplay($0.id) == kCGNullDirectDisplay
+                && $0.bounds.contains(windowBounds)
         }
+        guard displayMatches.count == 1 else { return nil }
+        let display = displayMatches[0]
 
         return SpatialWindowEntry(
             pid: pid, appName: appName, bundleID: bundleID,
-            display: display, scaleFactor: scaleFactor,
-            bounds: ChannelBounds(x: x, y: y, w: w, h: h)
+            display: display.ordinal, scaleFactor: display.scaleFactor,
+            bounds: ChannelBounds(from: windowBounds)
         )
     }
 
     // MARK: - Channel File I/O
 
-    private func writeChannelFile(_ file: ChannelData) {
-        // Ensure directory exists
-        try? FileManager.default.createDirectory(atPath: kDisplayChannelDirectory,
-                                                  withIntermediateDirectories: true)
-        let path = "\(kDisplayChannelDirectory)/\(file.channel_id).json"
-        let enc = JSONEncoder()
-        enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = try? enc.encode(file) else { return }
-        try? data.write(to: URL(fileURLWithPath: path))
+    private func writeChannelFile(_ file: ChannelData) -> Bool {
+        do {
+            try FileManager.default.createDirectory(
+                atPath: kDisplayChannelDirectory,
+                withIntermediateDirectories: true
+            )
+            let path = "\(kDisplayChannelDirectory)/\(file.channel_id).json"
+            let enc = JSONEncoder()
+            enc.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try enc.encode(file)
+            try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+            return true
+        } catch {
+            return false
+        }
     }
 
     // MARK: - Daemon Action Dispatch
@@ -691,12 +974,13 @@ class SpatialModel {
 
 struct ChannelState {
     let id: String
+    let instanceID: UUID
     let windowID: Int
     let pid: Int
     let app: String
     let bundleID: String?
-    let display: Int
-    let scaleFactor: Double
+    var display: Int
+    var scaleFactor: Double
     var subtree: ChannelSubtree?
     var depth: Int
     var lastBounds: ChannelBounds

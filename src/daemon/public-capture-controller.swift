@@ -11,6 +11,31 @@ private func aosPublicCapturePositiveUInt32(_ value: Any) -> UInt32? {
     aosExactJSONUInt32(value, minimum: 1)
 }
 
+private func aosPublicCaptureFiniteDouble(_ value: Any) -> Double? {
+    guard let number = value as? NSNumber,
+          CFGetTypeID(number) != CFBooleanGetTypeID(),
+          number.doubleValue.isFinite else {
+        return nil
+    }
+    return number.doubleValue
+}
+
+private func aosPublicCaptureWindowBounds(_ value: Any) -> CGRect? {
+    guard let raw = value as? [String: Any],
+          Set(raw.keys) == ["x", "y", "width", "height"],
+          let x = aosPublicCaptureFiniteDouble(raw["x"] as Any),
+          let y = aosPublicCaptureFiniteDouble(raw["y"] as Any),
+          let width = aosPublicCaptureFiniteDouble(raw["width"] as Any),
+          let height = aosPublicCaptureFiniteDouble(raw["height"] as Any),
+          width >= 10,
+          height >= 10 else {
+        return nil
+    }
+    let bounds = CGRect(x: x, y: y, width: width, height: height)
+    guard !bounds.isNull, !bounds.isInfinite else { return nil }
+    return bounds
+}
+
 private struct AOSPublicCaptureWireRequest {
     let captureID: String
     let request: AOSDesktopPixelSnapshotRequest
@@ -139,9 +164,12 @@ private struct AOSPublicCaptureWireRequest {
               rawWindows.count <= AOSDesktopPixelLimits.maximumDisplayCount else {
             throw AOSPublicCaptureWireError.invalid
         }
-        var windowIDsByDisplay: [UInt32: Int] = [:]
+        var windowTargetsByDisplay: [UInt32: AOSDesktopPixelWindowTarget] = [:]
         for target in rawWindows {
-            guard Set(target.keys) == ["display_id", "window_id"],
+            guard Set(target.keys) == [
+                    "display_id", "window_id", "owner_pid",
+                    "expected_bounds", "fallback",
+                  ],
                   let displayID = aosPublicCapturePositiveUInt32(
                     target["display_id"] as Any
                   ),
@@ -149,19 +177,37 @@ private struct AOSPublicCaptureWireRequest {
                     target["window_id"] as Any,
                     minimum: 1
                   ),
+                  let ownerPID = aosExactJSONInteger(
+                    target["owner_pid"] as Any,
+                    minimum: 1,
+                    maximum: Int(Int32.max)
+                  ),
+                  let expectedBounds = aosPublicCaptureWindowBounds(
+                    target["expected_bounds"] as Any
+                  ),
+                  let fallbackRaw = target["fallback"] as? String,
+                  let fallback = AOSDesktopPixelWindowFallback(
+                    rawValue: fallbackRaw
+                  ),
                   selected.contains(displayID) else {
                 throw AOSPublicCaptureWireError.invalid
             }
             let windowID = Int(exactWindowID)
             guard !excluded.contains(windowID),
-                  windowIDsByDisplay.updateValue(
-                    windowID,
+                  windowTargetsByDisplay.updateValue(
+                    AOSDesktopPixelWindowTarget(
+                        windowID: windowID,
+                        ownerPID: ownerPID,
+                        expectedBounds: expectedBounds,
+                        fallback: fallback
+                    ),
                     forKey: displayID
                   ) == nil else {
                 throw AOSPublicCaptureWireError.invalid
             }
         }
-        guard Set(windowIDsByDisplay.values).count == windowIDsByDisplay.count else {
+        guard Set(windowTargetsByDisplay.values.map(\.windowID)).count
+                == windowTargetsByDisplay.count else {
             throw AOSPublicCaptureWireError.invalid
         }
         self.captureID = captureID.lowercased()
@@ -176,7 +222,7 @@ private struct AOSPublicCaptureWireRequest {
             publicCaptureSelections: selections,
             publicCaptureTopology: topology,
             showsCursor: showsCursor,
-            windowIDsByDisplay: windowIDsByDisplay
+            windowTargetsByDisplay: windowTargetsByDisplay
         )
         guard aosDesktopPixelRequestIsValid(request) else {
             throw AOSPublicCaptureWireError.invalid
@@ -329,10 +375,12 @@ final class AOSPublicCaptureController {
                   let image = frame.image else {
                 throw AOSDesktopFrameCaptureFailure.captureFailed
             }
-            let requestedWindowID = wire.request.windowIDsByDisplay[displayID]
+            let windowTarget = wire.request.windowTargetsByDisplay[displayID]
+            let requestedWindowID = windowTarget?.windowID
             switch frame.source {
             case .display:
-                guard frame.usedWindowFallback == (requestedWindowID != nil) else {
+                guard frame.usedWindowFallback == (requestedWindowID != nil),
+                      windowTarget.map(\.fallback) != .some(.none) else {
                     throw AOSDesktopFrameCaptureFailure.captureFailed
                 }
             case .window(let windowID):

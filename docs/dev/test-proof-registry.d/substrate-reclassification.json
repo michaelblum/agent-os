@@ -79,8 +79,8 @@
       "owner": "toolkit-semantic-targets",
       "harness_level": "model_unit",
       "proof_kind": "legacy_interaction_reacquisition_fixture",
-      "contract": "Current legacy interaction grammar and mixed target-descriptor fixtures remain namespace-safe while awaiting the ADR 0040 Observation Ref and Locator split; they are not the public target-handle contract.",
-      "worth": "This freezes current ambiguity and stale-ref behavior so runtime migration can replace it deliberately.",
+      "contract": "Frozen pre-V1 interaction grammar and mixed target-descriptor fixtures remain namespace-safe as historical migration evidence; they are not the public target-handle contract. The completed ADR 0040 Observation Ref and Locator split supersedes them as public target-handle authority.",
+      "worth": "This preserves parser-tested historical ambiguity and stale-ref evidence without making it active target identity or blocking V1 evolution.",
       "command": "node --test tests/toolkit/aos-interaction-grammar-contract.test.mjs tests/toolkit/aos-target-descriptor-contract.test.mjs",
       "replaces": [],
       "guard": "fixture-only model tests",
@@ -166,6 +166,7 @@
         "tests/toolkit/wiki-subject-browser.test.mjs",
         "tests/toolkit/wiki-subject-opening.test.mjs",
         "tests/toolkit/wiki-subject.test.mjs",
+        "tests/toolkit/workflow-subject.test.mjs",
         "tests/toolkit/workbench-shell.test.mjs"
       ],
       "fixture_patterns": [
@@ -176,7 +177,7 @@
       "proof_kind": "subject_workbench_contract",
       "contract": "UX trees, menu subjects, wiki subjects, entry handles, and workbench shells remain generic descriptor and host contracts.",
       "worth": "This retains reusable subject/workbench behavior after removing the embedded product subject adapter.",
-      "command": "node --test tests/schemas/aos-ux-tree-v0.test.mjs tests/schemas/aos-workbench-subject.test.mjs tests/toolkit/radial-menu-subject.test.mjs tests/toolkit/runtime-menu-activation.test.mjs tests/toolkit/runtime-radial-menu-config.test.mjs tests/toolkit/subject-entry-handle.test.mjs tests/toolkit/ux-tree-subject.test.mjs tests/toolkit/wiki-subject-browser.test.mjs tests/toolkit/wiki-subject-opening.test.mjs tests/toolkit/wiki-subject.test.mjs tests/toolkit/workbench-shell.test.mjs",
+      "command": "node --test tests/schemas/aos-ux-tree-v0.test.mjs tests/schemas/aos-workbench-subject.test.mjs tests/toolkit/radial-menu-subject.test.mjs tests/toolkit/runtime-menu-activation.test.mjs tests/toolkit/runtime-radial-menu-config.test.mjs tests/toolkit/subject-entry-handle.test.mjs tests/toolkit/ux-tree-subject.test.mjs tests/toolkit/wiki-subject-browser.test.mjs tests/toolkit/wiki-subject-opening.test.mjs tests/toolkit/wiki-subject.test.mjs tests/toolkit/workflow-subject.test.mjs tests/toolkit/workbench-shell.test.mjs",
       "replaces": [
         "embedded product UX-tree and subject renderer tests"
       ],

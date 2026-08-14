@@ -415,7 +415,33 @@ The live form requires pre-existing Screen Recording consent and never prompts,
 persists pixels, builds `./aos`, or operates an AOS daemon. Use it to validate
 physical native projection and capture composition, not product semantics.
 
-These tests should also run in an isolated `AOS_STATE_ROOT` and tear down their
+Exact native focus-channel fidelity has a separate supervised product-path
+proof. It opens only two deterministic overlapping windows from one synthetic
+AppKit process, uses the already-running repo daemon through public `focus` and
+`see capture --channel` commands, retains only content-free evidence, and
+on complete cleanup removes its temporary PNG, channels, windows, and proof
+root. An incomplete cleanup fails the proof and reports
+`recovery_root_retained=true` for bounded manual recovery:
+
+```bash
+zsh tests/manual/exact-focus-channel-native-proof.sh --typecheck
+zsh tests/manual/exact-focus-channel-native-proof.sh --analyzer-self-test
+AOS_EXACT_FOCUS_CHANNEL_NATIVE_PROOF_OK=1 \
+  zsh tests/manual/exact-focus-channel-native-proof.sh --run
+```
+
+The live form requires pre-existing Accessibility and Screen Recording consent
+plus `screen_capture_direct.status=ready` from the already-running daemon. An
+unrelated Microphone/listen degradation does not block this capture-only proof.
+The harness disables daemon auto-start and does not rebuild, start, stop, or
+restart the shared daemon; request Microphone or any other TCC grant; inspect a
+private application; retain or emit pixel bytes; or read internal
+daemon/channel state. Its interrupted-run recovery root stores only keyed
+digests for unrelated-channel comparison; the ephemeral key remains in process
+memory and raw channel URLs, sessions, and entries are never persisted there.
+
+Other situational tests that own disposable daemons should run in an isolated
+`AOS_STATE_ROOT` and tear down their
 own temp-root daemon state so they do not leave duplicate `aos` windows behind
 if a run is interrupted.
 

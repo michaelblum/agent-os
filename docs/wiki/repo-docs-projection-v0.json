@@ -73,16 +73,6 @@
       "source_type": "api_doc"
     },
     {
-      "source_path": "docs/design/aos-grand-unification-plan.md",
-      "slug": "repo-doc-grand-unification-plan",
-      "type": "repo_doc",
-      "name": "AOS Grand Unification Plan",
-      "description": "Current roadmap for subjects, browsers, workbenches, playbooks, verifiers, and generated artifacts.",
-      "tags": ["repo-docs", "design", "roadmap", "workbench", "subject-browser"],
-      "concepts": ["Subject Browser", "toolkit", "runtime wiki", "Workbench Subject"],
-      "source_type": "design_note"
-    },
-    {
       "source_path": "docs/design/aos-surface-system.md",
       "slug": "repo-doc-surface-system",
       "type": "repo_doc",

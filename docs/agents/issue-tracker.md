@@ -16,8 +16,8 @@ review-comment reads when GitHub work is explicitly in scope.
 
 Do not open or update issues or PRs unless the assigned goal or handoff
 explicitly includes that mutation. When a skill says to publish to the issue
-tracker, first check whether the active role owns GitHub coordination; GDI only
-does so when the work card assigns it.
+tracker, first confirm that the current task or dispatch explicitly owns GitHub
+coordination; implementation scope alone does not grant that authority.
 
 ## Issue Hygiene
 

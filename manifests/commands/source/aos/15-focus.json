@@ -21,7 +21,7 @@
               "id": "window",
               "kind": "flag",
               "required": false,
-              "summary": "Window ID to track (mutually exclusive with --target)",
+              "summary": "Exact native window ID to track (mutually exclusive with --target; requires current AX root)",
               "token": "--window",
               "value_type": "int"
             },
@@ -48,7 +48,7 @@
               "id": "pid",
               "kind": "flag",
               "required": false,
-              "summary": "Process ID",
+              "summary": "Optional native owner assertion; must match the live window owner",
               "token": "--pid",
               "value_type": "int"
             },
@@ -56,7 +56,7 @@
               "id": "depth",
               "kind": "flag",
               "required": false,
-              "summary": "AX traversal depth",
+              "summary": "AX traversal depth from 0 through 15",
               "token": "--depth",
               "value_type": "int"
             },
@@ -149,7 +149,7 @@
             "interactive": false,
             "mutates_state": true,
             "read_only": false,
-            "requires_permissions": false,
+            "requires_permissions": true,
             "streaming": false,
             "supports_dry_run": false
           },
@@ -176,7 +176,7 @@
               "id": "depth",
               "kind": "flag",
               "required": false,
-              "summary": "New traversal depth",
+              "summary": "New traversal depth from 0 through 15",
               "token": "--depth",
               "value_type": "int"
             },
@@ -213,7 +213,7 @@
             "interactive": false,
             "mutates_state": true,
             "read_only": false,
-            "requires_permissions": false,
+            "requires_permissions": true,
             "streaming": false,
             "supports_dry_run": false
           },

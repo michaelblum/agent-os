@@ -95,7 +95,8 @@ _run_agent_workspace_schema_validation() {
     local expectation="$1"
     shift
     python3 - \
-        shared/schemas/aos-agent-workspace-v0.schema.json \
+        shared/schemas/aos-agent-workspace-v1.schema.json \
+        shared/schemas/aos-target-handle-v1.schema.json \
         shared/schemas/display-topology-v1.schema.json \
         "$expectation" \
         "$@" <<'PY'
@@ -106,16 +107,20 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
 schema = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-display_topology_schema = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
-expectation = sys.argv[3]
+target_handle_schema = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+display_topology_schema = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
+expectation = sys.argv[4]
 Draft202012Validator.check_schema(schema)
+Draft202012Validator.check_schema(target_handle_schema)
 Draft202012Validator.check_schema(display_topology_schema)
-registry = Registry().with_resource(
-    display_topology_schema["$id"],
-    Resource.from_contents(display_topology_schema),
-)
+registry = Registry()
+for dependency in (target_handle_schema, display_topology_schema):
+    registry = registry.with_resource(
+        dependency["$id"],
+        Resource.from_contents(dependency),
+    )
 validator = Draft202012Validator(schema, registry=registry)
-for instance_path in sys.argv[4:]:
+for instance_path in sys.argv[5:]:
     instance = json.loads(Path(instance_path).read_text(encoding="utf-8"))
     errors = sorted(validator.iter_errors(instance), key=lambda error: list(error.path))
     if expectation == "accept" and errors:

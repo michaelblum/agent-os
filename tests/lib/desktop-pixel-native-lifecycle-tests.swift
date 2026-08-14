@@ -367,6 +367,35 @@ private func runDesktopPixelPublicCaptureAdmissionTests() throws {
         aosDesktopPixelRequestIsValid(request),
         "canonical public capture topology binding was rejected"
     )
+    let exactWindowTarget = AOSDesktopPixelWindowTarget(
+        windowID: 901,
+        ownerPID: 7001,
+        expectedBounds: CGRect(x: 10, y: 10, width: 40, height: 30),
+        fallback: .none
+    )
+    func exactWindowRequest(excludingWindowIDs: [Int]) -> AOSDesktopPixelSnapshotRequest {
+        AOSDesktopPixelSnapshotRequest(
+            displayIDs: request.displayIDs,
+            displayLayout: request.displayLayout,
+            excludingWindowIDs: excludingWindowIDs,
+            maximumPixelsPerDisplay: request.maximumPixelsPerDisplay,
+            sizingPolicy: request.sizingPolicy,
+            capturePolicy: request.capturePolicy,
+            publicCaptureSelections: request.publicCaptureSelections,
+            publicCaptureTopology: request.publicCaptureTopology,
+            windowTargetsByDisplay: [42: exactWindowTarget]
+        )
+    }
+    require(
+        aosDesktopPixelRequestIsValid(exactWindowRequest(excludingWindowIDs: [])),
+        "valid exact window request was rejected"
+    )
+    require(
+        !aosDesktopPixelRequestIsValid(exactWindowRequest(
+            excludingWindowIDs: [exactWindowTarget.windowID]
+        )),
+        "excluded exact window target reached broker admission"
+    )
     func providerFact(
         _ display: AOSDisplayTopologyDisplay,
         memberIdentity: AOSDisplayTopologyMemberIdentity? = nil,
@@ -548,12 +577,44 @@ func runDesktopPixelNativeLifecycleTests() async throws {
         image: onePixelImage(),
         source: .window(901)
     )
+    let bestEffortWindowTarget = AOSDesktopPixelWindowTarget(
+        windowID: 901,
+        ownerPID: 7001,
+        expectedBounds: CGRect(x: 10, y: 10, width: 40, height: 30),
+        fallback: .display
+    )
+    let exactWindowTarget = AOSDesktopPixelWindowTarget(
+        windowID: 901,
+        ownerPID: 7001,
+        expectedBounds: CGRect(x: 10, y: 10, width: 40, height: 30),
+        fallback: .none
+    )
+    let fractionalPlanDimensions = AOSDesktopPixelDimensions(
+        pointWidth: CGRect(
+            x: 276.2,
+            y: 106.1,
+            width: 959.6,
+            height: 659.7
+        ).integral.width,
+        pointHeight: CGRect(
+            x: 276.2,
+            y: 106.1,
+            width: 959.6,
+            height: 659.7
+        ).integral.height,
+        pointPixelScale: 2
+    )
+    require(
+        fractionalPlanDimensions?.width == 1920
+            && fractionalPlanDimensions?.height == 1320,
+        "fractional window plan lost its canonical integral pixel dimensions"
+    )
     let windowPreferred = aosResolveDesktopPixelStillOutcomes(
         displayIDs: [42],
         outcomes: [42: AOSDesktopPixelStillDisplayOutcome(
             displayFailure: nil,
             displayFrame: displayFallbackFrame,
-            requestedWindowID: 901,
+            windowTarget: bestEffortWindowTarget,
             windowFailure: nil,
             windowFrame: windowFrame
         )]
@@ -577,7 +638,7 @@ func runDesktopPixelNativeLifecycleTests() async throws {
             outcomes: [42: AOSDesktopPixelStillDisplayOutcome(
                 displayFailure: nil,
                 displayFrame: displayFallbackFrame,
-                requestedWindowID: 901,
+                windowTarget: bestEffortWindowTarget,
                 windowFailure: failure,
                 windowFrame: nil
             )]
@@ -592,12 +653,49 @@ func runDesktopPixelNativeLifecycleTests() async throws {
             require(false, "available display fallback unexpectedly failed")
         }
     }
+    let forbiddenFallback = aosResolveDesktopPixelStillOutcomes(
+        displayIDs: [42],
+        outcomes: [42: AOSDesktopPixelStillDisplayOutcome(
+            displayFailure: nil,
+            displayFrame: displayFallbackFrame,
+            windowTarget: exactWindowTarget,
+            windowFailure: .captureFailed,
+            windowFrame: nil
+        )]
+    )
+    if case .failure(let failure) = forbiddenFallback {
+        require(
+            failure == .captureFailed,
+            "exact window target changed its native failure"
+        )
+    } else {
+        require(false, "exact window target admitted a display fallback")
+    }
+    let exactWindow = aosResolveDesktopPixelStillOutcomes(
+        displayIDs: [42],
+        outcomes: [42: AOSDesktopPixelStillDisplayOutcome(
+            displayFailure: nil,
+            displayFrame: nil,
+            windowTarget: exactWindowTarget,
+            windowFailure: nil,
+            windowFrame: windowFrame
+        )]
+    )
+    if case .success(let frames) = exactWindow {
+        require(
+            frames.first?.source == .window(901)
+                && frames.first?.usedWindowFallback == false,
+            "exact window target lost its window frame"
+        )
+    } else {
+        require(false, "exact window target rejected its window frame")
+    }
     let bothFailed = aosResolveDesktopPixelStillOutcomes(
         displayIDs: [42],
         outcomes: [42: AOSDesktopPixelStillDisplayOutcome(
             displayFailure: .captureFailed,
             displayFrame: nil,
-            requestedWindowID: 901,
+            windowTarget: bestEffortWindowTarget,
             windowFailure: .displayNotFound,
             windowFrame: nil
         )]
@@ -612,7 +710,7 @@ func runDesktopPixelNativeLifecycleTests() async throws {
         outcomes: [42: AOSDesktopPixelStillDisplayOutcome(
             displayFailure: nil,
             displayFrame: displayFallbackFrame,
-            requestedWindowID: 901,
+            windowTarget: bestEffortWindowTarget,
             windowFailure: .retirementUncertain,
             windowFrame: nil
         )]

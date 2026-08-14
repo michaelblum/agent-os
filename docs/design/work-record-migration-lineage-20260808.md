@@ -139,3 +139,15 @@ AGENTS.md invariant); a single shared worktree (no worktrees owning an
 `aos` binary/daemon or competing for singleton resources; writes serial by
 default, parallel writer sub-agents permitted when intelligently bounded) and
 fresh review gates.
+
+## 7. Historical note — external bridge policy (2026-08-08)
+
+A post-landing amendment formerly recorded an owner-specific Perplexity `pc`
+device-bridge operating protocol here. That protocol is historical provenance,
+not current AOS authority: it did not change AOS runtime behavior and grants no
+standing authorization.
+
+Resolve current repository behavior through `AGENTS.md`, accepted ADRs via
+`docs/adr/README.md`, `docs/api/`, source manifests, and active schemas; resolve
+agent-host policy through the caller's current owning instructions. The retired
+operational detail remains available in Git history.

@@ -1,18 +1,22 @@
 # AOS Desktop Playwright CLI Map
 
 Date: 2026-07-07
+Status: maintained consumer crosswalk; not command, target-handle, or roadmap
+authority
 
-This is the M0 baseline for issue #587. It maps the current AOS command surface
-to the "Playwright CLI, but for the desktop" product model without changing
-runtime behavior.
+This crosswalk originated as the M0 baseline for issue #587. It now maps the
+current AOS command surface to the "Playwright CLI, but for the desktop" product
+model. Exact behavior remains owned by current API docs and source manifests.
 
-## ADR 0040 Transition Boundary
+## ADR 0040 Target Boundary
 
-Playwright's broad “Locator” analogy does not define AOS target identity. ADR
-0040 separates an ephemeral Observation Ref `(state_id, ref)` from an
-action-time machine-fact Locator. Saved refs and current browser/canvas/native
-AX/coordinate command forms below are implementation transports or storage,
-not additional Locator types.
+Playwright's broad “Locator” analogy does not define AOS target identity. Target
+Handle Runtime V1 implements ADR 0040's split between an ephemeral Observation
+Ref `(state_id, ref)` and an action-time machine-fact Locator. A ref-bearing
+browser target string plus its original `--state-id` carry an Observation Ref
+pair; canvas targets and native AX selector flags carry Locators; saved
+addresses are storage indirection to one of those handles; coordinates are
+neither. These command forms do not add target types.
 
 ## Current Readback
 
@@ -30,13 +34,14 @@ Authoritative sources for this map:
 | --- | --- |
 | Browser/session | Focus channel, app/window/display target, or browser companion channel |
 | Snapshot/screenshot | `aos see capture`, `--xray`, labels, regions, windows, and `--save` |
-| Locator | ADR 0040 action-time machine query; current saved refs and browser/canvas/native AX/coordinate forms are not Locators |
+| Locator | ADR 0040 action-time machine query; canvas targets and native AX selectors are Locators, a ref-bearing browser string plus its original `--state-id` carry an Observation Ref pair, saved addresses store one typed handle, and coordinates are neither |
 | Click/fill/type/key/hover/drag/scroll | `aos do ...` action matrix |
 | Vision mode | Region capture, coordinate fallback, labels, xray, and canvas/visual proof |
 | Capabilities | AOS capability groups in `docs/api/aos-capabilities.md` |
-| Testing/assertions | Recapture, `aos see refs --diff`, `--expect`, gates, and Work Records |
+| Testing/assertions | Recapture, `aos see refs --diff --expect`, Recipe assertions, and optional Work Record postconditions; Gate is caller-selected human input, not an assertion engine |
 | Skills | Installable AOS root skills plus upstream Playwright CLI companion skills |
-| Trace/video/codegen | Upstream Playwright CLI escape hatch, not vendored by AOS |
+| Trace/video/PDF | Upstream Playwright CLI escape hatch, not vendored by AOS |
+| Semantic codegen | Explicit unimplemented AOS gap; separate from upstream Playwright tracing and public `run-code` |
 
 ## Current Strengths
 
@@ -45,49 +50,21 @@ Authoritative sources for this map:
 | Readiness | `ready`, `status`, `doctor`, `permissions`, `service` |
 | Discovery | `graph displays`, `graph windows`, `see list`, `see cursor`, `see selection` |
 | Capture | `see capture`, `--window`, `--region`, `--canvas`, `--channel`, `--xray`, `--label`, `--save` |
-| Current saved/target handles | `see snapshots`, `see refs`, `ref:<snapshot-id>:<ref>`, and browser/canvas/native saved-ref classes awaiting the ADR 0040 split |
-| Actions | `do click/hover/drag/scroll/type/key/fill/navigate`, `do press/focus/set-value`, `do raise/move/resize` |
+| Current saved/target handles | Target Handle Runtime V1: `see snapshots`, `see refs`, typed `ref:<snapshot-id>:<ref>` storage, ref-bearing browser targets paired with their original `--state-id`, and canvas/native AX Locators |
+| Actions | `do click/hover/drag/scroll/type/key/fill/navigate`, `do press/focus/set-value`, app lifecycle, and exact-window raise/move/resize/close/minimize/maximize/restore/menu forms |
 | Sessions | `focus create/update/list/remove` |
 | Browser companion | `aos-browser` skill and `aos skills companion check --name playwright-cli` |
-| Evidence | `see refs --diff --expect`, `gate`, `work-record` read/verify/status/repair planning |
+| Evidence | `see refs --diff --expect`, caller-selected Gate records, and optional `work-record` read/verify/status/repair planning |
 
-## Gap Table
+## Scope Boundaries
 
-| Gap | Type | Owner surface | Severity | Current action |
-| --- | --- | --- | --- | --- |
-| Missing public capability map | Capability-map gap | `docs/api/aos-capabilities.md` | High | Added as the M1 public map. |
-| Desktop action inventory not public | Docs gap | `docs/api/aos-capabilities.md` | High | Added as the M2 inventory matrix. |
-| No focused desktop/app/window skill | Skill wording gap | `skills/aos-desktop/` | High | Add installable skill. |
-| No focused canvas/vision fallback skill | Skill wording gap | `skills/aos-canvas-vision/` | Medium | Add installable skill. |
-| No focused focus/session lifecycle skill | Skill wording gap | `skills/aos-focus-sessions/` | Medium | Add installable skill. |
-| No focused verification/assertion skill | Skill wording gap | `skills/aos-verification/` | High | Add installable skill. |
-| App activate/quit/hide/unhide need command-truth coverage | Shipped as pid-scoped semantic `aos do` forms | `manifests/commands/source/aos/` and runtime adapter | Low | Keep dry-run/readback coverage current; use `aos do tell` only as explicit escape hatch for app-specific scripts. |
-| Window close/minimize/maximize/restore need command-truth coverage; fullscreen remains deferred | Shipped exact-window `aos do` forms for close/minimize/maximize/restore | `manifests/commands/source/aos/` and runtime adapter | Medium | Keep fullscreen as a follow-up card seed until Space behavior is proven. |
-| Space detection/switching is not first-class | Missing underlying primitive | native runtime + command manifest | High | Follow-up card seed; fail closed until TCC/Space behavior is proven. |
-| Mission Control / app expose is not first-class | Missing stable global UI-mode readback | native runtime + command manifest | High | Keep unsupported until the command can prove before/after UI mode without relying on shortcuts alone. |
-| Menu-item invocation needs command-truth coverage | Shipped as pid-scoped app menu `aos do menu --path ...`; AOS-hosted status-item leases use `aos status-item invoke` | native AX plus owner-scoped status-item host dispatch | Low | Keep app-menu dry-run path and AOS-hosted status-item dry-run path current; do not imply arbitrary third-party menu-extra scraping. |
-| Browser-only primitives can look like AOS scope | Boundary wording gap | `aos-browser` skill and capability map | High | Explicitly delegate network mocking, storage/auth state, console/eval, tracing, video, PDF, locator/test generation, test debugging, uploads, select/check/uncheck, navigation history, reload, and tab management to upstream Playwright CLI. |
+This crosswalk does not assign gaps, severity, owners, priority, or future
+command shapes. Current unsupported behavior and implementation gaps belong in
+`docs/api/aos-capabilities.md`, accepted ADR gap ledgers, and bounded work cards.
+The durable desktop vocabulary decision belongs in
+`docs/design/aos-desktop-command-vocabulary-decision.md`.
 
-## Follow-Up Card Seeds
-
-These are explicit issue/card seeds under epic #587 plus maintenance notes for
-the verbs that have graduated into first-class command truth.
-
-| Card | Desired command shape | Fail-closed requirement |
-| --- | --- | --- |
-| Maintain semantic app lifecycle verbs | `aos do activate`, `quit`, `hide`, `unhide` | Dry-run must identify app, required permissions, and whether the action would affect the frontmost app. |
-| Maintain semantic window lifecycle verbs | `aos do close`, `minimize`, `maximize`, `restore`; future `fullscreen-window` remains deferred | Must require a resolved pid/window id and report minimized/off-Space ambiguity before mutation. |
-| Maintain menu item invocation | `aos do menu --pid <pid> --path File,Save`; `aos status-item invoke --owner <owner> --item <item-id> --action <action-id> --generation <n> --descriptor-revision <n> --action-sequence <n>` for AOS-hosted status-item entries | Must validate app menu path/enabled state or atomically reserve the exact status-item lease generation/revision/action sequence before dispatch. |
-| Add Space readback before switching | `aos graph spaces` or `aos do switch-space --dry-run` | Must fail closed when macOS does not expose reliable current-Space identity. |
-| Add Mission Control readback before showing global UI modes | `aos do show-mission-control --dry-run`, `aos do show-app-windows --pid <pid> --dry-run` | Must prove target UI mode before/after and provide a restore path. |
-
-## Decision
-
-For the first slice, keep `see` / `do` / `focus` / `show` as the stable
-primitive model. Do not add a new `aos desktop` noun yet. The capability map and
-skills should teach the desktop Playwright mental model first; any alias or
-semantic verb should come after the inventory proves it can be represented in
-manifests, help, parser gates, and fail-closed runtime behavior.
-
-See `docs/design/aos-desktop-command-vocabulary-decision.md` for the M4
-decision note.
+Browser-only network mocking, storage/auth state, console/eval, tracing, video,
+PDF, locator/test generation, test debugging, uploads, select/check/uncheck,
+navigation history, reload, and tab management remain upstream Playwright CLI
+capabilities rather than implied AOS desktop primitives.

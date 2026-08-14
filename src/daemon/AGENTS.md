@@ -211,11 +211,13 @@ native capture. Native admission retains that same snapshot and binds each
 selected live display through its canonical UUID or exact display-ID fallback,
 complete CoreGraphics frame including origin, ScreenCaptureKit point size, and
 admitted filter scale before any screenshot callback is started. For a
-requested window, one content observation and one broker
+`fallback=display` requested window, one content observation and one broker
 transaction admit both the preferred window still and a full-display fallback;
 missing, moved, invalid, or failed window capture returns the display with
-explicit source/fallback metadata and a consumer warning. Both native failures
-remain a capture failure.
+explicit source/fallback metadata and a consumer warning. A `fallback=none`
+target binds owner and expected bounds, prepares only the exact window still,
+and fails before streaming if identity, geometry, or native capture does not
+match. Both native failures in the best-effort pair remain a capture failure.
 When the delegate reports a terminal error before Apple's startup callback,
 retain the delegate error as authoritative and settle the retained native
 operation immediately. The callback references that operation weakly, so a

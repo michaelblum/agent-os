@@ -107,14 +107,19 @@ inputs, media, source, product state, diagnostics, or private handles:
   not a primitive capability and does not populate `actions[]`;
 - the Guided User Signal record builder still defaults prompt/answer projection
   to redaction rather than require an explicit caller choice;
-- Supervised Run schema/harness surfaces still retain mandatory Workflow Gate
-  coupling even though Gate is not permission;
+- the legacy Supervised Run V0 schema still projects to
+  `2026-05-work-record-v0`; it has no Gate field, and the active Step Descriptor
+  V1 harness is already neutral, so migration or retirement of that projection
+  remains separate schema debt;
+- complete public generic-wait, event-cursor subscription, and semantic-codegen
+  contracts are not yet implemented or claimed;
 - gateway script execution is not a complete public `run-code` surface, and
   this document does not claim that public command exists.
 
 These are explicit follow-up gaps and do not reopen the completed Work Record
-authority-excision migration. This slice does not implement the Gate
-persistence refactor or public `run-code` productization.
+authority-excision or Step Descriptor V1 migrations. This slice does not
+implement the Gate persistence refactor, Supervised Run V0 disposition, generic
+observation mechanics, or public `run-code` productization.
 
 Examples:
 
@@ -1129,6 +1134,18 @@ Useful capture modifiers include:
 - `--exclude-window <CGWindowID>` to omit specific windows from a display/region capture
 - `--perception` to attach spatial metadata alongside the image payload
 
+Ordinary `--window` capture is best effort: it requests a direct window still
+and may return the containing display with an explicit warning and
+`window_fallback` metadata if the window source is unavailable. A native
+`--channel` capture is exact instead. It re-resolves one current layer-zero
+window with the channel's window ID and owner PID, requires its full live bounds
+to fit one non-mirrored display, and sends the daemon an owner/bounds-bound
+`fallback=none` target. The daemon prepares only the direct window still; it
+does not capture or stream display fallback bytes. Missing, duplicated, moved,
+owner-changed, cross-display, or failed exact targets fail closed. Cross-display
+and compound-window exact capture remain separate future contracts rather than
+implicit stitching or fallback behavior.
+
 Capture responses include an opaque `state_id` such as `see_abc123def456`.
 Work-record and recipe layers can carry that id into the next action as the
 perception state the agent acted from. The id is a correlation handle, not a
@@ -1158,7 +1175,11 @@ resolve the element explicitly under the cursor.
 `--xray` returns raw visible bounded AX elements in `elements`; the daemon does
 not role-whitelist them into an "interactive" vocabulary. Display, region, and
 surface captures traverse visible app windows that intersect the captured region;
-window captures stay scoped to the captured window owner. For AOS-owned canvas
+ordinary window captures stay scoped to the captured window owner. Exact native
+channel capture resolves exactly one AX window root, traverses only that root,
+inherits its proven window ID for unattributed descendants, and prunes foreign
+non-null window IDs. Focus-channel create/refresh also fails without that exact
+owner/root/subtree evidence instead of publishing a freshly empty channel. For AOS-owned canvas
 captures, `aos see capture --canvas <id> --xray` also runs a fixed semantic
 target probe inside that canvas and returns `semantic_targets`. Those entries
 use the current emitted fields `ref`, `surface`, `role`, `name`, `kind`,
@@ -1180,7 +1201,7 @@ for the response shape.
 - global capture bounds
 - local capture bounds in the emitted image
 - composite capture scale
-- per-display surface segments when a region/canvas/channel spans multiple displays
+- per-display surface segments when a region or canvas spans multiple displays; exact native channel capture is single-display and never stitched
 - a `spatial-topology` snapshot for the same moment
 
 Spatial-topology `0.3.0` requires the same frozen `display_topology` value. The

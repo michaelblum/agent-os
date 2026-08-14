@@ -93,25 +93,45 @@ Error response:
 | `status_item.invoke_dry_run` | Validate an invocation without reserving its action sequence. | Same as `status_item.invoke`; returns a `dry_run` response envelope. |
 | `system.ping` | Daemon health, identity, and uptime. | (none) |
 | `focus.list` | List focus channels. | (none) |
-| `focus.create` | Create a focus channel. | `id`, `window_id`. |
-| `focus.update` | Update a focus channel. | `id`. |
+| `focus.create` | Create an exact native focus channel. | `id`, `window_id`; optional owner assertion `pid`, exact AX `subtree`, and `depth`. |
+| `focus.update` | Update an exact native focus channel. | `id`; optional exact AX `subtree` and `depth`. |
 | `focus.remove` | Remove a focus channel. | `id`. |
 | `graph.displays` | Display topology graph. | (none) |
 | `graph.windows` | Window topology graph. | (none; optional `display`). |
+
+Native focus-channel creation validates the current layer-zero CG window owner,
+then resolves exactly one AX window root and exactly one requested subtree
+before publishing state. Traversal depth is an integer from 0 through 15. A
+supplied PID is an assertion and must equal the live owner; it is never
+alternate authority. Refresh requires non-empty evidence and an identical
+second live owner/integral-bounds/display/scale observation after AX traversal.
+Candidate state, atomic file replacement, removal, and callbacks are serialized;
+rejection never refreshes the last good timestamp or file. Native Accessibility
+access is therefore required for native focus-channel publication; browser
+focus sessions use their separate browser registry path.
 
 `see.capture.data` is closed at every nesting level. `display_topology` is the
 complete canonical `aos.display-topology.v1` snapshot. Each `displays[]` item is
 only `{display_id,index,topology_ordinal}`; it maps runtime native IDs to the
 canonical member and carries no independent geometry or identity authority. The
 daemon rebuilds the topology identity and native/DesktopWorld geometry before
-admission. Window targets are unique positive window IDs on selected displays
-and may not name excluded windows. Counts, exact integers, finite geometry,
-selection order, and checked per-display/aggregate pixel budgets are bounded.
+admission. Window targets bind a unique positive window ID to its positive
+owner PID, canonical integral expected live bounds, selected display, and
+`fallback` policy. A
+`display` target preserves best-effort window capture and may return the
+full-display still with explicit fallback metadata. A `none` target admits only
+an exact current owner/bounds match fully contained by the selected display;
+the daemon prepares no display still and fails the transaction if exact window
+pixels are unavailable. Targets may not name excluded windows. Counts, exact
+integers, finite geometry, selection order, and checked per-display/aggregate
+pixel budgets are bounded.
 
 One admitted transaction owns warm quiescence, still callbacks, and restoration
-under a 24-second monotonic daemon deadline. A requested window is preferred;
-missing, moved, invalid, or failed window capture uses the full-display still
-from the same content observation and broker transaction. Final frame metadata
+under a 24-second monotonic daemon deadline. For `fallback=display`, a requested
+window is preferred; missing, moved, invalid, or failed window capture uses the
+full-display still from the same content observation and broker transaction.
+For `fallback=none`, any such mismatch or failure ends the transaction before
+display bytes are streamed. Final frame metadata
 is closed and labels `capture_source="display"|"window"`,
 `window_fallback`, and `window_id` only for a window source. The consumer uses
 one 25-second monotonic foreground budget inside its 30-second outer deadline.

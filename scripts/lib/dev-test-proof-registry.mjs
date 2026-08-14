@@ -154,7 +154,7 @@ export function classifyProofAsset(itemPath) {
 
   if (normalized.startsWith('tests/')) {
     const basename = path.posix.basename(normalized);
-    if (/\.(?:sh|bash|mjs|js|cjs|py)$/.test(basename)) {
+    if (/\.(?:sh|bash|mjs|js|cjs|py|swift)$/.test(basename)) {
       return { kind: normalized.startsWith('tests/manual/') ? 'manual_test' : 'test', patternField: 'path_patterns' };
     }
   }
