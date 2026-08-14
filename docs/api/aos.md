@@ -188,6 +188,7 @@ The current top-level commands are:
 | `aos serve` | Unified daemon |
 | `aos service` | launchd lifecycle for the daemon |
 | `aos experience` | active AOS experience-layer status, activation, and deactivation |
+| `aos browser` | public managed Playwright companion lifecycle (`status`, `install`, `update`, and `uninstall`); the internal browser adapter remains non-consumer |
 | `aos runtime` | packaged runtime utilities |
 | `aos permissions` | preflight and onboarding |
 | `aos doctor` | detailed runtime and permission diagnostics |
@@ -663,6 +664,46 @@ browser _check-version` returns structured JSON for the selected executable
 path, discovery source, version, minimum version, and failures such as
 `PLAYWRIGHT_CLI_NOT_FOUND`, `PLAYWRIGHT_CLI_TOO_OLD`, and
 `PLAYWRIGHT_CLI_PROBE_FAILED`.
+
+#### Managed Playwright companion lifecycle
+
+The separate managed package lifecycle is public through:
+
+```bash
+aos browser companion status --json
+aos browser companion install --json
+aos browser companion update --json
+aos browser companion uninstall --json
+```
+
+It installs only the source-pinned `@playwright/cli` 0.1.15 package and its
+exact required `playwright` and `playwright-core`
+1.62.0-alpha-2026-06-29 closure under the mode-scoped AOS state root. It runs
+no lifecycle scripts, package manager, browser download, skill install, or
+extension install. Status states are `missing`, `current`,
+`update_available`, `partial`, `corrupt`, and `blocked`. Mutation receipts are
+closed and content-free, include before/after state, exact version/digests,
+zero session cleanups in this checkpoint, exact safe-integer monotonic duration, completion time,
+and explicit recovery-pending state. Uninstall receipts bind the descriptor and
+closure actually removed even when the source descriptor now advertises an
+update. The binding is journaled and browser-level recovery is exclusively
+claimed before the whole store is atomically moved into its removal marker, so
+every authoritative interrupted uninstall remains `partial` and retry preserves
+that binding. After store deletion, the still-journaled marker atomically
+becomes a non-authoritative completed tombstone; its cleanup cannot make public
+state less final than `missing`. Empty interrupted lock/removal-intent creation
+and active-pointer intent unlink/fsync ambiguity are recovered from exact
+observed state. A successful uninstall leaves the shared mode and browser
+parents intact. Quarantined recursive
+cleanup performs a final exact root identity check under a cooperative same-UID
+private-root boundary; it does not claim adversarial same-UID linearizability.
+No lifecycle form
+accepts `--dry-run`.
+
+Existing browser/session consumers are intentionally not migrated in this
+checkpoint, and `browser tabs new` is not present yet. The resolver described
+above remains current consumer truth until the later atomic managed-runtime
+migration; managed lifecycle `current` does not yet claim consumer use.
 
 Legacy guarded-live V0 saved-ref proof remains archival/manual evidence and
 is not active V1 acceptance. Deterministic V1 coverage lives in

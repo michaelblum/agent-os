@@ -29,6 +29,17 @@ tests.
   exact-one Locator behavior, one-shot and native-session state rejection, and
   schema-valid native handle emission or omission, and the absence of
   reacquisition or first-match helpers without executing `./aos`.
+- Managed browser-companion lifecycle proofs use isolated state roots and fake
+  in-memory tarballs through the injected downloader seam. They must cover
+  exact descriptor/closure/entrypoint checks, complete no-replace authority
+  record publication with orphan/pair/short-write recovery, private-store and lock rejection,
+  intent-backed activation ordering and observed cleanup, empty and whole-lock
+  recovery, claimed journaled whole-store removal with provenance-complete
+  partial phases, cooperative quarantine identity checks, transition capacity,
+  lease-aware update/uninstall, content-free schema-valid runtime receipts, and
+  executable dispatcher-route help/staging from an unrelated caller. They clean every temporary root and use bounded
+  subprocesses without network, package scripts, browser binaries, `./aos`,
+  daemon, browser, native UI, or TCC.
 - Policy drift guards must name the exact active source surfaces and prohibited
   doctrine they protect. Do not globally ban mechanically valid terms such as
   `dry-run`, `authorization`, `allowlist`, `redaction`, Gate, or Work Record.

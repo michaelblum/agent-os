@@ -303,7 +303,7 @@ apps cannot safely reconstruct from the current JSON surfaces.
 | AOS-hosted status-item leases | Product-neutral native descriptor, observed anchor/events, exact compare-and-swap update, generation-scoped action admission, inspect/invoke, and disconnect cleanup | `status-item validate/register --follow/update/inspect/invoke` |
 | Pointer and keyboard | Mouse, keyboard, scrolling, dragging, text, browser ref actions | `do click`, `do hover`, `do drag`, `do scroll`, `do type`, `do key`, `do fill`, `do navigate` |
 | Canvas and vision | Canvas refs, regions, coordinates, labels, xray, visual proof | `see capture --canvas`, `see capture --region`, `see capture --xray --label`, `do click canvas:...`, coordinate actions |
-| Browser companion | AOS browser refs plus upstream Playwright CLI escape hatch | `focus create --target browser://...`, `see capture browser:<session> --save`, `do ... browser/ref`, `skills companion check --name playwright-cli` |
+| Browser companion | Source-pinned Playwright CLI package lifecycle, AOS browser refs, and a separate upstream skill escape hatch | `browser companion status/install/update/uninstall`, `focus create --target browser://...`, `see capture browser:<session> --save`, `do ... browser/ref`, `skills companion check --name playwright-cli` |
 | Overlay/display | Canvases, panels, stage surfaces, render/list/wait/readback | `show create/update/remove/list/audit/render/wait/get/to-front/post` |
 | Diagnostics/debug | Debug readbacks and diagnostic displays for active AOS/runtime work | `daemon-snapshot`, `service logs`, `inspect`, `introspect review`, `log` |
 | Verification/evidence | Recapture, refs diff/expect, explicit Gate input, optional Work Records | `see refs --diff --expect`, `gate`, `work-record read/verify/status/plan-repair` |
@@ -394,7 +394,37 @@ owns browser-only primitives that are not AOS desktop primitives:
 - back/forward/reload;
 - tab management.
 
-Use:
+Manage the reviewed package runtime separately from Playwright-owned skills:
+
+```bash
+./aos browser companion status --json
+./aos browser companion install --json
+./aos browser companion update --json
+./aos browser companion uninstall --json
+```
+
+Status returns `missing`, `current`, `update_available`, `partial`, `corrupt`,
+or `blocked`. Install is current-version idempotent, update rejects a missing
+installation, and uninstall rejects exact managed session leases. These forms
+have no dry-run. Their closed receipts expose only lifecycle state, exact
+versions and digests, exact safe-integer monotonic timing, cleanup count, and recovery status; they
+do not expose paths, package URLs or bytes, or package-manager output.
+Uninstall durably journals the installed descriptor and closure, exclusively
+claims browser-level recovery, then moves the whole sentinel-validated store
+into one removal marker. Every authoritative interrupted phase remains explicit
+recoverable `partial` state with its journal binding. After store deletion, the
+still-journaled marker atomically becomes a non-authoritative completed
+tombstone; later tombstone cleanup cannot turn observed `missing` back into
+partial state. Empty interrupted lock or removal-intent creation is similarly
+recoverable, and active-pointer intent cleanup is classified from observed
+record presence.
+
+This lifecycle checkpoint does not yet migrate existing browser/session
+consumers or add `browser tabs new`. Until that atomic consumer checkpoint,
+`current` proves only the managed package store, not that existing browser
+commands execute through it.
+
+Inspect or plan the separately owned upstream skill material with:
 
 ```bash
 ./aos skills companion check --name playwright-cli --target path --path /tmp/aos-skills --json

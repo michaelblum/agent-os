@@ -75,7 +75,7 @@
           "description": "When true, the external help proxy may delegate text help for this route and its children to the target command with --help."
         },
         "cwd": {
-          "enum": ["repo"]
+          "enum": ["repo", "$AOS_REPO_ROOT"]
         },
         "env": {
           "type": "object",

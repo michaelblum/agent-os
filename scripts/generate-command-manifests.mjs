@@ -20,7 +20,7 @@ const AOS_REGISTRY_VERSION = '0.1.0';
 const REGENERATION_COMMAND = 'node scripts/generate-command-manifests.mjs';
 const EXTERNAL_EXECUTABLES = new Set(['$AOS_PATH', '/usr/bin/env', '/bin/bash']);
 const EXTERNAL_STDIO = new Set(['capture', 'inherit']);
-const EXTERNAL_CWD = new Set(['repo']);
+const EXTERNAL_CWD = new Set(['repo', '$AOS_REPO_ROOT']);
 const EXTERNAL_WHEN_KEYS = new Set([
   'child_arg_index',
   'child_arg_missing',

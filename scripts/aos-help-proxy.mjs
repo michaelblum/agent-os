@@ -3,7 +3,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { externalRouteMatches } from './lib/external-command-routes.mjs';
+
+const moduleRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function prettyJSON(value) {
   return JSON.stringify(value, null, 2).replace(/":/g, '" :');
@@ -14,27 +17,19 @@ function error(message, code) {
   process.exit(1);
 }
 
-function repoRootFrom(startDir) {
-  const result = spawnSync('/usr/bin/git', ['rev-parse', '--show-toplevel'], {
-    cwd: startDir,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'ignore'],
-  });
-  if (result.status === 0) {
-    const root = result.stdout.trim();
-    if (root) return root;
-  }
-  return startDir;
+function repoRootFrom() {
+  if (process.env.AOS_REPO_ROOT) return path.resolve(process.env.AOS_REPO_ROOT);
+  return moduleRoot;
 }
 
 function registryPath() {
   if (process.env.AOS_COMMAND_REGISTRY) return process.env.AOS_COMMAND_REGISTRY;
-  return path.join(repoRootFrom(process.cwd()), 'manifests/commands/aos-commands.json');
+  return path.join(repoRootFrom(), 'manifests/commands/aos-commands.json');
 }
 
 function externalManifestPath() {
   if (process.env.AOS_EXTERNAL_COMMAND_MANIFEST) return process.env.AOS_EXTERNAL_COMMAND_MANIFEST;
-  return path.join(repoRootFrom(process.cwd()), 'manifests/commands/aos-external-commands.json');
+  return path.join(repoRootFrom(), 'manifests/commands/aos-external-commands.json');
 }
 
 function loadRegistry() {
@@ -125,6 +120,8 @@ function findHelpPassthrough(pathArgs) {
 function resolveExternalValue(value, repoRoot) {
   if (value === '$REPO_ROOT') return repoRoot;
   if (value?.startsWith('$REPO_ROOT/')) return path.join(repoRoot, value.slice('$REPO_ROOT/'.length));
+  if (value === '$AOS_REPO_ROOT') return repoRoot;
+  if (value?.startsWith('$AOS_REPO_ROOT/')) return path.join(repoRoot, value.slice('$AOS_REPO_ROOT/'.length));
   if (value === '$AOS_PATH') return process.env.AOS_PATH || './aos';
   if (value === '$AOS_INVOCATION_DISPLAY_NAME') return invocationDisplayName();
   if (value === '$AOS_RUNTIME_MODE') return process.env.AOS_RUNTIME_MODE || 'repo';
@@ -135,7 +132,7 @@ function resolveExternalValue(value, repoRoot) {
 }
 
 function runHelpPassthrough(command, pathArgs) {
-  const repoRoot = repoRootFrom(process.cwd());
+  const repoRoot = repoRootFrom();
   const childArgs = pathArgs.slice(command.path.length);
   const executable = resolveExternalValue(command.executable, repoRoot);
   const argv = (command.argv_prefix || []).map((arg) => resolveExternalValue(arg, repoRoot)).concat(childArgs, '--help');

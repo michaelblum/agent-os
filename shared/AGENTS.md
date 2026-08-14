@@ -10,6 +10,8 @@ apps, and tests.
 ## Ownership
 
 - `schemas/` owns JSON schemas and adjacent contract documentation.
+- `schemas/aos-browser-companion-*-v1.schema.json` owns the exact managed
+  Playwright descriptor and closed content-free lifecycle result contracts.
 - `gate/` owns shared gate request/record helpers.
 - `swift/` owns reusable Swift IPC helpers shared by native modules.
 - `user-signal/` owns shared user-signal policy helpers.

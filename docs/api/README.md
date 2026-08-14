@@ -12,6 +12,8 @@ These docs are for both:
 This directory documents the interfaces consumers are expected to build against:
 
 - [`aos.md`](./aos.md) — the unified `aos` CLI contract
+- [`aos browser companion`](./aos.md#managed-playwright-companion-lifecycle) —
+  source-pinned Playwright CLI runtime status, install, update, and uninstall
 - [`aos-capabilities.md`](./aos-capabilities.md) — the desktop-agent
   capability map for AOS as "Playwright CLI, but for the desktop"
   (`docs/api/aos-capabilities.md`)

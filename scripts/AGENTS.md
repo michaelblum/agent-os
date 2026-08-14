@@ -38,6 +38,15 @@ commands, runtime helpers, wiki tools, and command adapters.
   projection of the generated external-command manifest. It must fail when the
   addon or generated command family is absent instead of packaging an
   unreachable or pathname-fallback route.
+- `stage-browser-companion-runtime.mjs` owns the separate installed projection
+  for the managed Playwright companion command, focused modules, exact
+  descriptor, closed schemas, generated command registry, help proxy and route
+  matcher, and exact help/browser-companion external routes. Both packaging
+  scripts call it, and it merges those routes without changing the Work
+  Record-owned staging projection. The copied help route remains source-owned
+  and resolves its proxy and working directory through `$AOS_REPO_ROOT`; the
+  focused staging proof exercises that dispatcher projection from an unrelated
+  caller directory.
 - `lib/` owns shared JavaScript helpers for scripts.
 - `lib/aos-readiness.mjs` owns the effective permission view, readiness
   decision model, and reusable status/doctor/permissions projections. The
@@ -120,6 +129,9 @@ commands, runtime helpers, wiki tools, and command adapters.
   mixed-responsibility skills registry file.
 - `lib/aos-skills-registry.mjs` is a compatibility re-export only; do not add
   new behavior there.
+- `aos-browser-companion.mjs` is the public status/install/update/uninstall CLI
+  for the source-pinned Playwright package runtime. Its focused implementation
+  and store ownership rules live under `lib/browser-companion/AGENTS.md`.
 - Native capability stays in `src/`; public schema contracts stay in
   `shared/schemas/`.
 - **ADR 0040 target boundary:** facts already admitted to bounded public
@@ -327,6 +339,8 @@ commands, runtime helpers, wiki tools, and command adapters.
 
 ## Child DOX Index
 
+- `lib/browser-companion/AGENTS.md` owns the managed Playwright package
+  lifecycle, private store, acquisition, activation, and output projection.
 - `lib/aos-skills/AGENTS.md` owns root skill registry helper modules.
 - `lib/` contains shared script helper modules.
 - `lib/agent-workspace/AGENTS.md` owns saved perception workspace helpers,

@@ -10,10 +10,11 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-help-proxy.mjs"
+        "$AOS_REPO_ROOT/scripts/aos-help-proxy.mjs"
       ],
-      "cwd": "repo",
+      "cwd": "$AOS_REPO_ROOT",
       "env": {
+        "AOS_REPO_ROOT": "$AOS_REPO_ROOT",
         "AOS_PATH": "$AOS_PATH",
         "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",

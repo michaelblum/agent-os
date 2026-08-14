@@ -53,6 +53,8 @@ manifest = json.loads(Path("manifests/commands/aos-commands.json").read_text(enc
 assert all(command["path"] != ["dev"] for command in root["commands"]), root
 assert all(command["path"] != ["ops"] for command in root["commands"]), root
 assert all(command["path"] != ["browser"] for command in root["commands"]), root
+root_browser_paths = [command["path"] for command in root["commands"] if command["path"][0] == "browser"]
+assert root_browser_paths == [["browser", "companion"]], root_browser_paths
 assert all(command["path"] != ["dev"] for command in manifest["commands"]), manifest
 assert all(command["path"] != ["ops"] for command in manifest["commands"]), manifest
 for command in root["commands"]:
@@ -62,7 +64,7 @@ for command in root["commands"]:
     assert "debug helper" not in summary.lower(), command
 assert "\n  dev" not in os.environ["ROOT_TEXT"], os.environ["ROOT_TEXT"]
 assert "\n  ops" not in os.environ["ROOT_TEXT"], os.environ["ROOT_TEXT"]
-assert "\n  browser" not in os.environ["ROOT_TEXT"], os.environ["ROOT_TEXT"]
+assert "\n  browser" in os.environ["ROOT_TEXT"], os.environ["ROOT_TEXT"]
 direct_browser = json.loads(os.environ["DIRECT_BROWSER"])
 assert direct_browser["path"] == ["browser"], direct_browser
 assert direct_browser["consumer_discovery"] is False, direct_browser
@@ -71,7 +73,7 @@ manifest_browser = next(command for command in manifest["commands"] if command["
 assert manifest_browser["consumer_discovery"] is False, manifest_browser
 PY
 then
-    pass "root consumer help excludes internal groups and manifest omits retired dev/ops commands"
+    pass "root consumer help exposes only the browser companion while hidden browser adapter stays direct-only"
 else
     fail "internal command demotion from root consumer help drifted"
 fi

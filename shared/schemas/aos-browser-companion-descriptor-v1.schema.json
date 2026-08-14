@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-browser-companion-descriptor-v1.schema.json",
+  "title": "AOS Managed Playwright Companion Descriptor V1",
+  "type": "object",
+  "required": [
+    "$schema",
+    "schema_version",
+    "id",
+    "version",
+    "node",
+    "entrypoint",
+    "limits",
+    "packages"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "const": "../../shared/schemas/aos-browser-companion-descriptor-v1.schema.json"
+    },
+    "schema_version": {
+      "const": "aos.browser.companion-descriptor.v1"
+    },
+    "id": {
+      "const": "playwright-cli"
+    },
+    "version": {
+      "const": "0.1.15"
+    },
+    "node": {
+      "const": ">=18"
+    },
+    "entrypoint": {
+      "const": "node_modules/@playwright/cli/playwright-cli.js"
+    },
+    "limits": {
+      "type": "object",
+      "required": [
+        "package_count",
+        "max_tarball_bytes",
+        "max_download_bytes",
+        "max_extracted_files",
+        "max_extracted_bytes",
+        "download_timeout_ms",
+        "max_captured_output_bytes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "package_count": { "const": 3 },
+        "max_tarball_bytes": { "const": 8388608 },
+        "max_download_bytes": { "const": 16777216 },
+        "max_extracted_files": { "const": 512 },
+        "max_extracted_bytes": { "const": 33554432 },
+        "download_timeout_ms": { "const": 20000 },
+        "max_captured_output_bytes": { "const": 65536 }
+      }
+    },
+    "packages": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/playwright_cli"
+        },
+        {
+          "$ref": "#/$defs/playwright"
+        },
+        {
+          "$ref": "#/$defs/playwright_core"
+        }
+      ],
+      "items": false
+    }
+  },
+  "$defs": {
+    "package_base": {
+      "type": "object",
+      "required": [
+        "name",
+        "version",
+        "tarball",
+        "integrity",
+        "dependencies",
+        "optional_dependencies",
+        "bin",
+        "excluded_prefixes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "tarball": { "type": "string" },
+        "integrity": { "type": "string" },
+        "dependencies": { "type": "object" },
+        "optional_dependencies": { "type": "object" },
+        "bin": { "type": "object" },
+        "excluded_prefixes": { "type": "array" }
+      }
+    },
+    "playwright_cli": {
+      "allOf": [
+        { "$ref": "#/$defs/package_base" },
+        {
+          "properties": {
+            "name": { "const": "@playwright/cli" },
+            "version": { "const": "0.1.15" },
+            "tarball": { "const": "https://registry.npmjs.org/@playwright/cli/-/cli-0.1.15.tgz" },
+            "integrity": { "const": "sha512-2eLqaKBoNCR0TWv3+XhGjdf5+gZGNrsJ5u/EdxCOyFHOuU+yVxq1NJ6iRBvAvGqlOsyU9CwGKHdUs2XWriTLwA==" },
+            "dependencies": {
+              "const": {
+                "playwright": "1.62.0-alpha-2026-06-29",
+                "playwright-core": "1.62.0-alpha-2026-06-29"
+              }
+            },
+            "optional_dependencies": { "const": {} },
+            "bin": { "const": { "playwright-cli": "playwright-cli.js" } },
+            "excluded_prefixes": { "const": ["skills/"] }
+          }
+        }
+      ]
+    },
+    "playwright": {
+      "allOf": [
+        { "$ref": "#/$defs/package_base" },
+        {
+          "properties": {
+            "name": { "const": "playwright" },
+            "version": { "const": "1.62.0-alpha-2026-06-29" },
+            "tarball": { "const": "https://registry.npmjs.org/playwright/-/playwright-1.62.0-alpha-2026-06-29.tgz" },
+            "integrity": { "const": "sha512-ugaMuh6rAOqmbaxrM7+XQSs7M6yPXykq5gVugJPClHcJ4Cqxmky5rDHhrCt4wmaILUeMdI7kPBCx3zMx2Qu+bg==" },
+            "dependencies": { "const": { "playwright-core": "1.62.0-alpha-2026-06-29" } },
+            "optional_dependencies": { "const": { "fsevents": "2.3.2" } },
+            "bin": { "const": { "playwright": "cli.js" } },
+            "excluded_prefixes": { "const": [] }
+          }
+        }
+      ]
+    },
+    "playwright_core": {
+      "allOf": [
+        { "$ref": "#/$defs/package_base" },
+        {
+          "properties": {
+            "name": { "const": "playwright-core" },
+            "version": { "const": "1.62.0-alpha-2026-06-29" },
+            "tarball": { "const": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.62.0-alpha-2026-06-29.tgz" },
+            "integrity": { "const": "sha512-/13EvW8l9Bmvt9nKHey+OcvZ8nob2FM8BCKBsUNwbXgmT4Hc0XX2b6mOErU0RBYNedOCa9q15USI7SY9K17v4w==" },
+            "dependencies": { "const": {} },
+            "optional_dependencies": { "const": {} },
+            "bin": { "const": { "playwright-core": "cli.js" } },
+            "excluded_prefixes": { "const": [] }
+          }
+        }
+      ]
+    }
+  }
+}

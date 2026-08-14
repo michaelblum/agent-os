@@ -18,20 +18,20 @@ current command tree before public CLI and self-hosting boundary changes.
 
 ## Summary
 
-- Command paths: 68
-- Concrete forms: 230
-- Consumer-discoverable forms: 221
+- Command paths: 69
+- Concrete forms: 234
+- Consumer-discoverable forms: 225
 - Internal/transitional command paths: 1
-- Mutating or conditionally mutating forms: 130
+- Mutating or conditionally mutating forms: 133
 - Forms with unspecified mutability metadata: 0
-- Forms with JSON output path: 225
+- Forms with JSON output path: 229
 - Forms with dry-run support: 37
 
 ## Capability Group Counts
 
 | Group | Forms |
 | --- | --- |
-| Browser companion | 15 |
+| Browser companion | 19 |
 | Canvas and vision | 5 |
 | Capture and perception | 9 |
 | CLI metadata | 2 |
@@ -95,8 +95,9 @@ current command tree before public CLI and self-hosting boundary changes.
 | `inspect` | 1 | Diagnostics/debug | yes | mutates | default | `manifests/commands/source/aos/30-inspect.json` | `node scripts/aos-inspect.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `log` | 3 | Diagnostics/debug | yes | mutates, read-only | default | `manifests/commands/source/aos/31-log.json` | `node scripts/aos-log.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `wiki` | 16 | Content/wiki | yes | mutates, read-only | --json | `manifests/commands/source/aos/32-wiki.json` | `node scripts/aos-wiki-router.mjs` | `docs/api/aos.md` |
+| `browser companion` | 4 | Browser companion | yes | mutates, read-only | --json | `manifests/commands/source/aos/33-browser-companion.json` | `node $AOS_REPO_ROOT/scripts/aos-browser-companion.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `browser` | 9 | Browser companion | no | mutates, read-only | --json, default | `manifests/commands/source/aos/33-browser.json` | `node scripts/aos-browser-internal.mjs` | `docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
-| `help` | 2 | CLI metadata | yes | read-only | --json | `manifests/commands/source/aos/34-help.json` | `node scripts/aos-help-proxy.mjs` | `docs/api/aos.md` |
+| `help` | 2 | CLI metadata | yes | read-only | --json | `manifests/commands/source/aos/34-help.json` | `node $AOS_REPO_ROOT/scripts/aos-help-proxy.mjs` | `docs/api/aos.md` |
 | `work-record` | 20 | Verification/evidence | yes | mutates, read-only | --json | `manifests/commands/source/aos/35-work-record.json, manifests/commands/source/aos/36-work-record-supersession.json, manifests/commands/source/aos/37-work-record-finalization.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `skills` | 3 | Skills and recipes | yes | mutates, read-only | --json | `manifests/commands/source/aos/38-skills.json` | `node scripts/aos-skills.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `skills companion` | 2 | Browser companion | yes | read-only | --json | `manifests/commands/source/aos/38-skills.json` | `node scripts/aos-skills.mjs companion` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
@@ -300,6 +301,10 @@ current command tree before public CLI and self-hosting boundary changes.
 | `wiki seed` | `wiki-seed` | Content/wiki | yes | mutates | --json | no | `manifests/commands/source/aos/32-wiki.json` | `node scripts/aos-wiki-seed.mjs` | `docs/api/aos.md` |
 | `wiki project-docs` | `wiki-project-docs` | Content/wiki | yes | mutates | --json | no | `manifests/commands/source/aos/32-wiki.json` | `node scripts/aos-wiki-project-docs.mjs` | `docs/api/aos.md` |
 | `wiki migrate-namespaces` | `wiki-migrate-namespaces` | Content/wiki | yes | mutates | --json | no | `manifests/commands/source/aos/32-wiki.json` | `node scripts/aos-wiki-migrate-namespaces.mjs` | `docs/api/aos.md` |
+| `browser companion status` | `browser-companion-status` | Browser companion | yes | read-only | --json | no | `manifests/commands/source/aos/33-browser-companion.json` | `node $AOS_REPO_ROOT/scripts/aos-browser-companion.mjs status` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `browser companion install` | `browser-companion-install` | Browser companion | yes | mutates | --json | no | `manifests/commands/source/aos/33-browser-companion.json` | `node $AOS_REPO_ROOT/scripts/aos-browser-companion.mjs install` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `browser companion update` | `browser-companion-update` | Browser companion | yes | mutates | --json | no | `manifests/commands/source/aos/33-browser-companion.json` | `node $AOS_REPO_ROOT/scripts/aos-browser-companion.mjs update` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `browser companion uninstall` | `browser-companion-uninstall` | Browser companion | yes | mutates | --json | no | `manifests/commands/source/aos/33-browser-companion.json` | `node $AOS_REPO_ROOT/scripts/aos-browser-companion.mjs uninstall` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `browser _parse-target` | `browser-parse-target` | Browser companion | no | read-only | default | no | `manifests/commands/source/aos/33-browser.json` | `node scripts/aos-browser-internal.mjs _parse-target` | `docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `browser _check-version` | `browser-check-version` | Browser companion | no | read-only | default | no | `manifests/commands/source/aos/33-browser.json` | `scripts/aos-browser-check-version` | `docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `browser _run` | `browser-run` | Browser companion | no | mutates | default | no | `manifests/commands/source/aos/33-browser.json` | `node scripts/aos-browser-internal.mjs _run` | `docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
@@ -309,8 +314,8 @@ current command tree before public CLI and self-hosting boundary changes.
 | `browser _registry remove` | `browser-registry-remove` | Browser companion | no | mutates | default | no | `manifests/commands/source/aos/33-browser.json` | `node scripts/aos-browser-internal.mjs _registry remove` | `docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `browser _registry find` | `browser-registry-find` | Browser companion | no | read-only | default | no | `manifests/commands/source/aos/33-browser.json` | `node scripts/aos-browser-internal.mjs _registry find` | `docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `browser _resolve-anchor` | `browser-resolve-anchor` | Browser companion | no | read-only | --json | no | `manifests/commands/source/aos/33-browser.json` | `node scripts/aos-browser-internal.mjs _resolve-anchor` | `docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
-| `help` | `help-full` | CLI metadata | yes | read-only | --json | no | `manifests/commands/source/aos/34-help.json` | `node scripts/aos-help-proxy.mjs` | `docs/api/aos.md` |
-| `help` | `help-command` | CLI metadata | yes | read-only | --json | no | `manifests/commands/source/aos/34-help.json` | `node scripts/aos-help-proxy.mjs` | `docs/api/aos.md` |
+| `help` | `help-full` | CLI metadata | yes | read-only | --json | no | `manifests/commands/source/aos/34-help.json` | `node $AOS_REPO_ROOT/scripts/aos-help-proxy.mjs` | `docs/api/aos.md` |
+| `help` | `help-command` | CLI metadata | yes | read-only | --json | no | `manifests/commands/source/aos/34-help.json` | `node $AOS_REPO_ROOT/scripts/aos-help-proxy.mjs` | `docs/api/aos.md` |
 | `work-record list` | `work-record-list` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs list` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `work-record read` | `work-record-read` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs read` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `work-record verify` | `work-record-verify` | Verification/evidence | yes | read-only | --json | no | `manifests/commands/source/aos/35-work-record.json` | `node $AOS_REPO_ROOT/scripts/aos-work-record.mjs verify` | `docs/api/aos.md, docs/api/aos-capabilities.md` |

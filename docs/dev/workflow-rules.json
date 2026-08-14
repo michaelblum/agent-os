@@ -614,6 +614,91 @@
       "verification": []
     },
     {
+      "id": "browser-companion-lifecycle",
+      "summary": "Managed Playwright companion descriptor, lifecycle, store, public contract, or installed staging changed.",
+      "patterns": [
+        "manifests/AGENTS.md",
+        "manifests/companions/**",
+        "manifests/commands/source/aos/33-browser-companion.json",
+        "manifests/commands/source/external/01-help.json",
+        "manifests/commands/source/external/22-browser-companion.json",
+        "manifests/commands/aos-commands.json",
+        "manifests/commands/aos-external-commands.json",
+        "scripts/AGENTS.md",
+        "scripts/aos-browser-companion.mjs",
+        "scripts/lib/browser-companion/**",
+        "scripts/stage-browser-companion-runtime.mjs",
+        "scripts/package-aos-runtime",
+        "scripts/aos-help-proxy.mjs",
+        "scripts/lib/external-command-routes.mjs",
+        "package.sh",
+        "shared/AGENTS.md",
+        "shared/schemas/aos-browser-companion-*.schema.json",
+        "tests/AGENTS.md",
+        "tests/browser/companion-authority-publication.test.mjs",
+        "tests/browser/companion-lifecycle.test.mjs",
+        "tests/browser/companion-recovery-transitions.test.mjs",
+        "tests/browser/companion-removal-validation.test.mjs",
+        "tests/browser/companion-staging.test.mjs",
+        "tests/schemas/aos-browser-companion-v1.test.mjs",
+        "docs/api/aos.md",
+        "docs/api/aos-capabilities.md",
+        "docs/api/README.md",
+        "docs/dev/reports/aos-command-capability-inventory-v0.md",
+        "docs/dev/test-proof-registry.json",
+        "docs/dev/test-proof-registry.d/browser-companion.json"
+      ],
+      "classes": [
+        "browser_companion",
+        "command_contract",
+        "package_lifecycle",
+        "schema"
+      ],
+      "actions": [
+        "focused_test",
+        "schema_test",
+        "help_contract"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "browser-companion-syntax",
+          "command": "node --check scripts/aos-browser-companion.mjs && node --check scripts/aos-help-proxy.mjs && node --check scripts/stage-browser-companion-runtime.mjs && node --check scripts/lib/browser-companion/archive.mjs && node --check scripts/lib/browser-companion/descriptor.mjs && node --check scripts/lib/browser-companion/download.mjs && node --check scripts/lib/browser-companion/errors.mjs && node --check scripts/lib/browser-companion/lifecycle.mjs && node --check scripts/lib/browser-companion/store-lock-state.mjs && node --check scripts/lib/browser-companion/store-lock.mjs && node --check scripts/lib/browser-companion/store-package.mjs && node --check scripts/lib/browser-companion/store-paths.mjs && node --check scripts/lib/browser-companion/store-publication-slots.mjs && node --check scripts/lib/browser-companion/store-records.mjs && node --check scripts/lib/browser-companion/store-removal-claim.mjs && node --check scripts/lib/browser-companion/store-removal.mjs && node --check scripts/lib/browser-companion/store-retirement.mjs && node --check scripts/lib/browser-companion/store-state.mjs && node --check scripts/lib/browser-companion/store-writer.mjs && node --check scripts/lib/external-command-routes.mjs",
+          "reason": "Parse the public CLI, help proxy, installed stager, route matcher, and every focused lifecycle module without executing a lifecycle operation."
+        },
+        {
+          "id": "browser-companion-lifecycle-proof",
+          "command": "node --test tests/browser/companion-authority-publication.test.mjs tests/browser/companion-lifecycle.test.mjs tests/browser/companion-recovery-transitions.test.mjs tests/browser/companion-removal-validation.test.mjs tests/browser/companion-staging.test.mjs",
+          "reason": "Exercise exclusive authority-record publication, fake-tarball lifecycle, observed-state activation cleanup, crash-safe whole-lock recovery, claimed journaled whole-store removal, transition capacity, schema-valid receipts, and dispatcher-route staged help execution offline."
+        },
+        {
+          "id": "browser-companion-schema-proof",
+          "command": "node --test tests/schemas/aos-browser-companion-v1.test.mjs",
+          "reason": "Validate the exact source descriptor and closed public result projections."
+        },
+        {
+          "id": "browser-companion-command-generation",
+          "command": "bash tests/command-manifest-generation.sh",
+          "reason": "Keep source manifests, generated command artifacts, and generated command inventory aligned."
+        },
+        {
+          "id": "browser-companion-external-manifest",
+          "command": "node --test tests/schemas/aos-external-command-manifest-v0.test.mjs",
+          "reason": "Validate the exact external browser companion routes and installed script targets without executing the AOS binary."
+        },
+        {
+          "id": "browser-companion-direct-help",
+          "command": "node scripts/aos-browser-companion.mjs --help",
+          "reason": "Render the lifecycle help directly without invoking ./aos or any runtime mutation."
+        }
+      ],
+      "verification": [],
+      "notes": [
+        "All focused checks are offline, use isolated state, and do not execute ./aos, a browser, the daemon, package lifecycle scripts, native UI, or TCC-sensitive code."
+      ]
+    },
+    {
       "id": "browser-intent-sensor",
       "summary": "Browser intent sensor or JS adapter path changed.",
       "patterns": [

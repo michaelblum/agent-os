@@ -1,0 +1,43 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof-worth registry entries owned by the managed browser companion lifecycle.",
+  "entries": [
+    {
+      "id": "browser-companion-lifecycle-proof",
+      "path_patterns": [
+        "tests/browser/companion-authority-publication.test.mjs",
+        "tests/browser/companion-lifecycle.test.mjs",
+        "tests/browser/companion-recovery-transitions.test.mjs",
+        "tests/browser/companion-removal-validation.test.mjs",
+        "tests/browser/companion-staging.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "browser-companion",
+      "harness_level": "model_unit",
+      "proof_kind": "package_lifecycle",
+      "contract": "The source-pinned Playwright package closure installs, updates, durably activates, leases, atomically retires, uninstalls, and stages with executable help assets through one private mode-scoped store without network or lifecycle scripts.",
+      "worth": "This proves exact package identity, archive safety, exclusive authority-record publication and crash recovery, observed-state activation cleanup, crash-safe whole-lock recovery, claimed journaled whole-store removal, cooperative quarantine identity checks, schema-valid content-free receipts, both packaging callsites, and direct dispatcher-route staged help execution without claiming native execution.",
+      "command": "node --test tests/browser/companion-authority-publication.test.mjs tests/browser/companion-lifecycle.test.mjs tests/browser/companion-recovery-transitions.test.mjs tests/browser/companion-removal-validation.test.mjs tests/browser/companion-staging.test.mjs",
+      "replaces": [],
+      "guard": "uses only fake in-memory tarballs, injected downloads, cleaned isolated AOS_STATE_ROOT values, bounded subprocesses, and unrelated caller directories",
+      "status": "active"
+    },
+    {
+      "id": "browser-companion-schema-proof",
+      "path_patterns": [
+        "tests/schemas/aos-browser-companion-v1.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "browser-companion",
+      "harness_level": "schema",
+      "proof_kind": "package_lifecycle_schema",
+      "contract": "The exact source descriptor and closed status, mutation, and error projections remain schema-valid and content-free.",
+      "worth": "This prevents descriptor drift, receipt widening, and raw acquisition or filesystem details from entering the public contract.",
+      "command": "node --test tests/schemas/aos-browser-companion-v1.test.mjs",
+      "replaces": [],
+      "guard": "offline schema and projection validation only",
+      "status": "active"
+    }
+  ]
+}
