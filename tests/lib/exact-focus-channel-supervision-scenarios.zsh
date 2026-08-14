@@ -149,11 +149,10 @@ exact_focus_supervision_scenario_payload_exit() {
       local nonce="$(/usr/bin/env node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
       EFCS_TIMEOUT_READINESS_FILE="$readiness"
       EFCS_TIMEOUT_STARTUP_MS=5000
-      [[ "$variant" == remove ]] \
-        && EFCS_GROUP_RECORD_REMOVE_FAILURE=1
+      [[ "$variant" != remove ]] || EFCS_GROUP_RECORD_REMOVE_FAILURE=1
       AOS_PROCESS_TREE_READINESS_NONCE="$nonce" \
         exact_focus_supervision_run_driver 1000 /usr/bin/env node "$EFCS_SELF_TEST_HELPER" \
-        --basic-timeout-self-test --readiness "$readiness" --self-test-exit-status 1 \
+        --basic-timeout-self-test --readiness "$readiness" --self-test-exit-status 1 --self-test-stderr-sentinel \
         || command_status="$?"
       AOS_PROCESS_TREE_READINESS_NONCE="$nonce" \
         /usr/bin/env node "$EFCS_SUPERVISION_PROTOCOL" --validate-process-tree-retired "$readiness" \
@@ -167,8 +166,9 @@ exact_focus_supervision_scenario_payload_exit() {
         && "$EFCS_LAST_SUPERVISOR_STAGE" == payload_outcome_wait \
         && "$EFCS_LAST_SUPERVISOR_STATUS" == 1 ]] \
         || exact_focus_supervision_scenario_fail PAYLOAD_EXIT_RECEIPT_MISMATCH
-      (( receipt_status == 0 && EFCS_OUTER_REAP_RECOVERED == 0 )) \
-        || exact_focus_supervision_scenario_fail PAYLOAD_EXIT_RETIREMENT_INVALID
+      [[ "$(<"$EFCS_DRIVER_STDERR")" == PAYLOAD_STDERR_SENTINEL && ! -s "$EFCS_DRIVER_STDOUT" \
+        && -z "$EFCS_FAILURE_RECEIPT_FILE" ]] || exact_focus_supervision_scenario_fail PAYLOAD_STDERR_RECEIPT_ISOLATION_FAILED
+      (( receipt_status == 0 && EFCS_OUTER_REAP_RECOVERED == 0 )) || exact_focus_supervision_scenario_fail PAYLOAD_EXIT_RETIREMENT_INVALID
       if [[ "$variant" == remove ]]; then
         [[ "$EFCS_LAST_SUPERVISOR_CLEANUP_DETAIL" == group_record_remove_failed \
           && "$EFCS_LAST_SUPERVISOR_CLEANUP_STAGE" == group_record_remove ]] \

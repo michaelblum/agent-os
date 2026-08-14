@@ -124,6 +124,9 @@ async function basicTimeoutSelfTest(args) {
   writeDurableAtomicFile(readinessFile, `${JSON.stringify({
     nonce, pid: process.pid, schema: PROCESS_TREE_SCHEMA,
   })}\n`, nonce);
+  if (args.includes('--self-test-stderr-sentinel')) {
+    process.stderr.write('PAYLOAD_STDERR_SENTINEL\n');
+  }
   if (exitStatus !== 0) {
     await sleep(100);
     return exitStatus;

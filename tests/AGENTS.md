@@ -192,7 +192,9 @@ tests.
   lifecycle receipt and process-outcome normalization must be singly owned by
   an import-safe protocol module consumed by the process-owning helper and
   `exact-focus-channel-proof-protocol-contract.test.mjs` and
-  `exact-focus-channel-supervision-contract.test.mjs`. The detached exact-token
+  `exact-focus-channel-supervision-contract.test.mjs`;
+  `exact-focus-channel-supervision-record-contract.test.mjs` owns private
+  lifecycle-record framing and signal-time PID-identity reuse proofs. The detached exact-token
   guardian must lead and remain live in its process group from admission through
   descendant retirement, hold INT/TERM before publishing ownership, emit one
   exact validated payload outcome only after admission commits, and be awaited
@@ -212,8 +214,19 @@ tests.
   Supervision owner, supervisor-ready, and progress records must use the shared
   bounded supervision-protocol reader and exact CLI projections; shell cleanup
   may consume those projections but must never reopen the record pathname.
+  The five lifecycle destinations, including the derived admission acknowledgment,
+  must be distinct by absolute lexical path plus the real path of the existing
+  parent and the leaf basename; never resolve the leaf itself. Null, unresolvable,
+  or aliased identities must reject before payload admission or record writes.
   Grouped owner cleanup must authenticate every present sibling and require
   exact identity agreement; ready cleanup must match the expected supervisor PID.
+  Supervisor failures use a per-sequence private no-replace receipt, never
+  payload stderr; readers require the exact canonical one-line serialization
+  and remove only a revalidated valid receipt. Direct supervisor and fixture
+  signals must reauthenticate their exact process identity immediately before
+  TERM and again before KILL so a reused PID is never signal authority.
+  Direct supervisor identity also binds a shell-minted cryptographic per-run
+  32-hex token, present exactly once before `--` and retained until quiescence.
   Broken record symlinks are present-invalid lifecycle state, never absence;
   reconciliation and quiescence must retain them and fail closed.
   Private recovery,

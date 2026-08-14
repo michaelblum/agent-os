@@ -16,9 +16,7 @@ const shellHelperPath = path.join(root, 'tests/lib/exact-focus-channel-supervisi
 const scenarioHelperPath = path.join(root, 'tests/lib/exact-focus-channel-supervision-scenarios.zsh');
 const proofContractPath = path.join(root, 'tests/lib/exact-focus-channel-proof-contract.mjs');
 const protocolPath = path.join(root, 'tests/lib/exact-focus-channel-supervision-protocol.mjs');
-const proofProtocolContractPath = path.join(
-  root, 'tests/exact-focus-channel-proof-protocol-contract.test.mjs',
-);
+const proofProtocolContractPath = path.join(root, 'tests/exact-focus-channel-proof-protocol-contract.test.mjs');
 const supervisionContractPath = fileURLToPath(import.meta.url);
 // 5,000 startup + 50 armed timeout + 4,000 TERM + 3,000 KILL + 5,200 shell
 // group fallback = 17,250ms; 30,000 includes EXIT sanitizer and scheduler margin.
@@ -304,9 +302,9 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
   assert.match(shellHelper, /"\$output_mode" == 600 && "\$output_size" == 0/u);
   assert.match(scenarioHelper, /--validate-process-tree-retired|--validate-run-program-receipt/u);
   assert.doesNotMatch(shellHelper, /--validate-process-tree-retired|--validate-run-program-receipt/u);
-  assert.match(shellHelper, /--read-owner-record \\\n+    "\$ownership_file"[\s\S]+read -r pgid token <<< "\$owner_record"/u);
+  assert.match(shellHelper, /exact_focus_supervision_owner_projection[\s\S]+--read-owner-record[\s\S]+"\$owner_record" == "\$projection"[\s\S]+read -r pgid token/u);
   assert.doesNotMatch(shellHelper, /read -r pgid token < "\$ownership_file"/u);
-  assert.match(stopFixture, /--read-owner-record[\s\S]+"\$FIXTURE_PID_FILE"[\s\S]+<<< "\$owner_record"/u);
+  assert.match(runner, /exact_focus_fixture_identity_is_valid\(\)[\s\S]+--read-owner-record[\s\S]+"\$owner_record" == "\$expected"[\s\S]+"\$command" == "\$BINARY"\*[\s\S]+command_has_ownership_token[\s\S]+stop_owned_fixture\(\)[\s\S]+exact_focus_fixture_identity_is_valid[\s\S]+send_process_signal TERM[\s\S]+exact_focus_fixture_identity_is_valid[\s\S]+send_process_signal KILL/u);
   assert.doesNotMatch(stopFixture, /< "\$FIXTURE_PID_FILE"/u);
   assert.match(admissionSignal, /--read-owner-record "\$1"[\s\S]+<<< "\$marker"/u);
   assert.doesNotMatch(admissionSignal, /\$\(<"\$1"\)|< "\$1"/u);
@@ -315,17 +313,16 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
   assert.match(shellHelper, /exact_focus_supervision_command_has_ownership_token\(\)/u);
   assert.equal((runner.match(/exact_focus_supervision_command_has_ownership_token/g) ?? []).length, 2);
   assert.doesNotMatch(`${runner}\n${shellHelper}`, /\*"?--ownership-token \$token"?\*/u);
-  assert.match(shellHelper, /elif \[\[ -f "\$EFCS_ADMISSION_ACK_FILE" && ! -L "\$EFCS_ADMISSION_ACK_FILE" \]\]; then[\s\S]+ownership_file="\$EFCS_ADMISSION_ACK_FILE"/u);
-  assert.match(stopGroup, /if \(\( EFCS_GUARDIAN_IDENTITY_REQUIRED == 1 \)\); then\s+\[\[ -f "\$EFCS_GUARDIAN_IDENTITY_FILE" && ! -L "\$EFCS_GUARDIAN_IDENTITY_FILE" \]\][\s\S]+ownership_file="\$EFCS_GUARDIAN_IDENTITY_FILE"/u);
+  assert.match(stopGroup, /EFCS_GUARDIAN_IDENTITY_REQUIRED == 1[\s\S]+path_is_absent "\$EFCS_GUARDIAN_IDENTITY_FILE" && return 1[\s\S]+ownership_file="\$EFCS_GUARDIAN_IDENTITY_FILE"/u);
   assert.ok(stopGroup.indexOf('EFCS_GUARDIAN_IDENTITY_REQUIRED == 1')
-    < stopGroup.indexOf('-f "$EFCS_GROUP_PID_FILE"'));
-  assert.ok(stopGroup.indexOf('-f "$EFCS_GROUP_PID_FILE"')
-    < stopGroup.indexOf('-f "$EFCS_ADMISSION_ACK_FILE"'));
+    < stopGroup.indexOf('path_is_absent "$EFCS_GROUP_PID_FILE"'));
+  assert.ok(stopGroup.indexOf('path_is_absent "$EFCS_GROUP_PID_FILE"')
+    < stopGroup.indexOf('path_is_absent "$EFCS_ADMISSION_ACK_FILE"'));
   assert.match(stopGroup, /elif exact_focus_supervision_path_is_absent "\$EFCS_GROUP_PID_FILE"[\s\S]+"\$EFCS_ADMISSION_ACK_FILE"[\s\S]+"\$EFCS_GUARDIAN_IDENTITY_FILE"; then\s+return 0/u);
-  assert.equal((stopGroup.match(/exact_focus_supervision_remove_identical_owner_records \|\| return 1/gu) ?? []).length, 2);
-  assert.match(shellHelper, /exact_focus_supervision_remove_identical_owner_records\(\)[\s\S]+--read-owner-record[\s\S]+"\$projection" == "\$identity"[\s\S]+rm -f -- "\$EFCS_ADMISSION_ACK_FILE"[\s\S]+path_is_absent "\$file"/u);
+  assert.equal((stopGroup.match(/exact_focus_supervision_remove_identical_owner_records "\$projection" \|\| return 1/gu) ?? []).length, 2);
+  assert.match(shellHelper, /exact_focus_supervision_owner_projection\(\)[\s\S]+--read-owner-record[\s\S]+"\$projection" == "\$identity"[\s\S]+remove_identical_owner_records\(\)[\s\S]+owner_projection "\$expected"[\s\S]+rm -f/u);
   assert.match(shellHelper, /exact_focus_supervision_remove_expected_ready\(\)[\s\S]+--read-supervisor-ready[\s\S]+"\$projection" == "\$1"[\s\S]+rm -f -- "\$EFCS_READY_FILE"[\s\S]+path_is_absent "\$EFCS_READY_FILE"/u);
-  assert.equal((shellHelper.match(/exact_focus_supervision_remove_expected_ready "\$(?:supervised_pid|EFCS_PID)"/gu) ?? []).length, 2);
+  assert.equal((shellHelper.match(/exact_focus_supervision_remove_expected_ready "\$(?:supervised_pid|supervisor_pid)"/gu) ?? []).length, 2);
   assert.match(shellHelper, /exact_focus_supervision_settle_late_group_record \|\| return 125/u);
   assert.match(shellHelper, /--admission-ack-file \$EFCS_ADMISSION_ACK_FILE/u);
   assert.match(shellHelper, /attempt < 80[\s\S]+exact_focus_supervision_pause 5[\s\S]+attempt < 60[\s\S]+exact_focus_supervision_pause 2/u);
@@ -372,7 +369,7 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
     < crashScenario.indexOf('< "$heartbeat_ack"'));
   assert.ok(crashScenario.indexOf('< "$heartbeat_ack"')
     < crashScenario.indexOf('! -e "$unrelated_term"'));
-  assert.match(supervisor, /--self-test-first-tier-reap-failure[\s\S]+emitSupervisorFailureDetail\('group_reap_failed', stage, 125, 'timeout'\)/u);
+  assert.match(supervisor, /--self-test-first-tier-reap-failure[\s\S]+emitFailure\('group_reap_failed', stage, 125, 'timeout'\)/u);
   assert.match(shellHelper, /exact_focus_supervision_stop_group \|\| \{[\s\S]+exact_focus_supervision_reconcile_outer_reap "\$child_status"/u);
   assert.match(runner, /1,729,000ms supervisor deadline/u);
   assert.ok(driver.split('\n').length - 1 <= 700);
@@ -422,6 +419,7 @@ test('sourced-shell guardian identity observation handles disappearance and live
     exact_focus_supervision_admission_state_is_clear && exit 13
     exact_focus_supervision_quiesce && exit 14
     EFCS_GUARDIAN_IDENTITY_REQUIRED=0
+    EFCS_GUARDIAN_IDENTITY_FILE="$4"
     expected_pid="$5"
     exact_focus_supervision_pause() { :; }
     exact_focus_supervision_process_group_id() { print -r -- "$expected_pid"; }
@@ -429,12 +427,12 @@ test('sourced-shell guardian identity observation handles disappearance and live
     exact_focus_supervision_process_exists() { return 1; }
     exact_focus_supervision_group_exists() { return 1; }
     gone=0
-    exact_focus_supervision_owned_group_pid_from_file "$4" >/dev/null || gone=$?
+    exact_focus_supervision_owned_group_pid_from_file "$4" "$5 $6" >/dev/null || gone=$?
     exact_focus_supervision_process_command() { print -r -- unrelated; }
     exact_focus_supervision_process_exists() { return 0; }
     exact_focus_supervision_group_exists() { return 0; }
     live=0
-    exact_focus_supervision_owned_group_pid_from_file "$4" >/dev/null || live=$?
+    exact_focus_supervision_owned_group_pid_from_file "$4" "$5 $6" >/dev/null || live=$?
     [[ -f "$4" ]] || exit 15
     print -r -- "$gone $live retained"
   `, 'identity-race', shellHelperPath, empty, protocolPath, identity, leader, token], {

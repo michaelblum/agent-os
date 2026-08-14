@@ -1,7 +1,7 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-
 export const PROCESS_TREE_SCHEMA = 'aos.exact-focus-channel-process-tree-ready.v1';
 export const PROCESS_TREE_MAX_BYTES = 256;
 export const PROCESS_TREE_NONCE_ENV = 'AOS_PROCESS_TREE_READINESS_NONCE';
@@ -13,7 +13,6 @@ export const ADMISSION_COMMIT_MESSAGE = 'aos.exact-focus-channel.admission-commi
 export const PAYLOAD_OUTCOME_MESSAGE_SCHEMA = 'aos.exact-focus-channel.payload-outcome.v1';
 export const OWNER_RECORD_MAX_BYTES = 96;
 export const SUPERVISOR_READY_MAX_BYTES = 32;
-
 const SUPERVISOR_FAILURE_MAX_BYTES = 4096;
 const SUPERVISOR_FAILURE_DETAILS = new Set([
   'group_reap_failed',
@@ -57,31 +56,25 @@ const PAYLOAD_OUTCOME_DETAILS = new Set([
   'payload_nonzero_exit',
   'payload_spawn_or_init_failure',
 ]);
-
 export function valueAfter(args, flag) {
   const index = args.indexOf(flag);
   return index >= 0 && index + 1 < args.length ? args[index + 1] : null;
 }
-
 export function integer(value) {
   return typeof value === 'string' && /^[0-9]+$/u.test(value) ? Number(value) : NaN;
 }
-
 export function groupSignalIsPermitted(groupOwned, groupMayBeSignaled) {
   return groupOwned === true && groupMayBeSignaled === true;
 }
-
 function exactKeys(value, keys) {
   return value !== null
     && typeof value === 'object'
     && !Array.isArray(value)
     && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort());
 }
-
 export function isSupervisorFailureStage(stage) {
   return SUPERVISOR_FAILURE_STAGES.has(stage);
 }
-
 export function writeDurableAtomicFile(file, contents, tag) {
   const tempFile = `${file}.${process.pid}.${tag}.tmp`;
   let descriptor = null;
@@ -99,7 +92,6 @@ export function writeDurableAtomicFile(file, contents, tag) {
     throw error;
   }
 }
-
 export function writeDurableExclusiveFile(file, contents, tag, failBeforePublish = false) {
   const tempFile = `${file}.${process.pid}.${tag}.tmp`;
   let descriptor = null;
@@ -125,18 +117,70 @@ export function writeDurableExclusiveFile(file, contents, tag, failBeforePublish
     throw error;
   }
 }
-
+function exactSupervisorFailureDestination(file, descriptor, byteLength, mode) {
+  const held = fs.fstatSync(descriptor, { bigint: true });
+  const named = fs.lstatSync(file, { bigint: true });
+  return held.isFile() && named.isFile()
+    && held.dev === named.dev && held.ino === named.ino
+    && held.nlink === 1n && named.nlink === 1n
+    && held.size === BigInt(byteLength) && named.size === BigInt(byteLength)
+    && (held.mode & 0o777n) === BigInt(mode) && (named.mode & 0o777n) === BigInt(mode);
+}
+function fsyncSupervisorFailureParent(file) {
+  const closeOnExec = Number.isInteger(fs.constants.O_CLOEXEC) ? fs.constants.O_CLOEXEC : 0;
+  const directory = Number.isInteger(fs.constants.O_DIRECTORY) ? fs.constants.O_DIRECTORY : 0;
+  let descriptor = null;
+  try {
+    descriptor = fs.openSync(path.dirname(file), fs.constants.O_RDONLY | directory | closeOnExec);
+    fs.fsyncSync(descriptor);
+  } finally {
+    if (descriptor !== null) try { fs.closeSync(descriptor); } catch {}
+  }
+}
+export function writeSupervisorFailureReceipt(file, contents, failurePhase = null) {
+  const phases = new Set([null, 'pre-write', 'post-write', 'post-dir-sync']);
+  if (typeof file !== 'string' || file.length === 0 || typeof contents !== 'string'
+      || !phases.has(failurePhase)) throw new Error('SUPERVISOR_FAILURE_WRITE_INVALID');
+  const bytes = Buffer.from(contents, 'utf8');
+  const noFollow = fs.constants.O_NOFOLLOW;
+  const closeOnExec = Number.isInteger(fs.constants.O_CLOEXEC) ? fs.constants.O_CLOEXEC : 0;
+  if (!Number.isInteger(noFollow) || noFollow === 0 || bytes.length === 0) {
+    throw new Error('SUPERVISOR_FAILURE_WRITE_INVALID');
+  }
+  let descriptor = null;
+  try {
+    const flags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL
+      | noFollow | closeOnExec;
+    descriptor = fs.openSync(file, flags, 0o000);
+    fs.fchmodSync(descriptor, 0o000);
+    if (!exactSupervisorFailureDestination(file, descriptor, 0, 0o000)) throw new Error();
+    if (failurePhase === 'pre-write') throw new Error('SELF_TEST_PRE_WRITE_FAILURE');
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = fs.writeSync(descriptor, bytes, offset, bytes.length - offset, offset);
+      if (count <= 0) throw new Error('SUPERVISOR_FAILURE_SHORT_WRITE');
+      offset += count;
+    }
+    if (!exactSupervisorFailureDestination(file, descriptor, bytes.length, 0o000)) throw new Error();
+    if (failurePhase === 'post-write') throw new Error('SELF_TEST_POST_WRITE_FAILURE');
+    fs.fsyncSync(descriptor);
+    fsyncSupervisorFailureParent(file);
+    if (failurePhase === 'post-dir-sync') throw new Error('SELF_TEST_POST_DIR_SYNC_FAILURE');
+    if (!exactSupervisorFailureDestination(file, descriptor, bytes.length, 0o000)) throw new Error();
+    fs.fchmodSync(descriptor, 0o600);
+  } finally {
+    if (descriptor !== null) try { fs.closeSync(descriptor); } catch {}
+  }
+}
 function stableHeldMetadata(left, right) {
   return left.dev === right.dev && left.ino === right.ino && left.mode === right.mode
     && left.nlink === right.nlink && left.size === right.size
     && left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs;
 }
-
 function finalPathMatchesHeld(stat, pathStat) {
   return pathStat.isFile() && stat.dev === pathStat.dev && stat.ino === pathStat.ino
     && stat.mode === pathStat.mode && stat.size === pathStat.size;
 }
-
 export function readBoundedRegularFile(file, maximumBytes, requiredMode = null, seams = {}) {
   let descriptor = null;
   try {
@@ -316,9 +360,9 @@ export function serializeSupervisorFailureReceipt(
 
 export function parseSupervisorFailureReceiptText(text) {
   try {
-    if (typeof text !== 'string' || !text.endsWith('\n')) return null;
-    const line = text.slice(0, -1).split('\n').at(-1);
-    const receipt = JSON.parse(line);
+    if (typeof text !== 'string' || !text.endsWith('\n')
+        || text.slice(0, -1).includes('\n')) return null;
+    const receipt = JSON.parse(text.slice(0, -1));
     const hasCleanupDetail = Object.hasOwn(receipt, 'cleanup_detail');
     const hasCleanupStage = Object.hasOwn(receipt, 'cleanup_stage');
     const expectedKeys = hasCleanupDetail && hasCleanupStage
@@ -337,7 +381,7 @@ export function parseSupervisorFailureReceiptText(text) {
           supervisor_stage: receipt.stage,
           supervisor_status: receipt.status,
         })) return null;
-    return Object.freeze({
+    const projection = Object.freeze({
       cleanupDetail: hasCleanupDetail ? receipt.cleanup_detail : null,
       cleanupStage: hasCleanupStage ? receipt.cleanup_stage : null,
       detail: receipt.detail,
@@ -345,6 +389,12 @@ export function parseSupervisorFailureReceiptText(text) {
       stage: receipt.stage,
       status: receipt.status,
     });
+    return serializeSupervisorFailureReceipt(
+      projection.detail, projection.stage, projection.status, projection.reason,
+      projection.cleanupDetail === null ? null : {
+        detail: projection.cleanupDetail, stage: projection.cleanupStage,
+      },
+    ) === text ? projection : null;
   } catch {
     return null;
   }
@@ -490,7 +540,6 @@ export function createPrivateOutputFiles(files) {
     }
   }
 }
-
 export function readReadiness(
   file, expectedNonce, schema, maximumBytes, requireLive, processExists,
 ) {
@@ -511,7 +560,6 @@ export function readReadiness(
     return null;
   }
 }
-
 export function processTreeRetirementStatus(file, expectedNonce, processExists) {
   const readiness = readReadiness(
     file, expectedNonce, PROCESS_TREE_SCHEMA, PROCESS_TREE_MAX_BYTES, false, processExists,
@@ -519,18 +567,55 @@ export function processTreeRetirementStatus(file, expectedNonce, processExists) 
   if (readiness === null) return 2;
   return processExists(readiness.pid) ? 3 : 0;
 }
-
 export function runProgramTimeoutInitializationError(readiness, processExists) {
   return readiness === null || !processExists(readiness.pid)
     ? 'RUN_PROGRAM_TIMEOUT_INITIALIZATION_FAILED'
     : null;
 }
-
 export function ownedGroupRecordIsValid(file, expectedLeaderPID, expectedToken) {
   const owner = ownerRecordFromFile(file);
   return owner?.pid === expectedLeaderPID && owner.token === expectedToken;
 }
-
+export function canonicalLifecyclePathIdentity(file) {
+  try {
+    if (typeof file !== 'string' || file.length === 0 || file.includes('\0')) return null;
+    const absolute = path.resolve(file);
+    const basename = path.basename(absolute);
+    if (basename.length === 0 || basename === '.' || basename === '..') return null;
+    const parent = fs.realpathSync.native(path.dirname(absolute));
+    if (!fs.statSync(parent).isDirectory()) return null;
+    return path.join(parent, basename);
+  } catch { return null; }
+}
+export function supervisorProcessIdentityIsValid(
+  command, helper, ownerPID, supervisorToken, groupFile, guardianFile, readyFile, failureFile,
+) {
+  const expected = [helper, String(ownerPID), groupFile, guardianFile, readyFile, failureFile];
+  if (typeof command !== 'string' || !Number.isSafeInteger(ownerPID) || ownerPID <= 1
+      || !/^[0-9a-f]{32}$/u.test(supervisorToken ?? '')
+      || expected.some((value) => typeof value !== 'string' || !/^\S+$/u.test(value))
+      || new Set(expected.slice(2)).size !== 4) return false;
+  const tokens = command.trim().split(/\s+/u);
+  const separator = tokens.indexOf('--');
+  if (separator < 0) return false;
+  const prefix = tokens.slice(0, separator);
+  const helperIndex = prefix.indexOf(helper);
+  if (helperIndex < 0 || prefix[helperIndex + 1] !== '--supervise-command'
+      || prefix.filter((token) => token === helper).length !== 1
+      || prefix.filter((token) => token === '--supervise-command').length !== 1) return false;
+  const options = prefix.slice(helperIndex + 2);
+  for (const [flag, value] of [
+    ['--owner-pid', String(ownerPID)], ['--supervisor-token', supervisorToken],
+    ['--group-pid-file', groupFile],
+    ['--guardian-identity-file', guardianFile], ['--ready-file', readyFile],
+    ['--failure-receipt-file', failureFile],
+  ]) {
+    const index = options.indexOf(flag);
+    if (index < 0 || options[index + 1] !== value
+        || options.filter((token) => token === flag).length !== 1) return false;
+  }
+  return true;
+}
 export function runProgramReceiptStatus(file) {
   const bytes = readBoundedRegularFile(file, 512, 0o600);
   if (bytes === null) return 1;
@@ -550,7 +635,6 @@ export function runProgramReceiptStatus(file) {
     return 1;
   }
 }
-
 export function processExists(pid) {
   try {
     process.kill(pid, 0);
@@ -559,9 +643,13 @@ export function processExists(pid) {
     return error?.code !== 'ESRCH';
   }
 }
-
 async function runCLI(mode, args) {
   if (mode === '--self-test-internal-failure') throw new Error('SELF_TEST_INTERNAL_FAILURE');
+  if (mode === '--generate-supervisor-token') {
+    if (args.length !== 0) return 1;
+    process.stdout.write(crypto.randomBytes(16).toString('hex'));
+    return 0;
+  }
   if (mode === '--read-owner-record') {
     const owner = ownerRecordFromFile(args[0]);
     if (owner === null) return 1;
@@ -588,6 +676,11 @@ async function runCLI(mode, args) {
     if (failure === null) return 1;
     process.stdout.write(`${failure.status} ${failure.detail} ${failure.stage} ${failure.reason} ${failure.cleanupDetail ?? 'absent'} ${failure.cleanupStage ?? 'absent'}`);
     return 0;
+  }
+  if (mode === '--validate-supervisor-process-identity') {
+    return supervisorProcessIdentityIsValid(
+      args[0], args[1], integer(args[2]), args[3], ...args.slice(4, 8),
+    ) ? 0 : 1;
   }
   if (mode === '--create-private-output-files') return createPrivateOutputFiles(args) ? 0 : 1;
   return 1;

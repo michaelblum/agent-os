@@ -4,26 +4,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
-  ADMISSION_COMMIT_MESSAGE,
-  PROCESS_TREE_MAX_BYTES,
-  PROCESS_TREE_NONCE_ENV,
-  PROCESS_TREE_SCHEMA,
-  groupSignalIsPermitted,
-  integer,
-  isSupervisorFailureStage,
-  normalizedProcessStatus,
-  ownedGroupRecordIsValid,
-  payloadOutcomeFromMessage,
-  payloadOutcomeFromProcessResult,
-  payloadOutcomeMessage,
-  primarySupervisorFailure,
-  processExists,
-  publicSupervisorReason,
-  readReadiness,
-  serializeSupervisorFailureReceipt,
-  valueAfter,
-  writeDurableAtomicFile,
-  writeDurableExclusiveFile,
+  ADMISSION_COMMIT_MESSAGE, PROCESS_TREE_MAX_BYTES, PROCESS_TREE_NONCE_ENV,
+  PROCESS_TREE_SCHEMA, canonicalLifecyclePathIdentity, groupSignalIsPermitted, integer, isSupervisorFailureStage,
+  normalizedProcessStatus, ownedGroupRecordIsValid, payloadOutcomeFromMessage,
+  payloadOutcomeFromProcessResult, payloadOutcomeMessage, primarySupervisorFailure,
+  processExists, publicSupervisorReason, readReadiness, serializeSupervisorFailureReceipt,
+  valueAfter, writeDurableAtomicFile, writeDurableExclusiveFile, writeSupervisorFailureReceipt,
 } from './exact-focus-channel-supervision-protocol.mjs';
 const TERM_GRACE_MS = 4_000;
 const KILL_GRACE_MS = 3_000;
@@ -71,10 +57,11 @@ async function retireProcessGroup(pgid) {
   signalProcessGroup(pgid, 'SIGKILL');
   return waitForProcessGroupGone(pgid, KILL_GRACE_MS);
 }
-function emitSupervisorFailureDetail(detail, stage, status, reason, cleanup = null) {
+function publishSupervisorFailure(file, detail, stage, status, reason, cleanup = null, failurePhase = null) {
   const receipt = serializeSupervisorFailureReceipt(detail, stage, status, reason, cleanup);
   if (receipt === null) return 125;
-  process.stderr.write(receipt);
+  try { writeSupervisorFailureReceipt(file, receipt, failurePhase); }
+  catch { return 125; }
   return status;
 }
 async function waitForOwnedGroupRecord(file, leaderPID, token, shouldStop) {
@@ -151,10 +138,12 @@ async function superviseCommand(args) {
     const separator = args.indexOf('--');
     const supervisorArgs = args.slice(0, separator);
     const ownerPID = integer(valueAfter(supervisorArgs, '--owner-pid'));
+    const supervisorToken = valueAfter(supervisorArgs, '--supervisor-token');
     const groupPIDFile = valueAfter(supervisorArgs, '--group-pid-file');
-    const admissionAckFile = `${groupPIDFile}.admission-ack`;
+    const admissionAckFile = typeof groupPIDFile === 'string' ? `${groupPIDFile}.admission-ack` : null;
     const guardianIdentityFile = valueAfter(supervisorArgs, '--guardian-identity-file');
     const readyFile = valueAfter(supervisorArgs, '--ready-file');
+    const failureReceiptFile = valueAfter(supervisorArgs, '--failure-receipt-file');
     const timeoutMilliseconds = integer(valueAfter(supervisorArgs, '--timeout-ms'));
     const timeoutReadinessFile = valueAfter(supervisorArgs, '--self-test-timeout-readiness-file');
     const timeoutStartupValue = valueAfter(supervisorArgs, '--self-test-timeout-startup-ms');
@@ -163,8 +152,7 @@ async function superviseCommand(args) {
     const readyDelayValue = valueAfter(supervisorArgs, '--self-test-ready-delay-ms'); const readyDelayMilliseconds = readyDelayValue === null ? 0 : integer(readyDelayValue);
     const readyDelayEnteredFile = valueAfter(supervisorArgs, '--self-test-ready-delay-entered-file');
     const guardianRecordDelayValue = valueAfter(supervisorArgs, '--self-test-guardian-record-delay-ms');
-    const guardianRecordDelayMilliseconds = guardianRecordDelayValue === null
-      ? 0 : integer(guardianRecordDelayValue);
+    const guardianRecordDelayMilliseconds = guardianRecordDelayValue === null ? 0 : integer(guardianRecordDelayValue);
     const admissionAckDelayValue = valueAfter(supervisorArgs, '--self-test-admission-ack-delay-ms');
     const admissionAckDelayMilliseconds = admissionAckDelayValue === null ? 0 : integer(admissionAckDelayValue);
     const guardianIdentityPublicationFailure = supervisorArgs
@@ -173,12 +161,12 @@ async function superviseCommand(args) {
       .includes('--self-test-guardian-record-publication-failure');
     const guardianCrashBeforeAck = supervisorArgs.includes('--self-test-guardian-crash-before-ack');
     const exitBeforeGroupRecord = supervisorArgs.includes('--self-test-supervisor-exit-before-group-record');
-    const exitBeforeAdmissionAck = supervisorArgs
-      .includes('--self-test-supervisor-exit-before-admission-ack');
+    const exitBeforeAdmissionAck = supervisorArgs.includes('--self-test-supervisor-exit-before-admission-ack');
     const throwAfterReadiness = supervisorArgs.includes('--self-test-throw-after-readiness');
     const groupRecordRemoveFailure = supervisorArgs
       .includes('--self-test-group-record-remove-failure');
     const firstTierReapFailure = supervisorArgs.includes('--self-test-first-tier-reap-failure');
+    const failureReceiptPublicationFailure = valueAfter(supervisorArgs, '--self-test-failure-receipt-publication-failure');
     const finalReapDelayValue = valueAfter(supervisorArgs, '--self-test-final-reap-delay-ms');
     const finalReapDelayMilliseconds = finalReapDelayValue === null ? 0 : integer(finalReapDelayValue);
     const finalReapFile = valueAfter(supervisorArgs, '--self-test-final-reap-file');
@@ -189,12 +177,17 @@ async function superviseCommand(args) {
     );
     const payloadOutcomeDelayMilliseconds = payloadOutcomeDelayValue === null
       ? 0 : integer(payloadOutcomeDelayValue);
+    const lifecyclePaths = [groupPIDFile, admissionAckFile, guardianIdentityFile, readyFile, failureReceiptFile];
+    fail(lifecyclePaths.every((file) => typeof file === 'string' && file.length > 0) && new Set(lifecyclePaths).size === 5,
+      'SUPERVISOR_PATHS_INVALID');
+    const pathIdentities = lifecyclePaths.map(canonicalLifecyclePathIdentity);
+    fail(pathIdentities.every((identity) => identity !== null) && new Set(pathIdentities).size === 5,
+      'SUPERVISOR_PATHS_INVALID');
     fail(separator >= 0 && separator + 1 < args.length, 'SUPERVISOR_ARGUMENTS_INVALID');
     fail(Number.isSafeInteger(ownerPID) && ownerPID > 1, 'SUPERVISOR_ARGUMENTS_INVALID');
-    fail(typeof groupPIDFile === 'string' && groupPIDFile.length > 0, 'SUPERVISOR_ARGUMENTS_INVALID');
-    fail(typeof guardianIdentityFile === 'string' && guardianIdentityFile.length > 0,
+    fail(/^[0-9a-f]{32}$/u.test(supervisorToken ?? '')
+      && supervisorArgs.filter((arg) => arg === '--supervisor-token').length === 1,
       'SUPERVISOR_ARGUMENTS_INVALID');
-    fail(typeof readyFile === 'string' && readyFile.length > 0, 'SUPERVISOR_ARGUMENTS_INVALID');
     fail(Number.isSafeInteger(timeoutMilliseconds) && timeoutMilliseconds >= 1, 'SUPERVISOR_ARGUMENTS_INVALID');
     fail(timeoutReadinessFile === null
       ? timeoutStartupMilliseconds === 0 && timeoutReadinessNonce === null
@@ -211,6 +204,9 @@ async function superviseCommand(args) {
       && guardianRecordDelayMilliseconds <= 10_000, 'SUPERVISOR_ARGUMENTS_INVALID');
     fail(Number.isSafeInteger(admissionAckDelayMilliseconds)
       && admissionAckDelayMilliseconds <= 10_000, 'SUPERVISOR_ARGUMENTS_INVALID');
+    fail(failureReceiptPublicationFailure === null
+      || ['pre-write', 'post-write', 'post-dir-sync']
+        .includes(failureReceiptPublicationFailure), 'SUPERVISOR_ARGUMENTS_INVALID');
     fail(Number.isSafeInteger(finalReapDelayMilliseconds) && finalReapDelayMilliseconds <= 10_000, 'SUPERVISOR_ARGUMENTS_INVALID');
     fail(!(guardianPublicationFailure && guardianCrashBeforeAck), 'SUPERVISOR_ARGUMENTS_INVALID');
     fail(finalReapDelayMilliseconds === 0 || [finalReapFile, finalReapCompleteFile]
@@ -240,6 +236,13 @@ async function superviseCommand(args) {
     let resolveAsynchronousFailure;
     let resolveFirstTierReapFailure;
     let resolvePayloadOutcome;
+    let failureAttempted = false;
+    const emitFailure = (detail, failureStage, status, publicReason, cleanup = null) => {
+      if (failureAttempted) return 125;
+      failureAttempted = true;
+      return publishSupervisorFailure(failureReceiptFile, detail, failureStage, status,
+        publicReason, cleanup, failureReceiptPublicationFailure);
+    };
     const asynchronousFailurePromise = new Promise((resolve) => {
       resolveAsynchronousFailure = resolve;
     });
@@ -490,14 +493,14 @@ async function superviseCommand(args) {
       const emitReapFailure = () => {
         const primary = primaryFailure();
         return primary !== null && primary.reason !== 'timeout'
-          ? emitSupervisorFailureDetail(
+          ? emitFailure(
             primary.detail,
             primary.stage,
             primary.status,
             primary.reason,
             { detail: 'group_reap_failed', stage: 'final_group_reap' },
           )
-          : emitSupervisorFailureDetail(
+          : emitFailure(
             'group_reap_failed', 'final_group_reap', 125, terminalReason(),
           );
       };
@@ -511,11 +514,11 @@ async function superviseCommand(args) {
           if (guardian?.connected) guardian.disconnect();
           guardian?.unref();
         } catch {
-          return emitSupervisorFailureDetail(
+          return emitFailure(
             'unexpected_supervisor_exception', stage, 125, 'supervisor_exception',
           );
         }
-        return emitSupervisorFailureDetail('group_reap_failed', stage, 125, 'timeout');
+        return emitFailure('group_reap_failed', stage, 125, 'timeout');
       }
       let groupGone = true;
       try {
@@ -534,10 +537,10 @@ async function superviseCommand(args) {
       const emitGroupRecordRemoveFailure = () => {
         const primary = primaryFailure();
         return primary === null
-          ? emitSupervisorFailureDetail(
+          ? emitFailure(
             'group_record_remove_failed', stage, 125, terminalReason(),
           )
-          : emitSupervisorFailureDetail(
+          : emitFailure(
             primary.detail,
             primary.stage,
             primary.status,
@@ -561,7 +564,7 @@ async function superviseCommand(args) {
       const primary = primaryFailure();
       return primary === null
         ? 0
-        : emitSupervisorFailureDetail(
+        : emitFailure(
           primary.detail, primary.stage, primary.status, primary.reason,
         );
     } finally {
@@ -657,23 +660,21 @@ async function ownedGroupGuardian(args) {
   const outcome = payloadOutcomeFromProcessResult(result);
   return publishPayloadOutcome(outcome.detail, outcome.status);
 }
-
 async function runCLI(mode, args) {
   if (mode === '--supervise-command') return superviseCommand(args);
-  if (mode === '--owned-group-guardian') return ownedGroupGuardian(args);
-  return 125;
+  if (mode === '--owned-group-guardian') return ownedGroupGuardian(args); return 125;
 }
-
 if (process.argv[1]
     && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   const [mode, ...args] = process.argv.slice(2);
   try {
     process.exitCode = await runCLI(mode, args);
-  } catch {
+  } catch (error) {
     process.exitCode = mode === '--supervise-command'
-      ? emitSupervisorFailureDetail(
-        'unexpected_supervisor_exception', 'cli_boundary', 125, 'supervisor_exception',
-      )
+      && error?.code !== 'SUPERVISOR_PATHS_INVALID'
+      ? publishSupervisorFailure(valueAfter(args, '--failure-receipt-file'),
+        'unexpected_supervisor_exception', 'cli_boundary', 125, 'supervisor_exception', null,
+        valueAfter(args, '--self-test-failure-receipt-publication-failure'))
       : 125;
   }
 }

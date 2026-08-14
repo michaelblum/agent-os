@@ -37,6 +37,7 @@
         "tests/exact-focus-channel-native-proof-contract.test.mjs",
         "tests/exact-focus-channel-proof-protocol-contract.test.mjs",
         "tests/exact-focus-channel-supervision-contract.test.mjs",
+        "tests/exact-focus-channel-supervision-record-contract.test.mjs",
         "tests/lib/exact-focus-channel-command-runner.mjs",
         "tests/lib/exact-focus-channel-geometry-checkpoint-harness.swift",
         "tests/lib/exact-focus-channel-geometry-checkpoint.mjs",
@@ -63,7 +64,7 @@
       "proof_kind": "exact_focus_channel_native_tool_contract",
       "contract": "The reusable supervised proof uses two overlapping layer-zero windows from one synthetic process to verify exact channel pixels, exact AX membership, sibling-subtree rejection, rejected-refresh preservation, missing-target no-fallback failure, authenticated pre/post geometry commitments, and complete cleanup through public focus and see commands.",
       "worth": "This detects the live regression where a channel could label display-cropped pixels, changed fixture geometry, or whole-app AX facts as one selected window, while keeping private application content, raw geometry checkpoint data, retained or logged raw pixels, daemon lifecycle, and new permission requests outside the proof.",
-      "command": "node --test tests/exact-focus-channel-geometry-checkpoint.test.mjs tests/exact-focus-channel-proof-protocol-contract.test.mjs tests/exact-focus-channel-supervision-contract.test.mjs tests/exact-focus-channel-native-proof-contract.test.mjs",
+      "command": "node --test tests/exact-focus-channel-geometry-checkpoint.test.mjs tests/exact-focus-channel-proof-protocol-contract.test.mjs tests/exact-focus-channel-supervision-contract.test.mjs tests/exact-focus-channel-supervision-record-contract.test.mjs tests/exact-focus-channel-native-proof-contract.test.mjs",
       "replaces": [],
       "guard": "The registered command performs direct checkpoint and supervision module tests, static assertions, Swift typecheck, classifier self-test, and owned-process cleanup tests only; recovery state contains keyed digests rather than raw unrelated-channel metadata, and the explicit AOS_EXACT_FOCUS_CHANNEL_NATIVE_PROOF_OK=1 route is the separate supervised live proof against the already-running repo daemon.",
       "status": "active"

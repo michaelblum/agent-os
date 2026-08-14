@@ -1,36 +1,20 @@
 #!/bin/zsh
 set -euo pipefail
 umask 077
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-SOURCE="$ROOT/tests/manual/exact-focus-channel-native-proof.swift"
-CHECKPOINT_SOURCE="$ROOT/tests/lib/exact-focus-channel-geometry-checkpoint.swift"
-PRIVATE_RECORDS_SOURCE="$ROOT/tests/lib/exact-focus-channel-private-records.swift"
-DRIVER="$ROOT/tests/manual/exact-focus-channel-native-proof.mjs"
-SUPERVISION_NODE_SOURCE="$ROOT/tests/lib/exact-focus-channel-supervision.mjs"
-SUPERVISION_SELF_TEST_SOURCE="$ROOT/tests/lib/exact-focus-channel-supervision-self-test.mjs"
-SUPERVISION_PROTOCOL_SOURCE="$ROOT/tests/lib/exact-focus-channel-supervision-protocol.mjs"
-PROOF_CONTRACT_SOURCE="$ROOT/tests/lib/exact-focus-channel-proof-contract.mjs"
-SUPERVISION_SHELL_SOURCE="$ROOT/tests/lib/exact-focus-channel-supervision.zsh"
-SUPERVISION_SCENARIO_SOURCE="$ROOT/tests/lib/exact-focus-channel-supervision-scenarios.zsh"
-MODE="${1:-}"
-TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/aos-exact-focus-native-proof.XXXXXX")"
-BINARY="$TMP_ROOT/exact-focus-channel-native-proof"
-LIVE_CLEANUP_ARMED=0
-COMMAND_ADMISSION_AMBIGUOUS=0
-CHANNEL_ID="aos-exact-native-${TMP_ROOT##*.}"
-NEGATIVE_CHANNEL_ID="${CHANNEL_ID}-negative"
-FIXTURE_PID_FILE="$TMP_ROOT/fixture.pid"
-DAEMON_IDENTITY_FILE="$TMP_ROOT/daemon-identity.json"
-DRIVER_STDOUT="$TMP_ROOT/driver.stdout"
-DRIVER_STDERR="$TMP_ROOT/driver.stderr"
-PROGRESS_FILE="$TMP_ROOT/progress.json"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)" MODE="${1:-}"
+SOURCE="$ROOT/tests/manual/exact-focus-channel-native-proof.swift" CHECKPOINT_SOURCE="$ROOT/tests/lib/exact-focus-channel-geometry-checkpoint.swift"
+PRIVATE_RECORDS_SOURCE="$ROOT/tests/lib/exact-focus-channel-private-records.swift" DRIVER="$ROOT/tests/manual/exact-focus-channel-native-proof.mjs"
+SUPERVISION_NODE_SOURCE="$ROOT/tests/lib/exact-focus-channel-supervision.mjs" SUPERVISION_SELF_TEST_SOURCE="$ROOT/tests/lib/exact-focus-channel-supervision-self-test.mjs"
+SUPERVISION_PROTOCOL_SOURCE="$ROOT/tests/lib/exact-focus-channel-supervision-protocol.mjs" PROOF_CONTRACT_SOURCE="$ROOT/tests/lib/exact-focus-channel-proof-contract.mjs"
+SUPERVISION_SHELL_SOURCE="$ROOT/tests/lib/exact-focus-channel-supervision.zsh" SUPERVISION_SCENARIO_SOURCE="$ROOT/tests/lib/exact-focus-channel-supervision-scenarios.zsh"
+TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/aos-exact-focus-native-proof.XXXXXX")" LIVE_CLEANUP_ARMED=0 COMMAND_ADMISSION_AMBIGUOUS=0
+BINARY="$TMP_ROOT/exact-focus-channel-native-proof" CHANNEL_ID="aos-exact-native-${TMP_ROOT##*.}"
+NEGATIVE_CHANNEL_ID="${CHANNEL_ID}-negative" FIXTURE_PID_FILE="$TMP_ROOT/fixture.pid" DAEMON_IDENTITY_FILE="$TMP_ROOT/daemon-identity.json"
+DRIVER_STDOUT="$TMP_ROOT/driver.stdout" DRIVER_STDERR="$TMP_ROOT/driver.stderr" PROGRESS_FILE="$TMP_ROOT/progress.json"
 SANITIZED_PROGRESS_RECEIPT='{"progress_receipt_valid":false,"progress_ordinal":null,"last_started_stage":"unknown","last_completed_stage":"unknown","progress_elapsed_ms":null}'
 PROGRESS_SANITIZER_EXTRA_ARGS=()
-RECOVERY_ROOT_RETAINED=0
-POST_CLEANUP_PIXELS_PERSISTED=0
-SELFTEST_UNRELATED_GROUP_PID=""
-SELFTEST_UNRELATED_GROUP_TOKEN=""
-CLEANUP_HAS_RUN=0
+RECOVERY_ROOT_RETAINED=0 POST_CLEANUP_PIXELS_PERSISTED=0 CLEANUP_HAS_RUN=0
+SELFTEST_UNRELATED_GROUP_PID="" SELFTEST_UNRELATED_GROUP_TOKEN=""
 typeset -r AOS_COMMAND_TIMEOUT_MS=10000
 typeset -r CAPTURE_COMMAND_TIMEOUT_MS=30000
 typeset -r LOCAL_COMMAND_TIMEOUT_MS=10000
@@ -43,32 +27,18 @@ typeset -r STRICT_FOCUS_ENTRIES_AOS_COMMANDS=5
 typeset -r OWNED_CHANNEL_IDS_MAX=2
 typeset -r CHANNEL_CLEANUP_MAX_ATTEMPTS=3
 typeset -r CHANNEL_CLEANUP_STRICT_SCANS_PER_ATTEMPT=3
-typeset -r CHANNEL_CLEANUP_R1_AOS_COMMANDS=$((
-  CHANNEL_CLEANUP_MAX_ATTEMPTS
-  * (CHANNEL_CLEANUP_STRICT_SCANS_PER_ATTEMPT * STRICT_FOCUS_ENTRIES_AOS_COMMANDS + 1)
-))
-typeset -r CHANNEL_CLEANUP_R2_AOS_COMMANDS=$((
-  CHANNEL_CLEANUP_MAX_ATTEMPTS
-  * (CHANNEL_CLEANUP_STRICT_SCANS_PER_ATTEMPT * STRICT_FOCUS_ENTRIES_AOS_COMMANDS
-    + OWNED_CHANNEL_IDS_MAX)
-))
+typeset -r CHANNEL_CLEANUP_R1_AOS_COMMANDS=$(( CHANNEL_CLEANUP_MAX_ATTEMPTS * (CHANNEL_CLEANUP_STRICT_SCANS_PER_ATTEMPT * STRICT_FOCUS_ENTRIES_AOS_COMMANDS + 1) ))
+typeset -r CHANNEL_CLEANUP_R2_AOS_COMMANDS=$(( CHANNEL_CLEANUP_MAX_ATTEMPTS * (CHANNEL_CLEANUP_STRICT_SCANS_PER_ATTEMPT * STRICT_FOCUS_ENTRIES_AOS_COMMANDS + OWNED_CHANNEL_IDS_MAX) ))
 typeset -r POST_CLEANUP_ATTESTATION_AOS_COMMANDS=9
 # Exact standalone cleanup is R(2) + 9 = 60; the 60-call ceiling is exact.
-typeset -r EXACT_CLEANUP_MAX_AOS_COMMANDS=$((
-  CHANNEL_CLEANUP_R2_AOS_COMMANDS + POST_CLEANUP_ATTESTATION_AOS_COMMANDS
-))
+typeset -r EXACT_CLEANUP_MAX_AOS_COMMANDS=$(( CHANNEL_CLEANUP_R2_AOS_COMMANDS + POST_CLEANUP_ATTESTATION_AOS_COMMANDS ))
 typeset -r CLEANUP_MAX_AOS_COMMANDS=60
 # Exact worst late failure + catch is 40 + R(1) + R(1) + 9 = 145. The retained
 # 149-call review ceiling leaves four calls of margin after the pre-close target
 # refresh and its single public focus-list observation; eight local commands
 # cover repeated git provenance helpers.
 typeset -r LIVE_PRE_CLEANUP_AOS_COMMANDS=40
-typeset -r EXACT_LIVE_FAILURE_CATCH_MAX_AOS_COMMANDS=$((
-  LIVE_PRE_CLEANUP_AOS_COMMANDS
-  + CHANNEL_CLEANUP_R1_AOS_COMMANDS
-  + CHANNEL_CLEANUP_R1_AOS_COMMANDS
-  + POST_CLEANUP_ATTESTATION_AOS_COMMANDS
-))
+typeset -r EXACT_LIVE_FAILURE_CATCH_MAX_AOS_COMMANDS=$(( LIVE_PRE_CLEANUP_AOS_COMMANDS + 2 * CHANNEL_CLEANUP_R1_AOS_COMMANDS + POST_CLEANUP_ATTESTATION_AOS_COMMANDS ))
 typeset -r LIVE_MAX_NON_CAPTURE_AOS_COMMANDS=149
 typeset -r LIVE_MAX_CAPTURE_COMMANDS=3
 typeset -r LIVE_MAX_LOCAL_COMMANDS=8
@@ -78,22 +48,12 @@ typeset -r LIVE_FIXTURE_GEOMETRY_CHECKPOINT_WAIT_MS=2000
 # Four 2,000ms fixture checkpoint waits plus 1,000ms of polling and scheduler
 # allowance conservatively reserve 9,000ms.
 typeset -r LIVE_FIXTURE_GEOMETRY_CHECKPOINT_TOTAL_MS=9000
-typeset -r LIVE_PROOF_TIMEOUT_MS=$((
-  LIVE_MAX_NON_CAPTURE_AOS_COMMANDS * AOS_COMMAND_TIMEOUT_MS
-  + LIVE_MAX_CAPTURE_COMMANDS * CAPTURE_COMMAND_TIMEOUT_MS
-  + LIVE_MAX_LOCAL_COMMANDS * LOCAL_COMMAND_TIMEOUT_MS
-  + LIVE_EXPLICIT_WAIT_AND_TEARDOWN_MS
-  + LIVE_FIXTURE_GEOMETRY_CHECKPOINT_TOTAL_MS
-))
+typeset -r LIVE_PROOF_TIMEOUT_MS=$(( LIVE_MAX_NON_CAPTURE_AOS_COMMANDS * AOS_COMMAND_TIMEOUT_MS + LIVE_MAX_CAPTURE_COMMANDS * CAPTURE_COMMAND_TIMEOUT_MS + LIVE_MAX_LOCAL_COMMANDS * LOCAL_COMMAND_TIMEOUT_MS + LIVE_EXPLICIT_WAIT_AND_TEARDOWN_MS + LIVE_FIXTURE_GEOMETRY_CHECKPOINT_TOTAL_MS ))
 # Standalone cleanup uses its exact 60-call ceiling, two local helpers,
 # and 30 seconds for settling, fixture teardown, and the bounded sanitizer.
 typeset -r CLEANUP_MAX_LOCAL_COMMANDS=2
 typeset -r CLEANUP_SETTLE_TEARDOWN_AND_SANITIZER_MS=30000
-typeset -r CHANNEL_CLEANUP_TIMEOUT_MS=$((
-  CLEANUP_MAX_AOS_COMMANDS * AOS_COMMAND_TIMEOUT_MS
-  + CLEANUP_MAX_LOCAL_COMMANDS * LOCAL_COMMAND_TIMEOUT_MS
-  + CLEANUP_SETTLE_TEARDOWN_AND_SANITIZER_MS
-))
+typeset -r CHANNEL_CLEANUP_TIMEOUT_MS=$(( CLEANUP_MAX_AOS_COMMANDS * AOS_COMMAND_TIMEOUT_MS + CLEANUP_MAX_LOCAL_COMMANDS * LOCAL_COMMAND_TIMEOUT_MS + CLEANUP_SETTLE_TEARDOWN_AND_SANITIZER_MS ))
 # Progress is validated independently but must never saturate below the outer
 # 1,729,000ms supervisor deadline, including its failure/catch envelope.
 typeset -r PROGRESS_RECEIPT_MAX_ELAPSED_MS=1800000
@@ -159,20 +119,38 @@ stop_selftest_unrelated_group() {
   SELFTEST_UNRELATED_GROUP_PID=""
   SELFTEST_UNRELATED_GROUP_TOKEN=""
 }
+exact_focus_fixture_process_command() { exact_focus_supervision_process_command "$1"; }
+exact_focus_fixture_identity_is_valid() {
+  local pid="$1" token="$2" expected="$3" owner_record command
+  owner_record="$(/usr/bin/env node "$SUPERVISION_PROTOCOL_SOURCE" --read-owner-record \
+    "$FIXTURE_PID_FILE" 2>/dev/null)" || return 1
+  [[ "$owner_record" == "$expected" ]] || return 1
+  command="$(exact_focus_fixture_process_command "$pid" || true)"
+  [[ "$command" == "$BINARY"* ]] || return 1
+  exact_focus_supervision_command_has_ownership_token "$command" "$token" || return 1
+}
 stop_owned_fixture() {
   [[ -e "$FIXTURE_PID_FILE" || -L "$FIXTURE_PID_FILE" ]] || return 0
-  local pid token owner_record
+  local pid token owner_record attempt=0
   owner_record="$(/usr/bin/env node "$SUPERVISION_PROTOCOL_SOURCE" --read-owner-record \
     "$FIXTURE_PID_FILE" 2>/dev/null)" || return 1
   read -r pid token <<< "$owner_record" || return 1
-  if ! kill -0 "$pid" 2>/dev/null; then
-    return 0
+  exact_focus_supervision_process_exists "$pid" || return 0
+  exact_focus_fixture_identity_is_valid "$pid" "$token" "$owner_record" || return 1
+  exact_focus_supervision_send_process_signal TERM "$pid" || true
+  while exact_focus_supervision_process_exists "$pid" && (( attempt < 8 )); do
+    exact_focus_supervision_pause 5; (( attempt += 1 ))
+  done
+  if exact_focus_supervision_process_exists "$pid"; then
+    exact_focus_fixture_identity_is_valid "$pid" "$token" "$owner_record" || return 1
+    exact_focus_supervision_send_process_signal KILL "$pid" || true
   fi
-  local command
-  command="$(ps -ww -p "$pid" -o command= 2>/dev/null || true)"
-  [[ "$command" == "$BINARY"* ]] || return 1
-  exact_focus_supervision_command_has_ownership_token "$command" "$token" || return 1
-  stop_owned_pid "$pid"
+  attempt=0
+  while exact_focus_supervision_process_exists "$pid" && (( attempt < 20 )); do
+    exact_focus_supervision_pause 2; (( attempt += 1 ))
+  done
+  wait "$pid" 2>/dev/null || true
+  ! exact_focus_supervision_process_exists "$pid"
 }
 run_channel_cleanup() {
   [[ -f "$DAEMON_IDENTITY_FILE" ]] || return 1
@@ -552,9 +530,9 @@ case "$MODE" in
     BINARY="/bin/zsh"
     TOKEN="0123456789abcdef0123456789abcdef"
     EMPTY_PADDING_SOURCE=""; PADDING="${(l:4096::x:)EMPTY_PADDING_SOURCE}"
-    FIXTURE_SIGNAL_FILE="$TMP_ROOT/fixture-owner.signal"; FIXTURE_EXPECTED_FILE="$TMP_ROOT/fixture-owner.expected"; FIXTURE_SYMLINK_TARGET="$TMP_ROOT/fixture-owner.target"
+    FIXTURE_SIGNAL_FILE="$TMP_ROOT/fixture-owner.signal"; FIXTURE_KILL_FILE="$TMP_ROOT/fixture-owner.kill"; FIXTURE_EXPECTED_FILE="$TMP_ROOT/fixture-owner.expected"; FIXTURE_SYMLINK_TARGET="$TMP_ROOT/fixture-owner.target"
     FIXTURE_SELFTEST_FAILED=0
-    rm -f -- "$FIXTURE_PID_FILE" "$FIXTURE_SIGNAL_FILE" \
+    rm -f -- "$FIXTURE_PID_FILE" "$FIXTURE_SIGNAL_FILE" "$FIXTURE_KILL_FILE" \
       "$FIXTURE_EXPECTED_FILE" "$FIXTURE_SYMLINK_TARGET"
     stop_owned_fixture || FIXTURE_SELFTEST_FAILED=1
     /bin/zsh -c "trap 'print -r -- term >| \"$FIXTURE_SIGNAL_FILE\"' TERM; zmodload zsh/zselect; while true; do zselect -t 100 || true; done" \
@@ -579,10 +557,24 @@ case "$MODE" in
       || [[ ! -L "$FIXTURE_PID_FILE" || "$(readlink "$FIXTURE_PID_FILE")" != "$FIXTURE_SYMLINK_TARGET" ]] \
       || ! /usr/bin/cmp -s "$FIXTURE_SYMLINK_TARGET" "$FIXTURE_EXPECTED_FILE"; then FIXTURE_SELFTEST_FAILED=1; fi
     rm -f -- "$FIXTURE_PID_FILE"; /bin/cp "$FIXTURE_EXPECTED_FILE" "$FIXTURE_PID_FILE"
+    typeset -gi EFCS_FIXTURE_IDENTITY_FLIPPED=0
+    exact_focus_fixture_process_command() {
+      (( EFCS_FIXTURE_IDENTITY_FLIPPED == 0 )) \
+        && exact_focus_supervision_process_command "$1" || print -r -- replacement
+    }
+    exact_focus_supervision_send_process_signal() {
+      if [[ "$1" == KILL ]]; then print -r -- kill >| "$FIXTURE_KILL_FILE"; return 0; fi
+      /bin/kill -TERM "$2" 2>/dev/null || true; EFCS_FIXTURE_IDENTITY_FLIPPED=1
+    }
+    if stop_owned_fixture || ! kill -0 "$OWNED_PID" 2>/dev/null \
+      || [[ -e "$FIXTURE_KILL_FILE" || -L "$FIXTURE_KILL_FILE" ]] \
+      || ! /usr/bin/cmp -s "$FIXTURE_PID_FILE" "$FIXTURE_EXPECTED_FILE"; then FIXTURE_SELFTEST_FAILED=1; fi
+    exact_focus_fixture_process_command() { exact_focus_supervision_process_command "$1"; }
+    exact_focus_supervision_send_process_signal() { /bin/kill -"$1" "$2" 2>/dev/null; }
     if ! stop_owned_fixture || kill -0 "$OWNED_PID" 2>/dev/null; then FIXTURE_SELFTEST_FAILED=1; fi
     stop_owned_pid "$OWNED_PID" || FIXTURE_SELFTEST_FAILED=1
     rm -f -- "$FIXTURE_PID_FILE" "$FIXTURE_SIGNAL_FILE" \
-      "$FIXTURE_EXPECTED_FILE" "$FIXTURE_SYMLINK_TARGET"
+      "$FIXTURE_EXPECTED_FILE" "$FIXTURE_SYMLINK_TARGET" "$FIXTURE_KILL_FILE"
     if (( FIXTURE_SELFTEST_FAILED == 1 )); then
       print -r -- '{"fixture_owner_absence_safe":false,"fixture_owner_rejections_safe":false,"long_argv_fixture_reaped":false,"status":"failed"}'; exit 1
     fi
@@ -591,10 +583,7 @@ case "$MODE" in
   --pidfile-reuse-self-test)
     STALE_TOKEN="0123456789abcdef0123456789abcdef"
     print -r -- "999999 $STALE_TOKEN" > "$EFCS_GROUP_PID_FILE"
-    set +e
-    exact_focus_supervision_run_driver 50 /bin/sleep 10
-    STATUS="$?"
-    set -e
+    STATUS=0; exact_focus_supervision_run_driver 50 /bin/sleep 10 || STATUS="$?"
     RECORDED_OWNER="$(/usr/bin/env node "$SUPERVISION_PROTOCOL_SOURCE" --read-owner-record "$EFCS_GROUP_PID_FILE" 2>/dev/null || true)"; read -r RECORDED_PID RECORDED_TOKEN <<< "$RECORDED_OWNER" || true
     if (( STATUS != 125 )) || [[ "$RECORDED_PID" != "999999" || "$RECORDED_TOKEN" != "$STALE_TOKEN" ]]; then
       print -r -- '{"live_unrelated_group_preserved":false,"unresolved_group_record_preserved":false,"status":"failed"}'
@@ -602,31 +591,29 @@ case "$MODE" in
     fi
     rm -f "$EFCS_GROUP_PID_FILE"
     SELFTEST_UNRELATED_GROUP_TOKEN="fedcba9876543210fedcba9876543210"
+    SELFTEST_TERM_FILE="$TMP_ROOT/unrelated-group.term"
     SELFTEST_UNRELATED_GROUP_PID="$(/usr/bin/env node -e '
       const { spawn } = require("node:child_process");
       const token = process.argv[1];
       const child = spawn("/bin/zsh", [
         "-c",
-        "trap \"\" TERM; zmodload zsh/zselect; while true; do zselect -t 100 || true; done",
+        "trap '\''print -r -- term >| \"$1\"'\'' TERM; zmodload zsh/zselect; while true; do zselect -t 100 || true; done",
         "aos-unrelated-group",
-        "--ownership-token",
-        token,
+        process.argv[5],
+        process.argv[2], "--owned-group-guardian", "--group-pid-file", process.argv[3],
+        "--admission-ack-file", process.argv[4], "--supervisor-pid", "999999",
+        "--ownership-token", token,
       ], { detached: true, stdio: "ignore" });
       child.once("error", () => process.exit(1));
-      child.once("spawn", () => {
-        process.stdout.write(String(child.pid));
-        child.unref();
-      });
-    ' "$SELFTEST_UNRELATED_GROUP_TOKEN")"
+      child.once("spawn", () => { process.stdout.write(String(child.pid)); child.unref(); });
+    ' "$SELFTEST_UNRELATED_GROUP_TOKEN" "$SUPERVISION_NODE_SOURCE" \
+      "$EFCS_GROUP_PID_FILE" "$EFCS_ADMISSION_ACK_FILE" "$SELFTEST_TERM_FILE")"
     if [[ "$SELFTEST_UNRELATED_GROUP_PID" != <-> ]]; then
       print -r -- '{"live_unrelated_group_preserved":false,"unresolved_group_record_preserved":true,"status":"failed"}'
       exit 1
     fi
     print -r -- "$SELFTEST_UNRELATED_GROUP_PID $STALE_TOKEN" > "$EFCS_GROUP_PID_FILE"
-    set +e
-    exact_focus_supervision_stop_group
-    OWNERSHIP_STATUS="$?"
-    set -e
+    OWNERSHIP_STATUS=0; exact_focus_supervision_stop_group || OWNERSHIP_STATUS="$?"
     RECORDED_OWNER="$(/usr/bin/env node "$SUPERVISION_PROTOCOL_SOURCE" --read-owner-record "$EFCS_GROUP_PID_FILE" 2>/dev/null || true)"; read -r RECORDED_PID RECORDED_TOKEN <<< "$RECORDED_OWNER" || true
     if (( OWNERSHIP_STATUS == 0 )) \
       || [[ "$RECORDED_PID" != "$SELFTEST_UNRELATED_GROUP_PID" || "$RECORDED_TOKEN" != "$STALE_TOKEN" ]] \
@@ -636,8 +623,20 @@ case "$MODE" in
       print -r -- '{"live_unrelated_group_preserved":false,"unresolved_group_record_preserved":true,"status":"failed"}'
       exit 1
     fi
-    rm -f "$EFCS_GROUP_PID_FILE"
-    stop_selftest_unrelated_group
+    print -r -- "$SELFTEST_UNRELATED_GROUP_PID $SELFTEST_UNRELATED_GROUP_TOKEN" > "$EFCS_GROUP_PID_FILE"
+    print -r -- "$SELFTEST_UNRELATED_GROUP_PID $STALE_TOKEN" > "$EFCS_ADMISSION_ACK_FILE"
+    chmod 600 "$EFCS_GROUP_PID_FILE" "$EFCS_ADMISSION_ACK_FILE"
+    if exact_focus_supervision_stop_group || [[ -e "$SELFTEST_TERM_FILE" ]] \
+      || ! kill -0 "$SELFTEST_UNRELATED_GROUP_PID" 2>/dev/null; then
+      rm -f "$EFCS_GROUP_PID_FILE" "$EFCS_ADMISSION_ACK_FILE"
+      stop_selftest_unrelated_group || true
+      print -r -- '{"live_unrelated_group_preserved":false,"unresolved_group_record_preserved":true,"status":"failed"}'; exit 1
+    fi
+    print -r -- "$SELFTEST_UNRELATED_GROUP_PID $SELFTEST_UNRELATED_GROUP_TOKEN" >| "$EFCS_ADMISSION_ACK_FILE"; chmod 600 "$EFCS_ADMISSION_ACK_FILE"
+    exact_focus_supervision_stop_group || { stop_selftest_unrelated_group || true; exit 1; }
+    [[ -e "$SELFTEST_TERM_FILE" && ! -e "$EFCS_GROUP_PID_FILE" \
+      && ! -e "$EFCS_ADMISSION_ACK_FILE" ]] || exit 1
+    SELFTEST_UNRELATED_GROUP_PID="" SELFTEST_UNRELATED_GROUP_TOKEN=""
     print -r -- '{"live_unrelated_group_preserved":true,"unresolved_group_record_preserved":true,"status":"passed"}'
     ;;
   --postflight-cleanup-failure-self-test)
