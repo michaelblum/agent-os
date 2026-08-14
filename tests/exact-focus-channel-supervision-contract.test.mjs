@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-
+import { validatedProgressReceipt } from './lib/exact-focus-channel-proof-contract.mjs';
+import { readBoundedRegularFile } from './lib/exact-focus-channel-supervision-protocol.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const driverPath = path.join(root, 'tests/manual/exact-focus-channel-native-proof.mjs');
 const runnerPath = path.join(root, 'tests/manual/exact-focus-channel-native-proof.sh');
@@ -22,22 +23,18 @@ const supervisionContractPath = fileURLToPath(import.meta.url);
 // 5,000 startup + 50 armed timeout + 4,000 TERM + 3,000 KILL + 5,200 shell
 // group fallback = 17,250ms; 30,000 includes EXIT sanitizer and scheduler margin.
 const BASIC_TIMEOUT_OUTER_MS = 30_000;
-
 function diagnostics(result) {
   return JSON.stringify({ signal: result.signal, status: result.status,
     stderr: result.stderr, stdout: result.stdout });
 }
-
 function run(mode, timeout = 30_000) {
   return spawnSync('zsh', [runnerPath, mode], { cwd: root, encoding: 'utf8', timeout });
 }
-
 function expectScenario(mode, expected, timeout = 30_000) {
   const result = run(mode, timeout);
   assert.equal(result.status, 0, diagnostics(result));
   assert.deepEqual(JSON.parse(result.stdout.trim()), expected, diagnostics(result));
 }
-
 const STANDARD_FINALIZER_FIELDS = Object.freeze({
   last_completed_stage: 'unknown',
   last_started_stage: 'unknown',
@@ -47,14 +44,66 @@ const STANDARD_FINALIZER_FIELDS = Object.freeze({
   progress_receipt_valid: false,
   recovery_root_retained: false,
 });
-
 function expectedWithStandardFinalizer(fields) {
   for (const key of Object.keys(STANDARD_FINALIZER_FIELDS)) {
     assert.equal(Object.hasOwn(fields, key), false, `duplicate standard finalizer field: ${key}`);
   }
   return Object.freeze({ ...fields, ...STANDARD_FINALIZER_FIELDS });
 }
-
+test('held private reader rejects short, grown, replaced, special, and malformed input', () => {
+  const temporaryRoot = fs.mkdtempSync(path.join(process.env.TMPDIR ?? '/tmp', 'aos-held-read-'));
+  const file = path.join(temporaryRoot, 'record');
+  const write = (value) => fs.writeFileSync(file, value, { mode: 0o600 });
+  try {
+    write('12345678');
+    let openFlags = 0;
+    readBoundedRegularFile(file, 8, 0o600, { openSync: (name, flags) => {
+      openFlags = flags; return fs.openSync(name, flags); } });
+    assert.equal(openFlags & (fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK),
+      fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+    assert.equal(readBoundedRegularFile(file, 8, 0o600)?.toString(), '12345678');
+    assert.equal(readBoundedRegularFile(file, 7, 0o600), null);
+    assert.equal(readBoundedRegularFile(file, 0, 0o600), null);
+    assert.equal(readBoundedRegularFile(file, Number.MAX_SAFE_INTEGER + 1), null);
+    assert.equal(readBoundedRegularFile(file, 8, 0o600, { readSync: (fd, buffer, offset,
+      length, position) => fs.readSync(fd, buffer, offset, Math.min(length, 2), position),
+    })?.toString(), '12345678');
+    write(Buffer.from([0xc3, 0x28]));
+    assert.equal(readBoundedRegularFile(file, 8, 0o600), null);
+    write('grow');
+    const growthRead = (fd, buffer, offset, length, position) => {
+      if (position === 4) fs.appendFileSync(file, '!'); return fs.readSync(
+        fd, buffer, offset, length, position); };
+    assert.equal(readBoundedRegularFile(file, 8, 0o600, { readSync: growthRead }), null);
+    write('stable');
+    let fstatCalls = 0;
+    assert.equal(readBoundedRegularFile(file, 8, 0o600, { fstatSync: (fd, options) => {
+      if (++fstatCalls === 2) fs.fchmodSync(fd, 0o644); return fs.fstatSync(fd, options); } }), null);
+    fs.chmodSync(file, 0o600);
+    let swapped = false;
+    assert.equal(readBoundedRegularFile(file, 8, 0o600, { lstatSync: (name, options) => {
+      if (!swapped) { swapped = true; fs.renameSync(name, `${name}.held`);
+        fs.writeFileSync(name, 'stable', { mode: 0o600 }); }
+      return fs.lstatSync(name, options); } }), null);
+    const fifo = path.join(temporaryRoot, 'fifo');
+    assert.equal(spawnSync('/usr/bin/mkfifo', [fifo]).status, 0);
+    for (const special of [temporaryRoot, fifo]) assert.equal(
+      readBoundedRegularFile(special, 8), null);
+    write('');
+    assert.equal(readBoundedRegularFile(file, 8, 0o600), null);
+    const progress = JSON.stringify({ elapsed_ms: 7, last_completed_stage: null,
+      last_started_stage: 'runtime_preflight', ordinal: 1,
+      schema: 'aos.exact-focus-channel-native-progress.v2' });
+    for (const [framing, accepted] of [[`${progress}\n`, true], [progress, false],
+      [`${progress}\n\n`, false]]) {
+      write(framing); assert.equal(validatedProgressReceipt(file) !== null, accepted);
+    }
+    write(`${progress}\n`); const size = fs.statSync(file).size;
+    assert.equal(validatedProgressReceipt(file, { readSync: (fd, buffer, offset, length,
+      position) => { if (position === size) fs.appendFileSync(file, 'x');
+      return fs.readSync(fd, buffer, offset, length, position); } }), null);
+  } finally { fs.rmSync(temporaryRoot, { force: true, recursive: true }); }
+});
 test('supervision implementation is import-safe, focused, and singly owned', () => {
   const driver = fs.readFileSync(driverPath, 'utf8');
   const runner = fs.readFileSync(runnerPath, 'utf8');
@@ -83,6 +132,10 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
     shellHelper.indexOf('exact_focus_supervision_admission_delay_oracle_is_valid()'),
     shellHelper.indexOf('exact_focus_supervision_owned_group_pid_from_file()'),
   );
+  const stopFixture = runner.slice(runner.indexOf('stop_owned_fixture()'),
+    runner.indexOf('run_channel_cleanup()'));
+  const admissionSignal = shellHelper.slice(shellHelper.indexOf('EFCS_SIGNAL_BEFORE_ADMISSION_ACK == 1'),
+    shellHelper.indexOf('EFCS_SIGNAL_FINAL_REAP == 1'));
   const receiptMismatch = scenarioHelper.slice(
     scenarioHelper.indexOf('exact_focus_supervision_scenario_receipt_mismatch()'),
     scenarioHelper.indexOf('exact_focus_supervision_timeout_status_failure()'),
@@ -134,7 +187,6 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
     selfTestHelper.indexOf('async function termHoldingDescendant(args)'),
     selfTestHelper.indexOf('async function progressHangSelfTest(args)'),
   );
-
   assert.match(driver, /from '\.\.\/lib\/exact-focus-channel-native-proof-runtime\.mjs'/u);
   assert.match(driver, /from '\.\.\/lib\/exact-focus-channel-native-proof-model\.mjs'/u);
   assert.match(driver, /from '\.\.\/lib\/exact-focus-channel-proof-contract\.mjs'/u);
@@ -155,7 +207,7 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
   assert.match(protocol, /export function runProgramReceiptStatus/u);
   assert.match(protocol, /export function processExists\(pid\)/u);
   assert.match(protocol, /export function supervisorProjectionIsValid\(projection\)/u);
-  assert.match(proofContract, /import \{ supervisorProjectionIsValid \} from '\.\/exact-focus-channel-supervision-protocol\.mjs'/u);
+  assert.match(proofContract, /readBoundedRegularFile,[\s\S]+supervisorProjectionIsValid,[\s\S]+exact-focus-channel-supervision-protocol\.mjs/u);
   assert.doesNotMatch(protocol, /exact-focus-channel-proof-contract/u);
   assert.match(nodeProtocolImport, /\bprocessExists,/u);
   assert.match(selfTestProtocolImport, /\bprocessExists,/u);
@@ -207,7 +259,6 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
   assert.doesNotMatch(supervisor, /fs\.unlinkSync\(admissionAckFile\)/u);
   assert.match(protocol, /fs\.linkSync\(tempFile, file\)[\s\S]+fs\.fsyncSync\(directoryDescriptor\)/u);
   assert.doesNotMatch(`${nodeHelper}\n${protocol}\n${shellHelper}`, /pre-record|PRE_RECORD/u);
-
   for (const importPath of [
     commandRunnerPath, nodeHelperPath, proofContractPath, protocolPath, selfTestHelperPath,
   ]) {
@@ -218,7 +269,6 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
     assert.equal(importResult.stdout, '');
     assert.equal(importResult.stderr, '');
   }
-
   assert.match(runner, /exact_focus_supervision_init \\\n+  "\$SUPERVISION_NODE_SOURCE" "\$SUPERVISION_SELF_TEST_SOURCE" \\\n+  "\$SUPERVISION_PROTOCOL_SOURCE" "\$PROOF_CONTRACT_SOURCE"/u);
   assert.match(runner, /^umask 077$/mu);
   assert.match(runner, /exact_focus_supervision_run_scenario "\$MODE"/u);
@@ -252,10 +302,16 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
   assert.match(shellHelper, /--create-private-output-files \\\n+    "\$stdout_file" "\$stderr_file"/u);
   assert.match(shellHelper, /! -e "\$stdout_file" && ! -L "\$stdout_file"/u);
   assert.match(shellHelper, /"\$output_mode" == 600 && "\$output_size" == 0/u);
-
   assert.match(scenarioHelper, /--validate-process-tree-retired|--validate-run-program-receipt/u);
   assert.doesNotMatch(shellHelper, /--validate-process-tree-retired|--validate-run-program-receipt/u);
-  assert.match(shellHelper, /--validate-guardian-identity[\s\S]+"\$ownership_file" "\$pgid" "\$token"/u);
+  assert.match(shellHelper, /--read-owner-record \\\n+    "\$ownership_file"[\s\S]+read -r pgid token <<< "\$owner_record"/u);
+  assert.doesNotMatch(shellHelper, /read -r pgid token < "\$ownership_file"/u);
+  assert.match(stopFixture, /--read-owner-record[\s\S]+"\$FIXTURE_PID_FILE"[\s\S]+<<< "\$owner_record"/u);
+  assert.doesNotMatch(stopFixture, /< "\$FIXTURE_PID_FILE"/u);
+  assert.match(admissionSignal, /--read-owner-record "\$1"[\s\S]+<<< "\$marker"/u);
+  assert.doesNotMatch(admissionSignal, /\$\(<"\$1"\)|< "\$1"/u);
+  assert.doesNotMatch(runner, /< "\$(?:FIXTURE_PID_FILE|EFCS_GROUP_PID_FILE)"/u);
+  assert.doesNotMatch(`${runner}\n${shellHelper}`, /\$\(<"\$(?:FIXTURE_PID_FILE|EFCS_GROUP_PID_FILE|EFCS_ADMISSION_ACK_FILE|EFCS_GUARDIAN_IDENTITY_FILE|EFCS_READY_FILE)"\)/u);
   assert.match(shellHelper, /exact_focus_supervision_command_has_ownership_token\(\)/u);
   assert.equal((runner.match(/exact_focus_supervision_command_has_ownership_token/g) ?? []).length, 2);
   assert.doesNotMatch(`${runner}\n${shellHelper}`, /\*"?--ownership-token \$token"?\*/u);
@@ -265,14 +321,17 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
     < stopGroup.indexOf('-f "$EFCS_GROUP_PID_FILE"'));
   assert.ok(stopGroup.indexOf('-f "$EFCS_GROUP_PID_FILE"')
     < stopGroup.indexOf('-f "$EFCS_ADMISSION_ACK_FILE"'));
-  assert.match(stopGroup, /elif \[\[ ! -e "\$EFCS_GROUP_PID_FILE" && ! -e "\$EFCS_ADMISSION_ACK_FILE" \\\n+    && ! -e "\$EFCS_GUARDIAN_IDENTITY_FILE" \]\]; then\s+return 0/u);
+  assert.match(stopGroup, /elif exact_focus_supervision_path_is_absent "\$EFCS_GROUP_PID_FILE"[\s\S]+"\$EFCS_ADMISSION_ACK_FILE"[\s\S]+"\$EFCS_GUARDIAN_IDENTITY_FILE"; then\s+return 0/u);
+  assert.equal((stopGroup.match(/exact_focus_supervision_remove_identical_owner_records \|\| return 1/gu) ?? []).length, 2);
+  assert.match(shellHelper, /exact_focus_supervision_remove_identical_owner_records\(\)[\s\S]+--read-owner-record[\s\S]+"\$projection" == "\$identity"[\s\S]+rm -f -- "\$EFCS_ADMISSION_ACK_FILE"[\s\S]+path_is_absent "\$file"/u);
+  assert.match(shellHelper, /exact_focus_supervision_remove_expected_ready\(\)[\s\S]+--read-supervisor-ready[\s\S]+"\$projection" == "\$1"[\s\S]+rm -f -- "\$EFCS_READY_FILE"[\s\S]+path_is_absent "\$EFCS_READY_FILE"/u);
+  assert.equal((shellHelper.match(/exact_focus_supervision_remove_expected_ready "\$(?:supervised_pid|EFCS_PID)"/gu) ?? []).length, 2);
   assert.match(shellHelper, /exact_focus_supervision_settle_late_group_record \|\| return 125/u);
   assert.match(shellHelper, /--admission-ack-file \$EFCS_ADMISSION_ACK_FILE/u);
-  assert.match(shellHelper, /rm -f "\$EFCS_ADMISSION_ACK_FILE" "\$EFCS_GROUP_PID_FILE"/u);
   assert.match(shellHelper, /attempt < 80[\s\S]+exact_focus_supervision_pause 5[\s\S]+attempt < 60[\s\S]+exact_focus_supervision_pause 2/u);
-  assert.match(admissionDelayOracle, /--validate-guardian-identity[\s\S]+--validate-owned-group-record[\s\S]+marker_mode[\s\S]+marker_size[\s\S]+== entered/u);
+  assert.match(admissionDelayOracle, /--read-owner-record[\s\S]+--validate-owned-group-record[\s\S]+marker_mode[\s\S]+marker_size[\s\S]+== entered/u);
   assert.doesNotMatch(admissionDelayOracle, /\bkill\b|stop_(?:group|pid)/u);
-  assert.match(shellHelper, /typeset -gi EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK=0[\s\S]+--self-test-ready-delay-entered-file[\s\S]+while \[\[ ! -e "\$EFCS_READY_FILE"[\s\S]+EFCS_FAIL_HANDSHAKE_AFTER_ADMISSION_ACK == 1[\s\S]+admission_delay_oracle_is_valid[\s\S]+EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK=1[\s\S]+break[\s\S]+EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK == 0[\s\S]+-f "\$EFCS_READY_FILE"[\s\S]+EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK == 1/u);
+  assert.match(shellHelper, /typeset -gi EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK=0[\s\S]+--self-test-ready-delay-entered-file[\s\S]+while exact_focus_supervision_path_is_absent "\$EFCS_READY_FILE"[\s\S]+EFCS_FAIL_HANDSHAKE_AFTER_ADMISSION_ACK == 1[\s\S]+admission_delay_oracle_is_valid[\s\S]+EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK=1[\s\S]+break[\s\S]+--read-supervisor-ready "\$EFCS_READY_FILE"[\s\S]+EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK == 1/u);
   assert.match(handshakeScenario, /EFCS_READY_DELAY_ENTERED_FILE="\$EFCS_TMP_ROOT\/handshake-delay-entered"[\s\S]+EFCS_READY_DELAY_MS=8000 EFCS_FAIL_HANDSHAKE_AFTER_ADMISSION_ACK=1[\s\S]+\/bin\/true[\s\S]+ack_abort_observed="\$EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK"[\s\S]+EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK=0[\s\S]+SUPERVISOR_HANDSHAKE_ACK_ABORT_NOT_OBSERVED[\s\S]+SUPERVISOR_HANDSHAKE_FLAG_MISSING[\s\S]+SUPERVISOR_HANDSHAKE_OWNERSHIP_FILES_RETAINED[\s\S]+SUPERVISOR_HANDSHAKE_STATE_RETAINED/u);
   const admissionCommit = supervisor.indexOf('await sendAdmissionCommit(guardian)');
   const exactAdmissionAck = supervisor.indexOf('ownedGroupRecordIsValid(admissionAckFile');
@@ -328,10 +387,9 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
   assert.ok(proofProtocolContract.split('\n').length - 1 < 700);
   assert.ok(supervisionContract.split('\n').length - 1 < 700);
 });
-
 test('sourced-shell guardian identity observation handles disappearance and live mismatch', () => {
-  const empty = path.join(process.env.TMPDIR ?? '/tmp', `aos-clear-state-${process.pid}-${Date.now()}`);
-  const identity = `${empty}.identity`; const leader = '424242'; const token = 'a'.repeat(32);
+  const empty = fs.mkdtempSync(path.join(process.env.TMPDIR ?? '/tmp', 'aos-clear-state-'));
+  const identity = path.join(empty, 'identity'); const leader = '424242'; const token = 'a'.repeat(32);
   fs.writeFileSync(identity, `${leader} ${token}\n`, { mode: 0o600 });
   const result = spawnSync('zsh', ['-c', `
     . "$1"
@@ -339,6 +397,27 @@ test('sourced-shell guardian identity observation handles disappearance and live
       "$1" "$1" "$3" "$1" "$2" "$2/group" "$2/out" "$2/err"
     exact_focus_supervision_admission_state_is_clear || exit 11
     exact_focus_supervision_quiesce || exit 12
+    for candidate in "$2/group" "$2/group.admission-ack" "$2/ready"; do
+      /bin/ln -s "$2/missing" "$candidate"; exact_focus_supervision_path_is_absent "$candidate" && exit 15
+      if [[ "$candidate" != "$2/ready" ]] \
+        && exact_focus_supervision_admission_state_is_clear; then exit 16; fi
+      rm -f "$candidate"
+    done
+    /bin/ln -s "$2/missing" "$2/group"; exact_focus_supervision_stop_group && exit 17
+    EFCS_LAST_SUPERVISOR_STATUS=125 EFCS_LAST_SUPERVISOR_DETAIL=group_reap_failed
+    EFCS_LAST_SUPERVISOR_STAGE=final_group_reap EFCS_LAST_SUPERVISOR_REASON=timeout
+    EFCS_LAST_GROUP_REAP_PROVEN=1
+    exact_focus_supervision_reconcile_outer_reap 125
+    [[ "$REPLY" == 125 && "$EFCS_OUTER_REAP_RECOVERED" == 0 ]] || exit 18
+    exact_focus_supervision_quiesce && exit 19
+    rm -f "$2/group"
+    print -r -- "999999 $6" > "$2/group"; chmod 600 "$2/group"
+    /bin/ln -s "$2/missing" "$2/group.admission-ack"; exact_focus_supervision_stop_group && exit 20
+    [[ -f "$2/group" && -L "$2/group.admission-ack" ]] || exit 21
+    rm -f "$2/group" "$2/group.admission-ack"
+    EFCS_READY_FILE="$2/ready"; /bin/ln -s "$2/missing" "$EFCS_READY_FILE"; exact_focus_supervision_quiesce && exit 22
+    [[ -L "$EFCS_READY_FILE" ]] || exit 23
+    rm -f "$EFCS_READY_FILE"; EFCS_READY_FILE=""
     EFCS_GUARDIAN_IDENTITY_REQUIRED=1
     exact_focus_supervision_admission_state_is_clear && exit 13
     exact_focus_supervision_quiesce && exit 14
@@ -361,12 +440,11 @@ test('sourced-shell guardian identity observation handles disappearance and live
   `, 'identity-race', shellHelperPath, empty, protocolPath, identity, leader, token], {
     cwd: root, encoding: 'utf8', timeout: 2_000,
   });
-  fs.rmSync(identity, { force: true });
+  fs.rmSync(empty, { force: true, recursive: true });
   assert.equal(result.status, 0, diagnostics(result));
   assert.equal(result.stdout, '1 2 retained\n');
   assert.equal(result.stderr, '');
 });
-
 test('sourced-shell ownership token matching requires a trailing whitespace boundary', () => {
   const token = 'a'.repeat(32);
   const result = spawnSync('zsh', ['-c', `
@@ -385,7 +463,6 @@ test('sourced-shell ownership token matching requires a trailing whitespace boun
   assert.equal(result.stdout, 'boundary-enforced\n');
   assert.equal(result.stderr, '');
 });
-
 test('abnormal process outcomes and outer-reap reconciliation fail closed', () => {
   const outcome = spawnSync('node', [selfTestHelperPath, '--process-outcome-self-test'], {
     cwd: root, encoding: 'utf8', timeout: 2_000,
@@ -433,7 +510,6 @@ test('abnormal process outcomes and outer-reap reconciliation fail closed', () =
     fs.rmSync(temporaryRoot, { force: true, recursive: true });
   }
 });
-
 test('supervisor deadlines reap exact groups and initialized descendants', () => {
   expectScenario('--timeout-self-test', { owned_process_group_reaped: true, status: 'passed' },
     BASIC_TIMEOUT_OUTER_MS);
@@ -448,7 +524,6 @@ test('supervisor deadlines reap exact groups and initialized descendants', () =>
     expectScenario(mode, expected, limit);
   }
 });
-
 test('payload exit status and outer timeout reap remain distinct end to end', () => {
   for (const [mode, expected] of [
     ['--supervisor-payload-exit1-self-test', expectedWithStandardFinalizer({
@@ -473,7 +548,6 @@ test('payload exit status and outer timeout reap remain distinct end to end', ()
     expectScenario(mode, expected);
   }
 });
-
 test('secondary group-record removal preserves the original supervisor failure', () => {
   for (const [mode, expected] of [
     ['--supervisor-payload-exit1-remove-failure-self-test', expectedWithStandardFinalizer({
@@ -492,7 +566,6 @@ test('secondary group-record removal preserves the original supervisor failure',
     expectScenario(mode, expected);
   }
 });
-
 test('durable guardian identity failures retain recovery state without admitting payload', () => {
   for (const [mode, expected] of [
     ['--supervisor-guardian-identity-publication-failure-self-test', {
@@ -504,7 +577,6 @@ test('durable guardian identity failures retain recovery state without admitting
     expectScenario(mode, expected);
   }
 });
-
 test('injected supervisor stages remain typed through real shell cleanup', () => {
   for (const [mode, detail, reason, stage] of [
     ['--supervisor-post-ready-exception-self-test',
@@ -524,7 +596,6 @@ test('injected supervisor stages remain typed through real shell cleanup', () =>
     }));
   }
 });
-
 test('progress and runProgram timeouts remain typed after outer group reaping', () => {
   const progress = run('--progress-timeout-self-test', 30_000);
   const progressDiagnostics = diagnostics(progress);
@@ -538,7 +609,6 @@ test('progress and runProgram timeouts remain typed after outer group reaping', 
   assert.equal(receipt.last_started_stage, 'initial_capture', progressDiagnostics);
   assert.equal(receipt.last_completed_stage, 'target_channel_creation', progressDiagnostics);
   assert.ok(Number.isSafeInteger(receipt.progress_elapsed_ms), progressDiagnostics);
-
   const readiness = spawnSync('node', [selfTestHelperPath, '--run-program-timeout-readiness-self-test'], {
     cwd: root, encoding: 'utf8', timeout: 3_000,
   });
@@ -562,7 +632,6 @@ test('progress and runProgram timeouts remain typed after outer group reaping', 
   }), diagnostics(timeout));
   assert.doesNotMatch(`${timeout.stdout}\n${timeout.stderr}`, /RAW_PROGRESS_SENTINEL_MUST_NOT_LEAK/u);
 });
-
 test('cleanup progress sanitization stays bounded under supervised timeout', () => {
   expectScenario('--progress-sanitizer-timeout-self-test', expectedWithStandardFinalizer({
     cleanup_complete: true,
@@ -570,13 +639,11 @@ test('cleanup progress sanitization stays bounded under supervised timeout', () 
     status: 'passed',
   }), 12_000);
 });
-
 test('fast-exit handshake cleanup uses the durable admission acknowledgment', () => {
   expectScenario('--supervisor-handshake-delay-self-test', {
     supervisor_start_handshake_fail_closed: true, status: 'passed',
   }, 18_000);
 });
-
 test('guardian-owned records gate payload admission and remain recoverable', () => {
   for (const [mode, expected] of [
     ['--supervisor-admission-success-self-test', expectedWithStandardFinalizer({
@@ -610,7 +677,6 @@ test('guardian-owned records gate payload admission and remain recoverable', () 
     expectScenario(mode, expected, 20_000);
   }
 });
-
 test('final reap handlers survive repeated TERM until descendants are gone', () => {
   expectScenario('--supervisor-final-reap-signal-self-test', expectedWithStandardFinalizer({
     cleanup_complete: true,
@@ -618,7 +684,6 @@ test('final reap handlers survive repeated TERM until descendants are gone', () 
     status: 'passed',
   }), 18_000);
 });
-
 test('outer shell reaps the live exact guardian after supervisor SIGKILL', () => {
   expectScenario('--supervisor-crash-after-payload-outcome-self-test',
     expectedWithStandardFinalizer({

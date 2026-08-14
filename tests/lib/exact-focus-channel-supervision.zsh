@@ -82,21 +82,55 @@ exact_focus_supervision_command_has_ownership_token() {
   [[ "$command" =~ $pattern ]]
 }
 
+exact_focus_supervision_path_is_absent() {
+  (( $# == 1 )) || return 2
+  [[ ! -e "$1" && ! -L "$1" ]]
+}
+
+exact_focus_supervision_remove_identical_owner_records() {
+  local file projection identity=""
+  for file in "$EFCS_GROUP_PID_FILE" "$EFCS_ADMISSION_ACK_FILE" \
+    "$EFCS_GUARDIAN_IDENTITY_FILE"; do
+    exact_focus_supervision_path_is_absent "$file" && continue
+    projection="$(/usr/bin/env node "$EFCS_SUPERVISION_PROTOCOL" \
+      --read-owner-record "$file" 2>/dev/null)" || return 1
+    [[ -z "$identity" ]] && identity="$projection" || [[ "$projection" == "$identity" ]] || return 1
+  done
+  [[ -n "$identity" ]] || return 1
+  rm -f -- "$EFCS_ADMISSION_ACK_FILE" "$EFCS_GROUP_PID_FILE" \
+    "$EFCS_GUARDIAN_IDENTITY_FILE" || return 1
+  for file in "$EFCS_GROUP_PID_FILE" "$EFCS_ADMISSION_ACK_FILE" \
+    "$EFCS_GUARDIAN_IDENTITY_FILE"; do
+    exact_focus_supervision_path_is_absent "$file" || return 1
+  done
+}
+
+exact_focus_supervision_remove_expected_ready() {
+  (( $# == 1 )) || return 2
+  exact_focus_supervision_path_is_absent "$EFCS_READY_FILE" && return 0
+  local projection
+  projection="$(/usr/bin/env node "$EFCS_SUPERVISION_PROTOCOL" \
+    --read-supervisor-ready "$EFCS_READY_FILE" 2>/dev/null)" || return 1
+  [[ "$projection" == "$1" ]] || return 1
+  rm -f -- "$EFCS_READY_FILE" || return 1
+  exact_focus_supervision_path_is_absent "$EFCS_READY_FILE"
+}
+
 exact_focus_supervision_admission_state_is_clear() {
-  [[ ! -e "$EFCS_GROUP_PID_FILE" && ! -e "$EFCS_ADMISSION_ACK_FILE" \
-    && -z "$EFCS_PID" && -z "$EFCS_READY_FILE" ]] || return 1
+  exact_focus_supervision_path_is_absent "$EFCS_GROUP_PID_FILE" \
+    && exact_focus_supervision_path_is_absent "$EFCS_ADMISSION_ACK_FILE" \
+    && [[ -z "$EFCS_PID" && -z "$EFCS_READY_FILE" ]] || return 1
   (( EFCS_GUARDIAN_IDENTITY_REQUIRED == 0 ))
 }
 
 exact_focus_supervision_admission_delay_oracle_is_valid() {
-  local leader_pid="" token="" marker_mode="" marker_size=""
+  local leader_pid="" token="" owner_record="" marker_mode="" marker_size=""
   [[ -f "$EFCS_GUARDIAN_IDENTITY_FILE" && ! -L "$EFCS_GUARDIAN_IDENTITY_FILE" \
     && -f "$EFCS_ADMISSION_ACK_FILE" && ! -L "$EFCS_ADMISSION_ACK_FILE" \
     && -f "$EFCS_READY_DELAY_ENTERED_FILE" && ! -L "$EFCS_READY_DELAY_ENTERED_FILE" ]] || return 1
-  read -r leader_pid token < "$EFCS_GUARDIAN_IDENTITY_FILE" || return 1
-  [[ "$leader_pid" == <-> && "$token" =~ '^[0-9a-f]{32}$' ]] || return 1
-  /usr/bin/env node "$EFCS_SUPERVISION_PROTOCOL" --validate-guardian-identity \
-    "$EFCS_GUARDIAN_IDENTITY_FILE" "$leader_pid" "$token" || return 1
+  owner_record="$(/usr/bin/env node "$EFCS_SUPERVISION_PROTOCOL" --read-owner-record \
+    "$EFCS_GUARDIAN_IDENTITY_FILE" 2>/dev/null)" || return 1
+  read -r leader_pid token <<< "$owner_record" || return 1
   /usr/bin/env node "$EFCS_SUPERVISION_PROTOCOL" --validate-owned-group-record \
     "$EFCS_ADMISSION_ACK_FILE" "$leader_pid" "$token" || return 1
   marker_mode="$(/usr/bin/stat -f '%Lp' "$EFCS_READY_DELAY_ENTERED_FILE" 2>/dev/null || true)"
@@ -107,12 +141,11 @@ exact_focus_supervision_admission_delay_oracle_is_valid() {
 
 exact_focus_supervision_owned_group_pid_from_file() {
   local ownership_file="$1"
-  [[ -f "$ownership_file" && ! -L "$ownership_file" ]] || return 1
-  local pgid token actual_pgid command attempt=0
-  read -r pgid token < "$ownership_file" || return 2
-  [[ "$pgid" == <-> && "$token" =~ '^[0-9a-f]{32}$' ]] || return 2
-  /usr/bin/env node "$EFCS_SUPERVISION_PROTOCOL" --validate-guardian-identity \
-    "$ownership_file" "$pgid" "$token" || return 2
+  [[ -e "$ownership_file" || -L "$ownership_file" ]] || return 1
+  local pgid token owner_record actual_pgid command attempt=0
+  owner_record="$(/usr/bin/env node "$EFCS_SUPERVISION_PROTOCOL" --read-owner-record \
+    "$ownership_file" 2>/dev/null)" || return 2
+  read -r pgid token <<< "$owner_record" || return 2
   while (( attempt < 20 )); do
     actual_pgid="$(exact_focus_supervision_process_group_id "$pgid" || true)"
     command=""
@@ -150,8 +183,9 @@ exact_focus_supervision_stop_group() {
     ownership_file="$EFCS_GROUP_PID_FILE"
   elif [[ -f "$EFCS_ADMISSION_ACK_FILE" && ! -L "$EFCS_ADMISSION_ACK_FILE" ]]; then
     ownership_file="$EFCS_ADMISSION_ACK_FILE"
-  elif [[ ! -e "$EFCS_GROUP_PID_FILE" && ! -e "$EFCS_ADMISSION_ACK_FILE" \
-    && ! -e "$EFCS_GUARDIAN_IDENTITY_FILE" ]]; then
+  elif exact_focus_supervision_path_is_absent "$EFCS_GROUP_PID_FILE" \
+    && exact_focus_supervision_path_is_absent "$EFCS_ADMISSION_ACK_FILE" \
+    && exact_focus_supervision_path_is_absent "$EFCS_GUARDIAN_IDENTITY_FILE"; then
     return 0
   else
     return 1
@@ -160,8 +194,7 @@ exact_focus_supervision_stop_group() {
   pgid="$(exact_focus_supervision_owned_group_pid_from_file "$ownership_file" 2>/dev/null)" \
     || lookup_status="$?"
   if (( lookup_status == 1 )); then
-    rm -f "$EFCS_ADMISSION_ACK_FILE" "$EFCS_GROUP_PID_FILE" \
-      "$EFCS_GUARDIAN_IDENTITY_FILE" || return 1
+    exact_focus_supervision_remove_identical_owner_records || return 1
     EFCS_GUARDIAN_IDENTITY_REQUIRED=0
     EFCS_LAST_GROUP_REAP_PROVEN=1
     return 0
@@ -182,8 +215,7 @@ exact_focus_supervision_stop_group() {
     (( attempt += 1 ))
   done
   exact_focus_supervision_group_exists "$pgid" && return 1
-  rm -f "$EFCS_ADMISSION_ACK_FILE" "$EFCS_GROUP_PID_FILE" \
-    "$EFCS_GUARDIAN_IDENTITY_FILE" || return 1
+  exact_focus_supervision_remove_identical_owner_records || return 1
   EFCS_GUARDIAN_IDENTITY_REQUIRED=0
   EFCS_LAST_GROUP_REAP_PROVEN=1
 }
@@ -191,10 +223,11 @@ exact_focus_supervision_stop_group() {
 exact_focus_supervision_settle_late_group_record() {
   local attempt=0
   while (( attempt < 1000 )); do
-    if [[ -e "$EFCS_GUARDIAN_IDENTITY_FILE" ]]; then
+    if ! exact_focus_supervision_path_is_absent "$EFCS_GUARDIAN_IDENTITY_FILE"; then
       exact_focus_supervision_stop_group || return 1
-      [[ ! -e "$EFCS_GROUP_PID_FILE" && ! -e "$EFCS_ADMISSION_ACK_FILE" \
-        && ! -e "$EFCS_GUARDIAN_IDENTITY_FILE" ]] || return 1
+      exact_focus_supervision_path_is_absent "$EFCS_GROUP_PID_FILE" \
+        && exact_focus_supervision_path_is_absent "$EFCS_ADMISSION_ACK_FILE" \
+        && exact_focus_supervision_path_is_absent "$EFCS_GUARDIAN_IDENTITY_FILE" || return 1
       return 0
     fi
     exact_focus_supervision_pause 1
@@ -282,8 +315,10 @@ exact_focus_supervision_reconcile_outer_reap() {
     && "$EFCS_LAST_SUPERVISOR_STAGE" == final_group_reap \
     && "$EFCS_LAST_SUPERVISOR_REASON" == timeout ]] \
     && (( EFCS_LAST_GROUP_REAP_PROVEN == 1 )) \
-    && [[ ! -e "$EFCS_GROUP_PID_FILE" && ! -e "$EFCS_ADMISSION_ACK_FILE" \
-      && ( -z "$EFCS_GUARDIAN_IDENTITY_FILE" || ! -e "$EFCS_GUARDIAN_IDENTITY_FILE" ) ]]; then
+    && exact_focus_supervision_path_is_absent "$EFCS_GROUP_PID_FILE" \
+    && exact_focus_supervision_path_is_absent "$EFCS_ADMISSION_ACK_FILE" \
+    && { [[ -z "$EFCS_GUARDIAN_IDENTITY_FILE" ]] \
+      || exact_focus_supervision_path_is_absent "$EFCS_GUARDIAN_IDENTITY_FILE"; }; then
     REPLY=124
     EFCS_OUTER_REAP_RECOVERED=1
   fi
@@ -315,9 +350,10 @@ exact_focus_supervision_run_to_files() {
   EFCS_READY_FILE="$EFCS_TMP_ROOT/supervisor-ready-$EFCS_SEQUENCE"
   EFCS_GUARDIAN_IDENTITY_FILE="$EFCS_TMP_ROOT/supervisor-guardian-$EFCS_SEQUENCE.identity"
   EFCS_GUARDIAN_IDENTITY_REQUIRED=1
-  [[ ! -e "$EFCS_READY_FILE" && ! -e "$EFCS_GUARDIAN_IDENTITY_FILE" \
-    && ( -z "$EFCS_READY_DELAY_ENTERED_FILE" || ( ! -e "$EFCS_READY_DELAY_ENTERED_FILE" \
-      && ! -L "$EFCS_READY_DELAY_ENTERED_FILE" ) ) ]] || {
+  exact_focus_supervision_path_is_absent "$EFCS_READY_FILE" \
+    && exact_focus_supervision_path_is_absent "$EFCS_GUARDIAN_IDENTITY_FILE" \
+    && { [[ -z "$EFCS_READY_DELAY_ENTERED_FILE" ]] \
+      || exact_focus_supervision_path_is_absent "$EFCS_READY_DELAY_ENTERED_FILE"; } || {
     EFCS_HANDSHAKE_FAILED=1
     return 125
   }
@@ -419,14 +455,10 @@ exact_focus_supervision_run_to_files() {
       zmodload zsh/zselect
       integer attempt=0
       while (( attempt < 600 )); do
-        if [[ -f "$1" && ! -L "$1" ]]; then
-          marker="$(<"$1")"
-          leader_pid="${marker%% *}"
-          token="${marker#* }"
-          [[ "$leader_pid" == <-> && "${#token}" == 32 && "$token" != *[^0-9a-f]* ]] || exit 1
+        if [[ -e "$1" || -L "$1" ]]; then
+          marker="$(/usr/bin/env node "$4" --read-owner-record "$1" 2>/dev/null)" || exit 1
+          read -r leader_pid token <<< "$marker" || exit 1
           /bin/kill -0 "$leader_pid" || exit 1
-          /usr/bin/env node "$4" --validate-owned-group-record "$1" "$leader_pid" "$token" \
-            || exit 1
           /bin/kill -TERM "$2" || exit 1
           umask 077
           print -r -- "sent-before-admission $leader_pid" > "$3.tmp"
@@ -467,8 +499,9 @@ exact_focus_supervision_run_to_files() {
     EFCS_SIGNAL_SENDER_PID="$!"
   fi
 
-  local attempt=0 ready_pid="" ready_mode="" ready_size=""
-  while [[ ! -e "$EFCS_READY_FILE" ]] && kill -0 "$supervised_pid" 2>/dev/null && (( attempt < 600 )); do
+  local attempt=0 ready_pid=""
+  while exact_focus_supervision_path_is_absent "$EFCS_READY_FILE" \
+    && kill -0 "$supervised_pid" 2>/dev/null && (( attempt < 600 )); do
     if (( EFCS_FAIL_HANDSHAKE_AFTER_ADMISSION_ACK == 1 )) \
       && exact_focus_supervision_admission_delay_oracle_is_valid; then
       EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK=1
@@ -478,19 +511,18 @@ exact_focus_supervision_run_to_files() {
     (( attempt += 1 ))
   done
   if (( EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK == 0 )) \
-    && [[ -f "$EFCS_READY_FILE" && ! -L "$EFCS_READY_FILE" ]]; then
-    ready_mode="$(/usr/bin/stat -f '%Lp' "$EFCS_READY_FILE" 2>/dev/null || true)"
-    ready_size="$(/usr/bin/stat -f '%z' "$EFCS_READY_FILE" 2>/dev/null || true)"
-    ready_pid="$(<"$EFCS_READY_FILE")"
+    && [[ -e "$EFCS_READY_FILE" || -L "$EFCS_READY_FILE" ]]; then
+    ready_pid="$(/usr/bin/env node "$EFCS_SUPERVISION_PROTOCOL" \
+      --read-supervisor-ready "$EFCS_READY_FILE" 2>/dev/null)" || ready_pid=""
   fi
   if (( EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK == 1 )) \
-    || [[ "$ready_pid" != "$supervised_pid" || "$ready_pid" != <-> || "$ready_mode" != 600 \
-    || "$ready_size" != <-> ]] || (( ready_size < 2 || ready_size > 32 )); then
+    || [[ "$ready_pid" != "$supervised_pid" ]]; then
     EFCS_HANDSHAKE_FAILED=1
     exact_focus_supervision_stop_pid "$supervised_pid" || return 125
     exact_focus_supervision_settle_late_group_record || return 125
-    [[ ! -e "$EFCS_GROUP_PID_FILE" && ! -e "$EFCS_ADMISSION_ACK_FILE" \
-      && ! -e "$EFCS_GUARDIAN_IDENTITY_FILE" ]] || return 125
+    exact_focus_supervision_path_is_absent "$EFCS_GROUP_PID_FILE" \
+      && exact_focus_supervision_path_is_absent "$EFCS_ADMISSION_ACK_FILE" \
+      && exact_focus_supervision_path_is_absent "$EFCS_GUARDIAN_IDENTITY_FILE" || return 125
     wait "$supervised_pid" 2>/dev/null || true
     exact_focus_supervision_finish_sender || EFCS_HANDSHAKE_FAILED=1
     EFCS_PID=""
@@ -538,12 +570,13 @@ exact_focus_supervision_run_to_files() {
     exact_focus_supervision_set_shell_finalizer_failure 125
     return 125
   }
-  [[ ! -e "$EFCS_GROUP_PID_FILE" && ! -e "$EFCS_ADMISSION_ACK_FILE" \
-    && ! -e "$EFCS_GUARDIAN_IDENTITY_FILE" ]] || {
+  exact_focus_supervision_path_is_absent "$EFCS_GROUP_PID_FILE" \
+    && exact_focus_supervision_path_is_absent "$EFCS_ADMISSION_ACK_FILE" \
+    && exact_focus_supervision_path_is_absent "$EFCS_GUARDIAN_IDENTITY_FILE" || {
     exact_focus_supervision_set_shell_finalizer_failure 125
     return 125
   }
-  rm -f "$EFCS_READY_FILE" || {
+  exact_focus_supervision_remove_expected_ready "$supervised_pid" || {
     exact_focus_supervision_set_shell_finalizer_failure 125
     return 125
   }
@@ -576,14 +609,17 @@ exact_focus_supervision_quiesce() {
   exact_focus_supervision_stop_pid "$EFCS_PID" || true
   exact_focus_supervision_stop_group || true
   [[ -z "$EFCS_PID" ]] || ! kill -0 "$EFCS_PID" 2>/dev/null || failed=1
-  if [[ ! -e "$EFCS_GROUP_PID_FILE" && ! -e "$EFCS_ADMISSION_ACK_FILE" \
-    && ( -z "$EFCS_GUARDIAN_IDENTITY_FILE" || ! -e "$EFCS_GUARDIAN_IDENTITY_FILE" ) ]]; then
+  if exact_focus_supervision_path_is_absent "$EFCS_GROUP_PID_FILE" \
+    && exact_focus_supervision_path_is_absent "$EFCS_ADMISSION_ACK_FILE" \
+    && { [[ -z "$EFCS_GUARDIAN_IDENTITY_FILE" ]] \
+      || exact_focus_supervision_path_is_absent "$EFCS_GUARDIAN_IDENTITY_FILE"; }; then
     (( EFCS_GUARDIAN_IDENTITY_REQUIRED == 0 )) || failed=1
   else
     failed=1
   fi
   if (( failed == 0 )); then
-    [[ -z "$EFCS_READY_FILE" ]] || rm -f "$EFCS_READY_FILE" || failed=1
+    [[ -z "$EFCS_READY_FILE" ]] \
+      || exact_focus_supervision_remove_expected_ready "$EFCS_PID" || failed=1
   fi
   if (( failed == 0 )); then
     EFCS_READY_FILE=""

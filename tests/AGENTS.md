@@ -209,6 +209,13 @@ tests.
   it may depend on the model but not the runtime or driver.
   `exact-focus-channel-private-records.swift` owns the matching pure Swift
   publisher, and its non-AppKit harness owns deterministic publication proofs.
+  Supervision owner, supervisor-ready, and progress records must use the shared
+  bounded supervision-protocol reader and exact CLI projections; shell cleanup
+  may consume those projections but must never reopen the record pathname.
+  Grouped owner cleanup must authenticate every present sibling and require
+  exact identity agreement; ready cleanup must match the expected supervisor PID.
+  Broken record symlinks are present-invalid lifecycle state, never absence;
+  reconciliation and quiescence must retain them and fail closed.
   Private recovery,
   fixture-result, close-ack, and cleanup-report JSON readers must use held
   no-follow/nonblocking descriptors with exact owner-only mode, UTF-8, byte,

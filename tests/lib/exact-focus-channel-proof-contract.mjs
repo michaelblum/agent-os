@@ -1,7 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { supervisorProjectionIsValid } from './exact-focus-channel-supervision-protocol.mjs';
+import {
+  readBoundedRegularFile,
+  supervisorProjectionIsValid,
+} from './exact-focus-channel-supervision-protocol.mjs';
 
 export const AOS_COMMAND_ERROR_MAX_BYTES = 2_048;
 export const AOS_COMMAND_ERROR_CODE_LIST = Object.freeze([
@@ -335,20 +338,13 @@ export function unknownSanitizedProgress() {
   };
 }
 
-export function validatedProgressReceipt(file) {
-  let descriptor = null;
+export function validatedProgressReceipt(file, seams = {}) {
   try {
-    const noFollow = fs.constants.O_NOFOLLOW;
-    if (!Number.isInteger(noFollow) || noFollow === 0) return null;
-    descriptor = fs.openSync(file, fs.constants.O_RDONLY | noFollow);
-    const metadata = fs.fstatSync(descriptor);
-    if (!metadata.isFile() || metadata.size < 1 || metadata.size > PROGRESS_MAX_BYTES) return null;
-    if ((metadata.mode & 0o777) !== 0o600) return null;
-    const bytes = Buffer.alloc(metadata.size);
-    if (fs.readSync(descriptor, bytes, 0, bytes.length, 0) !== bytes.length) return null;
+    const bytes = readBoundedRegularFile(file, PROGRESS_MAX_BYTES, 0o600, seams);
+    if (bytes === null) return null;
     const text = bytes.toString('utf8');
-    if (!Buffer.from(text, 'utf8').equals(bytes)) return null;
-    const receipt = JSON.parse(text);
+    if (!text.endsWith('\n') || text.indexOf('\n') !== text.length - 1) return null;
+    const receipt = JSON.parse(text.slice(0, -1));
     if (!exactKeys(receipt, [
       'elapsed_ms', 'last_completed_stage', 'last_started_stage', 'ordinal', 'schema',
     ])) return null;
@@ -362,8 +358,6 @@ export function validatedProgressReceipt(file) {
     return receipt;
   } catch {
     return null;
-  } finally {
-    if (descriptor !== null) try { fs.closeSync(descriptor); } catch {}
   }
 }
 

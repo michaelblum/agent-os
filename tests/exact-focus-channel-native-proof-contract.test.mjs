@@ -795,27 +795,27 @@ test('exact focus-channel progress sanitizer fails closed without reflecting unt
     const oversized = path.join(tempRoot, 'oversized.json');
     const symlinkTarget = path.join(tempRoot, 'symlink-target.json');
     const symlink = path.join(tempRoot, 'progress-link.json');
-    fs.writeFileSync(corrupt, `{${rawSentinel}`, { mode: 0o600 });
-    fs.writeFileSync(oversized, `${rawSentinel}${'x'.repeat(2_048)}`, { mode: 0o600 });
-    fs.writeFileSync(valid, JSON.stringify(validReceipt), { mode: 0o600 });
-    fs.writeFileSync(wrongMode, JSON.stringify(validReceipt), { mode: 0o600 });
+    fs.writeFileSync(corrupt, `{${rawSentinel}\n`, { mode: 0o600 });
+    fs.writeFileSync(oversized, `${rawSentinel}${'x'.repeat(2_048)}\n`, { mode: 0o600 });
+    fs.writeFileSync(valid, `${JSON.stringify(validReceipt)}\n`, { mode: 0o600 });
+    fs.writeFileSync(wrongMode, `${JSON.stringify(validReceipt)}\n`, { mode: 0o600 });
     fs.chmodSync(wrongMode, 0o644);
     fs.writeFileSync(
       impossibleStage,
-      JSON.stringify({ ...validReceipt, last_started_stage: 'initial_capture' }),
+      `${JSON.stringify({ ...validReceipt, last_started_stage: 'initial_capture' })}\n`,
       { mode: 0o600 },
     );
     fs.writeFileSync(
       impossibleOrdinal,
-      JSON.stringify({ ...validReceipt, ordinal: 29 }),
+      `${JSON.stringify({ ...validReceipt, ordinal: 29 })}\n`,
       { mode: 0o600 },
     );
     fs.writeFileSync(
       impossibleCompletion,
-      JSON.stringify({ ...validReceipt, last_completed_stage: 'runtime_preflight' }),
+      `${JSON.stringify({ ...validReceipt, last_completed_stage: 'runtime_preflight' })}\n`,
       { mode: 0o600 },
     );
-    fs.writeFileSync(symlinkTarget, JSON.stringify(validReceipt), { mode: 0o600 });
+    fs.writeFileSync(symlinkTarget, `${JSON.stringify(validReceipt)}\n`, { mode: 0o600 });
     fs.symlinkSync(symlinkTarget, symlink);
     const validResult = sanitize(valid);
     assert.equal(validResult.status, 0, validResult.stderr);
@@ -959,8 +959,8 @@ test('exact focus-channel cleanup preserves fixture and recovery ownership', () 
   const timeout = 12_000;
   for (const [mode, expected] of [
     ['--cleanup-self-test', { owned_child_reaped: true, status: 'passed' }],
-    ['--fixture-ownership-self-test',
-      { long_argv_fixture_reaped: true, status: 'passed' }],
+    ['--fixture-ownership-self-test', { fixture_owner_absence_safe: true,
+      fixture_owner_rejections_safe: true, long_argv_fixture_reaped: true, status: 'passed' }],
     ['--pidfile-reuse-self-test', {
       live_unrelated_group_preserved: true, status: 'passed',
       unresolved_group_record_preserved: true,

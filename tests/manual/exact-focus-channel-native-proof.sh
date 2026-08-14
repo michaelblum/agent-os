@@ -125,7 +125,6 @@ stop_owned_pid() {
   wait "$pid" 2>/dev/null || true
   ! kill -0 "$pid" 2>/dev/null
 }
-
 stop_selftest_unrelated_group() {
   local pid="$SELFTEST_UNRELATED_GROUP_PID"
   local token="$SELFTEST_UNRELATED_GROUP_TOKEN"
@@ -161,11 +160,11 @@ stop_selftest_unrelated_group() {
   SELFTEST_UNRELATED_GROUP_TOKEN=""
 }
 stop_owned_fixture() {
-  [[ -f "$FIXTURE_PID_FILE" ]] || return 0
-  local pid token
-  read -r pid token < "$FIXTURE_PID_FILE" || return 1
-  [[ "$pid" == <-> ]] || return 1
-  [[ "$token" =~ '^[0-9a-f]{32}$' ]] || return 1
+  [[ -e "$FIXTURE_PID_FILE" || -L "$FIXTURE_PID_FILE" ]] || return 0
+  local pid token owner_record
+  owner_record="$(/usr/bin/env node "$SUPERVISION_PROTOCOL_SOURCE" --read-owner-record \
+    "$FIXTURE_PID_FILE" 2>/dev/null)" || return 1
+  read -r pid token <<< "$owner_record" || return 1
   if ! kill -0 "$pid" 2>/dev/null; then
     return 0
   fi
@@ -175,7 +174,6 @@ stop_owned_fixture() {
   exact_focus_supervision_command_has_ownership_token "$command" "$token" || return 1
   stop_owned_pid "$pid"
 }
-
 run_channel_cleanup() {
   [[ -f "$DAEMON_IDENTITY_FILE" ]] || return 1
   local cleanup_stdout="$TMP_ROOT/cleanup.stdout"
@@ -190,7 +188,6 @@ run_channel_cleanup() {
       --identity "$DAEMON_IDENTITY_FILE" \
       --unrelated-digests "$TMP_ROOT/unrelated-channel-digests.json"
 }
-
 capture_sanitized_progress() {
   local sanitizer_stdout="$TMP_ROOT/progress-sanitizer.stdout"
   local sanitizer_stderr="$TMP_ROOT/progress-sanitizer.stderr"
@@ -220,7 +217,6 @@ capture_sanitized_progress() {
     SANITIZED_PROGRESS_RECEIPT="$candidate"
   fi
 }
-
 cleanup() {
   if (( CLEANUP_HAS_RUN == 1 )); then
     return 0
@@ -238,7 +234,6 @@ cleanup() {
   else
     cleanup_failed=1
   fi
-
   if (( execution_quiescent == 1 )); then
     # The receipt is untrusted until the sole owned writer and all of its
     # descendants are proven gone. The sanitizer emits only allowlisted fields.
@@ -254,7 +249,6 @@ cleanup() {
       POST_CLEANUP_PIXELS_PERSISTED=1
       cleanup_failed=1
     fi
-
     if (( LIVE_CLEANUP_ARMED == 1 )) && [[ -f "$TMP_ROOT/channel-cleanup-armed" ]]; then
       if (( COMMAND_ADMISSION_AMBIGUOUS == 1 )); then
         # A delayed shared-daemon commit cannot be excluded. Preserve the exact
@@ -270,12 +264,10 @@ cleanup() {
         fi
       fi
     fi
-
     stop_owned_fixture || cleanup_failed=1
   else
     POST_CLEANUP_PIXELS_PERSISTED=1
   fi
-
   if (( cleanup_failed == 1 )); then
     RECOVERY_ROOT_RETAINED=1
     print -u2 -- "native proof cleanup is incomplete; retained recovery root: $TMP_ROOT"
@@ -290,7 +282,6 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-
 compile_helper() {
   local compile_stdout="$TMP_ROOT/compile.stdout"
   local compile_stderr="$TMP_ROOT/compile.stderr"
@@ -311,23 +302,19 @@ compile_helper() {
     return "$compile_status"
   fi
 }
-
 typed_failure_summary() {
   local command_status="$1"
   /usr/bin/env node "$PROOF_CONTRACT_SOURCE" --fallback-driver-summary "$command_status"
 }
-
 validated_summary() {
   local candidate="$1"
   /usr/bin/env node "$PROOF_CONTRACT_SOURCE" --validate-driver-summary "$candidate"
 }
-
 summary_admission_is_nonambiguous() {
   local candidate="$1"
   /usr/bin/env node "$PROOF_CONTRACT_SOURCE" \
     --summary-admission-is-nonambiguous "$candidate"
 }
-
 adopt_driver_summary() {
   local candidate="$1"
   local command_status="$2"
@@ -342,7 +329,6 @@ adopt_driver_summary() {
     SUMMARY="$(typed_failure_summary "$command_status")"
   fi
 }
-
 merge_sanitized_progress() {
   local merged
   if ! merged="$(/usr/bin/env node "$PROOF_CONTRACT_SOURCE" \
@@ -352,7 +338,6 @@ merge_sanitized_progress() {
   fi
   SUMMARY="$merged"
 }
-
 apply_post_cleanup_outcome() {
   local finalized="" invalid_summary="" summary_status=0
   invalid_summary="$(/usr/bin/env node "$PROOF_CONTRACT_SOURCE" \
@@ -378,18 +363,15 @@ apply_post_cleanup_outcome() {
     STATUS=1
   fi
 }
-
 revision_is_valid() {
   [[ "$1" =~ '^[0-9a-f]{40}$' ]]
 }
-
 generate_snapshot_key() {
   /usr/bin/env node -e '
     const { randomBytes } = require("node:crypto");
     process.stdout.write(randomBytes(32).toString("hex"));
   '
 }
-
 case "$MODE" in
   --typecheck)
     TYPECHECK_STDOUT="$TMP_ROOT/typecheck.stdout"
@@ -569,17 +551,42 @@ case "$MODE" in
   --fixture-ownership-self-test)
     BINARY="/bin/zsh"
     TOKEN="0123456789abcdef0123456789abcdef"
-    EMPTY_PADDING_SOURCE=""
-    PADDING="${(l:4096::x:)EMPTY_PADDING_SOURCE}"
-    /bin/zsh -c 'trap "" TERM; zmodload zsh/zselect; while true; do zselect -t 100 || true; done' \
+    EMPTY_PADDING_SOURCE=""; PADDING="${(l:4096::x:)EMPTY_PADDING_SOURCE}"
+    FIXTURE_SIGNAL_FILE="$TMP_ROOT/fixture-owner.signal"; FIXTURE_EXPECTED_FILE="$TMP_ROOT/fixture-owner.expected"; FIXTURE_SYMLINK_TARGET="$TMP_ROOT/fixture-owner.target"
+    FIXTURE_SELFTEST_FAILED=0
+    rm -f -- "$FIXTURE_PID_FILE" "$FIXTURE_SIGNAL_FILE" \
+      "$FIXTURE_EXPECTED_FILE" "$FIXTURE_SYMLINK_TARGET"
+    stop_owned_fixture || FIXTURE_SELFTEST_FAILED=1
+    /bin/zsh -c "trap 'print -r -- term >| \"$FIXTURE_SIGNAL_FILE\"' TERM; zmodload zsh/zselect; while true; do zselect -t 100 || true; done" \
       "$PADDING" --ownership-token "$TOKEN" &
     OWNED_PID="$!"
-    print -r -- "$OWNED_PID $TOKEN" > "$FIXTURE_PID_FILE"
-    if ! stop_owned_fixture || kill -0 "$OWNED_PID" 2>/dev/null; then
-      print -r -- '{"long_argv_fixture_reaped":false,"status":"failed"}'
-      exit 1
+    print -r -- "$OWNED_PID $TOKEN" > "$FIXTURE_EXPECTED_FILE"; chmod 600 "$FIXTURE_EXPECTED_FILE"
+    print -r -- invalid > "$FIXTURE_PID_FILE"; chmod 600 "$FIXTURE_PID_FILE"
+    if stop_owned_fixture || ! kill -0 "$OWNED_PID" 2>/dev/null \
+      || [[ -e "$FIXTURE_SIGNAL_FILE" || -L "$FIXTURE_SIGNAL_FILE" ]] \
+      || [[ ! -f "$FIXTURE_PID_FILE" || -L "$FIXTURE_PID_FILE" ]] \
+      || [[ "$(/usr/bin/stat -f '%Lp' "$FIXTURE_PID_FILE")" != 600 ]] \
+      || ! /usr/bin/cmp -s "$FIXTURE_PID_FILE" <(print -r -- invalid); then FIXTURE_SELFTEST_FAILED=1; fi
+    /bin/cp "$FIXTURE_EXPECTED_FILE" "$FIXTURE_PID_FILE"; chmod 644 "$FIXTURE_PID_FILE"
+    if stop_owned_fixture || ! kill -0 "$OWNED_PID" 2>/dev/null \
+      || [[ -e "$FIXTURE_SIGNAL_FILE" || -L "$FIXTURE_SIGNAL_FILE" ]] \
+      || [[ "$(/usr/bin/stat -f '%Lp' "$FIXTURE_PID_FILE")" != 644 ]] \
+      || ! /usr/bin/cmp -s "$FIXTURE_PID_FILE" "$FIXTURE_EXPECTED_FILE"; then FIXTURE_SELFTEST_FAILED=1; fi
+    /bin/mv "$FIXTURE_PID_FILE" "$FIXTURE_SYMLINK_TARGET"
+    /bin/ln -s "$FIXTURE_SYMLINK_TARGET" "$FIXTURE_PID_FILE"
+    if stop_owned_fixture || ! kill -0 "$OWNED_PID" 2>/dev/null \
+      || [[ -e "$FIXTURE_SIGNAL_FILE" || -L "$FIXTURE_SIGNAL_FILE" ]] \
+      || [[ ! -L "$FIXTURE_PID_FILE" || "$(readlink "$FIXTURE_PID_FILE")" != "$FIXTURE_SYMLINK_TARGET" ]] \
+      || ! /usr/bin/cmp -s "$FIXTURE_SYMLINK_TARGET" "$FIXTURE_EXPECTED_FILE"; then FIXTURE_SELFTEST_FAILED=1; fi
+    rm -f -- "$FIXTURE_PID_FILE"; /bin/cp "$FIXTURE_EXPECTED_FILE" "$FIXTURE_PID_FILE"
+    if ! stop_owned_fixture || kill -0 "$OWNED_PID" 2>/dev/null; then FIXTURE_SELFTEST_FAILED=1; fi
+    stop_owned_pid "$OWNED_PID" || FIXTURE_SELFTEST_FAILED=1
+    rm -f -- "$FIXTURE_PID_FILE" "$FIXTURE_SIGNAL_FILE" \
+      "$FIXTURE_EXPECTED_FILE" "$FIXTURE_SYMLINK_TARGET"
+    if (( FIXTURE_SELFTEST_FAILED == 1 )); then
+      print -r -- '{"fixture_owner_absence_safe":false,"fixture_owner_rejections_safe":false,"long_argv_fixture_reaped":false,"status":"failed"}'; exit 1
     fi
-    print -r -- '{"long_argv_fixture_reaped":true,"status":"passed"}'
+    print -r -- '{"fixture_owner_absence_safe":true,"fixture_owner_rejections_safe":true,"long_argv_fixture_reaped":true,"status":"passed"}'
     ;;
   --pidfile-reuse-self-test)
     STALE_TOKEN="0123456789abcdef0123456789abcdef"
@@ -588,13 +595,12 @@ case "$MODE" in
     exact_focus_supervision_run_driver 50 /bin/sleep 10
     STATUS="$?"
     set -e
-    read -r RECORDED_PID RECORDED_TOKEN < "$EFCS_GROUP_PID_FILE" || true
+    RECORDED_OWNER="$(/usr/bin/env node "$SUPERVISION_PROTOCOL_SOURCE" --read-owner-record "$EFCS_GROUP_PID_FILE" 2>/dev/null || true)"; read -r RECORDED_PID RECORDED_TOKEN <<< "$RECORDED_OWNER" || true
     if (( STATUS != 125 )) || [[ "$RECORDED_PID" != "999999" || "$RECORDED_TOKEN" != "$STALE_TOKEN" ]]; then
       print -r -- '{"live_unrelated_group_preserved":false,"unresolved_group_record_preserved":false,"status":"failed"}'
       exit 1
     fi
     rm -f "$EFCS_GROUP_PID_FILE"
-
     SELFTEST_UNRELATED_GROUP_TOKEN="fedcba9876543210fedcba9876543210"
     SELFTEST_UNRELATED_GROUP_PID="$(/usr/bin/env node -e '
       const { spawn } = require("node:child_process");
@@ -621,7 +627,7 @@ case "$MODE" in
     exact_focus_supervision_stop_group
     OWNERSHIP_STATUS="$?"
     set -e
-    read -r RECORDED_PID RECORDED_TOKEN < "$EFCS_GROUP_PID_FILE" || true
+    RECORDED_OWNER="$(/usr/bin/env node "$SUPERVISION_PROTOCOL_SOURCE" --read-owner-record "$EFCS_GROUP_PID_FILE" 2>/dev/null || true)"; read -r RECORDED_PID RECORDED_TOKEN <<< "$RECORDED_OWNER" || true
     if (( OWNERSHIP_STATUS == 0 )) \
       || [[ "$RECORDED_PID" != "$SELFTEST_UNRELATED_GROUP_PID" || "$RECORDED_TOKEN" != "$STALE_TOKEN" ]] \
       || ! kill -0 "$SELFTEST_UNRELATED_GROUP_PID" 2>/dev/null; then
@@ -646,7 +652,6 @@ case "$MODE" in
       print -r -- '{"cleanup_failure_forced_failure":false,"status":"failed"}'
       exit 1
     fi
-
     for SELFTEST_FAILURE_CASE in \
       "1:NATIVE_PROOF_FAILED" \
       "125:PROOF_SUPERVISION_FAILED" \
@@ -664,7 +669,6 @@ case "$MODE" in
         exit 1
       fi
     done
-
     SUMMARY='{"cleanup_complete":true,"pixels_persisted":false,"status":"passed"}'
     STATUS=0
     POST_CLEANUP_PIXELS_PERSISTED=0
@@ -676,7 +680,6 @@ case "$MODE" in
       print -r -- '{"cleanup_failure_forced_failure":false,"status":"failed"}'
       exit 1
     fi
-
     SUMMARY='{"cleanup_complete":true,"status":"passed"}'
     STATUS=125
     POST_CLEANUP_PIXELS_PERSISTED=0
@@ -688,7 +691,6 @@ case "$MODE" in
       print -r -- '{"cleanup_failure_forced_failure":false,"status":"failed"}'
       exit 1
     fi
-
     SUMMARY='{"cleanup_complete":false,"error_code":"NATIVE_PROOF_FAILED","status":"failed"}'
     STATUS=0
     apply_post_cleanup_outcome
@@ -744,7 +746,6 @@ case "$MODE" in
       print -r -- '{"ambiguous_admission_cleanup_safe":false,"status":"failed"}'
       exit 1
     fi
-
     ROOT="$TMP_ROOT/fake-repo"
     mkdir -p "$ROOT"
     print -r -- '#!/bin/zsh
@@ -757,7 +758,6 @@ exit 1' > "$ROOT/aos"
     print -r -- 'pixel' > "$TMP_ROOT/exact-window.png"
     print -r -- 'pixel' > "$TMP_ROOT/preserved-window.png"
     print -r -- 'pixel' > "$TMP_ROOT/missing-window.png"
-
     BINARY="/bin/zsh"
     FIXTURE_SELFTEST_TOKEN="0123456789abcdef0123456789abcdef"
     /bin/zsh -c 'trap "" TERM; zmodload zsh/zselect; while true; do zselect -t 100 || true; done' \

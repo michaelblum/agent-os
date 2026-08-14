@@ -4,7 +4,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-
 import {
   AOS_COMMAND_ERROR_CODE_LIST,
   AOS_PRECOMMIT_REJECTION_CODE_LIST,
@@ -20,11 +19,14 @@ import { createRunProgram } from './lib/exact-focus-channel-command-runner.mjs';
 import {
   PROCESS_TREE_MAX_BYTES,
   PROCESS_TREE_SCHEMA,
+  OWNER_RECORD_MAX_BYTES,
   RUN_PROGRAM_MAX_BYTES,
   RUN_PROGRAM_SCHEMA,
+  SUPERVISOR_READY_MAX_BYTES,
   createPrivateOutputFiles,
   groupSignalIsPermitted,
   normalizedProcessStatus,
+  ownerRecordFromFile,
   ownedGroupRecordIsValid,
   payloadOutcomeFromMessage,
   payloadOutcomeFromProcessResult,
@@ -40,8 +42,8 @@ import {
   runProgramTimeoutInitializationError,
   serializeSupervisorFailureReceipt,
   supervisorProjectionIsValid,
+  supervisorReadyPIDFromFile,
 } from './lib/exact-focus-channel-supervision-protocol.mjs';
-
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const driverPath = path.join(root, 'tests/manual/exact-focus-channel-native-proof.mjs');
 const runnerPath = path.join(root, 'tests/manual/exact-focus-channel-native-proof.sh');
@@ -49,17 +51,14 @@ const shellHelperPath = path.join(root, 'tests/lib/exact-focus-channel-supervisi
 const scenarioHelperPath = path.join(root, 'tests/lib/exact-focus-channel-supervision-scenarios.zsh');
 const proofContractPath = path.join(root, 'tests/lib/exact-focus-channel-proof-contract.mjs');
 const protocolPath = path.join(root, 'tests/lib/exact-focus-channel-supervision-protocol.mjs');
-
 function diagnostics(result) {
   return JSON.stringify({
     signal: result.signal, status: result.status, stderr: result.stderr, stdout: result.stdout,
   });
 }
-
 function run(mode, timeout = 30_000) {
   return spawnSync('zsh', [runnerPath, mode], { cwd: root, encoding: 'utf8', timeout });
 }
-
 function validDriverFailure(overrides = {}) {
   return {
     channel_removed: false,
@@ -80,7 +79,6 @@ function validDriverFailure(overrides = {}) {
     ...overrides,
   };
 }
-
 function validDriverSuccess() {
   return {
     ax_element_count: 2,
@@ -125,7 +123,6 @@ function validDriverSuccess() {
     unrelated_channel_stable_fields_preserved: true,
   };
 }
-
 test('final proof output is closed, typed, and validates before CLI emission', () => {
   const invalidFallback = {
     cleanup_complete: false,
@@ -152,12 +149,10 @@ test('final proof output is closed, typed, and validates before CLI emission', (
   assert.deepEqual([
     rejectedFallback.status, rejectedFallback.stdout, rejectedFallback.stderr,
   ], [1, '', '']);
-
   const missingCleanup = run('--final-output-missing-cleanup-self-test', 5_000);
   assert.equal(missingCleanup.status, 1, diagnostics(missingCleanup));
   assert.deepEqual(JSON.parse(missingCleanup.stdout.trim()), invalidFallback);
   assert.equal(missingCleanup.stderr, '');
-
   const finalizedFailure = finalizeProofSummary(fallbackDriverSummary(124), {
     commandStatus: 124, pixelsPersisted: false, recoveryRootRetained: false,
   });
@@ -246,7 +241,6 @@ test('final proof output is closed, typed, and validates before CLI emission', (
     ...finalizedFailure, ...mutation,
   })), null);
 });
-
 test('supervision protocol is closed and directly exercised', () => {
   const timeoutReceipt = serializeSupervisorFailureReceipt(
     'supervisor_timeout', 'payload_outcome_wait', 124, 'timeout',
@@ -325,7 +319,6 @@ test('supervision protocol is closed and directly exercised', () => {
     `${timeoutReceipt.trim().replace('"status":124', '"status":124,"raw":true')}\n`,
     `${cleanupReceipt.trim().replace(',"cleanup_stage":"final_group_reap"', '')}\n`,
   ]) assert.equal(parseSupervisorFailureReceiptText(invalidText), null);
-
   const successMessage = payloadOutcomeMessage('payload_success', 0);
   const failureMessage = payloadOutcomeMessage('payload_nonzero_exit', 1);
   assert.deepEqual(payloadOutcomeFromMessage(successMessage), {
@@ -417,7 +410,6 @@ test('supervision protocol is closed and directly exercised', () => {
     reasonStage,
   }), expected);
 });
-
 test('shared command-error, progress, and command-runner contracts are exact', () => {
   const driver = fs.readFileSync(driverPath, 'utf8');
   const runner = fs.readFileSync(runnerPath, 'utf8');
@@ -445,7 +437,6 @@ test('shared command-error, progress, and command-runner contracts are exact', (
   assert.doesNotMatch(runner, /const commandErrorCodes|const stagesInOrder/u);
   assert.match(proofContract, /export const AOS_COMMAND_ERROR_CODE_LIST/u);
   assert.match(proofContract, /export const PROGRESS_STAGES/u);
-
   const successText = JSON.stringify(validDriverSuccess());
   assert.deepEqual(validateDriverSummaryText(successText), JSON.parse(successText));
   assert.deepEqual(validateDriverSummaryText(JSON.stringify(validDriverFailure())),
@@ -457,7 +448,6 @@ test('shared command-error, progress, and command-runner contracts are exact', (
     { ...validDriverSuccess(), repo_revision: 'RAW_DRIVER_SUMMARY_SENTINEL_MUST_NOT_LEAK' },
     { ...validDriverSuccess(), capture_width: '960' },
   ]) assert.equal(validateDriverSummaryText(JSON.stringify(rejectedSummary)), null);
-
   const validProgress = JSON.stringify({
     last_completed_stage: null,
     last_started_stage: 'runtime_preflight',
@@ -494,7 +484,6 @@ test('shared command-error, progress, and command-runner contracts are exact', (
   ], { cwd: root, encoding: 'utf8', timeout: 2_000 });
   assert.equal(merged.status, 0, diagnostics(merged));
   assert.equal(JSON.parse(merged.stdout).progress_ordinal, 1);
-
   class TestProofError extends Error {
     constructor(code, { ambiguous = false } = {}) {
       super(code);
@@ -525,14 +514,18 @@ test('shared command-error, progress, and command-runner contracts are exact', (
   assert.equal(finalized.progress_ordinal, null);
   assert.deepEqual(validateFinalOutputText(JSON.stringify(finalized)), finalized);
 });
-
-test('private file and guarded protocol CLIs reject mode, symlink, and shape drift', () => {
+test('bounded private readers and guarded CLIs fail closed on file and framing drift', () => {
   const temporaryRoot = fs.mkdtempSync(path.join(
     process.env.TMPDIR ?? '/tmp', 'aos-supervision-protocol-',
   ));
   const stdoutFile = path.join(temporaryRoot, 'stdout');
   const stderrFile = path.join(temporaryRoot, 'stderr');
   const readinessFile = path.join(temporaryRoot, 'readiness');
+  const ownerFile = path.join(temporaryRoot, 'owner');
+  const readyFile = path.join(temporaryRoot, 'ready');
+  const cli = (mode, file) => spawnSync('node', [protocolPath, mode, file], {
+    cwd: root, encoding: 'utf8', timeout: 2_000,
+  });
   const receipt = `${JSON.stringify({
     admission_ambiguous: true,
     descendant_live_before_outer_reap: true,
@@ -555,7 +548,43 @@ test('private file and guarded protocol CLIs reject mode, symlink, and shape dri
     const symlinkFile = path.join(temporaryRoot, 'receipt-link');
     fs.symlinkSync(stdoutFile, symlinkFile);
     assert.equal(readBoundedRegularFile(symlinkFile, 512, 0o600), null);
-
+    const token = 'a'.repeat(32);
+    fs.writeFileSync(ownerFile, `${process.pid} ${token}\n`, { mode: 0o600 });
+    fs.writeFileSync(readyFile, `${process.pid}\n`, { mode: 0o600 });
+    assert.deepEqual(ownerRecordFromFile(ownerFile), { pid: process.pid, token });
+    assert.equal(supervisorReadyPIDFromFile(readyFile), process.pid);
+    assert.deepEqual([cli('--read-owner-record', ownerFile).status,
+      cli('--read-owner-record', ownerFile).stdout], [0, `${process.pid} ${token}`]);
+    assert.deepEqual([cli('--read-supervisor-ready', readyFile).status,
+      cli('--read-supervisor-ready', readyFile).stdout], [0, String(process.pid)]);
+    assert.equal(OWNER_RECORD_MAX_BYTES, 96);
+    assert.equal(SUPERVISOR_READY_MAX_BYTES, 32);
+    for (const [mode, file] of [['--read-owner-record', ownerFile],
+      ['--read-supervisor-ready', readyFile]]) {
+      fs.chmodSync(file, 0o644); const rejectedMode = cli(mode, file); fs.chmodSync(file, 0o600);
+      assert.deepEqual([rejectedMode.status, rejectedMode.stdout, rejectedMode.stderr], [1, '', '']);
+    }
+    for (const invalidOwner of [`0 ${token}\n`, `1 ${token}\n`, `01 ${token}\n`,
+      `9007199254740992 ${token}\n`, `${process.pid} ${token.toUpperCase()}\n`,
+      `${process.pid} ${'a'.repeat(31)}\n`, `${process.pid} ${'a'.repeat(33)}\n`,
+      `${process.pid} ${'g'.repeat(32)}\n`, `${process.pid} ${token}\n\n`]) {
+      fs.writeFileSync(ownerFile, invalidOwner);
+      const rejectedOwner = cli('--read-owner-record', ownerFile);
+      assert.deepEqual([rejectedOwner.status, rejectedOwner.stdout, rejectedOwner.stderr], [1, '', '']);
+    }
+    for (const invalidReady of [`0\n`, `01\n`, `${process.pid}\n\n`]) {
+      fs.writeFileSync(readyFile, invalidReady);
+      const rejectedReady = cli('--read-supervisor-ready', readyFile);
+      assert.deepEqual([rejectedReady.status, rejectedReady.stdout, rejectedReady.stderr], [1, '', '']);
+    }
+    for (const mode of ['--read-owner-record', '--read-supervisor-ready']) {
+      const rejectedLink = cli(mode, symlinkFile);
+      assert.deepEqual([rejectedLink.status, rejectedLink.stdout, rejectedLink.stderr], [1, '', '']);
+    }
+    const unknown = cli('--unknown-route', ownerFile);
+    assert.deepEqual([unknown.status, unknown.stdout, unknown.stderr], [1, '', '']);
+    const internal = cli('--self-test-internal-failure', ownerFile);
+    assert.deepEqual([internal.status, internal.stdout, internal.stderr], [125, '', '']);
     const nonce = 'ab'.repeat(32);
     fs.writeFileSync(readinessFile, `${JSON.stringify({
       nonce, pid: process.pid, schema: PROCESS_TREE_SCHEMA,
@@ -573,7 +602,6 @@ test('private file and guarded protocol CLIs reject mode, symlink, and shape dri
     assert.equal(readReadiness(
       readinessFile, nonce, RUN_PROGRAM_SCHEMA, RUN_PROGRAM_MAX_BYTES, false, live,
     ), null);
-
     const failureFile = path.join(temporaryRoot, 'supervisor-failure');
     for (const [value, expected] of [
       [{ detail: 'parent_lost', reason: 'parent_lost',

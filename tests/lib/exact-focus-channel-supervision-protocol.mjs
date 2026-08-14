@@ -11,6 +11,8 @@ export const RUN_PROGRAM_NONCE_ENV = 'AOS_RUN_PROGRAM_TIMEOUT_NONCE';
 export const SUPERVISOR_FAILURE_SCHEMA = 'aos.exact-focus-channel-supervisor-failure.v1';
 export const ADMISSION_COMMIT_MESSAGE = 'aos.exact-focus-channel.admission-commit.v1';
 export const PAYLOAD_OUTCOME_MESSAGE_SCHEMA = 'aos.exact-focus-channel.payload-outcome.v1';
+export const OWNER_RECORD_MAX_BYTES = 96;
+export const SUPERVISOR_READY_MAX_BYTES = 32;
 
 const SUPERVISOR_FAILURE_MAX_BYTES = 4096;
 const SUPERVISOR_FAILURE_DETAILS = new Set([
@@ -124,23 +126,92 @@ export function writeDurableExclusiveFile(file, contents, tag, failBeforePublish
   }
 }
 
-export function readBoundedRegularFile(file, maximumBytes, requiredMode = null) {
+function stableHeldMetadata(left, right) {
+  return left.dev === right.dev && left.ino === right.ino && left.mode === right.mode
+    && left.nlink === right.nlink && left.size === right.size
+    && left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs;
+}
+
+function finalPathMatchesHeld(stat, pathStat) {
+  return pathStat.isFile() && stat.dev === pathStat.dev && stat.ino === pathStat.ino
+    && stat.mode === pathStat.mode && stat.size === pathStat.size;
+}
+
+export function readBoundedRegularFile(file, maximumBytes, requiredMode = null, seams = {}) {
   let descriptor = null;
   try {
+    if (!Number.isSafeInteger(maximumBytes) || maximumBytes <= 0) return null;
+    if (requiredMode !== null
+        && (!Number.isInteger(requiredMode) || requiredMode < 0 || requiredMode > 0o777)) {
+      return null;
+    }
     const noFollow = fs.constants.O_NOFOLLOW;
-    if (!Number.isInteger(noFollow) || noFollow === 0) return null;
-    descriptor = fs.openSync(file, fs.constants.O_RDONLY | noFollow);
-    const stat = fs.fstatSync(descriptor);
-    if (!stat.isFile() || stat.size < 1 || stat.size > maximumBytes) return null;
-    if (requiredMode !== null && (stat.mode & 0o777) !== requiredMode) return null;
-    const bytes = Buffer.alloc(stat.size);
-    if (fs.readSync(descriptor, bytes, 0, bytes.length, 0) !== bytes.length) return null;
+    const nonblocking = fs.constants.O_NONBLOCK;
+    if (!Number.isInteger(noFollow) || noFollow === 0
+        || !Number.isInteger(nonblocking) || nonblocking === 0) return null;
+    const openSync = seams.openSync ?? fs.openSync;
+    const fstatSync = seams.fstatSync ?? fs.fstatSync;
+    const readSync = seams.readSync ?? fs.readSync;
+    const lstatSync = seams.lstatSync ?? fs.lstatSync;
+    descriptor = openSync(file, fs.constants.O_RDONLY | noFollow | nonblocking);
+    const stat = fstatSync(descriptor, { bigint: true });
+    const maximum = BigInt(maximumBytes);
+    if (!stat.isFile() || stat.size < 1n || stat.size > maximum) return null;
+    if (requiredMode !== null && (stat.mode & 0o777n) !== BigInt(requiredMode)) return null;
+    const size = Number(stat.size);
+    const bytes = Buffer.alloc(size);
+    let offset = 0;
+    while (offset < size) {
+      const count = readSync(descriptor, bytes, offset, size - offset, offset);
+      if (!Number.isSafeInteger(count) || count <= 0 || count > size - offset) return null;
+      offset += count;
+    }
+    if (readSync(descriptor, Buffer.alloc(1), 0, 1, size) !== 0) return null;
+    const postReadStat = fstatSync(descriptor, { bigint: true });
+    if (!postReadStat.isFile() || !stableHeldMetadata(stat, postReadStat)) return null;
+    const text = bytes.toString('utf8');
+    if (!Buffer.from(text, 'utf8').equals(bytes)) return null;
+    const pathStat = lstatSync(file, { bigint: true });
+    if (!finalPathMatchesHeld(stat, pathStat)) return null;
     return bytes;
   } catch {
     return null;
   } finally {
     if (descriptor !== null) try { fs.closeSync(descriptor); } catch {}
   }
+}
+
+function canonicalPID(text) {
+  if (typeof text !== 'string' || !/^[1-9][0-9]*$/u.test(text)) return null;
+  const pid = Number(text);
+  return Number.isSafeInteger(pid) && pid > 1 && String(pid) === text ? pid : null;
+}
+
+export function parseOwnerRecord(bytes) {
+  if (!Buffer.isBuffer(bytes) || bytes.length < 35 || bytes.length > OWNER_RECORD_MAX_BYTES) {
+    return null;
+  }
+  const match = /^(?<pid>[1-9][0-9]*) (?<token>[0-9a-f]{32})\n$/u.exec(bytes.toString('utf8'));
+  const pid = canonicalPID(match?.groups?.pid);
+  return pid === null ? null : Object.freeze({ pid, token: match.groups.token });
+}
+
+export function ownerRecordFromFile(file, seams = {}) {
+  const bytes = readBoundedRegularFile(file, OWNER_RECORD_MAX_BYTES, 0o600, seams);
+  return bytes === null ? null : parseOwnerRecord(bytes);
+}
+
+export function parseSupervisorReadyRecord(bytes) {
+  if (!Buffer.isBuffer(bytes) || bytes.length < 2 || bytes.length > SUPERVISOR_READY_MAX_BYTES) {
+    return null;
+  }
+  const match = /^(?<pid>[1-9][0-9]*)\n$/u.exec(bytes.toString('utf8'));
+  return canonicalPID(match?.groups?.pid);
+}
+
+export function supervisorReadyPIDFromFile(file, seams = {}) {
+  const bytes = readBoundedRegularFile(file, SUPERVISOR_READY_MAX_BYTES, 0o600, seams);
+  return bytes === null ? null : parseSupervisorReadyRecord(bytes);
 }
 
 function supervisorFailureCombinationIsValid(detail, stage, status, reason) {
@@ -456,11 +527,8 @@ export function runProgramTimeoutInitializationError(readiness, processExists) {
 }
 
 export function ownedGroupRecordIsValid(file, expectedLeaderPID, expectedToken) {
-  const bytes = readBoundedRegularFile(file, 96, 0o600);
-  if (bytes === null) return false;
-  const text = bytes.toString('utf8');
-  return Buffer.from(text, 'utf8').equals(bytes)
-    && text === `${expectedLeaderPID} ${expectedToken}\n`;
+  const owner = ownerRecordFromFile(file);
+  return owner?.pid === expectedLeaderPID && owner.token === expectedToken;
 }
 
 export function runProgramReceiptStatus(file) {
@@ -493,6 +561,19 @@ export function processExists(pid) {
 }
 
 async function runCLI(mode, args) {
+  if (mode === '--self-test-internal-failure') throw new Error('SELF_TEST_INTERNAL_FAILURE');
+  if (mode === '--read-owner-record') {
+    const owner = ownerRecordFromFile(args[0]);
+    if (owner === null) return 1;
+    process.stdout.write(`${owner.pid} ${owner.token}`);
+    return 0;
+  }
+  if (mode === '--read-supervisor-ready') {
+    const pid = supervisorReadyPIDFromFile(args[0]);
+    if (pid === null) return 1;
+    process.stdout.write(String(pid));
+    return 0;
+  }
   if (mode === '--validate-owned-group-record' || mode === '--validate-guardian-identity') {
     return ownedGroupRecordIsValid(args[0], integer(args[1]), args[2]) ? 0 : 1;
   }
@@ -509,7 +590,7 @@ async function runCLI(mode, args) {
     return 0;
   }
   if (mode === '--create-private-output-files') return createPrivateOutputFiles(args) ? 0 : 1;
-  return 125;
+  return 1;
 }
 
 if (process.argv[1]
