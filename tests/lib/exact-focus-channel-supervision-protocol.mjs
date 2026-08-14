@@ -10,13 +10,14 @@ export const RUN_PROGRAM_MAX_BYTES = 256;
 export const RUN_PROGRAM_NONCE_ENV = 'AOS_RUN_PROGRAM_TIMEOUT_NONCE';
 export const SUPERVISOR_FAILURE_SCHEMA = 'aos.exact-focus-channel-supervisor-failure.v1';
 export const ADMISSION_COMMIT_MESSAGE = 'aos.exact-focus-channel.admission-commit.v1';
-export const WRAPPER_FAILURE_MESSAGE_SCHEMA = 'aos.exact-focus-channel.wrapper-failure.v1';
+export const PAYLOAD_OUTCOME_MESSAGE_SCHEMA = 'aos.exact-focus-channel.payload-outcome.v1';
 
 const SUPERVISOR_FAILURE_MAX_BYTES = 4096;
 const SUPERVISOR_FAILURE_DETAILS = new Set([
   'group_reap_failed',
   'group_record_failed',
   'group_record_remove_failed',
+  'guardian_admission_failure',
   'parent_lost',
   'payload_initialization_timeout',
   'payload_nonzero_exit',
@@ -25,8 +26,6 @@ const SUPERVISOR_FAILURE_DETAILS = new Set([
   'supervisor_signal',
   'supervisor_timeout',
   'unexpected_supervisor_exception',
-  'wrapper_admission_failure',
-  'wrapper_or_payload_failure',
 ]);
 const SUPERVISOR_FAILURE_STAGES = new Set([
   'admission_ack_publish',
@@ -34,10 +33,10 @@ const SUPERVISOR_FAILURE_STAGES = new Set([
   'final_group_reap',
   'group_record_remove',
   'group_record_wait',
+  'guardian_spawn',
+  'payload_outcome_wait',
   'payload_readiness_wait',
   'shell_finalizer',
-  'wrapper_result_wait',
-  'wrapper_spawn',
 ]);
 const SUPERVISOR_FAILURE_REASONS = new Set([
   'group_record_failed',
@@ -51,10 +50,10 @@ const SUPERVISOR_FAILURE_REASONS = new Set([
   'supervisor_exception',
   'timeout',
 ]);
-const WRAPPER_FAILURE_DETAILS = new Set([
+const PAYLOAD_OUTCOME_DETAILS = new Set([
+  'payload_success',
   'payload_nonzero_exit',
   'payload_spawn_or_init_failure',
-  'wrapper_admission_failure',
 ]);
 
 export function valueAfter(args, flag) {
@@ -64,6 +63,10 @@ export function valueAfter(args, flag) {
 
 export function integer(value) {
   return typeof value === 'string' && /^[0-9]+$/u.test(value) ? Number(value) : NaN;
+}
+
+export function groupSignalIsPermitted(groupOwned, groupMayBeSignaled) {
+  return groupOwned === true && groupMayBeSignaled === true;
 }
 
 function exactKeys(value, keys) {
@@ -156,17 +159,18 @@ function supervisorFailureCombinationIsValid(detail, stage, status, reason) {
   if (detail === 'parent_lost') {
     return status === 125 && reason === 'parent_lost'
       && ['admission_ack_publish', 'group_record_wait', 'payload_readiness_wait',
-      'wrapper_result_wait', 'wrapper_spawn'].includes(stage);
+      'payload_outcome_wait', 'guardian_spawn'].includes(stage);
   }
   if (detail === 'payload_initialization_timeout') {
     return status === 126 && reason === 'initialization_timeout'
-      && stage === 'payload_readiness_wait';
+      && ['admission_ack_publish', 'group_record_wait', 'guardian_spawn',
+        'payload_readiness_wait'].includes(stage);
   }
   if (detail === 'payload_nonzero_exit') {
-    return reason === 'payload_exit' && stage === 'wrapper_result_wait';
+    return reason === 'payload_exit' && stage === 'payload_outcome_wait';
   }
   if (detail === 'payload_spawn_or_init_failure') {
-    return status === 125 && reason === 'payload_exit' && stage === 'wrapper_result_wait';
+    return status === 125 && reason === 'payload_exit' && stage === 'payload_outcome_wait';
   }
   if (detail === 'shell_finalizer_failure') {
     return reason === 'shell_finalizer' && stage === 'shell_finalizer';
@@ -175,14 +179,11 @@ function supervisorFailureCombinationIsValid(detail, stage, status, reason) {
     return (status === 130 && reason === 'sigint') || (status === 143 && reason === 'sigterm');
   }
   if (detail === 'supervisor_timeout') {
-    return stage === 'wrapper_result_wait' && status === 124 && reason === 'timeout';
+    return stage === 'payload_outcome_wait' && status === 124 && reason === 'timeout';
   }
-  if (detail === 'wrapper_admission_failure') {
+  if (detail === 'guardian_admission_failure') {
     return status === 125 && reason === 'payload_exit'
-      && ['admission_ack_publish', 'group_record_wait', 'wrapper_result_wait'].includes(stage);
-  }
-  if (detail === 'wrapper_or_payload_failure') {
-    return reason === 'payload_exit' && stage === 'wrapper_result_wait';
+      && ['guardian_spawn', 'payload_outcome_wait'].includes(stage);
   }
   return detail === 'unexpected_supervisor_exception'
     && status === 125 && reason === 'supervisor_exception';
@@ -287,18 +288,20 @@ export function supervisorFailureDetailFromFile(file) {
     : null;
 }
 
-export function wrapperOutcomeMessage(detail, status) {
-  return WRAPPER_FAILURE_DETAILS.has(detail)
-    && Number.isSafeInteger(status) && status >= 1 && status <= 255
-    && (detail === 'payload_nonzero_exit' || status === 125)
-    ? Object.freeze({ detail, schema: WRAPPER_FAILURE_MESSAGE_SCHEMA, status })
+export function payloadOutcomeMessage(detail, status) {
+  return PAYLOAD_OUTCOME_DETAILS.has(detail)
+    && Number.isSafeInteger(status) && status >= 0 && status <= 255
+    && ((detail === 'payload_success' && status === 0)
+      || (detail === 'payload_nonzero_exit' && status >= 1)
+      || (detail === 'payload_spawn_or_init_failure' && status === 125))
+    ? Object.freeze({ detail, schema: PAYLOAD_OUTCOME_MESSAGE_SCHEMA, status })
     : null;
 }
 
-export function wrapperFailureDetailFromMessage(message) {
+export function payloadOutcomeFromMessage(message) {
   return exactKeys(message, ['detail', 'schema', 'status'])
-    && message.schema === WRAPPER_FAILURE_MESSAGE_SCHEMA
-    && wrapperOutcomeMessage(message.detail, message.status) !== null
+    && message.schema === PAYLOAD_OUTCOME_MESSAGE_SCHEMA
+    && payloadOutcomeMessage(message.detail, message.status) !== null
     ? Object.freeze({ detail: message.detail, status: message.status })
     : null;
 }
@@ -313,9 +316,9 @@ export function normalizedProcessStatus(result) {
     : 125;
 }
 
-export function wrapperOutcomeFromProcessResult(result) {
+export function payloadOutcomeFromProcessResult(result) {
   const status = normalizedProcessStatus(result);
-  if (status === 0) return null;
+  if (status === 0) return Object.freeze({ detail: 'payload_success', status: 0 });
   if (result?.error || (result?.code == null && result?.signal == null)) {
     return Object.freeze({ detail: 'payload_spawn_or_init_failure', status: 125 });
   }
@@ -336,11 +339,12 @@ export function publicSupervisorReason(reason, childFailed = false) {
 
 export function primarySupervisorFailure({
   asynchronousFailure,
-  childResult,
   fallbackStage,
+  guardianFailureStage,
+  guardianResult,
+  payloadOutcome,
   reason,
   reasonStage,
-  wrapperOutcome,
 }) {
   const reasonFailure = new Map([
     ['GROUP_RECORD_FAILED', ['group_record_failed', 125, 'group_record_failed']],
@@ -368,15 +372,18 @@ export function primarySupervisorFailure({
       detail, reason: publicReason, stage: reasonStage ?? fallbackStage, status,
     });
   }
-  const childStatus = normalizedProcessStatus(childResult);
-  if (childStatus === 0) return null;
-  return Object.freeze({
-    detail: wrapperOutcome !== null && wrapperOutcome.status === childStatus
-      ? wrapperOutcome.detail
-      : 'wrapper_or_payload_failure',
+  if (payloadOutcome?.status === 0) return null;
+  if (payloadOutcome !== null) return Object.freeze({
+    detail: payloadOutcome.detail,
     reason: 'payload_exit',
-    stage: 'wrapper_result_wait',
-    status: childStatus,
+    stage: 'payload_outcome_wait',
+    status: payloadOutcome.status,
+  });
+  return Object.freeze({
+    detail: 'guardian_admission_failure',
+    reason: 'payload_exit',
+    stage: guardianFailureStage,
+    status: 125,
   });
 }
 
@@ -486,7 +493,7 @@ export function processExists(pid) {
 }
 
 async function runCLI(mode, args) {
-  if (mode === '--validate-owned-group-record' || mode === '--validate-wrapper-identity') {
+  if (mode === '--validate-owned-group-record' || mode === '--validate-guardian-identity') {
     return ownedGroupRecordIsValid(args[0], integer(args[1]), args[2]) ? 0 : 1;
   }
   if (mode === '--validate-process-tree-retired') {

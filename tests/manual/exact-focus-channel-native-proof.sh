@@ -838,7 +838,10 @@ exit 1' > "$ROOT/aos"
         print -r -- "{\"error_code\":\"SUPERVISION_RECOVERY_ROOT_INVALID\",\"status\":\"failed\"}"
         exit 1
       fi
-      rm -rf "$TMP_ROOT"
+      if [[ ! -d "$TMP_ROOT" || -L "$TMP_ROOT" || "${TMP_ROOT:t}" != aos-exact-focus-native-proof.?????? ]] || ! rm -rf -- "$TMP_ROOT" || [[ -e "$TMP_ROOT" || -L "$TMP_ROOT" ]]; then
+        print -r -- "{\"error_code\":\"SUPERVISION_CLEANUP_ROOT_RETAINED\",\"status\":\"failed\"}"
+        exit 1
+      fi
       SUMMARY="$EFCS_SCENARIO_SUMMARY"
     fi
     print -r -- "$SUMMARY"

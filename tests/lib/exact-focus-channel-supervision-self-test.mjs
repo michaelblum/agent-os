@@ -19,11 +19,11 @@ import {
   RUN_PROGRAM_SCHEMA,
   integer,
   normalizedProcessStatus,
+  payloadOutcomeFromProcessResult,
   processExists,
   readReadiness,
   runProgramTimeoutInitializationError,
   valueAfter,
-  wrapperOutcomeFromProcessResult,
   writeDurableAtomicFile,
   writeDurableExclusiveFile,
 } from './exact-focus-channel-supervision-protocol.mjs';
@@ -138,14 +138,48 @@ async function basicTimeoutSelfTest(args) {
 
 async function exitWithTermIgnoringDescendant(args) {
   const pidFile = valueAfter(args, '--pid-file');
+  const termReceiptFile = valueAfter(args, '--term-receipt');
   fail(typeof pidFile === 'string' && pidFile.length > 0, 'INVALID_ARGUMENTS');
-  const child = spawn('/bin/zsh', ['-c', 'trap "" TERM; exec /bin/sleep 30'], { stdio: 'ignore' });
+  fail(typeof termReceiptFile === 'string' && termReceiptFile.length > 0, 'INVALID_ARGUMENTS');
+  const child = spawn(process.execPath, [SELF_TEST_PATH,
+    '--term-holding-descendant', '--readiness', pidFile, '--term-receipt', termReceiptFile,
+  ], { stdio: 'ignore' });
   await new Promise((resolve, reject) => {
     child.once('spawn', resolve);
     child.once('error', reject);
   });
-  fs.writeFileSync(pidFile, `${child.pid}\n`, { mode: 0o600 });
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline && !fs.existsSync(pidFile)) await sleep(10);
+  fail(fs.readFileSync(pidFile, 'utf8') === `${child.pid}\n`, 'INVALID_ARGUMENTS');
   child.unref();
+}
+
+async function termHoldingDescendant(args) {
+  const readinessFile = valueAfter(args, '--readiness');
+  const termReceiptFile = valueAfter(args, '--term-receipt');
+  const heartbeatRequestFile = valueAfter(args, '--heartbeat-request');
+  const heartbeatAckFile = valueAfter(args, '--heartbeat-ack');
+  fail(typeof readinessFile === 'string' && readinessFile.length > 0, 'INVALID_ARGUMENTS');
+  fail(typeof termReceiptFile === 'string' && termReceiptFile.length > 0, 'INVALID_ARGUMENTS');
+  fail((heartbeatRequestFile === null && heartbeatAckFile === null)
+    || (typeof heartbeatRequestFile === 'string' && heartbeatRequestFile.length > 0
+      && typeof heartbeatAckFile === 'string' && heartbeatAckFile.length > 0),
+  'INVALID_ARGUMENTS');
+  let termObserved = false;
+  process.on('SIGTERM', () => {
+    if (termObserved) return;
+    termObserved = true;
+    try { writeDurableExclusiveFile(termReceiptFile, 'term-held\n', 'term-held'); } catch {}
+  });
+  writeDurableExclusiveFile(readinessFile, `${process.pid}\n`, 'term-ready');
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    if (heartbeatRequestFile !== null && fs.existsSync(heartbeatRequestFile)
+        && !fs.existsSync(heartbeatAckFile)) {
+      writeDurableExclusiveFile(heartbeatAckFile, 'alive\n', 'heartbeat-ack');
+    }
+    await sleep(25);
+  }
 }
 
 async function progressHangSelfTest(args) {
@@ -260,16 +294,19 @@ function runProgramTimeoutReadinessSelfTest() {
 }
 
 function processOutcomeSelfTest() {
-  const abnormal = wrapperOutcomeFromProcessResult({ code: null, signal: null, error: null });
-  const exitOne = wrapperOutcomeFromProcessResult({ code: 1, signal: null, error: null });
+  const success = payloadOutcomeFromProcessResult({ code: 0, signal: null, error: null });
+  const abnormal = payloadOutcomeFromProcessResult({ code: null, signal: null, error: null });
+  const exitOne = payloadOutcomeFromProcessResult({ code: 1, signal: null, error: null });
   fail(normalizedProcessStatus({ code: null, signal: null, error: null }) === 125
+    && success?.detail === 'payload_success'
+    && success.status === 0
     && abnormal?.detail === 'payload_spawn_or_init_failure'
     && abnormal.status === 125
     && exitOne?.detail === 'payload_nonzero_exit'
     && exitOne.status === 1,
   'PROCESS_OUTCOME_SELF_TEST_FAILED');
   process.stdout.write(`${JSON.stringify({
-    abnormal_null_status: abnormal.status,
+    abnormal_null_status: abnormal.status, payload_success_status: success.status,
     payload_exit_status: exitOne.status,
     status: 'passed',
   })}\n`);
@@ -289,6 +326,7 @@ async function runCLI(mode, args) {
     await exitWithTermIgnoringDescendant(args);
     return 0;
   }
+  if (mode === '--term-holding-descendant') { await termHoldingDescendant(args); return 0; }
   if (mode === '--progress-hang-self-test') { await progressHangSelfTest(args); return 0; }
   if (mode === '--run-program-timeout-child') { await runProgramTimeoutChild(args); return 0; }
   if (mode === '--run-program-timeout-self-test') return runProgramTimeoutSelfTest(args);

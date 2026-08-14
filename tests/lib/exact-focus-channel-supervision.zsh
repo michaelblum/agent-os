@@ -20,13 +20,16 @@ exact_focus_supervision_init() {
   typeset -g EFCS_LAST_SUPERVISOR_STATUS=""
   typeset -g EFCS_PID=""
   typeset -g EFCS_READY_FILE=""
+  typeset -g EFCS_READY_DELAY_ENTERED_FILE=""
   typeset -gi EFCS_SEQUENCE=0
   typeset -gi EFCS_HANDSHAKE_FAILED=0
+  typeset -gi EFCS_FAIL_HANDSHAKE_AFTER_ADMISSION_ACK=0
+  typeset -gi EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK=0
   typeset -gi EFCS_READY_DELAY_MS=0
-  typeset -gi EFCS_WRAPPER_RECORD_DELAY_MS=0
+  typeset -gi EFCS_GUARDIAN_RECORD_DELAY_MS=0
   typeset -gi EFCS_ADMISSION_ACK_DELAY_MS=0
-  typeset -gi EFCS_WRAPPER_RECORD_PUBLICATION_FAILURE=0
-  typeset -gi EFCS_WRAPPER_CRASH_BEFORE_ACK=0
+  typeset -gi EFCS_GUARDIAN_RECORD_PUBLICATION_FAILURE=0
+  typeset -gi EFCS_GUARDIAN_CRASH_BEFORE_ACK=0
   typeset -gi EFCS_SUPERVISOR_EXIT_BEFORE_GROUP_RECORD=0
   typeset -gi EFCS_SUPERVISOR_EXIT_BEFORE_ADMISSION_ACK=0
   typeset -gi EFCS_SIGNAL_BEFORE_ADMISSION_ACK=0
@@ -34,6 +37,7 @@ exact_focus_supervision_init() {
   typeset -gi EFCS_GROUP_RECORD_REMOVE_FAILURE=0
   typeset -gi EFCS_FIRST_TIER_REAP_FAILURE=0
   typeset -gi EFCS_LAST_GROUP_REAP_PROVEN=0
+  typeset -gi EFCS_LAST_LIVE_GUARDIAN_AUTHENTICATED=0
   typeset -gi EFCS_OUTER_REAP_RECOVERED=0
   typeset -gi EFCS_FINAL_REAP_DELAY_MS=0
   typeset -gi EFCS_SIGNAL_FINAL_REAP=0
@@ -41,13 +45,16 @@ exact_focus_supervision_init() {
   typeset -g EFCS_TIMEOUT_READINESS_FILE=""
   typeset -g EFCS_SIGNAL_SENDER_PID=""
   typeset -g EFCS_SIGNAL_RECEIPT_FILE=""
-  typeset -g EFCS_WRAPPER_IDENTITY_FILE=""
-  typeset -gi EFCS_WRAPPER_IDENTITY_REQUIRED=0
-  typeset -gi EFCS_WRAPPER_IDENTITY_PUBLICATION_FAILURE=0
-  typeset -gi EFCS_CORRUPT_WRAPPER_IDENTITY=0
+  typeset -g EFCS_GUARDIAN_IDENTITY_FILE=""
+  typeset -gi EFCS_GUARDIAN_IDENTITY_REQUIRED=0
+  typeset -gi EFCS_GUARDIAN_IDENTITY_PUBLICATION_FAILURE=0
+  typeset -gi EFCS_CORRUPT_GUARDIAN_IDENTITY=0
   typeset -g EFCS_FINAL_REAP_FILE=""
   typeset -g EFCS_FINAL_REAP_COMPLETE_FILE=""
   typeset -g EFCS_DESCENDANT_PID_FILE=""
+  typeset -gi EFCS_PAYLOAD_OUTCOME_DELAY_MS=0
+  typeset -gi EFCS_KILL_SUPERVISOR_AFTER_PAYLOAD_OUTCOME=0
+  typeset -g EFCS_PAYLOAD_OUTCOME_FILE=""
 }
 
 exact_focus_supervision_pause() {
@@ -78,7 +85,24 @@ exact_focus_supervision_command_has_ownership_token() {
 exact_focus_supervision_admission_state_is_clear() {
   [[ ! -e "$EFCS_GROUP_PID_FILE" && ! -e "$EFCS_ADMISSION_ACK_FILE" \
     && -z "$EFCS_PID" && -z "$EFCS_READY_FILE" ]] || return 1
-  (( EFCS_WRAPPER_IDENTITY_REQUIRED == 0 ))
+  (( EFCS_GUARDIAN_IDENTITY_REQUIRED == 0 ))
+}
+
+exact_focus_supervision_admission_delay_oracle_is_valid() {
+  local leader_pid="" token="" marker_mode="" marker_size=""
+  [[ -f "$EFCS_GUARDIAN_IDENTITY_FILE" && ! -L "$EFCS_GUARDIAN_IDENTITY_FILE" \
+    && -f "$EFCS_ADMISSION_ACK_FILE" && ! -L "$EFCS_ADMISSION_ACK_FILE" \
+    && -f "$EFCS_READY_DELAY_ENTERED_FILE" && ! -L "$EFCS_READY_DELAY_ENTERED_FILE" ]] || return 1
+  read -r leader_pid token < "$EFCS_GUARDIAN_IDENTITY_FILE" || return 1
+  [[ "$leader_pid" == <-> && "$token" =~ '^[0-9a-f]{32}$' ]] || return 1
+  /usr/bin/env node "$EFCS_SUPERVISION_PROTOCOL" --validate-guardian-identity \
+    "$EFCS_GUARDIAN_IDENTITY_FILE" "$leader_pid" "$token" || return 1
+  /usr/bin/env node "$EFCS_SUPERVISION_PROTOCOL" --validate-owned-group-record \
+    "$EFCS_ADMISSION_ACK_FILE" "$leader_pid" "$token" || return 1
+  marker_mode="$(/usr/bin/stat -f '%Lp' "$EFCS_READY_DELAY_ENTERED_FILE" 2>/dev/null || true)"
+  marker_size="$(/usr/bin/stat -f '%z' "$EFCS_READY_DELAY_ENTERED_FILE" 2>/dev/null || true)"
+  [[ "$marker_mode" == 600 && "$marker_size" == 8 \
+    && "$(<"$EFCS_READY_DELAY_ENTERED_FILE")" == entered ]]
 }
 
 exact_focus_supervision_owned_group_pid_from_file() {
@@ -87,14 +111,14 @@ exact_focus_supervision_owned_group_pid_from_file() {
   local pgid token actual_pgid command attempt=0
   read -r pgid token < "$ownership_file" || return 2
   [[ "$pgid" == <-> && "$token" =~ '^[0-9a-f]{32}$' ]] || return 2
-  /usr/bin/env node "$EFCS_SUPERVISION_PROTOCOL" --validate-wrapper-identity \
+  /usr/bin/env node "$EFCS_SUPERVISION_PROTOCOL" --validate-guardian-identity \
     "$ownership_file" "$pgid" "$token" || return 2
   while (( attempt < 20 )); do
     actual_pgid="$(exact_focus_supervision_process_group_id "$pgid" || true)"
     command=""
     if [[ "$actual_pgid" == "$pgid" ]]; then
       command="$(exact_focus_supervision_process_command "$pgid" || true)"
-      if [[ "$command" == *"$EFCS_SUPERVISION_HELPER --owned-group-wrapper --group-pid-file $EFCS_GROUP_PID_FILE --admission-ack-file $EFCS_ADMISSION_ACK_FILE --supervisor-pid "* ]] \
+      if [[ "$command" == *"$EFCS_SUPERVISION_HELPER --owned-group-guardian --group-pid-file $EFCS_GROUP_PID_FILE --admission-ack-file $EFCS_ADMISSION_ACK_FILE --supervisor-pid "* ]] \
         && exact_focus_supervision_command_has_ownership_token "$command" "$token"; then
         print -r -- "$pgid"
         return 0
@@ -116,17 +140,18 @@ exact_focus_supervision_group_exists() {
 
 exact_focus_supervision_stop_group() {
   EFCS_LAST_GROUP_REAP_PROVEN=0
+  EFCS_LAST_LIVE_GUARDIAN_AUTHENTICATED=0
   local ownership_file=""
-  if (( EFCS_WRAPPER_IDENTITY_REQUIRED == 1 )); then
-    [[ -f "$EFCS_WRAPPER_IDENTITY_FILE" && ! -L "$EFCS_WRAPPER_IDENTITY_FILE" ]] \
+  if (( EFCS_GUARDIAN_IDENTITY_REQUIRED == 1 )); then
+    [[ -f "$EFCS_GUARDIAN_IDENTITY_FILE" && ! -L "$EFCS_GUARDIAN_IDENTITY_FILE" ]] \
       || return 1
-    ownership_file="$EFCS_WRAPPER_IDENTITY_FILE"
+    ownership_file="$EFCS_GUARDIAN_IDENTITY_FILE"
   elif [[ -f "$EFCS_GROUP_PID_FILE" && ! -L "$EFCS_GROUP_PID_FILE" ]]; then
     ownership_file="$EFCS_GROUP_PID_FILE"
   elif [[ -f "$EFCS_ADMISSION_ACK_FILE" && ! -L "$EFCS_ADMISSION_ACK_FILE" ]]; then
     ownership_file="$EFCS_ADMISSION_ACK_FILE"
   elif [[ ! -e "$EFCS_GROUP_PID_FILE" && ! -e "$EFCS_ADMISSION_ACK_FILE" \
-    && ! -e "$EFCS_WRAPPER_IDENTITY_FILE" ]]; then
+    && ! -e "$EFCS_GUARDIAN_IDENTITY_FILE" ]]; then
     return 0
   else
     return 1
@@ -136,12 +161,13 @@ exact_focus_supervision_stop_group() {
     || lookup_status="$?"
   if (( lookup_status == 1 )); then
     rm -f "$EFCS_ADMISSION_ACK_FILE" "$EFCS_GROUP_PID_FILE" \
-      "$EFCS_WRAPPER_IDENTITY_FILE" || return 1
-    EFCS_WRAPPER_IDENTITY_REQUIRED=0
+      "$EFCS_GUARDIAN_IDENTITY_FILE" || return 1
+    EFCS_GUARDIAN_IDENTITY_REQUIRED=0
     EFCS_LAST_GROUP_REAP_PROVEN=1
     return 0
   fi
   (( lookup_status == 0 )) || return 1
+  EFCS_LAST_LIVE_GUARDIAN_AUTHENTICATED=1
   /bin/kill -TERM -"$pgid" 2>/dev/null || true
   while exact_focus_supervision_group_exists "$pgid" && (( attempt < 80 )); do
     exact_focus_supervision_pause 5
@@ -157,18 +183,18 @@ exact_focus_supervision_stop_group() {
   done
   exact_focus_supervision_group_exists "$pgid" && return 1
   rm -f "$EFCS_ADMISSION_ACK_FILE" "$EFCS_GROUP_PID_FILE" \
-    "$EFCS_WRAPPER_IDENTITY_FILE" || return 1
-  EFCS_WRAPPER_IDENTITY_REQUIRED=0
+    "$EFCS_GUARDIAN_IDENTITY_FILE" || return 1
+  EFCS_GUARDIAN_IDENTITY_REQUIRED=0
   EFCS_LAST_GROUP_REAP_PROVEN=1
 }
 
 exact_focus_supervision_settle_late_group_record() {
   local attempt=0
   while (( attempt < 1000 )); do
-    if [[ -e "$EFCS_WRAPPER_IDENTITY_FILE" ]]; then
+    if [[ -e "$EFCS_GUARDIAN_IDENTITY_FILE" ]]; then
       exact_focus_supervision_stop_group || return 1
       [[ ! -e "$EFCS_GROUP_PID_FILE" && ! -e "$EFCS_ADMISSION_ACK_FILE" \
-        && ! -e "$EFCS_WRAPPER_IDENTITY_FILE" ]] || return 1
+        && ! -e "$EFCS_GUARDIAN_IDENTITY_FILE" ]] || return 1
       return 0
     fi
     exact_focus_supervision_pause 1
@@ -257,7 +283,7 @@ exact_focus_supervision_reconcile_outer_reap() {
     && "$EFCS_LAST_SUPERVISOR_REASON" == timeout ]] \
     && (( EFCS_LAST_GROUP_REAP_PROVEN == 1 )) \
     && [[ ! -e "$EFCS_GROUP_PID_FILE" && ! -e "$EFCS_ADMISSION_ACK_FILE" \
-      && ( -z "$EFCS_WRAPPER_IDENTITY_FILE" || ! -e "$EFCS_WRAPPER_IDENTITY_FILE" ) ]]; then
+      && ( -z "$EFCS_GUARDIAN_IDENTITY_FILE" || ! -e "$EFCS_GUARDIAN_IDENTITY_FILE" ) ]]; then
     REPLY=124
     EFCS_OUTER_REAP_RECOVERED=1
   fi
@@ -268,6 +294,7 @@ exact_focus_supervision_run_to_files() {
   shift 3
   exact_focus_supervision_set_shell_finalizer_failure 125
   EFCS_OUTER_REAP_RECOVERED=0
+  EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK=0
   exact_focus_supervision_admission_state_is_clear || return 125
   [[ ! -e "$stdout_file" && ! -L "$stdout_file" \
     && ! -e "$stderr_file" && ! -L "$stderr_file" ]] || return 125
@@ -286,9 +313,11 @@ exact_focus_supervision_run_to_files() {
   fi
   (( EFCS_SEQUENCE += 1 ))
   EFCS_READY_FILE="$EFCS_TMP_ROOT/supervisor-ready-$EFCS_SEQUENCE"
-  EFCS_WRAPPER_IDENTITY_FILE="$EFCS_TMP_ROOT/supervisor-wrapper-$EFCS_SEQUENCE.identity"
-  EFCS_WRAPPER_IDENTITY_REQUIRED=1
-  [[ ! -e "$EFCS_READY_FILE" && ! -e "$EFCS_WRAPPER_IDENTITY_FILE" ]] || {
+  EFCS_GUARDIAN_IDENTITY_FILE="$EFCS_TMP_ROOT/supervisor-guardian-$EFCS_SEQUENCE.identity"
+  EFCS_GUARDIAN_IDENTITY_REQUIRED=1
+  [[ ! -e "$EFCS_READY_FILE" && ! -e "$EFCS_GUARDIAN_IDENTITY_FILE" \
+    && ( -z "$EFCS_READY_DELAY_ENTERED_FILE" || ( ! -e "$EFCS_READY_DELAY_ENTERED_FILE" \
+      && ! -L "$EFCS_READY_DELAY_ENTERED_FILE" ) ) ]] || {
     EFCS_HANDSHAKE_FAILED=1
     return 125
   }
@@ -296,27 +325,28 @@ exact_focus_supervision_run_to_files() {
     --supervise-command
     --owner-pid "$$"
     --group-pid-file "$EFCS_GROUP_PID_FILE"
-    --wrapper-identity-file "$EFCS_WRAPPER_IDENTITY_FILE"
+    --guardian-identity-file "$EFCS_GUARDIAN_IDENTITY_FILE"
     --ready-file "$EFCS_READY_FILE"
     --timeout-ms "$timeout_ms"
   )
   if (( EFCS_READY_DELAY_MS > 0 )); then
     arguments+=(--self-test-ready-delay-ms "$EFCS_READY_DELAY_MS")
+    [[ -z "$EFCS_READY_DELAY_ENTERED_FILE" ]] || arguments+=(--self-test-ready-delay-entered-file "$EFCS_READY_DELAY_ENTERED_FILE")
   fi
-  if (( EFCS_WRAPPER_RECORD_DELAY_MS > 0 )); then
-    arguments+=(--self-test-wrapper-record-delay-ms "$EFCS_WRAPPER_RECORD_DELAY_MS")
+  if (( EFCS_GUARDIAN_RECORD_DELAY_MS > 0 )); then
+    arguments+=(--self-test-guardian-record-delay-ms "$EFCS_GUARDIAN_RECORD_DELAY_MS")
   fi
   if (( EFCS_ADMISSION_ACK_DELAY_MS > 0 )); then
     arguments+=(--self-test-admission-ack-delay-ms "$EFCS_ADMISSION_ACK_DELAY_MS")
   fi
-  if (( EFCS_WRAPPER_RECORD_PUBLICATION_FAILURE == 1 )); then
-    arguments+=(--self-test-wrapper-record-publication-failure)
+  if (( EFCS_GUARDIAN_RECORD_PUBLICATION_FAILURE == 1 )); then
+    arguments+=(--self-test-guardian-record-publication-failure)
   fi
-  if (( EFCS_WRAPPER_IDENTITY_PUBLICATION_FAILURE == 1 )); then
-    arguments+=(--self-test-wrapper-identity-publication-failure)
+  if (( EFCS_GUARDIAN_IDENTITY_PUBLICATION_FAILURE == 1 )); then
+    arguments+=(--self-test-guardian-identity-publication-failure)
   fi
-  if (( EFCS_WRAPPER_CRASH_BEFORE_ACK == 1 )); then
-    arguments+=(--self-test-wrapper-crash-before-ack)
+  if (( EFCS_GUARDIAN_CRASH_BEFORE_ACK == 1 )); then
+    arguments+=(--self-test-guardian-crash-before-ack)
   fi
   if (( EFCS_SUPERVISOR_EXIT_BEFORE_GROUP_RECORD == 1 )); then
     arguments+=(--self-test-supervisor-exit-before-group-record)
@@ -342,6 +372,13 @@ exact_focus_supervision_run_to_files() {
       --self-test-final-reap-complete-file "$EFCS_FINAL_REAP_COMPLETE_FILE"
     )
   fi
+  if (( EFCS_PAYLOAD_OUTCOME_DELAY_MS > 0 )); then
+    EFCS_PAYLOAD_OUTCOME_FILE="$EFCS_TMP_ROOT/supervisor-payload-outcome-$EFCS_SEQUENCE"
+    arguments+=(
+      --self-test-payload-outcome-delay-ms "$EFCS_PAYLOAD_OUTCOME_DELAY_MS"
+      --self-test-payload-outcome-file "$EFCS_PAYLOAD_OUTCOME_FILE"
+    )
+  fi
   if [[ -n "$EFCS_TIMEOUT_READINESS_FILE" ]]; then
     arguments+=(
       --self-test-timeout-readiness-file "$EFCS_TIMEOUT_READINESS_FILE"
@@ -354,7 +391,30 @@ exact_focus_supervision_run_to_files() {
   EFCS_PID="$!"
   local supervised_pid="$EFCS_PID"
 
-  if (( EFCS_SIGNAL_BEFORE_ADMISSION_ACK == 1 )); then
+  if (( EFCS_KILL_SUPERVISOR_AFTER_PAYLOAD_OUTCOME == 1 )); then
+    /bin/zsh -c '
+      zmodload zsh/zselect
+      integer attempt=0
+      while (( attempt < 600 )); do
+        if [[ -f "$1" && ! -L "$1" && -f "$2" && ! -L "$2" ]]; then
+          [[ "$(<"$1")" == validated ]] || exit 1
+          descendant_pid="$(tr -d "[:space:]" < "$2")"
+          [[ "$descendant_pid" == <-> ]] || exit 1
+          /bin/kill -0 "$descendant_pid" || exit 1
+          /bin/kill -KILL "$3" || exit 1
+          umask 077
+          print -r -- "killed-after-validated-outcome $descendant_pid" > "$4.tmp"
+          /bin/mv "$4.tmp" "$4"
+          exit 0
+        fi
+        zselect -t 1 || true
+        (( attempt += 1 ))
+      done
+      exit 1
+    ' payload-outcome-kill "$EFCS_PAYLOAD_OUTCOME_FILE" "$EFCS_DESCENDANT_PID_FILE" \
+      "$supervised_pid" "$EFCS_SIGNAL_RECEIPT_FILE" &
+    EFCS_SIGNAL_SENDER_PID="$!"
+  elif (( EFCS_SIGNAL_BEFORE_ADMISSION_ACK == 1 )); then
     /bin/zsh -c '
       zmodload zsh/zselect
       integer attempt=0
@@ -409,21 +469,28 @@ exact_focus_supervision_run_to_files() {
 
   local attempt=0 ready_pid="" ready_mode="" ready_size=""
   while [[ ! -e "$EFCS_READY_FILE" ]] && kill -0 "$supervised_pid" 2>/dev/null && (( attempt < 600 )); do
+    if (( EFCS_FAIL_HANDSHAKE_AFTER_ADMISSION_ACK == 1 )) \
+      && exact_focus_supervision_admission_delay_oracle_is_valid; then
+      EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK=1
+      break
+    fi
     exact_focus_supervision_pause 1
     (( attempt += 1 ))
   done
-  if [[ -f "$EFCS_READY_FILE" && ! -L "$EFCS_READY_FILE" ]]; then
+  if (( EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK == 0 )) \
+    && [[ -f "$EFCS_READY_FILE" && ! -L "$EFCS_READY_FILE" ]]; then
     ready_mode="$(/usr/bin/stat -f '%Lp' "$EFCS_READY_FILE" 2>/dev/null || true)"
     ready_size="$(/usr/bin/stat -f '%z' "$EFCS_READY_FILE" 2>/dev/null || true)"
     ready_pid="$(<"$EFCS_READY_FILE")"
   fi
-  if [[ "$ready_pid" != "$supervised_pid" || "$ready_pid" != <-> || "$ready_mode" != 600 \
+  if (( EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK == 1 )) \
+    || [[ "$ready_pid" != "$supervised_pid" || "$ready_pid" != <-> || "$ready_mode" != 600 \
     || "$ready_size" != <-> ]] || (( ready_size < 2 || ready_size > 32 )); then
     EFCS_HANDSHAKE_FAILED=1
     exact_focus_supervision_stop_pid "$supervised_pid" || return 125
     exact_focus_supervision_settle_late_group_record || return 125
     [[ ! -e "$EFCS_GROUP_PID_FILE" && ! -e "$EFCS_ADMISSION_ACK_FILE" \
-      && ! -e "$EFCS_WRAPPER_IDENTITY_FILE" ]] || return 125
+      && ! -e "$EFCS_GUARDIAN_IDENTITY_FILE" ]] || return 125
     wait "$supervised_pid" 2>/dev/null || true
     exact_focus_supervision_finish_sender || EFCS_HANDSHAKE_FAILED=1
     EFCS_PID=""
@@ -462,17 +529,17 @@ exact_focus_supervision_run_to_files() {
     }
   fi
   wait "$supervised_pid" 2>/dev/null || true
-  if (( EFCS_CORRUPT_WRAPPER_IDENTITY == 1 )) \
-    && [[ -f "$EFCS_WRAPPER_IDENTITY_FILE" && ! -L "$EFCS_WRAPPER_IDENTITY_FILE" ]]; then
-    print -r -- invalid >| "$EFCS_WRAPPER_IDENTITY_FILE"
-    chmod 600 "$EFCS_WRAPPER_IDENTITY_FILE" || return 125
+  if (( EFCS_CORRUPT_GUARDIAN_IDENTITY == 1 )) \
+    && [[ -f "$EFCS_GUARDIAN_IDENTITY_FILE" && ! -L "$EFCS_GUARDIAN_IDENTITY_FILE" ]]; then
+    print -r -- invalid >| "$EFCS_GUARDIAN_IDENTITY_FILE"
+    chmod 600 "$EFCS_GUARDIAN_IDENTITY_FILE" || return 125
   fi
   exact_focus_supervision_stop_group || {
     exact_focus_supervision_set_shell_finalizer_failure 125
     return 125
   }
   [[ ! -e "$EFCS_GROUP_PID_FILE" && ! -e "$EFCS_ADMISSION_ACK_FILE" \
-    && ! -e "$EFCS_WRAPPER_IDENTITY_FILE" ]] || {
+    && ! -e "$EFCS_GUARDIAN_IDENTITY_FILE" ]] || {
     exact_focus_supervision_set_shell_finalizer_failure 125
     return 125
   }
@@ -487,7 +554,7 @@ exact_focus_supervision_run_to_files() {
   exact_focus_supervision_reconcile_outer_reap "$child_status"
   child_status="$REPLY"
   EFCS_READY_FILE=""
-  EFCS_WRAPPER_IDENTITY_FILE=""
+  EFCS_GUARDIAN_IDENTITY_FILE=""
   EFCS_TIMEOUT_READINESS_FILE=""
   EFCS_TIMEOUT_STARTUP_MS=0
   EFCS_PID=""
@@ -510,8 +577,8 @@ exact_focus_supervision_quiesce() {
   exact_focus_supervision_stop_group || true
   [[ -z "$EFCS_PID" ]] || ! kill -0 "$EFCS_PID" 2>/dev/null || failed=1
   if [[ ! -e "$EFCS_GROUP_PID_FILE" && ! -e "$EFCS_ADMISSION_ACK_FILE" \
-    && ( -z "$EFCS_WRAPPER_IDENTITY_FILE" || ! -e "$EFCS_WRAPPER_IDENTITY_FILE" ) ]]; then
-    (( EFCS_WRAPPER_IDENTITY_REQUIRED == 0 )) || failed=1
+    && ( -z "$EFCS_GUARDIAN_IDENTITY_FILE" || ! -e "$EFCS_GUARDIAN_IDENTITY_FILE" ) ]]; then
+    (( EFCS_GUARDIAN_IDENTITY_REQUIRED == 0 )) || failed=1
   else
     failed=1
   fi
@@ -520,7 +587,7 @@ exact_focus_supervision_quiesce() {
   fi
   if (( failed == 0 )); then
     EFCS_READY_FILE=""
-    EFCS_WRAPPER_IDENTITY_FILE=""
+    EFCS_GUARDIAN_IDENTITY_FILE=""
     EFCS_PID=""
   fi
   (( failed == 0 ))

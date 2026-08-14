@@ -79,6 +79,10 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
     shellHelper.indexOf('exact_focus_supervision_stop_group()'),
     shellHelper.indexOf('exact_focus_supervision_settle_late_group_record()'),
   );
+  const admissionDelayOracle = shellHelper.slice(
+    shellHelper.indexOf('exact_focus_supervision_admission_delay_oracle_is_valid()'),
+    shellHelper.indexOf('exact_focus_supervision_owned_group_pid_from_file()'),
+  );
   const receiptMismatch = scenarioHelper.slice(
     scenarioHelper.indexOf('exact_focus_supervision_scenario_receipt_mismatch()'),
     scenarioHelper.indexOf('exact_focus_supervision_timeout_status_failure()'),
@@ -97,7 +101,11 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
   );
   const handshakeScenario = scenarioHelper.slice(
     scenarioHelper.indexOf('exact_focus_supervision_scenario_handshake_delay()'),
-    scenarioHelper.indexOf('exact_focus_supervision_scenario_wrapper_identity_publication_failure()'),
+    scenarioHelper.indexOf('exact_focus_supervision_scenario_guardian_identity_publication_failure()'),
+  );
+  const crashScenario = scenarioHelper.slice(
+    scenarioHelper.indexOf('exact_focus_supervision_scenario_supervisor_crash_after_payload()'),
+    scenarioHelper.indexOf('typeset -ga EFCS_SCENARIO_HANDLER_TABLE=('),
   );
   const handlerTable = scenarioHelper.slice(
     scenarioHelper.indexOf('typeset -ga EFCS_SCENARIO_HANDLER_TABLE=('),
@@ -108,10 +116,10 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
   );
   const supervisor = nodeHelper.slice(
     nodeHelper.indexOf('async function superviseCommand'),
-    nodeHelper.indexOf('async function ownedGroupWrapper'),
+    nodeHelper.indexOf('async function ownedGroupGuardian'),
   );
-  const wrapper = nodeHelper.slice(
-    nodeHelper.indexOf('async function ownedGroupWrapper'),
+  const guardian = nodeHelper.slice(
+    nodeHelper.indexOf('async function ownedGroupGuardian'),
     nodeHelper.indexOf('async function runCLI'),
   );
   const progressHang = selfTestHelper.slice(
@@ -122,6 +130,10 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
     selfTestHelper.indexOf('async function basicTimeoutSelfTest(args)'),
     selfTestHelper.indexOf('async function exitWithTermIgnoringDescendant(args)'),
   );
+  const termHoldingDescendant = selfTestHelper.slice(
+    selfTestHelper.indexOf('async function termHoldingDescendant(args)'),
+    selfTestHelper.indexOf('async function progressHangSelfTest(args)'),
+  );
 
   assert.match(driver, /from '\.\.\/lib\/exact-focus-channel-native-proof-runtime\.mjs'/u);
   assert.match(driver, /from '\.\.\/lib\/exact-focus-channel-native-proof-model\.mjs'/u);
@@ -131,10 +143,10 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
   assert.doesNotMatch(nodeHelper, /exact-focus-channel-native-proof\.mjs/u);
   assert.doesNotMatch(nodeHelper, /basicTimeoutSelfTest|progressHangSelfTest|createRunProgram/u);
   assert.match(nodeHelper, /from '\.\/exact-focus-channel-supervision-protocol\.mjs'/u);
-  assert.doesNotMatch(nodeHelper, /^function (?:normalizedProcessStatus|readReadiness|runProgramReceiptStatus|wrapperOutcomeFromProcessResult)\(/mu);
+  assert.doesNotMatch(nodeHelper, /^function (?:normalizedProcessStatus|payloadOutcomeFromProcessResult|readReadiness|runProgramReceiptStatus)\(/mu);
   assert.match(nodeHelper, /const HELPER_PATH = fileURLToPath\(import\.meta\.url\)/u);
   assert.match(commandRunner, /export function createRunProgram\(/u);
-  assert.match(supervisor, /spawn\(process\.execPath, wrapperArgs/u);
+  assert.match(supervisor, /spawn\(process\.execPath, guardianArgs/u);
   assert.match(nodeHelper, /pathToFileURL\(path\.resolve\(process\.argv\[1\]\)\)\.href === import\.meta\.url/u);
   assert.match(selfTestHelper, /async function runProgramTimeoutChildProcess/u);
   assert.match(selfTestHelper, /function runProgramTimeoutSelfTest/u);
@@ -149,11 +161,15 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
   assert.match(selfTestProtocolImport, /\bprocessExists,/u);
   assert.doesNotMatch(nodeHelper, /^function processExists\(/mu);
   assert.doesNotMatch(selfTestHelper, /^function processExists\(/mu);
-  assert.match(wrapper, /writeDurableExclusiveFile\(\s+groupPIDFile/u);
-  assert.match(wrapper, /await waitForAdmissionAck\(/u);
+  assert.match(guardian, /const valid =[\s\S]+if \(!valid\)[\s\S]+process\.on\('SIGINT', holdSignal\);[\s\S]+process\.on\('SIGTERM', holdSignal\);/u);
+  assert.match(guardian, /writeDurableExclusiveFile\(\s+groupPIDFile/u);
+  assert.match(guardian, /await waitForAdmissionAck\(/u);
   assert.match(nodeHelper, /admissionCommitReceived\(\) && ownedGroupRecordIsValid/u);
-  assert.ok(wrapper.indexOf('writeDurableExclusiveFile(') < wrapper.indexOf('await waitForAdmissionAck('));
-  assert.ok(wrapper.indexOf('await waitForAdmissionAck(') < wrapper.indexOf('spawn(executable'));
+  assert.ok(guardian.indexOf("process.on('SIGTERM', holdSignal)")
+    < guardian.indexOf('writeDurableExclusiveFile('));
+  assert.ok(guardian.indexOf('writeDurableExclusiveFile(')
+    < guardian.indexOf('await waitForAdmissionAck('));
+  assert.ok(guardian.indexOf('await waitForAdmissionAck(') < guardian.indexOf('spawn(executable'));
   assert.ok(progressHang.indexOf('writeProgressReceipt(') < progressHang.indexOf("spawn('/bin/zsh'"));
   assert.ok(progressHang.indexOf("spawn('/bin/zsh'") < progressHang.indexOf("writeDurableAtomicFile(pidFile"));
   assert.ok(progressHang.indexOf('writeDurableAtomicFile(pidFile') < progressHang.indexOf('writeDurableAtomicFile(readinessFile'));
@@ -163,15 +179,30 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
   assert.match(basicTimeout, /const useDefaultSIGTERM = args\.includes\('--self-test-default-sigterm'\)[\s\S]+if \(!useDefaultSIGTERM\) process\.on\('SIGTERM'/u);
   assert.match(basicTimeout, /--self-test-exit-after-readiness-ms[\s\S]+await sleep\(exitDelayMilliseconds\);[\s\S]+return 0;/u);
   assert.match(nodeHelper, /const TERM_GRACE_MS = 4_000;[\s\S]+const KILL_GRACE_MS = 3_000;/u);
-  assert.match(supervisor, /stage = 'payload_readiness_wait';[\s\S]+stage = 'wrapper_result_wait';/u);
+  assert.match(supervisor, /stage = 'payload_readiness_wait';[\s\S]+stage = 'payload_outcome_wait';/u);
   assert.match(supervisor, /stage = 'final_group_reap';[\s\S]+stage = 'group_record_remove';/u);
   assert.match(nodeHelper, /'unexpected_supervisor_exception', 'cli_boundary', 125, 'supervisor_exception'/u);
   assert.match(supervisor, /await waitForOwnedGroupRecord\(/u);
   assert.match(supervisor, /stdio: \['inherit', 'inherit', 'inherit', 'ipc'\]/u);
-  assert.match(supervisor, /if \(reason === null && !childSettled && processExists\(child\.pid\)\)[\s\S]+writeDurableExclusiveFile\(\s+admissionAckFile/u);
+  assert.match(supervisor, /payloadOutcomePromise\.then\(\(outcome\)/u);
+  assert.match(supervisor, /guardianResultPromise\.then\(\(result\)/u);
+  assert.match(supervisor, /guardianFailureStage = stage/u);
+  assert.match(supervisor, /guardianFailureStage = 'guardian_spawn'/u);
+  assert.match(supervisor, /guardianFailureStage,\s+guardianResult,/u);
+  assert.match(supervisor, /const startupDeadline = setTimeout\([\s\S]+ADMISSION_STARTUP_MS/u);
+  assert.equal((supervisor.match(/requestTermination\('TIMEOUT'\)/gu) ?? []).length, 1);
+  assert.ok(supervisor.indexOf('writeDurableAtomicFile(readyFile')
+    < supervisor.indexOf("requestTermination('TIMEOUT')"));
+  assert.ok(supervisor.indexOf("requestTermination('TIMEOUT')")
+    < supervisor.indexOf("stage = 'payload_outcome_wait'"));
+  assert.ok(supervisor.indexOf("stage = 'group_record_wait'")
+    < supervisor.indexOf('if (guardianIdentityPublicationFailure)'));
+  assert.ok(supervisor.indexOf('payloadOutcome = await waitForPayloadOutcome()')
+    < supervisor.indexOf("stage = 'final_group_reap'"));
+  assert.match(supervisor, /if \(reason === null && !guardianSettled && processExists\(guardian\.pid\)\)[\s\S]+writeDurableExclusiveFile\(\s+admissionAckFile/u);
   assert.ok(supervisor.indexOf("'admission-ack'") < supervisor.indexOf('writeDurableAtomicFile(readyFile'));
-  assert.ok(supervisor.indexOf("'admission-ack'") < supervisor.indexOf('sendAdmissionCommit(child)'));
-  assert.ok(supervisor.indexOf('sendAdmissionCommit(child)') < supervisor.indexOf('writeDurableAtomicFile(readyFile'));
+  assert.ok(supervisor.indexOf("'admission-ack'") < supervisor.indexOf('sendAdmissionCommit(guardian)'));
+  assert.ok(supervisor.indexOf('sendAdmissionCommit(guardian)') < supervisor.indexOf('writeDurableAtomicFile(readyFile'));
   assert.ok(supervisor.indexOf('let groupGone =') < supervisor.indexOf('fs.unlinkSync(groupPIDFile)'));
   assert.doesNotMatch(supervisor, /fs\.unlinkSync\(admissionAckFile\)/u);
   assert.match(protocol, /fs\.linkSync\(tempFile, file\)[\s\S]+fs\.fsyncSync\(directoryDescriptor\)/u);
@@ -191,6 +222,7 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
   assert.match(runner, /exact_focus_supervision_init \\\n+  "\$SUPERVISION_NODE_SOURCE" "\$SUPERVISION_SELF_TEST_SOURCE" \\\n+  "\$SUPERVISION_PROTOCOL_SOURCE" "\$PROOF_CONTRACT_SOURCE"/u);
   assert.match(runner, /^umask 077$/mu);
   assert.match(runner, /exact_focus_supervision_run_scenario "\$MODE"/u);
+  assert.match(runner, /retain_then_remove[\s\S]+"\$\{TMP_ROOT:t\}" != aos-exact-focus-native-proof\.\?\?\?\?\?\?[\s\S]+! rm -rf -- "\$TMP_ROOT"[\s\S]+-e "\$TMP_ROOT" \|\| -L "\$TMP_ROOT"[\s\S]+SUPERVISION_CLEANUP_ROOT_RETAINED/u);
   assert.match(runner, /typeset -r PROGRESS_SANITIZER_TIMEOUT_MS=2000/u);
   assert.doesNotMatch(runner, /^run_supervised_to_files\(\)|^active_group_pid\(\)/mu);
   assert.doesNotMatch(shellHelper, /\$ROOT|\$DRIVER|\$TMP_ROOT|\$GROUP_PID_FILE/u);
@@ -208,9 +240,9 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
   )].map((match) => ({ handler: match[2], mode: match[1], variant: match[3] }));
   const scenarioRouteRows = handlerTable.split('\n').filter((line) => /^\s+--/u.test(line));
   const scenarioModes = scenarioRoutes.map((route) => route.mode);
-  assert.equal(scenarioRouteRows.length, 21);
-  assert.equal(scenarioRoutes.length, 21);
-  assert.equal(new Set(scenarioModes).size, 21);
+  assert.equal(scenarioRouteRows.length, 22);
+  assert.equal(scenarioRoutes.length, 22);
+  assert.equal(new Set(scenarioModes).size, 22);
   assert.ok(scenarioRoutes.every((route) => scenarioHelper.includes(`${route.handler}() {`)));
   assert.equal(scenarioModes.filter((mode) => runner.includes(mode)).length, 0);
   assert.doesNotMatch(scenarioHelper, /case "\$mode"/u);
@@ -223,22 +255,30 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
 
   assert.match(scenarioHelper, /--validate-process-tree-retired|--validate-run-program-receipt/u);
   assert.doesNotMatch(shellHelper, /--validate-process-tree-retired|--validate-run-program-receipt/u);
-  assert.match(shellHelper, /--validate-wrapper-identity[\s\S]+"\$ownership_file" "\$pgid" "\$token"/u);
+  assert.match(shellHelper, /--validate-guardian-identity[\s\S]+"\$ownership_file" "\$pgid" "\$token"/u);
   assert.match(shellHelper, /exact_focus_supervision_command_has_ownership_token\(\)/u);
   assert.equal((runner.match(/exact_focus_supervision_command_has_ownership_token/g) ?? []).length, 2);
   assert.doesNotMatch(`${runner}\n${shellHelper}`, /\*"?--ownership-token \$token"?\*/u);
   assert.match(shellHelper, /elif \[\[ -f "\$EFCS_ADMISSION_ACK_FILE" && ! -L "\$EFCS_ADMISSION_ACK_FILE" \]\]; then[\s\S]+ownership_file="\$EFCS_ADMISSION_ACK_FILE"/u);
-  assert.match(stopGroup, /if \(\( EFCS_WRAPPER_IDENTITY_REQUIRED == 1 \)\); then\s+\[\[ -f "\$EFCS_WRAPPER_IDENTITY_FILE" && ! -L "\$EFCS_WRAPPER_IDENTITY_FILE" \]\][\s\S]+ownership_file="\$EFCS_WRAPPER_IDENTITY_FILE"/u);
-  assert.ok(stopGroup.indexOf('EFCS_WRAPPER_IDENTITY_REQUIRED == 1')
+  assert.match(stopGroup, /if \(\( EFCS_GUARDIAN_IDENTITY_REQUIRED == 1 \)\); then\s+\[\[ -f "\$EFCS_GUARDIAN_IDENTITY_FILE" && ! -L "\$EFCS_GUARDIAN_IDENTITY_FILE" \]\][\s\S]+ownership_file="\$EFCS_GUARDIAN_IDENTITY_FILE"/u);
+  assert.ok(stopGroup.indexOf('EFCS_GUARDIAN_IDENTITY_REQUIRED == 1')
     < stopGroup.indexOf('-f "$EFCS_GROUP_PID_FILE"'));
   assert.ok(stopGroup.indexOf('-f "$EFCS_GROUP_PID_FILE"')
     < stopGroup.indexOf('-f "$EFCS_ADMISSION_ACK_FILE"'));
-  assert.match(stopGroup, /elif \[\[ ! -e "\$EFCS_GROUP_PID_FILE" && ! -e "\$EFCS_ADMISSION_ACK_FILE" \\\n+    && ! -e "\$EFCS_WRAPPER_IDENTITY_FILE" \]\]; then\s+return 0/u);
+  assert.match(stopGroup, /elif \[\[ ! -e "\$EFCS_GROUP_PID_FILE" && ! -e "\$EFCS_ADMISSION_ACK_FILE" \\\n+    && ! -e "\$EFCS_GUARDIAN_IDENTITY_FILE" \]\]; then\s+return 0/u);
   assert.match(shellHelper, /exact_focus_supervision_settle_late_group_record \|\| return 125/u);
   assert.match(shellHelper, /--admission-ack-file \$EFCS_ADMISSION_ACK_FILE/u);
   assert.match(shellHelper, /rm -f "\$EFCS_ADMISSION_ACK_FILE" "\$EFCS_GROUP_PID_FILE"/u);
   assert.match(shellHelper, /attempt < 80[\s\S]+exact_focus_supervision_pause 5[\s\S]+attempt < 60[\s\S]+exact_focus_supervision_pause 2/u);
-  assert.match(handshakeScenario, /EFCS_READY_DELAY_MS=8000[\s\S]+\/bin\/true[\s\S]+SUPERVISOR_HANDSHAKE_STATE_INVALID/u);
+  assert.match(admissionDelayOracle, /--validate-guardian-identity[\s\S]+--validate-owned-group-record[\s\S]+marker_mode[\s\S]+marker_size[\s\S]+== entered/u);
+  assert.doesNotMatch(admissionDelayOracle, /\bkill\b|stop_(?:group|pid)/u);
+  assert.match(shellHelper, /typeset -gi EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK=0[\s\S]+--self-test-ready-delay-entered-file[\s\S]+while \[\[ ! -e "\$EFCS_READY_FILE"[\s\S]+EFCS_FAIL_HANDSHAKE_AFTER_ADMISSION_ACK == 1[\s\S]+admission_delay_oracle_is_valid[\s\S]+EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK=1[\s\S]+break[\s\S]+EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK == 0[\s\S]+-f "\$EFCS_READY_FILE"[\s\S]+EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK == 1/u);
+  assert.match(handshakeScenario, /EFCS_READY_DELAY_ENTERED_FILE="\$EFCS_TMP_ROOT\/handshake-delay-entered"[\s\S]+EFCS_READY_DELAY_MS=8000 EFCS_FAIL_HANDSHAKE_AFTER_ADMISSION_ACK=1[\s\S]+\/bin\/true[\s\S]+ack_abort_observed="\$EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK"[\s\S]+EFCS_HANDSHAKE_ABORTED_AFTER_ADMISSION_ACK=0[\s\S]+SUPERVISOR_HANDSHAKE_ACK_ABORT_NOT_OBSERVED[\s\S]+SUPERVISOR_HANDSHAKE_FLAG_MISSING[\s\S]+SUPERVISOR_HANDSHAKE_OWNERSHIP_FILES_RETAINED[\s\S]+SUPERVISOR_HANDSHAKE_STATE_RETAINED/u);
+  const admissionCommit = supervisor.indexOf('await sendAdmissionCommit(guardian)');
+  const exactAdmissionAck = supervisor.indexOf('ownedGroupRecordIsValid(admissionAckFile');
+  const delayMarker = supervisor.indexOf("writeDurableExclusiveFile(readyDelayEnteredFile, 'entered\\n'");
+  const boundedReadyDelay = supervisor.indexOf('await boundedDelay(readyDelayMilliseconds');
+  assert.ok(admissionCommit < exactAdmissionAck && exactAdmissionAck < delayMarker && delayMarker < boundedReadyDelay);
   assert.match(timeoutScenarios, /local -a payload_arguments=\(--basic-timeout-self-test --readiness "\$readiness"\)/u);
   assert.match(timeoutScenarios, /if \[\[ "\$variant" == remove \]\]; then\s+EFCS_GROUP_RECORD_REMOVE_FAILURE=1\s+payload_arguments\+=\(--self-test-default-sigterm\)\s+fi/u);
   assert.equal((timeoutScenarios.match(/--self-test-default-sigterm/g) ?? []).length, 1);
@@ -247,7 +287,32 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
   assert.match(injectedStages, /EFCS_THROW_AFTER_READINESS=1[\s\S]+payload_arguments\+=\(--self-test-default-sigterm\)/u);
   assert.match(injectedStages, /EFCS_GROUP_RECORD_REMOVE_FAILURE=1[\s\S]+supervision_timeout=2000[\s\S]+expected_reason=none[\s\S]+payload_arguments\+=\(--self-test-exit-after-readiness-ms 100\)/u);
   assert.match(receiptMismatch, /supervisor_detail[\s\S]+supervisor_reason[\s\S]+supervisor_stage[\s\S]+supervisor_status/u);
-  assert.match(wrapper, /wrapperOutcomeFromProcessResult\(result\)[\s\S]+publishWrapperOutcome\(outcome\.detail, outcome\.status\)/u);
+  assert.match(guardian, /payloadOutcomeFromProcessResult\(result\)[\s\S]+publishPayloadOutcome\(outcome\.detail, outcome\.status\)/u);
+  assert.match(guardian, /payloadOutcomePublished[\s\S]+while \(true\) await sleep\(1_000\)/u);
+  assert.doesNotMatch(nodeHelper, /spawnSync|processGroupMemberPIDs|waitForGuardianOnly/u);
+  assert.match(supervisor, /let groupOwned = false;[\s\S]+let groupMayBeSignaled = false;/u);
+  assert.match(supervisor, /groupOwned = true;[\s\S]+groupMayBeSignaled = true;/u);
+  assert.ok(supervisor.indexOf('await waitForOwnedGroupRecord(')
+    < supervisor.indexOf('groupOwned = true;'));
+  assert.match(supervisor, /groupSignalIsPermitted\(groupOwned, groupMayBeSignaled\)/u);
+  const finalRetirement = supervisor.slice(supervisor.indexOf("stage = 'final_group_reap'"));
+  assert.match(finalRetirement, /groupGone = groupOwned && Number\.isSafeInteger\(guardian\?\.pid\)/u);
+  assert.ok(finalRetirement.indexOf('groupMayBeSignaled = false;')
+    < finalRetirement.indexOf('retireProcessGroup(guardian.pid)'));
+  assert.ok(finalRetirement.indexOf('clearTimeout(escalationTimer)')
+    < finalRetirement.indexOf('retireProcessGroup(guardian.pid)'));
+  assert.doesNotMatch(finalRetirement, /groupMayBeSignaled = true/u);
+  assert.ok(termHoldingDescendant.indexOf("process.on('SIGTERM'")
+    < termHoldingDescendant.indexOf('writeDurableExclusiveFile(readinessFile'));
+  assert.match(termHoldingDescendant, /writeDurableExclusiveFile\(termReceiptFile, 'term-held\\n'/u);
+  assert.match(termHoldingDescendant, /heartbeatRequestFile[\s\S]+writeDurableExclusiveFile\(heartbeatAckFile, 'alive\\n'/u);
+  assert.match(crashScenario, /EFCS_LAST_LIVE_GUARDIAN_AUTHENTICATED == 1/u);
+  assert.ok(crashScenario.indexOf('exact_focus_supervision_run_driver 10000')
+    < crashScenario.indexOf('print -r -- heartbeat'));
+  assert.ok(crashScenario.indexOf('print -r -- heartbeat')
+    < crashScenario.indexOf('< "$heartbeat_ack"'));
+  assert.ok(crashScenario.indexOf('< "$heartbeat_ack"')
+    < crashScenario.indexOf('! -e "$unrelated_term"'));
   assert.match(supervisor, /--self-test-first-tier-reap-failure[\s\S]+emitSupervisorFailureDetail\('group_reap_failed', stage, 125, 'timeout'\)/u);
   assert.match(shellHelper, /exact_focus_supervision_stop_group \|\| \{[\s\S]+exact_focus_supervision_reconcile_outer_reap "\$child_status"/u);
   assert.match(runner, /1,729,000ms supervisor deadline/u);
@@ -264,7 +329,7 @@ test('supervision implementation is import-safe, focused, and singly owned', () 
   assert.ok(supervisionContract.split('\n').length - 1 < 700);
 });
 
-test('sourced-shell wrapper identity observation handles disappearance and live mismatch', () => {
+test('sourced-shell guardian identity observation handles disappearance and live mismatch', () => {
   const empty = path.join(process.env.TMPDIR ?? '/tmp', `aos-clear-state-${process.pid}-${Date.now()}`);
   const identity = `${empty}.identity`; const leader = '424242'; const token = 'a'.repeat(32);
   fs.writeFileSync(identity, `${leader} ${token}\n`, { mode: 0o600 });
@@ -274,10 +339,10 @@ test('sourced-shell wrapper identity observation handles disappearance and live 
       "$1" "$1" "$3" "$1" "$2" "$2/group" "$2/out" "$2/err"
     exact_focus_supervision_admission_state_is_clear || exit 11
     exact_focus_supervision_quiesce || exit 12
-    EFCS_WRAPPER_IDENTITY_REQUIRED=1
+    EFCS_GUARDIAN_IDENTITY_REQUIRED=1
     exact_focus_supervision_admission_state_is_clear && exit 13
     exact_focus_supervision_quiesce && exit 14
-    EFCS_WRAPPER_IDENTITY_REQUIRED=0
+    EFCS_GUARDIAN_IDENTITY_REQUIRED=0
     expected_pid="$5"
     exact_focus_supervision_pause() { :; }
     exact_focus_supervision_process_group_id() { print -r -- "$expected_pid"; }
@@ -327,7 +392,8 @@ test('abnormal process outcomes and outer-reap reconciliation fail closed', () =
   });
   assert.equal(outcome.status, 0, diagnostics(outcome));
   assert.deepEqual(JSON.parse(outcome.stdout.trim()), {
-    abnormal_null_status: 125, payload_exit_status: 1, status: 'passed',
+    abnormal_null_status: 125, payload_exit_status: 1, payload_success_status: 0,
+    status: 'passed',
   });
   assert.equal(outcome.stderr, '');
 
@@ -391,7 +457,7 @@ test('payload exit status and outer timeout reap remain distinct end to end', ()
       status: 'passed',
       supervisor_detail: 'payload_nonzero_exit',
       supervisor_reason: 'payload_exit',
-      supervisor_stage: 'wrapper_result_wait',
+      supervisor_stage: 'payload_outcome_wait',
       supervisor_status: 1,
     })],
     ['--supervisor-outer-reap-recovery-self-test', expectedWithStandardFinalizer({
@@ -414,25 +480,25 @@ test('secondary group-record removal preserves the original supervisor failure',
       cleanup_complete: true, payload_exit_status_preserved: true, status: 'passed',
       supervisor_cleanup_detail: 'group_record_remove_failed',
       supervisor_cleanup_stage: 'group_record_remove', supervisor_detail: 'payload_nonzero_exit',
-      supervisor_reason: 'payload_exit', supervisor_stage: 'wrapper_result_wait', supervisor_status: 1,
+      supervisor_reason: 'payload_exit', supervisor_stage: 'payload_outcome_wait', supervisor_status: 1,
     })],
     ['--supervisor-timeout-remove-failure-self-test', expectedWithStandardFinalizer({
       cleanup_complete: true, primary_timeout_preserved: true, status: 'passed',
       supervisor_cleanup_detail: 'group_record_remove_failed',
       supervisor_cleanup_stage: 'group_record_remove', supervisor_detail: 'supervisor_timeout',
-      supervisor_reason: 'timeout', supervisor_stage: 'wrapper_result_wait', supervisor_status: 124,
+      supervisor_reason: 'timeout', supervisor_stage: 'payload_outcome_wait', supervisor_status: 124,
     })],
   ]) {
     expectScenario(mode, expected);
   }
 });
 
-test('durable wrapper identity failures retain recovery state without admitting payload', () => {
+test('durable guardian identity failures retain recovery state without admitting payload', () => {
   for (const [mode, expected] of [
-    ['--supervisor-wrapper-identity-publication-failure-self-test', {
-      payload_admitted: false, recovery_root_retained: true, status: 'passed', wrapper_identity_publication_fail_closed: true,
+    ['--supervisor-guardian-identity-publication-failure-self-test', {
+      guardian_identity_publication_fail_closed: true, payload_admitted: false, recovery_root_retained: true, status: 'passed',
     }],
-    ['--supervisor-wrapper-identity-invalid-self-test', { invalid_wrapper_identity_failed_closed: true,
+    ['--supervisor-guardian-identity-invalid-self-test', { invalid_guardian_identity_failed_closed: true,
       recovery_root_retained: true, status: 'passed' }],
   ]) {
     expectScenario(mode, expected);
@@ -511,7 +577,7 @@ test('fast-exit handshake cleanup uses the durable admission acknowledgment', ()
   }, 18_000);
 });
 
-test('wrapper-owned records gate payload admission and remain recoverable', () => {
+test('guardian-owned records gate payload admission and remain recoverable', () => {
   for (const [mode, expected] of [
     ['--supervisor-admission-success-self-test', expectedWithStandardFinalizer({
       admission_ack_bound: true,
@@ -523,12 +589,12 @@ test('wrapper-owned records gate payload admission and remain recoverable', () =
       cleanup_complete: true, payload_admitted: false,
       record_publication_failure_bounded: true, status: 'passed',
     })],
-    ['--supervisor-wrapper-crash-before-admission-self-test', expectedWithStandardFinalizer({
+    ['--supervisor-guardian-crash-before-admission-self-test', expectedWithStandardFinalizer({
       cleanup_complete: true, payload_admitted: false,
-      record_recovered_after_wrapper_crash: true, status: 'passed',
+      record_recovered_after_guardian_crash: true, status: 'passed',
     })],
     ['--supervisor-parent-loss-before-record-self-test', expectedWithStandardFinalizer({
-      cleanup_complete: true, delayed_wrapper_reaped: true, parent_loss_before_record_fail_closed: true,
+      cleanup_complete: true, delayed_guardian_reaped: true, parent_loss_before_record_fail_closed: true,
       payload_admitted: false, status: 'passed',
     })],
     ['--supervisor-parent-loss-before-admission-self-test', expectedWithStandardFinalizer({
@@ -551,4 +617,16 @@ test('final reap handlers survive repeated TERM until descendants are gone', () 
     final_reap_signal_idempotent: true,
     status: 'passed',
   }), 18_000);
+});
+
+test('outer shell reaps the live exact guardian after supervisor SIGKILL', () => {
+  expectScenario('--supervisor-crash-after-payload-outcome-self-test',
+    expectedWithStandardFinalizer({
+      cleanup_complete: true,
+      guardian_authenticated_after_supervisor_crash: true,
+      live_unrelated_group_preserved: true,
+      owned_descendant_reaped: true,
+      payload_outcome_validated_before_crash: true,
+      status: 'passed',
+    }), 18_000);
 });

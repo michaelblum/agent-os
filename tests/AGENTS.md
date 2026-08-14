@@ -192,7 +192,15 @@ tests.
   lifecycle receipt and process-outcome normalization must be singly owned by
   an import-safe protocol module consumed by the process-owning helper and
   `exact-focus-channel-proof-protocol-contract.test.mjs` and
-  `exact-focus-channel-supervision-contract.test.mjs`; command execution,
+  `exact-focus-channel-supervision-contract.test.mjs`. The detached exact-token
+  guardian must lead and remain live in its process group from admission through
+  descendant retirement, hold INT/TERM before publishing ownership, emit one
+  exact validated payload outcome only after admission commits, and be awaited
+  before group absence is accepted. Deterministic crash coverage must kill the
+  supervisor after that outcome while a TERM-ignoring descendant remains, then
+  require the outer shell to authenticate the live guardian command, token, and
+  PGID before bounded reaping without touching an unrelated live group. Never
+  act on a dead numeric ownership record. Command execution,
   executable offline self-test payloads, pure proof modeling, and live proof
   operations must remain separate import-safe helpers, with stdout/tempfs
   effects owned by `exact-focus-channel-native-proof-self-test.mjs`, bounded

@@ -23,8 +23,12 @@ import {
   RUN_PROGRAM_MAX_BYTES,
   RUN_PROGRAM_SCHEMA,
   createPrivateOutputFiles,
+  groupSignalIsPermitted,
   normalizedProcessStatus,
   ownedGroupRecordIsValid,
+  payloadOutcomeFromMessage,
+  payloadOutcomeFromProcessResult,
+  payloadOutcomeMessage,
   parseSupervisorFailureReceiptText,
   primarySupervisorFailure,
   processExists,
@@ -36,9 +40,6 @@ import {
   runProgramTimeoutInitializationError,
   serializeSupervisorFailureReceipt,
   supervisorProjectionIsValid,
-  wrapperFailureDetailFromMessage,
-  wrapperOutcomeFromProcessResult,
-  wrapperOutcomeMessage,
 } from './lib/exact-focus-channel-supervision-protocol.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -165,10 +166,24 @@ test('final proof output is closed, typed, and validates before CLI emission', (
   });
   assert.deepEqual(validateFinalOutputText(JSON.stringify(finalizedFailure)), finalizedFailure);
   assert.deepEqual(validateFinalOutputText(JSON.stringify(finalizedSuccess)), finalizedSuccess);
+  const guardianCrashProof = {
+    ...finalizedSuccess,
+    guardian_authenticated_after_supervisor_crash: true,
+    live_unrelated_group_preserved: true,
+    payload_outcome_validated_before_crash: true,
+  };
+  assert.deepEqual(
+    validateFinalOutputText(JSON.stringify(guardianCrashProof)), guardianCrashProof,
+  );
+  for (const rejectedGuardianCrashProof of [
+    { ...guardianCrashProof, guardian_authenticated_after_supervisor_crash: 'true' },
+    { ...guardianCrashProof, payload_outcome_validated_before_crash: 1 },
+    { ...guardianCrashProof, unrelated_group_preserved: true },
+  ]) assert.equal(validateFinalOutputText(JSON.stringify(rejectedGuardianCrashProof)), null);
   const supervisorProjection = {
     supervisor_detail: 'supervisor_timeout',
     supervisor_reason: 'timeout',
-    supervisor_stage: 'wrapper_result_wait',
+    supervisor_stage: 'payload_outcome_wait',
     supervisor_status: 124,
   };
   const supervisorWithCleanup = {
@@ -234,16 +249,16 @@ test('final proof output is closed, typed, and validates before CLI emission', (
 
 test('supervision protocol is closed and directly exercised', () => {
   const timeoutReceipt = serializeSupervisorFailureReceipt(
-    'supervisor_timeout', 'wrapper_result_wait', 124, 'timeout',
+    'supervisor_timeout', 'payload_outcome_wait', 124, 'timeout',
   );
   assert.equal(timeoutReceipt,
-    '{"detail":"supervisor_timeout","reason":"timeout","schema":"aos.exact-focus-channel-supervisor-failure.v1","stage":"wrapper_result_wait","status":124}\n');
+    '{"detail":"supervisor_timeout","reason":"timeout","schema":"aos.exact-focus-channel-supervisor-failure.v1","stage":"payload_outcome_wait","status":124}\n');
   assert.deepEqual(parseSupervisorFailureReceiptText(timeoutReceipt), {
     cleanupDetail: null,
     cleanupStage: null,
     detail: 'supervisor_timeout',
     reason: 'timeout',
-    stage: 'wrapper_result_wait',
+    stage: 'payload_outcome_wait',
     status: 124,
   });
   const cleanupReceipt = serializeSupervisorFailureReceipt(
@@ -261,9 +276,33 @@ test('supervision protocol is closed and directly exercised', () => {
     stage: 'payload_readiness_wait',
     status: 125,
   });
+  for (const stage of [
+    'guardian_spawn', 'group_record_wait', 'admission_ack_publish', 'payload_readiness_wait',
+  ]) {
+    const earlyStartupReceipt = serializeSupervisorFailureReceipt(
+      'payload_initialization_timeout', stage, 126, 'initialization_timeout',
+    );
+    assert.equal(parseSupervisorFailureReceiptText(earlyStartupReceipt)?.stage, stage);
+  }
+  assert.equal(serializeSupervisorFailureReceipt(
+    'payload_initialization_timeout', 'final_group_reap', 126, 'initialization_timeout',
+  ), null);
+  const identityPublicationReceipt = serializeSupervisorFailureReceipt(
+    'group_record_failed', 'group_record_wait', 125, 'group_record_failed',
+  );
+  assert.equal(parseSupervisorFailureReceiptText(identityPublicationReceipt)?.detail,
+    'group_record_failed');
+  for (const stage of ['guardian_spawn', 'payload_outcome_wait']) {
+    assert.equal(parseSupervisorFailureReceiptText(serializeSupervisorFailureReceipt(
+      'guardian_admission_failure', stage, 125, 'payload_exit',
+    ))?.stage, stage);
+  }
+  assert.equal(serializeSupervisorFailureReceipt(
+    'guardian_admission_failure', 'group_record_wait', 125, 'payload_exit',
+  ), null);
   const removeReceipt = serializeSupervisorFailureReceipt(
     'payload_nonzero_exit',
-    'wrapper_result_wait',
+    'payload_outcome_wait',
     1,
     'payload_exit',
     { detail: 'group_record_remove_failed', stage: 'group_record_remove' },
@@ -273,12 +312,12 @@ test('supervision protocol is closed and directly exercised', () => {
     cleanupStage: 'group_record_remove',
     detail: 'payload_nonzero_exit',
     reason: 'payload_exit',
-    stage: 'wrapper_result_wait',
+    stage: 'payload_outcome_wait',
     status: 1,
   });
   for (const invalid of [
-    ['supervisor_timeout', 'wrapper_result_wait', 125, 'timeout'],
-    ['RAW_SUPERVISOR_SENTINEL', 'wrapper_result_wait', 124, 'timeout'],
+    ['supervisor_timeout', 'payload_outcome_wait', 125, 'timeout'],
+    ['RAW_SUPERVISOR_SENTINEL', 'payload_outcome_wait', 124, 'timeout'],
     ['parent_lost', 'group_record_remove', 125, 'parent_lost'],
   ]) assert.equal(serializeSupervisorFailureReceipt(...invalid), null);
   for (const invalidText of [
@@ -287,15 +326,24 @@ test('supervision protocol is closed and directly exercised', () => {
     `${cleanupReceipt.trim().replace(',"cleanup_stage":"final_group_reap"', '')}\n`,
   ]) assert.equal(parseSupervisorFailureReceiptText(invalidText), null);
 
-  const wrapperMessage = wrapperOutcomeMessage('payload_nonzero_exit', 1);
-  assert.deepEqual(wrapperFailureDetailFromMessage(wrapperMessage), {
+  const successMessage = payloadOutcomeMessage('payload_success', 0);
+  const failureMessage = payloadOutcomeMessage('payload_nonzero_exit', 1);
+  assert.deepEqual(payloadOutcomeFromMessage(successMessage), {
+    detail: 'payload_success', status: 0,
+  });
+  assert.deepEqual(payloadOutcomeFromMessage(failureMessage), {
     detail: 'payload_nonzero_exit', status: 1,
   });
-  assert.equal(wrapperFailureDetailFromMessage({ ...wrapperMessage, raw: true }), null);
-  assert.deepEqual(wrapperOutcomeFromProcessResult({ code: 1, signal: null, error: null }), {
+  assert.equal(payloadOutcomeFromMessage({ ...failureMessage, raw: true }), null);
+  assert.equal(payloadOutcomeMessage('payload_success', 1), null);
+  assert.equal(payloadOutcomeMessage('payload_nonzero_exit', 0), null);
+  assert.deepEqual(payloadOutcomeFromProcessResult({ code: 0, signal: null, error: null }), {
+    detail: 'payload_success', status: 0,
+  });
+  assert.deepEqual(payloadOutcomeFromProcessResult({ code: 1, signal: null, error: null }), {
     detail: 'payload_nonzero_exit', status: 1,
   });
-  assert.deepEqual(wrapperOutcomeFromProcessResult({ code: null, signal: null, error: null }), {
+  assert.deepEqual(payloadOutcomeFromProcessResult({ code: null, signal: null, error: null }), {
     detail: 'payload_spawn_or_init_failure', status: 125,
   });
   assert.deepEqual([
@@ -307,35 +355,66 @@ test('supervision protocol is closed and directly exercised', () => {
   assert.equal(processExists(process.pid), true);
   assert.equal(publicSupervisorReason('TIMEOUT'), 'timeout');
   assert.equal(publicSupervisorReason(null, true), 'payload_exit');
+  assert.deepEqual([
+    groupSignalIsPermitted(true, true),
+    groupSignalIsPermitted(true, false),
+    groupSignalIsPermitted(false, true),
+  ], [true, false, false]);
   assert.deepEqual(primarySupervisorFailure({
     asynchronousFailure: null,
-    childResult: { code: 1, signal: null },
-    fallbackStage: 'wrapper_result_wait',
+    fallbackStage: 'payload_outcome_wait',
+    guardianFailureStage: null,
+    guardianResult: null,
+    payloadOutcome: { detail: 'payload_nonzero_exit', status: 1 },
     reason: null,
     reasonStage: null,
-    wrapperOutcome: { detail: 'payload_nonzero_exit', status: 1 },
   }), {
     detail: 'payload_nonzero_exit', reason: 'payload_exit',
-    stage: 'wrapper_result_wait', status: 1,
+    stage: 'payload_outcome_wait', status: 1,
+  });
+  assert.deepEqual(primarySupervisorFailure({
+    asynchronousFailure: null,
+    fallbackStage: 'final_group_reap',
+    guardianFailureStage: 'guardian_spawn',
+    guardianResult: { code: 0, signal: null },
+    payloadOutcome: null,
+    reason: null,
+    reasonStage: null,
+  }), {
+    detail: 'guardian_admission_failure', reason: 'payload_exit',
+    stage: 'guardian_spawn', status: 125,
+  });
+  assert.deepEqual(primarySupervisorFailure({
+    asynchronousFailure: null,
+    fallbackStage: 'final_group_reap',
+    guardianFailureStage: 'payload_outcome_wait',
+    guardianResult: { code: 0, signal: null },
+    payloadOutcome: null,
+    reason: null,
+    reasonStage: null,
+  }), {
+    detail: 'guardian_admission_failure', reason: 'payload_exit',
+    stage: 'payload_outcome_wait', status: 125,
   });
   const lateAsync = {
     detail: 'unexpected_supervisor_exception', reason: 'supervisor_exception',
     stage: 'final_group_reap', status: 125,
   };
   for (const [reason, reasonStage, expected] of [
-    ['TIMEOUT', 'wrapper_result_wait', {
-      detail: 'supervisor_timeout', reason: 'timeout', stage: 'wrapper_result_wait', status: 124,
+    ['TIMEOUT', 'payload_outcome_wait', {
+      detail: 'supervisor_timeout', reason: 'timeout', stage: 'payload_outcome_wait', status: 124,
     }],
     ['SIGTERM', 'payload_readiness_wait', {
       detail: 'supervisor_signal', reason: 'sigterm', stage: 'payload_readiness_wait', status: 143,
     }],
   ]) assert.deepEqual(primarySupervisorFailure({
     asynchronousFailure: lateAsync,
-    childResult: { code: null, signal: null },
     fallbackStage: 'final_group_reap',
+    guardianFailureStage: null,
+    guardianResult: null,
+    payloadOutcome: null,
     reason,
     reasonStage,
-    wrapperOutcome: null,
   }), expected);
 });
 
@@ -499,13 +578,13 @@ test('private file and guarded protocol CLIs reject mode, symlink, and shape dri
     for (const [value, expected] of [
       [{ detail: 'parent_lost', reason: 'parent_lost',
         schema: 'aos.exact-focus-channel-supervisor-failure.v1',
-        stage: 'wrapper_result_wait', status: 125 },
-      '125 parent_lost wrapper_result_wait parent_lost absent absent'],
+        stage: 'payload_outcome_wait', status: 125 },
+      '125 parent_lost payload_outcome_wait parent_lost absent absent'],
       [{ cleanup_detail: 'group_record_remove_failed', cleanup_stage: 'group_record_remove',
         detail: 'payload_nonzero_exit', reason: 'payload_exit',
         schema: 'aos.exact-focus-channel-supervisor-failure.v1',
-        stage: 'wrapper_result_wait', status: 1 },
-      '1 payload_nonzero_exit wrapper_result_wait payload_exit group_record_remove_failed group_record_remove'],
+        stage: 'payload_outcome_wait', status: 1 },
+      '1 payload_nonzero_exit payload_outcome_wait payload_exit group_record_remove_failed group_record_remove'],
     ]) {
       fs.writeFileSync(failureFile, `${JSON.stringify(value)}\n`, { mode: 0o600 });
       const projection = spawnSync('node', [
@@ -518,7 +597,7 @@ test('private file and guarded protocol CLIs reject mode, symlink, and shape dri
     fs.writeFileSync(failureFile, `${JSON.stringify({
       detail: 'parent_lost', raw: true, reason: 'parent_lost',
       schema: 'aos.exact-focus-channel-supervisor-failure.v1',
-      stage: 'wrapper_result_wait', status: 125,
+      stage: 'payload_outcome_wait', status: 125,
     })}\n`, { mode: 0o600 });
     const rejected = spawnSync('node', [
       protocolPath, '--read-supervisor-failure-detail', failureFile,
@@ -533,14 +612,14 @@ test('timeout status projection and receipt predicates are closed', () => {
   for (const [supervisorStatus, detail, stage, reason, suffix] of [
     [0, '', '', '', 'UNEXPECTED_INNER_COMPLETION'],
     [1, '', '', '', 'STATUS_MISMATCH'],
-    [1, 'payload_nonzero_exit', 'wrapper_result_wait', 'payload_exit', 'PAYLOAD_NONZERO_EXIT'],
+    [1, 'payload_nonzero_exit', 'payload_outcome_wait', 'payload_exit', 'PAYLOAD_NONZERO_EXIT'],
     [125, 'group_reap_failed', 'final_group_reap', 'timeout', 'GROUP_REAP_FAILED'],
     [125, 'group_record_remove_failed', 'group_record_remove', 'none',
       'GROUP_RECORD_REMOVE_FAILED'],
     [125, 'parent_lost', 'payload_readiness_wait', 'parent_lost', 'PARENT_LOST'],
     [125, 'unexpected_supervisor_exception', 'cli_boundary', 'supervisor_exception',
       'UNEXPECTED_SUPERVISOR_EXCEPTION'],
-    [143, 'supervisor_signal', 'wrapper_result_wait', 'sigterm', 'SUPERVISOR_SIGNAL'],
+    [143, 'supervisor_signal', 'payload_outcome_wait', 'sigterm', 'SUPERVISOR_SIGNAL'],
   ]) {
     const result = spawnSync('zsh', ['-c', `
       . "$1"
@@ -563,9 +642,9 @@ test('timeout status projection and receipt predicates are closed', () => {
     });
   }
   for (const [detail, stage, reason, receiptStatus, recovered, expected] of [
-    ['supervisor_timeout', 'wrapper_result_wait', 'timeout', 124, 0, 0],
+    ['supervisor_timeout', 'payload_outcome_wait', 'timeout', 124, 0, 0],
     ['group_reap_failed', 'final_group_reap', 'timeout', 125, 1, 0],
-    ['supervisor_timeout', 'wrapper_result_wait', 'timeout', 124, 1, 1],
+    ['supervisor_timeout', 'payload_outcome_wait', 'timeout', 124, 1, 1],
     ['group_reap_failed', 'final_group_reap', 'timeout', 125, 0, 1],
     ['supervisor_timeout', 'final_group_reap', 'timeout', 124, 0, 1],
   ]) {

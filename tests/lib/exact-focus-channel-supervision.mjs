@@ -8,28 +8,29 @@ import {
   PROCESS_TREE_MAX_BYTES,
   PROCESS_TREE_NONCE_ENV,
   PROCESS_TREE_SCHEMA,
+  groupSignalIsPermitted,
   integer,
   isSupervisorFailureStage,
   normalizedProcessStatus,
   ownedGroupRecordIsValid,
+  payloadOutcomeFromMessage,
+  payloadOutcomeFromProcessResult,
+  payloadOutcomeMessage,
   primarySupervisorFailure,
   processExists,
   publicSupervisorReason,
   readReadiness,
   serializeSupervisorFailureReceipt,
   valueAfter,
-  wrapperFailureDetailFromMessage,
-  wrapperOutcomeFromProcessResult,
-  wrapperOutcomeMessage,
   writeDurableAtomicFile,
   writeDurableExclusiveFile,
 } from './exact-focus-channel-supervision-protocol.mjs';
-
 const TERM_GRACE_MS = 4_000;
 const KILL_GRACE_MS = 3_000;
 const PARENT_POLL_MS = 100;
 const GROUP_RECORD_ACK_MS = 2_000;
 const ADMISSION_ACK_WAIT_MS = 2_000;
+const ADMISSION_STARTUP_MS = 10_000;
 const HELPER_PATH = fileURLToPath(import.meta.url);
 const NO_AUTOSTART_ENVIRONMENT = Object.freeze({
   AOS_ALLOW_DAEMON_AUTOSTART: '0',
@@ -43,7 +44,6 @@ function processGroupExists(pgid) {
     return error?.code !== 'ESRCH';
   }
 }
-
 function signalProcessGroup(pgid, signal) {
   try {
     process.kill(-pgid, signal);
@@ -53,11 +53,9 @@ function signalProcessGroup(pgid, signal) {
     throw error;
   }
 }
-
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
-
 async function waitForProcessGroupGone(pgid, timeoutMilliseconds) {
   const deadline = Date.now() + timeoutMilliseconds;
   while (Date.now() < deadline) {
@@ -66,7 +64,6 @@ async function waitForProcessGroupGone(pgid, timeoutMilliseconds) {
   }
   return !processGroupExists(pgid);
 }
-
 async function retireProcessGroup(pgid) {
   if (!processGroupExists(pgid)) return true;
   signalProcessGroup(pgid, 'SIGTERM');
@@ -74,14 +71,12 @@ async function retireProcessGroup(pgid) {
   signalProcessGroup(pgid, 'SIGKILL');
   return waitForProcessGroupGone(pgid, KILL_GRACE_MS);
 }
-
 function emitSupervisorFailureDetail(detail, stage, status, reason, cleanup = null) {
   const receipt = serializeSupervisorFailureReceipt(detail, stage, status, reason, cleanup);
   if (receipt === null) return 125;
   process.stderr.write(receipt);
   return status;
 }
-
 async function waitForOwnedGroupRecord(file, leaderPID, token, shouldStop) {
   const deadline = Date.now() + GROUP_RECORD_ACK_MS;
   while (Date.now() < deadline) {
@@ -91,7 +86,6 @@ async function waitForOwnedGroupRecord(file, leaderPID, token, shouldStop) {
   }
   return ownedGroupRecordIsValid(file, leaderPID, token);
 }
-
 async function waitForAdmissionAck(
   file, leaderPID, token, supervisorPID, admissionCommitReceived, admissionChannelOpen,
 ) {
@@ -108,12 +102,11 @@ async function waitForAdmissionAck(
     && admissionCommitReceived()
     && ownedGroupRecordIsValid(file, leaderPID, token);
 }
-
-async function sendAdmissionCommit(child) {
-  if (!child.connected) return false;
+async function sendAdmissionCommit(guardian) {
+  if (!guardian.connected) return false;
   return new Promise((resolve) => {
     try {
-      child.send(ADMISSION_COMMIT_MESSAGE, (error) => resolve(
+      guardian.send(ADMISSION_COMMIT_MESSAGE, (error) => resolve(
         error === null || error === undefined,
       ));
     } catch {
@@ -121,16 +114,14 @@ async function sendAdmissionCommit(child) {
     }
   });
 }
-
-async function delayWhileProcessLives(pid, milliseconds) {
+async function boundedDelay(milliseconds, shouldStop) {
   const deadline = Date.now() + milliseconds;
   while (Date.now() < deadline) {
-    if (!processExists(pid)) return false;
+    if (shouldStop()) return false;
     await sleep(Math.min(10, Math.max(1, deadline - Date.now())));
   }
-  return processExists(pid);
+  return !shouldStop();
 }
-
 async function waitForProcessTreeReadiness(file, nonce, timeoutMilliseconds, shouldStop) {
   const deadline = Date.now() + timeoutMilliseconds;
   while (Date.now() < deadline && !shouldStop()) {
@@ -146,7 +137,6 @@ async function waitForProcessTreeReadiness(file, nonce, timeoutMilliseconds, sho
       file, nonce, PROCESS_TREE_SCHEMA, PROCESS_TREE_MAX_BYTES, true, processExists,
     );
 }
-
 class SupervisionError extends Error {
   constructor(code, { ambiguous = false } = {}) {
     super(code);
@@ -154,39 +144,34 @@ class SupervisionError extends Error {
     this.ambiguous = ambiguous;
   }
 }
-
 function fail(condition, code) {
   if (!condition) throw new SupervisionError(code);
 }
-
 async function superviseCommand(args) {
     const separator = args.indexOf('--');
     const supervisorArgs = args.slice(0, separator);
     const ownerPID = integer(valueAfter(supervisorArgs, '--owner-pid'));
     const groupPIDFile = valueAfter(supervisorArgs, '--group-pid-file');
     const admissionAckFile = `${groupPIDFile}.admission-ack`;
-    const wrapperIdentityFile = valueAfter(supervisorArgs, '--wrapper-identity-file');
+    const guardianIdentityFile = valueAfter(supervisorArgs, '--guardian-identity-file');
     const readyFile = valueAfter(supervisorArgs, '--ready-file');
     const timeoutMilliseconds = integer(valueAfter(supervisorArgs, '--timeout-ms'));
     const timeoutReadinessFile = valueAfter(supervisorArgs, '--self-test-timeout-readiness-file');
     const timeoutStartupValue = valueAfter(supervisorArgs, '--self-test-timeout-startup-ms');
     const timeoutStartupMilliseconds = timeoutStartupValue === null ? 0 : integer(timeoutStartupValue);
     const timeoutReadinessNonce = process.env[PROCESS_TREE_NONCE_ENV] ?? null;
-    const readyDelayValue = valueAfter(supervisorArgs, '--self-test-ready-delay-ms');
-    const readyDelayMilliseconds = readyDelayValue === null ? 0 : integer(readyDelayValue);
-    const wrapperRecordDelayValue = valueAfter(supervisorArgs, '--self-test-wrapper-record-delay-ms');
-    const wrapperRecordDelayMilliseconds = wrapperRecordDelayValue === null
-      ? 0 : integer(wrapperRecordDelayValue);
-    const admissionAckDelayValue = valueAfter(
-      supervisorArgs, '--self-test-admission-ack-delay-ms',
-    );
-    const admissionAckDelayMilliseconds = admissionAckDelayValue === null
-      ? 0 : integer(admissionAckDelayValue);
-    const wrapperIdentityPublicationFailure = supervisorArgs
-      .includes('--self-test-wrapper-identity-publication-failure');
-    const wrapperPublicationFailure = supervisorArgs
-      .includes('--self-test-wrapper-record-publication-failure');
-    const wrapperCrashBeforeAck = supervisorArgs.includes('--self-test-wrapper-crash-before-ack');
+    const readyDelayValue = valueAfter(supervisorArgs, '--self-test-ready-delay-ms'); const readyDelayMilliseconds = readyDelayValue === null ? 0 : integer(readyDelayValue);
+    const readyDelayEnteredFile = valueAfter(supervisorArgs, '--self-test-ready-delay-entered-file');
+    const guardianRecordDelayValue = valueAfter(supervisorArgs, '--self-test-guardian-record-delay-ms');
+    const guardianRecordDelayMilliseconds = guardianRecordDelayValue === null
+      ? 0 : integer(guardianRecordDelayValue);
+    const admissionAckDelayValue = valueAfter(supervisorArgs, '--self-test-admission-ack-delay-ms');
+    const admissionAckDelayMilliseconds = admissionAckDelayValue === null ? 0 : integer(admissionAckDelayValue);
+    const guardianIdentityPublicationFailure = supervisorArgs
+      .includes('--self-test-guardian-identity-publication-failure');
+    const guardianPublicationFailure = supervisorArgs
+      .includes('--self-test-guardian-record-publication-failure');
+    const guardianCrashBeforeAck = supervisorArgs.includes('--self-test-guardian-crash-before-ack');
     const exitBeforeGroupRecord = supervisorArgs.includes('--self-test-supervisor-exit-before-group-record');
     const exitBeforeAdmissionAck = supervisorArgs
       .includes('--self-test-supervisor-exit-before-admission-ack');
@@ -198,11 +183,16 @@ async function superviseCommand(args) {
     const finalReapDelayMilliseconds = finalReapDelayValue === null ? 0 : integer(finalReapDelayValue);
     const finalReapFile = valueAfter(supervisorArgs, '--self-test-final-reap-file');
     const finalReapCompleteFile = valueAfter(supervisorArgs, '--self-test-final-reap-complete-file');
-
+    const payloadOutcomeFile = valueAfter(supervisorArgs, '--self-test-payload-outcome-file');
+    const payloadOutcomeDelayValue = valueAfter(
+      supervisorArgs, '--self-test-payload-outcome-delay-ms',
+    );
+    const payloadOutcomeDelayMilliseconds = payloadOutcomeDelayValue === null
+      ? 0 : integer(payloadOutcomeDelayValue);
     fail(separator >= 0 && separator + 1 < args.length, 'SUPERVISOR_ARGUMENTS_INVALID');
     fail(Number.isSafeInteger(ownerPID) && ownerPID > 1, 'SUPERVISOR_ARGUMENTS_INVALID');
     fail(typeof groupPIDFile === 'string' && groupPIDFile.length > 0, 'SUPERVISOR_ARGUMENTS_INVALID');
-    fail(typeof wrapperIdentityFile === 'string' && wrapperIdentityFile.length > 0,
+    fail(typeof guardianIdentityFile === 'string' && guardianIdentityFile.length > 0,
       'SUPERVISOR_ARGUMENTS_INVALID');
     fail(typeof readyFile === 'string' && readyFile.length > 0, 'SUPERVISOR_ARGUMENTS_INVALID');
     fail(Number.isSafeInteger(timeoutMilliseconds) && timeoutMilliseconds >= 1, 'SUPERVISOR_ARGUMENTS_INVALID');
@@ -215,36 +205,50 @@ async function superviseCommand(args) {
         && timeoutStartupMilliseconds <= 10_000
         && /^[a-f0-9]{64}$/u.test(timeoutReadinessNonce ?? ''), 'SUPERVISOR_ARGUMENTS_INVALID');
     fail(Number.isSafeInteger(readyDelayMilliseconds) && readyDelayMilliseconds <= 10_000, 'SUPERVISOR_ARGUMENTS_INVALID');
-    fail(Number.isSafeInteger(wrapperRecordDelayMilliseconds)
-      && wrapperRecordDelayMilliseconds <= 10_000, 'SUPERVISOR_ARGUMENTS_INVALID');
+    fail(readyDelayMilliseconds === 0 ? readyDelayEnteredFile === null
+      : typeof readyDelayEnteredFile === 'string' && readyDelayEnteredFile.length > 0, 'SUPERVISOR_ARGUMENTS_INVALID');
+    fail(Number.isSafeInteger(guardianRecordDelayMilliseconds)
+      && guardianRecordDelayMilliseconds <= 10_000, 'SUPERVISOR_ARGUMENTS_INVALID');
     fail(Number.isSafeInteger(admissionAckDelayMilliseconds)
       && admissionAckDelayMilliseconds <= 10_000, 'SUPERVISOR_ARGUMENTS_INVALID');
     fail(Number.isSafeInteger(finalReapDelayMilliseconds) && finalReapDelayMilliseconds <= 10_000, 'SUPERVISOR_ARGUMENTS_INVALID');
-    fail(!(wrapperPublicationFailure && wrapperCrashBeforeAck), 'SUPERVISOR_ARGUMENTS_INVALID');
+    fail(!(guardianPublicationFailure && guardianCrashBeforeAck), 'SUPERVISOR_ARGUMENTS_INVALID');
     fail(finalReapDelayMilliseconds === 0 || [finalReapFile, finalReapCompleteFile]
       .every((file) => typeof file === 'string' && file.length > 0), 'SUPERVISOR_ARGUMENTS_INVALID');
-
+    fail(payloadOutcomeDelayMilliseconds === 0
+      ? payloadOutcomeFile === null
+      : Number.isSafeInteger(payloadOutcomeDelayMilliseconds)
+        && payloadOutcomeDelayMilliseconds <= 10_000
+        && typeof payloadOutcomeFile === 'string'
+        && payloadOutcomeFile.length > 0,
+    'SUPERVISOR_ARGUMENTS_INVALID');
     const ownershipToken = crypto.randomBytes(16).toString('hex');
     const command = args.slice(separator + 1);
-    let child = null;
-    let groupRecorded = false;
+    let guardian = null;
+    let groupOwned = false;
+    let groupMayBeSignaled = false;
     let reason = null;
     let reasonStage = null;
-    let stage = 'wrapper_spawn';
-    let childResult = null;
-    let wrapperOutcome = null;
+    let stage = 'guardian_spawn';
+    let guardianFailureStage = null;
+    let guardianResult = null;
+    let guardianResultPromise = null;
+    let payloadOutcome = null;
     let asynchronousFailure = null;
     let terminationStarted = false;
     let escalationTimer = null;
     let resolveAsynchronousFailure;
     let resolveFirstTierReapFailure;
+    let resolvePayloadOutcome;
     const asynchronousFailurePromise = new Promise((resolve) => {
       resolveAsynchronousFailure = resolve;
     });
     const firstTierReapFailurePromise = new Promise((resolve) => {
       resolveFirstTierReapFailure = resolve;
     });
-
+    const payloadOutcomePromise = new Promise((resolve) => {
+      resolvePayloadOutcome = resolve;
+    });
     const setReason = (nextReason) => {
       if (reason !== null) return;
       reason = nextReason;
@@ -255,7 +259,7 @@ async function superviseCommand(args) {
         asynchronousFailure = Object.freeze({
           detail: 'unexpected_supervisor_exception',
           reason: 'supervisor_exception',
-          stage: isSupervisorFailureStage(stage) ? stage : 'wrapper_result_wait',
+          stage: isSupervisorFailureStage(stage) ? stage : 'payload_outcome_wait',
           status: 125,
         });
       }
@@ -272,12 +276,16 @@ async function superviseCommand(args) {
       }
     };
     const beginTermination = () => {
-      if (reason === null || terminationStarted || !Number.isSafeInteger(child?.pid)) return;
-      if (!groupRecorded) return;
+      if (reason === null || terminationStarted || !Number.isSafeInteger(guardian?.pid)) return;
+      if (!groupSignalIsPermitted(groupOwned, groupMayBeSignaled)) return;
       terminationStarted = true;
-      signalProcessGroup(child.pid, 'SIGTERM');
+      signalProcessGroup(guardian.pid, 'SIGTERM');
       escalationTimer = setTimeout(guardedCallback(
-        () => signalProcessGroup(child.pid, 'SIGKILL'),
+        () => {
+          if (groupSignalIsPermitted(groupOwned, groupMayBeSignaled)) {
+            signalProcessGroup(guardian.pid, 'SIGKILL');
+          }
+        },
       ), TERM_GRACE_MS);
     };
     const requestTermination = (nextReason) => {
@@ -288,119 +296,126 @@ async function superviseCommand(args) {
       }
       beginTermination();
     };
-    const waitForChildResult = async (childResultPromise) => {
+    const waitForPayloadOutcome = async () => {
       const selection = await Promise.race([
-        childResultPromise.then((result) => ({ result, type: 'child' })),
+        payloadOutcomePromise.then((outcome) => ({ outcome, type: 'payload' })),
+        guardianResultPromise.then((result) => ({ result, type: 'guardian' })),
         asynchronousFailurePromise.then(() => ({ type: 'asynchronous_failure' })),
         firstTierReapFailurePromise.then(() => ({ type: 'first_tier_reap_failure' })),
       ]);
-      return selection.type === 'child'
-        ? selection.result
-        : { code: null, signal: null, error: new SupervisionError('SUPERVISOR_ABORTED') };
+      if (selection.type === 'payload') return selection.outcome;
+      if (selection.type === 'guardian') {
+        guardianResult = selection.result; guardianFailureStage = stage;
+      }
+      return null;
     };
     const signalHandlers = new Map([
       ['SIGINT', guardedCallback(() => requestTermination('SIGINT'))],
       ['SIGTERM', guardedCallback(() => requestTermination('SIGTERM'))],
     ]);
     for (const [signal, handler] of signalHandlers) process.on(signal, handler);
-
     const parentMonitor = setInterval(guardedCallback(() => {
       if (process.ppid !== ownerPID || !processExists(ownerPID)) requestTermination('PARENT_LOST');
     }), PARENT_POLL_MS);
-    const startupDeadline = timeoutReadinessFile === null ? null : setTimeout(
+    const startupDeadline = setTimeout(
       guardedCallback(() => requestTermination('SELF_TEST_INITIALIZATION_TIMEOUT')),
-      timeoutStartupMilliseconds,
+      timeoutReadinessFile === null ? ADMISSION_STARTUP_MS : timeoutStartupMilliseconds,
     );
-    const deadline = {
-      handle: timeoutReadinessFile === null
-        ? setTimeout(guardedCallback(() => requestTermination('TIMEOUT')), timeoutMilliseconds)
-        : null,
-    };
-
+    const deadline = { handle: null };
     try {
       try {
-        const wrapperArgs = [
+        const guardianArgs = [
           HELPER_PATH,
-          '--owned-group-wrapper',
+          '--owned-group-guardian',
           '--group-pid-file', groupPIDFile,
           '--admission-ack-file', admissionAckFile,
           '--supervisor-pid', `${process.pid}`,
           '--ownership-token', ownershipToken,
-          ...(wrapperPublicationFailure ? ['--self-test-record-publication-failure'] : []),
-          ...(wrapperCrashBeforeAck ? ['--self-test-crash-before-ack'] : []),
-          ...(wrapperRecordDelayMilliseconds > 0
-            ? ['--self-test-record-delay-ms', `${wrapperRecordDelayMilliseconds}`] : []),
+          ...(guardianPublicationFailure ? ['--self-test-record-publication-failure'] : []),
+          ...(guardianCrashBeforeAck ? ['--self-test-crash-before-ack'] : []),
+          ...(guardianRecordDelayMilliseconds > 0
+            ? ['--self-test-record-delay-ms', `${guardianRecordDelayMilliseconds}`] : []),
           '--',
           ...command,
         ];
-        child = spawn(process.execPath, wrapperArgs, {
+        guardian = spawn(process.execPath, guardianArgs, {
           cwd: process.cwd(),
           detached: true,
           env: { ...process.env, ...NO_AUTOSTART_ENVIRONMENT },
           stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
         });
-        child.on('message', guardedCallback((message) => {
-          const outcome = wrapperFailureDetailFromMessage(message);
-          if (outcome !== null && wrapperOutcome === null) wrapperOutcome = outcome;
+        guardian.on('message', guardedCallback((message) => {
+          const outcome = payloadOutcomeFromMessage(message);
+          if (outcome === null || payloadOutcome !== null) {
+            recordAsynchronousFailure();
+            return;
+          }
+          payloadOutcome = outcome;
+          if (payloadOutcomeFile !== null) {
+            writeDurableExclusiveFile(payloadOutcomeFile, 'validated\n', 'payload-outcome');
+          }
+          resolvePayloadOutcome(outcome);
         }));
-        let childSettled = false;
-        const childResultPromise = new Promise((resolve) => {
-          child.once('error', guardedCallback((error) => {
-            childSettled = true;
+        let guardianSettled = false;
+        guardianResultPromise = new Promise((resolve) => {
+          guardian.once('error', guardedCallback((error) => {
+            guardianSettled = true;
             resolve({ code: null, signal: null, error });
           }, () => resolve({ code: null, signal: null,
             error: new SupervisionError('SUPERVISOR_EVENT_FAILED') })));
-          child.once('close', guardedCallback((code, signal) => {
-            childSettled = true;
+          guardian.once('close', guardedCallback((code, signal) => {
+            guardianSettled = true;
             resolve({ code, signal, error: null });
           }, () => resolve({ code: null, signal: null,
             error: new SupervisionError('SUPERVISOR_EVENT_FAILED') })));
         });
         const spawnResult = await new Promise((resolve) => {
-          child.once('spawn', guardedCallback(
+          guardian.once('spawn', guardedCallback(
             () => resolve({ error: null }),
             () => resolve({ error: new SupervisionError('SUPERVISOR_EVENT_FAILED') }),
           ));
-          child.once('error', guardedCallback(
+          guardian.once('error', guardedCallback(
             (error) => resolve({ error }),
             () => resolve({ error: new SupervisionError('SUPERVISOR_EVENT_FAILED') }),
           ));
         });
         delete process.env[PROCESS_TREE_NONCE_ENV];
-        if (spawnResult.error || !Number.isSafeInteger(child.pid) || child.pid <= 1) {
-          childResult = await waitForChildResult(childResultPromise);
+        if (spawnResult.error || !Number.isSafeInteger(guardian.pid) || guardian.pid <= 1) {
+          guardianResult = await guardianResultPromise;
+          guardianFailureStage = 'guardian_spawn';
         } else {
+          stage = 'group_record_wait';
           try {
-            if (wrapperIdentityPublicationFailure) {
-              throw new Error('SELF_TEST_WRAPPER_IDENTITY_PUBLICATION_FAILURE');
+            if (guardianIdentityPublicationFailure) {
+              throw new Error('SELF_TEST_GUARDIAN_IDENTITY_PUBLICATION_FAILURE');
             }
             writeDurableExclusiveFile(
-              wrapperIdentityFile,
-              `${child.pid} ${ownershipToken}\n`,
-              'wrapper-identity',
+              guardianIdentityFile,
+              `${guardian.pid} ${ownershipToken}\n`,
+              'guardian-identity',
             );
           } catch {
             setReason('GROUP_RECORD_FAILED');
           }
           if (reason === null && exitBeforeGroupRecord) process.exit(129);
-          stage = 'group_record_wait';
           if (reason === null && await waitForOwnedGroupRecord(
-            groupPIDFile, child.pid, ownershipToken, () => childSettled,
+            groupPIDFile, guardian.pid, ownershipToken, () => guardianSettled,
           )) {
-            groupRecorded = true;
+            groupOwned = true;
+            groupMayBeSignaled = true;
             if (exitBeforeAdmissionAck) process.exit(129);
             beginTermination();
             if (admissionAckDelayMilliseconds > 0 && reason === null) {
               await sleep(admissionAckDelayMilliseconds);
               beginTermination();
             }
-            if (reason === null && !childSettled && processExists(child.pid)) {
+            if (reason === null && !guardianSettled && processExists(guardian.pid)) {
               stage = 'admission_ack_publish';
               try {
                 writeDurableExclusiveFile(
-                  admissionAckFile, `${child.pid} ${ownershipToken}\n`, 'admission-ack',
+                  admissionAckFile, `${guardian.pid} ${ownershipToken}\n`, 'admission-ack',
                 );
-                if (!(await sendAdmissionCommit(child))) throw new Error('ADMISSION_COMMIT_FAILED');
+                if (!(await sendAdmissionCommit(guardian))) throw new Error('ADMISSION_COMMIT_FAILED');
               } catch {
                 setReason('GROUP_RECORD_FAILED');
                 beginTermination();
@@ -411,11 +426,10 @@ async function superviseCommand(args) {
             }
           } else if (reason === null) {
             setReason('GROUP_RECORD_FAILED');
-            await retireProcessGroup(child.pid);
           }
-          if (groupRecorded && reason === null
-              && ownedGroupRecordIsValid(admissionAckFile, child.pid, ownershipToken)) {
-            if (readyDelayMilliseconds > 0) await sleep(readyDelayMilliseconds);
+          if (groupOwned && reason === null
+              && ownedGroupRecordIsValid(admissionAckFile, guardian.pid, ownershipToken)) {
+            if (readyDelayMilliseconds > 0) { writeDurableExclusiveFile(readyDelayEnteredFile, 'entered\n', 'ready-delay-entered'); await boundedDelay(readyDelayMilliseconds, () => reason !== null); }
             beginTermination();
             if (reason === null) {
               writeDurableAtomicFile(readyFile, `${process.pid}\n`, 'ready');
@@ -430,39 +444,48 @@ async function superviseCommand(args) {
                 if (readiness === null) requestTermination('SELF_TEST_INITIALIZATION_TIMEOUT');
                 else {
                   if (throwAfterReadiness) throw new Error('SELF_TEST_POST_READY_FAILURE');
-                  clearTimeout(startupDeadline);
-                  deadline.handle = setTimeout(
-                    guardedCallback(() => requestTermination('TIMEOUT')), timeoutMilliseconds,
-                  );
                 }
               }
             }
           }
-          stage = 'wrapper_result_wait';
-          childResult = await waitForChildResult(childResultPromise);
+          if (reason === null) {
+            clearTimeout(startupDeadline);
+            deadline.handle = setTimeout(
+              guardedCallback(() => requestTermination('TIMEOUT')), timeoutMilliseconds,
+            );
+          }
+          stage = 'payload_outcome_wait';
+          payloadOutcome = await waitForPayloadOutcome();
+          if (payloadOutcome !== null && payloadOutcomeDelayMilliseconds > 0) {
+            await sleep(payloadOutcomeDelayMilliseconds);
+          }
         }
       } catch (error) {
-        childResult = { code: null, signal: null, error };
+        guardianResult ??= { code: null, signal: null, error };
         recordAsynchronousFailure();
         beginTermination();
       } finally {
         clearInterval(parentMonitor);
-        if (startupDeadline !== null) clearTimeout(startupDeadline);
+        clearTimeout(startupDeadline);
         if (deadline.handle !== null) clearTimeout(deadline.handle);
       }
-
       stage = 'final_group_reap';
-      const childStatusBeforeReap = normalizedProcessStatus(childResult);
+      groupMayBeSignaled = false;
+      if (escalationTimer !== null) clearTimeout(escalationTimer);
+      escalationTimer = null;
+      const payloadStatusBeforeReap = payloadOutcome?.status
+        ?? normalizedProcessStatus(guardianResult);
       const terminalReason = () => publicSupervisorReason(
-        reason, childStatusBeforeReap !== 0,
+        reason, payloadStatusBeforeReap !== 0,
       );
       const primaryFailure = () => primarySupervisorFailure({
         asynchronousFailure,
-        childResult,
         fallbackStage: stage,
+        guardianFailureStage,
+        guardianResult,
+        payloadOutcome,
         reason,
         reasonStage,
-        wrapperOutcome,
       });
       const emitReapFailure = () => {
         const primary = primaryFailure();
@@ -478,15 +501,15 @@ async function superviseCommand(args) {
             'group_reap_failed', 'final_group_reap', 125, terminalReason(),
           );
       };
-      if (finalReapDelayMilliseconds > 0 && Number.isSafeInteger(child?.pid)) {
-        try { writeDurableAtomicFile(finalReapFile, `${child.pid}\n`, 'final-reap'); }
+      if (finalReapDelayMilliseconds > 0 && Number.isSafeInteger(guardian?.pid)) {
+        try { writeDurableAtomicFile(finalReapFile, `${guardian.pid}\n`, 'final-reap'); }
         catch { setReason('GROUP_RECORD_FAILED'); }
         await sleep(finalReapDelayMilliseconds);
       }
       if (firstTierReapFailure && reason === 'TIMEOUT') {
         try {
-          if (child?.connected) child.disconnect();
-          child?.unref();
+          if (guardian?.connected) guardian.disconnect();
+          guardian?.unref();
         } catch {
           return emitSupervisorFailureDetail(
             'unexpected_supervisor_exception', stage, 125, 'supervisor_exception',
@@ -496,12 +519,16 @@ async function superviseCommand(args) {
       }
       let groupGone = true;
       try {
-        groupGone = Number.isSafeInteger(child?.pid) ? await retireProcessGroup(child.pid) : true;
+        groupGone = groupOwned && Number.isSafeInteger(guardian?.pid)
+          ? await retireProcessGroup(guardian.pid) : true;
       } catch {
         return emitReapFailure();
       }
       if (!groupGone) {
         return emitReapFailure();
+      }
+      if (guardianResultPromise !== null && guardianResult === null) {
+        guardianResult = await guardianResultPromise;
       }
       stage = 'group_record_remove';
       const emitGroupRecordRemoveFailure = () => {
@@ -531,7 +558,6 @@ async function superviseCommand(args) {
       if (finalReapDelayMilliseconds > 0) {
         writeDurableAtomicFile(finalReapCompleteFile, 'complete\n', 'final-reap-complete');
       }
-
       const primary = primaryFailure();
       return primary === null
         ? 0
@@ -543,69 +569,53 @@ async function superviseCommand(args) {
       for (const [signal, handler] of signalHandlers) process.off(signal, handler);
     }
   }
-
-async function ownedGroupWrapper(args) {
+async function ownedGroupGuardian(args) {
+  const separator = args.indexOf('--');
+  const guardianOptions = args.slice(0, separator);
+  const groupPIDFile = valueAfter(guardianOptions, '--group-pid-file');
+  const admissionAckFile = valueAfter(guardianOptions, '--admission-ack-file');
+  const supervisorPID = integer(valueAfter(guardianOptions, '--supervisor-pid'));
+  const ownershipToken = valueAfter(guardianOptions, '--ownership-token');
+  const publicationFailure = guardianOptions.includes('--self-test-record-publication-failure');
+  const crashBeforeAck = guardianOptions.includes('--self-test-crash-before-ack');
+  const recordDelayValue = valueAfter(guardianOptions, '--self-test-record-delay-ms');
+  const recordDelayMilliseconds = recordDelayValue === null ? 0 : integer(recordDelayValue);
+  const valid = separator >= 0 && separator + 1 < args.length
+      && typeof groupPIDFile === 'string' && groupPIDFile.length > 0
+      && typeof admissionAckFile === 'string' && admissionAckFile.length > 0
+      && Number.isSafeInteger(supervisorPID) && supervisorPID > 1
+      && /^[a-f0-9]{32}$/u.test(ownershipToken ?? '')
+      && Number.isSafeInteger(recordDelayMilliseconds) && recordDelayMilliseconds <= 10_000;
+  if (!valid) {
+    if (process.connected) process.disconnect();
+    return 125;
+  }
+  const holdSignal = () => {};
+  process.on('SIGINT', holdSignal);
+  process.on('SIGTERM', holdSignal);
   let admissionCommitReceived = false;
   const admissionMessageHandler = (message) => {
     if (message === ADMISSION_COMMIT_MESSAGE) admissionCommitReceived = true;
   };
   process.on('message', admissionMessageHandler);
-  const retireAdmissionChannel = (status) => {
+  const retireBeforeAdmission = (status) => {
+    process.off('SIGINT', holdSignal);
+    process.off('SIGTERM', holdSignal);
     process.off('message', admissionMessageHandler);
     if (process.connected) process.disconnect();
     return status;
   };
-  const publishWrapperOutcome = async (detail, status = 125) => {
-    const message = wrapperOutcomeMessage(detail, status);
-    if (process.connected && message !== null) {
-      await Promise.race([
-        new Promise((resolve) => {
-          try {
-            process.send(message, () => resolve());
-          } catch {
-            resolve();
-          }
-        }),
-        sleep(100),
-      ]);
-    }
-    return retireAdmissionChannel(message === null ? 125 : status);
-  };
-  const separator = args.indexOf('--');
-  const wrapperArgs = args.slice(0, separator);
-  const groupPIDFile = valueAfter(wrapperArgs, '--group-pid-file');
-  const admissionAckFile = valueAfter(wrapperArgs, '--admission-ack-file');
-  const supervisorPID = integer(valueAfter(wrapperArgs, '--supervisor-pid'));
-  const ownershipToken = valueAfter(wrapperArgs, '--ownership-token');
-  const publicationFailure = wrapperArgs.includes('--self-test-record-publication-failure');
-  const crashBeforeAck = wrapperArgs.includes('--self-test-crash-before-ack');
-  const recordDelayValue = valueAfter(wrapperArgs, '--self-test-record-delay-ms');
-  const recordDelayMilliseconds = recordDelayValue === null ? 0 : integer(recordDelayValue);
-  if (separator < 0
-      || separator + 1 >= args.length
-      || typeof groupPIDFile !== 'string'
-      || groupPIDFile.length === 0
-      || typeof admissionAckFile !== 'string'
-      || admissionAckFile.length === 0
-      || !Number.isSafeInteger(supervisorPID)
-      || supervisorPID <= 1
-      || !/^[a-f0-9]{32}$/u.test(ownershipToken ?? '')) {
-    return publishWrapperOutcome('wrapper_admission_failure');
-  }
-  if (!Number.isSafeInteger(recordDelayMilliseconds) || recordDelayMilliseconds > 10_000) {
-    return publishWrapperOutcome('wrapper_admission_failure');
-  }
-  if (!(await delayWhileProcessLives(supervisorPID, recordDelayMilliseconds))) {
-    return publishWrapperOutcome('wrapper_admission_failure');
+  if (!(await boundedDelay(recordDelayMilliseconds, () => !processExists(supervisorPID)))) {
+    return retireBeforeAdmission(125);
   }
   try {
     writeDurableExclusiveFile(
       groupPIDFile, `${process.pid} ${ownershipToken}\n`, 'owned-group-record', publicationFailure,
     );
   } catch {
-    return publishWrapperOutcome('wrapper_admission_failure');
+    return retireBeforeAdmission(125);
   }
-  if (crashBeforeAck) return retireAdmissionChannel(129);
+  if (crashBeforeAck) return retireBeforeAdmission(129);
   if (!(await waitForAdmissionAck(
     admissionAckFile,
     process.pid,
@@ -613,8 +623,24 @@ async function ownedGroupWrapper(args) {
     supervisorPID,
     () => admissionCommitReceived,
     () => process.connected,
-  ))) return publishWrapperOutcome('wrapper_admission_failure');
+  ))) return retireBeforeAdmission(125);
   process.off('message', admissionMessageHandler);
+  let payloadOutcomePublished = false;
+  const holdUntilKilled = async () => { while (true) await sleep(1_000); };
+  const publishPayloadOutcome = async (detail, status) => {
+    const message = payloadOutcomeMessage(detail, status);
+    if (payloadOutcomePublished || message === null) return 125;
+    payloadOutcomePublished = true;
+    if (process.connected) await Promise.race([
+      new Promise((resolve) => {
+        try { process.send(message, () => resolve()); } catch { resolve(); }
+      }),
+      sleep(100),
+    ]);
+    if (process.connected) process.disconnect();
+    await holdUntilKilled();
+    return status;
+  };
   const [executable, ...childArgs] = args.slice(separator + 1);
   let child;
   try {
@@ -622,21 +648,19 @@ async function ownedGroupWrapper(args) {
       cwd: process.cwd(), env: { ...process.env, ...NO_AUTOSTART_ENVIRONMENT }, stdio: 'inherit',
     });
   } catch {
-    return publishWrapperOutcome('payload_spawn_or_init_failure');
+    return publishPayloadOutcome('payload_spawn_or_init_failure', 125);
   }
   const result = await new Promise((resolve) => {
     child.once('error', (error) => resolve({ code: null, signal: null, error }));
     child.once('close', (code, signal) => resolve({ code, signal, error: null }));
   });
-  const outcome = wrapperOutcomeFromProcessResult(result);
-  return outcome === null
-    ? retireAdmissionChannel(0)
-    : publishWrapperOutcome(outcome.detail, outcome.status);
+  const outcome = payloadOutcomeFromProcessResult(result);
+  return publishPayloadOutcome(outcome.detail, outcome.status);
 }
 
 async function runCLI(mode, args) {
   if (mode === '--supervise-command') return superviseCommand(args);
-  if (mode === '--owned-group-wrapper') return ownedGroupWrapper(args);
+  if (mode === '--owned-group-guardian') return ownedGroupGuardian(args);
   return 125;
 }
 
