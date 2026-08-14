@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { AOS_COMMAND_ERROR_MAX_BYTES } from './exact-focus-channel-proof-contract.mjs';
 import {
@@ -14,7 +15,21 @@ import {
   stablePublicChannelDigests,
 } from './exact-focus-channel-native-proof-model.mjs';
 import {
+  CLOSE_ACK_MAX_BYTES,
+  DAEMON_IDENTITY_MAX_BYTES,
+  FIXTURE_CLEANUP_MAX_BYTES,
+  UNRELATED_CHANNEL_DIGESTS_MAX_BYTES,
+  parseCloseAckFile,
+  parseDaemonIdentityFile,
+  parseFixtureCleanupFile,
   parseFixtureResultFile,
+  parseUnrelatedChannelDigestsFile,
+  readBoundedRegularFile,
+  writeDaemonIdentity,
+  writeUnrelatedChannelDigests,
+} from './exact-focus-channel-private-records.mjs';
+import {
+  parsePrivateRecordUntilDeadline,
   runAOSFailure,
   runAOSSuccess,
 } from './exact-focus-channel-native-proof-runtime.mjs';
@@ -322,7 +337,7 @@ export function fixtureResultParserSelfTest() {
     target_center_occluded: true,
     overlap_fraction: 0.5,
   };
-  const encode = (value) => Buffer.from(JSON.stringify(value), 'utf8');
+  const encode = (value) => Buffer.from(`${JSON.stringify(value)}\n`, 'utf8');
   const parseBytes = (bytes) => {
     fs.writeFileSync(resultFile, bytes, { mode: 0o600 });
     return parseFixtureResultFile(resultFile);
@@ -342,13 +357,16 @@ export function fixtureResultParserSelfTest() {
     fail(FIXTURE_FAILURE_CODE_LIST.every((errorCodeValue) => caughtCode(encode({
       status: 'failed', error_code: errorCodeValue,
     })) === errorCodeValue), 'FIXTURE_PARSER_SELF_TEST_FAILED');
-    const boundaryEnvelope = JSON.stringify({
-      status: 'failed', error_code: 'FIXTURE_HELPER_FAILED',
-    });
-    const exactBoundary = Buffer.from(boundaryEnvelope.padEnd(FIXTURE_RESULT_MAX_BYTES, ' '));
-    const overBoundary = Buffer.from(boundaryEnvelope.padEnd(FIXTURE_RESULT_MAX_BYTES + 1, ' '));
+    const fixtureAtBytes = (targetBytes) => {
+      const value = { status: 'ready', metadata: { ...metadata } };
+      const baseBytes = encode(value).length;
+      value.metadata.target_identifier += 'x'.repeat(targetBytes - baseBytes);
+      return encode(value);
+    };
+    const exactBoundary = fixtureAtBytes(FIXTURE_RESULT_MAX_BYTES);
+    const overBoundary = fixtureAtBytes(FIXTURE_RESULT_MAX_BYTES + 1);
     fail(exactBoundary.length === FIXTURE_RESULT_MAX_BYTES
-      && caughtCode(exactBoundary) === 'FIXTURE_HELPER_FAILED'
+      && parseBytes(exactBoundary).target_identifier.endsWith('x')
       && overBoundary.length === FIXTURE_RESULT_MAX_BYTES + 1
       && caughtCode(overBoundary) === 'FIXTURE_METADATA_INVALID',
     'FIXTURE_PARSER_SELF_TEST_FAILED');
@@ -390,9 +408,256 @@ export function fixtureResultParserSelfTest() {
   process.stdout.write(`${JSON.stringify(receipt)}\n`);
 }
 
-export function runNativeProofSelfTest(mode) {
+export async function recoveryRecordSelfTest() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-exact-recovery-record-'));
+  const identity = (targetBytes = null) => {
+    const value = {
+      binary_identity: {
+        dev: 1, ino: 2, mode: 0o100755, mtime_ms: 3, sha256: 'a'.repeat(64), size: 4,
+      },
+      binary_path: '/', build_source_fingerprint: 'b'.repeat(64), daemon_pid: 101,
+      repo_revision: 'c'.repeat(40), service_pid: 102,
+    };
+    if (targetBytes !== null) {
+      const baseBytes = Buffer.byteLength(`${JSON.stringify(value)}\n`, 'utf8');
+      fail(targetBytes >= baseBytes, 'RECOVERY_RECORD_SELF_TEST_FAILED');
+      value.binary_path += 'x'.repeat(targetBytes - baseBytes);
+    }
+    return value;
+  };
+  const bytes = (value) => Buffer.from(`${JSON.stringify(value)}\n`, 'utf8');
+  const paddedBytes = (value, targetBytes) => {
+    const json = JSON.stringify(value);
+    const paddingLength = targetBytes - Buffer.byteLength(json, 'utf8') - 1;
+    fail(paddingLength >= 0 && ['[', '{'].includes(json[0]), 'RECOVERY_RECORD_SELF_TEST_FAILED');
+    return Buffer.from(`${json[0]}${' '.repeat(paddingLength)}${json.slice(1)}\n`, 'utf8');
+  };
+  const writeRaw = (file, value, mode = 0o600) => {
+    fs.writeFileSync(file, value, { mode });
+    fs.chmodSync(file, mode);
+  };
+  const failureCode = (operation) => {
+    try { operation(); return null; } catch (error) {
+      return error instanceof ProofError ? error.code : 'RECOVERY_RECORD_SELF_TEST_FAILED';
+    }
+  };
+  const directoryEntries = () => fs.readdirSync(root).sort();
+  let receipt;
+  try {
+    const valid = path.join(root, 'valid.json');
+    writeRaw(valid, bytes(identity()));
+    fail(parseDaemonIdentityFile(valid).daemon_pid === 101, 'RECOVERY_RECORD_SELF_TEST_FAILED');
+    const exact = path.join(root, 'exact.json');
+    const exactIdentity = identity(DAEMON_IDENTITY_MAX_BYTES);
+    writeRaw(exact, bytes(exactIdentity));
+    fail(bytes(exactIdentity).length === DAEMON_IDENTITY_MAX_BYTES
+      && parseDaemonIdentityFile(exact).binary_path === exactIdentity.binary_path,
+    'RECOVERY_RECORD_SELF_TEST_FAILED');
+    const oversized = path.join(root, 'oversized.json');
+    writeRaw(oversized, bytes(identity(DAEMON_IDENTITY_MAX_BYTES + 1)));
+    fail(failureCode(() => parseDaemonIdentityFile(oversized)) === 'DAEMON_IDENTITY_INVALID',
+      'RECOVERY_RECORD_SELF_TEST_FAILED');
+    fail([null, 7, {}, []].every((binaryPath) => {
+      writeRaw(valid, bytes({ ...identity(), binary_path: binaryPath }));
+      return failureCode(() => parseDaemonIdentityFile(valid)) === 'DAEMON_IDENTITY_INVALID';
+    }), 'RECOVERY_RECORD_SELF_TEST_FAILED');
+    fail([-1, 0, 1.5, Number.MAX_SAFE_INTEGER + 1].every((maximumBytes) => (
+      failureCode(() => readBoundedRegularFile(
+        path.join(root, 'absent'), maximumBytes, 'MAXIMUM_INVALID', 'FILE_OPENED',
+      )) === 'MAXIMUM_INVALID'
+    )), 'RECOVERY_RECORD_SELF_TEST_FAILED');
+
+    const malformed = [
+      ['empty.json', Buffer.alloc(0), 0o600],
+      ['wrong-mode.json', bytes(identity()), 0o644],
+      ['invalid-utf8.json', Buffer.from([0xc3, 0x28, 0x0a]), 0o600],
+      ['missing-newline.json', Buffer.from(JSON.stringify(identity())), 0o600],
+      ['multiple-lines.json', Buffer.from(`${JSON.stringify(identity())}\n{}\n`), 0o600],
+    ];
+    for (const [name, contents, mode] of malformed) {
+      const file = path.join(root, name);
+      writeRaw(file, contents, mode);
+      fail(failureCode(() => parseDaemonIdentityFile(file)) === 'DAEMON_IDENTITY_INVALID',
+        'RECOVERY_RECORD_SELF_TEST_FAILED');
+    }
+    const symlinkTarget = path.join(root, 'symlink-target.json');
+    const symlink = path.join(root, 'symlink.json');
+    writeRaw(symlinkTarget, bytes(identity()));
+    fs.symlinkSync(symlinkTarget, symlink);
+    const symlinkBefore = fs.lstatSync(symlink, { bigint: true });
+    const symlinkTargetBefore = fs.lstatSync(symlinkTarget, { bigint: true });
+    const symlinkTargetBytes = fs.readFileSync(symlinkTarget);
+    const symlinkValue = fs.readlinkSync(symlink);
+    const symlinkEntries = directoryEntries();
+    fail(failureCode(() => parseDaemonIdentityFile(symlink)) === 'DAEMON_IDENTITY_UNAVAILABLE'
+      && failureCode(() => writeDaemonIdentity(symlink, identity())) === 'DAEMON_IDENTITY_WRITE_FAILED',
+      'RECOVERY_RECORD_SELF_TEST_FAILED');
+    const symlinkAfter = fs.lstatSync(symlink, { bigint: true });
+    const symlinkTargetAfter = fs.lstatSync(symlinkTarget, { bigint: true });
+    fail(symlinkBefore.isSymbolicLink() && symlinkAfter.isSymbolicLink()
+      && symlinkBefore.dev === symlinkAfter.dev && symlinkBefore.ino === symlinkAfter.ino
+      && symlinkTargetBefore.isFile() && symlinkTargetAfter.isFile()
+      && symlinkTargetBefore.dev === symlinkTargetAfter.dev
+      && symlinkTargetBefore.ino === symlinkTargetAfter.ino
+      && fs.readlinkSync(symlink) === symlinkValue
+      && fs.readFileSync(symlinkTarget).equals(symlinkTargetBytes)
+      && equalJSON(directoryEntries(), symlinkEntries), 'RECOVERY_RECORD_SELF_TEST_FAILED');
+    const fifo = path.join(root, 'record.fifo');
+    execFileSync('/usr/bin/mkfifo', [fifo], { timeout: 1_000 });
+    fail(failureCode(() => parseDaemonIdentityFile(fifo)) === 'DAEMON_IDENTITY_INVALID',
+      'RECOVERY_RECORD_SELF_TEST_FAILED');
+
+    const grown = path.join(root, 'grown.json');
+    writeRaw(grown, bytes(identity()));
+    fail(failureCode(() => parseDaemonIdentityFile(grown, () => {
+      fs.appendFileSync(grown, 'x');
+    })) === 'DAEMON_IDENTITY_INVALID', 'RECOVERY_RECORD_SELF_TEST_FAILED');
+    const swapped = path.join(root, 'swapped.json');
+    const held = path.join(root, 'held.json');
+    const original = identity();
+    writeRaw(swapped, bytes(original));
+    const observed = parseDaemonIdentityFile(swapped, () => {
+      fs.renameSync(swapped, held);
+      writeRaw(swapped, bytes({ ...original, daemon_pid: 999 }));
+    });
+    fail(observed.daemon_pid === original.daemon_pid, 'RECOVERY_RECORD_SELF_TEST_FAILED');
+
+    const writer = path.join(root, 'writer.json');
+    const writerEntries = directoryEntries();
+    writeDaemonIdentity(writer, exactIdentity);
+    fail(parseDaemonIdentityFile(writer).binary_path === exactIdentity.binary_path
+      && equalJSON(directoryEntries(), [...writerEntries, 'writer.json'].sort()),
+      'RECOVERY_RECORD_SELF_TEST_FAILED');
+    const writerOversized = path.join(root, 'writer-oversized.json');
+    const oversizedEntries = directoryEntries();
+    fail(failureCode(() => writeDaemonIdentity(
+      writerOversized, identity(DAEMON_IDENTITY_MAX_BYTES + 1),
+    )) === 'DAEMON_IDENTITY_WRITE_FAILED' && !fs.existsSync(writerOversized),
+    'RECOVERY_RECORD_SELF_TEST_FAILED');
+    fail(equalJSON(directoryEntries(), oversizedEntries), 'RECOVERY_RECORD_SELF_TEST_FAILED');
+    const existing = path.join(root, 'existing.json');
+    const preserved = Buffer.from('preserved\n');
+    writeRaw(existing, preserved);
+    const existingEntries = directoryEntries();
+    fail(failureCode(() => writeDaemonIdentity(existing, identity())) === 'DAEMON_IDENTITY_WRITE_FAILED'
+      && fs.readFileSync(existing).equals(preserved)
+      && equalJSON(directoryEntries(), existingEntries), 'RECOVERY_RECORD_SELF_TEST_FAILED');
+
+    const digests = path.join(root, 'digests.json');
+    const digest = 'd'.repeat(64);
+    const digestVector = Array(32).fill(digest);
+    const digestBoundary = path.join(root, 'digests-boundary.json');
+    writeRaw(digestBoundary, paddedBytes(digestVector, UNRELATED_CHANNEL_DIGESTS_MAX_BYTES));
+    fail(equalJSON(parseUnrelatedChannelDigestsFile(digestBoundary), digestVector),
+      'RECOVERY_RECORD_SELF_TEST_FAILED');
+    writeRaw(digestBoundary, paddedBytes(digestVector, UNRELATED_CHANNEL_DIGESTS_MAX_BYTES + 1));
+    fail(failureCode(() => parseUnrelatedChannelDigestsFile(digestBoundary))
+      === 'UNRELATED_CHANNEL_DIGESTS_INVALID', 'RECOVERY_RECORD_SELF_TEST_FAILED');
+    const maximumDigestVector = [];
+    while (bytes([...maximumDigestVector, digest]).length <= UNRELATED_CHANNEL_DIGESTS_MAX_BYTES) {
+      maximumDigestVector.push(digest);
+    }
+    const digestEntries = directoryEntries();
+    writeUnrelatedChannelDigests(digests, maximumDigestVector);
+    fail(maximumDigestVector.length > 31
+      && equalJSON(parseUnrelatedChannelDigestsFile(digests), maximumDigestVector)
+      && equalJSON(directoryEntries(), [...digestEntries, 'digests.json'].sort()),
+    'RECOVERY_RECORD_SELF_TEST_FAILED');
+    const digestsOversized = path.join(root, 'digests-oversized.json');
+    const digestsOversizedEntries = directoryEntries();
+    fail(failureCode(() => writeUnrelatedChannelDigests(
+      digestsOversized, [...maximumDigestVector, digest],
+    )) === 'UNRELATED_CHANNEL_DIGESTS_WRITE_FAILED' && !fs.existsSync(digestsOversized),
+    'RECOVERY_RECORD_SELF_TEST_FAILED');
+    fail(equalJSON(directoryEntries(), digestsOversizedEntries),
+      'RECOVERY_RECORD_SELF_TEST_FAILED');
+    const ack = path.join(root, 'ack.json');
+    const ackValue = { status: 'ok', target_window_removed: true };
+    writeRaw(ack, paddedBytes(ackValue, CLOSE_ACK_MAX_BYTES));
+    fail(parseCloseAckFile(ack).target_window_removed, 'RECOVERY_RECORD_SELF_TEST_FAILED');
+    writeRaw(ack, paddedBytes(ackValue, CLOSE_ACK_MAX_BYTES + 1));
+    fail(failureCode(() => parseCloseAckFile(ack)) === 'TARGET_CLOSE_INVALID',
+      'RECOVERY_RECORD_SELF_TEST_FAILED');
+    const malformedAcks = [
+      { status: 'unknown', target_window_removed: true },
+      { status: 'ok', target_window_removed: false },
+      { status: 'failed', target_window_removed: true },
+      { status: 'failed', target_window_removed: 'false' },
+    ];
+    fail(malformedAcks.every((value) => {
+      writeRaw(ack, bytes(value));
+      return failureCode(() => parseCloseAckFile(ack)) === 'TARGET_CLOSE_INVALID';
+    }), 'RECOVERY_RECORD_SELF_TEST_FAILED');
+    const delayedAck = path.join(root, 'delayed-ack.json');
+    writeRaw(delayedAck, bytes(ackValue), 0o000);
+    fail(failureCode(() => parseCloseAckFile(delayedAck)) === 'TARGET_CLOSE_INVALID',
+      'RECOVERY_RECORD_SELF_TEST_FAILED');
+    let retryPauses = 0;
+    const retriedAck = await parsePrivateRecordUntilDeadline(
+      delayedAck, parseCloseAckFile, 100, async () => {
+        retryPauses += 1;
+        fs.chmodSync(delayedAck, 0o600);
+      },
+    );
+    fail(retryPauses === 1 && retriedAck.target_window_removed,
+      'RECOVERY_RECORD_SELF_TEST_FAILED');
+    const cleanup = path.join(root, 'cleanup.json');
+    const cleanupValue = {
+      fixture_windows_removed: true, sibling_window_removed: true, target_window_removed: true,
+    };
+    writeRaw(cleanup, paddedBytes(cleanupValue, FIXTURE_CLEANUP_MAX_BYTES));
+    fail(parseFixtureCleanupFile(cleanup).fixture_windows_removed,
+      'RECOVERY_RECORD_SELF_TEST_FAILED');
+    writeRaw(cleanup, paddedBytes(cleanupValue, FIXTURE_CLEANUP_MAX_BYTES + 1));
+    fail(failureCode(() => parseFixtureCleanupFile(cleanup)) === 'FIXTURE_CLEANUP_INVALID',
+      'RECOVERY_RECORD_SELF_TEST_FAILED');
+    const swappedWriter = path.join(root, 'swapped-writer.json');
+    const ownedResidue = path.join(root, 'owned-residue.json');
+    const swappedIdentity = identity();
+    let replacementIdentity = null;
+    const swappedEntries = directoryEntries();
+    fail(failureCode(() => writeDaemonIdentity(swappedWriter, swappedIdentity, () => {
+      fs.renameSync(swappedWriter, ownedResidue);
+      writeRaw(swappedWriter, preserved);
+      replacementIdentity = fs.lstatSync(swappedWriter, { bigint: true });
+    })) === 'DAEMON_IDENTITY_WRITE_FAILED', 'RECOVERY_RECORD_SELF_TEST_FAILED');
+    const replacementAfter = fs.lstatSync(swappedWriter, { bigint: true });
+    const residue = fs.lstatSync(ownedResidue, { bigint: true });
+    fail(replacementIdentity.isFile() && replacementAfter.isFile()
+      && replacementIdentity.dev === replacementAfter.dev
+      && replacementIdentity.ino === replacementAfter.ino
+      && fs.readFileSync(swappedWriter).equals(preserved)
+      && residue.isFile() && (residue.mode & 0o777n) === 0n
+      && residue.size === BigInt(bytes(swappedIdentity).length)
+      && equalJSON(directoryEntries(), [...swappedEntries,
+        'owned-residue.json', 'swapped-writer.json'].sort()),
+    'RECOVERY_RECORD_SELF_TEST_FAILED');
+    receipt = {
+      close_ack_shape_validation: true,
+      exact_json_line_enforced: true,
+      exact_utf8_roundtrip: true,
+      fifo_read_bounded: true,
+      held_descriptor_path_swap_safe: true,
+      mode_gated_parser_retry: true,
+      mode_gated_writer_path_swap_safe: true,
+      no_temporary_writer_names: true,
+      purpose_specific_byte_boundaries: true,
+      reader_maximum_validated_before_open: true,
+      positional_full_read_and_growth_rejection: true,
+      recovery_record_parsers_exercised: true,
+      safe_writer_max_and_no_overwrite: true,
+      status: 'passed',
+    };
+  } finally {
+    fs.rmSync(root, { force: true, recursive: true });
+  }
+  process.stdout.write(`${JSON.stringify(receipt)}\n`);
+}
+
+export async function runNativeProofSelfTest(mode) {
   if (mode === '--command-telemetry-self-test') return commandTelemetrySelfTest();
   if (mode === '--fixture-result-parser-self-test') return fixtureResultParserSelfTest();
+  if (mode === '--recovery-record-self-test') return recoveryRecordSelfTest();
   if (mode === '--channel-snapshot-self-test') {
     try {
       return channelSnapshotSelfTest();
@@ -412,7 +677,7 @@ if (process.argv[1]
     && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   const [mode] = process.argv.slice(2);
   try {
-    runNativeProofSelfTest(mode);
+    await runNativeProofSelfTest(mode);
   } catch {
     process.exitCode = 125;
   }

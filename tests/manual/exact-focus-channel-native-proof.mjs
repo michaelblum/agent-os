@@ -37,7 +37,11 @@ import {
   disarmChannelCleanup,
   focusEntry,
   isRegularFile,
+  parseCloseAckFile,
+  parseDaemonIdentityFile,
   parseFixtureResultFile,
+  parsePrivateRecordUntilDeadline,
+  parseUnrelatedChannelDigestsFile,
   processExists,
   removeChannelsQuiescent,
   removeFile,
@@ -48,9 +52,8 @@ import {
   stopFixture,
   strictFocusEntries,
   verifyCapture,
-  waitForFile,
   writeDaemonIdentity,
-  writeJSONFile,
+  writeUnrelatedChannelDigests,
 } from '../lib/exact-focus-channel-native-proof-runtime.mjs';
 
 function valueAfter(args, flag) {
@@ -120,18 +123,8 @@ async function cleanupOnly(args) {
   const unrelatedDigestsPath = valueAfter(args, '--unrelated-digests');
   fail(Object.values(options).every((value) => typeof value === 'string' && value.length > 0), 'INVALID_ARGUMENTS');
   fail(typeof channel === 'string' && typeof negativeChannel === 'string', 'INVALID_ARGUMENTS');
-  fail(isRegularFile(identityPath), 'DAEMON_IDENTITY_UNAVAILABLE');
-  fail(isRegularFile(unrelatedDigestsPath), 'UNRELATED_CHANNEL_DIGESTS_UNAVAILABLE');
-  const identity = parseJSON(fs.readFileSync(identityPath, 'utf8'), 'DAEMON_IDENTITY_INVALID');
-  const unrelatedDigestsBefore = parseJSON(
-    fs.readFileSync(unrelatedDigestsPath, 'utf8'),
-    'UNRELATED_CHANNEL_DIGESTS_INVALID',
-  );
-  fail(
-    Array.isArray(unrelatedDigestsBefore)
-      && unrelatedDigestsBefore.every((digest) => /^[a-f0-9]{64}$/u.test(digest)),
-    'UNRELATED_CHANNEL_DIGESTS_INVALID',
-  );
+  const identity = parseDaemonIdentityFile(identityPath);
+  const unrelatedDigestsBefore = parseUnrelatedChannelDigestsFile(unrelatedDigestsPath);
   const removed = await removeChannelsQuiescent(options, identity, [channel, negativeChannel]);
   fail(removed, 'CHANNEL_CLEANUP_FAILED');
   const unrelatedDigestsAfter = stablePublicChannelDigests(
@@ -238,14 +231,15 @@ async function main() {
       channelIDs,
       Buffer.from(process.env[SNAPSHOT_KEY_ENV], 'hex'),
     );
-    writeJSONFile(files.unrelatedDigests, unrelatedDigestsBefore);
+    writeUnrelatedChannelDigests(files.unrelatedDigests, unrelatedDigestsBefore);
     armChannelCleanup(files);
     progress.complete('unrelated_channel_snapshot');
 
     progress.start('fixture_startup');
     fixture = await startFixture(options, files);
-    await waitForFile(files.metadata, 5_000);
-    const metadata = parseFixtureResultFile(files.metadata);
+    const metadata = await parsePrivateRecordUntilDeadline(
+      files.metadata, parseFixtureResultFile, 5_000,
+    );
     fail(metadata.pid === fixture.child.pid && metadata.ownership_token === fixture.ownershipToken, 'FIXTURE_IDENTITY_MISMATCH');
     fail(processExists(fixture.child.pid), 'FIXTURE_PROCESS_MISSING');
     fail(Number.isInteger(metadata.target_window_id) && metadata.target_window_id > 0, 'FIXTURE_WINDOW_ID_INVALID');
@@ -353,8 +347,9 @@ async function main() {
       commandTimeoutMilliseconds: MISSING_TARGET_CAPTURE_COMMAND_TIMEOUT_MS,
     }), 'TARGET_REFRESH_BEFORE_CLOSE_STALE');
     fs.writeFileSync(files.closeRequest, 'close\n', { mode: 0o600 });
-    await waitForFile(files.closeAck, 3_000);
-    const closeAck = parseJSON(fs.readFileSync(files.closeAck, 'utf8'), 'TARGET_CLOSE_INVALID');
+    const closeAck = await parsePrivateRecordUntilDeadline(
+      files.closeAck, parseCloseAckFile, 3_000,
+    );
     fail(closeAck.target_window_removed === true, 'TARGET_WINDOW_STILL_PRESENT');
     progress.complete('target_close');
 
@@ -563,11 +558,11 @@ async function main() {
 
 const [mode, ...modeArgs] = process.argv.slice(2);
 if (['--command-telemetry-self-test', '--fixture-result-parser-self-test',
-  '--channel-snapshot-self-test'].includes(mode)) {
+  '--channel-snapshot-self-test', '--recovery-record-self-test'].includes(mode)) {
   const { runNativeProofSelfTest } = await import(
     '../lib/exact-focus-channel-native-proof-self-test.mjs'
   );
-  runNativeProofSelfTest(mode);
+  await runNativeProofSelfTest(mode);
 } else if (mode === '--cleanup-only') {
   try {
     await cleanupOnly(modeArgs);

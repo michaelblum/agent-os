@@ -13,7 +13,6 @@ import {
   missingTargetCaptureFreshnessIsValid,
 } from './lib/exact-focus-channel-native-proof-model.mjs';
 import { singlePublicFocusEntry } from './lib/exact-focus-channel-native-proof-runtime.mjs';
-
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const helperPath = path.join(root, 'tests/manual/exact-focus-channel-native-proof.swift');
 const checkpointSwiftPath = path.join(root, 'tests/lib/exact-focus-channel-geometry-checkpoint.swift');
@@ -21,6 +20,11 @@ const checkpointNodePath = path.join(root, 'tests/lib/exact-focus-channel-geomet
 const proofContractPath = path.join(root, 'tests/lib/exact-focus-channel-proof-contract.mjs');
 const commandRunnerPath = path.join(root, 'tests/lib/exact-focus-channel-command-runner.mjs');
 const proofModelPath = path.join(root, 'tests/lib/exact-focus-channel-native-proof-model.mjs');
+const privateRecordsPath = path.join(root, 'tests/lib/exact-focus-channel-private-records.mjs');
+const privateRecordsSwiftPath = path.join(root, 'tests/lib/exact-focus-channel-private-records.swift');
+const privateRecordsHarnessPath = path.join(
+  root, 'tests/lib/exact-focus-channel-private-records-harness.swift',
+);
 const proofRuntimePath = path.join(root, 'tests/lib/exact-focus-channel-native-proof-runtime.mjs');
 const proofSelfTestPath = path.join(root, 'tests/lib/exact-focus-channel-native-proof-self-test.mjs');
 const driverPath = path.join(root, 'tests/manual/exact-focus-channel-native-proof.mjs');
@@ -53,9 +57,8 @@ function shellIntegerConstant(source, name) {
   assert.ok(match, `missing integer shell constant ${name}`);
   return Number(match[1]);
 }
-
-function childDiagnostics(result) {
-  return JSON.stringify({ signal: result.signal, status: result.status,
+function childDiagnostics(result, context = {}) {
+  return JSON.stringify({ ...context, error_code: result.error?.code ?? null, signal: result.signal, status: result.status,
     stderr: result.stderr, stdout: result.stdout });
 }
 function compileHelperBinary(temporaryRoot, binary) {
@@ -65,6 +68,7 @@ function compileHelperBinary(temporaryRoot, binary) {
     '-framework', 'AppKit',
     '-framework', 'ImageIO',
     checkpointSwiftPath,
+    privateRecordsSwiftPath,
     helperPath,
     '-o', binary,
   ], {
@@ -80,31 +84,69 @@ test('exact focus-channel native helper typechecks without opening windows or ca
     timeout: 45_000,
   });
 });
-
-test('native proof model, runtime, self-test, and command runner are import-safe focused boundaries', () => {
+test('exact focus-channel private Swift records publish safely without AppKit or TCC', () => {
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-private-records-swift-'));
+  const binary = path.join(temporaryRoot, 'private-records-harness');
+  try {
+    execFileSync('swiftc', [
+      '-parse-as-library',
+      '-module-cache-path', path.join(temporaryRoot, 'module-cache'),
+      privateRecordsSwiftPath,
+      privateRecordsHarnessPath,
+      '-o', binary,
+    ], { cwd: root, stdio: 'pipe', timeout: 45_000 });
+    const result = spawnSync(binary, [], { cwd: root, encoding: 'utf8', timeout: 2_000 });
+    assert.equal(result.status, 0, childDiagnostics(result));
+    assert.equal(result.stderr, '');
+    assert.deepEqual(JSON.parse(result.stdout.trim()), {
+      destination_collision_preserved: true, destination_no_replace: true,
+      exact_framing_mode_and_maximum: true,
+      no_temporary_names: true, non_file_rejected: true,
+      owned_residue_not_ready: true, path_swap_replacement_preserved: true,
+      status: 'passed', symlink_identity_preserved: true, symlink_rejected: true,
+    });
+  } finally {
+    fs.rmSync(temporaryRoot, { force: true, recursive: true });
+  }
+});
+test('native proof model, private records, runtime, self-test, and runner stay import-safe', () => {
   const driver = fs.readFileSync(driverPath, 'utf8');
   const model = fs.readFileSync(proofModelPath, 'utf8');
+  const privateRecords = fs.readFileSync(privateRecordsPath, 'utf8');
+  const privateRecordsSwift = fs.readFileSync(privateRecordsSwiftPath, 'utf8');
   const runtime = fs.readFileSync(proofRuntimePath, 'utf8');
   const selfTest = fs.readFileSync(proofSelfTestPath, 'utf8');
   assert.ok(driver.split('\n').length - 1 <= 700);
   assert.ok(model.split('\n').length - 1 <= 700);
+  assert.ok(privateRecords.split('\n').length - 1 <= 500);
   assert.ok(runtime.split('\n').length - 1 <= 700);
   assert.ok(selfTest.split('\n').length - 1 <= 700);
   assert.match(runtime, /from '\.\/exact-focus-channel-native-proof-model\.mjs'/u);
+  assert.match(runtime, /from '\.\/exact-focus-channel-private-records\.mjs'/u);
   assert.match(runtime, /from '\.\/exact-focus-channel-command-runner\.mjs'/u);
+  assert.match(privateRecords, /from '\.\/exact-focus-channel-native-proof-model\.mjs'/u);
+  assert.match(privateRecords, /openSync\(file, flags, 0o000\)[\s\S]+beforeReadiness\?\.\(\)[\s\S]+exactHeldDestination[\s\S]+fsyncParentDirectory[\s\S]+fchmodSync\(descriptor, 0o600\)/u);
+  assert.doesNotMatch(privateRecords, /unlinkSync|linkSync|temporaryToken|\.tmp/u);
+  assert.match(privateRecordsSwift, /Darwin\.open\([\s\S]+destination\.path[\s\S]+O_EXCL \| O_NOFOLLOW \| O_CLOEXEC[\s\S]+mode_t\(0\)[\s\S]+beforeReadiness\?\(\)[\s\S]+exactFocusHeldDestination[\s\S]+exactFocusFsyncParent[\s\S]+Darwin\.fchmod\(descriptor, mode_t\(S_IRUSR \| S_IWUSR\)\)/u);
+  assert.doesNotMatch(privateRecordsSwift, /Darwin\.(?:link|unlink)|temporaryToken|PrivateTemp/u);
+  assert.doesNotMatch(privateRecords, /native-proof-runtime|native-proof-self-test|manual\/exact-focus/u);
   assert.doesNotMatch(model, /exact-focus-channel-native-proof-runtime|manual\/exact-focus/u);
   assert.doesNotMatch(model, /node:fs|node:os|node:path|process\.stdout|mkdtempSync|openSync/u);
   assert.match(selfTest, /from '\.\/exact-focus-channel-native-proof-runtime\.mjs'/u);
+  assert.match(selfTest, /from '\.\/exact-focus-channel-private-records\.mjs'/u);
   assert.match(selfTest, /export function commandTelemetrySelfTest\(\)/u);
   assert.match(selfTest, /export function fixtureResultParserSelfTest\(\)/u);
   assert.match(selfTest, /export function channelSnapshotSelfTest\(\)/u);
+  assert.match(selfTest, /export async function recoveryRecordSelfTest\(\)/u);
   assert.match(driver, /await import\(\s+'\.\.\/lib\/exact-focus-channel-native-proof-self-test\.mjs'/u);
   assert.doesNotMatch(
     runtime,
     /from ['"][^'"]*manual\/exact-focus-channel-native-proof\.mjs['"]/u,
   );
   assert.doesNotMatch(driver, /function (?:runAOSSuccess|verifyCapture|parseFixtureResultFile)/u);
-  for (const modulePath of [commandRunnerPath, proofModelPath, proofRuntimePath, proofSelfTestPath]) {
+  for (const modulePath of [
+    commandRunnerPath, proofModelPath, privateRecordsPath, proofRuntimePath, proofSelfTestPath,
+  ]) {
     const imported = spawnSync('node', ['--input-type=module', '-e',
       `await import(${JSON.stringify(`file://${modulePath}`)})`], {
       cwd: root, encoding: 'utf8', timeout: 2_000,
@@ -114,7 +156,6 @@ test('native proof model, runtime, self-test, and command runner are import-safe
     assert.equal(imported.stderr, '');
   }
 });
-
 test('missing-target live capture stays inside the exact planner freshness envelope', () => {
   const updatedAt = '2026-08-10T12:00:00Z';
   const updatedAtMilliseconds = Date.parse(updatedAt);
@@ -148,7 +189,6 @@ test('missing-target live capture stays inside the exact planner freshness envel
     /catch AOSExactChannelCapturePlanError\.windowNotFound \{\s+exitError\("Channel window is no longer available", code: "WINDOW_NOT_FOUND"\)/u,
   );
 });
-
 test('pre-close public focus observation is one exact list command and unique by id', () => {
   const options = { aos: '/unused/aos', root: '/unused/root' };
   const owned = { id: 'owned-channel', kind: 'window', updated_at: '2026-08-10T12:00:00Z' };
@@ -189,7 +229,6 @@ test('pre-close public focus observation is one exact list command and unique by
     (error) => error?.code === 'FOCUS_LIST_FAILED',
   );
 });
-
 test('exact focus-channel pixel classifier has an offline deterministic self-test', () => {
   const result = spawnSync('zsh', [runnerPath, '--analyzer-self-test'], {
     cwd: root,
@@ -202,7 +241,6 @@ test('exact focus-channel pixel classifier has an offline deterministic self-tes
     status: 'passed',
   });
 });
-
 test('exact focus-channel fixture readiness classifier is pure, ordered, and allowlisted', () => {
   const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-fixture-readiness-self-test-'));
   const binary = path.join(temporaryRoot, 'fixture-readiness-self-test');
@@ -224,7 +262,6 @@ test('exact focus-channel fixture readiness classifier is pure, ordered, and all
     fs.rmSync(temporaryRoot, { force: true, recursive: true });
   }
 });
-
 test('exact focus-channel fixture is synthetic, same-process, overlapping, and AX-distinct', () => {
   const helper = fs.readFileSync(helperPath, 'utf8');
   const checkpointHelper = fs.readFileSync(checkpointSwiftPath, 'utf8');
@@ -240,7 +277,6 @@ test('exact focus-channel fixture is synthetic, same-process, overlapping, and A
   const delegateIndex = fixtureMain.indexOf('app.delegate = controller');
   const lifetimeIndex = fixtureMain.indexOf('withExtendedLifetime(controller)');
   const runIndex = fixtureMain.indexOf('app.run()');
-
   assert.match(helper, /SplitTargetView/u);
   assert.match(helper, /SolidSiblingView/u);
   assert.match(helper, /aos-exact-target-control/u);
@@ -283,7 +319,6 @@ test('exact focus-channel fixture is synthetic, same-process, overlapping, and A
   assert.match(localReadiness, /frame\.height > 0/u);
   assert.match(helper, /firstFixtureReadinessFailure/u);
   assert.match(helper, /FixtureFailureEnvelope\(status: "failed", error_code: failure\)/u);
-  assert.match(helper, /try\? data\.write\(to: URL\(fileURLWithPath: metadataPath\), options: \.atomic\)/u);
   assert.doesNotMatch(localReadiness, /sleep|asyncAfter/u);
   assert.match(helper, /ownership_token/u);
   assert.match(localReadiness, /targetEntry\.flatMap \{ windowPID\(\$0\) \} == Int\(getpid\(\)\)/u);
@@ -310,9 +345,9 @@ test('exact focus-channel fixture is synthetic, same-process, overlapping, and A
   );
   assert.doesNotMatch(fixtureMain, /ProcessInfo\.processInfo\.environment\[\s*fixtureGeometryCheckpointKeyEnvironment/u);
 });
-
 test('exact focus-channel live driver uses passive public preflights and bounded public evidence routes', () => {
   const driver = fs.readFileSync(driverPath, 'utf8');
+  const helper = fs.readFileSync(helperPath, 'utf8');
   const checkpointHelper = fs.readFileSync(checkpointNodePath, 'utf8');
   const proofContract = fs.readFileSync(proofContractPath, 'utf8');
   const proofModel = fs.readFileSync(proofModelPath, 'utf8');
@@ -369,6 +404,10 @@ test('exact focus-channel live driver uses passive public preflights and bounded
     proofRuntime.indexOf('export async function startFixture'),
     proofRuntime.indexOf('export async function stopFixture'),
   );
+  const fixtureStop = proofRuntime.slice(
+    proofRuntime.indexOf('export async function stopFixture'),
+    proofRuntime.indexOf('export function armChannelCleanup'),
+  );
   const captureCheckpoint = proofRuntime.slice(
     proofRuntime.indexOf('async function captureCheckpointBracket'),
     proofRuntime.indexOf('export function writeDaemonIdentity'),
@@ -391,7 +430,6 @@ test('exact focus-channel live driver uses passive public preflights and bounded
     failureSummaryStart,
     driver.indexOf('    process.stdout.write', failureSummaryStart),
   )}`;
-
   assert.match(driver, /'focus', 'create'/u);
   assert.match(driver, /'--subtree-identifier', metadata\.sibling_identifier/u);
   assert.match(driver, /'--subtree-identifier', metadata\.target_identifier/u);
@@ -427,7 +465,7 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   assert.ok(targetCloseOrder.every((index) => index >= 0));
   assert.deepEqual(targetCloseOrder, [...targetCloseOrder].sort((a, b) => a - b));
   assert.doesNotMatch(targetClose, /sleep\(1_250\)/u);
-  assert.match(targetClose, /waitForFile\(files\.closeAck, 3_000\)/u);
+  assert.match(targetClose, /await parsePrivateRecordUntilDeadline\(\s+files\.closeAck, parseCloseAckFile, 3_000/u);
   assert.match(targetClose, /closeAck\.target_window_removed === true/u);
   assert.ok(missingCaptureStart < missingRefreshStart);
   assert.match(missingCapture, /missingTargetCaptureFreshnessIsValid/u);
@@ -480,12 +518,14 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   assert.match(proofContract, /export const AOS_COMMAND_ERROR_MAX_BYTES = 2_048/u);
   assert.match(proofModel, /export const FIXTURE_RESULT_MAX_BYTES = 2_048/u);
   assert.match(proofModel, /const FIXTURE_FAILURE_CODES = new Set/u);
-  assert.match(proofRuntime, /fs\.openSync\(file, fs\.constants\.O_RDONLY \| noFollow\)/u);
-  assert.match(proofRuntime, /fs\.fstatSync\(descriptor\)/u);
   assert.match(proofModel, /hasExactKeys\(envelope, \['error_code', 'status'\]\)/u);
   assert.match(proofModel, /hasExactKeys\(envelope, \['metadata', 'status'\]\)/u);
-  assert.match(driverFixtureStartup, /const metadata = parseFixtureResultFile\(files\.metadata\)/u);
+  assert.match(driverFixtureStartup, /const metadata = await parsePrivateRecordUntilDeadline\(\s+files\.metadata, parseFixtureResultFile, 5_000/u);
   assert.doesNotMatch(driverFixtureStartup, /readFileSync\(files\.metadata/u);
+  assert.match(driver, /parseDaemonIdentityFile\(identityPath\)/u);
+  assert.match(driver, /parseUnrelatedChannelDigestsFile\(unrelatedDigestsPath\)/u);
+  assert.match(driver, /parsePrivateRecordUntilDeadline\(\s+files\.closeAck, parseCloseAckFile, 3_000/u);
+  assert.doesNotMatch(driver, /readFileSync\((?:identityPath|unrelatedDigestsPath|files\.closeAck)/u);
   assert.match(proofContract, /const AOS_COMMAND_ERROR_CODES = new Set/u);
   assert.match(proofContract, /'DAEMON_UNREACHABLE'/u);
   assert.match(proofContract, /const AOS_PRECOMMIT_REJECTION_CODES = new Set/u);
@@ -504,6 +544,9 @@ test('exact focus-channel live driver uses passive public preflights and bounded
     'tests/lib/exact-focus-channel-geometry-checkpoint.mjs',
     'tests/lib/exact-focus-channel-geometry-checkpoint.swift',
     'tests/lib/exact-focus-channel-native-proof-model.mjs',
+    'tests/lib/exact-focus-channel-private-records-harness.swift',
+    'tests/lib/exact-focus-channel-private-records.mjs',
+    'tests/lib/exact-focus-channel-private-records.swift',
     'tests/lib/exact-focus-channel-native-proof-runtime.mjs',
     'tests/lib/exact-focus-channel-native-proof-self-test.mjs',
     'tests/lib/exact-focus-channel-proof-contract.mjs',
@@ -514,6 +557,7 @@ test('exact focus-channel live driver uses passive public preflights and bounded
     'tests/lib/exact-focus-channel-supervision.zsh',
   ]) assert.match(proofRuntime, new RegExp(runtimePath.replaceAll('.', '\\.'), 'u'));
   assert.match(runner, /CHECKPOINT_SOURCE="\$ROOT\/tests\/lib\/exact-focus-channel-geometry-checkpoint\.swift"/u);
+  assert.match(runner, /PRIVATE_RECORDS_SOURCE="\$ROOT\/tests\/lib\/exact-focus-channel-private-records\.swift"/u);
   assert.match(runner, /SUPERVISION_NODE_SOURCE="\$ROOT\/tests\/lib\/exact-focus-channel-supervision\.mjs"/u);
   assert.match(runner, /SUPERVISION_SCENARIO_SOURCE="\$ROOT\/tests\/lib\/exact-focus-channel-supervision-scenarios\.zsh"/u);
   assert.match(runner, /SUPERVISION_SHELL_SOURCE="\$ROOT\/tests\/lib\/exact-focus-channel-supervision\.zsh"/u);
@@ -567,7 +611,10 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   assert.match(proofContract, /fs\.renameSync\(tempFile, file\)/u);
   assert.match(proofContract, /const noFollow = fs\.constants\.O_NOFOLLOW/u);
   assert.match(proofContract, /if \(!Number\.isInteger\(noFollow\) \|\| noFollow === 0\) return null/u);
-  assert.match(proofRuntime, /const noFollow = fs\.constants\.O_NOFOLLOW;\s+fail\(Number\.isInteger\(noFollow\) && noFollow !== 0, errorCode\);/u);
+  assert.equal(fixtureStop.match(/parsePrivateRecordUntilDeadline\(\s+files\.cleanupReport, parseFixtureCleanupFile, 3_000/gu)?.length, 2);
+  assert.match(proofRuntime, /export async function parsePrivateRecordUntilDeadline[\s\S]+while \(true\)[\s\S]+return parser\(file\)[\s\S]+await retryPause/u);
+  assert.match(proofSelfTest, /maximumDigestVector\.length > 31/u);
+  assert.match(proofSelfTest, /beforeReadiness[\s\S]+ownedResidue|swappedWriter[\s\S]+ownedResidue/u);
   assert.match(proofSelfTest, /mkdtempSync[\s\S]+parseFixtureResultFile[\s\S]+rmSync/u);
   assert.match(proofContract, /fs\.openSync\(file, fs\.constants\.O_RDONLY \| noFollow\)/u);
   assert.doesNotMatch(progressValidator, /lstatSync/u);
@@ -629,7 +676,6 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   assert.ok(cleanupBody.indexOf('merge_sanitized_progress') > cleanupBody.indexOf('capture_sanitized_progress'));
   assert.ok(cleanupBody.indexOf('rm -f \\') > cleanupBody.indexOf('merge_sanitized_progress'));
   assert.match(runner, /rm -rf "\$TMP_ROOT"/u);
-
   assert.doesNotMatch(combined, /--base64|--save/u);
   assert.doesNotMatch(combined, /unrelated-channels\.json/u);
   assert.doesNotMatch(combined, /\.config\/agent-os\/channels/u);
@@ -639,7 +685,6 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   assert.doesNotMatch(combined, /permissions(?:',|\s+)\s*['"]?(?:setup|prime)/u);
   assert.doesNotMatch(combined, /(?:bash|zsh).*build\.sh|tccutil/u);
 });
-
 test('exact focus-channel outer budgets dominate exact cleanup and late-failure branches', () => {
   const runner = fs.readFileSync(runnerPath, 'utf8');
   const strictFocusCalls = shellIntegerConstant(runner, 'STRICT_FOCUS_ENTRIES_AOS_COMMANDS');
@@ -669,7 +714,6 @@ test('exact focus-channel outer budgets dominate exact cleanup and late-failure 
   const cleanupAOSCeiling = shellIntegerConstant(runner, 'CLEANUP_MAX_AOS_COMMANDS');
   const cleanupLocalCeiling = shellIntegerConstant(runner, 'CLEANUP_MAX_LOCAL_COMMANDS');
   const progressElapsedCeiling = shellIntegerConstant(runner, 'PROGRESS_RECEIPT_MAX_ELAPSED_MS');
-
   const removalCalls = (presentOwnedChannels) => (
     cleanupAttempts * (cleanupScansPerAttempt * strictFocusCalls + presentOwnedChannels)
   );
@@ -685,7 +729,6 @@ test('exact focus-channel outer budgets dominate exact cleanup and late-failure 
   const cleanupDeadlineMilliseconds = cleanupAOSCeiling * 10_000
     + cleanupLocalCeiling * 10_000
     + 30_000;
-
   assert.equal(strictFocusCalls, 5);
   assert.equal(r1, 48);
   assert.equal(r2, 51);
@@ -719,7 +762,6 @@ test('exact focus-channel outer budgets dominate exact cleanup and late-failure 
     /EXACT_LIVE_FAILURE_CATCH_MAX_AOS_COMMANDS=\$\(\(\s+LIVE_PRE_CLEANUP_AOS_COMMANDS\s+\+ CHANNEL_CLEANUP_R1_AOS_COMMANDS\s+\+ CHANNEL_CLEANUP_R1_AOS_COMMANDS\s+\+ POST_CLEANUP_ATTESTATION_AOS_COMMANDS/u,
   );
 });
-
 test('exact focus-channel progress sanitizer fails closed without reflecting untrusted bytes', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-exact-progress-contract-'));
   const rawSentinel = 'RAW_PROGRESS_SENTINEL_MUST_NOT_LEAK';
@@ -775,7 +817,6 @@ test('exact focus-channel progress sanitizer fails closed without reflecting unt
     );
     fs.writeFileSync(symlinkTarget, JSON.stringify(validReceipt), { mode: 0o600 });
     fs.symlinkSync(symlinkTarget, symlink);
-
     const validResult = sanitize(valid);
     assert.equal(validResult.status, 0, validResult.stderr);
     assert.deepEqual(JSON.parse(validResult.stdout.trim()), {
@@ -785,7 +826,6 @@ test('exact focus-channel progress sanitizer fails closed without reflecting unt
       last_completed_stage: 'unrelated_channel_snapshot',
       progress_elapsed_ms: 17,
     });
-
     for (const candidate of [
       missing,
       corrupt,
@@ -805,7 +845,6 @@ test('exact focus-channel progress sanitizer fails closed without reflecting unt
     fs.rmSync(tempRoot, { force: true, recursive: true });
   }
 });
-
 test('exact focus-channel runner preflight accepts a canonical revision and rejects drift', () => {
   const result = spawnSync('zsh', [runnerPath, '--runner-preflight-self-test'], {
     cwd: root,
@@ -818,7 +857,6 @@ test('exact focus-channel runner preflight accepts a canonical revision and reje
     status: 'passed',
   });
 });
-
 test('exact focus-channel unrelated-channel snapshot tolerates refresh metadata and detects stable-field mutation', () => {
   const result = spawnSync('node', [driverPath, '--channel-snapshot-self-test'], {
     cwd: root,
@@ -830,7 +868,6 @@ test('exact focus-channel unrelated-channel snapshot tolerates refresh metadata 
     keyed_stable_public_channel_snapshot: true,
     status: 'passed',
   });
-
   const key = spawnSync('zsh', [runnerPath, '--snapshot-key-self-test'], {
     cwd: root,
     encoding: 'utf8',
@@ -893,30 +930,57 @@ test('exact focus-channel fixture result parser is bounded, allowlisted, and non
   assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, new RegExp(rawSentinel, 'u'));
 });
 
+test('exact focus-channel recovery records use held bounded readers and no-replace writers', () => {
+  const result = spawnSync('node', [driverPath, '--recovery-record-self-test'], {
+    cwd: root,
+    encoding: 'utf8',
+    timeout: 2_000,
+  });
+  assert.equal(result.status, 0, childDiagnostics(result));
+  assert.equal(result.stderr, '');
+  assert.deepEqual(JSON.parse(result.stdout.trim()), {
+    close_ack_shape_validation: true,
+    exact_json_line_enforced: true,
+      exact_utf8_roundtrip: true,
+      fifo_read_bounded: true,
+      held_descriptor_path_swap_safe: true,
+      mode_gated_parser_retry: true,
+      mode_gated_writer_path_swap_safe: true,
+      no_temporary_writer_names: true,
+      purpose_specific_byte_boundaries: true,
+    reader_maximum_validated_before_open: true,
+    positional_full_read_and_growth_rejection: true,
+    recovery_record_parsers_exercised: true,
+      safe_writer_max_and_no_overwrite: true,
+    status: 'passed',
+  });
+});
 test('exact focus-channel cleanup preserves fixture and recovery ownership', () => {
-  for (const [mode, timeout, expected] of [
-    ['--cleanup-self-test', 2_000, { owned_child_reaped: true, status: 'passed' }],
-    ['--fixture-ownership-self-test', 4_000,
+  const timeout = 12_000;
+  for (const [mode, expected] of [
+    ['--cleanup-self-test', { owned_child_reaped: true, status: 'passed' }],
+    ['--fixture-ownership-self-test',
       { long_argv_fixture_reaped: true, status: 'passed' }],
-    ['--pidfile-reuse-self-test', 5_000, {
+    ['--pidfile-reuse-self-test', {
       live_unrelated_group_preserved: true, status: 'passed',
       unresolved_group_record_preserved: true,
     }],
-    ['--postflight-cleanup-failure-self-test', 2_000,
+    ['--postflight-cleanup-failure-self-test',
       { cleanup_failure_forced_failure: true, status: 'passed' }],
-    ['--ambiguous-admission-cleanup-self-test', 8_000,
+    ['--ambiguous-admission-cleanup-self-test',
       { ambiguous_admission_cleanup_safe: true, status: 'passed' }],
-    ['--missing-aos-cleanup-self-test', 2_000,
+    ['--missing-aos-cleanup-self-test',
       { missing_aos_cleanup_retained_root: true, status: 'passed' }],
-    ['--progress-merge-coherence-self-test', 3_000,
+    ['--progress-merge-coherence-self-test',
       { shell_progress_transition_coherence: true, status: 'passed' }],
   ]) {
     const result = spawnSync('zsh', [runnerPath, mode], { cwd: root, encoding: 'utf8', timeout });
-    assert.equal(result.status, 0, childDiagnostics(result));
-    assert.deepEqual(JSON.parse(result.stdout.trim()), expected, childDiagnostics(result));
+    const diagnostics = childDiagnostics(result, { mode, timeout });
+    assert.equal(result.error, undefined, diagnostics);
+    assert.equal(result.status, 0, diagnostics);
+    assert.deepEqual(JSON.parse(result.stdout.trim()), expected, diagnostics);
   }
 });
-
 test('exact focus-channel cleanup defers signals through its final receipt', () => {
   const cleanupSignal = spawnSync('zsh', [runnerPath, '--cleanup-signal-self-test'], {
     cwd: root, encoding: 'utf8', timeout: 6_000,

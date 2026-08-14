@@ -203,9 +203,25 @@ tests.
   act on a dead numeric ownership record. Command execution,
   executable offline self-test payloads, pure proof modeling, and live proof
   operations must remain separate import-safe helpers, with stdout/tempfs
-  effects owned by `exact-focus-channel-native-proof-self-test.mjs`, bounded
-  file opening in the runtime rather than the model, and
-  an acyclic driver-to-runtime-to-model dependency; every capture must bind
+  effects owned by `exact-focus-channel-native-proof-self-test.mjs`.
+  `exact-focus-channel-private-records.mjs` owns bounded held-file opening,
+  exact JSON-line parsing, purpose shape validation, and recovery publication;
+  it may depend on the model but not the runtime or driver.
+  `exact-focus-channel-private-records.swift` owns the matching pure Swift
+  publisher, and its non-AppKit harness owns deterministic publication proofs.
+  Private recovery,
+  fixture-result, close-ack, and cleanup-report JSON readers must use held
+  no-follow/nonblocking descriptors with exact owner-only mode, UTF-8, byte,
+  and one-line bounds, retrying bounded concurrent producers until readiness.
+  Private writers serialize once, create the final destination exclusively at
+  mode `000`, verify its held/name identity and durability, then make `0600`
+  the final readiness transition. Never delete a pathname on writer failure.
+  This is a cooperative private-root protocol, not adversarial linearizability:
+  arbitrary same-UID mutation after the final preactivation ownership check is
+  out of scope and is equivalent to mutation after publication.
+  Keep each purpose maximum aligned and prove pathname/growth races, boundaries,
+  special-file rejection, and replacement preservation through named offline tests. Keep
+  an acyclic driver-to-runtime-to-private-record/model dependency; every capture must bind
   contemporaneous stable target/sibling geometry
   to coherent public surface, segment, perception, and decoded-pixel facts. It
   must reject a sibling-window subtree,

@@ -1,10 +1,10 @@
 #!/bin/zsh
 set -euo pipefail
 umask 077
-
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SOURCE="$ROOT/tests/manual/exact-focus-channel-native-proof.swift"
 CHECKPOINT_SOURCE="$ROOT/tests/lib/exact-focus-channel-geometry-checkpoint.swift"
+PRIVATE_RECORDS_SOURCE="$ROOT/tests/lib/exact-focus-channel-private-records.swift"
 DRIVER="$ROOT/tests/manual/exact-focus-channel-native-proof.mjs"
 SUPERVISION_NODE_SOURCE="$ROOT/tests/lib/exact-focus-channel-supervision.mjs"
 SUPERVISION_SELF_TEST_SOURCE="$ROOT/tests/lib/exact-focus-channel-supervision-self-test.mjs"
@@ -103,7 +103,6 @@ exact_focus_supervision_init \
   "$SUPERVISION_PROTOCOL_SOURCE" "$PROOF_CONTRACT_SOURCE" \
   "$TMP_ROOT" "$TMP_ROOT/active-process-group.pid" \
   "$DRIVER_STDOUT" "$DRIVER_STDERR"
-
 stop_owned_pid() {
   local pid="$1"
   if [[ -z "$pid" ]] || ! kill -0 "$pid" 2>/dev/null; then
@@ -161,7 +160,6 @@ stop_selftest_unrelated_group() {
   SELFTEST_UNRELATED_GROUP_PID=""
   SELFTEST_UNRELATED_GROUP_TOKEN=""
 }
-
 stop_owned_fixture() {
   [[ -f "$FIXTURE_PID_FILE" ]] || return 0
   local pid token
@@ -304,6 +302,7 @@ compile_helper() {
     -framework AppKit \
     -framework ImageIO \
     "$CHECKPOINT_SOURCE" \
+    "$PRIVATE_RECORDS_SOURCE" \
     "$SOURCE" \
     -o "$BINARY" || compile_status="$?"
   if (( compile_status != 0 )); then
@@ -404,6 +403,7 @@ case "$MODE" in
         -framework AppKit \
         -framework ImageIO \
         "$CHECKPOINT_SOURCE" \
+        "$PRIVATE_RECORDS_SOURCE" \
         "$SOURCE" || TYPECHECK_STATUS="$?"
     [[ ! -s "$TYPECHECK_STDOUT" ]] || cat "$TYPECHECK_STDOUT"
     [[ ! -s "$TYPECHECK_STDERR" ]] || cat "$TYPECHECK_STDERR" >&2

@@ -286,10 +286,15 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
             case .success(let observation):
                 metadataPublished = writeJSON(
                     FixtureReadyEnvelope(status: "ready", metadata: observation.metadata),
-                    to: metadataURL
+                    to: metadataURL,
+                    maximumBytes: exactFocusFixtureResultMaxBytes
                 )
             case .failure(let failure) where readinessAttempts > 80:
-                writeJSON(FixtureFailureEnvelope(status: "failed", error_code: failure), to: metadataURL)
+                writeJSON(
+                    FixtureFailureEnvelope(status: "failed", error_code: failure),
+                    to: metadataURL,
+                    maximumBytes: exactFocusFixtureResultMaxBytes
+                )
             case .failure:
                 break
             }
@@ -315,7 +320,8 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 self.writeJSON(
                     ["target_window_removed": removed, "status": removed ? "ok" : "failed"],
-                    to: self.closeAckURL
+                    to: self.closeAckURL,
+                    maximumBytes: exactFocusCloseAckMaxBytes
                 )
             }
             return
@@ -506,7 +512,8 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
                     sibling_window_removed: siblingRemoved,
                     fixture_windows_removed: targetRemoved && siblingRemoved
                 ),
-                to: cleanupURL
+                to: cleanupURL,
+                maximumBytes: exactFocusFixtureCleanupMaxBytes
             )
             timer?.invalidate()
             timer = nil
@@ -560,28 +567,16 @@ private final class FixtureController: NSObject, NSApplicationDelegate {
     }
 
     @discardableResult
-    private func writeJSON<T: Encodable>(_ value: T, to url: URL) -> Bool {
-        guard let data = try? JSONEncoder.sorted.encode(value) else { return false }
-        do {
-            try data.write(to: url, options: .atomic)
-            return true
-        } catch {
-            return false
-        }
+    private func writeJSON<T: Encodable>(
+        _ value: T,
+        to url: URL,
+        maximumBytes: Int
+    ) -> Bool {
+        writeExactFocusPrivateJSON(value, to: url, maximumBytes: maximumBytes)
     }
 
-    private func writeJSON(_ value: [String: Any], to url: URL) {
-        guard JSONSerialization.isValidJSONObject(value),
-              let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]) else { return }
-        try? data.write(to: url, options: .atomic)
-    }
-}
-
-private extension JSONEncoder {
-    static var sorted: JSONEncoder {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        return encoder
+    private func writeJSON(_ value: [String: Any], to url: URL, maximumBytes: Int) {
+        _ = writeExactFocusPrivateJSON(value, to: url, maximumBytes: maximumBytes)
     }
 }
 
@@ -662,13 +657,12 @@ private func writeFixtureFailureEnvelope(
     _ code: FixtureFailureCode,
     metadataPath: String?
 ) {
-    guard let metadataPath, !metadataPath.isEmpty,
-          let data = try? JSONEncoder.sorted.encode(
-            FixtureFailureEnvelope(status: "failed", error_code: code)
-          ) else {
-        return
-    }
-    try? data.write(to: URL(fileURLWithPath: metadataPath), options: .atomic)
+    guard let metadataPath, !metadataPath.isEmpty else { return }
+    _ = writeExactFocusPrivateJSON(
+        FixtureFailureEnvelope(status: "failed", error_code: code),
+        to: URL(fileURLWithPath: metadataPath),
+        maximumBytes: exactFocusFixtureResultMaxBytes
+    )
 }
 
 private func analyzePNG(at url: URL) throws -> PixelAnalysis {
@@ -896,7 +890,7 @@ private func value(after flag: String, in args: [String]) -> String? {
 }
 
 private func emit<T: Encodable>(_ value: T) {
-    guard let data = try? JSONEncoder.sorted.encode(value) else { return }
+    guard let data = try? JSONEncoder.exactFocusSorted.encode(value) else { return }
     FileHandle.standardOutput.write(data)
     FileHandle.standardOutput.write(Data([0x0A]))
 }

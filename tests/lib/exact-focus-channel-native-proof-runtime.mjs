@@ -9,8 +9,16 @@ import {
 } from './exact-focus-channel-geometry-checkpoint.mjs';
 import { createRunProgram } from './exact-focus-channel-command-runner.mjs';
 import { extractAOSCommandErrorCode } from './exact-focus-channel-proof-contract.mjs';
+import { parseFixtureCleanupFile } from './exact-focus-channel-private-records.mjs';
+export {
+  parseCloseAckFile,
+  parseDaemonIdentityFile,
+  parseFixtureResultFile,
+  parseUnrelatedChannelDigestsFile,
+  writeDaemonIdentity,
+  writeUnrelatedChannelDigests,
+} from './exact-focus-channel-private-records.mjs';
 import {
-  FIXTURE_RESULT_MAX_BYTES,
   MISSING_TARGET_CAPTURE_COMMAND_TIMEOUT_MS,
   SNAPSHOT_KEY_ENV,
   ProofError,
@@ -21,12 +29,10 @@ import {
   elementCarriesIdentifier,
   equalJSON,
   fail,
-  fixtureMetadataFromResultBytes,
   focusEntries,
   parseJSON,
   stablePublicChannelDigests,
 } from './exact-focus-channel-native-proof-model.mjs';
-
 const NO_AUTOSTART_ENV = Object.freeze({
   AOS_ALLOW_DAEMON_AUTOSTART: '0',
   AOS_DISABLE_DAEMON_AUTOSTART: '1',
@@ -41,11 +47,9 @@ const COMMAND_CLASS_TIMEOUT_MS = Object.freeze({
   aos: 10_000,
   local: 10_000,
 });
-
 export function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
-
 export function processExists(pid) {
   if (!Number.isSafeInteger(pid) || pid <= 1) return false;
   try {
@@ -55,7 +59,6 @@ export function processExists(pid) {
     return error?.code === 'EPERM';
   }
 }
-
 export function isRegularFile(file) {
   try {
     const metadata = fs.lstatSync(file);
@@ -64,52 +67,12 @@ export function isRegularFile(file) {
     return false;
   }
 }
-
-export function readBoundedRegularFile(file, maximumBytes, errorCode, requiredMode = null) {
-  const noFollow = fs.constants.O_NOFOLLOW;
-  fail(Number.isInteger(noFollow) && noFollow !== 0, errorCode);
-  let descriptor = null;
-  try {
-    descriptor = fs.openSync(file, fs.constants.O_RDONLY | noFollow);
-    const metadata = fs.fstatSync(descriptor);
-    fail(
-      metadata.isFile()
-        && metadata.size >= 1
-        && metadata.size <= maximumBytes
-        && (requiredMode === null || (metadata.mode & 0o777) === requiredMode),
-      errorCode,
-    );
-    const bytes = Buffer.alloc(metadata.size);
-    let offset = 0;
-    while (offset < bytes.length) {
-      const count = fs.readSync(descriptor, bytes, offset, bytes.length - offset, null);
-      fail(count > 0, errorCode);
-      offset += count;
-    }
-    const trailingByte = Buffer.alloc(1);
-    fail(fs.readSync(descriptor, trailingByte, 0, 1, null) === 0, errorCode);
-    return bytes;
-  } catch (error) {
-    if (error instanceof ProofError) throw error;
-    throw new ProofError(errorCode);
-  } finally {
-    if (descriptor !== null) try { fs.closeSync(descriptor); } catch {}
-  }
-}
-
-export function parseFixtureResultFile(file) {
-  return fixtureMetadataFromResultBytes(
-    readBoundedRegularFile(file, FIXTURE_RESULT_MAX_BYTES, 'FIXTURE_METADATA_INVALID'),
-  );
-}
-
 export function proofEnvironment() {
   const environment = { ...process.env, ...NO_AUTOSTART_ENV };
   delete environment[SNAPSHOT_KEY_ENV];
   delete environment[GEOMETRY_CHECKPOINT_KEY_ENV];
   return environment;
 }
-
 export function assertEnvironmentScope() {
   const allowed = new Set([
     'AOS_ALLOW_DAEMON_AUTOSTART',
@@ -125,17 +88,14 @@ export function assertEnvironmentScope() {
   fail(process.env.AOS_ALLOW_DAEMON_AUTOSTART === '0', 'DAEMON_AUTOSTART_NOT_DISABLED');
   fail(/^[a-f0-9]{64}$/u.test(process.env[SNAPSHOT_KEY_ENV] ?? ''), 'SNAPSHOT_KEY_UNAVAILABLE');
 }
-
 function aosCommandClass(args) {
   return args[0] === 'see' && args[1] === 'capture' ? 'capture' : 'aos';
 }
-
 export const runProgram = createRunProgram({
   ProofError,
   commandClassTimeouts: COMMAND_CLASS_TIMEOUT_MS,
   proofEnvironment,
 });
-
 export function runAOSSuccess(options, args, code, execute = runProgram) {
   let result;
   try {
@@ -166,7 +126,6 @@ export function runAOSSuccess(options, args, code, execute = runProgram) {
   }
   return payload;
 }
-
 function failureCommandExecution(execution, args) {
   if (typeof execution === 'function') {
     return { execute: execution, commandClass: aosCommandClass(args) };
@@ -188,7 +147,6 @@ function failureCommandExecution(execution, args) {
   'COMMAND_CLASS_INVALID');
   return { execute, commandClass };
 }
-
 export function runAOSFailure(options, args, expectedCode, code, execution = undefined) {
   const { execute, commandClass } = failureCommandExecution(execution, args);
   let result;
@@ -211,7 +169,6 @@ export function runAOSFailure(options, args, expectedCode, code, execution = und
   const commandErrorCode = allowlistedAOSCommandError(result);
   if (commandErrorCode !== expectedCode) throw aosCommandProofError(code, args, result);
 }
-
 export function removeFile(file) {
   try {
     fs.unlinkSync(file);
@@ -219,7 +176,6 @@ export function removeFile(file) {
     if (error?.code !== 'ENOENT') throw error;
   }
 }
-
 export async function waitForFile(file, timeoutMilliseconds) {
   const deadline = Date.now() + timeoutMilliseconds;
   while (Date.now() < deadline) {
@@ -228,14 +184,26 @@ export async function waitForFile(file, timeoutMilliseconds) {
   }
   throw new ProofError('FIXTURE_TIMEOUT');
 }
-
+export async function parsePrivateRecordUntilDeadline(file, parser, timeoutMilliseconds,
+  retryPause = sleep) {
+  const deadline = Date.now() + timeoutMilliseconds;
+  let lastError = new ProofError('FIXTURE_TIMEOUT');
+  while (true) {
+    try { return parser(file); } catch (error) {
+      if (!(error instanceof ProofError)) throw error;
+      lastError = error;
+    }
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw lastError;
+    await retryPause(Math.min(50, remaining));
+  }
+}
 function projectGeometryCheckpointError(error, prefix = null) {
   if (error instanceof GeometryCheckpointError) {
     return new ProofError(prefix === null ? error.code : `${prefix}_${error.code}`);
   }
   return error;
 }
-
 async function requestFixtureGeometryCheckpoint(files, fixture, phase) {
   try {
     const transaction = fixture.checkpointRequester.begin(phase);
@@ -277,6 +245,9 @@ export function assertRuntimeSource(options) {
     'tests/lib/exact-focus-channel-geometry-checkpoint.mjs',
     'tests/lib/exact-focus-channel-geometry-checkpoint.swift',
     'tests/lib/exact-focus-channel-native-proof-model.mjs',
+    'tests/lib/exact-focus-channel-private-records-harness.swift',
+    'tests/lib/exact-focus-channel-private-records.mjs',
+    'tests/lib/exact-focus-channel-private-records.swift',
     'tests/lib/exact-focus-channel-native-proof-runtime.mjs',
     'tests/lib/exact-focus-channel-native-proof-self-test.mjs',
     'tests/lib/exact-focus-channel-proof-contract.mjs',
@@ -479,14 +450,14 @@ export async function startFixture(options, files) {
     throw new ProofError('FIXTURE_LAUNCH_FAILED');
   }
 }
-
 export async function stopFixture(files, fixture) {
   let fixtureWindowsRemoved = false;
   if (fixture?.child && fixture.child.exitCode === null && fixture.child.signalCode === null) {
     fs.writeFileSync(files.stopRequest, 'stop\n', { mode: 0o600 });
     try {
-      await waitForFile(files.cleanupReport, 3_000);
-      const cleanup = parseJSON(fs.readFileSync(files.cleanupReport, 'utf8'), 'FIXTURE_CLEANUP_INVALID');
+      const cleanup = await parsePrivateRecordUntilDeadline(
+        files.cleanupReport, parseFixtureCleanupFile, 3_000,
+      );
       fixtureWindowsRemoved = cleanup.fixture_windows_removed === true;
     } catch {
       fixtureWindowsRemoved = false;
@@ -494,9 +465,15 @@ export async function stopFixture(files, fixture) {
     if (!await waitForChildExit(fixture.child, 1_000)) fixture.child.kill('SIGTERM');
     if (!await waitForChildExit(fixture.child, 750)) fixture.child.kill('SIGKILL');
     await waitForChildExit(fixture.child, 1_000);
-  } else if (isRegularFile(files.cleanupReport)) {
-    const cleanup = parseJSON(fs.readFileSync(files.cleanupReport, 'utf8'), 'FIXTURE_CLEANUP_INVALID');
-    fixtureWindowsRemoved = cleanup.fixture_windows_removed === true;
+  } else if (fixture?.child || fs.existsSync(files.cleanupReport)) {
+    try {
+      const cleanup = await parsePrivateRecordUntilDeadline(
+        files.cleanupReport, parseFixtureCleanupFile, 3_000,
+      );
+      fixtureWindowsRemoved = cleanup.fixture_windows_removed === true;
+    } catch {
+      fixtureWindowsRemoved = false;
+    }
   }
   const fixtureProcessReaped = !fixture?.child || !processExists(fixture.child.pid);
   try { fixture?.checkpointRequester?.cleanup(); } catch {}
@@ -506,22 +483,18 @@ export async function stopFixture(files, fixture) {
   }
   return { fixtureWindowsRemoved, fixtureProcessReaped };
 }
-
 export function armChannelCleanup(files) {
   fs.writeFileSync(files.cleanupArmed, 'armed\n', { mode: 0o600 });
 }
-
 export function disarmChannelCleanup(files) {
   removeFile(files.cleanupArmed);
 }
-
 async function captureCheckpointBracket(files, fixture, prePhase, postPhase, captureOperation) {
   const pre = await requestFixtureGeometryCheckpoint(files, fixture, prePhase);
   const capture = await captureOperation();
   const post = await requestFixtureGeometryCheckpoint(files, fixture, postPhase);
   return { capture, post, pre };
 }
-
 export async function verifyCapture(options, metadata, files, fixture, outputFile, codePrefix) {
   const phasePrefix = codePrefix.toLowerCase();
   const { capture, post, pre } = await captureCheckpointBracket(
@@ -591,12 +564,4 @@ export async function verifyCapture(options, metadata, files, fixture, outputFil
   );
   const axProjection = canonicalAXProjection(capture.elements);
   return { analysis, axProjection, capture, captureDigest, captureStat, targetProjection };
-}
-
-export function writeDaemonIdentity(file, identity) {
-  fs.writeFileSync(file, `${JSON.stringify(identity)}\n`, { mode: 0o600 });
-}
-
-export function writeJSONFile(file, value) {
-  fs.writeFileSync(file, `${JSON.stringify(value)}\n`, { mode: 0o600 });
 }
