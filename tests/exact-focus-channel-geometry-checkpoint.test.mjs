@@ -18,6 +18,7 @@ import {
   geometryFactHMACs,
   parseGeometryCheckpointReceiptBytes,
   parseGeometryCheckpointReceiptFile,
+  readGeometryCheckpointFile,
   readyGeometryReceiptMAC,
   targetGeometryFactBytes,
   verifyCaptureGeometryCheckpoint,
@@ -328,6 +329,7 @@ test('Swift helper matches fixed vectors and enforces request/service publicatio
     assert.deepEqual(JSON.parse(result.stdout.trim()), {
       ...expectedVector,
       immediate_consumer_unlink_committed: true,
+      nonblocking_fifo_request_rejected: true,
       request_boundaries_and_lifecycle: true,
       status: 'passed',
     });
@@ -342,13 +344,27 @@ test('Swift helper matches fixed vectors and enforces request/service publicatio
   }
 });
 
-test('geometry checkpoint file reader rejects malformed, oversized, and symlink receipts', () => {
+test('geometry checkpoint file reader rejects malformed, oversized, symlink, and FIFO receipts', () => {
   const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-geometry-reader-'));
   const receiptFile = path.join(temporaryRoot, 'receipt.json');
   const link = path.join(temporaryRoot, 'receipt-link.json');
+  const fifo = path.join(temporaryRoot, 'receipt-fifo.json');
   try {
     fs.writeFileSync(receiptFile, exactReceiptBytes(readyReceipt()));
-    assert.equal(parseGeometryCheckpointReceiptFile(receiptFile, nonce, 'initial_pre', key).nonce, nonce);
+    const originalOpenSync = fs.openSync;
+    let observedOpenFlags = null;
+    try {
+      fs.openSync = (file, flags, ...args) => {
+        observedOpenFlags = flags;
+        return originalOpenSync(file, flags, ...args);
+      };
+      assert.equal(parseGeometryCheckpointReceiptFile(receiptFile, nonce, 'initial_pre', key).nonce, nonce);
+    } finally {
+      fs.openSync = originalOpenSync;
+    }
+    assert.equal(observedOpenFlags, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+    assert.equal(caughtCode(() => readGeometryCheckpointFile(receiptFile, 0)), 'FIXTURE_GEOMETRY_CHECKPOINT_INVALID');
+    assert.equal(caughtCode(() => readGeometryCheckpointFile(receiptFile, Number.MAX_SAFE_INTEGER + 1)), 'FIXTURE_GEOMETRY_CHECKPOINT_INVALID');
     fs.symlinkSync(receiptFile, link);
     assert.equal(caughtCode(() => (
       parseGeometryCheckpointReceiptFile(link, nonce, 'initial_pre', key)
@@ -357,6 +373,20 @@ test('geometry checkpoint file reader rejects malformed, oversized, and symlink 
     assert.equal(caughtCode(() => (
       parseGeometryCheckpointReceiptFile(receiptFile, nonce, 'initial_pre', key)
     )), 'FIXTURE_GEOMETRY_CHECKPOINT_INVALID');
+    execFileSync('/usr/bin/mkfifo', [fifo]);
+    const fifoResult = spawnSync(process.execPath, [
+      '--input-type=module', '--eval', String.raw`
+const { parseGeometryCheckpointReceiptFile } = await import(process.argv[1]);
+try { parseGeometryCheckpointReceiptFile(process.argv[2], '${nonce}', 'initial_pre', Buffer.alloc(32)); }
+catch (error) {
+  if (error?.code === 'FIXTURE_GEOMETRY_CHECKPOINT_INVALID') process.stdout.write(error.code);
+  else process.exit(2);
+}
+`, new URL('./lib/exact-focus-channel-geometry-checkpoint.mjs', import.meta.url).href, fifo,
+    ], { encoding: 'utf8', timeout: 500 });
+    assert.equal(fifoResult.status, 0, fifoResult.error?.message ?? fifoResult.stderr);
+    assert.equal(fifoResult.stdout, 'FIXTURE_GEOMETRY_CHECKPOINT_INVALID');
+    assert.equal(fifoResult.stderr, '');
   } finally {
     fs.rmSync(temporaryRoot, { force: true, recursive: true });
   }

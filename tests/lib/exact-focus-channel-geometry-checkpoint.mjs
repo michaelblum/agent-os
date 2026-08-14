@@ -48,11 +48,11 @@ function exactUTF8JSON(bytes, errorCode = 'FIXTURE_GEOMETRY_CHECKPOINT_INVALID')
 
 export function readGeometryCheckpointFile(file, maximumBytes) {
   const errorCode = 'FIXTURE_GEOMETRY_CHECKPOINT_INVALID';
-  const noFollow = fs.constants.O_NOFOLLOW;
-  requireCheckpoint(Number.isInteger(noFollow) && noFollow !== 0, errorCode);
+  const { O_NOFOLLOW: noFollow, O_NONBLOCK: nonblock } = fs.constants;
+  requireCheckpoint(Number.isSafeInteger(maximumBytes) && maximumBytes > 0 && [noFollow, nonblock].every((flag) => Number.isInteger(flag) && flag !== 0), errorCode);
   let descriptor = null;
   try {
-    descriptor = fs.openSync(file, fs.constants.O_RDONLY | noFollow);
+    descriptor = fs.openSync(file, fs.constants.O_RDONLY | noFollow | nonblock);
     const metadata = fs.fstatSync(descriptor);
     requireCheckpoint(
       metadata.isFile() && metadata.size >= 1 && metadata.size <= maximumBytes,

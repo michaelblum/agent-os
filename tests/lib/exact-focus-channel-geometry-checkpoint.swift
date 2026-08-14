@@ -414,7 +414,7 @@ private func fixtureGeometryBoundedRegularFileData(
     maximumBytes: Int
 ) -> Data? {
     guard maximumBytes > 0 else { return nil }
-    let descriptor = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+    let descriptor = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
     guard descriptor >= 0 else { return nil }
     defer { Darwin.close(descriptor) }
     var metadata = stat()

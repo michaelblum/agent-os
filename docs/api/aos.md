@@ -1201,7 +1201,7 @@ for the response shape.
 - global capture bounds
 - local capture bounds in the emitted image
 - composite capture scale
-- per-display surface segments when a region/canvas/channel spans multiple displays
+- per-display surface segments when a region or canvas spans multiple displays; exact native channel capture is single-display and never stitched
 - a `spatial-topology` snapshot for the same moment
 
 Spatial-topology `0.3.0` requires the same frozen `display_topology` value. The

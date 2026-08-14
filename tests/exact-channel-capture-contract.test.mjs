@@ -395,13 +395,14 @@ test('channel integration uses exact window pixels and an exact AX window root',
   assert.match(broker, /target\.expectedBounds == target\.expectedBounds\.integral/)
 })
 
-test('exact channel permission, depth, authority, and proof owners converge', async () => {
-  const [focusRaw, graphRaw, daemonSchemaRaw, srcAuthority, sharedAuthority, proofRaw] = await Promise.all([
+test('exact channel permission, depth, authority, API, and proof owners converge', async () => {
+  const [focusRaw, graphRaw, daemonSchemaRaw, srcAuthority, sharedAuthority, apiRaw, proofRaw] = await Promise.all([
     readFile(path.join(root, 'manifests/commands/source/aos/15-focus.json'), 'utf8'),
     readFile(path.join(root, 'manifests/commands/source/aos/16-graph.json'), 'utf8'),
     readFile(path.join(root, 'shared/schemas/daemon-request.schema.json'), 'utf8'),
     readFile(path.join(root, 'src/AGENTS.md'), 'utf8'),
     readFile(path.join(root, 'shared/AGENTS.md'), 'utf8'),
+    readFile(path.join(root, 'docs/api/aos.md'), 'utf8'),
     readFile(path.join(root, 'docs/dev/test-proof-registry.d/native-capture.json'), 'utf8'),
   ])
   const forms = [
@@ -424,6 +425,8 @@ test('exact channel permission, depth, authority, and proof owners converge', as
   }
   assert.match(srcAuthority, /Exact focus-channel capture uses `fallback=none`/)
   assert.match(sharedAuthority, /closed display ID, window ID, owner PID, integral expected-bounds/)
+  assert.match(apiRaw, /per-display surface segments when a region or canvas spans multiple displays; exact native channel capture is single-display and never stitched/)
+  assert.doesNotMatch(apiRaw, /per-display surface segments when a region\/canvas\/channel spans multiple displays/)
 
   const proof = JSON.parse(proofRaw).entries.find(
     (entry) => entry.id === 'public-native-capture-single-owner-contract',

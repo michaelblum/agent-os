@@ -83,6 +83,11 @@ private enum Harness {
         let linkURL = root.appendingPathComponent("request-link.json")
         try FileManager.default.createSymbolicLink(at: linkURL, withDestinationURL: requestURL)
         try require(parseFixtureGeometryCheckpointRequest(at: linkURL) == nil)
+        let fifoURL = root.appendingPathComponent("request-fifo.json")
+        try require(Darwin.mkfifo(fifoURL.path, mode_t(0o600)) == 0)
+        let fifoStart = ProcessInfo.processInfo.systemUptime
+        try require(parseFixtureGeometryCheckpointRequest(at: fifoURL) == nil)
+        try require(ProcessInfo.processInfo.systemUptime - fifoStart < 0.5)
 
         var publishedMode: mode_t = 0
         var consumerUnlinked = false
@@ -162,6 +167,7 @@ private enum Harness {
             "failure_receipt_mac": failureMAC,
             "full_fixture_fact_hmac": hmacs.full,
             "immediate_consumer_unlink_committed": true,
+            "nonblocking_fifo_request_rejected": true,
             "ready_receipt_mac": readyMAC,
             "request_boundaries_and_lifecycle": true,
             "status": "passed",
