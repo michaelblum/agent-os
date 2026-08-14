@@ -609,15 +609,13 @@ test('exact focus-channel live driver uses passive public preflights and bounded
   assert.match(proofContract, /export const PROGRESS_MAX_ORDINAL = PROGRESS_STAGES\.length \* 2/u);
   assert.match(proofContract, /fs\.openSync\(tempFile, 'wx', 0o600\)/u);
   assert.match(proofContract, /fs\.renameSync\(tempFile, file\)/u);
-  assert.match(proofContract, /const noFollow = fs\.constants\.O_NOFOLLOW/u);
-  assert.match(proofContract, /if \(!Number\.isInteger\(noFollow\) \|\| noFollow === 0\) return null/u);
+  assert.match(progressValidator, /readBoundedRegularFile\(file, PROGRESS_MAX_BYTES, 0o600, seams\)/u);
   assert.equal(fixtureStop.match(/parsePrivateRecordUntilDeadline\(\s+files\.cleanupReport, parseFixtureCleanupFile, 3_000/gu)?.length, 2);
   assert.match(proofRuntime, /export async function parsePrivateRecordUntilDeadline[\s\S]+while \(true\)[\s\S]+return parser\(file\)[\s\S]+await retryPause/u);
   assert.match(proofSelfTest, /maximumDigestVector\.length > 31/u);
   assert.match(proofSelfTest, /beforeReadiness[\s\S]+ownedResidue|swappedWriter[\s\S]+ownedResidue/u);
   assert.match(proofSelfTest, /mkdtempSync[\s\S]+parseFixtureResultFile[\s\S]+rmSync/u);
-  assert.match(proofContract, /fs\.openSync\(file, fs\.constants\.O_RDONLY \| noFollow\)/u);
-  assert.doesNotMatch(progressValidator, /lstatSync/u);
+  assert.doesNotMatch(progressValidator, /\b(?:openSync|statSync|lstatSync|fstatSync|readFileSync|readSync|readvSync|createReadStream|closeSync)\b/u);
   assert.match(proofRuntime, /capture: 30_000/u);
   assert.match(proofRuntime, /aos: 10_000/u);
   assert.match(proofRuntime, /local: 10_000/u);

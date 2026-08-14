@@ -758,6 +758,7 @@ swiftc \
   "$ROOT/src/shared/input-event.swift" \
   "$ROOT/src/shared/input-event-receipt.swift" \
   "$TMP/json-value.swift" \
+  "$ROOT/src/perceive/display-topology.swift" \
   "$ROOT/src/perceive/models.swift" \
   "$ROOT/src/perceive/events.swift" \
   "$ROOT/src/daemon/input-surface-ownership.swift" \
