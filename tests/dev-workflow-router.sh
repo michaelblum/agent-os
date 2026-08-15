@@ -625,32 +625,6 @@ else
     fail "dev recommend runtime signing command routing drifted"
 fi
 
-if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files packages/gateway/dist/doctor-cli.js 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-summary = data["summary"]
-assert "package-gateway" in summary["rule_ids"], data
-assert "command-surface-implementations" in summary["rule_ids"], data
-assert "unclassified" not in summary["rule_ids"], data
-assert summary["hot_swappable"] is True, data
-assert summary["requires_swift_build"] is False, data
-assert summary["tcc_identity_sensitive"] is False, data
-commands = {item["command"] for item in data["next_commands"]}
-assert {
-    "cd packages/gateway && npm test",
-    "bash tests/external-command-dispatch.sh",
-    "bash tests/external-parser-flags.sh",
-    "bash tests/help-contract.sh",
-} <= commands, data
-PY
-then
-    pass "dev recommend routes gateway doctor CLI to package and command-surface checks"
-else
-    fail "dev recommend gateway doctor CLI routing drifted"
-fi
-
 if OUT="$(node - <<'NODE'
 const { spawnSync } = require('node:child_process');
 const manifest = require('./manifests/commands/aos-external-commands.json');

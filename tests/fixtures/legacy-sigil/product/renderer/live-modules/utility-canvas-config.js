@@ -2,10 +2,6 @@ import { sigilUrl, toolkitUrl, withQuery } from './content-roots.js';
 
 export const RENDER_PERFORMANCE_CANVAS_ID = 'sigil-render-performance';
 
-export const AGENT_TERMINAL_CANVAS_ID = 'sigil-agent-terminal';
-export const LEGACY_CODEX_TERMINAL_CANVAS_ID = 'sigil-codex-terminal';
-export const AGENT_TERMINAL_PARK_SCALE = 0.24;
-export const STATUS_PARK_SCALE = 0.2;
 export const WIKI_WORKBENCH_CANVAS_ID = 'sigil-wiki-workbench';
 export const WIKI_WORKBENCH_DEFAULT_PATH = 'aos/concepts/runtime-modes.md';
 export const DEFAULT_UTILITY_VISIBLE_BOUNDS = Object.freeze({ x: 0, y: 0, w: 1512, h: 875 });
@@ -16,20 +12,7 @@ export const SIGIL_UTILITY_CANVAS_IDS = Object.freeze([
     'sigil-interaction-trace',
     RENDER_PERFORMANCE_CANVAS_ID,
     WIKI_WORKBENCH_CANVAS_ID,
-    AGENT_TERMINAL_CANVAS_ID,
-    LEGACY_CODEX_TERMINAL_CANVAS_ID,
 ]);
-
-export function sigilAgentTerminalUrl(options = {}) {
-    return sigilUrl('agent-terminal/index.html', {
-        ...options,
-        query: {
-            port: 17761,
-            session: 'sigil-agent-terminal-agent-os',
-            ...(options.query || {}),
-        },
-    });
-}
 
 export function wikiWorkbenchUrl(options = {}) {
     return toolkitUrl('components/wiki-subject-browser/index.html', options);
@@ -44,7 +27,6 @@ export function wikiWorkbenchDefaultUrl(options = {}) {
     });
 }
 
-export const AGENT_TERMINAL_URL = sigilAgentTerminalUrl();
 export const WIKI_WORKBENCH_URL = wikiWorkbenchUrl();
 export const WIKI_WORKBENCH_DEFAULT_URL = wikiWorkbenchDefaultUrl();
 
@@ -110,18 +92,6 @@ export function utilityFrame(kind, options = {}) {
             Math.round(height),
         ];
     }
-    if (kind === 'agent-terminal' || kind === 'codex-terminal') {
-        const previousWidth = Math.min(920, Math.max(720, visible.w * 0.58));
-        const width = Math.round(previousWidth * 2 / 3);
-        const height = Math.min(620, Math.max(480, visible.h * 0.58));
-        return [
-            Math.round(visible.x + visible.w - width - 28),
-            Math.round(visible.y + visible.h - height - 28),
-            Math.round(width),
-            Math.round(height),
-        ];
-    }
-
     const width = Math.min(360, Math.max(320, visible.w * 0.26));
     const height = Math.min(520, Math.max(420, visible.h * 0.55));
     return [
@@ -158,13 +128,6 @@ export function utilityConfig(kind, options = {}) {
         return {
             id: WIKI_WORKBENCH_CANVAS_ID,
             url: wikiWorkbenchDefaultUrl(options),
-            frame: utilityFrame(kind, options),
-        };
-    }
-    if (kind === 'agent-terminal' || kind === 'codex-terminal') {
-        return {
-            id: AGENT_TERMINAL_CANVAS_ID,
-            url: sigilAgentTerminalUrl(options),
             frame: utilityFrame(kind, options),
         };
     }

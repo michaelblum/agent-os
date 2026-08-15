@@ -100,7 +100,7 @@ PAGES=$(echo "$OUTPUT" | json_field pages)
 echo ""
 echo "--- list ---"
 OUTPUT=$($AOS wiki list --json)
-echo "$OUTPUT" | grep -q "gateway" && pass "list contains gateway" || fail "list missing gateway"
+echo "$OUTPUT" | grep -q "daemon" && pass "list contains daemon" || fail "list missing daemon"
 
 # Test: list --type
 OUTPUT=$($AOS wiki list --type workflow --json)
@@ -109,18 +109,18 @@ echo "$OUTPUT" | grep -q "self-check" && pass "list --type workflow" || fail "li
 # Test: show
 echo ""
 echo "--- show ---"
-OUTPUT=$($AOS wiki show gateway --json)
-[[ "$(echo "$OUTPUT" | python3 -c 'import json, sys; print(json.load(sys.stdin)["frontmatter"].get("name", ""))')" == "Gateway" ]] && pass "show gateway" || fail "show gateway"
+OUTPUT=$($AOS wiki show daemon --json)
+[[ "$(echo "$OUTPUT" | python3 -c 'import json, sys; print(json.load(sys.stdin)["frontmatter"].get("name", ""))')" == "Daemon" ]] && pass "show daemon" || fail "show daemon"
 
 # Test: show --raw
-OUTPUT=$($AOS wiki show gateway --raw)
+OUTPUT=$($AOS wiki show daemon --raw)
 echo "$OUTPUT" | grep -q "^---" && pass "show --raw has frontmatter" || fail "show --raw"
 
 # Test: search
 echo ""
 echo "--- search ---"
-OUTPUT=$($AOS wiki search "gateway" --json)
-echo "$OUTPUT" | grep -q "gateway" && pass "search finds gateway" || fail "search"
+OUTPUT=$($AOS wiki search "daemon" --json)
+echo "$OUTPUT" | grep -q "daemon" && pass "search finds daemon" || fail "search"
 
 # Test: graph
 echo ""
@@ -137,7 +137,7 @@ tags: [taxonomy]
 EOF
 $AOS wiki reindex > /dev/null
 OUTPUT=$($AOS wiki graph --json)
-echo "$OUTPUT" | grep -q '"graphView"' && echo "$OUTPUT" | grep -q 'gateway.md' && pass "graph payload" || fail "graph payload"
+echo "$OUTPUT" | grep -q '"graphView"' && echo "$OUTPUT" | grep -q 'daemon.md' && pass "graph payload" || fail "graph payload"
 echo "$OUTPUT" | python3 -c '
 import json, sys
 graph = json.load(sys.stdin)
@@ -149,7 +149,7 @@ sys.exit(1)
 
 # Test: graph --raw
 OUTPUT=$($AOS wiki graph --raw --json)
-echo "$OUTPUT" | grep -q '"raw"' && echo "$OUTPUT" | grep -q 'gateway.md' && pass "graph --raw" || fail "graph --raw"
+echo "$OUTPUT" | grep -q '"raw"' && echo "$OUTPUT" | grep -q 'daemon.md' && pass "graph --raw" || fail "graph --raw"
 
 # Test: create-plugin
 echo ""
@@ -164,11 +164,11 @@ OUTPUT=$($AOS wiki add entity test-entity --json)
 # Test: link
 echo ""
 echo "--- link ---"
-OUTPUT=$($AOS wiki link test-entity gateway --json)
+OUTPUT=$($AOS wiki link test-entity daemon --json)
 [[ "$(echo "$OUTPUT" | json_field status)" == "ok" ]] && pass "link" || fail "link"
 
 # Test: list --links-to
-OUTPUT=$($AOS wiki list --links-to aos/entities/gateway.md --json)
+OUTPUT=$($AOS wiki list --links-to aos/entities/daemon.md --json)
 echo "$OUTPUT" | grep -q "test-entity" && pass "list --links-to" || fail "list --links-to"
 
 # Test: invoke

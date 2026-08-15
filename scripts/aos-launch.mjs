@@ -236,14 +236,7 @@ function mainBounds() {
 
 function frameFor(kind) {
   const bounds = mainBounds();
-  if (!bounds) return kind === 'agent_terminal' ? '240,180,860,560' : '120,120,960,720';
-  if (kind === 'agent_terminal') {
-    const w = Math.min(940, Math.max(720, Math.round(bounds.w - 240)));
-    const h = Math.min(720, Math.max(480, Math.round(bounds.h - 180)));
-    const x = Math.round(bounds.x + Math.min(120, Math.max(28, bounds.w - w - 28)));
-    const y = Math.round(bounds.y + Math.min(90, Math.max(28, bounds.h - h - 28)));
-    return `${x},${y},${w},${h}`;
-  }
+  if (!bounds) return '120,120,960,720';
   const marginX = 32;
   const marginY = 28;
   const usableW = Math.max(480, Number(bounds.w) - marginX * 2);

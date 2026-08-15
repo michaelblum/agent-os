@@ -77,11 +77,6 @@ same platform shape:
   objects.
 - `packages/toolkit/components/object-transform-panel/` is already a reusable
   control surface that listens to a provider-neutral object contract.
-- `docs/api/integration-broker.md` describes a provider-neutral workflow
-  catalog where Slack is only one transport over reusable workflow and job
-  state.
-- `docs/sdk-first-scripts.md` treats saved scripts as workflows and frames the
-  SDK as primitive wrappers plus higher-level operations.
 - `docs/archive/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md`
   explicitly calls out workflow recording, replay, and codegen as future work
   that should store replayable workflows with canvas provenance.
@@ -105,7 +100,6 @@ Examples:
 - report
 - Playwright recording
 - workflow graph
-- provider session catalog
 - generated artifact bundle
 
 A subject needs stable identity, type, capabilities, state, and ownership.
@@ -260,7 +254,6 @@ Examples:
 - app component module
 - generated artifact folder
 - workflow run record
-- provider session metadata
 
 The workbench should not assume one persistence model. A Markdown subject and a
 3D radial menu item can use the same workbench mechanics while saving to very
@@ -405,7 +398,6 @@ Apps compose toolkit pieces into product experiences:
 
 - 3D menu item editor
 - visual composition editor
-- agent terminal/session workbench
 - report builder
 - slide deck builder
 - workflow modeler
@@ -505,8 +497,6 @@ Promote a concept from this note when all are true:
   artifact registry?
 - How should human approval gates be represented without turning every
   workflow into a bespoke UI?
-- Which provider-session concepts should become workbench participants versus
-  artifacts?
 
 ## Next Planning Move
 

@@ -37,10 +37,10 @@ runtime/session identity, but browser ref actions remain outside the fixed
 managed operation surface and fail closed. Canvas/native Locators are state-
 free and require exactly one current match.
 
-For the complete manifest-derived command inventory, including narrow internal
-managed browser identity and geometry forms, see
-`docs/dev/reports/aos-command-capability-inventory-v0.md`. That report is a
-development audit artifact, not a consumer API contract.
+The dated command/capability inventory under `docs/dev/reports/` is frozen
+historical evidence, not a complete current inventory or a consumer API
+contract. Use the current command manifests and this API documentation for
+current capability discovery.
 
 The current vocabulary decision is documented in
 `docs/design/aos-desktop-command-vocabulary-decision.md`: do not add a new

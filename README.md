@@ -3,7 +3,7 @@
 A macOS automation ecosystem for agents. Primitive perception, action,
 projection, and communication verbs are unified into a single `aos` binary, with
 convenience voice output, source-backed recipes, runtime readiness/lifecycle
-commands, a typed MCP gateway for external consumers, and a Node.js agent host.
+commands, a reusable surface toolkit, and managed capability companions.
 
 ## Principle
 
@@ -57,15 +57,15 @@ add `--expect change|no-change` for whole-diff gates or
 repeat `--expect-ref <ref>=changed` for ref postconditions when a script needs
 a non-zero mismatch result.
 
-## Track-2 consumers
+## Consumers And Reusable Packages
 
 | Package | Role |
 |---------|------|
 | [`Ch-osctrl/sigil`](https://github.com/Ch-osctrl/sigil) | External first-party reference consumer and product authority |
 | `tests/fixtures/legacy-sigil/product` | Frozen legacy compatibility fixture; not discoverable or packaged |
-| `packages/host` | Node.js agent host — Anthropic SDK loop, session store |
-| `packages/gateway` | MCP server — typed script execution, cross-harness coordination (for external consumers) |
-| `packages/toolkit` | Reusable WKWebView components for apps |
+| `packages/toolkit` | Reusable WKWebView surface machinery for external consumers |
+| `packages/design-tokens` | Shared design tokens versioned with AOS |
+| `packages/cli`, `packages/daemon` | Thin package roots around the unified native capability layer |
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full blueprint.
 

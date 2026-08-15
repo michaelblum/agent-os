@@ -15,7 +15,7 @@ import os
 
 graph = json.loads(os.environ["OUT"])
 assert graph["config"]["graphView"]["features"]["search"] is True, graph
-assert any(node["path"] == "aos/entities/gateway.md" and node["type"] == "entity" for node in graph["nodes"]), graph
+assert any(node["path"] == "aos/entities/daemon.md" and node["type"] == "entity" for node in graph["nodes"]), graph
 assert "raw" in graph and graph["raw"] == {}, graph
 PY
 
@@ -55,7 +55,7 @@ import json
 import os
 
 graph = json.loads(os.environ["OUT"])
-assert graph["raw"]["aos/entities/gateway.md"].startswith("---"), graph["raw"].keys()
+assert graph["raw"]["aos/entities/daemon.md"].startswith("---"), graph["raw"].keys()
 assert "raw-invalid-byte" in graph["raw"]["aos/entities/entity-frontmatter-canonical.md"], graph["raw"]
 PY
 

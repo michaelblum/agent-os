@@ -1,11 +1,8 @@
 export const SIGIL_OBJECT_CONTROL_SCHEMA_VERSION = '2026-05-03';
 export const SIGIL_OBJECT_CONTROL_CANVAS_ID = 'avatar-main';
 export const AVATAR_CONTROLS_RADIAL_ITEM_ID = 'avatar-controls';
-export const AGENT_TERMINAL_RADIAL_ITEM_ID = 'agent-terminal';
 export const WIKI_BRAIN_RADIAL_ITEM_ID = 'wiki-graph';
 export const AVATAR_CONTROLS_MODEL_OBJECT_ID = 'radial.avatar-controls.model';
-export const AGENT_TERMINAL_MODEL_OBJECT_ID = 'radial.agent-terminal.model';
-export const AGENT_TERMINAL_SCREEN_OBJECT_ID = 'radial.agent-terminal.part.screen';
 export const WIKI_BRAIN_GROUP_OBJECT_ID = 'radial.wiki-brain.group';
 export const WIKI_BRAIN_SHELL_OBJECT_ID = 'radial.wiki-brain.shell';
 export const WIKI_BRAIN_TREE_OBJECT_ID = 'radial.wiki-brain.tree';
@@ -321,7 +318,6 @@ function ensureGeometry(item = {}) {
 
 function modelObjectIdForItem(item = {}) {
     if (item.id === AVATAR_CONTROLS_RADIAL_ITEM_ID) return AVATAR_CONTROLS_MODEL_OBJECT_ID;
-    if (item.id === AGENT_TERMINAL_RADIAL_ITEM_ID) return AGENT_TERMINAL_MODEL_OBJECT_ID;
     return item.id ? `radial.${item.id}.model` : null;
 }
 

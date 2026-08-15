@@ -239,7 +239,6 @@ export function createSigilUxTreeCommandRegistry({
     annotationReticleEnter,
     annotationCameraCaptureBundle,
     wikiGraphOpen,
-    agentTerminalOpen,
 } = {}) {
     const registry = {};
     if (typeof avatarControlsOpen === 'function') {
@@ -302,9 +301,6 @@ export function createSigilUxTreeCommandRegistry({
     }
     if (typeof wikiGraphOpen === 'function') {
         registry['sigil.wiki_graph.open'] = (payload = {}) => wikiGraphOpen(payload.context?.path || null, payload);
-    }
-    if (typeof agentTerminalOpen === 'function') {
-        registry['sigil.agent_terminal.open'] = (payload = {}) => agentTerminalOpen(payload.context?.kind || 'agent-terminal', payload);
     }
     return Object.freeze(registry);
 }
@@ -428,7 +424,6 @@ export function createSigilUxTreeCommandRuntime({
         annotationReticleEnter: radialItemActionDispatcher?.commandHandlers?.annotationReticleEnter,
         annotationCameraCaptureBundle: radialItemActionDispatcher?.commandHandlers?.annotationCameraCaptureBundle,
         wikiGraphOpen: radialItemActionDispatcher?.commandHandlers?.wikiGraphOpen,
-        agentTerminalOpen: radialItemActionDispatcher?.commandHandlers?.agentTerminalOpen,
     });
     const runner = createSigilUxTreeCommandRunner({ getTree, registry, recordRuntime });
 

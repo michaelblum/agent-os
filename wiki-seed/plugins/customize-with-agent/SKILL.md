@@ -46,7 +46,7 @@ If the current conversation already contains a workflow the user wants to captur
 Ask one question at a time about:
 - Edge cases and error handling
 - Input/output formats
-- Dependencies (does it need the daemon running? gateway? specific tools?)
+- Dependencies (does it need the daemon running or specific tools?)
 - Success criteria — how do you know it worked?
 
 ### 3. Create the Plugin

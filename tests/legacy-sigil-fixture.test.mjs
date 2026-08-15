@@ -88,7 +88,6 @@ test('relocated Sigil is absent from active discovery, recipes, and packaging', 
   assert.equal(existsSync(path.join(repoRoot, 'experiences/sigil/aos-experience.json')), false);
   assert.equal(existsSync(path.join(repoRoot, 'tests/fixtures/legacy-sigil/aos-experience.fixture.json')), true);
   assert.equal(existsSync(path.join(repoRoot, 'recipes/sigil')), false);
-  assert.equal(existsSync(path.join(repoRoot, 'packages/host/src/sigil-bridge.ts')), false);
   assert.equal(existsSync(path.join(repoRoot, 'packages/toolkit/workbench/sigil-subject.js')), false);
 
   for (const packageScriptPath of ['package.sh', 'scripts/package-aos-runtime']) {

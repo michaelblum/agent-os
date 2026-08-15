@@ -6,8 +6,6 @@
     "packages/toolkit/**/*.html",
     "tests/toolkit/**/*.mjs",
     "packages/*/src/index.ts",
-    "packages/gateway/src/broker.ts",
-    "packages/gateway/src/doctor-cli.ts",
     "scripts/**/*.mjs"
   ],
   "workspaces": {

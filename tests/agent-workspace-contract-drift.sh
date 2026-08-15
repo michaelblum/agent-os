@@ -48,10 +48,6 @@ for (const file of [
   'scripts/lib/agent-workspace/ref-action-resolution.mjs',
   'scripts/lib/pending-annotations-model.mjs',
   'scripts/lib/pending-annotations-projection.mjs',
-  'packages/gateway/src/aos-proxy.ts',
-  'packages/gateway/src/sdk-socket.ts',
-  'packages/gateway/sdk/aos-sdk.js',
-  'packages/gateway/sdk/aos-sdk.d.ts',
 ]) {
   const value = text(file)
   assert.doesNotMatch(value, /\breacquired\b/, file)

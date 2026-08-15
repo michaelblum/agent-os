@@ -98,7 +98,6 @@ function radialItemNodeId(itemId) {
 
 function radialItemCommandId(item = {}) {
     if (item.action === 'avatarControls') return 'sigil.avatar.controls.open';
-    if (item.action === 'agentTerminal' || item.action === 'codexTerminal') return 'sigil.agent_terminal.open';
     if (item.id === 'annotation-mode' || item.action === 'annotationMode') return 'sigil.selection_mode.enter';
     if (item.action === 'annotationSnapshot') return 'sigil.annotation_camera.capture_bundle';
     if (item.action === 'wikiGraph') return 'sigil.wiki_graph.open';
@@ -136,7 +135,6 @@ function commandList() {
         command('sigil.annotation_reticle.enter', 'Enter annotation reticle', 'Enter the existing annotation reticle flow.'),
         command('sigil.annotation_camera.capture_bundle', 'Capture annotation bundle', 'Request the existing annotation snapshot bundle.', 'captures_snapshot'),
         command('sigil.wiki_graph.open', 'Open wiki graph', 'Open the Sigil wiki graph workbench.', 'opens_surface'),
-        command('sigil.agent_terminal.open', 'Open Agent Terminal', 'Open the Sigil Agent Terminal canvas.', 'opens_surface'),
     ];
 }
 

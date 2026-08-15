@@ -173,7 +173,6 @@ test('mounted toolkit panel component pages import base theme and panel defaults
     'packages/toolkit/components/artifact-bundle-workbench/index.html',
     'packages/toolkit/components/html-workbench-expression/index.html',
     'packages/toolkit/components/inspector-panel/index.html',
-    'packages/toolkit/components/integration-hub/index.html',
     'packages/toolkit/components/log-console/index.html',
     'packages/toolkit/components/markdown-workbench/index.html',
     'packages/toolkit/components/object-transform-panel/index.html',
@@ -197,7 +196,6 @@ test('mounted toolkit panel component pages import base theme and panel defaults
 
 test('segmented controls are not used as tablists', async () => {
   const files = [
-    'packages/toolkit/components/integration-hub/index.js',
     'packages/toolkit/components/markdown-workbench/index.js',
     'packages/toolkit/components/object-transform-panel/index.js',
     'packages/toolkit/components/step-descriptor-workbench/index.js',
@@ -230,7 +228,6 @@ test('segmented control primitive users import control defaults', async () => {
 
 test('Zag tabs use the connected tab primitive classes', async () => {
   const sources = new Map([
-    ['integration-hub', await repoText('packages/toolkit/components/integration-hub/index.js')],
     ['surface-inspector', await repoText('packages/toolkit/components/surface-inspector/index.js')],
     ['panel-tabs', await repoText('packages/toolkit/panel/layouts/tabs.js')],
   ]);

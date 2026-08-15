@@ -173,10 +173,6 @@ concrete pieces are adjacent, not unified:
 - `aos recipe` recipes are source-backed operator scripts. They execute declared
   command-registry forms with assertions and cleanup rules. They are authored
   recipes, not recordings.
-- Gateway `run_os_script`, `save_script`, and `list_scripts` persist
-  hand-authored TypeScript scripts with SDK access. The SDK exposes desktop
-  primitives and smart operations, but it does not expose browser target
-  strings or Playwright-backed helpers.
 - A consumer interaction trace may record bounded diagnostic event history for real
   user interaction bugs. It stores sanitized stages, input events, menu state,
   hit-target decisions, and routing decisions. It does not replay them.
@@ -244,9 +240,6 @@ browser-window or content-coordinate binding.
 - KILOS output schema assumes an artifact bundle returned by "Studio" with
   `capture_job_id` and `replay_hints`, but current Studio/consumer code appears to
   be a customization/workbench surface, not a web artifact capture engine.
-- Gateway marks the two KILOS workflows as launch-ready, while
-  `docs/api/integration-broker.md` correctly says they are scaffolds, not
-  finished workers.
 - Browser adapter docs say no workflow recording/replay/codegen wrapper exists
   in v1, while workbench notes point to that as future subject/artifact work.
   These are compatible, but the distinction should stay explicit.
@@ -256,7 +249,7 @@ browser-window or content-coordinate binding.
   `navigate`. Collection workers may retain saved Observation Refs as capture
   provenance, but current ref-bearing actions are intentionally nonactionable;
   they must not recapture or substitute a different state.
-- Gateway scripts still should not assume typed SDK parity with CLI browser
+- Future collection workers should not assume typed SDK parity with CLI browser
   refs. A future "gather web source artifacts" worker should either shell out to
   `./aos`, invoke a separately owned external browser tool outside AOS, or add
   an explicit SDK/browser capability with matching help and tests.

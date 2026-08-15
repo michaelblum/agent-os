@@ -8,7 +8,7 @@ tags: [protocol, ipc, messaging]
 # IPC Protocol
 
 All communication between the aos daemon and its clients (CLI commands,
-external apps, gateway) uses newline-delimited JSON (ndjson) over a Unix socket.
+external apps and tools) uses newline-delimited JSON (ndjson) over a Unix socket.
 
 ## Envelope Format
 
@@ -36,4 +36,3 @@ daemon broadcasts relevant events to all connected clients.
 
 ## Related
 - [Daemon](../entities/daemon.md)
-- [Gateway](../entities/gateway.md)

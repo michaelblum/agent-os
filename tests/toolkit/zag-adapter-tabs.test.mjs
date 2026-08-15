@@ -81,7 +81,6 @@ test('toolkit package metadata does not ship the local tabs adapter as a Zag run
 test('live tab adopters do not import bare Zag modules into aos:// pages', async () => {
   const paths = [
     '../../packages/toolkit/adapters/zag/tabs.js',
-    '../../packages/toolkit/components/integration-hub/index.js',
     '../../packages/toolkit/components/wiki-kb/index.js',
     '../../packages/toolkit/components/markdown-workbench/index.js',
   ];

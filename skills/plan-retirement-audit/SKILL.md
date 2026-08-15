@@ -51,8 +51,8 @@ For each plan file:
    git log --all --oneline -S "<filename-stem>"
    ```
    Replace `<filename-stem>` with the plan filename minus its date prefix and
-   `.md` extension (e.g. for `2026-04-07-aos-gateway-v1.md`, search
-   `aos-gateway-v1`). Filenames without a date prefix: use the full stem.
+   `.md` extension (e.g. for `2026-04-07-status-surface-v1.md`, search
+   `status-surface-v1`). Filenames without a date prefix: use the full stem.
 
 5. Extract two or three concrete file paths the plan claims to create
    (look for "File Map" sections or `Create:` lines). Spot-check each with

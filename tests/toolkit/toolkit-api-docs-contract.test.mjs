@@ -137,7 +137,7 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
   assert.match(docs['docs/api/toolkit/components.md'], /Render Performance/);
   assert.match(docs['docs/api/toolkit/components.md'], /Object Transform Panel/);
   assert.match(docs['docs/api/toolkit/components.md'], /Supervised Run Test Console/);
-  assert.match(docs['docs/api/toolkit/components.md'], /Integration Hub/);
+  assert.match(docs['docs/api/toolkit/components.md'], /Stock Component Retention Audit/);
 
   assert.match(docs['docs/api/toolkit/content-host.md'], /Import \/ Hosting Model/);
   assert.match(docs['docs/api/toolkit/content-host.md'], /Content Contract/);

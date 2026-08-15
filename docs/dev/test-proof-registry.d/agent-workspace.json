@@ -78,22 +78,6 @@
       "status": "active"
     },
     {
-      "id": "gateway-target-handle-projection",
-      "path_patterns": [
-        "tests/gateway-target-handle-projection.test.mjs"
-      ],
-      "fixture_patterns": [],
-      "owner": "gateway",
-      "harness_level": "model_unit",
-      "proof_kind": "target_handle_contract",
-      "contract": "Gateway capture types expose state and handles, socket failures preserve target codes/details, SDK rejection preserves the same facts, and label-first clickElement is absent.",
-      "worth": "This proves the public gateway and SDK projection even when the package ts-node loader cannot start under the installed Node runtime.",
-      "command": "npm run build --prefix packages/gateway && node --test tests/gateway-target-handle-projection.test.mjs",
-      "replaces": [],
-      "guard": "TypeScript build plus pure local socket-envelope simulation; does not execute ./aos or access daemon/native UI/TCC",
-      "status": "active"
-    },
-    {
       "id": "canvas-locator-live-contract",
       "path_patterns": [
         "tests/aos-canvas-ref-click.sh"

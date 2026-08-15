@@ -105,16 +105,16 @@ source root. This file is a routing map, not a replacement for those sources.
   live-proof surface. Use it only through the bounded deterministic fixture
   proof named by its contract.
 
-## Gateway And Host Adapter Surfaces
+## Package Ownership Boundary
 
-- Source roots: `packages/gateway/` and `packages/host/`.
-- Compatibility pointer: `packages/gateway/CLAUDE.md`.
-- API docs: `docs/api/integration-broker.md` plus any relevant package tests
-  and README-style local docs.
-- Use this context for external ingress and adapters around AOS: MCP gateway,
-  broker integrations, provider hosts, session catalog surfaces, and app-facing
-  adapter behavior. These surfaces do not replace daemon-native `tell`,
-  `listen`, or session coordination as source of truth.
+- AOS package scope is capability-layer only: `packages/toolkit/`,
+  `packages/design-tokens/`, and thin `packages/cli/` and `packages/daemon/`
+  roots.
+- Model execution, workflow orchestration, product ingress, product memory,
+  retries, budgets, and product run state belong in the owning external product
+  repository.
+- Use ADR 0042 for the ownership decision and ADR 0015 for the capability-broker
+  boundary.
 
 ## Durable Decisions And SOPs
 

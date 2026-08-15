@@ -378,7 +378,6 @@ tests.
 - `design/` contains design-contract fixture tests.
 - `fixtures/` contains test fixtures; `fixtures/legacy-sigil/product/AGENTS.md`
   governs the frozen historical Sigil payload.
-- `gateway/` contains gateway tests.
 - `lib/` contains shared test harness helpers.
 - `manual/` contains manual or environment-sensitive checks.
 - `renderer/` contains renderer/module tests.

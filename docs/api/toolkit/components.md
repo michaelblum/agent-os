@@ -1,6 +1,9 @@
 # Toolkit Components API
 
-Consumer-facing reference for stock toolkit components and component-adjacent controls: Surface Inspector, Surface-Zoom Inspector, Spatial Telemetry, Render Performance, Object Transform Panel, Test Console, Integration Hub, launch surfaces, control defaults, theme tokens, and Markdown preview presentation.
+Consumer-facing reference for stock toolkit components and component-adjacent
+controls: Surface Inspector, Surface-Zoom Inspector, Spatial Telemetry, Render
+Performance, Object Transform Panel, Test Console, stock workbenches, launch
+surfaces, control defaults, theme tokens, and Markdown preview presentation.
 
 ## Controls
 
@@ -161,31 +164,6 @@ parameters, renders the same `DecisionGate` controls, submits with the toolkit
 `submitGateContinuation()` bridge helper, disables repeated submits while
 pending, and leaves accessible terminal status text after success or duplicate
 success.
-
-## Agent Terminal
-
-`packages/toolkit/components/agent-terminal/` is the generic AOS Agent Terminal
-entrypoint. Launch it with:
-
-```bash
-packages/toolkit/components/agent-terminal/launch.sh
-```
-
-The default canvas id is `aos-agent-terminal`; set `CANVAS_ID=...` to override
-it. The launcher configures the toolkit content root, starts the toolkit-owned
-local terminal bridge implementation, ensures the selected terminal session, and
-opens:
-
-```text
-aos://toolkit/components/agent-terminal/index.html
-```
-
-The toolkit path is neutral user-facing surface policy. It does not launch or
-render consumer-owned product surfaces. The bridge server, session-inspector
-adapter, and PTY proxy live with the toolkit component. The bridge environment
-contract is the canonical `AGENT_TERMINAL_*` family, including
-`AGENT_TERMINAL_COMMAND`, `AGENT_TERMINAL_CWD`,
-`AGENT_TERMINAL_TMUX_SESSION`, and `AGENT_TERMINAL_DRIVER`.
 
 ## Surface-Zoom And Test Console Components
 
@@ -375,23 +353,39 @@ with `parseSubjectEntryHandle(handle)`, validates handles with
 `formatSubjectEntryHandle({ facet_key, subject_id })`. The helper is parsing
 and formatting only; it does not resolve or open Subjects.
 
-## Stock Components Snapshot
+## Stock Component Retention Audit
 
-Current reusable toolkit components include:
+The stock inventory is classified by ADR 0042's reusable-surface test. Every
+listed unit is retained because it implements product-neutral surface,
+inspection, proof, workbench, or shared presentation machinery. Product run,
+provider, ingress, and workflow composition remain outside the toolkit.
 
-- `aos://toolkit/components/inspector-panel/index.html` - AX element inspector fed by `aos inspect`
-- `aos://toolkit/components/log-console/index.html` - scrolling log console fed by `aos log`
-- `aos://toolkit/components/integration-hub/index.html` - provider-neutral chat integration dashboard backed by the local integration broker snapshot API
-- `aos://toolkit/components/surface-inspector/index.html` - canvas lifecycle and minimap inspector with optional live cursor and mouse-event overlays
-- `aos://toolkit/components/spatial-telemetry/index.html` - live coordinate tables + event log for display, canvas, cursor, and object-mark debugging
-- `aos://toolkit/components/render-performance/index.html` - live framerate, frame-time, and coarse renderer telemetry panel
-- `aos://toolkit/components/wiki-kb/index.html` - wiki graph browser with Graph and Radial Graph layout modes
-- `aos://toolkit/components/wiki-subject-browser/index.html` - Wiki Subject Browser V0 shell that composes Wiki KB and Markdown Workbench into a graph-first subject browser
-- `aos://toolkit/components/artifact-bundle-workbench/index.html` - read-only Artifact Bundle Workbench V0 shell for gallery, preview, source, exports, provenance, and validation inspection
-- `aos://toolkit/components/step-descriptor-workbench/index.html` - Step Descriptor Workbench V1 shell that simulates one neutral saved-evidence browser Step Descriptor and hands off the emitted Work Record V1 read-only
-- `aos://toolkit/components/object-transform-panel/index.html` - addressable canvas object transform editor for position/scale/rotation triplets
-- `aos://toolkit/components/markdown-workbench/index.html` - Markdown source editor, rendered preview, outline, diagnostics, and explicit save handoff
-- `aos://toolkit/components/desktop-world-stage/index.html` - shared click-through DesktopWorld visual stage for non-interactive layers such as telemetry overlays and diagnostic markers
+| Component unit | Disposition | Reusable responsibility |
+| --- | --- | --- |
+| `_base` | Retain | Shared component theme and reset tokens. |
+| `_dev` | Retain | Non-canonical local component demos. |
+| `aos-action-demo` | Retain | Generic semantic action/ref demonstration. |
+| `artifact-bundle-workbench` | Retain | Read-only artifact bundle inspection. |
+| `decision-gate` | Retain | Generic Gate question and continuation presentation. |
+| `desktop-world-devtools` | Retain | AOS-owned inspection view over a daemon-owned scene session. |
+| `desktop-world-stage` | Retain | Shared click-through visual-stage policy. |
+| `html-file-workbench` | Retain | Local HTML source editing and preview handoff. |
+| `html-workbench-expression` | Retain | Generated HTML expression projection. |
+| `inspector-panel` | Retain | AX element inspection fed by `aos inspect`. |
+| `log-console` | Retain | Generic scrolling log presentation fed by `aos log`. |
+| `markdown-workbench` | Retain | Markdown source, preview, outline, diagnostics, and save handoff. |
+| `object-transform-panel` | Retain | Addressable object transform editing. |
+| `render-performance` | Retain | Generic renderer timing and budget telemetry. |
+| `spatial-telemetry` | Retain | Display, canvas, cursor, and mark diagnostics. |
+| `step-descriptor-workbench` | Retain | Neutral Step Descriptor inspection and simulation handoff. |
+| `surface-inspector` | Retain | Canvas lifecycle, resource, minimap, and annotation inspection. |
+| `surface-zoom-inspector` | Retain | Bounded surface inspection and annotation proof. |
+| `test-console` | Retain | Generic supervised-run human checkpoint presentation. |
+| `visual-object-live-proof` | Retain | Generic visual-object live proof surface. |
+| `wiki-kb` | Retain | Knowledge graph browsing and layout. |
+| `wiki-subject-browser` | Retain | Graph-first wiki Subject browsing. |
+| `work-record-workbench` | Retain | Neutral Work Record inspection and recovery handoff. |
+| `open-message-encoding.js` | Retain | Shared component message encoding helper. |
 
 ### Inline Canvas Stats
 
@@ -496,34 +490,6 @@ publications across lifecycle changes: lower or equal revisions are ignored,
 while a higher revision may replace the lifecycle and restart its segment-local
 sequence. Snapshots without that wrapper revision retain lifecycle-and-sequence
 fallback ordering for standalone/local use.
-
-### Integration Hub
-
-`integration-hub` is the reusable operator surface for chat-driven broker work.
-
-It polls a local broker HTTP endpoint (default `http://127.0.0.1:47231`) and
-renders four shared surfaces from the broker snapshot:
-
-- `jobs`
-- `workflows`
-- `integrations`
-- `activity`
-
-The component assumes the snapshot schema documented at:
-
-- [`shared/schemas/integration-broker-snapshot.md`](../../../shared/schemas/integration-broker-snapshot.md)
-
-Current behavior:
-
-- shows provider status for Slack and future transports such as Discord
-- shows the workflow catalog exposed through chat providers
-- shows recent execution history with broker job IDs
-- exposes a local simulation console that posts to `POST /api/integrations/simulate`
-
-Consumer override:
-
-- pass `IntegrationHub({ brokerUrl: 'http://127.0.0.1:48200' })` when the
-  broker is not on the default port
 
 `wiki-kb` accepts a graph snapshot on `wiki-kb/graph` (and tolerates raw
 `wiki/graph` messages for imported-prototype compatibility). Canonical payload:

@@ -10,10 +10,9 @@
 
 The **Human Input Gate** is the canonical AOS contract for collecting bounded, structured human decisions during an agent turn. In v1 the lifecycle is owned by the `./aos gate ask` CLI process: it normalizes the request, starts the service, enforces the deadline, resolves the result, and cleans up. Promoting that lifecycle into the long-running daemon remains the intended daemon primitive, but it is deferred rather than missing from v1.
 
-The native receptor in v1 is the **LocalCanvas receptor**: it spawns an interactive canvas on the user's display, mounts a `DecisionGate` panel built from toolkit primitives, and reports the result back. The result reaches the agent through two thin shells:
+The native receptor in v1 is the **LocalCanvas receptor**: it spawns an interactive canvas on the user's display, mounts a `DecisionGate` panel built from toolkit primitives, and reports the result back. The result reaches the agent through the canonical CLI shell:
 
 - `./aos gate ask` — CLI verb, works from dock sessions, scripts, and agent shell-outs
-- `user_signal_surface` — MCP tool on `aos-gateway`, one `execFile` call to the CLI verb
 
 From any agent's perspective the call is: post a structured request, receive either a typed answer value or a no-answer envelope. How the surface is rendered is a receptor detail the agent never sees.
 
@@ -78,11 +77,11 @@ Agent runtimes (Claude Code, Codex CLI, etc.) are steered by system instructions
 
 1. **The gate service owns time, receptor owns surface.** In v1 the gate service runs inside the `./aos gate ask` CLI process. It holds the deadline and resolves the gate. Receptors only present UI and report back. Moving the same service behind the long-running daemon is deferred.
 
-2. **One agent-facing contract, many receptors.** `./aos gate ask` is canonical. `user_signal_surface` is the MCP adapter surface for that verb and shells into it. Adding a new receptor never changes what agents call.
+2. **One agent-facing contract, many receptors.** `./aos gate ask` is canonical. Adding a new receptor never changes what agents call.
 
 3. **Receptor shape is open.** Any author can implement a receptor. The native form is a toolkit panel with form primitives. Other valid receptors: a raw HTML canvas, a third-party surface, a remote relay. The shape contract is minimal — `present(request)` → `CollectionHandle`, `dismiss(handle)`, `supports(kind)`.
 
-4. **No-answer is explicit.** Human dismissal resolves to `{ "result": null, "status": "dismissed" }`; human timeout resolves to `{ "result": null, "status": "timeout" }`. These are not MCP errors. Infrastructure failures that prevent presentation, such as no display or receptor failure, are errors with machine-readable codes.
+4. **No-answer is explicit.** Human dismissal resolves to `{ "result": null, "status": "dismissed" }`; human timeout resolves to `{ "result": null, "status": "timeout" }`. These no-answer envelopes are terminal results, not operational errors. Infrastructure failures that prevent presentation, such as no display or receptor failure, are errors with machine-readable codes.
 
 5. **Toolkit grows to support this.** The gate is the first concrete use case that demands a general form primitive layer in toolkit. That work is in scope and described below.
 
@@ -103,17 +102,13 @@ Deferred AOS authority
 
 Outside AOS authority
   connected agent runtimes (Claude Code, Codex, etc.)
-  aos-gateway  (thin MCP shell — not an owner)
   any third-party receptor surface
 ```
 
-Gateway is outside AOS authority. It is a passthrough adapter for MCP clients. It accepts ergonomic MCP shorthand or a full v1 request, normalizes to `aos.gate.request.v1`, writes the request to a tempfile, and shells to `./aos gate ask`. It does not hold polling loops, own canvas state, or enforce deadlines.
-
-Deferred continuation state is also inside AOS authority, not gateway authority.
+Deferred continuation state is inside AOS authority.
 Continuation JSON files live under the active runtime state root at
 `gate/continuations/`, and resume events live at `gate/resume-events/`. The
-gateway may create or submit through the CLI later, but it must not own a
-separate continuation database.
+local CLI creates and submits them without a separate continuation database.
 
 ---
 
@@ -121,8 +116,7 @@ separate continuation database.
 
 ```
 Agent (any runtime)
-  │  ./aos gate ask <request>         ← shell path
-  │  user_signal_surface MCP tool     ← thin shell to ./aos gate ask
+  │  ./aos gate ask <request>
   ▼
 CLI-owned Gate Service (v1)
   │  assigns gate_id
@@ -193,34 +187,6 @@ interface GateReceptor {
 
 The v1 gate service calls `receptor.present()`, starts the deadline clock, and waits. On any terminal user path — answer, timeout, or dismiss — it calls `receptor.dismiss()` and returns the result to the caller. On infrastructure failure it still attempts cleanup, then returns an error with a machine-readable code. The receptor never owns the authoritative clock.
 
-### MCP Tool as Thin Shell
-
-```typescript
-// packages/gateway/src/tools/user-signal.ts
-import { execFile } from 'node:child_process';
-
-export async function userSignalSurface(req: UserSignalRequest): Promise<unknown> {
-  const request = normalizeToGateRequestV1(req); // expands presets and top-level fields
-  const requestJson = JSON.stringify(request);
-  return new Promise((resolve, reject) => {
-    execFile(
-      'aos',
-      ['gate', 'ask', '--json', requestJson],
-      { timeout: ((req.timeout_seconds ?? 20) + 5) * 1000 },
-      (err, stdout, stderr) => {
-        if (err) { reject(parseGateError(err, stderr)); return; }
-        const s = stdout.trim();
-        resolve(JSON.parse(s));
-      }
-    );
-  });
-}
-```
-
-No canvas management. No polling loop. No gateway-owned deadline. Operational failures stay errors.
-
----
-
 ## Request Schema
 
 Version: `aos.gate.request.v1`
@@ -244,8 +210,8 @@ Version: `aos.gate.request.v1`
     }
   },
 
-  // Canonical field definitions. Adapters expand presets into top-level fields
-  // before forwarding to the service.
+  // Canonical field definitions. The CLI-owned service expands caller-supplied
+  // presets and normalizes caller input into top-level fields.
   "fields": [
     {
       "id": "decision",
@@ -265,8 +231,9 @@ Version: `aos.gate.request.v1`
     }
   ],
 
-  // Presentation hints only. ui.fields is accepted by adapters as legacy
-  // input and normalized into top-level fields before service handoff.
+  // Presentation hints only. ui.fields is legacy adapter input and is not a
+  // service field; callers must normalize it into top-level fields before
+  // service handoff.
   "ui": {
     "variant": "yes_no_with_escape",
 
@@ -330,7 +297,7 @@ No-answer envelopes are terminal. The agent must handle them explicitly and must
 
 ## Presets
 
-Presets are named `ui.variant` values that expand to top-level `fields`. They are the ergonomic layer for CLI and MCP adapters. The expansion function lives in `shared/gate/presets.mjs`; the service and adapters call that shared function rather than owning private preset tables. Browser-loaded toolkit components consume canonical top-level `fields` so they do not depend on a cross-root import from `aos://toolkit`.
+Presets are named `ui.variant` values that expand to top-level `fields`. They are caller shorthand owned by the CLI service. The expansion function lives in `shared/gate/presets.mjs`; the CLI-owned service calls that shared function rather than owning a private preset table. Browser-loaded toolkit components consume canonical top-level `fields` so they do not depend on a cross-root import from `aos://toolkit`.
 
 | Preset | Description | Return shape |
 |---|---|---|
@@ -340,7 +307,7 @@ Presets are named `ui.variant` values that expand to top-level `fields`. They ar
 | `multi_choice` | Labeled checkbox set, pick many | `{ decisions: string[] }` |
 | `freetext` | Text input only | `{ text: string }` |
 
-Custom forms omit `ui.variant` and specify top-level `fields` directly. Adapters may accept old `ui.fields` input, but must normalize it into top-level `fields` before forwarding.
+Custom forms omit `ui.variant` and specify top-level `fields` directly. `ui.fields` is legacy adapter input and is not a service field; callers must normalize it into top-level `fields` before service handoff.
 
 ---
 
@@ -494,7 +461,7 @@ Timeout is service-authoritative. The service deadline fires at `timeout_ms` and
 
 Stdout is always JSON: either the typed answer value or a no-answer envelope. Operational failures exit non-zero and print a machine-readable code in stderr.
 
-Each terminal `aos.gate.request.v1` outcome also appends one runtime-scoped durable record to JSONL at `~/.config/aos/{repo|installed}/gate/records.jsonl`, or `$AOS_STATE_ROOT/{repo|installed}/gate/records.jsonl` when an explicit state root is set. The CLI-owned service writes these records for answered, dismissed, timeout, and receptor/infrastructure error outcomes, so callers through shell, dock sessions, or `user_signal_surface` share the same audit path. Gateway remains a thin adapter and does not own this state.
+Each terminal `aos.gate.request.v1` outcome also appends one runtime-scoped durable record to JSONL at `~/.config/aos/{repo|installed}/gate/records.jsonl`, or `$AOS_STATE_ROOT/{repo|installed}/gate/records.jsonl` when an explicit state root is set. The CLI-owned service writes these records for answered, dismissed, timeout, and receptor/infrastructure error outcomes, so all local CLI callers share the same audit path.
 
 The record schema is `aos.gate.record.v1`. Records include `gate_id`, request schema version, prompt title, source `surface`/`session_id`/`agent`, receptor, UI variant, field kinds, timeout, created/presented/resolved timestamps, elapsed milliseconds, resolution, no-answer status when applicable, and operational error code/message when applicable. The current legacy persistence path redacts answer payloads and prompt bodies by default; that is an ADR 0040 migration gap, not the target policy. `response_stored` is `false` unless the request carries `metadata.record_response: true` or the CLI is invoked with `--store-response`.
 
@@ -507,38 +474,6 @@ Readback is intentionally local and JSON-only:
 ./aos gate records --status answered --json
 ```
 
-### MCP Tool: `user_signal_surface`
-
-Registered on `aos-gateway`. It accepts ergonomic shorthand or a full request, normalizes to canonical `aos.gate.request.v1`, writes a tempfile, and runs one `execFile` to `./aos gate ask --request <file>`. No gateway-owned state. See implementation in Architecture section above.
-
-**Tool definition:**
-
-```typescript
-{
-  name: 'user_signal_surface',
-	description:
-	  'Request a bounded structured human decision via a transient AOS surface. ' +
-	  'Returns a typed value, or { result: null, status: "dismissed"|"timeout" }. ' +
-	  'Operational failures are tool errors with machine-readable codes.',
-  inputSchema: {
-    type: 'object' as const,
-    properties: {
-      title:           { type: 'string' },
-      message:         { type: 'string' },
-      preset:          { type: 'string',
-                         enum: ['yes_no_with_escape','approve_deny','single_choice','multi_choice','freetext'] },
-      choices:         { type: 'array', items: { type: 'object' } },
-      timeout_seconds: { type: 'number' },
-      request:         { type: 'object',
-                         description: 'Full aos.gate.request.v1 object. Overrides all other params.' },
-    },
-    required: [],
-  },
-}
-```
-
----
-
 ## Usage Examples
 
 ### Approve / Deny (Destructive Action Gate)
@@ -548,66 +483,6 @@ result=$(./aos gate ask --preset approve_deny --title "Delete 47 files in ~/Down
 if [ "$(echo "$result" | jq -r '.status // empty')" != "" ] || [ "$(echo "$result" | jq -r .decision)" = "deny" ]; then
   echo "aborted"; exit 0
 fi
-```
-
-```typescript
-// MCP tool call from agent
-const result = await callTool('user_signal_surface', {
-  title: 'Delete 47 files in ~/Downloads/old-project?',
-  message: 'This cannot be undone.',
-  preset: 'approve_deny',
-  timeout_seconds: 20,
-});
-if (result?.result === null || result.decision === 'deny') return { aborted: true };
-```
-
-### Strategy Selection
-
-```typescript
-const result = await callTool('user_signal_surface', {
-  title: 'Choose Refactor Strategy',
-  message: 'Which approach should I pursue?',
-  preset: 'single_choice',
-  choices: [
-    { value: 'incremental', label: 'Incremental', description: 'Module-by-module, lower risk' },
-    { value: 'big_bang',    label: 'Big Bang',    description: 'Full rewrite, riskier', danger: true },
-    { value: 'hybrid',      label: 'Hybrid',      description: 'Rewrite core, migrate edges' },
-  ],
-  timeout_seconds: 30,
-});
-if (result?.result === null) return;
-```
-
-### Custom Form Request
-
-```typescript
-const result = await callTool('user_signal_surface', {
-  title: 'ignored — overridden by request',
-  request: {
-    schema_version: 'aos.gate.request.v1',
-    prompt: { title: 'Configure run parameters', body: 'Set the values for this test run.' },
-    response_schema: {
-      type: 'object',
-      required: ['env', 'dry_run'],
-      properties: {
-        env:     { type: 'string', enum: ['staging', 'production'] },
-        dry_run: { type: 'boolean' },
-        notes:   { type: ['string', 'null'] },
-      },
-    },
-    fields: [
-      { id: 'env',     kind: 'exclusive_choice', style: 'buttons',
-        options: [{ value: 'staging', label: 'Staging' }, { value: 'production', label: 'Production', danger: true }] },
-      { id: 'dry_run', kind: 'boolean', label: 'Dry run only' },
-      { id: 'notes',   kind: 'text', placeholder: 'Optional notes...' },
-    ],
-    ui: {
-      variant: null,
-      timer: { visible: true, display: 'digital', direction: 'countDown', flash_threshold_ms: 5000 },
-    },
-    timeout_ms: 45000,
-  },
-});
 ```
 
 ---
@@ -653,7 +528,6 @@ Resolution values: `"answered"` | `"timeout"` | `"dismissed"` | `"error"`. Respo
 | `timeout_ms` > 120000 | Clamped to 120000 |
 | No display available | `LocalCanvasReceptor` fails with `AOS_GATE_PRESENT_FAILED`; caller receives an operational error |
 | Canvas window force-closed | Receptor poll throws `AOS_GATE_RECEPTOR_ERROR` |
-| CLI subprocess times out in MCP adapter | Adapter raises `AOS_GATE_PROCESS_TIMEOUT` |
 | `single_choice` with empty `choices` | Service rejects with `AOS_GATE_INVALID_REQUEST` |
 | `response_schema` present | Preserved as reserved metadata; not enforced in v1 |
 | Multiple concurrent gate requests | Each has unique `gate_id` and independent surface; service manages concurrently |
@@ -687,9 +561,6 @@ Resolution values: `"answered"` | `"timeout"` | `"dismissed"` | `"error"`. Respo
 - [x] `index.html` — standalone entry point
 - [x] `styles.css` — gate chrome
 
-### Gateway
-- [x] `user_signal_surface` MCP tool — thin shell to `./aos gate ask`
-
 ### Deferred
 - [ ] Promote CLI-owned gate service into the long-running daemon primitive
 - [ ] Move gate records from JSONL into an AOS-owned SQLite store if/when a daemon-owned store becomes available
@@ -703,5 +574,5 @@ Resolution values: `"answered"` | `"timeout"` | `"dismissed"` | `"error"`. Respo
 - **Async non-blocking variant** — `./aos gate queue` returns a `gate_id` immediately; agent polls `./aos gate result <gate_id>` asynchronously.
 - **`point2d` / `point3d` field kinds** — coordinate collection controls and surface rendering.
 - **`user_signal_sequence`** — wizard-style chained gate requests returning a structured aggregate.
-- **System prompt injection block** — standardized agent instruction fragment describing when and how to call `./aos gate ask` / `user_signal_surface`, replacing ad-hoc HITL guidance in per-agent configs.
+- **System prompt injection block** — standardized agent instruction fragment describing when and how to call `./aos gate ask`, replacing ad-hoc HITL guidance in per-agent configs.
 - **Remote relay receptor** — gate requests relayed over an external channel (WebSocket, webhook, etc.) for headless, CI, or mobile decision scenarios. Author-supplied via the receptor interface.
