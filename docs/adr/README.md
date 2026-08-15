@@ -25,9 +25,9 @@ otherwise.
 | [0015](0015-aos-tcc-capability-broker-boundary.md) | Accepted | Active; aligned with ADR 0040 ambient authority. |
 | 0016-0017 | Unassigned | No ADR files use these numbers. |
 | [0018](0018-installable-aos-skills.md) | Accepted, amended | ADR 0039 owns deletion policy; ADR 0040 owns skill authority posture; ADR 0041 owns the managed Playwright CLI runtime boundary. |
-| [0019](0019-retire-project-agent-orchestration.md) | Accepted | Active. |
+| [0019](0019-retire-project-agent-orchestration.md) | Accepted, amended | ADR 0042 assigns host and gateway orchestration to Sigil while this ADR continues to exclude project-agent orchestration from AOS core. |
 | [0020](0020-single-owner-local-runtime.md) | Accepted | Active. |
-| [0021](0021-sigil-reference-consumer-and-toolkit-repository-boundary.md) | Accepted | Active. |
+| [0021](0021-sigil-reference-consumer-and-toolkit-repository-boundary.md) | Accepted, amended | ADR 0042 retains the toolkit and capability-layer hosts in AOS while assigning host and gateway successors to Sigil. |
 | [0022](0022-public-voice-transport-boundary.md) | Accepted | Active. |
 | [0023](0023-managed-endpoint-raw-repo-artifact.md) | Accepted | Active. |
 | [0024](0024-desktopworld-stage-3d-outlet.md) | Accepted | Active. |
@@ -48,3 +48,4 @@ otherwise.
 | [0039](0039-pre-release-zero-installed-base-compatibility.md) | Accepted | Active. |
 | [0040](0040-ambient-authority-raw-observation-and-target-handles.md) | Accepted | Active authority for ambient execution, raw observation, target handles, Gate, and Work Record boundaries. |
 | [0041](0041-managed-playwright-companion-runtime.md) | Accepted | Owns the optional managed Playwright CLI runtime, safe public MVP, package lifecycle, and browser ownership boundary. |
+| [0042](0042-host-and-gateway-move-to-sigil.md) | Accepted | Owns the host and gateway move to Sigil, contracted AOS package scope, supersession audit, and paired retirement. |

@@ -1,14 +1,14 @@
 # Sigil Reference Consumer And Toolkit Repository Boundary
 
-**Status:** Accepted
+**Status:** Accepted; amended by ADR 0042
 **Date:** 2026-07-11
 
 ## Decision
 
 Sigil is AOS's first-party reference consumer and the sole authority for the
 branded Sigil product. Product needs may drive product-neutral AOS primitives,
-toolkit policy, hosts, schemas, and public CLI contracts without waiting for a
-second consumer.
+toolkit policy, capability and projection hosts, schemas, and public CLI
+contracts without waiting for a second consumer.
 
 The AOS toolkit remains a package boundary inside the `agent-os` repository. It
 is versioned with the daemon, CLI, schemas, and command manifests as one
@@ -27,6 +27,10 @@ The toolkit does not move to a separate repository merely to appear reusable.
 Reconsider extraction only when independent consumers require a different
 release cadence, the toolkit has a stable compatibility policy, and it builds
 and tests without repository-private AOS dependencies.
+
+ADR 0042 amends this boundary: the toolkit and capability/projection hosts stay
+with AOS, while the former AOS host and gateway implementations and their
+successor product-orchestration concerns belong with Sigil.
 
 ## Context
 
