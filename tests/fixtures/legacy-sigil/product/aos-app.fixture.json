@@ -90,35 +90,6 @@
         }
       ],
       "verify_surfaces": ["avatar-main", "sigil-workbench"]
-    },
-    "agent-terminal": {
-      "summary": "Launch the Sigil Agent Terminal surface.",
-      "requires_entries": ["avatar"],
-      "remove_surfaces": ["sigil-agent-terminal", "sigil-codex-terminal"],
-      "hooks": [
-        {
-          "phase": "before_surfaces",
-          "script": "apps/sigil/agent-terminal/bridge-launch.sh"
-        }
-      ],
-      "surfaces": [
-        {
-          "id": "avatar-main",
-          "url": "aos://${root:sigil}/renderer/index.html?toolkit-root=${root:toolkit}",
-          "track": "union",
-          "create_if_missing": true
-        },
-        {
-          "id": "sigil-agent-terminal",
-          "url": "aos://${root:sigil}/agent-terminal/index.html?port=${env:PORT:17761}&session=${env:SESSION:sigil-agent-terminal-agent-os}&cwd=${urlenv:CWD_TARGET:${repo_root}}&toolkit-root=${root:toolkit}",
-          "interactive": true,
-          "focus": true,
-          "frame": {
-            "kind": "agent_terminal"
-          }
-        }
-      ],
-      "verify_surfaces": ["avatar-main", "sigil-agent-terminal"]
     }
   }
 }

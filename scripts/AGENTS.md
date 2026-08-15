@@ -10,10 +10,9 @@ commands, runtime helpers, wiki tools, and command adapters.
 ## Ownership
 
 - `aos-*` scripts implement command-surface adapters and developer tooling.
-- `generate-command-inventory.mjs` owns the manifest-derived development
-  inventory at `docs/dev/reports/aos-command-capability-inventory-v0.md`.
-  Keep it generated from command manifests and external routes; do not turn it
-  into a hand-maintained source of truth.
+- The existing command capability inventory under `docs/dev/reports/` is frozen
+  historical evidence. It has no active generator and must not be treated as
+  current command authority or routed as an active source.
 - `generate-input-event-validator.mjs` owns the checked browser-safe Ajv
   standalone validator derived from `shared/schemas/input-event-v2.schema.json`;
   Ajv is a toolkit dev dependency, its referenced helper is inlined from the

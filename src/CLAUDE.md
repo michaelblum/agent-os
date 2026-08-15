@@ -61,9 +61,6 @@ Examples that usually do **not** need `bash build.sh`:
 
 ```bash
 node --test tests/renderer/*.test.mjs
-node --test tests/renderer/*.test.mjs
-cd packages/gateway && npm test
-cd packages/host && npm test
 ```
 
 Examples that **do** need a current `./aos` binary when relevant Swift files

@@ -10,8 +10,6 @@ and below app-specific product expression.
 ## Ownership
 
 - `toolkit/` owns reusable AOS surface policy and stock surfaces.
-- `gateway/` and `host/` are peer consumers of primitives, not the toolkit
-  middle layer.
 - `cli/`, `daemon/`, and `design-tokens/` own package-scoped support surfaces.
 
 ## Local Contracts
@@ -20,9 +18,8 @@ and below app-specific product expression.
   the owning external product repository.
 - Do not move native-bound capability into packages when it belongs in `src/` or
   shared Swift/IPC contracts.
-- Gateway and SDK projections preserve discriminated Target Handles and typed
-  target failures. They must not add label-first or first-match semantic action
-  helpers.
+- Product orchestration, ingress, model execution, retries, budgets, memory,
+  and run state belong in the owning external product repository.
 
 ## Work Guidance
 
@@ -37,6 +34,6 @@ and below app-specific product expression.
 
 - `toolkit/AGENTS.md` governs reusable AOS surface policy and indexes
   `contracts/`, `controls/`, `panel/`, and `runtime/`.
-- `cli/`, `daemon/`, `design-tokens/`, `gateway/`, and `host/` do not have child
-  `AGENTS.md` files yet; follow this package contract plus the nearest source,
-  schema, or test doc that covers the changed surface.
+- `cli/`, `daemon/`, and `design-tokens/` do not have child `AGENTS.md` files
+  yet; follow this package contract plus the nearest source, schema, or test doc
+  that covers the changed surface.

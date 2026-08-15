@@ -8,18 +8,18 @@ trap 'rm -rf "$ROOT"' EXIT
 
 ./aos wiki seed --json >/dev/null
 
-OUT="$(./aos wiki show gateway --json)"
+OUT="$(./aos wiki show daemon --json)"
 OUT="$OUT" python3 - <<'PY'
 import json
 import os
 
 data = json.loads(os.environ["OUT"])
-assert data["path"] == "aos/entities/gateway.md", data
-assert data["frontmatter"]["name"] == "Gateway", data
-assert "MCP" in data["raw"], data
+assert data["path"] == "aos/entities/daemon.md", data
+assert data["frontmatter"]["name"] == "Daemon", data
+assert "daemon" in data["raw"].lower(), data
 PY
 
-./aos wiki show gateway --raw | grep -q '^---$'
+./aos wiki show daemon --raw | grep -q '^---$'
 
 printf 'outside secret\n' >"$ROOT/outside-read.md"
 if ./aos wiki show ../../outside-read.md --raw >"$ROOT/wiki-show-traversal.out" 2>"$ROOT/wiki-show-traversal.err"; then
@@ -66,7 +66,7 @@ grep -q '"code": "UNKNOWN_FLAG"' "$ROOT/wiki-show-bogus.err" || {
   exit 1
 }
 
-if ./aos wiki show gateway unexpected --json 2>"$ROOT/wiki-show-extra.err"; then
+if ./aos wiki show daemon unexpected --json 2>"$ROOT/wiki-show-extra.err"; then
   echo "FAIL: wiki show accepted extra positional argument"
   exit 1
 fi

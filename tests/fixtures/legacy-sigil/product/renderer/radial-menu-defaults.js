@@ -209,19 +209,12 @@ function itemGeometry(id) {
 
 export const CONTEXT_COG_MODEL = itemGeometry('avatar-controls');
 export const WIKI_BRAIN_HOLOGRAM_MODEL = itemGeometry('wiki-graph');
-export const AGENT_TERMINAL_TABLET_MODEL = itemGeometry('agent-terminal');
 export const ANNOTATION_RETICLE_GEOMETRY = itemGeometry('annotation-mode');
 export const ANNOTATION_CAMERA_GEOMETRY = itemGeometry('annotation-camera');
 
 function normalizeRadialItemOverride(item) {
     const next = cloneConfig(item);
     if (!isPlainObject(next)) return next;
-
-    if (next.id === 'codex-terminal') {
-        next.id = 'agent-terminal';
-        if (next.action === 'codexTerminal') next.action = 'agentTerminal';
-        if (next.label === 'Codex Terminal') next.label = 'Agent Terminal';
-    }
 
     if (next.id === 'wiki-graph' && isPlainObject(next.geometry)) {
         if (next.geometry.material === 'translucent-brain') {

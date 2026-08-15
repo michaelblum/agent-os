@@ -118,9 +118,7 @@ async function embeddedProductAuthorityPaths() {
       || relativePath.startsWith('docs/api/')
       || relativePath.startsWith('docs/guides/')
       || relativePath.startsWith('docs/design/')
-      || relativePath.startsWith('memory/scratchpad/')
       || (relativePath.startsWith('shared/schemas/') && relativePath.endsWith('.md'))
-      || relativePath.startsWith('packages/gateway/src/')
       || relativePath.startsWith('wiki-seed/')
       || relativePath.startsWith('manifests/commands/source/')
       || relativePath === 'manifests/commands/aos-commands.json'
@@ -260,7 +258,7 @@ test('ambient authority sources reject mandatory policy while preserving optiona
   assert.match(desktopWorldDevtoolsJsonSchema, /Bounded engine snapshot shared by CLI, SDK, and host-neutral DevTools views/);
   assert.match(desktopWorldDevtoolsJsonSchema, /private desktop-frame content remain outside it/);
   assert.match(agentWorkspaceDox, /storage indirection to exactly one required discriminated\s+handle/i);
-  assert.match(agentWorkspaceDox, /must never capture, search, reacquire, or\s+substitute state/i);
+  assert.match(agentWorkspaceDox, /must never capture, search, reacquire,\s+substitute state, or probe-then-act/i);
   assert.match(agentWorkspaceDox, /Locators re-resolve at action time/i);
   assert.match(agentWorkspaceDox, /V0 files remain unchanged historical bytes/i);
 
@@ -271,8 +269,8 @@ test('ambient authority sources reject mandatory policy while preserving optiona
     'semantic-target public decoder still drops the admitted app-local',
     'Guided User Signal record builder still defaults prompt/answer projection',
     'legacy Supervised Run V0 schema still projects',
-    'complete public generic-wait, event-cursor subscription, and semantic-codegen',
-    'not a complete public `run-code` surface',
+    'complete public generic-wait, event-cursor subscription, semantic-codegen',
+    'generic `run-code` contracts are not yet implemented',
   ]) {
     assert.ok(api.includes(gap), `docs/api/aos.md missing explicit implementation gap: ${gap}`);
   }
@@ -484,15 +482,16 @@ test('ambient authority sources reject mandatory policy while preserving optiona
   assert.match(historicalSeeDoNote, /legacy fixture\s+material, not durable Observation Ref identity/);
   assert.match(userSignalSurface, /current legacy persistence path redacts answer payloads and prompt bodies by default/);
   assert.match(userSignalSurface, /ADR 0040 migration gap, not the target policy/);
+  assert.doesNotMatch(userSignalSurface, /user_signal_surface|callTool\(|\bMCP\b/);
   assert.match(gestureSpineNote, /## ADR 0040 Transition Boundary/);
   assert.match(gestureSpineNote, /mixed descriptor is\s+migration evidence, not a durable Observation Ref/);
   assert.match(desktopPlaywrightMap, /## ADR 0040 Target Boundary/);
   assert.match(desktopPlaywrightMap, /Target\s+Handle Runtime V1 implements ADR 0040's split/);
-  assert.match(desktopPlaywrightMap, /saved\s+addresses are storage indirection to one of those handles/);
+  assert.match(desktopPlaywrightMap, /saved\s+addresses are\s+storage indirection to one of those handles/);
   assert.doesNotMatch(desktopPlaywrightMap, /awaiting the ADR 0040 split/);
   assert.match(annotationConvergenceTracker, /ADR 0040 boundary/);
   assert.match(annotationConvergenceTracker, /it is not AOS\s+permission and is not a prerequisite for ordinary live capture or side effects/);
-  assert.match(installableSkillsAdr, /current AOS browser observation handles\/proof/);
+  assert.match(installableSkillsAdr, /current managed AOS browser sessions and observation proof/);
   assert.match(sceneManifest, /Emit the bounded execution result/);
   assert.match(sceneManifest, /Emit the bounded replay result/);
   assert.match(sceneOverview, /Product, arbitrary extension, undeclared engine, and private desktop-frame\s+content remain outside it/);
@@ -650,7 +649,6 @@ test('embedded Sigil cannot return as active AOS product authority', async () =>
     'apps/sigil',
     'apps/sigil/aos-app.json',
     'experiences/sigil/aos-experience.json',
-    'packages/host/src/sigil-bridge.ts',
     'packages/toolkit/workbench/sigil-subject.js',
     'recipes/sigil',
   ];
@@ -663,12 +661,12 @@ test('embedded Sigil cannot return as active AOS product authority', async () =>
     /\baos\s+launch\s+sigil\b/i,
     /\baos\s+experience\b[^\n]*\bsigil\b/i,
     /\baos\s+recipe\b[^\n]*\bsigil\//i,
-    /\bsigil\/start(?:-agent-terminal)?\b/i,
+    /\bsigil\/start\b/i,
     /experiences\/sigil\/aos-experience\.json/i,
     /packages\/host\/src\/sigil-bridge\.ts/i,
     /packages\/toolkit\/workbench\/sigil-subject\.js/i,
     /recipes\/sigil\//i,
-    /apps\/sigil\/(?:agent-terminal|avatar-controls|avatar-editor|chat|codex-terminal|diagnostics|radial-item-editor|radial-item-workbench|renderer|scripts|seed|tests|theme|workbench|world)\//i,
+    /apps\/sigil\/(?:avatar-controls|avatar-editor|chat|diagnostics|radial-item-editor|radial-item-workbench|renderer|scripts|seed|tests|theme|workbench|world)\//i,
     /\bSigil (?:renderer|avatar|radial|status item|workbench)\b/i,
     /\bsigil\.(?:avatar|radial|agent)\b/i,
   ];
@@ -681,7 +679,6 @@ test('embedded Sigil cannot return as active AOS product authority', async () =>
     'frozen test payload must not be scanned as active product authority',
   );
   assert.ok(authorityPaths.includes('docs/design/notes/pre-release-canonical-naming-policy-2026-05-23.md'));
-  assert.ok(authorityPaths.includes('memory/scratchpad/gateway-hardening-followups.md'));
   for (const relativePath of authorityPaths) {
     const content = await text(relativePath);
     for (const pattern of forbidden) {

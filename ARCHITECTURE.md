@@ -260,8 +260,6 @@ The daemon hosts the coordination bus natively — channels, messages, presence.
 Session presence is keyed by canonical `session_id` / thread id. Human-readable names remain ancillary metadata for `/who` output and operator ergonomics; direct session messaging should target the canonical session id channel.
 Presence is mirrored into the runtime state dir and restored on daemon restart. `/who` is advisory discovery; once a peer session id is known, direct `--session-id` routing is the stable coordination path.
 
-The MCP gateway (`packages/gateway/`) is an optional adapter that wraps the daemon's communication bus for external consumers who want MCP integration. It is not loaded during development inside agent-os. The daemon is the source of truth; the gateway is a view.
-
 Channels inherit runtime mode isolation (repo channels don't crosstalk with installed channels) and wiki namespace conventions (apps scope channels under their namespace, system channels are root-level). Historical coordination-bus design context is archived at `docs/archive/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.md`.
 
 All subsystems share the LCS convention. Agent-facing forms emit JSON. All are
@@ -274,10 +272,10 @@ stateless at the subcommand level — the daemon and orchestrator hold state.
 ### Monorepo Structure
 
 The `aos` broker is the canonical permissioned native primitive substrate.
-`packages/` holds supporting Node.js services, extracted CLI/daemon package
-work, shared design tokens, and the reusable toolkit surface layer. `apps/`
-holds retained compatibility fixtures; active branded products live in their
-own repositories.
+`packages/` holds the reusable toolkit, shared design tokens, and thin
+CLI/daemon package roots. `apps/` is an intentionally empty product-source
+boundary; active branded products live in their own repositories, while the
+legacy compatibility fixture remains test-only under `tests/fixtures/`.
 
 ```
 agent-os/
@@ -294,10 +292,8 @@ agent-os/
     toolkit/             ← Reusable surface layer: runtime, controls, panel, workbench, components
     design-tokens/       ← Shared CSS token source for toolkit and app surfaces
     cli/, daemon/        ← Extracted package roots for CLI/daemon-adjacent work
-    gateway/             ← Node.js MCP server — external consumer surface
-    host/                ← Node.js agent host — Anthropic SDK loop, sessions
   apps/
-    sigil/               ← Frozen legacy compatibility/proof fixture
+                         ← Intentionally empty product-source boundary
   shared/
     schemas/             ← Cross-tool JSON contracts
       spatial-topology.schema.json
@@ -317,8 +313,6 @@ agent-os/
 | `aos recipe` | Execution model | Swift dispatcher + Node recipe engine + JSON manifests | `manifests/commands/aos-external-commands.json`, `scripts/aos-recipe.mjs`, `recipes/`, `shared/schemas/recipe*.schema.json` | v1 scaffold | Source-backed executable recipes that agents can list, explain, statically dry-run, and run; includes read-only `runtime/status-snapshot` plus owned-cleanup canvas smoke `canvas/window-level-smoke`. The old `aos ops` command surface is retired. |
 | `aos` voice | OS | Swift | `src/voice/` + `src/daemon/voice-transport.swift` | Production (transport + TTS + registry) | `aos listen` hotkey/microphone streams, `aos say` streamed system speech, meters, `aos voice`, config-driven voice/rate, and final-response ingress; transcription remains consumer-owned |
 | `aos` act | OS | Swift | `src/act/` | Production | `aos do click/hover/drag/scroll/type/key/press/focus/set-value/raise/session`; multi-backend (AX, CGEvent, AppleScript), behavioral profiles, focus channels |
-| `gateway` | Coordination | Node.js/TS | `packages/gateway/` | Production (v1) | MCP server plus local integration broker: typed script execution, session registration, cross-harness pub/sub, provider-neutral chat workflows/jobs, live workflow registry discovery from `aos wiki`, structured workflow launches, queued job completion notifications, SQLite-backed state |
-| `host` | Runtime | Node.js/TS | `packages/host/` | v1 shipped | Anthropic SDK agent loop, session store (SQLite), tool registry |
 | `cli` / `daemon` packages | Packaging | JS/TS + assets | `packages/cli/`, `packages/daemon/` | Active | Package roots for CLI verbs and daemon-adjacent runtime surfaces that sit around the unified Swift primitive |
 | `design-tokens` | Design system | CSS | `packages/design-tokens/` | Active | Shared token source consumed by toolkit and app surfaces |
 | `toolkit` | Toolkit/default surface system | JS/HTML/CSS | `packages/toolkit/` | Active | Opt-in reusable AOS surface policy and stock surfaces: `runtime/`, `controls/`, `adapters/zag`, `panel/`, `workbench/`, and `components/` |

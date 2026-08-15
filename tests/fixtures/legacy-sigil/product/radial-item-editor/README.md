@@ -15,7 +15,7 @@ apps/sigil/radial-item-editor/launch.sh wiki-graph
 
 The item argument is optional. Editable subjects are discovered from
 `DEFAULT_SIGIL_RADIAL_ITEMS` and currently include `avatar-controls`,
-`agent-terminal`, and `wiki-graph`.
+`annotation-mode`, and `wiki-graph`.
 
 `AOS_SIGIL_CONTENT_ROOT` and `AOS_TOOLKIT_CONTENT_ROOT` are AOS content-root
 names, not filesystem paths. Leave them unset unless you need stable short keys.
@@ -45,10 +45,9 @@ registry.
 
 Object transforms stay generic. Item-specific material/content controls belong
 to the Sigil workbench shell beside the transform panel, not inside the toolkit
-panel. For example, the Agent Terminal screen is a named `parts[]` plane whose
-transform is addressable through the shared object registry, while its generated
-terminal-screen material is edited through Sigil workbench controls and exported
-in the same lock-in payload.
+panel. Named `parts[]` planes remain addressable through the shared object
+registry, while generated materials are edited through Sigil workbench controls
+and exported in the same lock-in payload.
 
 The launch script opens the preview and transform controls as separate canvases,
 then replays the current registry after both surfaces are ready. That avoids a
@@ -90,9 +89,9 @@ exported payload is applied back to the production radial menu defaults.
 mounts the preview and toolkit object transform panel as panes in one canvas
 while keeping the same editor model, object registry, transform patch, and
 lock-in payload contracts. The workbench also hosts narrow item-specific
-controls when the selected item declares them, such as the Agent Terminal screen
-title, lines, and colors. Those controls patch the in-memory item definition and
-the preview re-renders the corresponding generated material on the next frame.
+controls when the selected item declares them. Those controls patch the in-memory
+item definition and the preview re-renders the corresponding generated material
+on the next frame.
 
 ```bash
 AOS=/Users/Michael/Code/agent-os/aos \

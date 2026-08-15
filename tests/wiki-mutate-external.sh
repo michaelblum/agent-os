@@ -31,7 +31,7 @@ assert data["name"] == "test-entity", data
 PY
 test -f "$ROOT/repo/wiki/aos/entities/test-entity.md"
 
-OUT="$(./aos wiki link test-entity gateway --json)"
+OUT="$(./aos wiki link test-entity daemon --json)"
 OUT="$OUT" python3 - <<'PY'
 import json
 import os
@@ -39,10 +39,10 @@ import os
 data = json.loads(os.environ["OUT"])
 assert data["status"] == "ok", data
 assert data["from"] == "aos/entities/test-entity.md", data
-assert data["to"] == "aos/entities/gateway.md", data
+assert data["to"] == "aos/entities/daemon.md", data
 PY
 
-OUT="$(./aos wiki list --links-to aos/entities/gateway.md --json)"
+OUT="$(./aos wiki list --links-to aos/entities/daemon.md --json)"
 OUT="$OUT" python3 - <<'PY'
 import json
 import os
@@ -145,7 +145,7 @@ grep -q 'Unknown argument: unexpected' "$ROOT/wiki-add-extra.err" || {
   exit 1
 }
 
-if ./aos wiki link gateway runtime unexpected --json 2>"$ROOT/wiki-link-extra.err"; then
+if ./aos wiki link daemon runtime unexpected --json 2>"$ROOT/wiki-link-extra.err"; then
   echo "FAIL: wiki link accepted extra positional argument"
   exit 1
 fi
@@ -160,7 +160,7 @@ grep -q 'Unknown argument: unexpected' "$ROOT/wiki-link-extra.err" || {
   exit 1
 }
 
-if ./aos wiki rm gateway unexpected --json 2>"$ROOT/wiki-rm-extra.err"; then
+if ./aos wiki rm daemon unexpected --json 2>"$ROOT/wiki-rm-extra.err"; then
   echo "FAIL: wiki rm accepted extra positional argument"
   exit 1
 fi

@@ -806,25 +806,6 @@ else
 fi
 rm -f /tmp/aos-runtime-bogus.out /tmp/aos-runtime-bogus.err
 
-set +e
-DOCTOR_OUT="$(./aos doctor gateway --quick --json 2>/dev/null)"
-DOCTOR_CODE=$?
-set -e
-if OUT="$DOCTOR_OUT" CODE="$DOCTOR_CODE" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["mode"] == "repo", data
-assert data["state_root"].endswith("/.config/aos"), data
-assert int(os.environ["CODE"]) == data["exit_code"], data
-PY
-then
-    pass "doctor gateway runs through external command manifest"
-else
-    fail "doctor gateway external dispatch drifted: ${DOCTOR_OUT:-}"
-fi
-
 if OUT="$(./aos service status --mode repo --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os

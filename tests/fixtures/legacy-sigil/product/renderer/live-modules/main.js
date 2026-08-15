@@ -110,20 +110,11 @@ import {
 } from './ux-tree-command-registry.js';
 import { createSigilUxTreeReadinessAudit } from './ux-tree-readiness.js';
 import {
-    createSigilAvatarParkingController,
-    nativePointFromMessageOrigin,
-    statusCollapseFrameFromOrigin,
-} from './avatar-parking.js';
-import {
     RENDER_PERFORMANCE_CANVAS_ID,
     createSigilRenderPerformanceSampler,
     finiteOrNull,
 } from './render-performance-telemetry.js';
 import {
-    AGENT_TERMINAL_CANVAS_ID,
-    AGENT_TERMINAL_PARK_SCALE,
-    AGENT_TERMINAL_URL,
-    STATUS_PARK_SCALE,
     WIKI_WORKBENCH_CANVAS_ID,
     WIKI_WORKBENCH_DEFAULT_PATH,
     WIKI_WORKBENCH_DEFAULT_URL,
@@ -225,7 +216,6 @@ const liveJs = {
     pointerPos: { x: 0, y: 0 },
     avatarHover: false,
     avatarHoverProgress: 0,
-    avatarParking: null,
     currentCursor: { x: 0, y: 0, valid: false },
     cursorTarget: { x: 0, y: 0, valid: false },
     globalBounds: { x: 0, y: 0, w: 0, h: 0, minX: 0, minY: 0, maxX: 0, maxY: 0 },
@@ -1011,30 +1001,15 @@ sigilInputRegions = createSigilInputRegionAdapter({
     windowObject: window,
     isPrimarySegment: isPrimarySurfaceSegment,
     avatarNativeFrame: nativeFrameForAvatar,
-    avatarRegionEnabled: () => !hitTarget.hit.interactive && !liveJs.avatarParking,
+    avatarRegionEnabled: () => !hitTarget.hit.interactive,
     avatarControlsIsOpen: () => avatarControls.isOpen(),
     avatarControlsNativeFrame: () => nativeFrameFromDesktopRect(avatarControls.interactiveBounds()),
     selectionModeIsActive: () => liveJs.selectionMode?.active === true,
     selectionModeNativeFrame: nativeFrameForSelectionMode,
 });
-const avatarParking = createSigilAvatarParkingController({
-    liveState: liveJs,
-    renderState: state,
-    terminalScale: AGENT_TERMINAL_PARK_SCALE,
-    statusScale: STATUS_PARK_SCALE,
-    nativePointToDesktop: (nativePoint) => {
-        if (!nativePoint) return null;
-        return nativeToDesktopWorldPoint(nativePoint, liveJs.displays) ?? nativePoint;
-    },
-    setAvatarVisibility,
-    animateVisibility,
-    setAvatarHover,
-    emitAvatarMark,
-});
 utilityRuntime = createSigilUtilityCanvasRuntime({
     host,
     liveState: liveJs,
-    avatarParking,
     avatarPanel: {
         id: SIGIL_AVATAR_PANEL_CANVAS_ID,
         url: SIGIL_AVATAR_PANEL_URL,
@@ -1042,8 +1017,6 @@ utilityRuntime = createSigilUtilityCanvasRuntime({
         usesExternalPanel: () => avatarControls.usesExternalPanel(),
     },
     publishStatusMenuItems,
-    nativePointFromMessageOrigin,
-    statusCollapseFrameFromOrigin,
 });
 function markAppearanceChanged() {
     liveJs.appearanceVersion += 1;
@@ -1062,18 +1035,6 @@ function utilityConfig(kind) {
     return utilityRuntime.utilityConfig(kind);
 }
 
-function agentTerminalState() {
-    return utilityRuntime?.agentTerminalState() || null;
-}
-
-function isAgentTerminalCanvasId(id) {
-    return utilityRuntime?.isAgentTerminalCanvasId(id) || false;
-}
-
-function isAgentTerminalVisible() {
-    return utilityRuntime?.isAgentTerminalVisible() || false;
-}
-
 function isUtilityCanvasVisible(id) {
     return utilityRuntime?.isUtilityCanvasVisible(id) || false;
 }
@@ -1084,22 +1045,6 @@ function publishStatusMenuItems() {
 
 function handleStatusMenuAction(msg = {}) {
     return statusMenuRuntime.handleStatusMenuAction(msg);
-}
-
-function isAgentTerminalParkedAtStatus() {
-    return utilityRuntime?.isAgentTerminalParkedAtStatus() || false;
-}
-
-function collapseAgentTerminalToStatus(msg) {
-    return utilityRuntime.collapseAgentTerminalToStatus(msg);
-}
-
-function restoreAgentTerminalFromStatus() {
-    return utilityRuntime.restoreAgentTerminalFromStatus();
-}
-
-function prewarmAgentTerminalCanvas() {
-    return utilityRuntime.prewarmAgentTerminalCanvas();
 }
 
 function prewarmAvatarPanelCanvas() {
@@ -1349,7 +1294,6 @@ function sigilUxTreeReadiness() {
 }
 
 const radialItemActionDispatcher = createSigilRadialItemActionDispatcher({
-    agentTerminalCanvasId: AGENT_TERMINAL_CANVAS_ID,
     wikiWorkbenchCanvasId: WIKI_WORKBENCH_CANVAS_ID,
     wikiPath: WIKI_WORKBENCH_DEFAULT_PATH,
     annotationReticleItemId: SIGIL_ANNOTATION_RETICLE_ITEM_ID,
@@ -3237,10 +3181,6 @@ function openAvatarControlsAt(x, y, options = {}) {
         recordInteraction('avatar-controls:open-rejected', { x, y, options, reason: 'avatar-hidden' });
         return false;
     }
-    if (!options.force && liveJs.avatarParking?.mode === 'status') {
-        recordInteraction('avatar-controls:open-rejected', { x, y, options, reason: 'avatar-parked-at-status' });
-        return false;
-    }
     if (!options.force && liveJs.currentState !== 'IDLE') {
         recordInteraction('avatar-controls:open-rejected', { x, y, options, reason: 'state-not-idle' });
         return false;
@@ -3874,18 +3814,6 @@ function handleHostMessage(rawMsg) {
     }
 
     if (msg.type === 'status_item.toggle') {
-        if (isAgentTerminalVisible()) {
-            void collapseAgentTerminalToStatus(msg).catch((error) => {
-                console.warn('[sigil] agent terminal collapse failed:', error);
-            });
-            return;
-        }
-        if (isAgentTerminalParkedAtStatus() && agentTerminalState()?.suspended === true) {
-            void restoreAgentTerminalFromStatus().catch((error) => {
-                console.warn('[sigil] agent terminal restore failed:', error);
-            });
-            return;
-        }
         const origin = originFromMessage(msg);
         if (msg.target_state === 'visible') animateVisibility(true, 'enter', origin);
         else if (msg.target_state === 'hidden') animateVisibility(false, 'exit', origin);
@@ -3995,18 +3923,6 @@ function handleHostMessage(rawMsg) {
     if (msg.type === 'element_focused' || msg.event === 'element_focused') {
         const payload = msg.payload || msg.data || msg;
         annotationReticleHandleNativeAxElement({ ...payload, ts: msg.ts || payload.ts || Date.now(), ref: msg.ref || payload.ref || '' });
-        return;
-    }
-
-    if (msg.type === 'canvas_message' && isAgentTerminalCanvasId(msg.id)) {
-        if (msg.payload?.type === 'agent_terminal.avatar_toggle'
-            || msg.payload?.type === 'codex_terminal.avatar_toggle') {
-            void toggleUtilityCanvas('agent-terminal');
-            return;
-        }
-        if (msg.payload?.type === 'agent_terminal.session_telemetry') {
-            handleSessionTelemetryEnvelope(msg.payload.payload || {});
-        }
         return;
     }
 
@@ -4335,9 +4251,6 @@ function animate() {
         if (primarySegment && avatarControls.isOpen() && avatarControls.interactiveBounds()) {
             const changed = hitTarget.syncWorldRect(avatarControls.interactiveBounds(), true, { displays: liveJs.displays });
             surfaceTransportProbe.recordRenderEmit('hitTarget.sync', changed);
-        } else if (primarySegment && liveJs.avatarParking) {
-            const changed = hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);
-            surfaceTransportProbe.recordRenderEmit('hitTarget.sync', changed);
         } else if (primarySegment && liveJs.avatarPos.valid) {
             syncHitTargetToAvatar();
         }
@@ -4430,7 +4343,6 @@ window.__sigilDebug = createSigilDebugApi({
         ...(includeUtilityUrls ? {
             utilityUrls: {
                 wikiWorkbench: WIKI_WORKBENCH_DEFAULT_URL,
-                agentTerminal: AGENT_TERMINAL_URL,
             },
         } : {}),
         bootFirstFrameAt: window.__sigilBootFirstFrameAt,
@@ -4483,10 +4395,6 @@ export async function boot() {
     emitRadialMenuObjectRegistry();
 
     recordBoot('boot:displayReady', { displays: displays.length });
-    if (isPrimarySurfaceSegment()) {
-        void prewarmAgentTerminalCanvas();
-    }
-
     let position = await getLastPositionFromDaemon(liveJs.currentAgentId);
     if (position) {
         position = nativeToDesktopWorldPoint(position, displays) ?? position;

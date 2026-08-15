@@ -19,7 +19,6 @@ This directory documents the interfaces consumers are expected to build against:
 - [`aos-capabilities.md`](./aos-capabilities.md) — the desktop-agent
   capability map for AOS as "Playwright CLI, but for the desktop"
   (`docs/api/aos-capabilities.md`)
-- [`integration-broker.md`](./integration-broker.md) — provider-neutral chat integration broker and snapshot API
 - [`toolkit.md`](./toolkit.md) — the toolkit API map for WKWebView surfaces, with scoped runtime, panel/window, workbench, component, and content-host references under [`toolkit/`](./toolkit/)
 
 It does **not** try to replace:

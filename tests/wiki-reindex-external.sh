@@ -58,7 +58,7 @@ tags: [test]
 
 ## Related
 
-- [Gateway](gateway.md)
+- [Daemon](daemon.md)
 EOF
 
 ./aos wiki reindex --json >/dev/null
@@ -68,7 +68,7 @@ import json
 import os
 
 links = json.loads(os.environ["OUT"])
-assert links == [{"source_path": "aos/entities/reindex-link-source.md", "target_path": "aos/entities/gateway.md"}], links
+assert links == [{"source_path": "aos/entities/reindex-link-source.md", "target_path": "aos/entities/daemon.md"}], links
 PY
 
 printf '\xff\xfe\x00' > "$ROOT/repo/wiki/aos/entities/reindex-invalid-utf8.md"
@@ -87,7 +87,7 @@ import json
 import os
 
 links = json.loads(os.environ["OUT"])
-assert links == [{"source_path": "aos/entities/reindex-link-source.md", "target_path": "aos/entities/gateway.md"}], links
+assert links == [{"source_path": "aos/entities/reindex-link-source.md", "target_path": "aos/entities/daemon.md"}], links
 PY
 rm "$ROOT/repo/wiki/aos/entities/reindex-invalid-utf8.md"
 

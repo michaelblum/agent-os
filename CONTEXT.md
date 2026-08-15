@@ -5,6 +5,12 @@ toolkit, and contracts consumed by external apps. This file captures terminology
 domain experts (designers, agent operators, plan authors) need to share with
 implementers.
 
+AOS owns policy-free capability primitives and reusable surface machinery.
+External product repositories own model execution, workflow orchestration,
+product ingress, retries, budgets, memory, and run state. The package boundary
+inside this repository is limited to the toolkit, design tokens, and thin
+CLI/daemon package roots.
+
 ## Language
 
 **Ambient Authority**:

@@ -28,7 +28,7 @@ Optional fields:
 - `author` — who created this
 - `tags` — categorization keywords
 - `triggers` — natural language phrases that should activate this plugin
-- `requires` — runtime dependencies (e.g., gateway, aos-daemon)
+- `requires` — runtime dependencies (e.g., surface-runtime, aos-daemon)
 
 ## Progressive Disclosure
 
@@ -61,7 +61,7 @@ The description field determines whether an agent invokes the plugin. Write it t
 
 Link to wiki entity and concept pages from your SKILL.md and references:
 ```markdown
-See [Gateway](../../../entities/gateway.md) for tool documentation.
+See [Daemon](../../../entities/daemon.md) for runtime documentation.
 ```
 
 This connects the plugin to the broader knowledge graph and helps agents find relevant context during execution.

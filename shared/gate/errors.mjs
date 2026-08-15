@@ -3,10 +3,6 @@ export const GATE_ERROR_CODES = Object.freeze({
   unsupportedField: 'AOS_GATE_UNSUPPORTED_FIELD',
   presentFailed: 'AOS_GATE_PRESENT_FAILED',
   receptorError: 'AOS_GATE_RECEPTOR_ERROR',
-  processFailed: 'AOS_GATE_PROCESS_FAILED',
-  processTimeout: 'AOS_GATE_PROCESS_TIMEOUT',
-  emptyStdout: 'AOS_GATE_EMPTY_STDOUT',
-  malformedStdout: 'AOS_GATE_MALFORMED_STDOUT',
   recordWriteFailed: 'AOS_GATE_RECORD_WRITE_FAILED',
 });
 

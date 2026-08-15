@@ -15,17 +15,10 @@ function clonePoint(point = null) {
 }
 
 export function sigilRadialTargetSurfaceForItem(item = {}, {
-    agentTerminalCanvasId = 'sigil-agent-terminal',
     wikiWorkbenchCanvasId = 'sigil-wiki-workbench',
     wikiPath = 'aos/concepts/runtime-modes.md',
 } = {}) {
     const action = actionForItem(item);
-    if (action === 'agentTerminal' || action === 'codexTerminal') {
-        return {
-            kind: 'agent-terminal',
-            canvas_id: agentTerminalCanvasId,
-        };
-    }
     if (action === 'wikiGraph') {
         return {
             kind: 'wiki-subject-browser',
@@ -71,7 +64,6 @@ export function createSigilRadialActivationRequest({
     snapshot,
     input = { kind: 'gesture', source: 'sigil.avatar' },
     source = null,
-    agentTerminalCanvasId,
     wikiWorkbenchCanvasId,
     wikiPath,
     metadata = {},
@@ -80,7 +72,6 @@ export function createSigilRadialActivationRequest({
         ? { ...input, source: input.source || source || 'sigil.avatar' }
         : { kind: input || 'gesture', source: source || 'sigil.avatar' };
     const targetSurface = sigilRadialTargetSurfaceForItem(item, {
-        agentTerminalCanvasId,
         wikiWorkbenchCanvasId,
         wikiPath,
     });

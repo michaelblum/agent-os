@@ -8,7 +8,7 @@
 
 AOS has primitives for perception, action, projection, communication, and wiki
 workflows. It also has source-backed executable recipes, browser targets, workbench
-subjects, gateway jobs, and a few specialized traces. Those pieces are useful,
+subjects and a few specialized traces. Those pieces are useful,
 but they do not yet describe one first-class thing: work that was done and can
 be understood, used to propose repair, superseded, or retired later.
 

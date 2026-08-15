@@ -21,9 +21,8 @@ export const DEFAULT_LAB_STATE = Object.freeze({
     usedTokens: 50000,
     windowTokens: 100000,
     precision: 'exact',
-    delivery: 'agent-terminal',
+    delivery: 'direct',
     targetCanvasId: 'avatar-main',
-    terminalCanvasId: 'sigil-codex-terminal',
 });
 
 export function clampRatio(value) {
@@ -57,7 +56,6 @@ export function normalizeLabState(input = {}) {
         precision: normalizePrecision(input.precision || DEFAULT_LAB_STATE.precision),
         delivery: String(input.delivery || DEFAULT_LAB_STATE.delivery),
         targetCanvasId: String(input.targetCanvasId || input.target_canvas_id || DEFAULT_LAB_STATE.targetCanvasId),
-        terminalCanvasId: String(input.terminalCanvasId || input.terminal_canvas_id || DEFAULT_LAB_STATE.terminalCanvasId),
     };
 }
 
@@ -122,43 +120,17 @@ export function makeLifecycleEvent(event, input = {}, observedAt = new Date().to
 
 export function makeTelemetryDelivery(input = {}, telemetry = makeTelemetry(input)) {
     const state = normalizeLabState(input);
-    if (state.delivery === 'direct') {
-        return {
-            target: state.targetCanvasId,
-            message: telemetry,
-        };
-    }
     return {
         target: state.targetCanvasId,
-        message: {
-            type: 'canvas_message',
-            id: state.terminalCanvasId,
-            payload: {
-                type: 'agent_terminal.session_telemetry',
-                payload: { telemetry },
-            },
-        },
+        message: telemetry,
     };
 }
 
 export function makeLifecycleDelivery(input = {}, event = makeLifecycleEvent('context_compacted', input)) {
     const state = normalizeLabState(input);
-    if (state.delivery === 'direct') {
-        return {
-            target: state.targetCanvasId,
-            message: event,
-        };
-    }
     return {
         target: state.targetCanvasId,
-        message: {
-            type: 'canvas_message',
-            id: state.terminalCanvasId,
-            payload: {
-                type: 'agent_terminal.session_telemetry',
-                payload: { lifecycle_events: [event] },
-            },
-        },
+        message: event,
     };
 }
 

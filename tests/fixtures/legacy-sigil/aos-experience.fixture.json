@@ -54,7 +54,6 @@
       "avatar-main",
       "sigil-hit-avatar-main",
       "sigil-radial-menu-avatar-main",
-      "sigil-agent-terminal",
       "sigil-wiki-workbench"
     ]
   },
@@ -73,12 +72,6 @@
       "action_id": "aos.sigil.operator_annotation.start",
       "mode": "selection_annotation",
       "create_pending_annotation": true
-    },
-    {
-      "id": "agent-terminal",
-      "label": "Agent Terminal",
-      "kind": "launch_tool",
-      "tool": "sigil-agent-terminal"
     },
     {
       "id": "graph-wiki-brain",

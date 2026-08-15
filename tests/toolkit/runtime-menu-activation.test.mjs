@@ -101,16 +101,16 @@ test('advanceMenuActivation preserves request identity while updating phase', ()
   const request = createMenuActivationRequest({
     id: 'activation-2',
     menuId: 'example.menu',
-    item: { id: 'agent-terminal' },
+    item: { id: 'runtime-diagnostics' },
   });
   const completed = advanceMenuActivation(request, 'completed', {
-    result: { canvas_id: 'example-agent-terminal' },
+    result: { canvas_id: 'example-runtime-diagnostics' },
   });
 
   assert.equal(completed.id, request.id);
   assert.equal(completed.phase, 'completed');
   assert.equal(completed.previous_phase, 'requested');
-  assert.equal(completed.result.canvas_id, 'example-agent-terminal');
+  assert.equal(completed.result.canvas_id, 'example-runtime-diagnostics');
   assert.equal(request.phase, 'requested');
   assert.deepEqual(completed.lifecycle.map((entry) => entry.phase), ['requested', 'completed']);
 });

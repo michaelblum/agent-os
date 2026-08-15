@@ -2401,17 +2401,6 @@
       }
     },
     {
-      "path": ["doctor", "gateway"],
-      "summary": "Run the gateway doctor reporter from the external Node implementation.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "packages/gateway/dist/doctor-cli.js", "--mode", "$AOS_RUNTIME_MODE", "--state-root", "$AOS_STATE_ROOT"],
-      "cwd": "repo",
-      "env": {
-        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
-        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
-      }
-    },
-    {
       "path": ["config", "get"],
       "summary": "Read an AOS config value from the external config command.",
       "executable": "/usr/bin/env",

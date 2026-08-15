@@ -689,7 +689,6 @@
         "docs/design/see-do-grammar-trace-connections.md",
         "docs/design/aos-desktop-playwright-cli-map.md",
         "docs/adr/0041-managed-playwright-companion-runtime.md",
-        "docs/dev/reports/aos-command-capability-inventory-v0.md",
         "docs/dev/test-proof-registry.json",
         "docs/dev/test-proof-registry.d/agent-workspace.json",
         "docs/dev/test-proof-registry.d/browser-companion.json",
@@ -744,7 +743,7 @@
         {
           "id": "browser-companion-command-generation",
           "command": "bash tests/command-manifest-generation.sh",
-          "reason": "Keep source manifests, generated command artifacts, and generated command inventory aligned."
+          "reason": "Keep source manifests and the two generated command artifacts aligned."
         },
         {
           "id": "browser-companion-external-manifest",
@@ -939,8 +938,7 @@
         "scripts/lib/aos-ready-*.mjs",
         "scripts/lib/aos-readiness.mjs",
         "scripts/sign-aos-runtime",
-        "packages/cli/**",
-        "packages/gateway/dist/doctor-cli.js"
+        "packages/cli/**"
       ],
       "classes": [
         "command_contract",
@@ -1118,54 +1116,6 @@
           "id": "agent-capability-schema-test",
           "command": "node --test tests/schemas/aos-agent-capability-manifest-v0.test.mjs",
           "reason": "Validate the capability manifest schema, canonical manifest, and fixtures."
-        }
-      ],
-      "verification": []
-    },
-    {
-      "id": "package-gateway",
-      "summary": "Gateway package TypeScript changed.",
-      "patterns": [
-        "packages/gateway/**"
-      ],
-      "classes": [
-        "package",
-        "gateway"
-      ],
-      "actions": [
-        "package_test"
-      ],
-      "hot_swappable": true,
-      "tcc_identity_sensitive": false,
-      "commands": [
-        {
-          "id": "gateway-test",
-          "command": "cd packages/gateway && npm test",
-          "reason": "Gateway changes stay in the package-local TypeScript test loop."
-        }
-      ],
-      "verification": []
-    },
-    {
-      "id": "package-host",
-      "summary": "Host package TypeScript changed.",
-      "patterns": [
-        "packages/host/**"
-      ],
-      "classes": [
-        "package",
-        "host"
-      ],
-      "actions": [
-        "package_test"
-      ],
-      "hot_swappable": true,
-      "tcc_identity_sensitive": false,
-      "commands": [
-        {
-          "id": "host-test",
-          "command": "cd packages/host && npm test",
-          "reason": "Host changes stay in the package-local TypeScript test loop."
         }
       ],
       "verification": []

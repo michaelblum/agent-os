@@ -22,33 +22,6 @@
       "status": "active"
     },
     {
-      "id": "agent-terminal-substrate-contract",
-      "path_patterns": [
-        "packages/toolkit/components/agent-terminal/launch.sh",
-        "tests/agent-terminal-server.test.mjs",
-        "tests/agent-terminal-substrate-no-provider.test.mjs",
-        "tests/toolkit/agent-terminal-chrome.test.mjs",
-        "tests/renderer/agent-terminal-bridge-client.test.mjs",
-        "tests/renderer/agent-terminal-session-inspector-model.test.mjs",
-        "tests/renderer/agent-terminal-session-inspector-view.test.mjs",
-        "tests/renderer/agent-terminal-session-rail-model.test.mjs",
-        "tests/renderer/agent-terminal-session-rail-view.test.mjs",
-        "tests/renderer/agent-terminal-terminal-controller.test.mjs"
-      ],
-      "fixture_patterns": [],
-      "owner": "toolkit-agent-terminal",
-      "harness_level": "model_unit",
-      "proof_kind": "agent_terminal_substrate_contract",
-      "contract": "Agent Terminal provider observation, PTY transport, chrome, and launcher wiring remain neutral toolkit capabilities with no embedded product route.",
-      "worth": "This preserves the reusable terminal substrate while deleting product launch and renderer ownership.",
-      "command": "node --test tests/agent-terminal-server.test.mjs tests/agent-terminal-substrate-no-provider.test.mjs tests/toolkit/agent-terminal-chrome.test.mjs tests/renderer/agent-terminal-bridge-client.test.mjs tests/renderer/agent-terminal-session-inspector-model.test.mjs tests/renderer/agent-terminal-session-inspector-view.test.mjs tests/renderer/agent-terminal-session-rail-model.test.mjs tests/renderer/agent-terminal-session-rail-view.test.mjs tests/renderer/agent-terminal-terminal-controller.test.mjs",
-      "replaces": [
-        "embedded Sigil Agent Terminal tests and launcher composition"
-      ],
-      "guard": "fake providers and local PTY fixtures only; no AOS daemon",
-      "status": "active"
-    },
-    {
       "id": "agent-ui-target-conformance-contract",
       "path_patterns": [
         "tests/toolkit/agent-ui-target-conformance.test.mjs"
@@ -312,6 +285,23 @@
       "status": "active"
     },
     {
+      "id": "toolkit-stock-component-contract",
+      "path_patterns": [
+        "tests/toolkit/style-contracts.test.mjs",
+        "tests/toolkit/zag-adapter-tabs.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit",
+      "harness_level": "model_unit",
+      "proof_kind": "stock_component_contract",
+      "contract": "Retained stock components preserve shared style constraints and tabs adapters without importing retired product-specific components.",
+      "worth": "This catches stale stock-component imports and adapter coupling while keeping the reusable toolkit inventory product-neutral.",
+      "command": "node --test tests/toolkit/style-contracts.test.mjs tests/toolkit/zag-adapter-tabs.test.mjs",
+      "replaces": [],
+      "guard": "source and DOM fixture tests only; no AOS binary, daemon, native UI, or TCC",
+      "status": "active"
+    },
+    {
       "id": "harness-authority-document-contract",
       "path_patterns": [
         "tests/docs/aos-playwright-style-contract.test.mjs",
@@ -497,19 +487,24 @@
       "status": "manual_only"
     },
     {
-      "id": "wiki-mutation-parser-contract",
+      "id": "wiki-external-command-contract",
       "path_patterns": [
-        "tests/wiki-mutate-external.sh"
+        "tests/wiki-graph-external.sh",
+        "tests/wiki-integration.sh",
+        "tests/wiki-mutate-external.sh",
+        "tests/wiki-query-external.sh",
+        "tests/wiki-read-external.sh",
+        "tests/wiki-reindex-external.sh"
       ],
       "fixture_patterns": [],
       "owner": "wiki-runtime",
       "harness_level": "shell_router",
-      "proof_kind": "wiki_mutation_contract",
-      "contract": "Wiki mutation parser and external dispatch behavior use neutral subject names and reject extra arguments.",
-      "worth": "This keeps command coverage independent of a product wiki namespace.",
-      "command": "bash tests/wiki-mutate-external.sh",
+      "proof_kind": "wiki_external_command_contract",
+      "contract": "Wiki seed, read, query, graph, reindex, and mutation dispatch use neutral entities while preserving traversal, malformed-input, and extra-argument rejection.",
+      "worth": "This keeps the complete public wiki command contract independent of a retired product wiki namespace.",
+      "command": "bash tests/wiki-graph-external.sh && bash tests/wiki-integration.sh && bash tests/wiki-mutate-external.sh && bash tests/wiki-query-external.sh && bash tests/wiki-read-external.sh && bash tests/wiki-reindex-external.sh",
       "replaces": [],
-      "guard": "uses temporary wiki fixtures and command fakes",
+      "guard": "runs the public ./aos wiki contract against disposable isolated state; active for normal CI but explicitly deferred and excluded from the Hub 004 static migration lane",
       "status": "active"
     },
     {

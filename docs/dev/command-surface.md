@@ -49,18 +49,10 @@ in because runtime dispatch and help still load those stable paths, and because
 `AOS_COMMAND_REGISTRY` /
 `AOS_EXTERNAL_COMMAND_MANIFEST` override those artifact paths directly.
 
-The full command/capability inventory is generated from those manifests at
-`docs/dev/reports/aos-command-capability-inventory-v0.md`. Refresh it with:
-
-```bash
-node scripts/generate-command-inventory.mjs
-```
-
-That report is a development audit artifact, not a consumer API contract. It
-records command paths, concrete forms, source manifests, external
-implementations, consumer discovery, mutability, JSON output, dry-run support,
-and proposed capability groups for public CLI and self-hosting boundary
-decisions.
+The existing command/capability inventory under `docs/dev/reports/` is frozen
+historical evidence, not a complete current inventory or a consumer API
+contract. Do not regenerate it. Current command authority is the source
+manifests and the two generated top-level manifests.
 
 Registry metadata must distinguish private command families from consumer
 discovery. A command with `consumer_discovery: false` remains addressable by

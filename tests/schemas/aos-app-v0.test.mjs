@@ -49,7 +49,7 @@ test('legacy Sigil fixture preserves its frozen launch-policy shape', async () =
   const manifest = JSON.parse(await fs.readFile(legacySigilManifestPath, 'utf8'));
   assert.equal(manifest.id, 'sigil');
   assert.equal(manifest.default_entry, 'avatar');
-  assert.deepEqual(Object.keys(manifest.entries).sort(), ['agent-terminal', 'avatar', 'legacy-workbench']);
+  assert.deepEqual(Object.keys(manifest.entries).sort(), ['avatar', 'legacy-workbench']);
   assert.ok(manifest.content_roots.every((root) => root.branch_scoped === true));
   assert.equal(manifest.status_item.toggle_entry, 'avatar');
   assert.equal(manifest.entries['legacy-workbench'].requires_entries[0], 'avatar');

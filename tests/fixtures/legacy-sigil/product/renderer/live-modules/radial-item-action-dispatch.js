@@ -25,7 +25,6 @@ function actionForItem(item = {}) {
 }
 
 export function createSigilRadialItemActionDispatcher({
-    agentTerminalCanvasId = 'sigil-agent-terminal',
     wikiWorkbenchCanvasId = 'sigil-wiki-workbench',
     wikiPath = 'aos/concepts/runtime-modes.md',
     annotationReticleItemId = 'annotation-mode',
@@ -51,7 +50,6 @@ export function createSigilRadialItemActionDispatcher({
             snapshot,
             input: radialActivationInputFromContext(context),
             source: context.source || 'sigil.avatar',
-            agentTerminalCanvasId,
             wikiWorkbenchCanvasId,
             wikiPath,
         });
@@ -97,11 +95,6 @@ export function createSigilRadialItemActionDispatcher({
             sendActivationUpdate(activation, 'completed', { result: { opened: 'avatar-controls' } });
             return { action: 'avatar_controls_opened', opened };
         }
-        if (action === 'agentTerminal' || action === 'codexTerminal') {
-            const result = toggleUtilityCanvas('agent-terminal');
-            sendActivationUpdate(activation, 'completed', { result: { canvas_id: agentTerminalCanvasId } });
-            return { action: 'agent_terminal_opened', canvas_id: agentTerminalCanvasId, result };
-        }
         if (action === 'wikiGraph') {
             const result = openWikiWorkbench(wikiPath, activation).catch((error) => {
                 warn('[sigil] wiki workbench activation failed:', error);
@@ -146,9 +139,6 @@ export function createSigilRadialItemActionDispatcher({
         ),
         wikiGraphOpen: (_path, payload = {}) => (
             dispatch(payload.context?.item || { id: 'wiki-graph', action: 'wikiGraph' }, payload.context?.snapshot || null, payload.context || {})
-        ),
-        agentTerminalOpen: (_kind, payload = {}) => (
-            dispatch(payload.context?.item || { id: 'agent-terminal', action: 'agentTerminal' }, payload.context?.snapshot || null, payload.context || {})
         ),
     });
 

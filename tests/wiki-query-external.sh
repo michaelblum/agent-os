@@ -14,7 +14,7 @@ import json
 import os
 
 pages = json.loads(os.environ["OUT"])
-assert any(page["path"] == "aos/entities/gateway.md" for page in pages), pages
+assert any(page["path"] == "aos/entities/daemon.md" for page in pages), pages
 assert any(page["path"] == "aos/plugins/self-check/SKILL.md" for page in pages), pages
 PY
 
@@ -30,9 +30,9 @@ assert any(page["name"] == "self-check" for page in pages), pages
 PY
 
 ./aos wiki add entity query-test --json >/dev/null
-./aos wiki link query-test gateway --json >/dev/null
+./aos wiki link query-test daemon --json >/dev/null
 
-OUT="$(./aos wiki list --links-to aos/entities/gateway.md --json)"
+OUT="$(./aos wiki list --links-to aos/entities/daemon.md --json)"
 OUT="$OUT" python3 - <<'PY'
 import json
 import os
@@ -47,7 +47,7 @@ import json
 import os
 
 links = json.loads(os.environ["OUT"])
-assert links == [{"source_path": "aos/entities/query-test.md", "target_path": "aos/entities/gateway.md"}], links
+assert links == [{"source_path": "aos/entities/query-test.md", "target_path": "aos/entities/daemon.md"}], links
 PY
 
 OUT="$(./aos wiki search 'IPC Protocol' --json)"
@@ -115,7 +115,7 @@ grep -q '"code": "UNKNOWN_FLAG"' "$ROOT/wiki-search-bogus.err" || {
   exit 1
 }
 
-if ./aos wiki search gateway --type --json 2>"$ROOT/wiki-search-type-missing.err"; then
+if ./aos wiki search daemon --type --json 2>"$ROOT/wiki-search-type-missing.err"; then
   echo "FAIL: wiki search accepted missing --type value"
   exit 1
 fi

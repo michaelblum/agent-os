@@ -14,7 +14,7 @@ Use this index when you are building an AOS canvas surface, composing reusable t
 | Controls | [toolkit/controls.md](./toolkit/controls.md) | plain DOM control factories, stock control CSS classes, timer bar, number-field enhancement |
 | Panel/window policy | [toolkit/panel-window.md](./toolkit/panel-window.md) | `mountChrome`, `createPanelWindowController`, drag/resize/maximize/minimize/restore, placement, `createStageAffordance`, split panes, tabs, single layout |
 | Workbench contracts | [toolkit/workbench.md](./toolkit/workbench.md) | `aos.workbench.subject`, human checkpoint, HTML/Markdown/work-record/artifact/playbook/wiki workbench contracts |
-| Components | [toolkit/components.md](./toolkit/components.md) | Surface Inspector, Surface-Zoom Inspector, Spatial Telemetry, Render Performance, Object Transform Panel, Test Console, Integration Hub, component launch surfaces, controls, theme tokens, Markdown preview |
+| Components | [toolkit/components.md](./toolkit/components.md) | Surface Inspector, Surface-Zoom Inspector, Spatial Telemetry, Render Performance, Object Transform Panel, Test Console, stock workbenches, component launch surfaces, controls, theme tokens, Markdown preview |
 | Content host | [toolkit/content-host.md](./toolkit/content-host.md) | content roots, import/hosting model, Content factories, `ContentHost`, styling boundary, minimal standalone template |
 
 ## What The Toolkit Is

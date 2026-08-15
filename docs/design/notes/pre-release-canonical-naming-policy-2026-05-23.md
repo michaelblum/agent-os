@@ -33,9 +33,3 @@ migrated, not protected by aliases.
 Historical file or path entrypoints can remain when they are real operator
 friction reducers. They should delegate to canonical implementation files and
 must not carry broad env, API, or naming aliases by default.
-
-## Agent Terminal Application
-
-For the toolkit Agent Terminal bridge, `AGENT_TERMINAL_*` is the canonical env
-contract. `SIGIL_AGENT_*` and `SIGIL_CODEX_*` belonged to old ownership layers
-and should not remain as broad bridge env aliases.

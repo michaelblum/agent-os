@@ -180,8 +180,6 @@ Examples:
   grayscale artifacts without the repo binary, capture, daemon, or TCC)
 - `node --test tests/renderer/*.test.mjs`
 - `node --test tests/bundled-whisper-stt.test.mjs`
-- `cd packages/gateway && npm test`
-- `cd packages/host && npm test`
 
 Do not treat `node --test tests/toolkit/*.test.mjs` as static proof. That broad
 glob includes Work Record public-CLI cases that execute the existing `./aos`

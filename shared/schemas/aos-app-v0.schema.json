@@ -86,7 +86,7 @@
                   "additionalProperties": false,
                   "required": ["kind"],
                   "properties": {
-                    "kind": { "enum": ["workbench", "agent_terminal"] }
+                    "kind": { "const": "workbench" }
                   }
                 },
                 "create_if_missing": { "type": "boolean" },

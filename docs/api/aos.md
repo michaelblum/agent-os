@@ -111,10 +111,8 @@ inputs, media, source, product state, diagnostics, or private handles:
   `2026-05-work-record-v0`; it has no Gate field, and the active Step Descriptor
   V1 harness is already neutral, so migration or retirement of that projection
   remains separate schema debt;
-- complete public generic-wait, event-cursor subscription, and semantic-codegen
-  contracts are not yet implemented or claimed;
-- gateway script execution is not a complete public `run-code` surface, and
-  this document does not claim that public command exists.
+- complete public generic-wait, event-cursor subscription, semantic-codegen,
+  and generic `run-code` contracts are not yet implemented or claimed.
 
 These are explicit follow-up gaps and do not reopen the completed Work Record
 authority-excision or Step Descriptor V1 migrations. This slice does not
