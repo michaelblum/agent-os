@@ -39,12 +39,11 @@ typed Target Handle validation, and local cleanup.
   compact stdout must preserve the exact native capture value and fail closed
   if it is missing, without observing displays or creating another capture
   path.
-- Browser saved-handle requests validate the stored session/state/ref against
-  the one current AOS capture generation and require the exact independently
-  verified backend identity that minted it. They then fail closed before
-  backend dispatch because current backend ref-map identity is not atomically
-  bound to the AOS generation. They must never capture, search, reacquire, or
-  substitute state, and must never probe-then-act.
+- Browser capture generations bind a path-free managed backend identity V2:
+  descriptor, closure, entrypoint, and random session generation. Browser
+  saved-handle actions remain outside the managed operation surface and fail
+  closed before backend dispatch. They must never capture, search, reacquire,
+  substitute state, or probe-then-act.
 - Canvas and native AX Locators re-resolve at action time. Zero, multiple, and
   non-unique-near results fail with typed target errors; only explicit native
   `index` may choose one match deterministically.
@@ -74,7 +73,8 @@ typed Target Handle validation, and local cleanup.
 ## Verification
 
 - Run `node --test tests/target-handle-runtime.test.mjs` and
-  `node --test tests/agent-workspace-v1.test.mjs` for handle/storage changes.
+  `node --test tests/agent-workspace-v1.test.mjs tests/agent-workspace-v1-actions.test.mjs`
+  for handle/storage changes.
 - Run `bash tests/native-target-locator-selection.sh` for canvas/native
   exact-one selection changes.
 - For contract, schema, docs, skill, or manifest drift, run

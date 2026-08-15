@@ -1,0 +1,91 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof-worth registry entries owned by the managed browser companion lifecycle and session runtime.",
+  "entries": [
+    {
+      "id": "browser-companion-lifecycle-proof",
+      "path_patterns": [
+        "tests/browser/companion-authority-publication.test.mjs",
+        "tests/browser/companion-lifecycle.test.mjs",
+        "tests/browser/companion-recovery-transitions.test.mjs",
+        "tests/browser/companion-removal-validation.test.mjs",
+        "tests/browser/companion-staging.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "browser-companion",
+      "harness_level": "model_unit",
+      "proof_kind": "package_lifecycle",
+      "contract": "The source-pinned Playwright package closure installs, updates, durably activates, leases, atomically retires, uninstalls, and stages with executable help assets through one private mode-scoped store without network or lifecycle scripts.",
+      "worth": "This proves exact package identity, archive safety, exclusive authority-record publication and crash recovery, observed-state activation cleanup, crash-safe whole-lock recovery, claimed journaled whole-store removal, cooperative quarantine identity checks, schema-valid content-free receipts, both packaging callsites, and direct dispatcher-route staged help execution without claiming native execution.",
+      "command": "node --test tests/browser/companion-authority-publication.test.mjs tests/browser/companion-lifecycle.test.mjs tests/browser/companion-recovery-transitions.test.mjs tests/browser/companion-removal-validation.test.mjs tests/browser/companion-staging.test.mjs",
+      "replaces": [],
+      "guard": "uses only fake in-memory tarballs, injected downloads, cleaned isolated AOS_STATE_ROOT values, bounded subprocesses, and unrelated caller directories",
+      "status": "active"
+    },
+    {
+      "id": "browser-companion-managed-session-proof",
+      "path_patterns": [
+        "tests/browser/managed-session-command.test.mjs",
+        "tests/browser/managed-session-preflight.test.mjs",
+        "tests/browser/managed-browser-swift-contract.test.mjs",
+        "tests/browser/managed-runtime-test-fixture.mjs",
+        "tests/browser/managed-session-consumers.test.mjs",
+        "tests/browser/managed-session-lifecycle.test.mjs",
+        "tests/browser/managed-session-recovery.test.mjs",
+        "tests/browser/managed-worker-request-framing.test.mjs",
+        "tests/browser/managed-guardian-state.test.mjs",
+        "tests/browser/managed-worker-guardian.test.mjs",
+        "tests/browser/managed-worker-acknowledgement.test.mjs",
+        "tests/browser/managed-worker-sequential.test.mjs",
+        "tests/browser/managed-session-test-fixture.mjs",
+        "tests/browser/target-parser.test.sh"
+      ],
+      "fixture_patterns": [
+        "tests/fixtures/browser-target-parser-harness.swift"
+      ],
+      "owner": "browser-companion",
+      "harness_level": "shell_router",
+      "proof_kind": "managed_browser_session",
+      "contract": "Managed system-Chrome launch, direct-CDP, and conservatively admitted Chrome-extension sessions bind one immutable runtime lease and path-free random generation, reject a 129th session before mutation, publish creation and operation intents before worker authority, supervise every real worker through a parent-published PID-bound reservation, stable detached group sentinel, and lock-bound parent-loss cleanup, recover acknowledged effects without replay, retain ambiguous cleanup, and expose only fixed content-free operations with ownership-correct close or detach.",
+      "worth": "This proves managed authority, explicit system-Chrome argv, private worker containment, noncreating whole-list stability, mutation-free guardian publication inspection, durable identity-bound stale-lock outcome transfer and consume-last idempotent recovery, stable complete-tree extension inspection, inert detached-guardian activation, aggregate descriptor output authority, exact EOF-framed inner and outer requests, request/control no-spawn convergence, sentinel-owned nonce-bound TERM-to-KILL proof with exact SIGKILL exit and three EOF witnesses, bounded transport-loss draining, fully validated acknowledgement before per-invocation complete Guardian retirement, returned-record versus unknown acknowledgement classification, schema-valid content-free recovery-pending projection, live-release outcome transfer, ordered consume-last evidence progress before sequential workers, complete-record probe avoidance, no continuing supervised user-code authority, intentional detached-daemon preservation, actual child-spawn latching, exact upstream envelopes, rollback-no-authority intent-last present/absent workspace recovery, proven no-authority active restoration, active-less immutable binding, durable no-replay operation and cleanup phases, lock-cleanup recovery receipt truth, old-version lease identity, final-lease version retirement, exact focus grammar, pure scroll dry-run, narrow browser capture, staged routable-only help projection, fixture/screenshot bounds, Swift broker/adapter typechecking, consumer cutover, and the absence of upstream list, executable fallback, browser locality/anchors/DOM actions, generic code, ref actions, or tab operations without launching a browser.",
+      "command": "node --test tests/browser/managed-session-preflight.test.mjs tests/browser/managed-session-lifecycle.test.mjs tests/browser/managed-session-recovery.test.mjs tests/browser/managed-worker-request-framing.test.mjs tests/browser/managed-guardian-state.test.mjs tests/browser/managed-worker-guardian.test.mjs tests/browser/managed-worker-acknowledgement.test.mjs tests/browser/managed-worker-sequential.test.mjs tests/browser/managed-session-command.test.mjs tests/browser/managed-session-consumers.test.mjs tests/browser/managed-browser-swift-contract.test.mjs && bash tests/browser/target-parser.test.sh && bash tests/swift-runtime-typecheck.sh",
+      "replaces": [
+        "tests/browser-do-keyboard-contract.test.mjs",
+        "tests/browser/anchor-resolver.test.sh",
+        "tests/browser/do-existing-verbs.test.sh",
+        "tests/browser/do-fill.test.sh",
+        "tests/browser/do-navigate.test.sh",
+        "tests/browser/dom-element-target.test.sh",
+        "tests/browser/eval-parser.test.sh",
+        "tests/browser/focus-browser.test.sh",
+        "tests/browser/process.test.sh",
+        "tests/browser/registry-introspection.test.sh",
+        "tests/browser/registry.test.sh",
+        "tests/browser/runtime-resolver.test.mjs",
+        "tests/browser/see-capture.test.sh",
+        "tests/browser/show-anchor.test.sh",
+        "tests/browser/smoke.test.sh",
+        "tests/browser/version-check.test.sh"
+      ],
+      "guard": "fake descriptor-bound managed workers, fake installed runtime trees, isolated state roots, unrelated caller directories, and bounded subprocesses only; does not execute the real package, ./aos, a browser, daemon, native UI, or TCC",
+      "status": "active"
+    },
+    {
+      "id": "browser-companion-schema-proof",
+      "path_patterns": [
+        "tests/schemas/aos-browser-companion-v1.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "browser-companion",
+      "harness_level": "schema",
+      "proof_kind": "package_lifecycle_schema",
+      "contract": "The exact source descriptor plus closed lifecycle, managed-session, path-free backend-identity, mutation, operation, and error projections remain schema-valid and content-free.",
+      "worth": "This prevents descriptor drift, receipt widening, upstream identity leakage, and raw acquisition, worker, endpoint, or filesystem details from entering public contracts.",
+      "command": "node --test tests/schemas/aos-browser-companion-v1.test.mjs",
+      "replaces": [],
+      "guard": "offline schema and projection validation only",
+      "status": "active"
+    }
+  ]
+}

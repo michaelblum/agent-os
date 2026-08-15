@@ -7,7 +7,7 @@
         "do",
         "type"
       ],
-      "summary": "Validate saved browser Observation Ref type requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
+      "summary": "Load saved browser Observation Ref type requests, then fail closed without current-generation or worker dispatch.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -31,14 +31,14 @@
         "do",
         "type"
       ],
-      "summary": "Type into browser sessions; ref-bearing Observation Refs validate, then fail closed with TARGET_ACTION_UNSUPPORTED.",
+      "summary": "Type into browser sessions; direct refs fail closed before session or worker dispatch.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-do-browser.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-do-browser.mjs",
         "type"
       ],
-      "cwd": "repo",
+      "cwd": "$AOS_REPO_ROOT",
       "when": {
         "child_arg_index": 0,
         "prefix": "browser:"
@@ -80,7 +80,7 @@
         "do",
         "key"
       ],
-      "summary": "Validate saved browser Observation Ref key requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
+      "summary": "Load saved browser Observation Ref key requests, then fail closed without current-generation or worker dispatch.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -104,14 +104,14 @@
         "do",
         "key"
       ],
-      "summary": "Press keys in browser sessions; ref-bearing Observation Refs validate, then fail closed with TARGET_ACTION_UNSUPPORTED.",
+      "summary": "Press keys in browser sessions; direct refs fail closed before session or worker dispatch.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-do-browser.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-do-browser.mjs",
         "key"
       ],
-      "cwd": "repo",
+      "cwd": "$AOS_REPO_ROOT",
       "when": {
         "child_arg_index": 0,
         "prefix": "browser:"
@@ -153,7 +153,7 @@
         "do",
         "fill"
       ],
-      "summary": "Validate saved browser Observation Ref fill requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
+      "summary": "Load saved browser Observation Ref fill requests, then fail closed without current-generation or worker dispatch.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -177,14 +177,14 @@
         "do",
         "fill"
       ],
-      "summary": "Validate direct browser Observation Ref fill requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
+      "summary": "Parse exact direct browser-ref fill grammar, then fail closed with TARGET_ACTION_UNSUPPORTED before session or worker dispatch.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-do-browser.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-do-browser.mjs",
         "fill"
       ],
-      "cwd": "repo",
+      "cwd": "$AOS_REPO_ROOT",
       "when": {
         "child_arg_index": 0,
         "excluded_prefixes": [
@@ -206,10 +206,10 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-do-browser.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-do-browser.mjs",
         "navigate"
       ],
-      "cwd": "repo",
+      "cwd": "$AOS_REPO_ROOT",
       "env": {
         "AOS_PATH": "$AOS_PATH",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",

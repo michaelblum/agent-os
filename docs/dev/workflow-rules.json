@@ -164,7 +164,8 @@
       "patterns": [
         "skills/**",
         "scripts/aos-skills*.mjs",
-        "tests/aos-skills-*.test.mjs"
+        "tests/aos-skills-*.test.mjs",
+        "tests/fixtures/aos-skills/cold-agent-forward-proof-v0.json"
       ],
       "classes": [
         "skills"
@@ -612,6 +613,154 @@
         }
       ],
       "verification": []
+    },
+    {
+      "id": "browser-companion-lifecycle",
+      "summary": "Managed Playwright companion lifecycle, session authority, maintained consumer cutover, public contract, or installed staging changed.",
+      "patterns": [
+        "manifests/AGENTS.md",
+        "manifests/companions/**",
+        "manifests/commands/source/aos/07-do-*.json",
+        "manifests/commands/source/aos/15-focus.json",
+        "manifests/commands/source/aos/33-browser*.json",
+        "manifests/commands/source/external/01-help.json",
+        "manifests/commands/source/external/07-do-*.json",
+        "manifests/commands/source/external/11-see.json",
+        "manifests/commands/source/external/22-browser*.json",
+        "manifests/commands/source/external/35-focus.json",
+        "manifests/commands/aos-commands.json",
+        "manifests/commands/aos-external-commands.json",
+        "scripts/AGENTS.md",
+        "scripts/aos-browser-*",
+        "scripts/aos-playwright-cli",
+        "scripts/aos-do-browser.mjs",
+        "scripts/aos-focus-graph.mjs",
+        "scripts/aos-see-native.mjs",
+        "scripts/browser-evidence-capture.mjs",
+        "scripts/lib/agent-workspace/**",
+        "scripts/lib/aos-skills/companions.mjs",
+        "scripts/lib/browser-companion/**",
+        "scripts/lib/focus-daemon.mjs",
+        "scripts/lib/focus-depth.mjs",
+        "scripts/lib/playwright-cli-runtime.mjs",
+        "scripts/lib/target-handle-runtime.mjs",
+        "scripts/stage-browser-companion-runtime.mjs",
+        "scripts/package-aos-runtime",
+        "scripts/aos-help-proxy.mjs",
+        "scripts/lib/external-command-routes.mjs",
+        "package.sh",
+        "shared/AGENTS.md",
+        "shared/schemas/aos-agent-workspace-v1.*",
+        "shared/schemas/aos-browser-backend-identity-v2.schema.json",
+        "shared/schemas/aos-browser-companion-*.schema.json",
+        "shared/schemas/aos-browser-session-result-v1.schema.json",
+        "shared/schemas/aos-target-handle-v1.*",
+        "shared/schemas/browser-evidence-capture-v0.schema.json",
+        "shared/schemas/fixtures/browser-evidence-capture-v0/**",
+        "skills/aos-browser/SKILL.md",
+        "skills/aos-focus-sessions/SKILL.md",
+        "skills/registry.json",
+        "src/AGENTS.md",
+        "src/browser/**",
+        "src/daemon/unified.swift",
+        "src/perceive/capture-pipeline.swift",
+        "packages/toolkit/AGENTS.md",
+        "packages/toolkit/workbench/browser-evidence-*.js",
+        "tests/AGENTS.md",
+        "tests/aos-skills-companion.test.mjs",
+        "tests/browser/**",
+        "tests/browser-do-keyboard-contract.test.mjs",
+        "tests/fixtures/browser-target-parser-harness.swift",
+        "tests/agent-workspace-v1*.test.mjs",
+        "tests/lib/agent-workspace-v1-fixture.mjs",
+        "tests/lib/agent-workspace-fixtures*",
+        "tests/lib/pending-annotation-fixtures.mjs",
+        "tests/schemas/aos-browser-companion-v1.test.mjs",
+        "tests/target-handle-runtime.test.mjs",
+        "tests/toolkit/browser-evidence-capture.test.mjs",
+        "docs/api/aos.md",
+        "docs/api/aos-capabilities.md",
+        "docs/api/README.md",
+        "docs/api/toolkit/workbench.md",
+        "CONTEXT.md",
+        "ARCHITECTURE.md",
+        "docs/adr/0004-anchor-is-a-role-resolved-into-a-binding.md",
+        "docs/adr/0018-installable-aos-skills.md",
+        "docs/design/see-do-grammar-trace-connections.md",
+        "docs/design/aos-desktop-playwright-cli-map.md",
+        "docs/adr/0041-managed-playwright-companion-runtime.md",
+        "docs/dev/reports/aos-command-capability-inventory-v0.md",
+        "docs/dev/test-proof-registry.json",
+        "docs/dev/test-proof-registry.d/agent-workspace.json",
+        "docs/dev/test-proof-registry.d/browser-companion.json",
+        "docs/dev/test-proof-registry.d/skills.json",
+        "docs/dev/test-proof-registry.d/toolkit.json"
+      ],
+      "classes": [
+        "browser_companion",
+        "command_contract",
+        "package_lifecycle",
+        "managed_browser_session",
+        "schema"
+      ],
+      "actions": [
+        "focused_test",
+        "schema_test",
+        "help_contract"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "browser-companion-syntax",
+          "command": "node --check scripts/aos-browser-companion.mjs && node --check scripts/aos-browser-broker.mjs && node --check scripts/aos-browser-internal.mjs && node --check scripts/aos-browser-worker-guardian.mjs && node --check scripts/aos-browser-worker-group.mjs && node --check scripts/aos-do-browser.mjs && node --check scripts/aos-focus-graph.mjs && node --check scripts/aos-see-native.mjs && node --check scripts/browser-evidence-capture.mjs && node --check scripts/stage-browser-companion-runtime.mjs && node --check scripts/lib/focus-depth.mjs && node --check scripts/lib/browser-companion/extension-profile.mjs && node --check scripts/lib/browser-companion/extension-profile-scan.mjs && node --check scripts/lib/browser-companion/package-version.mjs && node --check scripts/lib/browser-companion/see-capture-options.mjs && node --check scripts/lib/browser-companion/session-create.mjs && node --check scripts/lib/browser-companion/session-evidence-ack.mjs && node --check scripts/lib/browser-companion/session-evidence-operation.mjs && node --check scripts/lib/browser-companion/session-guardian-recovery.mjs && node --check scripts/lib/browser-companion/session-intent.mjs && node --check scripts/lib/browser-companion/session-lifecycle.mjs && node --check scripts/lib/browser-companion/session-model.mjs && node --check scripts/lib/browser-companion/session-operations.mjs && node --check scripts/lib/browser-companion/session-runner.mjs && node --check scripts/lib/browser-companion/session-store.mjs && node --check scripts/lib/browser-companion/session-target.mjs && node --check scripts/lib/browser-companion/session-transitions.mjs && node --check scripts/lib/browser-companion/session-worker-pending.mjs && node --check scripts/lib/browser-companion/snapshot-parser.mjs && node --check scripts/lib/browser-companion/worker-group-sentinel.mjs && node --check scripts/lib/browser-companion/worker-guardian-client.mjs && node --check scripts/lib/browser-companion/worker-guardian-outcome.mjs && node --check scripts/lib/browser-companion/worker-guardian-state.mjs && node --check scripts/lib/browser-companion/worker-guardian.mjs && node --check scripts/lib/browser-companion/worker-process-group.mjs && node --check scripts/lib/browser-companion/worker-protocol.mjs && node --check scripts/lib/browser-companion/evidence-query.mjs && node --check packages/toolkit/workbench/browser-evidence-capture.js && node --check packages/toolkit/workbench/browser-evidence-model.js",
+          "reason": "Parse the managed session CLI adapters, installed stager, fixed worker modules, and Toolkit consumer without spawning a worker or executing a lifecycle operation."
+        },
+        {
+          "id": "browser-companion-managed-session-proof",
+          "command": "node --test tests/browser/managed-session-preflight.test.mjs tests/browser/managed-session-lifecycle.test.mjs tests/browser/managed-session-recovery.test.mjs tests/browser/managed-worker-request-framing.test.mjs tests/browser/managed-guardian-state.test.mjs tests/browser/managed-worker-guardian.test.mjs tests/browser/managed-worker-acknowledgement.test.mjs tests/browser/managed-worker-sequential.test.mjs tests/browser/managed-session-command.test.mjs tests/browser/managed-session-consumers.test.mjs tests/browser/managed-browser-swift-contract.test.mjs",
+          "reason": "Exercise fake-worker system-Chrome/CDP/extension ownership, 128-record and stable complete-tree profile preflight, durable rollback-no-authority present/absent workspace recovery, active-less immutable binding, mutation-free guardian inspection, bound stale-lock outcome transfer and consume-last recovery, exact EOF request framing, inert parent-published guardian activation, aggregate descriptor output caps, request/control no-spawn convergence, sentinel-owned nonce-bound TERM-to-KILL proof of no continuing supervised user-code authority, fully validated acknowledgement before complete Guardian retirement, live-release outcome transfer, ordered evidence progress before sequential subworkers, intended detached-daemon lifetime, actual-spawn latching, durable no-replay transitions, lock-cleanup recovery receipt truth, final-lease retirement, whole-list stability, exact focus grammar, pure scroll validation, narrow browser capture, actual staged focus/broker receipts and routable-only help projection, private containment, narrow Swift bounds/typechecking, consumer cutover, and installed closure without real package or browser execution."
+        },
+        {
+          "id": "browser-companion-swift-typecheck",
+          "command": "bash tests/swift-runtime-typecheck.sh",
+          "reason": "Typecheck the complete Swift graph containing the managed Node broker, browser adapter, capture pipeline, and daemon after retiring resolver, locality, anchor, and DOM seams."
+        },
+        {
+          "id": "browser-companion-managed-consumer-contracts",
+          "command": "node --test tests/target-handle-runtime.test.mjs tests/agent-workspace-v1.test.mjs tests/agent-workspace-v1-actions.test.mjs tests/aos-skills-companion.test.mjs tests/toolkit/browser-evidence-capture.test.mjs && bash tests/browser/target-parser.test.sh",
+          "reason": "Verify path-free backend identity and skills planning, browser-ref no-dispatch, managed Toolkit evidence, and the narrow Swift target grammar with fake workers and pure parsers only."
+        },
+        {
+          "id": "browser-companion-lifecycle-proof",
+          "command": "node --test tests/browser/companion-authority-publication.test.mjs tests/browser/companion-lifecycle.test.mjs tests/browser/companion-recovery-transitions.test.mjs tests/browser/companion-removal-validation.test.mjs tests/browser/companion-staging.test.mjs",
+          "reason": "Exercise exclusive authority-record publication, fake-tarball lifecycle, observed-state activation cleanup, crash-safe whole-lock recovery, claimed journaled whole-store removal, transition capacity, schema-valid receipts, and dispatcher-route staged help execution offline."
+        },
+        {
+          "id": "browser-companion-schema-proof",
+          "command": "node --test tests/schemas/aos-browser-companion-v1.test.mjs",
+          "reason": "Validate the exact source descriptor plus closed lifecycle, managed-session, and path-free backend identity projections."
+        },
+        {
+          "id": "browser-companion-command-generation",
+          "command": "bash tests/command-manifest-generation.sh",
+          "reason": "Keep source manifests, generated command artifacts, and generated command inventory aligned."
+        },
+        {
+          "id": "browser-companion-external-manifest",
+          "command": "node --test tests/schemas/aos-external-command-manifest-v0.test.mjs",
+          "reason": "Validate the exact external browser companion routes and installed script targets without executing the AOS binary."
+        },
+        {
+          "id": "browser-companion-direct-help",
+          "command": "node scripts/aos-browser-companion.mjs --help",
+          "reason": "Render the lifecycle help directly without invoking ./aos or any runtime mutation."
+        }
+      ],
+      "verification": [],
+      "notes": [
+        "All focused checks are offline, use fake workers and isolated state, and do not execute ./aos, the pinned package, a browser, the daemon, package lifecycle scripts, native UI, or TCC-sensitive code."
+      ]
     },
     {
       "id": "browser-intent-sensor",

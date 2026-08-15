@@ -172,7 +172,7 @@
         "./aos focus list",
         "./aos focus create --id desktop-proof --window <window-id>",
         "./aos see capture --channel desktop-proof --save --workspace \"$AOS_WORKSPACE\"",
-        "./aos focus remove --id desktop-proof"
+        "./aos focus remove --id desktop-proof --backend native"
       ],
       "captured_output": {
         "decision": "Use explicit channel ids as the AOS session model. Pair focus channels with explicit workspaces so parallel agents do not share hidden current state.",

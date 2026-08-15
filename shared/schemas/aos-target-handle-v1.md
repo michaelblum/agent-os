@@ -24,20 +24,24 @@ actions. There is no browser Locator grammar or native Observation Ref in V1.
 ## Browser identity proof
 
 Observation Ref generation validation, including dry-run requests, is
-restricted to the source-reviewed `@playwright/cli` 0.1.15 backend. In that
-release, Playwright attaches a monotonic aria ref to one DOM `Element` within a
+restricted to a source-reviewed immutable `@playwright/cli` backend retained by
+the managed store. In the currently pinned 0.1.15 release, Playwright attaches
+a monotonic aria ref to one DOM `Element` within a
 document, but every CLI response captures a new current ref map and a new
 document can restart ref allocation. A separate probe followed by an action
 therefore cannot prove that the original AOS capture still owns the backend ref.
 AOS rejects invalid or duplicate refs in a captured generation and rejects a
 repeated capture `state_id` without replacing the current generation.
-The generation control record binds the minting backend's canonical executable
-path and hashes to the package-backed `0.1.15` implementation and dependency
-closure; repo wrappers and self-reported versions cannot mint or act on refs;
-request-time provenance must match exactly. Self-reported override or PATH
-versions are not sufficient. Because package identity alone does not bind the
+The generation control record is path-free. It binds the minting backend's
+bounded package version, source descriptor digest, exact closure digest,
+package-relative entrypoint, and random managed-session generation. An older
+leased runtime retains its own exact immutable identity while a newer active
+runtime serves new sessions; repo wrappers and self-reported versions cannot
+mint or act on refs, and request-time provenance must match every V2 field.
+Self-reported override, an executable path, or a PATH version is not authority.
+Because package identity alone does not bind the
 backend's current ref map to the AOS `state_id`, direct and saved browser
 Observation Ref dry-run/effect requests fail before backend dispatch with
 `TARGET_ACTION_UNSUPPORTED` and
-`reason:browser_observation_identity_unproven`. This is the required
+`reason:browser_ref_actions_unsupported`. This is the required
 fail-closed identity blocker, not reacquisition or a browser Locator fallback.

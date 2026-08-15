@@ -9,7 +9,7 @@ import {
   COMPANION_CHECK_SCHEMA_VERSION,
   COMPANION_INSTALL_PLAN_SCHEMA_VERSION,
 } from './shared.mjs';
-import { resolvePlaywrightCliRuntime } from '../playwright-cli-runtime.mjs';
+import { companionStatus } from '../browser-companion/lifecycle.mjs';
 
 const PLAYWRIGHT_COMPANION_NAMES = new Set(['playwright', 'playwright-cli']);
 const PLAYWRIGHT_OWNER_FIELDS = ['owner', 'managed_by', 'generated_by', 'package_owner'];
@@ -123,10 +123,19 @@ async function detectPlaywrightCompanionInstall(target) {
 }
 
 function companionRuntimePayload(options = {}) {
-  return resolvePlaywrightCliRuntime({
+  const receipt = companionStatus({
     repoRoot: path.resolve(options.repoRoot ?? process.cwd()),
     env: options.env ?? process.env,
+    current: options.current,
   });
+  return {
+    status: receipt.state === 'current' ? 'ok' : 'blocked',
+    managed: true,
+    state: receipt.state,
+    version: receipt.installed_version,
+    descriptor_sha256: receipt.installed_descriptor_sha256,
+    closure_sha256: receipt.closure_sha256,
+  };
 }
 
 export async function checkSkillCompanion(options = {}) {
@@ -181,9 +190,9 @@ export async function planSkillCompanionInstall(options = {}) {
     planned_invocation: blocked.length
       ? null
       : {
-        executable: runtime.path,
+        executable: 'playwright-cli',
         argv: ['install', '--skills'],
-        note: 'AOS reports this external Playwright CLI invocation but does not run it in dry-run mode.',
+        note: 'Path-free external escape-hatch plan; AOS does not execute or resolve this skill installer.',
       },
     planned_aos_writes: [],
     blocked,

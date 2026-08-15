@@ -38,6 +38,16 @@ commands, runtime helpers, wiki tools, and command adapters.
   projection of the generated external-command manifest. It must fail when the
   addon or generated command family is absent instead of packaging an
   unreachable or pathname-fallback route.
+- `stage-browser-companion-runtime.mjs` owns the separate installed projection
+  for the managed Playwright companion command and consumers, focused modules,
+  exact descriptor, closed schemas, a closed projection of the generated
+  command registry containing only staged routable forms, help proxy and
+  route matcher, and exact help/browser/focus/do/see external routes. Both packaging
+  scripts call it, and it merges those routes without changing the Work
+  Record-owned staging projection. The copied help route remains source-owned
+  and resolves its proxy and working directory through `$AOS_REPO_ROOT`; the
+  focused staging proof exercises that dispatcher projection from an unrelated
+  caller directory.
 - `lib/` owns shared JavaScript helpers for scripts.
 - `lib/aos-readiness.mjs` owns the effective permission view, readiness
   decision model, and reusable status/doctor/permissions projections. The
@@ -120,6 +130,28 @@ commands, runtime helpers, wiki tools, and command adapters.
   mixed-responsibility skills registry file.
 - `lib/aos-skills-registry.mjs` is a compatibility re-export only; do not add
   new behavior there.
+- `aos-browser-companion.mjs` is the public status/install/update/uninstall CLI
+  for the source-pinned Playwright package runtime. Its focused implementation
+  and store ownership rules live under `lib/browser-companion/AGENTS.md`.
+- `aos-focus-graph.mjs`, `aos-do-browser.mjs`, `aos-browser-internal.mjs`, and
+  `aos-browser-broker.mjs` consume only the managed session authority under
+  `lib/browser-companion/`. They expose fixed operations and must never regain
+  executable-path resolution, upstream list, generic eval/code, browser-window
+  locality/anchors/DOM hit testing, or fallback.
+- `aos-browser-worker-guardian.mjs` and `aos-browser-worker-group.mjs` are the
+  installed private Node supervision entrypoints. The guardian remains inert
+  until its parent publishes the PID-bound lock-token reservation and sends
+  activation. The detached group sentinel holds the exact process-group
+  identity through aggregate-bounded raw stdout/stderr forwarding and bounded
+  TERM-to-KILL proof. Forced completion requires exact SIGKILL exit plus
+  untruncated control EOF and both raw EOF witnesses; transport loss drains both
+  relays. Its small control channel never carries worker output.
+- `lib/focus-depth.mjs` owns the canonical native focus traversal-depth grammar
+  (`0...15`) used before daemon dispatch.
+- Installed companion staging projects only the browser consumer forms whose
+  external routes are included in that closed runtime. Browser `do` advertises
+  only navigate/type/key/scroll, and browser capture advertises only its narrow
+  whole-session and saved-workspace variants.
 - Native capability stays in `src/`; public schema contracts stay in
   `shared/schemas/`.
 - **ADR 0040 target boundary:** facts already admitted to bounded public
@@ -130,12 +162,11 @@ commands, runtime helpers, wiki tools, and command adapters.
   adjacent media, source, product, or private transport content that their
   public contracts do not observe.
 - `lib/target-handle-runtime.mjs` owns the one current bounded browser
-  Observation Ref generation per session. `lib/playwright-cli-runtime.mjs`
-  supplies its independently verified package-backed implementation-closure
-  backend identity. Package identity does not prove the backend's current ref
-  map belongs to the AOS capture generation, so browser Observation Ref dry-run
-  and effect requests must fail before backend dispatch; never substitute a
-  separate probe, reacquisition, or merely self-reported version. The same
+  Observation Ref generation per managed session. Its path-free V2 backend
+  identity binds the exact descriptor, closure, entrypoint, and random session
+  generation. Browser Observation Ref actions remain outside the fixed managed
+  operation surface and fail before backend dispatch; never substitute a
+  separate probe, reacquisition, or another generation. The same
   target-handle owner enforces the public native AX Locator caps of depth 128
   and timeout 30,000 ms before native dispatch.
 - `lib/aos-voice-follow.mjs` owns the bounded daemon-follow lifecycle used by
@@ -226,20 +257,13 @@ commands, runtime helpers, wiki tools, and command adapters.
   treat an unsupported plan as success.
 - Avoid direct daemon/socket/launchd bypasses unless the script is the sanctioned
   adapter for that lower-level operation.
-- Browser helpers must resolve `playwright-cli` through
-  `scripts/lib/playwright-cli-runtime.mjs`, the public script-policy owner for
-  browser helper and proof-harness runtime discovery. The Swift
-  `src/browser/playwright-version-check.swift` resolver is an intentional
-  native/bootstrap mirror for the hidden `aos browser _check-version` adapter;
-  keep its minimum version and discovery order aligned with the JS resolver
-  until native bootstrap extraction removes the direct Swift resolver need.
-  Preserve structured missing, too-old, and probe-failure evidence instead of
-  adding ad hoc PATH checks. Effectful browser Observation Ref actions are
-  additionally restricted to the source-reviewed exact CLI package version
-  declared by `OBSERVATION_REF_IDENTITY_REVIEWED_VERSION`; other versions fail
-  closed until their ref identity implementation is reviewed. Even the reviewed
-  package remains non-actionable for Observation Refs until one backend operation
-  can atomically bind the original AOS capture generation to ref resolution.
+- Browser helpers must resolve a session record through the managed companion
+  store and global store lock. The record binds the exact immutable runtime;
+  there is no JS or Swift executable resolver, version probe, legacy registry,
+  PATH/npx fallback, environment override, or generic upstream command route.
+  Preserve content-free typed missing, inactive, cleanup-required, migration,
+  store, and worker errors. Browser Observation Ref actions remain unsupported
+  even when their V2 backend identity is current.
 - Development build wrappers must distinguish an actual repo-mode `./aos`
   binary rebuild from no-op checks. Repo-mode builds must not post-sign the
   local binary; ADR 0023 owns this managed-endpoint compatibility contract and
@@ -327,6 +351,8 @@ commands, runtime helpers, wiki tools, and command adapters.
 
 ## Child DOX Index
 
+- `lib/browser-companion/AGENTS.md` owns the managed Playwright package
+  lifecycle, private store, acquisition, activation, and output projection.
 - `lib/aos-skills/AGENTS.md` owns root skill registry helper modules.
 - `lib/` contains shared script helper modules.
 - `lib/agent-workspace/AGENTS.md` owns saved perception workspace helpers,

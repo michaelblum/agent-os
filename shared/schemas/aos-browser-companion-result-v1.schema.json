@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-browser-companion-result-v1.schema.json",
+  "title": "AOS Managed Playwright Companion Result V1",
+  "oneOf": [
+    { "$ref": "#/$defs/status" },
+    { "$ref": "#/$defs/mutation" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "sha256_or_null": {
+      "type": ["string", "null"],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "version_or_null": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[A-Za-z0-9.-]+)?$"
+    },
+    "status": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "operation",
+        "status",
+        "state",
+        "managed_tool",
+        "current_version",
+        "installed_version",
+        "descriptor_sha256",
+        "installed_descriptor_sha256",
+        "closure_sha256",
+        "checked_at"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "const": "aos.browser.companion.status.v1" },
+        "operation": { "const": "status" },
+        "status": { "const": "ok" },
+        "state": { "enum": ["missing", "current", "update_available", "partial", "corrupt", "blocked"] },
+        "managed_tool": { "const": "playwright-cli" },
+        "current_version": { "type": "string", "minLength": 1 },
+        "installed_version": { "$ref": "#/$defs/version_or_null" },
+        "descriptor_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "installed_descriptor_sha256": { "$ref": "#/$defs/sha256_or_null" },
+        "closure_sha256": { "$ref": "#/$defs/sha256_or_null" },
+        "checked_at": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$" }
+      }
+    },
+    "mutation": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "operation",
+        "status",
+        "previous_version",
+        "active_version",
+        "descriptor_sha256",
+        "closure_sha256",
+        "before_state",
+        "after_state",
+        "session_cleanup_count",
+        "recovery_pending",
+        "duration_ms",
+        "completed_at"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "const": "aos.browser.companion.mutation.v1" },
+        "operation": { "enum": ["install", "update", "uninstall"] },
+        "status": { "enum": ["installed", "unchanged", "updated", "uninstalled", "already_absent"] },
+        "previous_version": { "$ref": "#/$defs/version_or_null" },
+        "active_version": { "$ref": "#/$defs/version_or_null" },
+        "descriptor_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "closure_sha256": { "$ref": "#/$defs/sha256_or_null" },
+        "before_state": { "enum": ["missing", "current", "update_available", "partial", "corrupt", "blocked"] },
+        "after_state": { "enum": ["missing", "current", "partial"] },
+        "session_cleanup_count": { "const": 0 },
+        "recovery_pending": { "type": "boolean" },
+        "duration_ms": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "completed_at": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "operation": { "const": "install" } } },
+          "then": {
+            "properties": {
+              "status": { "enum": ["installed", "unchanged"] },
+              "active_version": { "type": "string" },
+              "closure_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "operation": { "const": "update" } } },
+          "then": {
+            "properties": {
+              "status": { "enum": ["updated", "unchanged"] },
+              "active_version": { "type": "string" },
+              "closure_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "operation": { "const": "uninstall" } } },
+          "then": {
+            "properties": {
+              "status": { "enum": ["uninstalled", "already_absent"] },
+              "active_version": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "status": { "const": "already_absent" } } },
+          "then": {
+            "properties": {
+              "previous_version": { "type": "null" },
+              "closure_sha256": { "type": "null" },
+              "before_state": { "const": "missing" },
+              "after_state": { "const": "missing" },
+              "recovery_pending": { "const": false }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": { "const": "uninstalled" },
+              "previous_version": { "type": "string" }
+            },
+            "required": ["status", "previous_version"]
+          },
+          "then": {
+            "properties": {
+              "closure_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "status": { "const": "already_absent" } } },
+          "then": { "properties": { "recovery_pending": { "const": false } } }
+        },
+        {
+          "if": { "properties": { "after_state": { "const": "partial" } } },
+          "then": {
+            "properties": {
+              "operation": { "enum": ["install", "update", "uninstall"] },
+              "status": { "enum": ["installed", "unchanged", "updated", "uninstalled"] },
+              "recovery_pending": { "const": true }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "recovery_pending": { "const": true } } },
+          "then": { "properties": { "after_state": { "const": "partial" } } }
+        }
+      ]
+    },
+    "error": {
+      "type": "object",
+      "required": ["schema_version", "operation", "status", "code", "error"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "const": "aos.browser.companion.error.v1" },
+        "operation": { "enum": ["status", "install", "update", "uninstall"] },
+        "status": { "const": "error" },
+        "code": {
+          "enum": [
+            "COMPANION_INVALID_ARGUMENT",
+            "COMPANION_NODE_UNSUPPORTED",
+            "COMPANION_DESCRIPTOR_INVALID",
+            "COMPANION_STORE_BLOCKED",
+            "COMPANION_STORE_CORRUPT",
+            "COMPANION_STORE_BUSY",
+            "COMPANION_DOWNLOAD_FAILED",
+            "COMPANION_DOWNLOAD_TIMEOUT",
+            "COMPANION_DOWNLOAD_LIMIT",
+            "COMPANION_INTEGRITY_MISMATCH",
+            "COMPANION_ARCHIVE_INVALID",
+            "COMPANION_ARCHIVE_LIMIT",
+            "COMPANION_PACKAGE_INVALID",
+            "COMPANION_ACTIVATION_FAILED",
+            "COMPANION_UPDATE_MISSING",
+            "COMPANION_UPDATE_REQUIRED",
+            "COMPANION_LEASES_ACTIVE",
+            "COMPANION_INTERNAL"
+          ]
+        },
+        "error": { "type": "string", "minLength": 1, "maxLength": 120 }
+      }
+    }
+  }
+}

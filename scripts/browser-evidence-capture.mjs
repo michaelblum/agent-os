@@ -4,18 +4,19 @@ import path from 'node:path';
 import {
   captureBrowserEvidenceManifest,
 } from '../packages/toolkit/workbench/browser-evidence-capture.js';
+import { captureManagedBrowserEvidence } from './lib/browser-companion/session-lifecycle.mjs';
 
 function usage() {
-  return `Usage: node scripts/browser-evidence-capture.mjs --manifest <manifest.json> --out <registry.json> [--asset-dir evidence] [--playwright-cli playwright-cli]
+  return `Usage: node scripts/browser-evidence-capture.mjs --session <managed-id> --manifest <manifest.json> --out <registry.json> [--asset-dir evidence]
 
-Captures local fixture browser elements into a Browser Evidence Capture V0 registry.
-Only file, data, relative fixture, and localhost URLs are accepted.`;
+Captures local fixture browser evidence through one managed Playwright companion session.
+Only file, data, relative fixture, and localhost URLs are accepted.
+File and relative fixture inputs are limited to 3000 bytes so their projected data URL remains within the managed runtime bound.`;
 }
 
 function parseArgs(argv) {
   const args = {
     assetDir: 'evidence',
-    playwrightCli: 'playwright-cli',
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -30,8 +31,8 @@ function parseArgs(argv) {
     } else if (arg === '--asset-dir') {
       args.assetDir = argv[index + 1];
       index += 1;
-    } else if (arg === '--playwright-cli') {
-      args.playwrightCli = argv[index + 1];
+    } else if (arg === '--session') {
+      args.session = argv[index + 1];
       index += 1;
     } else {
       throw new Error(`Unknown argument: ${arg}`);
@@ -40,24 +41,25 @@ function parseArgs(argv) {
   return args;
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     console.log(usage());
     return;
   }
-  if (!args.manifest || !args.out) {
-    throw new Error('Both --manifest and --out are required.');
+  if (!args.session || !args.manifest || !args.out) {
+    throw new Error('--session, --manifest, and --out are required.');
   }
 
   const manifestPath = path.resolve(args.manifest);
   const outputPath = path.resolve(args.out);
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  const registry = captureBrowserEvidenceManifest(manifest, {
+  const registry = await captureBrowserEvidenceManifest(manifest, {
     assetDir: args.assetDir,
     cwd: path.dirname(manifestPath),
     outputPath,
-    playwrightCli: args.playwrightCli,
+    sessionId: args.session,
+    managedEvidenceOperation: captureManagedBrowserEvidence,
   });
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
@@ -66,7 +68,7 @@ function main() {
 }
 
 try {
-  main();
+  await main();
 } catch (caught) {
   console.error(caught.message);
   process.exitCode = 1;

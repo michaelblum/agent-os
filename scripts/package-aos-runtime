@@ -39,6 +39,7 @@ mkdir -p "$AOS_RESOURCE_ROOT/packages/toolkit/components"
 # command adapter/manifest, module marker, bundled-root sentinel, and default V1
 # records so the installed command route is complete.
 node "$REPO_ROOT/scripts/stage-work-record-runtime.mjs" "$AOS_RESOURCE_ROOT"
+node "$REPO_ROOT/scripts/stage-browser-companion-runtime.mjs" "$AOS_RESOURCE_ROOT"
 
 # ── aos-gateway (MCP + broker) ─────────────────────────────────
 # Plan: docs/superpowers/plans/2026-04-22-gateway-hardening.md (Task 14)

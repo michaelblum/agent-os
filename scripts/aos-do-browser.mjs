@@ -1,325 +1,109 @@
 #!/usr/bin/env node
 
-import { spawnSync } from 'node:child_process';
 import {
-  resolvePlaywrightCliRuntime,
-  resolveReviewedObservationRuntime,
-  runPlaywrightCli,
-} from './lib/playwright-cli-runtime.mjs';
-import {
-  TargetHandleError,
-  browserObservationHandle,
-  emitTargetHandleError,
-  validateBrowserObservationRef,
-} from './lib/target-handle-runtime.mjs';
+  executeManagedSessionOperation,
+  validateManagedSessionOperation,
+} from './lib/browser-companion/session-lifecycle.mjs';
+import { parseManagedBrowserTarget, requireSessionOnlyTarget } from './lib/browser-companion/session-target.mjs';
+import { ManagedSessionError, sessionErrorReceipt } from './lib/browser-companion/session-model.mjs';
 
-function error(message, code) {
-  process.stderr.write(`{\n  "code" : ${JSON.stringify(code)},\n  "error" : ${JSON.stringify(message)}\n}\n`);
+function fail(message, code) {
+  process.stderr.write(`${JSON.stringify({ code, error: message })}\n`);
   process.exit(1);
 }
 
-function unknownArg(arg) {
-  error(`Unknown ${String(arg).startsWith('--') ? 'flag' : 'argument'}: ${arg}`, String(arg).startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
-}
-
-function aosPath() {
-  return process.env.AOS_PATH || './aos';
-}
-
-function parseBrowserTarget(input) {
-  if (!input.startsWith('browser:')) {
-    throw ['INVALID_TARGET', "invalid target: target must start with 'browser:'"];
-  }
-  const remainder = input.slice('browser:'.length);
-  if (remainder === '') {
-    const session = process.env.PLAYWRIGHT_CLI_SESSION;
-    if (!session) throw ['MISSING_SESSION', 'PLAYWRIGHT_CLI_SESSION not set'];
-    validateSession(session);
-    return { session, ref: null };
-  }
-  if (remainder.startsWith('/')) {
-    throw ['INVALID_TARGET', "invalid target: unexpected '/' after 'browser:'"];
-  }
-  const parts = remainder.split('/');
-  if (parts.length === 1) {
-    validateSession(parts[0]);
-    return { session: parts[0], ref: null };
-  }
-  if (parts.length === 2) {
-    validateSession(parts[0]);
-    validateRef(parts[1]);
-    return { session: parts[0], ref: parts[1] };
-  }
-  throw ['INVALID_TARGET', "invalid target: too many '/' segments; v1 supports only browser:<session>[/<ref>]"];
-}
-
-function validateSession(value) {
-  if (!value) throw ['INVALID_TARGET', 'invalid target: empty session name'];
-  if (!/^[A-Za-z0-9_-]+$/.test(value)) {
-    throw ['INVALID_TARGET', 'invalid target: session name must match [A-Za-z0-9_-]+'];
-  }
-}
-
-function validateRef(value) {
-  if (!value) throw ['INVALID_TARGET', 'invalid target: empty ref'];
-  if (!/^(?:f\d+)?e\d+$/.test(value)) {
-    throw ['TARGET_HANDLE_INVALID', 'invalid target: browser ref must be a Playwright ref like e21 or f2e21'];
-  }
-}
-
-function positionalArgs(args, allowedFlags = []) {
+function parse(args, valueFlags = [], boolFlags = []) {
+  const values = new Set(valueFlags);
+  const booleans = new Set(boolFlags);
   const positional = [];
-  const valueFlags = new Set(['--state-id']);
-  const allowed = new Set(['--state-id', '--dry-run', ...allowedFlags]);
-  const seenValueFlags = new Set();
-  for (let i = 0; i < args.length; i += 1) {
-    const arg = args[i];
-    if (arg.startsWith('--') && !allowed.has(arg)) unknownArg(arg);
-    if (valueFlags.has(arg)) {
-      if (seenValueFlags.has(arg)) error(`${arg} may be provided only once`, 'TARGET_HANDLE_INVALID');
-      seenValueFlags.add(arg);
-      i += 1;
-      if (i >= args.length || args[i].startsWith('--')) error(`${arg} requires a value`, 'MISSING_ARG');
-      continue;
-    }
-    if (!arg.startsWith('--')) positional.push(arg);
+  const options = {};
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (!arg.startsWith('--')) { positional.push(arg); continue; }
+    if (values.has(arg)) {
+      const value = args[++index];
+      if (value === undefined || value.startsWith('--')) fail(`${arg} requires a value`, 'MISSING_ARG');
+      options[arg] = value;
+    } else if (booleans.has(arg)) options[arg] = true;
+    else fail(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
   }
-  return positional;
+  return { positional, options };
 }
 
-function validateObservationTarget(target, args, backendIdentity = undefined) {
-  const stateID = getArg(args, '--state-id');
-  if (!target.ref) {
-    if (args.includes('--state-id')) {
-      throw new TargetHandleError('TARGET_STATE_UNSUPPORTED', '--state-id is supported only with a browser Observation Ref');
-    }
-    return null;
-  }
-  if (!stateID) throw new TargetHandleError('TARGET_STATE_REQUIRED', 'browser Observation Ref actions require --state-id');
-  const handle = browserObservationHandle(target.session, stateID, target.ref);
-  if (backendIdentity === undefined) {
-    return { session: target.session, state_id: stateID, ref: target.ref };
-  }
-  return validateBrowserObservationRef(handle, process.env, backendIdentity);
-}
-
-function emitDryRun(command, target, stateID, secondaryRef = null) {
-  process.stdout.write(`${JSON.stringify({
+function dryReceipt(operation, target, identity) {
+  return Object.freeze({
     status: 'dry_run',
-    action: command,
-    ...(target.ref ? { handle: {
-      kind: 'observation_ref',
-      backend: 'browser',
-      state_id: stateID,
-      scope: { session: target.session },
-      ref: target.ref,
-    } } : { target: `browser:${target.session}` }),
-    ...(secondaryRef ? { secondary_ref: secondaryRef } : {}),
+    action: operation,
+    target: `browser:${target.session}`,
+    session_generation: identity.session.generation,
     mutation_performed: false,
-  })}\n`);
-}
-
-function getArg(args, flag) {
-  const index = args.indexOf(flag);
-  return index >= 0 && index + 1 < args.length ? args[index + 1] : undefined;
-}
-
-function ensureVersion() {
-  const result = spawnSync(aosPath(), ['browser', '_check-version'], {
-    encoding: 'utf8',
-    env: process.env,
   });
-  if (result.status === 0) return;
-  const raw = result.stderr.trim() || result.stdout.trim();
-  try {
-    const parsed = JSON.parse(raw);
-    error(parsed.error || raw, parsed.code || 'PLAYWRIGHT_CLI_PROBE_FAILED');
-  } catch {
-    error(raw || 'version probe error', 'PLAYWRIGHT_CLI_PROBE_FAILED');
-  }
 }
 
-function reviewedObservationRuntime() {
-  const runtime = resolveReviewedObservationRuntime();
-  if (runtime.status !== 'ok') error(runtime.error || 'playwright-cli runtime unavailable', runtime.code || 'PLAYWRIGHT_CLI_NOT_FOUND');
-  return runtime;
-}
-
-function rejectUnprovenObservationIdentity(target, stateID, runtime) {
-  throw new TargetHandleError(
-    'TARGET_ACTION_UNSUPPORTED',
-    'browser Observation Ref action is disabled because the backend cannot atomically bind the original capture state to ref resolution',
-    {
-      reason: 'browser_observation_identity_unproven',
-      session: target.session,
-      state_id: stateID,
-      ref: target.ref,
-      backend_version: runtime.version,
-      recapture_required: true,
-    },
-  );
-}
-
-function runPlaywright(session, verb, args, runtime = null) {
-  const resolvedRuntime = runtime ?? resolvePlaywrightCliRuntime();
-  if (resolvedRuntime.status !== 'ok') error(resolvedRuntime.error || 'playwright-cli runtime unavailable', resolvedRuntime.code || 'PLAYWRIGHT_CLI_NOT_FOUND');
-  const result = runPlaywrightCli(resolvedRuntime, [`-s=${session}`, verb, ...args], { env: process.env });
-  if (result.error && result.status === null) {
-    error(`launch failed: ${result.error.message}`, 'PLAYWRIGHT_CLI_LAUNCH_FAILED');
-  }
-  return {
-    exit_code: result.status ?? 1,
-    stdout: (result.stdout || '').trim(),
-    stderr: (result.stderr || '').trim(),
-    filename: null,
-  };
-}
-
-function detectPlaywrightError(stdout) {
-  const lines = String(stdout || '').split(/\r?\n/);
-  const index = lines.findIndex((line) => line.trim() === '### Error');
-  if (index < 0) return null;
-  return lines.slice(index + 1).join('\n').trim() || 'playwright-cli reported an error';
-}
-
-function requireSuccess(result, action) {
-  if (result.exit_code !== 0) {
-    const message = result.stderr || result.stdout;
-    error(`${action} failed (exit ${result.exit_code}): ${message}`, 'PLAYWRIGHT_CLI_FAILED');
-  }
-  const marker = detectPlaywrightError(result.stdout);
-  if (marker) error(`${action} failed: ${marker}`, 'PLAYWRIGHT_CLI_FAILED');
-}
-
-function emitDoResult(result, strategy, stateID) {
-  const execution = {
-    strategy,
-    backend: 'playwright',
-    fallback_used: false,
-  };
-  if (stateID !== undefined) execution.state_id = stateID;
-  process.stdout.write(`${JSON.stringify({
-    status: result.exit_code === 0 ? 'success' : 'error',
-    result,
-    execution,
-  })}\n`);
-}
-
-function fillCommand(args) {
-  const positional = positionalArgs(args);
-  if (positional.length < 2) error('Usage: aos do fill <browser:<s>/<ref>> <text>', 'MISSING_ARG');
-  if (positional.length > 2) unknownArg(positional[2]);
-  const [targetString, text] = positional;
-  if (!targetString.startsWith('browser:')) {
-    error('aos do fill is browser-only in v1. Target must be browser:<s>/<ref>.', 'BROWSER_ONLY');
-  }
-  const target = parseBrowserTarget(targetString);
-  if (!target.ref) error('aos do fill requires a ref (browser:<session>/<ref>)', 'INVALID_TARGET');
-  validateObservationTarget(target, args);
-  const runtime = reviewedObservationRuntime();
-  const validated = validateObservationTarget(target, args, runtime.observation_identity);
-  rejectUnprovenObservationIdentity(target, validated.state_id, runtime);
-}
-
-function navigateCommand(args) {
-  if (args.length < 2) error('Usage: aos do navigate <browser:<s>> <url>', 'MISSING_ARG');
-  for (const arg of args) if (arg.startsWith('--')) unknownArg(arg);
-  if (args.length > 2) unknownArg(args[2]);
-  const [targetString, url] = args;
-  if (!targetString.startsWith('browser:')) error('aos do navigate is browser-only in v1.', 'BROWSER_ONLY');
-  const target = parseBrowserTarget(targetString);
-  if (target.ref) error('aos do navigate targets a browser session, not an element ref (use browser:<session>).', 'INVALID_TARGET');
-  ensureVersion();
-  const result = runPlaywright(target.session, 'goto', [url]);
-  requireSuccess(result, 'goto');
-  emitDoResult(result, 'playwright_goto', undefined);
-}
-
-function singleTargetCommand(command, args) {
-  const positional = positionalArgs(args, command === 'click' ? ['--double', '--right'] : []);
-  if (positional.length < 1) error(`Usage: aos do ${command} <browser:<s>[/<ref>]>`, 'MISSING_ARG');
-  if (['click', 'hover'].includes(command) && positional.length > 1) unknownArg(positional[1]);
-  if (['scroll', 'type', 'key'].includes(command) && positional.length > 2) unknownArg(positional[2]);
-  if (['type', 'key'].includes(command) && positional.length < 2) {
-    error(
-      command === 'type' ? 'type requires a text argument' : 'key requires a key combo argument (e.g. cmd+s)',
-      'MISSING_ARG',
-    );
-  }
-  const target = parseBrowserTarget(positional[0]);
-  let validated = validateObservationTarget(target, args);
-  const runtime = target.ref ? reviewedObservationRuntime() : null;
-  if (target.ref) validated = validateObservationTarget(target, args, runtime.observation_identity);
-  if (target.ref) rejectUnprovenObservationIdentity(target, validated.state_id, runtime);
-
-  let verb = command;
-  let extra = [];
-  let strategy = `playwright_${command}`;
-  if (command === 'click') {
-    if (args.includes('--double')) {
-      verb = 'dblclick';
-      strategy = 'playwright_dblclick';
-    } else {
-      extra = args.includes('--right') ? ['right'] : [];
-    }
-  } else if (command === 'scroll') {
-    const deltas = positional[1]?.split(',') || [];
-    if (deltas.length === 2) extra = [deltas[0], deltas[1]];
-    verb = 'mousewheel';
-    strategy = 'playwright_mousewheel';
+async function runSessionOperation(command, args) {
+  const parsed = parse(args, [], command === 'scroll' ? ['--dry-run'] : []);
+  if (parsed.positional.length < 1) fail(`aos do ${command} requires a browser session target`, 'MISSING_ARG');
+  const parsedTarget = parseManagedBrowserTarget(parsed.positional[0]);
+  if (parsedTarget.ref) fail('browser Observation Ref actions remain unsupported', 'TARGET_ACTION_UNSUPPORTED');
+  const target = requireSessionOnlyTarget(parsed.positional[0]);
+  let operation = command;
+  let input = {};
+  if (command === 'navigate') {
+    if (parsed.positional.length !== 2) fail('navigate requires exactly one URL', 'MISSING_ARG');
+    input = { url: parsed.positional[1] };
   } else if (command === 'type') {
-    extra = [positional[1]];
+    if (parsed.positional.length !== 2) fail('type requires exactly one text argument', 'MISSING_ARG');
+    input = { text: parsed.positional[1] };
   } else if (command === 'key') {
-    verb = 'press';
-    strategy = 'playwright_press';
-    extra = [positional[1]];
+    if (parsed.positional.length !== 2) fail('key requires exactly one key combo', 'MISSING_ARG');
+    input = { key: parsed.positional[1] };
+  } else if (command === 'scroll') {
+    if (parsed.positional.length !== 2) fail('scroll requires exactly one x,y delta', 'MISSING_ARG');
+    const values = String(parsed.positional[1]).split(',');
+    if (values.length !== 2 || values.some((value) => !/^-?[0-9]+$/u.test(value))) fail('scroll delta must be x,y integers', 'INVALID_ARG');
+    input = { delta_x: Number(values[0]), delta_y: Number(values[1]) };
+  } else {
+    fail('browser Observation Ref actions remain unsupported', 'TARGET_ACTION_UNSUPPORTED');
   }
-
-  const argv = [];
-  if (target.ref) argv.push(target.ref);
-  argv.push(...extra);
-  if (args.includes('--dry-run')) {
-    emitDryRun(command, target, validated?.state_id ?? null);
+  if (parsed.options['--dry-run']) {
+    const validated = await validateManagedSessionOperation(target.session, operation, input);
+    process.stdout.write(`${JSON.stringify(dryReceipt(operation, target, validated))}\n`);
     return;
   }
-  if (!target.ref) ensureVersion();
-  const result = runPlaywright(target.session, verb, argv, runtime);
-  requireSuccess(result, verb);
-  emitDoResult(result, strategy, getArg(args, '--state-id'));
+  const result = await executeManagedSessionOperation(target.session, operation, input);
+  process.stdout.write(`${JSON.stringify({
+    status: 'success',
+    action: command,
+    result: result.receipt,
+    execution: {
+      strategy: `managed_playwright_${operation}`,
+      backend: 'managed_playwright_companion',
+      session_generation: result.receipt.session_generation,
+      fallback_used: false,
+    },
+  })}\n`);
 }
 
-function dragCommand(args) {
-  const positional = positionalArgs(args);
-  if (positional.length < 2) error('drag requires two browser targets', 'MISSING_ARG');
-  if (positional.length > 2) unknownArg(positional[2]);
-  const from = parseBrowserTarget(positional[0]);
-  const to = parseBrowserTarget(positional[1]);
-  if (from.session !== to.session) error('drag endpoints must share the same browser session', 'INVALID_TARGET');
-  if (!from.ref || !to.ref) error('drag requires ref on both endpoints (browser:<s>/<ref>)', 'INVALID_TARGET');
-  const validatedFromShape = validateObservationTarget(from, args);
-  validateObservationTarget(to, args);
-  const runtime = reviewedObservationRuntime();
-  const validatedFrom = validateObservationTarget(from, args, runtime.observation_identity);
-  validateBrowserObservationRef(
-    browserObservationHandle(to.session, validatedFromShape.state_id, to.ref),
-    process.env,
-    runtime.observation_identity,
-  );
-  rejectUnprovenObservationIdentity(from, validatedFrom.state_id, runtime);
+function rejectRefOperation(command, args) {
+  const parsed = parse(args, [], ['--dry-run']);
+  const arity = command === 'drag' || command === 'fill' ? 2 : 1;
+  if (parsed.positional.length !== arity) fail(`aos do ${command} arguments differ`, 'INVALID_ARG');
+  const targets = command === 'drag' ? parsed.positional : [parsed.positional[0]];
+  for (const value of targets) {
+    const target = parseManagedBrowserTarget(value);
+    if (!target.ref) fail('browser Observation Ref target is required', 'INVALID_ARG');
+  }
+  fail('browser Observation Ref actions remain unsupported', 'TARGET_ACTION_UNSUPPORTED');
 }
 
 try {
   const [command, ...args] = process.argv.slice(2);
-  if (command === 'fill') fillCommand(args);
-  else if (command === 'navigate') navigateCommand(args);
-  else if (['click', 'hover', 'scroll', 'type', 'key'].includes(command)) singleTargetCommand(command, args);
-  else if (command === 'drag') dragCommand(args);
-  else error(`Unknown do browser command: ${command ?? ''}`, 'UNKNOWN_COMMAND');
-} catch (err) {
-  if (Array.isArray(err)) error(err[1], err[0]);
-  if (err instanceof TargetHandleError) {
-    emitTargetHandleError(err);
-    process.exit(1);
-  }
-  error(String(err), 'INTERNAL');
+  if (['navigate', 'type', 'key', 'scroll'].includes(command)) await runSessionOperation(command, args);
+  else if (['fill', 'click', 'hover', 'drag'].includes(command)) rejectRefOperation(command, args);
+  else fail(`Unknown do browser command: ${command ?? ''}`, 'UNKNOWN_COMMAND');
+} catch (error) {
+  if (error instanceof ManagedSessionError || error?.code?.startsWith?.('COMPANION_')) {
+    process.stderr.write(`${JSON.stringify(sessionErrorReceipt(error, 'operate'))}\n`);
+    process.exitCode = 1;
+  } else throw error;
 }

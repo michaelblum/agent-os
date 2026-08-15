@@ -39,6 +39,7 @@ rsync -am \
     --exclude='*' \
     packages/toolkit/ "$STAGED_APP/Contents/Resources/agent-os/packages/toolkit/"
 node scripts/stage-work-record-runtime.mjs "$STAGED_APP/Contents/Resources/agent-os"
+node scripts/stage-browser-companion-runtime.mjs "$STAGED_APP/Contents/Resources/agent-os"
 
 # ── 4. Info.plist ──────────────────────────────────────────────────
 cat > "$STAGED_APP/Contents/Info.plist" << PLIST

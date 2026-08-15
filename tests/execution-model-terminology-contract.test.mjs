@@ -152,28 +152,28 @@ test('browser target guidance separates public handles from current browser tran
   const maintained = `${architecture}\n${aosApi}\n${browserSkill}\n${seeDo}`;
 
   assert.match(architecture, /Public target semantics distinguish an ephemeral Observation Ref `\(state_id, ref\)` from a Locator/);
-  assert.match(architecture, /ref-bearing dry-run\/effect requests validate the original pair and return `TARGET_ACTION_UNSUPPORTED` before backend dispatch/);
+  assert.match(architecture, /Saved requests validate their stored record, direct requests validate only the\s+exact ref grammar, and both return `TARGET_ACTION_UNSUPPORTED` before any\s+managed-session or worker dispatch/);
   assert.match(aosApi, /Session-only browser actions remain available/);
-  assert.match(aosApi, /Saved and direct requests validate\s+the stored pair but do not dispatch/);
+  assert.match(aosApi, /Saved requests validate the stored handle record; direct\s+requests validate only the exact ref grammar\. Neither dispatches to the managed\s+session/);
   assert.match(browserSkill, /Observation Ref `\(state_id, ref\)` — ephemeral and stale-rejecting/);
   assert.match(browserSkill, /Locator — canvas\/native only; re-resolves current state and rejects zero or multiple action-compatible matches/);
   assert.match(browserSkill, /V1 has no browser Locator grammar/);
   assert.doesNotMatch(browserSkill, /Locator — re-resolves current browser state/);
   assert.match(browserSkill, /`ref:<snapshot-id>:<ref>` — current saved-workspace handle, not a Locator/);
   assert.match(browserSkill, /Direct browser refs and saved browser handles are Observation Refs/);
-  assert.match(browserSkill, /every ref-bearing dry-run\/effect request returns\s+`TARGET_ACTION_UNSUPPORTED` before backend dispatch/);
+  assert.match(browserSkill, /Every ref-bearing dry-run\/effect request validates only its saved record or\s+exact direct grammar, then returns `TARGET_ACTION_UNSUPPORTED` before managed-\s+session dispatch/);
   assert.match(browserSkill, /session-only browser `scroll`, `type`, `key`, and `navigate` remain/);
   assert.match(seeDo, /public CLI now documents browser targets through `docs\/api\/aos\.md`/);
   assert.match(seeDo, /current ref-bearing actions are intentionally nonactionable/);
-  assert.match(seeDo, /external command manifest conditionally dispatches direct browser forms for\nclick, hover, drag, scroll, type, and key/);
-  assert.match(seeDo, /saved-ref `fill`, `type`, and\s+`key` validate the original pair and stop with `TARGET_ACTION_UNSUPPORTED`/);
+  assert.match(seeDo, /external command manifest conditionally dispatches the admitted direct\nsession forms for scroll, type, key, and navigate/);
+  assert.match(seeDo, /Saved-ref `fill`, `type`, and `key` validate the stored handle record and stop\s+with `TARGET_ACTION_UNSUPPORTED`/);
   assert.match(seeDo, /should not assume typed SDK parity with CLI browser\s+refs/);
   assert.match(browserSkill, /docs\/archive\/superpowers\/specs\/2026-04-24-playwright-browser-adapter-design\.md/);
   for (const action of ['type', 'key']) {
     assert.ok(
       externalManifest.commands.some((command) =>
         command.path?.join(' ') === `do ${action}`
-        && command.argv_prefix?.join(' ') === `node scripts/aos-do-browser.mjs ${action}`
+        && command.argv_prefix?.join(' ') === `node $AOS_REPO_ROOT/scripts/aos-do-browser.mjs ${action}`
         && command.when?.prefix === 'browser:'),
       `missing direct browser external route for do ${action}`,
     );
@@ -303,7 +303,7 @@ test('work record action evidence docs preserve selected action target vocabular
   assert.doesNotMatch(schemaDoc, /selected Target-with-Ref/);
 });
 
-test('show anchors stay placement roles instead of target dialects', async () => {
+test('show anchors stay placement roles and unproven browser anchoring is absent', async () => {
   const context = await text('CONTEXT.md');
   const architecture = await text('ARCHITECTURE.md');
   const aosApi = await text('docs/api/aos.md');
@@ -314,23 +314,20 @@ test('show anchors stay placement roles instead of target dialects', async () =>
   const showCreateForm = showCommand?.forms?.find((form) => form.id === 'show-create');
   const showUpdateForm = showCommand?.forms?.find((form) => form.id === 'show-update');
   const showSection = aosApi.split('## `aos show`', 2)[1].split('## `aos recipe`', 1)[0];
-  const anchorConflict = ['anchor-window', 'anchor-channel', 'anchor-browser'];
+  const anchorConflict = ['anchor-window', 'anchor-channel'];
 
   assert.match(context, /\*\*Anchor \(role\)\*\*:/);
-  assert.match(context, /A role played by a Target-with-Ref when `aos show` uses it as a placement reference/);
+  assert.match(context, /A role played by an admitted target when `aos show` uses it as a placement reference/);
   assert.match(context, /not a parallel target\s+dialect/);
   assert.match(context, /\*\*Anchor Binding\*\*:/);
   assert.match(context, /resolved, stored representation of an Anchor inside the display subsystem/);
   assert.match(context, /re-resolve an Anchor Binding without changing the original Target-with-Ref string/);
-  assert.match(architecture, /Overlays anchored to browser elements still take direct Target-with-Ref input/);
-  assert.match(architecture, /not page scroll/);
-  assert.match(architecture, /re-issue `aos show update --anchor-browser/);
+  assert.match(architecture, /does not infer browser-window locality, DOM coordinates, or\s+browser anchors/);
   assert.match(showSection, /Anchor flags are placement roles, not separate target dialects/);
-  assert.match(showSection, /`--anchor-browser` consumes a browser Target-with-Ref/);
-  assert.match(showSection, /`--anchor-window`\s+and `--anchor-channel` consume resource ids/);
-  assert.match(showSection, /resolves the\s+input into an Anchor Binding for placement/);
-  assert.ok(showCreateForm?.args?.some((arg) => arg.id === 'anchor-browser' && /browser target/.test(arg.summary)));
-  assert.ok(showUpdateForm?.args?.some((arg) => arg.id === 'anchor-browser' && /anchor browser target/.test(arg.summary)));
+  assert.match(showSection, /`--anchor-window` and `--anchor-channel` consume resource ids/);
+  assert.match(showSection, /browser anchors are not admitted/);
+  assert.equal(showCreateForm?.args?.some((arg) => arg.id === 'anchor-browser'), false);
+  assert.equal(showUpdateForm?.args?.some((arg) => arg.id === 'anchor-browser'), false);
   assert.ok(showCreateForm?.constraints?.conflicts?.some((group) => (
     JSON.stringify(group) === JSON.stringify(anchorConflict)
   )));

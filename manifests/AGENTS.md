@@ -9,10 +9,15 @@ developer command surfaces.
 
 ## Ownership
 
+- `companions/` owns exact reviewed external tool/runtime descriptors and its
+  child DOX.
 - `commands/source/aos/` owns command help/registry authoring files. In those
   files, `id` names the source slice and `path_prefix` owns the public command
   family; split large families into multiple mergeable source slices.
 - `commands/source/external/` owns external route authoring files.
+- The source help route uses `$AOS_REPO_ROOT` for both its proxy argument and
+  working directory so repo and installed dispatch resolve from the bundled
+  resource root independently of the caller working directory.
 - `commands/aos-commands.json` and `commands/aos-external-commands.json` are
   generated compatibility artifacts consumed by help, dispatch, tests, and
   package/runtime surfaces.
@@ -62,5 +67,6 @@ developer command surfaces.
 
 ## Child DOX Index
 
+- `companions/AGENTS.md` owns reviewed managed companion descriptors.
 - `commands/` contains command source manifests and generated compatibility
   manifests.

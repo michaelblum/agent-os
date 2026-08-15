@@ -4,6 +4,24 @@
   "summary": "Proof-worth registry entries owned by toolkit.",
   "entries": [
     {
+      "id": "toolkit-managed-browser-evidence-proof",
+      "path_patterns": [
+        "tests/toolkit/browser-evidence-capture.test.mjs"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/browser-evidence-capture-v0/**/*.json"
+      ],
+      "owner": "toolkit",
+      "harness_level": "model_unit",
+      "proof_kind": "managed_browser_evidence",
+      "contract": "Toolkit browser evidence accepts an explicit managed session and injected fixed evidence operation, records path-free generation/runtime identity, caps exact file and relative fixtures at 3000 bytes so the data URL fits the managed worker bound, and keeps screenshot and selector evidence bounded by the manifest contract.",
+      "worth": "This proves exact-bound fixture success, over-bound pre-dispatch rejection, no Playwright executable resolution, the local-URL policy, and content-free failure projection without a fallback.",
+      "command": "node --test tests/toolkit/browser-evidence-capture.test.mjs",
+      "replaces": [],
+      "guard": "injected fake managed evidence operation, local data/file URLs, schema validation, and cleaned temporary output only; no package execution, browser, daemon, native UI, or TCC",
+      "status": "active"
+    },
+    {
       "id": "toolkit-controls-dictation-proof",
       "path_patterns": [
         "tests/toolkit/controls-dictation.test.mjs"

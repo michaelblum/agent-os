@@ -210,7 +210,18 @@ presence, and future sinks.
 
 ### Browser as a target
 
-A browser tab is a first-class target for `see`, `do`, and `show` verbs. The adapter lives entirely in the CLI process (`src/browser/`) and shells out to Microsoft's `playwright-cli`; the daemon is unchanged. Direct browser targets use the grammar `browser:<session>[/<ref>]` where `<session>` is the `playwright-cli -s=<name>` session (registered as an aos focus channel) and `<ref>` is a volatile adapter ref from current browser perception. Public target semantics distinguish an ephemeral Observation Ref `(state_id, ref)` from a Locator that re-resolves at action time. Agents can capture `aos see capture browser:<session> --save --mode som --workspace <id>` and inspect `aos see refs`; the saved record stores the original session, `state_id`, and ref. The current backend cannot atomically bind its ref resolution to that AOS capture generation, so direct and saved ref-bearing dry-run/effect requests validate the original pair and return `TARGET_ACTION_UNSUPPORTED` before backend dispatch. Session-only browser actions remain available. Overlays anchored to browser elements still take direct Target-with-Ref input and are static in v1 — they follow Chrome window movement (via `anchor_window`) but not page scroll; agents re-issue `aos show update --anchor-browser …` to re-anchor. Historical adapter design context is archived at `docs/archive/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md`.
+A managed browser session is an exact generation-bound target for whole-session
+capture, fixed session-only actions, page identity, and Toolkit evidence. The
+Node-owned authority uses only the source-pinned managed companion runtime and
+the Swift adapter reaches it through one narrow staged broker. Direct targets
+use `browser:<session>[/<ref>]`; ref-bearing captures remain Observation Refs.
+Saved requests validate their stored record, direct requests validate only the
+exact ref grammar, and both return `TARGET_ACTION_UNSUPPORTED` before any
+managed-session or worker dispatch.
+Public target semantics distinguish an ephemeral Observation Ref `(state_id, ref)` from a Locator.
+Checkpoint 2B does not infer browser-window locality, DOM coordinates, or
+browser anchors. Historical adapter design context is archived at
+`docs/archive/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md`.
 
 ### Communication Routing
 

@@ -64,8 +64,7 @@
       },
       "capture_metadata": {
         "collector": "2026-05-browser-evidence-capture-v0",
-        "backend": "playwright-cli",
-        "backend_command": "playwright-cli",
+        "backend": "managed_playwright_companion",
         "browser": "chromium",
         "headless": true,
         "viewport": {
@@ -73,6 +72,7 @@
           "height": 900
         },
         "local_url_policy": "file_data_or_localhost_only",
+        "local_fixture_max_bytes": 3000,
         "autonomous_browsing": false,
         "source_url_kind": "relative_file",
         "screenshot_bytes": 1234
@@ -121,8 +121,7 @@
       },
       "capture_metadata": {
         "collector": "2026-05-browser-evidence-capture-v0",
-        "backend": "playwright-cli",
-        "backend_command": "playwright-cli",
+        "backend": "managed_playwright_companion",
         "browser": "chromium",
         "headless": true,
         "viewport": {
@@ -130,6 +129,7 @@
           "height": 900
         },
         "local_url_policy": "file_data_or_localhost_only",
+        "local_fixture_max_bytes": 3000,
         "autonomous_browsing": false,
         "source_url_kind": "relative_file",
         "screenshot_bytes": 1234
@@ -138,10 +138,10 @@
   ],
   "capture_metadata": {
     "collector": "2026-05-browser-evidence-capture-v0",
-    "backend": "playwright-cli",
-    "backend_command": "playwright-cli",
-    "output_root": "artifacts/browser-evidence",
+    "backend": "managed_playwright_companion",
+    "session_generation": "0123456789abcdef0123456789abcdef",
     "local_url_policy": "file_data_or_localhost_only",
+    "local_fixture_max_bytes": 3000,
     "autonomous_browsing": false
   }
 }

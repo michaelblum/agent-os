@@ -24,7 +24,7 @@ otherwise.
 | [0014](0014-visual-object-descriptor-contract.md) | Accepted | Active. |
 | [0015](0015-aos-tcc-capability-broker-boundary.md) | Accepted | Active; aligned with ADR 0040 ambient authority. |
 | 0016-0017 | Unassigned | No ADR files use these numbers. |
-| [0018](0018-installable-aos-skills.md) | Accepted, amended | ADR 0039 owns deletion policy; ADR 0040 owns skill authority posture. |
+| [0018](0018-installable-aos-skills.md) | Accepted, amended | ADR 0039 owns deletion policy; ADR 0040 owns skill authority posture; ADR 0041 owns the managed Playwright CLI runtime boundary. |
 | [0019](0019-retire-project-agent-orchestration.md) | Accepted | Active. |
 | [0020](0020-single-owner-local-runtime.md) | Accepted | Active. |
 | [0021](0021-sigil-reference-consumer-and-toolkit-repository-boundary.md) | Accepted | Active. |
@@ -47,3 +47,4 @@ otherwise.
 | [0038](0038-desktopworld-renderkit-boundary.md) | Accepted | Active. |
 | [0039](0039-pre-release-zero-installed-base-compatibility.md) | Accepted | Active. |
 | [0040](0040-ambient-authority-raw-observation-and-target-handles.md) | Accepted | Active authority for ambient execution, raw observation, target handles, Gate, and Work Record boundaries. |
+| [0041](0041-managed-playwright-companion-runtime.md) | Accepted | Owns the optional managed Playwright CLI runtime, safe public MVP, package lifecycle, and browser ownership boundary. |

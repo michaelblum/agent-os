@@ -42,11 +42,7 @@ assert_parse "browser:todo" '{"ref":null,"session":"todo"}'
 assert_parse "browser:todo-app/e21" '{"ref":"e21","session":"todo-app"}'
 assert_parse "browser:todo-app/e34" '{"ref":"e34","session":"todo-app"}'
 
-# Bare browser: with env var
-PLAYWRIGHT_CLI_SESSION="default-sess" assert_parse "browser:" '{"ref":null,"session":"default-sess"}'
-
-# Bare browser: without env var -> error
-unset PLAYWRIGHT_CLI_SESSION
+# Bare browser targets never inherit an ambient session.
 assert_error "browser:" "MISSING_SESSION"
 
 # Malformed inputs -> INVALID_TARGET

@@ -4,11 +4,6 @@ agent_workspace_test_setup() {
     ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
     cd "$ROOT"
 
-    FIX="$ROOT/tests/browser/fixtures"
-    export PATH="$FIX:$PATH"
-    export AOS_PLAYWRIGHT_CLI="$FIX/playwright-cli"
-    export FAKE_PWCLI_VERSION="0.9.9"
-    export FAKE_PWCLI_MODE="new"
     export AOS_RUNTIME_MODE="repo"
     export AOS_STATE_ROOT="$(mktemp -d)"
 

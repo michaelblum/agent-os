@@ -1,0 +1,64 @@
+{
+  "$schema": "../../shared/schemas/aos-browser-companion-descriptor-v1.schema.json",
+  "schema_version": "aos.browser.companion-descriptor.v1",
+  "id": "playwright-cli",
+  "version": "0.1.15",
+  "node": ">=18",
+  "entrypoint": "node_modules/@playwright/cli/playwright-cli.js",
+  "limits": {
+    "package_count": 3,
+    "max_tarball_bytes": 8388608,
+    "max_download_bytes": 16777216,
+    "max_extracted_files": 512,
+    "max_extracted_bytes": 33554432,
+    "download_timeout_ms": 20000,
+    "max_captured_output_bytes": 65536
+  },
+  "packages": [
+    {
+      "name": "@playwright/cli",
+      "version": "0.1.15",
+      "tarball": "https://registry.npmjs.org/@playwright/cli/-/cli-0.1.15.tgz",
+      "integrity": "sha512-2eLqaKBoNCR0TWv3+XhGjdf5+gZGNrsJ5u/EdxCOyFHOuU+yVxq1NJ6iRBvAvGqlOsyU9CwGKHdUs2XWriTLwA==",
+      "dependencies": {
+        "playwright": "1.62.0-alpha-2026-06-29",
+        "playwright-core": "1.62.0-alpha-2026-06-29"
+      },
+      "optional_dependencies": {},
+      "bin": {
+        "playwright-cli": "playwright-cli.js"
+      },
+      "excluded_prefixes": [
+        "skills/"
+      ]
+    },
+    {
+      "name": "playwright",
+      "version": "1.62.0-alpha-2026-06-29",
+      "tarball": "https://registry.npmjs.org/playwright/-/playwright-1.62.0-alpha-2026-06-29.tgz",
+      "integrity": "sha512-ugaMuh6rAOqmbaxrM7+XQSs7M6yPXykq5gVugJPClHcJ4Cqxmky5rDHhrCt4wmaILUeMdI7kPBCx3zMx2Qu+bg==",
+      "dependencies": {
+        "playwright-core": "1.62.0-alpha-2026-06-29"
+      },
+      "optional_dependencies": {
+        "fsevents": "2.3.2"
+      },
+      "bin": {
+        "playwright": "cli.js"
+      },
+      "excluded_prefixes": []
+    },
+    {
+      "name": "playwright-core",
+      "version": "1.62.0-alpha-2026-06-29",
+      "tarball": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.62.0-alpha-2026-06-29.tgz",
+      "integrity": "sha512-/13EvW8l9Bmvt9nKHey+OcvZ8nob2FM8BCKBsUNwbXgmT4Hc0XX2b6mOErU0RBYNedOCa9q15USI7SY9K17v4w==",
+      "dependencies": {},
+      "optional_dependencies": {},
+      "bin": {
+        "playwright-core": "cli.js"
+      },
+      "excluded_prefixes": []
+    }
+  ]
+}

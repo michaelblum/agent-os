@@ -12,70 +12,33 @@
       "owner": "agent-workspace",
       "harness_level": "model_unit",
       "proof_kind": "target_handle_contract",
-      "contract": "Browser Observation Refs are generation-scoped exact pairs and canvas/native targets are state-free Locator queries.",
-      "worth": "This catches stale-state acceptance, ref aliasing, browser selector injection, and a third semantic handle model without native or browser side effects.",
+      "contract": "Browser Observation Refs are generation-scoped exact pairs whose path-free backend identity binds the managed session generation and immutable runtime; canvas/native targets are state-free Locator queries, while browser ref actions remain unsupported.",
+      "worth": "This catches stale-state acceptance, runtime or generation drift, ref aliasing, browser selector injection, unsupported browser action dispatch, and a third semantic handle model without native or browser side effects.",
       "command": "node --test tests/target-handle-runtime.test.mjs",
       "replaces": [],
       "guard": "pure isolated state-root and schema checks; does not execute ./aos or require daemon, browser, native UI, or TCC",
       "status": "active"
     },
     {
-      "id": "browser-target-handle-route-v1",
-      "path_patterns": [
-        "tests/browser/do-existing-verbs.test.sh",
-        "tests/browser/do-fill.test.sh",
-        "tests/browser/see-capture.test.sh",
-        "tests/browser/target-parser.test.sh",
-        "tests/browser/runtime-resolver.test.mjs"
-      ],
-      "fixture_patterns": [
-        "tests/browser/fixtures/aos-see-primitive.sh",
-        "tests/fixtures/browser-target-parser-harness.swift"
-      ],
-      "owner": "browser",
-      "harness_level": "shell_router",
-      "proof_kind": "target_handle_contract",
-      "contract": "Browser routes emit typed Observation Refs, require original state for ref requests, reject selector-shaped refs, bind generation records to independently verified backend implementation closure, and fail before dispatch while atomic state/ref identity remains unproven.",
-      "worth": "This catches route-level regressions that pure generation tests cannot observe, including missing state forwarding and unreviewed backend admission.",
-      "command": "bash tests/browser/do-existing-verbs.test.sh && bash tests/browser/do-fill.test.sh && bash tests/browser/see-capture.test.sh && bash tests/browser/target-parser.test.sh && node --test tests/browser/runtime-resolver.test.mjs",
-      "replaces": [],
-      "guard": "direct Node wrappers, a fake native-capture primitive, package-backed fake Playwright, and a pure Swift parser harness only; does not execute ./aos, start the daemon, or access native UI/TCC",
-      "status": "active"
-    },
-    {
-      "id": "browser-session-keyboard-route-v1",
-      "path_patterns": [
-        "tests/browser-do-keyboard-contract.test.mjs"
-      ],
-      "fixture_patterns": [],
-      "owner": "browser",
-      "harness_level": "shell_router",
-      "proof_kind": "target_handle_contract",
-      "contract": "Session-only browser type and key remain available without state, every supplied state value is rejected before dispatch, and ref-bearing Observation Ref routes remain separately fail-closed.",
-      "worth": "This prevents the identity blocker from accidentally disabling existing session-only keyboard primitives or attaching false state provenance.",
-      "command": "node --test tests/browser-do-keyboard-contract.test.mjs",
-      "replaces": [],
-      "guard": "fake AOS version probe and fake Playwright executable only; does not execute ./aos or require daemon, browser, native UI, or TCC",
-      "status": "active"
-    },
-    {
       "id": "agent-workspace-v1-handles",
       "path_patterns": [
-        "tests/agent-workspace-v1.test.mjs"
+        "tests/agent-workspace-v1-actions.test.mjs",
+        "tests/agent-workspace-v1.test.mjs",
+        "tests/lib/agent-workspace-v1-fixture.mjs"
       ],
       "fixture_patterns": [],
       "owner": "agent-workspace",
       "harness_level": "shell_router",
       "proof_kind": "target_handle_contract",
-      "contract": "V1 saved records contain one typed handle, V0 is byte-preserving fail-closed, state is accepted only for browser Observation Refs, and browser requests fail before dispatch while atomic state/ref identity remains unproven.",
-      "worth": "This is the atomic saved-workspace and fake-action regression boundary for the breaking V1 migration.",
-      "command": "node --test tests/agent-workspace-v1.test.mjs",
+      "contract": "V1 saved records contain one typed handle, V0 is byte-preserving fail-closed, browser observations bind one path-free managed-session generation, and browser ref actions fail before dispatch while canvas/native Locators retain exact-one action behavior.",
+      "worth": "This is the atomic saved-workspace, managed browser identity, and fake-action regression boundary for the V1 handle contract.",
+      "command": "node --test tests/agent-workspace-v1.test.mjs tests/agent-workspace-v1-actions.test.mjs",
       "replaces": [
         "tests/agent-workspace-browser-refs.sh",
         "tests/agent-workspace-canvas-refs.sh",
         "tests/agent-workspace-native-refs.sh"
       ],
-      "guard": "isolated state root and fake executables only; does not execute ./aos or require daemon, native UI, or TCC",
+      "guard": "isolated state root, fake managed workers, and fake native/canvas executables only; does not execute ./aos or require a browser, daemon, native UI, or TCC",
       "status": "active"
     },
     {
@@ -149,14 +112,15 @@
     {
       "id": "agent-workspace-contract-drift",
       "path_patterns": [
-        "tests/agent-workspace-contract-drift.sh"
+        "tests/agent-workspace-contract-drift.sh",
+        "tests/lib/agent-workspace-fixtures.sh"
       ],
       "fixture_patterns": [],
       "owner": "agent-workspace",
       "harness_level": "model_unit",
       "proof_kind": "saved_ref_contract",
-      "contract": "Saved workspace schemas, compact refs, current installable skills, command manifests, and action ownership remain aligned.",
-      "worth": "This prevents current saved-workspace guidance and schema/action contracts from drifting after legacy skill cleanup.",
+      "contract": "Saved workspace schemas, compact refs, current installable skills, command manifests, action ownership, and fixture retirement remain aligned.",
+      "worth": "This prevents current saved-workspace guidance, schema/action contracts, and the retired browser fixture boundary from drifting after legacy skill cleanup.",
       "command": "bash tests/agent-workspace-contract-drift.sh",
       "replaces": [],
       "guard": "static Node contract inspection; does not execute ./aos or require daemon/TCC",

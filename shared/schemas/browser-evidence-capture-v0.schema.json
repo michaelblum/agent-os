@@ -353,6 +353,7 @@
         "collector",
         "backend",
         "local_url_policy",
+        "local_fixture_max_bytes",
         "autonomous_browsing"
       ],
       "properties": {
@@ -360,10 +361,7 @@
           "const": "2026-05-browser-evidence-capture-v0"
         },
         "backend": {
-          "const": "playwright-cli"
-        },
-        "backend_command": {
-          "type": "string"
+          "const": "managed_playwright_companion"
         },
         "browser": {
           "type": "string"
@@ -375,11 +373,32 @@
           "type": "object",
           "additionalProperties": true
         },
-        "output_root": {
-          "type": "string"
+        "session_generation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{32}$"
+        },
+        "descriptor_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "closure_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
         },
         "local_url_policy": {
           "const": "file_data_or_localhost_only"
+        },
+        "local_fixture_max_bytes": {
+          "const": 3000
         },
         "autonomous_browsing": {
           "const": false

@@ -58,11 +58,15 @@ test('root skill registry covers current direct skill packages', async () => {
 
 test('installable browser and saved-workspace skills preserve split contracts', async () => {
   const browser = await readFile(path.join(repoRoot, 'skills', 'aos-browser', 'SKILL.md'), 'utf8');
-  assert.match(browser, /AOS for browser work that benefits from current saved-workspace handles/);
-  assert.match(browser, /upstream Playwright CLI skills/);
+  assert.match(browser, /Use AOS browser features only through the exact installed managed companion/);
+  assert.match(browser, /Never resolve or invoke an ambient Playwright executable,[\s\S]*`npx`, a global[\s\S]*caller-provided runtime path/);
+  assert.match(browser, /already-installed\s+system Chrome/);
+  assert.match(browser, /`browser:\/\/attach --cdp <url>` attaches to one direct CDP endpoint/);
+  assert.match(browser, /`browser:\/\/attach --extension=chrome` uses the reviewed extension handshake/);
+  assert.match(browser, /closes only launched AOS-owned sessions and\s+detaches attached sessions/);
+  assert.match(browser, /Browser ref actions are outside the managed session surface and return\s+`TARGET_ACTION_UNSUPPORTED`/);
+  assert.match(browser, /Tab creation and selection are not\s+present yet/);
   assert.match(browser, /must not vendor/);
-  assert.match(browser, /tracing,\s+video[\s\S]*tab management/);
-  assert.match(browser, /network mocking, storage\/auth state, console\/eval/);
 
   const workspace = await readFile(path.join(repoRoot, 'skills', 'aos-saved-workspace', 'SKILL.md'), 'utf8');
   assert.match(workspace, /observe-act-recapture/);

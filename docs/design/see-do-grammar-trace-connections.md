@@ -29,9 +29,9 @@ xray elements, semantic targets, focus channels, cursor state, browser refs, AX
 paths, canvas ids, and coordinate frames.
 
 `aos do` is the actuator side of the loop. It consumes bounded action forms:
-click, hover, drag, scroll, type, key, press, focus, set-value, raise, and
-browser-oriented target forms such as `browser:<session>/<ref>` when browser
-support is available.
+click, hover, drag, scroll, type, key, press, focus, set-value, raise, plus the
+fixed managed browser session operations. Browser refs are observation grammar
+only in checkpoint 2B and fail before managed-session dispatch.
 
 The loop is:
 
@@ -60,8 +60,9 @@ timestamps, and before/after perception frames. A visual receipt can help a
 human review the session, but it should not be the only machine-readable
 evidence.
 
-For browser targets, raw Playwright traces, video, screencast, and codegen can
-remain useful escape hatches. The AOS-level recording is different: it records
+For browser targets, externally run caller-owned Playwright traces, video,
+screencast, and codegen can remain useful escape hatches outside AOS. The
+AOS-level recording is different: it records
 which AOS verb was invoked, which AOS target grammar was used, what `see` had
 made available, and what the next perception frame showed after the action.
 
@@ -210,30 +211,31 @@ browser:<session>/<ref>
 
 Saved browser refs come from
 `aos see capture browser:<session> --save --mode som --workspace <id>` plus
-`aos see refs`. Saved and direct ref-bearing requests validate the original
-`(state_id, ref)` against the one current AOS generation for the session. They
-then return `TARGET_ACTION_UNSUPPORTED` before backend dispatch because the
-current Playwright transport cannot atomically bind ref resolution to that
-generation. Low-level browser xray remains the current-ref producer underneath:
-`aos see capture browser:<session> --xray` parses Playwright snapshot markdown
-into AOS `AXElementJSON` records. Browser xray has refs but usually no bounds;
-`--label` fetches bounds with one eval call per ref.
+`aos see refs`. Saved requests validate the stored handle record and direct
+requests validate the exact browser-ref grammar. Both return
+`TARGET_ACTION_UNSUPPORTED` before managed-session dispatch because the current
+Playwright transport cannot atomically bind ref resolution to a current
+session generation. Low-level browser xray remains the current-ref producer underneath:
+`aos see capture browser:<session> --xray` parses a managed whole-session
+Playwright snapshot into AOS `AXElementJSON` records. Browser xray carries refs
+but does not project browser-window locality, local DOM geometry, or badge
+annotations.
 
-The external command manifest conditionally dispatches direct browser forms for
-click, hover, drag, scroll, type, and key when the first target starts with
-`browser:`. Browser-only `do fill` and `do navigate` are implemented as small
-AOS verbs over Playwright's `fill` and `goto`; saved-ref `fill`, `type`, and
-`key` validate the original pair and stop with `TARGET_ACTION_UNSUPPORTED`.
-Session-only browser `scroll`, `type`, `key`, and `navigate` remain available.
+The external command manifest conditionally dispatches the admitted direct
+session forms for scroll, type, key, and navigate. Defensive ref parsing for
+click, fill, hover, drag, type, and key stops with
+`TARGET_ACTION_UNSUPPORTED` before managed-session dispatch. Session-only browser
+`scroll`, `type`, `key`, and `navigate` remain available through the managed
+worker.
+Saved-ref `fill`, `type`, and `key` validate the stored handle record and stop
+with `TARGET_ACTION_UNSUPPORTED`.
 Anything not wrapped, such as tracing, codegen, tab operations,
-check/select/upload, reload/back, and arbitrary page scripts, remains a raw
-`playwright-cli` escape hatch.
+check/select/upload, reload/back, and arbitrary page scripts, has no AOS route;
+the managed runtime exposes no raw `playwright-cli` escape hatch.
 
-For `show`, `--anchor-browser browser:<session>/<ref>` is the current CLI role
-flag for using a browser Target-with-Ref as an Anchor. The CLI resolves that
-input to an Anchor Binding (`anchor_window` plus offset). It follows Chrome
-window movement through the existing `anchor_window` substrate, but it does not
-follow page scroll, zoom, navigation, or DOM mutation. The agent must re-anchor.
+For `show`, browser anchoring remains deferred. The current placement roles are
+`--anchor-window` and `--anchor-channel`; checkpoint 2B has no proven managed
+browser-window or content-coordinate binding.
 
 ## Gaps And Contradictions Worth Tracking
 
@@ -256,19 +258,17 @@ follow page scroll, zoom, navigation, or DOM mutation. The agent must re-anchor.
   they must not recapture or substitute a different state.
 - Gateway scripts still should not assume typed SDK parity with CLI browser
   refs. A future "gather web source artifacts" worker should either shell out to
-  `./aos`, use a named raw Playwright escape hatch, or add an explicit
-  SDK/browser capability with matching help and tests.
+  `./aos`, invoke a separately owned external browser tool outside AOS, or add
+  an explicit SDK/browser capability with matching help and tests.
 - The implementation plan described internal browser debug helpers as omitted
   from help unless verbose. The current contract expresses that through
   `consumer_discovery: false`: root consumer help omits the browser debug group,
   while `aos help browser --json` remains directly resolvable for maintainers.
-- Static browser anchoring is thinner than the plan's content-inset strategy:
-  `src/browser/anchor-resolver.swift` currently uses viewport coords plus
-  window id and notes that Chrome content-view inset calibration is deferred.
+- Browser locality, content-coordinate projection, DOM hit testing, and browser
+  anchoring are deferred rather than inferred from a managed session.
 - Browser xray snapshots omit text nodes and no-ref decoration lines. The
-  browser smoke test verifies some DOM effects through raw `playwright-cli eval`
-  because the current snapshot parser does not surface every visible text
-  change as title/value.
+  current snapshot parser does not surface every visible text change as
+  title/value, and checkpoint 2B adds no generic eval fallback.
 
 ## Implication For "Gather Web Source Artifacts"
 

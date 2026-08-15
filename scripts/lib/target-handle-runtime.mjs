@@ -2,6 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
+import {
+  isBoundedPackageEntrypoint,
+  isBoundedPackageVersion,
+} from './browser-companion/package-version.mjs';
+
 const SESSION_PATTERN = /^[A-Za-z0-9_-]+$/;
 const PLAYWRIGHT_REF_PATTERN = /^(?:f\d+)?e\d+$/;
 const STATE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
@@ -10,9 +15,8 @@ const MAX_REFS_PER_GENERATION = 20_000;
 export const NATIVE_AX_LOCATOR_MAX_DEPTH = 128;
 export const NATIVE_AX_LOCATOR_MAX_TIMEOUT_MS = 30_000;
 const BACKEND_IDENTITY_KEYS = [
-  'schema_version', 'adapter', 'version', 'version_source',
-  'executable_realpath', 'executable_sha256',
-  'package_root_realpath', 'package_closure_sha256',
+  'schema_version', 'adapter', 'version', 'descriptor_sha256',
+  'closure_sha256', 'entrypoint', 'session_generation',
 ];
 const NATIVE_QUERY_KEYS = new Set([
   'pid', 'window_id', 'role', 'title', 'label', 'identifier',
@@ -74,16 +78,13 @@ function validateBrowserBackendIdentity(identity) {
   if (
     !isPlainObject(identity)
     || !hasExactKeys(identity, BACKEND_IDENTITY_KEYS)
-    || identity.schema_version !== 'aos.browser-backend-identity.v1'
+    || identity.schema_version !== 'aos.browser-backend-identity.v2'
     || identity.adapter !== '@playwright/cli'
-    || identity.version !== '0.1.15'
-    || identity.version_source !== 'package.json'
-    || typeof identity.executable_realpath !== 'string'
-    || !path.isAbsolute(identity.executable_realpath)
-    || !validHash(identity.executable_sha256)
-    || typeof identity.package_root_realpath !== 'string'
-    || !path.isAbsolute(identity.package_root_realpath)
-    || !validHash(identity.package_closure_sha256)
+    || !isBoundedPackageVersion(identity.version)
+    || !validHash(identity.descriptor_sha256)
+    || !validHash(identity.closure_sha256)
+    || !isBoundedPackageEntrypoint(identity.entrypoint)
+    || !/^[a-f0-9]{32}$/.test(identity.session_generation ?? '')
   ) {
     throw new TargetHandleError('TARGET_ACTION_UNSUPPORTED', 'browser Observation Ref backend identity is not independently verified');
   }

@@ -1,44 +1,4 @@
-import { spawnSync } from 'node:child_process';
-import {
-  resolvePlaywrightCliRuntime,
-  runPlaywrightCli,
-} from '../playwright-cli-runtime.mjs';
-
-const BROWSER_IDENTITY_SCRIPT = `() => {
-  const href = String(window.location && window.location.href || '');
-  let topFrameUrl = href;
-  try {
-    topFrameUrl = String(window.top && window.top.location && window.top.location.href || href);
-  } catch {
-    topFrameUrl = null;
-  }
-  return {
-    schema: 'aos.agent-workspace.browser-identity.v0',
-    marker: '__aos_agent_workspace_browser_identity',
-    page_url: href || null,
-    frame_url: href || null,
-    top_frame_url: topFrameUrl || null,
-    document_title: String(document.title || '') || null
-  };
-}`;
-
-function detectPlaywrightErrorMarker(stdout) {
-  const index = String(stdout || '').indexOf('### Error');
-  if (index < 0) return null;
-  const after = String(stdout || '').slice(index + '### Error'.length).trim();
-  const next = after.indexOf('\n### ');
-  return (next >= 0 ? after.slice(0, next) : after).trim();
-}
-
-function parsePlaywrightResultBody(stdout) {
-  if (detectPlaywrightErrorMarker(stdout)) return null;
-  const trimmed = String(stdout || '').trim();
-  const index = trimmed.indexOf('### Result');
-  if (index < 0) return trimmed;
-  const after = trimmed.slice(index + '### Result'.length).trim();
-  const next = after.indexOf('\n### ');
-  return next >= 0 ? after.slice(0, next) : after;
-}
+import { executeManagedSessionOperation } from '../browser-companion/session-lifecycle.mjs';
 
 function nullableText(value) {
   if (value === null || value === undefined) return null;
@@ -48,56 +8,25 @@ function nullableText(value) {
 
 function normalizeBrowserIdentity(value, session) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const pageUrl = nullableText(value.page_url ?? value.url ?? value.active_url ?? value.source_url);
-  const frameUrl = nullableText(value.frame_url ?? value.current_frame_url ?? pageUrl);
-  const topFrameUrl = nullableText(value.top_frame_url ?? value.top_url ?? pageUrl);
+  const pageUrl = nullableText(value.page_url);
+  const frameUrl = nullableText(value.frame_url ?? pageUrl);
+  const topFrameUrl = nullableText(value.top_frame_url ?? pageUrl);
   return {
     session,
     page_url: pageUrl,
     frame_url: frameUrl,
     top_frame_url: topFrameUrl,
-    document_title: nullableText(value.document_title ?? value.title),
+    document_title: nullableText(value.document_title),
   };
 }
 
-export function queryBrowserPageIdentity(session, env = process.env) {
-  const runtime = resolvePlaywrightCliRuntime({ env });
-  if (runtime.status !== 'ok') {
-    return {
-      status: 'unavailable',
-      reason: runtime.code || 'playwright_runtime_unavailable',
-      session,
-      stderr: runtime.error || null,
-      runtime,
-    };
-  }
-  const result = runPlaywrightCli(runtime, [`-s=${session}`, 'eval', BROWSER_IDENTITY_SCRIPT], { env });
-  if (result.status !== 0) {
-    return {
-      status: 'unavailable',
-      reason: 'playwright_eval_failed',
-      session,
-      stderr: result.stderr || null,
-    };
-  }
-  const body = parsePlaywrightResultBody(result.stdout || '');
-  if (body === null) {
-    return {
-      status: 'unavailable',
-      reason: 'playwright_eval_error',
-      session,
-      stderr: result.stderr || null,
-    };
-  }
+export async function queryBrowserPageIdentity(session, env = process.env, options = {}) {
   try {
-    const parsed = JSON.parse(body);
-    const identity = normalizeBrowserIdentity(parsed, session);
-    if (!identity) {
-      return { status: 'unavailable', reason: 'identity_shape_invalid', session };
-    }
-    return { status: 'available', ...identity };
-  } catch {
-    return { status: 'unavailable', reason: 'identity_json_invalid', session };
+    const response = await executeManagedSessionOperation(session, 'page_identity', {}, { ...options, env });
+    const identity = normalizeBrowserIdentity(response.worker.result, session);
+    return identity ? { status: 'available', ...identity } : { status: 'unavailable', reason: 'identity_shape_invalid', session };
+  } catch (error) {
+    return { status: 'unavailable', reason: error?.code ?? 'managed_browser_query_failed', session };
   }
 }
 
@@ -114,10 +43,5 @@ export function browserIdentityComparable(identity) {
 
 export function browserIdentityComplete(identity) {
   const comparable = browserIdentityComparable(identity);
-  return Boolean(
-    comparable?.session
-    && comparable.page_url
-    && comparable.frame_url
-    && comparable.top_frame_url,
-  );
+  return Boolean(comparable?.session && comparable.page_url && comparable.frame_url && comparable.top_frame_url);
 }

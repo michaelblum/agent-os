@@ -1,442 +1,167 @@
 #!/usr/bin/env node
 
-import { spawnSync } from 'node:child_process';
-import fs from 'node:fs';
-import net from 'node:net';
-import os from 'node:os';
-import path from 'node:path';
+import { focusDaemonRequest } from './lib/focus-daemon.mjs';
+import { parseFocusDepth } from './lib/focus-depth.mjs';
 import {
-  resolvePlaywrightCliRuntime,
-  runPlaywrightCli,
-} from './lib/playwright-cli-runtime.mjs';
+  createManagedSession,
+  listManagedSessions,
+  removeManagedSession,
+} from './lib/browser-companion/session-lifecycle.mjs';
+import { ManagedSessionError, sessionErrorReceipt } from './lib/browser-companion/session-model.mjs';
 
-function error(message, code) {
-  process.stderr.write(`${JSON.stringify({ code, error: message }, null, 2)}\n`);
+function fail(message, code) {
+  process.stderr.write(`${JSON.stringify({ code, error: message })}\n`);
   process.exit(1);
 }
 
-function unknownArg(arg) {
-  error(`Unknown ${String(arg).startsWith('--') ? 'flag' : 'argument'}: ${arg}`, String(arg).startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
+function emit(value) {
+  if (value?.error) fail(value.error, value.code ?? 'DAEMON_ERROR');
+  process.stdout.write(`${JSON.stringify(value)}\n`);
 }
 
-function mode() {
-  return process.env.AOS_RUNTIME_MODE === 'installed' ? 'installed' : 'repo';
-}
-
-function stateRoot() {
-  return path.resolve(process.env.AOS_STATE_ROOT || path.join(os.homedir(), '.config/aos'));
-}
-
-function stateDir() {
-  return path.join(stateRoot(), mode());
-}
-
-function socketPath() {
-  return path.join(stateDir(), 'sock');
-}
-
-function aosPath() {
-  return process.env.AOS_PATH || path.join(process.cwd(), 'aos');
-}
-
-function daemonAutoStartDisabled() {
-  return ['1', 'true', 'yes', 'on'].includes(
-    process.env.AOS_DISABLE_DAEMON_AUTOSTART?.toLowerCase(),
-  );
-}
-
-function valueAfter(args, key) {
-  const idx = args.indexOf(key);
-  return idx >= 0 && idx + 1 < args.length ? args[idx + 1] : undefined;
-}
-
-function validateArgs(args, { valueFlags = [], booleanFlags = [] } = {}) {
+function parse(args, valueFlags = [], boolFlags = []) {
   const values = new Set(valueFlags);
-  const booleans = new Set(booleanFlags);
-  for (let i = 0; i < args.length; i += 1) {
-    const arg = args[i];
-    if (arg.startsWith('--')) {
-      if (values.has(arg)) {
-        i += 1;
-        if (i >= args.length || args[i].startsWith('--')) error(`${arg} requires a value`, 'MISSING_ARG');
-      } else if (!booleans.has(arg)) {
-        unknownArg(arg);
-      }
-      continue;
-    }
-    unknownArg(arg);
+  const booleans = new Set(boolFlags);
+  const out = {};
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    const equals = arg.indexOf('=');
+    const key = equals >= 0 ? arg.slice(0, equals) : arg;
+    if (values.has(key)) {
+      const value = equals >= 0 ? arg.slice(equals + 1) : args[++index];
+      if (!value || value.startsWith('--')) fail(`${key} requires a value`, 'MISSING_ARG');
+      if (Object.hasOwn(out, key)) fail(`${key} may be provided only once`, 'INVALID_ARG');
+      out[key] = value;
+    } else if (booleans.has(key) && equals < 0) out[key] = true;
+    else fail(`Unknown ${arg.startsWith('--') ? 'flag' : 'argument'}: ${arg}`, arg.startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
   }
+  return out;
 }
 
-function numberAfter(args, key) {
-  const value = valueAfter(args, key);
+function positiveInteger(value, flag) {
   if (value === undefined) return undefined;
   const parsed = Number(value);
-  return Number.isInteger(parsed) ? parsed : undefined;
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) fail(`${flag} is invalid`, 'INVALID_ARG');
+  return parsed;
 }
 
-function connectOnce(timeoutMs = 1000) {
-  return new Promise((resolve) => {
-    const socket = net.createConnection(socketPath());
-    const timer = setTimeout(() => {
-      socket.destroy();
-      resolve(null);
-    }, timeoutMs);
-    socket.once('connect', () => {
-      clearTimeout(timer);
-      resolve(socket);
-    });
-    socket.once('error', () => {
-      clearTimeout(timer);
-      socket.destroy();
-      resolve(null);
-    });
+function subtree(values) {
+  const result = {};
+  for (const [flag, key] of [['--subtree-role', 'role'], ['--subtree-title', 'title'], ['--subtree-identifier', 'identifier']]) {
+    if (values[flag]) result[key] = values[flag];
+  }
+  return Object.keys(result).length ? result : undefined;
+}
+
+async function browserCreate(id, values) {
+  const target = values['--target'];
+  if (!['browser://attach', 'browser://new'].includes(target)) fail('invalid --target', 'INVALID_ARG');
+  if (target === 'browser://attach') {
+    const extension = values['--extension'];
+    const cdp = values['--cdp'];
+    if (extension !== undefined && extension !== 'chrome') fail('--extension must equal chrome', 'INVALID_ARG');
+    if (values['--headless'] || values['--persistent'] || values['--url']) {
+      fail('attached sessions forbid launch options', 'INVALID_ARG');
+    }
+    if ((extension === 'chrome') === Boolean(cdp)) fail('attach requires exactly one of --extension=chrome or --cdp <url>', 'INVALID_ARG');
+    return createManagedSession(id, cdp
+      ? { kind: 'attached', attach_kind: 'cdp', cdp_url: cdp }
+      : { kind: 'attached', attach_kind: 'extension' });
+  }
+  if (values['--extension'] || values['--cdp']) fail('launched sessions forbid attach options', 'INVALID_ARG');
+  return createManagedSession(id, {
+    kind: 'launched', headless: values['--headless'] === true,
+    persistent: values['--persistent'] === true, url: values['--url'],
   });
-}
-
-function startDaemon() {
-  const child = spawnSync(aosPath(), ['service', 'start', '--mode', mode(), '--json'], {
-    encoding: 'utf8',
-    env: process.env,
-  });
-  if (child.status !== 0 && child.stderr) process.stderr.write(child.stderr);
-}
-
-async function connectWithAutoStart(autoStart = true) {
-  let socket = await connectOnce();
-  if (socket || !autoStart) return socket;
-  if (daemonAutoStartDisabled()) {
-    process.stderr.write('ipc: daemon auto-start disabled by AOS_DISABLE_DAEMON_AUTOSTART\n');
-    return null;
-  }
-  startDaemon();
-  for (let i = 0; i < 30; i += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    socket = await connectOnce();
-    if (socket) return socket;
-  }
-  return null;
-}
-
-function readOneJSON(socket, timeoutMs = 3000) {
-  return new Promise((resolve) => {
-    let buffer = '';
-    const timer = setTimeout(() => {
-      socket.destroy();
-      resolve(null);
-    }, timeoutMs);
-    socket.on('data', (chunk) => {
-      buffer += chunk.toString('utf8');
-      const newline = buffer.indexOf('\n');
-      if (newline < 0) return;
-      clearTimeout(timer);
-      try {
-        resolve(JSON.parse(buffer.slice(0, newline)));
-      } catch {
-        resolve(null);
-      }
-    });
-    socket.once('error', () => {
-      clearTimeout(timer);
-      resolve(null);
-    });
-  });
-}
-
-async function request(service, action, data = {}, { autoStart = true, optional = false } = {}) {
-  const socket = await connectWithAutoStart(autoStart);
-  if (!socket) {
-    if (optional) return null;
-    error('Could not connect to daemon', 'DAEMON_UNAVAILABLE');
-  }
-  socket.write(`${JSON.stringify({ v: 1, service, action, data })}\n`);
-  const response = await readOneJSON(socket);
-  socket.end();
-  if (!response) {
-    if (optional) return null;
-    error('Could not connect to daemon', 'DAEMON_UNAVAILABLE');
-  }
-  return response;
-}
-
-function emit(response) {
-  if (response?.error) {
-    process.stderr.write(`${JSON.stringify(response, null, 2)}\n`);
-    process.exit(1);
-  }
-  process.stdout.write(`${JSON.stringify(response, null, 2)}\n`);
-}
-
-function subtreeFromArgs(args) {
-  const subtree = {};
-  const role = valueAfter(args, '--subtree-role');
-  const title = valueAfter(args, '--subtree-title');
-  const identifier = valueAfter(args, '--subtree-identifier');
-  if (role) subtree.role = role;
-  if (title) subtree.title = title;
-  if (identifier) subtree.identifier = identifier;
-  return Object.keys(subtree).length > 0 ? subtree : undefined;
-}
-
-function registryPath() {
-  const dir = path.join(stateDir(), 'browser');
-  fs.mkdirSync(dir, { recursive: true });
-  return path.join(dir, 'sessions.json');
-}
-
-function readRegistry() {
-  const file = registryPath();
-  if (!fs.existsSync(file)) return [];
-  const raw = fs.readFileSync(file, 'utf8').trim();
-  if (!raw) return [];
-  try {
-    const records = JSON.parse(raw);
-    if (!Array.isArray(records)) error(`Focus registry is schema-invalid: ${file}`, 'FOCUS_REGISTRY_INVALID');
-    return records;
-  } catch (parseError) {
-    if (parseError?.code === 'FOCUS_REGISTRY_INVALID') throw parseError;
-    error(`Focus registry is not valid JSON: ${file}`, 'FOCUS_REGISTRY_INVALID');
-  }
-}
-
-function writeRegistry(records) {
-  const file = registryPath();
-  const dir = path.dirname(file);
-  const temp = path.join(dir, `.sessions.json.${process.pid}.${Date.now()}.tmp`);
-  fs.writeFileSync(temp, `${JSON.stringify(records, null, 2)}\n`);
-  fs.renameSync(temp, file);
-}
-
-function runPlaywright(session, verb, args = []) {
-  const runtime = resolvePlaywrightCliRuntime();
-  if (runtime.status !== 'ok') {
-    return {
-      status: 1,
-      stdout: '',
-      stderr: runtime.error || 'playwright-cli runtime unavailable',
-      error: null,
-      code: runtime.code || 'PLAYWRIGHT_CLI_NOT_FOUND',
-    };
-  }
-  const result = runPlaywrightCli(runtime, [`-s=${session}`, verb, ...args], { env: process.env });
-  return {
-    status: result.status ?? 1,
-    stdout: (result.stdout || '').trim(),
-    stderr: (result.stderr || '').trim(),
-    error: result.error,
-  };
-}
-
-function requirePlaywrightSuccess(result, action) {
-  if (result.error) error(`${action} failed: ${result.error.message}`, 'PLAYWRIGHT_CLI_NOT_FOUND');
-  if (result.code) error(`${action} failed: ${result.stderr || result.stdout}`, result.code);
-  if (result.status !== 0) error(`${action} failed: ${result.stderr || result.stdout}`, 'PLAYWRIGHT_CLI_FAILED');
-  if (result.stdout.includes('### Error')) error(`${action} failed: ${result.stdout}`, 'PLAYWRIGHT_CLI_FAILED');
-}
-
-function browserWindowID() {
-  const injected = process.env.AOS_TEST_BROWSER_WINDOW_ID;
-  if (injected && /^-?\d+$/.test(injected)) return Number(injected);
-  return null;
-}
-
-function addRegistryRecord(record) {
-  const records = readRegistry();
-  if (records.some((item) => item.id === record.id)) error(`focus channel '${record.id}' already exists`, 'DUPLICATE_ID');
-  records.push(record);
-  writeRegistry(records);
-}
-
-function assertRegistryIDAvailable(id) {
-  if (readRegistry().some((item) => item.id === id)) error(`focus channel '${id}' already exists`, 'DUPLICATE_ID');
-}
-
-function removeRegistryRecord(id) {
-  const records = readRegistry();
-  if (!records.some((item) => item.id === id)) error(`focus channel '${id}' not found`, 'NOT_FOUND');
-  writeRegistry(records.filter((item) => item.id !== id));
-}
-
-function makeBrowserEntry(record) {
-  return {
-    kind: 'browser',
-    id: record.id,
-    session: record.id,
-    mode: record.mode,
-    updated_at: record.updated_at,
-    attach: record.attach_kind ?? null,
-    headless: record.headless ?? null,
-    browser_window_id: record.browser_window_id ?? null,
-    active_url: record.active_url ?? null,
-  };
 }
 
 async function focusCreate(args) {
-  validateArgs(args, {
-    valueFlags: ['--id', '--target', '--window', '--pid', '--depth', '--subtree-role', '--subtree-title', '--subtree-identifier', '--cdp', '--url'],
-    booleanFlags: ['--extension', '--headless', '--persistent'],
-  });
-  const id = valueAfter(args, '--id');
-  if (!id) error('--id is required', 'MISSING_ARG');
-  const target = valueAfter(args, '--target');
-  const windowID = numberAfter(args, '--window');
-  if (target && windowID !== undefined) error('--target and --window are mutually exclusive', 'INVALID_ARG');
-  if (target) {
-    assertRegistryIDAvailable(id);
-    let url;
-    try {
-      url = new URL(target);
-    } catch {
-      error('invalid --target; expected browser://attach or browser://new', 'INVALID_ARG');
-    }
-    if (url.protocol !== 'browser:' || !['attach', 'new'].includes(url.hostname)) {
-      error('invalid --target; expected browser://attach or browser://new', 'INVALID_ARG');
-    }
-    if (url.hostname === 'attach') {
-      let attachKind = 'extension';
-      const cdp = valueAfter(args, '--cdp');
-      const pwArgs = cdp ? [`--cdp=${cdp}`] : ['--extension'];
-      if (cdp) attachKind = 'cdp';
-      const result = runPlaywright(id, 'attach', pwArgs);
-      requirePlaywrightSuccess(result, 'playwright attach');
-      addRegistryRecord({
-        id,
-        mode: 'attach',
-        attach_kind: attachKind,
-        headless: null,
-        browser_window_id: browserWindowID(),
-        active_url: null,
-        updated_at: new Date().toISOString(),
-      });
-      process.stdout.write(`${JSON.stringify({ status: 'success', id, mode: 'attach', attach: attachKind })}\n`);
-      return;
-    }
-    const headless = args.includes('--headless');
-    const pwArgs = [];
-    if (!headless) pwArgs.push('--headed');
-    const pageURL = valueAfter(args, '--url');
-    if (pageURL) pwArgs.push(pageURL);
-    if (args.includes('--persistent')) pwArgs.push('--persistent');
-    const result = runPlaywright(id, 'open', pwArgs);
-    requirePlaywrightSuccess(result, 'playwright open');
-    addRegistryRecord({
-      id,
-      mode: 'launched',
-      attach_kind: null,
-      headless,
-      browser_window_id: browserWindowID(),
-      active_url: null,
-      updated_at: new Date().toISOString(),
-    });
-    process.stdout.write(`${JSON.stringify({ status: 'success', id, mode: 'launched', headless })}\n`);
-    return;
+  const values = parse(args,
+    ['--id', '--target', '--window', '--pid', '--depth', '--subtree-role', '--subtree-title', '--subtree-identifier', '--cdp', '--url', '--extension'],
+    ['--headless', '--persistent']);
+  const id = values['--id'];
+  if (!id) fail('--id is required', 'MISSING_ARG');
+  if (values['--target'] && values['--window']) fail('--target and --window are mutually exclusive', 'INVALID_ARG');
+  if (values['--target']) {
+    if (values['--pid'] || values['--depth'] || subtree(values)) fail('browser targets forbid native focus options', 'INVALID_ARG');
+    return emit(await browserCreate(id, values));
   }
-  if (windowID === undefined) error('--window <id> is required', 'MISSING_ARG');
-  const data = { id, window_id: windowID };
-  const pid = numberAfter(args, '--pid');
-  const depth = numberAfter(args, '--depth');
-  const subtree = subtreeFromArgs(args);
-  if (pid !== undefined) data.pid = pid;
+  if (values['--extension'] || values['--cdp'] || values['--url']
+    || values['--headless'] || values['--persistent']) {
+    fail('native window targets forbid browser session options', 'INVALID_ARG');
+  }
+  const windowId = positiveInteger(values['--window'], '--window');
+  if (!windowId) fail('--window is required', 'MISSING_ARG');
+  const data = { id, window_id: windowId };
+  const pid = positiveInteger(values['--pid'], '--pid');
+  const depth = parseFocusDepth(values['--depth'], fail);
+  if (pid) data.pid = pid;
   if (depth !== undefined) data.depth = depth;
-  if (subtree) data.subtree = subtree;
-  emit(await request('focus', 'create', data));
+  if (subtree(values)) data.subtree = subtree(values);
+  emit(await focusDaemonRequest('focus', 'create', data));
 }
 
 async function focusCommand(args) {
-  const sub = args[0];
-  if (!sub) error('Missing focus subcommand', 'MISSING_SUBCOMMAND');
-  const rest = args.slice(1);
-  switch (sub) {
-    case 'create':
-      await focusCreate(rest);
-      return;
-    case 'update': {
-      validateArgs(rest, {
-        valueFlags: ['--id', '--depth', '--subtree-role', '--subtree-title', '--subtree-identifier'],
-      });
-      const id = valueAfter(rest, '--id');
-      if (!id) error('--id is required', 'MISSING_ARG');
-      const data = { id };
-      const depth = numberAfter(rest, '--depth');
-      const subtree = subtreeFromArgs(rest);
-      if (depth !== undefined) data.depth = depth;
-      if (subtree) data.subtree = subtree;
-      emit(await request('focus', 'update', data));
-      return;
-    }
-    case 'list': {
-      validateArgs(rest);
-      const response = await request('focus', 'list', {}, { autoStart: false, optional: true });
-      const channels = response?.error ? [] : response?.channels ?? response?.data?.channels ?? [];
-      emit({
-        status: 'ok',
-        channels: [
-          ...channels.map((entry) => ({ ...entry, kind: 'window' })),
-          ...readRegistry().map(makeBrowserEntry),
-        ],
-      });
-      return;
-    }
-    case 'remove': {
-      validateArgs(rest, { valueFlags: ['--id'] });
-      const id = valueAfter(rest, '--id');
-      if (!id) error('--id is required', 'MISSING_ARG');
-      const record = readRegistry().find((item) => item.id === id);
-      if (record) {
-        if (record.mode === 'launched') runPlaywright(id, 'close', []);
-        removeRegistryRecord(id);
-        process.stdout.write('{"status":"ok"}\n');
-        return;
-      }
-      emit(await request('focus', 'remove', { id }));
-      return;
-    }
-    default:
-      error(`Unknown focus subcommand: ${sub}`, 'UNKNOWN_COMMAND');
+  const [subcommand, ...rest] = args;
+  if (subcommand === 'create') return focusCreate(rest);
+  if (subcommand === 'update') {
+    const values = parse(rest, ['--id', '--depth', '--subtree-role', '--subtree-title', '--subtree-identifier']);
+    if (!values['--id']) fail('--id is required', 'MISSING_ARG');
+    const data = { id: values['--id'] };
+    if (values['--depth'] !== undefined) data.depth = parseFocusDepth(values['--depth'], fail);
+    if (subtree(values)) data.subtree = subtree(values);
+    return emit(await focusDaemonRequest('focus', 'update', data));
   }
+  if (subcommand === 'list') {
+    parse(rest);
+    const native = await focusDaemonRequest('focus', 'list', {}, { autoStart: false, optional: true });
+    let browser = { sessions: [] };
+    try { browser = await listManagedSessions(); } catch (error) {
+      if (error?.code !== 'BROWSER_SESSION_NOT_ACTIVE') throw error;
+    }
+    return emit({ status: 'ok', channels: [
+      ...((native?.channels ?? native?.data?.channels ?? []).map((entry) => ({ ...entry, kind: 'window' }))),
+      ...browser.sessions.map((session) => ({ kind: 'browser', session: session.id, mode: session.ownership === 'attached' ? 'attach' : 'launched', attach: session.attach_kind, ...session })),
+    ] });
+  }
+  if (subcommand === 'remove') {
+    const values = parse(rest, ['--id', '--backend']);
+    if (!values['--id']) fail('--id is required', 'MISSING_ARG');
+    if (!['browser', 'native'].includes(values['--backend'])) {
+      fail('--backend must be browser or native', values['--backend'] ? 'INVALID_ARG' : 'MISSING_ARG');
+    }
+    if (values['--backend'] === 'browser') return emit(await removeManagedSession(values['--id']));
+    return emit(await focusDaemonRequest('focus', 'remove', { id: values['--id'] }));
+  }
+  fail(`Unknown focus subcommand: ${subcommand ?? ''}`, 'UNKNOWN_COMMAND');
 }
 
 async function graphCommand(args) {
-  const sub = args[0];
-  if (!sub) error('Missing graph subcommand', 'MISSING_SUBCOMMAND');
-  const rest = args.slice(1);
-  switch (sub) {
-    case 'displays':
-      validateArgs(rest);
-      emit(await request('graph', 'displays', {}));
-      return;
-    case 'windows': {
-      validateArgs(rest, { valueFlags: ['--display'] });
-      const data = {};
-      const display = numberAfter(rest, '--display');
-      if (display !== undefined) data.display = display;
-      emit(await request('graph', 'windows', data));
-      return;
-    }
-    case 'deepen':
-    case 'collapse': {
-      validateArgs(rest, {
-        valueFlags: sub === 'deepen'
-          ? ['--id', '--depth', '--subtree-role', '--subtree-title', '--subtree-identifier']
-          : ['--id', '--depth'],
-      });
-      const id = valueAfter(rest, '--id');
-      if (!id) error('--id is required', 'MISSING_ARG');
-      const data = { id };
-      const depth = numberAfter(rest, '--depth');
-      const subtree = subtreeFromArgs(rest);
-      if (depth !== undefined) data.depth = depth;
-      if (subtree && sub === 'deepen') data.subtree = subtree;
-      emit(await request('graph', sub, data));
-      return;
-    }
-    default:
-      error(`Unknown graph subcommand: ${sub}`, 'UNKNOWN_COMMAND');
+  const [subcommand, ...rest] = args;
+  if (['displays', 'windows'].includes(subcommand)) {
+    const values = parse(rest, subcommand === 'windows' ? ['--display'] : []);
+    return emit(await focusDaemonRequest('graph', subcommand, values['--display'] ? { display: Number(values['--display']) } : {}));
   }
+  if (['deepen', 'collapse'].includes(subcommand)) {
+    const values = parse(rest, ['--id', '--depth', '--subtree-role', '--subtree-title', '--subtree-identifier']);
+    if (!values['--id']) fail('--id is required', 'MISSING_ARG');
+    const data = { id: values['--id'] };
+    if (values['--depth'] !== undefined) data.depth = parseFocusDepth(values['--depth'], fail);
+    if (subcommand === 'deepen' && subtree(values)) data.subtree = subtree(values);
+    return emit(await focusDaemonRequest('graph', subcommand, data));
+  }
+  fail(`Unknown graph subcommand: ${subcommand ?? ''}`, 'UNKNOWN_COMMAND');
 }
 
-const [command, ...args] = process.argv.slice(2);
-if (command === 'focus') await focusCommand(args);
-else if (command === 'graph') await graphCommand(args);
-else if (command === 'daemon-snapshot') emit(await request('see', 'snapshot', {}));
-else error(`Unknown focus/graph command: ${command ?? ''}`, 'UNKNOWN_COMMAND');
+try {
+  const [command, ...args] = process.argv.slice(2);
+  if (command === 'focus') await focusCommand(args);
+  else if (command === 'graph') await graphCommand(args);
+  else if (command === 'daemon-snapshot') emit(await focusDaemonRequest('see', 'snapshot'));
+  else fail(`Unknown focus/graph command: ${command ?? ''}`, 'UNKNOWN_COMMAND');
+} catch (error) {
+  if (error instanceof ManagedSessionError || error?.code?.startsWith?.('COMPANION_')) {
+    process.stderr.write(`${JSON.stringify(sessionErrorReceipt(error, 'focus'))}\n`);
+    process.exitCode = 1;
+  } else throw error;
+}

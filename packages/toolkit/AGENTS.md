@@ -132,6 +132,15 @@ phases, step-descriptor promotion, shared helpers, and builder versions;
 recovery helpers may be shared by direct internal imports, but not through the
 public facade for testing convenience.
 
+Workbench browser evidence must call the injected fixed managed evidence
+operation with an explicit session ID. It does not resolve Playwright or accept
+an executable path. File and relative local-fixture inputs are exact regular
+files capped at exactly 3000 bytes before data-URL projection so the complete
+data URL stays within the managed worker's 4096-byte URL bound. Registry metadata carries
+that boundary and may bind the path-free session generation
+and descriptor/closure digests, while upstream output and managed filesystem
+paths remain outside the public evidence record.
+
 Active Work Record V1 and Step Descriptor V1 behavior is neutral evidence and
 mechanics. Repair and Attempt Plans never execute; Attempt Artifacts accept
 caller-supplied outcomes. An Attempt Plan is `ready` only when its validated

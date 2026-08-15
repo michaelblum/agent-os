@@ -13,10 +13,11 @@ model. Exact behavior remains owned by current API docs and source manifests.
 Playwright's broad “Locator” analogy does not define AOS target identity. Target
 Handle Runtime V1 implements ADR 0040's split between an ephemeral Observation
 Ref `(state_id, ref)` and an action-time machine-fact Locator. A ref-bearing
-browser target string plus its original `--state-id` carry an Observation Ref
-pair; canvas targets and native AX selector flags carry Locators; saved
-addresses are storage indirection to one of those handles; coordinates are
-neither. These command forms do not add target types.
+browser target string plus its original `--state-id` describes an Observation
+Ref pair, but ref actions remain outside the managed companion surface; canvas
+targets and native AX selector flags carry Locators; saved addresses are
+storage indirection to one of those handles; coordinates are neither. These
+command forms do not add target types.
 
 ## Current Readback
 
@@ -32,7 +33,7 @@ Authoritative sources for this map:
 
 | Playwright CLI concept | AOS desktop analogue |
 | --- | --- |
-| Browser/session | Focus channel, app/window/display target, or browser companion channel |
+| Browser/session | Generation-bound managed companion session created/listed/removed through `focus`; native window focus channels remain separate |
 | Snapshot/screenshot | `aos see capture`, `--xray`, labels, regions, windows, and `--save` |
 | Locator | ADR 0040 action-time machine query; canvas targets and native AX selectors are Locators, a ref-bearing browser string plus its original `--state-id` carry an Observation Ref pair, saved addresses store one typed handle, and coordinates are neither |
 | Click/fill/type/key/hover/drag/scroll | `aos do ...` action matrix |
@@ -40,8 +41,8 @@ Authoritative sources for this map:
 | Capabilities | AOS capability groups in `docs/api/aos-capabilities.md` |
 | Testing/assertions | Recapture, `aos see refs --diff --expect`, Recipe assertions, and optional Work Record postconditions; Gate is caller-selected human input, not an assertion engine |
 | Skills | Installable AOS root skills plus upstream Playwright CLI companion skills |
-| Trace/video/PDF | Upstream Playwright CLI escape hatch, not vendored by AOS |
-| Semantic codegen | Explicit unimplemented AOS gap; separate from upstream Playwright tracing and public `run-code` |
+| Trace/video/PDF | External caller-owned Playwright CLI escape hatch, not an AOS route and not vendored by AOS |
+| Semantic codegen | Explicit unimplemented AOS gap; AOS exposes no generic browser `run-code` route |
 
 ## Current Strengths
 
@@ -53,7 +54,7 @@ Authoritative sources for this map:
 | Current saved/target handles | Target Handle Runtime V1: `see snapshots`, `see refs`, typed `ref:<snapshot-id>:<ref>` storage, ref-bearing browser targets paired with their original `--state-id`, and canvas/native AX Locators |
 | Actions | `do click/hover/drag/scroll/type/key/fill/navigate`, `do press/focus/set-value`, app lifecycle, and exact-window raise/move/resize/close/minimize/maximize/restore/menu forms |
 | Sessions | `focus create/update/list/remove` |
-| Browser companion | `aos-browser` skill and `aos skills companion check --name playwright-cli` |
+| Browser companion | `browser companion status/install/update/uninstall`, intent-backed managed `focus` sessions (launched sessions require already-installed system Chrome), fixed `see`/`do` consumers with pure scroll dry-run only, `aos-browser` skill, and a separate path-free `skills companion` check |
 | Evidence | `see refs --diff --expect`, caller-selected Gate records, and optional `work-record` read/verify/status/repair planning |
 
 ## Scope Boundaries

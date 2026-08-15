@@ -126,6 +126,10 @@ needs, but public command policy and product UI policy belong above it:
   merely initialized but not yet running application connection;
 - generic windowing semantics, panel chrome, minimize chips, and reusable
   workbench layout belong in `packages/toolkit/`;
+- browser Swift code is a narrow bounded client of
+  `scripts/aos-browser-broker.mjs`. It may request only fixed managed operations
+  and must not resolve Playwright, read a legacy browser registry, invoke
+  generic eval/code, expose worker output, or infer session cleanup from a PID;
 - product themes, product UX, and product-specific surface behavior belong in
   the owning external product repository;
 - product-specific daemon branches are prohibited unless an explicit temporary

@@ -182,31 +182,15 @@
               "id": "xray",
               "kind": "flag",
               "required": false,
-              "summary": "AX element traversal overlay",
+              "summary": "Native AX or managed browser snapshot elements",
               "token": "--xray",
               "value_type": "bool"
-            },
-            {
-              "id": "browser-dom-point",
-              "kind": "flag",
-              "required": false,
-              "summary": "Browser DOM viewport point hit test for browser:<session> targets: x,y",
-              "token": "--browser-dom-point",
-              "value_type": "string"
-            },
-            {
-              "id": "browser-content-rect",
-              "kind": "flag",
-              "required": false,
-              "summary": "Proven browser content rect in DesktopWorld coordinates: x,y,w,h",
-              "token": "--browser-content-rect",
-              "value_type": "string"
             },
             {
               "id": "label",
               "kind": "flag",
               "required": false,
-              "summary": "Badge annotations (implies --xray)",
+              "summary": "Native/canvas badge annotations (implies --xray); managed browser capture has no local geometry badges",
               "token": "--label",
               "value_type": "bool"
             },
@@ -286,7 +270,7 @@
               "id": "save",
               "kind": "flag",
               "required": false,
-              "summary": "Persist full perception in a local agent workspace and return compact JSON saved handles. Each record contains exactly one V1 browser Observation Ref, canvas Locator, or native AX Locator; actions validate browser state/ref pairs or re-resolve Locators to exactly one current match",
+              "summary": "Persist full perception in a local agent workspace and return compact JSON saved handles. Each record contains exactly one V1 browser Observation Ref, canvas Locator, or native AX Locator; browser refs remain capture-only while Locators re-resolve to exactly one current match",
               "token": "--save",
               "value_type": "bool"
             },
@@ -404,8 +388,6 @@
             }
           },
           "examples": [
-            "aos see capture browser:work --save --mode som --workspace default --name before",
-            "aos see capture browser:work --save --mode som --workspace default --name after",
             "aos see snapshots --workspace default",
             "aos see refs --workspace default",
             "aos see capture main --out /tmp/screen.png",
@@ -565,8 +547,6 @@
             ]
           },
           "examples": [
-            "aos see capture browser:work --save --mode som --workspace default --name before",
-            "aos see capture browser:work --save --mode som --workspace default --name after",
             "aos see capture --canvas surface-inspector --save --mode som --workspace default",
             "aos see capture --interactive --save --mode ax --workspace default --name selection",
             "aos see snapshots --workspace default",
@@ -590,6 +570,151 @@
           },
           "summary": "Persist perception through the same bounded daemon-owned native transaction into a local agent workspace; --window warns on full-display fallback, and each compact saved ref exposes exactly one typed V1 handle plus bounded hint, artifact, and warning facts",
           "usage": "aos see capture [<target>|--region <rect>|--canvas <id>|--channel <id>] [--interactive] --save [--mode <mode>] [--workspace <id>] [--name <id>] [--query <text>]"
+        },
+        {
+          "args": [
+            {
+              "id": "target",
+              "kind": "positional",
+              "required": true,
+              "summary": "Exact session-only browser target; browser refs remain unsupported",
+              "value_type": "string"
+            },
+            {
+              "id": "out",
+              "kind": "flag",
+              "required": false,
+              "summary": "Write the managed whole-session screenshot to one caller-selected PNG path",
+              "token": "--out",
+              "value_type": "path"
+            },
+            {
+              "id": "xray",
+              "kind": "flag",
+              "required": false,
+              "summary": "Return the managed whole-session snapshot without local geometry or badge labels",
+              "token": "--xray",
+              "value_type": "bool"
+            }
+          ],
+          "constraints": {
+            "conflicts": [
+              [
+                "out",
+                "xray"
+              ]
+            ]
+          },
+          "examples": [
+            "aos see capture browser:work --out /tmp/browser.png",
+            "aos see capture browser:work --xray"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "see-capture-browser",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "summary": "Capture one managed browser session as either a screenshot or bounded snapshot; native capture flags, refs, geometry, and labels are rejected",
+          "usage": "aos see capture <browser:<session>> [--out <png> | --xray]"
+        },
+        {
+          "args": [
+            {
+              "id": "target",
+              "kind": "positional",
+              "required": true,
+              "summary": "Exact session-only browser target to save",
+              "value_type": "string"
+            },
+            {
+              "id": "save",
+              "kind": "flag",
+              "required": true,
+              "summary": "Persist one managed browser capture in an agent workspace",
+              "token": "--save",
+              "value_type": "bool"
+            },
+            {
+              "id": "workspace",
+              "kind": "flag",
+              "required": false,
+              "summary": "Agent workspace id; overrides AOS_AGENT_WORKSPACE",
+              "token": "--workspace",
+              "value_type": "string"
+            },
+            {
+              "id": "name",
+              "kind": "flag",
+              "required": false,
+              "summary": "Snapshot id for the saved browser capture",
+              "token": "--name",
+              "value_type": "string"
+            },
+            {
+              "default_value": "som",
+              "id": "mode",
+              "kind": "flag",
+              "required": false,
+              "summary": "Managed browser capture mode",
+              "token": "--mode",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Managed snapshot records",
+                    "value": "ax"
+                  },
+                  {
+                    "summary": "Managed screenshot artifact",
+                    "value": "vision"
+                  },
+                  {
+                    "summary": "Managed snapshot plus image pointers",
+                    "value": "som"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "query",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter compact saved records by handle facts or target hints",
+              "token": "--query",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos see capture browser:work --save --mode som --workspace default --name before"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "see-capture-browser-save",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "summary": "Persist one exact managed browser capture; native source, geometry, label, and output flags are rejected before session or worker access",
+          "usage": "aos see capture <browser:<session>> --save [--mode ax|vision|som] [--workspace <id>] [--name <id>] [--query <text>]"
         },
         {
           "args": [

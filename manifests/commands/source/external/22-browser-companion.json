@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "id": "browser-companion",
+  "commands": [
+    {
+      "path": [
+        "browser",
+        "companion"
+      ],
+      "summary": "Manage the source-pinned Playwright CLI package runtime.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "$AOS_REPO_ROOT/scripts/aos-browser-companion.mjs"
+      ],
+      "help_passthrough": true,
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "browser",
+        "companion",
+        "status"
+      ],
+      "summary": "Inspect the managed Playwright CLI package runtime.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "$AOS_REPO_ROOT/scripts/aos-browser-companion.mjs",
+        "status"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "browser",
+        "companion",
+        "install"
+      ],
+      "summary": "Install the source-pinned Playwright CLI package runtime.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "$AOS_REPO_ROOT/scripts/aos-browser-companion.mjs",
+        "install"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "browser",
+        "companion",
+        "update"
+      ],
+      "summary": "Update to the source-pinned Playwright CLI package runtime.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "$AOS_REPO_ROOT/scripts/aos-browser-companion.mjs",
+        "update"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "browser",
+        "companion",
+        "uninstall"
+      ],
+      "summary": "Remove the managed Playwright CLI package runtime.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "$AOS_REPO_ROOT/scripts/aos-browser-companion.mjs",
+        "uninstall"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    }
+  ]
+}

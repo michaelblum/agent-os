@@ -228,8 +228,8 @@ workspace: `ref:<snapshot-id>:<ref-id>`. Saved Refs are produced by
 workspace snapshot record containing exactly one discriminated Observation Ref
 or Locator. It is storage indirection, not a third live target type. It is not
 a live Observation Ref or Locator. Browser
-Observation Ref requests validate the original session/state/ref pair and then
-fail closed while backend identity is unproven; canvas and native AX Locators
+Observation Ref requests validate the saved record or exact direct grammar and
+then fail closed before managed-session dispatch; canvas and native AX Locators
 re-resolve at action time and require exactly one current match. Bare
 `ref:<ref-id>` and automatic reacquisition are invalid V1 behavior.
 _Avoid_: saved target, locator, observation ref, permanent object id.
@@ -239,7 +239,7 @@ A discovered candidate emitted by perception, typically from `aos see ... --xray
 _Avoid_: hit, candidate, probe result.
 
 **Anchor (role)**:
-A role played by a Target-with-Ref when `aos show` uses it as a placement reference for a Subject's display. Today exposed via dialect-specific flags (`--anchor-browser`, `--anchor-window`, `--anchor-channel`); a generic `--anchor <target>` may consolidate these once the resolver contract is shared. *Anchor* is the input-grammar role — see also **Anchor Binding** for the resolved form.
+A role played by an admitted target when `aos show` uses it as a placement reference for a Subject's display. Today exposed through `--anchor-window` and `--anchor-channel`; managed browser anchoring is deferred until a later contract proves browser-window locality. A generic `--anchor <target>` may consolidate admitted resolvers once their contract is shared. *Anchor* is the input-grammar role — see also **Anchor Binding** for the resolved form.
 _Avoid_: mount point, attach point, parent target.
 
 **Anchor Binding**:
@@ -247,11 +247,11 @@ The resolved, stored representation of an Anchor inside the display subsystem af
 _Avoid_: placement, attachment.
 
 **Host**:
-The runtime/container that renders a Facet and exposes it to agents through a Target dialect. The two Host kinds today are **Browser Host** (renders in a browser session, addressed as `browser:<session>/<ref>`, operated through Playwright/DOM/ARIA semantics) and **Canvas Host** (renders in an AOS canvas, addressed as `canvas:<canvas-id>/<ref>`, operated through AOS canvas semantic targets and runtime plumbing). Subjects are host-neutral; *Facets* declare which Hosts they support.
+The runtime/container that renders a Facet and exposes it to agents through a Target dialect. The two Host kinds today are **Browser Host** (renders in a managed browser session; checkpoint 2B admits session operations and observations but defers ref actions) and **Canvas Host** (renders in an AOS canvas, addressed as `canvas:<canvas-id>/<ref>`, operated through AOS canvas semantic targets and runtime plumbing). Subjects are host-neutral; *Facets* declare which Hosts they support.
 _Avoid_: container, runtime (too generic), surface (overloaded with display-system "surface").
 
 **Browser-Compatible (Facet)**:
-A Facet that can run correctly in a Browser Host and be operated through the `browser:` Target dialect. Implies semantic Refs (`data-aos-ref`), accessible/ARIA controls, no reliance on AOS-only window-server behavior, no hidden canvas-only APIs, and enough DOM/ARIA structure for `aos see/do browser:<session>/<ref>` to work.
+A Facet that can run correctly in a Browser Host. It supplies semantic Refs (`data-aos-ref`), accessible/ARIA controls, no reliance on AOS-only window-server behavior, no hidden canvas-only APIs, and enough DOM/ARIA structure for browser observations. Checkpoint 2B does not make those refs actionable.
 _Avoid_: web-compatible, portable.
 
 **Browser-First (posture)**:
@@ -395,10 +395,10 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
 - Claim promotion — **resolved in Step Descriptor V1**: `claim_promotions[]`
   maps exact descriptor postconditions into Work Record V1 Claims. Promotion
   is evidence projection, not a Gate or action-admission field.
-- `--anchor-browser` (and sibling `--anchor-window`, `--anchor-channel`) is a
-  *role flag* whose value is a regular Target-with-Ref, not a parallel target
-  dialect. Longer-term a generic `--anchor <target>` flag may consolidate them,
-  but that is a separate cleanup. See ADR-0004 and `docs/api/aos.md`.
+- `--anchor-window` and `--anchor-channel` are role flags, not a parallel target
+  dialect. Managed browser anchoring remains deferred. Longer-term a generic
+  `--anchor <target>` flag may consolidate admitted resolvers, but that is a
+  separate cleanup. See ADR-0004 and `docs/api/aos.md`.
 - `facets[].host` enum (`"browser" | "canvas" | "either"`) was considered and rejected as too coarse — a Facet may have *multiple Host implementations* with different entry points, target dialects, or fidelity. Resolved direction: `facets[].hosts[]` array of `{ kind, target_dialect, entry, ... }` records, with optional preference ordering. Initial sketch: `shared/schemas/aos-workbench-subject-vnext.md`.
 - "Dual-hosting" — resolved meaning: shipping a Facet with both Browser-Host
   and Canvas-Host implementations. A Facet may expose one or multiple Hosts;

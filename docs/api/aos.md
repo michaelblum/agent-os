@@ -188,6 +188,7 @@ The current top-level commands are:
 | `aos serve` | Unified daemon |
 | `aos service` | launchd lifecycle for the daemon |
 | `aos experience` | active AOS experience-layer status, activation, and deactivation |
+| `aos browser` | public managed Playwright companion lifecycle (`status`, `install`, `update`, and `uninstall`); the internal browser adapter remains non-consumer |
 | `aos runtime` | packaged runtime utilities |
 | `aos permissions` | preflight and onboarding |
 | `aos doctor` | detailed runtime and permission diagnostics |
@@ -378,13 +379,11 @@ The two public semantic target types are:
    matches return missing; more than one returns ambiguous.
 
 The current command grammar projects those two types through
-snapshot-qualified saved addresses (`ref:<snapshot-id>:<ref-id>`), direct
-browser Observation Ref strings (`browser:<session>/<ref>` plus the original
-`--state-id`), canvas Locator strings (`canvas:<canvas-id>/<ref>`), and native
-AX Locator flags such as `--pid`, `--role`, and filters. Raw coordinate actions
-remain available but reject `--state-id` with `TARGET_STATE_UNSUPPORTED`.
-These forms do not create additional public target types. Bare `ref:<ref-id>`
-and automatic saved-handle reacquisition are invalid V1 behavior.
+snapshot-qualified saved addresses (`ref:<snapshot-id>:<ref-id>`), canvas Locator strings (`canvas:<canvas-id>/<ref>`), and native AX Locator flags such as `--pid`, `--role`, and filters. Browser records declare browser Observation Ref strings (`browser:<session>/<ref>` plus the original `--state-id`) as stored
+identity only. Ref-bearing actions remain unsupported: they perform no
+current-generation lookup and return `TARGET_ACTION_UNSUPPORTED` before
+managed-session dispatch. Raw coordinate actions remain available but reject `--state-id` with `TARGET_STATE_UNSUPPORTED`. These forms do not create additional public target
+types. Bare `ref:<ref-id>` and automatic saved-handle reacquisition are invalid V1 behavior.
 There is no current public `ax:` CLI target grammar.
 
 The [state model](./aos-capabilities.md#user-facing-state-model) distinguishes
@@ -620,15 +619,16 @@ alternate action targets are invalid V1 state.
 
 Browser records contain an Observation Ref with the original session,
 `state_id`, and Playwright ref. Each AOS browser capture atomically replaces
-the one current generation for that session. Saved and direct requests validate
-the stored pair but do not dispatch: the reviewed backend cannot atomically bind
-the AOS capture generation to its current ref map, so dry-run and effect both
-return `TARGET_ACTION_UNSUPPORTED` with
-`reason:browser_observation_identity_unproven`. They never capture, search by
-label, reacquire, or substitute state. A newer generation returns
-`TARGET_STATE_STALE`. The generation also binds independently verified,
-package-backed Playwright implementation and dependency-closure identity; that
-package identity is necessary but not sufficient to admit an action.
+the one current generation for that session and binds the path-free managed
+backend identity V2: exact descriptor, closure, entrypoint, and random session
+generation. That provenance belongs to the capture; it does not make the ref
+actionable. Browser ref actions are not part of the managed companion surface;
+dry-run and effect requests return `TARGET_ACTION_UNSUPPORTED` with
+`reason:browser_ref_actions_unsupported` before worker dispatch. They never
+capture, search by label, reacquire, substitute state, or fall back to an
+ambient executable. Saved requests validate the stored handle record; direct
+requests validate only the exact ref grammar. Neither dispatches to the managed
+session.
 Session-only browser actions remain available and reject `state_id`.
 
 Canvas and native AX records contain Locator queries. Each action re-resolves
@@ -642,27 +642,188 @@ every supplied `state_id` before channel refresh or action dispatch because it
 has no browser Observation Ref backend.
 
 Optional `--dry-run` follows the identical validation/resolution path and
-stops immediately before mutation. Browser drag requires two Observation Refs
+stops immediately before mutation where the form advertises it. In checkpoint
+2B, session-only browser scroll is the only managed browser form that
+advertises dry-run; it validates grammar and one stable active record without
+liveness, worker dispatch, lock creation, or writes. Browser drag requires two Observation Refs
 from the same session and generation. Typed failures use
 `TARGET_HANDLE_INVALID`, `TARGET_STATE_REQUIRED`, `TARGET_STATE_STALE`,
 `TARGET_STATE_UNSUPPORTED`, `TARGET_NOT_FOUND`, `TARGET_AMBIGUOUS`,
 `TARGET_DISABLED`, `TARGET_ACTION_UNSUPPORTED`, and
 `TARGET_RESOLUTION_TIMEOUT`.
 
-Browser runtime resolution is deterministic. `scripts/lib/playwright-cli-runtime.mjs`
-is the public script-policy owner for browser helpers and proof harnesses.
-`src/browser/playwright-version-check.swift` is the intentional
-native/bootstrap mirror resolver for the hidden `aos browser _check-version`
-adapter while Swift still owns that bootstrap check. Both resolvers must keep
-the same minimum `@playwright/cli` version and discovery order:
-`AOS_PLAYWRIGHT_CLI`, then repo-local `node_modules/.bin/playwright-cli`, then
-the repo-owned `scripts/aos-playwright-cli` wrapper, then `playwright-cli` on
-`PATH`. Consolidation is deferred unless a future native bootstrap extraction
-removes the need for Swift to resolve the browser runtime directly. `aos
-browser _check-version` returns structured JSON for the selected executable
-path, discovery source, version, minimum version, and failures such as
-`PLAYWRIGHT_CLI_NOT_FOUND`, `PLAYWRIGHT_CLI_TOO_OLD`, and
-`PLAYWRIGHT_CLI_PROBE_FAILED`.
+All maintained browser consumers resolve one managed session record under the
+browser-companion store lock. That record binds a separate random upstream
+session id and an immutable source-pinned runtime version. There is no runtime
+path in public identity, no JS/Swift resolver or version probe, no legacy
+session registry, and no environment, repo package, wrapper, `npx`, global npm,
+or `PATH` fallback. Retained older leases keep their own bounded version,
+descriptor, closure, package-relative entrypoint, and random generation after a
+new runtime activates.
+
+#### Managed Playwright companion lifecycle
+
+The separate managed package lifecycle is public through:
+
+```bash
+aos browser companion status --json
+aos browser companion install --json
+aos browser companion update --json
+aos browser companion uninstall --json
+```
+
+It installs only the source-pinned `@playwright/cli` 0.1.15 package and its
+exact required `playwright` and `playwright-core`
+1.62.0-alpha-2026-06-29 closure under the mode-scoped AOS state root. It runs
+no lifecycle scripts, package manager, browser download, skill install, or
+extension install. Status states are `missing`, `current`,
+`update_available`, `partial`, `corrupt`, and `blocked`. Mutation receipts are
+closed and content-free, include before/after state, exact version/digests,
+zero session cleanups in this checkpoint, exact safe-integer monotonic duration, completion time,
+and explicit recovery-pending state. Uninstall receipts bind the descriptor and
+closure actually removed even when the source descriptor now advertises an
+update. The binding is journaled and browser-level recovery is exclusively
+claimed before the whole store is atomically moved into its removal marker, so
+every authoritative interrupted uninstall remains `partial` and retry preserves
+that binding. After store deletion, the still-journaled marker atomically
+becomes a non-authoritative completed tombstone; its cleanup cannot make public
+state less final than `missing`. Empty interrupted lock/removal-intent creation
+and active-pointer intent unlink/fsync ambiguity are recovered from exact
+observed state. A successful uninstall leaves the shared mode and browser
+parents intact. Quarantined recursive
+cleanup performs a final exact root identity check under a cooperative same-UID
+private-root boundary; it does not claim adversarial same-UID linearizability.
+No lifecycle form
+accepts `--dry-run`.
+
+All maintained browser/session consumers now use the managed session authority;
+`browser tabs new` is not present yet. `current` proves exact installed package
+state, while an operation additionally requires one active generation-bound
+session record.
+
+#### Managed browser sessions
+
+`aos focus` owns the public session lifecycle alongside native focus channels:
+
+```bash
+aos focus create --id scratch --target browser://new --headless
+aos focus create --id profile --target browser://new --persistent
+aos focus create --id remote --target browser://attach --cdp http://127.0.0.1:9222
+aos focus create --id chrome --target browser://attach --extension=chrome
+aos focus list
+aos focus remove --id scratch --backend browser
+```
+
+Launched sessions explicitly select the Playwright system Chrome channel.
+Chrome must already be installed: the managed companion closure never installs
+a browser binary and its private browser cache starts empty. Launched sessions
+are AOS-owned and removal sends exact-session `close`.
+Persistent launch uses only a private per-generation AOS profile; no custom
+profile is accepted. Initial and navigation URLs admit only `http`, `https`,
+`data`, and `about`; local `file:` URLs fail closed. Direct CDP and extension sessions are external-owned and
+removal sends only exact-session `detach`. The reviewed extension handshake may
+launch or focus Chrome and open its bridge page, but AOS never owns or closes
+that browser, profile, or its tabs. Extension attach requires the reviewed
+Playwright extension in an ordinary system-Chrome `Default` or `Profile N`
+profile. AOS conservatively fails unavailable or blocked evidence before
+creating the session. The pinned extension id must contain a bounded ordinary
+version directory and matching bounded manifest; an empty id directory is not
+installation evidence. AOS reports installed only after the complete bounded
+profile/version set is valid; one malformed or over-cap member is blocked. AOS
+requires two identical complete bounded tree scans; persistent change after
+bounded retry is blocked. AOS passes only the proven Chrome user-data root to
+the upstream handshake.
+
+Before worker spawn, AOS durably records a creation intent plus `starting` with distinct public,
+generation, and upstream ids plus the immutable runtime binding. Only one
+bounded non-error JSON success makes the record `active`. Post-spawn ambiguity,
+missing liveness, or cleanup without the exact `closed`/`detached`
+acknowledgement becomes `cleanup_required`; the lease and private workspace
+remain, and uninstall stays blocked. A fixed non-mutating exact-session eval is
+the liveness check. AOS never calls upstream `list` and never treats a PID as
+cleanup authority. Admission is capped at 128 durable records before workspace,
+lease, or worker creation. `focus list` performs a bounded stable read without
+creating or repairing browser state.
+
+Every real worker runs beneath a detached Node guardian whose durable record is
+bound to the exact store lock token, session generation, operation, and random
+nonce. The guardian stays inert until the parent observes its PID, durably
+publishes the exact armed reservation, and sends activation. Spawn additionally
+requires an acknowledged exact request and execute signal. Raw stdout/stderr
+remain separate but share the immutable descriptor's 65,536-byte aggregate
+capture cap; small control, activation, and parent-lifetime fds carry no bulk
+output. Both the inner sentinel request and outer guardian request require EOF
+after one exact final-newline JSON frame before acceptance; partial, trailing,
+or second frames cannot spawn a worker. A delayed request write error is ignored
+only after the exact acceptance control. Parent or pipe loss, deadline expiry, or output overflow sends an exact
+nonce-bound retirement request to the detached sentinel. The sentinel
+acknowledges TERM arming, sends TERM to its own current group, then after the
+grace period synchronously acknowledges `pre_kill` and immediately sends
+SIGKILL to that same current group including itself. Forced completion requires
+the exact acknowledgement, an exact `{code:null, signal:"SIGKILL"}` sentinel
+exit witness, untruncated control EOF, both raw-stream EOF witnesses, and the
+aggregate cap. Sink loss drains/discards both raw streams without waiting on
+backpressure. The guardian performs no later numeric-PGID signal or probe on
+that forced path; dead-guardian recovery skips the group probe only for a
+validated durable `complete` record.
+Under the cooperative same-UID private-runtime boundary, this proves no
+continuing supervised user-code authority before another store writer can
+proceed. An upstream daemon intentionally detached by the CLI is excluded from
+that one-shot group and remains managed session authority until exact
+close/detach. Native focus
+`--depth` accepts only canonical integers from `0` through `15` before daemon
+dispatch.
+
+Every mutating operation durably records its operation and random nonce before
+worker dispatch. Interrupted `operating` state becomes `cleanup_required`;
+`operation_committed` becomes active without replay. Exact cleanup acknowledgement
+is durably `cleanup_committed` before `closed`, so retry never repeats a proven
+close or detach. Removing the final lease retires its superseded immutable
+runtime version and reports any remaining retirement residue as recovery pending.
+Guardian outcome consumption is last and retry-idempotent only for the exact
+already-applied generation/operation/authority/state matrix. A proven pre-spawn
+liveness or cleanup failure restores `active` and returns its typed worker
+failure; spawned or unproven authority remains `cleanup_required`.
+
+The managed runner validates the exact operation response and bounded artifact
+before publishing its durable acknowledgement, and retires the exact complete
+Guardian only afterward. If that retirement is interrupted, lock release
+transfers the bound outcome and the acknowledged session phase remains recovery
+authority. Multi-step evidence capture additionally journals each validated
+navigate/query/screenshot boundary before retiring its subworker. Incomplete
+progress becomes `cleanup_required`; final acknowledged progress and
+`operation_committed` recover active, with Guardian outcomes and the evidence
+journal consumed only after state convergence.
+When the exact acknowledgement record is returned but its durability or later
+Guardian retirement remains unresolved, public create/remove and operation
+receipts report `recovery_pending`; final evidence still returns its already-
+validated result and screenshot. The private pending signal and Guardian
+binding are never serialized. Unknown acknowledgement failure remains a typed
+error, and intermediate evidence progress remains cleanup-required without
+starting another worker.
+
+The public fixed session operations are:
+
+```bash
+aos do navigate browser:<session> <url>
+aos do type browser:<session> <text>
+aos do key browser:<session> <combo>
+aos do scroll browser:<session> <dx,dy>
+aos do scroll browser:<session> <dx,dy> --dry-run
+```
+
+Browser capture is deliberately narrow: `aos see capture browser:<session>`
+admits only `--out <png>` or `--xray`, while its saved form admits only
+`--save`, `--mode`, `--workspace`, `--name`, and `--query`. Native-only capture
+flags fail before managed-session or worker dispatch. Native capture,
+saved-workspace capture, bounded internal page-identity
+queries, and Toolkit browser evidence use the same generation-bound authority
+through the narrow managed broker. Browser-window locality, local DOM geometry,
+show anchors, ref-bearing targets, arbitrary eval/run-code, raw upstream
+commands, runtime-path overrides,
+and tab operations fail closed or are absent.
+Decoded managed screenshots are capped at 32 MiB; the Swift broker's 48 MiB
+combined envelope admits their base64 projection without changing that bound.
 
 Legacy guarded-live V0 saved-ref proof remains archival/manual evidence and
 is not active V1 acceptance. Deterministic V1 coverage lives in
@@ -1187,9 +1348,10 @@ use the current emitted fields `ref`, `surface`, `role`, `name`, `kind`,
 `geometry` and `metadata`, plus a required canvas Locator `handle`. The capture
 response carries `state_id` at top level, but canvas Locators do not accept it.
 Browser xray `elements` instead carry Observation Ref handles that contain the
-original response `state_id`, browser session, and Playwright ref. Human labels,
-accessible text, local DOM ids, parent canvas ids, local geometry, and metadata
-remain presentation, provenance, or hint fields rather than target identity.
+original response `state_id`, browser session, and Playwright ref. The managed
+browser adapter does not project browser-window locality, local DOM geometry,
+or badge annotations. Human labels and accessible text, when present in the
+upstream snapshot, remain observation content rather than target identity.
 The probe does not use caller-supplied JavaScript; `show eval` remains a
 developer diagnostic bridge, not the agent perception contract.
 
@@ -1242,7 +1404,6 @@ Primary public verbs:
 - `--scope connection|global` (default: `global`)
 - `--track union`
 - `--surface desktop-world` — canonical alias for `--track union`
-- `--anchor-browser browser:<session>/<ref>`
 - `--anchor-window <id>`
 - `--anchor-channel <id>`
 - `--offset x,y,w,h`
@@ -1261,11 +1422,10 @@ canvas-scoped captures and `--xray` AX traversal attached to the intended AOS
 surface instead of falling back to the frontmost app.
 
 Anchor flags are placement roles, not separate target dialects.
-`--anchor-browser` consumes a browser Target-with-Ref, while `--anchor-window`
-and `--anchor-channel` consume resource ids. The display subsystem resolves the
-input into an Anchor Binding for placement. `show update` accepts the same
-anchor flags when a surface needs to be re-anchored after browser scroll,
-navigation, or layout changes.
+`--anchor-window` and `--anchor-channel` consume resource ids. The display
+subsystem resolves the input into an Anchor Binding for placement. Managed
+browser sessions expose no proven local window binding in checkpoint 2B, so
+browser anchors are not admitted.
 
 ### Show/See/Do Surface Loop
 
@@ -1354,12 +1514,12 @@ manifest, including source digests and file hashes. Non-dry-run `install`
 writes those files under the resolved target root, writes an AOS manifest, and
 returns `written[]` plus post-install check state.
 
-Playwright CLI companion integration is external and explicit. AOS reports the
-resolved Playwright CLI runtime through `scripts/lib/playwright-cli-runtime.mjs`,
-detects Playwright-owned skill packages in the selected target by inspection,
-and dry-runs the external `playwright-cli install --skills` command. AOS does
-not vendor Playwright skill files and does not run the companion installer
-unless a future command explicitly implements a non-dry-run path.
+Playwright CLI skills companion integration remains external, explicit, and
+separate from the managed package/session runtime. AOS reports the managed
+runtime's content-free lifecycle state, detects Playwright-owned skill packages
+in the selected target by inspection, and emits only a path-free dry-run plan
+for the external `playwright-cli install --skills` command. It does not resolve
+an executable path, vendor Playwright skill files, or run the skills installer.
 
 ## `aos recipe`
 
@@ -1536,12 +1696,12 @@ Primary public verbs:
 
 | Subcommand | Purpose |
 | --- | --- |
-| `click` | click coordinates, saved refs, direct browser targets, or AOS canvas semantic refs |
-| `hover` | saved/browser hover or coordinate hover |
-| `drag` | saved/browser two-endpoint drag, direct canvas semantic drag (`--by` / `--to-value`), or native coordinate drag |
-| `scroll` | saved/browser scroll with `dx,dy`, or coordinate scroll with `--dx` / `--dy` |
-| `type` | saved/browser text input, direct browser target text, or literal native text input |
-| `key` | saved/browser key press, direct browser target key press, or literal native key combo |
+| `click` | click coordinates or AOS canvas semantic refs; browser Observation Refs fail closed |
+| `hover` | coordinate hover; browser Observation Refs fail closed |
+| `drag` | direct canvas semantic drag (`--by` / `--to-value`) or native coordinate drag; browser Observation Refs fail closed |
+| `scroll` | whole-session managed-browser scroll with `dx,dy`, or coordinate scroll with `--dx` / `--dy`; browser refs fail closed |
+| `type` | whole-session managed-browser text input or literal native text input; browser refs fail closed |
+| `key` | whole-session managed-browser key press or literal native key combo; browser refs fail closed |
 | `press` | saved native AX press or direct `--pid` / `--role` AX press |
 | `set-value` | saved refs, direct AX, or AOS canvas semantic set-value |
 | `focus` | saved native AX focus or direct `--pid` / `--role` AX focus |
@@ -1564,12 +1724,12 @@ Primary public verbs:
 Every semantic action target is one of two V1 handles:
 
 - A browser Observation Ref is the original `state_id` plus Playwright ref and
-  browser session. A ref-bearing browser request requires `--state-id` and
-  validates that exact pair against the session's current AOS capture
-  generation. Because the reviewed backend cannot atomically bind that
-  generation to ref resolution, direct and saved dry-run/effect requests stop
-  with `TARGET_ACTION_UNSUPPORTED`; they never recapture, search by label,
-  replace state, or dispatch a potentially aliased ref.
+  browser session. Saved requests validate the stored handle record; direct
+  requests validate the exact ref grammar. Because the reviewed backend cannot
+  atomically bind a ref to a current managed session generation, both stop with
+  `TARGET_ACTION_UNSUPPORTED` before managed-session dispatch; they never
+  recapture, search by label, replace state, or dispatch a potentially aliased
+  ref.
 - A canvas or native AX Locator is a machine query re-resolved at action time.
   Zero action-compatible matches return `TARGET_NOT_FOUND`; more than one
   returns `TARGET_AMBIGUOUS`. Native `--index` explicitly selects one bounded
@@ -1580,18 +1740,16 @@ Every semantic action target is one of two V1 handles:
 ```bash
 aos do click 500,300
 aos do click ref:<snapshot-id>:<ref> --workspace <id>
-aos do click browser:<session>/<ref> --state-id <state-id>
 aos do click canvas:<canvas-id>/<ref>
 ```
 
 Coordinates and Locators reject `--state-id` with
 `TARGET_STATE_UNSUPPORTED`. Native NDJSON session requests likewise reject a
 `state_id` before dispatch. Browser session-only `type` and `key` remain
-available without a ref or state. Ref-bearing browser forms require the state:
+available without a ref or state. Ref-bearing browser actions are not
+advertised public forms:
 
 ```bash
-aos do type browser:<session>/<ref> "hello world" --state-id <state-id>
-aos do key browser:<session>/<ref> "Enter" --state-id <state-id>
 aos do type browser:<session> "hello world"
 aos do key browser:<session> "cmd+s"
 ```

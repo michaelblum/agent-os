@@ -85,7 +85,7 @@ export function isSavedRefSummaryV1(record, workspaceID = null, snapshotID = nul
   if (record.handle.backend !== record.backend) return false;
   if (record.backend === 'browser') {
     return record.supported_actions.length === 0
-      && record.known_limits.includes('browser_observation_identity_unproven');
+      && record.known_limits.includes('browser_ref_actions_unsupported');
   }
   return true;
 }
@@ -131,7 +131,7 @@ function nativeActions(element) {
 function browserSessionFromTarget(target) {
   if (!target?.startsWith?.('browser:')) return null;
   const remainder = target.slice('browser:'.length);
-  return remainder.split('/')[0] || process.env.PLAYWRIGHT_CLI_SESSION || null;
+  return remainder.split('/')[0] || null;
 }
 
 function savedAddress(context, ref) {
@@ -283,10 +283,10 @@ export function generateRefRecords(capture, context) {
           value: element.value ?? null,
           enabled: element.enabled ?? null,
         },
-        ['browser Observation Ref actions are disabled until backend identity can be proven atomically'],
+        ['browser Observation Ref actions are outside the managed checkpoint surface'],
         [
           'the Observation Ref is valid only for its original browser session and current AOS capture generation',
-          'browser_observation_identity_unproven',
+          'browser_ref_actions_unsupported',
         ],
       ));
       continue;

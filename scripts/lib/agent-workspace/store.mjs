@@ -489,6 +489,7 @@ export function withWorkspaceLock(workspace, callback, env = process.env, { crea
       throw error;
     }
   }
+  let asynchronous = false;
   try {
     writeJSONAtomic(path.join(lockDir, 'owner.json'), {
       schema_version: SCHEMA_VERSION,
@@ -497,9 +498,16 @@ export function withWorkspaceLock(workspace, callback, env = process.env, { crea
       created_at: nowISO(),
       session: sessionMetadata(env),
     });
-    return callback();
+    const result = callback();
+    if (result && typeof result.then === 'function') {
+      asynchronous = true;
+      return Promise.resolve(result).finally(() => {
+        if (lockHeld) fs.rmSync(lockDir, { recursive: true, force: true });
+      });
+    }
+    return result;
   } finally {
-    if (lockHeld) fs.rmSync(lockDir, { recursive: true, force: true });
+    if (!asynchronous && lockHeld) fs.rmSync(lockDir, { recursive: true, force: true });
   }
 }
 

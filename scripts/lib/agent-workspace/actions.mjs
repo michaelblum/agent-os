@@ -15,10 +15,6 @@ import {
   emitDryRunEnvelope,
   resolveLocatorDryRun,
 } from './ref-action-execution.mjs';
-import {
-  validateBrowserObservationRef,
-} from '../target-handle-runtime.mjs';
-import { resolveReviewedObservationRuntime } from '../playwright-cli-runtime.mjs';
 
 function present(value) {
   return value !== null && value !== undefined && String(value).length > 0;
@@ -86,16 +82,11 @@ function assertTypedHandle(record, workspace) {
 function validateHandle(record, env) {
   const handle = record.handle;
   if (handle?.kind === 'observation_ref' && handle.backend === 'browser') {
-    const runtime = resolveReviewedObservationRuntime({ env });
-    if (runtime.status !== 'ok') {
-      exitAgentWorkspaceError(runtime.error || 'playwright-cli runtime unavailable', runtime.code || 'TARGET_ACTION_UNSUPPORTED');
-    }
-    const resolved = validateBrowserObservationRef(handle, env, runtime.observation_identity);
-    return {
-      status: 'validated', backend: 'browser',
-      backend_version: runtime.version,
-      ...resolved,
-    };
+    exitAgentWorkspaceError(
+      'browser Observation Ref actions remain unsupported by the managed session contract',
+      'TARGET_ACTION_UNSUPPORTED',
+      { reason: 'browser_ref_actions_unsupported', session: handle.scope.session, state_id: handle.state_id, ref: handle.ref },
+    );
   }
   if (handle?.kind === 'locator' && ['aos_canvas', 'native_ax'].includes(handle.backend)) {
     return { status: 'resolution_required', backend: handle.backend, query: handle.query };
@@ -152,10 +143,10 @@ function maybeRunRefAction(action, args, env = process.env) {
   let secondaryCurrentValidation = secondary ? validateHandle(secondary.record, env) : null;
   if (record.handle.kind === 'observation_ref') {
     exitAgentWorkspaceError(
-      'browser Observation Ref action is disabled because the backend cannot atomically bind the original capture state to ref resolution',
+      'browser Observation Ref actions are not supported by the managed companion surface',
       'TARGET_ACTION_UNSUPPORTED',
       {
-        reason: 'browser_observation_identity_unproven',
+        reason: 'browser_ref_actions_unsupported',
         session: record.handle.scope.session,
         state_id: record.handle.state_id,
         ref: record.handle.ref,

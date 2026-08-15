@@ -53,6 +53,8 @@ manifest = json.loads(Path("manifests/commands/aos-commands.json").read_text(enc
 assert all(command["path"] != ["dev"] for command in root["commands"]), root
 assert all(command["path"] != ["ops"] for command in root["commands"]), root
 assert all(command["path"] != ["browser"] for command in root["commands"]), root
+root_browser_paths = [command["path"] for command in root["commands"] if command["path"][0] == "browser"]
+assert root_browser_paths == [["browser", "companion"]], root_browser_paths
 assert all(command["path"] != ["dev"] for command in manifest["commands"]), manifest
 assert all(command["path"] != ["ops"] for command in manifest["commands"]), manifest
 for command in root["commands"]:
@@ -62,7 +64,7 @@ for command in root["commands"]:
     assert "debug helper" not in summary.lower(), command
 assert "\n  dev" not in os.environ["ROOT_TEXT"], os.environ["ROOT_TEXT"]
 assert "\n  ops" not in os.environ["ROOT_TEXT"], os.environ["ROOT_TEXT"]
-assert "\n  browser" not in os.environ["ROOT_TEXT"], os.environ["ROOT_TEXT"]
+assert "\n  browser" in os.environ["ROOT_TEXT"], os.environ["ROOT_TEXT"]
 direct_browser = json.loads(os.environ["DIRECT_BROWSER"])
 assert direct_browser["path"] == ["browser"], direct_browser
 assert direct_browser["consumer_discovery"] is False, direct_browser
@@ -71,7 +73,7 @@ manifest_browser = next(command for command in manifest["commands"] if command["
 assert manifest_browser["consumer_discovery"] is False, manifest_browser
 PY
 then
-    pass "root consumer help excludes internal groups and manifest omits retired dev/ops commands"
+    pass "root consumer help exposes only the browser companion while hidden browser adapter stays direct-only"
 else
     fail "internal command demotion from root consumer help drifted"
 fi
@@ -464,22 +466,54 @@ assert form_arg(os.environ["UPDATE"], "show-update", "auto-project") is None
 assert form_arg(os.environ["UPDATE"], "show-update", "anchor-channel") is not None
 assert enum_values(form_arg(os.environ["UPDATE"], "show-update", "track")) == ["union"]
 update_form = next(item for item in json.loads(os.environ["UPDATE"])["forms"] if item["id"] == "show-update")
-assert ["anchor-window", "anchor-channel", "anchor-browser"] in update_form["constraints"]["conflicts"], update_form
+assert ["anchor-window", "anchor-channel"] in update_form["constraints"]["conflicts"], update_form
+assert form_arg(os.environ["CREATE"], "show-create", "anchor-browser") is None
+assert form_arg(os.environ["UPDATE"], "show-update", "anchor-browser") is None
 docs = Path("docs/api/aos.md").read_text(encoding="utf-8")
 show_section = docs.split("## `aos show`", 1)[1].split("## `aos recipe`", 1)[0]
-for token in ["--anchor-browser browser:<session>/<ref>", "--anchor-window <id>", "--anchor-channel <id>", "--offset x,y,w,h"]:
+for token in ["--anchor-window <id>", "--anchor-channel <id>", "--offset x,y,w,h"]:
     assert token in show_section, token
 assert "Anchor flags are placement roles, not separate target dialects" in show_section, show_section
-assert "Anchor Binding" in show_section, show_section
-assert "show update" in show_section and "re-anchored after browser scroll" in show_section, show_section
+assert "browser anchors are not admitted" in show_section, show_section
+assert "--anchor-browser" not in show_section, show_section
 PY
 then
-    pass "show create/update registry matches canvas parser enums"
+    pass "show create/update registry matches admitted canvas parser surface"
 else
     fail "show create/update registry drifted from canvas parser"
 fi
 
-# --- 17. do click help exposes coordinate, browser, and canvas ref target forms ---
+# --- 17. focus help owns exact browser grammar and removal authority ---
+if FOCUS_HELP="$(./aos help focus --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+forms = {form["id"]: form for form in json.loads(os.environ["FOCUS_HELP"])["forms"]}
+create = forms["focus-create"]
+target = next(arg for arg in create["args"] if arg["id"] == "target")
+extension = next(arg for arg in create["args"] if arg["id"] == "extension")
+assert {item["value"] for item in target["value_type"]["enum"]} == {"browser://new", "browser://attach"}
+assert [item["value"] for item in extension["value_type"]["enum"]] == ["chrome"]
+conflicts = {frozenset(pair) for pair in create["constraints"]["conflicts"]}
+for pair in [
+    {"target", "pid"}, {"target", "depth"}, {"window", "extension"},
+    {"window", "headless"}, {"extension", "cdp"}, {"extension", "persistent"},
+    {"cdp", "url"},
+]:
+    assert frozenset(pair) in conflicts, (pair, conflicts)
+remove = forms["focus-remove"]
+backend = next(arg for arg in remove["args"] if arg["id"] == "backend")
+assert backend["required"] is True
+assert {item["value"] for item in backend["value_type"]["enum"]} == {"browser", "native"}
+assert remove["usage"] == "aos focus remove --id <name> --backend browser|native"
+PY
+then
+    pass "focus help owns exact browser literals, flag matrix, and removal backend"
+else
+    fail "focus help grammar or removal authority drifted"
+fi
+
+# --- 18. do help separates saved refs from supported managed-session forms ---
 OUT=$(./aos help do click --json 2>/dev/null)
 if OUT="$OUT" python3 - <<'PY'
 import json
@@ -491,22 +525,22 @@ usage = form["usage"]
 tokens = {arg.get("token") for arg in form["args"]}
 assert "ref:<snapshot-id>:<ref>" in usage, usage
 assert "canvas:<canvas-id>/<ref>" in usage, usage
-assert "browser:<session>/<ref>" in usage, usage
+assert "browser:<session>/<ref>" not in usage, usage
 assert "--state-id" in tokens, tokens
 assert "--workspace" in tokens, tokens
 assert "--snapshot" in tokens, tokens
 dwell = next(arg for arg in form["args"] if arg.get("id") == "dwell")
 assert "coordinate/native and AOS canvas" in dwell["summary"], dwell
-assert "browser targets reject --dwell" in dwell["summary"], dwell
+assert "browser targets" not in dwell["summary"], dwell
 coordinate_or_canvas_usage = usage.split(" | ", 1)[1]
 assert coordinate_or_canvas_usage.startswith("aos do click <x,y|canvas:<canvas-id>/<ref>>"), usage
 assert "--dwell N" in coordinate_or_canvas_usage, usage
 assert "--state-id" not in coordinate_or_canvas_usage, usage
 PY
 then
-    pass "do click help exposes ref target forms"
+    pass "do click help exposes saved-ref and locator target forms"
 else
-    fail "do click help is missing ref target forms: $OUT"
+    fail "do click help target forms drifted: $OUT"
 fi
 
 if OUT="$(./aos help do --json 2>/dev/null)" \
@@ -567,19 +601,17 @@ click_examples = click.get("examples", [])
 assert "aos do click ref:<snapshot-id>:r1 --workspace default --dry-run" in click_examples, click_examples
 assert "aos do click ref:<snapshot-id>:r1 --workspace default" in click_examples, click_examples
 type_browser = next(item for item in data["forms"] if item["id"] == "do-type-browser")
-assert "browser:<session>[/<ref>]" in type_browser["usage"], type_browser["usage"]
-assert "--state-id" in {arg.get("token") for arg in type_browser["args"]}, type_browser
-assert "browser session text input remains available" in type_browser["summary"], type_browser
-assert "TARGET_ACTION_UNSUPPORTED" in type_browser["summary"], type_browser
+assert "browser:<session>>" in type_browser["usage"], type_browser["usage"]
+assert "--state-id" not in {arg.get("token") for arg in type_browser["args"]}, type_browser
+assert "exact managed browser session" in type_browser["summary"], type_browser
 type_ref = next(item for item in data["forms"] if item["id"] == "do-type-ref")
 type_ref_tokens = {arg.get("token") for arg in type_ref["args"]}
 assert {"--workspace", "--snapshot", "--dry-run"} <= type_ref_tokens, type_ref_tokens
 assert "TARGET_ACTION_UNSUPPORTED" in type_ref["summary"], type_ref
 key_browser = next(item for item in data["forms"] if item["id"] == "do-key-browser")
-assert "browser:<session>[/<ref>]" in key_browser["usage"], key_browser["usage"]
-assert "--state-id" in {arg.get("token") for arg in key_browser["args"]}, key_browser
-assert "browser session key press remains available" in key_browser["summary"], key_browser
-assert "TARGET_ACTION_UNSUPPORTED" in key_browser["summary"], key_browser
+assert "browser:<session>>" in key_browser["usage"], key_browser["usage"]
+assert "--state-id" not in {arg.get("token") for arg in key_browser["args"]}, key_browser
+assert "exact managed browser session" in key_browser["summary"], key_browser
 key_ref = next(item for item in data["forms"] if item["id"] == "do-key-ref")
 key_ref_tokens = {arg.get("token") for arg in key_ref["args"]}
 assert {"--workspace", "--snapshot", "--dry-run"} <= key_ref_tokens, key_ref_tokens
@@ -588,7 +620,7 @@ fill = next(item for item in data["forms"] if item["id"] == "do-fill")
 fill_tokens = {arg.get("token") for arg in fill["args"]}
 assert "--state-id" in fill_tokens, fill
 assert "--state-id id" in fill["usage"], fill["usage"]
-assert any("browser:todo/e21" in example and "--state-id" in example for example in fill["examples"]), fill["examples"]
+assert not any("browser:" in example for example in fill["examples"]), fill["examples"]
 set_value = next(item for item in data["forms"] if item["id"] == "do-set-value")
 set_value_tokens = {arg.get("token") for arg in set_value["args"]}
 assert {"--workspace", "--snapshot", "--value", "--dry-run"} <= set_value_tokens, set_value_tokens
@@ -648,28 +680,29 @@ assert "requires one target source: <target> OR --pid + --role" in os.environ["F
 assert "requires one target source: <target> OR --pid + --role" in os.environ["SET_VALUE_TEXT"], os.environ["SET_VALUE_TEXT"]
 assert "requires one value source: --value OR <value-text>" in os.environ["SET_VALUE_TEXT"], os.environ["SET_VALUE_TEXT"]
 assert "TARGET_ACTION_UNSUPPORTED" in os.environ["CLICK_TEXT"], os.environ["CLICK_TEXT"]
-assert "backend identity is unproven" in os.environ["CLICK_TEXT"], os.environ["CLICK_TEXT"]
 assert "aos do click ref:<snapshot-id>:r1 --workspace default --dry-run" in os.environ["CLICK_TEXT"], os.environ["CLICK_TEXT"]
 assert "aos do click ref:<snapshot-id>:r1 --workspace default" in os.environ["CLICK_TEXT"], os.environ["CLICK_TEXT"]
 fill = next(item for item in data["forms"] if item["id"] == "do-fill")
 fill_tokens = {arg.get("token") for arg in fill["args"]}
 assert {"--workspace", "--snapshot", "--dry-run"} <= fill_tokens, fill_tokens
-assert "browser:<s>/<ref>" in fill["usage"], fill["usage"]
+assert "browser:" not in fill["usage"], fill["usage"]
 hover = next(item for item in data["forms"] if item["id"] == "do-hover")
 hover_tokens = {arg.get("token") for arg in hover["args"]}
 assert {"--workspace", "--snapshot", "--dry-run"} <= hover_tokens, hover_tokens
-assert "browser:<session>/<ref>" in hover["usage"], hover["usage"]
+assert "browser:" not in hover["usage"], hover["usage"]
 scroll = next(item for item in data["forms"] if item["id"] == "do-scroll")
 scroll_tokens = {arg.get("token") for arg in scroll["args"]}
 assert {"--workspace", "--snapshot", "--dry-run"} <= scroll_tokens, scroll_tokens
-assert "browser:<session>/<ref>" in scroll["usage"], scroll["usage"]
+assert "browser:" not in scroll["usage"], scroll["usage"]
+scroll_browser = next(item for item in data["forms"] if item["id"] == "do-scroll-browser")
+assert scroll_browser["usage"] == "aos do scroll <browser:<session>> <dx,dy> [--dry-run]", scroll_browser
 drag = next(item for item in data["forms"] if item["id"] == "do-drag")
 drag_tokens = {arg.get("token") for arg in drag["args"]}
 assert {"--workspace", "--snapshot", "--dry-run"} <= drag_tokens, drag_tokens
 assert "--speed" not in drag_tokens, drag_tokens
 assert "--by" not in drag_tokens, drag_tokens
 assert "--to-value" not in drag_tokens, drag_tokens
-assert "browser:<session>/<ref>" in drag["usage"], drag["usage"]
+assert "browser:" not in drag["usage"], drag["usage"]
 assert "--speed" not in drag["usage"], drag["usage"]
 assert "x1,y1" not in drag["usage"], drag["usage"]
 canvas_drag = next(item for item in data["forms"] if item["id"] == "do-drag-canvas")
@@ -695,7 +728,7 @@ else
     fail "do saved-ref help advertising drifted"
 fi
 
-# --- 18. saved agent workspace help stays discoverable ---
+# --- 19. saved agent workspace help stays discoverable ---
 if CAPTURE="$(./aos help see capture --json 2>/dev/null)" \
    CAPTURE_TEXT="$(./aos help see capture 2>/dev/null)" \
    REFS="$(./aos help see refs --json 2>/dev/null)" \
@@ -708,6 +741,8 @@ import os
 capture = json.loads(os.environ["CAPTURE"])
 capture_form = next(item for item in capture["forms"] if item["id"] == "see-capture")
 capture_save_form = next(item for item in capture["forms"] if item["id"] == "see-capture-save")
+browser_form = next(item for item in capture["forms"] if item["id"] == "see-capture-browser")
+browser_save_form = next(item for item in capture["forms"] if item["id"] == "see-capture-browser-save")
 capture_tokens = {arg.get("token") for arg in capture_form["args"]}
 capture_save_tokens = {arg.get("token") for arg in capture_save_form["args"]}
 capture_conflicts = [set(item) for item in capture_form.get("constraints", {}).get("conflicts", [])]
@@ -752,11 +787,14 @@ assert capture_form["examples"][0].startswith("aos see capture") and "--save" in
 assert any("--canvas" in item and "--save" in item for item in capture_save_form["examples"]), capture_save_form["examples"]
 assert any("--interactive" in item and "--save" in item for item in capture_save_form["examples"]), capture_save_form["examples"]
 assert any("aos see refs" in item for item in capture_save_form["examples"]), capture_save_form["examples"]
-saved_loop_examples = capture_save_form["examples"]
+saved_loop_examples = browser_save_form["examples"]
 assert "aos see capture browser:work --save --mode som --workspace default --name before" in saved_loop_examples, saved_loop_examples
-assert "aos see capture browser:work --save --mode som --workspace default --name after" in saved_loop_examples, saved_loop_examples
 assert "aos see snapshots --workspace default" in saved_loop_examples, saved_loop_examples
 assert "aos see refs --workspace default --query Save" in saved_loop_examples, saved_loop_examples
+assert browser_form["usage"] == "aos see capture <browser:<session>> [--out <png> | --xray]", browser_form
+assert {arg.get("token") for arg in browser_form["args"]} == {None, "--out", "--xray"}, browser_form
+assert browser_save_form["usage"] == "aos see capture <browser:<session>> --save [--mode ax|vision|som] [--workspace <id>] [--name <id>] [--query <text>]", browser_save_form
+assert {arg.get("token") for arg in browser_save_form["args"]} == {None, "--save", "--mode", "--workspace", "--name", "--query"}, browser_save_form
 assert "Persist perception" in capture_save_form["summary"], capture_save_form
 assert "each compact saved ref" in capture_save_form["summary"], capture_save_form
 assert "exactly one typed V1 handle" in capture_save_form["summary"], capture_save_form

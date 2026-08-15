@@ -379,7 +379,7 @@ test('saved-ref do targets are routed before backend wrappers', async () => {
     const nativeRoute = manifest.commands.find((command) => command.argv_prefix.join(' ') === `node scripts/aos-do-native.mjs ${action}`);
     assert.deepEqual(nativeRoute?.when?.excluded_prefixes, ['ref:'], `do ${action} native route must not catch ref targets`);
   }
-  const fillRoute = manifest.commands.find((command) => command.argv_prefix.join(' ') === 'node scripts/aos-do-browser.mjs fill');
+  const fillRoute = manifest.commands.find((command) => command.argv_prefix.join(' ') === 'node $AOS_REPO_ROOT/scripts/aos-do-browser.mjs fill');
   assert.deepEqual(fillRoute?.when?.excluded_prefixes, ['ref:'], 'do fill browser route must not catch ref targets');
 
   for (const relativePath of ['scripts/aos-do-browser.mjs', 'scripts/aos-do-native.mjs', 'scripts/aos-do-canvas.mjs']) {
@@ -395,7 +395,7 @@ test('direct browser do targets route to browser wrappers instead of native fall
 
   for (const action of directBrowserActions) {
     const routes = manifest.commands.filter((command) => command.path.join(' ') === `do ${action}`);
-    const browserRoute = routes.find((command) => command.argv_prefix.join(' ') === `node scripts/aos-do-browser.mjs ${action}`);
+    const browserRoute = routes.find((command) => command.argv_prefix.join(' ') === `node $AOS_REPO_ROOT/scripts/aos-do-browser.mjs ${action}`);
     const nativeRoute = routes.find((command) => command.argv_prefix.join(' ') === `node scripts/aos-do-native.mjs ${action}`);
     const refRoute = routes.find((command) => command.argv_prefix.join(' ') === `node scripts/aos-do-ref.mjs ${action}`);
     const args = ['do', action, 'browser:work/ref-save'];

@@ -1,6 +1,6 @@
 # ADR 0018: Installable AOS Skills Product Surface
 
-**Status:** Accepted; amended by ADR 0039 and ADR 0040
+**Status:** Accepted; amended by ADR 0039, ADR 0040, and ADR 0041
 **Date:** 2026-07-06
 
 ADR 0039 supersedes this ADR's former retired-skill tombstone policy. The root
@@ -10,6 +10,10 @@ deleted with their internal consumer migration.
 ADR 0040 supersedes any reading of this ADR that makes dry-run, Gate, or a Work
 Record a permission prerequisite. Skills teach ambient-authority primitives,
 optional mechanics, and caller-owned evidence choices.
+
+ADR 0041 owns the separate AOS-managed Playwright CLI runtime lifecycle and its
+safe browser command boundary. This ADR continues to own AOS and external
+Playwright skill packages.
 
 ## Decision
 
@@ -89,19 +93,22 @@ AOS keeps its browser adapter. AOS owns durable browser flows through:
 - optional dry-run inspection
 - action envelopes
 - optional Work Record evidence
-- `aos show --anchor-browser`
+- browser-window anchoring remains deferred by ADR 0041 checkpoint 2B
 
-Playwright CLI remains the direct escape hatch for browser primitives AOS does
-not wrap, including tracing, video, tab management, reload/back/forward, upload,
-select/check/uncheck, codegen, and arbitrary page eval.
+Playwright CLI remains a direct external, caller-owned escape hatch for browser
+primitives AOS does not safely wrap, including tracing, video, tab observation and targeting,
+reload/back/forward, upload, select/check/uncheck, codegen, and arbitrary page
+eval. It is never resolved or attested by AOS. ADR 0041 defers even an
+untargeted typed `tabs new` operation beyond checkpoint 2B; mutable tab indexes
+never become AOS handles.
 
 AOS skills may detect or recommend upstream Playwright CLI skills. AOS must not
-vendor, fork, or silently rewrite Playwright skill content. The AOS companion
-surface reports Playwright CLI runtime status, can inspect a selected target for
-Playwright-owned skill packages, and dry-runs the external
-`playwright-cli install --skills` invocation through the existing AOS
-Playwright runtime resolver. A non-dry-run companion install would need a later
-explicit command surface.
+vendor, fork, or silently rewrite Playwright skill content. The `aos skills
+companion` surface reports Playwright CLI runtime status, can inspect a selected
+target for Playwright-owned skill packages, and dry-runs the external
+`playwright-cli install --skills` invocation through the existing resolver.
+That skill-package surface is distinct from ADR 0041's owner-only managed CLI
+runtime store and lifecycle commands.
 
 ## Root Skill Inventory
 
@@ -115,7 +122,7 @@ The registry source of truth is `skills/registry.json`.
 | `aos-saved-workspace` | installable | Supersedes broad `aos-agent-workspace` for compact saved snapshot/ref observe-act-recapture loops. |
 | `aos-canvas-vision` | installable | Teaches regions, xray, labels, canvas refs, coordinates, and visual fallback proof. |
 | `aos-focus-sessions` | installable | Teaches focus channels as the AOS session model for windows, browsers, and parallel agents. |
-| `aos-browser` | installable | Supersedes broad `browser-adapter` for current AOS browser observation handles/proof and explicit upstream Playwright CLI escape hatches. |
+| `aos-browser` | installable | Supersedes broad `browser-adapter` for current managed AOS browser sessions and observation proof; external caller-owned Playwright CLI use remains outside AOS. |
 | `aos-verification` | installable | Teaches recapture, ref diff/expect, gates, and Work Record evidence loops. |
 | `aos-operator-annotations` | installable | Teaches pending annotation list/read/consume/link behavior and safe consume-once boundaries. |
 | `aos-work-records` | installable | Teaches Work Record read/verify/status/recovery and report-only defaults. |
@@ -157,8 +164,9 @@ The registry source of truth is `skills/registry.json`.
   stay concise or explicitly split detailed references out of `SKILL.md`.
 - `aos skills` command forms must synchronize source manifests, generated
   manifests, help, docs, and tests.
-- Playwright CLI companion integration remains external and non-vendored; AOS
-  only reports runtime/install state and dry-run install intent in this ADR.
+- Playwright-owned skill content remains external and non-vendored. This ADR
+  owns only its detection and dry-run installation intent; ADR 0041 owns the
+  separate managed Playwright CLI runtime and safe browser command surface.
 
 ## Verification
 
