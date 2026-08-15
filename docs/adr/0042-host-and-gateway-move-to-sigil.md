@@ -1,6 +1,6 @@
 # ADR 0042: Host And Gateway Move To Sigil
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-14
 **Amends:** ADR 0019's project-agent orchestration scope and ADR 0021's
 Sigil/AOS repository boundary
@@ -23,9 +23,11 @@ Two current packages sit on the wrong side of those boundaries:
 - `packages/gateway/` contains an MCP server and a Slack integration broker
   with workflow registration, durable jobs, and a local snapshot API.
 
-The packages are not independently movable. The gateway serves the host SDK
-socket through `packages/gateway/src/sdk-socket.ts`, and the public doctor
-surface reaches the gateway through
+The packages are paired by ownership and retirement authority rather than a
+live host-to-gateway socket dependency. The gateway's SDK socket serves scripts
+spawned by its own execution engine, while the host owns a separate runtime
+socket. Both packages nevertheless implement product orchestration inside AOS,
+and the public doctor surface reaches the gateway through
 `manifests/commands/source/external/39-doctor-gateway.json` and the hook in
 `manifests/commands/source/aos/25-doctor.json`. Their ownership and retirement
 must therefore move as one paired cross-repository change.
@@ -42,12 +44,12 @@ orchestration hub:
   second agent loop;
 - the Slack broker becomes Sigil ingress backed by Sigil's run persistence;
   and
-- the gateway MCP server, if retained, becomes a Sigil hub ingress rather than
-  an AOS package.
+- the AOS gateway MCP server is deleted rather than ported.
 
-The paired migration must explicitly retain that MCP server as Sigil ingress
-or delete it. It cannot remain in AOS or become an unowned residue of the
-gateway move.
+No maintained repository consumer requires the AOS gateway MCP server. Sigil's
+existing `od mcp` surface is the maintained MCP ingress and may evolve only
+through hub-owned typed contracts. The migration does not port the gateway's
+script-running tools, forwarding wrappers, state, or compatibility aliases.
 
 The move transfers ownership; it does not preserve an AOS-hosted forwarding
 layer, compatibility wrapper, or duplicate runtime.
@@ -114,7 +116,7 @@ Generated aggregate manifests change only as output of their existing source
 owner and generator. The implementation change updates `CONTEXT.md`,
 `ARCHITECTURE.md`, `README.md`, applicable DOX, API indexes, and current package
 rosters in the same commit sequence; those files are deliberately not changed
-by this decision-record-only proposal.
+by this decision-record-only change.
 
 ### Paired-Change Mechanics
 
@@ -193,11 +195,10 @@ alias, dual-read path, or compatibility shim substitutes for deletion.
 
 ## Consequences
 
-- If accepted, ADR 0019 explicitly excludes the host and gateway package
-  concerns as orchestration rather than treating their current location as an
-  exception.
-- If accepted, ADR 0021 keeps the toolkit in AOS while assigning host and
-  gateway successors to Sigil.
+- ADR 0019 explicitly excludes the host and gateway package concerns as
+  orchestration rather than treating their current location as an exception.
+- ADR 0021 keeps the toolkit in AOS while assigning host and gateway successors
+  to Sigil.
 - The implementation is larger than a file move because current command,
   test, documentation, and configuration authority must disappear atomically.
 - Frozen reports and archives may retain historical names, but current
@@ -205,7 +206,8 @@ alias, dual-read path, or compatibility shim substitutes for deletion.
 
 ## Verification
 
-This proposal changes only the ADR and ADR index:
+This decision-record-only change touches ADRs 0019, 0021, and 0042 plus the ADR
+index:
 
 ```bash
 git diff --check

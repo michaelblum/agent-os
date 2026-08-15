@@ -4,7 +4,7 @@ Date: 2026-07-07
 
 ## Status
 
-Accepted.
+Accepted; amended by ADR 0042.
 
 ## Context
 
@@ -39,3 +39,7 @@ surfaces.
 Do not recreate project-agent registration, repo-local agent launchers, or
 runner surfaces in AOS core without a new ADR that supersedes this one. ADR 0039
 owns the pre-release compatibility and deletion policy.
+
+ADR 0042 assigns the former AOS host and gateway implementations and their
+successor orchestration concerns to Sigil. This ADR continues to exclude
+project-agent orchestration from AOS core.
