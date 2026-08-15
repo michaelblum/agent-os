@@ -48,3 +48,4 @@ otherwise.
 | [0039](0039-pre-release-zero-installed-base-compatibility.md) | Accepted | Active. |
 | [0040](0040-ambient-authority-raw-observation-and-target-handles.md) | Accepted | Active authority for ambient execution, raw observation, target handles, Gate, and Work Record boundaries. |
 | [0041](0041-managed-playwright-companion-runtime.md) | Accepted | Owns the optional managed Playwright CLI runtime, safe public MVP, package lifecycle, and browser ownership boundary. |
+| [0042](0042-host-and-gateway-move-to-sigil.md) | Proposed | Proposes moving the host and gateway packages to Sigil, contracting AOS package scope, and governing the paired retirement. |
