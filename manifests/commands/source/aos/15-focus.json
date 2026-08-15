@@ -38,7 +38,7 @@
                     "value": "browser://attach"
                   },
                   {
-                    "summary": "Launch and track a new browser target",
+                    "summary": "Launch and track system Chrome (Chrome must already be installed)",
                     "value": "browser://new"
                   }
                 ]
@@ -90,7 +90,14 @@
               "required": false,
               "summary": "Attach via browser extension (browser://attach)",
               "token": "--extension",
-              "value_type": "bool"
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Use the reviewed Chrome extension bridge from an ordinary Default or Profile N system Chrome profile with a valid version directory and matching manifest; may launch or focus Chrome and open its bridge page",
+                    "value": "chrome"
+                  }
+                ]
+              }
             },
             {
               "id": "cdp",
@@ -104,7 +111,7 @@
               "id": "headless",
               "kind": "flag",
               "required": false,
-              "summary": "Launch browser headless (browser://new)",
+              "summary": "Launch system Chrome headless (browser://new; Chrome is an external prerequisite)",
               "token": "--headless",
               "value_type": "bool"
             },
@@ -112,7 +119,7 @@
               "id": "url",
               "kind": "flag",
               "required": false,
-              "summary": "Initial URL for launched browser (browser://new)",
+              "summary": "Initial http, https, data, or about URL for launched browser (browser://new)",
               "token": "--url",
               "value_type": "string"
             },
@@ -120,7 +127,7 @@
               "id": "persistent",
               "kind": "flag",
               "required": false,
-              "summary": "Reuse a persistent browser profile (browser://new)",
+              "summary": "Use an AOS-owned profile private to this session generation (browser://new)",
               "token": "--persistent",
               "value_type": "bool"
             }
@@ -130,6 +137,74 @@
               [
                 "window",
                 "target"
+              ],
+              [
+                "target",
+                "pid"
+              ],
+              [
+                "target",
+                "depth"
+              ],
+              [
+                "target",
+                "subtree-role"
+              ],
+              [
+                "target",
+                "subtree-title"
+              ],
+              [
+                "target",
+                "subtree-identifier"
+              ],
+              [
+                "window",
+                "extension"
+              ],
+              [
+                "window",
+                "cdp"
+              ],
+              [
+                "window",
+                "headless"
+              ],
+              [
+                "window",
+                "url"
+              ],
+              [
+                "window",
+                "persistent"
+              ],
+              [
+                "extension",
+                "cdp"
+              ],
+              [
+                "extension",
+                "headless"
+              ],
+              [
+                "extension",
+                "url"
+              ],
+              [
+                "extension",
+                "persistent"
+              ],
+              [
+                "cdp",
+                "headless"
+              ],
+              [
+                "cdp",
+                "url"
+              ],
+              [
+                "cdp",
+                "persistent"
               ]
             ],
             "one_of": [
@@ -141,7 +216,7 @@
           },
           "examples": [
             "aos focus create --id work --window 1234 --depth 2",
-            "aos focus create --id todo --target browser://attach --extension",
+            "aos focus create --id todo --target browser://attach --extension=chrome",
             "aos focus create --id scratch --target browser://new --headless --url https://example.com"
           ],
           "execution": {
@@ -258,10 +333,30 @@
               "summary": "Channel name",
               "token": "--id",
               "value_type": "string"
+            },
+            {
+              "id": "backend",
+              "kind": "flag",
+              "required": true,
+              "summary": "Exact removal authority; browser closes or detaches the managed session and native routes only to the daemon",
+              "token": "--backend",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Managed browser session authority",
+                    "value": "browser"
+                  },
+                  {
+                    "summary": "Native focus-channel authority",
+                    "value": "native"
+                  }
+                ]
+              }
             }
           ],
           "examples": [
-            "aos focus remove --id work"
+            "aos focus remove --id work --backend native",
+            "aos focus remove --id browser-work --backend browser"
           ],
           "execution": {
             "auto_starts_daemon": true,
@@ -279,13 +374,13 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "usage": "aos focus remove --id <name>"
+          "usage": "aos focus remove --id <name> --backend browser|native"
         }
       ],
       "path": [
         "focus"
       ],
-      "summary": "Focus channels — track window AX trees"
+      "summary": "Focus channels — track native windows or managed browser sessions"
     }
   ]
 }

@@ -10,7 +10,7 @@ browser handle validates its original session/state/ref and then fails closed
 with `TARGET_ACTION_UNSUPPORTED` because the backend cannot atomically bind the
 capture generation to ref resolution. Browser records therefore expose an
 empty `supported_actions` array and the machine-readable
-`browser_observation_identity_unproven` known limit. Canvas and native AX handles are
+`browser_ref_actions_unsupported` known limit. Canvas and native AX handles are
 Locators and are re-resolved to exactly one current match. `supported_actions`
 and `hint_facts` are bounded capture-time presentation facts only; they never
 gate dispatch. Current action-time resolution owns missing, ambiguous,

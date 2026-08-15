@@ -12,6 +12,13 @@ apps, and tests.
 - `schemas/` owns JSON schemas and adjacent contract documentation.
 - `schemas/aos-browser-companion-*-v1.schema.json` owns the exact managed
   Playwright descriptor and closed content-free lifecycle result contracts.
+- `schemas/aos-browser-session-result-v1.schema.json` and
+  `schemas/aos-browser-backend-identity-v2.schema.json` own the closed managed
+  session receipt state/recovery variants and path-free generation-bound
+  backend identity. Runtime identity admits bounded immutable package versions
+  and package-relative entrypoints so retained older leases remain representable
+  after source activation changes; descriptor and closure hashes plus generation
+  must still match exactly.
 - `gate/` owns shared gate request/record helpers.
 - `swift/` owns reusable Swift IPC helpers shared by native modules.
 - `user-signal/` owns shared user-signal policy helpers.

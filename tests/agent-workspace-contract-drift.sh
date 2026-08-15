@@ -26,12 +26,20 @@ assert.doesNotMatch(activeFixtureHelper, /aos-agent-workspace-v0\.schema\.json/)
 assert.match(activeFixtureHelper, /aos-target-handle-v1\.schema\.json/)
 assert.match(activeFixtureHelper, /display-topology-v1\.schema\.json/)
 
+const fixtureCompatibilityShim = text('tests/lib/agent-workspace-fixtures.sh')
+assert.doesNotMatch(fixtureCompatibilityShim, /agent-workspace-fixtures\/browser\.sh/)
+assert.equal(fs.existsSync('tests/lib/agent-workspace-fixtures/browser.sh'), false)
+
 const target = json('shared/schemas/aos-target-handle-v1.schema.json')
 assert.deepEqual(target.oneOf.map((entry) => entry.$ref), [
   '#/$defs/browser_observation_ref',
   '#/$defs/canvas_locator',
   '#/$defs/native_ax_locator',
 ])
+const targetContract = text('shared/schemas/aos-target-handle-v1.md')
+assert.match(targetContract, /generation control record is path-free/)
+assert.match(targetContract, /package-relative entrypoint/)
+assert.doesNotMatch(targetContract, /canonical executable path/)
 
 for (const file of [
   'scripts/lib/agent-workspace/actions.mjs',

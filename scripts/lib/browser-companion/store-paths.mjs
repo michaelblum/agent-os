@@ -67,11 +67,14 @@ export function storePaths(env = process.env) {
     active: path.join(root, 'active.json'),
     versions: path.join(root, 'versions'),
     leases: path.join(root, 'leases'),
+    workspaces: path.join(root, 'workspaces'),
+    sessionRetired: path.join(root, '.session-retired'),
     staging: path.join(root, '.staging'),
     pending: path.join(root, '.pending'),
     retired: path.join(root, '.retired'),
     bootstrap: path.join(root, '.bootstrap'),
     lock: path.join(root, '.lock'),
+    guardian: path.join(root, '.lock', 'guardian.json'),
     lockRecovery: path.join(root, '.lock-recovery'),
     removal,
     removalJournal: path.join(removal, 'journal.json'),
@@ -271,7 +274,8 @@ export function ensureStore(env = process.env, options = {}) {
   }
   joinOwnerBootstrap(paths);
   for (const [directory, label] of [
-    [paths.versions, 'versions'], [paths.leases, 'leases'], [paths.staging, 'staging'],
+    [paths.versions, 'versions'], [paths.leases, 'leases'], [paths.workspaces, 'session workspaces'],
+    [paths.sessionRetired, 'retired sessions'], [paths.staging, 'staging'],
     [paths.pending, 'pending records'], [paths.retired, 'retired state'],
   ]) {
     ensurePrivateDirectory(directory, label);

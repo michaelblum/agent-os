@@ -1,7 +1,6 @@
 // target-parser.swift — Parse browser:<session>[/<ref>] target strings.
 //
 // Grammar:
-//     browser:                     -> session resolved from PLAYWRIGHT_CLI_SESSION env
 //     browser:<session>            -> page target
 //     browser:<session>/<ref>      -> element target
 //
@@ -40,13 +39,8 @@ func parseBrowserTarget(_ input: String, env: [String: String] = ProcessInfo.pro
     }
     let remainder = String(input.dropFirst("browser:".count))
 
-    // Bare "browser:" — resolve from env
     if remainder.isEmpty {
-        guard let session = env["PLAYWRIGHT_CLI_SESSION"], !session.isEmpty else {
-            throw BrowserTargetError.missingSession
-        }
-        try validateSession(session)
-        return BrowserTarget(session: session, ref: nil)
+        throw BrowserTargetError.missingSession
     }
 
     // Reject "browser://..." (common typo pattern)

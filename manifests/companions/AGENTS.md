@@ -25,7 +25,8 @@ tool runtimes managed by AOS.
 
 ## Verification
 
-- Run `node --test tests/browser/companion-lifecycle.test.mjs tests/browser/companion-staging.test.mjs` and
+- Run `node --test tests/browser/companion-lifecycle.test.mjs tests/browser/companion-staging.test.mjs`,
+  `node --test tests/browser/managed-session-lifecycle.test.mjs tests/browser/managed-session-consumers.test.mjs`, and
   `node --test tests/schemas/aos-browser-companion-v1.test.mjs`.
 
 ## Child DOX Index

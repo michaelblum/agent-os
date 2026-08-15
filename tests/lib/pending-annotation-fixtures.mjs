@@ -183,7 +183,7 @@ export function savedRefFixture({ ref = 'r1', snapshot = 'snap1', backend = 'bro
     copyable_action_target: `ref:${snapshot}:${ref}`,
     artifact_refs: [{ role: 'ref_summary', path: `/tmp/${snapshot}-${ref}.json` }],
     warnings: [],
-    known_limits: backend === 'browser' ? ['browser_observation_identity_unproven'] : [],
+    known_limits: backend === 'browser' ? ['browser_ref_actions_unsupported'] : [],
   };
 }
 

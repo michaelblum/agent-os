@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-
 import { spawn } from 'node:child_process';
 import {
   emitAgentWorkspaceError,
@@ -17,17 +16,18 @@ import {
   emitTargetHandleError,
   recordBrowserCaptureGeneration,
 } from './lib/target-handle-runtime.mjs';
-import { resolveReviewedObservationRuntime } from './lib/playwright-cli-runtime.mjs';
-
+import { managedSessionIdentity } from './lib/browser-companion/session-lifecycle.mjs';
+import {
+  BrowserCaptureOptionError,
+  validateBrowserCaptureOptions,
+} from './lib/browser-companion/see-capture-options.mjs';
 function error(message, code) {
   process.stderr.write(`${JSON.stringify({ code, error: message })}\n`);
   process.exit(1);
 }
-
 function aosPath() {
   return process.env.AOS_PATH || './aos';
 }
-
 const SIGNAL_EXIT_CODES = new Map([
   ['SIGHUP', 129],
   ['SIGINT', 130],
@@ -45,12 +45,9 @@ function processExists(pid) {
   }
 }
 
-function reviewedBrowserRuntime() {
-  const runtime = resolveReviewedObservationRuntime();
-  if (runtime.status !== 'ok') {
-    throw new TargetHandleError(runtime.code || 'TARGET_ACTION_UNSUPPORTED', runtime.error || 'reviewed browser backend unavailable');
-  }
-  return runtime;
+async function reviewedBrowserRuntime(session) {
+  try { return await managedSessionIdentity(session); }
+  catch (error) { throw new TargetHandleError(error?.code || 'TARGET_ACTION_UNSUPPORTED', 'managed browser backend unavailable'); }
 }
 
 async function runNativePrimitive(primitive, args, browserSession = null, backendIdentity = null) {
@@ -137,7 +134,7 @@ async function runNativePrimitive(primitive, args, browserSession = null, backen
       if (captureBytes > maxCaptureBytes) {
         throw new TargetHandleError('TARGET_HANDLE_INVALID', 'browser capture exceeds the bounded generation output limit');
       }
-      const verifiedAfterCapture = reviewedBrowserRuntime().observation_identity;
+      const verifiedAfterCapture = (await reviewedBrowserRuntime(browserSession)).backend_identity;
       if (JSON.stringify(verifiedAfterCapture) !== JSON.stringify(backendIdentity)) {
         throw new TargetHandleError('TARGET_STATE_STALE', 'browser backend identity changed while capture was running');
       }
@@ -155,12 +152,6 @@ async function runNativePrimitive(primitive, args, browserSession = null, backen
   }
   if ((result.code ?? 1) !== 0) flushBrowserStdout();
   return result.code ?? 1;
-}
-
-function browserSessionFromCaptureTarget(target) {
-  if (!String(target ?? '').startsWith('browser:')) return null;
-  const remainder = String(target).slice('browser:'.length);
-  return remainder.split('/')[0] || process.env.PLAYWRIGHT_CLI_SESSION || null;
 }
 
 function parseNoArgPrimitive(primitive, args) {
@@ -185,6 +176,9 @@ try {
       error(first.error, first.code);
     }
   }
+  const browserCapture = primitive === 'capture'
+    ? validateBrowserCaptureOptions(savedCapture)
+    : null;
   if (['cursor', 'list', 'selection'].includes(primitive)) parseNoArgPrimitive(primitive, args);
 
   if (primitive === 'capture' && savedCapture?.options.save) {
@@ -192,10 +186,8 @@ try {
     process.exit(0);
   }
 
-  const browserSession = primitive === 'capture'
-    ? browserSessionFromCaptureTarget(savedCapture?.target)
-    : null;
-  const backendIdentity = browserSession ? reviewedBrowserRuntime().observation_identity : null;
+  const browserSession = browserCapture?.session ?? null;
+  const backendIdentity = browserSession ? (await reviewedBrowserRuntime(browserSession)).backend_identity : null;
   process.exitCode = await runNativePrimitive(primitive, args, browserSession, backendIdentity);
 } catch (err) {
   if (isAgentWorkspaceError(err)) emitAgentWorkspaceError(err);
@@ -203,5 +195,6 @@ try {
     emitTargetHandleError(err);
     process.exitCode = 1;
   }
+  else if (err instanceof BrowserCaptureOptionError) error(err.message, err.code);
   else throw err;
 }

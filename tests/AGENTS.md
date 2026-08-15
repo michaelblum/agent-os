@@ -22,10 +22,10 @@ tests.
   stress in separate scenario drivers over shared lifecycle support.
 - Do not weaken assertions to match stale behavior; update the owning contract
   or source when behavior intentionally changes.
-- Core Target Handle V1 acceptance tests use isolated state roots, fake Playwright/AOS
-  executables, and pure Swift selection harnesses. They must prove original-pair
-  validation plus fail-closed browser no-dispatch, independently verified
-  minting-backend implementation-closure identity, V0 byte-preserving rejection,
+- Core Target Handle V1 acceptance tests use isolated state roots, injected
+  managed workers/fake AOS executables, and pure Swift selection harnesses.
+  They must prove generation-bound path-free backend identity plus fail-closed
+  browser-ref no-dispatch, V0 byte-preserving rejection,
   exact-one Locator behavior, one-shot and native-session state rejection, and
   schema-valid native handle emission or omission, and the absence of
   reacquisition or first-match helpers without executing `./aos`.
@@ -40,6 +40,49 @@ tests.
   executable dispatcher-route help/staging from an unrelated caller. They clean every temporary root and use bounded
   subprocesses without network, package scripts, browser binaries, `./aos`,
   daemon, browser, native UI, or TCC.
+- Managed session tests use only fake in-process workers and installed staging
+  routes. The command proof executes the staged public focus lifecycle and
+  narrow broker from an unrelated cwd against a fake descriptor-bound worker.
+  They cover explicit system-Chrome launch argv, launched/CDP/extension ownership, conservative
+  extension-profile admission with malformed/over-cap blocked classification,
+  exact focus grammar/backend removal, exact close versus detach, 128-record preflight,
+  creation-intent/starting/operating/committed/cleanup-required durability,
+  fully validated acknowledgement before complete-Guardian retirement,
+  ordered consume-last evidence progress across sequential subworkers,
+  actual-spawn authority latching, no-replay recovery, final-lease version
+  retirement, lock-cleanup recovery receipt truth, whole-list stable reads,
+  lease retention, exact worker
+  envelopes and liveness, fixed operations, private environment/workspace drift, legacy
+  registry retirement/blocking, content-free receipts, consumer cutover,
+  installed unrelated-cwd agent-workspace inspection, and the absence of
+  upstream list, runtime fallback, browser execution, or network.
+  `managed-session-recovery.test.mjs` owns deterministic publication-fault,
+  durable rollback-no-authority, intent-last present/absent partial-workspace
+  recovery, evidence journal/outcome recovery matrices, and no-replay
+  transition seams. `managed-worker-acknowledgement.test.mjs` owns real
+  start/liveness/operation/cleanup acknowledgement-before-retirement faults
+  and live-release outcome transfer; `managed-worker-sequential.test.mjs` owns
+  every intermediate/final evidence boundary and journal-consume-last seams.
+  These proofs distinguish returned acknowledgement records from unknown
+  callback failure and require public mutation/operation/broker projections to
+  remain schema-valid and free of private pending-signal state.
+  `managed-worker-guardian.test.mjs` owns real disposable subprocess proof of
+  inert pre-reservation behavior, parent-published PID-bound arming,
+  activate/request/execute ordering, request/control failure, exact aggregate
+  raw-stream caps, pre-request parent loss, sentinel-held process-group identity,
+  nonce-bound self-group SIGKILL exit plus untruncated control and raw EOF
+  witnesses, outer and inner transport-loss draining, cessation of
+  TERM-ignoring descendant user-code authority, negative ACK/exit/EOF cases,
+  and intended detached-daemon lifetime.
+  `managed-guardian-state.test.mjs` owns byte- and name-invariant status/list/
+  dry-run inspection of publication residue. Guardian recovery proofs require
+  an exact durable lock/session/generation/nonce/operation outcome before stale
+  lock authority is removed, then consume that outcome only after the bound
+  rollback or cleanup-required transition is durable. Fixture and screenshot
+  size limits are exercised without a real package or browser.
+  `managed-browser-swift-contract.test.mjs` statically binds the narrow Swift
+  broker/adapter/daemon graph; full compile coverage routes to
+  `bash tests/swift-runtime-typecheck.sh`.
 - Policy drift guards must name the exact active source surfaces and prohibited
   doctrine they protect. Do not globally ban mechanically valid terms such as
   `dry-run`, `authorization`, `allowlist`, `redaction`, Gate, or Work Record.
@@ -316,7 +359,8 @@ tests.
   `tests/lib/agent-workspace-fixtures/`; `tests/lib/agent-workspace-fixtures.sh`
   is only the compatibility shim that sources those files.
 - Keep Target Handle V1 deterministic coverage in
-  `target-handle-runtime.test.mjs`, `agent-workspace-v1.test.mjs`, and
+  `target-handle-runtime.test.mjs`, `agent-workspace-v1.test.mjs`,
+  `agent-workspace-v1-actions.test.mjs`, and
   `native-target-locator-selection.sh`; guarded legacy live proofs are not V1
   acceptance evidence.
 

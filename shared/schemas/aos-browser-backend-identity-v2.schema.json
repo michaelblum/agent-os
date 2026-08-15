@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-browser-backend-identity-v2.schema.json",
+  "title": "AOS Browser Backend Identity v2",
+  "type": "object",
+  "required": ["schema_version", "adapter", "version", "descriptor_sha256", "closure_sha256", "entrypoint", "session_generation"],
+  "properties": {
+    "schema_version": {"const": "aos.browser-backend-identity.v2"},
+    "adapter": {"const": "@playwright/cli"},
+    "version": {"type":"string","maxLength":128,"pattern":"^(?:0|[1-9][0-9]{0,9})\\.(?:0|[1-9][0-9]{0,9})\\.(?:0|[1-9][0-9]{0,9})(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$"},
+    "descriptor_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "closure_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "entrypoint": {"type":"string","maxLength":256,"pattern":"^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*//)[A-Za-z0-9@._+~/-]+$"},
+    "session_generation": {"type": "string", "pattern": "^[a-f0-9]{32}$"}
+  },
+  "additionalProperties": false
+}

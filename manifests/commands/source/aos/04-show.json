@@ -190,14 +190,6 @@
               "value_type": "string"
             },
             {
-              "id": "anchor-browser",
-              "kind": "flag",
-              "required": false,
-              "summary": "Anchor to browser target (browser:<s>[/<ref>])",
-              "token": "--anchor-browser",
-              "value_type": "string"
-            },
-            {
               "id": "offset",
               "kind": "flag",
               "required": false,
@@ -213,26 +205,20 @@
                 "track",
                 "surface",
                 "anchor-window",
-                "anchor-channel",
-                "anchor-browser"
+                "anchor-channel"
               ],
               [
                 "html",
                 "file",
                 "url"
               ],
-              [
-                "anchor-window",
-                "anchor-channel",
-                "anchor-browser"
-              ]
+              ["anchor-window", "anchor-channel"]
             ]
           },
           "examples": [
             "aos show create --id ball --at 100,100,200,200 --html \"<div>hello</div>\"",
             "aos show create --id surface --url aos://demo/surface/index.html --surface desktop-world",
-            "aos show create --id overlay --url aos://demo/overlay/index.html --surface desktop-world",
-            "aos show create --id annot --anchor-browser browser:todo/e21 --html \"<div class='badge'>42</div>\""
+            "aos show create --id overlay --url aos://demo/overlay/index.html --surface desktop-world"
           ],
           "execution": {
             "auto_starts_daemon": true,
@@ -369,14 +355,6 @@
               "value_type": "string"
             },
             {
-              "id": "anchor-browser",
-              "kind": "flag",
-              "required": false,
-              "summary": "New anchor browser target (browser:<s>[/<ref>])",
-              "token": "--anchor-browser",
-              "value_type": "string"
-            },
-            {
               "id": "offset",
               "kind": "flag",
               "required": false,
@@ -387,11 +365,7 @@
           ],
           "constraints": {
             "conflicts": [
-              [
-                "anchor-window",
-                "anchor-channel",
-                "anchor-browser"
-              ]
+              ["anchor-window", "anchor-channel"]
             ]
           },
           "examples": [

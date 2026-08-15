@@ -13,11 +13,14 @@ import {
   readPrivateRecord,
   writePrivateRecordAtomic,
 } from './store-paths.mjs';
+import { isSessionCreateIntentName } from './session-intent.mjs';
+import { isEvidenceAckName } from './session-evidence-ack.mjs';
+import { isGuardianOutcomeName } from './worker-guardian-outcome.mjs';
 
-const MAX_RECOVERY_ENTRIES = 32;
+const MAX_RECOVERY_ENTRIES = 384;
 const SAFE_PENDING_RECORD = /^\.record-[0-9]+-[a-f0-9]{16}\.tmp$/u;
 const SAFE_ACTIVATION_INTENT = /^activation-[0-9]+-[a-f0-9]{24}\.json$/u;
-const SAFE_PENDING = /^(?:\.record-[0-9]+-[a-f0-9]{16}\.tmp|\.publish-(?:store-owner|lock-owner|removal-claim)-slot-[0-7]\.tmp|activation-[0-9]+-[a-f0-9]{24}\.json)$/u;
+const SAFE_PENDING = /^(?:\.record-[0-9]+-[a-f0-9]{16}\.tmp|\.publish-(?:store-owner|lock-owner|removal-claim|guardian-record|guardian-outcome)-slot-[0-7]\.tmp|activation-[0-9]+-[a-f0-9]{24}\.json|session-create-[A-Za-z0-9][A-Za-z0-9_-]{0,63}-[a-f0-9]{32}\.json|guardian-outcome-[A-Za-z0-9][A-Za-z0-9_-]{0,63}-[a-f0-9]{32}-[a-f0-9]{32}\.json|evidence-ack-[A-Za-z0-9][A-Za-z0-9_-]{0,63}-[a-f0-9]{32}-[a-f0-9]{32}\.json)$/u;
 const SAFE_RETIRED = /^retired-(?:active|stage|version)-[0-9]+-[a-f0-9]{24}$/u;
 const ACTIVATION_SCHEMA = 'aos.browser.companion-activation-intent.v1';
 const ACTIVATION_KEYS = ['schema_version', 'store_id', 'previous_active', 'next_active'];
@@ -135,6 +138,9 @@ export function recoveryState(store) {
 export function cleanupRecoveryState(store) {
   const recovery = recoveryState(store);
   for (const entry of recovery.pending) {
+    if (isSessionCreateIntentName(entry) || isGuardianOutcomeName(entry) || isEvidenceAckName(entry)) {
+      fail('COMPANION_LEASES_ACTIVE', 'managed session recovery blocks package cleanup');
+    }
     const target = path.join(store.paths.pending, entry);
     if (SAFE_PENDING_RECORD.test(entry) || isExclusivePublicationTemp(entry)) removeQuarantined(target);
     else clearActivationIntent(store, target);

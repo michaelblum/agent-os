@@ -472,9 +472,6 @@ function parseCanvasMutationOptions(args, kind) {
       case '--anchor-channel':
         [options.anchorChannel, i] = nextValue(args, i, '--anchor-channel');
         break;
-      case '--anchor-browser':
-        [options.anchorBrowser, i] = nextValue(args, i, '--anchor-browser');
-        break;
       case '--offset':
         [options.offset, i] = nextValue(args, i, '--offset');
         break;
@@ -550,39 +547,7 @@ function parseCanvasMutationOptions(args, kind) {
   return options;
 }
 
-function runResolveAnchor(spec) {
-  const result = spawnSync(aosPath(), ['browser', '_resolve-anchor', spec, '--json'], {
-    cwd: process.cwd(),
-    env: process.env,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  if (result.status !== 0) {
-    const errText = result.stderr.trim() || result.stdout.trim();
-    try {
-      const parsed = JSON.parse(errText);
-      error(parsed.error || errText, parsed.code || 'INTERNAL');
-    } catch {
-      error(errText || 'Failed to resolve browser anchor', 'INTERNAL');
-    }
-  }
-  try {
-    return JSON.parse(result.stdout);
-  } catch {
-    error('Failed to decode browser anchor', 'INTERNAL');
-  }
-}
-
 function applyCanvasMutationOptions(options, request, kind) {
-  if (options.anchorBrowser !== undefined) {
-    if (options.anchorWindow !== undefined || options.anchorChannel !== undefined) {
-      error('--anchor-browser is mutually exclusive with --anchor-window and --anchor-channel', 'INVALID_ARG');
-    }
-    const anchor = runResolveAnchor(options.anchorBrowser);
-    options.anchorWindow = anchor.anchor_window;
-    options.offset = anchor.offset.join(',');
-  }
-
   if (options.ttlValue !== undefined) {
     const ttl = parseCanvasTTL(options.ttlValue, kind);
     if (ttl !== undefined) request.ttl = ttl;

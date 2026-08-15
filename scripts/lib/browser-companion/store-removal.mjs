@@ -123,12 +123,12 @@ function validateActiveBinding(root, journal) {
 function validateIntactRoot(root, storeOwner, lockOwner, journal, allowLiveLock) {
   assertPrivateDirectory(root, 'retired companion store');
   const entries = fs.readdirSync(root).sort();
-  const expected = ['.lock', '.pending', '.retired', '.staging', 'leases', 'owner.json', 'versions'];
+  const expected = ['.lock', '.pending', '.retired', '.session-retired', '.staging', 'leases', 'owner.json', 'versions', 'workspaces'];
   if (lstatOptional(path.join(root, 'active.json'))) expected.push('active.json');
   if (JSON.stringify(entries) !== JSON.stringify(expected.sort())) {
     fail('COMPANION_STORE_CORRUPT', 'retired companion store layout differs');
   }
-  for (const name of ['.lock', '.pending', '.retired', '.staging', 'leases', 'versions']) {
+  for (const name of ['.lock', '.pending', '.retired', '.session-retired', '.staging', 'leases', 'versions', 'workspaces']) {
     assertPrivateDirectory(path.join(root, name), `retired ${name}`);
   }
   const owner = readPrivateRecord(path.join(root, 'owner.json'));
@@ -137,6 +137,9 @@ function validateIntactRoot(root, storeOwner, lockOwner, journal, allowLiveLock)
   }
   if (fs.readdirSync(path.join(root, 'leases')).length !== 0) {
     fail('COMPANION_LEASES_ACTIVE', 'managed leases block uninstall');
+  }
+  if (fs.readdirSync(path.join(root, 'workspaces')).length !== 0 || fs.readdirSync(path.join(root, '.session-retired')).length !== 0) {
+    fail('COMPANION_STORE_CORRUPT', 'managed session cleanup is incomplete');
   }
   const lock = readPrivateRecord(path.join(root, '.lock/owner.json'));
   if (!exactLockOwner(lock, journal.store_id) || (lockOwner && JSON.stringify(lock) !== JSON.stringify(lockOwner))) {

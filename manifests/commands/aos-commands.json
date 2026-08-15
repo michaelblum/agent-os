@@ -414,31 +414,15 @@
               "id" : "xray",
               "kind" : "flag",
               "required" : false,
-              "summary" : "AX element traversal overlay",
+              "summary" : "Native AX or managed browser snapshot elements",
               "token" : "--xray",
               "value_type" : "bool"
-            },
-            {
-              "id" : "browser-dom-point",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Browser DOM viewport point hit test for browser:<session> targets: x,y",
-              "token" : "--browser-dom-point",
-              "value_type" : "string"
-            },
-            {
-              "id" : "browser-content-rect",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Proven browser content rect in DesktopWorld coordinates: x,y,w,h",
-              "token" : "--browser-content-rect",
-              "value_type" : "string"
             },
             {
               "id" : "label",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Badge annotations (implies --xray)",
+              "summary" : "Native/canvas badge annotations (implies --xray); managed browser capture has no local geometry badges",
               "token" : "--label",
               "value_type" : "bool"
             },
@@ -518,7 +502,7 @@
               "id" : "save",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Persist full perception in a local agent workspace and return compact JSON saved handles. Each record contains exactly one V1 browser Observation Ref, canvas Locator, or native AX Locator; actions validate browser state/ref pairs or re-resolve Locators to exactly one current match",
+              "summary" : "Persist full perception in a local agent workspace and return compact JSON saved handles. Each record contains exactly one V1 browser Observation Ref, canvas Locator, or native AX Locator; browser refs remain capture-only while Locators re-resolve to exactly one current match",
               "token" : "--save",
               "value_type" : "bool"
             },
@@ -636,8 +620,6 @@
             }
           },
           "examples" : [
-            "aos see capture browser:work --save --mode som --workspace default --name before",
-            "aos see capture browser:work --save --mode som --workspace default --name after",
             "aos see snapshots --workspace default",
             "aos see refs --workspace default",
             "aos see capture main --out /tmp/screen.png",
@@ -797,8 +779,6 @@
             ]
           },
           "examples" : [
-            "aos see capture browser:work --save --mode som --workspace default --name before",
-            "aos see capture browser:work --save --mode som --workspace default --name after",
             "aos see capture --canvas surface-inspector --save --mode som --workspace default",
             "aos see capture --interactive --save --mode ax --workspace default --name selection",
             "aos see snapshots --workspace default",
@@ -822,6 +802,151 @@
           },
           "summary" : "Persist perception through the same bounded daemon-owned native transaction into a local agent workspace; --window warns on full-display fallback, and each compact saved ref exposes exactly one typed V1 handle plus bounded hint, artifact, and warning facts",
           "usage" : "aos see capture [<target>|--region <rect>|--canvas <id>|--channel <id>] [--interactive] --save [--mode <mode>] [--workspace <id>] [--name <id>] [--query <text>]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "target",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Exact session-only browser target; browser refs remain unsupported",
+              "value_type" : "string"
+            },
+            {
+              "id" : "out",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Write the managed whole-session screenshot to one caller-selected PNG path",
+              "token" : "--out",
+              "value_type" : "path"
+            },
+            {
+              "id" : "xray",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Return the managed whole-session snapshot without local geometry or badge labels",
+              "token" : "--xray",
+              "value_type" : "bool"
+            }
+          ],
+          "constraints" : {
+            "conflicts" : [
+              [
+                "out",
+                "xray"
+              ]
+            ]
+          },
+          "examples" : [
+            "aos see capture browser:work --out /tmp/browser.png",
+            "aos see capture browser:work --xray"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "see-capture-browser",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : false
+          },
+          "summary" : "Capture one managed browser session as either a screenshot or bounded snapshot; native capture flags, refs, geometry, and labels are rejected",
+          "usage" : "aos see capture <browser:<session>> [--out <png> | --xray]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "target",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Exact session-only browser target to save",
+              "value_type" : "string"
+            },
+            {
+              "id" : "save",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Persist one managed browser capture in an agent workspace",
+              "token" : "--save",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "workspace",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Agent workspace id; overrides AOS_AGENT_WORKSPACE",
+              "token" : "--workspace",
+              "value_type" : "string"
+            },
+            {
+              "id" : "name",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Snapshot id for the saved browser capture",
+              "token" : "--name",
+              "value_type" : "string"
+            },
+            {
+              "default_value" : "som",
+              "id" : "mode",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Managed browser capture mode",
+              "token" : "--mode",
+              "value_type" : {
+                "enum" : [
+                  {
+                    "summary" : "Managed snapshot records",
+                    "value" : "ax"
+                  },
+                  {
+                    "summary" : "Managed screenshot artifact",
+                    "value" : "vision"
+                  },
+                  {
+                    "summary" : "Managed snapshot plus image pointers",
+                    "value" : "som"
+                  }
+                ]
+              }
+            },
+            {
+              "id" : "query",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Filter compact saved records by handle facts or target hints",
+              "token" : "--query",
+              "value_type" : "string"
+            }
+          ],
+          "examples" : [
+            "aos see capture browser:work --save --mode som --workspace default --name before"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "see-capture-browser-save",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : false
+          },
+          "summary" : "Persist one exact managed browser capture; native source, geometry, label, and output flags are rejected before session or worker access",
+          "usage" : "aos see capture <browser:<session>> --save [--mode ax|vision|som] [--workspace <id>] [--name <id>] [--query <text>]"
         },
         {
           "args" : [
@@ -2399,14 +2524,6 @@
               "value_type" : "string"
             },
             {
-              "id" : "anchor-browser",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Anchor to browser target (browser:<s>[/<ref>])",
-              "token" : "--anchor-browser",
-              "value_type" : "string"
-            },
-            {
               "id" : "offset",
               "kind" : "flag",
               "required" : false,
@@ -2422,8 +2539,7 @@
                 "track",
                 "surface",
                 "anchor-window",
-                "anchor-channel",
-                "anchor-browser"
+                "anchor-channel"
               ],
               [
                 "html",
@@ -2432,16 +2548,14 @@
               ],
               [
                 "anchor-window",
-                "anchor-channel",
-                "anchor-browser"
+                "anchor-channel"
               ]
             ]
           },
           "examples" : [
             "aos show create --id ball --at 100,100,200,200 --html \"<div>hello</div>\"",
             "aos show create --id surface --url aos://demo/surface/index.html --surface desktop-world",
-            "aos show create --id overlay --url aos://demo/overlay/index.html --surface desktop-world",
-            "aos show create --id annot --anchor-browser browser:todo/e21 --html \"<div class='badge'>42</div>\""
+            "aos show create --id overlay --url aos://demo/overlay/index.html --surface desktop-world"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -2578,14 +2692,6 @@
               "value_type" : "string"
             },
             {
-              "id" : "anchor-browser",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "New anchor browser target (browser:<s>[/<ref>])",
-              "token" : "--anchor-browser",
-              "value_type" : "string"
-            },
-            {
               "id" : "offset",
               "kind" : "flag",
               "required" : false,
@@ -2598,8 +2704,7 @@
             "conflicts" : [
               [
                 "anchor-window",
-                "anchor-channel",
-                "anchor-browser"
+                "anchor-channel"
               ]
             ]
           },
@@ -3283,7 +3388,7 @@
               "id" : "target",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Saved ref, coordinates as x,y, an AOS canvas ref target, or a browser ref target",
+              "summary" : "Saved ref, coordinates as x,y, or an AOS canvas ref target",
               "value_type" : "string"
             },
             {
@@ -3306,7 +3411,7 @@
               "id" : "dwell",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Dwell time in ms for coordinate/native and AOS canvas click targets; browser targets reject --dwell",
+              "summary" : "Dwell time in ms for coordinate/native and AOS canvas click targets",
               "token" : "--dwell",
               "value_type" : "int"
             },
@@ -3314,7 +3419,7 @@
               "id" : "state-id",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Required original state id for browser Observation Ref targets; coordinates and Locators reject it",
+              "summary" : "Explicit state assertion for saved browser Observation Ref records; coordinates and Locators reject it",
               "token" : "--state-id",
               "value_type" : "string"
             },
@@ -3322,7 +3427,7 @@
               "id" : "dry-run",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Run the same validation/resolution without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
+              "summary" : "Validate the saved record or coordinate/canvas grammar without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
               "token" : "--dry-run",
               "value_type" : "bool"
             },
@@ -3347,10 +3452,9 @@
             "aos do click ref:<snapshot-id>:r1 --workspace default --dry-run",
             "aos do click ref:<snapshot-id>:r1 --workspace default",
             "aos do click 500,300",
-            "aos do click canvas:subject-browser/wiki-subject-browser-v0:subject-list:open:record",
-            "aos do click browser:todo/e21 --state-id see_abc123def456"
+            "aos do click canvas:subject-browser/wiki-subject-browser-v0:subject-list:open:record"
           ],
-          "summary" : "Coordinate and canvas Locator clicks remain available; browser Observation Refs validate the original pair, then fail closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
+          "summary" : "Coordinate and canvas Locator clicks remain available; browser Observation Ref clicks remain unsupported and fail closed with TARGET_ACTION_UNSUPPORTED",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -3367,7 +3471,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do click <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> [--workspace <id>] [--snapshot <id>] [--right] [--double] [--state-id id] [--dry-run] | aos do click <x,y|canvas:<canvas-id>/<ref>> [--right] [--double] [--dwell N] [--dry-run]"
+          "usage" : "aos do click <ref:<snapshot-id>:<ref>> [--workspace <id>] [--snapshot <id>] [--right] [--double] [--state-id id] [--dry-run] | aos do click <x,y|canvas:<canvas-id>/<ref>> [--right] [--double] [--dwell N] [--dry-run]"
         },
         {
           "args" : [
@@ -3375,14 +3479,14 @@
               "id" : "target",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Coordinates, saved ref, or browser target",
+              "summary" : "Coordinates or saved ref",
               "value_type" : "string"
             },
             {
               "id" : "state-id",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Required original state id for browser Observation Ref targets; coordinates reject it",
+              "summary" : "Explicit state assertion for saved browser Observation Ref records; coordinates reject it",
               "token" : "--state-id",
               "value_type" : "string"
             },
@@ -3406,7 +3510,7 @@
               "id" : "dry-run",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Run the same validation without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
+              "summary" : "Validate the saved record or coordinate grammar without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
               "token" : "--dry-run",
               "value_type" : "bool"
             }
@@ -3414,10 +3518,9 @@
           "examples" : [
             "aos do hover ref:<snapshot-id>:r2 --workspace default --dry-run",
             "aos do hover ref:<snapshot-id>:r2 --workspace default",
-            "aos do hover browser:todo/e21 --state-id see_abc123def456",
             "aos do hover 500,300"
           ],
-          "summary" : "Coordinate hover remains available; browser Observation Refs validate the original pair, then fail closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
+          "summary" : "Coordinate hover remains available; browser Observation Ref hover remains unsupported and fails closed with TARGET_ACTION_UNSUPPORTED",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -3434,7 +3537,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do hover <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run] | aos do hover <x,y> [--dry-run]"
+          "usage" : "aos do hover <ref:<snapshot-id>:<ref>> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run] | aos do hover <x,y> [--dry-run]"
         },
         {
           "args" : [
@@ -3442,21 +3545,21 @@
               "id" : "from",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Start target as saved ref or browser target",
+              "summary" : "Start target as a saved ref",
               "value_type" : "string"
             },
             {
               "id" : "to",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Destination target as saved ref or browser target",
+              "summary" : "Destination target as a saved ref",
               "value_type" : "string"
             },
             {
               "id" : "state-id",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Required original state id for direct browser Observation Ref endpoints",
+              "summary" : "Explicit state assertion for saved browser Observation Ref records",
               "token" : "--state-id",
               "value_type" : "string"
             },
@@ -3480,17 +3583,16 @@
               "id" : "dry-run",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Run the same validation without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
+              "summary" : "Validate the saved records without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
               "token" : "--dry-run",
               "value_type" : "bool"
             }
           ],
           "examples" : [
             "aos do drag ref:<snapshot-id>:r2 ref:<snapshot-id>:r3 --workspace default --dry-run",
-            "aos do drag ref:<snapshot-id>:r2 ref:<snapshot-id>:r3 --workspace default",
-            "aos do drag browser:todo/e1 browser:todo/e2 --state-id see_abc123def456"
+            "aos do drag ref:<snapshot-id>:r2 ref:<snapshot-id>:r3 --workspace default"
           ],
-          "summary" : "Browser Observation Ref drag validates both original pairs, then fails closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
+          "summary" : "Browser Observation Ref drag remains outside the managed companion surface and fails closed with TARGET_ACTION_UNSUPPORTED",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -3507,7 +3609,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do drag <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run]"
+          "usage" : "aos do drag <ref:<snapshot-id>:<ref>> <ref:<snapshot-id>:<ref>> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run]"
         },
         {
           "args" : [
@@ -3673,14 +3775,14 @@
               "id" : "target",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Coordinates, saved ref, or browser target",
+              "summary" : "Coordinates or saved ref",
               "value_type" : "string"
             },
             {
               "id" : "delta",
               "kind" : "positional",
               "required" : false,
-              "summary" : "Browser saved-ref scroll delta as dx,dy",
+              "summary" : "Saved-ref scroll delta as dx,dy; omitted by the coordinate form",
               "value_type" : "string"
             },
             {
@@ -3703,7 +3805,7 @@
               "id" : "state-id",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Required original state id for browser Observation Ref targets; coordinates reject it",
+              "summary" : "Explicit state assertion for saved browser Observation Ref records; coordinates reject it",
               "token" : "--state-id",
               "value_type" : "string"
             },
@@ -3727,7 +3829,7 @@
               "id" : "dry-run",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Run the same validation without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
+              "summary" : "Validate coordinate or saved-ref grammar without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
               "token" : "--dry-run",
               "value_type" : "bool"
             }
@@ -3735,10 +3837,9 @@
           "examples" : [
             "aos do scroll ref:<snapshot-id>:r2 0,-200 --workspace default --dry-run",
             "aos do scroll ref:<snapshot-id>:r2 0,-200 --workspace default",
-            "aos do scroll browser:todo/e21 0,-200 --state-id see_abc123def456",
             "aos do scroll 500,300 --dy -3"
           ],
-          "summary" : "Coordinate and browser-session scroll remain available; browser Observation Refs validate the original pair, then fail closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
+          "summary" : "Coordinate scroll remains available; saved browser Observation Refs remain unsupported and fail closed with TARGET_ACTION_UNSUPPORTED",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -3755,7 +3856,55 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do scroll <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> <dx,dy> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run] | aos do scroll <x,y> [--dx N] [--dy N] [--dry-run]"
+          "usage" : "aos do scroll <ref:<snapshot-id>:<ref>> <dx,dy> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run] | aos do scroll <x,y> [--dx N] [--dy N] [--dry-run]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "target",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Exact managed browser session target; browser refs are not admitted",
+              "value_type" : "string"
+            },
+            {
+              "id" : "delta",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Integer x,y scroll delta",
+              "value_type" : "string"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Validate exact session binding and delta without liveness, worker dispatch, lock creation, or writes",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos do scroll browser:todo 0,-200",
+            "aos do scroll browser:todo 0,-200 --dry-run"
+          ],
+          "summary" : "Scroll one exact managed browser session; dry-run performs stable nonmutating validation",
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "id" : "do-scroll-browser",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : false
+          },
+          "usage" : "aos do scroll <browser:<session>> <dx,dy> [--dry-run]"
         },
         {
           "args" : [
@@ -3811,7 +3960,7 @@
               "id" : "target",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Browser target (browser:<session> or browser:<session>/<ref>)",
+              "summary" : "Managed browser session target (browser:<session>); refs are unsupported",
               "value_type" : "string"
             },
             {
@@ -3820,18 +3969,9 @@
               "required" : true,
               "summary" : "Text to type into the browser target",
               "value_type" : "string"
-            },
-            {
-              "id" : "state-id",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Required original state id for a ref-bearing browser target; session-only targets reject it",
-              "token" : "--state-id",
-              "value_type" : "string"
             }
           ],
           "examples" : [
-            "aos do type browser:todo/e21 \"hello world\" --state-id see_abc123def456",
             "aos do type browser:todo \"hello world\""
           ],
           "execution" : {
@@ -3850,8 +3990,8 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "summary" : "Direct current-host browser session text input remains available; ref-bearing Observation Ref input validates the original pair, then returns TARGET_ACTION_UNSUPPORTED",
-          "usage" : "aos do type <browser:<session>[/<ref>]> <text> [--state-id id]"
+          "summary" : "Type text into the active page of an exact managed browser session",
+          "usage" : "aos do type <browser:<session>> <text>"
         },
         {
           "args" : [
@@ -3873,7 +4013,7 @@
               "id" : "dry-run",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Run the same saved Observation Ref validation without mutation; returns TARGET_ACTION_UNSUPPORTED",
+              "summary" : "Validate the saved Observation Ref record without mutation; returns TARGET_ACTION_UNSUPPORTED",
               "token" : "--dry-run",
               "value_type" : "bool"
             },
@@ -3914,7 +4054,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "summary" : "Saved browser Observation Ref type validates the original pair, then fails closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
+          "summary" : "Saved browser Observation Ref type remains outside the managed companion surface and fails closed with TARGET_ACTION_UNSUPPORTED",
           "usage" : "aos do type <ref:<snapshot-id>:<ref>> <text> [--workspace <id>] [--snapshot <id>] [--dry-run]"
         },
         {
@@ -3955,7 +4095,7 @@
               "id" : "target",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Browser target (browser:<session> or browser:<session>/<ref>)",
+              "summary" : "Managed browser session target (browser:<session>); refs are unsupported",
               "value_type" : "string"
             },
             {
@@ -3964,18 +4104,9 @@
               "required" : true,
               "summary" : "Key combination to press in the browser target",
               "value_type" : "string"
-            },
-            {
-              "id" : "state-id",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Required original state id for a ref-bearing browser target; session-only targets reject it",
-              "token" : "--state-id",
-              "value_type" : "string"
             }
           ],
           "examples" : [
-            "aos do key browser:todo/e21 \"Enter\" --state-id see_abc123def456",
             "aos do key browser:todo \"cmd+s\""
           ],
           "execution" : {
@@ -3994,8 +4125,8 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "summary" : "Direct current-host browser session key press remains available; ref-bearing Observation Ref input validates the original pair, then returns TARGET_ACTION_UNSUPPORTED",
-          "usage" : "aos do key <browser:<session>[/<ref>]> <combo> [--state-id id]"
+          "summary" : "Press a key combination in the active page of an exact managed browser session",
+          "usage" : "aos do key <browser:<session>> <combo>"
         },
         {
           "args" : [
@@ -4017,7 +4148,7 @@
               "id" : "dry-run",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Run the same saved Observation Ref validation without mutation; returns TARGET_ACTION_UNSUPPORTED",
+              "summary" : "Validate the saved Observation Ref record without mutation; returns TARGET_ACTION_UNSUPPORTED",
               "token" : "--dry-run",
               "value_type" : "bool"
             },
@@ -4058,7 +4189,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "summary" : "Saved browser Observation Ref key validates the original pair, then fails closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
+          "summary" : "Saved browser Observation Ref key input remains outside the managed companion surface and fails closed with TARGET_ACTION_UNSUPPORTED",
           "usage" : "aos do key <ref:<snapshot-id>:<ref>> <combo> [--workspace <id>] [--snapshot <id>] [--dry-run]"
         },
         {
@@ -4067,7 +4198,7 @@
               "id" : "target",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Saved ref or browser target (ref:<snapshot-id>:<ref> or browser:<session>/<ref>)",
+              "summary" : "Saved ref target (ref:<snapshot-id>:<ref>)",
               "value_type" : "string"
             },
             {
@@ -4081,7 +4212,7 @@
               "id" : "dry-run",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Run the same saved Observation Ref validation without mutation; returns TARGET_ACTION_UNSUPPORTED",
+              "summary" : "Validate the saved Observation Ref record without mutation; returns TARGET_ACTION_UNSUPPORTED",
               "token" : "--dry-run",
               "value_type" : "bool"
             },
@@ -4105,17 +4236,16 @@
               "id" : "state-id",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Required original state id for direct browser Observation Ref fill",
+              "summary" : "Explicit state assertion for the saved browser Observation Ref record",
               "token" : "--state-id",
               "value_type" : "string"
             }
           ],
           "examples" : [
             "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default --dry-run",
-            "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default",
-            "aos do fill browser:todo/e21 \"buy groceries\" --state-id see_abc123def456"
+            "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default"
           ],
-          "summary" : "Browser Observation Ref fill validates the original pair, then fails closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
+          "summary" : "Browser Observation Ref fill remains outside the managed companion surface and fails closed with TARGET_ACTION_UNSUPPORTED",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -4132,7 +4262,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do fill <ref:<snapshot-id>:<ref>|browser:<s>/<ref>> <text> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run]"
+          "usage" : "aos do fill <ref:<snapshot-id>:<ref>> <text> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run]"
         },
         {
           "args" : [
@@ -7299,7 +7429,7 @@
                     "value" : "browser://attach"
                   },
                   {
-                    "summary" : "Launch and track a new browser target",
+                    "summary" : "Launch and track system Chrome (Chrome must already be installed)",
                     "value" : "browser://new"
                   }
                 ]
@@ -7351,7 +7481,14 @@
               "required" : false,
               "summary" : "Attach via browser extension (browser://attach)",
               "token" : "--extension",
-              "value_type" : "bool"
+              "value_type" : {
+                "enum" : [
+                  {
+                    "summary" : "Use the reviewed Chrome extension bridge from an ordinary Default or Profile N system Chrome profile with a valid version directory and matching manifest; may launch or focus Chrome and open its bridge page",
+                    "value" : "chrome"
+                  }
+                ]
+              }
             },
             {
               "id" : "cdp",
@@ -7365,7 +7502,7 @@
               "id" : "headless",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Launch browser headless (browser://new)",
+              "summary" : "Launch system Chrome headless (browser://new; Chrome is an external prerequisite)",
               "token" : "--headless",
               "value_type" : "bool"
             },
@@ -7373,7 +7510,7 @@
               "id" : "url",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Initial URL for launched browser (browser://new)",
+              "summary" : "Initial http, https, data, or about URL for launched browser (browser://new)",
               "token" : "--url",
               "value_type" : "string"
             },
@@ -7381,7 +7518,7 @@
               "id" : "persistent",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Reuse a persistent browser profile (browser://new)",
+              "summary" : "Use an AOS-owned profile private to this session generation (browser://new)",
               "token" : "--persistent",
               "value_type" : "bool"
             }
@@ -7391,6 +7528,74 @@
               [
                 "window",
                 "target"
+              ],
+              [
+                "target",
+                "pid"
+              ],
+              [
+                "target",
+                "depth"
+              ],
+              [
+                "target",
+                "subtree-role"
+              ],
+              [
+                "target",
+                "subtree-title"
+              ],
+              [
+                "target",
+                "subtree-identifier"
+              ],
+              [
+                "window",
+                "extension"
+              ],
+              [
+                "window",
+                "cdp"
+              ],
+              [
+                "window",
+                "headless"
+              ],
+              [
+                "window",
+                "url"
+              ],
+              [
+                "window",
+                "persistent"
+              ],
+              [
+                "extension",
+                "cdp"
+              ],
+              [
+                "extension",
+                "headless"
+              ],
+              [
+                "extension",
+                "url"
+              ],
+              [
+                "extension",
+                "persistent"
+              ],
+              [
+                "cdp",
+                "headless"
+              ],
+              [
+                "cdp",
+                "url"
+              ],
+              [
+                "cdp",
+                "persistent"
               ]
             ],
             "one_of" : [
@@ -7402,7 +7607,7 @@
           },
           "examples" : [
             "aos focus create --id work --window 1234 --depth 2",
-            "aos focus create --id todo --target browser://attach --extension",
+            "aos focus create --id todo --target browser://attach --extension=chrome",
             "aos focus create --id scratch --target browser://new --headless --url https://example.com"
           ],
           "execution" : {
@@ -7521,10 +7726,30 @@
               "summary" : "Channel name",
               "token" : "--id",
               "value_type" : "string"
+            },
+            {
+              "id" : "backend",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Exact removal authority; browser closes or detaches the managed session and native routes only to the daemon",
+              "token" : "--backend",
+              "value_type" : {
+                "enum" : [
+                  {
+                    "summary" : "Managed browser session authority",
+                    "value" : "browser"
+                  },
+                  {
+                    "summary" : "Native focus-channel authority",
+                    "value" : "native"
+                  }
+                ]
+              }
             }
           ],
           "examples" : [
-            "aos focus remove --id work"
+            "aos focus remove --id work --backend native",
+            "aos focus remove --id browser-work --backend browser"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -7542,13 +7767,13 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos focus remove --id <name>"
+          "usage" : "aos focus remove --id <name> --backend browser|native"
         }
       ],
       "path" : [
         "focus"
       ],
-      "summary" : "Focus channels — track window AX trees"
+      "summary" : "Focus channels — track native windows or managed browser sessions"
     },
     {
       "forms" : [
@@ -10269,19 +10494,25 @@
     },
     {
       "consumer_discovery" : false,
+      "path" : [
+        "browser"
+      ],
+      "summary" : "Narrow internal helpers for managed browser targets and observations",
       "forms" : [
         {
+          "id" : "browser-parse-target",
+          "usage" : "aos browser _parse-target <target>",
+          "examples" : [
+            "aos browser _parse-target browser:todo"
+          ],
           "args" : [
             {
               "id" : "target",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Target string to parse (e.g. 'browser:todo/e21')",
+              "summary" : "Managed browser session target",
               "value_type" : "string"
             }
-          ],
-          "examples" : [
-            "aos browser _parse-target browser:todo/e21"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -10292,100 +10523,27 @@
             "streaming" : false,
             "supports_dry_run" : false
           },
-          "id" : "browser-parse-target",
           "output" : {
             "default_mode" : "json",
             "error_mode" : "json_stderr",
             "streaming" : false,
             "supports_json_flag" : false
-          },
-          "usage" : "aos browser _parse-target <target>"
+          }
         },
         {
-          "args" : [
-
-          ],
+          "id" : "browser-parse-snapshot",
+          "usage" : "aos browser _parse-snapshot <markdown-file>",
           "examples" : [
-            "aos browser _check-version"
+            "aos browser _parse-snapshot /tmp/snapshot.md"
           ],
-          "execution" : {
-            "auto_starts_daemon" : false,
-            "interactive" : false,
-            "mutates_state" : false,
-            "read_only" : true,
-            "requires_permissions" : false,
-            "streaming" : false,
-            "supports_dry_run" : false
-          },
-          "id" : "browser-check-version",
-          "output" : {
-            "default_mode" : "json",
-            "error_mode" : "json_stderr",
-            "streaming" : false,
-            "supports_json_flag" : false
-          },
-          "usage" : "aos browser _check-version"
-        },
-        {
-          "args" : [
-            {
-              "id" : "session",
-              "kind" : "flag",
-              "required" : true,
-              "summary" : "playwright-cli session name",
-              "token" : "--session",
-              "value_type" : "string"
-            },
-            {
-              "id" : "verb",
-              "kind" : "flag",
-              "required" : true,
-              "summary" : "playwright-cli verb",
-              "token" : "--verb",
-              "value_type" : "string"
-            },
-            {
-              "id" : "with-filename",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Allocate and pass --filename=<tmp>",
-              "token" : "--with-filename",
-              "value_type" : "bool"
-            }
-          ],
-          "examples" : [
-            "aos browser _run --session=todo --verb=attach"
-          ],
-          "execution" : {
-            "auto_starts_daemon" : false,
-            "interactive" : false,
-            "mutates_state" : true,
-            "read_only" : false,
-            "requires_permissions" : false,
-            "streaming" : false,
-            "supports_dry_run" : false
-          },
-          "id" : "browser-run",
-          "output" : {
-            "default_mode" : "json",
-            "error_mode" : "json_stderr",
-            "streaming" : false,
-            "supports_json_flag" : false
-          },
-          "usage" : "aos browser _run --session=<s> --verb=<v> [--with-filename]"
-        },
-        {
           "args" : [
             {
               "id" : "path",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Path to a playwright-cli snapshot markdown file",
+              "summary" : "Managed snapshot markdown file",
               "value_type" : "string"
             }
-          ],
-          "examples" : [
-            "aos browser _parse-snapshot /tmp/snap.md"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -10396,21 +10554,28 @@
             "streaming" : false,
             "supports_dry_run" : false
           },
-          "id" : "browser-parse-snapshot",
           "output" : {
             "default_mode" : "json",
             "error_mode" : "json_stderr",
             "streaming" : false,
             "supports_json_flag" : false
-          },
-          "usage" : "aos browser _parse-snapshot <markdown-file>"
+          }
         },
         {
-          "args" : [
-
-          ],
+          "id" : "browser-identity",
+          "usage" : "aos browser _identity --session=<id>",
           "examples" : [
-            "aos browser _registry list"
+            "aos browser _identity --session=todo"
+          ],
+          "args" : [
+            {
+              "id" : "session",
+              "kind" : "flag",
+              "token" : "--session",
+              "required" : true,
+              "summary" : "Managed public session ID",
+              "value_type" : "string"
+            }
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -10421,124 +10586,28 @@
             "streaming" : false,
             "supports_dry_run" : false
           },
-          "id" : "browser-registry-list",
           "output" : {
             "default_mode" : "json",
             "error_mode" : "json_stderr",
             "streaming" : false,
             "supports_json_flag" : false
-          },
-          "usage" : "aos browser _registry list"
+          }
         },
         {
+          "id" : "browser-page-identity",
+          "usage" : "aos browser _page-identity --session=<id>",
+          "examples" : [
+            "aos browser _page-identity --session=todo"
+          ],
           "args" : [
             {
-              "id" : "id",
+              "id" : "session",
               "kind" : "flag",
+              "token" : "--session",
               "required" : true,
-              "summary" : "Session id",
-              "token" : "--id",
-              "value_type" : "string"
-            },
-            {
-              "id" : "mode",
-              "kind" : "flag",
-              "required" : true,
-              "summary" : "attach|launched",
-              "token" : "--mode",
-              "value_type" : "string"
-            },
-            {
-              "id" : "attach-kind",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "extension|cdp (attach mode only)",
-              "token" : "--attach-kind",
-              "value_type" : "string"
-            },
-            {
-              "id" : "headless",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Headless flag (launched mode only)",
-              "token" : "--headless",
-              "value_type" : "bool"
-            },
-            {
-              "id" : "browser-window-id",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "CGWindowID for local+visible windows",
-              "token" : "--browser-window-id",
-              "value_type" : "int"
-            }
-          ],
-          "examples" : [
-            "aos browser _registry add --id=sess-a --mode=attach --attach-kind=extension"
-          ],
-          "execution" : {
-            "auto_starts_daemon" : false,
-            "interactive" : false,
-            "mutates_state" : true,
-            "read_only" : false,
-            "requires_permissions" : false,
-            "streaming" : false,
-            "supports_dry_run" : false
-          },
-          "id" : "browser-registry-add",
-          "output" : {
-            "default_mode" : "json",
-            "error_mode" : "json_stderr",
-            "streaming" : false,
-            "supports_json_flag" : false
-          },
-          "usage" : "aos browser _registry add --id=<s> --mode=<m> [--attach-kind=<k>] [--headless=<b>] [--browser-window-id=<n>]"
-        },
-        {
-          "args" : [
-            {
-              "id" : "id",
-              "kind" : "flag",
-              "required" : true,
-              "summary" : "Session id",
-              "token" : "--id",
+              "summary" : "Managed public session ID",
               "value_type" : "string"
             }
-          ],
-          "examples" : [
-            "aos browser _registry remove --id=sess-a"
-          ],
-          "execution" : {
-            "auto_starts_daemon" : false,
-            "interactive" : false,
-            "mutates_state" : true,
-            "read_only" : false,
-            "requires_permissions" : false,
-            "streaming" : false,
-            "supports_dry_run" : false
-          },
-          "id" : "browser-registry-remove",
-          "output" : {
-            "default_mode" : "json",
-            "error_mode" : "json_stderr",
-            "streaming" : false,
-            "supports_json_flag" : false
-          },
-          "usage" : "aos browser _registry remove --id=<s>"
-        },
-        {
-          "args" : [
-            {
-              "id" : "id",
-              "kind" : "flag",
-              "required" : true,
-              "summary" : "Session id",
-              "token" : "--id",
-              "value_type" : "string"
-            }
-          ],
-          "examples" : [
-            "aos browser _registry find --id=sess-a"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -10549,59 +10618,14 @@
             "streaming" : false,
             "supports_dry_run" : false
           },
-          "id" : "browser-registry-find",
           "output" : {
             "default_mode" : "json",
             "error_mode" : "json_stderr",
             "streaming" : false,
             "supports_json_flag" : false
-          },
-          "usage" : "aos browser _registry find --id=<s>"
-        },
-        {
-          "args" : [
-            {
-              "id" : "target",
-              "kind" : "positional",
-              "required" : true,
-              "summary" : "Browser target (browser:<session>[/<ref>])",
-              "value_type" : "string"
-            },
-            {
-              "id" : "json",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Emit machine-readable anchor resolution",
-              "token" : "--json",
-              "value_type" : "bool"
-            }
-          ],
-          "examples" : [
-            "aos browser _resolve-anchor browser:todo/e21 --json"
-          ],
-          "execution" : {
-            "auto_starts_daemon" : false,
-            "interactive" : false,
-            "mutates_state" : false,
-            "read_only" : true,
-            "requires_permissions" : false,
-            "streaming" : false,
-            "supports_dry_run" : false
-          },
-          "id" : "browser-resolve-anchor",
-          "output" : {
-            "default_mode" : "json",
-            "error_mode" : "json_stderr",
-            "streaming" : false,
-            "supports_json_flag" : true
-          },
-          "usage" : "aos browser _resolve-anchor <target> [--json]"
+          }
         }
-      ],
-      "path" : [
-        "browser"
-      ],
-      "summary" : "Internal browser-adapter debug helpers (not user-facing)"
+      ]
     },
     {
       "forms" : [

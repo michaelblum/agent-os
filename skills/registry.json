@@ -217,7 +217,7 @@
     {
       "name": "aos-browser",
       "path": "skills/aos-browser",
-      "description": "Use AOS current browser observation handles and action envelopes. Trigger when a task involves browser capture, DOM/SOM refs, browser-backed do actions, optional browser evidence, or deciding between AOS browser wrappers and upstream Playwright CLI escape hatches.",
+      "description": "Use AOS managed Playwright companion sessions, current browser observations, and fixed session operations. Trigger for browser focus, capture, session-only actions, managed evidence, or browser Observation Ref limits.",
       "status": "installable",
       "installable": true,
       "invocation": "enabled",
@@ -227,21 +227,21 @@
         "codex",
         "path"
       ],
-      "ownership": "AOS-owned installable browser workflow skill with explicit Playwright CLI companion boundary.",
+      "ownership": "AOS-owned managed-browser workflow skill with a separate path-free skills companion boundary.",
       "references": [
         "ARCHITECTURE.md",
         "docs/api/aos-capabilities.md",
         "docs/api/aos.md",
-        "docs/archive/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md",
-        "tests/browser/runtime-resolver.test.mjs",
-        "tests/browser/version-check.test.sh"
+        "docs/adr/0041-managed-playwright-companion-runtime.md",
+        "tests/browser/managed-session-lifecycle.test.mjs",
+        "tests/browser/managed-session-consumers.test.mjs"
       ],
       "claims_durable_behavior": true,
       "backing": [
         "ARCHITECTURE.md",
         "docs/api/aos-capabilities.md",
         "docs/api/aos.md",
-        "tests/browser/runtime-resolver.test.mjs"
+        "tests/browser/managed-session-lifecycle.test.mjs"
       ]
     },
     {

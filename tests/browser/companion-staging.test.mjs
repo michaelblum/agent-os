@@ -83,19 +83,68 @@ test('installed projection executes companion help and status from an unrelated 
   const staged = temporaryRoot('aos-browser-companion-stage-');
   const caller = temporaryRoot('aos-browser-companion-caller-');
   const state = temporaryRoot('aos-browser-companion-installed-state-');
-  const env = { ...process.env, AOS_STATE_ROOT: state, AOS_RUNTIME_MODE: 'installed' };
+  const env = {
+    ...process.env, AOS_STATE_ROOT: state, AOS_RUNTIME_MODE: 'installed',
+    AOS_DISABLE_DAEMON_AUTOSTART: '1',
+  };
   const stage = runNode([path.join(repoRoot, 'scripts/stage-browser-companion-runtime.mjs'), staged]);
   assert.equal(stage.status, 0, stage.stderr);
   const manifest = JSON.parse(fs.readFileSync(path.join(staged, 'manifests/commands/aos-external-commands.json'), 'utf8'));
-  assert.equal(manifest.commands.length, 6);
+  assert.equal(manifest.commands.length, 21);
   assert.equal(manifest.commands.filter((command) => command.path[0] === 'browser' && command.path[1] === 'companion').length, 5);
+  assert.equal(manifest.commands.filter((command) => command.path[0] === 'browser').length, 10);
+  assert.equal(manifest.commands.filter((command) => command.path[0] === 'focus').length, 5);
   assert.equal(manifest.commands.filter((command) => command.path.length === 1 && command.path[0] === 'help').length, 1);
   for (const required of [
     'scripts/aos-help-proxy.mjs', 'scripts/lib/external-command-routes.mjs',
     'manifests/commands/aos-commands.json', 'scripts/aos-browser-companion.mjs',
+    'scripts/aos-browser-broker.mjs', 'scripts/aos-browser-internal.mjs',
+    'scripts/aos-browser-worker-guardian.mjs',
+    'scripts/aos-browser-worker-group.mjs',
+    'scripts/aos-do-browser.mjs', 'scripts/aos-focus-graph.mjs',
+    'scripts/aos-see-native.mjs', 'scripts/aos-agent-workspace.mjs',
+    'scripts/browser-evidence-capture.mjs', 'scripts/lib/focus-daemon.mjs',
+    'scripts/lib/focus-depth.mjs',
+    'scripts/lib/browser-companion/session-lifecycle.mjs',
+    'scripts/lib/browser-companion/extension-profile.mjs',
+    'scripts/lib/browser-companion/extension-profile-scan.mjs',
+    'scripts/lib/browser-companion/package-version.mjs',
+    'scripts/lib/browser-companion/see-capture-options.mjs',
+    'scripts/lib/browser-companion/worker-protocol.mjs',
+    'scripts/lib/browser-companion/worker-guardian-client.mjs',
+    'scripts/lib/browser-companion/worker-guardian-state.mjs',
+    'scripts/lib/browser-companion/worker-guardian-outcome.mjs',
+    'scripts/lib/browser-companion/worker-guardian.mjs',
+    'scripts/lib/browser-companion/worker-group-sentinel.mjs',
+    'scripts/lib/browser-companion/worker-process-group.mjs',
+    'scripts/lib/browser-companion/session-guardian-recovery.mjs',
+    'scripts/lib/browser-companion/session-evidence-ack.mjs',
+    'scripts/lib/browser-companion/session-evidence-operation.mjs',
+    'scripts/lib/browser-companion/session-worker-pending.mjs',
+    'scripts/lib/agent-workspace/actions.mjs',
+    'scripts/lib/agent-workspace/browser-identity.mjs',
+    'scripts/lib/agent-workspace/capture.mjs',
+    'scripts/lib/agent-workspace/refs.mjs',
+    'scripts/lib/agent-workspace/store.mjs',
+    'packages/toolkit/package.json',
+    'packages/toolkit/workbench/browser-evidence-capture.js',
+    'shared/schemas/aos-browser-session-result-v1.schema.json',
+    'shared/schemas/aos-browser-backend-identity-v2.schema.json',
   ]) assert.equal(fs.statSync(path.join(staged, required)).isFile(), true);
+  assert.equal(fs.existsSync(path.join(staged, 'scripts/aos-show-client.mjs')), false);
   const registry = JSON.parse(fs.readFileSync(path.join(staged, 'manifests/commands/aos-commands.json'), 'utf8'));
-  assert.ok(registry.commands.some((command) => command.path.join(' ') === 'browser companion'));
+  const installedForms = new Map([
+    ['help', ['help-full', 'help-command']],
+    ['browser companion', ['browser-companion-status', 'browser-companion-install', 'browser-companion-update', 'browser-companion-uninstall']],
+    ['browser', ['browser-parse-target', 'browser-parse-snapshot', 'browser-identity', 'browser-page-identity']],
+    ['focus', ['focus-create', 'focus-update', 'focus-list', 'focus-remove']],
+    ['do', ['do-scroll-browser', 'do-type-browser', 'do-key-browser', 'do-navigate']],
+    ['see', ['see-capture-browser', 'see-capture-browser-save']],
+  ]);
+  assert.deepEqual(new Set(registry.commands.map((command) => command.path.join(' '))), new Set(installedForms.keys()));
+  for (const command of registry.commands) {
+    assert.deepEqual(command.forms.map((form) => form.id).sort(), [...installedForms.get(command.path.join(' '))].sort());
+  }
 
   const stagedCLI = path.join(staged, 'scripts/aos-browser-companion.mjs');
   const stagedStatus = runNode([stagedCLI, 'status', '--json'], { cwd: caller, env });
@@ -117,6 +166,55 @@ test('installed projection executes companion help and status from an unrelated 
   assert.equal(stagedHelp.argv[1], path.join(staged, 'scripts/aos-help-proxy.mjs'));
   assert.equal(repoHelp.result.stdout, directHelp.stdout);
   assert.equal(stagedHelp.result.stdout, directHelp.stdout);
+  const helpPaths = [
+    [], ['browser', 'companion'], ['browser', '_parse-target'], ['browser', '_parse-snapshot'],
+    ['browser', '_identity'], ['browser', '_page-identity'], ['focus', 'create'], ['focus', 'update'],
+    ['focus', 'list'], ['focus', 'remove'], ['do', 'scroll'], ['do', 'type'],
+    ['do', 'key'], ['do', 'navigate'], ['see', 'capture'],
+  ];
+  for (const helpPath of helpPaths) {
+    const routed = runExternalRoute(manifest, ['help', ...helpPath], { aosRoot: staged, callerRoot: caller, env });
+    assert.equal(routed.result.status, 0, `${helpPath.join(' ')}: ${routed.result.stderr}`);
+    assert.equal(routed.cwd, staged);
+    assert.equal(routed.argv[1], path.join(staged, 'scripts/aos-help-proxy.mjs'));
+  }
+  const parsedTarget = runExternalRoute(manifest, ['browser', '_parse-target', 'browser:todo'], {
+    aosRoot: staged, callerRoot: caller, env,
+  });
+  assert.equal(parsedTarget.result.status, 0, parsedTarget.result.stderr);
+  assert.deepEqual(JSON.parse(parsedTarget.result.stdout), { session: 'todo', ref: null });
+  assert.equal(parsedTarget.cwd, staged);
+  const evidenceHelp = runNode([
+    path.join(staged, 'scripts/browser-evidence-capture.mjs'), '--help',
+  ], { cwd: caller, env });
+  assert.equal(evidenceHelp.status, 0, evidenceHelp.stderr);
+  assert.match(evidenceHelp.stdout, /--session <managed-id>/u);
+  const focusList = runExternalRoute(manifest, ['focus', 'list'], {
+    aosRoot: staged, callerRoot: caller, env,
+  });
+  assert.equal(focusList.result.status, 0, focusList.result.stderr);
+  assert.deepEqual(JSON.parse(focusList.result.stdout), { status: 'ok', channels: [] });
+  const workspaceList = runNode([
+    path.join(staged, 'scripts/aos-agent-workspace.mjs'), 'workspaces', '--json',
+  ], { cwd: caller, env });
+  assert.equal(workspaceList.status, 0, workspaceList.stderr);
+  assert.deepEqual(JSON.parse(workspaceList.stdout).workspaces, []);
+  for (const unsupportedPath of [['do', 'click'], ['do', 'hover'], ['do', 'drag'], ['do', 'fill']]) {
+    assert.equal(manifest.commands.some((command) => JSON.stringify(command.path) === JSON.stringify(unsupportedPath)), false);
+  }
+  for (const args of [
+    ['do', 'scroll', 'browser:absent', '0,-1'],
+    ['do', 'type', 'browser:absent', 'text'],
+    ['do', 'key', 'browser:absent', 'Enter'],
+    ['do', 'navigate', 'browser:absent', 'about:blank'],
+    ['see', 'capture', 'browser:absent', '--region', '1,2,3,4'],
+    ['focus', 'remove', '--id', 'absent'],
+  ]) {
+    const routed = runExternalRoute(manifest, args, { aosRoot: staged, callerRoot: caller, env });
+    assert.equal(routed.result.status, 1, args.join(' '));
+    assert.equal(routed.cwd, staged);
+    assert.doesNotMatch(routed.result.stderr, /MODULE_NOT_FOUND|missing route/u);
+  }
   const dispatcher = fs.readFileSync(path.join(repoRoot, 'src/shared/external-command-dispatch.swift'), 'utf8');
   assert.match(dispatcher, /value\.hasPrefix\("\$AOS_REPO_ROOT\/"\)/u);
   assert.match(dispatcher, /command\.cwd\.map \{ resolveExternalArg/u);

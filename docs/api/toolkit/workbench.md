@@ -541,33 +541,16 @@ Browser seams and native AX/window payloads remain conservative slots: they may
 represent explicit structured window/content bounds, but they do not pierce
 arbitrary Chrome DOM or harvest broad background AX trees.
 
-`buildBrowserContentSeamAdapterResult(record, context)` is the neutral helper
-for browser session/tab/content seam diagnostics. It emits adapter id
-`browser-content-seam`, subject kind `browser_content_seam`, the stable target
-grammar `browser:<session>`, registry evidence such as mode, attach kind,
-headless state, active URL, and local `browser_window_id`, and explicit
-blockers such as `browser_session_not_local`,
-`browser_content_inset_unresolved`, `browser_tab_identity_unresolved`, and
-`browser_dom_cdp_deferred`. The helper always returns
-`can_project_display_overlay: false` and `can_reveal: false` for the seam until
-a later contract can prove a precise current content rectangle or a safe reveal
-operation. Controlled browser DOM fixtures remain a separate accepted adapter
-path through `browser-dom-element-picker.js` and
-`controlled-browser-dom-surface.js`; their selector candidates and element
-rectangles do not promote arbitrary browser-page DOM/CDP access.
-`buildBrowserDomElementAnnotationCandidate(record, options?)` converts an
-explicit browser DOM `element_target` record into the shared annotation
-candidate shape for an approved local browser page/session. It requires a
-proven `content_rect`/`browser_content_rect` to project viewport bounds into
-DesktopWorld coordinates. Without that inset it reports
-`browser_content_inset_unresolved` and does not draw a false display overlay.
-The repo-mode browser adapter exposes the same narrow record boundary through
-`aos see capture browser:<session> --browser-dom-point x,y`, optionally with
-`--browser-content-rect x,y,w,h` when the caller has a proven content rect. That
-command performs one explicit local page hit test and returns an
-`aos-browser-dom-element-picker` `element_target` payload with selector, XPath,
-frame, shadow, source URL, viewport, page, and projection evidence; it is not a
-background crawl or capture/export workflow.
+Managed browser evidence in checkpoint 2B is deliberately path-free and does
+not claim browser-window locality. The fixed broker may capture a whole-session
+snapshot/screenshot, page identity, or Toolkit selector evidence. Browser DOM
+hit testing, browser content rectangles, display projection, browser anchors,
+and reveal behavior are deferred until a later contract can bind a current
+browser window and content coordinate system without inference.
+File and relative local-fixture inputs are read as exact ordinary files and are
+limited to exactly 3000 bytes before data-URL projection, keeping the complete
+data URL within the worker's 4096-byte URL admission bound. The registry's
+`local_fixture_max_bytes` records that fixed admission boundary.
 
 `shared/schemas/spatial-subject-tree-v0.schema.json` is the neutral tree
 contract above topology and projection results. Spatial topology owns
@@ -664,8 +647,8 @@ node scripts/annotation-perception-verify.mjs --default-output
 The generated report lives at
 `docs/design/fixtures/annotation-perception-verification-v0/representative-surfaces.report.json`.
 V0 requires passing structured cases for AOS canvas semantic targets, Markdown
-Workbench text ranges, and Mac window/topology. Controlled local browser/DOM
-verification is represented without external browsing. Generic AX,
+Workbench text ranges, and Mac window/topology. Browser DOM projection remains
+deferred. Generic AX,
 Mermaid/SVG, Three.js, and PDF/image cases are explicit `adapter_fixture_only`
 fixtures until live deterministic adapters exist.
 
@@ -1374,9 +1357,12 @@ surface.
 `packages/toolkit/workbench/browser-evidence-capture.js` exposes Browser
 Evidence Capture V0 for local fixture-backed evidence capture. It accepts a local
 manifest shaped by `shared/schemas/browser-evidence-capture-v0.schema.json`,
-opens only relative fixture, `file:`, `data:`, or localhost URLs through
-`playwright-cli`, captures CSS selector and/or XPath element crops, extracts
-element text, and emits an `aos.browser_evidence_registry`. The helper is a
-script/test-callable bridge above the daemon; it does not add a public `aos`
-command, autonomous browsing, report rendering, replay, repair, or an
-AOS-native Browser Host.
+requires an explicit managed session id and injected fixed managed evidence
+operation, and accepts only relative fixture, `file:`, `data:`, or localhost
+URLs. It resolves CSS selector and/or XPath candidates, records element bounds
+and text, stores a managed viewport screenshot, and emits an
+`aos.browser_evidence_registry` bound to the path-free session generation and
+runtime digests. It never resolves a Playwright executable or accepts a runtime
+path. The helper is a script/test-callable bridge above the managed companion;
+it does not add a public `aos` command, autonomous browsing, report rendering,
+replay, repair, element-crop claim, or an AOS-native Browser Host.

@@ -38,17 +38,11 @@ import {
 import { commandToken, compactNextRecommendations } from './recommendations.mjs';
 import { runNativeSeeSync } from '../aos-see-supervision.mjs';
 import { recordBrowserCaptureGeneration } from '../target-handle-runtime.mjs';
-import { resolveReviewedObservationRuntime } from '../playwright-cli-runtime.mjs';
+import { managedSessionIdentity } from '../browser-companion/session-lifecycle.mjs';
 
-function reviewedBrowserRuntime(env) {
-  const runtime = resolveReviewedObservationRuntime({ env });
-  if (runtime.status !== 'ok') {
-    exitAgentWorkspaceError(
-      runtime.error || 'reviewed browser backend unavailable',
-      runtime.code || 'TARGET_ACTION_UNSUPPORTED',
-    );
-  }
-  return runtime;
+async function reviewedBrowserRuntime(session, env) {
+  try { return await managedSessionIdentity(session, { env }); }
+  catch (error) { exitAgentWorkspaceError('managed browser backend unavailable', error?.code || 'TARGET_ACTION_UNSUPPORTED'); }
 }
 
 function snapshotID(explicit) {
@@ -68,8 +62,6 @@ const PRIMITIVE_CAPTURE_VALUE_ARITY = new Map([
   ['--format', 1],
   ['--quality', 1],
   ['--radius', 1],
-  ['--browser-dom-point', 1],
-  ['--browser-content-rect', 1],
   ['--timeout', 1],
   ['--delay', 1],
   ['--grid', 1],
@@ -271,14 +263,14 @@ export function parseSavedCaptureArgs(args) {
 function browserSessionFromTarget(target) {
   if (!target?.startsWith?.('browser:')) return null;
   const remainder = target.slice('browser:'.length);
-  if (!remainder) return process.env.PLAYWRIGHT_CLI_SESSION || null;
+  if (!remainder) return null;
   return remainder.split('/')[0] || null;
 }
 
 function captureArgsForMode(args, mode, artifactPath, target) {
   let out = [...args];
   for (const flag of savedCaptureModeFlags(mode, target)) {
-    if (!hasFlag(out, flag) && !hasFlag(out, '--browser-dom-point')) out.push(flag);
+    if (!hasFlag(out, flag)) out.push(flag);
   }
   const isBrowserTarget = target?.startsWith?.('browser:');
   const needsWorkspaceArtifact = savedCaptureModePolicy(mode)?.requires_image || !isBrowserTarget;
@@ -375,7 +367,7 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
   const snapID = snapshotID(parsed.options.name);
   const target = parsed.target;
   const captureSource = parsed.capture_source;
-  return withWorkspaceLock(workspace, () => {
+  return withWorkspaceLock(workspace, async () => {
     let prepared = null;
 
     try {
@@ -387,7 +379,7 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
       const createdAt = nowISO();
       const capturedBrowserSession = browserSessionFromTarget(target);
       const browserBackendIdentity = capturedBrowserSession
-        ? reviewedBrowserRuntime(env).observation_identity
+        ? (await reviewedBrowserRuntime(capturedBrowserSession, env)).backend_identity
         : null;
       const result = runNativeSeeSync({
         primitive: 'capture',
@@ -402,7 +394,7 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
       });
       const capture = parsePrimitiveJSON(result, 'aos __see capture');
       if (capturedBrowserSession) {
-        const identityAfterCapture = reviewedBrowserRuntime(env).observation_identity;
+        const identityAfterCapture = (await reviewedBrowserRuntime(capturedBrowserSession, env)).backend_identity;
         if (JSON.stringify(identityAfterCapture) !== JSON.stringify(browserBackendIdentity)) {
           exitAgentWorkspaceError(
             'browser backend identity changed while capture was running',
@@ -432,7 +424,7 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
       rewriteCaptureFilePaths(capture, stagedArtifactsDir, finalArtifactsDir);
       const browserSession = capturedBrowserSession;
       const browserIdentity = browserSession && (capture.elements?.length ?? 0) > 0
-        ? browserIdentityComparable(queryBrowserPageIdentity(browserSession, env))
+        ? browserIdentityComparable(await queryBrowserPageIdentity(browserSession, env))
         : null;
       const refs = generateRefRecords(capture, {
         workspace_id: workspace,

@@ -32,13 +32,13 @@ The public semantic target types are:
   missing and multiple matches return ambiguous.
 
 Target Handle V1 applies this split to active browser, canvas, native AX, and
-saved-workspace routes. Browser refs require their original state and session;
-their action routes currently fail closed because backend state/ref identity is
-not atomically provable. Canvas/native Locators are state-free and require
-exactly one current match.
+saved-workspace routes. Browser capture generations bind a path-free managed
+runtime/session identity, but browser ref actions remain outside the fixed
+managed operation surface and fail closed. Canvas/native Locators are state-
+free and require exactly one current match.
 
-For the complete manifest-derived command inventory, including internal forms
-such as `browser _check-version`, see
+For the complete manifest-derived command inventory, including narrow internal
+managed browser identity and geometry forms, see
 `docs/dev/reports/aos-command-capability-inventory-v0.md`. That report is a
 development audit artifact, not a consumer API contract.
 
@@ -301,9 +301,9 @@ apps cannot safely reconstruct from the current JSON surfaces.
 | Artifact comparison | Exact canonical pixel verification and optional grayscale spatial evidence over existing same-size PNG paths; no capture, wait, or alignment | `see compare <before.png> <after.png> [--pixel-tolerance <0..255>] [--expect change\|no-change] [--change-map-out <new.png>] [--mask-out <new.png>]` |
 | Desktop/native control | App activate/quit/hide/unhide, window raise/move/resize/close/minimize/maximize/restore, app menu invocation, explicit Apple Shortcut execution, and native AX press/focus/set-value | `do activate`, `do quit`, `do hide`, `do unhide`, `do raise`, `do move`, `do resize`, `do close`, `do minimize`, `do maximize`, `do restore`, `do menu`, `do press`, `do focus`, `do set-value`, `shortcut run` |
 | AOS-hosted status-item leases | Product-neutral native descriptor, observed anchor/events, exact compare-and-swap update, generation-scoped action admission, inspect/invoke, and disconnect cleanup | `status-item validate/register --follow/update/inspect/invoke` |
-| Pointer and keyboard | Mouse, keyboard, scrolling, dragging, text, browser ref actions | `do click`, `do hover`, `do drag`, `do scroll`, `do type`, `do key`, `do fill`, `do navigate` |
+| Pointer and keyboard | Mouse, keyboard, scrolling, dragging, text, and fixed browser session actions; browser ref actions fail closed | `do click`, `do hover`, `do drag`, `do scroll`, `do type`, `do key`, `do fill`, `do navigate` |
 | Canvas and vision | Canvas refs, regions, coordinates, labels, xray, visual proof | `see capture --canvas`, `see capture --region`, `see capture --xray --label`, `do click canvas:...`, coordinate actions |
-| Browser companion | Source-pinned Playwright CLI package lifecycle, AOS browser refs, and a separate upstream skill escape hatch | `browser companion status/install/update/uninstall`, `focus create --target browser://...`, `see capture browser:<session> --save`, `do ... browser/ref`, `skills companion check --name playwright-cli` |
+| Browser companion | Source-pinned package lifecycle, generation-bound managed sessions, fixed consumers, fail-closed refs, and a separate path-free skills companion | `browser companion status/install/update/uninstall`, `focus create/list/remove`, `see capture browser:<session> --save`, `do navigate/type/key/scroll browser:<session>`, `skills companion check --name playwright-cli` |
 | Overlay/display | Canvases, panels, stage surfaces, render/list/wait/readback | `show create/update/remove/list/audit/render/wait/get/to-front/post` |
 | Diagnostics/debug | Debug readbacks and diagnostic displays for active AOS/runtime work | `daemon-snapshot`, `service logs`, `inspect`, `introspect review`, `log` |
 | Verification/evidence | Recapture, refs diff/expect, explicit Gate input, optional Work Records | `see refs --diff --expect`, `gate`, `work-record read/verify/status/plan-repair` |
@@ -367,8 +367,8 @@ Status values:
 The combined `focus create` and `focus update` forms, plus channel
 `graph deepen`/`graph collapse`, conservatively declare
 `requires_permissions=true` because they can enter the native AX channel path.
-A `browser://` focus target still uses its separate browser registry and does
-not consume native Accessibility authority.
+A `browser://` focus target uses the Node-owned managed companion session
+authority and does not consume native Accessibility authority.
 | Native AX press | AX-backed command | `aos do press <ref> ... [--dry-run]` or `--pid --role ... [--dry-run]` | native AX | Optional | Accessibility | Current saved-handle implementation fails closed on missing identity, off-Space, minimized, or known-limit blockers | Keep |
 | Native AX focus | AX-backed command | `aos do focus <ref> ... [--dry-run]` or `--pid --role ... [--dry-run]` | native AX | Optional | Accessibility | Same native saved-handle known limits | Keep |
 | Native AX set-value | AX-backed command | `aos do set-value <ref> --value ... [--dry-run]` or `--pid --role ...` | native AX/canvas | Optional | Accessibility | Same native saved-handle known limits | Keep |
@@ -419,10 +419,66 @@ partial state. Empty interrupted lock or removal-intent creation is similarly
 recoverable, and active-pointer intent cleanup is classified from observed
 record presence.
 
-This lifecycle checkpoint does not yet migrate existing browser/session
-consumers or add `browser tabs new`. Until that atomic consumer checkpoint,
-`current` proves only the managed package store, not that existing browser
-commands execute through it.
+All maintained browser/session consumers now use one managed session record and
+the same global store lock. `current` proves the managed package store; each
+operation additionally requires an active record bound to the exact immutable
+version and random generation. No `browser tabs new` command is present yet.
+
+Managed sessions are created and removed through `focus`:
+
+```bash
+./aos focus create --id scratch --target browser://new --headless
+./aos focus create --id remote --target browser://attach --cdp http://127.0.0.1:9222
+./aos focus create --id chrome --target browser://attach --extension=chrome
+./aos focus list
+./aos focus remove --id scratch --backend browser
+```
+
+Launched sessions explicitly select system Chrome, which must already be
+installed because the companion closure installs no browser binary and its
+private browser cache starts empty. Removal uses exact-session close. Persistent
+launch accepts only an AOS-owned per-generation profile, and initial/navigation
+URLs admit only `http`, `https`, `data`, or `about` (never `file:`). CDP and extension
+sessions are external-owned; removal uses only detach. The extension handshake
+may launch/focus Chrome and open its bridge page without transferring ownership
+of the browser, profile, or tabs. It requires the reviewed extension in an
+ordinary system-Chrome `Default` or `Profile N` profile; unavailable or unsafe
+profile evidence fails before session mutation. Its pinned extension id must
+contain an ordinary version directory and matching bounded manifest. Admission
+scans the full bounded ordinary profile/version set; any malformed or over-cap
+member is blocked even if another profile is valid. Two identical complete
+bounded tree scans are required; persistent change after bounded retry is
+blocked. The creation intent,
+workspace, and starting lease precede worker spawn; a real child spawn
+event latches possible upstream authority. Missing liveness or ambiguous cleanup remains
+durable `cleanup_required` and keeps the exact runtime lease. AOS never calls
+upstream list and never uses PID state as cleanup authority. At most 128 durable
+session records are admitted, and `focus list` is a noncreating stable read.
+Mutations use durable `operating`/`operation_committed` and
+`closing`/`cleanup_committed` phases so acknowledged effects are not replayed
+after publication interruption.
+
+One detached Node guardian supervises each real worker. It remains inert until
+the parent observes its PID, publishes/fsyncs the exact lock-token reservation,
+and sends activation. An acknowledged request still requires a separate execute
+signal before spawn. Raw stdout/stderr stay separate but share the immutable
+descriptor's 65,536-byte aggregate capture cap; small control, activation, and
+lifetime fds carry only authority metadata. Parent or pipe loss before execute
+is `no_spawn`; later loss performs TERM-to-KILL and proves whole-process-group
+absence before lock recovery. Older leases retain their exact bounded
+version, descriptor, closure, package-relative entrypoint, and generation after
+a newer runtime activates. Native focus depth is a canonical integer from 0
+through 15 and is rejected before daemon dispatch otherwise.
+
+The fixed public managed actions are session-only `do navigate`, `do type`,
+`do key`, and `do scroll`. Only scroll advertises a pure-validation `--dry-run`;
+same-session ref actions are unadvertised and fail before managed dispatch.
+Browser capture admits only the whole-session `--out`/`--xray` form or the
+separate saved-workspace flag set; native-only flags fail before worker access.
+Navigate, type, and key reject dry-run. Whole-session snapshot/screenshot, path-free page
+identity, saved capture, and Toolkit evidence use the same managed broker.
+Browser-window locality, anchors, DOM hit testing, ref actions, arbitrary
+eval/run-code, runtime paths/fallbacks, and tab operations remain unavailable.
 
 Inspect or plan the separately owned upstream skill material with:
 

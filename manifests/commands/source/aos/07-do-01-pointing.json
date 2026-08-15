@@ -13,7 +13,7 @@
               "id": "target",
               "kind": "positional",
               "required": true,
-              "summary": "Saved ref, coordinates as x,y, an AOS canvas ref target, or a browser ref target",
+              "summary": "Saved ref, coordinates as x,y, or an AOS canvas ref target",
               "value_type": "string"
             },
             {
@@ -36,7 +36,7 @@
               "id": "dwell",
               "kind": "flag",
               "required": false,
-              "summary": "Dwell time in ms for coordinate/native and AOS canvas click targets; browser targets reject --dwell",
+              "summary": "Dwell time in ms for coordinate/native and AOS canvas click targets",
               "token": "--dwell",
               "value_type": "int"
             },
@@ -44,7 +44,7 @@
               "id": "state-id",
               "kind": "flag",
               "required": false,
-              "summary": "Required original state id for browser Observation Ref targets; coordinates and Locators reject it",
+              "summary": "Explicit state assertion for saved browser Observation Ref records; coordinates and Locators reject it",
               "token": "--state-id",
               "value_type": "string"
             },
@@ -52,7 +52,7 @@
               "id": "dry-run",
               "kind": "flag",
               "required": false,
-              "summary": "Run the same validation/resolution without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
+              "summary": "Validate the saved record or coordinate/canvas grammar without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
               "token": "--dry-run",
               "value_type": "bool"
             },
@@ -77,10 +77,9 @@
             "aos do click ref:<snapshot-id>:r1 --workspace default --dry-run",
             "aos do click ref:<snapshot-id>:r1 --workspace default",
             "aos do click 500,300",
-            "aos do click canvas:subject-browser/wiki-subject-browser-v0:subject-list:open:record",
-            "aos do click browser:todo/e21 --state-id see_abc123def456"
+            "aos do click canvas:subject-browser/wiki-subject-browser-v0:subject-list:open:record"
           ],
-          "summary": "Coordinate and canvas Locator clicks remain available; browser Observation Refs validate the original pair, then fail closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
+          "summary": "Coordinate and canvas Locator clicks remain available; browser Observation Ref clicks remain unsupported and fail closed with TARGET_ACTION_UNSUPPORTED",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
@@ -97,7 +96,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "usage": "aos do click <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> [--workspace <id>] [--snapshot <id>] [--right] [--double] [--state-id id] [--dry-run] | aos do click <x,y|canvas:<canvas-id>/<ref>> [--right] [--double] [--dwell N] [--dry-run]"
+          "usage": "aos do click <ref:<snapshot-id>:<ref>> [--workspace <id>] [--snapshot <id>] [--right] [--double] [--state-id id] [--dry-run] | aos do click <x,y|canvas:<canvas-id>/<ref>> [--right] [--double] [--dwell N] [--dry-run]"
         },
         {
           "args": [
@@ -105,14 +104,14 @@
               "id": "target",
               "kind": "positional",
               "required": true,
-              "summary": "Coordinates, saved ref, or browser target",
+              "summary": "Coordinates or saved ref",
               "value_type": "string"
             },
             {
               "id": "state-id",
               "kind": "flag",
               "required": false,
-              "summary": "Required original state id for browser Observation Ref targets; coordinates reject it",
+              "summary": "Explicit state assertion for saved browser Observation Ref records; coordinates reject it",
               "token": "--state-id",
               "value_type": "string"
             },
@@ -136,7 +135,7 @@
               "id": "dry-run",
               "kind": "flag",
               "required": false,
-              "summary": "Run the same validation without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
+              "summary": "Validate the saved record or coordinate grammar without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
               "token": "--dry-run",
               "value_type": "bool"
             }
@@ -144,10 +143,9 @@
           "examples": [
             "aos do hover ref:<snapshot-id>:r2 --workspace default --dry-run",
             "aos do hover ref:<snapshot-id>:r2 --workspace default",
-            "aos do hover browser:todo/e21 --state-id see_abc123def456",
             "aos do hover 500,300"
           ],
-          "summary": "Coordinate hover remains available; browser Observation Refs validate the original pair, then fail closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
+          "summary": "Coordinate hover remains available; browser Observation Ref hover remains unsupported and fails closed with TARGET_ACTION_UNSUPPORTED",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
@@ -164,7 +162,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "usage": "aos do hover <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run] | aos do hover <x,y> [--dry-run]"
+          "usage": "aos do hover <ref:<snapshot-id>:<ref>> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run] | aos do hover <x,y> [--dry-run]"
         },
         {
           "args": [
@@ -172,21 +170,21 @@
               "id": "from",
               "kind": "positional",
               "required": true,
-              "summary": "Start target as saved ref or browser target",
+              "summary": "Start target as a saved ref",
               "value_type": "string"
             },
             {
               "id": "to",
               "kind": "positional",
               "required": true,
-              "summary": "Destination target as saved ref or browser target",
+              "summary": "Destination target as a saved ref",
               "value_type": "string"
             },
             {
               "id": "state-id",
               "kind": "flag",
               "required": false,
-              "summary": "Required original state id for direct browser Observation Ref endpoints",
+              "summary": "Explicit state assertion for saved browser Observation Ref records",
               "token": "--state-id",
               "value_type": "string"
             },
@@ -210,17 +208,16 @@
               "id": "dry-run",
               "kind": "flag",
               "required": false,
-              "summary": "Run the same validation without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
+              "summary": "Validate the saved records without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
               "token": "--dry-run",
               "value_type": "bool"
             }
           ],
           "examples": [
             "aos do drag ref:<snapshot-id>:r2 ref:<snapshot-id>:r3 --workspace default --dry-run",
-            "aos do drag ref:<snapshot-id>:r2 ref:<snapshot-id>:r3 --workspace default",
-            "aos do drag browser:todo/e1 browser:todo/e2 --state-id see_abc123def456"
+            "aos do drag ref:<snapshot-id>:r2 ref:<snapshot-id>:r3 --workspace default"
           ],
-          "summary": "Browser Observation Ref drag validates both original pairs, then fails closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
+          "summary": "Browser Observation Ref drag remains outside the managed companion surface and fails closed with TARGET_ACTION_UNSUPPORTED",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
@@ -237,7 +234,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "usage": "aos do drag <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run]"
+          "usage": "aos do drag <ref:<snapshot-id>:<ref>> <ref:<snapshot-id>:<ref>> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run]"
         },
         {
           "args": [
@@ -403,14 +400,14 @@
               "id": "target",
               "kind": "positional",
               "required": true,
-              "summary": "Coordinates, saved ref, or browser target",
+              "summary": "Coordinates or saved ref",
               "value_type": "string"
             },
             {
               "id": "delta",
               "kind": "positional",
               "required": false,
-              "summary": "Browser saved-ref scroll delta as dx,dy",
+              "summary": "Saved-ref scroll delta as dx,dy; omitted by the coordinate form",
               "value_type": "string"
             },
             {
@@ -433,7 +430,7 @@
               "id": "state-id",
               "kind": "flag",
               "required": false,
-              "summary": "Required original state id for browser Observation Ref targets; coordinates reject it",
+              "summary": "Explicit state assertion for saved browser Observation Ref records; coordinates reject it",
               "token": "--state-id",
               "value_type": "string"
             },
@@ -457,7 +454,7 @@
               "id": "dry-run",
               "kind": "flag",
               "required": false,
-              "summary": "Run the same validation without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
+              "summary": "Validate coordinate or saved-ref grammar without mutation; browser Observation Refs return TARGET_ACTION_UNSUPPORTED",
               "token": "--dry-run",
               "value_type": "bool"
             }
@@ -465,10 +462,9 @@
           "examples": [
             "aos do scroll ref:<snapshot-id>:r2 0,-200 --workspace default --dry-run",
             "aos do scroll ref:<snapshot-id>:r2 0,-200 --workspace default",
-            "aos do scroll browser:todo/e21 0,-200 --state-id see_abc123def456",
             "aos do scroll 500,300 --dy -3"
           ],
-          "summary": "Coordinate and browser-session scroll remain available; browser Observation Refs validate the original pair, then fail closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
+          "summary": "Coordinate scroll remains available; saved browser Observation Refs remain unsupported and fail closed with TARGET_ACTION_UNSUPPORTED",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
@@ -485,7 +481,55 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "usage": "aos do scroll <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> <dx,dy> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run] | aos do scroll <x,y> [--dx N] [--dy N] [--dry-run]"
+          "usage": "aos do scroll <ref:<snapshot-id>:<ref>> <dx,dy> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run] | aos do scroll <x,y> [--dx N] [--dy N] [--dry-run]"
+        },
+        {
+          "args": [
+            {
+              "id": "target",
+              "kind": "positional",
+              "required": true,
+              "summary": "Exact managed browser session target; browser refs are not admitted",
+              "value_type": "string"
+            },
+            {
+              "id": "delta",
+              "kind": "positional",
+              "required": true,
+              "summary": "Integer x,y scroll delta",
+              "value_type": "string"
+            },
+            {
+              "id": "dry-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Validate exact session binding and delta without liveness, worker dispatch, lock creation, or writes",
+              "token": "--dry-run",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos do scroll browser:todo 0,-200",
+            "aos do scroll browser:todo 0,-200 --dry-run"
+          ],
+          "summary": "Scroll one exact managed browser session; dry-run performs stable nonmutating validation",
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": true
+          },
+          "id": "do-scroll-browser",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos do scroll <browser:<session>> <dx,dy> [--dry-run]"
         }
       ],
       "path": [

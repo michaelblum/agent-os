@@ -3,6 +3,7 @@ import { assertSupportedNode, loadSourceDescriptor } from './descriptor.mjs';
 import { acquisitionEnvironment, downloadTarball } from './download.mjs';
 import { CompanionError, fail } from './errors.mjs';
 import { withStoreLock } from './store-lock.mjs';
+import { listSessionCreateIntents } from './session-intent.mjs';
 import { ensureRemovalJournal } from './store-removal.mjs';
 import { versionKey } from './store-package.mjs';
 import {
@@ -11,6 +12,7 @@ import {
   clearManagedPackageState,
   clearStagingState,
   inspectManagedState,
+  listManagedLeases,
   preflightVersionActivation,
 } from './store-state.mjs';
 import {
@@ -262,6 +264,9 @@ export async function uninstallCompanion(options = {}) {
     }
     const view = inspectManagedState(env, current.digest, { heldLock });
     const resuming = Boolean(recovered || view.removal_phase);
+    if (listManagedLeases(store).length > 0 || listSessionCreateIntents(store).length > 0) {
+      fail('COMPANION_LEASES_ACTIVE', 'managed leases block uninstall');
+    }
     const journal = recovered?.journal ?? view.removal ?? ensureRemovalJournal(store, view, { hooks: options.hooks });
     const binding = removalBinding(journal);
     const previous = binding?.version ?? null;

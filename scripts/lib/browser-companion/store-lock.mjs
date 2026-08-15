@@ -19,6 +19,7 @@ import {
   exactLockOwner,
   inspectLockDirectory,
 } from './store-lock-state.mjs';
+import { publishGuardianOutcome } from './worker-guardian-outcome.mjs';
 
 function currentUid() {
   return typeof process.getuid === 'function' ? process.getuid() : null;
@@ -49,10 +50,24 @@ function cleanupLockRecovery(store, options = {}) {
     expectedOwner: options.expectedOwner,
     requireDead: !options.allowLiveOwner,
     label: 'companion lock recovery',
+    requireGuardianRetired: true,
+    recoverGuardianPublication: true,
   });
-  if (!inspected) return Object.freeze({ recovery_pending: false });
+  if (!inspected) return Object.freeze({ recovery_pending: false, guardian_outcome_pending: false });
+  let guardianOutcomePending = false;
   try {
     if (inspected.owner) {
+      if (inspected.guardian) {
+        if (options.transferGuardianOutcome !== false) {
+          publishGuardianOutcome(store, inspected.owner, inspected.guardian, {
+            hooks: options.hooks?.guardianOutcomePublication,
+          });
+          guardianOutcomePending = true;
+          options.hooks?.afterGuardianOutcomePublication?.();
+        }
+        fs.unlinkSync(path.join(store.paths.lockRecovery, 'guardian.json'));
+        fsyncDirectory(store.paths.lockRecovery);
+      }
       fs.unlinkSync(path.join(store.paths.lockRecovery, 'owner.json'));
       fsyncDirectory(store.paths.lockRecovery);
       options.hooks?.afterLockOwnerCleanup?.();
@@ -61,7 +76,10 @@ function cleanupLockRecovery(store, options = {}) {
     options.hooks?.afterLockRecoveryRemoval?.();
     fsyncDirectory(store.paths.root);
   } catch {}
-  return Object.freeze({ recovery_pending: Boolean(lstatOptional(store.paths.lockRecovery)) });
+  return Object.freeze({
+    recovery_pending: Boolean(lstatOptional(store.paths.lockRecovery)),
+    guardian_outcome_pending: guardianOutcomePending,
+  });
 }
 
 function retireExactLock(store, expectedOwner, options = {}) {
@@ -73,6 +91,8 @@ function retireExactLock(store, expectedOwner, options = {}) {
     allowEmpty: expectedOwner === null,
     expectedOwner,
     requireDead: !options.allowLiveOwner && expectedOwner === null,
+    requireGuardianRetired: true,
+    recoverGuardianPublication: true,
   });
   if (!inspected) fail('COMPANION_STORE_BUSY', 'existing lock disappeared');
   try {
@@ -92,6 +112,7 @@ function retireExactLock(store, expectedOwner, options = {}) {
   return cleanupLockRecovery(store, {
     expectedOwner: inspected.owner,
     allowLiveOwner: options.allowLiveOwner,
+    transferGuardianOutcome: true,
     hooks: options.hooks,
   });
 }
@@ -129,7 +150,7 @@ export function acquireStoreLock(env = process.env, options = {}) {
       owner: null,
       recoveredRemoval: prepared.recoveredRemoval,
       removeStore() { fail('COMPANION_STORE_CORRUPT', 'recovered removal has no live store'); },
-      release() { return Object.freeze({ recovery_pending: false }); },
+      release() { return Object.freeze({ recovery_pending: false, guardian_outcome_pending: false }); },
     });
   }
   const { store } = prepared;
@@ -229,8 +250,19 @@ export async function withStoreLock(env, callback, options = {}) {
   }
   const release = lock.release();
   if (failure) throw failure;
-  if (release.recovery_pending && result?.schema_version === 'aos.browser.companion.mutation.v1') {
+  const releasePending = release.recovery_pending || release.guardian_outcome_pending;
+  if (releasePending && result?.schema_version === 'aos.browser.companion.mutation.v1') {
     return Object.freeze({ ...result, after_state: 'partial', recovery_pending: true });
+  }
+  if (releasePending && result?.schema_version === 'aos.browser.session.mutation.v1') {
+    if (result.status === 'cleanup_required') return Object.freeze({ ...result, recovery_pending: true });
+    return Object.freeze({ ...result, status: 'recovery_pending', recovery_pending: true });
+  }
+  if (releasePending && result?.receipt?.schema_version === 'aos.browser.session.operation.v1') {
+    return Object.freeze({
+      ...result,
+      receipt: Object.freeze({ ...result.receipt, status: 'recovery_pending', recovery_pending: true }),
+    });
   }
   return result;
 }

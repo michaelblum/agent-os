@@ -10,10 +10,10 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-focus-graph.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-focus-graph.mjs",
         "focus"
       ],
-      "cwd": "repo",
+      "cwd": "$AOS_REPO_ROOT",
       "env": {
         "AOS_PATH": "$AOS_PATH",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -29,11 +29,11 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-focus-graph.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-focus-graph.mjs",
         "focus",
         "create"
       ],
-      "cwd": "repo",
+      "cwd": "$AOS_REPO_ROOT",
       "env": {
         "AOS_PATH": "$AOS_PATH",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -49,11 +49,11 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-focus-graph.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-focus-graph.mjs",
         "focus",
         "update"
       ],
-      "cwd": "repo",
+      "cwd": "$AOS_REPO_ROOT",
       "env": {
         "AOS_PATH": "$AOS_PATH",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -69,11 +69,11 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-focus-graph.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-focus-graph.mjs",
         "focus",
         "list"
       ],
-      "cwd": "repo",
+      "cwd": "$AOS_REPO_ROOT",
       "env": {
         "AOS_PATH": "$AOS_PATH",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -89,11 +89,11 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-focus-graph.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-focus-graph.mjs",
         "focus",
         "remove"
       ],
-      "cwd": "repo",
+      "cwd": "$AOS_REPO_ROOT",
       "env": {
         "AOS_PATH": "$AOS_PATH",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",

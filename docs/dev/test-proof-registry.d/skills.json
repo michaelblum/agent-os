@@ -44,11 +44,11 @@
       "owner": "skills",
       "harness_level": "model_unit",
       "proof_kind": "companion_skill_contract",
-      "contract": "Playwright CLI companion checks distinguish missing, outdated, candidate, installed, and installable companion skill states.",
-      "worth": "This keeps AOS installable skills from vendoring or misclassifying upstream Playwright CLI companion skills.",
+      "contract": "Playwright CLI skill companion checks bind to path-free managed-runtime status while distinguishing missing, update-available, candidate, installed, and installable companion skill states.",
+      "worth": "This keeps AOS installable skills from vendoring, executing, resolving, or misclassifying upstream Playwright CLI companion skills.",
       "command": "node --test tests/aos-skills-companion.test.mjs",
       "replaces": [],
-      "guard": "uses fake Playwright CLI binaries and temporary path targets",
+      "guard": "uses fake managed package trees and temporary path targets; no ./aos, package execution, browser, or network",
       "status": "active"
     },
     {
@@ -62,7 +62,7 @@
       "owner": "skills",
       "harness_level": "model_unit",
       "proof_kind": "cold_agent_forward_proof",
-      "contract": "The cold-agent forward proof preserves required installable skill scenarios, direct AOS commands, and AOS versus Playwright boundaries.",
+      "contract": "The cold-agent forward proof preserves required installable skill scenarios, direct AOS commands including backend-qualified focus removal, and AOS versus Playwright boundaries.",
       "worth": "This proves the desktop skill pack guides fresh agents through current command surfaces without wrappers, unknown skills, or live UI mutation.",
       "command": "node --test tests/aos-skills-forward-proof.test.mjs",
       "replaces": [],

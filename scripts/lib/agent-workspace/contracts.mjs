@@ -64,9 +64,12 @@ export const SAVED_CAPTURE_MODE_POLICY = Object.freeze({
   som: Object.freeze({
     requires_tree: true,
     requires_image: true,
-    browser_flags: Object.freeze(['--xray', '--label']),
+    browser_flags: Object.freeze(['--xray']),
     non_browser_flags: Object.freeze(['--xray']),
-    known_limits: Object.freeze({ browser: Object.freeze([]), non_browser: Object.freeze([]) }),
+    known_limits: Object.freeze({
+      browser: Object.freeze(['managed browser capture does not project local geometry or badge annotations']),
+      non_browser: Object.freeze([]),
+    }),
   }),
 });
 

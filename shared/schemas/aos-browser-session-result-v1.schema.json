@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-browser-session-result-v1.schema.json",
+  "title": "AOS Managed Browser Session Result v1",
+  "oneOf": [
+    {"$ref": "#/$defs/list"},
+    {"$ref": "#/$defs/mutation"},
+    {"$ref": "#/$defs/operation"},
+    {"$ref": "#/$defs/error"}
+  ],
+  "$defs": {
+    "session_id": {"type":"string","pattern":"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"},
+    "generation": {"type":"string","pattern":"^[a-f0-9]{32}$"},
+    "sha256": {"type":"string","pattern":"^[a-f0-9]{64}$"},
+    "package_version": {"type":"string","maxLength":128,"pattern":"^(?:0|[1-9][0-9]{0,9})\\.(?:0|[1-9][0-9]{0,9})\\.(?:0|[1-9][0-9]{0,9})(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$"},
+    "entrypoint": {"type":"string","maxLength":256,"pattern":"^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*//)[A-Za-z0-9@._+~/-]+$"},
+    "timestamp": {"type":"string","format":"date-time"},
+    "session": {
+      "type":"object",
+      "required":["id","generation","state","ownership","attach_kind","headless","persistent","updated_at"],
+      "properties":{
+        "id":{"$ref":"#/$defs/session_id"},
+        "generation":{"$ref":"#/$defs/generation"},
+        "state":{"enum":["starting","active","cleanup_required","closing","closed"]},
+        "ownership":{"enum":["launched","attached"]},
+        "attach_kind":{"type":["string","null"],"enum":[null,"cdp","extension"]},
+        "headless":{"type":["boolean","null"]},
+        "persistent":{"type":"boolean"},
+        "updated_at":{"$ref":"#/$defs/timestamp"}
+      },
+      "additionalProperties":false,
+      "oneOf":[
+        {"properties":{"ownership":{"const":"launched"},"attach_kind":{"const":null},"headless":{"type":"boolean"},"persistent":{"type":"boolean"}}},
+        {"properties":{"ownership":{"const":"attached"},"attach_kind":{"enum":["cdp","extension"]},"headless":{"const":null},"persistent":{"const":false}}}
+      ]
+    },
+    "runtime": {
+      "type":"object",
+      "required":["version","descriptor_sha256","closure_sha256","entrypoint"],
+      "properties":{
+        "version":{"$ref":"#/$defs/package_version"},
+        "descriptor_sha256":{"$ref":"#/$defs/sha256"},
+        "closure_sha256":{"$ref":"#/$defs/sha256"},
+        "entrypoint":{"$ref":"#/$defs/entrypoint"}
+      },
+      "additionalProperties":false
+    },
+    "backend_identity": {
+      "type":"object",
+      "required":["schema_version","adapter","version","descriptor_sha256","closure_sha256","entrypoint","session_generation"],
+      "properties":{
+        "schema_version":{"const":"aos.browser-backend-identity.v2"},
+        "adapter":{"const":"@playwright/cli"},
+        "version":{"$ref":"#/$defs/package_version"},
+        "descriptor_sha256":{"$ref":"#/$defs/sha256"},
+        "closure_sha256":{"$ref":"#/$defs/sha256"},
+        "entrypoint":{"$ref":"#/$defs/entrypoint"},
+        "session_generation":{"$ref":"#/$defs/generation"}
+      },
+      "additionalProperties":false
+    },
+    "list": {
+      "type":"object",
+      "required":["schema_version","operation","status","sessions","checked_at"],
+      "properties":{
+        "schema_version":{"const":"aos.browser.session.list.v1"},
+        "operation":{"const":"list"},
+        "status":{"const":"ok"},
+        "sessions":{"type":"array","maxItems":128,"items":{"$ref":"#/$defs/session"}},
+        "checked_at":{"$ref":"#/$defs/timestamp"}
+      },
+      "additionalProperties":false
+    },
+    "mutation": {
+      "type":"object",
+      "required":["schema_version","operation","status","session","runtime","cleanup_required","recovery_pending","completed_at"],
+      "properties":{
+        "schema_version":{"const":"aos.browser.session.mutation.v1"},
+        "operation":{"enum":["create","remove"]},
+        "status":{"enum":["active","removed","cleanup_required","recovery_pending"]},
+        "session":{"$ref":"#/$defs/session"},
+        "runtime":{"$ref":"#/$defs/runtime"},
+        "cleanup_required":{"type":"boolean"},
+        "recovery_pending":{"type":"boolean"},
+        "completed_at":{"$ref":"#/$defs/timestamp"}
+      },
+      "additionalProperties":false,
+      "oneOf":[
+        {"properties":{"operation":{"const":"create"},"status":{"const":"active"},"session":{"properties":{"state":{"const":"active"}}},"cleanup_required":{"const":false},"recovery_pending":{"const":false}}},
+        {"properties":{"operation":{"const":"create"},"status":{"const":"cleanup_required"},"session":{"properties":{"state":{"enum":["starting","cleanup_required"]}}},"cleanup_required":{"const":true},"recovery_pending":{"const":true}}},
+        {"properties":{"operation":{"const":"create"},"status":{"const":"recovery_pending"},"session":{"properties":{"state":{"enum":["starting","active","closed"]}}},"cleanup_required":{"const":false},"recovery_pending":{"const":true}}},
+        {"properties":{"operation":{"const":"remove"},"status":{"const":"removed"},"session":{"properties":{"state":{"const":"closed"}}},"cleanup_required":{"const":false},"recovery_pending":{"const":false}}},
+        {"properties":{"operation":{"const":"remove"},"status":{"const":"cleanup_required"},"session":{"properties":{"state":{"enum":["closing","cleanup_required"]}}},"cleanup_required":{"const":true},"recovery_pending":{"const":true}}},
+        {"properties":{"operation":{"const":"remove"},"status":{"const":"recovery_pending"},"session":{"properties":{"state":{"const":"closed"}}},"cleanup_required":{"const":false},"recovery_pending":{"const":true}}}
+      ]
+    },
+    "operation": {
+      "type":"object",
+      "required":["schema_version","operation","status","session_id","session_generation","backend_identity","recovery_pending","completed_at"],
+      "properties":{
+        "schema_version":{"const":"aos.browser.session.operation.v1"},
+        "operation":{"enum":["navigate","type","key","scroll","snapshot","screenshot","page_identity","evidence_capture","liveness"]},
+        "status":{"enum":["success","recovery_pending"]},
+        "session_id":{"$ref":"#/$defs/session_id"},
+        "session_generation":{"$ref":"#/$defs/generation"},
+        "backend_identity":{"$ref":"#/$defs/backend_identity"},
+        "recovery_pending":{"type":"boolean"},
+        "completed_at":{"$ref":"#/$defs/timestamp"}
+      },
+      "additionalProperties":false,
+      "oneOf":[
+        {"properties":{"status":{"const":"success"},"recovery_pending":{"const":false}}},
+        {"properties":{"status":{"const":"recovery_pending"},"recovery_pending":{"const":true}}}
+      ]
+    },
+    "error": {
+      "type":"object",
+      "required":["schema_version","operation","status","code","error"],
+      "properties":{
+        "schema_version":{"const":"aos.browser.session.error.v1"},
+        "operation":{"type":"string","minLength":1,"maxLength":64},
+        "status":{"const":"error"},
+        "code":{"enum":["BROWSER_SESSION_INVALID","BROWSER_SESSION_NOT_FOUND","BROWSER_SESSION_EXISTS","BROWSER_SESSION_NOT_ACTIVE","BROWSER_SESSION_CLEANUP_REQUIRED","BROWSER_SESSION_MIGRATION_REQUIRED","BROWSER_SESSION_LIMIT","BROWSER_SESSION_EXTENSION_UNAVAILABLE","BROWSER_SESSION_EXTENSION_BLOCKED","BROWSER_SESSION_OPERATION_UNSUPPORTED","BROWSER_SESSION_WORKER_FAILED","BROWSER_SESSION_WORKER_TIMEOUT","BROWSER_SESSION_OUTPUT_INVALID","BROWSER_SESSION_OUTPUT_LIMIT","COMPANION_STORE_BLOCKED","COMPANION_STORE_CORRUPT","COMPANION_STORE_BUSY","COMPANION_UPDATE_REQUIRED","BROWSER_SESSION_INTERNAL"]},
+        "error":{"type":"string","minLength":1,"maxLength":160}
+      },
+      "additionalProperties":false
+    }
+  }
+}

@@ -88,10 +88,24 @@ function findCommand(commands, pathArgs) {
   }
   if (!parent) return null;
   const suffix = pathArgs.slice(parentPath.length).join('-');
+  const strippedSuffix = pathArgs.slice(parentPath.length)
+    .map((segment) => segment.startsWith('_') ? segment.slice(1) : segment)
+    .join('-');
   const parentFormPrefix = parentPath.join('-');
   const fullPathPrefix = suffix ? `${parentFormPrefix}-${suffix}` : parentFormPrefix;
   const legacyPrefix = suffix ? `${parentPath[parentPath.length - 1]}-${suffix}` : parentFormPrefix;
-  const formPrefixes = fullPathPrefix === legacyPrefix ? [fullPathPrefix] : [fullPathPrefix, legacyPrefix];
+  const exactPrefixes = fullPathPrefix === legacyPrefix ? [fullPathPrefix] : [fullPathPrefix, legacyPrefix];
+  const strippedFullPrefix = strippedSuffix ? `${parentFormPrefix}-${strippedSuffix}` : parentFormPrefix;
+  const strippedLegacyPrefix = strippedSuffix ? `${parentPath[parentPath.length - 1]}-${strippedSuffix}` : parentFormPrefix;
+  const strippedPrefixes = strippedFullPrefix === strippedLegacyPrefix
+    ? [strippedFullPrefix]
+    : [strippedFullPrefix, strippedLegacyPrefix];
+  const formPrefixes = [...exactPrefixes];
+  if (strippedSuffix !== suffix) {
+    for (const candidate of strippedPrefixes) {
+      if (!formPrefixes.includes(candidate)) formPrefixes.push(candidate);
+    }
+  }
   for (const formPrefix of formPrefixes) {
     const forms = (parent.forms || []).filter((form) => {
       const formID = String(form.id);

@@ -9,6 +9,7 @@ import {
   validateDescriptor,
 } from './descriptor.mjs';
 import { fail } from './errors.mjs';
+import { isBoundedPackageVersion } from './package-version.mjs';
 import {
   DIRECTORY_MODE,
   RECORD_MODE,
@@ -155,7 +156,7 @@ export function buildPackageInventory(runtimeRoot, descriptor) {
 }
 
 export function versionKey(version, descriptorSha256) {
-  if (!/^[0-9A-Za-z.-]+$/u.test(version) || !/^[a-f0-9]{64}$/u.test(descriptorSha256)) {
+  if (!isBoundedPackageVersion(version) || !/^[a-f0-9]{64}$/u.test(descriptorSha256)) {
     fail('COMPANION_DESCRIPTOR_INVALID', 'version activation key is invalid');
   }
   return `${version}-${descriptorSha256}`;

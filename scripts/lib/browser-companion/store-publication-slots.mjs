@@ -1,9 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const PURPOSES = new Set(['store-owner', 'lock-owner', 'removal-claim']);
+const PURPOSES = new Set([
+  'store-owner', 'lock-owner', 'removal-claim', 'guardian-record', 'guardian-outcome',
+]);
 const SLOT_COUNT = 8;
-const SLOT_NAME = /^\.publish-(store-owner|lock-owner|removal-claim)-slot-([0-7])\.tmp$/u;
+const SLOT_NAME = /^\.publish-(store-owner|lock-owner|removal-claim|guardian-record|guardian-outcome)-slot-([0-7])\.tmp$/u;
 
 export function isExclusivePublicationTemp(name, purpose = null) {
   const match = name.match(SLOT_NAME);

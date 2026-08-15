@@ -86,7 +86,7 @@
                 "backend": { "const": "browser" },
                 "handle": { "$ref": "aos-target-handle-v1.schema.json#/$defs/browser_observation_ref" },
                 "supported_actions": { "maxItems": 0 },
-                "known_limits": { "contains": { "const": "browser_observation_identity_unproven" } }
+                "known_limits": { "contains": { "const": "browser_ref_actions_unsupported" } }
               }
             },
             {
@@ -158,7 +158,7 @@
                 "backend": { "const": "browser" },
                 "handle": { "$ref": "aos-target-handle-v1.schema.json#/$defs/browser_observation_ref" },
                 "supported_actions": { "maxItems": 0 },
-                "known_limits": { "contains": { "const": "browser_observation_identity_unproven" } }
+                "known_limits": { "contains": { "const": "browser_ref_actions_unsupported" } }
               }
             },
             {

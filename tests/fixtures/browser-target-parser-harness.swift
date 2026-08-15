@@ -16,7 +16,7 @@ struct BrowserTargetParserHarness {
             FileHandle.standardOutput.write(data)
             FileHandle.standardOutput.write(Data([0x0a]))
         } catch BrowserTargetError.missingSession {
-            emitError(code: "MISSING_SESSION", message: "PLAYWRIGHT_CLI_SESSION not set")
+            emitError(code: "MISSING_SESSION", message: "explicit managed browser session required")
         } catch BrowserTargetError.invalid(let message) {
             emitError(code: "INVALID_TARGET", message: message)
         } catch {

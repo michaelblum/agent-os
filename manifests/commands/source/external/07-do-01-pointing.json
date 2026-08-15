@@ -7,7 +7,7 @@
         "do",
         "click"
       ],
-      "summary": "Resolve saved click handles; canvas Locators may dispatch, while browser Observation Refs fail closed with TARGET_ACTION_UNSUPPORTED.",
+      "summary": "Load saved click handles; canvas Locators may dispatch, while browser Observation Refs fail closed without current-generation or worker dispatch.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -31,14 +31,14 @@
         "do",
         "click"
       ],
-      "summary": "Route browser click requests; ref-bearing Observation Refs validate, then fail closed with TARGET_ACTION_UNSUPPORTED.",
+      "summary": "Parse exact direct browser-ref click grammar, then fail closed with TARGET_ACTION_UNSUPPORTED before session or worker dispatch.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-do-browser.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-do-browser.mjs",
         "click"
       ],
-      "cwd": "repo",
+      "cwd": "$AOS_REPO_ROOT",
       "when": {
         "child_arg_index": 0,
         "prefix": "browser:"
@@ -105,7 +105,7 @@
         "do",
         "hover"
       ],
-      "summary": "Validate saved browser Observation Ref hover requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
+      "summary": "Load saved browser Observation Ref hover requests, then fail closed without current-generation or worker dispatch.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -129,14 +129,14 @@
         "do",
         "hover"
       ],
-      "summary": "Route browser hover requests; ref-bearing Observation Refs validate, then fail closed with TARGET_ACTION_UNSUPPORTED.",
+      "summary": "Parse exact direct browser-ref hover grammar, then fail closed with TARGET_ACTION_UNSUPPORTED before session or worker dispatch.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-do-browser.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-do-browser.mjs",
         "hover"
       ],
-      "cwd": "repo",
+      "cwd": "$AOS_REPO_ROOT",
       "when": {
         "child_arg_index": 0,
         "prefix": "browser:"
@@ -178,7 +178,7 @@
         "do",
         "drag"
       ],
-      "summary": "Validate saved browser Observation Ref drag requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
+      "summary": "Load saved browser Observation Ref drag requests, then fail closed without current-generation or worker dispatch.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -202,14 +202,14 @@
         "do",
         "drag"
       ],
-      "summary": "Route browser drag requests; Observation Ref endpoints validate, then fail closed with TARGET_ACTION_UNSUPPORTED.",
+      "summary": "Parse exact direct browser-ref drag grammar, then fail closed with TARGET_ACTION_UNSUPPORTED before session or worker dispatch.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-do-browser.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-do-browser.mjs",
         "drag"
       ],
-      "cwd": "repo",
+      "cwd": "$AOS_REPO_ROOT",
       "when": {
         "child_arg_index": 0,
         "prefix": "browser:"
@@ -275,7 +275,7 @@
         "do",
         "scroll"
       ],
-      "summary": "Validate saved browser Observation Ref scroll requests, then fail closed with TARGET_ACTION_UNSUPPORTED.",
+      "summary": "Load saved browser Observation Ref scroll requests, then fail closed without current-generation or worker dispatch.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -299,14 +299,14 @@
         "do",
         "scroll"
       ],
-      "summary": "Scroll browser sessions; ref-bearing Observation Refs validate, then fail closed with TARGET_ACTION_UNSUPPORTED.",
+      "summary": "Scroll browser sessions; optional dry-run performs stable read-only validation, while direct refs fail closed before session or worker dispatch.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-do-browser.mjs",
+        "$AOS_REPO_ROOT/scripts/aos-do-browser.mjs",
         "scroll"
       ],
-      "cwd": "repo",
+      "cwd": "$AOS_REPO_ROOT",
       "when": {
         "child_arg_index": 0,
         "prefix": "browser:"

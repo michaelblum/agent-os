@@ -20,6 +20,7 @@ import { recoveryState, retireManagedPath } from '../../scripts/lib/browser-comp
 import {
   activateStage, cleanupStage, createStage, finalizeStage, materializePackage,
 } from '../../scripts/lib/browser-companion/store-writer.mjs';
+import { removeManagedLease, writeManagedLease } from './managed-session-test-fixture.mjs';
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 const sourceDescriptor = JSON.parse(fs.readFileSync(path.join(repoRoot, 'manifests/companions/playwright-cli-v1.json'), 'utf8'));
@@ -232,13 +233,7 @@ test('missing, current, idempotent install, update-missing, update/no-update, le
   await installCompanion({ env: updateState.env, current: old.current, download: old.download });
   const store = inspectStore(updateState.env);
   const oldActive = readActive(store);
-  writePrivateRecordAtomic(path.join(store.paths.leases, 'leased-session.json'), {
-    schema_version: 'aos.browser.companion-lease.v1',
-    session_id: 'leased-session',
-    generation: 'a'.repeat(32),
-    version_key: oldActive.version_key,
-    descriptor_sha256: oldActive.descriptor_sha256,
-  });
+  const leasedSession = writeManagedLease(store, 'leased-session', oldActive, 'a'.repeat(32));
   const updated = await updateCompanion({ env: updateState.env, current: current.current, download: current.download });
   assert.equal(updated.status, 'updated');
   assertSchemaValid(updated);
@@ -252,7 +247,7 @@ test('missing, current, idempotent install, update-missing, update/no-update, le
   assert.equal(noUpdate.status, 'unchanged');
   assertSchemaValid(noUpdate);
   await assert.rejects(uninstallCompanion({ env: updateState.env, current: current.current }), (error) => expectCode(error, 'COMPANION_LEASES_ACTIVE'));
-  fs.unlinkSync(path.join(store.paths.leases, 'leased-session.json'));
+  removeManagedLease(store, leasedSession);
   const uninstalled = await uninstallCompanion({ env: updateState.env, current: current.current });
   assert.equal(uninstalled.status, 'uninstalled');
   assertSchemaValid(uninstalled);
@@ -553,13 +548,7 @@ test('one transition version keeps the sixteen-version stable boundary recoverab
     if (index < 15) {
       const store = inspectStore(isolated.env);
       const active = readActive(store);
-      writePrivateRecordAtomic(path.join(store.paths.leases, `lease-${index}.json`), {
-        schema_version: 'aos.browser.companion-lease.v1',
-        session_id: `lease-${index}`,
-        generation: index.toString(16).padStart(32, '0'),
-        version_key: active.version_key,
-        descriptor_sha256: active.descriptor_sha256,
-      });
+      writeManagedLease(store, `lease-${index}`, active, index.toString(16).padStart(32, '0'));
     }
   }
   const next = fixture({ version: '0.1.16', payload: 'transition' });
@@ -579,13 +568,7 @@ test('one transition version keeps the sixteen-version stable boundary recoverab
   assertSchemaValid(recovered);
   const fullStore = inspectStore(isolated.env);
   const fullActive = readActive(fullStore);
-  writePrivateRecordAtomic(path.join(fullStore.paths.leases, 'lease-15.json'), {
-    schema_version: 'aos.browser.companion-lease.v1',
-    session_id: 'lease-15',
-    generation: 'f'.repeat(32),
-    version_key: fullActive.version_key,
-    descriptor_sha256: fullActive.descriptor_sha256,
-  });
+  writeManagedLease(fullStore, 'lease-15', fullActive, 'f'.repeat(32));
   const overflow = fixture({ version: '0.1.17' });
   await assert.rejects(updateCompanion({
     env: isolated.env,

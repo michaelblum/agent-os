@@ -93,13 +93,14 @@ AOS keeps its browser adapter. AOS owns durable browser flows through:
 - optional dry-run inspection
 - action envelopes
 - optional Work Record evidence
-- `aos show --anchor-browser`
+- browser-window anchoring remains deferred by ADR 0041 checkpoint 2B
 
-Playwright CLI remains the direct escape hatch for browser primitives AOS does
-not safely wrap, including tracing, video, tab observation and targeting,
+Playwright CLI remains a direct external, caller-owned escape hatch for browser
+primitives AOS does not safely wrap, including tracing, video, tab observation and targeting,
 reload/back/forward, upload, select/check/uncheck, codegen, and arbitrary page
-eval. ADR 0041 admits only an untargeted typed `tabs new` operation in its first
-public browser-companion MVP; mutable tab indexes never become AOS handles.
+eval. It is never resolved or attested by AOS. ADR 0041 defers even an
+untargeted typed `tabs new` operation beyond checkpoint 2B; mutable tab indexes
+never become AOS handles.
 
 AOS skills may detect or recommend upstream Playwright CLI skills. AOS must not
 vendor, fork, or silently rewrite Playwright skill content. The `aos skills
@@ -121,7 +122,7 @@ The registry source of truth is `skills/registry.json`.
 | `aos-saved-workspace` | installable | Supersedes broad `aos-agent-workspace` for compact saved snapshot/ref observe-act-recapture loops. |
 | `aos-canvas-vision` | installable | Teaches regions, xray, labels, canvas refs, coordinates, and visual fallback proof. |
 | `aos-focus-sessions` | installable | Teaches focus channels as the AOS session model for windows, browsers, and parallel agents. |
-| `aos-browser` | installable | Supersedes broad `browser-adapter` for current AOS browser observation handles/proof and explicit upstream Playwright CLI escape hatches. |
+| `aos-browser` | installable | Supersedes broad `browser-adapter` for current managed AOS browser sessions and observation proof; external caller-owned Playwright CLI use remains outside AOS. |
 | `aos-verification` | installable | Teaches recapture, ref diff/expect, gates, and Work Record evidence loops. |
 | `aos-operator-annotations` | installable | Teaches pending annotation list/read/consume/link behavior and safe consume-once boundaries. |
 | `aos-work-records` | installable | Teaches Work Record read/verify/status/recovery and report-only defaults. |

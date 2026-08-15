@@ -61,7 +61,7 @@
               "id": "target",
               "kind": "positional",
               "required": true,
-              "summary": "Browser target (browser:<session> or browser:<session>/<ref>)",
+              "summary": "Managed browser session target (browser:<session>); refs are unsupported",
               "value_type": "string"
             },
             {
@@ -70,18 +70,9 @@
               "required": true,
               "summary": "Text to type into the browser target",
               "value_type": "string"
-            },
-            {
-              "id": "state-id",
-              "kind": "flag",
-              "required": false,
-              "summary": "Required original state id for a ref-bearing browser target; session-only targets reject it",
-              "token": "--state-id",
-              "value_type": "string"
             }
           ],
           "examples": [
-            "aos do type browser:todo/e21 \"hello world\" --state-id see_abc123def456",
             "aos do type browser:todo \"hello world\""
           ],
           "execution": {
@@ -100,8 +91,8 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "summary": "Direct current-host browser session text input remains available; ref-bearing Observation Ref input validates the original pair, then returns TARGET_ACTION_UNSUPPORTED",
-          "usage": "aos do type <browser:<session>[/<ref>]> <text> [--state-id id]"
+          "summary": "Type text into the active page of an exact managed browser session",
+          "usage": "aos do type <browser:<session>> <text>"
         },
         {
           "args": [
@@ -123,7 +114,7 @@
               "id": "dry-run",
               "kind": "flag",
               "required": false,
-              "summary": "Run the same saved Observation Ref validation without mutation; returns TARGET_ACTION_UNSUPPORTED",
+              "summary": "Validate the saved Observation Ref record without mutation; returns TARGET_ACTION_UNSUPPORTED",
               "token": "--dry-run",
               "value_type": "bool"
             },
@@ -164,7 +155,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "summary": "Saved browser Observation Ref type validates the original pair, then fails closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
+          "summary": "Saved browser Observation Ref type remains outside the managed companion surface and fails closed with TARGET_ACTION_UNSUPPORTED",
           "usage": "aos do type <ref:<snapshot-id>:<ref>> <text> [--workspace <id>] [--snapshot <id>] [--dry-run]"
         },
         {
@@ -205,7 +196,7 @@
               "id": "target",
               "kind": "positional",
               "required": true,
-              "summary": "Browser target (browser:<session> or browser:<session>/<ref>)",
+              "summary": "Managed browser session target (browser:<session>); refs are unsupported",
               "value_type": "string"
             },
             {
@@ -214,18 +205,9 @@
               "required": true,
               "summary": "Key combination to press in the browser target",
               "value_type": "string"
-            },
-            {
-              "id": "state-id",
-              "kind": "flag",
-              "required": false,
-              "summary": "Required original state id for a ref-bearing browser target; session-only targets reject it",
-              "token": "--state-id",
-              "value_type": "string"
             }
           ],
           "examples": [
-            "aos do key browser:todo/e21 \"Enter\" --state-id see_abc123def456",
             "aos do key browser:todo \"cmd+s\""
           ],
           "execution": {
@@ -244,8 +226,8 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "summary": "Direct current-host browser session key press remains available; ref-bearing Observation Ref input validates the original pair, then returns TARGET_ACTION_UNSUPPORTED",
-          "usage": "aos do key <browser:<session>[/<ref>]> <combo> [--state-id id]"
+          "summary": "Press a key combination in the active page of an exact managed browser session",
+          "usage": "aos do key <browser:<session>> <combo>"
         },
         {
           "args": [
@@ -267,7 +249,7 @@
               "id": "dry-run",
               "kind": "flag",
               "required": false,
-              "summary": "Run the same saved Observation Ref validation without mutation; returns TARGET_ACTION_UNSUPPORTED",
+              "summary": "Validate the saved Observation Ref record without mutation; returns TARGET_ACTION_UNSUPPORTED",
               "token": "--dry-run",
               "value_type": "bool"
             },
@@ -308,7 +290,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "summary": "Saved browser Observation Ref key validates the original pair, then fails closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
+          "summary": "Saved browser Observation Ref key input remains outside the managed companion surface and fails closed with TARGET_ACTION_UNSUPPORTED",
           "usage": "aos do key <ref:<snapshot-id>:<ref>> <combo> [--workspace <id>] [--snapshot <id>] [--dry-run]"
         },
         {
@@ -317,7 +299,7 @@
               "id": "target",
               "kind": "positional",
               "required": true,
-              "summary": "Saved ref or browser target (ref:<snapshot-id>:<ref> or browser:<session>/<ref>)",
+              "summary": "Saved ref target (ref:<snapshot-id>:<ref>)",
               "value_type": "string"
             },
             {
@@ -331,7 +313,7 @@
               "id": "dry-run",
               "kind": "flag",
               "required": false,
-              "summary": "Run the same saved Observation Ref validation without mutation; returns TARGET_ACTION_UNSUPPORTED",
+              "summary": "Validate the saved Observation Ref record without mutation; returns TARGET_ACTION_UNSUPPORTED",
               "token": "--dry-run",
               "value_type": "bool"
             },
@@ -355,17 +337,16 @@
               "id": "state-id",
               "kind": "flag",
               "required": false,
-              "summary": "Required original state id for direct browser Observation Ref fill",
+              "summary": "Explicit state assertion for the saved browser Observation Ref record",
               "token": "--state-id",
               "value_type": "string"
             }
           ],
           "examples": [
             "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default --dry-run",
-            "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default",
-            "aos do fill browser:todo/e21 \"buy groceries\" --state-id see_abc123def456"
+            "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default"
           ],
-          "summary": "Browser Observation Ref fill validates the original pair, then fails closed with TARGET_ACTION_UNSUPPORTED because backend identity is unproven",
+          "summary": "Browser Observation Ref fill remains outside the managed companion surface and fails closed with TARGET_ACTION_UNSUPPORTED",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
@@ -382,7 +363,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "usage": "aos do fill <ref:<snapshot-id>:<ref>|browser:<s>/<ref>> <text> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run]"
+          "usage": "aos do fill <ref:<snapshot-id>:<ref>> <text> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run]"
         },
         {
           "args": [

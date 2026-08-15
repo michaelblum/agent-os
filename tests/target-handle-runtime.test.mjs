@@ -25,14 +25,13 @@ function code(fn, expected) {
 }
 
 const backendIdentity = {
-  schema_version: 'aos.browser-backend-identity.v1',
+  schema_version: 'aos.browser-backend-identity.v2',
   adapter: '@playwright/cli',
   version: '0.1.15',
-  version_source: 'package.json',
-  executable_realpath: '/tmp/aos-test-playwright-cli',
-  executable_sha256: 'a'.repeat(64),
-  package_root_realpath: '/tmp/aos-test-playwright-package',
-  package_closure_sha256: 'b'.repeat(64),
+  descriptor_sha256: 'a'.repeat(64),
+  closure_sha256: 'b'.repeat(64),
+  entrypoint: 'node_modules/@playwright/cli/playwright-cli.js',
+  session_generation: 'c'.repeat(32),
 };
 
 test('one browser generation validates only its original state/ref pairs', () => {
@@ -99,8 +98,22 @@ test('a browser generation is stale when its independently verified backend iden
     recordBrowserCaptureGeneration(
       'todo', { state_id: 'see_backend', elements: [{ ref: 'e1' }] }, env, backendIdentity,
     );
-    const replaced = { ...backendIdentity, executable_sha256: 'c'.repeat(64) };
+    const replaced = { ...backendIdentity, session_generation: 'd'.repeat(32) };
     code(() => validateBrowserObservationRef(handle, env, replaced), 'TARGET_STATE_STALE');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('path-free backend identity admits bounded immutable old-version provenance', () => {
+  const { root, env } = isolated();
+  try {
+    const prior = { ...backendIdentity, version: '0.1.14-alpha.1', entrypoint: 'node_modules/@playwright/cli/legacy.js' };
+    recordBrowserCaptureGeneration('prior', { state_id: 'see_prior', elements: [{ ref: 'e1' }] }, env, prior);
+    assert.equal(readBrowserCaptureGeneration('prior', env).backend_identity.version, prior.version);
+    code(() => recordBrowserCaptureGeneration('bad', {
+      state_id: 'see_bad', elements: [{ ref: 'e1' }],
+    }, env, { ...backendIdentity, version: 'latest' }), 'TARGET_ACTION_UNSUPPORTED');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -170,7 +183,7 @@ record = {
   "workspace_id":"default", "snapshot_id":"snap1", "capture_target":"browser:todo",
   "capture_mode":"ax", "copyable_action_target":"ref:snap1:r1", "backend":"browser",
   "handle":handles[0], "confidence":"medium", "supported_actions":[],
-  "target_summary":"Save", "hint_facts":{}, "artifact_refs":[], "warnings":[], "known_limits":["browser_observation_identity_unproven"]
+  "target_summary":"Save", "hint_facts":{}, "artifact_refs":[], "warnings":[], "known_limits":["browser_ref_actions_unsupported"]
 }
 envelope = {"status":"success", "schema_version":"aos.agent-workspace.v1", "workspace_id":"default", "snapshot_id":"snap1", "refs":[record]}
 assert workspace_validator.is_valid(envelope)
