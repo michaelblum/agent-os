@@ -5,6 +5,12 @@ description: Use AOS Target Handle V1 saved perception records for observe-act-r
 
 # AOS Saved Workspace
 
+> **Transition pointer — `aos-sovereign-capability-substrate-v1`:** ADR 0043
+> and `../../docs/dev/aos-sovereign-capability-authority-v1.json` own future
+> complete managed-tool grammar. This skill still teaches current Target Handle
+> V1 behavior; browser action rejection below is burn-down baseline, not
+> implemented remodel capability.
+
 Use saved workspaces when a desktop, native AX, canvas, or browser task needs
 repeatable perception and compact targets. Each saved ref is storage indirection
 to exactly one V1 Observation Ref or Locator.

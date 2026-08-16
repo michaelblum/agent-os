@@ -7,6 +7,16 @@
 `scripts/lib/browser-companion/` owns the managed Playwright companion package
 lifecycle defined by ADR 0041.
 
+**Authority transition — `aos-sovereign-capability-substrate-v1`:** ADR 0043
+partially supersedes ADR 0041's fixed public-operation boundary, while ADR 0041
+continues to own the implemented package/store/session/guardian/cleanup
+lifecycle. Its target boundary is grammar-agnostic raw argv/stdin/stdout/stderr/
+artifact transport for the pinned executable and environment, with only AOS
+lifecycle, identity, bounds, custody, cleanup, and receipt validation. The fixed
+worker allowlist and prohibited grammar below remain current executable truth in
+`docs/dev/aos-sovereign-capability-authority-v1.json`; this pointer authorizes
+no runtime widening.
+
 ## Ownership
 
 - `descriptor.mjs` validates the source-owned package descriptor and identity.

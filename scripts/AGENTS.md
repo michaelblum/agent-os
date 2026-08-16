@@ -129,6 +129,13 @@ commands, runtime helpers, wiki tools, and command adapters.
   mixed-responsibility skills registry file.
 - `lib/aos-skills-registry.mjs` is a compatibility re-export only; do not add
   new behavior there.
+- **Sovereign capability transition
+  (`aos-sovereign-capability-substrate-v1`):** ADR 0043 and
+  `docs/dev/aos-sovereign-capability-authority-v1.json` own the target
+  grammar-agnostic raw managed-tool transport and every-nontrivial-operation
+  control plane. The fixed browser operations and exact adapters below remain
+  current executable truth and burn-down baseline; do not widen or delete them
+  without the later atomic source/manifest/help/schema/API/skill/test slice.
 - `aos-browser-companion.mjs` is the public status/install/update/uninstall CLI
   for the source-pinned Playwright package runtime. Its focused implementation
   and store ownership rules live under `lib/browser-companion/AGENTS.md`.
@@ -190,7 +197,10 @@ commands, runtime helpers, wiki tools, and command adapters.
   `permissions prime screen-capture` may request authorization and invoke the
   daemon-owned bounded probe. The setup frame is a private, discarded
   capability-check input outside the public permission-status observation; its
-  exclusion is not an ADR 0040 raw-output gap. It is never persisted.
+  exclusion is not an ADR 0040 raw-output gap. It is never persisted. Under
+  program `aos-sovereign-capability-substrate-v1`, this AOS-local prime gate is
+  current executable truth and ADR 0043 burn-down baseline, not enduring target
+  policy.
 - `aos-see-native.mjs` owns native perception admission,
   `lib/aos-see-supervision.mjs` owns the shared process-group boundary, and
   `lib/aos-see-child-runner.mjs` guards the exact native child for direct,

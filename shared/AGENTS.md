@@ -10,6 +10,12 @@ apps, and tests.
 ## Ownership
 
 - `schemas/` owns JSON schemas and adjacent contract documentation.
+- `schemas/aos-sovereign-capability-authority-v1.schema.json` owns the
+  machine-readable target/current precedence, unique scope/domain topology,
+  active/target/generated/preserved/historical/frozen scan classification,
+  path-specific contradiction evidence, generated ownership, external paired-
+  authority state, and hash-backed preservation shape for program
+  `aos-sovereign-capability-substrate-v1`.
 - `schemas/aos-browser-companion-*-v1.schema.json` owns the exact managed
   Playwright descriptor and closed content-free lifecycle result contracts.
 - `schemas/aos-browser-session-result-v1.schema.json` and
@@ -25,6 +31,12 @@ apps, and tests.
 
 ## Local Contracts
 
+- ADR 0043 and
+  `docs/dev/aos-sovereign-capability-authority-v1.json` own the accepted
+  sovereign-capability target. Existing closed browser and native-capture
+  schemas remain current executable truth and declared burn-down baseline until
+  an atomic implementation/schema/help/docs/skill/test slice replaces them; the
+  target alone does not make an unsupported operation available.
 - Schema changes must update fixtures, docs, and tests that assert the contract.
 - `schemas/daemon-{request,event,response}.schema.json` owns the closed private
   `see.capture` transport. Requests carry one full canonical topology snapshot

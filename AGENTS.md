@@ -119,6 +119,12 @@ Default section order:
   correctness through exact identity, stale/ambiguous rejection, bounded
   resources and timeouts, exactly-once admission where relevant, cleanup, typed
   errors, and receipts. ADR 0040 owns the detailed contract.
+- For program `aos-sovereign-capability-substrate-v1`, ADR 0043 owns the
+  accepted target for comprehensive privileged exposure, complete managed-tool
+  grammar, and a non-admission operation control plane. Until a later atomic
+  implementation slice lands, source, command-source manifests, generated help,
+  schemas, tests, and runtime readback remain executable truth; do not advertise
+  target capability as already implemented.
 - Facts and channels admitted by each bounded public observation contract are
   raw and fidelity-first; facts outside that contract remain outside it.
   Masking, redaction, persistence, and projection are explicit caller-owned

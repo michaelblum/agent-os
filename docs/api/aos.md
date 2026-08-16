@@ -16,6 +16,15 @@ For capability-group discovery, see
 sessions, workspaces, focus channels, runtime state, Work Records, content
 roots, and evidence state.
 
+> **Milestone 0 authority pointer — `aos-sovereign-capability-substrate-v1`:**
+> ADR 0043 owns the target direction and
+> `../dev/aos-sovereign-capability-authority-v1.json` classifies current
+> contradictions. This API remains the current executable contract until a
+> later atomic source/manifest/help/schema/API/skill/test slice changes it.
+> Fixed browser operations, direct-capture priming, and absent general
+> status/kill/blame commands below are burn-down baseline, not implemented
+> remodel behavior.
+
 ## Repo Development Entry Points
 
 When you are developing inside the `agent-os` repo, invoke the binary as

@@ -5,6 +5,13 @@ description: Use AOS managed Playwright companion sessions, current browser obse
 
 # AOS Browser
 
+> **Transition pointer — `aos-sovereign-capability-substrate-v1`:** ADR 0043
+> and `../../docs/dev/aos-sovereign-capability-authority-v1.json` own the
+> future complete managed Playwright grammar. This skill continues to teach only
+> the current fixed session surface until implementation, help, schemas, API,
+> registry backing, and proofs change atomically. Unsupported guidance below is
+> declared burn-down baseline, not permission policy.
+
 Use AOS browser features only through the exact installed managed companion.
 Never resolve or invoke an ambient Playwright executable, `npx`, a global
 install, or a caller-provided runtime path.

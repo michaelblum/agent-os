@@ -9,6 +9,14 @@ remain independent at the capability level - perception doesn't know about
 action, action doesn't know about projection - but they share one daemon, one
 socket, one runtime mode, and one spatial contract.
 
+> **Authority transition — `aos-sovereign-capability-substrate-v1`:** ADR 0043
+> owns the accepted target for comprehensive privileged exposure, complete
+> managed-tool grammar, and operation status/kill/blame. This narrative still
+> describes current executable behavior. Fixed browser grammar, native-capture
+> priming, and missing general control-plane surfaces are declared burn-down
+> baseline in `docs/dev/aos-sovereign-capability-authority-v1.json`; this
+> Milestone 0 pointer adds no capability.
+
 ## 1. Philosophy & Design Principles
 
 ### Agent Tokens Are For Decisions, Not Plumbing

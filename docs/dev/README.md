@@ -35,6 +35,21 @@ live Git/AOS state when the task allows runtime reads.
 retained compatibility residue. Check it before reintroducing an old command
 noun, skill package, or legacy compatibility path from historical reports.
 
+`aos-sovereign-capability-authority-v1.json` is the machine-readable authority
+and path-specific current-only contradiction baseline for program
+`aos-sovereign-capability-substrate-v1`. Its schema owner is
+`shared/schemas/aos-sovereign-capability-authority-v1.schema.json`; the human
+review projection is `aos-sovereign-capability-remodel-ledger.md`. ADR 0043
+owns the target while source, command-source manifests, generated help, schemas,
+tests, API docs, and runtime readback remain executable truth until later atomic
+implementation. The map classifies active, target, generated, preserved,
+historical, and frozen paths; its proof requires exact markers in both the
+declared baseline revision and current worktree, scans Git-tracked active and
+generated text for unclassified doctrine, and hash-checks preserved ADR bodies.
+Validate the packet with the static command recorded in the map; it does not
+execute `./aos`, the daemon, Playwright, a browser, native UI, or TCC-sensitive
+code.
+
 `product-maturity.json` is the machine-readable pre-release and compatibility
 policy declaration. It fixes the zero-installed-base facts, atomic internal
 migration rule, same-change deletion rule, and any approved compatibility

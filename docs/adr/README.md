@@ -22,9 +22,9 @@ otherwise.
 | [0012](0012-toolkit-platform-strategy.md) | Accepted | Active. |
 | [0013](0013-aos-execution-model-v0.md) | Accepted, amended | ADR 0040 makes dry-run optional and Gate explicit; active Work Record and Step Descriptor V1 contracts are neutral and V0 is frozen history. |
 | [0014](0014-visual-object-descriptor-contract.md) | Accepted | Active. |
-| [0015](0015-aos-tcc-capability-broker-boundary.md) | Accepted | Active; aligned with ADR 0040 ambient authority. |
+| [0015](0015-aos-tcc-capability-broker-boundary.md) | Accepted | Active; aligned with ADR 0040 ambient authority. ADR 0043 expands its broker boundary toward mechanically complete privileged exposure without changing this ADR body. |
 | 0016-0017 | Unassigned | No ADR files use these numbers. |
-| [0018](0018-installable-aos-skills.md) | Accepted, amended | ADR 0039 owns deletion policy; ADR 0040 owns skill authority posture; ADR 0041 owns the managed Playwright CLI runtime boundary. |
+| [0018](0018-installable-aos-skills.md) | Accepted, amended | ADR 0039 owns deletion policy; ADR 0040 owns skill authority posture; ADR 0041 retains the managed Playwright package/session lifecycle, while ADR 0043 supersedes its fixed public-operation boundary and owns complete managed-tool grammar direction. |
 | [0019](0019-retire-project-agent-orchestration.md) | Accepted, amended | ADR 0042 assigns host and gateway orchestration to Sigil while this ADR continues to exclude project-agent orchestration from AOS core. |
 | [0020](0020-single-owner-local-runtime.md) | Accepted | Active. |
 | [0021](0021-sigil-reference-consumer-and-toolkit-repository-boundary.md) | Accepted, amended | ADR 0042 retains the toolkit and capability-layer hosts in AOS while assigning host and gateway successors to Sigil. |
@@ -36,8 +36,8 @@ otherwise.
 | [0027](0027-desktopworld-devtools-session-and-host-leases.md) | Accepted | Active. |
 | [0028](0028-native-status-item-anchor-and-dependent-projection-hosts.md) | Accepted | Active. |
 | [0029](0029-trusted-scene-projection-extensions.md) | Accepted | Active; supersedes part of ADR 0026. |
-| [0030](0030-desktop-frame-texture-leases.md) | Accepted, amended | ADR 0040 owns ambient-authority and raw-observation semantics. |
-| [0031](0031-desktop-pixel-broker-and-warm-snapshots.md) | Accepted, amended | ADR 0040 owns ambient-authority and raw-observation semantics. |
+| [0030](0030-desktop-frame-texture-leases.md) | Accepted, partially superseded | ADR 0040 owns ambient-authority and raw-observation semantics. ADR 0043 supersedes its AOS-local process-lifetime direct-capture consent/prime gate while retaining texture-lease and mechanical capture ownership. |
+| [0031](0031-desktop-pixel-broker-and-warm-snapshots.md) | Accepted, partially superseded | ADR 0040 owns ambient-authority and raw-observation semantics. ADR 0043 supersedes its explicit direct-capture consent/prime clauses while retaining pixel-broker, warm-snapshot, serialization, identity, and cleanup ownership. |
 | [0032](0032-declarative-native-sheet-feedback.md) | Partially superseded | ADR 0033 supersedes its complete-effect registry requirement. |
 | [0033](0033-consumer-authored-native-effect-programs.md) | Accepted | Active; supersedes part of ADR 0032. |
 | [0034](0034-three-dimensional-native-effect-programs.md) | Accepted | Active. |
@@ -46,6 +46,7 @@ otherwise.
 | [0037](0037-stateful-native-height-field-programs.md) | Accepted | Active. |
 | [0038](0038-desktopworld-renderkit-boundary.md) | Accepted | Active. |
 | [0039](0039-pre-release-zero-installed-base-compatibility.md) | Accepted | Active. |
-| [0040](0040-ambient-authority-raw-observation-and-target-handles.md) | Accepted | Active authority for ambient execution, raw observation, target handles, Gate, and Work Record boundaries. |
-| [0041](0041-managed-playwright-companion-runtime.md) | Accepted | Owns the optional managed Playwright CLI runtime, safe public MVP, package lifecycle, and browser ownership boundary. |
+| [0040](0040-ambient-authority-raw-observation-and-target-handles.md) | Accepted | Active authority for ambient execution, raw observation, target handles, Gate, and Work Record boundaries. ADR 0043 expands its caller-transform rule across raw managed-tool streams and artifacts without changing this ADR body. |
+| [0041](0041-managed-playwright-companion-runtime.md) | Accepted, partially superseded | Retains the managed Playwright package, store, session, guardian, and cleanup lifecycle. ADR 0043 supersedes its fixed public-operation allowlist and browser-feature non-goals. |
 | [0042](0042-host-and-gateway-move-to-sigil.md) | Accepted | Owns the host and gateway move to Sigil, contracted AOS package scope, supersession audit, and paired retirement. |
+| [0043](0043-sovereign-capability-substrate-and-operation-control-plane.md) | Accepted | Owns the sovereign capability substrate target, grammar-agnostic pinned managed-tool transport, every-nontrivial-operation control plane, transient raw outputs, caller-owned transforms, AOS/Sigil boundary, and staged burn-down authority map. |
