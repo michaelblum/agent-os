@@ -21,6 +21,11 @@ const bootstrapPaths = new Set([
   'docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md',
   'docs/dev/aos-sovereign-capability-authority-v1.json',
   'docs/dev/aos-sovereign-capability-remodel-ledger.md',
+  'docs/dev/aos-privileged-capability-ledger-v1.json',
+  'docs/design/aos-sovereign-first-vertical-slice-contract.md',
+  'docs/dev/test-proof-registry.d/privileged-capability-ledger.json',
+  'shared/schemas/aos-privileged-capability-ledger-v1.schema.json',
+  'tests/schemas/aos-privileged-capability-ledger-v1.test.mjs',
   'docs/dev/test-proof-registry.d/sovereign-capability-authority.json',
   'shared/schemas/aos-sovereign-capability-authority-v1.schema.json',
   'tests/sovereign-capability-active-authority.test.mjs',
@@ -202,10 +207,10 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
   assert.deepEqual(authority.authority.paired_sigil_authority, {
     repository: 'https://github.com/Ch-osctrl/sigil',
     path: 'docs/adr/0021-sigil-sovereign-workflow-composition.md',
-    publication_state: 'not_landed',
-    revision: null,
+    publication_state: 'landed',
+    revision: '227382c1bcbdab56f551a85a69b0609eebbdfa0c',
   });
-  assert.equal(authority.authority.cross_repo_activation, 'sequenced_not_yet_claimed');
+  assert.equal(authority.authority.cross_repo_activation, 'landed');
 
   assertUnique(authority.precedence, 'scope', 'precedence scopes');
   assertUnique(authority.authority_scopes, 'id', 'authority-scope ids');
@@ -297,7 +302,11 @@ test('ADR status and target semantics cover both capture ADRs, raw upstream gram
   assert.match(adr, /ordinary peer ownership/u);
   assert.match(adr, /AOS owns the neutral active-operation and recording projection through the\s+status item/u);
   assert.match(adr, /Sigil owns product labels and action policy/u);
-  assert.match(adr, /does not claim that the Sigil ADR or cross-repo\s+activation has already landed/u);
+  assert.match(
+    adr,
+    /does not claim that the Sigil ADR or cross-repo\s+activation has already landed/u,
+    'the preserved ADR body records its decision-time publication boundary; the authority map owns current landing state',
+  );
 });
 
 test('path-specific current-only evidence cannot be satisfied by transition banners', async () => {
@@ -483,16 +492,18 @@ test('generated ownership, proof wording, routing, and preservation remain exact
   assert.equal(fixtureScopes[0].scan_for_stale_claims, false);
 });
 
-test('AOS-first authority publication is distinct from runtime implementation', async () => {
+test('completed AOS-first paired publication is distinct from runtime implementation', async () => {
   const ledger = await read('docs/dev/aos-sovereign-capability-remodel-ledger.md');
-  assert.match(ledger, /Land the AOS authority-only packet first/u);
+  assert.match(ledger, /AOS authority-only packet landed first/u);
   assert.match(ledger, /exact landed AOS SHA/u);
   assert.match(ledger, /verifiedRef.*sourceRevision/su);
-  assert.match(ledger, /atomically.*before Sigil authority publication/su);
+  assert.match(ledger, /advanced\s+atomically.*before\s+Sigil\s+authority\s+publication/su);
+  assert.match(ledger, /227382c1bcbdab56f551a85a69b0609eebbdfa0c/u);
   assert.match(ledger, /Authority publication does not publish runtime implementation/u);
 
   const contextMap = await read('CONTEXT-MAP.md');
-  assert.match(contextMap, /publication_state.*not_landed/su);
-  assert.match(contextMap, /AOS\s+authority\s+lands first/u);
+  assert.match(contextMap, /publication_state.*landed/su);
+  assert.match(contextMap, /AOS\s+authority-only\s+packet\s+landed\s+first/u);
   assert.match(contextMap, /exact landed AOS SHA/u);
+  assert.match(contextMap, /227382c1bcbdab56f551a85a69b0609eebbdfa0c/u);
 });

@@ -166,6 +166,39 @@
       ]
     },
     {
+      "id": "privileged-capability-ledger",
+      "summary": "The closed Milestone 1 privileged-capability current/target ledger, its vertical-slice design, or its static proof ownership changed.",
+      "patterns": [
+        "docs/design/aos-sovereign-first-vertical-slice-contract.md",
+        "docs/dev/aos-privileged-capability-ledger-v1.json",
+        "docs/dev/test-proof-registry.d/privileged-capability-ledger.json",
+        "shared/schemas/aos-privileged-capability-ledger-v1.schema.json",
+        "tests/schemas/aos-privileged-capability-ledger-v1.test.mjs"
+      ],
+      "classes": [
+        "architecture_authority",
+        "docs",
+        "schema"
+      ],
+      "actions": [
+        "focused_test",
+        "schema_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "privileged-capability-ledger-contract",
+          "command": "node --test tests/schemas/aos-privileged-capability-ledger-v1.test.mjs",
+          "reason": "Validate the exact ordered 32-row current/target inventory, closed schema conditions, independent graph semantics and 12 executable aggregate outcome paths, 101 functional and six fail-closed authored route bindings, tracked current/generated/bootstrap paths, every-tracked-path classification plus bounded production/privilege-metadata/managed-descriptor family scans, all 15 non-absent TypeScript/Toolkit surfaces and revision-local package exports, the portable 96-symbol reviewed SDK snapshot and evidence-source identities, proof execution lanes, exact M1 through M10 ref closure, and the native/managed flagship workflow contract."
+        }
+      ],
+      "verification": [],
+      "notes": [
+        "Static schema, independent semantic, authored-manifest/package-export, reviewed-SDK-snapshot, every-tracked-path classification with bounded named-family production/privilege-metadata/managed-descriptor search, and documentation proof only. Do not execute ./aos, the daemon, Playwright, a browser, native UI, TCC-sensitive code, builds, packaging, generators, or installation."
+      ]
+    },
+    {
       "id": "swift-core",
       "summary": "Unified aos binary or Swift IPC sources changed.",
       "patterns": [

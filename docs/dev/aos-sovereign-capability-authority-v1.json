@@ -12,10 +12,10 @@
     "paired_sigil_authority": {
       "repository": "https://github.com/Ch-osctrl/sigil",
       "path": "docs/adr/0021-sigil-sovereign-workflow-composition.md",
-      "publication_state": "not_landed",
-      "revision": null
+      "publication_state": "landed",
+      "revision": "227382c1bcbdab56f551a85a69b0609eebbdfa0c"
     },
-    "cross_repo_activation": "sequenced_not_yet_claimed"
+    "cross_repo_activation": "landed"
   },
   "precedence": [
     {
@@ -52,9 +52,11 @@
       "scope": "migration_baseline",
       "owners": [
         "docs/dev/aos-sovereign-capability-authority-v1.json",
-        "docs/dev/aos-sovereign-capability-remodel-ledger.md"
+        "docs/dev/aos-sovereign-capability-remodel-ledger.md",
+        "docs/dev/aos-privileged-capability-ledger-v1.json",
+        "docs/design/aos-sovereign-first-vertical-slice-contract.md"
       ],
-      "rule": "The map is machine authority for path-specific burn-down evidence and scan scope; the ledger is its human review projection."
+      "rule": "The map is machine authority for path-specific burn-down evidence and scan scope; the remodel ledger is its human review projection, while the Milestone 1 ledger and design contract close current/target capability inventory without claiming runtime implementation."
     },
     {
       "scope": "maintained_design_authority",
@@ -67,7 +69,7 @@
         "docs/adr/0042-host-and-gateway-move-to-sigil.md",
         "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md"
       ],
-      "rule": "AOS owns the substrate and neutral operation control; Sigil owns workflow composition, labels, and action policy. Sigil ADR 0021 is paired but not yet landed or active."
+      "rule": "AOS owns the substrate and neutral operation control; Sigil owns workflow composition, labels, and action policy. Paired Sigil ADR 0021 is landed at reviewed revision 227382c1bcbdab56f551a85a69b0609eebbdfa0c; authority publication remains distinct from runtime implementation."
     }
   ],
   "authority_scopes": [
@@ -78,7 +80,10 @@
         "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
         "docs/dev/aos-sovereign-capability-authority-v1.json",
         "docs/dev/aos-sovereign-capability-remodel-ledger.md",
-        "shared/schemas/aos-sovereign-capability-authority-v1.schema.json"
+        "docs/dev/aos-privileged-capability-ledger-v1.json",
+        "docs/design/aos-sovereign-first-vertical-slice-contract.md",
+        "shared/schemas/aos-sovereign-capability-authority-v1.schema.json",
+        "shared/schemas/aos-privileged-capability-ledger-v1.schema.json"
       ],
       "exclude_patterns": [],
       "scan_for_stale_claims": false
@@ -144,7 +149,10 @@
         "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
         "docs/dev/aos-sovereign-capability-authority-v1.json",
         "docs/dev/aos-sovereign-capability-remodel-ledger.md",
+        "docs/dev/aos-privileged-capability-ledger-v1.json",
+        "docs/design/aos-sovereign-first-vertical-slice-contract.md",
         "shared/schemas/aos-sovereign-capability-authority-v1.schema.json",
+        "shared/schemas/aos-privileged-capability-ledger-v1.schema.json",
         "manifests/commands/aos-commands.json",
         "manifests/commands/aos-external-commands.json",
         "docs/adr/0015-aos-tcc-capability-broker-boundary.md",

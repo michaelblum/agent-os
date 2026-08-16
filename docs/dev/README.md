@@ -50,6 +50,23 @@ Validate the packet with the static command recorded in the map; it does not
 execute `./aos`, the daemon, Playwright, a browser, native UI, or TCC-sensitive
 code.
 
+`aos-privileged-capability-ledger-v1.json` is the closed Milestone 1 inventory
+for 32 meaningful privileged and managed capability families, including the
+current canvas host action bus. It keeps current
+primitive truth separate from public CLI/IPC/SDK/Toolkit reachability and from
+the accepted target. Its schema is
+`../../shared/schemas/aos-privileged-capability-ledger-v1.schema.json`; its
+durable non-runtime state-machine and milestone design is
+`../design/aos-sovereign-first-vertical-slice-contract.md`. The two ordinary-
+owner and host-operator choices remain explicitly unresolved before M2; the
+SDK package-root choice is separately deferred to M6. Authored AOS/external
+command bindings, generated aggregate/generator ownership, authored skill
+packages/registry, proof execution class, machine state/taxonomy/milestone, and
+flagship-workflow contracts are explicit data. The
+registered static proof is
+`node --test tests/schemas/aos-privileged-capability-ledger-v1.test.mjs`; it
+does not exercise a live capability, TCC, browser, daemon, build, or package.
+
 `product-maturity.json` is the machine-readable pre-release and compatibility
 policy declaration. It fixes the zero-installed-base facts, atomic internal
 migration rule, same-change deletion rule, and any approved compatibility

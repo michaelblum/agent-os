@@ -16,6 +16,12 @@ apps, and tests.
   path-specific contradiction evidence, generated ownership, external paired-
   authority state, and hash-backed preservation shape for program
   `aos-sovereign-capability-substrate-v1`.
+- `schemas/aos-privileged-capability-ledger-v1.schema.json` owns the closed
+  Milestone 1 current/target capability-row shape: platform classification,
+  primitive and exposure reachability, observation bounds, operation control,
+  transport/custody, proof, milestone, gap, and exit-gate facts. The canonical
+  instance is `docs/dev/aos-privileged-capability-ledger-v1.json`; neither the
+  schema nor its target fields make a runtime capability executable.
 - `schemas/aos-browser-companion-*-v1.schema.json` owns the exact managed
   Playwright descriptor and closed content-free lifecycle result contracts.
 - `schemas/aos-browser-session-result-v1.schema.json` and
@@ -37,6 +43,15 @@ apps, and tests.
   schemas remain current executable truth and declared burn-down baseline until
   an atomic implementation/schema/help/docs/skill/test slice replaces them; the
   target alone does not make an unsupported operation available.
+- Keep each Milestone 1 capability row closed and evidence-backed. Source
+  presence is not public reachability, an absence scan is not capability proof,
+  unsupported public API and undocumented/unverified routes are distinct, and
+  local owners, schemas, sources, and proofs must remain tracked or one of the
+  exact declared M1 bootstrap paths.
+- Keep the inventory at the exact ordered 32-row set. Non-absent CLI exposure
+  binds authored AOS form ids to authored external route paths; generated
+  aggregates are projections, never owners. Proof items distinguish static,
+  fake, native compile, and separately authorized native live/TCC lanes.
 - Schema changes must update fixtures, docs, and tests that assert the contract.
 - `schemas/daemon-{request,event,response}.schema.json` owns the closed private
   `see.capture` transport. Requests carry one full canonical topology snapshot

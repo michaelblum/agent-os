@@ -108,7 +108,7 @@
         "authority_map": { "$ref": "#/$defs/repoPath" },
         "human_ledger": { "$ref": "#/$defs/repoPath" },
         "paired_sigil_authority": { "$ref": "#/$defs/externalAuthority" },
-        "cross_repo_activation": { "const": "sequenced_not_yet_claimed" }
+        "cross_repo_activation": { "const": "landed" }
       }
     },
     "externalAuthority": {
@@ -118,21 +118,9 @@
       "properties": {
         "repository": { "type": "string", "format": "uri" },
         "path": { "$ref": "#/$defs/repoPath" },
-        "publication_state": { "enum": ["not_landed", "landed"] },
-        "revision": {
-          "oneOf": [
-            { "$ref": "#/$defs/revision" },
-            { "type": "null" }
-          ]
-        }
-      },
-      "allOf": [
-        {
-          "if": { "properties": { "publication_state": { "const": "not_landed" } } },
-          "then": { "properties": { "revision": { "type": "null" } } },
-          "else": { "properties": { "revision": { "$ref": "#/$defs/revision" } } }
-        }
-      ]
+        "publication_state": { "const": "landed" },
+        "revision": { "$ref": "#/$defs/revision" }
+      }
     },
     "precedence": {
       "type": "object",
