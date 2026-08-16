@@ -251,8 +251,10 @@ test('ambient authority sources reject mandatory policy while preserving optiona
   assert.match(desktopPixelBrokerAdr, /## ADR 0040 Transition Boundary/);
   assert.match(desktopPixelBrokerAdr, /current legacy implementation\s+behavior\s+and ADR 0040 migration gaps/);
   assert.match(desktopPixelBrokerAdr, /does not\s+widen the trusted projection realm/);
-  assert.match(adrIndex, /\[0030\].*Accepted, amended.*ADR 0040 owns ambient-authority and raw-observation semantics/);
-  assert.match(adrIndex, /\[0031\].*Accepted, amended.*ADR 0040 owns ambient-authority and raw-observation semantics/);
+  assert.match(adrIndex, /\[0030\].*Accepted, partially superseded.*ADR 0040 owns ambient-authority and raw-observation semantics/);
+  assert.match(adrIndex, /\[0030\].*ADR 0043 supersedes its AOS-local process-lifetime direct-capture consent\/prime gate/);
+  assert.match(adrIndex, /\[0031\].*Accepted, partially superseded.*ADR 0040 owns ambient-authority and raw-observation semantics/);
+  assert.match(adrIndex, /\[0031\].*ADR 0043 supersedes its explicit direct-capture consent\/prime clauses/);
   assert.match(stepDescriptorJsonSchema, /Current legacy V0 design-schema sketch/);
   assert.match(stepDescriptorJsonSchema, /Gate is not AOS permission/);
   assert.match(desktopWorldDevtoolsJsonSchema, /Bounded engine snapshot shared by CLI, SDK, and host-neutral DevTools views/);

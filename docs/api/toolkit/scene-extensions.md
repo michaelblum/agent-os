@@ -4,6 +4,13 @@ Use `@agent-os/toolkit/scene/extensions` for the reviewed trusted projection
 ABI. A trusted extension is first-party same-realm executable code, not a
 sandbox, cartridge, or distribution format.
 
+> **Transition pointer — `aos-sovereign-capability-substrate-v1`:** the
+> process-lifetime direct-capture consent and explicit prime behavior documented
+> below remains current executable truth. ADR 0043 and
+> `../../dev/aos-sovereign-capability-authority-v1.json` classify that
+> AOS-local gate as burn-down baseline; this pointer does not alter
+> ScreenCaptureKit or permission behavior.
+
 ## Scaffold And Validate
 
 ```bash

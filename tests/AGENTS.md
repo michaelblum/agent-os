@@ -20,6 +20,17 @@ tests.
   checks must advertise prerequisites through env vars or scenario docs.
 - Keep deterministic canvas lifecycle stress and guarded concurrent-input
   stress in separate scenario drivers over shared lifecycle support.
+- Program `aos-sovereign-capability-substrate-v1` uses
+  `sovereign-capability-active-authority.test.mjs` and
+  `docs/dev/aos-sovereign-capability-authority-v1.json` to separate accepted
+  target authority from current executable proof. The proof requires each
+  path-specific marker in both the declared baseline revision and current
+  worktree, so a transition banner cannot self-satisfy; it scans Git-tracked
+  active and generated text for unclassified doctrine matches, verifies local
+  path and domain/disposition topology, and hash-protects preserved ADR bodies. Fixed
+  browser-operation absence, direct-capture consent, and narrow status-item
+  proofs remain declared burn-down baseline; keep them until the later atomic
+  implementation slice replaces their source/help/schema/API/skill contracts.
 - Do not weaken assertions to match stale behavior; update the owning contract
   or source when behavior intentionally changes.
 - Core Target Handle V1 acceptance tests use isolated state roots, injected

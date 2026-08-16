@@ -8,6 +8,15 @@ state and routing that must outlive individual canvases: sockets,
 subscriptions, display geometry, canvas lifecycle, content routing, input event
 delivery, voice/communication routing, and cleanup.
 
+**Sovereign capability transition
+(`aos-sovereign-capability-substrate-v1`):** ADR 0043 and
+`docs/dev/aos-sovereign-capability-authority-v1.json` own the accepted
+policy-free target. The process-lifetime direct-capture consent/prime gate and
+bounded public projections below remain current executable truth and declared
+burn-down baseline until native code, IPC, command source/help, API, tests, and
+proof routing change atomically. This pointer does not bypass ScreenCaptureKit,
+macOS TCC, or the current gate.
+
 **ADR 0040 transition boundary:** omission or redaction of facts already
 admitted to bounded public observation contracts below describes current
 runtime gaps, not AOS privacy or authorization policy. Runtime migration must

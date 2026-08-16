@@ -9,6 +9,14 @@ discovery, and capability-oriented workflows. This map is grounded in
 Use this file to choose the right direct `./aos` lane before opening large
 schema docs or historical design notes.
 
+> **Milestone 0 authority pointer — `aos-sovereign-capability-substrate-v1`:**
+> ADR 0043 owns the target direction and
+> `../dev/aos-sovereign-capability-authority-v1.json` classifies current
+> contradictions. This map still describes implemented capability. Fixed
+> browser grammar, direct-capture priming, and missing general
+> status/kill/blame are burn-down baseline; do not infer a command or SDK method
+> that current help, schemas, and implementation do not expose.
+
 ## Authority And Observation Posture
 
 AOS runs with ambient authority supplied by the user through the agent host and

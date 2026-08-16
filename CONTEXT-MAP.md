@@ -12,11 +12,42 @@ source root. This file is a routing map, not a replacement for those sources.
   and current AOS primitive model.
 - Read `AGENTS.md` for repo-wide agent signage, hard invariants, and authority
   routing.
-- Read `docs/adr/README.md` for ADR status/supersession and
+- Read `docs/adr/README.md` for ADR status/supersession,
   `docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md` for
-  ambient authority, raw observation, and public target-handle contracts.
+  ambient authority, raw observation, and public target-handle contracts, and
+  `docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md`
+  for the accepted sovereign-capability target.
 - Read `docs/agents/domain.md` for how domain docs, context sources, ADRs, and
   conflicts should be handled.
+
+## Sovereign Capability Remodel Authority
+
+- Program identifier: `aos-sovereign-capability-substrate-v1`.
+- Target architecture:
+  `docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md`.
+- Machine authority and current-only contradiction baseline:
+  `docs/dev/aos-sovereign-capability-authority-v1.json`, validated by
+  `shared/schemas/aos-sovereign-capability-authority-v1.schema.json`.
+- Its tracked scan classifies repository paths as `active`, `target`,
+  `generated`, `preserved`, `historical`, or `frozen`. Path-specific current
+  markers must exist in both the declared baseline revision and current
+  worktree, so a Milestone 0 routing banner cannot satisfy them;
+  doctrine-specific matches on scanned active/generated paths must be
+  classified explicitly.
+- Human dispositions, generated ownership, sequencing, publication boundaries,
+  and preservation rules:
+  `docs/dev/aos-sovereign-capability-remodel-ledger.md`.
+- Current source, command-source manifests, generated help, schemas, tests,
+  API docs, and runtime readback remain executable truth until a later atomic
+  implementation slice. A mapped Rewrite or Retire claim is burn-down baseline,
+  not evidence that the capability already changed.
+- The paired external authority is Sigil ADR 0021 under the same program id.
+  Its machine publication_state is `not_landed` and revision is `null`; its
+  repository and path are external metadata, not an AOS-local path. AOS
+  authority lands first. A later Sigil authority commit must atomically advance
+  both reviewed AOS pins to the exact landed AOS SHA before Sigil publication.
+  Authority publication is distinct from runtime implementation and does not
+  make target capabilities executable.
 
 ## Runtime Primitives And CLI/API Contracts
 

@@ -5,6 +5,14 @@ the AOS-owned native status-item host. It contains no socket discovery, daemon
 startup, consumer product policy, renderer implementation, or local asset
 loading.
 
+> **Transition pointer — `aos-sovereign-capability-substrate-v1`:** this file
+> remains the implemented status-item lease and invocation contract. ADR 0043
+> and `../../dev/aos-sovereign-capability-authority-v1.json` own the future
+> product-neutral operation-control direction. AOS owns the future neutral
+> active-operation/recording projection through this host; Sigil owns product
+> labels and action policy. That control plane and projection do not exist yet
+> and will not be smuggled into status-item identity.
+
 ## Descriptor
 
 `normalizeStatusItemDescriptor(value)` validates and canonicalizes

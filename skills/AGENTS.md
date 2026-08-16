@@ -20,6 +20,11 @@ part of the installable AOS desktop product pack.
 
 ## Local Contracts
 
+- During program `aos-sovereign-capability-substrate-v1`, ADR 0043 and
+  `docs/dev/aos-sovereign-capability-authority-v1.json` own the target while
+  registered skills continue to teach only current help/schema/implementation.
+  Fixed browser grammar and other mapped absence guidance are burn-down
+  baseline, not enduring product policy; do not teach unimplemented commands.
 - Keep skill instructions executable and scoped to when the skill should be
   used.
 - Do not encode project-wide invariants only inside a skill; mirror durable

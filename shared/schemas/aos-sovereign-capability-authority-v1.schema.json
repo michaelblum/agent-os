@@ -1,0 +1,311 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-sovereign-capability-authority-v1.schema.json",
+  "title": "AOS Sovereign Capability Authority Map V1",
+  "description": "Machine-readable target authority, executable-current precedence, tracked active-authority scan topology, path-specific migration evidence, generated ownership, and preservation boundary for aos-sovereign-capability-substrate-v1.",
+  "type": "object",
+  "required": [
+    "$schema",
+    "schema_version",
+    "program_id",
+    "status",
+    "baseline_revision",
+    "authority",
+    "precedence",
+    "authority_scopes",
+    "domains",
+    "generated_artifacts",
+    "stale_claim_baseline",
+    "historical_preservation",
+    "verification"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string", "minLength": 1 },
+    "schema_version": { "const": "aos.sovereign-capability-authority.v1" },
+    "program_id": { "const": "aos-sovereign-capability-substrate-v1" },
+    "status": { "const": "accepted_milestone_0_authority" },
+    "baseline_revision": { "$ref": "#/$defs/revision" },
+    "authority": { "$ref": "#/$defs/authority" },
+    "precedence": {
+      "type": "array",
+      "minItems": 6,
+      "items": { "$ref": "#/$defs/precedence" },
+      "uniqueItems": true
+    },
+    "authority_scopes": {
+      "type": "array",
+      "minItems": 6,
+      "items": { "$ref": "#/$defs/authorityScope" },
+      "uniqueItems": true
+    },
+    "domains": {
+      "type": "array",
+      "minItems": 8,
+      "items": { "$ref": "#/$defs/domain" },
+      "uniqueItems": true
+    },
+    "generated_artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/generatedArtifact" },
+      "uniqueItems": true
+    },
+    "stale_claim_baseline": {
+      "type": "array",
+      "minItems": 3,
+      "items": { "$ref": "#/$defs/staleClaim" },
+      "uniqueItems": true
+    },
+    "historical_preservation": {
+      "type": "array",
+      "minItems": 9,
+      "items": { "$ref": "#/$defs/preservation" },
+      "uniqueItems": true
+    },
+    "verification": { "$ref": "#/$defs/verification" }
+  },
+  "$defs": {
+    "revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*[*?]).+"
+    },
+    "repoPattern": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "scopeId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "disposition": {
+      "enum": ["Keep", "Expand", "Repoint", "Rewrite", "Retire", "Archive"]
+    },
+    "authority": {
+      "type": "object",
+      "required": [
+        "aos_adr",
+        "aos_adr_index",
+        "authority_map",
+        "human_ledger",
+        "paired_sigil_authority",
+        "cross_repo_activation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "aos_adr": { "$ref": "#/$defs/repoPath" },
+        "aos_adr_index": { "$ref": "#/$defs/repoPath" },
+        "authority_map": { "$ref": "#/$defs/repoPath" },
+        "human_ledger": { "$ref": "#/$defs/repoPath" },
+        "paired_sigil_authority": { "$ref": "#/$defs/externalAuthority" },
+        "cross_repo_activation": { "const": "sequenced_not_yet_claimed" }
+      }
+    },
+    "externalAuthority": {
+      "type": "object",
+      "required": ["repository", "path", "publication_state", "revision"],
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string", "format": "uri" },
+        "path": { "$ref": "#/$defs/repoPath" },
+        "publication_state": { "enum": ["not_landed", "landed"] },
+        "revision": {
+          "oneOf": [
+            { "$ref": "#/$defs/revision" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "publication_state": { "const": "not_landed" } } },
+          "then": { "properties": { "revision": { "type": "null" } } },
+          "else": { "properties": { "revision": { "$ref": "#/$defs/revision" } } }
+        }
+      ]
+    },
+    "precedence": {
+      "type": "object",
+      "required": ["scope", "owners", "rule"],
+      "additionalProperties": false,
+      "properties": {
+        "scope": { "$ref": "#/$defs/scopeId" },
+        "owners": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/repoPath" },
+          "uniqueItems": true
+        },
+        "rule": { "type": "string", "minLength": 1 }
+      }
+    },
+    "authorityScope": {
+      "type": "object",
+      "required": ["id", "classification", "path_patterns", "exclude_patterns", "scan_for_stale_claims"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "classification": {
+          "enum": ["active", "target", "generated", "preserved", "historical", "frozen"]
+        },
+        "path_patterns": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/repoPattern" },
+          "uniqueItems": true
+        },
+        "exclude_patterns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/repoPattern" },
+          "uniqueItems": true
+        },
+        "scan_for_stale_claims": { "type": "boolean" }
+      }
+    },
+    "domain": {
+      "type": "object",
+      "required": ["id", "target_owners", "current_owners", "disposition", "implementation_state", "exit_gate"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "target_owners": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/repoPath" },
+          "uniqueItems": true
+        },
+        "current_owners": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/repoPath" },
+          "uniqueItems": true
+        },
+        "disposition": { "$ref": "#/$defs/disposition" },
+        "implementation_state": {
+          "enum": ["aligned", "partial", "missing", "current_restriction", "historical"]
+        },
+        "exit_gate": { "type": "string", "minLength": 1 }
+      }
+    },
+    "generatedArtifact": {
+      "type": "object",
+      "required": ["id", "sources", "outputs", "generator", "drift_test", "disposition", "milestone_0_mutation"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/repoPath" },
+          "uniqueItems": true
+        },
+        "outputs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/repoPath" },
+          "uniqueItems": true
+        },
+        "generator": { "$ref": "#/$defs/repoPath" },
+        "drift_test": { "$ref": "#/$defs/repoPath" },
+        "disposition": { "$ref": "#/$defs/disposition" },
+        "milestone_0_mutation": { "const": false }
+      }
+    },
+    "requiredEvidence": {
+      "type": "object",
+      "required": ["path", "required_markers"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "$ref": "#/$defs/repoPath" },
+        "required_markers": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 8 },
+          "uniqueItems": true
+        }
+      }
+    },
+    "staleClaim": {
+      "type": "object",
+      "required": ["id", "domain", "disposition", "current_only", "doctrine_markers", "evidence", "exit_gate"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "domain": { "$ref": "#/$defs/id" },
+        "disposition": { "$ref": "#/$defs/disposition" },
+        "current_only": { "const": true },
+        "doctrine_markers": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 8 },
+          "uniqueItems": true
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/requiredEvidence" },
+          "uniqueItems": true
+        },
+        "exit_gate": { "type": "string", "minLength": 1 }
+      }
+    },
+    "preservation": {
+      "type": "object",
+      "required": ["pattern", "classification", "disposition", "rule", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "pattern": { "$ref": "#/$defs/repoPattern" },
+        "classification": { "enum": ["preserved", "historical", "frozen"] },
+        "disposition": { "$ref": "#/$defs/disposition" },
+        "rule": { "const": "preserve_unchanged" },
+        "sha256": {
+          "oneOf": [
+            { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "classification": { "enum": ["historical", "frozen"] }
+            }
+          },
+          "then": {
+            "properties": {
+              "disposition": { "const": "Archive" }
+            }
+          }
+        }
+      ]
+    },
+    "verification": {
+      "type": "object",
+      "required": ["static_test", "proof_registry", "workflow_rules", "command", "forbidden_runtime_actions"],
+      "additionalProperties": false,
+      "properties": {
+        "static_test": { "$ref": "#/$defs/repoPath" },
+        "proof_registry": { "$ref": "#/$defs/repoPath" },
+        "workflow_rules": { "$ref": "#/$defs/repoPath" },
+        "command": { "type": "string", "minLength": 1 },
+        "forbidden_runtime_actions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

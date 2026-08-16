@@ -5,6 +5,12 @@ description: Use AOS focus channels as the desktop session model. Trigger when a
 
 # AOS Focus Sessions
 
+> **Transition pointer — `aos-sovereign-capability-substrate-v1`:** ADR 0043
+> and `../../docs/dev/aos-sovereign-capability-authority-v1.json` own future
+> complete managed-tool grammar. This skill still teaches current focus/session
+> behavior; browser-ref and tab absence below is burn-down baseline, not
+> implemented remodel capability.
+
 Focus channels are the AOS session model for tracked windows and browser
 targets. Use them when an agent needs a stable name for a target across capture,
 action, and recapture.

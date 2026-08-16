@@ -1,0 +1,23 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof-worth ownership for the AOS sovereign capability target, owner-filter boundaries, path-specific current-only evidence, maintained-design doctrine scanning, machine topology, and preservation boundary.",
+  "entries": [
+    {
+      "id": "sovereign-capability-active-authority-proof",
+      "path_patterns": [
+        "tests/sovereign-capability-active-authority.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "architecture-authority",
+      "harness_level": "model_unit",
+      "proof_kind": "authority_drift_contract",
+      "contract": "ADR 0043, its mechanically established controllable-set and separate host-operator stop-all boundaries, schema-backed authority map, human ledger, generated ownership, unique scope/domain topology, local path integrity, path-specific required markers present in both the declared baseline revision and current worktree, a git-tracked active and generated authority doctrine scan including maintained design docs, and exact preserved, historical, and frozen exclusions stay mutually consistent.",
+      "worth": "This fails when fixed browser grammar, including the maintained Playwright consumer crosswalk, an AOS-local capture admission gate, or narrow status-only control escapes its classified path baseline; it also fails if caller-asserted lineage can expand the mechanically controllable set or ordinary ownership implies host-wide stop-all. Baseline-revision comparison prevents a new Milestone 0 banner from satisfying old implementation evidence, exact historical design paths and fixture subtrees remain excluded, and hashes protect preserved ADR bodies while runtime migration is still staged.",
+      "command": "node --test tests/sovereign-capability-active-authority.test.mjs",
+      "replaces": [],
+      "guard": "tracked Markdown and JSON authority only; no ./aos, daemon, Playwright, browser, native UI, TCC, build, package, or install action",
+      "status": "active"
+    }
+  ]
+}

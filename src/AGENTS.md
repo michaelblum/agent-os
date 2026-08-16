@@ -126,6 +126,11 @@ needs, but public command policy and product UI policy belong above it:
   merely initialized but not yet running application connection;
 - generic windowing semantics, panel chrome, minimize chips, and reusable
   workbench layout belong in `packages/toolkit/`;
+- program `aos-sovereign-capability-substrate-v1` is governed by ADR 0043 and
+  `docs/dev/aos-sovereign-capability-authority-v1.json`. The narrow fixed
+  browser client rule immediately below remains current executable truth and
+  burn-down baseline until native transport, manifests/help, schemas, API,
+  skills, and tests change atomically;
 - browser Swift code is a narrow bounded client of
   `scripts/aos-browser-broker.mjs`. It may request only fixed managed operations
   and must not resolve Playwright, read a legacy browser registry, invoke

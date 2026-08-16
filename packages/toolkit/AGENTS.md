@@ -11,6 +11,15 @@ versioned repository. It ships against the same reviewed AOS revision as the
 daemon, CLI, schemas, and command manifests. Consumers must use explicit public
 exports from that revision rather than copy toolkit source into product repos.
 
+For program `aos-sovereign-capability-substrate-v1`, ADR 0043 and
+`docs/dev/aos-sovereign-capability-authority-v1.json` own the target
+machine-readable SDK and operation-control direction. AOS owns the future
+neutral active-operation/recording status-item projection; Sigil owns product
+labels and action policy. Toolkit's current transport-injected clients and
+narrow status-item lease model remain executable truth and declared burn-down
+baseline; this authority-only pointer adds no package export or general
+control-plane method.
+
 Layer intent:
 
 - `runtime/`: universal in-canvas bridge over daemon primitives.

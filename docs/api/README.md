@@ -2,6 +2,12 @@
 
 Consumer-facing reference for the public surfaces in this repo.
 
+> **Milestone 0 authority pointer — `aos-sovereign-capability-substrate-v1`:**
+> entries below remain current executable API scope. ADR 0043 and
+> `../dev/aos-sovereign-capability-authority-v1.json` own the future complete
+> managed-tool grammar and classify fixed session operations as burn-down
+> baseline; this pointer adds no command.
+
 These docs are for both:
 
 - humans integrating with `aos` or `packages/toolkit`

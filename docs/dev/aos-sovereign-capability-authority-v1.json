@@ -1,0 +1,852 @@
+{
+  "$schema": "../../shared/schemas/aos-sovereign-capability-authority-v1.schema.json",
+  "schema_version": "aos.sovereign-capability-authority.v1",
+  "program_id": "aos-sovereign-capability-substrate-v1",
+  "status": "accepted_milestone_0_authority",
+  "baseline_revision": "b48bf4d58c9cfad04f0dc03ef21dbe6d5e4a3044",
+  "authority": {
+    "aos_adr": "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
+    "aos_adr_index": "docs/adr/README.md",
+    "authority_map": "docs/dev/aos-sovereign-capability-authority-v1.json",
+    "human_ledger": "docs/dev/aos-sovereign-capability-remodel-ledger.md",
+    "paired_sigil_authority": {
+      "repository": "https://github.com/Ch-osctrl/sigil",
+      "path": "docs/adr/0021-sigil-sovereign-workflow-composition.md",
+      "publication_state": "not_landed",
+      "revision": null
+    },
+    "cross_repo_activation": "sequenced_not_yet_claimed"
+  },
+  "precedence": [
+    {
+      "scope": "adr_status",
+      "owners": ["docs/adr/README.md"],
+      "rule": "The ADR index owns active status, amendment, and partial-supersession resolution; preserved ADR bodies are decision history where the index names a newer owner."
+    },
+    {
+      "scope": "target_architecture",
+      "owners": ["docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md"],
+      "rule": "ADR 0043 owns the accepted target direction for this program."
+    },
+    {
+      "scope": "current_executable_behavior",
+      "owners": [
+        "src/",
+        "scripts/",
+        "manifests/commands/source/",
+        "shared/schemas/",
+        "tests/",
+        "docs/api/"
+      ],
+      "rule": "Current source, command-source manifests, schemas, tests, API docs, and runtime readback remain executable truth until an atomic implementation slice changes them."
+    },
+    {
+      "scope": "generated_current_behavior",
+      "owners": [
+        "manifests/commands/aos-commands.json",
+        "manifests/commands/aos-external-commands.json"
+      ],
+      "rule": "Generated command and help artifacts are current executable projections owned by their sources and generator; they are scanned but never hand-edited."
+    },
+    {
+      "scope": "migration_baseline",
+      "owners": [
+        "docs/dev/aos-sovereign-capability-authority-v1.json",
+        "docs/dev/aos-sovereign-capability-remodel-ledger.md"
+      ],
+      "rule": "The map is machine authority for path-specific burn-down evidence and scan scope; the ledger is its human review projection."
+    },
+    {
+      "scope": "maintained_design_authority",
+      "owners": ["docs/design/"],
+      "rule": "Maintained design notes, current work cards, and active architecture exploration are scanned current authority; only exact self-declared historical or retired notes and design fixture subtrees are excluded."
+    },
+    {
+      "scope": "cross_repo_ownership",
+      "owners": [
+        "docs/adr/0042-host-and-gateway-move-to-sigil.md",
+        "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md"
+      ],
+      "rule": "AOS owns the substrate and neutral operation control; Sigil owns workflow composition, labels, and action policy. Sigil ADR 0021 is paired but not yet landed or active."
+    }
+  ],
+  "authority_scopes": [
+    {
+      "id": "target-authority",
+      "classification": "target",
+      "path_patterns": [
+        "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
+        "docs/dev/aos-sovereign-capability-authority-v1.json",
+        "docs/dev/aos-sovereign-capability-remodel-ledger.md",
+        "shared/schemas/aos-sovereign-capability-authority-v1.schema.json"
+      ],
+      "exclude_patterns": [],
+      "scan_for_stale_claims": false
+    },
+    {
+      "id": "generated-current-contract",
+      "classification": "generated",
+      "path_patterns": [
+        "manifests/commands/aos-commands.json",
+        "manifests/commands/aos-external-commands.json"
+      ],
+      "exclude_patterns": [],
+      "scan_for_stale_claims": true
+    },
+    {
+      "id": "preserved-adr-bodies",
+      "classification": "preserved",
+      "path_patterns": [
+        "docs/adr/0015-aos-tcc-capability-broker-boundary.md",
+        "docs/adr/0018-installable-aos-skills.md",
+        "docs/adr/0030-desktop-frame-texture-leases.md",
+        "docs/adr/0031-desktop-pixel-broker-and-warm-snapshots.md",
+        "docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md",
+        "docs/adr/0041-managed-playwright-companion-runtime.md"
+      ],
+      "exclude_patterns": [],
+      "scan_for_stale_claims": false
+    },
+    {
+      "id": "historical-nonauthority",
+      "classification": "historical",
+      "path_patterns": [
+        "docs/archive/**",
+        "docs/dev/reports/**",
+        "docs/design/2026-05-07-architecture-deepening-audit-triage.md",
+        "docs/design/2026-05-17-platform-debt-map.md",
+        "docs/design/agent-relay-readiness-narrative-ledger-2026-06-04.md",
+        "docs/design/aos-grand-unification-plan.md",
+        "docs/design/aos-surface-stack-v0-checkpoint-hygiene-report.md",
+        "docs/design/see-do-grammar-trace-connections.md",
+        "docs/proposals/**"
+      ],
+      "exclude_patterns": [],
+      "scan_for_stale_claims": false
+    },
+    {
+      "id": "frozen-contracts-and-fixtures",
+      "classification": "frozen",
+      "path_patterns": [
+        "docs/design/fixtures/**",
+        "shared/schemas/*-v0.*",
+        "shared/schemas/fixtures/**",
+        "tests/fixtures/**"
+      ],
+      "exclude_patterns": [],
+      "scan_for_stale_claims": false
+    },
+    {
+      "id": "active-authority-default",
+      "classification": "active",
+      "path_patterns": ["**"],
+      "exclude_patterns": [
+        "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
+        "docs/dev/aos-sovereign-capability-authority-v1.json",
+        "docs/dev/aos-sovereign-capability-remodel-ledger.md",
+        "shared/schemas/aos-sovereign-capability-authority-v1.schema.json",
+        "manifests/commands/aos-commands.json",
+        "manifests/commands/aos-external-commands.json",
+        "docs/adr/0015-aos-tcc-capability-broker-boundary.md",
+        "docs/adr/0018-installable-aos-skills.md",
+        "docs/adr/0030-desktop-frame-texture-leases.md",
+        "docs/adr/0031-desktop-pixel-broker-and-warm-snapshots.md",
+        "docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md",
+        "docs/adr/0041-managed-playwright-companion-runtime.md",
+        "docs/archive/**",
+        "docs/dev/reports/**",
+        "docs/design/2026-05-07-architecture-deepening-audit-triage.md",
+        "docs/design/2026-05-17-platform-debt-map.md",
+        "docs/design/agent-relay-readiness-narrative-ledger-2026-06-04.md",
+        "docs/design/aos-grand-unification-plan.md",
+        "docs/design/aos-surface-stack-v0-checkpoint-hygiene-report.md",
+        "docs/design/see-do-grammar-trace-connections.md",
+        "docs/proposals/**",
+        "docs/design/fixtures/**",
+        "shared/schemas/*-v0.*",
+        "shared/schemas/fixtures/**",
+        "tests/fixtures/**"
+      ],
+      "scan_for_stale_claims": true
+    }
+  ],
+  "domains": [
+    {
+      "id": "ambient-privileged-exposure",
+      "target_owners": [
+        "docs/adr/0015-aos-tcc-capability-broker-boundary.md",
+        "docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md",
+        "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md"
+      ],
+      "current_owners": [
+        "AGENTS.md",
+        "src/AGENTS.md",
+        "shared/AGENTS.md",
+        "shared/schemas/aos-semantic-targets.md",
+        "docs/api/aos-capabilities.md"
+      ],
+      "disposition": "Expand",
+      "implementation_state": "partial",
+      "exit_gate": "Every mechanically supportable privileged macOS fact, action, stream, artifact, and operation has a stable product-neutral projection with typed platform limits."
+    },
+    {
+      "id": "managed-playwright-grammar",
+      "target_owners": ["docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md"],
+      "current_owners": [
+        "scripts/lib/browser-companion/",
+        "manifests/commands/source/aos/33-browser.json",
+        "manifests/commands/source/external/22-browser.json",
+        "shared/schemas/aos-browser-session-result-v1.schema.json",
+        "shared/schemas/aos-semantic-targets.md",
+        "docs/design/aos-desktop-playwright-cli-map.md",
+        "tests/browser/managed-session-lifecycle.test.mjs",
+        "tests/browser/managed-session-consumers.test.mjs",
+        "docs/dev/test-proof-registry.d/browser-companion.json"
+      ],
+      "disposition": "Rewrite",
+      "implementation_state": "current_restriction",
+      "exit_gate": "The reviewed pinned executable and environment pass raw upstream argv, stdin, stdout, stderr, and artifact transport without a semantic command allowlist or per-operation manifest/schema wrapper while retaining exact lifecycle, identity, and bounds."
+    },
+    {
+      "id": "operation-control-plane",
+      "target_owners": ["docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md"],
+      "current_owners": [
+        "scripts/lib/browser-companion/",
+        "src/daemon/",
+        "docs/api/toolkit/status-item.md",
+        "manifests/commands/source/aos/40-status-item.json",
+        "tests/status-item-contract.test.mjs"
+      ],
+      "disposition": "Expand",
+      "implementation_state": "missing",
+      "exit_gate": "Every nontrivial AOS-owned privileged or managed operation, including one-shot terminal history, has neutral list/inspect/status/recent, exact kill and cleanup, content-free terminal blame, transient artifact/stream controls, and an optional separately bounded observation-only data tap. A mechanically authenticated peer or owner establishes the controllable set; caller-asserted client/agent/task/project/capability values only narrow within it, a mechanically bound scope may establish a stronger owner boundary, and host-wide stop-all is separate mechanically authenticated host-operator control."
+    },
+    {
+      "id": "caller-owned-transforms",
+      "target_owners": [
+        "docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md",
+        "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md"
+      ],
+      "current_owners": [
+        "src/daemon/AGENTS.md",
+        "scripts/AGENTS.md",
+        "shared/schemas/aos-semantic-targets.md",
+        "docs/api/aos.md"
+      ],
+      "disposition": "Expand",
+      "implementation_state": "partial",
+      "exit_gate": "All admitted facts and raw streams remain fidelity-first and transient by default unless an explicit caller transform owns masking, redaction, persistence, retention, or projection."
+    },
+    {
+      "id": "native-capture-consent",
+      "target_owners": ["docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md"],
+      "current_owners": [
+        "src/daemon/desktop-frame-capture-consent.swift",
+        "src/daemon/desktop-frame-capture-controller.swift",
+        "src/commands/direct-screen-capture-permission.swift",
+        "src/shared/desktop-frame-capture-consent-contract.swift",
+        "shared/schemas/daemon-ipc.md",
+        "manifests/commands/source/aos/29-permissions.json",
+        "tests/desktop-frame-texture-native.test.mjs",
+        "tests/toolkit/desktop-frame-texture-source.test.mjs",
+        "tests/aos-permissions-microphone-authority.test.mjs",
+        "docs/dev/test-proof-registry.d/native-capture.json"
+      ],
+      "disposition": "Retire",
+      "implementation_state": "current_restriction",
+      "exit_gate": "Direct capture reports macOS/platform permission facts without an AOS-local process-lifetime admission gate, with native code, IPC, manifests/help, API, tests, and proof routing changed atomically."
+    },
+    {
+      "id": "aos-sigil-ownership",
+      "target_owners": [
+        "docs/adr/0042-host-and-gateway-move-to-sigil.md",
+        "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md"
+      ],
+      "current_owners": [
+        "packages/AGENTS.md",
+        "packages/toolkit/AGENTS.md",
+        "CONTEXT-MAP.md"
+      ],
+      "disposition": "Keep",
+      "implementation_state": "aligned",
+      "exit_gate": "AOS remains product-neutral and treats caller-asserted Sigil lineage as attribution that may only filter within a mechanically established controllable set, never add operations or expand control; mechanically bound scope may strengthen the owner boundary, host-wide stop-all remains separate host-operator control, and Sigil owns workflow policy, labels, and result interpretation at reviewed pins."
+    },
+    {
+      "id": "toolkit-sdk",
+      "target_owners": ["docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md"],
+      "current_owners": [
+        "packages/toolkit/",
+        "docs/api/toolkit.md",
+        "docs/api/toolkit/"
+      ],
+      "disposition": "Expand",
+      "implementation_state": "partial",
+      "exit_gate": "Every substrate and control-plane contract needed by first-party consumers has a maintained machine-readable SDK projection, including the AOS-owned neutral active-operation/recording status-item projection without product orchestration."
+    },
+    {
+      "id": "installable-skills",
+      "target_owners": [
+        "docs/adr/0018-installable-aos-skills.md",
+        "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md"
+      ],
+      "current_owners": [
+        "skills/registry.json",
+        "skills/",
+        "scripts/aos-skills.mjs"
+      ],
+      "disposition": "Repoint",
+      "implementation_state": "partial",
+      "exit_gate": "Installable AOS skills teach the implemented complete substrate and neutral control plane without inventing policy or retaining superseded absence guidance."
+    },
+    {
+      "id": "historical-material",
+      "target_owners": ["docs/AGENTS.md"],
+      "current_owners": [
+        "docs/archive/",
+        "docs/dev/reports/",
+        "docs/design/2026-05-07-architecture-deepening-audit-triage.md",
+        "docs/design/2026-05-17-platform-debt-map.md",
+        "docs/design/agent-relay-readiness-narrative-ledger-2026-06-04.md",
+        "docs/design/aos-grand-unification-plan.md",
+        "docs/design/aos-surface-stack-v0-checkpoint-hygiene-report.md",
+        "docs/design/see-do-grammar-trace-connections.md",
+        "docs/design/fixtures/",
+        "docs/proposals/",
+        "tests/fixtures/"
+      ],
+      "disposition": "Archive",
+      "implementation_state": "historical",
+      "exit_gate": "Preserved, historical, and frozen bytes remain unchanged and excluded from active-authority stale scans."
+    }
+  ],
+  "generated_artifacts": [
+    {
+      "id": "command-manifests-and-help",
+      "sources": [
+        "manifests/commands/source/aos/",
+        "manifests/commands/source/external/"
+      ],
+      "outputs": [
+        "manifests/commands/aos-commands.json",
+        "manifests/commands/aos-external-commands.json"
+      ],
+      "generator": "scripts/generate-command-manifests.mjs",
+      "drift_test": "tests/command-manifest-generation.sh",
+      "disposition": "Keep",
+      "milestone_0_mutation": false
+    }
+  ],
+  "stale_claim_baseline": [
+    {
+      "id": "browser-fixed-grammar",
+      "domain": "managed-playwright-grammar",
+      "disposition": "Rewrite",
+      "current_only": true,
+      "doctrine_markers": [
+        "fixed session operations",
+        "outside the fixed managed operation surface",
+        "The public fixed session operations are",
+        "tab operations fail closed or are absent",
+        "fixed operation argv",
+        "may request only fixed managed operations",
+        "browser Observation Ref actions remain unsupported",
+        "browser ref capture remains unsupported",
+        "V1 browser actions currently stop with TARGET_ACTION_UNSUPPORTED",
+        "browser_ref_actions_unsupported",
+        "no generic escape hatch",
+        "source manifests expose no generic runner, registry, version probe, or upstream list route",
+        "the absence of upstream list",
+        "Narrow internal helpers for managed browser targets and observations",
+        "Route narrow managed browser helpers",
+        "External caller-owned Playwright CLI escape hatch, not an AOS route and not vendored by AOS",
+        "AOS exposes no generic browser `run-code` route",
+        "remain upstream Playwright CLI capabilities rather than implied AOS desktop primitives"
+      ],
+      "evidence": [
+        {
+          "path": "ARCHITECTURE.md",
+          "required_markers": ["A managed browser session is an exact generation-bound target for whole-session capture, fixed session-only actions"]
+        },
+        {
+          "path": "docs/api/README.md",
+          "required_markers": ["bound focus lifecycle, fixed session operations, ownership, and cleanup"]
+        },
+        {
+          "path": "docs/api/aos-capabilities.md",
+          "required_markers": ["browser ref actions remain outside the fixed managed operation surface"]
+        },
+        {
+          "path": "docs/api/aos.md",
+          "required_markers": ["The public fixed session operations are", "and tab operations fail closed or are absent"]
+        },
+        {
+          "path": "docs/api/toolkit/workbench.md",
+          "required_markers": ["The fixed broker may capture a whole-session snapshot/screenshot"]
+        },
+        {
+          "path": "docs/dev/test-proof-registry.d/agent-workspace.json",
+          "required_markers": ["browser ref actions remain unsupported"]
+        },
+        {
+          "path": "docs/dev/test-proof-registry.d/browser-companion.json",
+          "required_markers": ["the absence of upstream list", "generic code, ref actions, or tab operations"]
+        },
+        {
+          "path": "docs/dev/workflow-rules.json",
+          "required_markers": ["installed stager, fixed worker modules, and Toolkit consumer"]
+        },
+        {
+          "path": "docs/design/aos-desktop-playwright-cli-map.md",
+          "required_markers": ["External caller-owned Playwright CLI escape hatch, not an AOS route and not vendored by AOS", "AOS exposes no generic browser `run-code` route", "remain upstream Playwright CLI capabilities rather than implied AOS desktop primitives"]
+        },
+        {
+          "path": "manifests/commands/aos-commands.json",
+          "required_markers": ["Managed browser session target (browser:<session>); refs are unsupported"]
+        },
+        {
+          "path": "manifests/commands/aos-external-commands.json",
+          "required_markers": ["fail closed with TARGET_ACTION_UNSUPPORTED before session or worker dispatch"]
+        },
+        {
+          "path": "manifests/commands/source/aos/07-do-01-pointing.json",
+          "required_markers": ["Browser Observation Ref drag remains outside the managed companion surface and fails closed with TARGET_ACTION_UNSUPPORTED"]
+        },
+        {
+          "path": "manifests/commands/source/aos/07-do-02-text.json",
+          "required_markers": ["Managed browser session target (browser:<session>); refs are unsupported"]
+        },
+        {
+          "path": "manifests/commands/source/external/07-do-01-pointing.json",
+          "required_markers": ["fail closed with TARGET_ACTION_UNSUPPORTED before session or worker dispatch"]
+        },
+        {
+          "path": "manifests/commands/source/external/07-do-02-text.json",
+          "required_markers": ["fail closed with TARGET_ACTION_UNSUPPORTED before session or worker dispatch"]
+        },
+        {
+          "path": "manifests/commands/source/aos/33-browser.json",
+          "required_markers": ["Narrow internal helpers for managed browser targets and observations"]
+        },
+        {
+          "path": "manifests/commands/source/external/22-browser.json",
+          "required_markers": ["Route narrow managed browser helpers"]
+        },
+        {
+          "path": "scripts/AGENTS.md",
+          "required_markers": ["They expose fixed operations and must never regain executable-path resolution, upstream list, generic eval/code"]
+        },
+        {
+          "path": "scripts/aos-browser-broker.mjs",
+          "required_markers": ["const allowed = new Set(['snapshot', 'screenshot', 'page_identity', 'evidence_capture'])"]
+        },
+        {
+          "path": "scripts/aos-do-browser.mjs",
+          "required_markers": ["browser Observation Ref actions remain unsupported"]
+        },
+        {
+          "path": "scripts/lib/agent-workspace/actions.mjs",
+          "required_markers": ["browser Observation Ref actions remain unsupported by the managed session contract", "browser_ref_actions_unsupported"]
+        },
+        {
+          "path": "scripts/lib/agent-workspace/refs.mjs",
+          "required_markers": ["record.known_limits.includes('browser_ref_actions_unsupported')", "browser_ref_actions_unsupported"]
+        },
+        {
+          "path": "scripts/lib/browser-companion/AGENTS.md",
+          "required_markers": ["operation-specific exact envelopes, and fixed operation argv", "generic eval/code, ref actions, or tab operations may not be added"]
+        },
+        {
+          "path": "scripts/lib/browser-companion/see-capture-options.mjs",
+          "required_markers": ["browser ref capture remains unsupported", "TARGET_ACTION_UNSUPPORTED"]
+        },
+        {
+          "path": "scripts/lib/browser-companion/session-model.mjs",
+          "required_markers": ["const SESSION_OPERATIONS = Object.freeze"]
+        },
+        {
+          "path": "scripts/lib/browser-companion/session-runner.mjs",
+          "required_markers": ["managed browser operation is unsupported"]
+        },
+        {
+          "path": "scripts/lib/browser-companion/session-target.mjs",
+          "required_markers": ["browser Observation Ref actions remain unsupported"]
+        },
+        {
+          "path": "scripts/lib/browser-companion/worker-guardian-state.mjs",
+          "required_markers": ["const OPERATIONS = new Set", "'snapshot', 'screenshot', 'page_identity', 'evidence_query'"]
+        },
+        {
+          "path": "shared/schemas/aos-agent-workspace-v1.md",
+          "required_markers": ["browser_ref_actions_unsupported", "known limit"]
+        },
+        {
+          "path": "shared/schemas/aos-agent-workspace-v1.schema.json",
+          "required_markers": ["\"known_limits\": { \"contains\": { \"const\": \"browser_ref_actions_unsupported\" } }"]
+        },
+        {
+          "path": "shared/schemas/aos-semantic-targets.md",
+          "required_markers": ["Browser Observation Ref results use", "TARGET_STATE_REQUIRED", "TARGET_ACTION_UNSUPPORTED"]
+        },
+        {
+          "path": "shared/schemas/aos-target-handle-v1.md",
+          "required_markers": ["V1 browser actions currently stop with", "TARGET_ACTION_UNSUPPORTED", "reason:browser_ref_actions_unsupported"]
+        },
+        {
+          "path": "shared/schemas/aos-browser-session-result-v1.schema.json",
+          "required_markers": ["\"operation\":{\"enum\":[\"navigate\",\"type\",\"key\",\"scroll\",\"snapshot\",\"screenshot\",\"page_identity\",\"evidence_capture\",\"liveness\"]}"]
+        },
+        {
+          "path": "skills/aos-browser/SKILL.md",
+          "required_markers": ["Browser ref actions are outside the managed session surface and return", "TARGET_ACTION_UNSUPPORTED"]
+        },
+        {
+          "path": "skills/aos-focus-sessions/SKILL.md",
+          "required_markers": ["Browser ref actions and tab management are not part of this checkpoint"]
+        },
+        {
+          "path": "skills/aos-saved-workspace/SKILL.md",
+          "required_markers": ["generation to ref resolution, requests return", "TARGET_ACTION_UNSUPPORTED", "before backend dispatch"]
+        },
+        {
+          "path": "skills/registry.json",
+          "required_markers": ["current browser observations, and fixed session operations"]
+        },
+        {
+          "path": "src/AGENTS.md",
+          "required_markers": ["It may request only fixed managed operations and must not resolve Playwright"]
+        },
+        {
+          "path": "src/browser/browser-adapter.swift",
+          "required_markers": ["browser ref screenshots remain unsupported", "browser ref capture remains unsupported"]
+        },
+        {
+          "path": "tests/AGENTS.md",
+          "required_markers": ["envelopes and liveness, fixed operations", "absence of upstream list, runtime fallback"]
+        },
+        {
+          "path": "tests/browser/managed-session-lifecycle.test.mjs",
+          "required_markers": ["fixed operations, liveness, and evidence use bounded managed commands with no generic escape hatch", "executeManagedSessionOperation('ops', 'run-code'"]
+        },
+        {
+          "path": "tests/browser/managed-session-consumers.test.mjs",
+          "required_markers": ["source manifests expose no generic runner, registry, version probe, or upstream list route", "'run-code', 'tab-new', 'tab-list'"]
+        },
+        {
+          "path": "tests/agent-workspace-v1.test.mjs",
+          "required_markers": ["browser_ref_actions_unsupported", "TARGET_ACTION_UNSUPPORTED"]
+        },
+        {
+          "path": "tests/target-handle-runtime.test.mjs",
+          "required_markers": ["browser_ref_actions_unsupported", "TARGET_ACTION_UNSUPPORTED"]
+        },
+        {
+          "path": "tests/aos-skills-registry.test.mjs",
+          "required_markers": ["Browser ref actions are outside the managed session surface"]
+        },
+        {
+          "path": "tests/execution-model-terminology-contract.test.mjs",
+          "required_markers": ["return `TARGET_ACTION_UNSUPPORTED` before any\\s+managed-session or worker dispatch"]
+        },
+        {
+          "path": "tests/help-contract.sh",
+          "required_markers": ["assert \"TARGET_ACTION_UNSUPPORTED\" in click[\"summary\"]"]
+        },
+        {
+          "path": "tests/lib/pending-annotation-fixtures.mjs",
+          "required_markers": ["known_limits: backend === 'browser' ? ['browser_ref_actions_unsupported'] : []"]
+        }
+      ],
+      "exit_gate": "Remove evidence only in the atomic implementation slice that replaces fixed wrappers with raw pinned-upstream argv/stdio/artifact transport and converges lifecycle, identity, bounds, help, schemas, API, skills, tests, and proof routing."
+    },
+    {
+      "id": "native-capture-local-consent-gate",
+      "domain": "native-capture-consent",
+      "disposition": "Retire",
+      "current_only": true,
+      "doctrine_markers": [
+        "permissions prime screen-capture",
+        "permissions-prime-screen-capture",
+        "the only action allowed to request screen-capture authorization",
+        "DESKTOP_FRAME_CONSENT_REQUIRED",
+        "direct desktop-capture consent is covered statically"
+      ],
+      "evidence": [
+        {
+          "path": "docs/api/aos-capabilities.md",
+          "required_markers": ["permissions prime screen-capture"]
+        },
+        {
+          "path": "docs/api/aos.md",
+          "required_markers": ["aos permissions prime screen-capture --json", "explicitly primes the"]
+        },
+        {
+          "path": "docs/api/toolkit/scene-extensions.md",
+          "required_markers": ["aos permissions prime screen-capture --json", "DESKTOP_FRAME_CONSENT_REQUIRED"]
+        },
+        {
+          "path": "docs/dev/workflow-rules.json",
+          "required_markers": ["Keep direct-capture priming explicit, passive status prompt-free, runtime admission gated"]
+        },
+        {
+          "path": "docs/dev/test-proof-registry.d/native-capture.json",
+          "required_markers": ["tests/desktop-frame-texture-native.test.mjs", "public-native-capture-single-owner-contract"]
+        },
+        {
+          "path": "manifests/commands/aos-commands.json",
+          "required_markers": ["permissions-prime-screen-capture"]
+        },
+        {
+          "path": "manifests/commands/source/aos/29-permissions.json",
+          "required_markers": ["permissions-prime-screen-capture"]
+        },
+        {
+          "path": "packages/toolkit/components/desktop-world-stage/desktop-frame-texture-source.js",
+          "required_markers": ["DESKTOP_FRAME_CONSENT_REQUIRED"]
+        },
+        {
+          "path": "scripts/AGENTS.md",
+          "required_markers": ["permissions prime screen-capture", "may request authorization and invoke the daemon-owned bounded probe"]
+        },
+        {
+          "path": "scripts/aos-permissions.mjs",
+          "required_markers": ["permissions prime screen-capture [--json]", "__permissions direct-screen-capture prime"]
+        },
+        {
+          "path": "shared/schemas/daemon-ipc.md",
+          "required_markers": ["the only action allowed to request screen-capture authorization"]
+        },
+        {
+          "path": "src/daemon/AGENTS.md",
+          "required_markers": ["desktop-frame-capture-consent.swift", "separately owns process-lifetime direct capture consent"]
+        },
+        {
+          "path": "src/daemon/desktop-frame-capture-consent.swift",
+          "required_markers": ["final class AOSDesktopFrameCaptureConsentController"]
+        },
+        {
+          "path": "src/daemon/desktop-frame-capture-controller.swift",
+          "required_markers": ["consent.claimRuntimeCapture()"]
+        },
+        {
+          "path": "src/daemon/desktop-pixel-broker.swift",
+          "required_markers": ["case .consentRequired: return \"DESKTOP_FRAME_CONSENT_REQUIRED\""]
+        },
+        {
+          "path": "src/commands/direct-screen-capture-permission.swift",
+          "required_markers": ["[\"status\", \"prime\"].contains(action)", "screen_capture_direct_prime"]
+        },
+        {
+          "path": "src/shared/desktop-frame-capture-consent-contract.swift",
+          "required_markers": ["case permissionRequired = \"permission_required\"", "static let capability = \"screen_capture_direct\""]
+        },
+        {
+          "path": "tests/README.md",
+          "required_markers": ["Direct desktop-capture consent is covered statically by"]
+        },
+        {
+          "path": "tests/desktop-frame-texture-native.test.mjs",
+          "required_markers": ["unprimed request did not fail closed", "DESKTOP_FRAME_CONSENT_REQUIRED", "explicit direct-capture prime did not settle"]
+        },
+        {
+          "path": "tests/toolkit/desktop-frame-texture-source.test.mjs",
+          "required_markers": ["desktop frame source projects missing consent as a quiet recoverable state", "DESKTOP_FRAME_CONSENT_REQUIRED"]
+        },
+        {
+          "path": "tests/aos-permissions-microphone-authority.test.mjs",
+          "required_markers": ["direct screen-capture prime invokes only the daemon-owned primitive", "__permissions direct-screen-capture prime --json"]
+        },
+        {
+          "path": "tests/external-parser-flags.sh",
+          "required_markers": ["permissions-prime-screen-capture"]
+        },
+        {
+          "path": "tests/schemas/aos-external-command-manifest-v0.test.mjs",
+          "required_markers": ["forms.get('permissions-prime-screen-capture')"]
+        }
+      ],
+      "exit_gate": "Retire the AOS-local consent gate only with native implementation, command sources, generated help, IPC, API, tests, and exact proof routing updated together; preserved ADR 0030 and ADR 0031 bodies remain unchanged."
+    },
+    {
+      "id": "narrow-status-item-without-operation-control",
+      "domain": "operation-control-plane",
+      "disposition": "Expand",
+      "current_only": true,
+      "doctrine_markers": [
+        "Standalone subscribe and cleanup commands do not exist",
+        "status-item-cleanup'))",
+        "status-item-subscribe'))"
+      ],
+      "evidence": [
+        {
+          "path": "docs/api/toolkit/status-item.md",
+          "required_markers": ["Standalone subscribe and cleanup commands do not exist"]
+        },
+        {
+          "path": "manifests/commands/source/aos/40-status-item.json",
+          "required_markers": ["status-item-validate", "status-item-register", "status-item-update", "status-item-inspect", "status-item-invoke"]
+        },
+        {
+          "path": "packages/toolkit/AGENTS.md",
+          "required_markers": ["product-neutral native status-item descriptor", "compare-and-swap update", "generation-scoped action admission"]
+        },
+        {
+          "path": "tests/status-item-contract.test.mjs",
+          "required_markers": ["assert(!generated.includes('status-item-cleanup'))", "assert(!generated.includes('status-item-subscribe'))"]
+        },
+        {
+          "path": "docs/dev/test-proof-registry.d/runtime-readiness.json",
+          "required_markers": ["status-item-host-contract", "owner-scoped native host contract"]
+        }
+      ],
+      "exit_gate": "Keep the current status-item lease contract while adding the separate neutral control plane and AOS-owned active-operation/recording projection; Sigil supplies product labels and action policy."
+    }
+  ],
+  "historical_preservation": [
+    {
+      "pattern": "docs/adr/0015-aos-tcc-capability-broker-boundary.md",
+      "classification": "preserved",
+      "disposition": "Expand",
+      "rule": "preserve_unchanged",
+      "sha256": "93e01be4876f841062bbc5e9495138d179d7529e31e9c876dd780d1b414788d5"
+    },
+    {
+      "pattern": "docs/adr/0018-installable-aos-skills.md",
+      "classification": "preserved",
+      "disposition": "Repoint",
+      "rule": "preserve_unchanged",
+      "sha256": "7053fc6a8aab132a0ad502b3ddef16823f5c2e6f15545a7e5607b5dadb8010c7"
+    },
+    {
+      "pattern": "docs/adr/0030-desktop-frame-texture-leases.md",
+      "classification": "preserved",
+      "disposition": "Rewrite",
+      "rule": "preserve_unchanged",
+      "sha256": "135a6909a4aad3aea0940d61ae68f40695e2eb68577361525110112071686e74"
+    },
+    {
+      "pattern": "docs/adr/0031-desktop-pixel-broker-and-warm-snapshots.md",
+      "classification": "preserved",
+      "disposition": "Rewrite",
+      "rule": "preserve_unchanged",
+      "sha256": "44a40c8388f05a82dea1d8c375dc9a4bf3b2642789f019b1a996339a6c5a1cbd"
+    },
+    {
+      "pattern": "docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md",
+      "classification": "preserved",
+      "disposition": "Expand",
+      "rule": "preserve_unchanged",
+      "sha256": "96456187d86217718ae639a62ecfc9659111eb4c2afbf8b053dc36759e792007"
+    },
+    {
+      "pattern": "docs/adr/0041-managed-playwright-companion-runtime.md",
+      "classification": "preserved",
+      "disposition": "Rewrite",
+      "rule": "preserve_unchanged",
+      "sha256": "202d88ca8ad28f9f0b6816f9ef6c44fe478485463745db82cfb517cee1c93345"
+    },
+    {
+      "pattern": "docs/archive/**",
+      "classification": "historical",
+      "disposition": "Archive",
+      "rule": "preserve_unchanged",
+      "sha256": null
+    },
+    {
+      "pattern": "docs/dev/reports/**",
+      "classification": "historical",
+      "disposition": "Archive",
+      "rule": "preserve_unchanged",
+      "sha256": null
+    },
+    {
+      "pattern": "docs/design/2026-05-07-architecture-deepening-audit-triage.md",
+      "classification": "historical",
+      "disposition": "Archive",
+      "rule": "preserve_unchanged",
+      "sha256": null
+    },
+    {
+      "pattern": "docs/design/2026-05-17-platform-debt-map.md",
+      "classification": "historical",
+      "disposition": "Archive",
+      "rule": "preserve_unchanged",
+      "sha256": null
+    },
+    {
+      "pattern": "docs/design/agent-relay-readiness-narrative-ledger-2026-06-04.md",
+      "classification": "historical",
+      "disposition": "Archive",
+      "rule": "preserve_unchanged",
+      "sha256": null
+    },
+    {
+      "pattern": "docs/design/aos-grand-unification-plan.md",
+      "classification": "historical",
+      "disposition": "Archive",
+      "rule": "preserve_unchanged",
+      "sha256": null
+    },
+    {
+      "pattern": "docs/design/aos-surface-stack-v0-checkpoint-hygiene-report.md",
+      "classification": "historical",
+      "disposition": "Archive",
+      "rule": "preserve_unchanged",
+      "sha256": null
+    },
+    {
+      "pattern": "docs/design/see-do-grammar-trace-connections.md",
+      "classification": "historical",
+      "disposition": "Archive",
+      "rule": "preserve_unchanged",
+      "sha256": null
+    },
+    {
+      "pattern": "docs/design/fixtures/**",
+      "classification": "frozen",
+      "disposition": "Archive",
+      "rule": "preserve_unchanged",
+      "sha256": null
+    },
+    {
+      "pattern": "docs/proposals/**",
+      "classification": "historical",
+      "disposition": "Archive",
+      "rule": "preserve_unchanged",
+      "sha256": null
+    },
+    {
+      "pattern": "shared/schemas/*-v0.*",
+      "classification": "frozen",
+      "disposition": "Archive",
+      "rule": "preserve_unchanged",
+      "sha256": null
+    },
+    {
+      "pattern": "shared/schemas/fixtures/**",
+      "classification": "frozen",
+      "disposition": "Archive",
+      "rule": "preserve_unchanged",
+      "sha256": null
+    },
+    {
+      "pattern": "tests/fixtures/**",
+      "classification": "frozen",
+      "disposition": "Archive",
+      "rule": "preserve_unchanged",
+      "sha256": null
+    }
+  ],
+  "verification": {
+    "static_test": "tests/sovereign-capability-active-authority.test.mjs",
+    "proof_registry": "docs/dev/test-proof-registry.d/sovereign-capability-authority.json",
+    "workflow_rules": "docs/dev/workflow-rules.json",
+    "command": "node --test tests/sovereign-capability-active-authority.test.mjs",
+    "forbidden_runtime_actions": [
+      "execute ./aos",
+      "start or restart the daemon",
+      "launch Playwright or a browser",
+      "touch native UI or TCC",
+      "build, package, or install"
+    ]
+  }
+}
