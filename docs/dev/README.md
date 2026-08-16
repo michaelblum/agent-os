@@ -39,8 +39,8 @@ noun, skill package, or legacy compatibility path from historical reports.
 and path-specific current-only contradiction baseline for program
 `aos-sovereign-capability-substrate-v1`. Its schema owner is
 `shared/schemas/aos-sovereign-capability-authority-v1.schema.json`; the human
-review projection is `aos-sovereign-capability-remodel-ledger.md`. ADR 0043
-owns the target while source, command-source manifests, generated help, schemas,
+review projection is `aos-sovereign-capability-remodel-ledger.md`. ADR 0043 and
+accepted ADR 0044 own the target while source, command-source manifests, generated help, schemas,
 tests, API docs, and runtime readback remain executable truth until later atomic
 implementation. The map classifies active, target, generated, preserved,
 historical, and frozen paths; its proof requires exact markers in both the
@@ -50,16 +50,25 @@ Validate the packet with the static command recorded in the map; it does not
 execute `./aos`, the daemon, Playwright, a browser, native UI, or TCC-sensitive
 code.
 
-`aos-privileged-capability-ledger-v1.json` is the closed Milestone 1 inventory
+`aos-privileged-capability-ledger-v1.json` is the closed 32-row inventory
 for 32 meaningful privileged and managed capability families, including the
 current canvas host action bus. It keeps current
 primitive truth separate from public CLI/IPC/SDK/Toolkit reachability and from
 the accepted target. Its schema is
 `../../shared/schemas/aos-privileged-capability-ledger-v1.schema.json`; its
 durable non-runtime state-machine and milestone design is
-`../design/aos-sovereign-first-vertical-slice-contract.md`. The two ordinary-
-owner and host-operator choices remain explicitly unresolved before M2; the
-SDK package-root choice is separately deferred to M6. Authored AOS/external
+`../design/aos-sovereign-first-vertical-slice-contract.md`. ADR 0044 accepts
+immediate socket-peer audit identity, proc-generation-verified ancestry,
+generation-bound external dispatch, and exact registered-set per-request same-
+effective-UID host control. It also closes bounded retained-receipt replay with
+expected-barrier CAS after eviction, distinct artifact/claim recovery
+dispositions, explicit prior-generation recovery across nine machines, split all-or-nothing claim-set
+admission, exact-generation per-resource claims, and multiplex-broker subscriber
+revisions. It also preserves the external-command v0 schema byte-exact and
+specifies a new-v1, stable-aggregate, v1-only decoder/generator cutover with one
+`listen` registration; none is current runtime behavior yet. M2 targets daemon IPC and CLI,
+internal status break-glass, and an internal Canvas projection. Maintained public
+SDK projections and the SDK package-root choice remain M6. Authored AOS/external
 command bindings, generated aggregate/generator ownership, authored skill
 packages/registry, proof execution class, machine state/taxonomy/milestone, and
 flagship-workflow contracts are explicit data. The

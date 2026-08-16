@@ -130,12 +130,24 @@ commands, runtime helpers, wiki tools, and command adapters.
 - `lib/aos-skills-registry.mjs` is a compatibility re-export only; do not add
   new behavior there.
 - **Sovereign capability transition
-  (`aos-sovereign-capability-substrate-v1`):** ADR 0043 and
+  (`aos-sovereign-capability-substrate-v1`):** ADR 0043, accepted ADR 0044, and
   `docs/dev/aos-sovereign-capability-authority-v1.json` own the target
   grammar-agnostic raw managed-tool transport and every-nontrivial-operation
-  control plane. The fixed browser operations and exact adapters below remain
+  control plane. ADR 0044 also requires generation-bound external-dispatch
+  intent/finalization: an environment parent PID or token alone never grants
+  owner authority, and an authored route declares executable resolution while
+  durable records bind only the resolved path/identity digests, device, inode,
+  code identity, file digest, script, canonical argv shape, peer generation,
+  and operation generation. An absolute executable path is transient resolver
+  state, never durable or public. The fixed browser operations and exact adapters below remain
   current executable truth and burn-down baseline; do not widen or delete them
   without the later atomic source/manifest/help/schema/API/skill/test slice.
+  The external-command v0 schema remains frozen. The accepted M2 target uses a
+  new v1 schema, keeps the aggregate path stable while moving its wire version
+  to 2, registers only the authored `listen` route, and cuts the generator,
+  Swift dispatcher, help proxy, proof routing, and installed projections over
+  together; no dual reader, v0 mutation, translation, or parallel aggregate is
+  allowed.
 - `aos-browser-companion.mjs` is the public status/install/update/uninstall CLI
   for the source-pinned Playwright package runtime. Its focused implementation
   and store ownership rules live under `lib/browser-companion/AGENTS.md`.

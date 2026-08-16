@@ -54,6 +54,16 @@ historical evidence, not a complete current inventory or a consumer API
 contract. Do not regenerate it. Current command authority is the source
 manifests and the two generated top-level manifests.
 
+For program `aos-sovereign-capability-substrate-v1`, accepted ADR 0044 keeps
+the external-command v0 schema frozen and current until one atomic M2 cutover.
+That future cutover adds a new v1 schema, keeps the generated aggregate path
+stable while moving its wire schema to version 2, adds the optional closed
+spawn registration only to authored `15-listen`, and moves the generator,
+Swift dispatcher, help proxy, proof index/fragment ownership, workflow routing,
+and installed projections together. There is no v0 extension, dual reader,
+translation layer, parallel aggregate, or current-runtime claim in the
+authority-only packet.
+
 Registry metadata must distinguish private command families from consumer
 discovery. A command with `consumer_discovery: false` remains addressable by
 direct help for tightly scoped private families such as `browser`, but root

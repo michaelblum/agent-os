@@ -32,11 +32,17 @@ tests.
   proofs remain declared burn-down baseline; keep them until the later atomic
   implementation slice replaces their source/help/schema/API/skill contracts.
 - `schemas/aos-privileged-capability-ledger-v1.test.mjs` owns the static
-  Milestone 1 ledger proof. It validates the exact ordered 32-row current/
+  capability-ledger proof. It validates the exact ordered 32-row current/
   target inventory, schema cross-field failures, authored CLI bindings,
   tracked/bootstrap/current/generated path truth, Apple-primary floors,
   explicit unsupported and unverified rows, production-symbol discovery,
-  proof execution classes, unresolved M2 owner decisions, exact machine state/
+  proof execution classes, the two ADR 0044 accepted M2 owner bindings,
+  immediate-peer/ancestor/spawn evidence, registered-set host receipts, bounded
+  retained replay with expected-barrier CAS, distinct recovery dispositions,
+  explicit nine-machine prior-generation and split claim-set/resource/
+  broker topology, frozen external-command v0 bytes and the proposed atomic
+  v1-only schema/generator/decoder/listen-registration cutover, canonical proof-
+  index and workflow reachability, exact machine state/
   taxonomy/M1-through-M10/flagship contracts, and non-runtime design. It must not
   execute `./aos`, the daemon, browser, native UI, TCC, builds, or packaging.
 - Do not weaken assertions to match stale behavior; update the owning contract

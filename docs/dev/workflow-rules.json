@@ -58,13 +58,14 @@
     },
     {
       "id": "sovereign-capability-authority",
-      "summary": "AOS sovereign capability target authority, owner-filter boundary, path-specific burn-down evidence, maintained-design doctrine scan, preservation boundary, or local transition routing changed.",
+      "summary": "AOS sovereign capability target authority, ADR 0044 owner/host/resource amendment, path-specific burn-down evidence, maintained-design doctrine scan, preservation boundary, or local transition routing changed.",
       "patterns": [
         "AGENTS.md",
         "ARCHITECTURE.md",
         "CONTEXT-MAP.md",
         "docs/adr/README.md",
         "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
+        "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md",
         "docs/api/README.md",
         "docs/api/aos.md",
         "docs/api/aos-capabilities.md",
@@ -157,7 +158,7 @@
         {
           "id": "sovereign-capability-active-authority",
           "command": "node --test tests/sovereign-capability-active-authority.test.mjs",
-          "reason": "Validate the accepted ADR, mechanically established controllable-set narrowing and separate host-operator stop-all, unique machine topology and local paths, path-specific current-only evidence against the declared baseline revision, git-tracked active-authority stale scan including maintained design docs, generated ownership, external Sigil publication state, and exact hash-backed preserved/historical/frozen boundaries."
+          "reason": "Validate ADR 0043 plus accepted ADR 0044; immediate socket-peer audit-token/PID-generation evidence; mechanically verified non-AOS ancestry using proc-generation, UID, stable-edge, and code identity; discriminated daemon spawn evidence and content-free external-dispatch executable-resolution finalization; narrowing-only asserted lineage; live same-effective-UID host control over an exact adapter-registry revision with daemon/status-host break-glass; split all-or-nothing claim-set, per-resource, and multiplex-broker mechanics with exact CAS/publication facts; bounded retained receipt replay plus expected-barrier CAS after eviction; distinct artifact-custody and claim-transaction recovery dispositions; explicit prior-generation recovery across nine machines; no-exception current-only projection equality to the M1 baseline; unique topology and local paths; path-specific current-only evidence; git-tracked active-authority stale scan including maintained design docs and rejection of a human-intent host-control class; generated ownership; external Sigil publication state; and independent baseline byte/hash preservation through ADR 0043."
         }
       ],
       "verification": [],
@@ -167,7 +168,7 @@
     },
     {
       "id": "privileged-capability-ledger",
-      "summary": "The closed Milestone 1 privileged-capability current/target ledger, its vertical-slice design, or its static proof ownership changed.",
+      "summary": "The closed privileged-capability current/target ledger, accepted M2 authority bindings, vertical-slice design, or static proof ownership changed.",
       "patterns": [
         "docs/design/aos-sovereign-first-vertical-slice-contract.md",
         "docs/dev/aos-privileged-capability-ledger-v1.json",
@@ -190,7 +191,7 @@
         {
           "id": "privileged-capability-ledger-contract",
           "command": "node --test tests/schemas/aos-privileged-capability-ledger-v1.test.mjs",
-          "reason": "Validate the exact ordered 32-row current/target inventory, closed schema conditions, independent graph semantics and 12 executable aggregate outcome paths, 101 functional and six fail-closed authored route bindings, tracked current/generated/bootstrap paths, every-tracked-path classification plus bounded production/privilege-metadata/managed-descriptor family scans, all 15 non-absent TypeScript/Toolkit surfaces and revision-local package exports, the portable 96-symbol reviewed SDK snapshot and evidence-source identities, proof execution lanes, exact M1 through M10 ref closure, and the native/managed flagship workflow contract."
+          "reason": "Validate the exact ordered 32-row current/target inventory, accepted ADR 0044 owner bindings, immediate-peer/ancestor/spawn evidence with transient-only raw script identity, registry-revision-bound resource declarations, canonical snapshot digests, and current/pinned committed-transaction subscriber CAS, always-available boot stop with typed no-false-cleanup results, immutable barrier snapshots, four closed caller origins, seven mandatory tap bounds with typed queue/expiry semantics, distinct artifact/claim recovery dispositions, exact registered operation-plane scope, bounded retained receipt replay plus expected-barrier CAS, voice no-preemption, 19 M2 deliverables, 15 gates, 70 path refs, 23 proof refs, frozen-v0/active-v1 external-manifest cutover with one listen registration and v1-only readers plus wire-v2 browser/Work Record staging and current-aggregate rehydration, canonical proof-index/workflow reachability, both maintained API owners, and exact 41/49 authored command targets and fifteen-form operation grammar; closed schema conditions; independent graph semantics and 12 executable aggregate outcome paths; 101 functional and six fail-closed authored route bindings; tracked current/generated/bootstrap paths; every-tracked-path classification plus bounded production/privilege-metadata/managed-descriptor family scans; all 15 non-absent TypeScript/Toolkit surfaces and revision-local package exports; the portable 96-symbol reviewed SDK snapshot and evidence-source identities; proof execution lanes; exact M1 through M10 ref closure; and the native/managed flagship workflow contract."
         }
       ],
       "verification": [],

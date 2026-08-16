@@ -126,7 +126,10 @@ needs, but public command policy and product UI policy belong above it:
   merely initialized but not yet running application connection;
 - generic windowing semantics, panel chrome, minimize chips, and reusable
   workbench layout belong in `packages/toolkit/`;
-- program `aos-sovereign-capability-substrate-v1` is governed by ADR 0043 and
+- program `aos-sovereign-capability-substrate-v1` is governed by ADR 0043, its
+  accepted ADR 0044 peer/ancestry/spawn, registered-set host-control, bounded-
+  retained-replay/expected-barrier-CAS, distinct recovery-disposition, prior-
+  generation, and split resource amendment, and
   `docs/dev/aos-sovereign-capability-authority-v1.json`. The narrow fixed
   browser client rule immediately below remains current executable truth and
   burn-down baseline until native transport, manifests/help, schemas, API,

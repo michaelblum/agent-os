@@ -14,6 +14,11 @@ Use this skill when changing command behavior or public command contracts.
    `./aos help <command> --json`.
 3. Update durable docs only for stable contracts, not transient parser details.
 4. Regenerate derived command manifests after source-manifest changes.
+5. For the accepted ADR 0044 external-command migration, preserve the v0
+   schema byte-exact and treat the proposed v1 schema, aggregate wire version 2,
+   single authored `listen` registration, generator, Swift/help readers, proof
+   routing, and installed projections as one atomic cutover. Do not introduce a
+   dual reader, translation path, parallel aggregate, or partial v1 publication.
 
 ## Verification
 
@@ -24,7 +29,8 @@ Run the focused command test plus the gates recommended by
 - `bash tests/help-contract.sh`
 - `bash tests/external-command-dispatch.sh`
 - `bash tests/external-parser-flags.sh`
-- `node --test tests/schemas/aos-external-command-manifest-v0.test.mjs`
+- the active external-command manifest schema proof (v0 until the atomic ADR
+  0044 v1 cutover moves active readers and routing together)
 
 ## Stop
 

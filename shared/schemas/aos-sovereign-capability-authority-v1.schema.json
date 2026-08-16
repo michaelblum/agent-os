@@ -24,7 +24,7 @@
     "$schema": { "type": "string", "minLength": 1 },
     "schema_version": { "const": "aos.sovereign-capability-authority.v1" },
     "program_id": { "const": "aos-sovereign-capability-substrate-v1" },
-    "status": { "const": "accepted_milestone_0_authority" },
+    "status": { "const": "accepted_milestone_2_increment_1_authority" },
     "baseline_revision": { "$ref": "#/$defs/revision" },
     "authority": { "$ref": "#/$defs/authority" },
     "precedence": {
@@ -95,6 +95,7 @@
       "type": "object",
       "required": [
         "aos_adr",
+        "aos_adr_amendments",
         "aos_adr_index",
         "authority_map",
         "human_ledger",
@@ -104,6 +105,15 @@
       "additionalProperties": false,
       "properties": {
         "aos_adr": { "$ref": "#/$defs/repoPath" },
+        "aos_adr_amendments": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "prefixItems": [
+            { "const": "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md" }
+          ],
+          "items": false
+        },
         "aos_adr_index": { "$ref": "#/$defs/repoPath" },
         "authority_map": { "$ref": "#/$defs/repoPath" },
         "human_ledger": { "$ref": "#/$defs/repoPath" },
@@ -280,13 +290,53 @@
     },
     "verification": {
       "type": "object",
-      "required": ["static_test", "proof_registry", "workflow_rules", "command", "forbidden_runtime_actions"],
+      "required": [
+        "static_test",
+        "proof_registry",
+        "workflow_rules",
+        "command",
+        "current_only_projection",
+        "forbidden_authority_field_scan",
+        "forbidden_runtime_actions"
+      ],
       "additionalProperties": false,
       "properties": {
         "static_test": { "$ref": "#/$defs/repoPath" },
         "proof_registry": { "$ref": "#/$defs/repoPath" },
         "workflow_rules": { "$ref": "#/$defs/repoPath" },
         "command": { "type": "string", "minLength": 1 },
+        "current_only_projection": {
+          "type": "object",
+          "required": ["baseline_revision", "source", "selectors", "allowed_wording_exceptions"],
+          "additionalProperties": false,
+          "properties": {
+            "baseline_revision": { "const": "7aada1cb4d7a046a2b99b1b24470115eefc82224" },
+            "source": { "const": "docs/dev/aos-privileged-capability-ledger-v1.json" },
+            "selectors": {
+              "const": [
+                "inventory_revision",
+                "m1_bootstrap_paths",
+                "platform_evidence_sources",
+                "coverage",
+                "capabilities[].id",
+                "capabilities[].current"
+              ]
+            },
+            "allowed_wording_exceptions": { "const": [] }
+          }
+        },
+        "forbidden_authority_field_scan": {
+          "type": "object",
+          "required": ["token_components", "classifications", "bootstrap_paths"],
+          "additionalProperties": false,
+          "properties": {
+            "token_components": { "const": ["human", "initiated"] },
+            "classifications": { "const": ["active", "target"] },
+            "bootstrap_paths": {
+              "const": ["docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md"]
+            }
+          }
+        },
         "forbidden_runtime_actions": {
           "type": "array",
           "minItems": 1,
