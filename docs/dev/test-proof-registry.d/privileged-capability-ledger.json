@@ -1,0 +1,23 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof-worth ownership for the closed Milestone 1 privileged-capability current/target ledger and sovereign first-vertical-slice design contract.",
+  "entries": [
+    {
+      "id": "privileged-capability-ledger-contract",
+      "path_patterns": [
+        "tests/schemas/aos-privileged-capability-ledger-v1.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "architecture-authority",
+      "harness_level": "schema",
+      "proof_kind": "privileged_capability_ledger_contract",
+      "contract": "The static proof validates the exact ordered 32-row ledger against its structural JSON Schema, then applies independent semantic validators for deterministic graph reachability; aggregate state-vector execution of exactly 12 outcome paths; terminal operation and post-authority workflow closure across every included stream, tap, artifact-custody, and recovery state; ordinary remove-failure residual recovery without an ungrounded corruption event; normalized milestone ref closure; TypeScript/Toolkit reachability; proof attribution; and current-path truth. It resolves exactly 101 functional bindings and 107 functional selectors against authored help and route manifests, reverse-closes them with six fail-closed selectors, and keeps generated aggregates output-only. It deep-closes all 15 non-absent TypeScript/Toolkit surfaces and complete/selected package entrypoints against the revision-local runtime/type export map. Its tracked regular-file production-source discovery classifies every tracked path, excludes generated filename patterns, searches exact authored privilege metadata and managed descriptors, and enforces named-family positive/negative boundedness including test-owned private HID/WindowServer call patterns. It directly owns ScreenCaptureKit screen-output/capturesAudio=false/no-audio/no-public-recording truth; binds the seven-label canvas action vocabulary without execution; and verifies the portable 32-capability/96-symbol reviewed SDK snapshot plus complete evidence-source identities without invoking ambient SDK discovery.",
+      "worth": "This fails when canonical row order or milestone assignment changes, structural schema conditions admit contradictory data, a duplicate transition event or terminal/cyclic/recovery invariant appears, an outcome emission or executable aggregate path is unresolved or state-incompatible, a parent or post-authority workflow terminates with an open child/custody/recovery vector, ordinary removal residuals are mislabeled as corruption, a milestone owner/proof/gate union or prerequisite drifts, an authored functional or fail-closed selector is extra or missing, generated command/help loses atomic ownership, any non-absent TypeScript/Toolkit surface or package export binding drifts, a current/generated local path drifts, tracked/searchable privilege classification or a named positive/negative/private family drifts, ScreenCaptureKit begins enabling or registering audio without disposition, the canvas action vocabulary or AppKit endpoints drift, the reviewed SDK tuple/evidence-source catalog changes, or compile proof is mislabeled live/TCC acceptance.",
+      "command": "node --test tests/schemas/aos-privileged-capability-ledger-v1.test.mjs",
+      "replaces": [],
+      "guard": "Structural JSON Schema validation, independent semantic validation, authored-manifest and package-export resolution, tracked regular-file production-source discovery plus bounded authored privilege-metadata/managed-descriptor search, reviewed SDK snapshot classification, and documentation/routing proof only; it does not run native, managed-live, daemon, browser, or TCC acceptance and performs no ./aos, build, package, install, generator, or live capability action.",
+      "status": "active"
+    }
+  ]
+}

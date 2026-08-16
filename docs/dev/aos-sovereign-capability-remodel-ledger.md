@@ -22,10 +22,32 @@ that the current implementation has already changed.
 The paired Sigil authority is ADR 0021 at
 `docs/adr/0021-sigil-sovereign-workflow-composition.md`, keyed by the same
 program identifier in `https://github.com/Ch-osctrl/sigil`. Its publication
-state is `not_landed` and its revision is `null`; the path is external metadata,
-not an AOS-local repository path. Cross-repo landing and activation are
-separately sequenced. This AOS packet does not claim the Sigil ADR is already
-landed.
+state is `landed` at reviewed Sigil revision
+`227382c1bcbdab56f551a85a69b0609eebbdfa0c`; the path is external metadata,
+not an AOS-local repository path. The AOS-first paired publication sequence is
+complete. This landing advances authority only and does not claim that any
+target runtime capability is implemented.
+
+## Milestone 1 capability ledger
+
+`aos-privileged-capability-ledger-v1.json` is the closed 32-row current/target
+inventory over native primitives, public CLI/IPC/SDK/Toolkit reachability,
+snapshot and stream semantics, operation control, artifact custody, platform
+limits, and proof. Its schema owner is
+`../../shared/schemas/aos-privileged-capability-ledger-v1.schema.json`; its
+non-runtime state-machine and vertical-slice contract is
+`../design/aos-sovereign-first-vertical-slice-contract.md`. Source presence is
+not public reachability, absence proof is not capability proof, and a target
+row is not executable truth.
+
+The 32nd row records the existing internal canvas host action bus separately
+from Canvas surface lifecycle. The ledger binds every non-absent CLI form to
+its authored AOS help source and authored external route source; generated
+aggregates are never owners. Proof items declare static, fake, native-compile,
+or separately authorized native-live execution and do not conflate compilation
+with TCC acceptance. Machine-bound M2/M3 path and proof ladders use typed
+`current`, `proposed`, `generated`, and `external` references, so future files
+are not falsely required to exist in M1.
 
 ## Disposition ledger
 
@@ -118,26 +140,32 @@ burn-down entry only when its exit gate is met.
   `docs/dev/test-proof-registry.d/sovereign-capability-authority.json`.
 - Workflow route: `sovereign-capability-authority` in
   `docs/dev/workflow-rules.json`.
+- Milestone 1 closed-ledger proof:
+  `tests/schemas/aos-privileged-capability-ledger-v1.test.mjs`.
+- Milestone 1 proof-worth fragment:
+  `docs/dev/test-proof-registry.d/privileged-capability-ledger.json`.
+- Milestone 1 workflow route: `privileged-capability-ledger` in
+  `docs/dev/workflow-rules.json`.
 
 ## Sequencing
 
-1. Land the AOS authority-only packet first and record its exact landed AOS SHA.
-2. In one later Sigil authority commit, atomically advance both reviewed AOS pin
-   fields, `verifiedRef` and `sourceRevision`, to that exact landed AOS SHA
-   before Sigil authority publication. Land Sigil ADR 0021 and its authority
-   map in that same reviewed commit; until then its publication state remains
-   `not_landed` with revision `null`.
-3. Only after both authority commits are reviewed may cross-repo authority be
-   described as active. Authority publication does not publish runtime
-   implementation or make any target capability executable.
-4. Implement the find, center, and record-video vertical slice in atomic
-   capability increments: substrate, managed grammar, artifact/stream transport,
-   operation lineage/status/kill/blame, SDK/skills, and proof.
+1. The AOS authority-only packet landed first at exact landed AOS SHA
+   `e4ef13081311596f38d011ab5dfed6bb8cd2d496`.
+2. Both reviewed Sigil AOS pin fields, `verifiedRef` and `sourceRevision`, were
+   advanced atomically to that exact landed AOS SHA before Sigil authority
+   publication at `227382c1bcbdab56f551a85a69b0609eebbdfa0c`.
+3. Paired cross-repo authority is now landed. Authority publication does not
+   publish runtime implementation or make any target capability executable.
+4. M2 adapts the existing microphone owner to authenticated peer identity and
+   the shared operation registry/control plane; M3 adds screen video and audio;
+   M4 completes AX and input surfaces; M5 unifies privileged streams; M6
+   publishes canonical protocols and maintained SDKs; M7 exposes managed
+   external tools; M8 converges installable skills; M9 composes Sigil flagship
+   workflows; and M10 runs final acceptance.
 5. Burn down fixed-grammar and consent-gate claims only as their exact owners
-   converge.
-6. Join Simulation Author as the first follow-on flagship consumer only under
-   later explicit owner direction. Do not touch its independent documents in
-   this program slice.
+   converge. Join Simulation Author as the first follow-on flagship only under
+   later explicit owner direction; do not read or modify its independent
+   documents in this program slice.
 
 ## Publication and preservation boundary
 

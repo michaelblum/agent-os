@@ -31,6 +31,14 @@ tests.
   browser-operation absence, direct-capture consent, and narrow status-item
   proofs remain declared burn-down baseline; keep them until the later atomic
   implementation slice replaces their source/help/schema/API/skill contracts.
+- `schemas/aos-privileged-capability-ledger-v1.test.mjs` owns the static
+  Milestone 1 ledger proof. It validates the exact ordered 32-row current/
+  target inventory, schema cross-field failures, authored CLI bindings,
+  tracked/bootstrap/current/generated path truth, Apple-primary floors,
+  explicit unsupported and unverified rows, production-symbol discovery,
+  proof execution classes, unresolved M2 owner decisions, exact machine state/
+  taxonomy/M1-through-M10/flagship contracts, and non-runtime design. It must not
+  execute `./aos`, the daemon, browser, native UI, TCC, builds, or packaging.
 - Do not weaken assertions to match stale behavior; update the owning contract
   or source when behavior intentionally changes.
 - Core Target Handle V1 acceptance tests use isolated state roots, injected

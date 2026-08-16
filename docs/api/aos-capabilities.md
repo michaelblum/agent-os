@@ -16,6 +16,12 @@ schema docs or historical design notes.
 > browser grammar, direct-capture priming, and missing general
 > status/kill/blame are burn-down baseline; do not infer a command or SDK method
 > that current help, schemas, and implementation do not expose.
+> The closed Milestone 1 row inventory is
+> `../dev/aos-privileged-capability-ledger-v1.json`. Its exact 32 rows bind
+> source primitives, authored CLI form/route ownership, public reachability,
+> proof execution class, and separately typed target milestones. It adds no
+> command, IPC method, SDK method, native primitive, permission behavior, or
+> runtime guarantee.
 
 ## Authority And Observation Posture
 

@@ -37,17 +37,29 @@ source root. This file is a routing map, not a replacement for those sources.
 - Human dispositions, generated ownership, sequencing, publication boundaries,
   and preservation rules:
   `docs/dev/aos-sovereign-capability-remodel-ledger.md`.
+- Milestone 1 exact ordered 32-row current/target capability inventory,
+  including the internal canvas host action bus and authored CLI form/route
+  bindings:
+  `docs/dev/aos-privileged-capability-ledger-v1.json`, validated by
+  `shared/schemas/aos-privileged-capability-ledger-v1.schema.json`. Its
+  non-runtime operation/stream/tap/artifact/barrier/recovery, proof-lane,
+  geometry, recording, native/managed flagship, and exact full-content
+  M1-through-M10 sequence is
+  `docs/design/aos-sovereign-first-vertical-slice-contract.md`; its static
+  proof owner is
+  `docs/dev/test-proof-registry.d/privileged-capability-ledger.json`.
 - Current source, command-source manifests, generated help, schemas, tests,
   API docs, and runtime readback remain executable truth until a later atomic
   implementation slice. A mapped Rewrite or Retire claim is burn-down baseline,
   not evidence that the capability already changed.
 - The paired external authority is Sigil ADR 0021 under the same program id.
-  Its machine publication_state is `not_landed` and revision is `null`; its
-  repository and path are external metadata, not an AOS-local path. AOS
-  authority lands first. A later Sigil authority commit must atomically advance
-  both reviewed AOS pins to the exact landed AOS SHA before Sigil publication.
-  Authority publication is distinct from runtime implementation and does not
-  make target capabilities executable.
+  Its machine publication_state is `landed` at reviewed Sigil revision
+  `227382c1bcbdab56f551a85a69b0609eebbdfa0c`; its repository and path are
+  external metadata, not an AOS-local path. The AOS authority-only packet
+  landed first at the exact landed AOS SHA, and both reviewed Sigil AOS pins
+  advanced atomically before Sigil publication. Authority publication remains
+  distinct from runtime implementation and does not make target capabilities
+  executable.
 
 ## Runtime Primitives And CLI/API Contracts
 
