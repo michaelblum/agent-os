@@ -282,7 +282,7 @@ private final class AOSMicrophoneCaptureSession: NSObject, AVAudioRecorderDelega
     private let maximumDuration: TimeInterval
     private let authorizationState: () -> AOSMicrophoneAuthorizationState
     private let emit: (String, [String: Any]) -> Void
-    private let terminal: (UUID) -> Void
+    private let terminal: (AOSMicrophoneCaptureTermination) -> Void
     private var recorder: AVAudioRecorder
     private let stateLock = NSLock()
     private var meterTimer: DispatchSourceTimer?
@@ -296,7 +296,7 @@ private final class AOSMicrophoneCaptureSession: NSObject, AVAudioRecorderDelega
         maximumDuration: TimeInterval,
         authorizationState: @escaping () -> AOSMicrophoneAuthorizationState,
         emit: @escaping (String, [String: Any]) -> Void,
-        terminal: @escaping (UUID) -> Void
+        terminal: @escaping (AOSMicrophoneCaptureTermination) -> Void
     ) throws {
         guard let boundedDuration = aosVoiceCaptureDuration(maximumDuration) else {
             throw AOSVoiceTransportFailure(code: "INVALID_MAX_DURATION", message: "voice capture duration must be positive")
@@ -335,6 +335,15 @@ private final class AOSMicrophoneCaptureSession: NSObject, AVAudioRecorderDelega
     }
 
     func start() throws {
+        stateLock.lock()
+        let canceledBeforeStart = finished
+        stateLock.unlock()
+        guard !canceledBeforeStart else {
+            throw AOSVoiceTransportFailure(
+                code: "CAPTURE_CANCELED",
+                message: "microphone capture was canceled before startup"
+            )
+        }
         var started = false
         aosRunOnMainSync {
             started = recorder.record(forDuration: maximumDuration)
@@ -409,6 +418,7 @@ private final class AOSMicrophoneCaptureSession: NSObject, AVAudioRecorderDelega
         meterTimer = nil
         let fallbackDuration = recorder.currentTime
         recorder.stop()
+        let authorityAbsent = !recorder.isRecording
         _ = chmod(outputURL.path, mode_t(0o600))
         let size = (try? outputURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
         let limitExceeded = size > aosVoiceCaptureMaximumBytes
@@ -431,7 +441,15 @@ private final class AOSMicrophoneCaptureSession: NSObject, AVAudioRecorderDelega
         } else {
             emit("capture_canceled", ["reason": reason])
         }
-        terminal(token)
+        terminal(AOSMicrophoneCaptureTermination(
+            token: token,
+            trigger: aosMicrophoneCaptureTerminalTrigger(
+                completed: keepFile && !limitExceeded,
+                reason: reason,
+                failureCode: failureCode ?? (limitExceeded ? "OUTPUT_LIMIT_EXCEEDED" : nil)
+            ),
+            authorityAbsent: authorityAbsent
+        ))
     }
 
     func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
@@ -471,7 +489,7 @@ func aosRunOnMainSync(_ operation: () -> Void) {
     }
 }
 
-private final class AOSStreamingSpeechSession: AOSVoiceOutputLease {
+private final class AOSStreamingSpeechSession: AOSLegacyVoiceOutputSentinel {
     let token = UUID()
     let owner: UUID
     let ref: String?
@@ -657,20 +675,31 @@ final class AOSVoiceTransport {
         var isPressed: Bool
     }
 
+    private struct PendingCaptureAdmission {
+        let token: UUID
+        let owner: UUID
+        var operation: (any AOSMicrophoneOperationClaimLease)?
+    }
+
     private let lock = NSLock()
     private let captureStartupQueue = DispatchQueue(label: "aos.voice.capture-startup", qos: .userInitiated)
     private let emit: EventEmitter
     private let microphoneAuthorization: AOSMicrophoneAuthorizationProviding
+    private let microphoneOperations: (any AOSMicrophoneOperationClaiming)?
     private var hotkey: HotkeyLease?
+    private var pendingCaptureAdmission: PendingCaptureAdmission?
     private var capture: (any AOSMicrophoneCaptureLease)?
-    private var output: (any AOSVoiceOutputLease)?
+    private var captureOperation: (any AOSMicrophoneOperationClaimLease)?
+    private var output: (any AOSLegacyVoiceOutputSentinel)?
 
     init(
         emit: @escaping EventEmitter,
-        microphoneAuthorization: AOSMicrophoneAuthorizationProviding = AOSSystemMicrophoneAuthorization()
+        microphoneAuthorization: AOSMicrophoneAuthorizationProviding = AOSSystemMicrophoneAuthorization(),
+        microphoneOperations: (any AOSMicrophoneOperationClaiming)? = nil
     ) {
         self.emit = emit
         self.microphoneAuthorization = microphoneAuthorization
+        self.microphoneOperations = microphoneOperations
     }
 
     func microphoneAuthorizationStatus() -> AOSMicrophoneAuthorizationState {
@@ -729,44 +758,48 @@ final class AOSVoiceTransport {
     }
 
     func startCapture(owner: UUID, outputPath: String, maximumDuration: TimeInterval, ref: String?) throws {
-        lock.lock()
-        guard capture == nil else {
-            lock.unlock()
-            throw AOSVoiceTransportFailure(code: "CAPTURE_LEASE_BUSY", message: "microphone capture is already active")
-        }
-        lock.unlock()
-
-        var authorization = microphoneAuthorization.status()
-        if authorization == .notDetermined {
-            authorization = microphoneAuthorization.request(timeout: 30).after
-        }
-        if let failure = authorization.failure {
-            throw AOSVoiceTransportFailure(code: failure.code, message: failure.message)
-        }
-        let session = try AOSMicrophoneCaptureSession(
-            owner: owner,
-            ref: ref,
-            outputPath: outputPath,
-            maximumDuration: maximumDuration,
-            authorizationState: { [microphoneAuthorization] in microphoneAuthorization.status() },
-            emit: { [emit] event, data in emit(owner, event, data, ref) },
-            terminal: { [weak self] token in self?.captureDidTerminate(token: token) }
-        )
-        lock.lock()
-        guard capture == nil else {
-            lock.unlock()
-            session.cancel(reason: "superseded")
-            throw AOSVoiceTransportFailure(code: "CAPTURE_LEASE_BUSY", message: "microphone capture is already active")
-        }
-        let outputToCancel = output
-        capture = session
-        lock.unlock()
-        outputToCancel?.cancel(reason: "barge_in")
+        let admissionToken = try beginCaptureAdmission(owner: owner)
+        var operation: (any AOSMicrophoneOperationClaimLease)?
         do {
+            operation = try prepareCaptureOperation(owner: owner, admissionToken: admissionToken)
+            var authorization = microphoneAuthorization.status()
+            if authorization == .notDetermined {
+                authorization = microphoneAuthorization.request(timeout: 30).after
+            }
+            if let failure = authorization.failure {
+                throw AOSVoiceTransportFailure(code: failure.code, message: failure.message)
+            }
+            let session = try AOSMicrophoneCaptureSession(
+                owner: owner,
+                ref: ref,
+                outputPath: outputPath,
+                maximumDuration: maximumDuration,
+                authorizationState: { [microphoneAuthorization] in microphoneAuthorization.status() },
+                emit: { [emit] event, data in emit(owner, event, data, ref) },
+                terminal: { [weak self] termination in
+                    self?.captureDidTerminate(termination)
+                }
+            )
+            try installCapture(
+                session,
+                operation: operation,
+                admissionToken: admissionToken
+            )
+            try operation?.bindAuthority(
+                stop: { [weak session] force in
+                    session?.cancel(reason: force ? "operation_kill" : "operation_cancel")
+                },
+                residualDigest: { nil }
+            )
             try session.start()
+            try operation?.markAuthorityStarted()
         } catch {
-            captureDidTerminate(token: session.token)
-            throw error
+            failCaptureAdmission(
+                admissionToken: admissionToken,
+                operation: operation,
+                trigger: .adapterFailed
+            )
+            throw voiceOperationError(error)
         }
     }
 
@@ -778,44 +811,57 @@ final class AOSVoiceTransport {
         readyCue: AOSCaptureReadyCue,
         ref: String?
     ) throws -> () -> Void {
-        lock.lock()
-        guard capture == nil else {
-            lock.unlock()
-            throw AOSVoiceTransportFailure(code: "CAPTURE_LEASE_BUSY", message: "microphone capture is already active")
-        }
-        lock.unlock()
-
-        let session = try AOSSegmentedMicrophoneCaptureSession(
-            owner: owner,
-            ref: ref,
-            directoryPath: directoryPath,
-            segmentDuration: segmentDuration,
-            maximumDuration: maximumDuration,
-            readyCue: readyCue,
-            authorizeMicrophone: { [microphoneAuthorization] in
-                let current = microphoneAuthorization.status()
-                return current == .notDetermined
-                    ? microphoneAuthorization.request(timeout: 30).after
-                    : current
-            },
-            authorizationState: { [microphoneAuthorization] in microphoneAuthorization.status() },
-            emit: { [emit] event, data in emit(owner, event, data, ref) },
-            terminal: { [weak self] token in self?.captureDidTerminate(token: token) }
-        )
-        lock.lock()
-        guard capture == nil else {
-            lock.unlock()
-            session.cancel(reason: "superseded")
-            throw AOSVoiceTransportFailure(code: "CAPTURE_LEASE_BUSY", message: "microphone capture is already active")
-        }
-        let outputToCancel = output
-        capture = session
-        lock.unlock()
-        outputToCancel?.cancel(reason: "barge_in")
-        return { [captureStartupQueue] in
-            captureStartupQueue.async {
-                try? session.start()
+        let admissionToken = try beginCaptureAdmission(owner: owner)
+        var operation: (any AOSMicrophoneOperationClaimLease)?
+        do {
+            operation = try prepareCaptureOperation(owner: owner, admissionToken: admissionToken)
+            let session = try AOSSegmentedMicrophoneCaptureSession(
+                owner: owner,
+                ref: ref,
+                directoryPath: directoryPath,
+                segmentDuration: segmentDuration,
+                maximumDuration: maximumDuration,
+                readyCue: readyCue,
+                authorizeMicrophone: { [microphoneAuthorization] in
+                    let current = microphoneAuthorization.status()
+                    return current == .notDetermined
+                        ? microphoneAuthorization.request(timeout: 30).after
+                        : current
+                },
+                authorizationState: { [microphoneAuthorization] in microphoneAuthorization.status() },
+                emit: { [emit] event, data in emit(owner, event, data, ref) },
+                terminal: { [weak self] termination in
+                    self?.captureDidTerminate(termination)
+                }
+            )
+            try installCapture(
+                session,
+                operation: operation,
+                admissionToken: admissionToken
+            )
+            try operation?.bindAuthority(
+                stop: { [weak session] force in
+                    session?.cancel(reason: force ? "operation_kill" : "operation_cancel")
+                },
+                residualDigest: { nil }
+            )
+            return { [captureStartupQueue] in
+                captureStartupQueue.async {
+                    do {
+                        try session.start()
+                        try operation?.markAuthorityStarted()
+                    } catch {
+                        session.cancel(reason: "startup_failed")
+                    }
+                }
             }
+        } catch {
+            failCaptureAdmission(
+                admissionToken: admissionToken,
+                operation: operation,
+                trigger: .adapterFailed
+            )
+            throw voiceOperationError(error)
         }
     }
 
@@ -825,13 +871,19 @@ final class AOSVoiceTransport {
             lock.unlock()
             throw AOSVoiceTransportFailure(code: "CAPTURE_NOT_OWNED", message: "this connection does not own microphone capture")
         }
+        let operation = captureOperation
         lock.unlock()
+        do {
+            try operation?.noteStop(trigger: finalize ? .completed : .cancelled)
+        } catch {
+            throw voiceOperationError(error)
+        }
         if finalize { session.finalize(reason: reason) } else { session.cancel(reason: reason) }
     }
 
     func startSpeech(owner: UUID, text: String, voiceID: String?, rateWPM: Double?, ref: String?) throws {
         lock.lock()
-        guard capture == nil else {
+        guard capture == nil, pendingCaptureAdmission == nil else {
             lock.unlock()
             throw AOSVoiceTransportFailure(code: "CAPTURE_ACTIVE", message: "speech cannot start during microphone capture")
         }
@@ -851,7 +903,7 @@ final class AOSVoiceTransport {
             terminal: { [weak self] token in self?.outputDidTerminate(token: token) }
         )
         lock.lock()
-        guard capture == nil else {
+        guard capture == nil, pendingCaptureAdmission == nil else {
             lock.unlock()
             throw AOSVoiceTransportFailure(code: "CAPTURE_ACTIVE", message: "speech cannot start during microphone capture")
         }
@@ -866,7 +918,7 @@ final class AOSVoiceTransport {
 
     func startPlayback(owner: UUID, inputPath: String, ref: String?) throws {
         lock.lock()
-        guard capture == nil else {
+        guard capture == nil, pendingCaptureAdmission == nil else {
             lock.unlock()
             throw AOSVoiceTransportFailure(code: "CAPTURE_ACTIVE", message: "audio playback cannot start during microphone capture")
         }
@@ -884,7 +936,7 @@ final class AOSVoiceTransport {
             terminal: { [weak self] token in self?.outputDidTerminate(token: token) }
         )
         lock.lock()
-        guard capture == nil else {
+        guard capture == nil, pendingCaptureAdmission == nil else {
             lock.unlock()
             throw AOSVoiceTransportFailure(code: "CAPTURE_ACTIVE", message: "audio playback cannot start during microphone capture")
         }
@@ -917,8 +969,22 @@ final class AOSVoiceTransport {
         lock.lock()
         if hotkey?.owner == owner { hotkey = nil }
         let captureToCancel = capture?.owner == owner ? capture : nil
+        let captureOperationToCancel = capture?.owner == owner ? captureOperation : nil
+        let pendingOperationToCancel = pendingCaptureAdmission?.owner == owner
+            ? pendingCaptureAdmission?.operation
+            : nil
+        if pendingCaptureAdmission?.owner == owner { pendingCaptureAdmission = nil }
         let outputToCancel = output?.owner == owner ? output : nil
         lock.unlock()
+        try? captureOperationToCancel?.noteStop(trigger: .ownerDisconnected)
+        try? pendingOperationToCancel?.noteStop(trigger: .ownerDisconnected)
+        if let pendingOperationToCancel {
+            pendingOperationToCancel.authorityDidTerminate(AOSMicrophoneCaptureTermination(
+                token: UUID(),
+                trigger: .ownerDisconnected,
+                authorityAbsent: true
+            ))
+        }
         captureToCancel?.cancel(reason: "owner_disconnect")
         outputToCancel?.cancel(reason: "owner_disconnect")
     }
@@ -927,16 +993,146 @@ final class AOSVoiceTransport {
         lock.lock()
         hotkey = nil
         let captureToCancel = capture
+        let captureOperationToCancel = captureOperation
+        let pendingOperationToCancel = pendingCaptureAdmission?.operation
+        pendingCaptureAdmission = nil
         let outputToCancel = output
         lock.unlock()
+        try? captureOperationToCancel?.noteStop(trigger: .daemonShutdown)
+        try? pendingOperationToCancel?.noteStop(trigger: .daemonShutdown)
+        if let pendingOperationToCancel {
+            pendingOperationToCancel.authorityDidTerminate(AOSMicrophoneCaptureTermination(
+                token: UUID(),
+                trigger: .daemonShutdown,
+                authorityAbsent: true
+            ))
+        }
         captureToCancel?.cancel(reason: "daemon_shutdown")
         outputToCancel?.cancel(reason: "daemon_shutdown")
     }
 
-    private func captureDidTerminate(token: UUID) {
+    private func captureDidTerminate(_ termination: AOSMicrophoneCaptureTermination) {
         lock.lock()
-        if capture?.token == token { capture = nil }
+        let operation: (any AOSMicrophoneOperationClaimLease)?
+        if capture?.token == termination.token {
+            capture = nil
+            operation = captureOperation
+            captureOperation = nil
+        } else {
+            operation = nil
+        }
         lock.unlock()
+        operation?.authorityDidTerminate(termination)
+    }
+
+    private func beginCaptureAdmission(owner: UUID) throws -> UUID {
+        lock.lock()
+        defer { lock.unlock() }
+        guard capture == nil, pendingCaptureAdmission == nil else {
+            throw AOSVoiceTransportFailure(
+                code: "OPERATION_RESOURCE_BUSY",
+                message: "microphone capture is already active"
+            )
+        }
+        guard output == nil else {
+            throw AOSVoiceTransportFailure(
+                code: "OPERATION_RESOURCE_BUSY",
+                message: "the shared voice native session is busy"
+            )
+        }
+        let token = UUID()
+        pendingCaptureAdmission = PendingCaptureAdmission(token: token, owner: owner, operation: nil)
+        return token
+    }
+
+    private func prepareCaptureOperation(
+        owner: UUID,
+        admissionToken: UUID
+    ) throws -> (any AOSMicrophoneOperationClaimLease)? {
+        guard let microphoneOperations else { return nil }
+        let operation = try microphoneOperations.prepareCapture(owner: owner)
+        lock.lock()
+        guard var pending = pendingCaptureAdmission,
+              pending.token == admissionToken,
+              pending.owner == owner else {
+            lock.unlock()
+            try? operation.noteStop(trigger: .cancelled)
+            operation.authorityDidTerminate(AOSMicrophoneCaptureTermination(
+                token: admissionToken,
+                trigger: .cancelled,
+                authorityAbsent: true
+            ))
+            throw AOSVoiceTransportFailure(
+                code: "CAPTURE_CANCELED",
+                message: "microphone capture admission was canceled"
+            )
+        }
+        pending.operation = operation
+        pendingCaptureAdmission = pending
+        lock.unlock()
+        return operation
+    }
+
+    private func installCapture(
+        _ session: any AOSMicrophoneCaptureLease,
+        operation: (any AOSMicrophoneOperationClaimLease)?,
+        admissionToken: UUID
+    ) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let pending = pendingCaptureAdmission,
+              pending.token == admissionToken,
+              pending.owner == session.owner,
+              capture == nil,
+              output == nil else {
+            throw AOSVoiceTransportFailure(
+                code: "CAPTURE_CANCELED",
+                message: "microphone capture admission was canceled"
+            )
+        }
+        capture = session
+        captureOperation = operation
+        pendingCaptureAdmission = nil
+    }
+
+    private func failCaptureAdmission(
+        admissionToken: UUID,
+        operation: (any AOSMicrophoneOperationClaimLease)?,
+        trigger: AOSMicrophoneCaptureTerminalTrigger
+    ) {
+        lock.lock()
+        if pendingCaptureAdmission?.token == admissionToken {
+            pendingCaptureAdmission = nil
+        }
+        let installedSession: (any AOSMicrophoneCaptureLease)?
+        if let operation, let activeOperation = captureOperation, activeOperation === operation {
+            installedSession = capture
+        } else if operation == nil, captureOperation == nil {
+            installedSession = capture
+        } else {
+            installedSession = nil
+        }
+        lock.unlock()
+
+        if let installedSession {
+            installedSession.cancel(reason: "startup_failed")
+            return
+        }
+        guard let operation else { return }
+        try? operation.noteStop(trigger: trigger)
+        operation.authorityDidTerminate(AOSMicrophoneCaptureTermination(
+            token: admissionToken,
+            trigger: trigger,
+            authorityAbsent: true
+        ))
+    }
+
+    private func voiceOperationError(_ error: Error) -> Error {
+        if error is AOSVoiceTransportFailure { return error }
+        return AOSVoiceTransportFailure(
+            code: "OPERATION_ADMISSION_FAILED",
+            message: "microphone operation admission failed"
+        )
     }
 
     private func outputDidTerminate(token: UUID) {

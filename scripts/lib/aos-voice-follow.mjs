@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import fs from 'node:fs';
 import {
   connectWithAutoStart,
   stopManagedDaemon,
@@ -7,7 +6,18 @@ import {
 
 const MAX_LINE_BYTES = 16 * 1024;
 const MAX_SPEECH_BYTES = 64 * 1024;
-const EXTERNAL_DISPATCH_PARENT_PID_ENV = 'AOS_EXTERNAL_DISPATCH_PARENT_PID';
+const EXTERNAL_DISPATCH_REVIEWED_DEPENDENCY_SET_DIGEST_ENV = 'AOS_EXTERNAL_DISPATCH_REVIEWED_DEPENDENCY_SET_DIGEST';
+const EXTERNAL_DISPATCH_LIFECYCLE_PARENT_PID_ENV = 'AOS_EXTERNAL_DISPATCH_LIFECYCLE_PARENT_PID';
+const externalDispatchReviewedDependencySetDigest = process.env[EXTERNAL_DISPATCH_REVIEWED_DEPENDENCY_SET_DIGEST_ENV];
+const assertedLifecycleParentPID = process.env[EXTERNAL_DISPATCH_LIFECYCLE_PARENT_PID_ENV];
+const parsedLifecycleParentPID = /^\d+$/.test(assertedLifecycleParentPID ?? '')
+  ? Number(assertedLifecycleParentPID)
+  : null;
+const externalDispatchParentAssertionValid = assertedLifecycleParentPID === undefined
+  || (Number.isSafeInteger(parsedLifecycleParentPID) && parsedLifecycleParentPID > 0 && parsedLifecycleParentPID === process.ppid);
+const externalDispatchParentPID = parsedLifecycleParentPID ?? process.ppid;
+delete process.env[EXTERNAL_DISPATCH_REVIEWED_DEPENDENCY_SET_DIGEST_ENV];
+delete process.env[EXTERNAL_DISPATCH_LIFECYCLE_PARENT_PID_ENV];
 const TERMINAL_EVENTS = new Set([
   'capture_completed',
   'capture_canceled',
@@ -77,6 +87,25 @@ function fail(message, code) {
   throw error;
 }
 
+function hasExactKeys(value, keys) {
+  return value !== null
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && Object.keys(value).length === keys.length
+    && keys.every((key) => Object.hasOwn(value, key));
+}
+
+function operationIdentifier(value) {
+  return typeof value === 'string'
+    && value.length >= 1
+    && value.length <= 128
+    && /^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(value);
+}
+
+function operationGeneration(value) {
+  return Number.isSafeInteger(value) && value >= 1 && value <= Number.MAX_SAFE_INTEGER;
+}
+
 function valueAfter(args, token) {
   const index = args.indexOf(token);
   if (index < 0) return undefined;
@@ -133,27 +162,194 @@ function request(service, action, data, ref) {
   return `${JSON.stringify({ v: 1, service, action, data, ref })}\n`;
 }
 
-function monitorExternalDispatchParent(onDisconnect) {
-  const parentPID = Number(process.env[EXTERNAL_DISPATCH_PARENT_PID_ENV]);
-  if (!Number.isInteger(parentPID) || parentPID <= 1) return null;
-  const testDelay = process.env.NODE_ENV === 'test'
-    ? Number(process.env.AOS_TEST_PARENT_MONITOR_DELAY_MS ?? 0)
-    : 0;
-  const firstCheckAt = Date.now() + (Number.isFinite(testDelay) && testDelay > 0 ? Math.min(testDelay, 2_000) : 0);
-  const timer = setInterval(() => {
-    if (Date.now() < firstCheckAt) return;
-    let alive = process.ppid === parentPID;
-    if (alive) {
-      try {
-        process.kill(parentPID, 0);
-      } catch {
-        alive = false;
+function readOneHandshakeJSON(socket, timeoutMs = 3000) {
+  return new Promise((resolve) => {
+    let buffer = '';
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      socket.off('data', onData);
+      socket.off('error', onFailure);
+      socket.off('close', onFailure);
+      resolve(value);
+    };
+    const onFailure = () => finish(null);
+    const onData = (chunk) => {
+      buffer += chunk.toString('utf8');
+      if (Buffer.byteLength(buffer) > MAX_LINE_BYTES) {
+        finish(null);
+        return;
       }
-    }
-    if (!alive) onDisconnect();
+      const newline = buffer.indexOf('\n');
+      if (newline < 0) return;
+      try {
+        finish(JSON.parse(buffer.slice(0, newline)));
+      } catch {
+        finish(null);
+      }
+    };
+    const timer = setTimeout(onFailure, timeoutMs);
+    socket.on('data', onData);
+    socket.once('error', onFailure);
+    socket.once('close', onFailure);
+  });
+}
+
+function monitorExternalDispatchParent(onDisconnect) {
+  if (!externalDispatchParentAssertionValid || process.ppid !== externalDispatchParentPID) {
+    onDisconnect();
+    return null;
+  }
+  const timer = setInterval(() => {
+    if (process.ppid === externalDispatchParentPID) return;
+    clearInterval(timer);
+    onDisconnect();
   }, 250);
   timer.unref();
   return timer;
+}
+
+// Lifecycle only: this narrows child lifetime to the native dispatch parent.
+// The asserted PID is never sent to the daemon or used as authority evidence.
+export function monitorExternalDispatchLifecycleOnly(onDisconnect) {
+  return monitorExternalDispatchParent(onDisconnect);
+}
+
+function readSpeechInput() {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let byteCount = 0;
+    let settled = false;
+    let parentMonitor = null;
+    const cleanup = () => {
+      if (parentMonitor) clearInterval(parentMonitor);
+      process.stdin.off('data', onData);
+      process.stdin.off('end', onEnd);
+      process.stdin.off('error', onError);
+    };
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      process.stdin.pause();
+      resolve(value);
+    };
+    const rejectInvalid = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      process.stdin.pause();
+      const error = new Error('say --follow stdin must contain 1 to 65536 bytes');
+      error.code = 'INVALID_SPEECH_TEXT';
+      reject(error);
+    };
+    const onData = (chunk) => {
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      byteCount += bytes.length;
+      if (byteCount > MAX_SPEECH_BYTES) {
+        rejectInvalid();
+        return;
+      }
+      chunks.push(bytes);
+    };
+    const onEnd = () => finish(Buffer.concat(chunks, byteCount));
+    const onError = () => rejectInvalid();
+
+    process.stdin.on('data', onData);
+    process.stdin.once('end', onEnd);
+    process.stdin.once('error', onError);
+    parentMonitor = monitorExternalDispatchParent(() => finish(null));
+    process.stdin.resume();
+  });
+}
+
+async function finalizeExternalSpawn(socket) {
+  const ref = randomUUID();
+  const reviewedDependencySetDigest = externalDispatchReviewedDependencySetDigest;
+  if (!/^[0-9a-f]{64}$/.test(reviewedDependencySetDigest ?? '')) {
+    fail('external microphone spawn dependency evidence is unavailable', 'EXTERNAL_SPAWN_FINALIZE_INVALID');
+  }
+  socket.write(request('operation', 'external_spawn_finalize', {
+    schema_version: 'aos.operation.external-spawn-finalize-request.v1',
+    request_id: ref,
+  }, ref));
+  const response = await readOneHandshakeJSON(socket);
+  const payload = response?.data;
+  if (response?.status === 'error' || response?.error) {
+    fail('external microphone spawn binding was rejected', 'EXTERNAL_SPAWN_FINALIZE_FAILED');
+  }
+  if (
+    !hasExactKeys(response, ['v', 'status', 'ref', 'data'])
+    || !hasExactKeys(payload, [
+      'schema_version',
+      'request_id',
+      'spawn_record_id',
+      'operation_id',
+      'operation_generation',
+      'adapter_registration_id',
+      'adapter_registration_revision',
+      'outcome',
+      'receipt',
+    ])
+    || !hasExactKeys(payload?.receipt, [
+      'spawn_record_id',
+      'operation_id',
+      'operation_generation',
+      'adapter_registration_id',
+      'adapter_registration_revision',
+      'resolved_executable_path_digest',
+      'executable_identity_digest',
+      'executable_file_digest',
+      'platform_code_directory_hash',
+      'platform_code_directory_hash_algorithm',
+      'expected_script_identity_digest',
+      'script_identity_digest',
+      'script_digest',
+      'canonical_argv_shape_digest',
+      'reviewed_dependency_set_digest',
+      'outcome',
+    ])
+    || !/^[0-9a-f]{40}$/.test(payload?.receipt?.platform_code_directory_hash ?? '')
+    || payload?.receipt?.platform_code_directory_hash_algorithm !== 'sha256_truncated_cdhash_20_bytes'
+    || response?.v !== 1
+    || response?.status !== 'success'
+    || response?.ref !== ref
+    || payload?.schema_version !== 'aos.operation.external-spawn-finalize-response.v1'
+    || payload?.request_id !== ref
+    || !operationIdentifier(payload?.spawn_record_id)
+    || !operationIdentifier(payload?.operation_id)
+    || !operationGeneration(payload?.operation_generation)
+    || payload?.adapter_registration_id !== 'microphone-capture-adapter'
+    || !operationGeneration(payload?.adapter_registration_revision)
+    || payload?.adapter_registration_revision !== 1
+    || payload?.outcome !== 'generation_bound_spawn_record_finalized'
+    || payload?.receipt?.outcome !== 'generation_bound_spawn_record_finalized'
+    || payload?.receipt?.spawn_record_id !== payload?.spawn_record_id
+    || payload?.receipt?.operation_id !== payload?.operation_id
+    || payload?.receipt?.operation_generation !== payload?.operation_generation
+    || payload?.receipt?.adapter_registration_id !== payload?.adapter_registration_id
+    || payload?.receipt?.adapter_registration_revision !== payload?.adapter_registration_revision
+    || payload?.receipt?.reviewed_dependency_set_digest !== reviewedDependencySetDigest
+    || payload?.receipt?.script_identity_digest !== payload?.receipt?.expected_script_identity_digest
+    || ![
+      'resolved_executable_path_digest',
+      'executable_identity_digest',
+      'executable_file_digest',
+      'expected_script_identity_digest',
+      'script_identity_digest',
+      'script_digest',
+      'reviewed_dependency_set_digest',
+      'canonical_argv_shape_digest',
+    ].every((field) => /^[0-9a-f]{64}$/.test(payload?.receipt?.[field] ?? ''))
+  ) {
+    fail('external microphone spawn binding response was invalid', 'EXTERNAL_SPAWN_FINALIZE_INVALID');
+  }
+  return {
+    operation_id: payload.operation_id,
+    operation_generation: payload.operation_generation,
+  };
 }
 
 export async function followDaemonLease({
@@ -173,6 +369,7 @@ export async function followDaemonLease({
   fallbackErrorCode,
   fallbackErrorMessage,
   transformEvent = (payload) => payload,
+  requiresExternalSpawnBinding = false,
 }) {
   const startupAbort = new AbortController();
   let startupCanceled = false;
@@ -183,6 +380,8 @@ export async function followDaemonLease({
   let buffer = '';
   let settled = false;
   let controlSent = false;
+  let shutdownRequested = false;
+  let authorityRequestStarted = false;
   let parentMonitor = null;
   let cleanupPromise = null;
 
@@ -212,9 +411,14 @@ export async function followDaemonLease({
 
   const requestShutdown = (kind) => {
     if (settled) return;
+    shutdownRequested = true;
     if (!connection) {
       startupCanceled = true;
       startupAbort.abort();
+      return;
+    }
+    if (!authorityRequestStarted) {
+      cleanup(0);
       return;
     }
     sendControl(kind);
@@ -223,18 +427,30 @@ export async function followDaemonLease({
   process.once('SIGINT', () => requestShutdown('stop'));
   process.once('SIGTERM', () => requestShutdown('cancel'));
   parentMonitor = monitorExternalDispatchParent(() => requestShutdown('cancel'));
-
   connection = await connectWithAutoStart({
     managed: true,
     signal: startupAbort.signal,
     onManagedDaemon: (daemon) => { ownedDaemon = daemon; },
   });
   socket = connection?.socket ?? null;
-  if (startupCanceled || startupAbort.signal.aborted) {
+  if (startupCanceled || startupAbort.signal.aborted || shutdownRequested) {
     await cleanup(0);
     return;
   }
   if (!socket) fail('Cannot connect to daemon', 'DAEMON_UNREACHABLE');
+  if (requiresExternalSpawnBinding) {
+    try {
+      await finalizeExternalSpawn(socket);
+    } catch (error) {
+      await cleanup(shutdownRequested ? 0 : 1);
+      if (shutdownRequested) return;
+      throw error;
+    }
+  }
+  if (shutdownRequested) {
+    await cleanup(0);
+    return;
+  }
 
   socket.on('data', (chunk) => {
     buffer += chunk.toString('utf8');
@@ -283,6 +499,7 @@ export async function followDaemonLease({
   });
   socket.once('error', () => cleanup(1));
   socket.once('close', () => cleanup(controlSent ? 0 : 1));
+  authorityRequestStarted = true;
   socket.write(request(service, action, data, ref));
 }
 
@@ -355,6 +572,7 @@ export async function listenVoice(args) {
         },
         stopAction: { service: 'listen', action: 'stop' },
         cancelAction: { service: 'listen', action: 'cancel' },
+        requiresExternalSpawnBinding: true,
       });
       return;
     }
@@ -367,6 +585,7 @@ export async function listenVoice(args) {
       },
       stopAction: { service: 'listen', action: 'stop' },
       cancelAction: { service: 'listen', action: 'cancel' },
+      requiresExternalSpawnBinding: true,
     });
     return;
   }
@@ -377,7 +596,8 @@ export async function sayFollow(args) {
   assertOnlyFlags(args, new Set(['--voice', '--rate']), new Set(['--follow']));
   if (!args.includes('--follow')) fail('say follow requires --follow', 'MISSING_ARG');
   if (process.stdin.isTTY) fail('say --follow reads speech text from stdin', 'MISSING_ARG');
-  const bytes = fs.readFileSync(0);
+  const bytes = await readSpeechInput();
+  if (bytes === null || process.ppid !== externalDispatchParentPID) return;
   if (bytes.length === 0 || bytes.length > MAX_SPEECH_BYTES) {
     fail('say --follow stdin must contain 1 to 65536 bytes', 'INVALID_SPEECH_TEXT');
   }

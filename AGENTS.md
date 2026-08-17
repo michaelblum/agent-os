@@ -121,10 +121,18 @@ Default section order:
   errors, and receipts. ADR 0040 owns the detailed contract.
 - For program `aos-sovereign-capability-substrate-v1`, ADR 0043 owns the
   accepted target for comprehensive privileged exposure, complete managed-tool
-  grammar, and a non-admission operation control plane. Until a later atomic
-  implementation slice lands, source, command-source manifests, generated help,
-  schemas, tests, and runtime readback remain executable truth; do not advertise
-  target capability as already implemented.
+  grammar, and a non-admission operation control plane. ADR 0044 accepts its
+  immediate-peer audit identity and proc-generation-verified non-AOS ancestry,
+  content-free generation-bound external dispatch, exact registered-set same-
+  effective-UID host control, bounded retained-receipt replay plus expected-
+  barrier CAS after eviction, distinct artifact/claim recovery dispositions,
+  nine-machine prior-generation recovery, and split claim-set/resource/broker
+  mechanics. The atomic Milestone 2 slice implements the native operation
+  registry/control/recovery plane, resource claims, microphone adapter, public
+  CLI and IPC, and internal status-item/Canvas projections. Its source,
+  command-source manifests, generated help, schemas, tests, and runtime readback
+  are executable truth; do not advertise later milestone capability as already
+  implemented.
 - Facts and channels admitted by each bounded public observation contract are
   raw and fidelity-first; facts outside that contract remain outside it.
   Masking, redaction, persistence, and projection are explicit caller-owned

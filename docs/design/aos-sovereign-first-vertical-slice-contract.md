@@ -2,12 +2,14 @@
 
 Program: `aos-sovereign-capability-substrate-v1`
 
-Status: Milestone 1 design and implementation-routing contract. Nothing in this
-document is implemented merely because it is specified here. Current source,
-command-source manifests, generated help, IPC schemas, API docs, Toolkit, tests,
-and runtime readback remain executable truth.
+Status: Milestone 2 executable control-plane candidate and implementation-routing
+contract. Current source, command-source manifests, generated help, IPC schemas,
+API docs, Toolkit, tests, and runtime readback own executable truth; later M3-M10
+sections remain target design merely because they are specified here.
 
-Authority: ADR 0043 owns the target. The current/target inventory is
+Authority: ADR 0043 owns the target; accepted ADR 0044 amends its mechanical
+owner-root, same-effective-UID host-control, prior-generation recovery, and
+resource-claim clauses. The current/target inventory is
 `docs/dev/aos-privileged-capability-ledger-v1.json`. The paired Sigil authority
 is landed ADR 0021 at revision
 `227382c1bcbdab56f551a85a69b0609eebbdfa0c` under the shared program id.
@@ -24,19 +26,20 @@ A product primitive named `record-video-element` does not exist and is not
 proposed. The flagship composes reusable atoms; neither branch creates that
 shortcut.
 
-Milestone 1 adds only this design, the closed capability ledger and its schema,
-and static routing. It adds no runtime, command, runtime protocol schema,
-generated help, SDK method, recording operation, managed Playwright grammar,
-permission change, daemon behavior, or native UI.
+Milestone 2 implements the shared operation registry/control plane, exact owner
+root and same-UID host barrier, resource claims, durable recovery, daemon IPC and
+CLI, one microphone adapter, and internal status/Canvas projections. It adds no
+public SDK root, recording producer, managed Playwright grammar, or TCC policy
+change; those remain later milestones.
 
-## Proposed contract owners
+## Contract owners
 
-The first implementation slice should propose and review these schema owners
-together before runtime code lands:
+The M2 executable candidate lands these schema owners together:
 
 - `shared/schemas/aos-operation-v1.schema.json`: current operation state,
   identity, mechanically authenticated owner root, bounded progress, terminal
-  outcome, blame, cleanup, and residual-authority facts.
+  outcome, blame, cleanup, residual-authority facts, and closed exclusive or
+  multiplexable resource-claim records.
 - `shared/schemas/aos-operation-event-v1.schema.json`: ordered content-free
   lifecycle and progress events.
 - `shared/schemas/aos-operation-lineage-v1.schema.json`: exact parent/child
@@ -51,45 +54,52 @@ together before runtime code lands:
 - `shared/schemas/aos-artifact-v1.schema.json`: exact artifact identity,
   custody state, containment, size/digest/media facts, reveal/remove/release/
   retain transitions, and cleanup receipt.
-- `shared/schemas/aos-host-stop-barrier-v1.schema.json`: host-operator
-  authentication, barrier generation, admission state, residual count, and
-  reopen receipt.
+- `shared/schemas/aos-host-stop-barrier-v1.schema.json`: live per-request same-
+  effective-UID caller facts, barrier generation, admission state, residual
+  count, and reopen receipt.
 - `shared/schemas/aos-operation-recovery-v1.schema.json`: boot generation,
   durable record version/checksum, exclusive recovery lock, retry/backoff,
   corruption, orphan, and residual disposition.
 
 These names are proposals, not bootstrap files in Milestone 1. Each future
 schema must be closed, content-free where it describes control metadata, and
-paired with its implementation, API, CLI, SDK, test, and proof owners in one
-atomic slice.
+paired with its implementation, API, CLI, test, and proof owners in one atomic
+slice. Maintained public SDK projections remain M6; M2 daemon IPC is the
+canonical programmatic contract they will consume.
 
 Proposed public CLI projections are:
 
 ```text
-aos operation list [owner filters] --json
-aos operation inspect <operation-id> --json
-aos operation status <operation-id> --json
-aos operation recent [owner filters] --json
-aos operation cancel <operation-id> --json
-aos operation kill <operation-id> --json
-aos operation kill-owner [mechanically admitted owner filters] --json
-aos operation stop-all --json
-aos operation tap <operation-id> --max-bytes <n> --timeout <duration> --follow --json
-aos artifact reveal|remove|release|retain <artifact-id> --json
+aos operation list [--capability-id|--client-id|--agent-id|--project-id|--task-id|--run-id|--skill-id|--target-id|--capability-label ...] --json
+aos operation inspect <operation-id> --generation <n> --json
+aos operation status <operation-id> --generation <n> --json
+aos operation recent [the same optional intersection filters] --json
+aos operation cancel <operation-id> --generation <n> --json
+aos operation kill <operation-id> --generation <n> --json
+aos operation kill-owner [the same optional intersection filters] --json
+aos operation tap <operation-id> --generation <n> --channel <metadata|data> --rate <items-per-second> --sample-every <n> --max-queue-items <n> --max-items <n> --max-bytes <n> --timeout <milliseconds> --duration-ms <milliseconds> [--follow] --json
+aos operation artifact reveal|remove|release|retain <artifact-id> --generation <n> --json
+aos operation stop-all --barrier-generation <n> --json
+aos operation barrier-status --json
+aos operation reopen --barrier-generation <n> --json
 aos record screen <source-and-geometry-options> --json
 ```
 
-Exact nouns and forms remain subject to command-source review. The upstream
+The first fifteen operation forms above are closed by the M2 ledger and must
+publish through 41/49 with runtime, generated aggregates, API, and proof. The
+screen-recording form belongs to M3. Expected daemon generation is attached by
+the server after same-socket bootstrap for the current connection epoch, not by
+a public CLI flag. The upstream
 managed Playwright grammar is not copied into one AOS manifest entry per
 operation; AOS owns a raw argv/stdio/artifact transport command over the
 reviewed pin. That transport is exactly `argv`/`stdin`/`stdout`/`stderr`/
 `artifact`; AOS validates executable/environment identity, lifecycle,
 bounds, ownership, and custody without interpreting upstream grammar.
 
-Maintained TypeScript and Python SDKs must project the same operation, stream,
-artifact, lineage, and capability shapes. Toolkit may provide status and
-surface bindings over those SDK contracts, but it must not become the daemon
-transport owner or add product policy.
+Maintained TypeScript and Python SDKs must eventually project the same
+operation, stream, artifact, lineage, and capability shapes in M6. M2 includes
+an internal Toolkit Canvas projection only; it is not a public SDK root and
+must not become the daemon transport owner or add product policy.
 
 ## Operation lifecycle
 
@@ -240,83 +250,256 @@ intersection algorithm. Displaying an asserted label does not upgrade it.
 | cancel | one operation | cooperative stop, terminal payload, bounded cleanup | exact operation is inside the authenticated peer's controllable set |
 | kill one | one operation | record intent, force adapter termination, recover any residual | operation id, generation, and owner match; PID/PGID alone is insufficient |
 | owner kill | an intersection | kill only operations in `peer set ∩ asserted filters` | task/agent/client/project/capability values remove members but cannot add any |
-| host stop all | every AOS-owned active/residual operation | close admission, stop, recover, and hold the barrier | separate mechanically authenticated host operator only |
+| host stop all | complete registered operation-plane set at one exact adapter-registry revision | close admission, stop, recover, and hold the barrier for that registered set | live mechanically authenticated local caller whose effective UID equals the daemon effective UID; status break-glass uses the exact daemon/status-host generation |
 
 Cancel is not kill. Kill is not proof of cleanup. Owner kill is not a label
 query promoted to signal authority. Host stop is not an ordinary owner filter.
+In M2 the registered set contains the microphone adapter only; unadapted legacy
+daemon capabilities are not implicitly controlled, and later adapter
+milestones advance the exact registry revision.
 
-## `owner_decision_required_before_m2`
+## Accepted M2 owner bindings
 
-Two owner decisions remain intentionally unresolved. No implementation may
-silently choose either one.
+ADR 0044 accepts both pre-source decisions.
 
 ### Ordinary owner root
 
-Recommended: derive the root from the Darwin audit token and PID generation,
-then walk to the nearest verified non-AOS ancestor. This groups nested AOS
-adapters under the real invoking host without treating a caller label as
-authority.
+On connection acceptance AOS binds the immediate Darwin peer through
+`LOCAL_PEERTOKEN`: audit token, effective UID, PID, and PID generation. Public
+libproc provides no equivalent audit token for ancestors. Ancestor verification
+therefore uses double-sampled `proc_bsdinfo` start times, effective UID, a stable
+same-observation child/parent edge, and exact code identity. An exact-image skip
+requires the immediate token only when the skipped node is that socket peer.
+A durable daemon spawn record may retain a child token when it was actually
+observed there. An unverified or raced node stops the walk conservatively;
+basename, path, argv, environment, numeric PID/PGID, or asserted lineage can
+never justify skipping it.
 
-Alternatives and impact:
+The current external Node microphone route requires native durable intent,
+dynamic child-image admission, and tokenless same-socket child finalization
+before microphone authority. The closed `listen_microphone_v1` activation
+predicate is invocation-scoped; nonmatching `listen` invocations prepare no
+operation, claim, token, or dynamic admission. External dispatch treats
+`/usr/bin/env node` as a host-variable resolution policy, but accepts only a
+live interpreter with Apple generic Developer ID trust, signing identifier
+`node`, Node.js Foundation team `HX7739G8FX`, and hardened runtime. Intent stores
+only content-free path/identity/file digests, device/inode, signing identifiers,
+and the platform's 20-byte SHA-256 CDHash. The opaque intent token stays with
+the exact authenticated parent and is used only for admission or abandon.
 
-- Immediate peer only is simpler but fragments one caller into multiple
-  uncontrollable islands when AOS adapters call other AOS adapters.
-- An AOS-minted connection/lease root is explicit but adds credential-like
-  durable state, handoff, expiry, and recovery obligations that ambient
-  authority otherwise avoids.
+The child starts blocked with no token, script path, helper path, or reviewed
+source. AOS dynamically validates the running SecCode guest and mapped main-
+executable vnode against the intent and durably binds the child PID generation
+plus parent edge. Only then does the dispatcher send a deterministic in-memory
+ESM bundle built from the raw-byte-verified entry script,
+`scripts/lib/aos-daemon-client.mjs`, and
+`scripts/lib/aos-voice-follow.mjs`. Tokenless finalization resolves exactly one
+admitted record from the authenticated child socket, revalidates executable and
+canonical argv-shape evidence, and consumes it once. Only content-free identity,
+script, dependency-set, executable, and argv-shape digests remain durable or
+public. Parent abandon, 30-second expiry, and boot recovery terminalize the
+prepared operation and release its claim when finalization never succeeds. A
+dispatcher-injected parent PID is lifecycle-only, deleted at module start, never
+sent to the daemon, and never authority; `AOS_EXTERNAL_DISPATCH_PARENT_PID`
+cannot bless an executable, script, helper, child, or argv shape.
 
-The decision fixes the maximum ordinary controllable set and must be accepted
-before M2 operation registry or kill behavior lands.
+That immutable connection evidence establishes the maximum ordinary
+controllable set. Caller-asserted client, agent, project, task, run, skill,
+target, or capability values remain attribution and may only intersect with
+that set. Signal, escalation, cleanup, and generation release revalidate the
+exact mechanical identity required by the action.
 
-### Host operator
+### Same-effective-UID host control
 
-Recommended: admit host-wide control only when the immediate peer is the exact
-reviewed AOS control executable, has the same effective UID, and connects over
-an owner-, mode-, type-, and symlink-validated control socket. This is separate
-from ordinary peer ownership.
+Host stop-all, barrier status, and reopen are distinct public operations
+admitted through a live per-request local-caller predicate: the caller is
+mechanically authenticated by the current transport and its effective UID
+equals the daemon effective UID. The predicate is never a durable role, token,
+special principal, executable class, asserted lineage value, or claim about
+human intent.
 
-Alternatives and impact:
+M2 daemon IPC, CLI, native status item, and internal Canvas invoke the same
+public host-control entrypoint. Expected daemon generation and caller evidence
+are server-attached after same-socket bootstrap for the current connection
+epoch. Ordinary Canvas controls require a currently live captured peer and
+become display-only when that connection disappears. The status item remains always-
+available break-glass: the daemon-owned status host binds its exact daemon/
+status-host generation and effective UID, reauthenticates that mechanical local
+caller for each action, and invokes the same entrypoint. UI origin and action
+sequence authenticate input into the host but create no ordinary owner
+authority or special principal. A status-opened Canvas may reuse only the
+server-injected status-host context for stop-all; it cannot impersonate an
+ordinary owner.
 
-- Any same-UID process is materially broader and makes the dedicated emergency
-  boundary indistinguishable from ambient local callers.
-- A launchd or Mach-service code-identity boundary may be stronger but adds
-  packaging, installation, signing, and deployment work before the first
-  reusable slice needs it.
+The server injects exactly four origin variants: `live_transport_peer` may use
+ordinary and host control; `ordinary_canvas_captured_peer` may use ordinary
+control only while its captured connection remains live;
+`status_item_host` may invoke stop-all only; and
+`status_opened_canvas_host`, bound to both Canvas and parent status-host
+generations, may invoke stop-all only. Caller payloads cannot select or collapse
+these origins, and an ordinary captured peer never gains a host action.
 
-The decision must be accepted before `stop-all` or post-stop admission lands.
+CLI and direct daemon IPC actions authenticate their current live transport
+peer. Captured-peer continuation is exclusive to ordinary Canvas controls and
+cannot be substituted for a disconnected CLI transport.
+
+Requests use a durable request id and canonical digest. Retained receipts are
+looked up generation-independently before current generation and CAS checks.
+Deduplication is bounded to 4,096 terminal receipts or 86,400 seconds, and its
+canonical replay guarantee ends at pruning: an evicted id becomes a new
+request, not a magically identifiable expired replay. Stop-all and reopen both
+carry the expected barrier generation, so an evicted old mutation fails CAS
+after a later reopen instead of repeating its former effect.
 
 SDK package roots are deliberately not a third pre-M2 decision. Before M6,
 the owner must choose whether existing Toolkit plus new language packages or
 dedicated TypeScript/Python/optional-Swift packages own maintained imports.
 That publication choice does not block M2 control semantics.
 
+## Singleton resource claims
+
+At one adapter-registry revision, each adapter publishes a declaration for one
+unique stable resource key and one closed mode: `exclusive` or
+`multiplexable`. The declaration binds adapter id/revision, key, mode, digest,
+and a positive finite fanout bound only for multiplexable resources. A key,
+owner, mode, or fanout change advances both registry revision and declaration
+digest. Declaration, registered-operation, selected-operation, and
+subscriber-set digests are SHA-256 over UTF-8 RFC 8785 canonical JSON with the
+closed `aos:<digest-domain>:v1\n` separator, exact member fields and sort order,
+lowercase 64-hex output, and count equal to the canonical member-array length.
+An operation may require multiple claims. AOS
+canonical-sorts the complete claim set by resource key and reserves all claims
+or none at one serialized linearization point. Failed admission retains no
+claim, so partial authority cannot deadlock another operation. Conflict and
+fan-out-exhaustion receipts are typed, content-free, and deterministically
+ordered by canonical resource key and stable attempt sequence.
+
+Exclusive mode admits one exact resource-key/resource-generation and operation-
+id/operation-generation tuple. It returns busy on conflict and never waits,
+steals, replaces, or preempts. Multiplexable mode owns one AOS broker generation
+and exact per-operation subscriber leases within adapter-declared bounded fan-
+out. The same mechanically derived owner does not bypass exclusivity. Only an
+exact adapter-declared idempotency/reattach token bound to the same resource and
+operation generations may rebind.
+
+AOS supplies no implicit queue, priority, fairness, retry, or preemption policy;
+the caller explicitly chooses retry, cancel, or kill. Barrier close wins a race
+ordered before the claim-set linearization point and leaves no partial claims.
+The complete transaction CAS includes the expected barrier generation,
+adapter-registry revision, declaration-set count/digest, every resource generation
+and declaration digest, and for each multiplexed key the expected broker
+generation and subscriber-set revision, count, and digest. A successful commit
+atomically publishes every claim with the committed transaction id/digest and
+exact registry/declaration snapshot, plus the resulting broker generation and
+subscriber revision/count/digest with the complete claim set.
+Subscriber attach, nonlast detach, and last detach separately CAS the exact
+resource/declaration/broker generations and prior subscriber revision,
+count/digest. Attach additionally verifies the current registry/declaration
+snapshot against the committed claim-set transaction and rejects a stale
+standalone attach; detach uses the exact snapshot pinned to the claim. Their
+one atomic publication updates the claim result and
+resulting broker revision/count/digest/state. Attach cannot exceed declared
+fanout; last detach requires expected count one and publishes zero plus
+`stopping`.
+Cleanup releases only the exact resource key and generation after mechanical
+absence or the surviving broker/subscriber set is proved. Stale cleanup cannot
+release or decrement a successor generation.
+
+Three finite machines own separate facts:
+
+| Machine | Core route | Separation rule |
+| --- | --- | --- |
+| claim-set transaction | `prepared -> reserving -> committed` or `rolling_back -> terminal` | mixed exclusive/multiplex requests publish together or roll back every inert provisional record |
+| per-operation resource claim | `prepared -> active -> releasing|terminal -> cleanup_required|recovering -> terminal` | one exact operation/resource generation; nonlast subscriber release terminals this claim |
+| multiplex broker | `prepared -> starting -> active -> stopping -> cleanup_required|recovering -> terminal` | subscriber attach/detach persists exact revision/count/digest; last release enters cleanup |
+
+Claim-set `cleanup_required` and `recovering` records carry a closed persisted
+disposition. `rollback_pending` may finish only as `rejected` after every
+provisional claim is proven absent. `commit_pending_handoff` may finish only as
+`succeeded` after the complete atomic commit marker and every per-resource and
+broker handoff are mechanically verified. A crash in `reserving` selects the
+latter only from that complete commit marker; otherwise it is rollback.
+
+Host stop has an explicit route from every nonterminal broker state. A daemon
+generation change has an explicit prior-generation transition from every
+nonterminal state of all three machines, including `cleanup_required`; no
+restart may teleport a claim or broker to terminal.
+
+M2 registers only `microphone-capture-adapter` for the exclusive
+`voice_io_native_session` claim. Existing speech and audio output remain legacy
+reservation sentinels: output activity participates atomically in microphone
+admission and returns typed busy conflict, but the output itself is outside the
+registered stop-all set until a later adapter migration. Neither side may
+preempt the other. In particular, M2 retires implicit
+`outputToCancel?.cancel(reason: "barge_in")`; callers explicitly retry, cancel,
+or kill.
+
 ## Host stop barrier
 
-Host stop is not an owner filter. An authenticated host operator closes an
-admission barrier, advances its generation, and snapshots every nonterminal
-operation whose prepared/active authority predates the barrier. New acquisition
-is rejected while the barrier is closed. Each snapshotted operation is stopped
-through its exact capability owner, and the barrier remains closed until every
-operation is terminal or durably `cleanup_required` with a bounded recovery
-owner. A residual keeps the barrier in `cleanup_required` or `recovering`
-and cannot reopen. Reopening is a separate exact host-operator transition after
-zero residuals are verified and the barrier generation advances. Ordinary
-peers, asserted lineage, or completion of one child cannot reopen it.
+Host stop is not an owner filter. A live same-effective-UID local caller closes
+the admission barrier, advances its generation, and snapshots the complete
+registered operation-plane set at one exact adapter-registry revision. The
+receipt carries that revision plus set count/digest, selected-operation
+count/digest, outcome, residual digest, and cleanup result. M2's registered set
+is the microphone adapter; stop-all does not claim unadapted legacy subsystem
+control. Later adapter milestones advance the revision.
 
-The barrier is `machine_kind: cyclic_control`, has `terminal_states: []`, and
-declares `open` and `closed` as quiescent. `closing`, `cleanup_required`, and
-`recovering` all reject new acquisition. `open` can never be reached from a
-residual state: reopen requires a separately authenticated host operator, a
-new generation and receipt, and mechanically verified zero residuals.
+The close transition persists one immutable snapshot containing barrier and
+stop-operation generations, adapter-registry revision, registered and selected
+set count/digests, and a snapshot digest. Those exact bytes survive drain,
+cleanup, recovery, restart, passive status, and state-idempotent repeats;
+residual progress is separate. A new registry revision is only a candidate for
+the next open generation. Reopen preserves the prior closed snapshot while
+separately publishing the reconciled resulting open snapshot.
+
+New acquisition is rejected while the barrier is closed. A residual in the
+registered set keeps the barrier in `cleanup_required` or `recovering` and
+cannot reopen. Reopen is a separate request with an explicit expected barrier-
+generation compare-and-swap and server-attached daemon generation/connection
+epoch. It succeeds only after zero residuals for the exact registered set are
+verified. Ordinary peers, asserted lineage, or completion of one child cannot
+reopen it.
+
+The barrier is `machine_kind: cyclic_control`, starts in
+`boot_reconciling`, has `terminal_states: []`, and declares `open` and `closed`
+as quiescent. Boot stays admission-closed until durable store, prior-generation,
+registered-set, and zero-residual reconciliation succeeds. `closing`,
+`cleanup_required`, and `recovering` reject new acquisition. `open` can never
+be reached from a residual state.
+
+Stop-all remains available while the barrier is `boot_reconciling`. Retained
+lookup precedes exact current daemon/barrier-generation validation; the request
+then binds the last durable immutable snapshot without synthesizing zero
+residuals. It returns content-free `recorded`,
+`reconciliation_in_progress`, or `store_blocked` while remaining admission-
+closed. `recorded` durably binds a stop operation to that snapshot but defers
+all cleanup claims until reconciliation owns exact residuals. The other two
+outcomes claim no cleanup or absence. The status-item action stays enabled
+through this route.
 
 | Barrier from | Event | Barrier to | Required guard |
 | --- | --- | --- | --- |
-| `open` | host stop all | `closing` | separate host-operator authentication closes admission first |
-| `closing` | drained | `closed` | every operation is terminal and residual-free |
-| `closing` | residual | `cleanup_required` | admission remains closed |
-| `cleanup_required` | recover | `recovering` | exclusive durable recovery claims residual records |
-| `recovering` | recovered or retry | `closed|cleanup_required` | residual absence is verified, or admission remains closed |
-| `closed` | reopen | `open` | host operator verifies zero residuals and advances generation |
+| `boot_reconciling` | host stop all | `boot_reconciling` | retained lookup, expected daemon/barrier-generation CAS, and exact durable-snapshot binding yield `recorded`, `reconciliation_in_progress`, or `store_blocked`; admission remains closed and no cleanup is inferred |
+| `boot_reconciling` | open verified | `open` | durable store and every prior snapshot reconcile; zero residuals and one separately bound open registry snapshot are durable |
+| `open` | host stop all | `closing` | fresh same-effective-UID authentication plus exact expected-generation CAS atomically closes admission and captures the immutable stop-operation/registered/selected-set snapshot |
+| `closing` | stop repeat | `closing` | retained replay precedes validation; any new or pruned request passes current-generation CAS and reuses the original stop generation and byte-identical snapshot |
+| `closing` | drained | `closed` | the immutable selected set is terminal or in exact custody, with zero residual count/digest and no newer-registry substitution |
+| `closing` | residual | `cleanup_required` | immutable snapshot is preserved; only residual and reconciliation progress changes |
+| `cleanup_required` | recover | `recovering` | one recovery generation owns cleanup while the immutable snapshot remains byte-identical |
+| `recovering` | recovered or retry | `closed|cleanup_required` | selected-set absence is verified against the preserved snapshot, or that snapshot stays closed with residual progress |
+| `closed` | reopen | `open` | expected-generation CAS reconciles the immutable prior selected set and candidate current registered set, preserves the prior snapshot, and publishes a separate successor open snapshot |
+
+Stop-all is itself an observable operation and generation and takes an explicit
+expected barrier generation. Same retained request id and
+digest return the canonical receipt; another digest conflicts. Repeats while
+closing, closed, cleanup-required, or recovering return typed idempotent facts.
+Barrier status is a passive read. Dedupe survives crash but is bounded to 4,096
+terminal receipts or 86,400 seconds. After pruning, the id is a new request;
+the exact current daemon generation and expected-barrier CAS are re-evaluated.
+The reopen response echoes request/digest, caller-origin evidence, expected,
+prior, and resulting barrier state/generation, daemon generation, registry
+revision, registered-set and residual count/digests, outcome, cleanup, and
+reconciliation facts.
 
 At daemon boot, recovery advances generation, validates durable record version
 and checksum, takes one exclusive lock per claim, and scans prior-generation
@@ -351,12 +534,48 @@ bounded idempotent retries, and corruption-fails-closed behavior. It never
 publishes false terminal cleanup because a process disappeared or a path was
 reused.
 
+### Prior-generation transition closure
+
+A daemon generation change never teleports a persisted record to terminal.
+Each authority- or custody-bearing machine has an exact
+`prior_generation_orphan -> cleanup_required` transition from every applicable
+state:
+
+| Machine | Required source states |
+| --- | --- |
+| operation | `prepared`, `starting`, `active`, `stopping`, `cleanup_required`, `recovering` |
+| stream | `prepared`, `starting`, `active`, `stopping`, `cleanup_required`, `recovering` |
+| tap | `prepared`, `active`, `expired`, `revoked`, `cleanup_required`, `recovering` |
+| artifact | `transient`, `offered`, `retained`, `released`, `removed`, `cleanup_required`, `recovering` |
+| claim-set transaction | `prepared`, `reserving`, `committed`, `rolling_back`, `cleanup_required`, `recovering` |
+| per-resource claim | `prepared`, `active`, `releasing`, `cleanup_required`, `recovering` |
+| multiplex broker | `prepared`, `starting`, `active`, `stopping`, `cleanup_required`, `recovering` |
+| host barrier | `boot_reconciling`, `open`, `closing`, `closed`, `cleanup_required`, `recovering` |
+| recovery | `idle`, `scanning`, `recovering`, `cleanup_required`, `blocked_unresolved` |
+
+Boot recovery must consume those durable obligations through the recovery
+machine. Process disappearance, EOF, a missing artifact pathname, an empty
+subscriber observation, or a new daemon generation is not absence proof.
+Terminal still requires mechanically verified absence or exact transferred or
+retained custody.
+
 ## Tap semantics
 
 A tap is an explicit child observation operation bound to one exact live parent
 operation and one declared channel. It is observation-only and separately
 bounded by bytes, time, queue, sampling, and output transport. It grants no
 mutation, cancellation, signal, artifact-custody, or owner-kill authority.
+
+All seven numeric bounds are mandatory and positive: rate, max items, max
+bytes, max queue items, one-based sample stride, idle timeout, and duration.
+Duration starts on a monotonic activation clock; only successful enqueue resets
+idle timeout. Sampling precedes rate admission. Item/byte totals never exceed
+their request. If the first eligible new item finds the FIFO at its queue
+bound, intake stops before enqueue, only that newest item is rejected, existing
+FIFO entries drain, and the tap records `queue_full`; the source is not
+backpressured and no silent or continuing drop is allowed. Before `expire`, the
+record persists the exact terminal reason and content-free requested-bound,
+source, skip, enqueue, delivery, high-water, and overflow counters.
 
 The control plane exposes live content-free metadata without a tap. Raw data is
 available only while the explicit tap is active. AOS does not add tap output to
@@ -365,9 +584,9 @@ separate retained artifact under exact custody.
 
 | From | Event | To | Meaning |
 | --- | --- | --- | --- |
-| `prepared` | open | `active` | exact parent/channel and byte/rate/time bounds validate |
+| `prepared` | open | `active` | exact parent/source generations, channel, rate, max items, max bytes, max queue items, one-based sampling stride, idle timeout, and duration all validate |
 | `prepared` | reject or cancel | `terminal` | no observation channel opened |
-| `active` | expire | `expired` | deadline or byte/rate budget reached |
+| `active` | expire | `expired` | exactly one persisted `max_items_reached`, `max_bytes_reached_or_would_exceed`, `queue_full`, `idle_timeout`, or `duration_elapsed` reason stops intake before bounded FIFO drain |
 | `active` | revoke, cancel, kill, host stop, or parent stop | `revoked` | observation closes without granting operation control |
 | `expired|revoked` | close clean | `terminal` | observer, descriptor, queue, and buffers are absent |
 | `expired|revoked` | close failed | `cleanup_required` | any observer, descriptor, queue, or buffer residual is durable |
@@ -393,13 +612,17 @@ transient|offered|retained -> removed
 | `retained` | release, remove, expire, or remove failed | `released|removed|cleanup_required` | exact identity and retained owner revalidate |
 | `released|removed` | finish | `terminal` | only content-free custody metadata remains |
 | `cleanup_required` | recover | `recovering` | generation-scoped claim owns cleanup |
-| `recovering` | recovered or retry | `removed|cleanup_required` | absence is verified, or bounded retry remains |
+| `recovering` | released custody verified, retained custody verified, absence verified, or retry | `released|retained|removed|cleanup_required` | only the persisted original-custody disposition may resolve, or bounded retry remains |
 
-Validation failure routes `transient -> cleanup_required -> recovering`.
-Recovery reaches `removed` only after absence is verified; otherwise it
-returns to `cleanup_required` with durable retry/blame. `released`,
-`retained`, and `removed` are distinct custody outcomes with distinct
-receipts.
+Every entry into artifact `cleanup_required` or `recovering` persists original
+custody plus exactly one disposition: release verification, retention
+verification, or removal verification. Validation/removal failure selects
+removal; a prior released or retained record preserves its corresponding
+custody disposition; interrupted cleanup preserves the existing field.
+Recovery reaches `removed` only after absence is verified, `released` only
+after the exact transfer receipt is reverified, and `retained` only after exact
+identity/bounds/custody are reverified. Otherwise it returns to
+`cleanup_required` with durable retry/blame. These outcomes can never collapse.
 
 - `transient` is the default for AOS-produced screenshots, recordings, traces,
   raw outputs, and temporary media.
@@ -499,12 +722,15 @@ The operation projection uses a reserved AOS-internal owner/item namespace and
 does not borrow, mutate, or infer authority from consumer status-item leases.
 It renders only neutral active/recording counts, exact selected operation
 metadata, cleanup-required state, and mechanically available control actions.
-Its actions call the same operation-control contracts as CLI/SDK and therefore
-cannot widen the current operator's controllable set.
+Its actions call the same public M2 daemon-IPC entrypoints as CLI and internal
+Canvas; maintained public SDK projections remain M6. Ordinary actions cannot
+widen a live captured peer's controllable set. The status host invokes stop-all
+only; barrier status and reopen remain live transport-peer operations.
 
 The projected mechanical fields are operation id, adapter-selected capability
-id, state, generation, authenticated owner root and peer, terminal outcome,
-trigger, blame, and cleanup/residual facts. Client, agent, project, task, run,
+id, state, generation, authenticated owner root and peer, adapter-registry
+revision, registered-set count/digest, terminal outcome, trigger, blame, and
+cleanup/residual facts. Client, agent, project, task, run,
 skill, target, and `capability_label` fields are asserted unless an adapter has
 mechanically bound one; display never upgrades them to authority.
 
@@ -523,16 +749,18 @@ The recording indicator applies only to adapter-selected recording
 recording operation is in `starting`, `active`,
 `stopping`, `cleanup_required`, and `recovering`; it clears only after
 every recording operation is terminal with no residual. The dedicated internal
-action is admitted only from
-the mechanically authenticated AOS status host with exact item generation,
+action is admitted only from the mechanically authenticated daemon-owned status
+host with exact daemon/status-host and item generations, effective UID,
 descriptor revision, and action sequence. Display text, asserted lineage, and
-ordinary same-UID presence never authenticate that action.
+an unbound same-UID claim never authenticate that action.
 
-That authenticated status action origin grants no control. An ordinary action
-is re-admitted against the mechanically authenticated peer's controllable owner
-set. A host-wide action is re-admitted only through the separate host-operator
-boundary. The status item is neutral observation and action input, not an
-authorization source.
+That authenticated UI origin grants no control. An ordinary action is re-
+admitted against the mechanically authenticated peer's controllable owner set.
+For always-available break-glass, the daemon-owned status host binds its exact
+current generation and effective UID as the live local caller and invokes the
+same public host-control entrypoint used by daemon IPC, CLI, and Canvas. The status item is
+neutral observation and authenticated action input, not an authorization source,
+durable role, special principal, or human-intent class.
 
 AOS owns this neutral projection and status-item mechanics. Sigil owns product
 labels, grouping, prominence, and action policy in any product surface it
@@ -661,19 +889,52 @@ emission ends in `cleanup_required`, its state-specific execution path reaches
 durable `blocked_unresolved` without terminating the parent operation, and it
 cannot finish until absence or exact custody is mechanically proved.
 
-M2 owner paths are eight proposed schemas (operation, operation event, lineage,
-stream, tap, artifact, host barrier, and recovery), five daemon owners
-(registry, control, recovery, microphone adapter, and internal status
-projection), the reviewed proposed AOS command source and external route, and
-their generated aggregates/help. M3 owner paths are the current desktop-pixel
+The canonical M2 milestone closes 19 deliverables, 15 exit gates, 70 path refs,
+and 23 proof refs. Its path union includes the eight current operation/stream/
+tap/artifact/barrier/recovery schemas; registry/control/recovery/store/state;
+split claim transaction, per-resource claim, and broker owners; microphone,
+status, and Canvas adapters; current daemon request/response/event schemas and
+IPC docs; native `$AOS_PATH __operation` command and main dispatch; 41/49
+authored owners; exactly two generated aggregates; maintained
+`docs/api/aos.md` plus `docs/api/aos-capabilities.md`; internal Toolkit
+runtime/component/model owners; and proof
+registry/workflow routing.
+
+The union also closes the current microphone dispatch seam:
+`src/shared/external-command-dispatch.swift`, authored external 15-listen route,
+authored AOS 12-listen help, `scripts/aos-tell-listen.mjs`,
+`scripts/lib/aos-voice-follow.mjs`, `scripts/lib/aos-daemon-client.mjs`,
+`src/daemon/voice-transport.swift`, segmented capture, microphone
+authorization, audio playback, the v1 external-command manifest schema,
+generator, Swift and help decoders, stable generated aggregate,
+command-surface documentation/skill/DOX, canonical proof index and fragment,
+workflow router, active authority map, and affected installed projections.
+Frozen v0 remains byte-exact baseline evidence. The aggregate alone moves to
+wire schema version 2; source fragments remain version 1; exactly listen gains
+the optional spawn registration. The affected owners explicitly include
+`scripts/stage-browser-companion-runtime.mjs` and
+`scripts/stage-work-record-runtime.mjs`. Both require source and staged wire
+version 2. Browser staging retains path keys only and rehydrates exact command
+objects from the current v2 aggregate, while Work Record staging rejects any
+non-v2 source; neither may preserve or rewrap stale command objects. No dual
+reader or parallel aggregate exists.
+
+The operation schema owns the closed resource records; no ninth M2 schema is
+implied. M3 owner paths are the current desktop-pixel
 source and lifecycle plus proposed recording schema, adapter, encoder, geometry
 owner, AOS command source, external route, and generated aggregates/help. A
-`proposed` path is not claimed to exist in M1.
+Later-milestone `proposed` paths are not claimed to exist in current truth.
 
-M2 and M3 each have five exact proof owners: schema static, contract static,
-fake, native compile, and separately authorized native live. Static proof binds
-schemas/source/manifests. Fake proof
-covers lifecycle, failure, control, custody, and recovery. Native compile proof
+M2 has 23 exact proof refs: the five-lane schema/static/fake/native-compile/
+separately-authorized-native-live ladder plus focused owner-root, external-
+dispatch binding, resource-claim, voice no-preemption, host-control, Canvas,
+and internal Toolkit runtime/model/component proofs, plus frozen-v0 and active-
+v1 manifest schema, generation, broad-dispatch, proof-index, workflow-router,
+and installed-projection proofs. The command-surface proof fragment owns the
+manifest schema/generation/dispatch group; the operation-control fragment owns
+only operation-binding proofs. M3 retains its five-lane
+ladder. Static proof binds schemas/source/manifests. Fake proof covers
+lifecycle, failure, control, custody, and recovery. Native compile proof
 acquires no live authority and is not TCC acceptance. Live scripts cover actual
 peer/signal/status/microphone or recording/TCC/artifact/crash behavior only
 after explicit owner authority.
@@ -742,11 +1003,19 @@ absent.
 1. **M1 — ledger and contract:** land the exact 32-row current/target inventory,
    design contract, schema proof, registry, and routing. No runtime or generated
    command/help change.
-2. **M2 — smallest reusable control slice:** decide the two owner questions;
-   implement peer identity, operation/lineage/stream/tap/artifact/barrier/
-   recovery schemas, prepared registry, list/inspect/status/recent, cancel,
-   kill-one, owner-intersection kill, host stop, terminal/residual behavior, the
-   existing microphone adapter, and dedicated internal red status projection.
+2. **M2 — smallest reusable control slice:** use the ADR 0044 accepted ordinary
+   owner root and same-effective-UID host-control bindings; implement peer
+   identity, operation/lineage/stream/tap/artifact/barrier/recovery schemas,
+   closed exclusive/multiplexable resource claims, explicit prior-generation
+   transitions, prepared registry, list/inspect/status/recent, cancel, kill-one,
+   one composable owner-intersection kill, bounded tap and artifact custody,
+   host stop/barrier-status/reopen, terminal/residual behavior, the existing
+   microphone adapter, dedicated internal red status projection, and internal
+   Canvas operation view. Complete the external Node microphone spawn binding,
+   retire implicit voice barge-in preemption, and scope host receipts to the
+   exact registered-set revision. Status break-glass binds the daemon/status-
+   host generation and calls the same public stop-all entrypoint; public SDKs
+   remain M6.
 3. **M3 — recording vertical slice:** add video, independently selectable
    system-audio and microphone tracks, multitrack encoder, fixed and
    caller-followed geometry, transient streams/artifacts, controls, fake proof,
@@ -782,7 +1051,7 @@ absent.
 
 Authority publication and runtime implementation are distinct. Every command
 slice in M2 through M7 changes implementation, authored AOS/external command
-sources, generated aggregates/help, schemas/API/SDK projection, tests, proof
+sources, generated aggregates/help, schemas/API and any milestone-owned SDK projection, tests, proof
 registry, and workflow routing atomically. Generated command/help work is never
 deferred to M8. M8 reorganizes skills only. M9 may compose existing CLI/IPC/SDK
 atoms from arbitrary Python, TypeScript, or shell; any new command still follows
@@ -794,17 +1063,30 @@ M2 starts offline and deterministic:
 
 - schema tests reject unknown fields, invalid transitions, forged lineage,
   asserted-filter widening, stale operation/artifact identity, terminal state
-  with residual authority, and host-stop admission races;
+  with residual authority, missing prior-generation transitions, partial claim-
+  set admission, successor-generation release, unbounded request dedupe,
+  registered-set drift, and host-stop admission races;
 - pure model tests prove prepared-before-authority, one durable terminal owner,
   filter intersection, bounded recent history, stop-barrier generation, tap
-  observation-only behavior, and artifact custody transitions;
-- fake peer/process/socket tests prove audit-token/PID-generation bindings and
-  exact reauthentication immediately before signal or cleanup;
+  observation-only behavior, artifact custody transitions, canonical all-or-
+  nothing claim reservation, deterministic content-free conflict receipts, and
+  exclusive/multiplexable fan-out semantics, including microphone busy conflict
+  without voice-output preemption;
+- fake peer/process/socket tests prove immediate-peer audit-token/PID-generation
+  bindings, double-sampled proc-generation ancestor edges, exact image and
+  spawn-record skips, external Node parent-only intent, official signed-image
+  admission, post-admission in-memory module delivery, tokenless peer
+  finalization, abandon/expiry cleanup, and nearest
+  verified non-AOS ancestry stopping at unverified nodes; they also prove live same-
+  effective-UID reauthentication immediately before signal/cleanup/host
+  control, and the daemon/status-host break-glass caller binding;
 - the existing microphone authorization/capture harness proves the first real
   adapter with injected authorization and fake audio buffers, without touching
   live microphone, TCC, native UI, or the shared daemon;
-- static source/manifests/API/SDK/skill convergence tests prove no target claim
-  outruns current executable truth.
+- static source/manifest/schema/generator/API convergence tests prove the
+  optional external-dispatch registration and 41/49 command packet move
+  atomically and that no target claim outruns current executable truth. M2
+  claims no maintained public SDK or skill implementation.
 
 The M3 ladder adds static ScreenCaptureKit/AVAssetWriter/schema and generated-
 grammar binding, fake video/system-audio/microphone/encoder/geometry/custody/

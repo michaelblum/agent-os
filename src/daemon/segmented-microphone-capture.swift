@@ -6,6 +6,54 @@ let aosVoiceSegmentMinimumDuration: TimeInterval = 0.5
 let aosVoiceSegmentMaximumDuration: TimeInterval = 5
 let aosVoiceSegmentDefaultDuration: TimeInterval = 3
 
+enum AOSMicrophoneCaptureTerminalTrigger: String, Equatable {
+    case completed
+    case cancelled
+    case killed
+    case ownerDisconnected = "owner_disconnected"
+    case daemonShutdown = "daemon_shutdown"
+    case deadline
+    case permissionRevoked = "permission_revoked"
+    case adapterFailed = "adapter_failed"
+}
+
+struct AOSMicrophoneCaptureTermination: Equatable {
+    let token: UUID
+    let trigger: AOSMicrophoneCaptureTerminalTrigger
+    let authorityAbsent: Bool
+}
+
+protocol AOSMicrophoneOperationClaimLease: AnyObject {
+    func bindAuthority(
+        stop: @escaping (_ force: Bool) -> Void,
+        residualDigest: @escaping () -> String?
+    ) throws
+    func markAuthorityStarted() throws
+    func noteStop(trigger: AOSMicrophoneCaptureTerminalTrigger) throws
+    func authorityDidTerminate(_ termination: AOSMicrophoneCaptureTermination)
+}
+
+protocol AOSMicrophoneOperationClaiming: AnyObject {
+    func prepareCapture(owner: UUID) throws -> any AOSMicrophoneOperationClaimLease
+}
+
+func aosMicrophoneCaptureTerminalTrigger(
+    completed: Bool,
+    reason: String,
+    failureCode: String?
+) -> AOSMicrophoneCaptureTerminalTrigger {
+    if failureCode == "MICROPHONE_PERMISSION_LOST" { return .permissionRevoked }
+    if failureCode != nil { return .adapterFailed }
+    switch reason {
+    case "max_duration": return .deadline
+    case "operation_kill": return .killed
+    case "owner_disconnect": return .ownerDisconnected
+    case "daemon_shutdown": return .daemonShutdown
+    case "startup_failed": return .adapterFailed
+    default: return completed ? .completed : .cancelled
+    }
+}
+
 protocol AOSMicrophoneCaptureLease: AnyObject {
     var token: UUID { get }
     var owner: UUID { get }
@@ -328,7 +376,7 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
     private let authorizeMicrophone: () -> AOSMicrophoneAuthorizationState
     private let authorizationState: () -> AOSMicrophoneAuthorizationState
     private let emit: (String, [String: Any]) -> Void
-    private let terminal: (UUID) -> Void
+    private let terminal: (AOSMicrophoneCaptureTermination) -> Void
     private let writer: AOSAtomicVoiceSegmentWriter
     private let engine = AVAudioEngine()
     private let queue = DispatchQueue(label: "aos.voice.segmented-capture")
@@ -367,7 +415,7 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
         authorizeMicrophone: (() -> AOSMicrophoneAuthorizationState)? = nil,
         authorizationState: @escaping () -> AOSMicrophoneAuthorizationState,
         emit: @escaping (String, [String: Any]) -> Void,
-        terminal: @escaping (UUID) -> Void
+        terminal: @escaping (AOSMicrophoneCaptureTermination) -> Void
     ) throws {
         self.owner = owner
         self.ref = ref
@@ -820,7 +868,7 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
         finishLock.unlock()
         meterTimer?.cancel()
         meterTimer = nil
-        stopEngine()
+        let authorityAbsent = stopEngine()
 
         if !request.keepSegments {
             writer.cancel()
@@ -830,12 +878,20 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
             } catch let failure as AOSVoiceTransportFailure {
                 writer.cancel()
                 emit("capture_segmented_failed", ["code": failure.code])
-                terminal(token)
+                terminal(AOSMicrophoneCaptureTermination(
+                    token: token,
+                    trigger: .adapterFailed,
+                    authorityAbsent: authorityAbsent
+                ))
                 return
             } catch {
                 writer.cancel()
                 emit("capture_segmented_failed", ["code": "CAPTURE_WRITE_FAILED"])
-                terminal(token)
+                terminal(AOSMicrophoneCaptureTermination(
+                    token: token,
+                    trigger: .adapterFailed,
+                    authorityAbsent: authorityAbsent
+                ))
                 return
             }
         }
@@ -852,7 +908,15 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
         } else {
             emit(request.event, ["reason": request.reason])
         }
-        terminal(token)
+        terminal(AOSMicrophoneCaptureTermination(
+            token: token,
+            trigger: aosMicrophoneCaptureTerminalTrigger(
+                completed: request.keepSegments,
+                reason: request.reason,
+                failureCode: request.failureCode
+            ),
+            authorityAbsent: authorityAbsent
+        ))
     }
 
     private func emitReady(_ segments: [AOSVoiceSegmentReady]) {
@@ -865,23 +929,26 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
         }
     }
 
-    private func stopEngine() {
+    private func stopEngine() -> Bool {
         inputGate.close()
         finishLock.lock()
         let shouldStop = engineOwned
         engineOwned = false
         finishLock.unlock()
-        guard shouldStop else { return }
+        guard shouldStop else { return true }
         if let stopInputEngine {
             stopInputEngine()
-            return
+            return inputEngineHealthy?() == false
         }
+        var authorityAbsent = false
         aosRunOnMainSync {
             if tapInstalled {
                 engine.inputNode.removeTap(onBus: 0)
                 tapInstalled = false
             }
             if engine.isRunning { engine.stop() }
+            authorityAbsent = !engine.isRunning && !tapInstalled
         }
+        return authorityAbsent
     }
 }

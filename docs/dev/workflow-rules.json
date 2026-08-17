@@ -58,13 +58,14 @@
     },
     {
       "id": "sovereign-capability-authority",
-      "summary": "AOS sovereign capability target authority, owner-filter boundary, path-specific burn-down evidence, maintained-design doctrine scan, preservation boundary, or local transition routing changed.",
+      "summary": "AOS sovereign capability target authority, ADR 0044 owner/host/resource amendment, path-specific burn-down evidence, maintained-design doctrine scan, preservation boundary, or local transition routing changed.",
       "patterns": [
         "AGENTS.md",
         "ARCHITECTURE.md",
         "CONTEXT-MAP.md",
         "docs/adr/README.md",
         "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
+        "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md",
         "docs/api/README.md",
         "docs/api/aos.md",
         "docs/api/aos-capabilities.md",
@@ -106,6 +107,7 @@
         "shared/schemas/aos-agent-workspace-v1.md",
         "shared/schemas/aos-agent-workspace-v1.schema.json",
         "shared/schemas/aos-browser-session-result-v1.schema.json",
+        "shared/schemas/aos-external-command-manifest-v1.schema.json",
         "shared/schemas/aos-semantic-targets.md",
         "shared/schemas/aos-sovereign-capability-authority-v1.schema.json",
         "shared/schemas/aos-target-handle-v1.md",
@@ -157,7 +159,7 @@
         {
           "id": "sovereign-capability-active-authority",
           "command": "node --test tests/sovereign-capability-active-authority.test.mjs",
-          "reason": "Validate the accepted ADR, mechanically established controllable-set narrowing and separate host-operator stop-all, unique machine topology and local paths, path-specific current-only evidence against the declared baseline revision, git-tracked active-authority stale scan including maintained design docs, generated ownership, external Sigil publication state, and exact hash-backed preserved/historical/frozen boundaries."
+          "reason": "Validate ADR 0043 plus accepted ADR 0044; immediate socket-peer audit-token/PID-generation evidence; mechanically verified non-AOS ancestry using proc-generation, UID, stable-edge, and code identity; invocation-scoped parent-only external intent, dynamically trusted signed-Node child admission, reviewed in-memory module bytes, tokenless peer finalization, and bounded abandon/expiry; narrowing-only asserted lineage; live same-effective-UID host control over an exact adapter-registry revision with daemon/status-host break-glass; split all-or-nothing claim-set, per-resource, and multiplex-broker mechanics with exact CAS/publication facts; bounded retained receipt replay plus expected-barrier CAS after eviction; distinct artifact-custody and claim-transaction recovery dispositions; explicit prior-generation recovery across nine machines; exact baseline equality for unaffected current capability rows plus only the global-input-event-observation listen-route, microphone, native-status-item, and Canvas M2 changes; unique topology and local paths; path-specific current evidence with explicit baseline path for migrated proofs; git-tracked active-authority stale scan including maintained design docs and rejection of a human-intent host-control class; generated ownership; external Sigil publication state; and independent baseline byte/hash preservation through ADR 0043."
         }
       ],
       "verification": [],
@@ -167,7 +169,7 @@
     },
     {
       "id": "privileged-capability-ledger",
-      "summary": "The closed Milestone 1 privileged-capability current/target ledger, its vertical-slice design, or its static proof ownership changed.",
+      "summary": "The closed privileged-capability current/target ledger, accepted M2 authority bindings, vertical-slice design, or static proof ownership changed.",
       "patterns": [
         "docs/design/aos-sovereign-first-vertical-slice-contract.md",
         "docs/dev/aos-privileged-capability-ledger-v1.json",
@@ -190,7 +192,7 @@
         {
           "id": "privileged-capability-ledger-contract",
           "command": "node --test tests/schemas/aos-privileged-capability-ledger-v1.test.mjs",
-          "reason": "Validate the exact ordered 32-row current/target inventory, closed schema conditions, independent graph semantics and 12 executable aggregate outcome paths, 101 functional and six fail-closed authored route bindings, tracked current/generated/bootstrap paths, every-tracked-path classification plus bounded production/privilege-metadata/managed-descriptor family scans, all 15 non-absent TypeScript/Toolkit surfaces and revision-local package exports, the portable 96-symbol reviewed SDK snapshot and evidence-source identities, proof execution lanes, exact M1 through M10 ref closure, and the native/managed flagship workflow contract."
+          "reason": "Validate the exact ordered 32-row current/target inventory, accepted ADR 0044 owner bindings, immediate-peer/ancestor/spawn evidence with transient-only raw script identity, registry-revision-bound resource declarations, canonical snapshot digests, and current/pinned committed-transaction subscriber CAS, always-available boot stop with typed no-false-cleanup results, immutable barrier snapshots, four closed caller origins, seven mandatory tap bounds with typed queue/expiry semantics, distinct artifact/claim recovery dispositions, exact registered operation-plane scope, bounded retained receipt replay plus expected-barrier CAS, voice no-preemption, 19 M2 deliverables, 15 gates, 70 path refs, 23 proof refs, frozen-v0/active-v1 external-manifest cutover with one listen registration and v1-only readers plus wire-v2 browser/Work Record staging and current-aggregate rehydration, canonical proof-index/workflow reachability, both maintained API owners, and exact 41/49 authored command targets and fifteen-form operation grammar; closed schema conditions; independent graph semantics and 12 executable aggregate outcome paths; 101 functional and six fail-closed authored route bindings; tracked current/generated/bootstrap paths; every-tracked-path classification plus bounded production/privilege-metadata/managed-descriptor family scans; all 15 non-absent TypeScript/Toolkit surfaces and revision-local package exports; the portable 96-symbol reviewed SDK snapshot and evidence-source identities; proof execution lanes; exact M1 through M10 ref closure; and the native/managed flagship workflow contract."
         }
       ],
       "verification": [],
@@ -264,6 +266,7 @@
         "src/platform/descriptor-relative-fs-addon.cc",
         "scripts/build-work-record-native.mjs",
         "scripts/stage-work-record-runtime.mjs",
+        "scripts/lib/external-command-manifest-v1.mjs",
         "scripts/package-aos-runtime",
         "package.sh",
         "packages/toolkit/workbench/work-record-atomic-publish.js",
@@ -390,6 +393,102 @@
       "tcc_identity_sensitive": false,
       "commands": [],
       "verification": []
+    },
+    {
+      "id": "operation-control",
+      "summary": "Sovereign operation schemas, owner identity, registry, resource claims, host barrier, registered adapters, native projections, CLI, or daemon integration changed.",
+      "patterns": [
+        "docs/api/aos.md",
+        "docs/api/aos-capabilities.md",
+        "docs/dev/test-proof-registry.d/operation-control.json",
+        "manifests/commands/aos-external-commands.json",
+        "manifests/commands/source/aos/41-operation.json",
+        "manifests/commands/source/external/15-listen.json",
+        "manifests/commands/source/external/49-operation.json",
+        "packages/toolkit/components/operation-control/**",
+        "packages/toolkit/runtime/operation-control.js",
+        "shared/schemas/aos-operation-*.schema.json",
+        "shared/schemas/aos-stream-v1.schema.json",
+        "shared/schemas/aos-artifact-v1.schema.json",
+        "shared/schemas/aos-host-stop-barrier-v1.schema.json",
+        "shared/schemas/aos-external-command-manifest-v1.schema.json",
+        "shared/schemas/daemon-ipc.md",
+        "shared/schemas/daemon-request.schema.json",
+        "shared/schemas/daemon-response.schema.json",
+        "shared/schemas/daemon-event.schema.json",
+        "scripts/aos-tell-listen.mjs",
+        "scripts/generate-command-manifests.mjs",
+        "scripts/lib/aos-daemon-client.mjs",
+        "scripts/lib/aos-voice-follow.mjs",
+        "scripts/lib/external-command-manifest-v1.mjs",
+        "src/commands/operation.swift",
+        "src/daemon/microphone-operation-adapter.swift",
+        "src/daemon/operation-*.swift",
+        "src/daemon/unified.swift",
+        "src/daemon/voice-transport.swift",
+        "src/daemon/segmented-microphone-capture.swift",
+        "src/daemon/audio-playback.swift",
+        "src/main.swift",
+        "src/shared/external-command-dispatch.swift",
+        "tests/daemon-ipc-schema.sh",
+        "tests/operation-*.test.mjs",
+        "tests/command-manifest-generation.sh",
+        "tests/external-command-dispatch.sh",
+        "tests/schemas/aos-external-command-manifest-v1.test.mjs",
+        "tests/schemas/aos-operation-v1.test.mjs",
+        "tests/schemas/daemon-event.test.mjs",
+        "tests/toolkit/operation-control-component.test.mjs",
+        "tests/toolkit/operation-control-model.test.mjs",
+        "tests/toolkit/operation-status-model.test.mjs",
+        "tests/toolkit/runtime-operation-control.test.mjs",
+        "tests/toolkit/runtime-operation.test.mjs",
+        "tests/voice-follow-cli.test.mjs",
+        "tests/voice-operation-claim-contract.test.mjs"
+      ],
+      "classes": [
+        "operation_control",
+        "schema",
+        "command_contract",
+        "toolkit"
+      ],
+      "actions": [
+        "schema_test",
+        "focused_test",
+        "native_compile"
+      ],
+      "hot_swappable": false,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "operation-schema-contract",
+          "command": "node --test tests/schemas/aos-operation-v1.test.mjs tests/schemas/daemon-event.test.mjs && bash tests/daemon-ipc-schema.sh",
+          "reason": "Closed operation and daemon envelopes must retain exact generations, seven tap bounds, content-free events, same-UID barrier receipts, and rejection of caller authority or human-intent fields."
+        },
+        {
+          "id": "operation-owner-and-core-contract",
+          "command": "node --test tests/operation-owner-root.test.mjs tests/operation-control-contract.test.mjs tests/operation-control-fake.test.mjs tests/operation-resource-claims.test.mjs tests/operation-host-control.test.mjs",
+          "reason": "Mechanical peer/ancestry ownership, persistence-before-authority, all-or-nothing singleton/multiplex claims, owner intersections, immutable stop snapshots, retained replay, cleanup, and recovery must remain deterministic offline."
+        },
+        {
+          "id": "operation-adapter-and-projection-contract",
+          "command": "node --test tests/operation-external-dispatch-binding.test.mjs tests/voice-follow-cli.test.mjs tests/voice-operation-claim-contract.test.mjs tests/operation-canvas-projection.test.mjs tests/toolkit/runtime-operation-control.test.mjs tests/toolkit/operation-control-model.test.mjs tests/toolkit/operation-control-component.test.mjs",
+          "reason": "Invocation-scoped external intent/admission/abandon/tokenless-finalize, single microphone operation/claim ownership, active-only red status, exact Canvas generation, captured ordinary ownership, and same-UID status break-glass must stay on the common control plane."
+        },
+        {
+          "id": "operation-registered-dispatch-contract",
+          "command": "node --test tests/schemas/aos-external-command-manifest-v1.test.mjs && bash tests/command-manifest-generation.sh && bash tests/external-command-dispatch.sh",
+          "reason": "The listen-microphone activation predicate, trusted signed-Node policy, exact reviewed in-memory module closure, generated wire-v2 route, and native dispatcher must land atomically."
+        },
+        {
+          "id": "native-operation-control-contract",
+          "command": "bash tests/native-operation-control-contract.sh",
+          "reason": "Typecheck and execute the complete native daemon, CLI, owner/spawn, registry, adapter, tap, status, and Canvas integration offline without building or starting the repo runtime."
+        }
+      ],
+      "verification": [],
+      "notes": [
+        "Offline proofs only. Live daemon, microphone, native UI, and TCC acceptance remain separately authorized."
+      ]
     },
     {
       "id": "status-item-contract",
@@ -786,6 +885,7 @@
         "scripts/lib/focus-depth.mjs",
         "scripts/lib/playwright-cli-runtime.mjs",
         "scripts/lib/target-handle-runtime.mjs",
+        "scripts/lib/external-command-manifest-v1.mjs",
         "scripts/stage-browser-companion-runtime.mjs",
         "scripts/package-aos-runtime",
         "scripts/aos-help-proxy.mjs",
@@ -818,6 +918,7 @@
         "tests/lib/agent-workspace-fixtures*",
         "tests/lib/pending-annotation-fixtures.mjs",
         "tests/schemas/aos-browser-companion-v1.test.mjs",
+        "tests/schemas/aos-external-command-manifest-v1.test.mjs",
         "tests/target-handle-runtime.test.mjs",
         "tests/toolkit/browser-evidence-capture.test.mjs",
         "docs/api/aos.md",
@@ -889,8 +990,8 @@
         },
         {
           "id": "browser-companion-external-manifest",
-          "command": "node --test tests/schemas/aos-external-command-manifest-v0.test.mjs",
-          "reason": "Validate the exact external browser companion routes and installed script targets without executing the AOS binary."
+          "command": "node --test tests/schemas/aos-external-command-manifest-v0.test.mjs tests/schemas/aos-external-command-manifest-v1.test.mjs",
+          "reason": "Preserve the frozen v0 rejection fixture and validate the active wire-v2 external browser companion routes, installed script targets, and optional registered-spawn contract without executing the AOS binary."
         },
         {
           "id": "browser-companion-direct-help",
@@ -1023,8 +1124,11 @@
         "manifests/commands/*.json",
         "manifests/commands/source/**",
         "scripts/generate-command-manifests.mjs",
+        "scripts/lib/external-command-manifest-v1.mjs",
         "shared/schemas/aos-external-command-manifest-v0.schema.json",
+        "shared/schemas/aos-external-command-manifest-v1.schema.json",
         "tests/schemas/aos-external-command-manifest-v0.test.mjs",
+        "tests/schemas/aos-external-command-manifest-v1.test.mjs",
         "tests/command-manifest-generation.sh",
         "tests/aos-dev-gh-help-parity.test.mjs",
         "tests/external-command-dispatch.sh",
@@ -1049,8 +1153,8 @@
         },
         {
           "id": "external-command-manifest-schema",
-          "command": "node --test tests/schemas/aos-external-command-manifest-v0.test.mjs",
-          "reason": "External command manifest changes must preserve launcher schema, script targets, and help-manifest route coverage."
+      "command": "node --test tests/schemas/aos-external-command-manifest-v0.test.mjs tests/schemas/aos-external-command-manifest-v1.test.mjs",
+      "reason": "External command manifest changes must preserve the frozen v0 fixture and the active wire-v2 launcher, registered-spawn, script-target, and help-route contract."
         },
         {
           "id": "external-command-dispatch",

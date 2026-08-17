@@ -19,6 +19,7 @@ const mapPath = path.join(
 const programId = 'aos-sovereign-capability-substrate-v1';
 const bootstrapPaths = new Set([
   'docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md',
+  'docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md',
   'docs/dev/aos-sovereign-capability-authority-v1.json',
   'docs/dev/aos-sovereign-capability-remodel-ledger.md',
   'docs/dev/aos-privileged-capability-ledger-v1.json',
@@ -51,6 +52,45 @@ function runGit(args) {
   });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   return result.stdout;
+}
+
+function gitBlobAt(revision, relativePath) {
+  const result = spawnSync('git', ['show', `${revision}:${relativePath}`], {
+    cwd: repoRoot,
+    encoding: null,
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  assert.equal(result.status, 0, `${result.stdout?.toString() || ''}${result.stderr?.toString() || ''}`);
+  return result.stdout;
+}
+
+const immutableBaselinePaths = [
+  'docs/adr/0015-aos-tcc-capability-broker-boundary.md',
+  'docs/adr/0018-installable-aos-skills.md',
+  'docs/adr/0030-desktop-frame-texture-leases.md',
+  'docs/adr/0031-desktop-pixel-broker-and-warm-snapshots.md',
+  'docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md',
+  'docs/adr/0041-managed-playwright-companion-runtime.md',
+  'docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md',
+  'shared/schemas/aos-external-command-manifest-v0.schema.json',
+];
+
+async function validateImmutableBaselineBodies(authority, bodyOverrides = new Map()) {
+  const errors = [];
+  for (const relativePath of immutableBaselinePaths) {
+    const declaration = authority.historical_preservation.find(({ pattern }) => pattern === relativePath);
+    const baseline = gitBlobAt(authority.baseline_revision, relativePath);
+    const baselineDigest = crypto.createHash('sha256').update(baseline).digest('hex');
+    const current = bodyOverrides.get(relativePath)
+      || await fs.readFile(path.join(repoRoot, relativePath));
+    if (!declaration || declaration.sha256 !== baselineDigest) {
+      errors.push(`IMMUTABLE_DECLARED_HASH_BASELINE_MISMATCH:${relativePath}`);
+    }
+    if (!Buffer.from(current).equals(baseline)) {
+      errors.push(`IMMUTABLE_BODY_BASELINE_MISMATCH:${relativePath}`);
+    }
+  }
+  return errors;
 }
 
 function gitPathSet(args) {
@@ -133,8 +173,16 @@ async function assertMarkerEvidence(entry, scopes, baselineRevision) {
       true,
       `${entry.id} evidence is excluded from active/generated scan: ${evidence.path}`,
     );
+    const baselinePath = evidence.baseline_path || evidence.path;
+    const baselineScopes = matchingScopes(baselinePath, scopes);
+    assert.equal(baselineScopes.length, 1, `${baselinePath} must have one authority scope`);
+    assert.equal(
+      baselineScopes[0].scan_for_stale_claims,
+      true,
+      `${entry.id} baseline evidence is excluded from active/generated scan: ${baselinePath}`,
+    );
     const body = normalized(await read(evidence.path));
-    const baselineBody = normalized(runGit(['show', `${baselineRevision}:${evidence.path}`]));
+    const baselineBody = normalized(runGit(['show', `${baselineRevision}:${baselinePath}`]));
     for (const marker of evidence.required_markers) {
       assert.ok(
         body.includes(normalized(marker)),
@@ -165,6 +213,7 @@ function patternCovered(paths, pattern) {
 function collectLocalReferences(authority) {
   const references = new Set([
     authority.authority.aos_adr,
+    ...authority.authority.aos_adr_amendments,
     authority.authority.aos_adr_index,
     authority.authority.authority_map,
     authority.authority.human_ledger,
@@ -187,9 +236,23 @@ function collectLocalReferences(authority) {
     ]) references.add(owned);
   }
   for (const claim of authority.stale_claim_baseline) {
-    for (const evidence of claim.evidence) references.add(evidence.path);
+    for (const evidence of claim.evidence) {
+      references.add(evidence.path);
+      if (evidence.baseline_path) references.add(evidence.baseline_path);
+    }
   }
   return references;
+}
+
+function currentOnlyProjection(ledger, excludedCapabilityIDs = new Set()) {
+  return {
+    m1_bootstrap_paths: ledger.m1_bootstrap_paths,
+    platform_evidence_sources: ledger.platform_evidence_sources,
+    coverage: ledger.coverage,
+    capabilities: ledger.capabilities
+      .filter(({ id }) => !excludedCapabilityIDs.has(id))
+      .map(({ id, current }) => ({ id, current })),
+  };
 }
 
 test('authority topology is schema-valid, unique, local, and publication-honest', async () => {
@@ -198,12 +261,15 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
 
   const authority = await json('docs/dev/aos-sovereign-capability-authority-v1.json');
   assert.equal(authority.program_id, programId);
-  assert.equal(authority.status, 'accepted_milestone_0_authority');
-  assert.equal(authority.baseline_revision, 'b48bf4d58c9cfad04f0dc03ef21dbe6d5e4a3044');
+  assert.equal(authority.status, 'milestone_2_executable_candidate_authority_and_current_truth');
+  assert.equal(authority.baseline_revision, '7aada1cb4d7a046a2b99b1b24470115eefc82224');
   assert.equal(
     authority.authority.aos_adr,
     'docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md',
   );
+  assert.deepEqual(authority.authority.aos_adr_amendments, [
+    'docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md',
+  ]);
   assert.deepEqual(authority.authority.paired_sigil_authority, {
     repository: 'https://github.com/Ch-osctrl/sigil',
     path: 'docs/adr/0021-sigil-sovereign-workflow-composition.md',
@@ -211,6 +277,77 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
     revision: '227382c1bcbdab56f551a85a69b0609eebbdfa0c',
   });
   assert.equal(authority.authority.cross_repo_activation, 'landed');
+  assert.deepEqual(authority.verification.current_only_projection, {
+    baseline_revision: '7aada1cb4d7a046a2b99b1b24470115eefc82224',
+    source: 'docs/dev/aos-privileged-capability-ledger-v1.json',
+    selectors: [
+      'inventory_revision',
+      'm1_bootstrap_paths',
+      'platform_evidence_sources',
+      'coverage',
+      'capabilities[].id',
+      'capabilities[].current',
+    ],
+    allowed_wording_exceptions: [],
+    expected_inventory_revision: '59074238c2c4c43051c7461a6e36487e8914f4a6',
+    allowed_capability_current_changes: [
+      'global-input-event-observation',
+      'microphone-capture-adapter',
+      'native-status-item',
+      'canvas-wkwebview',
+    ],
+  });
+  const currentLedger = await json(authority.verification.current_only_projection.source);
+  const baselineLedger = JSON.parse(runGit([
+    'show',
+    `${authority.verification.current_only_projection.baseline_revision}:${authority.verification.current_only_projection.source}`,
+  ]));
+  const changedCapabilityIDs = new Set(
+    authority.verification.current_only_projection.allowed_capability_current_changes,
+  );
+  assert.equal(
+    currentLedger.inventory_revision,
+    authority.verification.current_only_projection.expected_inventory_revision,
+  );
+  assert.deepEqual(
+    currentOnlyProjection(currentLedger, changedCapabilityIDs),
+    currentOnlyProjection(baselineLedger, changedCapabilityIDs),
+    'M2 must preserve current truth exactly outside the declared executable capability burn-down',
+  );
+  const currentRows = new Map(currentLedger.capabilities.map((row) => [row.id, row.current]));
+  const baselineRows = new Map(baselineLedger.capabilities.map((row) => [row.id, row.current]));
+  for (const id of changedCapabilityIDs) {
+    assert.notDeepEqual(currentRows.get(id), baselineRows.get(id), `${id} must carry executable M2 truth`);
+  }
+  const inputEvent = currentRows.get('global-input-event-observation');
+  const baselineInputEvent = baselineRows.get('global-input-event-observation');
+  const inputListenBinding = inputEvent.exposure.cli.bindings.find(({ form_id: id }) => id === 'listen-hotkey');
+  const baselineInputListenBinding = baselineInputEvent.exposure.cli.bindings
+    .find(({ form_id: id }) => id === 'listen-hotkey');
+  assert.deepEqual(inputListenBinding.route_selectors[0].argv_prefix, ['node', '--input-type=module', '-', 'listen']);
+  assert.deepEqual(baselineInputListenBinding.route_selectors[0].argv_prefix, ['node', 'scripts/aos-tell-listen.mjs', 'listen']);
+  const normalizedInputEvent = structuredClone(inputEvent);
+  const normalizedBaselineInputEvent = structuredClone(baselineInputEvent);
+  normalizedInputEvent.exposure.cli.bindings.find(({ form_id: id }) => id === 'listen-hotkey')
+    .route_selectors[0].argv_prefix = ['registered-listen-route'];
+  normalizedBaselineInputEvent.exposure.cli.bindings.find(({ form_id: id }) => id === 'listen-hotkey')
+    .route_selectors[0].argv_prefix = ['registered-listen-route'];
+  assert.deepEqual(
+    normalizedInputEvent,
+    normalizedBaselineInputEvent,
+    'global-input-event-observation may change only the exact registered-listen route tuple',
+  );
+  const microphone = currentRows.get('microphone-capture-adapter');
+  assert.match(microphone.implementation.summary, /shared operation registry/u);
+  assert.equal(microphone.control.list.state, 'complete');
+  assert.equal(microphone.control.bulk_owner_kill.state, 'complete');
+  assert.equal(microphone.control.host_stop_all.state, 'complete');
+  const statusItem = currentRows.get('native-status-item');
+  assert.ok(statusItem.implementation.primitive_paths.includes('src/daemon/operation-status-item-projection.swift'));
+  assert.equal(statusItem.control.host_stop_all.state, 'complete');
+  const canvas = currentRows.get('canvas-wkwebview');
+  assert.ok(canvas.implementation.primitive_paths.includes('src/daemon/operation-canvas-projection.swift'));
+  assert.match(canvas.observation.completeness, /content-free M2\s+registered-operation projection/u);
 
   assertUnique(authority.precedence, 'scope', 'precedence scopes');
   assertUnique(authority.authority_scopes, 'id', 'authority-scope ids');
@@ -234,9 +371,21 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
   }
   const operationControl = domains.get('operation-control-plane');
   assert.ok(operationControl);
-  assert.match(operationControl.exit_gate, /caller-asserted client\/agent\/task\/project\/capability values only narrow within it/u);
-  assert.match(operationControl.exit_gate, /mechanically bound scope may establish a stronger owner boundary/u);
-  assert.match(operationControl.exit_gate, /host-wide stop-all is separate mechanically authenticated host-operator control/u);
+  assert.equal(operationControl.implementation_state, 'partial');
+  assert.match(operationControl.exit_gate, /executable M2 candidate/u);
+  assert.match(operationControl.exit_gate, /immediate socket peer audit token\/PID generation/u);
+  assert.match(operationControl.exit_gate, /double-sampled proc-generation ancestry/u);
+  assert.match(operationControl.exit_gate, /same-UID host barrier/u);
+  assert.match(operationControl.exit_gate, /split claim-set\/resource\/broker lifecycles/u);
+  assert.match(operationControl.exit_gate, /token parent-only/u);
+  assert.match(operationControl.exit_gate, /trusted Node\.js Foundation signed image/u);
+  assert.match(operationControl.exit_gate, /in-memory module bundle after admission/u);
+  assert.match(operationControl.exit_gate, /finalizes tokenlessly/u);
+  assert.match(operationControl.exit_gate, /terminalizes abandoned, expired, boot-recovered, or failed prepared claims/u);
+  assert.match(operationControl.exit_gate, /asserted lineage continues only to narrow/u);
+  assert.match(operationControl.exit_gate, /public SDK projections.*later milestones/u);
+  assert.ok(operationControl.current_owners.includes('docs/api/aos-capabilities.md'));
+  assert.ok(operationControl.current_owners.includes('tests/native-operation-control-contract.sh'));
 
   const tracked = gitPathSet([]);
   const repositoryCandidates = new Set([
@@ -249,7 +398,7 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
     assert.ok(
       pathCovered(tracked, relativePath)
         || (bootstrapPaths.has(relativePath) && pathCovered(repositoryCandidates, relativePath)),
-      `local owner/source/output/generator/proof is neither tracked nor an exact M0 bootstrap path: ${relativePath}`,
+      `local owner/source/output/generator/proof is neither tracked nor an exact authority-packet bootstrap path: ${relativePath}`,
     );
   }
   for (const scope of authority.authority_scopes) {
@@ -260,9 +409,35 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
       );
     }
   }
+  const scanContract = authority.verification.forbidden_authority_field_scan;
+  assert.deepEqual(scanContract.token_components, ['human', 'initiated']);
+  const forbiddenIntentAuthority = scanContract.token_components.join('_');
+  const rejectionEvidence = new Map(
+    scanContract.allowed_rejection_evidence.map((entry) => [entry.path, entry.required_marker]),
+  );
+  const scanPaths = new Set();
+  for (const relativePath of tracked) {
+    const scopes = matchingScopes(relativePath, authority.authority_scopes);
+    assert.equal(scopes.length, 1, `${relativePath} must resolve exactly one authority scope`);
+    if (scanContract.classifications.includes(scopes[0].classification)) scanPaths.add(relativePath);
+  }
+  for (const relativePath of scanPaths) {
+    const entry = await fs.lstat(path.join(repoRoot, relativePath));
+    if (!entry.isFile() || !isTextPath(relativePath)) continue;
+    const body = normalized(await read(relativePath));
+    if (!body.includes(forbiddenIntentAuthority)) continue;
+    const requiredMarker = rejectionEvidence.get(relativePath);
+    assert.ok(requiredMarker, `unclassified human-intent authority field at ${relativePath}`);
+    assert.ok(
+      body.includes(normalized(requiredMarker)),
+      `human-intent field is not mechanically bound to rejection evidence at ${relativePath}`,
+    );
+    rejectionEvidence.delete(relativePath);
+  }
+  assert.deepEqual([...rejectionEvidence.keys()], [], 'declared rejection evidence must contain the forbidden field');
 });
 
-test('ADR status and target semantics cover both capture ADRs, raw upstream grammar, and all operation control', async () => {
+test('ADR status and target semantics cover capture history, raw upstream grammar, and accepted M2 control mechanics', async () => {
   const index = await read('docs/adr/README.md');
   for (const number of ['0030', '0031', '0041']) {
     assert.match(index, new RegExp(`\\[${number}\\].*Accepted, partially superseded`, 'u'));
@@ -270,7 +445,8 @@ test('ADR status and target semantics cover both capture ADRs, raw upstream gram
   assert.match(index, /\[0030\].*ADR 0043 supersedes its AOS-local process-lifetime direct-capture consent\/prime gate/u);
   assert.match(index, /\[0031\].*ADR 0043 supersedes its explicit direct-capture consent\/prime clauses/u);
   assert.match(index, /\[0041\].*ADR 0043 supersedes its fixed public-operation allowlist/u);
-  assert.match(index, /\[0043\].*Accepted.*sovereign capability substrate target/u);
+  assert.match(index, /\[0043\].*Accepted, amended.*sovereign capability substrate target/u);
+  assert.match(index, /\[0044\].*Accepted.*immediate socket-peer audit identity.*proc-generation-verified non-AOS ancestry.*registered-set host receipts.*bounded retained replay.*split claim-set\/resource\/broker mechanics/u);
 
   const adr = await read(
     'docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md',
@@ -307,6 +483,51 @@ test('ADR status and target semantics cover both capture ADRs, raw upstream gram
     /does not claim that the Sigil ADR or cross-repo\s+activation has already landed/u,
     'the preserved ADR body records its decision-time publication boundary; the authority map owns current landing state',
   );
+
+  const amendment = await read(
+    'docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md',
+  );
+  assert.match(amendment, /LOCAL_PEERTOKEN.+audit token.+PID generation/isu);
+  assert.match(amendment, /Audit\s+tokens are available for that immediate socket peer only/iu);
+  assert.match(amendment, /double-sampled `proc_bsdinfo` start time/iu);
+  assert.match(amendment, /does not require or fabricate an ancestor audit token/iu);
+  assert.match(amendment, /nearest mechanically verified non-AOS\s+ancestor/iu);
+  assert.match(amendment, /selects the conservative\s+immediate mechanical boundary or rejects.+never skips uncertainty/isu);
+  assert.match(amendment, /AOS_EXTERNAL_DISPATCH_PARENT_PID.+remains forbidden as authority/isu);
+  assert.match(amendment, /Dynamic validity.+platform CDHash.+device, and inode.+admission fails closed/isu);
+  assert.match(amendment, /normalized repo-\s*relative authored identity remains transient resolver input only/isu);
+  assert.match(amendment, /Caller-asserted client, agent,\s+project, task, run, skill,\s+target, or capability labels are attribution/isu);
+  assert.match(amendment, /public same-effective-UID local scope.+predicate is re-evaluated per\s+request/isu);
+  assert.match(amendment, /M2 host operations cover the complete registered operation-plane set.+exact adapter-registry revision/isu);
+  assert.match(amendment, /M2 registers the microphone adapter.+does not claim control.+unadapted legacy/isu);
+  assert.match(amendment, /Expected daemon\s+generation, connection epoch, caller origin, and caller evidence are attached\s+by the server/isu);
+  assert.match(amendment, /4,096 terminal\s+receipts or 86,400 seconds/iu);
+  assert.match(amendment, /canonical replay guarantee ends when a receipt is pruned/iu);
+  assert.match(amendment, /evicted id is a\s+new request.+expected barrier generation/isu);
+  assert.doesNotMatch(amendment, /replay_expired/u);
+  assert.match(amendment, /status-opened Canvas.+stop-all only/isu);
+  assert.match(amendment, /currently live captured peer.+display-only/isu);
+  assert.match(amendment, /CLI and direct daemon IPC actions always authenticate the current live transport\s+peer/iu);
+  assert.doesNotMatch(amendment, /CLI and ordinary Canvas.+captured peer/isu);
+  assert.match(amendment, /canonical resource key.+reserves\s+all claims.+Conflict.+retains none/isu);
+  assert.match(amendment, /no implicit queue, priority, fairness, stealing,\s+last-writer-wins, or preemption/iu);
+  assert.match(amendment, /same mechanically derived owner does not bypass exclusivity/iu);
+  assert.match(amendment, /claim-set transaction.+per-operation\/per-resource claim.+multiplex broker/isu);
+  assert.match(amendment, /rollback_pending.+commit_pending_handoff/isu);
+  assert.match(amendment, /Verified rollback terminates `rejected`.+verified complete\s+commit handoff terminates `succeeded`/isu);
+  assert.match(amendment, /Release or retention can never be\s+collapsed into removal/iu);
+  assert.match(amendment, /registers only `microphone-capture-adapter`.+legacy reservation sentinels/isu);
+  assert.match(amendment, /outputToCancel\?\.cancel\(reason: "barge_in"\).+retired/isu);
+  assert.match(amendment, /stale cleanup cannot mutate a\s+successor/isu);
+  assert.match(amendment, /Operation, stream, tap, artifact, claim-set transaction, per-resource claim,\s+multiplex broker, host barrier, and recovery expose explicit prior-generation/isu);
+  assert.match(amendment, /operation kill-owner/iu);
+  assert.match(amendment, /operation tap/iu);
+  assert.match(amendment, /metadata-or-data channel, rate, sampling stride, queue size,\s+item count, byte count, idle timeout, duration/iu);
+  assert.match(amendment, /operation artifact reveal\|remove\|release\|retain/iu);
+  assert.match(amendment, /stop-all --barrier-generation <n>/u);
+  assert.match(amendment, /docs\/api\/aos-capabilities\.md/u);
+  assert.match(amendment, /41-operation\.json/u);
+  assert.match(amendment, /49-operation\.json/u);
 });
 
 test('path-specific current-only evidence cannot be satisfied by transition banners', async () => {
@@ -409,8 +630,25 @@ test('generated ownership, proof wording, routing, and preservation remain exact
   assert.match(proofEntry.contract, /path-specific required markers/u);
   assert.match(proofEntry.contract, /git-tracked active and generated authority/u);
   assert.match(proofEntry.contract, /including maintained design docs/u);
-  assert.match(proofEntry.contract, /mechanically established controllable-set/u);
-  assert.match(proofEntry.contract, /separate host-operator stop-all/u);
+  assert.match(proofEntry.contract, /immediate socket-peer audit-token\/PID-generation evidence/u);
+  assert.match(proofEntry.contract, /nearest mechanically verified non-AOS ancestry using proc-generation, UID, stable-edge, and code-identity evidence/u);
+  assert.match(
+    proofEntry.contract,
+    /parent-only intent, dynamic trusted signed-Node child admission.+tokenless peer finalization/isu,
+  );
+  assert.match(proofEntry.contract, /live per-request same-effective-UID host control over the exact registered operation-plane set/u);
+  assert.match(proofEntry.contract, /daemon\/status-host break-glass/u);
+  assert.match(proofEntry.contract, /M2 daemon IPC, CLI, internal status, and internal Canvas projections with public SDKs deferred to M6/u);
+  assert.match(proofEntry.contract, /split all-or-nothing claim-set admission/u);
+  assert.match(proofEntry.contract, /generation-independent retained receipt replay/u);
+  assert.match(proofEntry.contract, /expected-barrier CAS/u);
+  assert.match(proofEntry.contract, /actual bytes and declared hashes for ADRs.+and 0043/isu);
+  assert.match(proofEntry.contract, /frozen external-command manifest v0 schema/u);
+  assert.match(proofEntry.contract, /explicit prior-generation recovery across nine target machines/u);
+  assert.match(
+    proofEntry.contract,
+    /exact baseline equality for every unaffected capability-current row.+global-input-event-observation listen-route, microphone, native-status-item, and Canvas Milestone 2 burn-down/isu,
+  );
   assert.match(proofEntry.contract, /preserved, historical, and frozen exclusions/u);
 
   const registry = await json('docs/dev/test-proof-registry.json');
@@ -421,30 +659,45 @@ test('generated ownership, proof wording, routing, and preservation remain exact
   assert.deepEqual(route.commands.map(({ command }) => command), [
     'node --test tests/sovereign-capability-active-authority.test.mjs',
   ]);
-  assert.match(route.commands[0].reason, /path-specific current-only evidence/u);
+  assert.match(route.commands[0].reason, /path-specific current evidence with explicit baseline path for migrated proofs/u);
   assert.match(route.commands[0].reason, /git-tracked active-authority stale scan/u);
+  assert.match(route.commands[0].reason, /rejection of a human-intent host-control class/u);
   assert.equal(route.tcc_identity_sensitive, false);
 
   for (const item of authority.historical_preservation.filter(({ sha256 }) => sha256 !== null)) {
     const digest = crypto.createHash('sha256').update(await fs.readFile(path.join(repoRoot, item.pattern))).digest('hex');
     assert.equal(digest, item.sha256, `${item.pattern} preserved bytes changed`);
   }
-  for (const preservedAdr of [
-    'docs/adr/0015-aos-tcc-capability-broker-boundary.md',
-    'docs/adr/0018-installable-aos-skills.md',
-    'docs/adr/0030-desktop-frame-texture-leases.md',
-    'docs/adr/0031-desktop-pixel-broker-and-warm-snapshots.md',
-    'docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md',
-    'docs/adr/0041-managed-playwright-companion-runtime.md',
-  ]) {
+  assert.deepEqual(await validateImmutableBaselineBodies(authority), []);
+  for (const preservedPath of immutableBaselinePaths) {
     assert.ok(
       authority.historical_preservation.some((item) => (
-        item.pattern === preservedAdr
-        && item.classification === 'preserved'
+        item.pattern === preservedPath
+        && ['preserved', 'frozen'].includes(item.classification)
         && typeof item.sha256 === 'string'
       )),
-      `missing exact ADR-body preservation: ${preservedAdr}`,
+      `missing exact baseline-byte preservation: ${preservedPath}`,
     );
+  }
+  for (const driftPath of [
+    'docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md',
+    'shared/schemas/aos-external-command-manifest-v0.schema.json',
+  ]) {
+    const coordinatedDrift = structuredClone(authority);
+    const driftBody = Buffer.concat([
+      gitBlobAt(authority.baseline_revision, driftPath),
+      Buffer.from('\ncoordinated-body-and-hash-drift\n'),
+    ]);
+    coordinatedDrift.historical_preservation.find(({ pattern }) => pattern === driftPath).sha256 = crypto
+      .createHash('sha256')
+      .update(driftBody)
+      .digest('hex');
+    const coordinatedErrors = await validateImmutableBaselineBodies(
+      coordinatedDrift,
+      new Map([[driftPath, driftBody]]),
+    );
+    assert.ok(coordinatedErrors.includes(`IMMUTABLE_DECLARED_HASH_BASELINE_MISMATCH:${driftPath}`));
+    assert.ok(coordinatedErrors.includes(`IMMUTABLE_BODY_BASELINE_MISMATCH:${driftPath}`));
   }
   for (const pattern of [
     'docs/archive/**',
@@ -499,7 +752,10 @@ test('completed AOS-first paired publication is distinct from runtime implementa
   assert.match(ledger, /verifiedRef.*sourceRevision/su);
   assert.match(ledger, /advanced\s+atomically.*before\s+Sigil\s+authority\s+publication/su);
   assert.match(ledger, /227382c1bcbdab56f551a85a69b0609eebbdfa0c/u);
-  assert.match(ledger, /Authority publication does not publish runtime implementation/u);
+  assert.match(
+    ledger,
+    /Current source,\s+command-source manifests, generated help, schemas, API docs, tests, and runtime\s+readback are the executable contract/u,
+  );
 
   const contextMap = await read('CONTEXT-MAP.md');
   assert.match(contextMap, /publication_state.*landed/su);

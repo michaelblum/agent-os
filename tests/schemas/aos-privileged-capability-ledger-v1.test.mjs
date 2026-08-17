@@ -1076,7 +1076,8 @@ const expectedCliBindingsByCapability = {
           "executable": "/usr/bin/env",
           "argv_prefix": [
             "node",
-            "scripts/aos-tell-listen.mjs",
+            "--input-type=module",
+            "-",
             "listen"
           ]
         }
@@ -1142,7 +1143,8 @@ const expectedCliBindingsByCapability = {
           "executable": "/usr/bin/env",
           "argv_prefix": [
             "node",
-            "scripts/aos-tell-listen.mjs",
+            "--input-type=module",
+            "-",
             "listen"
           ]
         }
@@ -1162,7 +1164,8 @@ const expectedCliBindingsByCapability = {
           "executable": "/usr/bin/env",
           "argv_prefix": [
             "node",
-            "scripts/aos-tell-listen.mjs",
+            "--input-type=module",
+            "-",
             "listen"
           ]
         }
@@ -3783,18 +3786,36 @@ const expectedMilestoneShape = [
       "host_stop_barrier",
       "durable_recovery",
       "microphone_adapter",
-      "internal_red_status_projection"
+      "internal_red_status_projection",
+      "owner_root_spawn_record",
+      "external_dispatch_spawn_binding",
+      "external_command_manifest_v1_cutover",
+      "durable_operation_store",
+      "atomic_claim_set_admission",
+      "per_resource_claim_lifecycle",
+      "multiplex_broker_lifecycle",
+      "daemon_ipc_cli_surface",
+      "internal_canvas_projection"
     ],
     "gate_ids": [
-      "owner_decisions_accepted",
+      "owner_bindings_accepted",
       "prepared_before_authority",
       "owner_filter_intersection",
-      "host_operator_separation",
+      "live_peer_host_control_projection",
+      "prior_generation_recovery_closure",
+      "singleton_resource_claim_closure",
+      "voice_resource_claim_no_preemption",
       "terminal_residual_invariant",
-      "microphone_control_plane"
+      "microphone_control_plane",
+      "owner_root_skip_proof",
+      "external_command_manifest_v1_cutover",
+      "external_dispatch_spawn_binding",
+      "resource_lifecycle_separation",
+      "host_barrier_request_receipts",
+      "command_surface_publication"
     ],
-    "path_count": 18,
-    "proof_count": 5
+    "path_count": 70,
+    "proof_count": 23
   },
   {
     "id": "M3",
@@ -4054,20 +4075,118 @@ const expectedCriticalMilestoneOwners = {
       "shared/schemas/aos-operation-v1.schema.json",
       "shared/schemas/aos-stream-v1.schema.json",
       "src/daemon/microphone-operation-adapter.swift",
-      "manifests/commands/source/aos/operation-control.proposed.json",
-      "manifests/commands/source/external/operation-control.proposed.json",
+      "src/daemon/voice-transport.swift",
+      "src/daemon/microphone-authorization.swift",
+      "src/daemon/segmented-microphone-capture.swift",
+      "src/daemon/audio-playback.swift",
+      "manifests/commands/source/aos/12-listen.json",
+      "manifests/commands/source/aos/41-operation.json",
+      "manifests/commands/source/external/49-operation.json",
       "manifests/commands/aos-commands.json",
       "manifests/commands/aos-external-commands.json",
-      "docs/api/aos.md"
+      "docs/api/aos.md",
+      "docs/api/aos-capabilities.md"
     ],
     "internal_red_status_projection": [
       "shared/schemas/aos-operation-event-v1.schema.json",
       "src/daemon/operation-status-item-projection.swift",
-      "manifests/commands/source/aos/operation-control.proposed.json",
-      "manifests/commands/source/external/operation-control.proposed.json",
+      "src/display/status-item.swift",
+      "src/display/status-item-host-controller.swift",
+      "manifests/commands/source/aos/41-operation.json",
+      "manifests/commands/source/external/49-operation.json",
       "manifests/commands/aos-commands.json",
       "manifests/commands/aos-external-commands.json",
-      "docs/api/aos.md"
+      "docs/api/aos.md",
+      "docs/api/aos-capabilities.md"
+    ],
+    "owner_root_spawn_record": [
+      "shared/schemas/aos-operation-lineage-v1.schema.json",
+      "src/daemon/operation-owner-root.swift",
+      "src/daemon/operation-spawn-record.swift",
+      "shared/swift/ipc/connection.swift"
+    ],
+    "external_dispatch_spawn_binding": [
+      "shared/schemas/aos-operation-lineage-v1.schema.json",
+      "src/daemon/operation-spawn-record.swift",
+      "src/shared/external-command-dispatch.swift",
+      "manifests/commands/source/external/15-listen.json",
+      "scripts/aos-tell-listen.mjs",
+      "scripts/lib/aos-voice-follow.mjs",
+      "scripts/lib/aos-daemon-client.mjs",
+      "src/daemon/voice-transport.swift"
+    ],
+    "external_command_manifest_v1_cutover": [
+      "shared/schemas/aos-external-command-manifest-v1.schema.json",
+      "manifests/commands/source/external/15-listen.json",
+      "scripts/generate-command-manifests.mjs",
+      "manifests/commands/aos-commands.json",
+      "manifests/commands/aos-external-commands.json",
+      "docs/api/aos.md",
+      "docs/api/aos-capabilities.md",
+      "src/shared/external-command-dispatch.swift",
+      "scripts/aos-help-proxy.mjs",
+      "scripts/stage-browser-companion-runtime.mjs",
+      "scripts/stage-work-record-runtime.mjs",
+      "docs/dev/command-surface.md",
+      "docs/dev/test-proof-registry.d/command-surface.json",
+      "docs/dev/test-proof-registry.json",
+      "docs/dev/workflow-rules.json",
+      "docs/dev/aos-sovereign-capability-authority-v1.json",
+      "manifests/AGENTS.md",
+      "shared/AGENTS.md",
+      "tests/AGENTS.md",
+      "skills/aos-command-surface-maintenance/SKILL.md",
+      "scripts/lib/agent-workspace/AGENTS.md"
+    ],
+    "durable_operation_store": [
+      "shared/schemas/aos-operation-v1.schema.json",
+      "shared/schemas/aos-operation-recovery-v1.schema.json",
+      "src/daemon/operation-store.swift",
+      "src/daemon/operation-state.swift"
+    ],
+    "atomic_claim_set_admission": [
+      "shared/schemas/aos-operation-v1.schema.json",
+      "src/daemon/operation-resource-transaction.swift",
+      "src/daemon/operation-store.swift"
+    ],
+    "per_resource_claim_lifecycle": [
+      "shared/schemas/aos-operation-v1.schema.json",
+      "src/daemon/operation-resource-claim.swift",
+      "src/daemon/operation-store.swift"
+    ],
+    "multiplex_broker_lifecycle": [
+      "shared/schemas/aos-operation-v1.schema.json",
+      "src/daemon/operation-resource-broker.swift",
+      "src/daemon/operation-store.swift"
+    ],
+    "daemon_ipc_cli_surface": [
+      "shared/schemas/daemon-request.schema.json",
+      "shared/schemas/daemon-response.schema.json",
+      "shared/schemas/daemon-event.schema.json",
+      "shared/schemas/daemon-ipc.md",
+      "src/daemon/unified.swift",
+      "shared/swift/ipc/connection.swift",
+      "shared/swift/ipc/runtime-paths.swift",
+      "src/commands/operation.swift",
+      "src/main.swift",
+      "manifests/commands/source/aos/41-operation.json",
+      "manifests/commands/source/external/49-operation.json",
+      "manifests/commands/aos-commands.json",
+      "manifests/commands/aos-external-commands.json",
+      "docs/api/aos.md",
+      "docs/api/aos-capabilities.md",
+      "docs/dev/test-proof-registry.d/operation-control.json",
+      "docs/dev/workflow-rules.json"
+    ],
+    "internal_canvas_projection": [
+      "shared/schemas/aos-operation-event-v1.schema.json",
+      "src/daemon/operation-canvas-projection.swift",
+      "packages/toolkit/runtime/operation-control.js",
+      "packages/toolkit/runtime/index.js",
+      "packages/toolkit/components/operation-control/model.js",
+      "packages/toolkit/components/operation-control/index.js",
+      "packages/toolkit/components/operation-control/index.html",
+      "packages/toolkit/components/operation-control/styles.css"
     ]
   },
   "M3": {
@@ -4076,8 +4195,8 @@ const expectedCriticalMilestoneOwners = {
       "src/daemon/desktop-pixel-stream-lifecycle.swift",
       "shared/schemas/aos-screen-recording-v1.schema.json",
       "src/daemon/screen-recording-operation-adapter.swift",
-      "manifests/commands/source/aos/screen-recording.proposed.json",
-      "manifests/commands/source/external/screen-recording.proposed.json",
+      "manifests/commands/source/aos/42-screen-recording.json",
+      "manifests/commands/source/external/50-screen-recording.json",
       "manifests/commands/aos-commands.json",
       "manifests/commands/aos-external-commands.json",
       "docs/api/aos.md"
@@ -4085,8 +4204,8 @@ const expectedCriticalMilestoneOwners = {
     "system_audio": [
       "shared/schemas/aos-screen-recording-v1.schema.json",
       "src/daemon/screen-recording-operation-adapter.swift",
-      "manifests/commands/source/aos/screen-recording.proposed.json",
-      "manifests/commands/source/external/screen-recording.proposed.json",
+      "manifests/commands/source/aos/42-screen-recording.json",
+      "manifests/commands/source/external/50-screen-recording.json",
       "manifests/commands/aos-commands.json",
       "manifests/commands/aos-external-commands.json",
       "docs/api/aos.md"
@@ -4094,8 +4213,8 @@ const expectedCriticalMilestoneOwners = {
     "microphone_track": [
       "shared/schemas/aos-screen-recording-v1.schema.json",
       "src/daemon/screen-recording-operation-adapter.swift",
-      "manifests/commands/source/aos/screen-recording.proposed.json",
-      "manifests/commands/source/external/screen-recording.proposed.json",
+      "manifests/commands/source/aos/42-screen-recording.json",
+      "manifests/commands/source/external/50-screen-recording.json",
       "manifests/commands/aos-commands.json",
       "manifests/commands/aos-external-commands.json",
       "docs/api/aos.md"
@@ -4132,32 +4251,32 @@ const expectedCriticalMilestoneOwners = {
       "shared/schemas/aos-external-tool-descriptor-v1.schema.json",
       "scripts/lib/external-tool/raw-runner.mjs",
       "scripts/lib/external-tool/descriptor-loader.mjs",
-      "manifests/commands/source/aos/external-tool-run.proposed.json",
-      "manifests/commands/source/external/external-tool-run.proposed.json",
+      "manifests/commands/source/aos/46-external-tool-run.json",
+      "manifests/commands/source/external/54-external-tool-run.json",
       "manifests/commands/aos-commands.json",
       "manifests/commands/aos-external-commands.json",
       "docs/api/aos.md"
     ],
     "raw_stdin": [
       "scripts/lib/external-tool/raw-runner.mjs",
-      "manifests/commands/source/aos/external-tool-run.proposed.json",
-      "manifests/commands/source/external/external-tool-run.proposed.json",
+      "manifests/commands/source/aos/46-external-tool-run.json",
+      "manifests/commands/source/external/54-external-tool-run.json",
       "manifests/commands/aos-commands.json",
       "manifests/commands/aos-external-commands.json",
       "docs/api/aos.md"
     ],
     "raw_stdout": [
       "scripts/lib/external-tool/raw-runner.mjs",
-      "manifests/commands/source/aos/external-tool-run.proposed.json",
-      "manifests/commands/source/external/external-tool-run.proposed.json",
+      "manifests/commands/source/aos/46-external-tool-run.json",
+      "manifests/commands/source/external/54-external-tool-run.json",
       "manifests/commands/aos-commands.json",
       "manifests/commands/aos-external-commands.json",
       "docs/api/aos.md"
     ],
     "raw_stderr": [
       "scripts/lib/external-tool/raw-runner.mjs",
-      "manifests/commands/source/aos/external-tool-run.proposed.json",
-      "manifests/commands/source/external/external-tool-run.proposed.json",
+      "manifests/commands/source/aos/46-external-tool-run.json",
+      "manifests/commands/source/external/54-external-tool-run.json",
       "manifests/commands/aos-commands.json",
       "manifests/commands/aos-external-commands.json",
       "docs/api/aos.md"
@@ -4165,8 +4284,8 @@ const expectedCriticalMilestoneOwners = {
     "raw_artifact_transport": [
       "scripts/lib/external-tool/raw-runner.mjs",
       "src/daemon/external-tool-artifact-adapter.swift",
-      "manifests/commands/source/aos/external-tool-run.proposed.json",
-      "manifests/commands/source/external/external-tool-run.proposed.json",
+      "manifests/commands/source/aos/46-external-tool-run.json",
+      "manifests/commands/source/external/54-external-tool-run.json",
       "manifests/commands/aos-commands.json",
       "manifests/commands/aos-external-commands.json",
       "docs/api/aos.md"
@@ -4187,13 +4306,13 @@ const expectedCriticalMilestoneOwners = {
       "shared/schemas/aos-external-tool-descriptor-v1.schema.json",
       "scripts/lib/external-tool/raw-runner.mjs",
       "scripts/lib/external-tool/descriptor-loader.mjs",
-      "manifests/companions/opencli-v1.proposed.json"
+      "manifests/companions/opencli-v1.json"
     ],
     "ffmpeg_descriptor_executable": [
       "shared/schemas/aos-external-tool-descriptor-v1.schema.json",
       "scripts/lib/external-tool/raw-runner.mjs",
       "scripts/lib/external-tool/descriptor-loader.mjs",
-      "manifests/companions/ffmpeg-v1.proposed.json"
+      "manifests/companions/ffmpeg-v1.json"
     ],
     "neutral_operation_projection": [
       "src/daemon/external-tool-operation-adapter.swift",
@@ -4207,8 +4326,8 @@ const expectedCriticalMilestoneOwners = {
       "skills/aos-opencli.proposed/SKILL.md",
       "skills/aos-ffmpeg.proposed/SKILL.md",
       "manifests/companions/playwright-cli-v1.json",
-      "manifests/companions/opencli-v1.proposed.json",
-      "manifests/companions/ffmpeg-v1.proposed.json"
+      "manifests/companions/opencli-v1.json",
+      "manifests/companions/ffmpeg-v1.json"
     ],
     "technique_skills": [
       "skills/registry.json",
@@ -4231,12 +4350,12 @@ const expectedCriticalMilestoneOwners = {
     "opencli_skill": [
       "skills/registry.json",
       "skills/aos-opencli.proposed/SKILL.md",
-      "manifests/companions/opencli-v1.proposed.json"
+      "manifests/companions/opencli-v1.json"
     ],
     "ffmpeg_skill": [
       "skills/registry.json",
       "skills/aos-ffmpeg.proposed/SKILL.md",
-      "manifests/companions/ffmpeg-v1.proposed.json"
+      "manifests/companions/ffmpeg-v1.json"
     ]
   }
 };
@@ -5155,7 +5274,7 @@ const expectedMachineCounts = {
   "operation": {
     "machine_kind": "finite_lifecycle",
     "state_count": 7,
-    "transition_count": 31,
+    "transition_count": 37,
     "terminal_states": [
       "terminal"
     ],
@@ -5164,7 +5283,7 @@ const expectedMachineCounts = {
   "stream": {
     "machine_kind": "finite_lifecycle",
     "state_count": 7,
-    "transition_count": 31,
+    "transition_count": 37,
     "terminal_states": [
       "terminal"
     ],
@@ -5173,7 +5292,7 @@ const expectedMachineCounts = {
   "tap": {
     "machine_kind": "finite_lifecycle",
     "state_count": 7,
-    "transition_count": 16,
+    "transition_count": 22,
     "terminal_states": [
       "terminal"
     ],
@@ -5182,7 +5301,34 @@ const expectedMachineCounts = {
   "artifact": {
     "machine_kind": "finite_lifecycle",
     "state_count": 8,
-    "transition_count": 18,
+    "transition_count": 27,
+    "terminal_states": [
+      "terminal"
+    ],
+    "quiescent_states": []
+  },
+  "claim_set_transaction": {
+    "machine_kind": "finite_lifecycle",
+    "state_count": 7,
+    "transition_count": 19,
+    "terminal_states": [
+      "terminal"
+    ],
+    "quiescent_states": []
+  },
+  "resource_claim": {
+    "machine_kind": "finite_lifecycle",
+    "state_count": 6,
+    "transition_count": 17,
+    "terminal_states": [
+      "terminal"
+    ],
+    "quiescent_states": []
+  },
+  "multiplex_broker": {
+    "machine_kind": "finite_lifecycle",
+    "state_count": 7,
+    "transition_count": 24,
     "terminal_states": [
       "terminal"
     ],
@@ -5190,8 +5336,8 @@ const expectedMachineCounts = {
   },
   "host_barrier": {
     "machine_kind": "cyclic_control",
-    "state_count": 5,
-    "transition_count": 7,
+    "state_count": 6,
+    "transition_count": 27,
     "terminal_states": [],
     "quiescent_states": [
       "open",
@@ -5201,7 +5347,7 @@ const expectedMachineCounts = {
   "recovery": {
     "machine_kind": "finite_lifecycle",
     "state_count": 6,
-    "transition_count": 11,
+    "transition_count": 16,
     "terminal_states": [
       "terminal"
     ],
@@ -5441,6 +5587,1466 @@ export function validateGraph(machine) {
   return errors;
 }
 
+export function validateM2AuthorityClosure(ledger) {
+  const errors = [];
+  const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+  const requireTransitionBinding = (machine, expected, code) => {
+    const transition = machine?.transitions.find(({ from, event, to }) => (
+      from === expected.from && event === expected.event && to === expected.to
+    ));
+    if (!transition
+      || transition.guard_id !== expected.guard_id
+      || (expected.trigger !== undefined && transition.trigger !== expected.trigger)
+      || !expected.guard_markers.every((marker) => transition.guard.includes(marker))) {
+      errors.push(semanticError(code, `${machine?.id || 'missing'}:${expected.from}:${expected.event}`));
+    }
+  };
+  const expectedBindings = [
+    {
+      id: 'ordinary-owner-root',
+      status: 'accepted_by_adr_0044',
+      decision_code: 'darwin_peer_nearest_verified_non_aos_ancestor_v1',
+      contract_ref: 'target_design.identity_contract.ordinary_owner_root',
+      authority: 'docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md',
+    },
+    {
+      id: 'same-effective-uid-host-control',
+      status: 'accepted_by_adr_0044',
+      decision_code: 'live_same_effective_uid_host_control_v1',
+      contract_ref: 'target_design.host_control_contract',
+      authority: 'docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md',
+    },
+  ];
+  if (!same(ledger.accepted_m2_owner_bindings, expectedBindings)) {
+    errors.push(semanticError('M2_OWNER_BINDING_INVALID', JSON.stringify(ledger.accepted_m2_owner_bindings)));
+  }
+
+  const identity = ledger.target_design.identity_contract;
+  const ordinary = identity.ordinary_owner_root;
+  if (!same(ordinary.peer_required_fields, ['audit_token', 'effective_uid', 'pid', 'pid_generation'])
+    || ordinary.capture_phase !== 'local_socket_accept'
+    || ordinary.walk_direction !== 'immediate_parent_outward'
+    || ordinary.selection !== 'nearest_mechanically_verified_non_aos_ancestor'
+    || ordinary.unverified_node_result !== 'select_conservative_immediate_mechanical_boundary_or_reject'
+    || ordinary.unverified_edge_rule.widen_to_ancestor !== false
+    || ordinary.unverified_edge_rule.rejection_required_when_immediate_boundary_stale !== true
+    || !same(ordinary.resolver_outcomes, [
+      'direct_non_aos_peer',
+      'verified_non_aos_ancestor',
+      'conservative_immediate_peer_boundary',
+      'stale_ancestry',
+      'unverified_adapter',
+    ])) {
+    errors.push(semanticError('ORDINARY_OWNER_ROOT_INVALID', ordinary?.selection || 'missing'));
+  }
+  const expectedSkipProofs = [
+    {
+      kind: 'exact_aos_image',
+      source: 'runtime_image_attestation',
+      publication_phase: 'socket_accept_reauthentication',
+      common_required_fields: [
+        'child_pid',
+        'child_effective_uid',
+        'child_proc_start_time_sample_1',
+        'child_proc_start_time_sample_2',
+        'parent_pid',
+        'parent_effective_uid',
+        'parent_proc_start_time_sample_1',
+        'parent_proc_start_time_sample_2',
+        'same_observation_parent_edge_receipt',
+        'adapter_registration_id',
+        'adapter_registration_revision',
+        'executable_identity',
+        'executable_digest',
+      ],
+      immediate_peer_additional_fields: ['child_audit_token'],
+      ancestor_additional_fields: [],
+      ancestor_audit_token_requirement: 'forbidden_unavailable',
+    },
+    {
+      kind: 'generation_bound_daemon_spawn_record',
+      source: 'daemon_durable_spawn_record',
+      publication_phase: 'before_helper_authority',
+      common_required_fields: [
+        'spawn_record_id',
+        'child_pid',
+        'child_pid_generation',
+        'parent_pid',
+        'parent_pid_generation',
+        'same_observation_parent_edge_receipt',
+        'operation_id',
+        'operation_generation',
+        'adapter_id',
+        'adapter_registration_revision',
+        'executable_identity',
+        'executable_digest',
+      ],
+      evidence_variants: [
+        {
+          evidence_scope: 'immediate_socket_peer',
+          generation_source: 'socket_audit_token_pidversion',
+          additional_required_fields: ['child_audit_token'],
+          forbidden_fields: [],
+        },
+        {
+          evidence_scope: 'verified_ancestor',
+          generation_source: 'double_sampled_proc_bsdinfo',
+          additional_required_fields: [],
+          forbidden_fields: ['child_audit_token'],
+        },
+      ],
+    },
+  ];
+  const expectedAncestorGenerationEvidence = {
+    source: 'double_sampled_proc_bsdinfo',
+    audit_token_availability: 'immediate_socket_peer_only',
+    required_fields: [
+      'child_pid',
+      'child_effective_uid',
+      'child_proc_start_time_sample_1',
+      'child_proc_start_time_sample_2',
+      'parent_pid',
+      'parent_effective_uid',
+      'parent_proc_start_time_sample_1',
+      'parent_proc_start_time_sample_2',
+      'same_observation_parent_edge_receipt',
+      'executable_identity',
+      'executable_digest',
+    ],
+    stable_sample_guard: 'both child and parent start-time samples and the parent edge remain identical across the observation window',
+    ancestor_audit_token_requirement: 'forbidden_unavailable',
+  };
+  if (!same(ordinary.skip_proofs, expectedSkipProofs)
+    || !same(ordinary.ancestor_generation_evidence, expectedAncestorGenerationEvidence)) {
+    errors.push(semanticError('OWNER_SKIP_PROOF_INVALID', JSON.stringify(ordinary.skip_proofs)));
+  }
+  const dispatchBinding = ordinary.external_dispatch_spawn_binding;
+  if (dispatchBinding.route_registration.binding !== 'authored_optional_external_route_registration'
+    || !same(dispatchBinding.route_registration.required_fields, [
+      'route_source_id',
+      'route_source_revision',
+      'adapter_registration_id',
+      'adapter_registration_revision',
+      'activation_predicate',
+      'executable_resolution_policy',
+      'expected_script_identity',
+      'expected_script_digest',
+      'reviewed_dependencies',
+      'reviewed_dependency_set_digest',
+      'canonical_argv_shape_digest',
+    ])
+    || !same(dispatchBinding.route_registration.activation_predicate, {
+      grammar: 'listen_microphone_v1',
+      authority_scope: 'only_exact_matching_invocations_prepare_an_operation_claim_and_require_dynamic_child_admission',
+      nonmatching_invocations: 'no_operation_intent_no_resource_claim_no_child_admission',
+    })
+    || !same(dispatchBinding.route_registration.executable_resolution_policy, {
+      launcher_shape: 'usr_bin_env_node',
+      resolution_owner: 'native_external_dispatch',
+      resolution_phase: 'immediately_before_spawn',
+      search_source: 'sanitized_path',
+      command_name: 'node',
+      designated_requirement: 'anchor apple generic and identifier "node" and certificate leaf[subject.OU] = "HX7739G8FX"',
+      signing_identifier: 'node',
+      signing_team_identifier: 'HX7739G8FX',
+      requires_hardened_runtime: true,
+      platform_code_directory_hash_algorithm: 'sha256_truncated_cdhash_20_bytes',
+      reviewed_source_max_bytes: 131072,
+      reviewed_bundle_max_bytes: 524288,
+      durable_observation_fields: [
+        'resolved_executable_path_digest',
+        'observed_executable_identity_digest',
+        'observed_executable_device',
+        'observed_executable_inode',
+        'observed_executable_code_identity',
+        'observed_executable_file_digest',
+        'platform_code_directory_hash',
+        'signing_identifier',
+        'signing_team_identifier',
+      ],
+      authored_static_executable_digest: 'forbidden_host_variable',
+      transient_absolute_path_retention: 'in_memory_resolution_only_never_durable_or_public',
+      finalization_comparison: 'dynamic_seccode_and_mapped_vnode_match_exact_intent_platform_cdhash_device_inode_and_trusted_node_identity',
+    })
+    || dispatchBinding.route_registration.path_or_basename_shortcut !== 'forbidden'
+    || !same(dispatchBinding.durable_script_identity_contract, {
+      authored_registration_field: 'expected_script_identity',
+      authored_registration_rule: 'normalized_repo_relative_no_absolute_or_parent_segments',
+      digest_algorithm: 'sha256',
+      digest_input: 'utf8_normalized_repo_relative_script_identity',
+      digest_encoding: 'lowercase_hex_64',
+      spawn_intent_field: 'expected_script_identity_digest',
+      finalization_field: 'script_identity_digest',
+      raw_value_retention: 'resolver_memory_only_until_digest_then_discard',
+      forbidden_durable_fields: [
+        'expected_script_identity', 'script_identity', 'script_path',
+        'script_basename', 'resolved_script_path',
+      ],
+    })
+    || !same(dispatchBinding.reviewed_dependency_contract, {
+      authored_dependencies_field: 'reviewed_dependencies',
+      authored_set_digest_field: 'reviewed_dependency_set_digest',
+      exact_identities: [
+        'scripts/lib/aos-daemon-client.mjs',
+        'scripts/lib/aos-voice-follow.mjs',
+      ],
+      dependency_digest_input: 'raw_file_bytes',
+      set_digest_input: 'utf8_sorted_canonical_json_dependency_identity_and_digest_array',
+      digest_algorithm: 'sha256',
+      digest_encoding: 'lowercase_hex_64',
+      spawn_intent_field: 'reviewed_dependency_set_digest',
+      finalization_field: 'reviewed_dependency_set_digest',
+      durable_retention: 'set_digest_only',
+      validation_rule: 'generator_and_dispatcher_verify_exact_closed_dependency_bytes_under_canonical_aos_root_then_daemon_binds_the_content_free_set_digest_to_the_admitted_in_memory_bundle',
+    })
+    || !same(dispatchBinding.binding_token_contract, {
+      scope: 'exact_authenticated_intent_parent_only',
+      uses: ['child_admit', 'abandon'],
+      child_transport: 'forbidden',
+      durable_form: 'domain_separated_digest_only',
+      finalize_requirement: 'token_forbidden_finalize_is_peer_bound',
+    })
+    || !same(dispatchBinding.child_admission_contract, {
+      request_fields: ['request_id', 'one_time_binding_token', 'child_pid'],
+      parent_authentication: 'exact_intent_parent_pid_generation_and_aos_dispatcher_image',
+      child_evidence: [
+        'child_pid_generation', 'same_observation_parent_edge_receipt',
+        'dynamic_seccode_validity', 'apple_generic_developer_id_anchor',
+        'signing_identifier_node', 'signing_team_identifier_HX7739G8FX',
+        'hardened_runtime', 'platform_code_directory_hash_sha256_truncated_20_bytes',
+        'mapped_main_executable_device_inode',
+      ],
+      publication_order: 'durably_admit_exact_child_before_any_reviewed_module_bytes_are_written',
+    })
+    || !same(dispatchBinding.in_memory_bundle_contract, {
+      source_bytes: [
+        'scripts/aos-tell-listen.mjs',
+        'scripts/lib/aos-daemon-client.mjs',
+        'scripts/lib/aos-voice-follow.mjs',
+      ],
+      construction: 'deterministic_nested_esm_data_urls_from_already_verified_raw_bytes',
+      transport: 'stdin_after_durable_child_admission',
+      child_pathnames: 'forbidden',
+      binding_token: 'forbidden',
+      pre_admission_child_input: 'empty',
+    })
+    || !same(dispatchBinding.pending_intent_cleanup_contract, {
+      limit: 4096,
+      ttl_milliseconds: 30000,
+      closure_paths: ['parent_authenticated_abandon', 'daemon_expiry', 'boot_recovery', 'finalization_failure'],
+      result: 'terminalize_prepared_operation_and_release_exact_resource_claim_without_authority',
+      closed_receipt_retention: 'bounded_4096',
+    })
+    || dispatchBinding.rejected_environment_authority !== 'AOS_EXTERNAL_DISPATCH_PARENT_PID'
+    || dispatchBinding.lifecycle_parent_observation !== 'dispatcher_injected_pid_is_deleted_at_module_initialization_never_sent_to_daemon_and_never_authority'
+    || dispatchBinding.finalization_phase !== 'tokenless_exact_admitted_child_same_socket_before_microphone_authority'
+    || !same(dispatchBinding.spawn_intent_required_fields, [
+      'spawn_record_id',
+      'one_time_binding_token_digest',
+      'parent_pid',
+      'parent_pid_generation',
+      'operation_id',
+      'operation_generation',
+      'adapter_id',
+      'adapter_registration_revision',
+      'route_source_id',
+      'route_source_revision',
+      'resolved_executable_path_digest',
+      'observed_executable_identity_digest',
+      'observed_executable_device',
+      'observed_executable_inode',
+      'observed_executable_code_identity',
+      'observed_executable_file_digest',
+      'platform_code_directory_hash',
+      'signing_identifier',
+      'signing_team_identifier',
+      'expected_script_identity_digest',
+      'expected_script_digest',
+      'reviewed_dependency_set_digest',
+      'canonical_argv_shape_digest',
+      'daemon_generation',
+      'created_at_monotonic_nanoseconds',
+      'expires_at_monotonic_nanoseconds',
+    ])
+    || !same(dispatchBinding.finalization_required_fields, [
+      'spawn_record_id',
+      'one_time_binding_token_digest',
+      'child_audit_token',
+      'child_effective_uid',
+      'child_pid',
+      'child_pid_generation',
+      'parent_pid',
+      'parent_pid_generation',
+      'same_observation_parent_edge_receipt',
+      'operation_id',
+      'operation_generation',
+      'adapter_id',
+      'adapter_registration_revision',
+      'resolved_executable_path_digest',
+      'executable_identity_digest',
+      'executable_device',
+      'executable_inode',
+      'executable_code_identity',
+      'executable_file_digest',
+      'platform_code_directory_hash',
+      'platform_code_directory_hash_algorithm',
+      'signing_identifier',
+      'signing_team_identifier',
+      'script_identity_digest',
+      'script_digest',
+      'reviewed_dependency_set_digest',
+      'canonical_argv_shape_digest',
+    ])
+    || !same(dispatchBinding.receipt_contract, {
+      content_class: 'content_free',
+      required_fields: [
+        'spawn_record_id', 'operation_id', 'operation_generation', 'adapter_id',
+        'adapter_registration_revision', 'resolved_executable_path_digest',
+        'executable_identity_digest', 'executable_file_digest',
+        'platform_code_directory_hash', 'platform_code_directory_hash_algorithm',
+        'expected_script_identity_digest', 'script_identity_digest', 'script_digest',
+        'reviewed_dependency_set_digest',
+        'canonical_argv_shape_digest', 'outcome',
+      ],
+      forbidden_fields: [
+        'expected_script_identity', 'script_identity', 'script_path',
+        'script_basename', 'resolved_script_path', 'argv', 'one_time_binding_token',
+        'reviewed_dependency_identities', 'module_bytes',
+      ],
+    })
+    || dispatchBinding.success_result !== 'generation_bound_spawn_record_finalized'
+    || dispatchBinding.failure_result !== 'typed_spawn_binding_rejection_without_authority') {
+    errors.push(semanticError('EXTERNAL_DISPATCH_SPAWN_BINDING_INVALID', JSON.stringify(dispatchBinding)));
+  }
+  const expectedOwnerNegativeCases = [
+    'basename_only',
+    'argv_only',
+    'environment_only',
+    'same_basename_different_image',
+    'stale_or_reused_pid',
+    'unregistered_exact_image',
+    'parent_edge_race',
+    'nested_adapter_chain',
+    'action_time_generation_change',
+    'node_resolution_substituted_after_intent',
+    'same_script_different_resolved_node',
+    'observed_executable_code_identity_mismatch',
+    'durable_raw_script_identity',
+    'durable_raw_script_path',
+    'durable_script_basename',
+  ];
+  if (!same(ordinary.required_negative_cases, expectedOwnerNegativeCases)) {
+    errors.push(semanticError('OWNER_SKIP_NEGATIVE_CASES_MISSING', JSON.stringify(ordinary.required_negative_cases)));
+  }
+  if (identity.owner_filter.controllable_set_source !== 'mechanically_authenticated_peer_owner_root'
+    || identity.owner_filter.asserted_filter_effect !== 'intersection_only'
+    || identity.owner_filter.mechanically_bound_scope_effect !== 'may_narrow'
+    || identity.owner_filter.asserted_authority !== 'none') {
+    errors.push(semanticError('OWNER_FILTER_AUTHORITY_INVALID', JSON.stringify(identity.owner_filter)));
+  }
+
+  const machines = new Map(machinesFromLedger(ledger)
+    .filter(({ id }) => id !== ledger.flagship_workflow.id)
+    .map((machine) => [machine.id, machine]));
+  const expectedMachineIds = [
+    'operation',
+    'stream',
+    'tap',
+    'artifact',
+    'claim_set_transaction',
+    'resource_claim',
+    'multiplex_broker',
+    'host_barrier',
+    'recovery',
+  ];
+  if (!same([...machines.keys()], expectedMachineIds)) {
+    errors.push(semanticError('M2_MACHINE_SET_INVALID', JSON.stringify([...machines.keys()])));
+  }
+  for (const machineId of expectedMachineIds) {
+    const machine = machines.get(machineId);
+    const requiredSources = machine.states.filter((state) => !machine.terminal_states.includes(state));
+    const catalog = machine.prior_generation_sources || [];
+    if (!same(catalog.map(({ source_state: state }) => state), requiredSources)) {
+      errors.push(semanticError('PRIOR_GENERATION_CATALOG_INVALID', machineId));
+      continue;
+    }
+    for (const source of catalog) {
+      const matches = machine.transitions.filter((transition) => (
+        transition.from === source.source_state
+        && transition.event === source.expected_transition.event
+        && transition.to === source.expected_transition.to
+        && transition.transition_kind === source.expected_transition.transition_kind
+        && transition.guard_id === source.expected_transition.guard_id
+        && transition.trigger === source.expected_transition.trigger
+        && transition.outcome_on_terminal === source.expected_transition.outcome_on_terminal
+      ));
+      if (matches.length !== 1) {
+        errors.push(semanticError('PRIOR_GENERATION_TRANSITION_MISSING', machineId + ':' + source.source_state));
+      }
+      const expectedTo = source.expected_transition.to;
+      if ((source.source_state === 'cleanup_required' && expectedTo !== 'cleanup_required')
+        || (source.source_state === 'blocked_unresolved' && expectedTo !== 'blocked_unresolved')
+        || (!['cleanup_required', 'blocked_unresolved'].includes(source.source_state)
+          && machine.terminal_states.includes(expectedTo))) {
+        errors.push(semanticError('PRIOR_GENERATION_POLARITY_INVALID', machineId + ':' + source.source_state));
+      }
+    }
+  }
+
+  const expectedArtifactRecovery = {
+    required_states: ['cleanup_required', 'recovering'],
+    required_record_fields: ['recovery_origin_state', 'recovery_disposition'],
+    write_phase: 'before_entering_cleanup_required_or_recovering',
+    values: ['release_pending_verification', 'retain_pending_verification', 'removal_pending_verification'],
+    entry_bindings: [
+      { source_state: 'transient', event: 'validation_failed', write_action: 'set', disposition: 'removal_pending_verification' },
+      { source_state: 'transient', event: 'remove_failed', write_action: 'set', disposition: 'removal_pending_verification' },
+      { source_state: 'transient', event: 'prior_generation_orphan', write_action: 'set', disposition: 'removal_pending_verification' },
+      { source_state: 'offered', event: 'remove_failed', write_action: 'set', disposition: 'removal_pending_verification' },
+      { source_state: 'offered', event: 'prior_generation_orphan', write_action: 'set', disposition: 'removal_pending_verification' },
+      { source_state: 'retained', event: 'remove_failed', write_action: 'set', disposition: 'removal_pending_verification' },
+      { source_state: 'retained', event: 'prior_generation_orphan', write_action: 'set', disposition: 'retain_pending_verification' },
+      { source_state: 'released', event: 'prior_generation_orphan', write_action: 'set', disposition: 'release_pending_verification' },
+      { source_state: 'removed', event: 'prior_generation_orphan', write_action: 'set', disposition: 'removal_pending_verification' },
+      { source_state: 'cleanup_required', event: 'prior_generation_orphan', write_action: 'preserve', disposition: null },
+      { source_state: 'cleanup_required', event: 'recover', write_action: 'preserve', disposition: null },
+      { source_state: 'recovering', event: 'prior_generation_orphan', write_action: 'preserve', disposition: null },
+      { source_state: 'recovering', event: 'retry', write_action: 'preserve', disposition: null },
+    ],
+    resolution_bindings: [
+      { disposition: 'release_pending_verification', event: 'released_custody_verified', guard_id: 'released_custody_receipt_reverified', to: 'released' },
+      { disposition: 'retain_pending_verification', event: 'retained_custody_verified', guard_id: 'retained_custody_reverified', to: 'retained' },
+      { disposition: 'removal_pending_verification', event: 'absence_verified', guard_id: 'artifact_absence_proven', to: 'removed' },
+    ],
+    selection_rule: 'only_the_persisted_disposition_matching_transition_may_resolve_recovery',
+    collapse_rule: 'released_or_retained_custody_must_never_be_inferred_as_removed',
+  };
+  const expectedClaimSetRecovery = {
+    required_states: ['cleanup_required', 'recovering'],
+    required_record_fields: ['recovery_origin_state', 'recovery_disposition', 'claim_set_digest'],
+    write_phase: 'before_entering_cleanup_required_or_recovering',
+    values: ['rollback_pending', 'commit_pending_handoff'],
+    entry_bindings: [
+      { source_state: 'prepared', event: 'prior_generation_orphan', write_action: 'set', disposition: 'rollback_pending', commit_marker_rule: 'no_commit_marker' },
+      { source_state: 'reserving', event: 'prior_generation_orphan', write_action: 'derive_from_commit_marker', disposition: null, commit_marker_rule: 'complete_atomic_commit_marker_selects_commit_pending_handoff_otherwise_rollback_pending' },
+      { source_state: 'committed', event: 'prior_generation_orphan', write_action: 'set', disposition: 'commit_pending_handoff', commit_marker_rule: 'complete_atomic_commit_marker_required' },
+      { source_state: 'rolling_back', event: 'prior_generation_orphan', write_action: 'set', disposition: 'rollback_pending', commit_marker_rule: 'rollback_record' },
+      { source_state: 'rolling_back', event: 'rollback_failed', write_action: 'set', disposition: 'rollback_pending', commit_marker_rule: 'rollback_record' },
+      { source_state: 'cleanup_required', event: 'prior_generation_orphan', write_action: 'preserve', disposition: null, commit_marker_rule: 'preserve_existing' },
+      { source_state: 'cleanup_required', event: 'recover', write_action: 'preserve', disposition: null, commit_marker_rule: 'preserve_existing' },
+      { source_state: 'recovering', event: 'prior_generation_orphan', write_action: 'preserve', disposition: null, commit_marker_rule: 'preserve_existing' },
+      { source_state: 'recovering', event: 'retry', write_action: 'preserve', disposition: null, commit_marker_rule: 'preserve_existing' },
+    ],
+    resolution_bindings: [
+      { disposition: 'rollback_pending', event: 'rollback_absence_verified', guard_id: 'failed_admission_absence_proven', outcome: 'rejected' },
+      { disposition: 'commit_pending_handoff', event: 'committed_handoff_verified', guard_id: 'committed_claim_set_handoff_proven', outcome: 'succeeded' },
+    ],
+    selection_rule: 'only_the_persisted_disposition_matching_transition_may_resolve_recovery',
+  };
+  const validateDispositionContract = (machine, expected, code) => {
+    if (!same(machine?.recovery_disposition_contract, expected)) {
+      errors.push(semanticError(code, JSON.stringify(machine?.recovery_disposition_contract)));
+      return;
+    }
+    for (const entry of expected.entry_bindings) {
+      const expectedTo = entry.source_state === 'cleanup_required' && entry.event === 'recover'
+        ? 'recovering' : 'cleanup_required';
+      if (!machine.transitions.some(({ from, event, to }) => (
+        from === entry.source_state && event === entry.event && to === expectedTo
+      ))) errors.push(semanticError(code, 'entry:' + entry.source_state + ':' + entry.event));
+    }
+    for (const binding of expected.resolution_bindings) {
+      if (!machine.transitions.some((transition) => (
+        transition.from === 'recovering'
+        && transition.event === binding.event
+        && transition.guard_id === binding.guard_id
+        && (binding.to === undefined || transition.to === binding.to)
+        && (binding.outcome === undefined || transition.outcome_on_terminal === binding.outcome)
+      ))) errors.push(semanticError(code, 'resolution:' + binding.event));
+    }
+  };
+  validateDispositionContract(machines.get('artifact'), expectedArtifactRecovery, 'ARTIFACT_RECOVERY_DISPOSITION_INVALID');
+  validateDispositionContract(machines.get('claim_set_transaction'), expectedClaimSetRecovery, 'CLAIM_SET_RECOVERY_DISPOSITION_INVALID');
+
+  const prepared = ledger.target_design.prepared_before_authority_contract;
+  const expectedPreparedStates = {
+    operation: 'prepared',
+    stream: 'prepared',
+    tap: 'prepared',
+    artifact: 'transient',
+    claim_set_transaction: 'prepared',
+    resource_claim: 'prepared',
+    multiplex_broker: 'prepared',
+    host_barrier: 'boot_reconciling',
+    recovery: 'idle',
+  };
+  if (prepared.durability_point !== 'before_authority_or_custody'
+    || !same(prepared.records.map(({ machine_id: id }) => id), expectedMachineIds)) {
+    errors.push(semanticError('PREPARED_AUTHORITY_COVERAGE_INVALID', 'record-domain'));
+  }
+  const coveredTransitions = new Set();
+  for (const record of prepared.records) {
+    const machine = machines.get(record.machine_id);
+    if (!machine || record.durable_state !== expectedPreparedStates[record.machine_id]
+      || !machine.states.includes(record.durable_state) || record.required_durable_facts.length < 5) {
+      errors.push(semanticError('PREPARED_AUTHORITY_COVERAGE_INVALID', record.machine_id));
+      continue;
+    }
+    for (const key of record.covered_transition_keys) {
+      coveredTransitions.add(record.machine_id + ':' + key);
+      const [from, event, to] = key.split('|');
+      if (!machine.transitions.some((transition) => (
+        transition.from === from && transition.event === event && transition.to === to
+      ))) errors.push(semanticError('PREPARED_TRANSITION_UNKNOWN', record.machine_id + ':' + key));
+    }
+  }
+  for (const machine of machines.values()) {
+    for (const transition of machine.transitions) {
+      if (!['authority_acquisition', 'custody'].includes(transition.transition_kind)) continue;
+      const key = machine.id + ':' + [transition.from, transition.event, transition.to].join('|');
+      if (!coveredTransitions.has(key)) errors.push(semanticError('PREPARED_AUTHORITY_TRANSITION_UNBOUND', key));
+    }
+  }
+
+  const claimSet = machines.get('claim_set_transaction');
+  const claim = machines.get('resource_claim');
+  const broker = machines.get('multiplex_broker');
+  const expectedResourceStates = {
+    claim_set_transaction: ['prepared', 'reserving', 'committed', 'rolling_back', 'cleanup_required', 'recovering', 'terminal'],
+    resource_claim: ['prepared', 'active', 'releasing', 'cleanup_required', 'recovering', 'terminal'],
+    multiplex_broker: ['prepared', 'starting', 'active', 'stopping', 'cleanup_required', 'recovering', 'terminal'],
+  };
+  for (const machine of [claimSet, claim, broker]) {
+    if (!machine || !same(machine.states, expectedResourceStates[machine.id])) {
+      errors.push(semanticError('RESOURCE_CLAIM_TOPOLOGY_INVALID', machine?.id || 'missing'));
+    }
+  }
+  const requiredResourceTransitions = [
+    [claimSet, 'reserving', 'commit_all', 'committed'],
+    [claimSet, 'reserving', 'conflict', 'rolling_back'],
+    [claimSet, 'rolling_back', 'rollback_complete', 'terminal'],
+    [claim, 'active', 'release_nonlast_subscriber', 'terminal'],
+    [claim, 'active', 'release_last_subscriber', 'releasing'],
+    [broker, 'active', 'subscriber_attached', 'active'],
+    [broker, 'active', 'subscriber_detached_nonlast', 'active'],
+    [broker, 'active', 'last_subscriber_released', 'stopping'],
+  ];
+  for (const [machine, from, event, to] of requiredResourceTransitions) {
+    if (!machine?.transitions.some((transition) => (
+      transition.from === from && transition.event === event && transition.to === to
+    ))) errors.push(semanticError('RESOURCE_CLAIM_TOPOLOGY_INVALID', machine?.id + ':' + event));
+  }
+  const expectedCanonicalDigestContract = {
+    algorithm: 'sha256',
+    input_encoding: 'utf8',
+    canonicalization: 'rfc8785_json_canonicalization_scheme',
+    output_encoding: 'lowercase_hex_64',
+    domain_separator_format: 'aos:<digest-domain>:v1\\n',
+    snapshots: [
+      {
+        digest_field: 'resource_declaration_set_digest',
+        count_field: 'resource_declaration_set_count',
+        domain: 'resource-declaration-set',
+        member_required_fields: [
+          'adapter_registration_id', 'adapter_registration_revision', 'resource_key',
+          'admission_mode', 'declaration_digest',
+        ],
+        member_optional_fields: ['fanout_bound'],
+        sort_fields: ['resource_key', 'adapter_registration_id', 'adapter_registration_revision'],
+      },
+      {
+        digest_field: 'registered_operation_set_digest',
+        count_field: 'registered_operation_set_count',
+        domain: 'registered-operation-set',
+        member_required_fields: [
+          'adapter_registration_id', 'adapter_registration_revision', 'capability_id',
+          'operation_class', 'resource_declaration_set_digest',
+        ],
+        member_optional_fields: [],
+        sort_fields: ['adapter_registration_id', 'adapter_registration_revision'],
+      },
+      {
+        digest_field: 'selected_operation_digest',
+        count_field: 'selected_operation_count',
+        domain: 'selected-operation-set',
+        member_required_fields: [
+          'operation_id', 'operation_generation', 'adapter_registration_id',
+          'adapter_registration_revision', 'capability_id',
+        ],
+        member_optional_fields: [],
+        sort_fields: ['operation_id', 'operation_generation'],
+      },
+      {
+        digest_field: 'subscriber_set_digest',
+        count_field: 'subscriber_set_count',
+        domain: 'subscriber-set',
+        member_required_fields: [
+          'claim_id', 'subscriber_id', 'operation_id', 'operation_generation',
+          'resource_key', 'resource_generation',
+        ],
+        member_optional_fields: [],
+        sort_fields: ['subscriber_id', 'claim_id'],
+      },
+    ],
+    validation_rule: 'count_equals_canonical_member_array_length_and_digest_equals_domain_separated_canonical_bytes',
+  };
+  if (!same(ledger.target_design.canonical_digest_contract, expectedCanonicalDigestContract)) {
+    errors.push(semanticError('CANONICAL_DIGEST_CONTRACT_INVALID',
+      JSON.stringify(ledger.target_design.canonical_digest_contract)));
+  }
+  const resource = ledger.target_design.resource_claim_contract;
+  const expectedDeclarationContract = {
+    owner: 'adapter_registry',
+    snapshot_required_fields: [
+      'adapter_registry_revision', 'resource_declaration_set_count', 'resource_declaration_set_digest',
+    ],
+    canonical_order: 'resource_key_ascending',
+    unique_key: 'resource_key_per_adapter_registry_revision',
+    common_required_fields: [
+      'adapter_registration_id', 'adapter_registration_revision', 'resource_key', 'admission_mode', 'declaration_digest',
+    ],
+    variants: [
+      { admission_mode: 'exclusive', required_fields: [], forbidden_fields: ['fanout_bound'] },
+      {
+        admission_mode: 'multiplexable', required_fields: ['fanout_bound'], forbidden_fields: [],
+        fanout_bound_rule: 'positive_finite_integer',
+      },
+    ],
+    change_rule: 'resource_key_mode_adapter_or_fanout_change_requires_new_adapter_registry_revision_and_declaration_digest',
+  };
+  if (!same(resource.declaration_contract, expectedDeclarationContract)) {
+    errors.push(semanticError('RESOURCE_DECLARATION_INVALID', JSON.stringify(resource.declaration_contract)));
+  }
+  const expectedRequestItemContract = {
+    common_required_fields: [
+      'adapter_registration_id', 'adapter_registration_revision', 'resource_key',
+      'admission_mode', 'resource_declaration_digest', 'expected_resource_generation',
+    ],
+    variants: [
+      {
+        admission_mode: 'exclusive', required_fields: [],
+        forbidden_fields: [
+          'expected_broker_generation', 'expected_subscriber_set_revision',
+          'expected_subscriber_set_count', 'expected_subscriber_set_digest',
+        ],
+      },
+      {
+        admission_mode: 'multiplexable',
+        required_fields: [
+          'expected_broker_generation', 'expected_subscriber_set_revision',
+          'expected_subscriber_set_count', 'expected_subscriber_set_digest',
+        ],
+        forbidden_fields: [],
+      },
+    ],
+  };
+  if (!same(resource.admission_modes, ['exclusive', 'multiplexable'])
+    || resource.claim_set.linearization !== 'single_atomic_transaction'
+    || resource.claim_set.failure_result !== 'rollback_all_retain_none'
+    || resource.claim_set.publication_visibility !== 'all_active_claims_together_or_none'
+    || resource.claim_set.provisional_records !== 'durable_inert_non_authoritative'
+    || !same(resource.claim_set.canonical_request_item_contract, expectedRequestItemContract)
+    || !same(resource.claim_set.compare_and_swap_inputs, [
+      'expected_barrier_generation',
+      'expected_adapter_registry_revision',
+      'expected_resource_declaration_set_count',
+      'expected_resource_declaration_set_digest',
+      'every_requested_resource_generation',
+      'every_requested_resource_declaration_digest',
+      'every_multiplex_resource_expected_broker_generation',
+      'every_multiplex_resource_expected_subscriber_set_revision',
+      'every_multiplex_resource_expected_subscriber_set_count',
+      'every_multiplex_resource_expected_subscriber_set_digest',
+      'claim_set_digest',
+    ])
+    || !same(resource.claim_set.resulting_multiplex_broker_publication_fields, [
+      'resulting_broker_generation',
+      'resulting_subscriber_set_revision',
+      'resulting_subscriber_set_count',
+      'resulting_subscriber_set_digest',
+    ])
+    || !same(resource.claim_set.resulting_claim_publication_fields, [
+      'committed_claim_set_transaction_id',
+      'committed_claim_set_digest',
+      'adapter_registry_revision',
+      'resource_declaration_set_count',
+      'resource_declaration_set_digest',
+    ])
+    || resource.claim_set.fanout_guard !== 'every_resulting_subscriber_set_count_less_than_or_equal_to_bound_declaration_fanout') {
+    errors.push(semanticError('RESOURCE_CLAIM_ATOMICITY_INVALID', JSON.stringify(resource.claim_set)));
+  }
+  if (!same(resource.broker_subscriber_cas, {
+    common_required_inputs: [
+      'broker_id', 'expected_broker_generation', 'resource_key', 'expected_resource_generation',
+      'adapter_registration_id', 'expected_adapter_registration_revision', 'expected_resource_declaration_digest',
+      'expected_subscriber_set_revision', 'expected_subscriber_set_count', 'expected_subscriber_set_digest',
+      'committed_claim_set_transaction_id', 'committed_claim_set_digest', 'claim_id', 'subscriber_id',
+    ],
+    attach_required_inputs: [
+      'current_adapter_registry_revision', 'current_resource_declaration_set_count',
+      'current_resource_declaration_set_digest',
+    ],
+    detach_required_inputs: [
+      'pinned_adapter_registry_revision', 'pinned_resource_declaration_set_count',
+      'pinned_resource_declaration_set_digest',
+    ],
+    events: [
+      {
+        event: 'subscriber_attached',
+        snapshot_guard: 'current_registry_and_declaration_snapshot_matches_committed_claim_set',
+        count_guard: 'resulting_count_at_most_declared_fanout_bound',
+        claim_result: 'active', broker_result: 'active',
+      },
+      {
+        event: 'subscriber_detached_nonlast',
+        snapshot_guard: 'exact_pinned_registry_and_declaration_snapshot_matches_claim',
+        count_guard: 'expected_count_greater_than_one',
+        claim_result: 'terminal', broker_result: 'active',
+      },
+      {
+        event: 'last_subscriber_released',
+        snapshot_guard: 'exact_pinned_registry_and_declaration_snapshot_matches_claim',
+        count_guard: 'expected_count_equals_one_and_resulting_count_equals_zero',
+        claim_result: 'terminal', broker_result: 'stopping',
+      },
+    ],
+    atomic_publication_fields: [
+      'resulting_claim_state', 'adapter_registry_revision', 'resource_declaration_set_count',
+      'resource_declaration_set_digest', 'committed_claim_set_transaction_id',
+      'committed_claim_set_digest', 'resulting_subscriber_set_revision', 'resulting_subscriber_set_count',
+      'resulting_subscriber_set_digest', 'resulting_broker_state',
+    ],
+    partial_mutation: 'forbidden',
+  })) errors.push(semanticError('BROKER_SUBSCRIBER_CAS_INVALID', JSON.stringify(resource.broker_subscriber_cas)));
+  const claimRecord = resource.record_contracts.claim;
+  if (!same(resource.record_contracts.transaction.required_fields, [
+    'transaction_id', 'attempt_sequence', 'operation_id', 'operation_generation', 'daemon_generation',
+    'expected_barrier_generation', 'expected_adapter_registry_revision', 'expected_resource_declaration_set_count',
+    'expected_resource_declaration_set_digest', 'adapter_registry_revision',
+    'resource_declaration_set_count', 'resource_declaration_set_digest',
+    'canonical_request_array', 'claim_set_digest', 'state', 'receipt',
+  ]) || !same(claimRecord.common_required_fields, [
+    'claim_id', 'transaction_id', 'operation_id', 'operation_generation', 'resource_key', 'resource_generation',
+    'admission_mode', 'adapter_registration_id', 'adapter_registration_revision',
+    'resource_declaration_digest', 'adapter_registry_revision', 'resource_declaration_set_count',
+    'resource_declaration_set_digest', 'committed_claim_set_transaction_id',
+    'committed_claim_set_digest', 'state', 'reattach_binding',
+  ]) || !same(resource.record_contracts.broker.required_fields, [
+    'broker_id', 'broker_generation', 'resource_key', 'resource_generation', 'adapter_registration_id',
+    'adapter_registration_revision', 'resource_declaration_digest', 'adapter_registry_revision',
+    'resource_declaration_set_count', 'resource_declaration_set_digest',
+    'committed_claim_set_transaction_id', 'committed_claim_set_digest', 'fanout_bound', 'subscriber_set_count',
+    'subscriber_set_revision', 'subscriber_set_digest', 'state',
+  ])) errors.push(semanticError('RESOURCE_RECORD_BINDING_INVALID', JSON.stringify(resource.record_contracts)));
+  if (!same(claimRecord.variants, [
+    {
+      admission_mode: 'exclusive',
+      required_fields: [],
+      forbidden_fields: ['broker_id', 'broker_generation', 'subscriber_id'],
+    },
+    {
+      admission_mode: 'multiplexable',
+      required_fields: ['broker_id', 'broker_generation', 'subscriber_id'],
+      forbidden_fields: [],
+    },
+  ])) errors.push(semanticError('RESOURCE_CLAIM_VARIANT_INVALID', JSON.stringify(claimRecord.variants)));
+  if (resource.exclusive.same_owner_bypass !== false || resource.exclusive.steal !== false
+    || resource.caller_policy.implicit_queue !== false || resource.caller_policy.priority !== false
+    || resource.caller_policy.preemption !== false || resource.caller_policy.retry_owner !== 'caller'
+    || resource.cleanup.successor_mutation !== 'forbidden') {
+    errors.push(semanticError('RESOURCE_CLAIM_POLICY_INVALID', JSON.stringify(resource)));
+  }
+  if (!same(resource.voice_transport_resource_policy, {
+    resource_key: 'voice_io_native_session',
+    admission_mode: 'exclusive',
+    m2_registered_claim_owner: 'microphone-capture-adapter',
+    legacy_conflict_sentinels: ['speech_output', 'audio_output'],
+    legacy_sentinel_admission_effect: 'atomically_reject_microphone_claim_while_output_active',
+    legacy_output_stop_all_coverage: 'outside_registered_operation_plane_until_later_adapter_migration',
+    capture_while_output_active: 'typed_busy_conflict',
+    output_while_capture_active: 'typed_busy_conflict',
+    implicit_barge_in_preemption: 'forbidden',
+    caller_retry_cancel_or_kill: 'explicit',
+  })) errors.push(semanticError('VOICE_RESOURCE_POLICY_INVALID', JSON.stringify(resource.voice_transport_resource_policy)));
+  const brokerHostStopSources = broker.states.filter((state) => !broker.terminal_states.includes(state));
+  const actualBrokerHostStopSources = broker.transitions
+    .filter(({ event, trigger }) => event === 'host_stop' && trigger === 'host_stop_all')
+    .map(({ from }) => from);
+  if (!same(actualBrokerHostStopSources, brokerHostStopSources)) {
+    errors.push(semanticError('BROKER_HOST_STOP_COVERAGE_INVALID', JSON.stringify(actualBrokerHostStopSources)));
+  }
+  for (const [machine, expected] of [
+    [claimSet, {
+      from: 'prepared', event: 'reserve', to: 'reserving',
+      guard_id: 'complete_set_registry_declaration_snapshot_prepared',
+      guard_markers: ['adapter-registry revision', 'resource-declaration-set count and digest', 'every requested declaration digest'],
+    }],
+    [claimSet, {
+      from: 'reserving', event: 'commit_all', to: 'committed',
+      guard_id: 'single_linearization_exact_claim_and_broker_cas',
+      guard_markers: [
+        'expected barrier generation', 'declaration-set count/digest', 'subscriber-set revision/count/digest',
+        'committed transaction id/digest', 'atomically publish every claim',
+        'resulting broker generation/revision/count/digest', 'declared fanout',
+      ],
+    }],
+    [claimSet, {
+      from: 'reserving', event: 'conflict', to: 'rolling_back',
+      guard_id: 'typed_conflict_or_declaration_drift_requires_full_rollback',
+      guard_markers: ['declaration revision/digest drift', 'stale broker/subscriber CAS input', 'deterministic content-free receipt'],
+    }],
+    [claim, {
+      from: 'active', event: 'release_nonlast_subscriber', to: 'terminal',
+      guard_id: 'nonlast_claim_and_broker_cas_published',
+      guard_markers: [
+        'pinned adapter-registry revision', 'declaration-set count/digest',
+        'committed claim-set transaction id/digest', 'expected subscriber revision/count/digest',
+        'atomically terminals this exact claim', 'broker remains active',
+      ],
+    }],
+    [claim, {
+      from: 'active', event: 'release_last_subscriber', to: 'releasing',
+      guard_id: 'last_claim_and_broker_stopping_cas_published',
+      guard_markers: [
+        'pinned adapter-registry revision', 'declaration-set count/digest',
+        'committed claim-set transaction id/digest', 'expected subscriber count one',
+        'atomically publishes this claim release', 'broker stopping',
+      ],
+    }],
+    [broker, {
+      from: 'active', event: 'subscriber_attached', to: 'active',
+      guard_id: 'subscriber_attach_exact_broker_cas_published',
+      guard_markers: [
+        'current adapter-registry revision', 'complete declaration-set count/digest',
+        'committed claim-set transaction id/digest', 'expected subscriber-set revision/count/digest',
+        'stale standalone attach', 'declared fanout', 'atomically publish the active claim',
+      ],
+    }],
+    [broker, {
+      from: 'active', event: 'subscriber_detached_nonlast', to: 'active',
+      guard_id: 'nonlast_detach_exact_broker_cas_published',
+      guard_markers: [
+        'pinned adapter-registry revision', 'declaration-set count/digest',
+        'committed claim-set transaction id/digest', 'expected subscriber-set revision/count/digest',
+        'expected count greater than one', 'atomically terminal the claim',
+      ],
+    }],
+    [broker, {
+      from: 'active', event: 'last_subscriber_released', to: 'stopping',
+      guard_id: 'last_detach_exact_broker_cas_published',
+      guard_markers: [
+        'pinned adapter-registry revision', 'declaration-set count/digest',
+        'committed claim-set transaction id/digest', 'expected subscriber-set revision/count/digest',
+        'expected count one', 'atomically terminal the claim',
+      ],
+    }],
+  ]) requireTransitionBinding(machine, expected, 'RESOURCE_MACHINE_BINDING_INVALID');
+
+  const host = ledger.target_design.host_control_contract;
+  if (!same(host.registered_operation_plane_scope, {
+    selection: 'complete_registered_set_at_exact_adapter_registry_revision',
+    required_snapshot_fields: [
+      'adapter_registry_revision',
+      'registered_operation_set_count',
+      'registered_operation_set_digest',
+    ],
+    m2_registered_adapters: ['microphone-capture-adapter'],
+    unadapted_legacy_capability_control: 'not_claimed',
+    later_milestone_rule: 'each later adapter milestone atomically advances the registry revision and converges the registered set toward complete privileged and managed capability coverage',
+  })) errors.push(semanticError('REGISTERED_OPERATION_SCOPE_INVALID', JSON.stringify(host.registered_operation_plane_scope)));
+  const expectedBarrierSnapshot = {
+    capture_transition_key: 'host_barrier:open|host_stop_all|closing',
+    immutable_required_fields: [
+      'barrier_generation', 'stop_operation_id', 'stop_operation_generation', 'adapter_registry_revision',
+      'registered_operation_set_count', 'registered_operation_set_digest', 'selected_operation_count',
+      'selected_operation_digest', 'barrier_snapshot_digest',
+    ],
+    preserved_states: ['closing', 'closed', 'cleanup_required', 'recovering'],
+    preservation_rule: 'exact_snapshot_bytes_survive_drain_cleanup_recovery_restart_status_and_state_idempotent_repeat',
+    mutable_progress_fields: ['residual_count', 'residual_digest', 'cleanup_result', 'reconciliation_state'],
+    registry_revision_rule: 'active_registry_snapshot_is_fixed_for_one_open_and_barrier_generation_new_revision_is_candidate_only_until_successor_open_generation',
+    new_request_order: [
+      'mechanical_same_effective_uid_authentication', 'retained_request_id_lookup',
+      'current_daemon_and_expected_barrier_generation_cas', 'state_action_or_state_idempotent_receipt',
+    ],
+    state_idempotent_repeat_rule: 'new_request_while_closing_or_closed_references_original_stop_operation_and_immutable_snapshot_without_new_stop_generation',
+    reopen_binding: {
+      prior_snapshot: 'immutable_closed_barrier_snapshot',
+      candidate_snapshot: 'current_reconciled_adapter_registry_snapshot',
+      required_residual_scopes: ['prior_selected_operation_set', 'candidate_registered_operation_set'],
+      publication: 'atomically_preserve_prior_snapshot_and_publish_separate_resulting_open_snapshot_and_generation',
+    },
+  };
+  if (!same(host.barrier_snapshot_contract, expectedBarrierSnapshot)) {
+    errors.push(semanticError('BARRIER_SNAPSHOT_BINDING_INVALID', JSON.stringify(host.barrier_snapshot_contract)));
+  }
+  const expectedBootStopAllContract = {
+    transition_key: 'host_barrier:boot_reconciling|host_stop_all|boot_reconciling',
+    availability: 'always_handle_through_public_stop_all_entrypoint',
+    request_guard_order: [
+      'mechanical_same_effective_uid_authentication', 'retained_request_id_lookup',
+      'current_daemon_and_expected_barrier_generation_cas', 'exact_durable_snapshot_lookup',
+      'typed_result',
+    ],
+    expected_generation_binding: 'exact_durable_boot_barrier_generation',
+    snapshot_binding: 'exact_last_durable_immutable_barrier_snapshot_no_synthetic_zero_residuals',
+    outcomes: [
+      {
+        outcome: 'recorded', guard: 'durable_store_writable_and_snapshot_valid',
+        receipt: 'new_content_free_stop_operation_generation_bound_to_snapshot',
+        cleanup_claim: 'deferred_until_reconciliation_owns_exact_residuals',
+      },
+      {
+        outcome: 'reconciliation_in_progress', guard: 'boot_reconciliation_or_existing_stop_record_active',
+        receipt: 'content_free_in_progress_snapshot_receipt', cleanup_claim: 'none',
+      },
+      {
+        outcome: 'store_blocked', guard: 'store_unavailable_corrupt_or_lock_blocked',
+        receipt: 'content_free_store_blocked_result_without_durable_success_claim', cleanup_claim: 'none',
+      },
+    ],
+    barrier_state_result: 'boot_reconciling',
+    admission_state: 'closed',
+    status_item_action: 'enabled',
+    false_cleanup_claim: 'forbidden',
+  };
+  if (!same(host.boot_stop_all_contract, expectedBootStopAllContract)) {
+    errors.push(semanticError('BOOT_STOP_ALL_CONTRACT_INVALID', JSON.stringify(host.boot_stop_all_contract)));
+  }
+  const expectedSurfaces = [
+    {
+      surface: 'daemon_ipc', m2_state: 'executable', peer_context: 'live_transport_peer',
+      control_scope: 'ordinary_and_host', fallback: 'typed_host_control_rejection',
+    },
+    {
+      surface: 'cli', m2_state: 'executable', peer_context: 'live_transport_peer',
+      control_scope: 'ordinary_and_host', fallback: 'typed_host_control_rejection',
+    },
+    {
+      surface: 'status_item', m2_state: 'executable', peer_context: 'status_item_host',
+      control_scope: 'host_stop_only', fallback: 'typed_host_control_rejection',
+    },
+    {
+      surface: 'canvas', m2_state: 'internal_projection',
+      peer_context: 'ordinary_canvas_captured_peer_or_status_opened_canvas_host',
+      control_scope: 'ordinary_only_with_live_capture_stop_all_only_with_status_opened_host', fallback: 'display_only',
+    },
+    {
+      surface: 'typescript_sdk', m2_state: 'later_m6', peer_context: 'future_live_transport_peer',
+      control_scope: 'future_projection', fallback: 'not_shipped_m2',
+    },
+    {
+      surface: 'python_sdk', m2_state: 'later_m6', peer_context: 'future_live_transport_peer',
+      control_scope: 'future_projection', fallback: 'not_shipped_m2',
+    },
+  ];
+  if (!same(host.surfaces, expectedSurfaces)) {
+    errors.push(semanticError('HOST_CONTROL_SURFACE_INVALID', JSON.stringify(host.surfaces)));
+  }
+  const expectedCallerOrigins = [
+    {
+      origin: 'live_transport_peer', server_attached: true,
+      required_evidence_fields: ['audit_token', 'effective_uid', 'pid', 'pid_generation'],
+      allowed_action_scopes: ['ordinary_control', 'host_control'],
+      allowed_actions: ['ordinary_operation_controls', 'stop_all', 'barrier_status', 'reopen'],
+      liveness_rule: 'current_socket_transport_peer_reauthenticated_per_request',
+    },
+    {
+      origin: 'ordinary_canvas_captured_peer', server_attached: true,
+      required_evidence_fields: [
+        'canvas_instance_id', 'canvas_generation', 'capture_id', 'captured_connection_epoch',
+        'audit_token', 'effective_uid', 'pid', 'pid_generation',
+      ],
+      allowed_action_scopes: ['ordinary_control'],
+      allowed_actions: ['ordinary_operation_controls'],
+      liveness_rule: 'captured_connection_must_remain_current_and_live_no_status_context_fallback',
+    },
+    {
+      origin: 'status_item_host', server_attached: true,
+      required_evidence_fields: ['status_host_id', 'status_host_generation', 'daemon_generation', 'effective_uid'],
+      allowed_action_scopes: ['host_control'],
+      allowed_actions: ['stop_all'],
+      liveness_rule: 'daemon_status_host_generation_reauthenticated_per_request',
+    },
+    {
+      origin: 'status_opened_canvas_host', server_attached: true,
+      required_evidence_fields: [
+        'canvas_instance_id', 'canvas_generation', 'parent_status_host_id',
+        'parent_status_host_generation', 'daemon_generation', 'effective_uid',
+      ],
+      allowed_action_scopes: ['host_control'],
+      allowed_actions: ['stop_all'],
+      liveness_rule: 'canvas_and_parent_status_host_generations_reauthenticated_per_request_stop_all_only',
+    },
+  ];
+  if (!same(host.caller_origins, expectedCallerOrigins)
+    || !same(host.request_contract.required_payload_fields, ['request_id', 'action', 'canonical_parameter_digest'])
+    || !same(host.request_contract.server_attached_fields, [
+      'expected_daemon_generation', 'connection_epoch', 'caller_origin', 'caller_origin_evidence',
+    ])
+    || host.request_contract.daemon_generation_binding !== 'attached_after_same_socket_bootstrap_for_the_current_connection_epoch'
+    || host.request_contract.caller_evidence_source !== 'server_attached_only'
+    || host.request_contract.payload_caller_evidence !== 'forbidden') {
+    errors.push(semanticError('HOST_CALLER_ORIGIN_INVALID', JSON.stringify(host.caller_origins)));
+  }
+  const requiredStopReceiptFields = [
+    'request_id',
+    'canonical_parameter_digest',
+    'expected_barrier_generation',
+    'daemon_generation',
+    'stop_operation_id',
+    'stop_operation_generation',
+    'caller_origin',
+    'caller_origin_evidence',
+    'scope',
+    'prior_barrier_state',
+    'prior_barrier_generation',
+    'resulting_barrier_state',
+    'resulting_barrier_generation',
+    'adapter_registry_revision',
+    'registered_operation_set_count',
+    'registered_operation_set_digest',
+    'selected_operation_count',
+    'selected_operation_digest',
+    'barrier_snapshot_digest',
+    'outcome',
+    'residual_count',
+    'residual_digest',
+    'cleanup_result',
+  ];
+  if (!same(host.stop_all_receipt.required_fields, requiredStopReceiptFields)
+    || !same(host.stop_all_receipt.outcomes, [
+      'recorded', 'reconciliation_in_progress', 'store_blocked', 'closing_started',
+      'already_closing', 'already_closed', 'cleanup_required', 'recovery_in_progress',
+    ])
+    || host.stop_all_receipt.required_fields.includes('caller_peer_generation')
+    || !same(host.request_contract.mutation_action_cas_fields, [
+      { action: 'stop_all', field: 'expected_barrier_generation' },
+      { action: 'reopen', field: 'expected_barrier_generation' },
+    ])
+    || host.request_contract.durable_dedupe !== true
+    || !same(host.request_contract.dedupe_retention, {
+      scope: 'generation_independent_retained_receipt_index',
+      maximum_records: 4096,
+      maximum_age_seconds: 86400,
+      prune_order: 'oldest_terminal_receipt_first',
+      retained_replay_order: 'lookup_before_current_generation_and_cas_validation',
+      replay_after_prune: 'treat_as_new_request_after_exact_current_generation_and_cas_validation',
+      pruned_request_identifiability: 'not_claimed_without_tombstone',
+      bounded_guarantee: 'canonical replay ends when a receipt is pruned; an evicted id is a new request, while an old expected barrier generation fails CAS and cannot repeat its prior side effect',
+    })
+    || host.request_contract.same_id_same_digest !== 'return_canonical_receipt'
+    || host.request_contract.same_id_different_digest !== 'idempotency_conflict'
+    || host.idempotency.retained_lookup_scope !== 'generation_independent'
+    || host.idempotency.bounded_retention !== '4096_records_or_86400_seconds'
+    || host.idempotency.retained_same_request_id_same_digest !== 'same_canonical_receipt_before_generation_validation'
+    || host.idempotency.retained_same_request_id_different_digest !== 'idempotency_conflict_before_generation_validation'
+    || host.idempotency.after_prune !== 'evicted_id_is_new_request_subject_to_exact_current_generation_and_barrier_cas_before_state_idempotent_handling'
+    || host.idempotency.pruned_request_identifiability !== 'not_claimed_without_tombstone'
+    || host.idempotency.repeat_while_closing_or_closed !== 'preserve_original_stop_operation_generation_and_immutable_barrier_snapshot') {
+    errors.push(semanticError('HOST_REQUEST_RECEIPT_INVALID', JSON.stringify(host.stop_all_receipt)));
+  }
+  const barrier = machines.get('host_barrier');
+  for (const expected of [
+    {
+      from: 'boot_reconciling', event: 'host_stop_all', to: 'boot_reconciling',
+      guard_id: 'boot_stop_all_expected_generation_snapshot_handled_closed',
+      guard_markers: [
+        'Always handle', 'expected durable barrier generation', 'last durable immutable barrier snapshot',
+        'recorded', 'reconciliation_in_progress', 'store_blocked', 'remaining boot_reconciling',
+      ],
+    },
+    {
+      from: 'open', event: 'host_stop_all', to: 'closing',
+      guard_id: 'live_same_uid_expected_generation_and_snapshot_cas',
+      guard_markers: [
+        'same-effective-UID reauthentication', 'expected barrier generation',
+        'stop operation id/generation', 'registered-operation-set count/digest',
+        'selected-operation count/digest', 'immutable barrier-snapshot digest',
+      ],
+    },
+    {
+      from: 'closing', event: 'drained', to: 'closed',
+      guard_id: 'immutable_selected_set_snapshot_drained_zero_residuals',
+      guard_markers: ['byte-identical stop snapshot', 'residual count/digest prove zero', 'newer registry revision'],
+    },
+    {
+      from: 'closing', event: 'residual', to: 'cleanup_required',
+      guard_id: 'immutable_snapshot_with_separate_residual_progress',
+      guard_markers: ['exact immutable stop snapshot', 'residual count/digest', 'reconciliation progress'],
+    },
+    {
+      from: 'cleanup_required', event: 'recover', to: 'recovering',
+      guard_id: 'exclusive_host_recovery_claim_preserves_snapshot',
+      guard_markers: ['immutable stop snapshot', 'original stop operation/generation', 'selected set'],
+    },
+    {
+      from: 'recovering', event: 'recovered', to: 'closed',
+      guard_id: 'immutable_snapshot_recovered_zero_residuals',
+      guard_markers: ['immutable selected set', 'exact prior stop snapshot', 'zero residual count/digest'],
+    },
+    {
+      from: 'recovering', event: 'retry', to: 'cleanup_required',
+      guard_id: 'host_residual_persists_snapshot_unchanged',
+      guard_markers: ['residual/reconciliation progress', 'immutable stop snapshot remains byte-identical'],
+    },
+    {
+      from: 'closed', event: 'reopen', to: 'open',
+      guard_id: 'same_uid_expected_generation_prior_and_candidate_scope_cas',
+      guard_markers: [
+        'expected closed barrier generation', 'immutable prior snapshot',
+        'candidate current registered set', 'preserves the prior snapshot', 'separate successor open generation',
+      ],
+    },
+  ]) requireTransitionBinding(barrier, expected, 'BARRIER_MACHINE_BINDING_INVALID');
+  const repeatBindings = [
+    ['closing', 'closing', 'retained_replay_or_current_generation_cas_preserves_closing_snapshot'],
+    ['closed', 'closed', 'retained_replay_or_current_generation_cas_preserves_closed_snapshot'],
+    ['cleanup_required', 'cleanup_required', 'retained_replay_or_current_generation_cas_preserves_cleanup_snapshot'],
+    ['recovering', 'recovering', 'retained_replay_or_current_generation_cas_preserves_recovery_snapshot'],
+  ];
+  for (const [from, to, guard_id] of repeatBindings) requireTransitionBinding(barrier, {
+    from, event: 'host_stop_all_repeat', to, guard_id,
+    guard_markers: ['new or pruned request', 'current barrier generation', 'original stop operation/generation', 'byte-identical immutable snapshot'],
+  }, 'BARRIER_MACHINE_BINDING_INVALID');
+  for (const state of barrier.states) requireTransitionBinding(barrier, {
+    from: state, event: 'barrier_status', to: state,
+    guard_id: 'passive_content_free_snapshot_with_caller_origin',
+    guard_markers: ['caller origin/evidence', 'immutable registered/selected set snapshot', 'residual digest'],
+  }, 'BARRIER_MACHINE_BINDING_INVALID');
+  for (const expected of [
+    ['boot_reconciling', 'prior_generation_orphan', 'cleanup_required', 'barrier_reconciliation_interrupted_snapshot_preserved', 'immutable prior barrier snapshot'],
+    ['open', 'prior_generation_restart', 'boot_reconciling', 'open_generation_snapshot_requires_boot_reconciliation', 'registered-set count/digest'],
+    ['closing', 'prior_generation_orphan', 'cleanup_required', 'barrier_close_interrupted_snapshot_preserved', 'byte-identical immutable registered/selected-set snapshot'],
+    ['closed', 'prior_generation_restart', 'boot_reconciling', 'closed_generation_snapshot_requires_boot_reconciliation', 'byte-identical immutable stop snapshot'],
+    ['cleanup_required', 'prior_generation_orphan', 'cleanup_required', 'barrier_cleanup_interrupted_snapshot_preserved', 'byte-identical immutable registered/selected-set snapshot'],
+    ['recovering', 'prior_generation_orphan', 'cleanup_required', 'barrier_recovery_interrupted_snapshot_preserved', 'byte-identical immutable stop snapshot'],
+  ]) requireTransitionBinding(barrier, {
+    from: expected[0], event: expected[1], to: expected[2], guard_id: expected[3], guard_markers: [expected[4]],
+  }, 'BARRIER_MACHINE_BINDING_INVALID');
+  const requiredReopenResponseFields = [
+    'request_id',
+    'canonical_parameter_digest',
+    'expected_barrier_generation',
+    'caller_origin',
+    'caller_origin_evidence',
+    'prior_barrier_state',
+    'prior_barrier_generation',
+    'prior_stop_operation_id',
+    'prior_stop_operation_generation',
+    'prior_adapter_registry_revision',
+    'prior_registered_operation_set_count',
+    'prior_registered_operation_set_digest',
+    'prior_selected_operation_count',
+    'prior_selected_operation_digest',
+    'prior_barrier_snapshot_digest',
+    'prior_residual_count',
+    'prior_residual_digest',
+    'resulting_barrier_state',
+    'resulting_barrier_generation',
+    'daemon_generation',
+    'resulting_adapter_registry_revision',
+    'resulting_registered_operation_set_count',
+    'resulting_registered_operation_set_digest',
+    'resulting_open_snapshot_digest',
+    'outcome',
+    'cleanup_result',
+    'reconciliation_state',
+  ];
+  const requiredBarrierStatusFields = [
+    'request_id', 'canonical_parameter_digest', 'daemon_generation', 'caller_origin', 'caller_origin_evidence',
+    'barrier_generation', 'barrier_state', 'admission_open', 'stop_operation_id', 'stop_operation_generation',
+    'adapter_registry_revision', 'registered_operation_set_count', 'registered_operation_set_digest',
+    'selected_operation_count', 'selected_operation_digest', 'barrier_snapshot_digest',
+    'residual_count', 'residual_digest', 'reconciliation_state',
+  ];
+  if (barrier.initial_state !== 'boot_reconciling'
+    || !barrier.transitions.some(({ from, event, to }) => from === 'boot_reconciling' && event === 'open_verified' && to === 'open')
+    || !barrier.transitions.some(({ from, event, to }) => from === 'closed' && event === 'reopen' && to === 'open')
+    || host.reopen_receipt.required_request_fields.at(-1) !== 'expected_barrier_generation'
+    || !same(host.reopen_receipt.server_attached_fields, ['expected_daemon_generation', 'connection_epoch'])
+    || !same(host.reopen_receipt.required_response_fields, requiredReopenResponseFields)
+    || !same(host.reopen_receipt.success_guards, [
+      'generation_matches', 'barrier_closed', 'immutable_prior_snapshot_matches',
+      'zero_prior_snapshot_residuals', 'candidate_current_registry_reconciled',
+      'zero_candidate_registered_set_residuals', 'reconciliation_complete',
+    ])
+    || !same(host.barrier_status_receipt.required_fields, requiredBarrierStatusFields)
+    || host.barrier_status_receipt.passive !== true) {
+    errors.push(semanticError('HOST_CONTROL_AUTHORITY_INVALID', barrier.initial_state));
+  }
+
+  const cli = ledger.target_design.operation_cli_contract;
+  const ownerFilterArgs = [
+    '[--capability-id <id>]', '[--client-id <id>]', '[--agent-id <id>]',
+    '[--project-id <id>]', '[--task-id <id>]', '[--run-id <id>]',
+    '[--skill-id <id>]', '[--target-id <id>]', '[--capability-label <label>]',
+  ];
+  const expectedOwnerFilterFlags = [
+    ['--capability-id', 'capability_id', 'mechanical_adapter_binding'],
+    ['--client-id', 'client_id', 'caller_asserted_intersection'],
+    ['--agent-id', 'agent_id', 'caller_asserted_intersection'],
+    ['--project-id', 'project_id', 'caller_asserted_intersection'],
+    ['--task-id', 'task_id', 'caller_asserted_intersection'],
+    ['--run-id', 'run_id', 'caller_asserted_intersection'],
+    ['--skill-id', 'skill_id', 'caller_asserted_intersection'],
+    ['--target-id', 'target_id', 'caller_asserted_intersection'],
+    ['--capability-label', 'capability_label', 'caller_asserted_intersection'],
+  ];
+  const expectedCliForms = [
+    ['operation-list', 'ordinary_intersection', ['operation', 'list', ...ownerFilterArgs, '--json']],
+    ['operation-inspect', 'ordinary', ['operation', 'inspect', '<operation-id>', '--generation', '<generation>', '--json']],
+    ['operation-status', 'ordinary', ['operation', 'status', '<operation-id>', '--generation', '<generation>', '--json']],
+    ['operation-recent', 'ordinary_intersection', ['operation', 'recent', ...ownerFilterArgs, '--json']],
+    ['operation-cancel', 'ordinary', ['operation', 'cancel', '<operation-id>', '--generation', '<generation>', '--json']],
+    ['operation-kill', 'ordinary', ['operation', 'kill', '<operation-id>', '--generation', '<generation>', '--json']],
+    ['operation-kill-owner', 'ordinary_intersection', ['operation', 'kill-owner', ...ownerFilterArgs, '--json']],
+    ['operation-tap', 'ordinary', ['operation', 'tap', '<operation-id>', '--generation', '<generation>', '--channel', '<metadata|data>', '--rate', '<items-per-second>', '--sample-every', '<count>', '--max-queue-items', '<count>', '--max-items', '<count>', '--max-bytes', '<bytes>', '--timeout', '<milliseconds>', '--duration-ms', '<milliseconds>', '[--follow]', '--json']],
+    ['operation-artifact-reveal', 'ordinary', ['operation', 'artifact', 'reveal', '<artifact-id>', '--generation', '<generation>', '--json']],
+    ['operation-artifact-remove', 'ordinary', ['operation', 'artifact', 'remove', '<artifact-id>', '--generation', '<generation>', '--json']],
+    ['operation-artifact-release', 'ordinary', ['operation', 'artifact', 'release', '<artifact-id>', '--generation', '<generation>', '--json']],
+    ['operation-artifact-retain', 'ordinary', ['operation', 'artifact', 'retain', '<artifact-id>', '--generation', '<generation>', '--json']],
+    ['operation-stop-all', 'host', ['operation', 'stop-all', '--barrier-generation', '<generation>', '--json']],
+    ['operation-barrier-status', 'host_passive', ['operation', 'barrier-status', '--json']],
+    ['operation-reopen', 'host', ['operation', 'reopen', '--barrier-generation', '<generation>', '--json']],
+  ];
+  const actualCliForms = cli.forms.map(({ id, scope, argv }) => [id, scope, argv]);
+  if (!same(cli.owner_filter_flags.map(({ flag, field, provenance }) => [flag, field, provenance]), expectedOwnerFilterFlags)
+    || !same(actualCliForms, expectedCliForms)
+    || !same(cli.tap_contract, {
+      observation_only: true,
+      channel_values: ['metadata', 'data'],
+      flag_bindings: [
+        { flag: '--rate', field: 'rate_items_per_second' },
+        { flag: '--max-items', field: 'max_items' },
+        { flag: '--max-bytes', field: 'max_bytes' },
+        { flag: '--max-queue-items', field: 'max_queue_items' },
+        { flag: '--sample-every', field: 'sample_every' },
+        { flag: '--timeout', field: 'idle_timeout_milliseconds' },
+        { flag: '--duration-ms', field: 'duration_milliseconds' },
+      ],
+      caller_owned_bounds: {
+        rate_items_per_second: { minimum: 1, maximum: 60 },
+        max_items: { minimum: 1, maximum: 10000 },
+        max_bytes: { minimum: 1, maximum: 10485760 },
+        max_queue_items: { minimum: 1, maximum: 1024 },
+        sample_every: { minimum: 1, maximum: 10000 },
+        idle_timeout_milliseconds: { minimum: 1, maximum: 300000 },
+        duration_milliseconds: { minimum: 1, maximum: 300000 },
+      },
+      activation_contract: {
+        validation: 'all_seven_numeric_bounds_present_finite_integer_and_within_schema_range',
+        authority_point: 'after_owner_reauthentication_and_exact_source_generation_before_observation_channel_open',
+        clock: 'monotonic',
+        duration_origin: 'tap_activation',
+        idle_origin: 'tap_activation_then_successful_enqueue_only',
+        follow_rule: 'follow_never_removes_duration_or_any_other_bound',
+      },
+      sampling_contract: {
+        sample_stride: 'deterministic_one_based_source_seen_modulo_sample_every',
+        rate_limit: 'minimum_monotonic_emit_interval_from_rate_items_per_second',
+        ordering: 'sample_stride_then_rate_limit_then_item_byte_and_queue_admission',
+        suppression_accounting: 'sample_and_rate_skips_are_distinct_caller_selected_counters',
+      },
+      queue_contract: {
+        ordering: 'fifo',
+        source_backpressure: false,
+        overflow_trigger: 'first_eligible_item_when_queue_count_equals_max_queue_items',
+        overflow_action: 'stop_intake_before_enqueue_reject_only_triggering_newest_item_preserve_and_drain_existing_queue',
+        silent_drop: 'forbidden',
+        continued_drop_after_overflow: 'forbidden',
+        terminal_reason: 'queue_full',
+      },
+      expiry_contract: {
+        terminal_bound_reasons: [
+          'max_items_reached', 'max_bytes_reached_or_would_exceed', 'queue_full', 'idle_timeout', 'duration_elapsed',
+        ],
+        max_items_rule: 'successful_enqueues_never_exceed_requested_max_items',
+        max_bytes_rule: 'successful_enqueue_bytes_never_exceed_requested_max_bytes',
+        idle_timeout_rule: 'only_successful_enqueue_resets_idle_deadline',
+        duration_rule: 'absolute_monotonic_deadline_from_activation',
+        terminalization: 'stop_intake_then_drain_bounded_fifo_then_terminal',
+        cleanup_failure: 'cleanup_required_then_recovery',
+        state_transition_binding: {
+          transition_key: 'tap:active|expire|expired',
+          required_persisted_terminal_reason: 'one_of_terminal_bound_reasons_before_transition',
+        },
+      },
+      receipt_contract: {
+        content_class: 'content_free',
+        required_fields: [
+          'tap_id', 'tap_generation', 'operation_id', 'operation_generation', 'source_generation',
+          'channel', 'follow', 'requested_bounds', 'source_seen', 'sample_skipped', 'rate_skipped',
+          'enqueued_items', 'enqueued_bytes', 'delivered_items', 'delivered_bytes', 'queue_high_water',
+          'overflow_rejected_count', 'terminal_bound_reason',
+        ],
+        queue_high_water_guard: 'at_most_requested_max_queue_items',
+        overflow_counter_rule: 'queue_full_requires_exactly_one_rejected_trigger_item',
+      },
+      follow_default: false,
+      default_raw_accumulation: 'none_beyond_explicit_bounds',
+    })
+    || !same(cli.execution_route, {
+      help_source: 'manifests/commands/source/aos/41-operation.json',
+      route_source: 'manifests/commands/source/external/49-operation.json',
+      executable: '$AOS_PATH',
+      argv_prefix: ['__operation'],
+      command_owner: 'src/commands/operation.swift',
+      main_dispatch: 'src/main.swift',
+    })) errors.push(semanticError('OPERATION_CLI_CONTRACT_INVALID', JSON.stringify(cli)));
+  const tapMachine = machines.get('tap');
+  requireTransitionBinding(tapMachine, {
+    from: 'prepared', event: 'open', to: 'active',
+    guard_id: 'authenticated_bounded_observer', trigger: 'tap_opened',
+    guard_markers: [
+      'parent and source generations', 'channel', 'rate', 'max-items', 'max-bytes',
+      'max-queue-items', 'one-based sampling stride', 'idle timeout', 'duration',
+    ],
+  }, 'TAP_MACHINE_BINDING_INVALID');
+  requireTransitionBinding(tapMachine, {
+    from: 'active', event: 'expire', to: 'expired',
+    guard_id: 'tap_terminal_bound_reason_persisted', trigger: 'tap_bound_reached',
+    guard_markers: [
+      'max_items_reached', 'max_bytes_reached_or_would_exceed', 'queue_full',
+      'idle_timeout', 'duration_elapsed', 'drain the bounded FIFO',
+    ],
+  }, 'TAP_MACHINE_BINDING_INVALID');
+
+  const migration = ledger.target_design.external_command_manifest_migration_contract;
+  const expectedRegistrationFields = [
+    'route_source_id', 'route_source_revision', 'adapter_registration_id', 'adapter_registration_revision',
+    'activation_predicate',
+    'executable_resolution_policy', 'expected_script_identity', 'expected_script_digest',
+    'reviewed_dependencies', 'reviewed_dependency_set_digest',
+    'canonical_argv_shape_digest',
+  ];
+  const expectedCutoverPaths = [
+    'shared/schemas/aos-external-command-manifest-v1.schema.json',
+    'manifests/commands/source/external/15-listen.json',
+    'scripts/generate-command-manifests.mjs',
+    'manifests/commands/aos-external-commands.json',
+    'src/shared/external-command-dispatch.swift',
+    'scripts/aos-help-proxy.mjs',
+    'tests/schemas/aos-external-command-manifest-v0.test.mjs',
+    'tests/schemas/aos-external-command-manifest-v1.test.mjs',
+    'tests/command-manifest-generation.sh',
+    'tests/external-command-dispatch.sh',
+    'docs/dev/test-proof-registry.d/command-surface.json',
+    'docs/dev/test-proof-registry.json',
+    'docs/dev/workflow-rules.json',
+    'scripts/stage-browser-companion-runtime.mjs',
+    'scripts/stage-work-record-runtime.mjs',
+  ];
+  const expectedStagingProjectionContract = {
+    owners: [
+      'scripts/stage-browser-companion-runtime.mjs',
+      'scripts/stage-work-record-runtime.mjs',
+    ],
+    source_aggregate_wire_version: 2,
+    staged_aggregate_wire_version: 2,
+    browser_projection: {
+      selected_commands: 'exact_current_v2_source_commands_for_selected_path_keys',
+      retained_existing_state: 'path_keys_only',
+      retained_rehydration: 'rehydrate_each_retained_path_key_from_current_v2_source_aggregate',
+      stale_retained_command_rewrap: 'forbidden',
+      missing_or_duplicate_current_path: 'fail_closed',
+    },
+    work_record_projection: {
+      source_version_requirement: 'exact_v2',
+      selected_commands: 'exact_current_v2_source_work_record_commands',
+      output_version_requirement: 'exact_v2',
+      stale_or_v0_input: 'fail_closed',
+    },
+  };
+  if (migration.publication_boundary !== 'current_executable_v1_only_m2_cutover'
+    || !same(migration.frozen_predecessor, {
+      schema_path: 'shared/schemas/aos-external-command-manifest-v0.schema.json',
+      schema_version: 1,
+      baseline_revision: '7aada1cb4d7a046a2b99b1b24470115eefc82224',
+      sha256: '246025ae1019fcf188a257da3da5f138773861475ddb904b8337fc4cce22320e',
+      mutation: 'forbidden',
+      proof_state: 'bounded_freeze_and_active_v1_reader_rejection',
+    })
+    || migration.successor.schema_path !== 'shared/schemas/aos-external-command-manifest-v1.schema.json'
+    || migration.successor.aggregate_path !== 'manifests/commands/aos-external-commands.json'
+    || migration.successor.aggregate_schema_version !== 2
+    || migration.successor.source_fragment_schema_version !== 1
+    || migration.successor.registration_property !== 'spawn_registration'
+    || !same(migration.successor.registration_required_fields, expectedRegistrationFields)
+    || migration.successor.registration_digest_format !== 'lowercase_sha256_hex_64'
+    || migration.successor.script_identity_rule !== 'normalized_repo_relative_no_absolute_or_parent_segments'
+    || !same(migration.successor.executable_resolution_policy, {
+      launcher: '/usr/bin/env', argv_zero: 'node', search_source: 'sanitized_path',
+      resolution_owner: 'native_external_dispatch', resolution_phase: 'immediately_before_spawn',
+      designated_requirement: 'anchor apple generic and identifier "node" and certificate leaf[subject.OU] = "HX7739G8FX"',
+      signing_identifier: 'node', signing_team_identifier: 'HX7739G8FX',
+      requires_hardened_runtime: true,
+      platform_code_directory_hash_algorithm: 'sha256_truncated_cdhash_20_bytes',
+      reviewed_source_max_bytes: 131072, reviewed_bundle_max_bytes: 524288,
+      authored_static_executable_digest: 'forbidden_host_variable',
+    })
+    || !same(migration.registered_routes, [{
+      source_path: 'manifests/commands/source/external/15-listen.json',
+      command_path: ['listen'], adapter_registration_id: 'microphone-capture-adapter',
+      activation_predicate: 'listen_microphone_v1', registration_count: 1,
+    }])
+    || migration.unregistered_route_rule !== 'all_other_external_routes_and_nonmatching_listen_invocations_remain_without_active_spawn_registration'
+    || migration.generator_contract.owner !== 'scripts/generate-command-manifests.mjs'
+    || !same(migration.generator_contract.cross_checks, [
+      'registered_script_equals_argv_prefix_index_one',
+      'script_raw_byte_digest',
+      'reviewed_dependency_raw_byte_digests',
+      'reviewed_dependency_set_digest',
+      'activation_predicate_exact_grammar',
+      'trusted_node_designated_requirement',
+      'hardened_runtime_required',
+      'platform_code_directory_hash_algorithm',
+      'reviewed_source_and_bundle_bounds',
+      'semantic_source_revision',
+      'argv_prefix_plus_forwarded_suffix_shape_digest',
+      'route_source_id',
+      'registration_uniqueness',
+      'registered_route_forbids_help_passthrough',
+      'registered_route_requires_node_launcher',
+    ])
+    || migration.reader_contract.swift_decoder !== 'src/shared/external-command-dispatch.swift'
+    || migration.reader_contract.help_decoder !== 'scripts/aos-help-proxy.mjs'
+    || !same(migration.reader_contract.accepted_aggregate_versions_after_cutover, [2])
+    || migration.reader_contract.dual_reader !== false
+    || migration.reader_contract.translation_layer !== false
+    || migration.reader_contract.parallel_aggregate !== false
+    || !same(migration.atomic_cutover_paths, expectedCutoverPaths)
+    || !same(migration.staging_projection_contract, expectedStagingProjectionContract)
+    || migration.partial_cutover_result !== 'fail_closed_invalid_manifest'
+    || migration.proof_ownership.command_surface_fragment !== 'docs/dev/test-proof-registry.d/command-surface.json'
+    || migration.proof_ownership.operation_control_fragment !== 'docs/dev/test-proof-registry.d/operation-control.json'
+    || migration.proof_ownership.canonical_index !== 'docs/dev/test-proof-registry.json'
+    || migration.proof_ownership.workflow_rules !== 'docs/dev/workflow-rules.json') {
+    errors.push(semanticError('EXTERNAL_MANIFEST_V1_CUTOVER_INVALID', JSON.stringify(migration)));
+  }
+  const m2 = ledger.program_milestones.find(({ id }) => id === 'M2');
+  const cutover = m2?.deliverables.find(({ id }) => id === 'external_command_manifest_v1_cutover');
+  const daemonSurface = m2?.deliverables.find(({ id }) => id === 'daemon_ipc_cli_surface');
+  const requiredRoutingOwners = [
+    'M2.path.docs_dev_test_proof_registry_json',
+    'M2.path.docs_dev_test_proof_registry_d_command_surface_json',
+    'M2.path.docs_dev_workflow_rules_json',
+    'M2.path.scripts_stage_browser_companion_runtime_mjs',
+    'M2.path.scripts_stage_work_record_runtime_mjs',
+  ];
+  const requiredRoutingProofs = [
+    'M2.proof.tests_schemas_dev_test_proof_registry_test_mjs',
+    'M2.proof.tests_schemas_dev_workflow_rules_test_mjs',
+    'M2.proof.tests_dev_workflow_router_sh',
+  ];
+  if (!cutover || !requiredRoutingOwners.every((id) => cutover.owner_ref_ids.includes(id))
+    || !requiredRoutingProofs.every((id) => cutover.proof_ref_ids.includes(id))
+    || !daemonSurface?.owner_ref_ids.includes('M2.path.docs_dev_test_proof_registry_d_operation_control_json')) {
+    errors.push(semanticError('PROOF_ROUTING_REACHABILITY_INVALID', m2?.id || 'missing'));
+  }
+
+  return errors;
+}
 export function validateOutcomeCoverage(ledger) {
   const errors = [];
   const workflow = ledger.flagship_workflow;
@@ -5610,7 +7216,7 @@ export function validateOutcomeCoverage(ledger) {
   const validationRefs = validationPath?.steps.map(({ transition_ref: ref }) => transitionKey(ref)) || [];
   const requiredValidationRefs = [
     transitionKey({ machine: 'artifact', from: 'transient', event: 'validation_failed', to: 'cleanup_required' }),
-    transitionKey({ machine: 'artifact', from: 'recovering', event: 'recovered', to: 'removed' }),
+    transitionKey({ machine: 'artifact', from: 'recovering', event: 'absence_verified', to: 'removed' }),
     transitionKey({ machine: 'recovery', from: 'recovering', event: 'recovered', to: 'terminal' }),
     transitionKey({ machine: 'operation', from: 'stopping', event: 'clean', to: 'terminal' }),
     transitionKey({ machine: workflow.id, from: 'stopping', event: 'cleanup_resolved_without_offer', to: 'terminal' }),
@@ -5738,19 +7344,37 @@ export function validateMilestoneClosure(milestones) {
     }
     if (commandProducingMilestones.has(milestone.id)) {
       const generated = milestone.path_refs.filter(({ kind }) => kind === 'generated').map(({ id }) => id);
+      const expectedMaintainedApiPaths = milestone.id === 'M2'
+        ? ['docs/api/aos.md', 'docs/api/aos-capabilities.md']
+        : ['docs/api/aos.md'];
+      const maintainedApiRefs = milestone.path_refs.filter(({ path: ownerPath, kind }) => (
+        kind === 'current' && expectedMaintainedApiPaths.includes(ownerPath)
+      ));
+      const maintainedApi = maintainedApiRefs.map(({ id }) => id);
+      const commandSourceKind = milestone.id === 'M2' ? 'current' : 'proposed';
       const commandSources = milestone.path_refs.filter(({ path: ownerPath, kind }) => (
-        kind === 'proposed' && ownerPath.startsWith('manifests/commands/source/')
+        kind === commandSourceKind && ownerPath.startsWith('manifests/commands/source/')
       ));
       const classes = new Set(commandSources.map(({ path: ownerPath }) => (
-        ownerPath.startsWith('manifests/commands/source/aos/') ? 'aos' : 'external'
+        ownerPath.startsWith('manifests/commands/source/aos/') ? 'aos'
+          : ownerPath.startsWith('manifests/commands/source/external/') ? 'external' : 'invalid'
       )));
-      if (!classes.has('aos') || !classes.has('external') || generated.length !== 3) {
+      const generatedAndMaintained = [...generated, ...maintainedApi];
+      if (!classes.has('aos') || !classes.has('external')
+        || classes.has('invalid') || generated.length !== 2
+        || JSON.stringify(maintainedApiRefs.map(({ path: ownerPath }) => ownerPath)) !== JSON.stringify(expectedMaintainedApiPaths)) {
         errors.push(semanticError('MILESTONE_COMMAND_SURFACE_INCOMPLETE', milestone.id));
+      }
+      for (const { path: sourcePath } of commandSources) {
+        if (!/^manifests\/commands\/source\/(?:aos|external)\/\d{2}-[a-z0-9-]+\.json$/u.test(sourcePath)
+          || sourcePath.includes('.proposed.')) {
+          errors.push(semanticError('MILESTONE_COMMAND_SOURCE_FILENAME_INVALID', milestone.id + ':' + sourcePath));
+        }
       }
       for (const source of commandSources) {
         const owner = milestone.deliverables.find((deliverable) => (
           deliverable.owner_ref_ids.includes(source.id)
-          && generated.every((id) => deliverable.owner_ref_ids.includes(id))
+          && generatedAndMaintained.every((id) => deliverable.owner_ref_ids.includes(id))
         ));
         if (!owner) errors.push(semanticError('MILESTONE_GENERATED_ATOMICITY_INVALID', milestone.id + ':' + source.id));
       }
@@ -6259,6 +7883,50 @@ test('closed schema validates canonical data and rejects cross-field lies', asyn
     delete value.program_milestones[0].path_refs[0].id;
     mutations.push(value);
   }
+  {
+    const value = clone(ledger);
+    value.accepted_m2_owner_bindings[0].status = 'unresolved';
+    mutations.push(value);
+  }
+  {
+    const value = clone(ledger);
+    value.target_design.host_control_contract.surfaces
+      .find(({ surface }) => surface === 'status_item').fallback = 'display_only';
+    mutations.push(value);
+  }
+  {
+    const value = clone(ledger);
+    value.program_milestones[1].exit_gates.pop();
+    mutations.push(value);
+  }
+  {
+    const value = clone(ledger);
+    value.target_design.identity_contract.ordinary_owner_root.skip_proofs[1]
+      .evidence_variants[0].additional_required_fields = [];
+    mutations.push(value);
+  }
+  {
+    const value = clone(ledger);
+    value.target_design.resource_claim_contract.claim_set.compare_and_swap_inputs.pop();
+    mutations.push(value);
+  }
+  {
+    const value = clone(ledger);
+    value.target_design.host_control_contract.request_contract
+      .dedupe_retention.replay_after_prune = 'replay_expired';
+    mutations.push(value);
+  }
+  {
+    const value = clone(ledger);
+    value.target_design.operation_cli_contract.tap_contract
+      .caller_owned_bounds.sample_every.minimum = 0;
+    mutations.push(value);
+  }
+  {
+    const value = clone(ledger);
+    value.program_milestones[1].path_refs.pop();
+    mutations.push(value);
+  }
   for (const mutation of mutations) assert.notEqual(schemaValidation(mutation).status, 0);
 });
 test('canonical row identity, milestone assignment, and exact functional CLI inventory are closed', async () => {
@@ -6276,6 +7944,7 @@ test('canonical row identity, milestone assignment, and exact functional CLI inv
 test('independent semantic validators reject graph, outcome, milestone, exposure, proof, and path lies', async () => {
   const ledger = await json(ledgerRelativePath);
   for (const machine of machinesFromLedger(ledger)) expectNoErrors(validateGraph(machine));
+  expectNoErrors(validateM2AuthorityClosure(ledger));
   expectNoErrors(validateOutcomeCoverage(ledger));
   expectNoErrors(validateMilestoneClosure(ledger.program_milestones));
   expectNoErrors(validateExposureReachability(ledger));
@@ -6288,6 +7957,485 @@ test('independent semantic validators reject graph, outcome, milestone, exposure
   const terminalOutgoing = clone(ledger.target_design.operation_state_machine);
   terminalOutgoing.transitions.push({ ...terminalOutgoing.transitions[0], from: 'terminal' });
   expectCode(validateGraph(terminalOutgoing), 'TERMINAL_HAS_OUTGOING');
+
+  const missingPriorGeneration = clone(ledger);
+  missingPriorGeneration.target_design.stream_state_machine.transitions = missingPriorGeneration.target_design.stream_state_machine.transitions
+    .filter(({ from, event }) => !(from === 'active' && event === 'prior_generation_orphan'));
+  expectCode(validateM2AuthorityClosure(missingPriorGeneration), 'PRIOR_GENERATION_TRANSITION_MISSING');
+
+  const priorPolarity = clone(ledger);
+  const priorCleanup = priorPolarity.target_design.recovery_state_machine.prior_generation_sources
+    .find(({ source_state: state }) => state === 'blocked_unresolved');
+  priorCleanup.expected_transition.to = 'terminal';
+  priorPolarity.target_design.recovery_state_machine.transitions
+    .find(({ from, event }) => from === 'blocked_unresolved' && event === 'prior_generation_orphan').to = 'terminal';
+  expectCode(validateM2AuthorityClosure(priorPolarity), 'PRIOR_GENERATION_POLARITY_INVALID');
+
+  const ownerSkipLie = clone(ledger);
+  ownerSkipLie.target_design.identity_contract.ordinary_owner_root.skip_proofs[0].common_required_fields.pop();
+  expectCode(validateM2AuthorityClosure(ownerSkipLie), 'OWNER_SKIP_PROOF_INVALID');
+
+  const immediateSpawnTokenMissing = clone(ledger);
+  immediateSpawnTokenMissing.target_design.identity_contract.ordinary_owner_root.skip_proofs[1]
+    .evidence_variants[0].additional_required_fields = [];
+  expectCode(validateM2AuthorityClosure(immediateSpawnTokenMissing), 'OWNER_SKIP_PROOF_INVALID');
+
+  const ancestorSpawnTokenAdmitted = clone(ledger);
+  ancestorSpawnTokenAdmitted.target_design.identity_contract.ordinary_owner_root.skip_proofs[1]
+    .evidence_variants[1].forbidden_fields = [];
+  expectCode(validateM2AuthorityClosure(ancestorSpawnTokenAdmitted), 'OWNER_SKIP_PROOF_INVALID');
+
+  const dispatchSpawnLie = clone(ledger);
+  dispatchSpawnLie.target_design.identity_contract.ordinary_owner_root
+    .external_dispatch_spawn_binding.binding_token_contract.child_transport = 'child_environment';
+  expectCode(validateM2AuthorityClosure(dispatchSpawnLie), 'EXTERNAL_DISPATCH_SPAWN_BINDING_INVALID');
+
+  const activationPredicateWidened = clone(ledger);
+  activationPredicateWidened.target_design.identity_contract.ordinary_owner_root
+    .external_dispatch_spawn_binding.route_registration.activation_predicate.grammar = 'all_listen_v1';
+  expectCode(validateM2AuthorityClosure(activationPredicateWidened), 'EXTERNAL_DISPATCH_SPAWN_BINDING_INVALID');
+
+  const interpreterTrustWidened = clone(ledger);
+  interpreterTrustWidened.target_design.identity_contract.ordinary_owner_root
+    .external_dispatch_spawn_binding.child_admission_contract.child_evidence
+    .splice(5, 1);
+  expectCode(validateM2AuthorityClosure(interpreterTrustWidened), 'EXTERNAL_DISPATCH_SPAWN_BINDING_INVALID');
+
+  const bundleBeforeAdmission = clone(ledger);
+  bundleBeforeAdmission.target_design.identity_contract.ordinary_owner_root
+    .external_dispatch_spawn_binding.in_memory_bundle_contract.transport = 'stdin_before_admission';
+  expectCode(validateM2AuthorityClosure(bundleBeforeAdmission), 'EXTERNAL_DISPATCH_SPAWN_BINDING_INVALID');
+
+  const strandedPreparedClaim = clone(ledger);
+  strandedPreparedClaim.target_design.identity_contract.ordinary_owner_root
+    .external_dispatch_spawn_binding.pending_intent_cleanup_contract.closure_paths
+    .splice(1, 1);
+  expectCode(validateM2AuthorityClosure(strandedPreparedClaim), 'EXTERNAL_DISPATCH_SPAWN_BINDING_INVALID');
+
+  const executableSubstitution = clone(ledger);
+  executableSubstitution.target_design.identity_contract.ordinary_owner_root.external_dispatch_spawn_binding
+    .route_registration.executable_resolution_policy.durable_observation_fields.pop();
+  expectCode(validateM2AuthorityClosure(executableSubstitution), 'EXTERNAL_DISPATCH_SPAWN_BINDING_INVALID');
+
+  const dependencySetOmitted = clone(ledger);
+  delete dependencySetOmitted.target_design.identity_contract.ordinary_owner_root
+    .external_dispatch_spawn_binding.reviewed_dependency_contract;
+  expectCode(validateM2AuthorityClosure(dependencySetOmitted), 'EXTERNAL_DISPATCH_SPAWN_BINDING_INVALID');
+
+  const dependencySetDrift = clone(ledger);
+  dependencySetDrift.target_design.identity_contract.ordinary_owner_root
+    .external_dispatch_spawn_binding.reviewed_dependency_contract.exact_identities.pop();
+  expectCode(validateM2AuthorityClosure(dependencySetDrift), 'EXTERNAL_DISPATCH_SPAWN_BINDING_INVALID');
+
+  for (const [label, mutate] of [
+    ['identity', (binding) => {
+      binding.spawn_intent_required_fields[
+        binding.spawn_intent_required_fields.indexOf('expected_script_identity_digest')
+      ] = 'expected_script_identity';
+    }],
+    ['path', (binding) => {
+      binding.finalization_required_fields.push('script_path');
+    }],
+    ['basename', (binding) => {
+      binding.receipt_contract.required_fields.push('script_basename');
+    }],
+  ]) {
+    const rawScriptValue = clone(ledger);
+    mutate(rawScriptValue.target_design.identity_contract.ordinary_owner_root.external_dispatch_spawn_binding);
+    expectCode(validateM2AuthorityClosure(rawScriptValue), 'EXTERNAL_DISPATCH_SPAWN_BINDING_INVALID');
+  }
+
+  const artifactCustodyCollapse = clone(ledger);
+  artifactCustodyCollapse.target_design.artifact_state_machine.recovery_disposition_contract
+    .resolution_bindings[0].to = 'removed';
+  artifactCustodyCollapse.target_design.artifact_state_machine.transitions
+    .find(({ from, event }) => from === 'recovering' && event === 'released_custody_verified').to = 'removed';
+  expectCode(validateM2AuthorityClosure(artifactCustodyCollapse), 'ARTIFACT_RECOVERY_DISPOSITION_INVALID');
+
+  const claimRollbackSuccess = clone(ledger);
+  claimRollbackSuccess.target_design.claim_set_transaction_state_machine.recovery_disposition_contract
+    .resolution_bindings[0].outcome = 'succeeded';
+  claimRollbackSuccess.target_design.claim_set_transaction_state_machine.transitions
+    .find(({ from, event }) => from === 'recovering' && event === 'rollback_absence_verified').outcome_on_terminal = 'succeeded';
+  expectCode(validateM2AuthorityClosure(claimRollbackSuccess), 'CLAIM_SET_RECOVERY_DISPOSITION_INVALID');
+
+  const preparedGap = clone(ledger);
+  preparedGap.target_design.prepared_before_authority_contract.records
+    .find(({ machine_id: id }) => id === 'multiplex_broker').covered_transition_keys
+    .splice(2, 1);
+  expectCode(validateM2AuthorityClosure(preparedGap), 'PREPARED_AUTHORITY_TRANSITION_UNBOUND');
+
+  const partialClaim = clone(ledger);
+  partialClaim.target_design.resource_claim_contract.claim_set.publication_visibility = 'partial_claims_visible';
+  expectCode(validateM2AuthorityClosure(partialClaim), 'RESOURCE_CLAIM_ATOMICITY_INVALID');
+
+  const multiplexCasGap = clone(ledger);
+  multiplexCasGap.target_design.resource_claim_contract.claim_set.compare_and_swap_inputs.splice(4, 1);
+  expectCode(validateM2AuthorityClosure(multiplexCasGap), 'RESOURCE_CLAIM_ATOMICITY_INVALID');
+
+  const multiplexPublicationGap = clone(ledger);
+  multiplexPublicationGap.target_design.resource_claim_contract.claim_set
+    .resulting_multiplex_broker_publication_fields.pop();
+  expectCode(validateM2AuthorityClosure(multiplexPublicationGap), 'RESOURCE_CLAIM_ATOMICITY_INVALID');
+
+  const declarationDigestGap = clone(ledger);
+  declarationDigestGap.target_design.resource_claim_contract.declaration_contract.common_required_fields
+    .splice(declarationDigestGap.target_design.resource_claim_contract.declaration_contract.common_required_fields.indexOf('declaration_digest'), 1);
+  expectCode(validateM2AuthorityClosure(declarationDigestGap), 'RESOURCE_DECLARATION_INVALID');
+
+  const declarationFanoutLie = clone(ledger);
+  declarationFanoutLie.target_design.resource_claim_contract.declaration_contract.variants[0]
+    .forbidden_fields = [];
+  expectCode(validateM2AuthorityClosure(declarationFanoutLie), 'RESOURCE_DECLARATION_INVALID');
+
+  const declarationRevisionGap = clone(ledger);
+  declarationRevisionGap.target_design.resource_claim_contract.record_contracts.transaction.required_fields
+    .splice(declarationRevisionGap.target_design.resource_claim_contract.record_contracts.transaction.required_fields.indexOf('expected_adapter_registry_revision'), 1);
+  expectCode(validateM2AuthorityClosure(declarationRevisionGap), 'RESOURCE_RECORD_BINDING_INVALID');
+
+  const requestDeclarationGap = clone(ledger);
+  requestDeclarationGap.target_design.resource_claim_contract.claim_set.canonical_request_item_contract
+    .common_required_fields.pop();
+  expectCode(validateM2AuthorityClosure(requestDeclarationGap), 'RESOURCE_CLAIM_ATOMICITY_INVALID');
+
+  const brokerExpectedCountGap = clone(ledger);
+  brokerExpectedCountGap.target_design.resource_claim_contract.broker_subscriber_cas.common_required_inputs
+    .splice(brokerExpectedCountGap.target_design.resource_claim_contract.broker_subscriber_cas.common_required_inputs.indexOf('expected_subscriber_set_count'), 1);
+  expectCode(validateM2AuthorityClosure(brokerExpectedCountGap), 'BROKER_SUBSCRIBER_CAS_INVALID');
+
+  const staleStandaloneAttach = clone(ledger);
+  staleStandaloneAttach.target_design.resource_claim_contract.broker_subscriber_cas.attach_required_inputs[0]
+    = 'pinned_adapter_registry_revision';
+  expectCode(validateM2AuthorityClosure(staleStandaloneAttach), 'BROKER_SUBSCRIBER_CAS_INVALID');
+
+  const unpinnedDetach = clone(ledger);
+  unpinnedDetach.target_design.resource_claim_contract.broker_subscriber_cas.detach_required_inputs[0]
+    = 'current_adapter_registry_revision';
+  expectCode(validateM2AuthorityClosure(unpinnedDetach), 'BROKER_SUBSCRIBER_CAS_INVALID');
+
+  const brokerTransactionGap = clone(ledger);
+  brokerTransactionGap.target_design.resource_claim_contract.broker_subscriber_cas.common_required_inputs
+    .splice(brokerTransactionGap.target_design.resource_claim_contract.broker_subscriber_cas.common_required_inputs
+      .indexOf('committed_claim_set_transaction_id'), 2);
+  expectCode(validateM2AuthorityClosure(brokerTransactionGap), 'BROKER_SUBSCRIBER_CAS_INVALID');
+
+  for (const recordKind of ['transaction', 'claim', 'broker']) {
+    const snapshotRecordGap = clone(ledger);
+    const fields = recordKind === 'claim'
+      ? snapshotRecordGap.target_design.resource_claim_contract.record_contracts.claim.common_required_fields
+      : snapshotRecordGap.target_design.resource_claim_contract.record_contracts[recordKind].required_fields;
+    fields.splice(fields.indexOf('resource_declaration_set_digest'), 1);
+    expectCode(validateM2AuthorityClosure(snapshotRecordGap), 'RESOURCE_RECORD_BINDING_INVALID');
+  }
+
+  for (const [field, replacement] of [
+    ['output_encoding', 'base64url'],
+    ['domain_separator_format', 'aos:v1:<digest-domain>'],
+  ]) {
+    const digestEncodingLie = clone(ledger);
+    digestEncodingLie.target_design.canonical_digest_contract[field] = replacement;
+    expectCode(validateM2AuthorityClosure(digestEncodingLie), 'CANONICAL_DIGEST_CONTRACT_INVALID');
+  }
+  const digestOrderingLie = clone(ledger);
+  digestOrderingLie.target_design.canonical_digest_contract.snapshots[0].sort_fields.reverse();
+  expectCode(validateM2AuthorityClosure(digestOrderingLie), 'CANONICAL_DIGEST_CONTRACT_INVALID');
+
+  const brokerResultDigestGap = clone(ledger);
+  brokerResultDigestGap.target_design.resource_claim_contract.broker_subscriber_cas.atomic_publication_fields
+    .splice(brokerResultDigestGap.target_design.resource_claim_contract.broker_subscriber_cas.atomic_publication_fields.indexOf('resulting_subscriber_set_digest'), 1);
+  expectCode(validateM2AuthorityClosure(brokerResultDigestGap), 'BROKER_SUBSCRIBER_CAS_INVALID');
+
+  const brokerOversubscribe = clone(ledger);
+  brokerOversubscribe.target_design.resource_claim_contract.broker_subscriber_cas.events[0]
+    .count_guard = 'resulting_count_may_exceed_declared_fanout';
+  expectCode(validateM2AuthorityClosure(brokerOversubscribe), 'BROKER_SUBSCRIBER_CAS_INVALID');
+
+  const variantLie = clone(ledger);
+  variantLie.target_design.resource_claim_contract.record_contracts.claim.variants[0]
+    .required_fields.push('broker_id');
+  expectCode(validateM2AuthorityClosure(variantLie), 'RESOURCE_CLAIM_VARIANT_INVALID');
+
+  const claimTopologyLie = clone(ledger);
+  claimTopologyLie.target_design.resource_claim_state_machine.transitions
+    .find(({ from, event }) => from === 'active' && event === 'release_nonlast_subscriber').to = 'releasing';
+  expectCode(validateM2AuthorityClosure(claimTopologyLie), 'RESOURCE_CLAIM_TOPOLOGY_INVALID');
+
+  const voicePreemptionLie = clone(ledger);
+  voicePreemptionLie.target_design.resource_claim_contract
+    .voice_transport_resource_policy.implicit_barge_in_preemption = 'allowed';
+  expectCode(validateM2AuthorityClosure(voicePreemptionLie), 'VOICE_RESOURCE_POLICY_INVALID');
+
+  const brokerStopGap = clone(ledger);
+  brokerStopGap.target_design.multiplex_broker_state_machine.transitions = brokerStopGap.target_design
+    .multiplex_broker_state_machine.transitions.filter(({ from, event }) => !(from === 'stopping' && event === 'host_stop'));
+  expectCode(validateM2AuthorityClosure(brokerStopGap), 'BROKER_HOST_STOP_COVERAGE_INVALID');
+
+  const claimCommitGuardLie = clone(ledger);
+  claimCommitGuardLie.target_design.claim_set_transaction_state_machine.transitions
+    .find(({ from, event }) => from === 'reserving' && event === 'commit_all')
+    .guard = 'Commit every claim at one linearization point.';
+  expectCode(validateM2AuthorityClosure(claimCommitGuardLie), 'RESOURCE_MACHINE_BINDING_INVALID');
+
+  const statusHostLie = clone(ledger);
+  statusHostLie.target_design.host_control_contract.caller_origins
+    .find(({ origin }) => origin === 'status_item_host').allowed_actions.push('barrier_status');
+  expectCode(validateM2AuthorityClosure(statusHostLie), 'HOST_CALLER_ORIGIN_INVALID');
+
+  const capturedPeerHostLie = clone(ledger);
+  capturedPeerHostLie.target_design.host_control_contract.caller_origins
+    .find(({ origin }) => origin === 'ordinary_canvas_captured_peer').allowed_actions.push('stop_all');
+  expectCode(validateM2AuthorityClosure(capturedPeerHostLie), 'HOST_CALLER_ORIGIN_INVALID');
+
+  const statusCanvasOrdinaryLie = clone(ledger);
+  statusCanvasOrdinaryLie.target_design.host_control_contract.caller_origins
+    .find(({ origin }) => origin === 'status_opened_canvas_host').allowed_actions.push('ordinary_operation_controls');
+  expectCode(validateM2AuthorityClosure(statusCanvasOrdinaryLie), 'HOST_CALLER_ORIGIN_INVALID');
+
+  const collapsedCanvasOrigin = clone(ledger);
+  collapsedCanvasOrigin.target_design.host_control_contract.caller_origins.splice(1, 1);
+  expectCode(validateM2AuthorityClosure(collapsedCanvasOrigin), 'HOST_CALLER_ORIGIN_INVALID');
+
+  const registeredSetLie = clone(ledger);
+  registeredSetLie.target_design.host_control_contract
+    .registered_operation_plane_scope.unadapted_legacy_capability_control = 'implicitly_included';
+  expectCode(validateM2AuthorityClosure(registeredSetLie), 'REGISTERED_OPERATION_SCOPE_INVALID');
+
+  const fakePeerReceipt = clone(ledger);
+  fakePeerReceipt.target_design.host_control_contract.stop_all_receipt.required_fields
+    .splice(5, 2, 'caller_peer_generation');
+  expectCode(validateM2AuthorityClosure(fakePeerReceipt), 'HOST_REQUEST_RECEIPT_INVALID');
+
+  const unboundedDedupe = clone(ledger);
+  unboundedDedupe.target_design.host_control_contract.request_contract.dedupe_retention.maximum_records = 0;
+  expectCode(validateM2AuthorityClosure(unboundedDedupe), 'HOST_REQUEST_RECEIPT_INVALID');
+
+  const impossibleReplayExpired = clone(ledger);
+  impossibleReplayExpired.target_design.host_control_contract.request_contract
+    .dedupe_retention.replay_after_prune = 'replay_expired';
+  expectCode(validateM2AuthorityClosure(impossibleReplayExpired), 'HOST_REQUEST_RECEIPT_INVALID');
+
+  const stopAllCasGap = clone(ledger);
+  stopAllCasGap.target_design.host_control_contract.request_contract.mutation_action_cas_fields.shift();
+  expectCode(validateM2AuthorityClosure(stopAllCasGap), 'HOST_REQUEST_RECEIPT_INVALID');
+
+  const snapshotDigestGap = clone(ledger);
+  snapshotDigestGap.target_design.host_control_contract.barrier_snapshot_contract.immutable_required_fields.pop();
+  expectCode(validateM2AuthorityClosure(snapshotDigestGap), 'BARRIER_SNAPSHOT_BINDING_INVALID');
+
+  const staleSnapshotOverwrite = clone(ledger);
+  staleSnapshotOverwrite.target_design.host_control_contract.barrier_snapshot_contract
+    .registry_revision_rule = 'current_registry_may_overwrite_closed_snapshot';
+  expectCode(validateM2AuthorityClosure(staleSnapshotOverwrite), 'BARRIER_SNAPSHOT_BINDING_INVALID');
+
+  const reopenPriorScopeGap = clone(ledger);
+  reopenPriorScopeGap.target_design.host_control_contract.barrier_snapshot_contract
+    .reopen_binding.required_residual_scopes.shift();
+  expectCode(validateM2AuthorityClosure(reopenPriorScopeGap), 'BARRIER_SNAPSHOT_BINDING_INVALID');
+
+  const prunedBeforeCasLie = clone(ledger);
+  prunedBeforeCasLie.target_design.host_control_contract.barrier_snapshot_contract.new_request_order
+    .splice(2, 2, 'state_idempotent_receipt_without_generation_cas');
+  expectCode(validateM2AuthorityClosure(prunedBeforeCasLie), 'BARRIER_SNAPSHOT_BINDING_INVALID');
+
+  const barrierTransitionSnapshotLie = clone(ledger);
+  barrierTransitionSnapshotLie.target_design.host_barrier_state_machine.transitions
+    .find(({ from, event }) => from === 'closing' && event === 'drained')
+    .guard = 'All operations have stopped.';
+  expectCode(validateM2AuthorityClosure(barrierTransitionSnapshotLie), 'BARRIER_MACHINE_BINDING_INVALID');
+
+  const bootStopTransitionGap = clone(ledger);
+  bootStopTransitionGap.target_design.host_barrier_state_machine.transitions = bootStopTransitionGap.target_design
+    .host_barrier_state_machine.transitions.filter(({ from, event }) => !(
+      from === 'boot_reconciling' && event === 'host_stop_all'
+    ));
+  expectCode(validateM2AuthorityClosure(bootStopTransitionGap), 'BARRIER_MACHINE_BINDING_INVALID');
+
+  const bootStopCleanupLie = clone(ledger);
+  bootStopCleanupLie.target_design.host_barrier_state_machine.transitions
+    .find(({ from, event }) => from === 'boot_reconciling' && event === 'host_stop_all').to = 'cleanup_required';
+  expectCode(validateM2AuthorityClosure(bootStopCleanupLie), 'BARRIER_MACHINE_BINDING_INVALID');
+
+  const bootStopOutcomeGap = clone(ledger);
+  bootStopOutcomeGap.target_design.host_control_contract.boot_stop_all_contract.outcomes.pop();
+  expectCode(validateM2AuthorityClosure(bootStopOutcomeGap), 'BOOT_STOP_ALL_CONTRACT_INVALID');
+
+  const bootStopFalseCleanup = clone(ledger);
+  bootStopFalseCleanup.target_design.host_control_contract.boot_stop_all_contract.outcomes[1]
+    .cleanup_claim = 'cleanup_complete';
+  expectCode(validateM2AuthorityClosure(bootStopFalseCleanup), 'BOOT_STOP_ALL_CONTRACT_INVALID');
+
+  const bootStatusDisabled = clone(ledger);
+  bootStatusDisabled.target_design.host_control_contract.boot_stop_all_contract.status_item_action = 'disabled';
+  expectCode(validateM2AuthorityClosure(bootStatusDisabled), 'BOOT_STOP_ALL_CONTRACT_INVALID');
+
+  const reopenReceiptGap = clone(ledger);
+  reopenReceiptGap.target_design.host_control_contract.reopen_receipt.required_response_fields.pop();
+  expectCode(validateM2AuthorityClosure(reopenReceiptGap), 'HOST_CONTROL_AUTHORITY_INVALID');
+
+  const cliGenerationLie = clone(ledger);
+  cliGenerationLie.target_design.operation_cli_contract.forms
+    .find(({ id }) => id === 'operation-kill').argv.splice(3, 2);
+  expectCode(validateM2AuthorityClosure(cliGenerationLie), 'OPERATION_CLI_CONTRACT_INVALID');
+
+  const tapQueueGap = clone(ledger);
+  const tapQueueArgv = tapQueueGap.target_design.operation_cli_contract.forms
+    .find(({ id }) => id === 'operation-tap').argv;
+  tapQueueArgv.splice(tapQueueArgv.indexOf('--max-queue-items'), 2);
+  expectCode(validateM2AuthorityClosure(tapQueueGap), 'OPERATION_CLI_CONTRACT_INVALID');
+
+  for (const boundFlag of [
+    '--rate', '--max-items', '--max-bytes', '--max-queue-items', '--sample-every', '--timeout', '--duration-ms',
+  ]) {
+    const missingTapBound = clone(ledger);
+    const argv = missingTapBound.target_design.operation_cli_contract.forms
+      .find(({ id }) => id === 'operation-tap').argv;
+    argv.splice(argv.indexOf(boundFlag), 2);
+    expectCode(validateM2AuthorityClosure(missingTapBound), 'OPERATION_CLI_CONTRACT_INVALID');
+  }
+
+  const tapBoundLimits = {
+    rate_items_per_second: [1, 60],
+    max_items: [1, 10000],
+    max_bytes: [1, 10485760],
+    max_queue_items: [1, 1024],
+    sample_every: [1, 10000],
+    idle_timeout_milliseconds: [1, 300000],
+    duration_milliseconds: [1, 300000],
+  };
+  for (const [bound, [, maximum]] of Object.entries(tapBoundLimits)) {
+    const missingRuntimeBound = clone(ledger);
+    delete missingRuntimeBound.target_design.operation_cli_contract.tap_contract.caller_owned_bounds[bound];
+    expectCode(validateM2AuthorityClosure(missingRuntimeBound), 'OPERATION_CLI_CONTRACT_INVALID');
+
+    const zeroRuntimeBound = clone(ledger);
+    zeroRuntimeBound.target_design.operation_cli_contract.tap_contract.caller_owned_bounds[bound].minimum = 0;
+    expectCode(validateM2AuthorityClosure(zeroRuntimeBound), 'OPERATION_CLI_CONTRACT_INVALID');
+
+    const widenedRuntimeBound = clone(ledger);
+    widenedRuntimeBound.target_design.operation_cli_contract.tap_contract.caller_owned_bounds[bound].maximum = maximum + 1;
+    expectCode(validateM2AuthorityClosure(widenedRuntimeBound), 'OPERATION_CLI_CONTRACT_INVALID');
+  }
+
+  const tapSamplingZero = clone(ledger);
+  tapSamplingZero.target_design.operation_cli_contract.tap_contract
+    .caller_owned_bounds.sample_every.minimum = 0;
+  expectCode(validateM2AuthorityClosure(tapSamplingZero), 'OPERATION_CLI_CONTRACT_INVALID');
+
+  const tapUnboundedDuration = clone(ledger);
+  tapUnboundedDuration.target_design.operation_cli_contract.tap_contract
+    .caller_owned_bounds.duration_milliseconds.maximum = null;
+  expectCode(validateM2AuthorityClosure(tapUnboundedDuration), 'OPERATION_CLI_CONTRACT_INVALID');
+
+  const tapFollowWithoutDuration = clone(ledger);
+  const tapFollowArgv = tapFollowWithoutDuration.target_design.operation_cli_contract.forms
+    .find(({ id }) => id === 'operation-tap').argv;
+  tapFollowArgv.splice(tapFollowArgv.indexOf('--duration-ms'), 2);
+  expectCode(validateM2AuthorityClosure(tapFollowWithoutDuration), 'OPERATION_CLI_CONTRACT_INVALID');
+
+  const tapBackpressureLie = clone(ledger);
+  tapBackpressureLie.target_design.operation_cli_contract.tap_contract.queue_contract.source_backpressure = true;
+  expectCode(validateM2AuthorityClosure(tapBackpressureLie), 'OPERATION_CLI_CONTRACT_INVALID');
+
+  const tapSilentDropLie = clone(ledger);
+  tapSilentDropLie.target_design.operation_cli_contract.tap_contract.queue_contract.silent_drop = 'allowed';
+  expectCode(validateM2AuthorityClosure(tapSilentDropLie), 'OPERATION_CLI_CONTRACT_INVALID');
+
+  const tapSamplingOrderLie = clone(ledger);
+  tapSamplingOrderLie.target_design.operation_cli_contract.tap_contract.sampling_contract
+    .ordering = 'rate_limit_then_sample_stride';
+  expectCode(validateM2AuthorityClosure(tapSamplingOrderLie), 'OPERATION_CLI_CONTRACT_INVALID');
+
+  const tapExpiryBindingGap = clone(ledger);
+  delete tapExpiryBindingGap.target_design.operation_cli_contract.tap_contract.expiry_contract.state_transition_binding;
+  expectCode(validateM2AuthorityClosure(tapExpiryBindingGap), 'OPERATION_CLI_CONTRACT_INVALID');
+
+  const tapMachineBoundLie = clone(ledger);
+  const tapExpireTransition = tapMachineBoundLie.target_design.tap_state_machine.transitions
+    .find(({ from, event }) => from === 'active' && event === 'expire');
+  tapExpireTransition.guard_id = 'tap_deadline_reached';
+  tapExpireTransition.guard = 'Duration elapsed.';
+  tapExpireTransition.trigger = 'deadline';
+  expectCode(validateM2AuthorityClosure(tapMachineBoundLie), 'TAP_MACHINE_BINDING_INVALID');
+
+  const v0HashLie = clone(ledger);
+  v0HashLie.target_design.external_command_manifest_migration_contract.frozen_predecessor.sha256 = '0'.repeat(64);
+  expectCode(validateM2AuthorityClosure(v0HashLie), 'EXTERNAL_MANIFEST_V1_CUTOVER_INVALID');
+
+  const v1WireVersionLie = clone(ledger);
+  v1WireVersionLie.target_design.external_command_manifest_migration_contract.successor.aggregate_schema_version = 1;
+  expectCode(validateM2AuthorityClosure(v1WireVersionLie), 'EXTERNAL_MANIFEST_V1_CUTOVER_INVALID');
+
+  const dualReaderLie = clone(ledger);
+  dualReaderLie.target_design.external_command_manifest_migration_contract.reader_contract.dual_reader = true;
+  expectCode(validateM2AuthorityClosure(dualReaderLie), 'EXTERNAL_MANIFEST_V1_CUTOVER_INVALID');
+
+  const registeredTellLie = clone(ledger);
+  registeredTellLie.target_design.external_command_manifest_migration_contract.registered_routes[0]
+    .source_path = 'manifests/commands/source/external/14-tell.json';
+  expectCode(validateM2AuthorityClosure(registeredTellLie), 'EXTERNAL_MANIFEST_V1_CUTOVER_INVALID');
+
+  const registrationFieldGap = clone(ledger);
+  registrationFieldGap.target_design.external_command_manifest_migration_contract.successor
+    .registration_required_fields.pop();
+  expectCode(validateM2AuthorityClosure(registrationFieldGap), 'EXTERNAL_MANIFEST_V1_CUTOVER_INVALID');
+
+  const proofOwnershipLie = clone(ledger);
+  proofOwnershipLie.target_design.external_command_manifest_migration_contract.proof_ownership
+    .command_surface_fragment = 'docs/dev/test-proof-registry.d/operation-control.json';
+  expectCode(validateM2AuthorityClosure(proofOwnershipLie), 'EXTERNAL_MANIFEST_V1_CUTOVER_INVALID');
+
+  const staleBrowserRewrap = clone(ledger);
+  staleBrowserRewrap.target_design.external_command_manifest_migration_contract.staging_projection_contract
+    .browser_projection.stale_retained_command_rewrap = 'allowed';
+  expectCode(validateM2AuthorityClosure(staleBrowserRewrap), 'EXTERNAL_MANIFEST_V1_CUTOVER_INVALID');
+
+  const workRecordV0 = clone(ledger);
+  workRecordV0.target_design.external_command_manifest_migration_contract.staging_projection_contract
+    .work_record_projection.source_version_requirement = 'v1_or_v2';
+  expectCode(validateM2AuthorityClosure(workRecordV0), 'EXTERNAL_MANIFEST_V1_CUTOVER_INVALID');
+
+  const browserStageOwnerGap = clone(ledger);
+  browserStageOwnerGap.program_milestones[1].deliverables
+    .find(({ id }) => id === 'external_command_manifest_v1_cutover').owner_ref_ids
+    .splice(browserStageOwnerGap.program_milestones[1].deliverables
+      .find(({ id }) => id === 'external_command_manifest_v1_cutover').owner_ref_ids
+      .indexOf('M2.path.scripts_stage_browser_companion_runtime_mjs'), 1);
+  expectCode(validateM2AuthorityClosure(browserStageOwnerGap), 'PROOF_ROUTING_REACHABILITY_INVALID');
+
+  const proofIndexReachabilityGap = clone(ledger);
+  proofIndexReachabilityGap.program_milestones[1].deliverables
+    .find(({ id }) => id === 'external_command_manifest_v1_cutover').owner_ref_ids
+    .splice(proofIndexReachabilityGap.program_milestones[1].deliverables
+      .find(({ id }) => id === 'external_command_manifest_v1_cutover').owner_ref_ids
+      .indexOf('M2.path.docs_dev_test_proof_registry_json'), 1);
+  expectCode(validateM2AuthorityClosure(proofIndexReachabilityGap), 'PROOF_ROUTING_REACHABILITY_INVALID');
+
+  const operationFragmentReachabilityGap = clone(ledger);
+  operationFragmentReachabilityGap.program_milestones[1].deliverables
+    .find(({ id }) => id === 'daemon_ipc_cli_surface').owner_ref_ids
+    .splice(operationFragmentReachabilityGap.program_milestones[1].deliverables
+      .find(({ id }) => id === 'daemon_ipc_cli_surface').owner_ref_ids
+      .indexOf('M2.path.docs_dev_test_proof_registry_d_operation_control_json'), 1);
+  expectCode(validateM2AuthorityClosure(operationFragmentReachabilityGap), 'PROOF_ROUTING_REACHABILITY_INVALID');
+
+  const missingCapabilitiesApi = clone(ledger.program_milestones);
+  missingCapabilitiesApi[1].path_refs = missingCapabilitiesApi[1].path_refs
+    .filter(({ path: ownerPath }) => ownerPath !== 'docs/api/aos-capabilities.md');
+  expectCode(validateMilestoneClosure(missingCapabilitiesApi), 'MILESTONE_OWNER_MISSING');
+
+  const missingProofIndex = clone(ledger.program_milestones);
+  missingProofIndex[1].deliverables.find(({ id }) => id === 'external_command_manifest_v1_cutover')
+    .owner_ref_ids = missingProofIndex[1].deliverables
+      .find(({ id }) => id === 'external_command_manifest_v1_cutover').owner_ref_ids
+      .filter((id) => id !== 'M2.path.docs_dev_test_proof_registry_json');
+  expectCode(validateMilestoneClosure(missingProofIndex), 'MILESTONE_OWNER_UNCLAIMED');
+
+  const missingWorkflowProof = clone(ledger.program_milestones);
+  missingWorkflowProof[1].deliverables.find(({ id }) => id === 'external_command_manifest_v1_cutover')
+    .proof_ref_ids = missingWorkflowProof[1].deliverables
+      .find(({ id }) => id === 'external_command_manifest_v1_cutover').proof_ref_ids
+      .filter((id) => id !== 'M2.proof.tests_dev_workflow_router_sh');
+  expectCode(validateMilestoneClosure(missingWorkflowProof), 'MILESTONE_PROOF_UNCLAIMED');
 
   const duplicate = clone(ledger.target_design.operation_state_machine);
   duplicate.transitions.push({ ...duplicate.transitions[0], to: 'terminal' });
@@ -6307,7 +8455,7 @@ test('independent semantic validators reject graph, outcome, milestone, exposure
 
   const badCleanup = clone(ledger);
   const badPath = badCleanup.flagship_workflow.execution_paths.find(({ id }) => id === 'artifact_validation_recovery');
-  badPath.steps = badPath.steps.filter(({ transition_ref: ref }) => !(ref.machine === 'artifact' && ref.event === 'recovered'));
+  badPath.steps = badPath.steps.filter(({ transition_ref: ref }) => !(ref.machine === 'artifact' && ref.event === 'absence_verified'));
   expectCode(validateOutcomeCoverage(badCleanup), 'ARTIFACT_VALIDATION_PATH_INVALID');
 
   const earlyParentTermination = clone(ledger);
@@ -6441,6 +8589,26 @@ test('machine structure, deterministic transitions, taxonomy, and status classif
   const operation = ledger.target_design.operation_state_machine;
   assert.equal(operation.transitions.filter(({ from, event }) => from === 'starting' && event === 'peer_lost').length, 1);
   assert.equal(operation.transitions.filter(({ from, event }) => from === 'starting' && event === 'transport_lost').length, 1);
+  expectNoErrors(validateM2AuthorityClosure(ledger));
+  const transaction = ledger.target_design.claim_set_transaction_state_machine;
+  const claim = ledger.target_design.resource_claim_state_machine;
+  const broker = ledger.target_design.multiplex_broker_state_machine;
+  assert.ok(transaction.transitions.some(({ from, event, to }) => from === 'reserving' && event === 'commit_all' && to === 'committed'));
+  assert.ok(transaction.transitions.some(({ from, event, to }) => from === 'reserving' && event === 'conflict' && to === 'rolling_back'));
+  assert.ok(claim.transitions.some(({ from, event, to }) => from === 'active' && event === 'release_nonlast_subscriber' && to === 'terminal'));
+  assert.ok(broker.transitions.some(({ from, event, to }) => from === 'active' && event === 'subscriber_detached_nonlast' && to === 'active'));
+  assert.deepEqual(broker.transitions.filter(({ event }) => event === 'host_stop').map(({ from }) => from),
+    broker.states.filter((state) => !broker.terminal_states.includes(state)));
+  assert.equal(ledger.target_design.resource_claim_contract.claim_set.failure_result, 'rollback_all_retain_none');
+  assert.equal(ledger.target_design.resource_claim_contract.voice_transport_resource_policy.implicit_barge_in_preemption, 'forbidden');
+  const host = ledger.target_design.host_control_contract;
+  assert.equal(host.admission_model, 'live_per_request_predicate');
+  assert.equal(host.surfaces.find(({ surface }) => surface === 'status_item').peer_context, 'status_item_host');
+  assert.deepEqual(host.caller_origins.find(({ origin }) => origin === 'status_item_host').allowed_actions, ['stop_all']);
+  assert.equal(host.surfaces.find(({ surface }) => surface === 'status_item').fallback, 'typed_host_control_rejection');
+  assert.equal(host.surfaces.find(({ surface }) => surface === 'canvas').fallback, 'display_only');
+  assert.equal(host.registered_operation_plane_scope.unadapted_legacy_capability_control, 'not_claimed');
+  assert.equal(host.request_contract.daemon_generation_binding, 'attached_after_same_socket_bootstrap_for_the_current_connection_epoch');
   const status = ledger.target_design.status_item_contract;
   assert.deepEqual(status.adapter_status_indicator_registry, expectedStatusIndicatorRegistry);
   assert.deepEqual(status.projection_fields.find(({ field }) => field === 'status_indicator_class'), {
@@ -6451,7 +8619,7 @@ test('machine structure, deterministic transitions, taxonomy, and status classif
   assert.match(status.recording_indicator.clear_guard, /every.+terminal.+residual-free/iu);
   assert.equal(status.action_origin_authentication.grants_control, false);
   assert.match(status.control_routes.ordinary, /owner set/u);
-  assert.match(status.control_routes.host_wide, /host operator/u);
+  assert.match(status.control_routes.host_wide, /daemon-owned status host.+exact daemon\/status-host generation.+effective UID/isu);
 });
 
 test('M1 through M10 normalized subsets, gates, dependencies, and command atomicity are exact', async () => {
@@ -6469,8 +8637,8 @@ test('M1 through M10 normalized subsets, gates, dependencies, and command atomic
     ]));
     assert.deepEqual(actualOwners, expectedCriticalMilestoneOwners[milestone.id]);
   }
-  assert.equal(milestones.flatMap(({ deliverables }) => deliverables).length, 81);
-  assert.equal(milestones.flatMap(({ exit_gates: gates }) => gates).length, 49);
+  assert.equal(milestones.flatMap(({ deliverables }) => deliverables).length, 90);
+  assert.equal(milestones.flatMap(({ exit_gates: gates }) => gates).length, 58);
   assert.deepEqual(milestones[6].proof_paths.map(({ case_id: id }) => id), [null, null, 'playwright', 'opencli', 'ffmpeg']);
   assert.deepEqual(milestones[7].proof_paths.map(({ case_id: id }) => id), [null, null, 'playwright', 'opencli', 'ffmpeg']);
 });
@@ -6770,7 +8938,10 @@ test('design and proof routing state the normalized static boundary', async () =
     read('docs/design/aos-sovereign-first-vertical-slice-contract.md'),
     json('docs/dev/test-proof-registry.d/privileged-capability-ledger.json'),
   ]);
-  assert.match(design, /Nothing in this\s+document is implemented merely because it is specified here/u);
+  assert.match(
+    design,
+    /Milestone 2 executable control-plane candidate.+later M3-M10\s+sections remain target design merely because they are specified here/isu,
+  );
   assert.match(design, /TRANSITION_EVENT_DUPLICATE/u);
   assert.match(design, /exact transition tuple/u);
   assert.match(design, /cleanup_resolved_without_offer/u);
@@ -6785,15 +8956,39 @@ test('design and proof routing state the normalized static boundary', async () =
   assert.match(design, /record-video-element.+does not exist/iu);
   const entry = registry.entries.find(({ id }) => id === 'privileged-capability-ledger-contract');
   assert.match(entry.contract, /structural JSON Schema/u);
-  assert.match(entry.contract, /independent semantic/u);
+  assert.match(entry.contract, /independent semantic/iu);
+  assert.match(entry.contract, /two ADR 0044 owner bindings/u);
+  assert.match(entry.contract, /immediate socket-peer audit-token\/PID-generation evidence/u);
+  assert.match(entry.contract, /ancestor proc-generation, UID, stable-edge, and code-identity evidence/u);
+  assert.match(
+    entry.contract,
+    /invocation-scoped external intent whose token remains parent-only.+tokenless exact-peer finalization/isu,
+  );
+  assert.match(entry.contract, /prior-generation transitions across operation, stream, tap, artifact, claim-set transaction, per-resource claim, multiplex broker, host barrier, and recovery/u);
+  assert.match(entry.contract, /split all-or-nothing claim-set admission/u);
+  assert.match(entry.contract, /registry-revision-bound resource declarations/u);
+  assert.match(entry.contract, /immutable barrier snapshots across drain\/recovery\/reopen/u);
+  assert.match(entry.contract, /four closed live transport, ordinary Canvas, status-item, and status-opened Canvas origins/u);
+  assert.match(entry.contract, /seven mandatory tap bounds/u);
+  assert.match(entry.contract, /deterministic sampling stride/u);
+  assert.match(entry.contract, /artifact released\/retained\/removed and claim-set rollback\/committed-handoff recovery dispositions/u);
+  assert.match(entry.contract, /multiplex broker\/subscriber CAS inputs.+resulting publication facts/isu);
+  assert.match(entry.contract, /generation-independent retained receipt replay with bounded eviction and expected-barrier CAS/u);
+  assert.match(entry.contract, /19 M2 deliverables, 15 exit gates, 70 path refs, and 23 proof refs/u);
+  assert.match(entry.contract, /frozen-v0\/active-v1 external-command manifest cutover/u);
+  assert.match(entry.contract, /exactly one invocation-scoped listen-microphone spawn registration/u);
+  assert.match(entry.contract, /v1-only Swift\/help readers/u);
+  assert.match(entry.contract, /canonical proof-index and workflow reachability/u);
+  assert.match(entry.contract, /fifteen-form generation-bound operation\/tap\/artifact\/barrier grammar/u);
+  assert.match(entry.contract, /41-operation\.json and 49-operation\.json/u);
   assert.match(entry.contract, /101 functional bindings and 107 functional selectors/u);
   assert.match(entry.contract, /six fail-closed selectors/u);
-  assert.match(entry.contract, /tracked regular-file production-source discovery/u);
+  assert.match(entry.contract, /tracked regular-file production sources/u);
   assert.match(entry.contract, /reviewed SDK snapshot/u);
   assert.match(entry.guard, /does not run native, managed-live, daemon, browser, or TCC acceptance/iu);
 });
 
-test('paired authority and open-decision counts remain exact while M1 is data only', async () => {
+test('paired authority, executable M2 bindings, and the remaining M6 decision are exact', async () => {
   const ledger = await json(ledgerRelativePath);
   assert.deepEqual(ledger.authority.paired_sigil_authority, {
     repository: 'https://github.com/Ch-osctrl/sigil',
@@ -6801,8 +8996,22 @@ test('paired authority and open-decision counts remain exact while M1 is data on
     publication_state: 'landed',
     revision: '227382c1bcbdab56f551a85a69b0609eebbdfa0c',
   });
-  assert.equal(ledger.owner_decision_required_before_m2.length, 2);
+  assert.deepEqual(ledger.accepted_m2_owner_bindings.map(({ id, status, authority }) => ({ id, status, authority })), [
+    {
+      id: 'ordinary-owner-root',
+      status: 'accepted_by_adr_0044',
+      authority: 'docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md',
+    },
+    {
+      id: 'same-effective-uid-host-control',
+      status: 'accepted_by_adr_0044',
+      authority: 'docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md',
+    },
+  ]);
   assert.equal(ledger.later_open_decisions.length, 1);
   assert.equal(ledger.later_open_decisions[0].milestone, 'M6');
-  assert.match(ledger.authority.publication_boundary, /adds no runtime primitive/u);
+  assert.match(
+    ledger.authority.publication_boundary,
+    /Milestone 2 publishes the executable daemon IPC and CLI control plane/u,
+  );
 });

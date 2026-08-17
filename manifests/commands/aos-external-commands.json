@@ -6,7 +6,7 @@
     "source_path": "manifests/commands/source/external/",
     "regeneration_command": "node scripts/generate-command-manifests.mjs"
   },
-  "schema_version": 1,
+  "schema_version": 2,
   "commands": [
     {
       "path": ["help"],
@@ -1393,13 +1393,50 @@
       "path": ["listen"],
       "summary": "Read daemon-routed messages or stream broker-owned hotkey and microphone input.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-tell-listen.mjs", "listen"],
-      "stdio": "inherit",
+      "argv_prefix": ["node", "--input-type=module", "-", "listen"],
+      "stdio": "registered_bundle",
       "cwd": "repo",
       "env": {
         "AOS_PATH": "$AOS_PATH",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      },
+      "spawn_registration": {
+        "route_source_id": "listen",
+        "route_source_revision": "1c95d16baa8ec0a2ba780db3cc0372f493f92cc8c00233befa2b3026c49843d5",
+        "adapter_registration_id": "microphone-capture-adapter",
+        "adapter_registration_revision": 1,
+        "activation_predicate": {
+          "grammar": "listen_microphone_v1"
+        },
+        "executable_resolution_policy": {
+          "launcher_shape": "usr_bin_env_node",
+          "resolution_owner": "native_external_dispatch",
+          "resolution_phase": "immediately_before_spawn",
+          "search_source": "sanitized_path",
+          "command_name": "node",
+          "designated_requirement": "anchor apple generic and identifier \"node\" and certificate leaf[subject.OU] = \"HX7739G8FX\"",
+          "signing_identifier": "node",
+          "signing_team_identifier": "HX7739G8FX",
+          "requires_hardened_runtime": true,
+          "platform_code_directory_hash_algorithm": "sha256_truncated_cdhash_20_bytes",
+          "reviewed_source_max_bytes": 131072,
+          "reviewed_bundle_max_bytes": 524288
+        },
+        "expected_script_identity": "scripts/aos-tell-listen.mjs",
+        "expected_script_digest": "59cc8b2f4a0e82e734ef2613e2617de13b49d4a845a780cad5c835bc27b5d369",
+        "reviewed_dependencies": [
+          {
+            "identity": "scripts/lib/aos-daemon-client.mjs",
+            "digest": "f63bee91fcb7f9b23e0c284709e774a9b582748ac2a0376a6e5995e9bada6ae4"
+          },
+          {
+            "identity": "scripts/lib/aos-voice-follow.mjs",
+            "digest": "a136cb047a2445f8f7ca89b220686946e4331704e04a5346bbc1f4746f18cff9"
+          }
+        ],
+        "reviewed_dependency_set_digest": "5b3d10956d5d6aeff8a1ca975aaf4615c028fa63614c36636388b6f254b0f34e",
+        "canonical_argv_shape_digest": "1027cc88beb2d456286c299ecf6b41a200145a1cb32ca05104900e0101e1630c"
       }
     },
     {
@@ -3056,6 +3093,14 @@
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
         "AOS_PATH": "$AOS_PATH"
       }
+    },
+    {
+      "path": ["operation"],
+      "summary": "Inspect and control authenticated AOS operations and the same-UID host barrier.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__operation"],
+      "cwd": "repo",
+      "stdio": "inherit"
     }
   ]
 }

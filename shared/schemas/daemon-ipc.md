@@ -91,6 +91,18 @@ Error response:
 | `status_item.inspect` | Inspect an exact lease generation and descriptor revision. | `owner`, `item_id`, `generation`, `descriptor_revision`. |
 | `status_item.invoke` | Atomically admit and invoke a declared status-item action. | `owner`, `item_id`, `action_id`, `generation`, `descriptor_revision`, `action_sequence`. |
 | `status_item.invoke_dry_run` | Validate an invocation without reserving its action sequence. | Same as `status_item.invoke`; returns a `dry_run` response envelope. |
+| `operation.list` | List operations in the mechanically authenticated owner set, narrowed by optional metadata filters. | `request_id`, `canonical_parameter_digest`, `filters`. |
+| `operation.inspect` | Inspect one exact operation generation. | `request_id`, `canonical_parameter_digest`, `selector`. |
+| `operation.status` | Read compact status for one exact operation generation. | `request_id`, `canonical_parameter_digest`, `selector`. |
+| `operation.recent` | List bounded recent terminal operations for the authenticated owner set. | `request_id`, `canonical_parameter_digest`, `filters`. |
+| `operation.cancel` | Request cooperative cancellation of one exact owned operation. | `request_id`, `canonical_parameter_digest`, `selector`. |
+| `operation.kill` | Force-stop one exact owned operation and retain cleanup visibility. | `request_id`, `canonical_parameter_digest`, `selector`. |
+| `operation.kill_owner` | Stop the authenticated owner-set intersection selected by optional attribution/capability filters. | `request_id`, `canonical_parameter_digest`, `filters`. |
+| `operation.tap` | Open one exact bounded metadata or data tap. | `request_id`, `canonical_parameter_digest`, `selector`, `tap` with all seven bounds. |
+| `operation.artifact_reveal\|artifact_remove\|artifact_release\|artifact_retain` | Inspect or resolve one exact artifact generation. | `request_id`, `canonical_parameter_digest`, artifact `selector`, `action`. |
+| `operation.stop_all` | Same-effective-UID stop over the immutable registered-set snapshot at the expected barrier generation. | `schema_version`, `action`, `request_id`, `canonical_parameter_digest`, `expected_barrier_generation`. |
+| `operation.barrier_status` | Read the current host barrier snapshot, progress, and residual facts. | `schema_version`, `action`, `request_id`, `canonical_parameter_digest`. |
+| `operation.reopen` | Reopen admission after prior and current registered sets reconcile. | `schema_version`, `action`, `request_id`, `canonical_parameter_digest`, `expected_barrier_generation`. |
 | `system.ping` | Daemon health, identity, and uptime. | (none) |
 | `focus.list` | List focus channels. | (none) |
 | `focus.create` | Create an exact native focus channel. | `id`, `window_id`; optional owner assertion `pid`, exact AX `subtree`, and `depth`. |
@@ -147,6 +159,45 @@ and `__envelope_active` are rejected. The shared IPC parser uses
 that boundary; duplicate raw keys are therefore not independently detectable
 or rejected there. This contract enforces the resulting typed key set, not raw
 duplicate-key occurrence.
+
+Operation request data is closed and action-specific. The public caller never
+sends an owner root, PID/PGID, effective UID, caller-origin evidence,
+`human_initiated`, approval, or policy field. The daemon attaches immutable
+socket-peer and caller-origin context after schema validation, recomputes
+`canonical_parameter_digest`, and rejects stale daemon, operation, resource,
+adapter-registry, or barrier generations before mutation. `filters` contain
+attribution and adapter-selected capability metadata only; they intersect the
+mechanically authenticated ordinary owner set.
+
+The private `operation.external_spawn_intent`,
+`operation.external_spawn_child_admit`, `operation.external_spawn_abandon`, and
+`operation.external_spawn_finalize` actions bind only the invocation-scoped
+registered `listen --source microphone` adapter; non-microphone `listen` never
+enters this plane. Intent carries only content-free executable/script/argv
+digests, the reviewed dependency-set digest, the exact signed-Node identity,
+and registration revisions. The daemon durably prepares the operation and
+exclusive microphone claim before spawn, then returns one opaque parent-only
+lifecycle token.
+
+The dispatcher starts tokenless Node as a blocked `--input-type=module -`
+process. Child admission requires the exact authenticated intent-parent
+generation, token, child PID generation and parent edge. The daemon dynamically
+validates the live SecCode guest against Apple generic anchor, signing identifier
+`node`, Node.js Foundation team `HX7739G8FX`, and hardened-runtime signing flag;
+then it compares the 20-byte SHA-256 platform CDHash (algorithm label
+`sha256_truncated_cdhash_20_bytes`) and mapped main-executable vnode device/inode
+to the intent. Only after that durable admission does the exact AOS dispatcher
+write the reviewed in-memory module bundle. No script or helper pathname reaches
+the child.
+
+Finalize is tokenless. The daemon resolves exactly one admitted intent from the
+mechanically authenticated child peer generation, revalidates the admitted edge,
+live executable and closed argv shape, and consumes it once. The durable record
+and receipt retain content-free hashes only; raw dependency identities and the
+token are never returned to the child. Parent-authenticated abandon, bounded
+server expiry, and boot recovery remove the pending intent and terminalize the
+prepared operation and claim without authority. Abandon replay is bounded and
+idempotent; abandon after finalize fails closed and never stops active authority.
 
 ## Error Codes
 
@@ -308,7 +359,7 @@ Envelope `v` is an integer, currently `1`. Adding an action or an optional field
 ## Event Envelope Note
 
 The event envelope (`daemon-event.schema.json` v1) uses `service` values
-`perceive|display|act|voice|scene|annotation|status_item|see`. The private `see`
+`perceive|display|act|voice|scene|annotation|status_item|see|operation`. The private `see`
 service carries only ordered `capture_chunk` data with capture/topology identity,
 bounded base64 bytes, exact integer metadata, byte counts, and SHA-256; it never
 carries a path. Its correlated final success response is metadata-only and uses
@@ -319,6 +370,14 @@ lifecycle events. Media bytes, spoken text, and local paths remain on their
 owning capture, transcription, speech, or playback channels and outside the
 bounded lifecycle event envelope; their exclusion is not an ADR 0040 raw-output
 gap. Transcription and product behavior remain consumer-owned.
+
+The `operation` service emits only the closed content-free
+`aos-operation-event-v1` vocabulary: `snapshot`, `state`, `progress`,
+`terminal`, `residual`, and `barrier`. Every event binds daemon generation,
+operation id/generation, sequence, timestamp, digest, and one typed detail
+variant. It never carries raw operation data, media, text, URLs, paths, or
+artifacts. Callers request raw observation only through a separately bounded
+operation tap.
 
 Public `aos listen --source hotkey|microphone --follow` and
 `aos say --follow` are the sanctioned adapters for these connection-scoped

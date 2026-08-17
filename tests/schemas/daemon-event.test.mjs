@@ -131,6 +131,26 @@ test('voice event vocabulary is strict across dictation, capture, and speech', a
   ]);
 });
 
+test('operation events use the closed content-free lifecycle vocabulary', async () => {
+  const schema = JSON.parse(await fs.readFile(schemaPath, 'utf8'));
+  const rule = schema.allOf.find(
+    (item) => item.if?.properties?.service?.const === 'operation'
+      && !item.if?.properties?.event,
+  );
+  assert.deepEqual(rule.then.properties.event.enum, [
+    'snapshot',
+    'state',
+    'progress',
+    'terminal',
+    'residual',
+    'barrier',
+  ]);
+  assert.equal(
+    rule.then.properties.data.$ref,
+    'https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-event-v1.schema.json#/$defs/operation_event',
+  );
+});
+
 test('annotation event vocabulary is strict across desktop selection lifecycle', async () => {
   const schema = JSON.parse(await fs.readFile(schemaPath, 'utf8'));
   const rule = schema.allOf.find((item) => item.if?.properties?.service?.const === 'annotation' && !item.if?.properties?.event);

@@ -1,0 +1,936 @@
+{
+  "schema_version": 1,
+  "id": "operation",
+  "path_prefix": [
+    "operation"
+  ],
+  "commands": [
+    {
+      "path": [
+        "operation"
+      ],
+      "summary": "List, inspect, observe, and control authenticated AOS operations and the same-UID host barrier",
+      "forms": [
+        {
+          "id": "operation-list",
+          "usage": "aos operation list [filters] --json",
+          "args": [
+            {
+              "id": "capability-id",
+              "kind": "flag",
+              "token": "--capability-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Canonical adapter-bound capability id"
+            },
+            {
+              "id": "client-id",
+              "kind": "flag",
+              "token": "--client-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed client id"
+            },
+            {
+              "id": "agent-id",
+              "kind": "flag",
+              "token": "--agent-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed agent id"
+            },
+            {
+              "id": "project-id",
+              "kind": "flag",
+              "token": "--project-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed project id"
+            },
+            {
+              "id": "task-id",
+              "kind": "flag",
+              "token": "--task-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed task id"
+            },
+            {
+              "id": "run-id",
+              "kind": "flag",
+              "token": "--run-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed run id"
+            },
+            {
+              "id": "skill-id",
+              "kind": "flag",
+              "token": "--skill-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed skill id"
+            },
+            {
+              "id": "target-id",
+              "kind": "flag",
+              "token": "--target-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed target id"
+            },
+            {
+              "id": "capability-label",
+              "kind": "flag",
+              "token": "--capability-label",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed capability label"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "token": "--json",
+              "required": true,
+              "value_type": "bool",
+              "summary": "Emit machine-readable output"
+            }
+          ],
+          "examples": [
+            "aos operation list --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          }
+        },
+        {
+          "id": "operation-inspect",
+          "usage": "aos operation inspect <operation-id> --generation <n> --json",
+          "args": [
+            {
+              "id": "operation-id",
+              "kind": "positional",
+              "required": true,
+              "value_type": "string",
+              "summary": "Exact operation id"
+            },
+            {
+              "id": "generation",
+              "kind": "flag",
+              "token": "--generation",
+              "required": true,
+              "value_type": "integer",
+              "summary": "Exact operation generation"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "token": "--json",
+              "required": true,
+              "value_type": "bool",
+              "summary": "Emit machine-readable output"
+            }
+          ],
+          "examples": [
+            "aos operation inspect 11111111-1111-4111-8111-111111111111 --generation 7 --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          }
+        },
+        {
+          "id": "operation-status",
+          "usage": "aos operation status <operation-id> --generation <n> --json",
+          "args": [
+            {
+              "id": "operation-id",
+              "kind": "positional",
+              "required": true,
+              "value_type": "string",
+              "summary": "Exact operation id"
+            },
+            {
+              "id": "generation",
+              "kind": "flag",
+              "token": "--generation",
+              "required": true,
+              "value_type": "integer",
+              "summary": "Exact operation generation"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "token": "--json",
+              "required": true,
+              "value_type": "bool",
+              "summary": "Emit machine-readable output"
+            }
+          ],
+          "examples": [
+            "aos operation status 11111111-1111-4111-8111-111111111111 --generation 7 --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          }
+        },
+        {
+          "id": "operation-recent",
+          "usage": "aos operation recent [filters] --json",
+          "args": [
+            {
+              "id": "capability-id",
+              "kind": "flag",
+              "token": "--capability-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Canonical adapter-bound capability id"
+            },
+            {
+              "id": "client-id",
+              "kind": "flag",
+              "token": "--client-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed client id"
+            },
+            {
+              "id": "agent-id",
+              "kind": "flag",
+              "token": "--agent-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed agent id"
+            },
+            {
+              "id": "project-id",
+              "kind": "flag",
+              "token": "--project-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed project id"
+            },
+            {
+              "id": "task-id",
+              "kind": "flag",
+              "token": "--task-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed task id"
+            },
+            {
+              "id": "run-id",
+              "kind": "flag",
+              "token": "--run-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed run id"
+            },
+            {
+              "id": "skill-id",
+              "kind": "flag",
+              "token": "--skill-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed skill id"
+            },
+            {
+              "id": "target-id",
+              "kind": "flag",
+              "token": "--target-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed target id"
+            },
+            {
+              "id": "capability-label",
+              "kind": "flag",
+              "token": "--capability-label",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed capability label"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "token": "--json",
+              "required": true,
+              "value_type": "bool",
+              "summary": "Emit machine-readable output"
+            }
+          ],
+          "examples": [
+            "aos operation recent --task-id task-1 --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          }
+        },
+        {
+          "id": "operation-cancel",
+          "usage": "aos operation cancel <operation-id> --generation <n> --json",
+          "args": [
+            {
+              "id": "operation-id",
+              "kind": "positional",
+              "required": true,
+              "value_type": "string",
+              "summary": "Exact operation id"
+            },
+            {
+              "id": "generation",
+              "kind": "flag",
+              "token": "--generation",
+              "required": true,
+              "value_type": "integer",
+              "summary": "Exact operation generation"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "token": "--json",
+              "required": true,
+              "value_type": "bool",
+              "summary": "Emit machine-readable output"
+            }
+          ],
+          "examples": [
+            "aos operation cancel 11111111-1111-4111-8111-111111111111 --generation 7 --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          }
+        },
+        {
+          "id": "operation-kill",
+          "usage": "aos operation kill <operation-id> --generation <n> --json",
+          "args": [
+            {
+              "id": "operation-id",
+              "kind": "positional",
+              "required": true,
+              "value_type": "string",
+              "summary": "Exact operation id"
+            },
+            {
+              "id": "generation",
+              "kind": "flag",
+              "token": "--generation",
+              "required": true,
+              "value_type": "integer",
+              "summary": "Exact operation generation"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "token": "--json",
+              "required": true,
+              "value_type": "bool",
+              "summary": "Emit machine-readable output"
+            }
+          ],
+          "examples": [
+            "aos operation kill 11111111-1111-4111-8111-111111111111 --generation 7 --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          }
+        },
+        {
+          "id": "operation-kill-owner",
+          "usage": "aos operation kill-owner [filters] --json",
+          "args": [
+            {
+              "id": "capability-id",
+              "kind": "flag",
+              "token": "--capability-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Canonical adapter-bound capability id"
+            },
+            {
+              "id": "client-id",
+              "kind": "flag",
+              "token": "--client-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed client id"
+            },
+            {
+              "id": "agent-id",
+              "kind": "flag",
+              "token": "--agent-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed agent id"
+            },
+            {
+              "id": "project-id",
+              "kind": "flag",
+              "token": "--project-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed project id"
+            },
+            {
+              "id": "task-id",
+              "kind": "flag",
+              "token": "--task-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed task id"
+            },
+            {
+              "id": "run-id",
+              "kind": "flag",
+              "token": "--run-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed run id"
+            },
+            {
+              "id": "skill-id",
+              "kind": "flag",
+              "token": "--skill-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed skill id"
+            },
+            {
+              "id": "target-id",
+              "kind": "flag",
+              "token": "--target-id",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed target id"
+            },
+            {
+              "id": "capability-label",
+              "kind": "flag",
+              "token": "--capability-label",
+              "required": false,
+              "value_type": "string",
+              "summary": "Caller-attributed capability label"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "token": "--json",
+              "required": true,
+              "value_type": "bool",
+              "summary": "Emit machine-readable output"
+            }
+          ],
+          "examples": [
+            "aos operation kill-owner --agent-id agent-1 --task-id task-1 --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          }
+        },
+        {
+          "id": "operation-tap",
+          "usage": "aos operation tap <operation-id> --generation <n> --channel <metadata|data> --rate <items-per-second> --sample-every <n> --max-queue-items <n> --max-items <n> --max-bytes <n> --timeout <milliseconds> --duration-ms <milliseconds> [--follow] --json",
+          "args": [
+            {
+              "id": "operation-id",
+              "kind": "positional",
+              "required": true,
+              "value_type": "string",
+              "summary": "Exact operation id"
+            },
+            {
+              "id": "generation",
+              "kind": "flag",
+              "token": "--generation",
+              "required": true,
+              "value_type": "integer",
+              "summary": "Exact operation generation"
+            },
+            {
+              "id": "channel",
+              "kind": "flag",
+              "token": "--channel",
+              "required": true,
+              "value_type": "string",
+              "summary": "metadata or data observation channel"
+            },
+            {
+              "id": "rate",
+              "kind": "flag",
+              "token": "--rate",
+              "required": true,
+              "value_type": "integer",
+              "summary": "Maximum admitted items per second"
+            },
+            {
+              "id": "sample-every",
+              "kind": "flag",
+              "token": "--sample-every",
+              "required": true,
+              "value_type": "integer",
+              "summary": "One-based deterministic sampling stride"
+            },
+            {
+              "id": "max-queue-items",
+              "kind": "flag",
+              "token": "--max-queue-items",
+              "required": true,
+              "value_type": "integer",
+              "summary": "Bounded FIFO item capacity"
+            },
+            {
+              "id": "max-items",
+              "kind": "flag",
+              "token": "--max-items",
+              "required": true,
+              "value_type": "integer",
+              "summary": "Maximum delivered item count"
+            },
+            {
+              "id": "max-bytes",
+              "kind": "flag",
+              "token": "--max-bytes",
+              "required": true,
+              "value_type": "integer",
+              "summary": "Maximum delivered byte count"
+            },
+            {
+              "id": "timeout",
+              "kind": "flag",
+              "token": "--timeout",
+              "required": true,
+              "value_type": "integer",
+              "summary": "Idle timeout in milliseconds"
+            },
+            {
+              "id": "duration-ms",
+              "kind": "flag",
+              "token": "--duration-ms",
+              "required": true,
+              "value_type": "integer",
+              "summary": "Absolute duration bound in milliseconds"
+            },
+            {
+              "id": "follow",
+              "kind": "flag",
+              "token": "--follow",
+              "required": false,
+              "value_type": "bool",
+              "summary": "Follow bounded tap events until terminal"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "token": "--json",
+              "required": true,
+              "value_type": "bool",
+              "summary": "Emit machine-readable output"
+            }
+          ],
+          "examples": [
+            "aos operation tap 11111111-1111-4111-8111-111111111111 --generation 7 --channel metadata --rate 30 --sample-every 1 --max-queue-items 8 --max-items 100 --max-bytes 4096 --timeout 1000 --duration-ms 5000 --follow --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": true,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "ndjson",
+            "error_mode": "json_stderr",
+            "streaming": true,
+            "supports_json_flag": true
+          }
+        },
+        {
+          "id": "operation-artifact-reveal",
+          "usage": "aos operation artifact reveal <artifact-id> --generation <n> --json",
+          "args": [
+            {
+              "id": "artifact-id",
+              "kind": "positional",
+              "required": true,
+              "value_type": "string",
+              "summary": "Exact artifact id"
+            },
+            {
+              "id": "generation",
+              "kind": "flag",
+              "token": "--generation",
+              "required": true,
+              "value_type": "integer",
+              "summary": "Exact artifact generation"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "token": "--json",
+              "required": true,
+              "value_type": "bool",
+              "summary": "Emit machine-readable output"
+            }
+          ],
+          "examples": [
+            "aos operation artifact reveal artifact-1 --generation 3 --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          }
+        },
+        {
+          "id": "operation-artifact-remove",
+          "usage": "aos operation artifact remove <artifact-id> --generation <n> --json",
+          "args": [
+            {
+              "id": "artifact-id",
+              "kind": "positional",
+              "required": true,
+              "value_type": "string",
+              "summary": "Exact artifact id"
+            },
+            {
+              "id": "generation",
+              "kind": "flag",
+              "token": "--generation",
+              "required": true,
+              "value_type": "integer",
+              "summary": "Exact artifact generation"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "token": "--json",
+              "required": true,
+              "value_type": "bool",
+              "summary": "Emit machine-readable output"
+            }
+          ],
+          "examples": [
+            "aos operation artifact remove artifact-1 --generation 3 --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          }
+        },
+        {
+          "id": "operation-artifact-release",
+          "usage": "aos operation artifact release <artifact-id> --generation <n> --json",
+          "args": [
+            {
+              "id": "artifact-id",
+              "kind": "positional",
+              "required": true,
+              "value_type": "string",
+              "summary": "Exact artifact id"
+            },
+            {
+              "id": "generation",
+              "kind": "flag",
+              "token": "--generation",
+              "required": true,
+              "value_type": "integer",
+              "summary": "Exact artifact generation"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "token": "--json",
+              "required": true,
+              "value_type": "bool",
+              "summary": "Emit machine-readable output"
+            }
+          ],
+          "examples": [
+            "aos operation artifact release artifact-1 --generation 3 --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          }
+        },
+        {
+          "id": "operation-artifact-retain",
+          "usage": "aos operation artifact retain <artifact-id> --generation <n> --json",
+          "args": [
+            {
+              "id": "artifact-id",
+              "kind": "positional",
+              "required": true,
+              "value_type": "string",
+              "summary": "Exact artifact id"
+            },
+            {
+              "id": "generation",
+              "kind": "flag",
+              "token": "--generation",
+              "required": true,
+              "value_type": "integer",
+              "summary": "Exact artifact generation"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "token": "--json",
+              "required": true,
+              "value_type": "bool",
+              "summary": "Emit machine-readable output"
+            }
+          ],
+          "examples": [
+            "aos operation artifact retain artifact-1 --generation 3 --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          }
+        },
+        {
+          "id": "operation-stop-all",
+          "usage": "aos operation stop-all --barrier-generation <n> --json",
+          "args": [
+            {
+              "id": "barrier-generation",
+              "kind": "flag",
+              "token": "--barrier-generation",
+              "required": true,
+              "value_type": "integer",
+              "summary": "Expected current host barrier generation"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "token": "--json",
+              "required": true,
+              "value_type": "bool",
+              "summary": "Emit machine-readable output"
+            }
+          ],
+          "examples": [
+            "aos operation stop-all --barrier-generation 1 --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          }
+        },
+        {
+          "id": "operation-barrier-status",
+          "usage": "aos operation barrier-status --json",
+          "args": [
+            {
+              "id": "json",
+              "kind": "flag",
+              "token": "--json",
+              "required": true,
+              "value_type": "bool",
+              "summary": "Emit machine-readable output"
+            }
+          ],
+          "examples": [
+            "aos operation barrier-status --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          }
+        },
+        {
+          "id": "operation-reopen",
+          "usage": "aos operation reopen --barrier-generation <n> --json",
+          "args": [
+            {
+              "id": "barrier-generation",
+              "kind": "flag",
+              "token": "--barrier-generation",
+              "required": true,
+              "value_type": "integer",
+              "summary": "Expected closed host barrier generation"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "token": "--json",
+              "required": true,
+              "value_type": "bool",
+              "summary": "Emit machine-readable output"
+            }
+          ],
+          "examples": [
+            "aos operation reopen --barrier-generation 2 --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          }
+        }
+      ]
+    }
+  ]
+}

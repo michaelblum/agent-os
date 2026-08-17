@@ -1,9 +1,16 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs/promises';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { externalRouteConditionSamples, externalRouteMatches } from './lib/external-command-routes.mjs';
+import {
+  EXTERNAL_SPAWN_REVIEWED_DEPENDENCY_IDENTITIES,
+  composeReviewedExternalSpawnBundle,
+  readCanonicalRegularFile,
+  reviewedDependencySetDigest,
+} from './lib/external-command-manifest-v1.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
@@ -14,12 +21,13 @@ const aosOutputPath = path.join(repoRoot, 'manifests/commands/aos-commands.json'
 const externalOutputPath = path.join(repoRoot, 'manifests/commands/aos-external-commands.json');
 
 const SOURCE_SCHEMA_VERSION = 1;
+const EXTERNAL_AGGREGATE_SCHEMA_VERSION = 2;
 const SOURCE_FILE_RE = /^\d{2}-[a-z0-9_.-]+\.json$/;
 const AOS_REGISTRY_NAME = 'aos';
 const AOS_REGISTRY_VERSION = '0.1.0';
 const REGENERATION_COMMAND = 'node scripts/generate-command-manifests.mjs';
 const EXTERNAL_EXECUTABLES = new Set(['$AOS_PATH', '/usr/bin/env', '/bin/bash']);
-const EXTERNAL_STDIO = new Set(['capture', 'inherit']);
+const EXTERNAL_STDIO = new Set(['capture', 'inherit', 'registered_bundle']);
 const EXTERNAL_CWD = new Set(['repo', '$AOS_REPO_ROOT']);
 const EXTERNAL_WHEN_KEYS = new Set([
   'child_arg_index',
@@ -28,6 +36,47 @@ const EXTERNAL_WHEN_KEYS = new Set([
   'excluded_prefixes',
   'excluded_values',
 ]);
+const SPAWN_REGISTRATION_KEYS = [
+  'route_source_id',
+  'route_source_revision',
+  'adapter_registration_id',
+  'adapter_registration_revision',
+  'activation_predicate',
+  'executable_resolution_policy',
+  'expected_script_identity',
+  'expected_script_digest',
+  'reviewed_dependencies',
+  'reviewed_dependency_set_digest',
+  'canonical_argv_shape_digest',
+];
+const REVIEWED_DEPENDENCY_KEYS = ['identity', 'digest'];
+const NODE_RESOLUTION_POLICY = {
+  launcher_shape: 'usr_bin_env_node',
+  resolution_owner: 'native_external_dispatch',
+  resolution_phase: 'immediately_before_spawn',
+  search_source: 'sanitized_path',
+  command_name: 'node',
+  designated_requirement: 'anchor apple generic and identifier "node" and certificate leaf[subject.OU] = "HX7739G8FX"',
+  signing_identifier: 'node',
+  signing_team_identifier: 'HX7739G8FX',
+  requires_hardened_runtime: true,
+  platform_code_directory_hash_algorithm: 'sha256_truncated_cdhash_20_bytes',
+  reviewed_source_max_bytes: 131_072,
+  reviewed_bundle_max_bytes: 524_288,
+};
+const REGISTERED_LISTEN_ENVIRONMENT = {
+  AOS_PATH: '$AOS_PATH',
+  AOS_RUNTIME_MODE: '$AOS_RUNTIME_MODE',
+  AOS_STATE_ROOT: '$AOS_STATE_ROOT',
+};
+const SHA256_RE = /^[0-9a-f]{64}$/;
+const RESERVED_EXTERNAL_DISPATCH_ENV = new Set([
+  'AOS_EXTERNAL_DISPATCH_BINDING_TOKEN',
+  'AOS_EXTERNAL_DISPATCH_PARENT_PID',
+  'AOS_EXTERNAL_DISPATCH_LIFECYCLE_PARENT_PID',
+  'AOS_EXTERNAL_DISPATCH_REVIEWED_DEPENDENCY_SET_DIGEST',
+]);
+const REGISTERED_SPAWN_UNSAFE_ENVIRONMENT = /^(?:NODE(?:_|$)|DYLD_|LD_|BASH_ENV$|ENV$)/;
 
 function usage() {
   return `Usage: node scripts/generate-command-manifests.mjs [--check]\n`;
@@ -67,6 +116,125 @@ function sortedJSONString(value) {
     return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${sortedJSONString(value[key])}`).join(',')}}`;
   }
   return JSON.stringify(value);
+}
+
+function sha256(value) {
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function semanticSourceRevision(doc, commandIndex) {
+  const semantic = structuredClone(doc);
+  delete semantic.commands[commandIndex].spawn_registration.route_source_revision;
+  return sha256(Buffer.from(sortedJSONString(semantic), 'utf8'));
+}
+
+function canonicalArgvShapeDigest(command) {
+  return sha256(Buffer.from(sortedJSONString({
+    argv_prefix: command.argv_prefix,
+    forwarded_suffix: 'path_suffix_after_route',
+  }), 'utf8'));
+}
+
+function normalizedRepoRelativeIdentity(value) {
+  if (typeof value !== 'string' || value.length === 0 || value.includes('\\') || path.posix.isAbsolute(value)) return false;
+  const segments = value.split('/');
+  return segments.every((segment) => segment.length > 0 && segment !== '.' && segment !== '..')
+    && path.posix.normalize(value) === value;
+}
+
+async function validateSpawnRegistration(command, { doc, commandIndex, sourceFile, label }) {
+  const registration = command.spawn_registration;
+  if (registration === undefined) return;
+  assertObject(registration, `${label}.spawn_registration`);
+  assertCondition(
+    sortedJSONString(Object.keys(registration).sort()) === sortedJSONString([...SPAWN_REGISTRATION_KEYS].sort()),
+    `${label}.spawn_registration must contain exactly the closed v1 registration fields`,
+  );
+  assertCondition(registration.route_source_id === doc.id, `${label}.spawn_registration.route_source_id must match source id ${doc.id}`);
+  assertCondition(SHA256_RE.test(registration.route_source_revision), `${label}.spawn_registration.route_source_revision must be lowercase SHA-256`);
+  assertString(registration.adapter_registration_id, `${label}.spawn_registration.adapter_registration_id`);
+  assertCondition(
+    Number.isInteger(registration.adapter_registration_revision) && registration.adapter_registration_revision > 0,
+    `${label}.spawn_registration.adapter_registration_revision must be a positive integer`,
+  );
+  assertCondition(
+    sortedJSONString(registration.activation_predicate) === sortedJSONString({ grammar: 'listen_microphone_v1' }),
+    `${label}.spawn_registration.activation_predicate must bind the exact listen microphone grammar`,
+  );
+  assertCondition(
+    sortedJSONString(registration.executable_resolution_policy) === sortedJSONString(NODE_RESOLUTION_POLICY),
+    `${label}.spawn_registration.executable_resolution_policy must be the native trusted-Node policy`,
+  );
+  assertCondition(
+    command.executable === '/usr/bin/env'
+      && sortedJSONString(command.argv_prefix) === sortedJSONString(['node', '--input-type=module', '-', 'listen'])
+      && command.cwd === 'repo'
+      && command.stdio === 'registered_bundle',
+    `${label} registered route must use the exact reviewed listen launcher`,
+  );
+  assertCondition(command.help_passthrough !== true, `${label} registered route must not enable help passthrough`);
+  assertCondition(
+    sortedJSONString(command.env) === sortedJSONString(REGISTERED_LISTEN_ENVIRONMENT)
+      && !Object.keys(command.env).some((key) => REGISTERED_SPAWN_UNSAFE_ENVIRONMENT.test(key)),
+    `${label} registered route must author exactly the reviewed listen environment`,
+  );
+  assertCondition(normalizedRepoRelativeIdentity(registration.expected_script_identity), `${label}.spawn_registration.expected_script_identity must be normalized repo-relative`);
+  assertCondition(
+    registration.expected_script_identity === 'scripts/aos-tell-listen.mjs',
+    `${label}.spawn_registration.expected_script_identity must bind the reviewed listen source`,
+  );
+  const scriptPath = path.join(repoRoot, registration.expected_script_identity);
+  const scriptBytes = await readCanonicalRegularFile(scriptPath)
+    .catch((err) => fail(`${label} cannot read canonical registered script ${registration.expected_script_identity}: ${err.message}`));
+  assertCondition(registration.expected_script_digest === sha256(scriptBytes), `${label}.spawn_registration.expected_script_digest does not match raw script bytes`);
+  assertCondition(
+    Array.isArray(registration.reviewed_dependencies)
+      && registration.reviewed_dependencies.length === EXTERNAL_SPAWN_REVIEWED_DEPENDENCY_IDENTITIES.length,
+    `${label}.spawn_registration.reviewed_dependencies must be the exact reviewed dependency set`,
+  );
+  const dependencyBytesByIdentity = new Map();
+  for (const [index, identity] of EXTERNAL_SPAWN_REVIEWED_DEPENDENCY_IDENTITIES.entries()) {
+    const dependency = registration.reviewed_dependencies[index];
+    assertObject(dependency, `${label}.spawn_registration.reviewed_dependencies[${index}]`);
+    assertCondition(
+      sortedJSONString(Object.keys(dependency).sort()) === sortedJSONString([...REVIEWED_DEPENDENCY_KEYS].sort()),
+      `${label}.spawn_registration.reviewed_dependencies[${index}] must contain exactly identity and digest`,
+    );
+    assertCondition(
+      dependency.identity === identity,
+      `${label}.spawn_registration.reviewed_dependencies[${index}].identity must be ${identity}`,
+    );
+    const dependencyBytes = await readCanonicalRegularFile(path.join(repoRoot, identity))
+      .catch((err) => fail(`${label} cannot read canonical reviewed dependency ${identity}: ${err.message}`));
+    dependencyBytesByIdentity.set(identity, dependencyBytes);
+    assertCondition(
+      dependency.digest === sha256(dependencyBytes),
+      `${label}.spawn_registration.reviewed_dependencies[${index}].digest does not match raw dependency bytes`,
+    );
+  }
+  assertCondition(
+    registration.reviewed_dependency_set_digest === reviewedDependencySetDigest(registration.reviewed_dependencies),
+    `${label}.spawn_registration.reviewed_dependency_set_digest does not match the canonical reviewed dependency set`,
+  );
+  try {
+    composeReviewedExternalSpawnBundle({
+      entryBytes: scriptBytes,
+      dependencyBytes: dependencyBytesByIdentity,
+      reviewedSetDigest: registration.reviewed_dependency_set_digest,
+      lifecycleParentPID: 2_147_483_647,
+    });
+  } catch (error) {
+    fail(`${label}.spawn_registration reviewed module closure is invalid: ${error.message}`);
+  }
+  assertCondition(
+    registration.canonical_argv_shape_digest === canonicalArgvShapeDigest(command),
+    `${label}.spawn_registration.canonical_argv_shape_digest does not match argv_prefix plus forwarded suffix`,
+  );
+  assertCondition(
+    registration.route_source_revision === semanticSourceRevision(doc, commandIndex),
+    `${label}.spawn_registration.route_source_revision does not match semantic source bytes`,
+  );
+  assertCondition(path.resolve(sourceFile).startsWith(`${externalSourceDir}${path.sep}`), `${label} registered route must come from external source`);
 }
 
 function sourceIDFromFile(file) {
@@ -124,6 +292,14 @@ async function loadSourceCommands(kind, dir) {
     assertCondition(Array.isArray(doc.commands), `${label}.commands must be an array`);
     for (const [index, command] of doc.commands.entries()) {
       validateCommandShell(command, `${label}.commands[${index}]`);
+      if (kind === 'external') {
+        await validateSpawnRegistration(command, {
+          doc,
+          commandIndex: index,
+          sourceFile: file,
+          label: `${label}.commands[${index}]`,
+        });
+      }
       if (kind === 'registry') {
         assertCondition(
           stableJSONString(command.path.slice(0, doc.path_prefix.length)) === stableJSONString(doc.path_prefix),
@@ -264,11 +440,15 @@ function validateExternalManifest(commands, registryCommands) {
     assertStringArray(command.argv_prefix, `${label}.argv_prefix`);
     if (command.cwd !== undefined) assertCondition(EXTERNAL_CWD.has(command.cwd), `${label}.cwd is invalid`);
     if (command.stdio !== undefined) assertCondition(EXTERNAL_STDIO.has(command.stdio), `${label}.stdio is invalid`);
+    if (command.spawn_registration === undefined) {
+      assertCondition(command.stdio !== 'registered_bundle', `${label}.stdio registered_bundle requires spawn_registration`);
+    }
     if (command.help_passthrough !== undefined) assertCondition(typeof command.help_passthrough === 'boolean', `${label}.help_passthrough must be boolean`);
     if (command.env !== undefined) {
       assertObject(command.env, `${label}.env`);
       for (const [key, value] of Object.entries(command.env)) {
         assertCondition(/^[A-Z_][A-Z0-9_]*$/.test(key), `${label}.env key is invalid: ${key}`);
+        assertCondition(!RESERVED_EXTERNAL_DISPATCH_ENV.has(key), `${label}.env cannot author reserved external-dispatch authority: ${key}`);
         assertString(value, `${label}.env.${key}`);
       }
     }
@@ -298,6 +478,14 @@ function validateExternalManifest(commands, registryCommands) {
     const pathKey = command.path.join('\0');
     byPath.set(pathKey, [...(byPath.get(pathKey) ?? []), command]);
   }
+
+  const registered = commands.filter((command) => command.spawn_registration !== undefined);
+  assertCondition(registered.length === 1, 'external manifest must contain exactly one spawn registration');
+  assertCondition(
+    stableJSONString(registered[0].path) === stableJSONString(['listen'])
+      && registered[0].spawn_registration.adapter_registration_id === 'microphone-capture-adapter',
+    'only listen may register the microphone-capture-adapter spawn binding',
+  );
 
   for (const [pathKey, routes] of byPath) {
     if (routes.length <= 1) continue;
@@ -407,7 +595,7 @@ async function main() {
   };
   const external = {
     generated: generatedMetadata('manifests/commands/source/external/'),
-    schema_version: 1,
+    schema_version: EXTERNAL_AGGREGATE_SCHEMA_VERSION,
     commands: externalCommands,
   };
 

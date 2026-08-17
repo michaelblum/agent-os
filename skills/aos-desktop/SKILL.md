@@ -39,6 +39,26 @@ capability map.
   for direct native AX current matching.
 - `--dry-run` is an optional mechanical preview, never action permission.
 
+## Registered Operation Control
+
+Use `./aos operation list|inspect|status|recent` to inspect registered
+privileged work and `cancel|kill|kill-owner` for exact owner-scoped control.
+Task, agent, client, project, target, skill, and capability labels are filters;
+they never create or widen the mechanically authenticated owner boundary.
+
+`./aos operation stop-all --barrier-generation <n> --json` is the public
+same-UID host-wide control. It is available to agents and humans through the
+same plane and needs no caller-intent assertion. Read the current generation
+with `./aos operation barrier-status --json`; reopen only after the receipt
+shows the registered stop snapshot and current registered set are reconciled.
+
+The separate AOS internal status item is always-available break-glass: it turns
+red only while a registered recording operation is active, opens the richer
+operation Canvas, and can request stop-all. It is not a consumer status-item
+lease. The status-opened Canvas may inspect all registered operations and use
+stop-all only; ordinary Canvas controls require a live captured peer and remain
+owner-scoped.
+
 ## Native Status-Item Host Leases
 
 For product-neutral native status-item leases, use the `status-item` family.
@@ -89,6 +109,8 @@ separate dependent slices.
   semantic commands in this slice.
 - Arbitrary third-party menu extras remain unsupported; `status-item` controls
   only AOS-hosted owner-scoped leases.
+- The Milestone 2 operation plane registers microphone capture first. Do not
+  claim that every legacy daemon resource is already listed or controllable.
 - Do not simulate fullscreen, Space switching, or Mission Control with
   `./aos do key`, AppleScript, or coordinates unless the caller chose that
   lower-level fallback.
@@ -108,4 +130,5 @@ outside the caller's requested scope.
 - `docs/api/aos-capabilities.md`
 - `docs/api/aos.md`
 - `docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md`
+- `docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md`
 - `docs/design/aos-desktop-playwright-cli-map.md`

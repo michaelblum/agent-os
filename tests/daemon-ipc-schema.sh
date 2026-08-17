@@ -71,6 +71,41 @@ window_target = {
     "fallback": "display",
 }
 
+operation_request = {
+    "request_id": "11111111-1111-4111-8111-111111111111",
+    "canonical_parameter_digest": "a" * 64,
+}
+
+operation_selector = {
+    "operation_id": "22222222-2222-4222-8222-222222222222",
+    "operation_generation": 7,
+}
+
+external_spawn_intent = {
+    "schema_version": "aos.operation.external-spawn-intent-request.v1",
+    "request_id": "33333333-3333-4333-8333-333333333333",
+    "route_source_id": "listen",
+    "route_source_revision": "b" * 64,
+    "adapter_registration_id": "microphone-capture-adapter",
+    "adapter_registration_revision": 1,
+    "resolved_executable": {
+        "resolved_path_digest": "c" * 64,
+        "executable_identity_digest": "d" * 64,
+        "device": 7,
+        "inode": 11,
+        "code_identity_digest": "e" * 64,
+        "file_digest": "f" * 64,
+        "platform_code_directory_hash": "a" * 40,
+        "signing_identifier": "node",
+        "signing_team_identifier": "HX7739G8FX",
+    },
+    "expected_script_identity_digest": "1" * 64,
+    "expected_script_digest": "2" * 64,
+    "canonical_argv_shape_digest": "3" * 64,
+    "reviewed_dependency_set_digest": "4" * 64,
+}
+external_binding_token = "A" * 43
+
 good_requests = [
     {"v":1,"service":"system","action":"ping","data":{}},
     {"v":1,"service":"see","action":"observe","data":{"depth":1,"scope":"cursor"}},
@@ -98,6 +133,19 @@ good_requests = [
     {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"panel/main","operation":{"op":"mount","extension":scene_extension}}},
     {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"panel/main","operation":{"op":"subscribe","events":["gesture"]}}},
     {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"panel/main","operation":{"op":"unsubscribe","events":["gesture"]}}},
+    {"v":1,"service":"operation","action":"list","data":{**operation_request,"filters":{}}},
+    {"v":1,"service":"operation","action":"recent","data":{**operation_request,"filters":{"task_id":"task-1","capability_id":"microphone-capture"}}},
+    {"v":1,"service":"operation","action":"inspect","data":{**operation_request,"selector":operation_selector}},
+    {"v":1,"service":"operation","action":"cancel","data":{**operation_request,"selector":operation_selector}},
+    {"v":1,"service":"operation","action":"kill_owner","data":{**operation_request,"filters":{"agent_id":"agent-1","project_id":"project-1"}}},
+    {"v":1,"service":"operation","action":"tap","data":{**operation_request,"selector":operation_selector,"tap":{"channel":"metadata","bounds":{"rate_items_per_second":30,"sample_every":2,"max_queue_items":8,"max_items":100,"max_bytes":4096,"idle_timeout_milliseconds":1000,"duration_milliseconds":5000},"follow":False}}},
+    {"v":1,"service":"operation","action":"stop_all","data":{**operation_request,"schema_version":"aos.host-stop-barrier.stop-all-request.v1","action":"stop_all","expected_barrier_generation":3}},
+    {"v":1,"service":"operation","action":"barrier_status","data":{**operation_request,"schema_version":"aos.host-stop-barrier.status-request.v1","action":"barrier_status"}},
+    {"v":1,"service":"operation","action":"reopen","data":{**operation_request,"schema_version":"aos.host-stop-barrier.reopen-request.v1","action":"reopen","expected_barrier_generation":3}},
+    {"v":1,"service":"operation","action":"external_spawn_intent","data":external_spawn_intent},
+    {"v":1,"service":"operation","action":"external_spawn_child_admit","data":{"schema_version":"aos.operation.external-spawn-child-admit-request.v1","request_id":"44444444-4444-4444-8444-444444444444","one_time_binding_token":external_binding_token,"child_pid":1234}},
+    {"v":1,"service":"operation","action":"external_spawn_abandon","data":{"schema_version":"aos.operation.external-spawn-abandon-request.v1","request_id":"55555555-5555-4555-8555-555555555555","one_time_binding_token":external_binding_token}},
+    {"v":1,"service":"operation","action":"external_spawn_finalize","data":{"schema_version":"aos.operation.external-spawn-finalize-request.v1","request_id":"66666666-6666-4666-8666-666666666666"}},
 ]
 validator = jsonschema.Draft202012Validator(req_schema, registry=registry)
 for r in good_requests:
@@ -144,6 +192,20 @@ bad_requests = [
     {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"status","action_id":"activate","generation":7,"descriptor_revision":3,"action_sequence":1,"__envelope_active":True}},  # envelope state is not invoke data
     {"v":1,"service":"status_item","action":"invoke","data":{"owner":"io.example.app","item_id":"status","action_id":"activate..now","generation":7,"descriptor_revision":3,"action_sequence":1}},  # invalid action id
     {"v":1,"service":"scene","action":"follow","data":{"stage":"desktop-world/main","owner":"io.example.app","resource":"panel/main","operation":{"op":"signal","extension":scene_extension}}},  # extensions are mount-only
+    {"v":1,"service":"operation","action":"unknown","data":operation_request},  # operation action vocabulary is closed
+    {"v":1,"service":"operation","action":"list","data":{**operation_request,"filters":{},"human_initiated":True}},  # human intent is never authority
+    {"v":1,"service":"operation","action":"list","data":{**operation_request,"filters":{"owner_root":"forged"}}},  # caller owner roots are forbidden
+    {"v":1,"service":"operation","action":"inspect","data":{**operation_request,"selector":{"operation_id":operation_selector["operation_id"]}}},  # generation is required
+    {"v":1,"service":"operation","action":"tap","data":{**operation_request,"selector":operation_selector,"tap":{"channel":"metadata","bounds":{"rate_items_per_second":30,"sample_every":2,"max_queue_items":8,"max_items":100,"max_bytes":4096,"idle_timeout_milliseconds":1000},"follow":False}}},  # all seven tap bounds are required
+    {"v":1,"service":"operation","action":"stop_all","data":{**operation_request,"schema_version":"aos.host-stop-barrier.stop-all-request.v1","action":"stop_all"}},  # stop-all requires exact barrier CAS
+    {"v":1,"service":"operation","action":"barrier_status","data":{**operation_request,"schema_version":"aos.host-stop-barrier.status-request.v1","action":"barrier_status","caller_origin":"status_item_host"}},  # origin evidence is server-attached
+    {"v":1,"service":"operation","action":"recent","data":{**operation_request,"task_id":"task-1"}},  # filters are a closed nested object
+    {"v":1,"service":"operation","action":"external_spawn_intent","data":{**external_spawn_intent,"human_initiated":True}},  # authority claims are forbidden
+    {"v":1,"service":"operation","action":"external_spawn_intent","data":{**external_spawn_intent,"resolved_executable":{**external_spawn_intent["resolved_executable"],"path":"/usr/local/bin/node"}}},  # raw paths are forbidden
+    {"v":1,"service":"operation","action":"external_spawn_intent","data":{k:v for k,v in external_spawn_intent.items() if k != "reviewed_dependency_set_digest"}},  # reviewed closure digest is required
+    {"v":1,"service":"operation","action":"external_spawn_intent","data":{**external_spawn_intent,"resolved_executable":{**external_spawn_intent["resolved_executable"],"signing_team_identifier":"ATTACKER"}}},  # trusted Node team is closed
+    {"v":1,"service":"operation","action":"external_spawn_child_admit","data":{"schema_version":"aos.operation.external-spawn-child-admit-request.v1","request_id":"44444444-4444-4444-8444-444444444444","one_time_binding_token":"short","child_pid":1234}},  # token is exact base64url length
+    {"v":1,"service":"operation","action":"external_spawn_finalize","data":{"schema_version":"aos.operation.external-spawn-finalize-request.v1","request_id":"66666666-6666-4666-8666-666666666666","one_time_binding_token":external_binding_token}},  # child finalize is tokenless and peer-bound
 ]
 for r in bad_requests:
     errors = list(validator.iter_errors(r))
@@ -168,6 +230,12 @@ good_responses = [
     {"v":1,"status":"error","error":"status item not found","code":"STATUS_ITEM_NOT_FOUND"},
     {"v":1,"status":"error","error":"invalid descriptor","code":"INVALID_STATUS_ITEM_DESCRIPTOR"},
     {"v":1,"status":"error","error":"bad argument","code":"INVALID_ARG"},
+    {"v":1,"status":"error","error":"stale operation generation","code":"OPERATION_GENERATION_CONFLICT"},
+    {"v":1,"status":"error","error":"host barrier generation changed","code":"OPERATION_BARRIER_GENERATION_CONFLICT"},
+    {"v":1,"status":"success","data":{"schema_version":"aos.operation.external-spawn-intent-response.v1","request_id":"33333333-3333-4333-8333-333333333333","spawn_record_id":"55555555-5555-4555-8555-555555555555","one_time_binding_token":external_binding_token,"operation_id":operation_selector["operation_id"],"operation_generation":operation_selector["operation_generation"],"adapter_registration_id":"microphone-capture-adapter","adapter_registration_revision":1}},
+    {"v":1,"status":"success","data":{"schema_version":"aos.operation.external-spawn-child-admit-response.v1","request_id":"44444444-4444-4444-8444-444444444444","spawn_record_id":"55555555-5555-4555-8555-555555555555","operation_id":operation_selector["operation_id"],"operation_generation":operation_selector["operation_generation"],"child_pid":1234,"child_pid_generation":1234000001,"parent_edge_digest":"9"*64,"platform_code_directory_hash":"a"*40,"platform_code_directory_hash_algorithm":"sha256_truncated_cdhash_20_bytes","outcome":"generation_bound_spawn_child_admitted"}},
+    {"v":1,"status":"success","data":{"schema_version":"aos.operation.external-spawn-abandon-response.v1","request_id":"55555555-5555-4555-8555-555555555555","spawn_record_id":"55555555-5555-4555-8555-555555555555","operation_id":operation_selector["operation_id"],"operation_generation":operation_selector["operation_generation"],"outcome":"prepared_operation_abandoned"}},
+    {"v":1,"status":"success","data":{"schema_version":"aos.operation.external-spawn-finalize-response.v1","request_id":"66666666-6666-4666-8666-666666666666","spawn_record_id":"55555555-5555-4555-8555-555555555555","operation_id":operation_selector["operation_id"],"operation_generation":operation_selector["operation_generation"],"adapter_registration_id":"microphone-capture-adapter","adapter_registration_revision":1,"outcome":"generation_bound_spawn_record_finalized","receipt":{"spawn_record_id":"55555555-5555-4555-8555-555555555555","operation_id":operation_selector["operation_id"],"operation_generation":operation_selector["operation_generation"],"adapter_registration_id":"microphone-capture-adapter","adapter_registration_revision":1,"resolved_executable_path_digest":"c"*64,"executable_identity_digest":"d"*64,"executable_file_digest":"f"*64,"platform_code_directory_hash":"a"*40,"platform_code_directory_hash_algorithm":"sha256_truncated_cdhash_20_bytes","expected_script_identity_digest":"1"*64,"script_identity_digest":"1"*64,"script_digest":"2"*64,"canonical_argv_shape_digest":"3"*64,"reviewed_dependency_set_digest":"4"*64,"outcome":"generation_bound_spawn_record_finalized"}}},
 ]
 for response in good_responses:
     errors = list(response_validator.iter_errors(response))
@@ -193,6 +261,8 @@ bad_responses = [
     {"v":1,"status":"success","data":{"capture_id":see_capture["capture_id"],"topology_identity":display_topology["identity"],"frames":[{"display_id":42,"frame_index":0,"chunk_count":1,"byte_count":4,"sha256":"b"*64,"width":2,"height":2,"capture_source":"display","window_fallback":False,"extra":True}]},"ref":see_capture["capture_id"]},  # capture frame metadata is closed
     {"v":1,"status":"success","data":{"capture_id":see_capture["capture_id"],"topology_identity":display_topology["identity"],"frames":[{"display_id":42,"frame_index":0,"chunk_count":1,"byte_count":4,"sha256":"b"*64,"height":2,"capture_source":"display","window_fallback":False}]},"ref":see_capture["capture_id"]},  # capture frame metadata is complete
     {"v":1,"status":"success","data":{"capture_id":see_capture["capture_id"],"topology_identity":display_topology["identity"],"frames":[{"display_id":42,"frame_index":0,"chunk_count":1,"byte_count":4,"sha256":"b"*64,"width":2,"height":2,"capture_source":"window","window_fallback":True,"window_id":901}]},"ref":see_capture["capture_id"]},  # window success cannot also be fallback
+    {"v":1,"status":"success","data":{"schema_version":"aos.operation.external-spawn-intent-response.v1","request_id":"33333333-3333-4333-8333-333333333333","spawn_record_id":"55555555-5555-4555-8555-555555555555","one_time_binding_token":external_binding_token,"operation_id":operation_selector["operation_id"],"operation_generation":operation_selector["operation_generation"],"adapter_registration_id":"microphone-capture-adapter","adapter_registration_revision":1,"owner_root":"forged"}},  # server response remains content-free and closed
+    {"v":1,"status":"success","data":{"schema_version":"aos.operation.external-spawn-finalize-response.v1","request_id":"44444444-4444-4444-8444-444444444444","spawn_record_id":"55555555-5555-4555-8555-555555555555","operation_id":operation_selector["operation_id"],"operation_generation":operation_selector["operation_generation"],"adapter_registration_id":"microphone-capture-adapter","adapter_registration_revision":1,"outcome":"generation_bound_spawn_record_finalized","receipt":{"spawn_record_id":"55555555-5555-4555-8555-555555555555","operation_id":operation_selector["operation_id"],"operation_generation":operation_selector["operation_generation"],"adapter_registration_id":"microphone-capture-adapter","adapter_registration_revision":1,"resolved_executable_path_digest":"c"*64,"executable_identity_digest":"d"*64,"executable_file_digest":"f"*64,"expected_script_identity_digest":"1"*64,"script_identity_digest":"1"*64,"script_digest":"2"*64,"canonical_argv_shape_digest":"3"*64,"outcome":"generation_bound_spawn_record_finalized"}}},  # reviewed closure digest is required in receipt
 ]
 for response in bad_responses:
     errors = list(response_validator.iter_errors(response))

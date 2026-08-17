@@ -28,6 +28,22 @@
     {
       "if": {
         "required": ["service"],
+        "properties": { "service": { "const": "operation" } }
+      },
+      "then": {
+        "properties": {
+          "event": {
+            "enum": ["snapshot", "state", "progress", "terminal", "residual", "barrier"]
+          },
+          "data": {
+            "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-event-v1.schema.json#/$defs/operation_event"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service"],
         "properties": {
           "service": { "const": "voice" }
         }
@@ -460,7 +476,7 @@
     },
     "service": {
       "type": "string",
-      "enum": ["perceive", "display", "act", "voice", "scene", "annotation", "status_item", "see"],
+      "enum": ["perceive", "display", "act", "voice", "scene", "annotation", "status_item", "see", "operation"],
       "description": "Which aos subsystem emitted this event."
     },
     "event": {

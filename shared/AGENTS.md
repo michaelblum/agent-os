@@ -17,11 +17,19 @@ apps, and tests.
   authority state, and hash-backed preservation shape for program
   `aos-sovereign-capability-substrate-v1`.
 - `schemas/aos-privileged-capability-ledger-v1.schema.json` owns the closed
-  Milestone 1 current/target capability-row shape: platform classification,
+  current/target capability-row shape and accepted M2 peer/ancestry/spawn,
+  registered-set host-control, bounded retained-replay/expected-barrier-CAS,
+  distinct recovery-disposition, prior-generation, and split claim-set/
+  resource/broker target contracts: platform classification,
   primitive and exposure reachability, observation bounds, operation control,
   transport/custody, proof, milestone, gap, and exit-gate facts. The canonical
   instance is `docs/dev/aos-privileged-capability-ledger-v1.json`; neither the
   schema nor its target fields make a runtime capability executable.
+- `schemas/aos-external-command-manifest-v0.schema.json` remains frozen
+  decision history. `schemas/aos-external-command-manifest-v1.schema.json`
+  owns the active wire-v2 aggregate, closed optional spawn registration, and
+  v1-only decoder/generator migration; never extend v0 or add a translation,
+  dual-reader path, or parallel aggregate.
 - `schemas/aos-browser-companion-*-v1.schema.json` owns the exact managed
   Playwright descriptor and closed content-free lifecycle result contracts.
 - `schemas/aos-browser-session-result-v1.schema.json` and
@@ -37,13 +45,13 @@ apps, and tests.
 
 ## Local Contracts
 
-- ADR 0043 and
+- ADR 0043, its accepted ADR 0044 owner/host/resource amendment, and
   `docs/dev/aos-sovereign-capability-authority-v1.json` own the accepted
   sovereign-capability target. Existing closed browser and native-capture
   schemas remain current executable truth and declared burn-down baseline until
   an atomic implementation/schema/help/docs/skill/test slice replaces them; the
   target alone does not make an unsupported operation available.
-- Keep each Milestone 1 capability row closed and evidence-backed. Source
+- Keep each capability row and accepted M2 target binding closed and evidence-backed. Source
   presence is not public reachability, an absence scan is not capability proof,
   unsupported public API and undocumented/unverified routes are distinct, and
   local owners, schemas, sources, and proofs must remain tracked or one of the

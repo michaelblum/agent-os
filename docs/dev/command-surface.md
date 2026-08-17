@@ -54,6 +54,28 @@ historical evidence, not a complete current inventory or a consumer API
 contract. Do not regenerate it. Current command authority is the source
 manifests and the two generated top-level manifests.
 
+For program `aos-sovereign-capability-substrate-v1`, accepted ADR 0044 keeps
+the external-command v0 schema frozen as byte-exact decision history. The
+active v1 schema owns the stable generated aggregate at wire schema version 2
+and permits the optional closed spawn registration only on authored
+`15-listen`. Its `listen_microphone_v1` activation predicate is the only
+invocation grammar that prepares a microphone operation. The generator binds
+source identity/revision, the raw entry-script digest, the exact two-file
+reviewed dependency set and set digest, canonical bundle argv shape, bounded
+source/bundle sizes, and the official hardened Node signing identity. The
+native dispatcher rejects unsigned, ad-hoc, wrong-team, or otherwise
+unverifiable Node candidates before launch. It starts Node without a script
+path or binding token, admits the running image for an activated microphone
+invocation, then writes the exact tokenless in-memory module bundle through an
+anonymous pipe. The opaque one-time token remains parent-only for intent,
+child-admit, and pre-finalize abandon. After admission, the child finalizes
+tokenlessly from its mechanically authenticated socket PID generation and
+exact parent edge before requesting microphone authority. Non-microphone
+listen forms do not prepare or admit an operation. The Swift dispatcher and
+help proxy are v1-only; browser and Work Record staging require wire v2 and
+rehydrate current commands instead of rewrapping stale objects. There is no v0
+extension, dual reader, translation layer, or parallel aggregate.
+
 Registry metadata must distinguish private command families from consumer
 discovery. A command with `consumer_discovery: false` remains addressable by
 direct help for tightly scoped private families such as `browser`, but root
@@ -222,7 +244,7 @@ The usual hot-swappable command-surface checks are:
 ```bash
 node scripts/generate-command-manifests.mjs --check
 bash tests/command-manifest-generation.sh
-node --test tests/schemas/aos-external-command-manifest-v0.test.mjs
+node --test tests/schemas/aos-external-command-manifest-v0.test.mjs tests/schemas/aos-external-command-manifest-v1.test.mjs
 bash tests/external-command-dispatch.sh
 bash tests/help-contract.sh
 ```

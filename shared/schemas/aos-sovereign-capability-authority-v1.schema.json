@@ -24,7 +24,7 @@
     "$schema": { "type": "string", "minLength": 1 },
     "schema_version": { "const": "aos.sovereign-capability-authority.v1" },
     "program_id": { "const": "aos-sovereign-capability-substrate-v1" },
-    "status": { "const": "accepted_milestone_0_authority" },
+    "status": { "const": "milestone_2_executable_candidate_authority_and_current_truth" },
     "baseline_revision": { "$ref": "#/$defs/revision" },
     "authority": { "$ref": "#/$defs/authority" },
     "precedence": {
@@ -95,6 +95,7 @@
       "type": "object",
       "required": [
         "aos_adr",
+        "aos_adr_amendments",
         "aos_adr_index",
         "authority_map",
         "human_ledger",
@@ -104,6 +105,15 @@
       "additionalProperties": false,
       "properties": {
         "aos_adr": { "$ref": "#/$defs/repoPath" },
+        "aos_adr_amendments": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "prefixItems": [
+            { "const": "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md" }
+          ],
+          "items": false
+        },
         "aos_adr_index": { "$ref": "#/$defs/repoPath" },
         "authority_map": { "$ref": "#/$defs/repoPath" },
         "human_ledger": { "$ref": "#/$defs/repoPath" },
@@ -215,6 +225,7 @@
       "additionalProperties": false,
       "properties": {
         "path": { "$ref": "#/$defs/repoPath" },
+        "baseline_path": { "$ref": "#/$defs/repoPath" },
         "required_markers": {
           "type": "array",
           "minItems": 1,
@@ -280,13 +291,66 @@
     },
     "verification": {
       "type": "object",
-      "required": ["static_test", "proof_registry", "workflow_rules", "command", "forbidden_runtime_actions"],
+      "required": [
+        "static_test",
+        "proof_registry",
+        "workflow_rules",
+        "command",
+        "current_only_projection",
+        "forbidden_authority_field_scan",
+        "forbidden_runtime_actions"
+      ],
       "additionalProperties": false,
       "properties": {
         "static_test": { "$ref": "#/$defs/repoPath" },
         "proof_registry": { "$ref": "#/$defs/repoPath" },
         "workflow_rules": { "$ref": "#/$defs/repoPath" },
         "command": { "type": "string", "minLength": 1 },
+        "current_only_projection": {
+          "type": "object",
+          "required": ["baseline_revision", "source", "selectors", "allowed_wording_exceptions", "expected_inventory_revision", "allowed_capability_current_changes"],
+          "additionalProperties": false,
+          "properties": {
+            "baseline_revision": { "const": "7aada1cb4d7a046a2b99b1b24470115eefc82224" },
+            "source": { "const": "docs/dev/aos-privileged-capability-ledger-v1.json" },
+            "selectors": {
+              "const": [
+                "inventory_revision",
+                "m1_bootstrap_paths",
+                "platform_evidence_sources",
+                "coverage",
+                "capabilities[].id",
+                "capabilities[].current"
+              ]
+            },
+            "allowed_wording_exceptions": { "const": [] },
+            "expected_inventory_revision": { "const": "59074238c2c4c43051c7461a6e36487e8914f4a6" },
+            "allowed_capability_current_changes": {
+              "const": ["global-input-event-observation", "microphone-capture-adapter", "native-status-item", "canvas-wkwebview"]
+            }
+          }
+        },
+        "forbidden_authority_field_scan": {
+          "type": "object",
+          "required": ["token_components", "classifications", "allowed_rejection_evidence"],
+          "additionalProperties": false,
+          "properties": {
+            "token_components": { "const": ["human", "initiated"] },
+            "classifications": { "const": ["active", "target"] },
+            "allowed_rejection_evidence": {
+              "const": [
+                { "path": "packages/toolkit/runtime/operation-control.js", "required_marker": "FORBIDDEN_AUTHORITY_FIELDS" },
+                { "path": "shared/schemas/daemon-ipc.md", "required_marker": "The public caller never sends" },
+                { "path": "src/daemon/operation-canvas-projection.swift", "required_marker": "let forbidden = Set" },
+                { "path": "tests/daemon-ipc-schema.sh", "required_marker": "human intent is never authority" },
+                { "path": "tests/operation-control-contract.test.mjs", "required_marker": "assert.doesNotMatch(active" },
+                { "path": "tests/schemas/aos-operation-v1.test.mjs", "required_marker": "human intent cannot become lineage" },
+                { "path": "tests/toolkit/operation-control-component.test.mjs", "required_marker": "assert.doesNotMatch(script" },
+                { "path": "tests/toolkit/runtime-operation.test.mjs", "required_marker": "assert.throws" }
+              ]
+            }
+          }
+        },
         "forbidden_runtime_actions": {
           "type": "array",
           "minItems": 1,

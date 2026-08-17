@@ -46,7 +46,16 @@ for retired_route in [
 ]:
     assert retired_route not in registry_text, f"generated help must not teach embedded Sigil route: {retired_route}"
 external = json.loads(Path("manifests/commands/aos-external-commands.json").read_text(encoding="utf-8"))
+assert external["schema_version"] == 2, "generated external manifest must use wire schema_version 2"
 assert all(command["path"][0] != "dev" for command in external["commands"]), "external registry must not contain retired dev routes"
+registered = [command for command in external["commands"] if "spawn_registration" in command]
+assert len(registered) == 1, registered
+assert registered[0]["path"] == ["listen"], registered[0]
+assert registered[0]["spawn_registration"]["adapter_registration_id"] == "microphone-capture-adapter", registered[0]
+assert registered[0]["executable"] == "/usr/bin/env", registered[0]
+assert registered[0]["argv_prefix"] == ["node", "--input-type=module", "-", "listen"], registered[0]
+assert registered[0]["stdio"] == "registered_bundle", registered[0]
+assert registered[0]["spawn_registration"]["expected_script_identity"] == "scripts/aos-tell-listen.mjs", registered[0]
 
 print("PASS command manifest source generation")
 PY

@@ -560,13 +560,14 @@ import os
 data = json.loads(os.environ["OUT"])
 summary = data["summary"]
 assert "command-surface-manifests" in summary["rule_ids"], data
+assert "operation-control" in summary["rule_ids"], data
 assert "unclassified" not in summary["rule_ids"], data
-assert summary["hot_swappable"] is True, data
+assert summary["hot_swappable"] is False, data
 assert summary["requires_swift_build"] is False, data
 commands = {item["command"] for item in data["next_commands"]}
 assert {
     "bash tests/command-manifest-generation.sh",
-    "node --test tests/schemas/aos-external-command-manifest-v0.test.mjs",
+    "node --test tests/schemas/aos-external-command-manifest-v0.test.mjs tests/schemas/aos-external-command-manifest-v1.test.mjs",
     "bash tests/external-command-dispatch.sh",
     "bash tests/help-contract.sh",
 } <= commands, data
@@ -655,6 +656,12 @@ for item in data["files"]:
     assert "command-surface-implementations" in rules, item
     assert "unclassified" not in rules, item
     if item["path"] == "scripts/aos-annotation-select.mjs":
+        continue
+    if item["path"] == "scripts/aos-tell-listen.mjs":
+        assert "operation-control" in rules, item
+        assert "desktop-annotation-selection" not in rules, item
+        assert item["hot_swappable"] is False, item
+        assert item["tcc_identity_sensitive"] is False, item
         continue
     assert "desktop-annotation-selection" not in rules, item
     assert item["hot_swappable"] is True, item

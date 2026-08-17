@@ -16,7 +16,9 @@ source root. This file is a routing map, not a replacement for those sources.
   `docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md` for
   ambient authority, raw observation, and public target-handle contracts, and
   `docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md`
-  for the accepted sovereign-capability target.
+  for the accepted sovereign-capability target plus
+  `docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md` for
+  its accepted M2 owner/host/resource amendment.
 - Read `docs/agents/domain.md` for how domain docs, context sources, ADRs, and
   conflicts should be handled.
 
@@ -24,7 +26,9 @@ source root. This file is a routing map, not a replacement for those sources.
 
 - Program identifier: `aos-sovereign-capability-substrate-v1`.
 - Target architecture:
-  `docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md`.
+  `docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md`,
+  amended by accepted
+  `docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md`.
 - Machine authority and current-only contradiction baseline:
   `docs/dev/aos-sovereign-capability-authority-v1.json`, validated by
   `shared/schemas/aos-sovereign-capability-authority-v1.schema.json`.
@@ -37,9 +41,14 @@ source root. This file is a routing map, not a replacement for those sources.
 - Human dispositions, generated ownership, sequencing, publication boundaries,
   and preservation rules:
   `docs/dev/aos-sovereign-capability-remodel-ledger.md`.
-- Milestone 1 exact ordered 32-row current/target capability inventory,
-  including the internal canvas host action bus and authored CLI form/route
-  bindings:
+- Exact ordered 32-row current/target capability inventory and accepted M2
+  immediate-peer audit identity, proc-generation-verified ancestry, external-
+  dispatch spawn binding, exact registered-set same-effective-UID host control,
+  bounded retained-receipt replay with expected-barrier CAS, distinct artifact
+  and claim-set recovery dispositions, nine-machine prior-generation recovery,
+  split claim-set/resource/broker target contracts, and the frozen-v0/new-v1
+  atomic external-command manifest migration, including the internal canvas
+  host action bus and authored CLI form/route bindings:
   `docs/dev/aos-privileged-capability-ledger-v1.json`, validated by
   `shared/schemas/aos-privileged-capability-ledger-v1.schema.json`. Its
   non-runtime operation/stream/tap/artifact/barrier/recovery, proof-lane,
@@ -52,6 +61,13 @@ source root. This file is a routing map, not a replacement for those sources.
   API docs, and runtime readback remain executable truth until a later atomic
   implementation slice. A mapped Rewrite or Retire claim is burn-down baseline,
   not evidence that the capability already changed.
+- In particular, the external-command v0 schema and v0-only readers remain
+  current and frozen. The proposed v1 schema, aggregate wire version 2, single
+  `listen` spawn registration, generator, readers, proof index, workflow route,
+  and installed projections become active only in one later atomic cutover.
+  That target cutover explicitly includes the browser and Work Record staging
+  scripts: both require wire v2, browser-retained path keys rehydrate from the
+  current v2 aggregate, and stale retained command rewrap is forbidden.
 - The paired external authority is Sigil ADR 0021 under the same program id.
   Its machine publication_state is `landed` at reviewed Sigil revision
   `227382c1bcbdab56f551a85a69b0609eebbdfa0c`; its repository and path are

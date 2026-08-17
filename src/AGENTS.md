@@ -126,11 +126,15 @@ needs, but public command policy and product UI policy belong above it:
   merely initialized but not yet running application connection;
 - generic windowing semantics, panel chrome, minimize chips, and reusable
   workbench layout belong in `packages/toolkit/`;
-- program `aos-sovereign-capability-substrate-v1` is governed by ADR 0043 and
-  `docs/dev/aos-sovereign-capability-authority-v1.json`. The narrow fixed
-  browser client rule immediately below remains current executable truth and
-  burn-down baseline until native transport, manifests/help, schemas, API,
-  skills, and tests change atomically;
+- program `aos-sovereign-capability-substrate-v1` is governed by ADR 0043, its
+  accepted ADR 0044 peer/ancestry/spawn, registered-set host-control, bounded-
+  retained-replay/expected-barrier-CAS, distinct recovery-disposition, prior-
+  generation, and split resource amendment, and
+  `docs/dev/aos-sovereign-capability-authority-v1.json`. Milestone 2's native
+  operation control plane and microphone adapter are current executable truth.
+  The narrow fixed browser client rule immediately below remains a separate
+  burn-down baseline until Milestone 7 atomically changes its raw managed-tool
+  transport, manifests/help, schemas, API, skills, and tests;
 - browser Swift code is a narrow bounded client of
   `scripts/aos-browser-broker.mjs`. It may request only fixed managed operations
   and must not resolve Playwright, read a legacy browser registry, invoke

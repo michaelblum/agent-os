@@ -9,14 +9,22 @@ discovery, and capability-oriented workflows. This map is grounded in
 Use this file to choose the right direct `./aos` lane before opening large
 schema docs or historical design notes.
 
-> **Milestone 0 authority pointer — `aos-sovereign-capability-substrate-v1`:**
-> ADR 0043 owns the target direction and
+> **Authority pointer — `aos-sovereign-capability-substrate-v1`:**
+> ADR 0043 owns the target direction; ADR 0044 accepts its M2 mechanical
+> immediate-peer and verified-ancestry owner root, generation-bound external
+> dispatch, exact registered-set same-effective-UID host control, bounded
+> retained-receipt replay with expected-barrier CAS, distinct artifact/claim
+> recovery dispositions, nine-machine prior-generation recovery, and split
+> resource clauses.
+> The file
 > `../dev/aos-sovereign-capability-authority-v1.json` classifies current
-> contradictions. This map still describes implemented capability. Fixed
-> browser grammar, direct-capture priming, and missing general
-> status/kill/blame are burn-down baseline; do not infer a command or SDK method
-> that current help, schemas, and implementation do not expose.
-> The closed Milestone 1 row inventory is
+> contradictions. This map describes implemented capability. Milestone 2 now
+> exposes `aos operation`, daemon IPC, internal status-item break-glass, and the
+> internal operation Canvas for registered adapters; it does not make every
+> legacy daemon resource a registered operation or publish a TypeScript/Python
+> package SDK. Fixed browser grammar and direct-capture priming remain burn-down
+> baseline.
+> The closed 32-row inventory and accepted M2 authority bindings are
 > `../dev/aos-privileged-capability-ledger-v1.json`. Its exact 32 rows bind
 > source primitives, authored CLI form/route ownership, public reachability,
 > proof execution class, and separately typed target milestones. It adds no
@@ -83,6 +91,11 @@ evidence:
 - Runtime state: mode-scoped local AOS state and service readiness, including
   runtime mode, state root, config, daemon/service status, permissions, content
   status, logs, gate records, voice/session presence, and diagnostics.
+- Operation: a generation-bound registered unit of privileged work with a
+  mechanically authenticated owner root, resource claims, lifecycle, outcome,
+  residual, artifact, and cleanup facts. Attribution labels narrow owner-scoped
+  queries; they never confer authority. Same-UID `operation stop-all` is a
+  separate observable host action over the exact registered set.
 - Work Record: optional durable, inspectable evidence and verification material above
   primitive command output. It can verify, explain conservative recovery, plan
   source-bound mechanical repair, bundle recovery evidence, and write explicit replacement or
@@ -105,6 +118,7 @@ Command-to-state map:
 | Workspace | `see capture --save`, `see workspaces`, `see workspace`, `see snapshots`, `see refs`, saved-ref `do ... --workspace` | Command-scoped saved capture/ref store; no hidden current workspace |
 | Focus channel | `focus create/update/list/remove`, `see capture --channel`, `show ...`, `graph windows` | Mutable target binding; not session identity or saved evidence by itself |
 | Runtime state | `ready`, `status`, `doctor`, `permissions`, `service`, `service logs`, `runtime`, `daemon-snapshot`, `experience status` | Mode-scoped readiness, config, daemon/service, log readback, diagnostics, and experience readback |
+| Operation | `operation list/inspect/status/recent/cancel/kill/kill-owner/tap/artifact/stop-all/barrier-status/reopen` | Registered privileged work, bounded observation, exact custody, cleanup, and same-UID host control; not policy admission |
 | Work Record | `work-record list/read/verify/status/plan-repair`, `work-record repair ...`, `work-record export` | Durable evidence and bounded recovery workflows; no autonomous replay |
 | Content root | `content status`, `content wait`, `experience status`, wiki/content-backed surfaces | Readable declared content root; not a workspace or Work Record root |
 | Evidence state | `see refs --diff --expect`, `see compare`, `see annotation ...`, `gate records`, `work-record ...`, logs, command JSON | Proof trail for later inspection; not current UI state |

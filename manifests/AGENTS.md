@@ -37,6 +37,16 @@ developer command surfaces.
 - Preserve the generated artifact paths; runtime/help consumers and
   `AOS_COMMAND_REGISTRY` / `AOS_EXTERNAL_COMMAND_MANIFEST` overrides depend on
   those files.
+- For program `aos-sovereign-capability-substrate-v1`, accepted ADR 0044
+  preserves `shared/schemas/aos-external-command-manifest-v0.schema.json`
+  byte-exact while the active v1 cutover keeps authored external fragments at
+  source schema version 1. The stable generated external aggregate uses wire
+  schema version 2, exactly `source/external/15-listen.json` owns
+  the optional closed generation-bound microphone spawn registration, and the
+  generator, Swift dispatcher, help proxy, command-surface proofs, workflow
+  routing, and installed projections are v1-only. Do not add v1 fields to v0,
+  hand-edit the aggregate, introduce a dual reader or translation layer, or
+  publish another aggregate path.
 - Generated top-level command manifests must carry deterministic provenance
   metadata naming `manifests/AGENTS.md`, their source manifest root, and
   `node scripts/generate-command-manifests.mjs`. Do not hand-edit generated
@@ -56,9 +66,9 @@ developer command surfaces.
 
 ## Verification
 
-- Use `bash tests/external-command-dispatch.sh` and
-  `node --test tests/schemas/aos-external-command-manifest-v0.test.mjs` for
-  command manifest changes.
+- Use `bash tests/external-command-dispatch.sh` and the active external-command
+  manifest schema proofs for command manifest changes:
+  `node --test tests/schemas/aos-external-command-manifest-v0.test.mjs tests/schemas/aos-external-command-manifest-v1.test.mjs`.
 - Use `bash tests/command-manifest-generation.sh` for command source/generator
   drift checks.
 - Use `node scripts/aos-dev-workflow.mjs recommend --json --paths <changed-paths>`

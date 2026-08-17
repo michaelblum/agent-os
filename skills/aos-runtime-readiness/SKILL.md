@@ -13,7 +13,10 @@ Use this skill before live AOS work or when a command reports runtime blockers.
    `./aos help doctor --json` before relying on argument shape.
 2. Use `./aos ready --json` as the front-door mechanical readiness check for live runtime work.
 3. Use `./aos status --json` and `./aos doctor --json` for passive diagnostics.
-4. Prefer structured blockers and `recommended_next` fields over guessing.
+4. Use `./aos operation barrier-status --json` and
+   `./aos operation list --json` when the question is registered privileged
+   work, resource contention, cleanup, or the host admission barrier.
+5. Prefer structured blockers and `recommended_next` fields over guessing.
 
 ## Boundaries
 
@@ -22,6 +25,13 @@ Use this skill before live AOS work or when a command reports runtime blockers.
 - Keep permission setup, service restart, and live input/browser actions inside
   the caller's requested scope; AOS does not add a second authorization layer.
 - Keep repo mode and installed mode state isolated.
+- Operation task/agent/client/project/capability labels only narrow the
+  mechanically authenticated owner set. Never treat them as authority.
+- `./aos operation stop-all --barrier-generation <n> --json` is the public
+  same-UID host break-glass control. Run it when the user asks to stop all
+  registered work; do not add an approval or caller-intent ceremony.
+- A closed host barrier stays closed until exact cleanup/recovery facts permit
+  `./aos operation reopen --barrier-generation <n> --json`.
 
 ## Stop
 
@@ -34,5 +44,6 @@ ambiguous.
 
 - `docs/api/aos.md`
 - `docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md`
+- `docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md`
 - `docs/guides/agent-entry-paths-and-verification.md`
 - `docs/dev/workflow-profiles/README.md`
