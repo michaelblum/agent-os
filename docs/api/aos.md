@@ -16,14 +16,13 @@ For capability-group discovery, see
 sessions, workspaces, focus channels, runtime state, Work Records, content
 roots, and evidence state.
 
-> **Milestone 0 authority pointer — `aos-sovereign-capability-substrate-v1`:**
-> ADR 0043 owns the target direction and
-> `../dev/aos-sovereign-capability-authority-v1.json` classifies current
-> contradictions. This API remains the current executable contract until a
-> later atomic source/manifest/help/schema/API/skill/test slice changes it.
-> Fixed browser operations, direct-capture priming, and absent general
-> status/kill/blame commands below are burn-down baseline, not implemented
-> remodel behavior.
+> **Sovereign-capability authority pointer:** ADR 0043 owns the target and
+> ADR 0044 owns the Milestone 2 owner, resource, recovery, and same-UID host
+> control bindings. The `aos operation` section below is executable Milestone 2
+> truth for registered operation-plane adapters. Fixed browser operations and
+> direct-capture priming remain burn-down baseline until their later atomic
+> milestones land; do not infer that every legacy daemon resource is already a
+> registered operation.
 
 ## Repo Development Entry Points
 
@@ -169,6 +168,7 @@ The current top-level commands are:
 | `aos launch` | manifest-backed source-owned app launcher |
 | `aos ready` | read-only front-door readiness gate; `--repair` permits runtime recovery |
 | `aos status` | read-only runtime/session status snapshot |
+| `aos operation` | generation-bound registered-operation inspection, bounded taps/artifact custody, owner-scoped cancel/kill, and same-UID host stop/reopen control |
 | `aos skills` | installable AOS root skills: list, check installed state, install, and dry-run install plans |
 | `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
 | `aos work-record` | Work Record V1 discovery, report-only verification, neutral repair/attempt planning, caller-outcome artifact validation, non-executing replacement proposals, explicit-root replacement writing, exact repair finalization, and external source supersession lookup/indexing |
@@ -2199,6 +2199,84 @@ health and readiness. If denied, open the Microphone privacy pane from the
 reported `settings_url` and poll `aos permissions check --json`; there is no
 Plus/drag-add recovery path for Microphone. Foreground CLI preflight never
 substitutes for daemon authorization.
+
+## `aos operation`
+
+`aos operation` is the public, policy-free control plane for work registered by
+an AOS operation adapter. Milestone 2 registers native microphone capture; later
+milestones move additional privileged capability families onto the same plane.
+The surface reports mechanical facts and performs requested controls. It does
+not decide whether a human or agent should stop work, and it accepts neither
+caller intent nor a caller-supplied owner-root claim.
+
+Primary public forms:
+
+| Form | Purpose |
+| --- | --- |
+| `list [filters] --json` | List current registered operations owned by the authenticated caller root and narrowed by optional metadata. |
+| `inspect <id> --generation <n> --json` | Read one exact operation generation. |
+| `status <id> --generation <n> --json` | Read its compact lifecycle, outcome, residual, artifact, and cleanup status. |
+| `recent [filters] --json` | Read bounded recent terminal operations for the authenticated owner root. |
+| `cancel <id> --generation <n> --json` | Request cooperative cancellation of one exact owned operation. |
+| `kill <id> --generation <n> --json` | Force-stop one exact owned operation and keep cleanup observable. |
+| `kill-owner [filters] --json` | Stop the intersection of the authenticated owner root and optional attribution/capability filters. |
+| `tap <id> --generation <n> ... [--follow] --json` | Open a bounded metadata or data tap with all seven resource bounds explicit. |
+| `artifact reveal\|remove\|release\|retain <id> --generation <n> --json` | Inspect or resolve exact artifact custody without guessing from an operation label. |
+| `stop-all --barrier-generation <n> --json` | Same-UID host-wide stop over the exact registered adapter set at one revision. |
+| `barrier-status --json` | Read the immutable stop snapshot, progress, residual scope, and current barrier generation. |
+| `reopen --barrier-generation <n> --json` | Reopen admission only after the stopped snapshot and current registered set are reconciled. |
+
+The optional filters are `--capability-id`, `--client-id`, `--agent-id`,
+`--project-id`, `--task-id`, `--run-id`, `--skill-id`, `--target-id`, and
+`--capability-label`. The daemon derives ordinary ownership from the Unix-socket
+peer and its verified process ancestry. Filters only intersect that owner set;
+they never expand it. Exact-id controls require an operation generation so PID
+reuse, retained identifiers, and stale UI state cannot redirect a request.
+
+`stop-all` is deliberately separate from owner-scoped cancellation. Any
+mechanically authenticated same-effective-UID local caller can request it over
+the official CLI/IPC surface; the internal status item and its status-opened
+Canvas use the same control entrypoint. The request compare-and-swaps the current
+barrier generation, records its caller origin, captures an immutable registered-
+set and selected-operation snapshot, and returns an idempotent receipt. Retrying
+the same retained request id returns the original receipt. A new or pruned
+request must satisfy the current generation again.
+
+The status item is a separate internal projection, not a consumer status-item
+lease. It remains available during boot reconciliation, turns red only while a
+registered recording-class operation is active, opens the richer operation
+Canvas, and can request `stop-all`. The status-opened Canvas can inspect all
+registered operations and request `stop-all`; it cannot borrow ordinary owner
+authority. An ordinary Canvas with a live captured peer may use owner-scoped
+controls only. Status and Canvas provenance authenticate the request path but do
+not express human intent or create a privileged authorization class.
+
+Tap admission requires `--channel`, `--rate`, `--sample-every`,
+`--max-queue-items`, `--max-items`, `--max-bytes`, `--timeout` (idle
+milliseconds), and `--duration-ms`. Sampling and rate skips are deterministic;
+queue-full stops intake before enqueue, never backpressures the source, and
+returns typed counters while the bounded queue drains. Operation lifecycle
+events are content-free; raw data is available only through the explicitly
+bounded data tap selected by the caller.
+
+The host barrier covers the registered operation plane at the recorded adapter-
+registry revision, not every legacy daemon subsystem. `reopen` does not claim
+success while a selected operation, resource claim, stream, tap, artifact, or
+recovery obligation remains unresolved. Cleanup failure remains visible as
+`cleanup_required`, `recovering`, or `blocked_unresolved`; AOS does not hide it
+behind a successful kill receipt.
+
+The current microphone adapter's external Node hop is private implementation,
+not additional public grammar. Only an invocation matching the closed
+`listen_microphone_v1` predicate prepares an operation/claim. Its opaque token
+stays with the authenticated native parent for child admission or abandon. AOS
+dynamically validates the exact Node.js Foundation signed child image and
+mapped vnode before the dispatcher writes the already reviewed entry/helper
+bytes as an in-memory module bundle; the child then finalizes tokenlessly from
+its authenticated socket-peer generation. Failed launch, expiry, boot recovery,
+or finalization failure terminalizes the prepared operation and releases its
+claim. No caller supplies these internal origin, token, PID, signing, or
+dependency facts.
 
 ## `aos wiki`
 

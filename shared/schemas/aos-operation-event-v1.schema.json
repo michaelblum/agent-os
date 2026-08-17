@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-event-v1.schema.json",
+  "title": "AOS Operation Event v1",
+  "$ref": "#/$defs/operation_event",
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "nonnegative_integer": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "positive_integer": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "machine": {
+      "enum": [
+        "operation",
+        "stream",
+        "tap",
+        "artifact",
+        "claim_set_transaction",
+        "resource_claim",
+        "multiplex_broker",
+        "host_barrier",
+        "recovery"
+      ]
+    },
+    "machine_state": {
+      "enum": [
+        "prepared",
+        "starting",
+        "active",
+        "stopping",
+        "cleanup_required",
+        "recovering",
+        "terminal",
+        "expired",
+        "revoked",
+        "transient",
+        "offered",
+        "retained",
+        "released",
+        "removed",
+        "reserving",
+        "committed",
+        "rolling_back",
+        "releasing",
+        "boot_reconciling",
+        "open",
+        "closing",
+        "closed",
+        "idle",
+        "scanning",
+        "blocked_unresolved"
+      ]
+    },
+    "lifecycle_detail": {
+      "type": "object",
+      "required": [
+        "kind",
+        "machine",
+        "from",
+        "event",
+        "to",
+        "transition_kind",
+        "guard_id",
+        "trigger",
+        "terminal_outcome"
+      ],
+      "properties": {
+        "kind": {"const": "lifecycle"},
+        "machine": {"$ref": "#/$defs/machine"},
+        "from": {"$ref": "#/$defs/machine_state"},
+        "event": {"$ref": "#/$defs/identifier"},
+        "to": {"$ref": "#/$defs/machine_state"},
+        "transition_kind": {
+          "enum": ["authority_acquisition", "clean_terminal", "cleanup_detection", "custody", "observation", "recovery", "stop_request", "barrier"]
+        },
+        "guard_id": {"$ref": "#/$defs/identifier"},
+        "trigger": {
+          "enum": [
+            "adapter_complete",
+            "adapter_failure",
+            "adapter_started",
+            "authority_authorized",
+            "artifact_expire",
+            "artifact_failure",
+            "artifact_release",
+            "artifact_remove",
+            "artifact_retain",
+            "artifact_reveal",
+            "artifact_validated",
+            "boot_recovery",
+            "caller_cancel",
+            "daemon_crash",
+            "deadline",
+            "host_reopen",
+            "host_stop_all",
+            "kill_one",
+            "owner_kill",
+            "parent_stop",
+            "peer_lost",
+            "permission_failure",
+            "platform_failure",
+            "start_failure",
+            "start_rejected",
+            "status_inspect",
+            "tap_bound_reached",
+            "tap_opened",
+            "transport_lost"
+          ]
+        },
+        "terminal_outcome": {
+          "oneOf": [
+            {"type": "null"},
+            {"enum": ["succeeded", "cancelled", "killed", "rejected", "failed", "crashed", "timed_out", "orphaned"]}
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "progress_detail": {
+      "type": "object",
+      "required": ["kind", "items", "bytes", "duration_ms", "residual_count", "residual_digest"],
+      "properties": {
+        "kind": {"const": "progress"},
+        "items": {"$ref": "#/$defs/nonnegative_integer"},
+        "bytes": {"$ref": "#/$defs/nonnegative_integer"},
+        "duration_ms": {"$ref": "#/$defs/nonnegative_integer"},
+        "residual_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "residual_digest": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "resource_claim_detail": {
+      "type": "object",
+      "required": [
+        "kind",
+        "claim_id",
+        "resource_key",
+        "resource_generation",
+        "admission_mode",
+        "state",
+        "outcome"
+      ],
+      "properties": {
+        "kind": {"const": "resource_claim"},
+        "claim_id": {"$ref": "#/$defs/identifier"},
+        "resource_key": {"$ref": "#/$defs/identifier"},
+        "resource_generation": {"$ref": "#/$defs/generation"},
+        "admission_mode": {"enum": ["exclusive", "multiplexable"]},
+        "state": {"enum": ["prepared", "active", "releasing", "cleanup_required", "recovering", "terminal"]},
+        "outcome": {
+          "enum": ["admitted", "released", "busy", "fanout_exhausted", "barrier_closed", "rollback_failed", "cleanup_required"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "stream_detail": {
+      "type": "object",
+      "required": ["kind", "stream_id", "stream_generation", "state", "last_sequence", "frontier"],
+      "properties": {
+        "kind": {"const": "stream"},
+        "stream_id": {"$ref": "#/$defs/identifier"},
+        "stream_generation": {"$ref": "#/$defs/generation"},
+        "state": {"enum": ["prepared", "starting", "active", "stopping", "cleanup_required", "recovering", "terminal"]},
+        "last_sequence": {"$ref": "#/$defs/nonnegative_integer"},
+        "frontier": {"enum": ["open", "complete", "truncated", "source_lost"]}
+      },
+      "additionalProperties": false
+    },
+    "tap_detail": {
+      "type": "object",
+      "required": ["kind", "tap_id", "tap_generation", "state", "counters", "terminal_bound_reason"],
+      "properties": {
+        "kind": {"const": "tap"},
+        "tap_id": {"$ref": "#/$defs/identifier"},
+        "tap_generation": {"$ref": "#/$defs/generation"},
+        "state": {"enum": ["prepared", "active", "expired", "revoked", "cleanup_required", "recovering", "terminal"]},
+        "counters": {
+          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-tap-v1.schema.json#/$defs/tap_counters"
+        },
+        "terminal_bound_reason": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-tap-v1.schema.json#/$defs/tap_bound_reason"}
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifact_detail": {
+      "type": "object",
+      "required": ["kind", "artifact_id", "artifact_generation", "state", "custody_action", "receipt_digest"],
+      "properties": {
+        "kind": {"const": "artifact"},
+        "artifact_id": {"$ref": "#/$defs/identifier"},
+        "artifact_generation": {"$ref": "#/$defs/generation"},
+        "state": {
+          "enum": ["transient", "offered", "retained", "released", "removed", "cleanup_required", "recovering", "terminal"]
+        },
+        "custody_action": {
+          "oneOf": [
+            {"type": "null"},
+            {"enum": ["reveal", "remove", "release", "retain", "expire", "recover"]}
+          ]
+        },
+        "receipt_digest": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+        }
+      },
+      "additionalProperties": false
+    },
+    "recovery_detail": {
+      "type": "object",
+      "required": ["kind", "recovery_id", "recovery_generation", "state", "result", "residual_count", "residual_digest"],
+      "properties": {
+        "kind": {"const": "recovery"},
+        "recovery_id": {"$ref": "#/$defs/identifier"},
+        "recovery_generation": {"$ref": "#/$defs/generation"},
+        "state": {"enum": ["idle", "scanning", "recovering", "cleanup_required", "blocked_unresolved", "terminal"]},
+        "result": {
+          "oneOf": [
+            {"type": "null"},
+            {"enum": ["recovered", "retry_scheduled", "blocked_unresolved"]}
+          ]
+        },
+        "residual_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "residual_digest": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "barrier_detail": {
+      "type": "object",
+      "required": [
+        "kind",
+        "barrier_generation",
+        "state",
+        "stop_operation_id",
+        "stop_operation_generation",
+        "barrier_snapshot_digest",
+        "residual_count",
+        "residual_digest"
+      ],
+      "properties": {
+        "kind": {"const": "barrier"},
+        "barrier_generation": {"$ref": "#/$defs/generation"},
+        "state": {"enum": ["boot_reconciling", "open", "closing", "closed", "cleanup_required", "recovering"]},
+        "stop_operation_id": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/identifier"}]
+        },
+        "stop_operation_generation": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/generation"}]
+        },
+        "barrier_snapshot_digest": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+        },
+        "residual_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "residual_digest": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "event_detail": {
+      "oneOf": [
+        {"$ref": "#/$defs/lifecycle_detail"},
+        {"$ref": "#/$defs/progress_detail"},
+        {"$ref": "#/$defs/resource_claim_detail"},
+        {"$ref": "#/$defs/stream_detail"},
+        {"$ref": "#/$defs/tap_detail"},
+        {"$ref": "#/$defs/artifact_detail"},
+        {"$ref": "#/$defs/recovery_detail"},
+        {"$ref": "#/$defs/barrier_detail"}
+      ]
+    },
+    "operation_event": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "event_id",
+        "daemon_generation",
+        "operation_id",
+        "operation_generation",
+        "sequence",
+        "occurred_at",
+        "event_digest",
+        "detail"
+      ],
+      "properties": {
+        "schema_version": {"const": "aos.operation-event.v1"},
+        "event_id": {"$ref": "#/$defs/identifier"},
+        "daemon_generation": {"$ref": "#/$defs/generation"},
+        "operation_id": {"$ref": "#/$defs/identifier"},
+        "operation_generation": {"$ref": "#/$defs/generation"},
+        "sequence": {"$ref": "#/$defs/positive_integer"},
+        "occurred_at": {"$ref": "#/$defs/timestamp"},
+        "event_digest": {"$ref": "#/$defs/sha256"},
+        "detail": {"$ref": "#/$defs/event_detail"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

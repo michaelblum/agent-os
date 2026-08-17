@@ -173,8 +173,16 @@ async function assertMarkerEvidence(entry, scopes, baselineRevision) {
       true,
       `${entry.id} evidence is excluded from active/generated scan: ${evidence.path}`,
     );
+    const baselinePath = evidence.baseline_path || evidence.path;
+    const baselineScopes = matchingScopes(baselinePath, scopes);
+    assert.equal(baselineScopes.length, 1, `${baselinePath} must have one authority scope`);
+    assert.equal(
+      baselineScopes[0].scan_for_stale_claims,
+      true,
+      `${entry.id} baseline evidence is excluded from active/generated scan: ${baselinePath}`,
+    );
     const body = normalized(await read(evidence.path));
-    const baselineBody = normalized(runGit(['show', `${baselineRevision}:${evidence.path}`]));
+    const baselineBody = normalized(runGit(['show', `${baselineRevision}:${baselinePath}`]));
     for (const marker of evidence.required_markers) {
       assert.ok(
         body.includes(normalized(marker)),
@@ -228,18 +236,22 @@ function collectLocalReferences(authority) {
     ]) references.add(owned);
   }
   for (const claim of authority.stale_claim_baseline) {
-    for (const evidence of claim.evidence) references.add(evidence.path);
+    for (const evidence of claim.evidence) {
+      references.add(evidence.path);
+      if (evidence.baseline_path) references.add(evidence.baseline_path);
+    }
   }
   return references;
 }
 
-function currentOnlyProjection(ledger) {
+function currentOnlyProjection(ledger, excludedCapabilityIDs = new Set()) {
   return {
-    inventory_revision: ledger.inventory_revision,
     m1_bootstrap_paths: ledger.m1_bootstrap_paths,
     platform_evidence_sources: ledger.platform_evidence_sources,
     coverage: ledger.coverage,
-    capabilities: ledger.capabilities.map(({ id, current }) => ({ id, current })),
+    capabilities: ledger.capabilities
+      .filter(({ id }) => !excludedCapabilityIDs.has(id))
+      .map(({ id, current }) => ({ id, current })),
   };
 }
 
@@ -249,7 +261,7 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
 
   const authority = await json('docs/dev/aos-sovereign-capability-authority-v1.json');
   assert.equal(authority.program_id, programId);
-  assert.equal(authority.status, 'accepted_milestone_2_increment_1_authority');
+  assert.equal(authority.status, 'milestone_2_executable_candidate_authority_and_current_truth');
   assert.equal(authority.baseline_revision, '7aada1cb4d7a046a2b99b1b24470115eefc82224');
   assert.equal(
     authority.authority.aos_adr,
@@ -277,17 +289,65 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
       'capabilities[].current',
     ],
     allowed_wording_exceptions: [],
+    expected_inventory_revision: '59074238c2c4c43051c7461a6e36487e8914f4a6',
+    allowed_capability_current_changes: [
+      'global-input-event-observation',
+      'microphone-capture-adapter',
+      'native-status-item',
+      'canvas-wkwebview',
+    ],
   });
   const currentLedger = await json(authority.verification.current_only_projection.source);
   const baselineLedger = JSON.parse(runGit([
     'show',
     `${authority.verification.current_only_projection.baseline_revision}:${authority.verification.current_only_projection.source}`,
   ]));
-  assert.deepEqual(
-    currentOnlyProjection(currentLedger),
-    currentOnlyProjection(baselineLedger),
-    'authority-only increment must preserve the canonical current-only capability projection exactly',
+  const changedCapabilityIDs = new Set(
+    authority.verification.current_only_projection.allowed_capability_current_changes,
   );
+  assert.equal(
+    currentLedger.inventory_revision,
+    authority.verification.current_only_projection.expected_inventory_revision,
+  );
+  assert.deepEqual(
+    currentOnlyProjection(currentLedger, changedCapabilityIDs),
+    currentOnlyProjection(baselineLedger, changedCapabilityIDs),
+    'M2 must preserve current truth exactly outside the declared executable capability burn-down',
+  );
+  const currentRows = new Map(currentLedger.capabilities.map((row) => [row.id, row.current]));
+  const baselineRows = new Map(baselineLedger.capabilities.map((row) => [row.id, row.current]));
+  for (const id of changedCapabilityIDs) {
+    assert.notDeepEqual(currentRows.get(id), baselineRows.get(id), `${id} must carry executable M2 truth`);
+  }
+  const inputEvent = currentRows.get('global-input-event-observation');
+  const baselineInputEvent = baselineRows.get('global-input-event-observation');
+  const inputListenBinding = inputEvent.exposure.cli.bindings.find(({ form_id: id }) => id === 'listen-hotkey');
+  const baselineInputListenBinding = baselineInputEvent.exposure.cli.bindings
+    .find(({ form_id: id }) => id === 'listen-hotkey');
+  assert.deepEqual(inputListenBinding.route_selectors[0].argv_prefix, ['node', '--input-type=module', '-', 'listen']);
+  assert.deepEqual(baselineInputListenBinding.route_selectors[0].argv_prefix, ['node', 'scripts/aos-tell-listen.mjs', 'listen']);
+  const normalizedInputEvent = structuredClone(inputEvent);
+  const normalizedBaselineInputEvent = structuredClone(baselineInputEvent);
+  normalizedInputEvent.exposure.cli.bindings.find(({ form_id: id }) => id === 'listen-hotkey')
+    .route_selectors[0].argv_prefix = ['registered-listen-route'];
+  normalizedBaselineInputEvent.exposure.cli.bindings.find(({ form_id: id }) => id === 'listen-hotkey')
+    .route_selectors[0].argv_prefix = ['registered-listen-route'];
+  assert.deepEqual(
+    normalizedInputEvent,
+    normalizedBaselineInputEvent,
+    'global-input-event-observation may change only the exact registered-listen route tuple',
+  );
+  const microphone = currentRows.get('microphone-capture-adapter');
+  assert.match(microphone.implementation.summary, /shared operation registry/u);
+  assert.equal(microphone.control.list.state, 'complete');
+  assert.equal(microphone.control.bulk_owner_kill.state, 'complete');
+  assert.equal(microphone.control.host_stop_all.state, 'complete');
+  const statusItem = currentRows.get('native-status-item');
+  assert.ok(statusItem.implementation.primitive_paths.includes('src/daemon/operation-status-item-projection.swift'));
+  assert.equal(statusItem.control.host_stop_all.state, 'complete');
+  const canvas = currentRows.get('canvas-wkwebview');
+  assert.ok(canvas.implementation.primitive_paths.includes('src/daemon/operation-canvas-projection.swift'));
+  assert.match(canvas.observation.completeness, /content-free M2\s+registered-operation projection/u);
 
   assertUnique(authority.precedence, 'scope', 'precedence scopes');
   assertUnique(authority.authority_scopes, 'id', 'authority-scope ids');
@@ -311,16 +371,21 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
   }
   const operationControl = domains.get('operation-control-plane');
   assert.ok(operationControl);
+  assert.equal(operationControl.implementation_state, 'partial');
+  assert.match(operationControl.exit_gate, /executable M2 candidate/u);
   assert.match(operationControl.exit_gate, /immediate socket peer audit token\/PID generation/u);
-  assert.match(operationControl.exit_gate, /double-sampled proc generation/u);
-  assert.match(operationControl.exit_gate, /asserted lineage only narrows/u);
-  assert.match(operationControl.exit_gate, /live per-request same-effective-UID predicate/u);
-  assert.match(operationControl.exit_gate, /public SDK projections deferred to M6/u);
-  assert.match(operationControl.exit_gate, /expected-barrier CAS/u);
-  assert.match(operationControl.exit_gate, /exact adapter-registry revision and registered-set count\/digest/u);
-  assert.match(operationControl.exit_gate, /Split claim-set, per-resource, and broker lifecycles/u);
-  assert.match(operationControl.exit_gate, /artifact released versus retained versus removed recovery dispositions/u);
+  assert.match(operationControl.exit_gate, /double-sampled proc-generation ancestry/u);
+  assert.match(operationControl.exit_gate, /same-UID host barrier/u);
+  assert.match(operationControl.exit_gate, /split claim-set\/resource\/broker lifecycles/u);
+  assert.match(operationControl.exit_gate, /token parent-only/u);
+  assert.match(operationControl.exit_gate, /trusted Node\.js Foundation signed image/u);
+  assert.match(operationControl.exit_gate, /in-memory module bundle after admission/u);
+  assert.match(operationControl.exit_gate, /finalizes tokenlessly/u);
+  assert.match(operationControl.exit_gate, /terminalizes abandoned, expired, boot-recovered, or failed prepared claims/u);
+  assert.match(operationControl.exit_gate, /asserted lineage continues only to narrow/u);
+  assert.match(operationControl.exit_gate, /public SDK projections.*later milestones/u);
   assert.ok(operationControl.current_owners.includes('docs/api/aos-capabilities.md'));
+  assert.ok(operationControl.current_owners.includes('tests/native-operation-control-contract.sh'));
 
   const tracked = gitPathSet([]);
   const repositoryCandidates = new Set([
@@ -347,7 +412,10 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
   const scanContract = authority.verification.forbidden_authority_field_scan;
   assert.deepEqual(scanContract.token_components, ['human', 'initiated']);
   const forbiddenIntentAuthority = scanContract.token_components.join('_');
-  const scanPaths = new Set(scanContract.bootstrap_paths);
+  const rejectionEvidence = new Map(
+    scanContract.allowed_rejection_evidence.map((entry) => [entry.path, entry.required_marker]),
+  );
+  const scanPaths = new Set();
   for (const relativePath of tracked) {
     const scopes = matchingScopes(relativePath, authority.authority_scopes);
     assert.equal(scopes.length, 1, `${relativePath} must resolve exactly one authority scope`);
@@ -356,12 +424,17 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
   for (const relativePath of scanPaths) {
     const entry = await fs.lstat(path.join(repoRoot, relativePath));
     if (!entry.isFile() || !isTextPath(relativePath)) continue;
-    assert.equal(
-      normalized(await read(relativePath)).includes(forbiddenIntentAuthority),
-      false,
-      `tracked authority must not encode host control through a human-intent class: ${relativePath}`,
+    const body = normalized(await read(relativePath));
+    if (!body.includes(forbiddenIntentAuthority)) continue;
+    const requiredMarker = rejectionEvidence.get(relativePath);
+    assert.ok(requiredMarker, `unclassified human-intent authority field at ${relativePath}`);
+    assert.ok(
+      body.includes(normalized(requiredMarker)),
+      `human-intent field is not mechanically bound to rejection evidence at ${relativePath}`,
     );
+    rejectionEvidence.delete(relativePath);
   }
+  assert.deepEqual([...rejectionEvidence.keys()], [], 'declared rejection evidence must contain the forbidden field');
 });
 
 test('ADR status and target semantics cover capture history, raw upstream grammar, and accepted M2 control mechanics', async () => {
@@ -420,9 +493,9 @@ test('ADR status and target semantics cover capture history, raw upstream gramma
   assert.match(amendment, /does not require or fabricate an ancestor audit token/iu);
   assert.match(amendment, /nearest mechanically verified non-AOS\s+ancestor/iu);
   assert.match(amendment, /selects the conservative\s+immediate mechanical boundary or rejects.+never skips uncertainty/isu);
-  assert.match(amendment, /AOS_EXTERNAL_DISPATCH_PARENT_PID.+may not\s+be trusted as authority/isu);
-  assert.match(amendment, /path and\s+identity digests, device, inode, code identity, and file digest/isu);
-  assert.match(amendment, /absolute\s+path is transient in-memory resolver state and never enters a durable record/isu);
+  assert.match(amendment, /AOS_EXTERNAL_DISPATCH_PARENT_PID.+remains forbidden as authority/isu);
+  assert.match(amendment, /Dynamic validity.+platform CDHash.+device, and inode.+admission fails closed/isu);
+  assert.match(amendment, /normalized repo-\s*relative authored identity remains transient resolver input only/isu);
   assert.match(amendment, /Caller-asserted client, agent,\s+project, task, run, skill,\s+target, or capability labels are attribution/isu);
   assert.match(amendment, /public same-effective-UID local scope.+predicate is re-evaluated per\s+request/isu);
   assert.match(amendment, /M2 host operations cover the complete registered operation-plane set.+exact adapter-registry revision/isu);
@@ -559,7 +632,10 @@ test('generated ownership, proof wording, routing, and preservation remain exact
   assert.match(proofEntry.contract, /including maintained design docs/u);
   assert.match(proofEntry.contract, /immediate socket-peer audit-token\/PID-generation evidence/u);
   assert.match(proofEntry.contract, /nearest mechanically verified non-AOS ancestry using proc-generation, UID, stable-edge, and code-identity evidence/u);
-  assert.match(proofEntry.contract, /external-dispatch executable-resolution finalization/u);
+  assert.match(
+    proofEntry.contract,
+    /parent-only intent, dynamic trusted signed-Node child admission.+tokenless peer finalization/isu,
+  );
   assert.match(proofEntry.contract, /live per-request same-effective-UID host control over the exact registered operation-plane set/u);
   assert.match(proofEntry.contract, /daemon\/status-host break-glass/u);
   assert.match(proofEntry.contract, /M2 daemon IPC, CLI, internal status, and internal Canvas projections with public SDKs deferred to M6/u);
@@ -569,7 +645,10 @@ test('generated ownership, proof wording, routing, and preservation remain exact
   assert.match(proofEntry.contract, /actual bytes and declared hashes for ADRs.+and 0043/isu);
   assert.match(proofEntry.contract, /frozen external-command manifest v0 schema/u);
   assert.match(proofEntry.contract, /explicit prior-generation recovery across nine target machines/u);
-  assert.match(proofEntry.contract, /no-exception deep comparison of canonical current-only capability truth/u);
+  assert.match(
+    proofEntry.contract,
+    /exact baseline equality for every unaffected capability-current row.+global-input-event-observation listen-route, microphone, native-status-item, and Canvas Milestone 2 burn-down/isu,
+  );
   assert.match(proofEntry.contract, /preserved, historical, and frozen exclusions/u);
 
   const registry = await json('docs/dev/test-proof-registry.json');
@@ -580,7 +659,7 @@ test('generated ownership, proof wording, routing, and preservation remain exact
   assert.deepEqual(route.commands.map(({ command }) => command), [
     'node --test tests/sovereign-capability-active-authority.test.mjs',
   ]);
-  assert.match(route.commands[0].reason, /path-specific current-only evidence/u);
+  assert.match(route.commands[0].reason, /path-specific current evidence with explicit baseline path for migrated proofs/u);
   assert.match(route.commands[0].reason, /git-tracked active-authority stale scan/u);
   assert.match(route.commands[0].reason, /rejection of a human-intent host-control class/u);
   assert.equal(route.tcc_identity_sensitive, false);
@@ -673,7 +752,10 @@ test('completed AOS-first paired publication is distinct from runtime implementa
   assert.match(ledger, /verifiedRef.*sourceRevision/su);
   assert.match(ledger, /advanced\s+atomically.*before\s+Sigil\s+authority\s+publication/su);
   assert.match(ledger, /227382c1bcbdab56f551a85a69b0609eebbdfa0c/u);
-  assert.match(ledger, /Authority publication does not publish runtime implementation/u);
+  assert.match(
+    ledger,
+    /Current source,\s+command-source manifests, generated help, schemas, API docs, tests, and runtime\s+readback are the executable contract/u,
+  );
 
   const contextMap = await read('CONTEXT-MAP.md');
   assert.match(contextMap, /publication_state.*landed/su);

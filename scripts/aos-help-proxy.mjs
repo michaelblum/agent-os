@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { externalRouteMatches } from './lib/external-command-routes.mjs';
+import { validateExternalCommandManifestV1 } from './lib/external-command-manifest-v1.mjs';
 
 const moduleRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -52,12 +53,11 @@ function loadExternalManifest() {
   const file = externalManifestPath();
   try {
     const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (!Array.isArray(manifest.commands)) {
-      error(`Invalid external command manifest ${file}: missing commands`, 'INVALID_MANIFEST');
-    }
-    return manifest;
+    return validateExternalCommandManifestV1(manifest);
   } catch (err) {
-    if (err?.code === 'ENOENT') return { commands: [] };
+    if (err?.code === 'ENOENT') {
+      error(`Missing external command manifest. Checked: ${file}`, 'MISSING_EXTERNAL_COMMAND_MANIFEST');
+    }
     error(`Invalid external command manifest ${file}: ${err.message}`, 'INVALID_MANIFEST');
   }
 }

@@ -47,6 +47,81 @@ FAILS=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; FAILS=$((FAILS + 1)); }
 
+if python3 - <<'PY'
+import json
+from pathlib import Path
+
+manifest = json.loads(Path("manifests/commands/aos-external-commands.json").read_text(encoding="utf-8"))
+assert manifest["schema_version"] == 2, manifest["schema_version"]
+registered = [item for item in manifest["commands"] if "spawn_registration" in item]
+assert len(registered) == 1 and registered[0]["path"] == ["listen"], registered
+swift = Path("src/shared/external-command-dispatch.swift").read_text(encoding="utf-8")
+voice = Path("scripts/lib/aos-voice-follow.mjs").read_text(encoding="utf-8")
+assert '"action": "external_spawn_intent"' in swift
+assert '"action": "external_spawn_child_admit"' in swift
+assert '"action": "external_spawn_abandon"' in swift
+assert 'AOS_EXTERNAL_DISPATCH_BINDING_TOKEN' in swift
+assert 'AOS_EXTERNAL_DISPATCH_BINDING_TOKEN' not in voice
+assert 'let sourcePipe = Pipe()' in swift
+assert 'merged["AOS_EXTERNAL_DISPATCH_PARENT_PID"]' not in swift
+assert "external_spawn_finalize" in voice
+assert voice.index("await finalizeExternalSpawn(socket)") < voice.index("socket.write(request(service, action, data, ref))")
+PY
+then
+    pass "wire v2 dispatch binds registered microphone spawn before authority"
+else
+    fail "wire v2 external spawn binding drifted"
+fi
+
+SCRIPT_IDENTITY_ROOT="$(mktemp -d)"
+SCRIPT_IDENTITY_MARKER="$SCRIPT_IDENTITY_ROOT/caller-script-ran"
+SCRIPT_IDENTITY_ERROR="$SCRIPT_IDENTITY_ROOT/listen.err"
+mkdir -p "$SCRIPT_IDENTITY_ROOT/scripts"
+cat >"$SCRIPT_IDENTITY_ROOT/scripts/aos-tell-listen.mjs" <<'JS'
+import fs from 'node:fs';
+fs.writeFileSync(process.env.AOS_TEST_CALLER_SCRIPT_MARKER, 'caller-script-ran');
+JS
+if (
+    cd "$SCRIPT_IDENTITY_ROOT"
+    AOS_TEST_CALLER_SCRIPT_MARKER="$SCRIPT_IDENTITY_MARKER" \
+        "$ROOT/aos" listen --source invalid --follow \
+        > /dev/null 2>"$SCRIPT_IDENTITY_ERROR"
+); then
+    fail "registered listen unexpectedly accepted an invalid source"
+elif [[ -e "$SCRIPT_IDENTITY_MARKER" ]]; then
+    fail "registered listen executed the caller-repo script instead of its verified AOS script"
+elif grep -q '"code":"INVALID_ARG"' "$SCRIPT_IDENTITY_ERROR"; then
+    pass "registered listen executes its exact verified AOS script from an unrelated caller cwd"
+else
+    fail "registered listen unrelated-cwd failure drifted: $(cat "$SCRIPT_IDENTITY_ERROR")"
+fi
+rm -rf "$SCRIPT_IDENTITY_ROOT"
+
+NODE_TRUST_ROOT="$(mktemp -d)"
+NODE_TRUST_MARKER="$NODE_TRUST_ROOT/untrusted-node-ran"
+NODE_TRUST_ERROR="$NODE_TRUST_ROOT/listen.err"
+mkdir -p "$NODE_TRUST_ROOT/bin"
+cat >"$NODE_TRUST_ROOT/bin/node" <<'SH'
+#!/bin/sh
+: >"$AOS_TEST_UNTRUSTED_NODE_MARKER"
+exit 0
+SH
+chmod 700 "$NODE_TRUST_ROOT/bin/node"
+if AOS_TEST_UNTRUSTED_NODE_MARKER="$NODE_TRUST_MARKER" \
+    AOS_STATE_ROOT="$NODE_TRUST_ROOT/state" \
+    PATH="$NODE_TRUST_ROOT/bin:/usr/bin:/bin" \
+    "$ROOT/aos" listen --source microphone --output "$NODE_TRUST_ROOT/capture.wav" --follow \
+    >/dev/null 2>"$NODE_TRUST_ERROR"; then
+    fail "registered microphone listen accepted an unsigned caller-PATH node"
+elif [[ -e "$NODE_TRUST_MARKER" ]]; then
+    fail "registered microphone listen executed an unsigned caller-PATH node"
+elif grep -q 'INVALID_MANIFEST' "$NODE_TRUST_ERROR"; then
+    pass "registered microphone listen rejects unsigned caller-PATH node before launch"
+else
+    fail "registered microphone listen Node trust failure drifted: $(cat "$NODE_TRUST_ERROR")"
+fi
+rm -rf "$NODE_TRUST_ROOT"
+
 if OUT="$(./aos gate records --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
@@ -272,21 +347,10 @@ rm -rf "$ANNOTATION_ROOT" \
 
 SKILLS_ROOT="$(mktemp -d)"
 PLAYWRIGHT_COMPANION_ROOT="$(mktemp -d)"
-mkdir -p "$PLAYWRIGHT_COMPANION_ROOT/bin"
-cat >"$PLAYWRIGHT_COMPANION_ROOT/bin/playwright-cli" <<'SH'
-#!/bin/sh
-if [ "$1" = "--version" ]; then
-  echo "0.1.15"
-  exit 0
-fi
-echo "unexpected playwright-cli invocation: $*" >&2
-exit 7
-SH
-chmod +x "$PLAYWRIGHT_COMPANION_ROOT/bin/playwright-cli"
 if ./aos skills list --json >/tmp/aos-skills-list.out 2>/tmp/aos-skills-list.err \
     && ./aos skills check --target path --path "$SKILLS_ROOT" --json >/tmp/aos-skills-check.out 2>/tmp/aos-skills-check.err \
     && ./aos skills install --target path --path "$SKILLS_ROOT" --dry-run --json >/tmp/aos-skills-install.out 2>/tmp/aos-skills-install.err \
-    && AOS_PLAYWRIGHT_CLI_DISABLE_REPO=1 AOS_PLAYWRIGHT_CLI="$PLAYWRIGHT_COMPANION_ROOT/bin/playwright-cli" ./aos skills companion install --name playwright-cli --target path --path "$SKILLS_ROOT" --dry-run --json >/tmp/aos-skills-companion-install.out 2>/tmp/aos-skills-companion-install.err \
+    && ! AOS_STATE_ROOT="$PLAYWRIGHT_COMPANION_ROOT/state" ./aos skills companion install --name playwright-cli --target path --path "$SKILLS_ROOT" --dry-run --json >/tmp/aos-skills-companion-install.out 2>/tmp/aos-skills-companion-install.err \
     && SKILLS_ROOT="$SKILLS_ROOT" python3 - <<'PY'
 import json
 import os
@@ -303,12 +367,18 @@ assert planned['schema_version'] == 'aos.skills.install.plan.v0', planned
 assert planned['status'] == 'dry_run', planned
 assert any(item['skill'] == 'aos-core-orientation' and item['kind'] == 'manifest' for item in planned['planned_writes']), planned
 assert companion['schema_version'] == 'aos.skills.companion.install.plan.v0', companion
-assert companion['status'] == 'dry_run', companion
-assert companion['planned_invocation']['argv'] == ['install', '--skills'], companion
+assert companion['status'] == 'blocked', companion
+assert companion['runtime']['state'] == 'missing', companion
+assert companion['planned_invocation'] is None, companion
+assert companion['blocked'] == [{
+    'companion': 'playwright-cli',
+    'code': 'PLAYWRIGHT_CLI_UNAVAILABLE',
+    'reason': 'Playwright CLI runtime unavailable',
+}], companion
 assert not os.path.exists(os.path.join(os.environ['SKILLS_ROOT'], 'aos-core-orientation'))
 PY
 then
-    pass "skills list/check/install and companion dry-run route through external command manifest"
+    pass "skills list/check/install and companion managed-runtime precondition route through external command manifest"
 else
     fail "skills external command drifted: $(cat /tmp/aos-skills-list.err /tmp/aos-skills-check.err /tmp/aos-skills-install.err /tmp/aos-skills-companion-install.err 2>/dev/null)"
 fi
@@ -351,10 +421,12 @@ for command in registry["commands"]:
             continue
         if concrete and concrete[0] in bootstrap_families:
             continue
-        assert tuple(concrete) in external_paths, (form["id"], concrete)
+        assert any(tuple(concrete[:len(route_path)]) == route_path for route_path in external_paths), (form["id"], concrete)
 command = commands[("help",)]
 assert command["executable"] == "/usr/bin/env", command
-assert command["argv_prefix"] == ["node", "scripts/aos-help-proxy.mjs"], command
+assert command["argv_prefix"] == ["node", "$AOS_REPO_ROOT/scripts/aos-help-proxy.mjs"], command
+assert command["cwd"] == "$AOS_REPO_ROOT", command
+assert command["env"]["AOS_REPO_ROOT"] == "$AOS_REPO_ROOT", command
 assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
 for family in ["do", "see"]:
     matches = [item for item in manifest["commands"] if tuple(item["path"]) == (family,) and item["argv_prefix"] == ["node", "scripts/aos-help-proxy.mjs", family]]
@@ -362,16 +434,19 @@ for family in ["do", "see"]:
     assert matches[0]["executable"] == "/usr/bin/env", matches[0]
     assert matches[0]["env"]["AOS_PATH"] == "$AOS_PATH", matches[0]
     assert matches[0]["when"]["child_arg_missing"] is True, matches[0]
-see_fallback = [item for item in manifest["commands"] if tuple(item["path"]) == ("see",) and item["argv_prefix"] == ["node", "scripts/aos-see-native.mjs", "capture"]]
+see_fallback = [item for item in manifest["commands"] if tuple(item["path"]) == ("see",) and item["argv_prefix"] == ["node", "$AOS_REPO_ROOT/scripts/aos-see-native.mjs", "capture"]]
 assert len(see_fallback) == 1, see_fallback
 assert see_fallback[0]["executable"] == "/usr/bin/env", see_fallback[0]
+assert see_fallback[0]["cwd"] == "$AOS_REPO_ROOT", see_fallback[0]
 assert see_fallback[0]["env"]["AOS_PATH"] == "$AOS_PATH", see_fallback[0]
 assert "capture" in see_fallback[0]["when"]["excluded_values"], see_fallback[0]
 assert "compare" in see_fallback[0]["when"]["excluded_values"], see_fallback[0]
 for path in [("see", "capture"), ("see", "cursor"), ("see", "list"), ("see", "selection")]:
     command = commands[path]
     assert command["executable"] == "/usr/bin/env", command
-    assert command["argv_prefix"] == ["node", "scripts/aos-see-native.mjs", path[-1]], command
+    script = "$AOS_REPO_ROOT/scripts/aos-see-native.mjs" if path[-1] == "capture" else "scripts/aos-see-native.mjs"
+    assert command["argv_prefix"] == ["node", script, path[-1]], command
+    assert command["cwd"] == ("$AOS_REPO_ROOT" if path[-1] == "capture" else "repo"), command
     assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
 compare = commands[("see", "compare")]
 assert compare["executable"] == "/usr/bin/env", compare
@@ -442,9 +517,10 @@ for primitive in ["click", "hover", "drag", "scroll", "type", "key", "press", "s
     if primitive in ["click", "hover", "drag", "scroll", "type", "key"]:
         expected_excluded = ["browser:", "ref:", "canvas:"] if primitive in ["click", "drag"] else ["browser:", "ref:"]
         assert native[0]["when"]["excluded_prefixes"] == expected_excluded, native[0]
-        browser = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", primitive) and item["argv_prefix"] == ["node", "scripts/aos-do-browser.mjs", primitive]]
+        browser = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", primitive) and item["argv_prefix"] == ["node", "$AOS_REPO_ROOT/scripts/aos-do-browser.mjs", primitive]]
         assert len(browser) == 1, (primitive, browser)
-        assert browser[0]["argv_prefix"] == ["node", "scripts/aos-do-browser.mjs", primitive], browser[0]
+        assert browser[0]["argv_prefix"] == ["node", "$AOS_REPO_ROOT/scripts/aos-do-browser.mjs", primitive], browser[0]
+        assert browser[0]["cwd"] == "$AOS_REPO_ROOT", browser[0]
         assert browser[0]["when"]["prefix"] == "browser:", browser[0]
         if primitive in ["click", "drag"]:
             canvas = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", primitive) and item["argv_prefix"] == ["node", "scripts/aos-do-canvas.mjs", primitive]]
@@ -463,8 +539,9 @@ for action in ["click", "hover", "drag", "scroll", "type", "key", "fill", "press
     assert ref[0]["executable"] == "/usr/bin/env", ref[0]
     assert ref[0]["when"]["prefix"] == "ref:", ref[0]
     assert ref[0]["env"]["AOS_PATH"] == "$AOS_PATH", ref[0]
-fill = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", "fill") and item["argv_prefix"] == ["node", "scripts/aos-do-browser.mjs", "fill"]]
+fill = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", "fill") and item["argv_prefix"] == ["node", "$AOS_REPO_ROOT/scripts/aos-do-browser.mjs", "fill"]]
 assert len(fill) == 1, fill
+assert fill[0]["cwd"] == "$AOS_REPO_ROOT", fill[0]
 assert fill[0]["when"]["excluded_prefixes"] == ["ref:"], fill[0]
 PY
 then

@@ -1076,7 +1076,8 @@ const expectedCliBindingsByCapability = {
           "executable": "/usr/bin/env",
           "argv_prefix": [
             "node",
-            "scripts/aos-tell-listen.mjs",
+            "--input-type=module",
+            "-",
             "listen"
           ]
         }
@@ -1142,7 +1143,8 @@ const expectedCliBindingsByCapability = {
           "executable": "/usr/bin/env",
           "argv_prefix": [
             "node",
-            "scripts/aos-tell-listen.mjs",
+            "--input-type=module",
+            "-",
             "listen"
           ]
         }
@@ -1162,7 +1164,8 @@ const expectedCliBindingsByCapability = {
           "executable": "/usr/bin/env",
           "argv_prefix": [
             "node",
-            "scripts/aos-tell-listen.mjs",
+            "--input-type=module",
+            "-",
             "listen"
           ]
         }
@@ -4116,7 +4119,10 @@ const expectedCriticalMilestoneOwners = {
       "shared/schemas/aos-external-command-manifest-v1.schema.json",
       "manifests/commands/source/external/15-listen.json",
       "scripts/generate-command-manifests.mjs",
+      "manifests/commands/aos-commands.json",
       "manifests/commands/aos-external-commands.json",
+      "docs/api/aos.md",
+      "docs/api/aos-capabilities.md",
       "src/shared/external-command-dispatch.swift",
       "scripts/aos-help-proxy.mjs",
       "scripts/stage-browser-companion-runtime.mjs",
@@ -5721,17 +5727,32 @@ export function validateM2AuthorityClosure(ledger) {
       'route_source_revision',
       'adapter_registration_id',
       'adapter_registration_revision',
+      'activation_predicate',
       'executable_resolution_policy',
       'expected_script_identity',
       'expected_script_digest',
+      'reviewed_dependencies',
+      'reviewed_dependency_set_digest',
       'canonical_argv_shape_digest',
     ])
+    || !same(dispatchBinding.route_registration.activation_predicate, {
+      grammar: 'listen_microphone_v1',
+      authority_scope: 'only_exact_matching_invocations_prepare_an_operation_claim_and_require_dynamic_child_admission',
+      nonmatching_invocations: 'no_operation_intent_no_resource_claim_no_child_admission',
+    })
     || !same(dispatchBinding.route_registration.executable_resolution_policy, {
       launcher_shape: 'usr_bin_env_node',
       resolution_owner: 'native_external_dispatch',
       resolution_phase: 'immediately_before_spawn',
       search_source: 'sanitized_path',
       command_name: 'node',
+      designated_requirement: 'anchor apple generic and identifier "node" and certificate leaf[subject.OU] = "HX7739G8FX"',
+      signing_identifier: 'node',
+      signing_team_identifier: 'HX7739G8FX',
+      requires_hardened_runtime: true,
+      platform_code_directory_hash_algorithm: 'sha256_truncated_cdhash_20_bytes',
+      reviewed_source_max_bytes: 131072,
+      reviewed_bundle_max_bytes: 524288,
       durable_observation_fields: [
         'resolved_executable_path_digest',
         'observed_executable_identity_digest',
@@ -5739,10 +5760,13 @@ export function validateM2AuthorityClosure(ledger) {
         'observed_executable_inode',
         'observed_executable_code_identity',
         'observed_executable_file_digest',
+        'platform_code_directory_hash',
+        'signing_identifier',
+        'signing_team_identifier',
       ],
       authored_static_executable_digest: 'forbidden_host_variable',
       transient_absolute_path_retention: 'in_memory_resolution_only_never_durable_or_public',
-      finalization_comparison: 'exact_spawn_intent_path_and_identity_digests_device_inode_code_identity_and_file_digest',
+      finalization_comparison: 'dynamic_seccode_and_mapped_vnode_match_exact_intent_platform_cdhash_device_inode_and_trusted_node_identity',
     })
     || dispatchBinding.route_registration.path_or_basename_shortcut !== 'forbidden'
     || !same(dispatchBinding.durable_script_identity_contract, {
@@ -5759,9 +5783,63 @@ export function validateM2AuthorityClosure(ledger) {
         'script_basename', 'resolved_script_path',
       ],
     })
-    || dispatchBinding.environment_transport !== 'opaque_one_time_binding_token_only'
+    || !same(dispatchBinding.reviewed_dependency_contract, {
+      authored_dependencies_field: 'reviewed_dependencies',
+      authored_set_digest_field: 'reviewed_dependency_set_digest',
+      exact_identities: [
+        'scripts/lib/aos-daemon-client.mjs',
+        'scripts/lib/aos-voice-follow.mjs',
+      ],
+      dependency_digest_input: 'raw_file_bytes',
+      set_digest_input: 'utf8_sorted_canonical_json_dependency_identity_and_digest_array',
+      digest_algorithm: 'sha256',
+      digest_encoding: 'lowercase_hex_64',
+      spawn_intent_field: 'reviewed_dependency_set_digest',
+      finalization_field: 'reviewed_dependency_set_digest',
+      durable_retention: 'set_digest_only',
+      validation_rule: 'generator_and_dispatcher_verify_exact_closed_dependency_bytes_under_canonical_aos_root_then_daemon_binds_the_content_free_set_digest_to_the_admitted_in_memory_bundle',
+    })
+    || !same(dispatchBinding.binding_token_contract, {
+      scope: 'exact_authenticated_intent_parent_only',
+      uses: ['child_admit', 'abandon'],
+      child_transport: 'forbidden',
+      durable_form: 'domain_separated_digest_only',
+      finalize_requirement: 'token_forbidden_finalize_is_peer_bound',
+    })
+    || !same(dispatchBinding.child_admission_contract, {
+      request_fields: ['request_id', 'one_time_binding_token', 'child_pid'],
+      parent_authentication: 'exact_intent_parent_pid_generation_and_aos_dispatcher_image',
+      child_evidence: [
+        'child_pid_generation', 'same_observation_parent_edge_receipt',
+        'dynamic_seccode_validity', 'apple_generic_developer_id_anchor',
+        'signing_identifier_node', 'signing_team_identifier_HX7739G8FX',
+        'hardened_runtime', 'platform_code_directory_hash_sha256_truncated_20_bytes',
+        'mapped_main_executable_device_inode',
+      ],
+      publication_order: 'durably_admit_exact_child_before_any_reviewed_module_bytes_are_written',
+    })
+    || !same(dispatchBinding.in_memory_bundle_contract, {
+      source_bytes: [
+        'scripts/aos-tell-listen.mjs',
+        'scripts/lib/aos-daemon-client.mjs',
+        'scripts/lib/aos-voice-follow.mjs',
+      ],
+      construction: 'deterministic_nested_esm_data_urls_from_already_verified_raw_bytes',
+      transport: 'stdin_after_durable_child_admission',
+      child_pathnames: 'forbidden',
+      binding_token: 'forbidden',
+      pre_admission_child_input: 'empty',
+    })
+    || !same(dispatchBinding.pending_intent_cleanup_contract, {
+      limit: 4096,
+      ttl_milliseconds: 30000,
+      closure_paths: ['parent_authenticated_abandon', 'daemon_expiry', 'boot_recovery', 'finalization_failure'],
+      result: 'terminalize_prepared_operation_and_release_exact_resource_claim_without_authority',
+      closed_receipt_retention: 'bounded_4096',
+    })
     || dispatchBinding.rejected_environment_authority !== 'AOS_EXTERNAL_DISPATCH_PARENT_PID'
-    || dispatchBinding.finalization_phase !== 'child_same_socket_bootstrap_before_microphone_authority'
+    || dispatchBinding.lifecycle_parent_observation !== 'dispatcher_injected_pid_is_deleted_at_module_initialization_never_sent_to_daemon_and_never_authority'
+    || dispatchBinding.finalization_phase !== 'tokenless_exact_admitted_child_same_socket_before_microphone_authority'
     || !same(dispatchBinding.spawn_intent_required_fields, [
       'spawn_record_id',
       'one_time_binding_token_digest',
@@ -5771,15 +5849,24 @@ export function validateM2AuthorityClosure(ledger) {
       'operation_generation',
       'adapter_id',
       'adapter_registration_revision',
+      'route_source_id',
+      'route_source_revision',
       'resolved_executable_path_digest',
       'observed_executable_identity_digest',
       'observed_executable_device',
       'observed_executable_inode',
       'observed_executable_code_identity',
       'observed_executable_file_digest',
+      'platform_code_directory_hash',
+      'signing_identifier',
+      'signing_team_identifier',
       'expected_script_identity_digest',
       'expected_script_digest',
+      'reviewed_dependency_set_digest',
       'canonical_argv_shape_digest',
+      'daemon_generation',
+      'created_at_monotonic_nanoseconds',
+      'expires_at_monotonic_nanoseconds',
     ])
     || !same(dispatchBinding.finalization_required_fields, [
       'spawn_record_id',
@@ -5801,8 +5888,13 @@ export function validateM2AuthorityClosure(ledger) {
       'executable_inode',
       'executable_code_identity',
       'executable_file_digest',
+      'platform_code_directory_hash',
+      'platform_code_directory_hash_algorithm',
+      'signing_identifier',
+      'signing_team_identifier',
       'script_identity_digest',
       'script_digest',
+      'reviewed_dependency_set_digest',
       'canonical_argv_shape_digest',
     ])
     || !same(dispatchBinding.receipt_contract, {
@@ -5811,12 +5903,15 @@ export function validateM2AuthorityClosure(ledger) {
         'spawn_record_id', 'operation_id', 'operation_generation', 'adapter_id',
         'adapter_registration_revision', 'resolved_executable_path_digest',
         'executable_identity_digest', 'executable_file_digest',
+        'platform_code_directory_hash', 'platform_code_directory_hash_algorithm',
         'expected_script_identity_digest', 'script_identity_digest', 'script_digest',
+        'reviewed_dependency_set_digest',
         'canonical_argv_shape_digest', 'outcome',
       ],
       forbidden_fields: [
         'expected_script_identity', 'script_identity', 'script_path',
-        'script_basename', 'resolved_script_path', 'argv',
+        'script_basename', 'resolved_script_path', 'argv', 'one_time_binding_token',
+        'reviewed_dependency_identities', 'module_bytes',
       ],
     })
     || dispatchBinding.success_result !== 'generation_bound_spawn_record_finalized'
@@ -6820,7 +6915,9 @@ export function validateM2AuthorityClosure(ledger) {
   const migration = ledger.target_design.external_command_manifest_migration_contract;
   const expectedRegistrationFields = [
     'route_source_id', 'route_source_revision', 'adapter_registration_id', 'adapter_registration_revision',
+    'activation_predicate',
     'executable_resolution_policy', 'expected_script_identity', 'expected_script_digest',
+    'reviewed_dependencies', 'reviewed_dependency_set_digest',
     'canonical_argv_shape_digest',
   ];
   const expectedCutoverPaths = [
@@ -6861,7 +6958,7 @@ export function validateM2AuthorityClosure(ledger) {
       stale_or_v0_input: 'fail_closed',
     },
   };
-  if (migration.publication_boundary !== 'target_only_until_m2_runtime_cutover'
+  if (migration.publication_boundary !== 'current_executable_v1_only_m2_cutover'
     || !same(migration.frozen_predecessor, {
       schema_path: 'shared/schemas/aos-external-command-manifest-v0.schema.json',
       schema_version: 1,
@@ -6881,15 +6978,37 @@ export function validateM2AuthorityClosure(ledger) {
     || !same(migration.successor.executable_resolution_policy, {
       launcher: '/usr/bin/env', argv_zero: 'node', search_source: 'sanitized_path',
       resolution_owner: 'native_external_dispatch', resolution_phase: 'immediately_before_spawn',
+      designated_requirement: 'anchor apple generic and identifier "node" and certificate leaf[subject.OU] = "HX7739G8FX"',
+      signing_identifier: 'node', signing_team_identifier: 'HX7739G8FX',
+      requires_hardened_runtime: true,
+      platform_code_directory_hash_algorithm: 'sha256_truncated_cdhash_20_bytes',
+      reviewed_source_max_bytes: 131072, reviewed_bundle_max_bytes: 524288,
       authored_static_executable_digest: 'forbidden_host_variable',
     })
     || !same(migration.registered_routes, [{
       source_path: 'manifests/commands/source/external/15-listen.json',
-      command_path: ['listen'], adapter_registration_id: 'microphone-capture-adapter', registration_count: 1,
+      command_path: ['listen'], adapter_registration_id: 'microphone-capture-adapter',
+      activation_predicate: 'listen_microphone_v1', registration_count: 1,
     }])
-    || migration.unregistered_route_rule !== 'all_other_external_routes_remain_without_spawn_registration'
+    || migration.unregistered_route_rule !== 'all_other_external_routes_and_nonmatching_listen_invocations_remain_without_active_spawn_registration'
     || migration.generator_contract.owner !== 'scripts/generate-command-manifests.mjs'
-    || migration.generator_contract.cross_checks.length !== 8
+    || !same(migration.generator_contract.cross_checks, [
+      'registered_script_equals_argv_prefix_index_one',
+      'script_raw_byte_digest',
+      'reviewed_dependency_raw_byte_digests',
+      'reviewed_dependency_set_digest',
+      'activation_predicate_exact_grammar',
+      'trusted_node_designated_requirement',
+      'hardened_runtime_required',
+      'platform_code_directory_hash_algorithm',
+      'reviewed_source_and_bundle_bounds',
+      'semantic_source_revision',
+      'argv_prefix_plus_forwarded_suffix_shape_digest',
+      'route_source_id',
+      'registration_uniqueness',
+      'registered_route_forbids_help_passthrough',
+      'registered_route_requires_node_launcher',
+    ])
     || migration.reader_contract.swift_decoder !== 'src/shared/external-command-dispatch.swift'
     || migration.reader_contract.help_decoder !== 'scripts/aos-help-proxy.mjs'
     || !same(migration.reader_contract.accepted_aggregate_versions_after_cutover, [2])
@@ -7232,8 +7351,9 @@ export function validateMilestoneClosure(milestones) {
         kind === 'current' && expectedMaintainedApiPaths.includes(ownerPath)
       ));
       const maintainedApi = maintainedApiRefs.map(({ id }) => id);
+      const commandSourceKind = milestone.id === 'M2' ? 'current' : 'proposed';
       const commandSources = milestone.path_refs.filter(({ path: ownerPath, kind }) => (
-        kind === 'proposed' && ownerPath.startsWith('manifests/commands/source/')
+        kind === commandSourceKind && ownerPath.startsWith('manifests/commands/source/')
       ));
       const classes = new Set(commandSources.map(({ path: ownerPath }) => (
         ownerPath.startsWith('manifests/commands/source/aos/') ? 'aos'
@@ -7867,17 +7987,51 @@ test('independent semantic validators reject graph, outcome, milestone, exposure
 
   const dispatchSpawnLie = clone(ledger);
   dispatchSpawnLie.target_design.identity_contract.ordinary_owner_root
-    .external_dispatch_spawn_binding.environment_transport = 'parent_pid_environment_is_authority';
+    .external_dispatch_spawn_binding.binding_token_contract.child_transport = 'child_environment';
   expectCode(validateM2AuthorityClosure(dispatchSpawnLie), 'EXTERNAL_DISPATCH_SPAWN_BINDING_INVALID');
+
+  const activationPredicateWidened = clone(ledger);
+  activationPredicateWidened.target_design.identity_contract.ordinary_owner_root
+    .external_dispatch_spawn_binding.route_registration.activation_predicate.grammar = 'all_listen_v1';
+  expectCode(validateM2AuthorityClosure(activationPredicateWidened), 'EXTERNAL_DISPATCH_SPAWN_BINDING_INVALID');
+
+  const interpreterTrustWidened = clone(ledger);
+  interpreterTrustWidened.target_design.identity_contract.ordinary_owner_root
+    .external_dispatch_spawn_binding.child_admission_contract.child_evidence
+    .splice(5, 1);
+  expectCode(validateM2AuthorityClosure(interpreterTrustWidened), 'EXTERNAL_DISPATCH_SPAWN_BINDING_INVALID');
+
+  const bundleBeforeAdmission = clone(ledger);
+  bundleBeforeAdmission.target_design.identity_contract.ordinary_owner_root
+    .external_dispatch_spawn_binding.in_memory_bundle_contract.transport = 'stdin_before_admission';
+  expectCode(validateM2AuthorityClosure(bundleBeforeAdmission), 'EXTERNAL_DISPATCH_SPAWN_BINDING_INVALID');
+
+  const strandedPreparedClaim = clone(ledger);
+  strandedPreparedClaim.target_design.identity_contract.ordinary_owner_root
+    .external_dispatch_spawn_binding.pending_intent_cleanup_contract.closure_paths
+    .splice(1, 1);
+  expectCode(validateM2AuthorityClosure(strandedPreparedClaim), 'EXTERNAL_DISPATCH_SPAWN_BINDING_INVALID');
 
   const executableSubstitution = clone(ledger);
   executableSubstitution.target_design.identity_contract.ordinary_owner_root.external_dispatch_spawn_binding
     .route_registration.executable_resolution_policy.durable_observation_fields.pop();
   expectCode(validateM2AuthorityClosure(executableSubstitution), 'EXTERNAL_DISPATCH_SPAWN_BINDING_INVALID');
 
+  const dependencySetOmitted = clone(ledger);
+  delete dependencySetOmitted.target_design.identity_contract.ordinary_owner_root
+    .external_dispatch_spawn_binding.reviewed_dependency_contract;
+  expectCode(validateM2AuthorityClosure(dependencySetOmitted), 'EXTERNAL_DISPATCH_SPAWN_BINDING_INVALID');
+
+  const dependencySetDrift = clone(ledger);
+  dependencySetDrift.target_design.identity_contract.ordinary_owner_root
+    .external_dispatch_spawn_binding.reviewed_dependency_contract.exact_identities.pop();
+  expectCode(validateM2AuthorityClosure(dependencySetDrift), 'EXTERNAL_DISPATCH_SPAWN_BINDING_INVALID');
+
   for (const [label, mutate] of [
     ['identity', (binding) => {
-      binding.spawn_intent_required_fields[14] = 'expected_script_identity';
+      binding.spawn_intent_required_fields[
+        binding.spawn_intent_required_fields.indexOf('expected_script_identity_digest')
+      ] = 'expected_script_identity';
     }],
     ['path', (binding) => {
       binding.finalization_required_fields.push('script_path');
@@ -8784,7 +8938,10 @@ test('design and proof routing state the normalized static boundary', async () =
     read('docs/design/aos-sovereign-first-vertical-slice-contract.md'),
     json('docs/dev/test-proof-registry.d/privileged-capability-ledger.json'),
   ]);
-  assert.match(design, /Nothing in this\s+document is implemented merely because it is specified here/u);
+  assert.match(
+    design,
+    /Milestone 2 executable control-plane candidate.+later M3-M10\s+sections remain target design merely because they are specified here/isu,
+  );
   assert.match(design, /TRANSITION_EVENT_DUPLICATE/u);
   assert.match(design, /exact transition tuple/u);
   assert.match(design, /cleanup_resolved_without_offer/u);
@@ -8803,7 +8960,10 @@ test('design and proof routing state the normalized static boundary', async () =
   assert.match(entry.contract, /two ADR 0044 owner bindings/u);
   assert.match(entry.contract, /immediate socket-peer audit-token\/PID-generation evidence/u);
   assert.match(entry.contract, /ancestor proc-generation, UID, stable-edge, and code-identity evidence/u);
-  assert.match(entry.contract, /content-free external-dispatch executable-resolution intent\/finalization/u);
+  assert.match(
+    entry.contract,
+    /invocation-scoped external intent whose token remains parent-only.+tokenless exact-peer finalization/isu,
+  );
   assert.match(entry.contract, /prior-generation transitions across operation, stream, tap, artifact, claim-set transaction, per-resource claim, multiplex broker, host barrier, and recovery/u);
   assert.match(entry.contract, /split all-or-nothing claim-set admission/u);
   assert.match(entry.contract, /registry-revision-bound resource declarations/u);
@@ -8816,7 +8976,7 @@ test('design and proof routing state the normalized static boundary', async () =
   assert.match(entry.contract, /generation-independent retained receipt replay with bounded eviction and expected-barrier CAS/u);
   assert.match(entry.contract, /19 M2 deliverables, 15 exit gates, 70 path refs, and 23 proof refs/u);
   assert.match(entry.contract, /frozen-v0\/active-v1 external-command manifest cutover/u);
-  assert.match(entry.contract, /one listen-route spawn registration/u);
+  assert.match(entry.contract, /exactly one invocation-scoped listen-microphone spawn registration/u);
   assert.match(entry.contract, /v1-only Swift\/help readers/u);
   assert.match(entry.contract, /canonical proof-index and workflow reachability/u);
   assert.match(entry.contract, /fifteen-form generation-bound operation\/tap\/artifact\/barrier grammar/u);
@@ -8828,7 +8988,7 @@ test('design and proof routing state the normalized static boundary', async () =
   assert.match(entry.guard, /does not run native, managed-live, daemon, browser, or TCC acceptance/iu);
 });
 
-test('paired authority, accepted M2 bindings, and remaining M6 decision are exact while increment 1 is authority only', async () => {
+test('paired authority, executable M2 bindings, and the remaining M6 decision are exact', async () => {
   const ledger = await json(ledgerRelativePath);
   assert.deepEqual(ledger.authority.paired_sigil_authority, {
     repository: 'https://github.com/Ch-osctrl/sigil',
@@ -8850,5 +9010,8 @@ test('paired authority, accepted M2 bindings, and remaining M6 decision are exac
   ]);
   assert.equal(ledger.later_open_decisions.length, 1);
   assert.equal(ledger.later_open_decisions[0].milestone, 'M6');
-  assert.match(ledger.authority.publication_boundary, /adds no runtime primitive/u);
+  assert.match(
+    ledger.authority.publication_boundary,
+    /Milestone 2 publishes the executable daemon IPC and CLI control plane/u,
+  );
 });

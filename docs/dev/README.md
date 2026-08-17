@@ -65,9 +65,13 @@ expected-barrier CAS after eviction, distinct artifact/claim recovery
 dispositions, explicit prior-generation recovery across nine machines, split all-or-nothing claim-set
 admission, exact-generation per-resource claims, and multiplex-broker subscriber
 revisions. It also preserves the external-command v0 schema byte-exact and
-specifies a new-v1, stable-aggregate, v1-only decoder/generator cutover with one
-`listen` registration; none is current runtime behavior yet. M2 targets daemon IPC and CLI,
-internal status break-glass, and an internal Canvas projection. Maintained public
+specifies the current v1, stable-aggregate, v1-only decoder/generator cutover
+with one invocation-scoped `listen_microphone_v1` registration, parent-only
+intent token, dynamically verified official signed-Node child admission,
+post-admission in-memory module delivery, tokenless peer finalization, and
+bounded abandon/expiry cleanup. M2 implements
+daemon IPC and CLI, internal status break-glass, and an internal Canvas projection.
+Maintained public
 SDK projections and the SDK package-root choice remain M6. Authored AOS/external
 command bindings, generated aggregate/generator ownership, authored skill
 packages/registry, proof execution class, machine state/taxonomy/milestone, and

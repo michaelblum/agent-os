@@ -11,6 +11,10 @@ protocol AOSVoiceOutputLease: AnyObject {
 
     func cancel(reason: String)
 }
+
+// Legacy output participates in the shared native-session admission boundary,
+// but it is deliberately not an operation-control adapter in M2.
+protocol AOSLegacyVoiceOutputSentinel: AOSVoiceOutputLease {}
 struct AOSAudioPlaybackSource {
     let url: URL
     let file: AVAudioFile
@@ -86,7 +90,7 @@ func aosValidateAudioPlaybackSource(_ inputPath: String) throws -> AOSAudioPlayb
     )
 }
 
-final class AOSAudioPlaybackSession: AOSVoiceOutputLease {
+final class AOSAudioPlaybackSession: AOSLegacyVoiceOutputSentinel {
     let token = UUID()
     let owner: UUID
     let ref: String?

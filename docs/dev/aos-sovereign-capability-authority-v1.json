@@ -2,7 +2,7 @@
   "$schema": "../../shared/schemas/aos-sovereign-capability-authority-v1.schema.json",
   "schema_version": "aos.sovereign-capability-authority.v1",
   "program_id": "aos-sovereign-capability-substrate-v1",
-  "status": "accepted_milestone_2_increment_1_authority",
+  "status": "milestone_2_executable_candidate_authority_and_current_truth",
   "baseline_revision": "7aada1cb4d7a046a2b99b1b24470115eefc82224",
   "authority": {
     "aos_adr": "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
@@ -62,7 +62,7 @@
         "docs/dev/aos-privileged-capability-ledger-v1.json",
         "docs/design/aos-sovereign-first-vertical-slice-contract.md"
       ],
-      "rule": "The map is machine authority for path-specific burn-down evidence and scan scope; the remodel ledger is its human review projection, while the capability ledger and design contract close current/target inventory and accepted M2 authority bindings without claiming runtime implementation."
+      "rule": "The map is machine authority for path-specific burn-down evidence and scan scope; the remodel ledger is its human review projection, while the capability ledger and design contract close current/target inventory, accepted M2 authority bindings, and the executable M2 candidate without claiming later recording, SDK, or managed-tool milestones."
     },
     {
       "scope": "maintained_design_authority",
@@ -76,7 +76,7 @@
         "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
         "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md"
       ],
-      "rule": "AOS owns the substrate and neutral operation control; Sigil owns workflow composition, labels, and action policy. Paired Sigil ADR 0021 is landed at reviewed revision 227382c1bcbdab56f551a85a69b0609eebbdfa0c; authority publication remains distinct from runtime implementation."
+      "rule": "AOS owns the substrate and neutral operation control; Sigil owns workflow composition, labels, and action policy. Paired Sigil ADR 0021 is landed at reviewed revision 227382c1bcbdab56f551a85a69b0609eebbdfa0c; M2 executable truth remains distinct from later Sigil workflow composition and the later native capability milestones."
     }
   ],
   "authority_scopes": [
@@ -231,24 +231,31 @@
         "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
         "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md"
       ],
-      "current_owners": [
-        "scripts/lib/browser-companion/",
-        "src/daemon/",
-        "src/shared/external-command-dispatch.swift",
-        "scripts/aos-tell-listen.mjs",
-        "scripts/lib/aos-voice-follow.mjs",
-        "scripts/lib/aos-daemon-client.mjs",
-        "manifests/commands/source/external/14-tell.json",
-        "manifests/commands/source/external/15-listen.json",
-        "docs/api/aos.md",
-        "docs/api/aos-capabilities.md",
-        "docs/api/toolkit/status-item.md",
-        "manifests/commands/source/aos/40-status-item.json",
-        "tests/status-item-contract.test.mjs"
-      ],
-      "disposition": "Expand",
-      "implementation_state": "missing",
-      "exit_gate": "Every nontrivial registered AOS privileged or managed operation, including one-shot terminal history, has neutral list/inspect/status/recent, exact kill and cleanup, content-free terminal blame, transient artifact/stream controls, and an optional caller-bounded observation-only data tap. M2 binds the immediate socket peer audit token/PID generation, verifies ancestors through double-sampled proc generation and exact code identity, and finalizes external-helper spawn records against a transiently resolved but digest-only durable executable identity before authority; asserted lineage only narrows. Host control is a live per-request same-effective-UID predicate. Host stop, barrier status, and reopen use four closed live transport, ordinary Canvas, status-item, and status-opened Canvas origins, with public SDK projections deferred to M6. Every new or pruned host mutation uses expected-barrier CAS against the immutable snapshot at the exact adapter-registry revision and registered-set count/digest. Immutable barrier snapshots bind the exact registry and selected sets through drain, recovery, repeat, and reopen. Split claim-set, per-resource, and broker lifecycles use registry-revision-bound resource declarations and exact claim/broker CAS to make mixed admission all-or-nothing without implicit policy. Every tap enforces all seven caller bounds, deterministic sampling/rate admission, bounded FIFO overflow termination, and exact content-free counters. The frozen external-command manifest v0 remains byte-exact while one atomic v1-only cutover registers only 15-listen, preserves the stable aggregate path at wire version 2, and routes schema/generator/dispatch proof through the canonical proof index and workflow router. M2 registers only microphone and claims no unadapted legacy control; recovery preserves claim rollback versus commit and artifact released versus retained versus removed recovery dispositions, and voice output cannot implicitly preempt microphone."
+    "current_owners": [
+      "scripts/lib/browser-companion/",
+      "src/daemon/",
+      "src/commands/operation.swift",
+      "src/shared/external-command-dispatch.swift",
+      "scripts/aos-tell-listen.mjs",
+      "scripts/lib/aos-voice-follow.mjs",
+      "scripts/lib/aos-daemon-client.mjs",
+      "shared/schemas/aos-operation-v1.schema.json",
+      "shared/schemas/aos-host-stop-barrier-v1.schema.json",
+      "manifests/commands/source/aos/41-operation.json",
+      "manifests/commands/source/external/49-operation.json",
+      "packages/toolkit/components/operation-control/index.js",
+      "manifests/commands/source/external/14-tell.json",
+      "manifests/commands/source/external/15-listen.json",
+      "docs/api/aos.md",
+      "docs/api/aos-capabilities.md",
+      "docs/api/toolkit/status-item.md",
+      "manifests/commands/source/aos/40-status-item.json",
+      "tests/status-item-contract.test.mjs",
+      "tests/native-operation-control-contract.sh"
+    ],
+    "disposition": "Expand",
+    "implementation_state": "partial",
+    "exit_gate": "The executable M2 candidate supplies the neutral registry, durable lifecycle/recovery, immediate socket peer audit token/PID generation, double-sampled proc-generation ancestry, same-UID host barrier, split claim-set/resource/broker lifecycles, bounded tap runtime, content-free terminal history, CLI/IPC, internal status/Canvas projections, and one registered microphone adapter. Its invocation-scoped external helper binding keeps the token parent-only, dynamically admits only the trusted Node.js Foundation signed image and mapped vnode, writes the exact reviewed entry/helper bytes through an in-memory module bundle after admission, finalizes tokenlessly from the exact child peer, and terminalizes abandoned, expired, boot-recovered, or failed prepared claims. It deliberately claims only the adapter-registry revision containing microphone: unadapted legacy daemon work, artifact-producing recording adapters, public SDK projections, and raw managed-tool transport remain later milestones. Each later adapter must join this same plane with exact list/inspect/status/recent, kill, cleanup, artifact/stream facts, and proof; asserted lineage continues only to narrow."
     },
     {
       "id": "caller-owned-transforms",
@@ -693,7 +700,8 @@
           "required_markers": ["permissions-prime-screen-capture"]
         },
         {
-          "path": "tests/schemas/aos-external-command-manifest-v0.test.mjs",
+          "path": "tests/schemas/aos-external-command-manifest-v1.test.mjs",
+          "baseline_path": "tests/schemas/aos-external-command-manifest-v0.test.mjs",
           "required_markers": ["forms.get('permissions-prime-screen-capture')"]
         }
       ],
@@ -899,13 +907,51 @@
         "capabilities[].id",
         "capabilities[].current"
       ],
-      "allowed_wording_exceptions": []
+      "allowed_wording_exceptions": [],
+      "expected_inventory_revision": "59074238c2c4c43051c7461a6e36487e8914f4a6",
+      "allowed_capability_current_changes": [
+        "global-input-event-observation",
+        "microphone-capture-adapter",
+        "native-status-item",
+        "canvas-wkwebview"
+      ]
     },
     "forbidden_authority_field_scan": {
       "token_components": ["human", "initiated"],
       "classifications": ["active", "target"],
-      "bootstrap_paths": [
-        "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md"
+      "allowed_rejection_evidence": [
+        {
+          "path": "packages/toolkit/runtime/operation-control.js",
+          "required_marker": "FORBIDDEN_AUTHORITY_FIELDS"
+        },
+        {
+          "path": "shared/schemas/daemon-ipc.md",
+          "required_marker": "The public caller never sends"
+        },
+        {
+          "path": "src/daemon/operation-canvas-projection.swift",
+          "required_marker": "let forbidden = Set"
+        },
+        {
+          "path": "tests/daemon-ipc-schema.sh",
+          "required_marker": "human intent is never authority"
+        },
+        {
+          "path": "tests/operation-control-contract.test.mjs",
+          "required_marker": "assert.doesNotMatch(active"
+        },
+        {
+          "path": "tests/schemas/aos-operation-v1.test.mjs",
+          "required_marker": "human intent cannot become lineage"
+        },
+        {
+          "path": "tests/toolkit/operation-control-component.test.mjs",
+          "required_marker": "assert.doesNotMatch(script"
+        },
+        {
+          "path": "tests/toolkit/runtime-operation.test.mjs",
+          "required_marker": "assert.throws"
+        }
       ]
     },
     "forbidden_runtime_actions": [

@@ -80,6 +80,6 @@ typed Target Handle validation, and local cleanup.
 - For contract, schema, docs, skill, or manifest drift, run
   `bash tests/agent-workspace-contract-drift.sh`,
   `bash tests/help-contract.sh`, and
-  `node --test tests/schemas/aos-external-command-manifest-v0.test.mjs`.
+  `node --test tests/schemas/aos-external-command-manifest-v0.test.mjs tests/schemas/aos-external-command-manifest-v1.test.mjs`.
 
 ## Child DOX Index

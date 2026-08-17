@@ -18,12 +18,13 @@ barrier CAS, distinct artifact/claim recovery dispositions, prior-generation
 recovery across nine target machines, and split claim-set/resource/broker semantics. M2
 registers only the microphone adapter; unadapted legacy daemon subsystems remain
 outside its stop-all receipts, and legacy voice output is a non-preempting
-admission sentinel on the shared native session. It
-adds no current daemon implementation. The process-lifetime direct-capture consent/prime gate and
-bounded public projections below remain current executable truth and declared
-burn-down baseline until native code, IPC, command source/help, API, tests, and
-proof routing change atomically. This pointer does not bypass ScreenCaptureKit,
-macOS TCC, or the current gate.
+admission sentinel on the shared native session. Milestone 2 implements the
+daemon registry, control, recovery, resource-claim, microphone-adapter, IPC,
+status-item, and Canvas projection owners as current executable truth. The
+process-lifetime direct-capture consent/prime gate and other unadapted public
+projections below remain declared burn-down baselines for their later atomic
+migrations. This pointer does not bypass ScreenCaptureKit, macOS TCC, or the
+current gate.
 
 **ADR 0040 transition boundary:** omission or redaction of facts already
 admitted to bounded public observation contracts below describes current

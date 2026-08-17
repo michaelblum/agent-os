@@ -1,0 +1,302 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-tap-v1.schema.json",
+  "title": "AOS Operation Tap v1",
+  "$ref": "#/$defs/tap_snapshot",
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "nonnegative_integer": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "positive_integer": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tap_selector": {
+      "type": "object",
+      "required": ["tap_id", "tap_generation"],
+      "properties": {
+        "tap_id": {"$ref": "#/$defs/identifier"},
+        "tap_generation": {"$ref": "#/$defs/generation"}
+      },
+      "additionalProperties": false
+    },
+    "tap_bounds": {
+      "type": "object",
+      "required": [
+        "rate_items_per_second",
+        "sample_every",
+        "max_queue_items",
+        "max_items",
+        "max_bytes",
+        "idle_timeout_milliseconds",
+        "duration_milliseconds"
+      ],
+      "properties": {
+        "rate_items_per_second": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60
+        },
+        "sample_every": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "max_queue_items": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        },
+        "max_items": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "max_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10485760
+        },
+        "idle_timeout_milliseconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300000
+        },
+        "duration_milliseconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300000
+        }
+      },
+      "additionalProperties": false
+    },
+    "tap_request_parameters": {
+      "type": "object",
+      "required": ["channel", "bounds", "follow"],
+      "properties": {
+        "channel": {"enum": ["metadata", "data"]},
+        "bounds": {"$ref": "#/$defs/tap_bounds"},
+        "follow": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "tap_open_request": {
+      "type": "object",
+      "required": ["schema_version", "operation", "selector", "tap"],
+      "properties": {
+        "schema_version": {"const": "aos.operation.tap-request.v1"},
+        "operation": {"const": "tap"},
+        "selector": {
+          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-v1.schema.json#/$defs/operation_selector"
+        },
+        "tap": {"$ref": "#/$defs/tap_request_parameters"}
+      },
+      "additionalProperties": false
+    },
+    "tap_counters": {
+      "type": "object",
+      "required": [
+        "source_seen",
+        "sample_skipped",
+        "rate_skipped",
+        "enqueued_items",
+        "enqueued_bytes",
+        "delivered_items",
+        "delivered_bytes",
+        "queue_high_water",
+        "overflow_rejected_count"
+      ],
+      "properties": {
+        "source_seen": {"$ref": "#/$defs/nonnegative_integer"},
+        "sample_skipped": {"$ref": "#/$defs/nonnegative_integer"},
+        "rate_skipped": {"$ref": "#/$defs/nonnegative_integer"},
+        "enqueued_items": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "enqueued_bytes": {"type": "integer", "minimum": 0, "maximum": 10485760},
+        "delivered_items": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "delivered_bytes": {"type": "integer", "minimum": 0, "maximum": 10485760},
+        "queue_high_water": {"type": "integer", "minimum": 0, "maximum": 1024},
+        "overflow_rejected_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "tap_bound_reason": {
+      "enum": [
+        "max_items_reached",
+        "max_bytes_reached_or_would_exceed",
+        "queue_full",
+        "idle_timeout",
+        "duration_elapsed"
+      ]
+    },
+    "cleanup_summary": {
+      "type": "object",
+      "required": ["result", "residual_count", "residual_digest", "completed_at"],
+      "properties": {
+        "result": {
+          "enum": ["not_started", "pending", "zero_residuals", "residuals_present", "recovery_active", "blocked_unresolved"]
+        },
+        "residual_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "residual_digest": {"$ref": "#/$defs/sha256"},
+        "completed_at": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/timestamp"}
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "tap_snapshot": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "tap_id",
+        "tap_generation",
+        "operation_id",
+        "operation_generation",
+        "source_id",
+        "source_generation",
+        "daemon_generation",
+        "state",
+        "channel",
+        "bounds",
+        "follow",
+        "observation_only",
+        "raw_data_retention",
+        "counters",
+        "terminal_bound_reason",
+        "cleanup",
+        "prepared_at",
+        "activated_at",
+        "updated_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "aos.operation-tap.v1"},
+        "tap_id": {"$ref": "#/$defs/identifier"},
+        "tap_generation": {"$ref": "#/$defs/generation"},
+        "operation_id": {"$ref": "#/$defs/identifier"},
+        "operation_generation": {"$ref": "#/$defs/generation"},
+        "source_id": {"$ref": "#/$defs/identifier"},
+        "source_generation": {"$ref": "#/$defs/generation"},
+        "daemon_generation": {"$ref": "#/$defs/generation"},
+        "state": {
+          "enum": ["prepared", "active", "expired", "revoked", "cleanup_required", "recovering", "terminal"]
+        },
+        "channel": {"enum": ["metadata", "data"]},
+        "bounds": {"$ref": "#/$defs/tap_bounds"},
+        "follow": {"type": "boolean"},
+        "observation_only": {"const": true},
+        "raw_data_retention": {"const": "none"},
+        "counters": {"$ref": "#/$defs/tap_counters"},
+        "terminal_bound_reason": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/tap_bound_reason"}
+          ]
+        },
+        "cleanup": {"$ref": "#/$defs/cleanup_summary"},
+        "prepared_at": {"$ref": "#/$defs/timestamp"},
+        "activated_at": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/timestamp"}
+          ]
+        },
+        "updated_at": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"properties": {"state": {"const": "expired"}}},
+          "then": {"properties": {"terminal_bound_reason": {"$ref": "#/$defs/tap_bound_reason"}}}
+        },
+        {
+          "if": {"properties": {"state": {"enum": ["prepared", "active"]}}},
+          "then": {"properties": {"terminal_bound_reason": {"type": "null"}}}
+        },
+        {
+          "if": {"properties": {"state": {"const": "terminal"}}},
+          "then": {
+            "properties": {
+              "cleanup": {
+                "properties": {
+                  "result": {"const": "zero_residuals"},
+                  "residual_count": {"const": 0},
+                  "completed_at": {"$ref": "#/$defs/timestamp"}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"terminal_bound_reason": {"const": "queue_full"}}},
+          "then": {
+            "properties": {
+              "counters": {
+                "properties": {"overflow_rejected_count": {"const": 1}}
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "terminal_bound_reason": {
+                "enum": [
+                  "max_items_reached",
+                  "max_bytes_reached_or_would_exceed",
+                  "idle_timeout",
+                  "duration_elapsed"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "counters": {
+                "properties": {"overflow_rejected_count": {"const": 0}}
+              }
+            }
+          }
+        }
+      ]
+    },
+    "tap_result": {
+      "type": "object",
+      "required": ["schema_version", "operation", "tap", "completed_at"],
+      "properties": {
+        "schema_version": {"const": "aos.operation.tap-result.v1"},
+        "operation": {"const": "tap"},
+        "tap": {"$ref": "#/$defs/tap_snapshot"},
+        "completed_at": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -14,18 +14,19 @@ exports from that revision rather than copy toolkit source into product repos.
 For program `aos-sovereign-capability-substrate-v1`, ADR 0043, accepted ADR
 0044, and
 `docs/dev/aos-sovereign-capability-authority-v1.json` own the target
-machine-readable SDK and operation-control direction. AOS owns the future
+machine-readable SDK and operation-control direction. AOS owns the current
 neutral active-operation/recording status-item projection; Sigil owns product
-labels and action policy. The future status action remains always-available
+labels and action policy. The status action remains always-available
 break-glass by binding the exact daemon/status-host generation and effective UID
 into the same public host-control entrypoint; presentation origin grants no
-ordinary owner authority. The M2 target adds an internal Canvas operations
+ordinary owner authority. Milestone 2 implements an internal Canvas operations
 projection: ordinary actions require its currently live captured peer, while a
 status-opened Canvas can use status-host context for host stop-all only. Public
-Toolkit/TypeScript SDK projections remain M6. Toolkit's current transport-injected clients and
-narrow status-item lease model remain executable truth and declared burn-down
-baseline; this authority-only pointer adds no package export or general
-control-plane method.
+Toolkit/TypeScript SDK projections remain M6. The internal runtime
+operation-control bridge and Canvas component are current executable truth but
+create no public package export or maintained SDK. Toolkit's existing
+transport-injected clients and narrow consumer status-item lease model remain
+separate executable truth and declared burn-down baselines.
 
 Layer intent:
 

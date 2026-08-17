@@ -1,0 +1,309 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-artifact-v1.schema.json",
+  "title": "AOS Artifact v1",
+  "$ref": "#/$defs/artifact_snapshot",
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "nonnegative_integer": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "artifact_selector": {
+      "type": "object",
+      "required": ["artifact_id", "artifact_generation"],
+      "properties": {
+        "artifact_id": {"$ref": "#/$defs/identifier"},
+        "artifact_generation": {"$ref": "#/$defs/generation"}
+      },
+      "additionalProperties": false
+    },
+    "artifact_action_request": {
+      "type": "object",
+      "required": ["schema_version", "operation", "action", "selector"],
+      "properties": {
+        "schema_version": {"const": "aos.operation.artifact-request.v1"},
+        "operation": {"const": "artifact"},
+        "action": {"enum": ["reveal", "remove", "release", "retain"]},
+        "selector": {"$ref": "#/$defs/artifact_selector"}
+      },
+      "additionalProperties": false
+    },
+    "artifact_identity": {
+      "type": "object",
+      "required": [
+        "containment_root_digest",
+        "relative_locator_digest",
+        "device",
+        "inode",
+        "size_bytes",
+        "content_digest",
+        "media_type"
+      ],
+      "properties": {
+        "containment_root_digest": {"$ref": "#/$defs/sha256"},
+        "relative_locator_digest": {"$ref": "#/$defs/sha256"},
+        "device": {"$ref": "#/$defs/nonnegative_integer"},
+        "inode": {"$ref": "#/$defs/nonnegative_integer"},
+        "size_bytes": {"$ref": "#/$defs/nonnegative_integer"},
+        "content_digest": {"$ref": "#/$defs/sha256"},
+        "media_type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 127,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9.+-]*/[A-Za-z0-9][A-Za-z0-9.+-]*$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "release_receipt": {
+      "type": "object",
+      "required": ["kind", "recipient_identity_digest", "receipt_digest", "completed_at"],
+      "properties": {
+        "kind": {"const": "released"},
+        "recipient_identity_digest": {"$ref": "#/$defs/sha256"},
+        "receipt_digest": {"$ref": "#/$defs/sha256"},
+        "completed_at": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false
+    },
+    "retention_receipt": {
+      "type": "object",
+      "required": ["kind", "retention_owner_digest", "expires_at", "receipt_digest", "completed_at"],
+      "properties": {
+        "kind": {"const": "retained"},
+        "retention_owner_digest": {"$ref": "#/$defs/sha256"},
+        "expires_at": {"$ref": "#/$defs/timestamp"},
+        "receipt_digest": {"$ref": "#/$defs/sha256"},
+        "completed_at": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false
+    },
+    "removal_receipt": {
+      "type": "object",
+      "required": ["kind", "absence_proof_digest", "receipt_digest", "completed_at"],
+      "properties": {
+        "kind": {"const": "removed"},
+        "absence_proof_digest": {"$ref": "#/$defs/sha256"},
+        "receipt_digest": {"$ref": "#/$defs/sha256"},
+        "completed_at": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false
+    },
+    "custody_receipt": {
+      "oneOf": [
+        {"$ref": "#/$defs/release_receipt"},
+        {"$ref": "#/$defs/retention_receipt"},
+        {"$ref": "#/$defs/removal_receipt"}
+      ]
+    },
+    "artifact_terminal_custody_receipt": {
+      "oneOf": [
+        {"$ref": "#/$defs/release_receipt"},
+        {"$ref": "#/$defs/removal_receipt"}
+      ]
+    },
+    "cleanup_summary": {
+      "type": "object",
+      "required": ["result", "residual_count", "residual_digest", "completed_at"],
+      "properties": {
+        "result": {
+          "enum": ["not_started", "pending", "zero_residuals", "residuals_present", "recovery_active", "blocked_unresolved"]
+        },
+        "residual_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "residual_digest": {"$ref": "#/$defs/sha256"},
+        "completed_at": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/timestamp"}
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifact_snapshot": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "artifact_id",
+        "artifact_generation",
+        "operation_id",
+        "operation_generation",
+        "daemon_generation",
+        "state",
+        "identity",
+        "original_custody_state",
+        "recovery_disposition",
+        "custody_receipt",
+        "cleanup_obligation",
+        "cleanup",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "aos.artifact.v1"},
+        "artifact_id": {"$ref": "#/$defs/identifier"},
+        "artifact_generation": {"$ref": "#/$defs/generation"},
+        "operation_id": {"$ref": "#/$defs/identifier"},
+        "operation_generation": {"$ref": "#/$defs/generation"},
+        "daemon_generation": {"$ref": "#/$defs/generation"},
+        "state": {
+          "enum": ["transient", "offered", "retained", "released", "removed", "cleanup_required", "recovering", "terminal"]
+        },
+        "identity": {"$ref": "#/$defs/artifact_identity"},
+        "original_custody_state": {
+          "oneOf": [
+            {"type": "null"},
+            {"enum": ["transient", "offered", "retained", "released", "removed"]}
+          ]
+        },
+        "recovery_disposition": {
+          "oneOf": [
+            {"type": "null"},
+            {"enum": ["release_verification", "retention_verification", "removal_verification"]}
+          ]
+        },
+        "custody_receipt": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/custody_receipt"}
+          ]
+        },
+        "cleanup_obligation": {"type": "boolean"},
+        "cleanup": {"$ref": "#/$defs/cleanup_summary"},
+        "created_at": {"$ref": "#/$defs/timestamp"},
+        "updated_at": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"properties": {"state": {"enum": ["cleanup_required", "recovering"]}}},
+          "then": {
+            "properties": {
+              "original_custody_state": {"enum": ["transient", "offered", "retained", "released", "removed"]},
+              "recovery_disposition": {"enum": ["release_verification", "retention_verification", "removal_verification"]},
+              "cleanup_obligation": {"const": true}
+            }
+          },
+          "else": {
+            "properties": {
+              "original_custody_state": {"type": "null"},
+              "recovery_disposition": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {"enum": ["cleanup_required", "recovering"]},
+              "original_custody_state": {"const": "released"}
+            }
+          },
+          "then": {"properties": {"recovery_disposition": {"const": "release_verification"}}}
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {"enum": ["cleanup_required", "recovering"]},
+              "original_custody_state": {"const": "retained"}
+            }
+          },
+          "then": {"properties": {"recovery_disposition": {"const": "retention_verification"}}}
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {"enum": ["cleanup_required", "recovering"]},
+              "original_custody_state": {"enum": ["transient", "offered", "removed"]}
+            }
+          },
+          "then": {"properties": {"recovery_disposition": {"const": "removal_verification"}}}
+        },
+        {
+          "if": {"properties": {"state": {"enum": ["transient", "offered"]}}},
+          "then": {"properties": {"custody_receipt": {"type": "null"}}}
+        },
+        {
+          "if": {"properties": {"state": {"const": "released"}}},
+          "then": {
+            "properties": {
+              "custody_receipt": {"$ref": "#/$defs/release_receipt"},
+              "cleanup_obligation": {"const": false}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"state": {"const": "retained"}}},
+          "then": {
+            "properties": {
+              "custody_receipt": {"$ref": "#/$defs/retention_receipt"},
+              "cleanup_obligation": {"const": true}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"state": {"const": "removed"}}},
+          "then": {
+            "properties": {
+              "custody_receipt": {"$ref": "#/$defs/removal_receipt"},
+              "cleanup_obligation": {"const": false},
+              "cleanup": {
+                "properties": {
+                  "result": {"const": "zero_residuals"},
+                  "residual_count": {"const": 0}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"state": {"const": "terminal"}}},
+          "then": {
+            "properties": {
+              "custody_receipt": {"$ref": "#/$defs/artifact_terminal_custody_receipt"},
+              "cleanup_obligation": {"const": false},
+              "cleanup": {
+                "properties": {
+                  "result": {"const": "zero_residuals"},
+                  "residual_count": {"const": 0}
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "artifact_action_result": {
+      "type": "object",
+      "required": ["schema_version", "operation", "action", "artifact", "outcome", "completed_at"],
+      "properties": {
+        "schema_version": {"const": "aos.operation.artifact-result.v1"},
+        "operation": {"const": "artifact"},
+        "action": {"enum": ["reveal", "remove", "release", "retain"]},
+        "artifact": {"$ref": "#/$defs/artifact_snapshot"},
+        "outcome": {"enum": ["observed", "removed", "released", "retained", "cleanup_required", "stale_identity", "not_found"]},
+        "completed_at": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

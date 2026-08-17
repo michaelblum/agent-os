@@ -1,0 +1,453 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json",
+  "title": "AOS Operation Lineage v1",
+  "$ref": "#/$defs/operation_lineage",
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "pid": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "effective_uid": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "audit_token": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "proc_start_time": {
+      "type": "object",
+      "required": ["seconds", "microseconds"],
+      "properties": {
+        "seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "microseconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 999999
+        }
+      },
+      "additionalProperties": false
+    },
+    "immediate_peer_evidence": {
+      "type": "object",
+      "required": ["audit_token", "effective_uid", "pid", "pid_generation"],
+      "properties": {
+        "audit_token": {"$ref": "#/$defs/audit_token"},
+        "effective_uid": {"$ref": "#/$defs/effective_uid"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "pid_generation": {"$ref": "#/$defs/generation"}
+      },
+      "additionalProperties": false
+    },
+    "process_boundary": {
+      "type": "object",
+      "required": [
+        "effective_uid",
+        "pid",
+        "pid_generation",
+        "executable_identity_digest",
+        "executable_file_digest"
+      ],
+      "properties": {
+        "effective_uid": {"$ref": "#/$defs/effective_uid"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "pid_generation": {"$ref": "#/$defs/generation"},
+        "executable_identity_digest": {"$ref": "#/$defs/sha256"},
+        "executable_file_digest": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "ancestor_edge": {
+      "type": "object",
+      "required": [
+        "child_pid",
+        "child_effective_uid",
+        "child_proc_start_time_sample_1",
+        "child_proc_start_time_sample_2",
+        "parent_pid",
+        "parent_effective_uid",
+        "parent_proc_start_time_sample_1",
+        "parent_proc_start_time_sample_2",
+        "same_observation_parent_edge_receipt",
+        "executable_identity_digest",
+        "executable_file_digest"
+      ],
+      "properties": {
+        "child_pid": {"$ref": "#/$defs/pid"},
+        "child_effective_uid": {"$ref": "#/$defs/effective_uid"},
+        "child_proc_start_time_sample_1": {"$ref": "#/$defs/proc_start_time"},
+        "child_proc_start_time_sample_2": {"$ref": "#/$defs/proc_start_time"},
+        "parent_pid": {"$ref": "#/$defs/pid"},
+        "parent_effective_uid": {"$ref": "#/$defs/effective_uid"},
+        "parent_proc_start_time_sample_1": {"$ref": "#/$defs/proc_start_time"},
+        "parent_proc_start_time_sample_2": {"$ref": "#/$defs/proc_start_time"},
+        "same_observation_parent_edge_receipt": {"$ref": "#/$defs/sha256"},
+        "executable_identity_digest": {"$ref": "#/$defs/sha256"},
+        "executable_file_digest": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "adapter_registration": {
+      "type": "object",
+      "required": ["adapter_registration_id", "adapter_registration_revision"],
+      "properties": {
+        "adapter_registration_id": {"$ref": "#/$defs/identifier"},
+        "adapter_registration_revision": {"$ref": "#/$defs/generation"}
+      },
+      "additionalProperties": false
+    },
+    "adapter_skip_proof": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "evidence_scope",
+            "child_pid",
+            "child_effective_uid",
+            "child_pid_generation",
+            "parent_pid",
+            "parent_pid_generation",
+            "same_observation_parent_edge_receipt",
+            "adapter_registration",
+            "executable_identity_digest",
+            "executable_file_digest"
+          ],
+          "properties": {
+            "kind": {"const": "exact_aos_image"},
+            "evidence_scope": {"const": "verified_ancestor"},
+            "child_pid": {"$ref": "#/$defs/pid"},
+            "child_effective_uid": {"$ref": "#/$defs/effective_uid"},
+            "child_pid_generation": {"$ref": "#/$defs/generation"},
+            "parent_pid": {"$ref": "#/$defs/pid"},
+            "parent_pid_generation": {"$ref": "#/$defs/generation"},
+            "same_observation_parent_edge_receipt": {"$ref": "#/$defs/sha256"},
+            "adapter_registration": {"$ref": "#/$defs/adapter_registration"},
+            "executable_identity_digest": {"$ref": "#/$defs/sha256"},
+            "executable_file_digest": {"$ref": "#/$defs/sha256"}
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "evidence_scope",
+            "spawn_record_id",
+            "child_audit_token",
+            "child_pid",
+            "child_effective_uid",
+            "child_pid_generation",
+            "parent_pid",
+            "parent_pid_generation",
+            "same_observation_parent_edge_receipt",
+            "operation_id",
+            "operation_generation",
+            "adapter_registration",
+            "executable_identity_digest",
+            "executable_file_digest"
+          ],
+          "properties": {
+            "kind": {"const": "generation_bound_daemon_spawn_record"},
+            "evidence_scope": {"const": "immediate_socket_peer"},
+            "spawn_record_id": {"$ref": "#/$defs/identifier"},
+            "child_audit_token": {"$ref": "#/$defs/audit_token"},
+            "child_pid": {"$ref": "#/$defs/pid"},
+            "child_effective_uid": {"$ref": "#/$defs/effective_uid"},
+            "child_pid_generation": {"$ref": "#/$defs/generation"},
+            "parent_pid": {"$ref": "#/$defs/pid"},
+            "parent_pid_generation": {"$ref": "#/$defs/generation"},
+            "same_observation_parent_edge_receipt": {"$ref": "#/$defs/sha256"},
+            "operation_id": {"$ref": "#/$defs/identifier"},
+            "operation_generation": {"$ref": "#/$defs/generation"},
+            "adapter_registration": {"$ref": "#/$defs/adapter_registration"},
+            "executable_identity_digest": {"$ref": "#/$defs/sha256"},
+            "executable_file_digest": {"$ref": "#/$defs/sha256"}
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "evidence_scope",
+            "spawn_record_id",
+            "child_pid",
+            "child_effective_uid",
+            "child_pid_generation",
+            "parent_pid",
+            "parent_pid_generation",
+            "same_observation_parent_edge_receipt",
+            "operation_id",
+            "operation_generation",
+            "adapter_registration",
+            "executable_identity_digest",
+            "executable_file_digest"
+          ],
+          "properties": {
+            "kind": {"const": "generation_bound_daemon_spawn_record"},
+            "evidence_scope": {"const": "verified_ancestor"},
+            "spawn_record_id": {"$ref": "#/$defs/identifier"},
+            "child_pid": {"$ref": "#/$defs/pid"},
+            "child_effective_uid": {"$ref": "#/$defs/effective_uid"},
+            "child_pid_generation": {"$ref": "#/$defs/generation"},
+            "parent_pid": {"$ref": "#/$defs/pid"},
+            "parent_pid_generation": {"$ref": "#/$defs/generation"},
+            "same_observation_parent_edge_receipt": {"$ref": "#/$defs/sha256"},
+            "operation_id": {"$ref": "#/$defs/identifier"},
+            "operation_generation": {"$ref": "#/$defs/generation"},
+            "adapter_registration": {"$ref": "#/$defs/adapter_registration"},
+            "executable_identity_digest": {"$ref": "#/$defs/sha256"},
+            "executable_file_digest": {"$ref": "#/$defs/sha256"}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "owner_root": {
+      "type": "object",
+      "required": [
+        "capture_phase",
+        "resolver_outcome",
+        "immediate_peer",
+        "selected_boundary",
+        "ancestor_edges",
+        "adapter_skip_proofs",
+        "captured_at"
+      ],
+      "properties": {
+        "capture_phase": {"const": "local_socket_accept"},
+        "resolver_outcome": {
+          "enum": [
+            "direct_non_aos_peer",
+            "verified_non_aos_ancestor",
+            "conservative_immediate_peer_boundary",
+            "stale_ancestry",
+            "unverified_adapter"
+          ]
+        },
+        "immediate_peer": {"$ref": "#/$defs/immediate_peer_evidence"},
+        "selected_boundary": {"$ref": "#/$defs/process_boundary"},
+        "ancestor_edges": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {"$ref": "#/$defs/ancestor_edge"}
+        },
+        "adapter_skip_proofs": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {"$ref": "#/$defs/adapter_skip_proof"}
+        },
+        "captured_at": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false
+    },
+    "operation_reference": {
+      "type": "object",
+      "required": ["operation_id", "operation_generation"],
+      "properties": {
+        "operation_id": {"$ref": "#/$defs/identifier"},
+        "operation_generation": {"$ref": "#/$defs/generation"}
+      },
+      "additionalProperties": false
+    },
+    "asserted_attribution": {
+      "type": "object",
+      "properties": {
+        "client_id": {"$ref": "#/$defs/identifier"},
+        "agent_id": {"$ref": "#/$defs/identifier"},
+        "project_id": {"$ref": "#/$defs/identifier"},
+        "task_id": {"$ref": "#/$defs/identifier"},
+        "run_id": {"$ref": "#/$defs/identifier"},
+        "skill_id": {"$ref": "#/$defs/identifier"},
+        "target_id": {"$ref": "#/$defs/identifier"},
+        "capability_label": {"$ref": "#/$defs/identifier"},
+        "retry_id": {"$ref": "#/$defs/identifier"}
+      },
+      "additionalProperties": false
+    },
+    "mechanically_bound_scope": {
+      "type": "object",
+      "required": ["scope", "value", "binding_digest"],
+      "properties": {
+        "scope": {
+          "enum": ["client_id", "agent_id", "project_id", "task_id", "run_id", "skill_id", "target_id"]
+        },
+        "value": {"$ref": "#/$defs/identifier"},
+        "binding_digest": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "live_transport_peer_evidence": {
+      "$ref": "#/$defs/immediate_peer_evidence"
+    },
+    "ordinary_canvas_captured_peer_evidence": {
+      "type": "object",
+      "required": [
+        "canvas_instance_id",
+        "canvas_generation",
+        "capture_id",
+        "captured_connection_epoch",
+        "audit_token",
+        "effective_uid",
+        "pid",
+        "pid_generation"
+      ],
+      "properties": {
+        "canvas_instance_id": {"$ref": "#/$defs/identifier"},
+        "canvas_generation": {"$ref": "#/$defs/generation"},
+        "capture_id": {"$ref": "#/$defs/identifier"},
+        "captured_connection_epoch": {"$ref": "#/$defs/generation"},
+        "audit_token": {"$ref": "#/$defs/audit_token"},
+        "effective_uid": {"$ref": "#/$defs/effective_uid"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "pid_generation": {"$ref": "#/$defs/generation"}
+      },
+      "additionalProperties": false
+    },
+    "status_item_host_evidence": {
+      "type": "object",
+      "required": ["status_host_id", "status_host_generation", "daemon_generation", "effective_uid"],
+      "properties": {
+        "status_host_id": {"$ref": "#/$defs/identifier"},
+        "status_host_generation": {"$ref": "#/$defs/generation"},
+        "daemon_generation": {"$ref": "#/$defs/generation"},
+        "effective_uid": {"$ref": "#/$defs/effective_uid"}
+      },
+      "additionalProperties": false
+    },
+    "status_opened_canvas_host_evidence": {
+      "type": "object",
+      "required": [
+        "canvas_instance_id",
+        "canvas_generation",
+        "parent_status_host_id",
+        "parent_status_host_generation",
+        "daemon_generation",
+        "effective_uid"
+      ],
+      "properties": {
+        "canvas_instance_id": {"$ref": "#/$defs/identifier"},
+        "canvas_generation": {"$ref": "#/$defs/generation"},
+        "parent_status_host_id": {"$ref": "#/$defs/identifier"},
+        "parent_status_host_generation": {"$ref": "#/$defs/generation"},
+        "daemon_generation": {"$ref": "#/$defs/generation"},
+        "effective_uid": {"$ref": "#/$defs/effective_uid"}
+      },
+      "additionalProperties": false
+    },
+    "caller_origin": {
+      "enum": [
+        "live_transport_peer",
+        "ordinary_canvas_captured_peer",
+        "status_item_host",
+        "status_opened_canvas_host"
+      ]
+    },
+    "caller_origin_evidence": {
+      "oneOf": [
+        {"$ref": "#/$defs/live_transport_peer_evidence"},
+        {"$ref": "#/$defs/ordinary_canvas_captured_peer_evidence"},
+        {"$ref": "#/$defs/status_item_host_evidence"},
+        {"$ref": "#/$defs/status_opened_canvas_host_evidence"}
+      ]
+    },
+    "caller_origin_context": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["caller_origin", "caller_origin_evidence"],
+          "properties": {
+            "caller_origin": {"const": "live_transport_peer"},
+            "caller_origin_evidence": {"$ref": "#/$defs/live_transport_peer_evidence"}
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["caller_origin", "caller_origin_evidence"],
+          "properties": {
+            "caller_origin": {"const": "ordinary_canvas_captured_peer"},
+            "caller_origin_evidence": {"$ref": "#/$defs/ordinary_canvas_captured_peer_evidence"}
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["caller_origin", "caller_origin_evidence"],
+          "properties": {
+            "caller_origin": {"const": "status_item_host"},
+            "caller_origin_evidence": {"$ref": "#/$defs/status_item_host_evidence"}
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["caller_origin", "caller_origin_evidence"],
+          "properties": {
+            "caller_origin": {"const": "status_opened_canvas_host"},
+            "caller_origin_evidence": {"$ref": "#/$defs/status_opened_canvas_host_evidence"}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "operation_lineage": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "operation_id",
+        "operation_generation",
+        "owner_root",
+        "parent_operation",
+        "mechanically_bound_scopes",
+        "asserted_attribution"
+      ],
+      "properties": {
+        "schema_version": {"const": "aos.operation-lineage.v1"},
+        "operation_id": {"$ref": "#/$defs/identifier"},
+        "operation_generation": {"$ref": "#/$defs/generation"},
+        "owner_root": {"$ref": "#/$defs/owner_root"},
+        "parent_operation": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/operation_reference"}
+          ]
+        },
+        "mechanically_bound_scopes": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {"$ref": "#/$defs/mechanically_bound_scope"}
+        },
+        "asserted_attribution": {"$ref": "#/$defs/asserted_attribution"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

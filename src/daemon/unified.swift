@@ -1,6 +1,7 @@
 // unified.swift — UnifiedDaemon: single socket hosting perception + display
 
 import AppKit
+import CryptoKit
 import Darwin
 import Foundation
 
@@ -111,9 +112,12 @@ class UnifiedDaemon {
     private var speechEngine: SpeechEngine?
     private var speechCancelTap: CFMachPort?
     private var speechCancelTapSource: CFRunLoopSource?
-    private lazy var voiceTransport = AOSVoiceTransport { [weak self] owner, event, data, ref in
-        self?.emitVoiceTransportEvent(to: owner, event: event, data: data, ref: ref)
-    }
+    private lazy var voiceTransport = AOSVoiceTransport(
+        emit: { [weak self] owner, event, data, ref in
+            self?.emitVoiceTransportEvent(to: owner, event: event, data: data, ref: ref)
+        },
+        microphoneOperations: operationMicrophoneAdapter
+    )
     private lazy var annotationSelection = AOSAnnotationSelectionTransport { [weak self] owner, event, data, ref in
         self?.emitConnectionEvent(service: "annotation", to: owner, event: event, data: data, ref: ref)
     }
@@ -237,6 +241,21 @@ class UnifiedDaemon {
     private var daemonLockFD: Int32 = -1
     private var subscriberLock = NSLock()
     private var subscribers: [UUID: SubscriberConnection] = [:]
+    private let operationConnectionEpochLock = NSLock()
+    private var operationNextConnectionEpoch: UInt64 = 1
+    private var operationStore: AOSFileOperationStateStore?
+    private var operationRegistry: AOSOperationRegistry?
+    private var operationControlPlane: AOSOperationControlPlane?
+    private var operationMicrophoneAdapter: AOSMicrophoneOperationAdapter?
+    private var operationDaemonGeneration: UInt64 = 0
+    private let operationImageProvider = AOSDarwinProcessImageProvider()
+    private var operationStatusHostBinding: AOSOperationStatusHostBinding?
+    private var operationCanvasProjection: AOSOperationCanvasProjection?
+    private var operationStatusItemProjection: AOSOperationStatusItemProjection?
+    private var operationControlCanvasIdentity: AOSOperationCanvasIdentity?
+    private var operationExternalSpawnExpiryTimer: DispatchSourceTimer?
+    private let operationExternalSpawnIntentTTLNanoseconds: UInt64 = 30_000_000_000
+    private let operationControlCanvasID = "aos-operation-control"
     private var sceneStageCanvasID: String { AOSDesktopWorldSceneTransportController.stageCanvasID }
     private lazy var desktopWorldSceneTransport = AOSDesktopWorldSceneTransportController(
         canvasManager: canvasManager,
@@ -392,6 +411,12 @@ class UnifiedDaemon {
         var sceneMonitorResource: String?
         var sceneMonitorRef: String?
         var sceneMonitorReady: Bool
+        let operationConnectionEpoch: UInt64
+        let operationSocketFD: Int32
+        let operationPeer: AOSSocketPeerIdentity
+        var operationOwnerRoot: AOSMechanicalOwnerRoot
+        var operationAttribution: AOSOperationAttribution
+        var externalBoundOperation: AOSOperationIdentity?
     }
 
     struct CanvasPerceptionChannel {
@@ -406,6 +431,290 @@ class UnifiedDaemon {
         self.currentConfig = config
         self.idleTimeout = idleTimeout
         self.perception = PerceptionEngine(config: config)
+    }
+
+    private func initializeOperationControlPlane() throws {
+        let registration = try AOSMicrophoneOperationAdapter.makeRegistration()
+        let adapterRegistry = try AOSAdapterRegistrySnapshot.make(
+            revision: 1,
+            registrations: [registration]
+        )
+        let storeRoot = URL(fileURLWithPath: aosStateDir(), isDirectory: true)
+            .appendingPathComponent("operation-control", isDirectory: true)
+        let store = try AOSFileOperationStateStore(rootURL: storeRoot)
+        let prior = try store.load()
+        if let prior, prior.adapterRegistry != adapterRegistry {
+            throw AOSOperationCoreError.adapterRegistryConflict
+        }
+        let nextDaemonGeneration: UInt64
+        if let prior {
+            guard prior.daemonGeneration < UInt64.max else {
+                throw AOSOperationCoreError.generationConflict
+            }
+            nextDaemonGeneration = prior.daemonGeneration + 1
+        } else {
+            nextDaemonGeneration = 1
+        }
+        let registry = try AOSOperationRegistry(
+            store: store,
+            daemonGeneration: nextDaemonGeneration,
+            adapterRegistry: adapterRegistry
+        )
+        let adapter = try AOSMicrophoneOperationAdapter(
+            registry: registry,
+            registration: registration,
+            contextResolver: { [weak self] owner in
+                guard let self else { throw AOSOperationCoreError.callerNotAuthenticated }
+                return try self.operationContext(for: owner)
+            }
+        )
+        try registry.installRuntimeAdapters([adapter])
+        let control = AOSOperationControlPlane(
+            registry: registry,
+            daemonEffectiveUID: geteuid()
+        )
+
+        operationStore = store
+        operationRegistry = registry
+        operationControlPlane = control
+        operationMicrophoneAdapter = adapter
+        operationDaemonGeneration = nextDaemonGeneration
+
+        let recoveryToken = AOSSHA256Digest.hashing(
+            domain: .externalBindingToken,
+            data: Data(UUID().uuidString.utf8)
+        ).value
+        let recovery = try AOSOperationRecovery.beginBootRecovery(
+            registry: registry,
+            newDaemonGeneration: nextDaemonGeneration,
+            claimTokenDigest: recoveryToken
+        )
+        let recovering = registry.snapshot()
+        var absentSpawnRecords = Set<String>()
+        for finalized in recovering.finalizedExternalSpawnRecords {
+            if operationExternalChildIsMechanicallyAbsent(finalized) {
+                absentSpawnRecords.insert(finalized.skipRecord.spawnRecordID)
+            }
+        }
+        let externallyLiveOperations = Set(recovering.finalizedExternalSpawnRecords.compactMap {
+            absentSpawnRecords.contains($0.skipRecord.spawnRecordID) ? nil : AOSOperationIdentity(
+                id: $0.skipRecord.operationID,
+                generation: $0.skipRecord.operationGeneration
+            )
+        })
+        let externallyLiveClaims = recovering.resourceClaims.filter {
+            externallyLiveOperations.contains($0.operation)
+        }
+        let externallyLiveBrokerIDs = Set(externallyLiveClaims.compactMap(\.brokerID))
+        let reconciled = try AOSOperationRecovery.reconcile(
+            registry: registry,
+            recoveryGeneration: recovery.recoveryGeneration,
+            claimTokenDigest: recoveryToken,
+            mechanicallyAbsentOperationIDs: Set(recovering.operations.compactMap {
+                externallyLiveOperations.contains($0.identity) ? nil : $0.identity
+            }),
+            mechanicallyAbsentStreamIDs: Set(recovering.streams.map(\.identity)),
+            mechanicallyAbsentTapIDs: Set(recovering.taps.map(\.identity)),
+            mechanicallyAbsentTransactionIDs: Set(recovering.resourceTransactions.compactMap {
+                externallyLiveOperations.contains($0.operation) ? nil : $0.transactionID
+            }),
+            mechanicallyAbsentClaimIDs: Set(recovering.resourceClaims.compactMap {
+                externallyLiveOperations.contains($0.operation) ? nil : $0.claimID
+            }),
+            mechanicallyAbsentBrokerIDs: Set(recovering.resourceBrokers.compactMap {
+                externallyLiveBrokerIDs.contains($0.brokerID) ? nil : $0.brokerID
+            }),
+            mechanicallyAbsentSpawnRecordIDs: absentSpawnRecords
+        )
+        if reconciled.residualCount == 0, reconciled.barrierState == .bootReconciling {
+            _ = try control.completeBootReconciliation(.open)
+        }
+        try initializeOperationProjections(
+            registration: registration,
+            registry: registry,
+            control: control
+        )
+        startOperationExternalSpawnExpiryTimer()
+    }
+
+    private func initializeOperationProjections(
+        registration: AOSOperationAdapterRegistration,
+        registry: AOSOperationRegistry,
+        control: AOSOperationControlPlane
+    ) throws {
+        let statusBinding = AOSOperationStatusHostBinding(
+            daemonGeneration: operationDaemonGeneration,
+            effectiveUID: UInt32(geteuid()),
+            statusHostID: "aos.internal.operation-status",
+            statusHostGeneration: operationDaemonGeneration,
+            connectionEpoch: operationDaemonGeneration
+        )
+        let indicators = try AOSOperationStatusIndicatorRegistry(bindings: [
+            try AOSOperationStatusIndicatorBinding(
+                registration: registration,
+                capabilityID: AOSMicrophoneOperationAdapter.capabilityID,
+                indicatorClass: .recording
+            ),
+        ])
+        let canvasHost = AOSClosureOperationCanvasHost(
+            open: { [weak self] in
+                guard let self else { throw AOSOperationProjectionError.canvasDeliveryFailed }
+                let open = { () throws -> AOSOperationCanvasIdentity in
+                    if self.canvasManager.hasCanvas(self.operationControlCanvasID) {
+                        let response = self.canvasManager.handle(CanvasRequest(
+                            action: "resume",
+                            id: self.operationControlCanvasID
+                        ))
+                        guard response.status == "success" else {
+                            throw AOSOperationProjectionError.canvasDeliveryFailed
+                        }
+                    } else {
+                        let response = self.canvasManager.handle(CanvasRequest(
+                            action: "create",
+                            id: self.operationControlCanvasID,
+                            url: "aos://toolkit/components/operation-control/index.html",
+                            interactive: true,
+                            focus: true,
+                            scope: "global"
+                        ))
+                        guard response.status == "success" else {
+                            throw AOSOperationProjectionError.canvasDeliveryFailed
+                        }
+                    }
+                    guard let target = self.canvasManager.deliveryTarget(
+                        forCanvasID: self.operationControlCanvasID
+                    ) else {
+                        throw AOSOperationProjectionError.canvasDeliveryFailed
+                    }
+                    let identity = AOSOperationCanvasIdentity(
+                        id: target.canvasID,
+                        generation: target.value
+                    )
+                    self.operationControlCanvasIdentity = identity
+                    return identity
+                }
+                return try Thread.isMainThread ? open() : DispatchQueue.main.sync(execute: open)
+            },
+            post: { [weak self] canvas, payload in
+                guard let self else { return false }
+                let post = { () -> Bool in
+                    guard let current = self.canvasManager.deliveryTarget(forCanvasID: canvas.id),
+                          current.value == canvas.generation else { return false }
+                    self.canvasManager.postMessageAsync(to: current, payload: payload)
+                    return true
+                }
+                return Thread.isMainThread ? post() : DispatchQueue.main.sync(execute: post)
+            }
+        )
+        operationStatusHostBinding = statusBinding
+        let canvasProjection = try AOSOperationCanvasProjection(
+            controlPlane: control,
+            readState: { registry.snapshot() },
+            indicatorRegistry: indicators,
+            canvasHost: canvasHost,
+            resolveCurrentStatusHost: { [weak self] in
+                self?.operationStatusHostBinding
+            },
+            checkedAt: { [weak self] in
+                self?.operationTimestamp(registry.now()) ?? "1970-01-01T00:00:00.000Z"
+            }
+        )
+        operationCanvasProjection = canvasProjection
+        let statusProjection = try AOSOperationStatusItemProjection(
+            controlPlane: control,
+            readState: { registry.snapshot() },
+            indicatorRegistry: indicators,
+            statusHost: statusBinding,
+            itemGeneration: operationDaemonGeneration,
+            openCanvas: { [weak self] binding in
+                _ = try? self?.operationCanvasProjection?.openStatusCanvas(statusHost: binding)
+            }
+        )
+        operationStatusItemProjection = statusProjection
+        if Thread.isMainThread {
+            statusProjection.start()
+        } else {
+            DispatchQueue.main.sync { statusProjection.start() }
+        }
+    }
+
+    private func operationExternalChildIsMechanicallyAbsent(
+        _ record: AOSFinalizedExternalDispatchSpawnRecord
+    ) -> Bool {
+        var processInfo = proc_bsdinfo()
+        let expected = MemoryLayout<proc_bsdinfo>.size
+        let count = withUnsafeMutablePointer(to: &processInfo) { pointer in
+            proc_pidinfo(
+                record.skipRecord.child.pid,
+                PROC_PIDTBSDINFO,
+                0,
+                pointer,
+                Int32(expected)
+            )
+        }
+        guard count == expected else { return true }
+        let current = AOSProcessGenerationIdentity(
+            pid: record.skipRecord.child.pid,
+            effectiveUID: processInfo.pbi_uid,
+            parentPID: pid_t(bitPattern: processInfo.pbi_ppid),
+            startTimeSeconds: processInfo.pbi_start_tvsec,
+            startTimeMicroseconds: processInfo.pbi_start_tvusec
+        )
+        return current != record.skipRecord.child
+    }
+
+    private func scheduleExternalSpawnRetirement(
+        operation: AOSOperationIdentity,
+        attempt: Int
+    ) {
+        guard attempt < 20, let registry = operationRegistry else { return }
+        let records = registry.snapshot().finalizedExternalSpawnRecords.filter {
+            $0.skipRecord.operationID == operation.id
+                && $0.skipRecord.operationGeneration == operation.generation
+        }
+        guard !records.isEmpty else { return }
+        let delay = DispatchTimeInterval.milliseconds(attempt == 0 ? 50 : 100)
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + delay) {
+            [weak self] in
+            guard let self, let registry = self.operationRegistry else { return }
+            var unresolved = false
+            for record in records {
+                guard self.operationExternalChildIsMechanicallyAbsent(record) else {
+                    unresolved = true
+                    continue
+                }
+                _ = try? registry.retireFinalizedExternalSpawnRecord(
+                    spawnRecordID: record.skipRecord.spawnRecordID,
+                    operation: operation,
+                    child: record.skipRecord.child,
+                    mechanicalAbsenceVerified: true
+                )
+            }
+            let remaining = registry.snapshot().finalizedExternalSpawnRecords.contains {
+                $0.skipRecord.operationID == operation.id
+                    && $0.skipRecord.operationGeneration == operation.generation
+            }
+            if remaining || unresolved {
+                self.scheduleExternalSpawnRetirement(operation: operation, attempt: attempt + 1)
+                return
+            }
+            if let current = try? registry.inspect(operation), current.state == .cleanupRequired {
+                _ = try? registry.transitionOperation(operation, to: .recovering)
+                _ = try? registry.transitionOperation(operation, to: .terminal)
+            }
+        }
+    }
+
+    private func operationContext(for owner: UUID) throws -> AOSMicrophoneOperationContext {
+        subscriberLock.lock()
+        defer { subscriberLock.unlock() }
+        guard let connection = subscribers[owner] else {
+            throw AOSOperationCoreError.callerNotAuthenticated
+        }
+        return AOSMicrophoneOperationContext(
+            ownerRoot: connection.operationOwnerRoot,
+            attribution: connection.operationAttribution
+        )
     }
 
     private func authorizeDesktopFrame(
@@ -477,6 +786,20 @@ class UnifiedDaemon {
 
         acquireDaemonLock(mode: mode)
 
+        do {
+            try initializeOperationControlPlane()
+        } catch let error as AOSOperationCoreError {
+            exitError(
+                "Operation control initialization failed: \(error.code)",
+                code: error.code
+            )
+        } catch {
+            exitError(
+                "Operation control initialization failed.",
+                code: "OPERATION_STORE_UNAVAILABLE"
+            )
+        }
+
         unlink(socketPath)
 
         let policyWatcher = VoicePolicyWatcher(store: coordination.voicePolicyStore)
@@ -526,6 +849,21 @@ class UnifiedDaemon {
             if let dict = payload as? [String: Any],
                let type = dict["type"] as? String {
                 let inner = dict["payload"] as? [String: Any]
+                if let operationMessage = inner,
+                   operationMessage["schema_version"] as? String
+                    == "aos.canvas-operation-control.request.v1" {
+                    let routed = self.operationCanvasProjection?.routeMessage(
+                        canvasID: target.canvasID,
+                        canvasGeneration: target.value,
+                        message: operationMessage
+                    ) ?? .notHandled
+                    switch routed {
+                    case .handled, .rejected:
+                        return
+                    case .notHandled:
+                        break
+                    }
+                }
                 switch type {
                 case "subscribe", "unsubscribe":
                     let events = self.subscriptionEvents(from: inner)
@@ -691,6 +1029,11 @@ class UnifiedDaemon {
             guard let self = self else { return }
             self.publishCanvasLifecycle(action: action, canvasInfo: canvasInfo)
             if action == "removed" {
+                if let operationCanvas = self.operationControlCanvasIdentity,
+                   operationCanvas.id == canvasInfo.id {
+                    self.operationCanvasProjection?.detachCanvas(operationCanvas)
+                    self.operationControlCanvasIdentity = nil
+                }
                 self.removeInputRegionsOwned(by: canvasInfo.id, includeSuspendRetained: true)
                 self.desktopWorldDevTools.detachHost(id: canvasInfo.id)
                 if canvasInfo.id == self.sceneStageCanvasID {
@@ -2870,13 +3213,69 @@ class UnifiedDaemon {
             let clientFD = accept(serverFD, nil, nil)
             guard clientFD >= 0 else { continue }
             _ = disableSigPipe(clientFD)
+            let accepted: (AOSOwnerRootBinding, UInt64)
+            do {
+                accepted = try operationAcceptedPeer(socketFD: clientFD)
+            } catch {
+                close(clientFD)
+                continue
+            }
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                self?.handleConnection(clientFD)
+                self?.handleConnection(
+                    clientFD,
+                    ownerBinding: accepted.0,
+                    connectionEpoch: accepted.1
+                )
             }
         }
     }
 
-    private func handleConnection(_ clientFD: Int32) {
+    private func operationAcceptedPeer(
+        socketFD: Int32
+    ) throws -> (AOSOwnerRootBinding, UInt64) {
+        let binding = try operationResolveOwner(socketFD: socketFD)
+        guard binding.immediatePeer.effectiveUID == geteuid() else {
+            throw AOSOperationCoreError.callerNotAuthenticated
+        }
+        operationConnectionEpochLock.lock()
+        defer { operationConnectionEpochLock.unlock() }
+        guard operationNextConnectionEpoch < UInt64.max else {
+            throw AOSOperationCoreError.generationConflict
+        }
+        let epoch = operationNextConnectionEpoch
+        operationNextConnectionEpoch += 1
+        return (binding, epoch)
+    }
+
+    private func operationResolveOwner(
+        socketFD: Int32
+    ) throws -> AOSOwnerRootBinding {
+        guard let registry = operationRegistry else {
+            throw AOSOperationCoreError.storeUnavailable
+        }
+        let currentImage = try operationImageProvider.imageEvidence(for: getpid())
+        let classifier = AOSRuntimeOwnerRootClassifier(
+            currentAOSImage: currentImage,
+            adapterRegistrationID: AOSMicrophoneOperationAdapter.registrationID,
+            adapterRegistrationRevision: AOSMicrophoneOperationAdapter.registrationRevision,
+            spawnRecordLookup: { observation in
+                registry.exactExternalSpawnSkipRecord(observation: observation)
+            }
+        )
+        let resolver = AOSOwnerRootResolver(
+            observer: AOSDarwinOwnerRootObserver(imageProvider: operationImageProvider),
+            classifier: classifier,
+            unverifiedAdapterDisposition: .reject
+        )
+        let binding = try resolver.resolve(socketFD: socketFD)
+        return binding
+    }
+
+    private func handleConnection(
+        _ clientFD: Int32,
+        ownerBinding: AOSOwnerRootBinding,
+        connectionEpoch: UInt64
+    ) {
         let connectionID = UUID()
         let outbound = AOSConnectionOutboundWriter(connectionID: connectionID, fd: clientFD)
 
@@ -2891,17 +3290,25 @@ class UnifiedDaemon {
             wantsInputEvents: false,
             sceneMonitorResource: nil,
             sceneMonitorRef: nil,
-            sceneMonitorReady: false
+            sceneMonitorReady: false,
+            operationConnectionEpoch: connectionEpoch,
+            operationSocketFD: clientFD,
+            operationPeer: ownerBinding.immediatePeer,
+            operationOwnerRoot: AOSMechanicalOwnerRoot(verified: ownerBinding),
+            operationAttribution: AOSOperationAttribution(),
+            externalBoundOperation: nil
         )
         subscriberLock.unlock()
 
         defer {
             subscriberLock.lock()
             let publicCapture = subscribers[connectionID]?.publicCapture
+            let externalBoundOperation = subscribers[connectionID]?.externalBoundOperation
             subscribers[connectionID]?.publicCapture = nil
             subscribers[connectionID]?.publicCaptureToken = nil
             subscriberLock.unlock()
             publicCapture?.cancel()
+            operationMicrophoneAdapter?.connectionClosedBeforeAuthority(owner: connectionID)
             voiceTransport.connectionClosed(connectionID)
             annotationSelection.connectionClosed(connectionID)
             desktopFrameCaptureConsent.connectionClosed(connectionID)
@@ -2925,6 +3332,9 @@ class UnifiedDaemon {
 
             outbound.closeAndWait()
             close(clientFD)
+            if let externalBoundOperation {
+                scheduleExternalSpawnRetirement(operation: externalBoundOperation, attempt: 0)
+            }
         }
 
         cancelIdleTimer()
@@ -3199,6 +3609,1664 @@ class UnifiedDaemon {
         return out
     }
 
+    // MARK: - Sovereign operation control
+
+    private func handleOperationAction(
+        action: String,
+        data: [String: Any],
+        connectionID: UUID,
+        outbound: AOSConnectionOutboundWriter,
+        envelopeRef: String?
+    ) {
+        defer { _ = operationStatusItemProjection?.refresh() }
+        do {
+            reapExpiredExternalSpawnIntents()
+            if action == "external_spawn_intent" {
+                let result = try prepareExternalSpawnIntent(
+                    data: data,
+                    connectionID: connectionID
+                )
+                sendResponseJSON(
+                    to: outbound,
+                    result,
+                    envelopeActive: true,
+                    envelopeRef: envelopeRef
+                )
+                return
+            }
+            if action == "external_spawn_child_admit" {
+                let result = try admitExternalSpawnChild(
+                    data: data,
+                    connectionID: connectionID
+                )
+                sendResponseJSON(
+                    to: outbound,
+                    result,
+                    envelopeActive: true,
+                    envelopeRef: envelopeRef
+                )
+                return
+            }
+            if action == "external_spawn_abandon" {
+                let result = try abandonExternalSpawn(
+                    data: data,
+                    connectionID: connectionID
+                )
+                sendResponseJSON(
+                    to: outbound,
+                    result,
+                    envelopeActive: true,
+                    envelopeRef: envelopeRef
+                )
+                return
+            }
+            if action == "external_spawn_finalize" {
+                let result = try finalizeExternalSpawn(
+                    data: data,
+                    connectionID: connectionID
+                )
+                sendResponseJSON(
+                    to: outbound,
+                    result,
+                    envelopeActive: true,
+                    envelopeRef: envelopeRef
+                )
+                return
+            }
+            guard [
+                "list", "inspect", "status", "recent", "cancel", "kill", "kill_owner",
+                "tap", "artifact_reveal", "artifact_remove", "artifact_release",
+                "artifact_retain", "stop_all", "barrier_status", "reopen",
+            ].contains(action) else {
+                throw AOSOperationCoreError.invalidRecord("operation_action")
+            }
+            try validateOperationParameterDigest(action: action, data: data)
+            let identity = try operationConnectionIdentity(
+                connectionID: connectionID,
+                revalidate: true
+            )
+            guard let registry = operationRegistry,
+                  let control = operationControlPlane else {
+                throw AOSOperationCoreError.storeUnavailable
+            }
+            let ordinary = AOSOrdinaryControlContext(
+                expectedDaemonGeneration: operationDaemonGeneration,
+                connectionEpoch: identity.connectionEpoch,
+                caller: identity.caller,
+                authenticatedOwnerRoot: identity.ownerRoot
+            )
+            let host = AOSHostControlContext(
+                expectedDaemonGeneration: operationDaemonGeneration,
+                connectionEpoch: identity.connectionEpoch,
+                caller: identity.caller
+            )
+            let checkedAt = operationTimestamp(registry.now())
+
+            switch action {
+            case "list", "recent":
+                let filterPayload = data["filters"] as? [String: Any] ?? [:]
+                let filter = operationFilter(filterPayload)
+                var operations = try control.list(context: ordinary, filter: filter)
+                operations = operations.filter {
+                    action == "recent" ? $0.state == .terminal : $0.state != .terminal
+                }
+                if action == "recent" {
+                    operations.sort { $0.updatedAtNanoseconds > $1.updatedAtNanoseconds }
+                }
+                let state = registry.snapshot()
+                sendResponseJSON(
+                    to: outbound,
+                    [
+                        "schema_version": "aos.operation.list-result.v1",
+                        "operation": action,
+                        "filters": filterPayload,
+                        "operations": operations.prefix(4_096).map {
+                            operationSnapshot($0, state: state)
+                        },
+                        "checked_at": checkedAt,
+                    ],
+                    envelopeActive: true,
+                    envelopeRef: envelopeRef
+                )
+            case "inspect", "status":
+                let selectorPayload = try operationSelectorPayload(data)
+                let selector = try operationSelector(selectorPayload)
+                let operation = try control.inspect(context: ordinary, operation: selector)
+                sendResponseJSON(
+                    to: outbound,
+                    [
+                        "schema_version": "aos.operation.inspect-result.v1",
+                        "operation": action,
+                        "selector": selectorPayload,
+                        "snapshot": operationSnapshot(operation, state: registry.snapshot()),
+                        "checked_at": checkedAt,
+                    ],
+                    envelopeActive: true,
+                    envelopeRef: envelopeRef
+                )
+            case "cancel", "kill":
+                let selector = try operationSelector(try operationSelectorPayload(data))
+                let receipt = action == "cancel"
+                    ? try control.cancel(context: ordinary, operation: selector)
+                    : try control.kill(context: ordinary, operation: selector)
+                sendResponseJSON(
+                    to: outbound,
+                    operationControlResult(receipt, registry: registry),
+                    envelopeActive: true,
+                    envelopeRef: envelopeRef
+                )
+            case "kill_owner":
+                let receipt = try control.killOwner(
+                    context: ordinary,
+                    filter: operationFilter(data["filters"] as? [String: Any] ?? [:])
+                )
+                sendResponseJSON(
+                    to: outbound,
+                    operationControlResult(receipt, registry: registry),
+                    envelopeActive: true,
+                    envelopeRef: envelopeRef
+                )
+            case "stop_all", "barrier_status", "reopen":
+                let request = try hostControlRequest(action: action, data: data)
+                let response: [String: Any]
+                if action == "stop_all" {
+                    let receipt = try control.stopAll(context: host, request: request)
+                    response = stopAllPayload(receipt)
+                } else if action == "barrier_status" {
+                    let receipt = try control.barrierStatus(context: host, request: request)
+                    response = barrierStatusPayload(receipt, state: registry.snapshot())
+                } else {
+                    let receipt = try control.reopen(context: host, request: request)
+                    response = reopenPayload(receipt)
+                }
+                sendResponseJSON(
+                    to: outbound,
+                    response,
+                    envelopeActive: true,
+                    envelopeRef: envelopeRef
+                )
+            case "tap":
+                let tapResult = try openOperationTap(data: data, context: ordinary)
+                sendResponseJSON(
+                    to: outbound,
+                    tapResult.payload,
+                    envelopeActive: true,
+                    envelopeRef: envelopeRef
+                )
+                scheduleOperationTapExpiry(
+                    tapResult.record,
+                    outbound: outbound,
+                    envelopeRef: envelopeRef
+                )
+            case "artifact_reveal", "artifact_remove", "artifact_release", "artifact_retain":
+                sendResponseJSON(
+                    to: outbound,
+                    try controlOperationArtifact(action: action, data: data, context: ordinary),
+                    envelopeActive: true,
+                    envelopeRef: envelopeRef
+                )
+            default:
+                throw AOSOperationCoreError.invalidRecord("operation_action")
+            }
+        } catch let error as AOSOperationCoreError {
+            sendResponseJSON(
+                to: outbound,
+                ["error": error.description, "code": error.code],
+                envelopeActive: true,
+                envelopeRef: envelopeRef
+            )
+        } catch {
+            sendResponseJSON(
+                to: outbound,
+                ["error": "Operation request failed.", "code": "OPERATION_RECORD_INVALID"],
+                envelopeActive: true,
+                envelopeRef: envelopeRef
+            )
+        }
+    }
+
+    private func validateOperationParameterDigest(
+        action: String,
+        data: [String: Any]
+    ) throws {
+        guard let requestID = data["request_id"] as? String, !requestID.isEmpty,
+              let supplied = data["canonical_parameter_digest"] as? String else {
+            throw AOSOperationCoreError.invalidRecord("operation_request_identity")
+        }
+        _ = requestID
+        var parameters = data
+        parameters.removeValue(forKey: "request_id")
+        parameters.removeValue(forKey: "canonical_parameter_digest")
+        let input: [String: Any] = ["action": action, "parameters": parameters]
+        guard JSONSerialization.isValidJSONObject(input),
+              let canonical = try? JSONSerialization.data(
+                  withJSONObject: input,
+                  options: [.sortedKeys, .withoutEscapingSlashes]
+              ) else {
+            throw AOSOperationCoreError.invalidRecord("canonical_parameter_digest")
+        }
+        var material = Data("aos:operation-request:v1\n".utf8)
+        material.append(canonical)
+        let expected = SHA256.hash(data: material)
+            .map { String(format: "%02x", $0) }.joined()
+        guard supplied == expected else {
+            throw AOSOperationCoreError.invalidRecord("canonical_parameter_digest")
+        }
+    }
+
+    private func operationConnectionIdentity(
+        connectionID: UUID,
+        revalidate: Bool
+    ) throws -> (
+        connectionEpoch: UInt64,
+        caller: AOSCallerEvidence,
+        ownerRoot: AOSMechanicalOwnerRoot,
+        binding: AOSOwnerRootBinding
+    ) {
+        subscriberLock.lock()
+        guard let connection = subscribers[connectionID],
+              let binding = connection.operationOwnerRoot.verifiedBinding else {
+            subscriberLock.unlock()
+            throw AOSOperationCoreError.callerNotAuthenticated
+        }
+        let socketFD = connection.operationSocketFD
+        let epoch = connection.operationConnectionEpoch
+        subscriberLock.unlock()
+        let current = revalidate ? try operationResolveOwner(socketFD: socketFD) : binding
+        guard current == binding, current.immediatePeer.effectiveUID == geteuid() else {
+            throw AOSOperationCoreError.callerNotAuthenticated
+        }
+        let owner = AOSMechanicalOwnerRoot(verified: current)
+        let peerGeneration = current.ancestorEdges.first?.child.generation
+        guard let peerGeneration,
+              peerGeneration.pid == current.immediatePeer.pid,
+              peerGeneration.effectiveUID == current.immediatePeer.effectiveUID else {
+            throw AOSOperationCoreError.callerNotAuthenticated
+        }
+        let caller = AOSCallerEvidence.liveTransportPeer(AOSLiveTransportPeerEvidence(
+            auditTokenDigest: try AOSOperationDigest.sha256(
+                domain: .callerEvidence,
+                current.immediatePeer.auditToken.words
+            ),
+            effectiveUID: current.immediatePeer.effectiveUID,
+            pid: current.immediatePeer.pid,
+            pidGeneration: operationPIDGeneration(peerGeneration)
+        ))
+        return (epoch, caller, owner, current)
+    }
+
+    private func operationPIDGeneration(_ identity: AOSProcessGenerationIdentity) -> UInt64 {
+        let seconds = identity.startTimeSeconds.multipliedReportingOverflow(by: 1_000_000)
+        guard !seconds.overflow else { return UInt64.max }
+        let value = seconds.partialValue.addingReportingOverflow(identity.startTimeMicroseconds)
+        return value.overflow ? UInt64.max : max(1, value.partialValue)
+    }
+
+    private func operationFilter(_ payload: [String: Any]) -> AOSOperationFilter {
+        AOSOperationFilter(
+            capabilityID: payload["capability_id"] as? String,
+            clientID: payload["client_id"] as? String,
+            agentID: payload["agent_id"] as? String,
+            projectID: payload["project_id"] as? String,
+            taskID: payload["task_id"] as? String,
+            runID: payload["run_id"] as? String,
+            skillID: payload["skill_id"] as? String,
+            targetID: payload["target_id"] as? String,
+            capabilityLabel: payload["capability_label"] as? String
+        )
+    }
+
+    private func operationSelectorPayload(_ data: [String: Any]) throws -> [String: Any] {
+        guard let selector = data["selector"] as? [String: Any] else {
+            throw AOSOperationCoreError.invalidRecord("operation_selector")
+        }
+        return selector
+    }
+
+    private func operationSelector(_ selector: [String: Any]) throws -> AOSOperationIdentity {
+        guard let id = selector["operation_id"] as? String, !id.isEmpty,
+              let generation = (selector["operation_generation"] as? NSNumber)?.uint64Value,
+              generation > 0 else {
+            throw AOSOperationCoreError.invalidRecord("operation_selector")
+        }
+        return AOSOperationIdentity(id: id, generation: generation)
+    }
+
+    private func hostControlRequest(
+        action: String,
+        data: [String: Any]
+    ) throws -> AOSHostControlRequest {
+        guard let requestID = data["request_id"] as? String,
+              let digest = data["canonical_parameter_digest"] as? String,
+              let hostAction = AOSHostControlAction(rawValue: action) else {
+            throw AOSOperationCoreError.invalidRecord("host_control_request")
+        }
+        let expected = (data["expected_barrier_generation"] as? NSNumber)?.uint64Value
+        return AOSHostControlRequest(
+            requestID: requestID,
+            action: hostAction,
+            canonicalParameterDigest: digest,
+            expectedBarrierGeneration: expected
+        )
+    }
+
+    private func prepareExternalSpawnIntent(
+        data: [String: Any],
+        connectionID: UUID
+    ) throws -> [String: Any] {
+        let requiredKeys: Set<String> = [
+            "schema_version", "request_id", "route_source_id", "route_source_revision",
+            "adapter_registration_id", "adapter_registration_revision", "resolved_executable",
+            "expected_script_identity_digest", "expected_script_digest",
+            "canonical_argv_shape_digest", "reviewed_dependency_set_digest",
+        ]
+        guard Set(data.keys) == requiredKeys,
+              data["schema_version"] as? String
+                == "aos.operation.external-spawn-intent-request.v1",
+              let requestID = data["request_id"] as? String, !requestID.isEmpty,
+              let routeSourceID = data["route_source_id"] as? String,
+              let routeSourceRevisionRaw = data["route_source_revision"] as? String,
+              let adapterID = data["adapter_registration_id"] as? String,
+              let adapterRevision = (data["adapter_registration_revision"] as? NSNumber)?.uint64Value,
+              let executablePayload = data["resolved_executable"] as? [String: Any],
+              let expectedScriptIdentityRaw = data["expected_script_identity_digest"] as? String,
+              let expectedScriptRaw = data["expected_script_digest"] as? String,
+              let argvShapeRaw = data["canonical_argv_shape_digest"] as? String,
+              let reviewedDependenciesRaw = data["reviewed_dependency_set_digest"] as? String,
+              adapterID == AOSMicrophoneOperationAdapter.registrationID,
+              adapterRevision == AOSMicrophoneOperationAdapter.registrationRevision,
+              try reviewedExternalSpawnRegistrationMatches(data),
+              let adapter = operationMicrophoneAdapter,
+              let registry = operationRegistry else {
+            throw AOSOperationCoreError.invalidRecord("external_spawn_intent")
+        }
+        let routeSourceRevision = try AOSSHA256Digest(routeSourceRevisionRaw)
+        let expectedScriptIdentity = try AOSSHA256Digest(expectedScriptIdentityRaw)
+        let expectedScript = try AOSSHA256Digest(expectedScriptRaw)
+        let argvShape = try AOSSHA256Digest(argvShapeRaw)
+        let reviewedDependencies = try AOSSHA256Digest(reviewedDependenciesRaw)
+        let executable = try operationResolvedExecutable(executablePayload)
+        try validateResolvedExecutableTuple(executable)
+        let identity = try operationConnectionIdentity(
+            connectionID: connectionID,
+            revalidate: true
+        )
+        try requireExternalSpawnDispatcher(identity.binding)
+        guard let parent = identity.binding.ancestorEdges.first?.child.generation,
+              parent.pid == identity.binding.immediatePeer.pid,
+              parent.effectiveUID == identity.binding.immediatePeer.effectiveUID else {
+            throw AOSOperationCoreError.callerNotAuthenticated
+        }
+        let context = try operationContext(for: connectionID)
+        let operation = try adapter.prepareExternalCapture(context: context)
+        var tokenBytes = [UInt8](repeating: 0, count: 32)
+        arc4random_buf(&tokenBytes, tokenBytes.count)
+        let tokenData = Data(tokenBytes)
+        let spawnRecordID = UUID().uuidString.lowercased()
+        let intent = AOSExternalDispatchSpawnIntent(
+            spawnRecordID: spawnRecordID,
+            oneTimeBindingTokenDigest: .hashing(
+                domain: .externalBindingToken,
+                data: tokenData
+            ),
+            parent: parent,
+            operationID: operation.id,
+            operationGeneration: operation.generation,
+            adapterID: adapterID,
+            adapterRegistrationRevision: adapterRevision,
+            routeSourceID: routeSourceID,
+            routeSourceRevision: routeSourceRevision,
+            executable: executable,
+            expectedScriptIdentityDigest: expectedScriptIdentity,
+            expectedScriptDigest: expectedScript,
+            canonicalArgvShapeDigest: argvShape,
+            reviewedDependencySetDigest: reviewedDependencies,
+            daemonGeneration: operationDaemonGeneration,
+            createdAtMonotonicNanoseconds: DispatchTime.now().uptimeNanoseconds,
+            expiresAtMonotonicNanoseconds: try operationExternalSpawnExpiryDeadline(),
+            admittedChild: nil
+        )
+        do {
+            _ = try registry.installPendingExternalSpawnIntent(intent)
+        } catch {
+            adapter.abandonPreparedCapture(operation: operation)
+            throw error
+        }
+        let token = tokenData.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        return [
+            "schema_version": "aos.operation.external-spawn-intent-response.v1",
+            "request_id": requestID,
+            "spawn_record_id": spawnRecordID,
+            "one_time_binding_token": token,
+            "operation_id": operation.id,
+            "operation_generation": operation.generation,
+            "adapter_registration_id": adapterID,
+            "adapter_registration_revision": adapterRevision,
+        ]
+    }
+
+    private func admitExternalSpawnChild(
+        data: [String: Any],
+        connectionID: UUID
+    ) throws -> [String: Any] {
+        guard Set(data.keys) == Set([
+            "schema_version", "request_id", "one_time_binding_token", "child_pid",
+        ]),
+              data["schema_version"] as? String
+                == "aos.operation.external-spawn-child-admit-request.v1",
+              let requestID = data["request_id"] as? String, !requestID.isEmpty,
+              let encodedToken = data["one_time_binding_token"] as? String,
+              let token = operationDecodeBindingToken(encodedToken),
+              let childPIDNumber = data["child_pid"] as? NSNumber,
+              childPIDNumber.int64Value > 0,
+              childPIDNumber.int64Value <= Int64(Int32.max),
+              let registry = operationRegistry else {
+            throw AOSOperationCoreError.invalidRecord("external_spawn_child_admit")
+        }
+        let identity = try operationConnectionIdentity(
+            connectionID: connectionID,
+            revalidate: true
+        )
+        try requireExternalSpawnDispatcher(identity.binding)
+        guard let authenticatedParent = identity.binding.ancestorEdges.first?.child.generation,
+              authenticatedParent.pid == identity.binding.immediatePeer.pid,
+              authenticatedParent.effectiveUID == identity.binding.immediatePeer.effectiveUID else {
+            throw AOSOperationCoreError.callerNotAuthenticated
+        }
+        let tokenDigest = AOSSHA256Digest.hashing(
+            domain: .externalBindingToken,
+            data: token
+        )
+        let intent = try registry.pendingExternalSpawnIntent(
+            bindingTokenDigest: tokenDigest
+        )
+        guard intent.parent == authenticatedParent,
+              let routeSourceID = intent.routeSourceID else {
+            throw AOSOperationCoreError.ownerMismatch
+        }
+        let childPID = pid_t(childPIDNumber.int32Value)
+        let edge = try operationImageProvider.stableProcessEdge(childPID: childPID)
+        let evidence = try operationImageProvider.externalChildBootstrapEvidence(
+            for: childPID,
+            routeSourceID: routeSourceID
+        )
+        guard evidence.canonicalArgvShapeDigest == intent.canonicalArgvShapeDigest else {
+            throw AOSExternalDispatchSpawnBindingError.argvShapeMismatch
+        }
+        let admitted = try registry.admitPendingExternalSpawnIntent(
+            bindingTokenDigest: tokenDigest,
+            oneTimeBindingToken: token,
+            authenticatedParent: authenticatedParent,
+            childEdge: edge,
+            runningExecutable: evidence.runningExecutable,
+            admittedAtMonotonicNanoseconds: DispatchTime.now().uptimeNanoseconds
+        )
+        guard let admission = admitted.admittedChild else {
+            throw AOSOperationCoreError.invalidRecord("external_spawn_child_admit")
+        }
+        return [
+            "schema_version": "aos.operation.external-spawn-child-admit-response.v1",
+            "request_id": requestID,
+            "spawn_record_id": admitted.spawnRecordID,
+            "operation_id": admitted.operationID,
+            "operation_generation": admitted.operationGeneration,
+            "child_pid": admission.child.pid,
+            "child_pid_generation": try checkedOperationPIDGeneration(admission.child),
+            "parent_edge_digest": admission.parentEdgeReceipt.digest.value,
+            "platform_code_directory_hash": admission.runningExecutable
+                .platformCodeDirectoryHash.value,
+            "platform_code_directory_hash_algorithm": AOSPlatformCodeDirectoryHash.algorithm,
+            "outcome": "generation_bound_spawn_child_admitted",
+        ]
+    }
+
+    private func abandonExternalSpawn(
+        data: [String: Any],
+        connectionID: UUID
+    ) throws -> [String: Any] {
+        guard Set(data.keys) == Set([
+            "schema_version", "request_id", "one_time_binding_token",
+        ]),
+              data["schema_version"] as? String
+                == "aos.operation.external-spawn-abandon-request.v1",
+              let requestID = data["request_id"] as? String, !requestID.isEmpty,
+              let encodedToken = data["one_time_binding_token"] as? String,
+              let token = operationDecodeBindingToken(encodedToken),
+              let registry = operationRegistry,
+              let adapter = operationMicrophoneAdapter else {
+            throw AOSOperationCoreError.invalidRecord("external_spawn_abandon")
+        }
+        let identity = try operationConnectionIdentity(
+            connectionID: connectionID,
+            revalidate: true
+        )
+        try requireExternalSpawnDispatcher(identity.binding)
+        guard let authenticatedParent = identity.binding.ancestorEdges.first?.child.generation,
+              authenticatedParent.pid == identity.binding.immediatePeer.pid,
+              authenticatedParent.effectiveUID == identity.binding.immediatePeer.effectiveUID else {
+            throw AOSOperationCoreError.callerNotAuthenticated
+        }
+        let closed = try registry.abandonPendingExternalSpawnIntent(
+            bindingTokenDigest: .hashing(domain: .externalBindingToken, data: token),
+            authenticatedParent: authenticatedParent,
+            closedAtMonotonicNanoseconds: DispatchTime.now().uptimeNanoseconds
+        )
+        let operation = AOSOperationIdentity(
+            id: closed.operationID,
+            generation: closed.operationGeneration
+        )
+        adapter.abandonPreparedCapture(operation: operation)
+        return [
+            "schema_version": "aos.operation.external-spawn-abandon-response.v1",
+            "request_id": requestID,
+            "spawn_record_id": closed.spawnRecordID,
+            "operation_id": closed.operationID,
+            "operation_generation": closed.operationGeneration,
+            "outcome": closed.reason.rawValue,
+        ]
+    }
+
+    private func finalizeExternalSpawn(
+        data: [String: Any],
+        connectionID: UUID
+    ) throws -> [String: Any] {
+        guard Set(data.keys) == Set(["schema_version", "request_id"]),
+              data["schema_version"] as? String
+                == "aos.operation.external-spawn-finalize-request.v1",
+              let requestID = data["request_id"] as? String, !requestID.isEmpty,
+              let registry = operationRegistry,
+              let adapter = operationMicrophoneAdapter else {
+            throw AOSOperationCoreError.invalidRecord("external_spawn_finalize")
+        }
+        let identity = try operationConnectionIdentity(
+            connectionID: connectionID,
+            revalidate: true
+        )
+        guard let peerEdge = identity.binding.ancestorEdges.first,
+              peerEdge.child.generation.pid == identity.binding.immediatePeer.pid,
+              peerEdge.child.generation.effectiveUID
+                == identity.binding.immediatePeer.effectiveUID else {
+            throw AOSOperationCoreError.callerNotAuthenticated
+        }
+        let intent = try registry.pendingExternalSpawnIntent(
+            admittedChild: peerEdge.child.generation
+        )
+        guard let routeSourceID = intent.routeSourceID,
+              intent.routeSourceRevision != nil,
+              intent.admittedChild?.parentEdgeReceipt == peerEdge.receipt else {
+            throw AOSOperationCoreError.invalidRecord("external_spawn_finalize")
+        }
+        do {
+            let evidence = try operationImageProvider.externalChildBootstrapEvidence(
+                for: identity.binding.immediatePeer.pid,
+                routeSourceID: routeSourceID
+            )
+            let observation = AOSExternalDispatchFinalizationObservation(
+                spawnRecordID: intent.spawnRecordID,
+                peer: identity.binding.immediatePeer,
+                parentEdge: peerEdge,
+                runningExecutable: evidence.runningExecutable,
+                operationID: intent.operationID,
+                operationGeneration: intent.operationGeneration,
+                adapterID: intent.adapterID,
+                adapterRegistrationRevision: intent.adapterRegistrationRevision,
+                canonicalArgvShapeDigest: evidence.canonicalArgvShapeDigest,
+                finalizedAtMonotonicNanoseconds: DispatchTime.now().uptimeNanoseconds
+            )
+            let finalized = try registry.finalizePendingExternalSpawnIntent(
+                observation: observation
+            )
+            let operation = AOSOperationIdentity(
+                id: finalized.skipRecord.operationID,
+                generation: finalized.skipRecord.operationGeneration
+            )
+            subscriberLock.lock()
+            subscribers[connectionID]?.externalBoundOperation = operation
+            subscriberLock.unlock()
+            let updatedBinding = try operationResolveOwner(
+                socketFD: operationSocketFD(connectionID)
+            )
+            guard AOSMechanicalOwnerRoot(verified: updatedBinding)
+                    == (try registry.inspect(operation)).ownerRoot else {
+                throw AOSOperationCoreError.ownerMismatch
+            }
+            try adapter.bindPrepreparedCapture(owner: connectionID, operation: operation)
+            subscriberLock.lock()
+            subscribers[connectionID]?.operationOwnerRoot = AOSMechanicalOwnerRoot(
+                verified: updatedBinding
+            )
+            subscriberLock.unlock()
+            return [
+                "schema_version": "aos.operation.external-spawn-finalize-response.v1",
+                "request_id": requestID,
+                "spawn_record_id": finalized.skipRecord.spawnRecordID,
+                "operation_id": finalized.skipRecord.operationID,
+                "operation_generation": finalized.skipRecord.operationGeneration,
+                "adapter_registration_id": finalized.skipRecord.adapterID,
+                "adapter_registration_revision": finalized.skipRecord.adapterRegistrationRevision,
+                "outcome": finalized.receipt.outcome.rawValue,
+                "receipt": externalSpawnReceipt(finalized.receipt),
+            ]
+        } catch {
+            _ = try? registry.rejectPendingExternalSpawnIntent(
+                spawnRecordID: intent.spawnRecordID,
+                operation: AOSOperationIdentity(
+                    id: intent.operationID,
+                    generation: intent.operationGeneration
+                ),
+                closedAtMonotonicNanoseconds: DispatchTime.now().uptimeNanoseconds
+            )
+            adapter.abandonPreparedCapture(operation: AOSOperationIdentity(
+                id: intent.operationID,
+                generation: intent.operationGeneration
+            ))
+            throw error
+        }
+    }
+
+    private func operationSocketFD(_ connectionID: UUID) throws -> Int32 {
+        subscriberLock.lock()
+        defer { subscriberLock.unlock() }
+        guard let descriptor = subscribers[connectionID]?.operationSocketFD else {
+            throw AOSOperationCoreError.callerNotAuthenticated
+        }
+        return descriptor
+    }
+
+    private func operationDecodeBindingToken(_ value: String) -> Data? {
+        guard value.range(of: "^[A-Za-z0-9_-]{43}$", options: .regularExpression) != nil else {
+            return nil
+        }
+        var base64 = value.replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        while base64.count % 4 != 0 { base64.append("=") }
+        guard let data = Data(base64Encoded: base64), data.count == 32 else { return nil }
+        return data
+    }
+
+    private func operationExternalSpawnExpiryDeadline() throws -> UInt64 {
+        let now = DispatchTime.now().uptimeNanoseconds
+        let result = now.addingReportingOverflow(operationExternalSpawnIntentTTLNanoseconds)
+        guard !result.overflow else { throw AOSOperationCoreError.generationConflict }
+        return result.partialValue
+    }
+
+    private func requireExternalSpawnDispatcher(
+        _ binding: AOSOwnerRootBinding
+    ) throws {
+        guard let skipped = binding.skippedNodes.first,
+              skipped.kind == .exactAOSImage,
+              skipped.child.pid == binding.immediatePeer.pid,
+              skipped.child.effectiveUID == binding.immediatePeer.effectiveUID,
+              let proof = skipped.exactImageProof,
+              proof.child == skipped.child,
+              proof.immediatePeerAuditToken == binding.immediatePeer.auditToken,
+              proof.adapterRegistrationID
+                == AOSMicrophoneOperationAdapter.registrationID,
+              proof.adapterRegistrationRevision
+                == AOSMicrophoneOperationAdapter.registrationRevision else {
+            throw AOSOperationCoreError.callerNotAuthenticated
+        }
+    }
+
+    private func checkedOperationPIDGeneration(
+        _ identity: AOSProcessGenerationIdentity
+    ) throws -> UInt64 {
+        let seconds = identity.startTimeSeconds.multipliedReportingOverflow(by: 1_000_000)
+        guard !seconds.overflow else { throw AOSOperationCoreError.generationConflict }
+        let value = seconds.partialValue.addingReportingOverflow(
+            identity.startTimeMicroseconds
+        )
+        guard !value.overflow, value.partialValue > 0 else {
+            throw AOSOperationCoreError.generationConflict
+        }
+        return value.partialValue
+    }
+
+    private func reapExpiredExternalSpawnIntents() {
+        guard let registry = operationRegistry,
+              let adapter = operationMicrophoneAdapter,
+              operationDaemonGeneration > 0,
+              let expired = try? registry.expirePendingExternalSpawnIntents(
+                  daemonGeneration: operationDaemonGeneration,
+                  nowMonotonicNanoseconds: DispatchTime.now().uptimeNanoseconds
+              ) else { return }
+        for intent in expired {
+            adapter.abandonPreparedCapture(
+                operation: AOSOperationIdentity(
+                    id: intent.operationID,
+                    generation: intent.operationGeneration
+                ),
+                trigger: .deadline
+            )
+        }
+    }
+
+    private func startOperationExternalSpawnExpiryTimer() {
+        operationExternalSpawnExpiryTimer?.cancel()
+        let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+        timer.schedule(deadline: .now() + .seconds(1), repeating: .seconds(1))
+        timer.setEventHandler { [weak self] in
+            self?.reapExpiredExternalSpawnIntents()
+        }
+        operationExternalSpawnExpiryTimer = timer
+        timer.resume()
+    }
+
+    private func operationResolvedExecutable(
+        _ payload: [String: Any]
+    ) throws -> AOSResolvedExecutableObservation {
+        guard Set(payload.keys) == Set([
+            "resolved_path_digest", "executable_identity_digest", "device", "inode",
+            "code_identity_digest", "file_digest", "platform_code_directory_hash",
+            "signing_identifier", "signing_team_identifier",
+        ]),
+              let path = payload["resolved_path_digest"] as? String,
+              let identity = payload["executable_identity_digest"] as? String,
+              let device = (payload["device"] as? NSNumber)?.uint64Value,
+              let inode = (payload["inode"] as? NSNumber)?.uint64Value,
+              inode > 0,
+              let code = payload["code_identity_digest"] as? String,
+              let file = payload["file_digest"] as? String,
+              let platformCodeDirectoryHash
+                = payload["platform_code_directory_hash"] as? String,
+              payload["signing_identifier"] as? String == "node",
+              payload["signing_team_identifier"] as? String == "HX7739G8FX" else {
+            throw AOSOperationCoreError.invalidRecord("resolved_executable")
+        }
+        return AOSResolvedExecutableObservation(
+            resolvedPathDigest: try AOSSHA256Digest(path),
+            executableIdentityDigest: try AOSSHA256Digest(identity),
+            device: device,
+            inode: inode,
+            codeIdentityDigest: try AOSSHA256Digest(code),
+            fileDigest: try AOSSHA256Digest(file),
+            platformCodeDirectoryHash: try AOSPlatformCodeDirectoryHash(
+                platformCodeDirectoryHash
+            ),
+            signingIdentifier: "node",
+            signingTeamIdentifier: "HX7739G8FX"
+        )
+    }
+
+    private func validateResolvedExecutableTuple(
+        _ executable: AOSResolvedExecutableObservation
+    ) throws {
+        let code = AOSSHA256Digest.hashing(
+            domain: .executableCodeIdentity,
+            data: Data(executable.fileDigest.value.utf8)
+        )
+        let identity = [
+            String(executable.device), String(executable.inode),
+            code.value, executable.fileDigest.value,
+        ].joined(separator: "\u{1f}")
+        guard code == executable.codeIdentityDigest,
+              AOSSHA256Digest.hashing(
+                  domain: .executableIdentity,
+                  data: Data(identity.utf8)
+              ) == executable.executableIdentityDigest else {
+            throw AOSOperationCoreError.invalidRecord("resolved_executable")
+        }
+    }
+
+    private func reviewedExternalSpawnRegistrationMatches(
+        _ request: [String: Any]
+    ) throws -> Bool {
+        guard let repositoryRoot = aosCurrentRepoRoot() else { return false }
+        let manifestURL = URL(fileURLWithPath: repositoryRoot, isDirectory: true)
+            .appendingPathComponent("manifests/commands/aos-external-commands.json")
+        let bytes = try Data(contentsOf: manifestURL, options: [.mappedIfSafe])
+        guard let manifest = try JSONSerialization.jsonObject(with: bytes) as? [String: Any],
+              let commands = manifest["commands"] as? [[String: Any]],
+              let routeSourceID = request["route_source_id"] as? String,
+              let route = commands.first(where: {
+                  ($0["spawn_registration"] as? [String: Any])?["route_source_id"] as? String
+                    == routeSourceID
+              }),
+              let registration = route["spawn_registration"] as? [String: Any],
+              route["stdio"] as? String == "registered_bundle",
+              route["argv_prefix"] as? [String]
+                == ["node", "--input-type=module", "-", routeSourceID],
+              let activation = registration["activation_predicate"] as? [String: Any],
+              Set(activation.keys) == Set(["grammar"]),
+              activation["grammar"] as? String == "listen_microphone_v1",
+              let expectedIdentity = registration["expected_script_identity"] as? String,
+              let expectedIdentityDigest = try? AOSExternalDispatchSpawnBinder
+                .digestScriptIdentity(expectedIdentity).value else {
+            return false
+        }
+        return registration["route_source_revision"] as? String
+                == request["route_source_revision"] as? String
+            && registration["adapter_registration_id"] as? String
+                == request["adapter_registration_id"] as? String
+            && (registration["adapter_registration_revision"] as? NSNumber)?.uint64Value
+                == (request["adapter_registration_revision"] as? NSNumber)?.uint64Value
+            && expectedIdentityDigest == request["expected_script_identity_digest"] as? String
+            && registration["expected_script_digest"] as? String
+                == request["expected_script_digest"] as? String
+            && registration["canonical_argv_shape_digest"] as? String
+                == request["canonical_argv_shape_digest"] as? String
+            && registration["reviewed_dependency_set_digest"] as? String
+                == request["reviewed_dependency_set_digest"] as? String
+    }
+
+    private func externalSpawnReceipt(
+        _ receipt: AOSExternalDispatchSpawnReceipt
+    ) -> [String: Any] {
+        [
+            "spawn_record_id": receipt.spawnRecordID,
+            "operation_id": receipt.operationID,
+            "operation_generation": receipt.operationGeneration,
+            "adapter_registration_id": receipt.adapterID,
+            "adapter_registration_revision": receipt.adapterRegistrationRevision,
+            "resolved_executable_path_digest": receipt.resolvedExecutablePathDigest.value,
+            "executable_identity_digest": receipt.executableIdentityDigest.value,
+            "executable_file_digest": receipt.executableFileDigest.value,
+            "platform_code_directory_hash": receipt.platformCodeDirectoryHash.value,
+            "platform_code_directory_hash_algorithm": receipt.platformCodeDirectoryHashAlgorithm,
+            "expected_script_identity_digest": receipt.expectedScriptIdentityDigest.value,
+            "script_identity_digest": receipt.scriptIdentityDigest.value,
+            "script_digest": receipt.scriptDigest.value,
+            "canonical_argv_shape_digest": receipt.canonicalArgvShapeDigest.value,
+            "reviewed_dependency_set_digest": receipt.reviewedDependencySetDigest.value,
+            "outcome": receipt.outcome.rawValue,
+        ]
+    }
+
+    private func operationTimestamp(_ nanoseconds: UInt64) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: Date(
+            timeIntervalSince1970: Double(nanoseconds) / 1_000_000_000
+        ))
+    }
+
+    private func operationSnapshot(
+        _ operation: AOSOperationRecord,
+        state: AOSOperationDurableState
+    ) -> [String: Any] {
+        let transactions = state.resourceTransactions.filter {
+            $0.operation == operation.identity
+        }
+        let claims = state.resourceClaims.filter { $0.operation == operation.identity }
+        let brokerIDs = Set(claims.compactMap(\.brokerID))
+        let brokers = state.resourceBrokers.filter { brokerIDs.contains($0.brokerID) }
+        let streams = state.streams.filter { $0.parentOperation == operation.identity }
+        let taps = state.taps.filter { $0.parentOperation == operation.identity }
+        let artifacts = state.artifacts.filter { $0.parentOperation == operation.identity }
+        var residuals: [String] = []
+        residuals += transactions.filter { $0.state != .terminal }.map {
+            "claim-set:\($0.transactionID)"
+        }
+        residuals += claims.filter { $0.state != .terminal }.map {
+            "claim:\($0.claimID):\($0.resourceGeneration)"
+        }
+        residuals += brokers.filter { $0.state != .terminal }.map {
+            "broker:\($0.brokerID):\($0.brokerGeneration)"
+        }
+        residuals += streams.filter { $0.state != .terminal }.map {
+            "stream:\($0.identity.id):\($0.identity.generation)"
+        }
+        residuals += taps.filter { $0.state != .terminal }.map {
+            "tap:\($0.identity.id):\($0.identity.generation)"
+        }
+        residuals += artifacts.filter {
+            ![AOSArtifactLifecycleState.released, .retained, .removed].contains($0.state)
+        }.map { "artifact:\($0.identity.id):\($0.identity.generation)" }
+        residuals += state.finalizedExternalSpawnRecords.filter {
+            $0.skipRecord.operationID == operation.identity.id
+                && $0.skipRecord.operationGeneration == operation.identity.generation
+        }.map { "external-spawn:\($0.skipRecord.spawnRecordID)" }
+        residuals.sort()
+        let residualDigest = (try? AOSOperationDigest.sha256(
+            domain: .residualSet,
+            residuals
+        )) ?? AOSOperationDigest.empty(.residualSet)
+        let terminalAllowed = operation.state == .terminal && residuals.isEmpty
+        let cleanupResult: String
+        if terminalAllowed {
+            cleanupResult = "zero_residuals"
+        } else if [.cleanupRequired, .recovering].contains(operation.state) {
+            cleanupResult = residuals.isEmpty ? "recovery_active" : "residuals_present"
+        } else if [.stopping].contains(operation.state) {
+            cleanupResult = "pending"
+        } else {
+            cleanupResult = "not_started"
+        }
+        let wireState = operation.state == .terminal && !residuals.isEmpty
+            ? AOSOperationLifecycleState.cleanupRequired.rawValue
+            : operation.state.rawValue
+        let completedAt: Any = terminalAllowed
+            ? operationTimestamp(operation.updatedAtNanoseconds) : NSNull()
+        let terminal: Any = terminalAllowed
+            ? operationTerminalFacts(operation) : NSNull()
+        let startedAt: Any = operation.state == .prepared
+            ? NSNull() : operationTimestamp(operation.updatedAtNanoseconds)
+        return [
+            "schema_version": "aos.operation.v1",
+            "operation_id": operation.identity.id,
+            "operation_generation": operation.identity.generation,
+            "daemon_generation": operation.daemonGeneration,
+            "adapter_registry_revision": state.adapterRegistry.revision,
+            "adapter_registration": [
+                "adapter_registration_id": operation.adapterRegistrationID,
+                "adapter_registration_revision": operation.adapterRegistrationRevision,
+            ],
+            "capability_id": operation.capabilityID,
+            "status_indicator_class": operation.state == .active ? "recording" : "neutral",
+            "state": wireState,
+            "lineage": operationLineage(operation),
+            "requested_bounds": [:],
+            "progress": [
+                "items": 0, "bytes": 0, "duration_ms": 0, "last_event_sequence": 0,
+            ],
+            "claim_set_transactions": transactions.map {
+                operationClaimSetTransaction($0, state: state)
+            },
+            "resource_claims": claims.map(operationResourceClaim),
+            "multiplex_brokers": brokers.map(operationBroker),
+            "streams": streams.map {
+                ["id": $0.identity.id, "generation": $0.identity.generation]
+            },
+            "taps": taps.map {
+                ["id": $0.identity.id, "generation": $0.identity.generation]
+            },
+            "artifacts": artifacts.map {
+                ["id": $0.identity.id, "generation": $0.identity.generation]
+            },
+            "cleanup": [
+                "result": cleanupResult,
+                "residual": [
+                    "classification": residuals.isEmpty ? "none" : "present",
+                    "count": residuals.count,
+                    "digest": residualDigest,
+                ],
+                "completed_at": completedAt,
+            ],
+            "terminal": terminal,
+            "prepared_at": operationTimestamp(operation.createdAtNanoseconds),
+            "started_at": startedAt,
+            "updated_at": operationTimestamp(operation.updatedAtNanoseconds),
+        ]
+    }
+
+    private func operationLineage(_ operation: AOSOperationRecord) -> [String: Any] {
+        let binding = operation.ownerRoot.verifiedBinding
+        let immediate: [String: Any]
+        let boundary: [String: Any]
+        let edges: [[String: Any]]
+        let proofs: [[String: Any]]
+        let outcome: String
+        if let binding {
+            let peerGeneration = binding.ancestorEdges.first?.child.generation
+                ?? binding.ownerRoot.generation
+            immediate = [
+                "audit_token": (try? AOSOperationDigest.sha256(
+                    domain: .callerEvidence,
+                    binding.immediatePeer.auditToken.words
+                )) ?? AOSOperationDigest.empty(.callerEvidence),
+                "effective_uid": binding.immediatePeer.effectiveUID,
+                "pid": binding.immediatePeer.pid,
+                "pid_generation": operationPIDGeneration(peerGeneration),
+            ]
+            boundary = operationProcessBoundary(binding.ownerRoot)
+            edges = binding.ancestorEdges.map(operationAncestorEdge)
+            proofs = binding.skippedNodes.compactMap(operationSkipProof)
+            outcome = binding.outcome.rawValue
+        } else {
+            immediate = [
+                "audit_token": AOSOperationDigest.empty(.callerEvidence),
+                "effective_uid": operation.ownerRoot.effectiveUID,
+                "pid": operation.ownerRoot.pid,
+                "pid_generation": max(1, operation.ownerRoot.pidGeneration),
+            ]
+            boundary = [
+                "effective_uid": operation.ownerRoot.effectiveUID,
+                "pid": operation.ownerRoot.pid,
+                "pid_generation": max(1, operation.ownerRoot.pidGeneration),
+                "executable_identity_digest": operation.ownerRoot.executableIdentityDigest,
+                "executable_file_digest": operation.ownerRoot.executableIdentityDigest,
+            ]
+            edges = []
+            proofs = []
+            outcome = "conservative_immediate_peer_boundary"
+        }
+        var attribution: [String: Any] = [:]
+        let values: [(String, String?)] = [
+            ("client_id", operation.attribution.clientID),
+            ("agent_id", operation.attribution.agentID),
+            ("project_id", operation.attribution.projectID),
+            ("task_id", operation.attribution.taskID),
+            ("run_id", operation.attribution.runID),
+            ("skill_id", operation.attribution.skillID),
+            ("target_id", operation.attribution.targetID),
+            ("capability_label", operation.attribution.capabilityLabel),
+        ]
+        for (key, value) in values { if let value { attribution[key] = value } }
+        return [
+            "schema_version": "aos.operation-lineage.v1",
+            "operation_id": operation.identity.id,
+            "operation_generation": operation.identity.generation,
+            "owner_root": [
+                "capture_phase": "local_socket_accept",
+                "resolver_outcome": outcome,
+                "immediate_peer": immediate,
+                "selected_boundary": boundary,
+                "ancestor_edges": edges,
+                "adapter_skip_proofs": proofs,
+                "captured_at": operationTimestamp(operation.createdAtNanoseconds),
+            ],
+            "parent_operation": NSNull(),
+            "mechanically_bound_scopes": [],
+            "asserted_attribution": attribution,
+        ]
+    }
+
+    private func operationProcessBoundary(
+        _ observation: AOSProcessObservation
+    ) -> [String: Any] {
+        [
+            "effective_uid": observation.generation.effectiveUID,
+            "pid": observation.generation.pid,
+            "pid_generation": operationPIDGeneration(observation.generation),
+            "executable_identity_digest": observation.image.executableIdentityDigest.value,
+            "executable_file_digest": observation.image.executableDigest.value,
+        ]
+    }
+
+    private func operationStartTime(
+        _ identity: AOSProcessGenerationIdentity
+    ) -> [String: Any] {
+        [
+            "seconds": identity.startTimeSeconds,
+            "microseconds": identity.startTimeMicroseconds,
+        ]
+    }
+
+    private func operationAncestorEdge(_ edge: AOSStableProcessEdge) -> [String: Any] {
+        [
+            "child_pid": edge.child.generation.pid,
+            "child_effective_uid": edge.child.generation.effectiveUID,
+            "child_proc_start_time_sample_1": operationStartTime(edge.child.generation),
+            "child_proc_start_time_sample_2": operationStartTime(edge.child.generation),
+            "parent_pid": edge.parent.generation.pid,
+            "parent_effective_uid": edge.parent.generation.effectiveUID,
+            "parent_proc_start_time_sample_1": operationStartTime(edge.parent.generation),
+            "parent_proc_start_time_sample_2": operationStartTime(edge.parent.generation),
+            "same_observation_parent_edge_receipt": edge.receipt.digest.value,
+            "executable_identity_digest": edge.child.image.executableIdentityDigest.value,
+            "executable_file_digest": edge.child.image.executableDigest.value,
+        ]
+    }
+
+    private func operationSkipProof(
+        _ skipped: AOSOwnerRootSkippedNode
+    ) -> [String: Any]? {
+        if let proof = skipped.exactImageProof {
+            return [
+                "kind": "exact_aos_image",
+                "evidence_scope": "verified_ancestor",
+                "child_pid": proof.child.pid,
+                "child_effective_uid": proof.child.effectiveUID,
+                "child_pid_generation": operationPIDGeneration(proof.child),
+                "parent_pid": proof.parent.pid,
+                "parent_pid_generation": operationPIDGeneration(proof.parent),
+                "same_observation_parent_edge_receipt": proof.parentEdgeReceipt.digest.value,
+                "adapter_registration": [
+                    "adapter_registration_id": proof.adapterRegistrationID,
+                    "adapter_registration_revision": proof.adapterRegistrationRevision,
+                ],
+                "executable_identity_digest": proof.image.executableIdentityDigest.value,
+                "executable_file_digest": proof.image.executableDigest.value,
+            ]
+        }
+        if let record = skipped.spawnRecord {
+            var result: [String: Any] = [
+                "kind": "generation_bound_daemon_spawn_record",
+                "evidence_scope": record.evidenceScope.rawValue,
+                "spawn_record_id": record.spawnRecordID,
+                "child_pid": record.child.pid,
+                "child_effective_uid": record.child.effectiveUID,
+                "child_pid_generation": operationPIDGeneration(record.child),
+                "parent_pid": record.parent.pid,
+                "parent_pid_generation": operationPIDGeneration(record.parent),
+                "same_observation_parent_edge_receipt": record.parentEdgeReceipt.digest.value,
+                "operation_id": record.operationID,
+                "operation_generation": record.operationGeneration,
+                "adapter_registration": [
+                    "adapter_registration_id": record.adapterID,
+                    "adapter_registration_revision": record.adapterRegistrationRevision,
+                ],
+                "executable_identity_digest": record.executableIdentityDigest.value,
+                "executable_file_digest": record.executableDigest.value,
+            ]
+            if let token = record.childAuditToken {
+                result["child_audit_token"] = (try? AOSOperationDigest.sha256(
+                    domain: .callerEvidence,
+                    token.words
+                )) ?? AOSOperationDigest.empty(.callerEvidence)
+            }
+            return result
+        }
+        return nil
+    }
+
+    private func operationClaimRequest(_ request: AOSResourceClaimRequest) -> [String: Any] {
+        var result: [String: Any] = [
+            "adapter_registration_id": request.adapterRegistrationID,
+            "adapter_registration_revision": request.adapterRegistrationRevision,
+            "resource_key": request.resourceKey,
+            "admission_mode": request.admissionMode.rawValue,
+            "resource_declaration_digest": request.resourceDeclarationDigest,
+            "expected_resource_generation": request.expectedResourceGeneration,
+        ]
+        if request.admissionMode == .multiplexable {
+            result["expected_broker_generation"] = request.expectedBrokerGeneration ?? 0
+            result["expected_subscriber_set_revision"] = request.expectedSubscriberSetRevision ?? 0
+            result["expected_subscriber_set_count"] = request.expectedSubscriberSetCount ?? 0
+            result["expected_subscriber_set_digest"] = request.expectedSubscriberSetDigest
+                ?? AOSOperationDigest.empty(.subscriberSet)
+        }
+        return result
+    }
+
+    private func operationClaimSetTransaction(
+        _ transaction: AOSResourceTransactionRecord,
+        state: AOSOperationDurableState
+    ) -> [String: Any] {
+        let publishedCount = state.resourceClaims.filter {
+            $0.transactionID == transaction.transactionID
+        }.count
+        return [
+            "transaction_id": transaction.transactionID,
+            "attempt_sequence": transaction.attemptSequence,
+            "operation_id": transaction.operation.id,
+            "operation_generation": transaction.operation.generation,
+            "daemon_generation": transaction.daemonGeneration,
+            "expected_barrier_generation": transaction.expectedBarrierGeneration,
+            "expected_adapter_registry_revision": transaction.expectedAdapterRegistryRevision,
+            "expected_resource_declaration_set_count": transaction.expectedResourceDeclarationSetCount,
+            "expected_resource_declaration_set_digest": transaction.expectedResourceDeclarationSetDigest,
+            "adapter_registry_revision": state.adapterRegistry.revision,
+            "resource_declaration_set_count": state.adapterRegistry.resourceDeclarationSetCount,
+            "resource_declaration_set_digest": state.adapterRegistry.resourceDeclarationSetDigest,
+            "canonical_request_array": transaction.canonicalRequests.map(operationClaimRequest),
+            "claim_set_digest": transaction.claimSetDigest,
+            "state": transaction.state.rawValue,
+            "recovery_disposition": transaction.recoveryDisposition?.rawValue ?? NSNull(),
+            "receipt": [
+                "outcome": publishedCount > 0 ? "committed" : "rejected",
+                "attempt_sequence": transaction.attemptSequence,
+                "conflict_resource_key": NSNull(),
+                "published_claim_count": publishedCount,
+            ],
+        ]
+    }
+
+    private func operationResourceClaim(_ claim: AOSResourceClaimRecord) -> [String: Any] {
+        var result: [String: Any] = [
+            "claim_id": claim.claimID,
+            "transaction_id": claim.transactionID,
+            "operation_id": claim.operation.id,
+            "operation_generation": claim.operation.generation,
+            "resource_key": claim.resourceKey,
+            "resource_generation": claim.resourceGeneration,
+            "admission_mode": claim.admissionMode.rawValue,
+            "adapter_registration_id": claim.adapterRegistrationID,
+            "adapter_registration_revision": claim.adapterRegistrationRevision,
+            "resource_declaration_digest": claim.resourceDeclarationDigest,
+            "adapter_registry_revision": claim.adapterRegistryRevision,
+            "resource_declaration_set_count": claim.resourceDeclarationSetCount,
+            "resource_declaration_set_digest": claim.resourceDeclarationSetDigest,
+            "committed_claim_set_transaction_id": claim.transactionID,
+            "committed_claim_set_digest": claim.committedClaimSetDigest,
+            "state": claim.state.rawValue,
+            "reattach_binding": [
+                "operation_generation": claim.operation.generation,
+                "resource_generation": claim.resourceGeneration,
+                "token_digest": claim.reattachTokenDigest,
+            ],
+        ]
+        if claim.admissionMode == .multiplexable {
+            result["broker_id"] = claim.brokerID
+            result["broker_generation"] = claim.brokerGeneration
+            result["subscriber_id"] = claim.subscriberID
+        }
+        return result
+    }
+
+    private func operationBroker(_ broker: AOSResourceBrokerRecord) -> [String: Any] {
+        [
+            "broker_id": broker.brokerID,
+            "broker_generation": broker.brokerGeneration,
+            "resource_key": broker.resourceKey,
+            "resource_generation": broker.resourceGeneration,
+            "adapter_registration_id": broker.adapterRegistrationID,
+            "adapter_registration_revision": broker.adapterRegistrationRevision,
+            "resource_declaration_digest": broker.resourceDeclarationDigest,
+            "adapter_registry_revision": broker.adapterRegistryRevision,
+            "resource_declaration_set_count": broker.resourceDeclarationSetCount,
+            "resource_declaration_set_digest": broker.resourceDeclarationSetDigest,
+            "committed_claim_set_transaction_id": broker.committedClaimSetTransactionID,
+            "committed_claim_set_digest": broker.committedClaimSetDigest,
+            "fanout_bound": broker.fanoutBound,
+            "subscriber_set_count": broker.subscribers.count,
+            "subscriber_set_revision": broker.subscriberSetRevision,
+            "subscriber_set_digest": broker.subscriberSetDigest,
+            "state": broker.state.rawValue,
+        ]
+    }
+
+    private func operationTerminalFacts(_ operation: AOSOperationRecord) -> [String: Any] {
+        let trigger: String
+        let blame: String
+        switch operation.stopIntent {
+        case .complete: trigger = "adapter_complete"; blame = "adapter"
+        case .cancel: trigger = "caller_cancel"; blame = "caller"
+        case .kill: trigger = "kill_one"; blame = "aos_control_plane"
+        case .ownerKill: trigger = "owner_kill"; blame = "aos_control_plane"
+        case .hostStop: trigger = "host_stop_all"; blame = "host_shutdown"
+        case .deadline: trigger = "deadline"; blame = "adapter"
+        case .peerLost: trigger = "peer_lost"; blame = "caller"
+        case .transportLost: trigger = "transport_lost"; blame = "caller"
+        case .permissionRevoked: trigger = "permission_failure"; blame = "permission"
+        case .adapterFailed: trigger = "adapter_failure"; blame = "adapter"
+        case nil: trigger = "start_rejected"; blame = "unknown"
+        }
+        return [
+            "outcome": (operation.outcome ?? .failed).rawValue,
+            "trigger": trigger,
+            "blame": blame,
+            "duration_ms": (operation.updatedAtNanoseconds - operation.createdAtNanoseconds)
+                / 1_000_000,
+            "completed_at": operationTimestamp(operation.updatedAtNanoseconds),
+        ]
+    }
+
+    private func operationControlResult(
+        _ receipt: AOSOperationControlReceipt,
+        registry: AOSOperationRegistry
+    ) -> [String: Any] {
+        let current = receipt.selectedOperations.compactMap { try? registry.inspect($0) }
+        let cleanupRequired = current.contains {
+            [.cleanupRequired, .recovering].contains($0.state)
+        }
+        return [
+            "schema_version": "aos.operation.control-result.v1",
+            "operation": receipt.action.rawValue,
+            "outcome": receipt.selectedOperations.isEmpty
+                ? "empty_selection" : (cleanupRequired ? "cleanup_required" : "accepted"),
+            "selected_operation_count": receipt.selectedOperationCount,
+            "selected_operation_digest": receipt.selectedOperationDigest,
+            "results": current.map {
+                [
+                    "operation_id": $0.identity.id,
+                    "operation_generation": $0.identity.generation,
+                    "resulting_state": $0.state.rawValue,
+                    "cleanup_result": [.cleanupRequired, .recovering].contains($0.state)
+                        ? "residuals_present"
+                        : ($0.state == .terminal ? "zero_residuals" : "pending"),
+                ]
+            },
+            "completed_at": operationTimestamp(registry.now()),
+        ]
+    }
+
+    private func callerEvidencePayload(_ caller: AOSCallerEvidence) -> [String: Any] {
+        switch caller {
+        case let .liveTransportPeer(value):
+            return [
+                "audit_token": value.auditTokenDigest,
+                "effective_uid": value.effectiveUID,
+                "pid": value.pid,
+                "pid_generation": value.pidGeneration,
+            ]
+        case let .ordinaryCanvasCapturedPeer(value):
+            return [
+                "canvas_instance_id": value.canvasInstanceID,
+                "canvas_generation": value.canvasGeneration,
+                "capture_id": value.captureID,
+                "captured_connection_epoch": value.capturedConnectionEpoch,
+                "audit_token": value.auditTokenDigest,
+                "effective_uid": value.effectiveUID,
+                "pid": value.pid,
+                "pid_generation": value.pidGeneration,
+                "capture_is_live": value.captureIsLive,
+            ]
+        case let .statusItemHost(value):
+            return [
+                "status_host_id": value.statusHostID,
+                "status_host_generation": value.statusHostGeneration,
+                "daemon_generation": value.daemonGeneration,
+                "effective_uid": value.effectiveUID,
+            ]
+        case let .statusOpenedCanvasHost(value):
+            return [
+                "canvas_instance_id": value.canvasInstanceID,
+                "canvas_generation": value.canvasGeneration,
+                "parent_status_host_id": value.parentStatusHostID,
+                "parent_status_host_generation": value.parentStatusHostGeneration,
+                "daemon_generation": value.daemonGeneration,
+                "effective_uid": value.effectiveUID,
+            ]
+        }
+    }
+
+    private func stopAllPayload(_ receipt: AOSStopAllReceipt) -> [String: Any] {
+        let snapshot = receipt.snapshot
+        return [
+            "schema_version": "aos.host-stop-barrier.stop-all-receipt.v1",
+            "request_id": receipt.requestID,
+            "canonical_parameter_digest": receipt.canonicalParameterDigest,
+            "expected_barrier_generation": receipt.expectedBarrierGeneration,
+            "daemon_generation": receipt.daemonGeneration,
+            "stop_operation_id": snapshot.stopOperation.id,
+            "stop_operation_generation": snapshot.stopOperation.generation,
+            "caller_origin": receipt.callerOrigin.rawValue,
+            "caller_origin_evidence": callerEvidencePayload(receipt.callerOriginEvidence),
+            "scope": receipt.scope,
+            "prior_barrier_state": receipt.priorBarrierState.rawValue,
+            "prior_barrier_generation": receipt.priorBarrierGeneration,
+            "resulting_barrier_state": receipt.resultingBarrierState.rawValue,
+            "resulting_barrier_generation": receipt.resultingBarrierGeneration,
+            "adapter_registry_revision": snapshot.adapterRegistryRevision,
+            "registered_operation_set_count": snapshot.registeredOperationSetCount,
+            "registered_operation_set_digest": snapshot.registeredOperationSetDigest,
+            "selected_operation_count": snapshot.selectedOperationCount,
+            "selected_operation_digest": snapshot.selectedOperationDigest,
+            "barrier_snapshot_digest": snapshot.barrierSnapshotDigest,
+            "outcome": receipt.outcome.rawValue,
+            "residual_count": receipt.residualCount,
+            "residual_digest": receipt.residualDigest,
+            "cleanup_result": receipt.cleanupResult.rawValue,
+        ]
+    }
+
+    private func barrierStatusPayload(
+        _ receipt: AOSBarrierStatusReceipt,
+        state: AOSOperationDurableState
+    ) -> [String: Any] {
+        let stop = receipt.stopSnapshot
+        let registry = stop.map {
+            ($0.adapterRegistryRevision, $0.registeredOperationSetCount, $0.registeredOperationSetDigest)
+        } ?? (
+            receipt.openSnapshot?.adapterRegistryRevision ?? state.adapterRegistry.revision,
+            receipt.openSnapshot?.registeredOperationSetCount
+                ?? state.adapterRegistry.registeredOperationSetCount,
+            receipt.openSnapshot?.registeredOperationSetDigest
+                ?? state.adapterRegistry.registeredOperationSetDigest
+        )
+        return [
+            "schema_version": "aos.host-stop-barrier.status-receipt.v1",
+            "request_id": receipt.requestID,
+            "canonical_parameter_digest": receipt.canonicalParameterDigest,
+            "daemon_generation": receipt.daemonGeneration,
+            "caller_origin": receipt.callerOrigin.rawValue,
+            "caller_origin_evidence": callerEvidencePayload(receipt.callerOriginEvidence),
+            "barrier_generation": receipt.barrierGeneration,
+            "barrier_state": receipt.barrierState.rawValue,
+            "admission_open": receipt.admissionOpen,
+            "stop_operation_id": stop?.stopOperation.id ?? NSNull(),
+            "stop_operation_generation": stop?.stopOperation.generation ?? NSNull(),
+            "adapter_registry_revision": registry.0,
+            "registered_operation_set_count": registry.1,
+            "registered_operation_set_digest": registry.2,
+            "selected_operation_count": stop?.selectedOperationCount ?? 0,
+            "selected_operation_digest": stop?.selectedOperationDigest
+                ?? AOSOperationDigest.empty(.selectedOperationSet),
+            "barrier_snapshot_digest": stop?.barrierSnapshotDigest ?? NSNull(),
+            "residual_count": receipt.residualCount,
+            "residual_digest": receipt.residualDigest,
+            "reconciliation_state": operationReconciliationState(receipt.reconciliationState),
+        ]
+    }
+
+    private func reopenPayload(_ receipt: AOSReopenReceipt) -> [String: Any] {
+        let prior = receipt.priorSnapshot
+        let opened = receipt.resultingOpenSnapshot
+        return [
+            "schema_version": "aos.host-stop-barrier.reopen-receipt.v1",
+            "request_id": receipt.requestID,
+            "canonical_parameter_digest": receipt.canonicalParameterDigest,
+            "expected_barrier_generation": receipt.expectedBarrierGeneration,
+            "caller_origin": receipt.callerOrigin.rawValue,
+            "caller_origin_evidence": callerEvidencePayload(receipt.callerOriginEvidence),
+            "prior_barrier_state": receipt.priorBarrierState.rawValue,
+            "prior_barrier_generation": prior.barrierGeneration,
+            "prior_stop_operation_id": prior.stopOperation.id,
+            "prior_stop_operation_generation": prior.stopOperation.generation,
+            "prior_adapter_registry_revision": prior.adapterRegistryRevision,
+            "prior_registered_operation_set_count": prior.registeredOperationSetCount,
+            "prior_registered_operation_set_digest": prior.registeredOperationSetDigest,
+            "prior_selected_operation_count": prior.selectedOperationCount,
+            "prior_selected_operation_digest": prior.selectedOperationDigest,
+            "prior_barrier_snapshot_digest": prior.barrierSnapshotDigest,
+            "prior_residual_count": receipt.priorResidualCount,
+            "prior_residual_digest": receipt.priorResidualDigest,
+            "resulting_barrier_state": receipt.resultingBarrierState.rawValue,
+            "resulting_barrier_generation": receipt.resultingBarrierGeneration,
+            "daemon_generation": receipt.daemonGeneration,
+            "resulting_adapter_registry_revision": opened.adapterRegistryRevision,
+            "resulting_registered_operation_set_count": opened.registeredOperationSetCount,
+            "resulting_registered_operation_set_digest": opened.registeredOperationSetDigest,
+            "resulting_open_snapshot_digest": opened.snapshotDigest,
+            "outcome": receipt.outcome.rawValue,
+            "cleanup_result": receipt.cleanupResult.rawValue,
+            "reconciliation_state": operationReconciliationState(receipt.reconciliationState),
+        ]
+    }
+
+    private func operationReconciliationState(_ value: String) -> String {
+        switch value {
+        case "complete": return "complete"
+        case "blocked_unresolved", "residuals_present": return "blocked"
+        case "pending": return "not_started"
+        default: return "in_progress"
+        }
+    }
+
+    private func openOperationTap(
+        data: [String: Any],
+        context: AOSOrdinaryControlContext
+    ) throws -> (payload: [String: Any], record: AOSTapRecord) {
+        guard let control = operationControlPlane,
+              let registry = operationRegistry,
+              let tap = data["tap"] as? [String: Any],
+              Set(tap.keys) == Set(["channel", "bounds", "follow"]),
+              let channelRaw = tap["channel"] as? String,
+              let channel = AOSTapChannel(rawValue: channelRaw),
+              let follow = tap["follow"] as? Bool,
+              let boundsPayload = tap["bounds"] as? [String: Any],
+              Set(boundsPayload.keys) == Set([
+                  "rate_items_per_second", "sample_every", "max_queue_items", "max_items",
+                  "max_bytes", "idle_timeout_milliseconds", "duration_milliseconds",
+              ]) else {
+            throw AOSOperationCoreError.invalidRecord("tap_request")
+        }
+        func bound(_ key: String) throws -> UInt64 {
+            guard let value = (boundsPayload[key] as? NSNumber)?.uint64Value else {
+                throw AOSOperationCoreError.invalidRecord("tap_bounds")
+            }
+            return value
+        }
+        let bounds = try AOSTapBounds(
+            rateItemsPerSecond: bound("rate_items_per_second"),
+            sampleEvery: bound("sample_every"),
+            maxQueueItems: bound("max_queue_items"),
+            maxItems: bound("max_items"),
+            maxBytes: bound("max_bytes"),
+            idleTimeoutMilliseconds: bound("idle_timeout_milliseconds"),
+            durationMilliseconds: bound("duration_milliseconds")
+        )
+        let parent = try operationSelector(try operationSelectorPayload(data))
+        let parentRecord = try control.inspect(context: context, operation: parent)
+        guard parentRecord.state != .terminal else {
+            throw AOSOperationCoreError.invalidTransition
+        }
+        let now = registry.now()
+        let prepared = try registry.mutateDurably { state -> AOSTapRecord in
+            guard state.daemonGeneration == context.expectedDaemonGeneration,
+                  state.barrier.state == .open else {
+                throw AOSOperationCoreError.barrierClosed
+            }
+            let record = AOSTapRecord(
+                identity: AOSOperationIdentity(
+                    id: registry.makeID(),
+                    generation: state.allocateGeneration()
+                ),
+                parentOperation: parent,
+                daemonGeneration: state.daemonGeneration,
+                channel: channel,
+                bounds: bounds,
+                follow: follow,
+                state: .prepared,
+                counters: AOSTapCounters(),
+                terminalBoundReason: nil,
+                residualDigest: nil,
+                preparedAtNanoseconds: now,
+                activatedAtNanoseconds: nil,
+                updatedAtNanoseconds: now
+            )
+            state.taps.append(record)
+            return record
+        }
+        let active = try registry.mutateDurably { state -> AOSTapRecord in
+            guard let index = state.taps.firstIndex(where: {
+                $0.identity == prepared.identity && $0.state == .prepared
+            }) else { throw AOSOperationCoreError.generationConflict }
+            state.taps[index].state = .active
+            state.taps[index].activatedAtNanoseconds = registry.now()
+            state.taps[index].updatedAtNanoseconds = registry.now()
+            return state.taps[index]
+        }
+        return ([
+            "schema_version": "aos.operation.tap-result.v1",
+            "operation": "tap",
+            "tap": operationTapSnapshot(active),
+            "completed_at": operationTimestamp(registry.now()),
+        ], active)
+    }
+
+    private func scheduleOperationTapExpiry(
+        _ tap: AOSTapRecord,
+        outbound: AOSConnectionOutboundWriter,
+        envelopeRef: String?
+    ) {
+        let idle = tap.bounds.idleTimeoutMilliseconds
+        let duration = tap.bounds.durationMilliseconds
+        let milliseconds = min(idle, duration)
+        let reason: AOSTapBoundReason = idle < duration ? .idleTimeout : .durationElapsed
+        DispatchQueue.global(qos: .utility).asyncAfter(
+            deadline: .now() + .milliseconds(Int(milliseconds))
+        ) { [weak self, weak outbound] in
+            guard let self, let registry = self.operationRegistry else { return }
+            let expired = try? registry.mutateDurably { state -> AOSTapRecord in
+                guard let index = state.taps.firstIndex(where: {
+                    $0.identity == tap.identity && $0.state == .active
+                }) else { throw AOSOperationCoreError.generationConflict }
+                state.taps[index].state = .expired
+                state.taps[index].terminalBoundReason = reason
+                state.taps[index].updatedAtNanoseconds = registry.now()
+                return state.taps[index]
+            }
+            if tap.follow, let expired, let outbound,
+               let bytes = envelopeBytes(
+                   service: "operation",
+                   event: "terminal",
+                   data: self.operationTapSnapshot(expired),
+                   ref: envelopeRef
+               ) {
+                _ = outbound.enqueue(bytes)
+            }
+            _ = try? registry.mutateDurably { state in
+                guard let index = state.taps.firstIndex(where: {
+                    $0.identity == tap.identity && $0.state == .expired
+                }) else { return }
+                state.taps[index].state = .terminal
+                state.taps[index].updatedAtNanoseconds = registry.now()
+            }
+        }
+    }
+
+    private func operationTapSnapshot(_ tap: AOSTapRecord) -> [String: Any] {
+        let completed: Any = tap.state == .terminal
+            ? operationTimestamp(tap.updatedAtNanoseconds) : NSNull()
+        let cleanupResult = tap.state == .terminal ? "zero_residuals" : "not_started"
+        return [
+            "schema_version": "aos.operation-tap.v1",
+            "tap_id": tap.identity.id,
+            "tap_generation": tap.identity.generation,
+            "operation_id": tap.parentOperation.id,
+            "operation_generation": tap.parentOperation.generation,
+            "source_id": tap.parentOperation.id,
+            "source_generation": tap.parentOperation.generation,
+            "daemon_generation": tap.daemonGeneration,
+            "state": tap.state.rawValue,
+            "channel": tap.channel.rawValue,
+            "bounds": [
+                "rate_items_per_second": tap.bounds.rateItemsPerSecond,
+                "sample_every": tap.bounds.sampleEvery,
+                "max_queue_items": tap.bounds.maxQueueItems,
+                "max_items": tap.bounds.maxItems,
+                "max_bytes": tap.bounds.maxBytes,
+                "idle_timeout_milliseconds": tap.bounds.idleTimeoutMilliseconds,
+                "duration_milliseconds": tap.bounds.durationMilliseconds,
+            ],
+            "follow": tap.follow,
+            "observation_only": true,
+            "raw_data_retention": "none",
+            "counters": [
+                "source_seen": tap.counters.sourceSeen,
+                "sample_skipped": tap.counters.sampleSkipped,
+                "rate_skipped": tap.counters.rateSkipped,
+                "enqueued_items": tap.counters.enqueuedItems,
+                "enqueued_bytes": tap.counters.enqueuedBytes,
+                "delivered_items": tap.counters.deliveredItems,
+                "delivered_bytes": tap.counters.deliveredBytes,
+                "queue_high_water": tap.counters.queueHighWater,
+                "overflow_rejected_count": tap.counters.overflowRejectedCount,
+            ],
+            "terminal_bound_reason": tap.terminalBoundReason?.rawValue ?? NSNull(),
+            "cleanup": [
+                "result": cleanupResult,
+                "residual_count": 0,
+                "residual_digest": AOSOperationDigest.empty(.residualSet),
+                "completed_at": completed,
+            ],
+            "prepared_at": operationTimestamp(tap.preparedAtNanoseconds),
+            "activated_at": tap.activatedAtNanoseconds.map(operationTimestamp) ?? NSNull(),
+            "updated_at": operationTimestamp(tap.updatedAtNanoseconds),
+        ]
+    }
+
+    private func controlOperationArtifact(
+        action: String,
+        data: [String: Any],
+        context: AOSOrdinaryControlContext
+    ) throws -> [String: Any] {
+        guard let registry = operationRegistry,
+              let selector = data["selector"] as? [String: Any],
+              let artifactID = selector["artifact_id"] as? String,
+              let generation = (selector["artifact_generation"] as? NSNumber)?.uint64Value,
+              generation > 0 else {
+            throw AOSOperationCoreError.invalidRecord("artifact_selector")
+        }
+        let identity = AOSOperationIdentity(id: artifactID, generation: generation)
+        guard let artifact = registry.snapshot().artifacts.first(where: {
+            $0.identity == identity
+        }) else { throw AOSOperationCoreError.operationNotFound }
+        let operation = try operationControlPlane?.inspect(
+            context: context,
+            operation: artifact.parentOperation
+        )
+        guard operation != nil else { throw AOSOperationCoreError.ownerMismatch }
+        _ = action
+        throw AOSOperationCoreError.invalidRecord("artifact_adapter_unavailable")
+    }
+
     // MARK: - Request Routing
 
     /// Top-level request gatekeeper. Enforces the v1 envelope contract.
@@ -3237,13 +5305,23 @@ class UnifiedDaemon {
                 return
             }
             // Check that the service is one of the known namespaces.
-            let knownServices: Set<String> = ["see", "do", "show", "tell", "listen", "session", "voice", "permissions", "annotation", "status_item", "scene", "system", "focus", "graph", "content"]
+            let knownServices: Set<String> = ["see", "do", "show", "tell", "listen", "session", "voice", "permissions", "annotation", "status_item", "scene", "system", "focus", "graph", "content", "operation"]
             if !knownServices.contains(env.service) {
                 sendResponseJSON(to: outbound, envelopeError(
                     error: "Unknown service: \(env.service)",
                     code: "UNKNOWN_SERVICE",
                     ref: env.ref
                 ))
+                return
+            }
+            if env.service == "operation" {
+                handleOperationAction(
+                    action: env.action,
+                    data: env.data,
+                    connectionID: connectionID,
+                    outbound: outbound,
+                    envelopeRef: env.ref
+                )
                 return
             }
             let internalAction = internalActionName(service: env.service, action: env.action)
@@ -3448,6 +5526,17 @@ class UnifiedDaemon {
             semaphore.wait()
 
             sendResponseJSON(to: outbound, canvasResponseDict(response), envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+
+            if action == "create",
+               response.status == "success",
+               json["url"] as? String
+                == "aos://toolkit/components/operation-control/index.html",
+               let canvasID = json["id"] as? String {
+                attachOrdinaryOperationCanvas(
+                    canvasID: canvasID,
+                    connectionID: connectionID
+                )
+            }
 
             // Announce display actions
             if currentConfig.voice.enabled && currentConfig.voice.announce_actions {
@@ -3959,6 +6048,52 @@ class UnifiedDaemon {
 
         default:
             sendResponseJSON(to: outbound, ["error": "Unknown action: \(action)", "code": "UNKNOWN_ACTION"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+        }
+    }
+
+    private func attachOrdinaryOperationCanvas(
+        canvasID: String,
+        connectionID: UUID
+    ) {
+        guard let projection = operationCanvasProjection else { return }
+        let target: CanvasLifecycleGeneration? = Thread.isMainThread
+            ? canvasManager.deliveryTarget(forCanvasID: canvasID)
+            : DispatchQueue.main.sync {
+                canvasManager.deliveryTarget(forCanvasID: canvasID)
+            }
+        guard let target else { return }
+        let canvas = AOSOperationCanvasIdentity(id: target.canvasID, generation: target.value)
+        let captureID = UUID().uuidString.lowercased()
+        do {
+            try projection.attachOrdinaryCanvas(canvas) { [weak self] in
+                guard let self,
+                      let identity = try? self.operationConnectionIdentity(
+                          connectionID: connectionID,
+                          revalidate: true
+                      ),
+                      case let .liveTransportPeer(live) = identity.caller else {
+                    return nil
+                }
+                return AOSOrdinaryControlContext(
+                    expectedDaemonGeneration: self.operationDaemonGeneration,
+                    connectionEpoch: identity.connectionEpoch,
+                    caller: .ordinaryCanvasCapturedPeer(AOSOrdinaryCanvasPeerEvidence(
+                        canvasInstanceID: canvas.id,
+                        canvasGeneration: canvas.generation,
+                        captureID: captureID,
+                        capturedConnectionEpoch: identity.connectionEpoch,
+                        auditTokenDigest: live.auditTokenDigest,
+                        effectiveUID: live.effectiveUID,
+                        pid: live.pid,
+                        pidGeneration: live.pidGeneration,
+                        captureIsLive: true
+                    )),
+                    authenticatedOwnerRoot: identity.ownerRoot
+                )
+            }
+            operationControlCanvasIdentity = canvas
+        } catch {
+            projection.detachCanvas(canvas)
         }
     }
 
@@ -4828,6 +6963,8 @@ class UnifiedDaemon {
 
     private func cancelIdleTimer() {
         idleShutdownTimer.cancel()
+        operationExternalSpawnExpiryTimer?.cancel()
+        operationExternalSpawnExpiryTimer = nil
     }
 
     func shutdown(reason: String = "idle") {
@@ -4835,6 +6972,7 @@ class UnifiedDaemon {
         isShuttingDown = true
         fputs("aos daemon shutting down (\(reason))\n", stderr)
         idleShutdownTimer.cancel()
+        operationStatusItemProjection?.teardown()
         voiceTransport.shutdown()
         annotationSelection.shutdown()
         desktopFrameCaptureConsent.shutdown()

@@ -16,6 +16,160 @@
           "then": {
             "properties": { "data": { "$ref": "#/$defs/SeeCaptureResponseData" } }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "data": {
+                "required": ["schema_version"],
+                "properties": { "schema_version": { "const": "aos.operation.list-result.v1" } }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-v1.schema.json#/$defs/operation_list_result"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "data": {
+                "required": ["schema_version"],
+                "properties": { "schema_version": { "const": "aos.operation.inspect-result.v1" } }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-v1.schema.json#/$defs/operation_inspect_result"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "data": {
+                "required": ["schema_version"],
+                "properties": { "schema_version": { "const": "aos.operation.control-result.v1" } }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-v1.schema.json#/$defs/operation_control_result"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "data": {
+                "required": ["schema_version"],
+                "properties": { "schema_version": { "const": "aos.host-stop-barrier.stop-all-receipt.v1" } }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-host-stop-barrier-v1.schema.json#/$defs/stop_all_receipt"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "data": {
+                "required": ["schema_version"],
+                "properties": { "schema_version": { "const": "aos.host-stop-barrier.status-receipt.v1" } }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-host-stop-barrier-v1.schema.json#/$defs/barrier_status_receipt"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "data": {
+                "required": ["schema_version"],
+                "properties": { "schema_version": { "const": "aos.host-stop-barrier.reopen-receipt.v1" } }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-host-stop-barrier-v1.schema.json#/$defs/reopen_receipt"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "data": {
+                "required": ["schema_version"],
+                "properties": { "schema_version": { "const": "aos.operation.external-spawn-intent-response.v1" } }
+              }
+            }
+          },
+          "then": {
+            "properties": { "data": { "$ref": "#/$defs/OperationExternalSpawnIntentResponseData" } }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "data": {
+                "required": ["schema_version"],
+                "properties": { "schema_version": { "const": "aos.operation.external-spawn-child-admit-response.v1" } }
+              }
+            }
+          },
+          "then": {
+            "properties": { "data": { "$ref": "#/$defs/OperationExternalSpawnChildAdmitResponseData" } }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "data": {
+                "required": ["schema_version"],
+                "properties": { "schema_version": { "const": "aos.operation.external-spawn-abandon-response.v1" } }
+              }
+            }
+          },
+          "then": {
+            "properties": { "data": { "$ref": "#/$defs/OperationExternalSpawnAbandonResponseData" } }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "data": {
+                "required": ["schema_version"],
+                "properties": { "schema_version": { "const": "aos.operation.external-spawn-finalize-response.v1" } }
+              }
+            }
+          },
+          "then": {
+            "properties": { "data": { "$ref": "#/$defs/OperationExternalSpawnFinalizeResponseData" } }
+          }
         }
       ],
       "properties": {
@@ -77,7 +231,30 @@
             "STATUS_ITEM_STALE_GENERATION",
             "STATUS_ITEM_STALE_REVISION",
             "STATUS_ITEM_UNAVAILABLE",
-            "STATUS_ITEM_UPDATE_REQUIRED"
+            "STATUS_ITEM_UPDATE_REQUIRED",
+            "OPERATION_RECORD_INVALID",
+            "OPERATION_STORE_UNAVAILABLE",
+            "OPERATION_STORE_CORRUPT",
+            "OPERATION_STORE_LOCKED",
+            "OPERATION_GENERATION_CONFLICT",
+            "OPERATION_OWNER_MISMATCH",
+            "OPERATION_CALLER_NOT_AUTHENTICATED",
+            "OPERATION_CONTROL_ORIGIN_UNSUPPORTED",
+            "OPERATION_NOT_FOUND",
+            "OPERATION_TRANSITION_INVALID",
+            "OPERATION_BARRIER_CLOSED",
+            "OPERATION_BARRIER_NOT_CLOSED",
+            "OPERATION_BARRIER_GENERATION_CONFLICT",
+            "OPERATION_ADAPTER_REGISTRY_CONFLICT",
+            "OPERATION_RESOURCE_DECLARATION_CONFLICT",
+            "OPERATION_RESOURCE_BUSY",
+            "OPERATION_RESOURCE_FANOUT_EXHAUSTED",
+            "OPERATION_RESOURCE_CAS_CONFLICT",
+            "OPERATION_SPAWN_RECORD_CAPACITY",
+            "OPERATION_IDEMPOTENCY_CONFLICT",
+            "OPERATION_RESIDUALS_PRESENT",
+            "OPERATION_RECONCILIATION_INCOMPLETE",
+            "OPERATION_RECOVERY_CLAIM_STALE"
           ]
         },
         "ref": { "type": "string" }
@@ -96,6 +273,118 @@
     }
   ],
   "$defs": {
+    "OperationIdentifier": {
+      "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/identifier"
+    },
+    "OperationGeneration": {
+      "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/generation"
+    },
+    "OperationSHA256": {
+      "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/sha256"
+    },
+    "OperationExternalSpawnIntentResponseData": {
+      "type": "object",
+      "required": [
+        "schema_version", "request_id", "spawn_record_id", "one_time_binding_token",
+        "operation_id", "operation_generation", "adapter_registration_id", "adapter_registration_revision"
+      ],
+      "properties": {
+        "schema_version": { "const": "aos.operation.external-spawn-intent-response.v1" },
+        "request_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "spawn_record_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "one_time_binding_token": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" },
+        "operation_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "operation_generation": { "$ref": "#/$defs/OperationGeneration" },
+        "adapter_registration_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "adapter_registration_revision": { "$ref": "#/$defs/OperationGeneration" }
+      },
+      "additionalProperties": false
+    },
+    "OperationExternalSpawnReceipt": {
+      "type": "object",
+      "required": [
+        "spawn_record_id", "operation_id", "operation_generation", "adapter_registration_id",
+        "adapter_registration_revision", "resolved_executable_path_digest", "executable_identity_digest",
+        "executable_file_digest", "platform_code_directory_hash", "platform_code_directory_hash_algorithm", "expected_script_identity_digest", "script_identity_digest",
+        "script_digest", "canonical_argv_shape_digest", "reviewed_dependency_set_digest", "outcome"
+      ],
+      "properties": {
+        "spawn_record_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "operation_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "operation_generation": { "$ref": "#/$defs/OperationGeneration" },
+        "adapter_registration_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "adapter_registration_revision": { "$ref": "#/$defs/OperationGeneration" },
+        "resolved_executable_path_digest": { "$ref": "#/$defs/OperationSHA256" },
+        "executable_identity_digest": { "$ref": "#/$defs/OperationSHA256" },
+        "executable_file_digest": { "$ref": "#/$defs/OperationSHA256" },
+        "platform_code_directory_hash": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "platform_code_directory_hash_algorithm": { "const": "sha256_truncated_cdhash_20_bytes" },
+        "expected_script_identity_digest": { "$ref": "#/$defs/OperationSHA256" },
+        "script_identity_digest": { "$ref": "#/$defs/OperationSHA256" },
+        "script_digest": { "$ref": "#/$defs/OperationSHA256" },
+        "canonical_argv_shape_digest": { "$ref": "#/$defs/OperationSHA256" },
+        "reviewed_dependency_set_digest": { "$ref": "#/$defs/OperationSHA256" },
+        "outcome": { "const": "generation_bound_spawn_record_finalized" }
+      },
+      "additionalProperties": false
+    },
+    "OperationExternalSpawnChildAdmitResponseData": {
+      "type": "object",
+      "required": [
+        "schema_version", "request_id", "spawn_record_id", "operation_id",
+        "operation_generation", "child_pid", "child_pid_generation", "parent_edge_digest",
+        "platform_code_directory_hash", "platform_code_directory_hash_algorithm", "outcome"
+      ],
+      "properties": {
+        "schema_version": { "const": "aos.operation.external-spawn-child-admit-response.v1" },
+        "request_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "spawn_record_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "operation_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "operation_generation": { "$ref": "#/$defs/OperationGeneration" },
+        "child_pid": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+        "child_pid_generation": { "$ref": "#/$defs/OperationGeneration" },
+        "parent_edge_digest": { "$ref": "#/$defs/OperationSHA256" },
+        "platform_code_directory_hash": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "platform_code_directory_hash_algorithm": { "const": "sha256_truncated_cdhash_20_bytes" },
+        "outcome": { "const": "generation_bound_spawn_child_admitted" }
+      },
+      "additionalProperties": false
+    },
+    "OperationExternalSpawnAbandonResponseData": {
+      "type": "object",
+      "required": [
+        "schema_version", "request_id", "spawn_record_id", "operation_id",
+        "operation_generation", "outcome"
+      ],
+      "properties": {
+        "schema_version": { "const": "aos.operation.external-spawn-abandon-response.v1" },
+        "request_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "spawn_record_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "operation_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "operation_generation": { "$ref": "#/$defs/OperationGeneration" },
+        "outcome": { "const": "prepared_operation_abandoned" }
+      },
+      "additionalProperties": false
+    },
+    "OperationExternalSpawnFinalizeResponseData": {
+      "type": "object",
+      "required": [
+        "schema_version", "request_id", "spawn_record_id", "operation_id", "operation_generation",
+        "adapter_registration_id", "adapter_registration_revision", "outcome", "receipt"
+      ],
+      "properties": {
+        "schema_version": { "const": "aos.operation.external-spawn-finalize-response.v1" },
+        "request_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "spawn_record_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "operation_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "operation_generation": { "$ref": "#/$defs/OperationGeneration" },
+        "adapter_registration_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "adapter_registration_revision": { "$ref": "#/$defs/OperationGeneration" },
+        "outcome": { "const": "generation_bound_spawn_record_finalized" },
+        "receipt": { "$ref": "#/$defs/OperationExternalSpawnReceipt" }
+      },
+      "additionalProperties": false
+    },
     "SeeCaptureFrame": {
       "type": "object",
       "required": [

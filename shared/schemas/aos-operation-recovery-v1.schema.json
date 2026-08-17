@@ -1,0 +1,245 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-recovery-v1.schema.json",
+  "title": "AOS Operation Recovery v1",
+  "$ref": "#/$defs/recovery_record",
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "nonnegative_integer": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "positive_integer": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "record_integrity": {
+      "type": "object",
+      "required": ["record_version", "record_checksum"],
+      "properties": {
+        "record_version": {"$ref": "#/$defs/positive_integer"},
+        "record_checksum": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "exclusive_lock_identity": {
+      "type": "object",
+      "required": ["lock_id", "lock_generation", "holder_daemon_generation", "identity_digest"],
+      "properties": {
+        "lock_id": {"$ref": "#/$defs/identifier"},
+        "lock_generation": {"$ref": "#/$defs/generation"},
+        "holder_daemon_generation": {"$ref": "#/$defs/generation"},
+        "identity_digest": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "recovery_target": {
+      "type": "object",
+      "required": ["kind", "id", "generation"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "operation",
+            "stream",
+            "tap",
+            "artifact",
+            "claim_set_transaction",
+            "resource_claim",
+            "multiplex_broker",
+            "host_barrier",
+            "store"
+          ]
+        },
+        "id": {"$ref": "#/$defs/identifier"},
+        "generation": {"$ref": "#/$defs/generation"}
+      },
+      "additionalProperties": false
+    },
+    "scan_cursor": {
+      "type": "object",
+      "required": ["record_kind", "record_id_digest", "sequence"],
+      "properties": {
+        "record_kind": {
+          "enum": [
+            "operation",
+            "stream",
+            "tap",
+            "artifact",
+            "claim_set_transaction",
+            "resource_claim",
+            "multiplex_broker",
+            "host_barrier"
+          ]
+        },
+        "record_id_digest": {"$ref": "#/$defs/sha256"},
+        "sequence": {"$ref": "#/$defs/nonnegative_integer"}
+      },
+      "additionalProperties": false
+    },
+    "retry_facts": {
+      "type": "object",
+      "required": ["attempt", "maximum_attempts", "backoff_ms", "not_before_monotonic_ms"],
+      "properties": {
+        "attempt": {"$ref": "#/$defs/nonnegative_integer"},
+        "maximum_attempts": {"$ref": "#/$defs/positive_integer"},
+        "backoff_ms": {"$ref": "#/$defs/nonnegative_integer"},
+        "not_before_monotonic_ms": {"$ref": "#/$defs/nonnegative_integer"}
+      },
+      "additionalProperties": false
+    },
+    "corruption_facts": {
+      "type": "object",
+      "required": ["code", "record_kind", "record_identity_digest"],
+      "properties": {
+        "code": {
+          "enum": ["record_version_invalid", "checksum_mismatch", "record_shape_invalid", "lock_conflict", "store_unavailable"]
+        },
+        "record_kind": {
+          "enum": [
+            "operation",
+            "stream",
+            "tap",
+            "artifact",
+            "claim_set_transaction",
+            "resource_claim",
+            "multiplex_broker",
+            "host_barrier",
+            "store"
+          ]
+        },
+        "record_identity_digest": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "residual_summary": {
+      "type": "object",
+      "required": ["count", "digest"],
+      "properties": {
+        "count": {"$ref": "#/$defs/nonnegative_integer"},
+        "digest": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "recovery_record": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "recovery_id",
+        "recovery_generation",
+        "daemon_generation",
+        "store_generation",
+        "state",
+        "integrity",
+        "exclusive_lock",
+        "scan_cursor",
+        "target",
+        "retry",
+        "corruption",
+        "residual",
+        "result",
+        "blame",
+        "operator_acknowledgement_count",
+        "started_at",
+        "updated_at",
+        "completed_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "aos.operation-recovery.v1"},
+        "recovery_id": {"$ref": "#/$defs/identifier"},
+        "recovery_generation": {"$ref": "#/$defs/generation"},
+        "daemon_generation": {"$ref": "#/$defs/generation"},
+        "store_generation": {"$ref": "#/$defs/generation"},
+        "state": {
+          "enum": ["idle", "scanning", "recovering", "cleanup_required", "blocked_unresolved", "terminal"]
+        },
+        "integrity": {"$ref": "#/$defs/record_integrity"},
+        "exclusive_lock": {"$ref": "#/$defs/exclusive_lock_identity"},
+        "scan_cursor": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/scan_cursor"}
+          ]
+        },
+        "target": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/recovery_target"}
+          ]
+        },
+        "retry": {"$ref": "#/$defs/retry_facts"},
+        "corruption": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/corruption_facts"}
+          ]
+        },
+        "residual": {"$ref": "#/$defs/residual_summary"},
+        "result": {
+          "oneOf": [
+            {"type": "null"},
+            {"enum": ["recovered", "retry_scheduled", "blocked_unresolved"]}
+          ]
+        },
+        "blame": {
+          "enum": ["adapter", "aos_control_plane", "platform", "permission", "external_tool", "host_shutdown", "unknown"]
+        },
+        "operator_acknowledgement_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "started_at": {"$ref": "#/$defs/timestamp"},
+        "updated_at": {"$ref": "#/$defs/timestamp"},
+        "completed_at": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/timestamp"}
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"properties": {"state": {"const": "terminal"}}},
+          "then": {
+            "properties": {
+              "result": {"const": "recovered"},
+              "residual": {"properties": {"count": {"const": 0}}},
+              "completed_at": {"$ref": "#/$defs/timestamp"}
+            }
+          },
+          "else": {"properties": {"completed_at": {"type": "null"}}}
+        },
+        {
+          "if": {"properties": {"state": {"const": "blocked_unresolved"}}},
+          "then": {
+            "properties": {
+              "result": {"const": "blocked_unresolved"},
+              "residual": {"properties": {"count": {"minimum": 1}}}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"state": {"enum": ["recovering", "cleanup_required", "blocked_unresolved"]}}},
+          "then": {"properties": {"target": {"$ref": "#/$defs/recovery_target"}}}
+        }
+      ]
+    }
+  }
+}

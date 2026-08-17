@@ -87,10 +87,29 @@ test('installed projection executes companion help and status from an unrelated 
     ...process.env, AOS_STATE_ROOT: state, AOS_RUNTIME_MODE: 'installed',
     AOS_DISABLE_DAEMON_AUTOSTART: '1',
   };
+  const currentSourceManifest = JSON.parse(fs.readFileSync(
+    path.join(repoRoot, 'manifests/commands/aos-external-commands.json'),
+    'utf8',
+  ));
+  const retainedSourceCommand = currentSourceManifest.commands.find(
+    (command) => command.path.join(' ') === 'work-record',
+  );
+  assert.ok(retainedSourceCommand);
+  const stagedManifestPath = path.join(staged, 'manifests/commands/aos-external-commands.json');
+  fs.mkdirSync(path.dirname(stagedManifestPath), { recursive: true });
+  fs.writeFileSync(stagedManifestPath, `${JSON.stringify({
+    ...currentSourceManifest,
+    commands: [{ ...retainedSourceCommand, summary: 'stale retained object must not survive' }],
+  }, null, 2)}\n`);
   const stage = runNode([path.join(repoRoot, 'scripts/stage-browser-companion-runtime.mjs'), staged]);
   assert.equal(stage.status, 0, stage.stderr);
-  const manifest = JSON.parse(fs.readFileSync(path.join(staged, 'manifests/commands/aos-external-commands.json'), 'utf8'));
-  assert.equal(manifest.commands.length, 21);
+  const manifest = JSON.parse(fs.readFileSync(stagedManifestPath, 'utf8'));
+  assert.equal(manifest.schema_version, 2);
+  assert.equal(manifest.commands.length, 22);
+  assert.deepEqual(
+    manifest.commands.find((command) => command.path.join(' ') === 'work-record'),
+    retainedSourceCommand,
+  );
   assert.equal(manifest.commands.filter((command) => command.path[0] === 'browser' && command.path[1] === 'companion').length, 5);
   assert.equal(manifest.commands.filter((command) => command.path[0] === 'browser').length, 10);
   assert.equal(manifest.commands.filter((command) => command.path[0] === 'focus').length, 5);
@@ -221,4 +240,14 @@ test('installed projection executes companion help and status from an unrelated 
   for (const packageScript of ['scripts/package-aos-runtime', 'package.sh']) {
     assert.match(fs.readFileSync(path.join(repoRoot, packageScript), 'utf8'), /stage-browser-companion-runtime\.mjs/u);
   }
+});
+
+test('installed projection rejects a stale staged wire version', () => {
+  const staged = temporaryRoot('aos-browser-companion-stale-stage-');
+  const manifestPath = path.join(staged, 'manifests/commands/aos-external-commands.json');
+  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+  fs.writeFileSync(manifestPath, `${JSON.stringify({ schema_version: 1, commands: [] })}\n`);
+  const stage = runNode([path.join(repoRoot, 'scripts/stage-browser-companion-runtime.mjs'), staged]);
+  assert.equal(stage.status, 1);
+  assert.match(stage.stderr, /external command manifest wire v2 is invalid/u);
 });

@@ -2,8 +2,8 @@
 
 Program: `aos-sovereign-capability-substrate-v1`
 
-Status: Milestone 2 increment 1 authority normalization against landed baseline
-`7aada1cb4d7a046a2b99b1b24470115eefc82224`.
+Status: Milestone 2 executable control-plane candidate against accepted authority
+commit `59074238c2c4c43051c7461a6e36487e8914f4a6`.
 
 Canonical target authority is
 `docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md`,
@@ -15,9 +15,11 @@ review projection.
 
 ## Reading rule
 
-Milestone 2 increment 1 changes authority, not capability. Current source, command-source
-manifests, generated help, schemas, API docs, tests, and runtime readback remain
-the executable contract until a later atomic implementation slice changes them.
+Milestone 2 now changes capability and authority atomically. Current source,
+command-source manifests, generated help, schemas, API docs, tests, and runtime
+readback are the executable contract; M2 marks only the operation-plane owners
+and the microphone/status/Canvas capability rows current. Every unaffected M1
+capability row remains byte-for-byte baseline truth.
 A row marked Rewrite or Retire is declared burn-down debt; it is not a claim
 that the current implementation has already changed.
 
@@ -27,8 +29,9 @@ program identifier in `https://github.com/Ch-osctrl/sigil`. Its publication
 state is `landed` at reviewed Sigil revision
 `227382c1bcbdab56f551a85a69b0609eebbdfa0c`; the path is external metadata,
 not an AOS-local repository path. The AOS-first paired publication sequence is
-complete. This landing advances authority only and does not claim that any
-target runtime capability is implemented.
+complete. The later M2 candidate implements the neutral operation plane and one
+microphone adapter; it does not implement M3 recording, M6 SDK, M7 managed-tool,
+or Sigil workflow capabilities.
 
 ## Milestone 1 capability ledger
 
@@ -59,21 +62,30 @@ Nearest mechanically verified non-AOS ancestry uses double-sampled process
 generation, effective UID, a stable child/parent edge, and code identity; it
 stops conservatively at an unverified node rather than inventing an ancestor
 audit token. Exact AOS-image skips require that evidence, or a generation-bound
-daemon spawn record. External-dispatch skips additionally bind the resolved
-child executable's path/identity digests, device, inode, code identity, and file
-digest, authored script identity, canonical argv shape, same-socket child
-finalization, and operation generation. The authored normalized repo-relative
-script identity is transient resolver input; durable intent, finalization,
-receipt, and proof retain only its content-free identity digest and forbid raw
-script identity, path, or basename. `/usr/bin/env node` is governed by an
-authored executable-resolution policy; its transient absolute path is never
+daemon spawn record. The invocation-scoped microphone route first prepares an
+operation and claim, then uses its parent-only token to admit or abandon a
+child. Admission binds dynamic Node.js Foundation SecCode identity, platform
+CDHash, mapped device/inode, child PID generation, parent edge, the exact
+reviewed dependency-set digest, canonical argv shape, and operation generation.
+Only after durable admission does the dispatcher write the reviewed in-memory
+module bundle; tokenless same-socket child finalization consumes that exact
+record before microphone authority. The authored normalized repo-relative
+script identity and the two reviewed dependency identities are transient
+resolver inputs; durable intent, admission, finalization, receipt, and proof
+retain content-free digests and forbid raw script/dependency identity, path,
+basename, module bytes, or the parent token. Parent abandon, 30-second expiry,
+and boot recovery terminalize unfinalized prepared work and release its claim.
+`/usr/bin/env node` is governed by an authored executable-resolution policy and
+the exact official signing boundary; its transient absolute path is never
 durable or public. Caller-asserted lineage is
 attribution and may only filter within the mechanically established set.
 
 The frozen external-command manifest v0 schema remains byte-exact at the M1
 baseline. M2 adds a v1 schema and atomically moves the stable generated
 aggregate to wire schema version 2; authored fragments remain version 1.
-Exactly external `15-listen` gains the optional microphone spawn registration.
+Exactly external `15-listen` gains the optional microphone spawn registration
+with closed `listen_microphone_v1` activation; nonmatching invocations gain no
+operation, claim, token, or dynamic admission.
 Generator, Swift dispatcher, help proxy, command-surface proof ownership,
 canonical proof index, workflow router, and installed projections move
 together; no v0 mutation, dual reader, translation, or parallel aggregate is
@@ -148,7 +160,7 @@ until later adapter migration.
 | `docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md` | Ambient authority, raw admitted facts, caller transforms, exact Observation Ref/Locator mechanics. | Expand | ADR 0043 extends the rule to raw transports and complete managed-tool grammar; hash-preserve the ADR 0040 body. | All admitted channels are fidelity-first and every transform is explicitly caller-owned. |
 | `docs/adr/0041-managed-playwright-companion-runtime.md` | Strong pin, integrity, store, session, guardian, cleanup, and receipt model coupled to a fixed public grammar and broad feature non-goals. | Rewrite | Mark partially superseded in the ADR index; hash-preserve the old body as decision history. | Keep lifecycle mechanics while atomically replacing fixed wrappers with raw argv/stdin/stdout/stderr/artifact transport for the pinned upstream executable and environment. |
 | `docs/adr/0042-host-and-gateway-move-to-sigil.md` | AOS owns capability-layer packages; Sigil owns orchestration. | Keep | Reuse as the cross-repo ownership boundary. | Reviewed AOS/Sigil pins prove no orchestration returns to AOS. |
-| `docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md` | Accepted amendment to ADR 0043 for the two M2 owner bindings, generation-bound external dispatch, nine-machine prior-generation recovery, registered-set host receipts, bounded replay, and split claim-set/resource/broker mechanics. | Keep | Publish as the M2 increment 1 target authority without changing pre-0044 ADR bodies or runtime owners. | Static proof closes the accepted bindings and target machines before any runtime source is authored. |
+| `docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md` | Accepted amendment to ADR 0043 for the two M2 owner bindings, generation-bound external dispatch, nine-machine prior-generation recovery, registered-set host receipts, bounded replay, and split claim-set/resource/broker mechanics. | Keep | Preserve pre-0044 ADR bodies; publish the executable M2 owners and reviewed-dependency binding under this amendment. | Offline schema, model, fake, and full Swift integration proof close the candidate before separately gated native-live acceptance. |
 | `docs/adr/0030-desktop-frame-texture-leases.md` | Owns texture-lease and capture mechanics but also requires an AOS-local process-lifetime direct-capture consent/prime gate. | Rewrite | Mark the gate partially superseded in the ADR index; preserve the old body. | Retain capture mechanics while removing the AOS-local admission gate atomically across native, IPC, help, API, tests, and proofs. |
 | `docs/adr/0031-desktop-pixel-broker-and-warm-snapshots.md` | Owns the single pixel broker, warm snapshots, serialization, identity, settlement, and cleanup while retaining explicit direct-capture consent/prime clauses. | Rewrite | Mark only those clauses partially superseded in the ADR index; hash-preserve the old body. | Retain broker/warm-snapshot correctness while removing the AOS-local admission gate atomically across native, IPC, help, API, tests, and proofs. |
 | `docs/adr/0018-installable-aos-skills.md` | Owns installable AOS skills and still describes external Playwright as the escape hatch for grammar AOS does not expose. | Repoint | Update only the ADR-index authority note; preserve the old body. | Skills and their governing ADR describe implemented complete managed grammar without a competing ambient runtime path. |
@@ -173,7 +185,7 @@ until later adapter migration.
 | `packages/toolkit/` and `docs/api/toolkit/` | AOS-owned reusable surface layer; selected JS clients are transport-injected, but no comprehensive substrate SDK exists. | Expand | Add ownership pointer at Toolkit/status centers; no package code changes. | Publish maintained CLI/IPC/SDK projections for substrate and control-plane contracts. |
 | AOS installable skills | Generic substrate workflow guidance, constrained by current CLI/help. | Expand | Route to ADR/map and retain current command syntax. | Teach complete implemented primitives and optional caller transforms without policy. |
 | Current Gate, annotation, and Guided User Signal fidelity gaps listed by ADR 0040 | Some admitted facts still receive default redaction or omission. | Rewrite | Preserve explicit gap accounting. | Migrate each fact with exact schema/API/implementation/test ownership and explicit caller transforms. |
-| General operation-control commands and schemas | No complete cross-capability plane exists for every nontrivial privileged or managed operation or its one-shot terminal history. | Expand | Accept the mechanical owner, same-UID host-control, prior-generation recovery, and split resource target contracts without inventing a current command or schema. | M2 lands generation-bound list/inspect/status/recent/cancel/kill/kill-owner, bounded tap, artifact custody, stop-all, barrier-status, and reopen through daemon IPC and CLI, with internal status/Canvas projections. Ordinary control derives from immediate-peer audit evidence and verified proc-generation ancestry; asserted lineage only narrows. Host receipts cover the exact registered adapter set, not legacy subsystems. Public SDK projections remain M6. Claim-set admission is complete-set atomic; claim and broker generations recover explicitly; microphone capture cannot preempt legacy voice output. |
+| General operation-control commands and schemas | The M2 executable candidate now provides generation-bound list/inspect/status/recent/cancel/kill/kill-owner, bounded tap lifecycle, artifact custody verbs, stop-all, barrier-status, and reopen through daemon IPC and CLI, with internal status/Canvas projections. Its registered set contains microphone only. | Expand | Treat the current plane as the shared substrate; do not infer control over unadapted legacy subsystems or claim an M2 artifact producer. | Later adapters join at an exact registry revision. Public SDK projections remain M6; raw managed-tool transport remains M7. Claim-set admission stays complete-set atomic and microphone cannot preempt legacy voice output. |
 | Compatibility aliases, fixed-grammar policy, and any competing ambient Playwright resolver | Fixed grammar and old resolver residue are incompatible with the target. | Retire | No runtime retirement in Milestone 0. | Delete atomically under ADR 0039 after all internal consumers migrate. |
 | `docs/archive/**` and `docs/dev/reports/**` | Historical evidence, not active authority. | Archive | Preserve unchanged and exclude from stale scans. | None; Git and explicit archive ownership preserve history. |
 | Maintained `docs/design/**` notes and current work cards | Active design exploration under `docs/AGENTS.md`; some paths carry executable-current contradiction claims. | Keep | Scan tracked regular files as active authority and classify exact contradictions path-by-path. | Promote stable decisions to ADR/API/schema owners without using a blanket design-tree exclusion. |
@@ -246,21 +258,20 @@ burn-down entry only when its exit gate is met.
 2. Both reviewed Sigil AOS pin fields, `verifiedRef` and `sourceRevision`, were
    advanced atomically to that exact landed AOS SHA before Sigil authority
    publication at `227382c1bcbdab56f551a85a69b0609eebbdfa0c`.
-3. Paired cross-repo authority is now landed. Authority publication does not
-   publish runtime implementation or make any target capability executable.
-4. M2 increment 1 accepts the ordinary owner root, generation-bound external
+3. Paired cross-repo authority is landed. The AOS M2 executable candidate now
+   follows that authority without changing Sigil workflow ownership.
+4. The accepted M2 packet binds the ordinary owner root, generation-bound external
    dispatch, exact registered-set same-effective-UID host control, bounded
    request replay, explicit prior-generation recovery across nine machines,
-   and split claim-set/resource/broker contracts before runtime source. The
-   later command-producing M2 slice owns authored sources
+   and split claim-set/resource/broker contracts. The executable slice owns authored sources
    `manifests/commands/source/aos/41-operation.json` and
    `manifests/commands/source/external/49-operation.json`; generated aggregates
    move only with that executable slice. The same slice publishes the frozen-v0/
    active-v1 external-manifest cutover and exact command/proof/workflow routing,
    while `docs/api/aos.md` and
    `docs/api/aos-capabilities.md` remain maintained current API owners.
-5. M2 then adapts the existing microphone owner to authenticated peer identity
-   and the shared operation registry/control plane; ships daemon IPC and CLI,
+5. M2 adapts the existing microphone owner to authenticated peer identity and
+   the shared operation registry/control plane; ships daemon IPC and CLI,
    internal status break-glass, and internal Canvas control; and leaves public
    SDK projections for M6. M3 adds screen video and audio;
    M4 completes AX and input surfaces; M5 unifies privileged streams; M6
@@ -274,14 +285,14 @@ burn-down entry only when its exit gate is met.
 
 ## Publication and preservation boundary
 
-Milestone 2 increment 1 does not publish or imply native capability, full Playwright
-grammar, SDK, status/kill/blame, or changed permission behavior. It does not
-edit runtime source, command-source manifests, generated help, frozen ADR
-bodies, archives, reports, V0 contracts, or frozen fixtures. No capability is
-advertised as implemented until its executable and documentation owners change
-atomically.
+Milestone 2 publishes the operation registry, operation CLI/IPC,
+status/Canvas projections, and microphone adapter described above. It does not
+publish M3 recording, full Playwright grammar, a public SDK, or changed TCC
+policy. Pre-0044 ADR bodies, archives, reports, the frozen v0 schema, and frozen
+fixtures remain unchanged. Native-live microphone/menu acceptance remains
+separately gated.
 
-Authority publication does not publish runtime implementation. The future
+The future
 managed Playwright boundary inherits snapshots, boxes, evaluation, tracing,
 video, network, storage, PDF, tabs, input, navigation, and lifecycle from the
 reviewed pin through raw transport; none of those target families is claimed as

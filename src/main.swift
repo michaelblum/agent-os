@@ -45,6 +45,8 @@ struct AOS {
             sayCommand(args: Array(args.dropFirst()))
         case "__do":
             handleDoPrimitive(args: Array(args.dropFirst()))
+        case "__operation":
+            operationCommand(args: Array(args.dropFirst()))
         default:
             exitError("Unknown command: \(command). Run '\(aosInvocationDisplayName()) --help' for usage.", code: "UNKNOWN_COMMAND")
         }

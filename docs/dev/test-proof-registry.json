@@ -21,6 +21,7 @@
     "test-proof-registry.d/display-topology.json",
     "test-proof-registry.d/browser-companion.json",
     "test-proof-registry.d/sovereign-capability-authority.json",
-    "test-proof-registry.d/privileged-capability-ledger.json"
+    "test-proof-registry.d/privileged-capability-ledger.json",
+    "test-proof-registry.d/operation-control.json"
   ]
 }

@@ -2,8 +2,8 @@
   "$schema": "../../shared/schemas/aos-privileged-capability-ledger-v1.schema.json",
   "schema_version": "aos.privileged-capability-ledger.v1",
   "program_id": "aos-sovereign-capability-substrate-v1",
-  "status": "milestone_2_authority_normalized_current_truth_and_target_ledger",
-  "inventory_revision": "e4ef13081311596f38d011ab5dfed6bb8cd2d496",
+  "status": "milestone_2_executable_candidate_current_truth_and_target_ledger",
+  "inventory_revision": "59074238c2c4c43051c7461a6e36487e8914f4a6",
   "authority": {
     "target_adr": "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
     "target_adr_amendments": [
@@ -22,7 +22,7 @@
       "publication_state": "landed",
       "revision": "227382c1bcbdab56f551a85a69b0609eebbdfa0c"
     },
-    "publication_boundary": "Milestone 2 increment 1 accepts authority bindings and strengthens target exits only. It adds no runtime primitive, CLI form, IPC method, SDK method, managed Playwright grammar, or operation-control implementation."
+    "publication_boundary": "Milestone 2 publishes the executable daemon IPC and CLI control plane, durable registry and recovery, one registered microphone adapter, same-UID host barrier, and internal status/Canvas projections. Public SDK roots remain M6, recording producers remain M3, raw managed-tool transport remains M7, and native live/TCC acceptance remains separately gated."
   },
   "coverage": {
     "row_count": 32,
@@ -3734,7 +3734,8 @@
                     "executable": "/usr/bin/env",
                     "argv_prefix": [
                       "node",
-                      "scripts/aos-tell-listen.mjs",
+                      "--input-type=module",
+                      "-",
                       "listen"
                     ]
                   }
@@ -5263,18 +5264,23 @@
             "derivation": "maximum introduced version across all required known symbols on one platform"
           }
         },
-        "implementation": {
-          "state": "implemented",
-          "primitive_paths": [
-            "src/daemon/microphone-authorization.swift",
-            "src/daemon/segmented-microphone-capture.swift",
-            "src/daemon/voice-transport.swift"
-          ],
-          "evidence_paths": [
-            "docs/api/aos.md",
-            "shared/schemas/daemon-ipc.md"
-          ],
-          "summary": "A daemon-owned per-connection lease captures bounded 16 kHz mono PCM to create-new WAV or atomic segments, streams meters, and supports stop/cancel with exact permission states."
+      "implementation": {
+        "state": "implemented",
+        "primitive_paths": [
+          "src/daemon/microphone-authorization.swift",
+          "src/daemon/segmented-microphone-capture.swift",
+          "src/daemon/voice-transport.swift",
+          "src/daemon/microphone-operation-adapter.swift",
+          "src/daemon/operation-registry.swift",
+          "src/daemon/operation-control.swift"
+        ],
+        "evidence_paths": [
+          "docs/api/aos.md",
+          "docs/api/aos-capabilities.md",
+          "shared/schemas/daemon-ipc.md",
+          "shared/schemas/aos-operation-v1.schema.json"
+        ],
+        "summary": "The M2 shared operation registry wraps the existing daemon-owned microphone capture lease, persists operation and exclusive voice-session claim before authority, binds generation-verified external helpers, streams existing meters, and routes cancel, kill, same-owner control, same-UID host stop, cleanup, and recovery through one adapter without changing capture fidelity."
         },
         "exposure": {
           "cli": {
@@ -5304,7 +5310,8 @@
                     "executable": "/usr/bin/env",
                     "argv_prefix": [
                       "node",
-                      "scripts/aos-tell-listen.mjs",
+                      "--input-type=module",
+                      "-",
                       "listen"
                     ]
                   }
@@ -5324,7 +5331,8 @@
                     "executable": "/usr/bin/env",
                     "argv_prefix": [
                       "node",
-                      "scripts/aos-tell-listen.mjs",
+                      "--input-type=module",
+                      "-",
                       "listen"
                     ]
                   }
@@ -5332,21 +5340,37 @@
               }
             ]
           },
-          "ipc": {
-            "state": "partial",
-            "owners": [
-              "shared/schemas/daemon-ipc.md",
-              "src/daemon/unified.swift"
-            ],
-            "forms": [
-              "listen.microphone",
-              "listen.microphone_segmented",
-              "listen.stop",
-              "listen.cancel"
-            ],
-            "schemas": [
-              "shared/schemas/daemon-event.schema.json"
-            ]
+      "ipc": {
+        "state": "complete",
+        "owners": [
+          "shared/schemas/daemon-ipc.md",
+          "src/daemon/unified.swift",
+          "src/daemon/microphone-operation-adapter.swift",
+          "src/daemon/operation-control.swift"
+        ],
+        "forms": [
+          "listen.microphone",
+          "listen.microphone_segmented",
+          "listen.stop",
+          "listen.cancel",
+          "operation.list",
+          "operation.inspect",
+          "operation.status",
+          "operation.recent",
+          "operation.cancel",
+          "operation.kill",
+          "operation.kill_owner",
+          "operation.stop_all",
+          "operation.barrier_status",
+          "operation.reopen"
+        ],
+        "schemas": [
+          "shared/schemas/daemon-event.schema.json",
+          "shared/schemas/aos-operation-v1.schema.json",
+          "shared/schemas/aos-operation-event-v1.schema.json",
+          "shared/schemas/aos-host-stop-barrier-v1.schema.json",
+          "shared/schemas/aos-operation-recovery-v1.schema.json"
+        ]
           },
           "typescript_sdk": {
             "state": "absent",
@@ -5387,42 +5411,42 @@
           "breadth": "One daemon-owned capture lease at a time.",
           "completeness": "Bounded duration and frames; terminal events distinguish completion, cancellation, and failure.",
           "frontier": "Permission, device, timing, conversion, duration, output, and cancellation failures are typed.",
-          "state_identity": "Connection-owned capture lease and output identity; no shared operation id or authenticated ancestor root."
+      "state_identity": "Exact operation id/generation plus mechanically authenticated owner root, daemon generation, adapter registration revision, exclusive voice-session claim generation, and the existing capture lease/output identity."
         },
         "control": {
-          "operation_identity": "Connection-local capture lease, not shared operation schema.",
-          "owner": "The daemon connection that started capture; other connections receive CAPTURE_NOT_OWNED.",
-          "list": {
-            "state": "absent",
-            "detail": "No capture list."
-          },
-          "inspect": {
-            "state": "partial",
-            "detail": "Live meters and permission facts expose selected state."
-          },
-          "status": {
-            "state": "partial",
-            "detail": "Follow events expose current capture progress; no detached status query."
-          },
-          "recent": {
-            "state": "absent",
-            "detail": "No bounded terminal operation history."
-          },
-          "kill_one": {
-            "state": "partial",
-            "detail": "Owner connection can stop or cancel, but there is no stable public operation id."
-          },
-          "bulk_owner_kill": {
-            "state": "absent",
-            "detail": "No authenticated owner scope beyond the connection."
-          },
-          "host_stop_all": {
-            "state": "absent",
-            "detail": "No separate host-operator barrier."
-          },
-          "tap": {
-            "state": "partial",
-            "detail": "Meters are a bounded derived stream, not an optional raw sample tap."
+      "operation_identity": "Shared operation id/generation bound to the existing capture lease and adapter registration revision.",
+      "owner": "Nearest mechanically verified non-AOS ancestor from the socket peer; asserted client, agent, task, project, skill, target, and capability labels only narrow that owner set.",
+      "list": {
+        "state": "complete",
+        "detail": "Authenticated owner-scoped operation list includes the registered microphone operation."
+      },
+      "inspect": {
+        "state": "complete",
+        "detail": "Exact operation generation exposes lifecycle, owner, claim, progress, outcome, cleanup, residual, and content-free artifact facts."
+      },
+      "status": {
+        "state": "complete",
+        "detail": "Detached exact-generation status and content-free operation events are available through daemon IPC and CLI."
+      },
+      "recent": {
+        "state": "complete",
+        "detail": "Bounded content-free terminal history is owner-filtered."
+      },
+      "kill_one": {
+        "state": "complete",
+        "detail": "Cooperative cancel and forced kill address one exact operation id/generation."
+      },
+      "bulk_owner_kill": {
+        "state": "complete",
+        "detail": "Composable asserted filters only narrow the mechanically authenticated ordinary owner set."
+      },
+      "host_stop_all": {
+        "state": "complete",
+        "detail": "Any live same-effective-UID local caller can stop the exact registered operation set through the generation-bound host barrier."
+      },
+      "tap": {
+        "state": "partial",
+        "detail": "The M2 tap lifecycle and all seven bounds are executable, while the microphone adapter continues to expose its existing meter stream rather than raw sample payloads through the generic tap."
           },
           "artifacts": {
             "state": "partial",
@@ -5432,9 +5456,9 @@
             "state": "complete",
             "detail": "Capture lease, engine, partial startup, segment finalization, and cancellation cleanup are owned."
           },
-          "recovery": {
-            "state": "partial",
-            "detail": "Atomic segments survive as caller files; no durable operation recovery ledger."
+      "recovery": {
+        "state": "complete",
+        "detail": "Durable operation, claim, barrier, and prior-generation records recover cleanup without treating caller files as AOS-retained custody."
           }
         },
         "data_transport": {
@@ -5460,35 +5484,51 @@
               "mutates_runtime": false
             }
           ],
-          "fake": [
-            {
-              "path": "tests/voice-follow-cli.test.mjs",
-              "claim": "Exercises public follow/cancel behavior against a fake socket daemon.",
+      "fake": [
+        {
+          "path": "tests/voice-follow-cli.test.mjs",
+          "claim": "Exercises public follow/cancel behavior against a fake socket daemon.",
               "execution_class": "fake",
               "requires_owner_authority": false,
-              "tcc_services": [],
-              "mutates_runtime": false
-            }
-          ],
-          "native": [
+          "tcc_services": [],
+          "mutates_runtime": false
+        },
+        {
+          "path": "tests/voice-operation-claim-contract.test.mjs",
+          "claim": "Proves persistence-before-authority, exact exclusive voice-session claims, external-child finalization, no implicit barge-in, and cleanup-before-terminal with fake adapters.",
+          "execution_class": "fake",
+          "requires_owner_authority": false,
+          "tcc_services": [],
+          "mutates_runtime": false
+        }
+      ],
+      "native": [
             {
               "path": "tests/voice-transport-native.sh",
               "claim": "Compiles focused production capture/writer mechanics with injected authorization and no live microphone.",
               "execution_class": "native_compile",
               "requires_owner_authority": false,
-              "tcc_services": [],
-              "mutates_runtime": false
-            }
-          ],
-          "limitations": "No live microphone/TCC proof runs in M1."
+          "tcc_services": [],
+          "mutates_runtime": false
+        },
+        {
+          "path": "tests/native-operation-control-contract.sh",
+          "claim": "Typechecks and exercises the complete operation, peer, registry, resource, barrier, microphone-adapter, and daemon integration offline.",
+          "execution_class": "native_compile",
+          "requires_owner_authority": false,
+          "tcc_services": [],
+          "mutates_runtime": false
+        }
+      ],
+      "limitations": "Offline M2 proof does not touch a live microphone or TCC. Existing caller-selected WAV/segment output remains outside generic AOS artifact custody; no M2 artifact producer is claimed."
         }
       },
       "target": {
         "milestone": "M2",
         "disposition": "Expand",
-        "gaps": [
-          "Wrap the existing adapter in the first shared operation identity/registry/control plane.",
-          "Default new operation artifacts to transient custody unless the caller explicitly retains."
+    "gaps": [
+      "Run the separately gated live microphone/TCC acceptance without changing the shared daemon identity.",
+      "A later artifact-producing adapter must default new AOS-owned artifacts to transient custody unless the caller explicitly retains them; M2 does not reclassify existing caller-selected WAV or segment paths as AOS custody."
         ],
         "exit_gate": "The existing microphone adapter proves prepared-before-authority, mechanically authenticated owner intersection, list/status/recent, exact cancel, terminal blame/cleanup, bounded tap, and artifact custody without changing capture semantics.",
         "reusable_atoms": [
@@ -6765,10 +6805,10 @@
             "checks": [],
             "limitation": "Status-item installation and visibility depend on the AOS AppKit host lifecycle, not a TCC permission."
           },
-          "limitations": [
-            "Current contract is an owner/item lease with descriptor-specific actions, not the general operation control plane.",
-            "Menu presentation and user clicks are asynchronous AppKit state."
-          ],
+      "limitations": [
+        "Consumer owner/item leases remain separate from the dedicated internal M2 operation projection.",
+        "Menu presentation and user clicks are asynchronous AppKit state."
+      ],
           "official_docs": [
             "https://developer.apple.com/documentation/appkit/nsstatusitem",
             "https://developer.apple.com/documentation/appkit/nsstatusbar"
@@ -6819,17 +6859,20 @@
           ],
           "derived_floor": null
         },
-        "implementation": {
-          "state": "implemented",
-          "primitive_paths": [
-            "src/display/status-item.swift",
-            "src/display/status-item-hosted.swift"
-          ],
-          "evidence_paths": [
-            "docs/api/aos.md",
-            "docs/api/toolkit/status-item.md"
-          ],
-          "summary": "AOS hosts owner-scoped native status-item leases with validate/register/update/inspect/invoke, exact revision, generation-scoped atomic action admission, anchor facts, events, and cleanup."
+      "implementation": {
+        "state": "implemented",
+        "primitive_paths": [
+          "src/display/status-item.swift",
+          "src/display/status-item-hosted.swift",
+          "src/daemon/operation-status-item-projection.swift"
+        ],
+        "evidence_paths": [
+          "docs/api/aos.md",
+          "docs/api/aos-capabilities.md",
+          "docs/api/toolkit/status-item.md",
+          "tests/operation-native-projections.test.mjs"
+        ],
+        "summary": "AOS preserves owner-scoped consumer status-item leases and separately hosts an always-available internal M2 operation item with active-only red recording state, neutral counts, exact status-host generation/action admission, Canvas opening, and same-UID stop-all through the common control plane."
         },
         "exposure": {
           "cli": {
@@ -7036,39 +7079,43 @@
         },
         "observation": {
           "mode": "snapshot_and_stream",
-          "roots": [
-            "one owner/item lease"
-          ],
-          "targets": [
-            "descriptor revision",
-            "native anchor",
-            "activation/menu events",
-            "invocation result"
+      "roots": [
+        "one consumer owner/item lease",
+        "the dedicated internal operation status item"
+      ],
+      "targets": [
+        "descriptor revision",
+        "native anchor",
+        "activation/menu events",
+        "invocation result",
+        "registered operation counts",
+        "active recording indicator",
+        "host barrier generation"
           ],
           "depth": "Bounded menu descriptor tree.",
           "breadth": "One exact owner/item/generation per inspect or invoke.",
-          "completeness": "Complete for the status-item lease contract, not for all AOS operations.",
+      "completeness": "Complete for consumer leases and the content-free internal projection of the exact registered operation set; unadapted legacy daemon work is intentionally absent.",
           "frontier": "Revision, generation, descriptor, host, action-sequence, and delivery errors are typed.",
-          "state_identity": "owner + item_id + generation + expected revision/action sequence."
+      "state_identity": "Consumer owner + item_id + generation + expected revision/action sequence, or internal daemon generation + status-host generation + item generation + descriptor revision + action sequence."
         },
         "control": {
-          "operation_identity": "Status-item lease/generation identity, not general operation identity.",
-          "owner": "Caller-supplied owner label plus connection/lease mechanics; it is not the M2 mechanically authenticated ancestor root.",
-          "list": {
-            "state": "partial",
-            "detail": "Feature-specific lease state can be inspected; no general operation list."
+      "operation_identity": "Consumer items retain lease identity; the separate internal item projects shared operation and host-barrier generations without becoming an operation owner.",
+      "owner": "Consumer labels remain lease metadata. Internal status actions carry daemon/status-host/item generations as provenance and use the same live same-effective-UID control entrypoint; presentation origin never grants authority.",
+      "list": {
+        "state": "complete",
+        "detail": "The internal projection shows neutral counts and opens the content-free registered-operation Canvas view."
           },
           "inspect": {
             "state": "complete",
             "detail": "Exact current status-item lease inspect exists."
           },
-          "status": {
-            "state": "partial",
-            "detail": "Lease and action state only."
+      "status": {
+        "state": "complete",
+        "detail": "Active, active-recording, and cleanup/residual counts plus barrier state are projected without raw operation data."
           },
-          "recent": {
-            "state": "absent",
-            "detail": "No cross-operation terminal history."
+      "recent": {
+        "state": "partial",
+        "detail": "The status item itself shows current counts; its Canvas view can inspect bounded content-free terminal records."
           },
           "kill_one": {
             "state": "partial",
@@ -7078,9 +7125,9 @@
             "state": "partial",
             "detail": "Feature owner cleanup is not authenticated cross-capability owner control."
           },
-          "host_stop_all": {
-            "state": "absent",
-            "detail": "No host-wide stop barrier."
+      "host_stop_all": {
+        "state": "complete",
+        "detail": "Always-available break-glass Stop All reaches the same generation-bound same-UID public control plane and reports typed stale/failure outcomes rather than disabling the action."
           },
           "tap": {
             "state": "partial",
@@ -7094,9 +7141,9 @@
             "state": "complete",
             "detail": "Lease teardown removes native item and generation-bound actions."
           },
-          "recovery": {
-            "state": "partial",
-            "detail": "Exact generation/revision protects stale actions; no shared operation recovery."
+      "recovery": {
+        "state": "complete",
+        "detail": "Exact status-host and item generations fence stale presentation actions while the shared registry/barrier owns boot and prior-generation recovery."
           }
         },
         "data_transport": {
@@ -7123,15 +7170,23 @@
               "mutates_runtime": false
             }
           ],
-          "fake": [
-            {
-              "path": "tests/fixtures/status-item-host-controller-harness.swift",
+      "fake": [
+        {
+          "path": "tests/fixtures/status-item-host-controller-harness.swift",
               "claim": "Focused fixture used by the registered contract for host ordering and invocation projection.",
               "execution_class": "fake",
               "requires_owner_authority": false,
-              "tcc_services": [],
-              "mutates_runtime": false
-            }
+          "tcc_services": [],
+          "mutates_runtime": false
+        },
+        {
+          "path": "tests/operation-native-projections.test.mjs",
+          "claim": "Exercises active-only red state, exact status generations, always-available stop-all, and Canvas opening against fake native hosts and a fake operation registry.",
+          "execution_class": "fake",
+          "requires_owner_authority": false,
+          "tcc_services": [],
+          "mutates_runtime": false
+        }
           ],
           "native": [
             {
@@ -7143,15 +7198,15 @@
               "mutates_runtime": false
             }
           ],
-          "limitations": "Current proof does not make status item a general operation control plane."
+      "limitations": "The operation item projects only the M2 registered adapter set. Native menu-bar visual acceptance remains separately gated and consumer status-item leases remain independent."
         }
       },
       "target": {
         "milestone": "M2",
         "disposition": "Expand",
-        "gaps": [
-          "Add a dedicated internal AOS operation status item separate from consumer lease namespaces.",
-          "Project neutral active/recording state and mechanically valid actions while Sigil owns labels and action policy."
+    "gaps": [
+      "Run separately gated native menu-bar acceptance for the dedicated internal item while preserving the shared daemon identity.",
+      "Later adapter milestones must extend the exact indicator registry revision before their operations can appear; Sigil continues to own product labels and action policy."
         ],
         "exit_gate": "M2 projects the first shared operation registry through a dedicated internal status item without weakening current lease identity or assigning product labels or action policy to AOS.",
         "reusable_atoms": [
@@ -7564,18 +7619,25 @@
             "derivation": "maximum introduced version across all required known symbols on one platform"
           }
         },
-        "implementation": {
-          "state": "implemented",
-          "primitive_paths": [
-            "src/display/canvas.swift",
-            "src/display/canvas-lifecycle.swift",
-            "src/daemon/unified.swift"
-          ],
-          "evidence_paths": [
-            "docs/api/aos.md",
-            "docs/api/toolkit/runtime.md"
-          ],
-          "summary": "AOS creates, updates, lists, inspects, moves, captures, evaluates, and removes WKWebView canvases with generation-bound lifecycle, owner/cascade cleanup, content routing, semantic canvas Locators, and Toolkit bridges."
+      "implementation": {
+        "state": "implemented",
+        "primitive_paths": [
+          "src/display/canvas.swift",
+          "src/display/canvas-lifecycle.swift",
+          "src/daemon/unified.swift",
+          "src/daemon/operation-canvas-projection.swift",
+          "packages/toolkit/runtime/operation-control.js",
+          "packages/toolkit/components/operation-control/model.js",
+          "packages/toolkit/components/operation-control/index.js"
+        ],
+        "evidence_paths": [
+          "docs/api/aos.md",
+          "docs/api/aos-capabilities.md",
+          "docs/api/toolkit/runtime.md",
+          "tests/operation-native-projections.test.mjs",
+          "tests/toolkit/operation-status-model.test.mjs"
+        ],
+        "summary": "AOS creates, updates, lists, inspects, moves, captures, evaluates, and removes WKWebView canvases with generation-bound lifecycle, owner/cascade cleanup, content routing, semantic canvas Locators, and Toolkit bridges. M2 adds an internal content-free operation Canvas: ordinary views reauthenticate their captured live peer for owner-bounded controls, while status-opened views expose the registered host set and same-UID stop-all only."
         },
         "exposure": {
           "cli": {
@@ -8122,56 +8184,60 @@
             "all current canvases",
             "canvas semantic target tree"
           ],
-          "targets": [
-            "canvas resource",
-            "WKWebView readiness",
-            "semantic canvas Locator",
-            "canvas pixels"
+      "targets": [
+        "canvas resource",
+        "WKWebView readiness",
+        "semantic canvas Locator",
+        "canvas pixels",
+        "registered operation owner and lifecycle facts",
+        "resource-claim and broker facts",
+        "outcome, blame, cleanup, and artifact-custody facts",
+        "host barrier generation"
           ],
           "depth": "Semantic probe and lifecycle hierarchy are bounded; child canvases may be cascade-owned or detached.",
           "breadth": "All current daemon canvases or one selected canvas.",
-          "completeness": "Complete for AOS-owned canvases; not a generic native/web application inventory.",
+      "completeness": "Complete for AOS-owned canvases and the content-free M2 registered-operation projection; not a generic native/web application inventory and not a projection of unadapted legacy daemon work.",
           "frontier": "Generation, readiness, owner, parent, content, bridge, target, and renderer failures are typed by feature contracts.",
           "state_identity": "Canvas id plus lifecycle generation; canvas Locator re-resolves against current host and is not state_id-scoped."
         },
         "control": {
-          "operation_identity": "Canvas id/generation and feature-specific request ids, not shared operation identity.",
-          "owner": "Canvas owner metadata and connection/cascade mechanics; caller labels are not mechanically authenticated ancestor roots.",
-          "list": {
-            "state": "complete",
-            "detail": "Current canvases are listable."
-          },
-          "inspect": {
-            "state": "complete",
-            "detail": "get/info/exists/readiness expose current canvas state."
-          },
-          "status": {
-            "state": "partial",
-            "detail": "Canvas lifecycle/readiness status exists, not general operation status."
-          },
-          "recent": {
-            "state": "absent",
-            "detail": "No bounded terminal canvas operation history."
-          },
-          "kill_one": {
-            "state": "partial",
-            "detail": "Exact canvas remove exists; it is resource removal, not shared operation kill."
-          },
-          "bulk_owner_kill": {
-            "state": "partial",
-            "detail": "remove-all and cascade cleanup exist without the reviewed owner-filter intersection semantics."
-          },
-          "host_stop_all": {
-            "state": "absent",
-            "detail": "No host barrier."
+      "operation_identity": "Canvas id/generation remains feature identity; the internal operation component additionally projects exact operation/resource/artifact/barrier generations without inventing a product operation.",
+      "owner": "Ordinary operation Canvas actions reauthenticate the exact live captured peer and mechanically derived owner on every request. Status-opened Canvas carries exact daemon/status-host/canvas generations and may stop all only; caller labels and presentation origin never grant authority.",
+      "list": {
+        "state": "complete",
+        "detail": "Current canvases are listable; the internal operation Canvas also lists the exact registered operation set permitted by its origin."
+      },
+      "inspect": {
+        "state": "complete",
+        "detail": "get/info/exists/readiness expose canvas state; operation views expose content-free owner, resource, outcome, blame, cleanup, and artifact-custody facts."
+      },
+      "status": {
+        "state": "complete",
+        "detail": "Canvas lifecycle/readiness and registered operation/barrier status are both available through separate closed projections."
+      },
+      "recent": {
+        "state": "partial",
+        "detail": "The operation Canvas includes bounded content-free terminal records; canvas feature history itself remains feature-local."
+      },
+      "kill_one": {
+        "state": "partial",
+        "detail": "Exact canvas remove remains resource removal. An ordinary live-captured operation Canvas may cancel or kill an exact owner-bounded operation; a status-opened Canvas cannot."
+      },
+      "bulk_owner_kill": {
+        "state": "partial",
+        "detail": "Feature remove-all remains distinct. An ordinary live-captured operation Canvas may apply narrowing-only owner filters; a status-opened Canvas cannot."
+      },
+      "host_stop_all": {
+        "state": "complete",
+        "detail": "The status-opened operation Canvas invokes the same generation-bound same-UID stop-all entrypoint as CLI, IPC, and the status item."
           },
           "tap": {
             "state": "partial",
             "detail": "Subscriptions/messages exist, not separately bounded operation taps."
           },
-          "artifacts": {
-            "state": "partial",
-            "detail": "Rendered/captured images exist outside general custody verbs."
+      "artifacts": {
+        "state": "partial",
+        "detail": "The operation Canvas inspects content-free artifact identity/state/recovery/custody facts, while artifact reveal/remove/release/retain remain public operation controls and current canvas images remain feature-owned."
           },
           "cleanup": {
             "state": "complete",
@@ -8206,15 +8272,31 @@
               "mutates_runtime": false
             }
           ],
-          "fake": [
-            {
-              "path": "tests/toolkit/runtime-canvas-host-runtime.test.mjs",
+      "fake": [
+        {
+          "path": "tests/toolkit/runtime-canvas-host-runtime.test.mjs",
               "claim": "Exercises transport-injected host runtime and lifecycle state.",
               "execution_class": "fake",
               "requires_owner_authority": false,
-              "tcc_services": [],
-              "mutates_runtime": false
-            }
+          "tcc_services": [],
+          "mutates_runtime": false
+        },
+        {
+          "path": "tests/operation-native-projections.test.mjs",
+          "claim": "Exercises exact Canvas generation, ordinary captured-peer reauthentication, status-host stop-all scope, and content-free operation/resource/artifact projection against fake native hosts.",
+          "execution_class": "fake",
+          "requires_owner_authority": false,
+          "tcc_services": [],
+          "mutates_runtime": false
+        },
+        {
+          "path": "tests/toolkit/operation-status-model.test.mjs",
+          "claim": "Normalizes and renders only closed content-free operation, resource-claim, and artifact-custody facts while dropping undeclared raw fields.",
+          "execution_class": "fake",
+          "requires_owner_authority": false,
+          "tcc_services": [],
+          "mutates_runtime": false
+        }
           ],
           "native": [
             {
@@ -8229,7 +8311,7 @@
               "mutates_runtime": true
             }
           ],
-          "limitations": "Existing proofs are feature-specific and do not supply shared operation-control semantics."
+      "limitations": "Offline M2 proofs supply shared operation-control projection semantics but do not perform native visual acceptance. Ordinary operation controls require a live captured peer; status-opened Canvas is deliberately host-view plus stop-all only."
         }
       },
       "target": {
@@ -14519,28 +14601,46 @@
               "route_source_revision",
               "adapter_registration_id",
               "adapter_registration_revision",
+              "activation_predicate",
               "executable_resolution_policy",
               "expected_script_identity",
               "expected_script_digest",
+              "reviewed_dependencies",
+              "reviewed_dependency_set_digest",
               "canonical_argv_shape_digest"
             ],
+            "activation_predicate": {
+              "grammar": "listen_microphone_v1",
+              "authority_scope": "only_exact_matching_invocations_prepare_an_operation_claim_and_require_dynamic_child_admission",
+              "nonmatching_invocations": "no_operation_intent_no_resource_claim_no_child_admission"
+            },
             "executable_resolution_policy": {
               "launcher_shape": "usr_bin_env_node",
               "resolution_owner": "native_external_dispatch",
               "resolution_phase": "immediately_before_spawn",
               "search_source": "sanitized_path",
               "command_name": "node",
+              "designated_requirement": "anchor apple generic and identifier \"node\" and certificate leaf[subject.OU] = \"HX7739G8FX\"",
+              "signing_identifier": "node",
+              "signing_team_identifier": "HX7739G8FX",
+              "requires_hardened_runtime": true,
+              "platform_code_directory_hash_algorithm": "sha256_truncated_cdhash_20_bytes",
+              "reviewed_source_max_bytes": 131072,
+              "reviewed_bundle_max_bytes": 524288,
               "durable_observation_fields": [
                 "resolved_executable_path_digest",
                 "observed_executable_identity_digest",
                 "observed_executable_device",
                 "observed_executable_inode",
                 "observed_executable_code_identity",
-                "observed_executable_file_digest"
+                "observed_executable_file_digest",
+                "platform_code_directory_hash",
+                "signing_identifier",
+                "signing_team_identifier"
               ],
               "authored_static_executable_digest": "forbidden_host_variable",
               "transient_absolute_path_retention": "in_memory_resolution_only_never_durable_or_public",
-              "finalization_comparison": "exact_spawn_intent_path_and_identity_digests_device_inode_code_identity_and_file_digest"
+              "finalization_comparison": "dynamic_seccode_and_mapped_vnode_match_exact_intent_platform_cdhash_device_inode_and_trusted_node_identity"
             },
             "path_or_basename_shortcut": "forbidden"
           },
@@ -14561,6 +14661,22 @@
               "resolved_script_path"
             ]
           },
+          "reviewed_dependency_contract": {
+            "authored_dependencies_field": "reviewed_dependencies",
+            "authored_set_digest_field": "reviewed_dependency_set_digest",
+            "exact_identities": [
+              "scripts/lib/aos-daemon-client.mjs",
+              "scripts/lib/aos-voice-follow.mjs"
+            ],
+            "dependency_digest_input": "raw_file_bytes",
+            "set_digest_input": "utf8_sorted_canonical_json_dependency_identity_and_digest_array",
+            "digest_algorithm": "sha256",
+            "digest_encoding": "lowercase_hex_64",
+            "spawn_intent_field": "reviewed_dependency_set_digest",
+            "finalization_field": "reviewed_dependency_set_digest",
+            "durable_retention": "set_digest_only",
+            "validation_rule": "generator_and_dispatcher_verify_exact_closed_dependency_bytes_under_canonical_aos_root_then_daemon_binds_the_content_free_set_digest_to_the_admitted_in_memory_bundle"
+          },
           "spawn_intent_required_fields": [
             "spawn_record_id",
             "one_time_binding_token_digest",
@@ -14570,19 +14686,70 @@
             "operation_generation",
             "adapter_id",
             "adapter_registration_revision",
+            "route_source_id",
+            "route_source_revision",
             "resolved_executable_path_digest",
             "observed_executable_identity_digest",
             "observed_executable_device",
             "observed_executable_inode",
             "observed_executable_code_identity",
             "observed_executable_file_digest",
+            "platform_code_directory_hash",
+            "signing_identifier",
+            "signing_team_identifier",
             "expected_script_identity_digest",
             "expected_script_digest",
-            "canonical_argv_shape_digest"
+            "reviewed_dependency_set_digest",
+            "canonical_argv_shape_digest",
+            "daemon_generation",
+            "created_at_monotonic_nanoseconds",
+            "expires_at_monotonic_nanoseconds"
           ],
-          "environment_transport": "opaque_one_time_binding_token_only",
+          "binding_token_contract": {
+            "scope": "exact_authenticated_intent_parent_only",
+            "uses": ["child_admit", "abandon"],
+            "child_transport": "forbidden",
+            "durable_form": "domain_separated_digest_only",
+            "finalize_requirement": "token_forbidden_finalize_is_peer_bound"
+          },
+          "child_admission_contract": {
+            "request_fields": ["request_id", "one_time_binding_token", "child_pid"],
+            "parent_authentication": "exact_intent_parent_pid_generation_and_aos_dispatcher_image",
+            "child_evidence": [
+              "child_pid_generation",
+              "same_observation_parent_edge_receipt",
+              "dynamic_seccode_validity",
+              "apple_generic_developer_id_anchor",
+              "signing_identifier_node",
+              "signing_team_identifier_HX7739G8FX",
+              "hardened_runtime",
+              "platform_code_directory_hash_sha256_truncated_20_bytes",
+              "mapped_main_executable_device_inode"
+            ],
+            "publication_order": "durably_admit_exact_child_before_any_reviewed_module_bytes_are_written"
+          },
+          "in_memory_bundle_contract": {
+            "source_bytes": [
+              "scripts/aos-tell-listen.mjs",
+              "scripts/lib/aos-daemon-client.mjs",
+              "scripts/lib/aos-voice-follow.mjs"
+            ],
+            "construction": "deterministic_nested_esm_data_urls_from_already_verified_raw_bytes",
+            "transport": "stdin_after_durable_child_admission",
+            "child_pathnames": "forbidden",
+            "binding_token": "forbidden",
+            "pre_admission_child_input": "empty"
+          },
+          "pending_intent_cleanup_contract": {
+            "limit": 4096,
+            "ttl_milliseconds": 30000,
+            "closure_paths": ["parent_authenticated_abandon", "daemon_expiry", "boot_recovery", "finalization_failure"],
+            "result": "terminalize_prepared_operation_and_release_exact_resource_claim_without_authority",
+            "closed_receipt_retention": "bounded_4096"
+          },
           "rejected_environment_authority": "AOS_EXTERNAL_DISPATCH_PARENT_PID",
-          "finalization_phase": "child_same_socket_bootstrap_before_microphone_authority",
+          "lifecycle_parent_observation": "dispatcher_injected_pid_is_deleted_at_module_initialization_never_sent_to_daemon_and_never_authority",
+          "finalization_phase": "tokenless_exact_admitted_child_same_socket_before_microphone_authority",
           "finalization_required_fields": [
             "spawn_record_id",
             "one_time_binding_token_digest",
@@ -14603,8 +14770,13 @@
             "executable_inode",
             "executable_code_identity",
             "executable_file_digest",
+            "platform_code_directory_hash",
+            "platform_code_directory_hash_algorithm",
+            "signing_identifier",
+            "signing_team_identifier",
             "script_identity_digest",
             "script_digest",
+            "reviewed_dependency_set_digest",
             "canonical_argv_shape_digest"
           ],
           "receipt_contract": {
@@ -14618,9 +14790,12 @@
               "resolved_executable_path_digest",
               "executable_identity_digest",
               "executable_file_digest",
+              "platform_code_directory_hash",
+              "platform_code_directory_hash_algorithm",
               "expected_script_identity_digest",
               "script_identity_digest",
               "script_digest",
+              "reviewed_dependency_set_digest",
               "canonical_argv_shape_digest",
               "outcome"
             ],
@@ -14630,7 +14805,10 @@
               "script_path",
               "script_basename",
               "resolved_script_path",
-              "argv"
+              "argv",
+              "one_time_binding_token",
+              "reviewed_dependency_identities",
+              "module_bytes"
             ]
           },
           "success_result": "generation_bound_spawn_record_finalized",
@@ -16012,7 +16190,7 @@
       ]
     },
     "external_command_manifest_migration_contract": {
-      "publication_boundary": "target_only_until_m2_runtime_cutover",
+      "publication_boundary": "current_executable_v1_only_m2_cutover",
       "frozen_predecessor": {
         "schema_path": "shared/schemas/aos-external-command-manifest-v0.schema.json",
         "schema_version": 1,
@@ -16032,9 +16210,12 @@
           "route_source_revision",
           "adapter_registration_id",
           "adapter_registration_revision",
+          "activation_predicate",
           "executable_resolution_policy",
           "expected_script_identity",
           "expected_script_digest",
+          "reviewed_dependencies",
+          "reviewed_dependency_set_digest",
           "canonical_argv_shape_digest"
         ],
         "registration_digest_format": "lowercase_sha256_hex_64",
@@ -16045,6 +16226,13 @@
           "search_source": "sanitized_path",
           "resolution_owner": "native_external_dispatch",
           "resolution_phase": "immediately_before_spawn",
+          "designated_requirement": "anchor apple generic and identifier \"node\" and certificate leaf[subject.OU] = \"HX7739G8FX\"",
+          "signing_identifier": "node",
+          "signing_team_identifier": "HX7739G8FX",
+          "requires_hardened_runtime": true,
+          "platform_code_directory_hash_algorithm": "sha256_truncated_cdhash_20_bytes",
+          "reviewed_source_max_bytes": 131072,
+          "reviewed_bundle_max_bytes": 524288,
           "authored_static_executable_digest": "forbidden_host_variable"
         }
       },
@@ -16053,15 +16241,23 @@
           "source_path": "manifests/commands/source/external/15-listen.json",
           "command_path": ["listen"],
           "adapter_registration_id": "microphone-capture-adapter",
+          "activation_predicate": "listen_microphone_v1",
           "registration_count": 1
         }
       ],
-      "unregistered_route_rule": "all_other_external_routes_remain_without_spawn_registration",
+      "unregistered_route_rule": "all_other_external_routes_and_nonmatching_listen_invocations_remain_without_active_spawn_registration",
       "generator_contract": {
         "owner": "scripts/generate-command-manifests.mjs",
         "cross_checks": [
           "registered_script_equals_argv_prefix_index_one",
           "script_raw_byte_digest",
+          "reviewed_dependency_raw_byte_digests",
+          "reviewed_dependency_set_digest",
+          "activation_predicate_exact_grammar",
+          "trusted_node_designated_requirement",
+          "hardened_runtime_required",
+          "platform_code_directory_hash_algorithm",
+          "reviewed_source_and_bundle_bounds",
           "semantic_source_revision",
           "argv_prefix_plus_forwarded_suffix_shape_digest",
           "route_source_id",
@@ -17186,7 +17382,10 @@
             "M2.path.shared_schemas_aos_external_command_manifest_v1_schema_json",
             "M2.path.manifests_commands_source_external_15_listen_json",
             "M2.path.scripts_generate_command_manifests_mjs",
+            "M2.path.manifests_commands_aos_commands_json",
             "M2.path.manifests_commands_aos_external_commands_json",
+            "M2.path.docs_api_aos_md",
+            "M2.path.docs_api_aos_capabilities_md",
             "M2.path.src_shared_external_command_dispatch_swift",
             "M2.path.scripts_aos_help_proxy_mjs",
             "M2.path.scripts_stage_browser_companion_runtime_mjs",
@@ -17531,79 +17730,79 @@
       ],
       "path_refs": [
         {
-          "id": "M2.path.shared_schemas_aos_operation_v1_schema_json",
-          "path": "shared/schemas/aos-operation-v1.schema.json",
-          "kind": "proposed"
+         "id": "M2.path.shared_schemas_aos_operation_v1_schema_json",
+         "path": "shared/schemas/aos-operation-v1.schema.json",
+          "kind": "current"
         },
         {
-          "id": "M2.path.shared_schemas_aos_operation_event_v1_schema_json",
-          "path": "shared/schemas/aos-operation-event-v1.schema.json",
-          "kind": "proposed"
+         "id": "M2.path.shared_schemas_aos_operation_event_v1_schema_json",
+         "path": "shared/schemas/aos-operation-event-v1.schema.json",
+          "kind": "current"
         },
         {
-          "id": "M2.path.shared_schemas_aos_operation_lineage_v1_schema_json",
-          "path": "shared/schemas/aos-operation-lineage-v1.schema.json",
-          "kind": "proposed"
+         "id": "M2.path.shared_schemas_aos_operation_lineage_v1_schema_json",
+         "path": "shared/schemas/aos-operation-lineage-v1.schema.json",
+          "kind": "current"
         },
         {
-          "id": "M2.path.shared_schemas_aos_stream_v1_schema_json",
-          "path": "shared/schemas/aos-stream-v1.schema.json",
-          "kind": "proposed"
+         "id": "M2.path.shared_schemas_aos_stream_v1_schema_json",
+         "path": "shared/schemas/aos-stream-v1.schema.json",
+          "kind": "current"
         },
         {
-          "id": "M2.path.shared_schemas_aos_operation_tap_v1_schema_json",
-          "path": "shared/schemas/aos-operation-tap-v1.schema.json",
-          "kind": "proposed"
+         "id": "M2.path.shared_schemas_aos_operation_tap_v1_schema_json",
+         "path": "shared/schemas/aos-operation-tap-v1.schema.json",
+          "kind": "current"
         },
         {
-          "id": "M2.path.shared_schemas_aos_artifact_v1_schema_json",
-          "path": "shared/schemas/aos-artifact-v1.schema.json",
-          "kind": "proposed"
+         "id": "M2.path.shared_schemas_aos_artifact_v1_schema_json",
+         "path": "shared/schemas/aos-artifact-v1.schema.json",
+          "kind": "current"
         },
         {
-          "id": "M2.path.shared_schemas_aos_host_stop_barrier_v1_schema_json",
-          "path": "shared/schemas/aos-host-stop-barrier-v1.schema.json",
-          "kind": "proposed"
+         "id": "M2.path.shared_schemas_aos_host_stop_barrier_v1_schema_json",
+         "path": "shared/schemas/aos-host-stop-barrier-v1.schema.json",
+          "kind": "current"
         },
         {
-          "id": "M2.path.shared_schemas_aos_operation_recovery_v1_schema_json",
-          "path": "shared/schemas/aos-operation-recovery-v1.schema.json",
-          "kind": "proposed"
+         "id": "M2.path.shared_schemas_aos_operation_recovery_v1_schema_json",
+         "path": "shared/schemas/aos-operation-recovery-v1.schema.json",
+          "kind": "current"
         },
         {
-          "id": "M2.path.src_daemon_operation_registry_swift",
-          "path": "src/daemon/operation-registry.swift",
-          "kind": "proposed"
+         "id": "M2.path.src_daemon_operation_registry_swift",
+         "path": "src/daemon/operation-registry.swift",
+          "kind": "current"
         },
         {
-          "id": "M2.path.src_daemon_operation_control_swift",
-          "path": "src/daemon/operation-control.swift",
-          "kind": "proposed"
+         "id": "M2.path.src_daemon_operation_control_swift",
+         "path": "src/daemon/operation-control.swift",
+          "kind": "current"
         },
         {
-          "id": "M2.path.src_daemon_operation_recovery_swift",
-          "path": "src/daemon/operation-recovery.swift",
-          "kind": "proposed"
+         "id": "M2.path.src_daemon_operation_recovery_swift",
+         "path": "src/daemon/operation-recovery.swift",
+          "kind": "current"
         },
         {
-          "id": "M2.path.src_daemon_microphone_operation_adapter_swift",
-          "path": "src/daemon/microphone-operation-adapter.swift",
-          "kind": "proposed"
+         "id": "M2.path.src_daemon_microphone_operation_adapter_swift",
+         "path": "src/daemon/microphone-operation-adapter.swift",
+          "kind": "current"
         },
         {
-          "id": "M2.path.src_daemon_operation_status_item_projection_swift",
-          "path": "src/daemon/operation-status-item-projection.swift",
-          "kind": "proposed"
+         "id": "M2.path.src_daemon_operation_status_item_projection_swift",
+         "path": "src/daemon/operation-status-item-projection.swift",
+          "kind": "current"
         },
         {
-          "id": "M2.path.manifests_commands_source_aos_41_operation_json",
-          "path": "manifests/commands/source/aos/41-operation.json",
-          "kind": "proposed"
+         "id": "M2.path.manifests_commands_source_aos_41_operation_json",
+         "path": "manifests/commands/source/aos/41-operation.json",
+          "kind": "current"
         },
         {
-          "id": "M2.path.manifests_commands_source_external_49_operation_json",
-          "path": "manifests/commands/source/external/49-operation.json",
-          "kind": "proposed"
+         "id": "M2.path.manifests_commands_source_external_49_operation_json",
+         "path": "manifests/commands/source/external/49-operation.json",
+          "kind": "current"
         },
         {
           "id": "M2.path.manifests_commands_aos_commands_json",
@@ -17646,44 +17845,44 @@
           "kind": "current"
         },
         {
-          "id": "M2.path.src_daemon_operation_owner_root_swift",
-          "path": "src/daemon/operation-owner-root.swift",
-          "kind": "proposed"
+         "id": "M2.path.src_daemon_operation_owner_root_swift",
+         "path": "src/daemon/operation-owner-root.swift",
+          "kind": "current"
         },
         {
-          "id": "M2.path.src_daemon_operation_spawn_record_swift",
-          "path": "src/daemon/operation-spawn-record.swift",
-          "kind": "proposed"
+         "id": "M2.path.src_daemon_operation_spawn_record_swift",
+         "path": "src/daemon/operation-spawn-record.swift",
+          "kind": "current"
         },
         {
-          "id": "M2.path.src_daemon_operation_store_swift",
-          "path": "src/daemon/operation-store.swift",
-          "kind": "proposed"
+         "id": "M2.path.src_daemon_operation_store_swift",
+         "path": "src/daemon/operation-store.swift",
+          "kind": "current"
         },
         {
-          "id": "M2.path.src_daemon_operation_state_swift",
-          "path": "src/daemon/operation-state.swift",
-          "kind": "proposed"
+         "id": "M2.path.src_daemon_operation_state_swift",
+         "path": "src/daemon/operation-state.swift",
+          "kind": "current"
         },
         {
-          "id": "M2.path.src_daemon_operation_resource_transaction_swift",
-          "path": "src/daemon/operation-resource-transaction.swift",
-          "kind": "proposed"
+         "id": "M2.path.src_daemon_operation_resource_transaction_swift",
+         "path": "src/daemon/operation-resource-transaction.swift",
+          "kind": "current"
         },
         {
-          "id": "M2.path.src_daemon_operation_resource_claim_swift",
-          "path": "src/daemon/operation-resource-claim.swift",
-          "kind": "proposed"
+         "id": "M2.path.src_daemon_operation_resource_claim_swift",
+         "path": "src/daemon/operation-resource-claim.swift",
+          "kind": "current"
         },
         {
-          "id": "M2.path.src_daemon_operation_resource_broker_swift",
-          "path": "src/daemon/operation-resource-broker.swift",
-          "kind": "proposed"
+         "id": "M2.path.src_daemon_operation_resource_broker_swift",
+         "path": "src/daemon/operation-resource-broker.swift",
+          "kind": "current"
         },
         {
-          "id": "M2.path.src_daemon_operation_canvas_projection_swift",
-          "path": "src/daemon/operation-canvas-projection.swift",
-          "kind": "proposed"
+         "id": "M2.path.src_daemon_operation_canvas_projection_swift",
+         "path": "src/daemon/operation-canvas-projection.swift",
+          "kind": "current"
         },
         {
           "id": "M2.path.src_daemon_unified_swift",
@@ -17701,9 +17900,9 @@
           "kind": "current"
         },
         {
-          "id": "M2.path.shared_schemas_aos_external_command_manifest_v1_schema_json",
-          "path": "shared/schemas/aos-external-command-manifest-v1.schema.json",
-          "kind": "proposed"
+         "id": "M2.path.shared_schemas_aos_external_command_manifest_v1_schema_json",
+         "path": "shared/schemas/aos-external-command-manifest-v1.schema.json",
+          "kind": "current"
         },
         {
           "id": "M2.path.scripts_generate_command_manifests_mjs",
@@ -17761,9 +17960,9 @@
           "kind": "current"
         },
         {
-          "id": "M2.path.src_commands_operation_swift",
-          "path": "src/commands/operation.swift",
-          "kind": "proposed"
+         "id": "M2.path.src_commands_operation_swift",
+         "path": "src/commands/operation.swift",
+          "kind": "current"
         },
         {
           "id": "M2.path.src_main_swift",
@@ -17781,9 +17980,9 @@
           "kind": "current"
         },
         {
-          "id": "M2.path.packages_toolkit_runtime_operation_control_js",
-          "path": "packages/toolkit/runtime/operation-control.js",
-          "kind": "proposed"
+         "id": "M2.path.packages_toolkit_runtime_operation_control_js",
+         "path": "packages/toolkit/runtime/operation-control.js",
+          "kind": "current"
         },
         {
           "id": "M2.path.packages_toolkit_runtime_index_js",
@@ -17791,29 +17990,29 @@
           "kind": "current"
         },
         {
-          "id": "M2.path.packages_toolkit_components_operation_control_model_js",
-          "path": "packages/toolkit/components/operation-control/model.js",
-          "kind": "proposed"
+         "id": "M2.path.packages_toolkit_components_operation_control_model_js",
+         "path": "packages/toolkit/components/operation-control/model.js",
+          "kind": "current"
         },
         {
-          "id": "M2.path.packages_toolkit_components_operation_control_index_js",
-          "path": "packages/toolkit/components/operation-control/index.js",
-          "kind": "proposed"
+         "id": "M2.path.packages_toolkit_components_operation_control_index_js",
+         "path": "packages/toolkit/components/operation-control/index.js",
+          "kind": "current"
         },
         {
-          "id": "M2.path.packages_toolkit_components_operation_control_index_html",
-          "path": "packages/toolkit/components/operation-control/index.html",
-          "kind": "proposed"
+         "id": "M2.path.packages_toolkit_components_operation_control_index_html",
+         "path": "packages/toolkit/components/operation-control/index.html",
+          "kind": "current"
         },
         {
-          "id": "M2.path.packages_toolkit_components_operation_control_styles_css",
-          "path": "packages/toolkit/components/operation-control/styles.css",
-          "kind": "proposed"
+         "id": "M2.path.packages_toolkit_components_operation_control_styles_css",
+         "path": "packages/toolkit/components/operation-control/styles.css",
+          "kind": "current"
         },
         {
-          "id": "M2.path.docs_dev_test_proof_registry_d_operation_control_json",
-          "path": "docs/dev/test-proof-registry.d/operation-control.json",
-          "kind": "proposed"
+         "id": "M2.path.docs_dev_test_proof_registry_d_operation_control_json",
+         "path": "docs/dev/test-proof-registry.d/operation-control.json",
+          "kind": "current"
         },
         {
           "id": "M2.path.docs_dev_workflow_rules_json",
@@ -17883,32 +18082,32 @@
       ],
       "proof_paths": [
         {
-          "id": "M2.proof.tests_schemas_aos_operation_v1_test_mjs",
-          "case_id": null,
-          "path": "tests/schemas/aos-operation-v1.test.mjs",
-          "kind": "proposed",
-          "execution_class": "static"
+         "id": "M2.proof.tests_schemas_aos_operation_v1_test_mjs",
+         "case_id": null,
+         "path": "tests/schemas/aos-operation-v1.test.mjs",
+          "kind": "current",
+         "execution_class": "static"
         },
         {
-          "id": "M2.proof.tests_operation_control_contract_test_mjs",
-          "case_id": null,
-          "path": "tests/operation-control-contract.test.mjs",
-          "kind": "proposed",
-          "execution_class": "static"
+         "id": "M2.proof.tests_operation_control_contract_test_mjs",
+         "case_id": null,
+         "path": "tests/operation-control-contract.test.mjs",
+          "kind": "current",
+         "execution_class": "static"
         },
         {
-          "id": "M2.proof.tests_operation_control_fake_test_mjs",
-          "case_id": null,
-          "path": "tests/operation-control-fake.test.mjs",
-          "kind": "proposed",
-          "execution_class": "fake"
+         "id": "M2.proof.tests_operation_control_fake_test_mjs",
+         "case_id": null,
+         "path": "tests/operation-control-fake.test.mjs",
+          "kind": "current",
+         "execution_class": "fake"
         },
         {
-          "id": "M2.proof.tests_native_operation_control_contract_sh",
-          "case_id": null,
-          "path": "tests/native-operation-control-contract.sh",
-          "kind": "proposed",
-          "execution_class": "native_compile"
+         "id": "M2.proof.tests_native_operation_control_contract_sh",
+         "case_id": null,
+         "path": "tests/native-operation-control-contract.sh",
+          "kind": "current",
+         "execution_class": "native_compile"
         },
         {
           "id": "M2.proof.tests_manual_operation_control_native_proof_sh",
@@ -17918,18 +18117,18 @@
           "execution_class": "native_live"
         },
         {
-          "id": "M2.proof.tests_operation_owner_root_test_mjs",
-          "case_id": "owner-root-and-generation-bound-spawn-record",
-          "path": "tests/operation-owner-root.test.mjs",
-          "kind": "proposed",
-          "execution_class": "static"
+         "id": "M2.proof.tests_operation_owner_root_test_mjs",
+         "case_id": "owner-root-and-generation-bound-spawn-record",
+         "path": "tests/operation-owner-root.test.mjs",
+          "kind": "current",
+         "execution_class": "static"
         },
         {
-          "id": "M2.proof.tests_operation_external_dispatch_binding_test_mjs",
-          "case_id": "spawn-intent-live-peer-finalization-and-microphone-owner-root",
-          "path": "tests/operation-external-dispatch-binding.test.mjs",
-          "kind": "proposed",
-          "execution_class": "fake"
+         "id": "M2.proof.tests_operation_external_dispatch_binding_test_mjs",
+         "case_id": "spawn-intent-live-peer-finalization-and-microphone-owner-root",
+         "path": "tests/operation-external-dispatch-binding.test.mjs",
+          "kind": "current",
+         "execution_class": "fake"
         },
         {
           "id": "M2.proof.tests_schemas_aos_external_command_manifest_v0_test_mjs",
@@ -17946,60 +18145,60 @@
           "execution_class": "static"
         },
         {
-          "id": "M2.proof.tests_voice_operation_claim_contract_test_mjs",
-          "case_id": "exclusive-voice-io-claim-rejects-implicit-barge-in-preemption",
-          "path": "tests/voice-operation-claim-contract.test.mjs",
-          "kind": "proposed",
-          "execution_class": "fake"
+         "id": "M2.proof.tests_voice_operation_claim_contract_test_mjs",
+         "case_id": "exclusive-voice-io-claim-rejects-implicit-barge-in-preemption",
+         "path": "tests/voice-operation-claim-contract.test.mjs",
+          "kind": "current",
+         "execution_class": "fake"
         },
         {
-          "id": "M2.proof.tests_operation_resource_claims_test_mjs",
-          "case_id": "atomic-mixed-claim-set-and-broker-lifecycle",
-          "path": "tests/operation-resource-claims.test.mjs",
-          "kind": "proposed",
-          "execution_class": "fake"
+         "id": "M2.proof.tests_operation_resource_claims_test_mjs",
+         "case_id": "atomic-mixed-claim-set-and-broker-lifecycle",
+         "path": "tests/operation-resource-claims.test.mjs",
+          "kind": "current",
+         "execution_class": "fake"
         },
         {
-          "id": "M2.proof.tests_operation_host_control_test_mjs",
-          "case_id": "boot-reconciliation-request-idempotency-and-barrier-cas",
-          "path": "tests/operation-host-control.test.mjs",
-          "kind": "proposed",
-          "execution_class": "fake"
+         "id": "M2.proof.tests_operation_host_control_test_mjs",
+         "case_id": "boot-reconciliation-request-idempotency-and-barrier-cas",
+         "path": "tests/operation-host-control.test.mjs",
+          "kind": "current",
+         "execution_class": "fake"
         },
         {
-          "id": "M2.proof.tests_operation_canvas_projection_test_mjs",
-          "case_id": "captured-peer-and-status-host-origin-separation",
-          "path": "tests/operation-canvas-projection.test.mjs",
-          "kind": "proposed",
-          "execution_class": "fake"
+         "id": "M2.proof.tests_operation_canvas_projection_test_mjs",
+         "case_id": "captured-peer-and-status-host-origin-separation",
+         "path": "tests/operation-canvas-projection.test.mjs",
+          "kind": "current",
+         "execution_class": "fake"
         },
         {
-          "id": "M2.proof.tests_toolkit_runtime_operation_control_test_mjs",
-          "case_id": "internal-runtime-operation-projection",
-          "path": "tests/toolkit/runtime-operation-control.test.mjs",
-          "kind": "proposed",
-          "execution_class": "fake"
+         "id": "M2.proof.tests_toolkit_runtime_operation_control_test_mjs",
+         "case_id": "internal-runtime-operation-projection",
+         "path": "tests/toolkit/runtime-operation-control.test.mjs",
+          "kind": "current",
+         "execution_class": "fake"
         },
         {
-          "id": "M2.proof.tests_toolkit_operation_control_model_test_mjs",
-          "case_id": "content-free-operation-model",
-          "path": "tests/toolkit/operation-control-model.test.mjs",
-          "kind": "proposed",
-          "execution_class": "fake"
+         "id": "M2.proof.tests_toolkit_operation_control_model_test_mjs",
+         "case_id": "content-free-operation-model",
+         "path": "tests/toolkit/operation-control-model.test.mjs",
+          "kind": "current",
+         "execution_class": "fake"
         },
         {
-          "id": "M2.proof.tests_toolkit_operation_control_component_test_mjs",
-          "case_id": "internal-canvas-control-component",
-          "path": "tests/toolkit/operation-control-component.test.mjs",
-          "kind": "proposed",
-          "execution_class": "fake"
+         "id": "M2.proof.tests_toolkit_operation_control_component_test_mjs",
+         "case_id": "internal-canvas-control-component",
+         "path": "tests/toolkit/operation-control-component.test.mjs",
+          "kind": "current",
+         "execution_class": "fake"
         },
         {
-          "id": "M2.proof.tests_schemas_aos_external_command_manifest_v1_test_mjs",
-          "case_id": "v1-optional-generation-bound-node-spawn-registration-schema",
-          "path": "tests/schemas/aos-external-command-manifest-v1.test.mjs",
-          "kind": "proposed",
-          "execution_class": "static"
+         "id": "M2.proof.tests_schemas_aos_external_command_manifest_v1_test_mjs",
+         "case_id": "v1-optional-generation-bound-node-spawn-registration-schema",
+         "path": "tests/schemas/aos-external-command-manifest-v1.test.mjs",
+          "kind": "current",
+         "execution_class": "static"
         },
         {
           "id": "M2.proof.tests_external_command_dispatch_sh",

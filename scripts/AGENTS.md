@@ -142,12 +142,11 @@ commands, runtime helpers, wiki tools, and command adapters.
   state, never durable or public. The fixed browser operations and exact adapters below remain
   current executable truth and burn-down baseline; do not widen or delete them
   without the later atomic source/manifest/help/schema/API/skill/test slice.
-  The external-command v0 schema remains frozen. The accepted M2 target uses a
-  new v1 schema, keeps the aggregate path stable while moving its wire version
-  to 2, registers only the authored `listen` route, and cuts the generator,
-  Swift dispatcher, help proxy, proof routing, and installed projections over
-  together; no dual reader, v0 mutation, translation, or parallel aggregate is
-  allowed.
+  The external-command v0 schema remains frozen. Active M2 uses the v1 schema,
+  keeps the aggregate path stable at wire version 2, registers only the
+  authored `listen` route, and keeps the generator, Swift dispatcher, help
+  proxy, proof routing, and installed projections on the same v1-only cutover;
+  no dual reader, v0 mutation, translation, or parallel aggregate is allowed.
 - `aos-browser-companion.mjs` is the public status/install/update/uninstall CLI
   for the source-pinned Playwright package runtime. Its focused implementation
   and store ownership rules live under `lib/browser-companion/AGENTS.md`.

@@ -5,7 +5,11 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { listenVoice, writeVoiceCLIError } from './lib/aos-voice-follow.mjs';
+import {
+  listenVoice,
+  monitorExternalDispatchLifecycleOnly,
+  writeVoiceCLIError,
+} from './lib/aos-voice-follow.mjs';
 
 const SESSION_ROLES = new Set(['worker', 'coordinator', 'observer']);
 
@@ -92,6 +96,7 @@ function startDaemon({ managed = false } = {}) {
 }
 
 async function connectWithAutoStart(options = {}) {
+  if (options.signal?.aborted) return null;
   let socket = await connectOnce();
   if (socket) return { socket, daemon: null };
   if (autoStartDisabled()) {
@@ -103,8 +108,13 @@ async function connectWithAutoStart(options = {}) {
     return null;
   }
   const daemon = startDaemon(options);
+  options.onManagedDaemon?.(daemon);
   for (let i = 0; i < 30; i += 1) {
     await new Promise((resolve) => setTimeout(resolve, 100));
+    if (options.signal?.aborted) {
+      stopManagedDaemon(daemon);
+      return null;
+    }
     socket = await connectOnce();
     if (socket) return { socket, daemon };
   }
@@ -364,16 +374,47 @@ async function listenCommand(args) {
 }
 
 async function listenFollow(channel, since) {
-  const connection = await connectWithAutoStart({ managed: true });
-  const socket = connection?.socket ?? null;
-  const daemon = connection?.daemon ?? null;
+  const startupAbort = new AbortController();
+  let ownedDaemon = null;
+  let connection = null;
+  let socket = null;
+  let lifecycleDisconnected = false;
+  let settled = false;
+  let parentMonitor = null;
+  const close = () => {
+    if (settled) return;
+    settled = true;
+    startupAbort.abort();
+    if (parentMonitor) clearInterval(parentMonitor);
+    if (socket && !socket.destroyed) socket.end();
+    stopManagedDaemon(ownedDaemon ?? connection?.daemon);
+    process.exitCode = 0;
+  };
+  parentMonitor = monitorExternalDispatchLifecycleOnly(() => {
+    lifecycleDisconnected = true;
+    close();
+  });
+  if (lifecycleDisconnected) return;
+  connection = await connectWithAutoStart({
+    managed: true,
+    signal: startupAbort.signal,
+    onManagedDaemon: (daemon) => { ownedDaemon = daemon; },
+  });
+  if (lifecycleDisconnected || startupAbort.signal.aborted) {
+    close();
+    return;
+  }
+  socket = connection?.socket ?? null;
+  const daemon = ownedDaemon ?? connection?.daemon ?? null;
   if (!socket) error('Cannot connect to daemon', 'DAEMON_UNREACHABLE');
   socket.write(`${JSON.stringify({ v: 1, service: 'see', action: 'observe', data: {} })}\n`);
   await readOneJSON(socket, 2000);
+  if (lifecycleDisconnected || settled) return;
 
   if (since) {
     socket.write(`${JSON.stringify({ v: 1, service: 'listen', action: 'read', data: { channel, limit: 100, since } })}\n`);
     const response = await readOneJSON(socket, 2000);
+    if (lifecycleDisconnected || settled) return;
     const body = response?.data ?? response ?? {};
     for (const message of body.messages ?? []) {
       process.stdout.write(`${JSON.stringify(message)}\n`);
@@ -395,14 +436,9 @@ async function listenFollow(channel, since) {
       process.stdout.write(`${JSON.stringify(json.data)}\n`);
     }
   });
-  const close = () => {
-    socket.end();
-    stopManagedDaemon(daemon);
-    process.exit(0);
-  };
   socket.on('close', close);
-  process.on('SIGINT', close);
-  process.on('SIGTERM', close);
+  process.once('SIGINT', close);
+  process.once('SIGTERM', close);
 }
 
 const [command, ...rest] = process.argv.slice(2);

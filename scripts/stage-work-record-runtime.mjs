@@ -3,6 +3,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  assertExternalCommandManifestGeneratorCurrent,
+  validateExternalCommandManifestV1,
+} from './lib/external-command-manifest-v1.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
@@ -43,6 +47,15 @@ function copyTree(relativeSource, relativeDestination, allowedExtensions) {
   visit(sourceRoot, destinationRoot);
 }
 
+const manifestSource = path.join(repoRoot, 'manifests/commands/aos-external-commands.json');
+const manifest = JSON.parse(fs.readFileSync(manifestSource, 'utf8'));
+try {
+  validateExternalCommandManifestV1(manifest, { canonicalAggregate: true });
+  assertExternalCommandManifestGeneratorCurrent(repoRoot);
+} catch (error) {
+  fail(error.message);
+}
+
 copyTree(
   'packages/toolkit/workbench',
   'packages/toolkit/workbench',
@@ -58,8 +71,6 @@ copyTree(
   new Set(['.json']),
 );
 
-const manifestSource = path.join(repoRoot, 'manifests/commands/aos-external-commands.json');
-const manifest = JSON.parse(fs.readFileSync(manifestSource, 'utf8'));
 const workRecordCommands = Array.isArray(manifest.commands)
   ? manifest.commands.filter((command) => command?.path?.[0] === 'work-record')
   : [];

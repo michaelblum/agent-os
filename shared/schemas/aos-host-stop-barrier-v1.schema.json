@@ -1,0 +1,512 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-host-stop-barrier-v1.schema.json",
+  "title": "AOS Host Stop Barrier v1",
+  "oneOf": [
+    {"$ref": "#/$defs/barrier_record"},
+    {"$ref": "#/$defs/stop_all_request"},
+    {"$ref": "#/$defs/barrier_status_request"},
+    {"$ref": "#/$defs/reopen_request"},
+    {"$ref": "#/$defs/stop_all_receipt"},
+    {"$ref": "#/$defs/barrier_status_receipt"},
+    {"$ref": "#/$defs/reopen_receipt"}
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "nonnegative_integer": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "barrier_state": {
+      "enum": ["boot_reconciling", "open", "closing", "closed", "cleanup_required", "recovering"]
+    },
+    "cleanup_result": {
+      "enum": ["pending", "zero_residuals", "residuals_present", "recovery_active"]
+    },
+    "reconciliation_state": {
+      "enum": ["not_started", "in_progress", "complete", "blocked"]
+    },
+    "caller_origin_binding_constraints": {
+      "oneOf": [
+        {
+          "properties": {
+            "caller_origin": {"const": "live_transport_peer"},
+            "caller_origin_evidence": {
+              "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/live_transport_peer_evidence"
+            }
+          }
+        },
+        {
+          "properties": {
+            "caller_origin": {"const": "ordinary_canvas_captured_peer"},
+            "caller_origin_evidence": {
+              "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/ordinary_canvas_captured_peer_evidence"
+            }
+          }
+        },
+        {
+          "properties": {
+            "caller_origin": {"const": "status_item_host"},
+            "caller_origin_evidence": {
+              "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/status_item_host_evidence"
+            }
+          }
+        },
+        {
+          "properties": {
+            "caller_origin": {"const": "status_opened_canvas_host"},
+            "caller_origin_evidence": {
+              "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/status_opened_canvas_host_evidence"
+            }
+          }
+        }
+      ]
+    },
+    "stop_caller_origin_binding_constraints": {
+      "oneOf": [
+        {
+          "properties": {
+            "caller_origin": {"const": "live_transport_peer"},
+            "caller_origin_evidence": {
+              "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/live_transport_peer_evidence"
+            }
+          }
+        },
+        {
+          "properties": {
+            "caller_origin": {"const": "status_item_host"},
+            "caller_origin_evidence": {
+              "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/status_item_host_evidence"
+            }
+          }
+        },
+        {
+          "properties": {
+            "caller_origin": {"const": "status_opened_canvas_host"},
+            "caller_origin_evidence": {
+              "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/status_opened_canvas_host_evidence"
+            }
+          }
+        }
+      ]
+    },
+    "live_transport_origin_binding_constraints": {
+      "properties": {
+        "caller_origin": {"const": "live_transport_peer"},
+        "caller_origin_evidence": {
+          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/live_transport_peer_evidence"
+        }
+      }
+    },
+    "immutable_barrier_snapshot": {
+      "type": "object",
+      "required": [
+        "barrier_generation",
+        "stop_operation_id",
+        "stop_operation_generation",
+        "adapter_registry_revision",
+        "registered_operation_set_count",
+        "registered_operation_set_digest",
+        "selected_operation_count",
+        "selected_operation_digest",
+        "barrier_snapshot_digest"
+      ],
+      "properties": {
+        "barrier_generation": {"$ref": "#/$defs/generation"},
+        "stop_operation_id": {"$ref": "#/$defs/identifier"},
+        "stop_operation_generation": {"$ref": "#/$defs/generation"},
+        "adapter_registry_revision": {"$ref": "#/$defs/generation"},
+        "registered_operation_set_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "registered_operation_set_digest": {"$ref": "#/$defs/sha256"},
+        "selected_operation_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "selected_operation_digest": {"$ref": "#/$defs/sha256"},
+        "barrier_snapshot_digest": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "open_barrier_snapshot": {
+      "type": "object",
+      "required": [
+        "barrier_generation",
+        "adapter_registry_revision",
+        "registered_operation_set_count",
+        "registered_operation_set_digest",
+        "open_snapshot_digest"
+      ],
+      "properties": {
+        "barrier_generation": {"$ref": "#/$defs/generation"},
+        "adapter_registry_revision": {"$ref": "#/$defs/generation"},
+        "registered_operation_set_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "registered_operation_set_digest": {"$ref": "#/$defs/sha256"},
+        "open_snapshot_digest": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "barrier_progress": {
+      "type": "object",
+      "required": ["residual_count", "residual_digest", "cleanup_result", "reconciliation_state"],
+      "properties": {
+        "residual_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "residual_digest": {"$ref": "#/$defs/sha256"},
+        "cleanup_result": {"$ref": "#/$defs/cleanup_result"},
+        "reconciliation_state": {"$ref": "#/$defs/reconciliation_state"}
+      },
+      "additionalProperties": false
+    },
+    "barrier_record": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "daemon_generation",
+        "barrier_generation",
+        "state",
+        "admission_open",
+        "immutable_stop_snapshot",
+        "open_snapshot",
+        "progress",
+        "updated_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "aos.host-stop-barrier.record.v1"},
+        "daemon_generation": {"$ref": "#/$defs/generation"},
+        "barrier_generation": {"$ref": "#/$defs/generation"},
+        "state": {"$ref": "#/$defs/barrier_state"},
+        "admission_open": {"type": "boolean"},
+        "immutable_stop_snapshot": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/immutable_barrier_snapshot"}
+          ]
+        },
+        "open_snapshot": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/open_barrier_snapshot"}
+          ]
+        },
+        "progress": {"$ref": "#/$defs/barrier_progress"},
+        "updated_at": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"properties": {"state": {"const": "open"}}},
+          "then": {
+            "properties": {
+              "admission_open": {"const": true},
+              "open_snapshot": {"$ref": "#/$defs/open_barrier_snapshot"},
+              "progress": {
+                "properties": {
+                  "residual_count": {"const": 0},
+                  "cleanup_result": {"const": "zero_residuals"},
+                  "reconciliation_state": {"const": "complete"}
+                }
+              }
+            }
+          },
+          "else": {"properties": {"admission_open": {"const": false}}}
+        },
+        {
+          "if": {"properties": {"state": {"enum": ["closing", "closed", "cleanup_required", "recovering"]}}},
+          "then": {"properties": {"immutable_stop_snapshot": {"$ref": "#/$defs/immutable_barrier_snapshot"}}}
+        }
+      ]
+    },
+    "stop_all_request": {
+      "type": "object",
+      "required": ["schema_version", "request_id", "action", "canonical_parameter_digest", "expected_barrier_generation"],
+      "properties": {
+        "schema_version": {"const": "aos.host-stop-barrier.stop-all-request.v1"},
+        "request_id": {"$ref": "#/$defs/identifier"},
+        "action": {"const": "stop_all"},
+        "canonical_parameter_digest": {"$ref": "#/$defs/sha256"},
+        "expected_barrier_generation": {"$ref": "#/$defs/generation"}
+      },
+      "additionalProperties": false
+    },
+    "barrier_status_request": {
+      "type": "object",
+      "required": ["schema_version", "request_id", "action", "canonical_parameter_digest"],
+      "properties": {
+        "schema_version": {"const": "aos.host-stop-barrier.status-request.v1"},
+        "request_id": {"$ref": "#/$defs/identifier"},
+        "action": {"const": "barrier_status"},
+        "canonical_parameter_digest": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "reopen_request": {
+      "type": "object",
+      "required": ["schema_version", "request_id", "action", "canonical_parameter_digest", "expected_barrier_generation"],
+      "properties": {
+        "schema_version": {"const": "aos.host-stop-barrier.reopen-request.v1"},
+        "request_id": {"$ref": "#/$defs/identifier"},
+        "action": {"const": "reopen"},
+        "canonical_parameter_digest": {"$ref": "#/$defs/sha256"},
+        "expected_barrier_generation": {"$ref": "#/$defs/generation"}
+      },
+      "additionalProperties": false
+    },
+    "host_request_context": {
+      "type": "object",
+      "required": [
+        "expected_daemon_generation",
+        "connection_epoch",
+        "caller_origin",
+        "caller_origin_evidence"
+      ],
+      "properties": {
+        "expected_daemon_generation": {"$ref": "#/$defs/generation"},
+        "connection_epoch": {"$ref": "#/$defs/generation"},
+        "caller_origin": {
+          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/caller_origin"
+        },
+        "caller_origin_evidence": {
+          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/caller_origin_evidence"
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [{"$ref": "#/$defs/caller_origin_binding_constraints"}]
+    },
+    "stop_all_receipt": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "request_id",
+        "canonical_parameter_digest",
+        "expected_barrier_generation",
+        "daemon_generation",
+        "stop_operation_id",
+        "stop_operation_generation",
+        "caller_origin",
+        "caller_origin_evidence",
+        "scope",
+        "prior_barrier_state",
+        "prior_barrier_generation",
+        "resulting_barrier_state",
+        "resulting_barrier_generation",
+        "adapter_registry_revision",
+        "registered_operation_set_count",
+        "registered_operation_set_digest",
+        "selected_operation_count",
+        "selected_operation_digest",
+        "barrier_snapshot_digest",
+        "outcome",
+        "residual_count",
+        "residual_digest",
+        "cleanup_result"
+      ],
+      "properties": {
+        "schema_version": {"const": "aos.host-stop-barrier.stop-all-receipt.v1"},
+        "request_id": {"$ref": "#/$defs/identifier"},
+        "canonical_parameter_digest": {"$ref": "#/$defs/sha256"},
+        "expected_barrier_generation": {"$ref": "#/$defs/generation"},
+        "daemon_generation": {"$ref": "#/$defs/generation"},
+        "stop_operation_id": {"$ref": "#/$defs/identifier"},
+        "stop_operation_generation": {"$ref": "#/$defs/generation"},
+        "caller_origin": {
+          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/caller_origin"
+        },
+        "caller_origin_evidence": {
+          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/caller_origin_evidence"
+        },
+        "scope": {"const": "registered_operation_plane_at_adapter_registry_revision"},
+        "prior_barrier_state": {"$ref": "#/$defs/barrier_state"},
+        "prior_barrier_generation": {"$ref": "#/$defs/generation"},
+        "resulting_barrier_state": {"$ref": "#/$defs/barrier_state"},
+        "resulting_barrier_generation": {"$ref": "#/$defs/generation"},
+        "adapter_registry_revision": {"$ref": "#/$defs/generation"},
+        "registered_operation_set_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "registered_operation_set_digest": {"$ref": "#/$defs/sha256"},
+        "selected_operation_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "selected_operation_digest": {"$ref": "#/$defs/sha256"},
+        "barrier_snapshot_digest": {"$ref": "#/$defs/sha256"},
+        "outcome": {
+          "enum": [
+            "recorded",
+            "reconciliation_in_progress",
+            "store_blocked",
+            "closing_started",
+            "already_closing",
+            "already_closed",
+            "cleanup_required",
+            "recovery_in_progress"
+          ]
+        },
+        "residual_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "residual_digest": {"$ref": "#/$defs/sha256"},
+        "cleanup_result": {"$ref": "#/$defs/cleanup_result"}
+      },
+      "additionalProperties": false,
+      "allOf": [{"$ref": "#/$defs/stop_caller_origin_binding_constraints"}]
+    },
+    "barrier_status_receipt": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "request_id",
+        "canonical_parameter_digest",
+        "daemon_generation",
+        "caller_origin",
+        "caller_origin_evidence",
+        "barrier_generation",
+        "barrier_state",
+        "admission_open",
+        "stop_operation_id",
+        "stop_operation_generation",
+        "adapter_registry_revision",
+        "registered_operation_set_count",
+        "registered_operation_set_digest",
+        "selected_operation_count",
+        "selected_operation_digest",
+        "barrier_snapshot_digest",
+        "residual_count",
+        "residual_digest",
+        "reconciliation_state"
+      ],
+      "properties": {
+        "schema_version": {"const": "aos.host-stop-barrier.status-receipt.v1"},
+        "request_id": {"$ref": "#/$defs/identifier"},
+        "canonical_parameter_digest": {"$ref": "#/$defs/sha256"},
+        "daemon_generation": {"$ref": "#/$defs/generation"},
+        "caller_origin": {"const": "live_transport_peer"},
+        "caller_origin_evidence": {
+          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/live_transport_peer_evidence"
+        },
+        "barrier_generation": {"$ref": "#/$defs/generation"},
+        "barrier_state": {"$ref": "#/$defs/barrier_state"},
+        "admission_open": {"type": "boolean"},
+        "stop_operation_id": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/identifier"}]
+        },
+        "stop_operation_generation": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/generation"}]
+        },
+        "adapter_registry_revision": {"$ref": "#/$defs/generation"},
+        "registered_operation_set_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "registered_operation_set_digest": {"$ref": "#/$defs/sha256"},
+        "selected_operation_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "selected_operation_digest": {"$ref": "#/$defs/sha256"},
+        "barrier_snapshot_digest": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+        },
+        "residual_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "residual_digest": {"$ref": "#/$defs/sha256"},
+        "reconciliation_state": {"$ref": "#/$defs/reconciliation_state"}
+      },
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "stop_operation_id": {"type": "null"},
+            "stop_operation_generation": {"type": "null"},
+            "barrier_snapshot_digest": {"type": "null"}
+          }
+        },
+        {
+          "properties": {
+            "stop_operation_id": {"$ref": "#/$defs/identifier"},
+            "stop_operation_generation": {"$ref": "#/$defs/generation"},
+            "barrier_snapshot_digest": {"$ref": "#/$defs/sha256"}
+          }
+        }
+      ]
+    },
+    "reopen_receipt": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "request_id",
+        "canonical_parameter_digest",
+        "expected_barrier_generation",
+        "caller_origin",
+        "caller_origin_evidence",
+        "prior_barrier_state",
+        "prior_barrier_generation",
+        "prior_stop_operation_id",
+        "prior_stop_operation_generation",
+        "prior_adapter_registry_revision",
+        "prior_registered_operation_set_count",
+        "prior_registered_operation_set_digest",
+        "prior_selected_operation_count",
+        "prior_selected_operation_digest",
+        "prior_barrier_snapshot_digest",
+        "prior_residual_count",
+        "prior_residual_digest",
+        "resulting_barrier_state",
+        "resulting_barrier_generation",
+        "daemon_generation",
+        "resulting_adapter_registry_revision",
+        "resulting_registered_operation_set_count",
+        "resulting_registered_operation_set_digest",
+        "resulting_open_snapshot_digest",
+        "outcome",
+        "cleanup_result",
+        "reconciliation_state"
+      ],
+      "properties": {
+        "schema_version": {"const": "aos.host-stop-barrier.reopen-receipt.v1"},
+        "request_id": {"$ref": "#/$defs/identifier"},
+        "canonical_parameter_digest": {"$ref": "#/$defs/sha256"},
+        "expected_barrier_generation": {"$ref": "#/$defs/generation"},
+        "caller_origin": {"const": "live_transport_peer"},
+        "caller_origin_evidence": {
+          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/live_transport_peer_evidence"
+        },
+        "prior_barrier_state": {"$ref": "#/$defs/barrier_state"},
+        "prior_barrier_generation": {"$ref": "#/$defs/generation"},
+        "prior_stop_operation_id": {"$ref": "#/$defs/identifier"},
+        "prior_stop_operation_generation": {"$ref": "#/$defs/generation"},
+        "prior_adapter_registry_revision": {"$ref": "#/$defs/generation"},
+        "prior_registered_operation_set_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "prior_registered_operation_set_digest": {"$ref": "#/$defs/sha256"},
+        "prior_selected_operation_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "prior_selected_operation_digest": {"$ref": "#/$defs/sha256"},
+        "prior_barrier_snapshot_digest": {"$ref": "#/$defs/sha256"},
+        "prior_residual_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "prior_residual_digest": {"$ref": "#/$defs/sha256"},
+        "resulting_barrier_state": {"$ref": "#/$defs/barrier_state"},
+        "resulting_barrier_generation": {"$ref": "#/$defs/generation"},
+        "daemon_generation": {"$ref": "#/$defs/generation"},
+        "resulting_adapter_registry_revision": {"$ref": "#/$defs/generation"},
+        "resulting_registered_operation_set_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "resulting_registered_operation_set_digest": {"$ref": "#/$defs/sha256"},
+        "resulting_open_snapshot_digest": {"$ref": "#/$defs/sha256"},
+        "outcome": {
+          "enum": [
+            "reopened",
+            "idempotency_conflict",
+            "daemon_generation_conflict",
+            "generation_conflict",
+            "barrier_not_closed",
+            "residuals_present",
+            "reconciliation_incomplete"
+          ]
+        },
+        "cleanup_result": {"$ref": "#/$defs/cleanup_result"},
+        "reconciliation_state": {"$ref": "#/$defs/reconciliation_state"}
+      },
+      "additionalProperties": false,
+      "allOf": [{"$ref": "#/$defs/live_transport_origin_binding_constraints"}]
+    }
+  }
+}

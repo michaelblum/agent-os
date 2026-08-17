@@ -39,15 +39,14 @@ developer command surfaces.
   those files.
 - For program `aos-sovereign-capability-substrate-v1`, accepted ADR 0044
   preserves `shared/schemas/aos-external-command-manifest-v0.schema.json`
-  byte-exact and targets one atomic v1 cutover. The authored external fragments
-  stay at source schema version 1, the stable generated external aggregate
-  moves to wire schema version 2, exactly `source/external/15-listen.json` gains
+  byte-exact while the active v1 cutover keeps authored external fragments at
+  source schema version 1. The stable generated external aggregate uses wire
+  schema version 2, exactly `source/external/15-listen.json` owns
   the optional closed generation-bound microphone spawn registration, and the
   generator, Swift dispatcher, help proxy, command-surface proofs, workflow
-  routing, and installed projections move together. Until that implementation
-  slice lands, v0 remains current executable truth: do not add v1 fields to v0,
+  routing, and installed projections are v1-only. Do not add v1 fields to v0,
   hand-edit the aggregate, introduce a dual reader or translation layer, or
-  advertise the target registration as present.
+  publish another aggregate path.
 - Generated top-level command manifests must carry deterministic provenance
   metadata naming `manifests/AGENTS.md`, their source manifest root, and
   `node scripts/generate-command-manifests.mjs`. Do not hand-edit generated
@@ -68,9 +67,8 @@ developer command surfaces.
 ## Verification
 
 - Use `bash tests/external-command-dispatch.sh` and the active external-command
-  manifest schema proof for command manifest changes. That proof remains
-  `node --test tests/schemas/aos-external-command-manifest-v0.test.mjs` until
-  the accepted atomic v1 cutover moves active readers and routing together.
+  manifest schema proofs for command manifest changes:
+  `node --test tests/schemas/aos-external-command-manifest-v0.test.mjs tests/schemas/aos-external-command-manifest-v1.test.mjs`.
 - Use `bash tests/command-manifest-generation.sh` for command source/generator
   drift checks.
 - Use `node scripts/aos-dev-workflow.mjs recommend --json --paths <changed-paths>`

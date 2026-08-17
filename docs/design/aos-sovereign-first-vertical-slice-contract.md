@@ -2,10 +2,10 @@
 
 Program: `aos-sovereign-capability-substrate-v1`
 
-Status: Milestone 2 increment 1 authority-normalized design and implementation-routing contract. Nothing in this
-document is implemented merely because it is specified here. Current source,
-command-source manifests, generated help, IPC schemas, API docs, Toolkit, tests,
-and runtime readback remain executable truth.
+Status: Milestone 2 executable control-plane candidate and implementation-routing
+contract. Current source, command-source manifests, generated help, IPC schemas,
+API docs, Toolkit, tests, and runtime readback own executable truth; later M3-M10
+sections remain target design merely because they are specified here.
 
 Authority: ADR 0043 owns the target; accepted ADR 0044 amends its mechanical
 owner-root, same-effective-UID host-control, prior-generation recovery, and
@@ -26,15 +26,15 @@ A product primitive named `record-video-element` does not exist and is not
 proposed. The flagship composes reusable atoms; neither branch creates that
 shortcut.
 
-Milestone 2 increment 1 updates only authority, this design, the closed capability
-ledger and its schema, and static routing. It adds no runtime, command, runtime protocol schema,
-generated help, SDK method, recording operation, managed Playwright grammar,
-permission change, daemon behavior, or native UI.
+Milestone 2 implements the shared operation registry/control plane, exact owner
+root and same-UID host barrier, resource claims, durable recovery, daemon IPC and
+CLI, one microphone adapter, and internal status/Canvas projections. It adds no
+public SDK root, recording producer, managed Playwright grammar, or TCC policy
+change; those remain later milestones.
 
-## Proposed contract owners
+## Contract owners
 
-The first implementation slice should propose and review these schema owners
-together before runtime code lands:
+The M2 executable candidate lands these schema owners together:
 
 - `shared/schemas/aos-operation-v1.schema.json`: current operation state,
   identity, mechanically authenticated owner root, bounded progress, terminal
@@ -275,22 +275,33 @@ observed there. An unverified or raced node stops the walk conservatively;
 basename, path, argv, environment, numeric PID/PGID, or asserted lineage can
 never justify skipping it.
 
-The current external Node microphone route requires a native durable spawn
-intent and same-socket child finalization before microphone authority. External
-dispatch treats `/usr/bin/env node` as a host-variable executable-resolution
-policy, not a static digest. Immediately before spawn it resolves the actual
-Node executable and durably stores only path/identity digests, device, inode,
-code identity, and file digest; the absolute path remains transient in-memory
-resolver state and is never durable or public. Child finalization compares
-that exact observed tuple and also binds script-identity digest,
-script-content digest, and canonical argv-shape digest. The authored
-registration may name a normalized repo-relative script for transient
-resolution, but durable intent, finalization, receipt, and proof records replace
-it with the content-free identity digest and reject raw script identity, path,
-or basename. The optional route registration is schema- and generator-
-owned. The existing
-`AOS_EXTERNAL_DISPATCH_PARENT_PID` value is not authority and cannot bless a
-different executable, script, or argv shape.
+The current external Node microphone route requires native durable intent,
+dynamic child-image admission, and tokenless same-socket child finalization
+before microphone authority. The closed `listen_microphone_v1` activation
+predicate is invocation-scoped; nonmatching `listen` invocations prepare no
+operation, claim, token, or dynamic admission. External dispatch treats
+`/usr/bin/env node` as a host-variable resolution policy, but accepts only a
+live interpreter with Apple generic Developer ID trust, signing identifier
+`node`, Node.js Foundation team `HX7739G8FX`, and hardened runtime. Intent stores
+only content-free path/identity/file digests, device/inode, signing identifiers,
+and the platform's 20-byte SHA-256 CDHash. The opaque intent token stays with
+the exact authenticated parent and is used only for admission or abandon.
+
+The child starts blocked with no token, script path, helper path, or reviewed
+source. AOS dynamically validates the running SecCode guest and mapped main-
+executable vnode against the intent and durably binds the child PID generation
+plus parent edge. Only then does the dispatcher send a deterministic in-memory
+ESM bundle built from the raw-byte-verified entry script,
+`scripts/lib/aos-daemon-client.mjs`, and
+`scripts/lib/aos-voice-follow.mjs`. Tokenless finalization resolves exactly one
+admitted record from the authenticated child socket, revalidates executable and
+canonical argv-shape evidence, and consumes it once. Only content-free identity,
+script, dependency-set, executable, and argv-shape digests remain durable or
+public. Parent abandon, 30-second expiry, and boot recovery terminalize the
+prepared operation and release its claim when finalization never succeeds. A
+dispatcher-injected parent PID is lifecycle-only, deleted at module start, never
+sent to the daemon, and never authority; `AOS_EXTERNAL_DISPATCH_PARENT_PID`
+cannot bless an executable, script, helper, child, or argv shape.
 
 That immutable connection evidence establishes the maximum ordinary
 controllable set. Caller-asserted client, agent, project, task, run, skill,
@@ -879,7 +890,7 @@ durable `blocked_unresolved` without terminating the parent operation, and it
 cannot finish until absence or exact custody is mechanically proved.
 
 The canonical M2 milestone closes 19 deliverables, 15 exit gates, 70 path refs,
-and 23 proof refs. Its path union includes the eight proposed operation/stream/
+and 23 proof refs. Its path union includes the eight current operation/stream/
 tap/artifact/barrier/recovery schemas; registry/control/recovery/store/state;
 split claim transaction, per-resource claim, and broker owners; microphone,
 status, and Canvas adapters; current daemon request/response/event schemas and
@@ -912,7 +923,7 @@ The operation schema owns the closed resource records; no ninth M2 schema is
 implied. M3 owner paths are the current desktop-pixel
 source and lifecycle plus proposed recording schema, adapter, encoder, geometry
 owner, AOS command source, external route, and generated aggregates/help. A
-`proposed` path is not claimed to exist in M1.
+Later-milestone `proposed` paths are not claimed to exist in current truth.
 
 M2 has 23 exact proof refs: the five-lane schema/static/fake/native-compile/
 separately-authorized-native-live ladder plus focused owner-root, external-
@@ -1063,7 +1074,9 @@ M2 starts offline and deterministic:
   without voice-output preemption;
 - fake peer/process/socket tests prove immediate-peer audit-token/PID-generation
   bindings, double-sampled proc-generation ancestor edges, exact image and
-  spawn-record skips, external Node spawn-intent finalization, and nearest
+  spawn-record skips, external Node parent-only intent, official signed-image
+  admission, post-admission in-memory module delivery, tokenless peer
+  finalization, abandon/expiry cleanup, and nearest
   verified non-AOS ancestry stopping at unverified nodes; they also prove live same-
   effective-UID reauthentication immediately before signal/cleanup/host
   control, and the daemon/status-host break-glass caller binding;

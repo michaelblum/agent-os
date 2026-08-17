@@ -127,10 +127,12 @@ Default section order:
   effective-UID host control, bounded retained-receipt replay plus expected-
   barrier CAS after eviction, distinct artifact/claim recovery dispositions,
   nine-machine prior-generation recovery, and split claim-set/resource/broker
-  mechanics. Until a later atomic
-  implementation slice lands, source, command-source manifests, generated help,
-  schemas, tests, and runtime readback remain executable truth; do not advertise
-  target capability as already implemented.
+  mechanics. The atomic Milestone 2 slice implements the native operation
+  registry/control/recovery plane, resource claims, microphone adapter, public
+  CLI and IPC, and internal status-item/Canvas projections. Its source,
+  command-source manifests, generated help, schemas, tests, and runtime readback
+  are executable truth; do not advertise later milestone capability as already
+  implemented.
 - Facts and channels admitted by each bounded public observation contract are
   raw and fidelity-first; facts outside that contract remain outside it.
   Masking, redaction, persistence, and projection are explicit caller-owned

@@ -3,6 +3,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  assertExternalCommandManifestGeneratorCurrent,
+  validateExternalCommandManifestV1,
+} from './lib/external-command-manifest-v1.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
@@ -40,6 +44,27 @@ function copyDirectoryModules(relativeRoot) {
   }
 }
 
+const sourceManifest = JSON.parse(fs.readFileSync(
+  path.join(repoRoot, 'manifests/commands/aos-external-commands.json'),
+  'utf8',
+));
+try {
+  validateExternalCommandManifestV1(sourceManifest, { canonicalAggregate: true });
+  assertExternalCommandManifestGeneratorCurrent(repoRoot);
+} catch (error) {
+  fail(error.message);
+}
+const manifestDestination = path.join(resourceRoot, 'manifests/commands/aos-external-commands.json');
+let existingStagedManifest = null;
+if (fs.existsSync(manifestDestination)) {
+  existingStagedManifest = JSON.parse(fs.readFileSync(manifestDestination, 'utf8'));
+  try {
+    validateExternalCommandManifestV1(existingStagedManifest);
+  } catch (error) {
+    fail(error.message);
+  }
+}
+
 copyFile('scripts/aos-browser-companion.mjs');
 copyFile('scripts/aos-browser-broker.mjs');
 copyFile('scripts/aos-browser-worker-guardian.mjs');
@@ -52,6 +77,7 @@ copyFile('scripts/aos-agent-workspace.mjs');
 copyFile('scripts/browser-evidence-capture.mjs');
 copyFile('scripts/aos-help-proxy.mjs');
 copyFile('scripts/lib/external-command-routes.mjs');
+copyFile('scripts/lib/external-command-manifest-v1.mjs');
 copyFile('scripts/lib/focus-daemon.mjs');
 copyFile('scripts/lib/focus-depth.mjs');
 copyFile('scripts/lib/aos-agent-workspace.mjs');
@@ -70,10 +96,6 @@ copyFile('shared/schemas/aos-browser-session-result-v1.schema.json');
 copyFile('shared/schemas/aos-browser-backend-identity-v2.schema.json');
 copyFile('shared/schemas/browser-evidence-capture-v0.schema.json');
 
-const sourceManifest = JSON.parse(fs.readFileSync(
-  path.join(repoRoot, 'manifests/commands/aos-external-commands.json'),
-  'utf8',
-));
 const companionCommands = sourceManifest.commands.filter((command) =>
   command.path[0] === 'browser' && command.path[1] === 'companion');
 if (companionCommands.length !== 5) fail('generated external manifest has an incomplete browser companion family.');
@@ -95,16 +117,26 @@ const helpCommands = sourceManifest.commands.filter((command) =>
   command.path.length === 1 && command.path[0] === 'help');
 if (helpCommands.length !== 1) fail('generated external manifest has an incomplete help route.');
 
-const manifestDestination = path.join(resourceRoot, 'manifests/commands/aos-external-commands.json');
 let retained = [];
 const selectedCommands = [...helpCommands, ...browserCommands, ...focusCommands, ...browserConsumerCommands];
 const selectedKeys = new Set([
   ...selectedCommands.map((command) => JSON.stringify(command.path)),
   ...allBrowserConsumerCommands.map((command) => JSON.stringify(command.path)),
 ]);
-if (fs.existsSync(manifestDestination)) {
-  const staged = JSON.parse(fs.readFileSync(manifestDestination, 'utf8'));
-  retained = staged.commands.filter((command) => !selectedKeys.has(JSON.stringify(command.path)));
+if (existingStagedManifest) {
+  const retainedKeys = existingStagedManifest.commands
+    .map((command) => JSON.stringify(command.path))
+    .filter((key) => !selectedKeys.has(key));
+  if (new Set(retainedKeys).size !== retainedKeys.length) {
+    fail('staged external manifest has duplicate retained path keys.');
+  }
+  retained = retainedKeys.map((key) => {
+    const current = sourceManifest.commands.filter((command) => JSON.stringify(command.path) === key);
+    if (current.length !== 1) {
+      fail(`retained external command path must resolve exactly once in current wire v2 source: ${key}`);
+    }
+    return current[0];
+  });
 }
 fs.mkdirSync(path.dirname(manifestDestination), { recursive: true });
 fs.writeFileSync(manifestDestination, `${JSON.stringify({

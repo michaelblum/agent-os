@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-privileged-capability-ledger-v1.schema.json",
   "title": "AOS Privileged Capability Ledger V1",
-  "description": "Closed Milestone 1 inventory of current AOS privileged and managed capability truth, public reachability, proof posture, platform limits, and separately stated target exits.",
+  "description": "Closed current inventory of AOS privileged and managed capability truth through the Milestone 2 executable control-plane candidate, public reachability, proof posture, platform limits, and separately stated target exits.",
   "type": "object",
   "required": [
     "$schema",
@@ -34,7 +34,7 @@
       "const": "aos-sovereign-capability-substrate-v1"
     },
     "status": {
-      "const": "milestone_2_authority_normalized_current_truth_and_target_ledger"
+      "const": "milestone_2_executable_candidate_current_truth_and_target_ledger"
     },
     "inventory_revision": {
       "$ref": "#/$defs/revision"
@@ -3262,9 +3262,14 @@
             "purpose",
             "route_registration",
             "durable_script_identity_contract",
+            "reviewed_dependency_contract",
             "spawn_intent_required_fields",
-            "environment_transport",
+            "binding_token_contract",
+            "child_admission_contract",
+            "in_memory_bundle_contract",
+            "pending_intent_cleanup_contract",
             "rejected_environment_authority",
+            "lifecycle_parent_observation",
             "finalization_phase",
             "finalization_required_fields",
             "receipt_contract",
@@ -3276,7 +3281,7 @@
             "purpose": { "type": "string", "minLength": 1 },
             "route_registration": {
               "type": "object",
-              "required": ["binding", "required_fields", "executable_resolution_policy", "path_or_basename_shortcut"],
+              "required": ["binding", "required_fields", "activation_predicate", "executable_resolution_policy", "path_or_basename_shortcut"],
               "additionalProperties": false,
               "properties": {
                 "binding": { "const": "authored_optional_external_route_registration" },
@@ -3286,11 +3291,24 @@
                     "route_source_revision",
                     "adapter_registration_id",
                     "adapter_registration_revision",
+                    "activation_predicate",
                     "executable_resolution_policy",
                     "expected_script_identity",
                     "expected_script_digest",
+                    "reviewed_dependencies",
+                    "reviewed_dependency_set_digest",
                     "canonical_argv_shape_digest"
                   ]
+                },
+                "activation_predicate": {
+                  "type": "object",
+                  "required": ["grammar", "authority_scope", "nonmatching_invocations"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "grammar": { "const": "listen_microphone_v1" },
+                    "authority_scope": { "const": "only_exact_matching_invocations_prepare_an_operation_claim_and_require_dynamic_child_admission" },
+                    "nonmatching_invocations": { "const": "no_operation_intent_no_resource_claim_no_child_admission" }
+                  }
                 },
                 "executable_resolution_policy": {
                   "type": "object",
@@ -3300,6 +3318,13 @@
                     "resolution_phase",
                     "search_source",
                     "command_name",
+                    "designated_requirement",
+                    "signing_identifier",
+                    "signing_team_identifier",
+                    "requires_hardened_runtime",
+                    "platform_code_directory_hash_algorithm",
+                    "reviewed_source_max_bytes",
+                    "reviewed_bundle_max_bytes",
                     "durable_observation_fields",
                     "authored_static_executable_digest",
                     "transient_absolute_path_retention",
@@ -3312,6 +3337,13 @@
                     "resolution_phase": { "const": "immediately_before_spawn" },
                     "search_source": { "const": "sanitized_path" },
                     "command_name": { "const": "node" },
+                    "designated_requirement": { "const": "anchor apple generic and identifier \"node\" and certificate leaf[subject.OU] = \"HX7739G8FX\"" },
+                    "signing_identifier": { "const": "node" },
+                    "signing_team_identifier": { "const": "HX7739G8FX" },
+                    "requires_hardened_runtime": { "const": true },
+                    "platform_code_directory_hash_algorithm": { "const": "sha256_truncated_cdhash_20_bytes" },
+                    "reviewed_source_max_bytes": { "const": 131072 },
+                    "reviewed_bundle_max_bytes": { "const": 524288 },
                     "durable_observation_fields": {
                       "const": [
                         "resolved_executable_path_digest",
@@ -3319,12 +3351,15 @@
                         "observed_executable_device",
                         "observed_executable_inode",
                         "observed_executable_code_identity",
-                        "observed_executable_file_digest"
+                        "observed_executable_file_digest",
+                        "platform_code_directory_hash",
+                        "signing_identifier",
+                        "signing_team_identifier"
                       ]
                     },
                     "authored_static_executable_digest": { "const": "forbidden_host_variable" },
                     "transient_absolute_path_retention": { "const": "in_memory_resolution_only_never_durable_or_public" },
-                    "finalization_comparison": { "const": "exact_spawn_intent_path_and_identity_digests_device_inode_code_identity_and_file_digest" }
+                    "finalization_comparison": { "const": "dynamic_seccode_and_mapped_vnode_match_exact_intent_platform_cdhash_device_inode_and_trusted_node_identity" }
                   }
                 },
                 "path_or_basename_shortcut": { "const": "forbidden" }
@@ -3355,19 +3390,102 @@
                 }
               }
             },
+            "reviewed_dependency_contract": {
+              "type": "object",
+              "required": [
+                "authored_dependencies_field", "authored_set_digest_field", "exact_identities",
+                "dependency_digest_input", "set_digest_input", "digest_algorithm", "digest_encoding",
+                "spawn_intent_field", "finalization_field", "durable_retention", "validation_rule"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "authored_dependencies_field": { "const": "reviewed_dependencies" },
+                "authored_set_digest_field": { "const": "reviewed_dependency_set_digest" },
+                "exact_identities": {
+                  "const": ["scripts/lib/aos-daemon-client.mjs", "scripts/lib/aos-voice-follow.mjs"]
+                },
+                "dependency_digest_input": { "const": "raw_file_bytes" },
+                "set_digest_input": { "const": "utf8_sorted_canonical_json_dependency_identity_and_digest_array" },
+                "digest_algorithm": { "const": "sha256" },
+                "digest_encoding": { "const": "lowercase_hex_64" },
+                "spawn_intent_field": { "const": "reviewed_dependency_set_digest" },
+                "finalization_field": { "const": "reviewed_dependency_set_digest" },
+                "durable_retention": { "const": "set_digest_only" },
+                "validation_rule": { "const": "generator_and_dispatcher_verify_exact_closed_dependency_bytes_under_canonical_aos_root_then_daemon_binds_the_content_free_set_digest_to_the_admitted_in_memory_bundle" }
+              }
+            },
             "spawn_intent_required_fields": {
               "const": [
                 "spawn_record_id", "one_time_binding_token_digest", "parent_pid", "parent_pid_generation",
                 "operation_id", "operation_generation", "adapter_id", "adapter_registration_revision",
+                "route_source_id", "route_source_revision",
                 "resolved_executable_path_digest", "observed_executable_identity_digest",
                 "observed_executable_device", "observed_executable_inode", "observed_executable_code_identity",
-                "observed_executable_file_digest", "expected_script_identity_digest",
-                "expected_script_digest", "canonical_argv_shape_digest"
+                "observed_executable_file_digest", "platform_code_directory_hash", "signing_identifier",
+                "signing_team_identifier", "expected_script_identity_digest", "expected_script_digest",
+                "reviewed_dependency_set_digest", "canonical_argv_shape_digest", "daemon_generation",
+                "created_at_monotonic_nanoseconds", "expires_at_monotonic_nanoseconds"
               ]
             },
-            "environment_transport": { "const": "opaque_one_time_binding_token_only" },
+            "binding_token_contract": {
+              "type": "object",
+              "required": ["scope", "uses", "child_transport", "durable_form", "finalize_requirement"],
+              "additionalProperties": false,
+              "properties": {
+                "scope": { "const": "exact_authenticated_intent_parent_only" },
+                "uses": { "const": ["child_admit", "abandon"] },
+                "child_transport": { "const": "forbidden" },
+                "durable_form": { "const": "domain_separated_digest_only" },
+                "finalize_requirement": { "const": "token_forbidden_finalize_is_peer_bound" }
+              }
+            },
+            "child_admission_contract": {
+              "type": "object",
+              "required": ["request_fields", "parent_authentication", "child_evidence", "publication_order"],
+              "additionalProperties": false,
+              "properties": {
+                "request_fields": { "const": ["request_id", "one_time_binding_token", "child_pid"] },
+                "parent_authentication": { "const": "exact_intent_parent_pid_generation_and_aos_dispatcher_image" },
+                "child_evidence": {
+                  "const": [
+                    "child_pid_generation", "same_observation_parent_edge_receipt",
+                    "dynamic_seccode_validity", "apple_generic_developer_id_anchor",
+                    "signing_identifier_node", "signing_team_identifier_HX7739G8FX",
+                    "hardened_runtime", "platform_code_directory_hash_sha256_truncated_20_bytes",
+                    "mapped_main_executable_device_inode"
+                  ]
+                },
+                "publication_order": { "const": "durably_admit_exact_child_before_any_reviewed_module_bytes_are_written" }
+              }
+            },
+            "in_memory_bundle_contract": {
+              "type": "object",
+              "required": ["source_bytes", "construction", "transport", "child_pathnames", "binding_token", "pre_admission_child_input"],
+              "additionalProperties": false,
+              "properties": {
+                "source_bytes": { "const": ["scripts/aos-tell-listen.mjs", "scripts/lib/aos-daemon-client.mjs", "scripts/lib/aos-voice-follow.mjs"] },
+                "construction": { "const": "deterministic_nested_esm_data_urls_from_already_verified_raw_bytes" },
+                "transport": { "const": "stdin_after_durable_child_admission" },
+                "child_pathnames": { "const": "forbidden" },
+                "binding_token": { "const": "forbidden" },
+                "pre_admission_child_input": { "const": "empty" }
+              }
+            },
+            "pending_intent_cleanup_contract": {
+              "type": "object",
+              "required": ["limit", "ttl_milliseconds", "closure_paths", "result", "closed_receipt_retention"],
+              "additionalProperties": false,
+              "properties": {
+                "limit": { "const": 4096 },
+                "ttl_milliseconds": { "const": 30000 },
+                "closure_paths": { "const": ["parent_authenticated_abandon", "daemon_expiry", "boot_recovery", "finalization_failure"] },
+                "result": { "const": "terminalize_prepared_operation_and_release_exact_resource_claim_without_authority" },
+                "closed_receipt_retention": { "const": "bounded_4096" }
+              }
+            },
             "rejected_environment_authority": { "const": "AOS_EXTERNAL_DISPATCH_PARENT_PID" },
-            "finalization_phase": { "const": "child_same_socket_bootstrap_before_microphone_authority" },
+            "lifecycle_parent_observation": { "const": "dispatcher_injected_pid_is_deleted_at_module_initialization_never_sent_to_daemon_and_never_authority" },
+            "finalization_phase": { "const": "tokenless_exact_admitted_child_same_socket_before_microphone_authority" },
             "finalization_required_fields": {
               "const": [
                 "spawn_record_id", "one_time_binding_token_digest", "child_audit_token",
@@ -3376,7 +3494,9 @@
                 "operation_generation", "adapter_id", "adapter_registration_revision",
                 "resolved_executable_path_digest", "executable_identity_digest", "executable_device",
                 "executable_inode", "executable_code_identity", "executable_file_digest",
-                "script_identity_digest", "script_digest", "canonical_argv_shape_digest"
+                "platform_code_directory_hash", "platform_code_directory_hash_algorithm",
+                "signing_identifier", "signing_team_identifier",
+                "script_identity_digest", "script_digest", "reviewed_dependency_set_digest", "canonical_argv_shape_digest"
               ]
             },
             "receipt_contract": {
@@ -3390,14 +3510,16 @@
                     "spawn_record_id", "operation_id", "operation_generation", "adapter_id",
                     "adapter_registration_revision", "resolved_executable_path_digest",
                     "executable_identity_digest", "executable_file_digest",
+                    "platform_code_directory_hash", "platform_code_directory_hash_algorithm",
                     "expected_script_identity_digest", "script_identity_digest", "script_digest",
-                    "canonical_argv_shape_digest", "outcome"
+                    "reviewed_dependency_set_digest", "canonical_argv_shape_digest", "outcome"
                   ]
                 },
                 "forbidden_fields": {
                   "const": [
                     "expected_script_identity", "script_identity", "script_path",
-                    "script_basename", "resolved_script_path", "argv"
+                    "script_basename", "resolved_script_path", "argv", "one_time_binding_token",
+                    "reviewed_dependency_identities", "module_bytes"
                   ]
                 }
               }
@@ -4996,7 +5118,7 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "publication_boundary": { "const": "target_only_until_m2_runtime_cutover" },
+        "publication_boundary": { "const": "current_executable_v1_only_m2_cutover" },
         "frozen_predecessor": {
           "type": "object",
           "required": ["schema_path", "schema_version", "baseline_revision", "sha256", "mutation", "proof_state"],
@@ -5027,7 +5149,9 @@
             "registration_required_fields": {
               "const": [
                 "route_source_id", "route_source_revision", "adapter_registration_id", "adapter_registration_revision",
+                "activation_predicate",
                 "executable_resolution_policy", "expected_script_identity", "expected_script_digest",
+                "reviewed_dependencies", "reviewed_dependency_set_digest",
                 "canonical_argv_shape_digest"
               ]
             },
@@ -5037,6 +5161,9 @@
               "type": "object",
               "required": [
                 "launcher", "argv_zero", "search_source", "resolution_owner", "resolution_phase",
+                "designated_requirement", "signing_identifier", "signing_team_identifier",
+                "requires_hardened_runtime", "platform_code_directory_hash_algorithm",
+                "reviewed_source_max_bytes", "reviewed_bundle_max_bytes",
                 "authored_static_executable_digest"
               ],
               "additionalProperties": false,
@@ -5046,6 +5173,13 @@
                 "search_source": { "const": "sanitized_path" },
                 "resolution_owner": { "const": "native_external_dispatch" },
                 "resolution_phase": { "const": "immediately_before_spawn" },
+                "designated_requirement": { "const": "anchor apple generic and identifier \"node\" and certificate leaf[subject.OU] = \"HX7739G8FX\"" },
+                "signing_identifier": { "const": "node" },
+                "signing_team_identifier": { "const": "HX7739G8FX" },
+                "requires_hardened_runtime": { "const": true },
+                "platform_code_directory_hash_algorithm": { "const": "sha256_truncated_cdhash_20_bytes" },
+                "reviewed_source_max_bytes": { "const": 131072 },
+                "reviewed_bundle_max_bytes": { "const": 524288 },
                 "authored_static_executable_digest": { "const": "forbidden_host_variable" }
               }
             }
@@ -5057,17 +5191,18 @@
           "maxItems": 1,
           "items": {
             "type": "object",
-            "required": ["source_path", "command_path", "adapter_registration_id", "registration_count"],
+            "required": ["source_path", "command_path", "adapter_registration_id", "activation_predicate", "registration_count"],
             "additionalProperties": false,
             "properties": {
               "source_path": { "const": "manifests/commands/source/external/15-listen.json" },
               "command_path": { "const": ["listen"] },
               "adapter_registration_id": { "const": "microphone-capture-adapter" },
+              "activation_predicate": { "const": "listen_microphone_v1" },
               "registration_count": { "const": 1 }
             }
           }
         },
-        "unregistered_route_rule": { "const": "all_other_external_routes_remain_without_spawn_registration" },
+        "unregistered_route_rule": { "const": "all_other_external_routes_and_nonmatching_listen_invocations_remain_without_active_spawn_registration" },
         "generator_contract": {
           "type": "object",
           "required": ["owner", "cross_checks"],
@@ -5076,7 +5211,10 @@
             "owner": { "const": "scripts/generate-command-manifests.mjs" },
             "cross_checks": {
               "const": [
-                "registered_script_equals_argv_prefix_index_one", "script_raw_byte_digest", "semantic_source_revision",
+                "registered_script_equals_argv_prefix_index_one", "script_raw_byte_digest",
+                "reviewed_dependency_raw_byte_digests", "reviewed_dependency_set_digest", "activation_predicate_exact_grammar",
+                "trusted_node_designated_requirement", "hardened_runtime_required",
+                "platform_code_directory_hash_algorithm", "reviewed_source_and_bundle_bounds", "semantic_source_revision",
                 "argv_prefix_plus_forwarded_suffix_shape_digest", "route_source_id", "registration_uniqueness",
                 "registered_route_forbids_help_passthrough", "registered_route_requires_node_launcher"
               ]

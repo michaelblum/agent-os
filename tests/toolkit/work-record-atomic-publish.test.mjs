@@ -103,6 +103,7 @@ test('descriptor-relative primitive and Work Record command are staged by both p
     path.join(stagedRoot, 'manifests/commands/aos-external-commands.json'),
     'utf8',
   ));
+  assert.equal(manifest.schema_version, 2);
   assert.ok(manifest.commands.length > 0);
   assert.ok(manifest.commands.every((command) => command.path[0] === 'work-record'));
   const rootCommand = manifest.commands.find((command) => command.path.length === 1);
@@ -111,6 +112,12 @@ test('descriptor-relative primitive and Work Record command are staged by both p
     'node',
     '$AOS_REPO_ROOT/scripts/aos-work-record.mjs',
   ]);
+  const stageSource = fs.readFileSync(
+    new URL('../../scripts/stage-work-record-runtime.mjs', import.meta.url),
+    'utf8',
+  );
+  assert.match(stageSource, /validateExternalCommandManifestV1\(manifest, \{ canonicalAggregate: true \}\)/u);
+  assert.match(stageSource, /assertExternalCommandManifestGeneratorCurrent\(repoRoot\)/u);
 
   const stagedAdapter = await import(`${pathToFileURL(path.join(
     stagedRoot,

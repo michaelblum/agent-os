@@ -40,7 +40,7 @@ tests.
   immediate-peer/ancestor/spawn evidence, registered-set host receipts, bounded
   retained replay with expected-barrier CAS, distinct recovery dispositions,
   explicit nine-machine prior-generation and split claim-set/resource/
-  broker topology, frozen external-command v0 bytes and the proposed atomic
+  broker topology, frozen external-command v0 bytes and the active atomic
   v1-only schema/generator/decoder/listen-registration cutover, canonical proof-
   index and workflow reachability, exact machine state/
   taxonomy/M1-through-M10/flagship contracts, and non-runtime design. It must not

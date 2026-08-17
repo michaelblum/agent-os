@@ -25,10 +25,11 @@ apps, and tests.
   transport/custody, proof, milestone, gap, and exit-gate facts. The canonical
   instance is `docs/dev/aos-privileged-capability-ledger-v1.json`; neither the
   schema nor its target fields make a runtime capability executable.
-- `schemas/aos-external-command-manifest-v0.schema.json` remains frozen current
-  executable truth. ADR 0044 targets a new v1 schema and one stable-aggregate,
-  v1-only decoder/generator migration; never extend v0, add a translation or
-  dual-reader path, or treat the proposed v1 schema as already landed.
+- `schemas/aos-external-command-manifest-v0.schema.json` remains frozen
+  decision history. `schemas/aos-external-command-manifest-v1.schema.json`
+  owns the active wire-v2 aggregate, closed optional spawn registration, and
+  v1-only decoder/generator migration; never extend v0 or add a translation,
+  dual-reader path, or parallel aggregate.
 - `schemas/aos-browser-companion-*-v1.schema.json` owns the exact managed
   Playwright descriptor and closed content-free lifecycle result contracts.
 - `schemas/aos-browser-session-result-v1.schema.json` and

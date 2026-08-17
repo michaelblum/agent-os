@@ -50,29 +50,36 @@ ancestor. It may skip an AOS node only through one of two closed proofs:
    double-sampled public process generation and forbids an unavailable child
    audit token.
 
-For the current external Node microphone route, native external dispatch must
-first publish a one-time spawn intent. The child finalizes it through the same
-daemon socket before microphone authority, using the live peer token/PID
-generation and matching parent edge, operation generation, adapter revision,
-resolved child-executable identity, script-identity digest, script-content
-digest, and canonical argv-shape digest. The authored registration may name a
-normalized repo-relative script so the resolver can locate it, but that raw
-identity is transient resolver input only. Durable intent, finalization,
-receipt, and proof records retain only its content-free identity digest; raw
-script identity, path, or basename is forbidden. Because the authored routes
-currently launch `/usr/bin/env node`,
-their registration declares an executable-resolution policy rather than a
-host-variable static digest. Native external dispatch resolves the actual Node
-executable immediately before spawn, then durably records only its path and
-identity digests, device, inode, code identity, and file digest. The absolute
-path is transient in-memory resolver state and never enters a durable record,
-receipt, or proof. Finalization compares the exact observed identity tuple from
-the spawn intent; substituting another executable, even for the same script,
-fails closed. The authored optional route registration owns this binding and is
-validated by the external-command manifest schema and generator; basename or
-path matching does not. `AOS_EXTERNAL_DISPATCH_PARENT_PID` may not
-be trusted as authority and may be replaced only by a daemon-issued opaque
-one-time binding token.
+For the current external Node microphone route, native external dispatch first
+publishes a durable spawn intent and prepares the operation plus exclusive
+microphone claim. The returned opaque token is parent-only: it is used for
+child admission or abandon and never enters child environment, argv, stdin,
+module source, finalization, durable public state, or a receipt. The dispatcher
+starts Node blocked on an empty module pipe. Before any reviewed source or
+binding material reaches that child, the parent requests admission with the
+child PID. AOS verifies the exact authenticated parent generation and parent
+edge, the child PID generation, the live mapped main-executable vnode, and the
+live SecCode guest. The interpreter must satisfy the Apple generic Developer ID
+anchor, signing identifier `node`, Node.js Foundation team `HX7739G8FX`, and
+hardened-runtime flag. Dynamic validity plus the exact intent-bound 20-byte
+SHA-256 platform CDHash (`sha256_truncated_cdhash_20_bytes`), device, and inode
+must match or admission fails closed.
+
+Only after that admission is durable does the dispatcher write a deterministic
+in-memory ESM bundle built from the already raw-byte-verified entry script and
+two reviewed helper modules. No script/helper pathname or binding token reaches
+the child. The child's first operation request is tokenless finalization on its
+microphone socket. AOS resolves exactly one admitted record from that live peer
+PID generation and parent edge, revalidates executable and argv-shape evidence,
+and consumes the record once before microphone authority. A normalized repo-
+relative authored identity remains transient resolver input only; durable
+intent, admission, finalization, receipt, and proof records retain content-free
+digests. Raw script/helper identity, path, basename, argv, or module bytes are
+forbidden. Parent-authenticated abandon, a 30-second daemon expiry, and boot
+recovery terminalize an unfinalized prepared operation and release its exact
+claim. `AOS_EXTERNAL_DISPATCH_PARENT_PID` remains forbidden as authority; a
+dispatcher-injected PID may be used only as an immediately deleted, untransmitted
+lifecycle assertion so death before module evaluation fails closed.
 
 The existing external-command manifest v0 schema is frozen decision history and
 remains byte-exact at revision `7aada1cb4d7a046a2b99b1b24470115eefc82224`
@@ -81,10 +88,18 @@ with SHA-256
 M2 publishes a v1 successor instead of amending v0. Authored source fragments
 remain schema version 1, while the stable generated aggregate path moves to
 wire `schema_version: 2` and permits one closed optional
-`spawn_registration`. Exactly the `listen` route registers the microphone
-adapter. The generator validates its source identity, raw script digest,
-semantic source revision, argv-shape digest, and native `/usr/bin/env node`
-resolution policy. Swift dispatch and the help proxy become v1-only in the same
+`spawn_registration`. Exactly the `listen` route carries a closed
+`listen_microphone_v1` activation predicate; only an invocation matching that
+authority-bearing microphone grammar prepares an operation/resource claim and
+enters dynamic child admission. Nonmatching `listen` invocations create no M2
+operation intent or claim. The generator validates its source identity, raw entry-script digest,
+the exact reviewed dependency set and raw dependency digests, semantic source
+revision, argv-shape digest, and native `/usr/bin/env node` resolution policy.
+Only the content-free reviewed-dependency-set digest crosses spawn intent,
+admission, durable finalization, and receipts. The dispatcher verifies the
+exact closed set beneath the canonical AOS root, then launches those already
+verified bytes through the admitted child's in-memory module bundle. Swift
+dispatch and the help proxy become v1-only in the same
 atomic cutover; no dual reader, translation layer, or parallel aggregate is
 accepted, and every partial old/new combination fails closed. The browser and
 Work Record staging projections are atomic cutover owners too. Both require a

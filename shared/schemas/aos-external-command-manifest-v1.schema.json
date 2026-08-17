@@ -1,0 +1,252 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-external-command-manifest-v1.schema.json",
+  "title": "AOS External Command Manifest V1",
+  "description": "Manifest-backed external command launcher contract for the stable AOS Swift dispatcher, including optional generation-bound external spawn registration.",
+  "type": "object",
+  "required": ["generated", "schema_version", "commands"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "generated": { "$ref": "#/$defs/generated_manifest" },
+    "schema_version": { "const": 2 },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/command" },
+      "contains": { "required": ["spawn_registration"] },
+      "minContains": 0,
+      "maxContains": 1
+    }
+  },
+  "$defs": {
+    "generated_manifest": {
+      "type": "object",
+      "required": ["artifact", "description", "source_owner", "source_path", "regeneration_command"],
+      "additionalProperties": false,
+      "properties": {
+        "artifact": { "const": true },
+        "description": { "type": "string", "minLength": 1 },
+        "source_owner": { "const": "manifests/AGENTS.md" },
+        "source_path": { "const": "manifests/commands/source/external/" },
+        "regeneration_command": { "const": "node scripts/generate-command-manifests.mjs" }
+      }
+    },
+    "command": {
+      "type": "object",
+      "required": ["path", "summary", "executable", "argv_prefix"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9_.-]+$" }
+        },
+        "summary": { "type": "string", "minLength": 1 },
+        "executable": { "enum": ["$AOS_PATH", "/usr/bin/env", "/bin/bash"] },
+        "argv_prefix": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "help_passthrough": {
+          "type": "boolean",
+          "description": "When true, the external help proxy may delegate text help for this route and its children to the target command with --help."
+        },
+        "cwd": { "enum": ["repo", "$AOS_REPO_ROOT"] },
+        "env": {
+          "type": "object",
+          "propertyNames": {
+            "allOf": [
+              { "pattern": "^[A-Z_][A-Z0-9_]*$" },
+              {
+                "not": {
+                  "enum": [
+                    "AOS_EXTERNAL_DISPATCH_BINDING_TOKEN",
+                    "AOS_EXTERNAL_DISPATCH_PARENT_PID",
+                    "AOS_EXTERNAL_DISPATCH_LIFECYCLE_PARENT_PID",
+                    "AOS_EXTERNAL_DISPATCH_REVIEWED_DEPENDENCY_SET_DIGEST"
+                  ]
+                }
+              }
+            ]
+          },
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        },
+        "stdio": { "enum": ["capture", "inherit", "registered_bundle"] },
+        "when": { "$ref": "#/$defs/condition" },
+        "spawn_registration": { "$ref": "#/$defs/spawn_registration" }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["spawn_registration"] },
+          "then": {
+            "required": ["cwd", "env", "stdio"],
+            "properties": {
+              "path": { "const": ["listen"] },
+              "executable": { "const": "/usr/bin/env" },
+              "argv_prefix": { "const": ["node", "--input-type=module", "-", "listen"] },
+              "cwd": { "const": "repo" },
+              "stdio": { "const": "registered_bundle" },
+              "help_passthrough": { "const": false },
+              "env": {
+                "const": {
+                  "AOS_PATH": "$AOS_PATH",
+                  "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+                  "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+                }
+              },
+              "spawn_registration": {
+                "properties": {
+                  "route_source_id": { "const": "listen" },
+                  "adapter_registration_id": { "const": "microphone-capture-adapter" },
+                  "expected_script_identity": { "const": "scripts/aos-tell-listen.mjs" }
+                }
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "stdio": { "not": { "const": "registered_bundle" } }
+            }
+          }
+        }
+      ]
+    },
+    "spawn_registration": {
+      "type": "object",
+      "required": [
+        "route_source_id",
+        "route_source_revision",
+        "adapter_registration_id",
+        "adapter_registration_revision",
+        "activation_predicate",
+        "executable_resolution_policy",
+        "expected_script_identity",
+        "expected_script_digest",
+        "reviewed_dependencies",
+        "reviewed_dependency_set_digest",
+        "canonical_argv_shape_digest"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "route_source_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]*$" },
+        "route_source_revision": { "$ref": "#/$defs/sha256" },
+        "adapter_registration_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]*$" },
+        "adapter_registration_revision": { "type": "integer", "minimum": 1 },
+        "activation_predicate": { "$ref": "#/$defs/activation_predicate" },
+        "executable_resolution_policy": { "$ref": "#/$defs/executable_resolution_policy" },
+        "expected_script_identity": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$"
+        },
+        "expected_script_digest": { "$ref": "#/$defs/sha256" },
+        "reviewed_dependencies": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            {
+              "allOf": [
+                { "$ref": "#/$defs/reviewed_dependency" },
+                { "properties": { "identity": { "const": "scripts/lib/aos-daemon-client.mjs" } } }
+              ]
+            },
+            {
+              "allOf": [
+                { "$ref": "#/$defs/reviewed_dependency" },
+                { "properties": { "identity": { "const": "scripts/lib/aos-voice-follow.mjs" } } }
+              ]
+            }
+          ],
+          "items": false
+        },
+        "reviewed_dependency_set_digest": { "$ref": "#/$defs/sha256" },
+        "canonical_argv_shape_digest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "reviewed_dependency": {
+      "type": "object",
+      "required": ["identity", "digest"],
+      "additionalProperties": false,
+      "properties": {
+        "identity": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$"
+        },
+        "digest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "activation_predicate": {
+      "type": "object",
+      "required": ["grammar"],
+      "additionalProperties": false,
+      "properties": {
+        "grammar": { "const": "listen_microphone_v1" }
+      }
+    },
+    "executable_resolution_policy": {
+      "type": "object",
+      "required": [
+        "launcher_shape",
+        "resolution_owner",
+        "resolution_phase",
+        "search_source",
+        "command_name",
+        "designated_requirement",
+        "signing_identifier",
+        "signing_team_identifier",
+        "requires_hardened_runtime",
+        "platform_code_directory_hash_algorithm",
+        "reviewed_source_max_bytes",
+        "reviewed_bundle_max_bytes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "launcher_shape": { "const": "usr_bin_env_node" },
+        "resolution_owner": { "const": "native_external_dispatch" },
+        "resolution_phase": { "const": "immediately_before_spawn" },
+        "search_source": { "const": "sanitized_path" },
+        "command_name": { "const": "node" },
+        "designated_requirement": {
+          "const": "anchor apple generic and identifier \"node\" and certificate leaf[subject.OU] = \"HX7739G8FX\""
+        },
+        "signing_identifier": { "const": "node" },
+        "signing_team_identifier": { "const": "HX7739G8FX" },
+        "requires_hardened_runtime": { "const": true },
+        "platform_code_directory_hash_algorithm": { "const": "sha256_truncated_cdhash_20_bytes" },
+        "reviewed_source_max_bytes": { "const": 131072 },
+        "reviewed_bundle_max_bytes": { "const": 524288 }
+      }
+    },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "child_arg_index": { "type": "integer", "minimum": 0 },
+        "child_arg_missing": { "type": "boolean" },
+        "prefix": { "type": "string", "minLength": 1 },
+        "excluded_prefixes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "excluded_values": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
+      },
+      "anyOf": [
+        { "required": ["child_arg_index"] },
+        { "required": ["child_arg_index", "prefix"] },
+        { "required": ["child_arg_index", "excluded_prefixes"] },
+        { "required": ["child_arg_index", "excluded_values"] },
+        { "required": ["child_arg_index", "child_arg_missing"] }
+      ]
+    }
+  }
+}

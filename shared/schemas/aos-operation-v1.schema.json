@@ -1,0 +1,701 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-v1.schema.json",
+  "title": "AOS Operation v1",
+  "$ref": "#/$defs/operation_snapshot",
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "nonnegative_integer": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "positive_integer": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "adapter_registration": {
+      "type": "object",
+      "required": ["adapter_registration_id", "adapter_registration_revision"],
+      "properties": {
+        "adapter_registration_id": {"$ref": "#/$defs/identifier"},
+        "adapter_registration_revision": {"$ref": "#/$defs/generation"}
+      },
+      "additionalProperties": false
+    },
+    "operation_selector": {
+      "type": "object",
+      "required": ["operation_id", "operation_generation"],
+      "properties": {
+        "operation_id": {"$ref": "#/$defs/identifier"},
+        "operation_generation": {"$ref": "#/$defs/generation"}
+      },
+      "additionalProperties": false
+    },
+    "owner_filters": {
+      "type": "object",
+      "properties": {
+        "capability_id": {"$ref": "#/$defs/identifier"},
+        "client_id": {"$ref": "#/$defs/identifier"},
+        "agent_id": {"$ref": "#/$defs/identifier"},
+        "project_id": {"$ref": "#/$defs/identifier"},
+        "task_id": {"$ref": "#/$defs/identifier"},
+        "run_id": {"$ref": "#/$defs/identifier"},
+        "skill_id": {"$ref": "#/$defs/identifier"},
+        "target_id": {"$ref": "#/$defs/identifier"},
+        "capability_label": {"$ref": "#/$defs/identifier"}
+      },
+      "additionalProperties": false
+    },
+    "requested_bounds": {
+      "type": "object",
+      "properties": {
+        "deadline_ms": {"$ref": "#/$defs/positive_integer"},
+        "max_duration_ms": {"$ref": "#/$defs/positive_integer"},
+        "max_items": {"$ref": "#/$defs/positive_integer"},
+        "max_bytes": {"$ref": "#/$defs/positive_integer"},
+        "max_queue_items": {"$ref": "#/$defs/positive_integer"}
+      },
+      "additionalProperties": false
+    },
+    "progress_facts": {
+      "type": "object",
+      "required": ["items", "bytes", "duration_ms", "last_event_sequence"],
+      "properties": {
+        "items": {"$ref": "#/$defs/nonnegative_integer"},
+        "bytes": {"$ref": "#/$defs/nonnegative_integer"},
+        "duration_ms": {"$ref": "#/$defs/nonnegative_integer"},
+        "last_event_sequence": {"$ref": "#/$defs/nonnegative_integer"}
+      },
+      "additionalProperties": false
+    },
+    "residual_summary": {
+      "type": "object",
+      "required": ["classification", "count", "digest"],
+      "properties": {
+        "classification": {"enum": ["none", "present", "uncertain"]},
+        "count": {"$ref": "#/$defs/nonnegative_integer"},
+        "digest": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "classification": {"const": "none"},
+            "count": {"const": 0}
+          }
+        },
+        {
+          "properties": {
+            "classification": {"enum": ["present", "uncertain"]},
+            "count": {"minimum": 1}
+          }
+        }
+      ]
+    },
+    "cleanup_summary": {
+      "type": "object",
+      "required": ["result", "residual", "completed_at"],
+      "properties": {
+        "result": {
+          "enum": [
+            "not_started",
+            "pending",
+            "zero_residuals",
+            "residuals_present",
+            "recovery_active",
+            "blocked_unresolved"
+          ]
+        },
+        "residual": {"$ref": "#/$defs/residual_summary"},
+        "completed_at": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/timestamp"}
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "terminal_facts": {
+      "type": "object",
+      "required": ["outcome", "trigger", "blame", "duration_ms", "completed_at"],
+      "properties": {
+        "outcome": {
+          "enum": ["succeeded", "cancelled", "killed", "rejected", "failed", "crashed", "timed_out", "orphaned"]
+        },
+        "trigger": {
+          "enum": [
+            "adapter_complete",
+            "caller_cancel",
+            "kill_one",
+            "owner_kill",
+            "host_stop_all",
+            "start_rejected",
+            "start_failure",
+            "deadline",
+            "signal",
+            "peer_lost",
+            "transport_lost",
+            "daemon_crash",
+            "boot_recovery",
+            "platform_failure",
+            "permission_failure",
+            "adapter_failure",
+            "external_tool_failure",
+            "artifact_failure"
+          ]
+        },
+        "blame": {
+          "enum": ["caller", "adapter", "aos_control_plane", "platform", "permission", "external_tool", "host_shutdown", "unknown"]
+        },
+        "duration_ms": {"$ref": "#/$defs/nonnegative_integer"},
+        "completed_at": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false
+    },
+    "resource_declaration": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "adapter_registration_id",
+            "adapter_registration_revision",
+            "resource_key",
+            "admission_mode",
+            "declaration_digest"
+          ],
+          "properties": {
+            "adapter_registration_id": {"$ref": "#/$defs/identifier"},
+            "adapter_registration_revision": {"$ref": "#/$defs/generation"},
+            "resource_key": {"$ref": "#/$defs/identifier"},
+            "admission_mode": {"const": "exclusive"},
+            "declaration_digest": {"$ref": "#/$defs/sha256"}
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "adapter_registration_id",
+            "adapter_registration_revision",
+            "resource_key",
+            "admission_mode",
+            "declaration_digest",
+            "fanout_bound"
+          ],
+          "properties": {
+            "adapter_registration_id": {"$ref": "#/$defs/identifier"},
+            "adapter_registration_revision": {"$ref": "#/$defs/generation"},
+            "resource_key": {"$ref": "#/$defs/identifier"},
+            "admission_mode": {"const": "multiplexable"},
+            "declaration_digest": {"$ref": "#/$defs/sha256"},
+            "fanout_bound": {"$ref": "#/$defs/positive_integer"}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "claim_request": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "adapter_registration_id",
+            "adapter_registration_revision",
+            "resource_key",
+            "admission_mode",
+            "resource_declaration_digest",
+            "expected_resource_generation"
+          ],
+          "properties": {
+            "adapter_registration_id": {"$ref": "#/$defs/identifier"},
+            "adapter_registration_revision": {"$ref": "#/$defs/generation"},
+            "resource_key": {"$ref": "#/$defs/identifier"},
+            "admission_mode": {"const": "exclusive"},
+            "resource_declaration_digest": {"$ref": "#/$defs/sha256"},
+            "expected_resource_generation": {"$ref": "#/$defs/nonnegative_integer"}
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "adapter_registration_id",
+            "adapter_registration_revision",
+            "resource_key",
+            "admission_mode",
+            "resource_declaration_digest",
+            "expected_resource_generation",
+            "expected_broker_generation",
+            "expected_subscriber_set_revision",
+            "expected_subscriber_set_count",
+            "expected_subscriber_set_digest"
+          ],
+          "properties": {
+            "adapter_registration_id": {"$ref": "#/$defs/identifier"},
+            "adapter_registration_revision": {"$ref": "#/$defs/generation"},
+            "resource_key": {"$ref": "#/$defs/identifier"},
+            "admission_mode": {"const": "multiplexable"},
+            "resource_declaration_digest": {"$ref": "#/$defs/sha256"},
+            "expected_resource_generation": {"$ref": "#/$defs/nonnegative_integer"},
+            "expected_broker_generation": {"$ref": "#/$defs/nonnegative_integer"},
+            "expected_subscriber_set_revision": {"$ref": "#/$defs/nonnegative_integer"},
+            "expected_subscriber_set_count": {"$ref": "#/$defs/nonnegative_integer"},
+            "expected_subscriber_set_digest": {"$ref": "#/$defs/sha256"}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "claim_set_receipt": {
+      "type": "object",
+      "required": ["outcome", "attempt_sequence", "conflict_resource_key", "published_claim_count"],
+      "properties": {
+        "outcome": {
+          "enum": ["committed", "busy", "fanout_exhausted", "barrier_closed", "rollback_failed", "rejected"]
+        },
+        "attempt_sequence": {"$ref": "#/$defs/positive_integer"},
+        "conflict_resource_key": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/identifier"}
+          ]
+        },
+        "published_claim_count": {"$ref": "#/$defs/nonnegative_integer"}
+      },
+      "additionalProperties": false
+    },
+    "claim_set_transaction": {
+      "type": "object",
+      "required": [
+        "transaction_id",
+        "attempt_sequence",
+        "operation_id",
+        "operation_generation",
+        "daemon_generation",
+        "expected_barrier_generation",
+        "expected_adapter_registry_revision",
+        "expected_resource_declaration_set_count",
+        "expected_resource_declaration_set_digest",
+        "adapter_registry_revision",
+        "resource_declaration_set_count",
+        "resource_declaration_set_digest",
+        "canonical_request_array",
+        "claim_set_digest",
+        "state",
+        "recovery_disposition",
+        "receipt"
+      ],
+      "properties": {
+        "transaction_id": {"$ref": "#/$defs/identifier"},
+        "attempt_sequence": {"$ref": "#/$defs/positive_integer"},
+        "operation_id": {"$ref": "#/$defs/identifier"},
+        "operation_generation": {"$ref": "#/$defs/generation"},
+        "daemon_generation": {"$ref": "#/$defs/generation"},
+        "expected_barrier_generation": {"$ref": "#/$defs/generation"},
+        "expected_adapter_registry_revision": {"$ref": "#/$defs/generation"},
+        "expected_resource_declaration_set_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "expected_resource_declaration_set_digest": {"$ref": "#/$defs/sha256"},
+        "adapter_registry_revision": {"$ref": "#/$defs/generation"},
+        "resource_declaration_set_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "resource_declaration_set_digest": {"$ref": "#/$defs/sha256"},
+        "canonical_request_array": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {"$ref": "#/$defs/claim_request"}
+        },
+        "claim_set_digest": {"$ref": "#/$defs/sha256"},
+        "state": {
+          "enum": ["prepared", "reserving", "committed", "rolling_back", "cleanup_required", "recovering", "terminal"]
+        },
+        "recovery_disposition": {
+          "oneOf": [
+            {"type": "null"},
+            {"enum": ["rollback_pending", "commit_pending_handoff"]}
+          ]
+        },
+        "receipt": {"$ref": "#/$defs/claim_set_receipt"}
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"properties": {"state": {"enum": ["cleanup_required", "recovering"]}}},
+          "then": {"properties": {"recovery_disposition": {"enum": ["rollback_pending", "commit_pending_handoff"]}}},
+          "else": {"properties": {"recovery_disposition": {"type": "null"}}}
+        }
+      ]
+    },
+    "reattach_binding": {
+      "type": "object",
+      "required": ["operation_generation", "resource_generation", "token_digest"],
+      "properties": {
+        "operation_generation": {"$ref": "#/$defs/generation"},
+        "resource_generation": {"$ref": "#/$defs/generation"},
+        "token_digest": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "resource_claim": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "claim_id",
+            "transaction_id",
+            "operation_id",
+            "operation_generation",
+            "resource_key",
+            "resource_generation",
+            "admission_mode",
+            "adapter_registration_id",
+            "adapter_registration_revision",
+            "resource_declaration_digest",
+            "adapter_registry_revision",
+            "resource_declaration_set_count",
+            "resource_declaration_set_digest",
+            "committed_claim_set_transaction_id",
+            "committed_claim_set_digest",
+            "state",
+            "reattach_binding"
+          ],
+          "properties": {
+            "claim_id": {"$ref": "#/$defs/identifier"},
+            "transaction_id": {"$ref": "#/$defs/identifier"},
+            "operation_id": {"$ref": "#/$defs/identifier"},
+            "operation_generation": {"$ref": "#/$defs/generation"},
+            "resource_key": {"$ref": "#/$defs/identifier"},
+            "resource_generation": {"$ref": "#/$defs/generation"},
+            "admission_mode": {"const": "exclusive"},
+            "adapter_registration_id": {"$ref": "#/$defs/identifier"},
+            "adapter_registration_revision": {"$ref": "#/$defs/generation"},
+            "resource_declaration_digest": {"$ref": "#/$defs/sha256"},
+            "adapter_registry_revision": {"$ref": "#/$defs/generation"},
+            "resource_declaration_set_count": {"$ref": "#/$defs/nonnegative_integer"},
+            "resource_declaration_set_digest": {"$ref": "#/$defs/sha256"},
+            "committed_claim_set_transaction_id": {"$ref": "#/$defs/identifier"},
+            "committed_claim_set_digest": {"$ref": "#/$defs/sha256"},
+            "state": {
+              "enum": ["prepared", "active", "releasing", "cleanup_required", "recovering", "terminal"]
+            },
+            "reattach_binding": {"$ref": "#/$defs/reattach_binding"}
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "claim_id",
+            "transaction_id",
+            "operation_id",
+            "operation_generation",
+            "resource_key",
+            "resource_generation",
+            "admission_mode",
+            "adapter_registration_id",
+            "adapter_registration_revision",
+            "resource_declaration_digest",
+            "adapter_registry_revision",
+            "resource_declaration_set_count",
+            "resource_declaration_set_digest",
+            "committed_claim_set_transaction_id",
+            "committed_claim_set_digest",
+            "state",
+            "reattach_binding",
+            "broker_id",
+            "broker_generation",
+            "subscriber_id"
+          ],
+          "properties": {
+            "claim_id": {"$ref": "#/$defs/identifier"},
+            "transaction_id": {"$ref": "#/$defs/identifier"},
+            "operation_id": {"$ref": "#/$defs/identifier"},
+            "operation_generation": {"$ref": "#/$defs/generation"},
+            "resource_key": {"$ref": "#/$defs/identifier"},
+            "resource_generation": {"$ref": "#/$defs/generation"},
+            "admission_mode": {"const": "multiplexable"},
+            "adapter_registration_id": {"$ref": "#/$defs/identifier"},
+            "adapter_registration_revision": {"$ref": "#/$defs/generation"},
+            "resource_declaration_digest": {"$ref": "#/$defs/sha256"},
+            "adapter_registry_revision": {"$ref": "#/$defs/generation"},
+            "resource_declaration_set_count": {"$ref": "#/$defs/nonnegative_integer"},
+            "resource_declaration_set_digest": {"$ref": "#/$defs/sha256"},
+            "committed_claim_set_transaction_id": {"$ref": "#/$defs/identifier"},
+            "committed_claim_set_digest": {"$ref": "#/$defs/sha256"},
+            "state": {
+              "enum": ["prepared", "active", "releasing", "cleanup_required", "recovering", "terminal"]
+            },
+            "reattach_binding": {"$ref": "#/$defs/reattach_binding"},
+            "broker_id": {"$ref": "#/$defs/identifier"},
+            "broker_generation": {"$ref": "#/$defs/generation"},
+            "subscriber_id": {"$ref": "#/$defs/identifier"}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "multiplex_broker": {
+      "type": "object",
+      "required": [
+        "broker_id",
+        "broker_generation",
+        "resource_key",
+        "resource_generation",
+        "adapter_registration_id",
+        "adapter_registration_revision",
+        "resource_declaration_digest",
+        "adapter_registry_revision",
+        "resource_declaration_set_count",
+        "resource_declaration_set_digest",
+        "committed_claim_set_transaction_id",
+        "committed_claim_set_digest",
+        "fanout_bound",
+        "subscriber_set_count",
+        "subscriber_set_revision",
+        "subscriber_set_digest",
+        "state"
+      ],
+      "properties": {
+        "broker_id": {"$ref": "#/$defs/identifier"},
+        "broker_generation": {"$ref": "#/$defs/generation"},
+        "resource_key": {"$ref": "#/$defs/identifier"},
+        "resource_generation": {"$ref": "#/$defs/generation"},
+        "adapter_registration_id": {"$ref": "#/$defs/identifier"},
+        "adapter_registration_revision": {"$ref": "#/$defs/generation"},
+        "resource_declaration_digest": {"$ref": "#/$defs/sha256"},
+        "adapter_registry_revision": {"$ref": "#/$defs/generation"},
+        "resource_declaration_set_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "resource_declaration_set_digest": {"$ref": "#/$defs/sha256"},
+        "committed_claim_set_transaction_id": {"$ref": "#/$defs/identifier"},
+        "committed_claim_set_digest": {"$ref": "#/$defs/sha256"},
+        "fanout_bound": {"$ref": "#/$defs/positive_integer"},
+        "subscriber_set_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "subscriber_set_revision": {"$ref": "#/$defs/generation"},
+        "subscriber_set_digest": {"$ref": "#/$defs/sha256"},
+        "state": {
+          "enum": ["prepared", "starting", "active", "stopping", "cleanup_required", "recovering", "terminal"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "child_reference": {
+      "type": "object",
+      "required": ["id", "generation"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "generation": {"$ref": "#/$defs/generation"}
+      },
+      "additionalProperties": false
+    },
+    "operation_snapshot": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "operation_id",
+        "operation_generation",
+        "daemon_generation",
+        "adapter_registry_revision",
+        "adapter_registration",
+        "capability_id",
+        "status_indicator_class",
+        "state",
+        "lineage",
+        "requested_bounds",
+        "progress",
+        "claim_set_transactions",
+        "resource_claims",
+        "multiplex_brokers",
+        "streams",
+        "taps",
+        "artifacts",
+        "cleanup",
+        "terminal",
+        "prepared_at",
+        "started_at",
+        "updated_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "aos.operation.v1"},
+        "operation_id": {"$ref": "#/$defs/identifier"},
+        "operation_generation": {"$ref": "#/$defs/generation"},
+        "daemon_generation": {"$ref": "#/$defs/generation"},
+        "adapter_registry_revision": {"$ref": "#/$defs/generation"},
+        "adapter_registration": {"$ref": "#/$defs/adapter_registration"},
+        "capability_id": {"$ref": "#/$defs/identifier"},
+        "status_indicator_class": {"enum": ["neutral", "recording"]},
+        "state": {
+          "enum": ["prepared", "starting", "active", "stopping", "cleanup_required", "recovering", "terminal"]
+        },
+        "lineage": {
+          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/operation_lineage"
+        },
+        "requested_bounds": {"$ref": "#/$defs/requested_bounds"},
+        "progress": {"$ref": "#/$defs/progress_facts"},
+        "claim_set_transactions": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {"$ref": "#/$defs/claim_set_transaction"}
+        },
+        "resource_claims": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {"$ref": "#/$defs/resource_claim"}
+        },
+        "multiplex_brokers": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {"$ref": "#/$defs/multiplex_broker"}
+        },
+        "streams": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {"$ref": "#/$defs/child_reference"}
+        },
+        "taps": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {"$ref": "#/$defs/child_reference"}
+        },
+        "artifacts": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {"$ref": "#/$defs/child_reference"}
+        },
+        "cleanup": {"$ref": "#/$defs/cleanup_summary"},
+        "terminal": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/terminal_facts"}
+          ]
+        },
+        "prepared_at": {"$ref": "#/$defs/timestamp"},
+        "started_at": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/timestamp"}
+          ]
+        },
+        "updated_at": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"properties": {"state": {"const": "terminal"}}},
+          "then": {
+            "properties": {
+              "terminal": {"$ref": "#/$defs/terminal_facts"},
+              "cleanup": {
+                "properties": {
+                  "result": {"const": "zero_residuals"},
+                  "residual": {
+                    "properties": {
+                      "classification": {"const": "none"},
+                      "count": {"const": 0}
+                    }
+                  },
+                  "completed_at": {"$ref": "#/$defs/timestamp"}
+                }
+              }
+            }
+          },
+          "else": {"properties": {"terminal": {"type": "null"}}}
+        },
+        {
+          "if": {"properties": {"state": {"const": "prepared"}}},
+          "then": {"properties": {"started_at": {"type": "null"}}}
+        }
+      ]
+    },
+    "operation_list_result": {
+      "type": "object",
+      "required": ["schema_version", "operation", "filters", "operations", "checked_at"],
+      "properties": {
+        "schema_version": {"const": "aos.operation.list-result.v1"},
+        "operation": {"enum": ["list", "recent"]},
+        "filters": {"$ref": "#/$defs/owner_filters"},
+        "operations": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": {"$ref": "#/$defs/operation_snapshot"}
+        },
+        "checked_at": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false
+    },
+    "operation_inspect_result": {
+      "type": "object",
+      "required": ["schema_version", "operation", "selector", "snapshot", "checked_at"],
+      "properties": {
+        "schema_version": {"const": "aos.operation.inspect-result.v1"},
+        "operation": {"enum": ["inspect", "status"]},
+        "selector": {"$ref": "#/$defs/operation_selector"},
+        "snapshot": {"$ref": "#/$defs/operation_snapshot"},
+        "checked_at": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false
+    },
+    "operation_control_item": {
+      "type": "object",
+      "required": ["operation_id", "operation_generation", "resulting_state", "cleanup_result"],
+      "properties": {
+        "operation_id": {"$ref": "#/$defs/identifier"},
+        "operation_generation": {"$ref": "#/$defs/generation"},
+        "resulting_state": {
+          "enum": ["prepared", "starting", "active", "stopping", "cleanup_required", "recovering", "terminal"]
+        },
+        "cleanup_result": {
+          "enum": ["not_started", "pending", "zero_residuals", "residuals_present", "recovery_active", "blocked_unresolved"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "operation_control_result": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "operation",
+        "outcome",
+        "selected_operation_count",
+        "selected_operation_digest",
+        "results",
+        "completed_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "aos.operation.control-result.v1"},
+        "operation": {"enum": ["cancel", "kill", "kill_owner"]},
+        "outcome": {
+          "enum": ["accepted", "idempotent", "stale_identity", "not_found", "empty_selection", "cleanup_required"]
+        },
+        "selected_operation_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "selected_operation_digest": {"$ref": "#/$defs/sha256"},
+        "results": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": {"$ref": "#/$defs/operation_control_item"}
+        },
+        "completed_at": {"$ref": "#/$defs/timestamp"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

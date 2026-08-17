@@ -22,15 +22,16 @@
     {
       "id": "external-command-manifest-schema-proof",
       "path_patterns": [
-        "tests/schemas/aos-external-command-manifest-v0.test.mjs"
+        "tests/schemas/aos-external-command-manifest-v0.test.mjs",
+        "tests/schemas/aos-external-command-manifest-v1.test.mjs"
       ],
       "fixture_patterns": [],
       "owner": "command-surface",
       "harness_level": "schema",
       "proof_kind": "command_contract",
-      "contract": "External command manifest schema, script targets, and help-manifest route coverage remain valid.",
-      "worth": "This catches command schema drift without rebuilding or starting runtime services.",
-      "command": "node --test tests/schemas/aos-external-command-manifest-v0.test.mjs",
+      "contract": "The external-command v0 schema remains byte-exact frozen history while the active closed v1 schema, wire-v2 aggregate, exactly-one listen spawn registration, v1-only readers, generator-bound hashes, script targets, and help-manifest route coverage remain valid.",
+      "worth": "This catches frozen-history mutation, partial reader cutovers, open or unsafe spawn registration, and command schema drift without rebuilding or starting runtime services.",
+      "command": "node --test tests/schemas/aos-external-command-manifest-v0.test.mjs tests/schemas/aos-external-command-manifest-v1.test.mjs",
       "replaces": [],
       "guard": "none",
       "status": "active"
