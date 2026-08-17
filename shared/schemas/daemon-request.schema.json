@@ -29,9 +29,9 @@
     { "if": { "properties": { "service": { "const": "operation" }, "action": { "enum": ["inspect", "status", "cancel", "kill"] } } },
       "then": { "properties": { "data": { "$ref": "#/$defs/OperationSelectorRequestData" } } } },
     { "if": { "properties": { "service": { "const": "operation" }, "action": { "const": "tap" } } },
-      "then": { "properties": { "data": { "$ref": "#/$defs/OperationTapRequestData" } } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/OperationUnavailableRequestData" } } } },
     { "if": { "properties": { "service": { "const": "operation" }, "action": { "enum": ["artifact_reveal", "artifact_remove", "artifact_release", "artifact_retain"] } } },
-      "then": { "properties": { "data": { "$ref": "#/$defs/OperationArtifactRequestData" } } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/OperationUnavailableRequestData" } } } },
     { "if": { "properties": { "service": { "const": "operation" }, "action": { "const": "stop_all" } } },
       "then": { "properties": { "data": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-host-stop-barrier-v1.schema.json#/$defs/stop_all_request" } } } },
     { "if": { "properties": { "service": { "const": "operation" }, "action": { "const": "reopen" } } },
@@ -228,31 +228,12 @@
       },
       "additionalProperties": false
     },
-    "OperationTapRequestData": {
+    "OperationUnavailableRequestData": {
       "type": "object",
-      "required": ["request_id", "canonical_parameter_digest", "selector", "tap"],
+      "required": ["request_id", "canonical_parameter_digest"],
       "properties": {
         "request_id": { "$ref": "#/$defs/OperationIdentifier" },
-        "canonical_parameter_digest": { "$ref": "#/$defs/OperationSHA256" },
-        "selector": {
-          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-v1.schema.json#/$defs/operation_selector"
-        },
-        "tap": {
-          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-tap-v1.schema.json#/$defs/tap_request_parameters"
-        }
-      },
-      "additionalProperties": false
-    },
-    "OperationArtifactRequestData": {
-      "type": "object",
-      "required": ["request_id", "canonical_parameter_digest", "selector", "action"],
-      "properties": {
-        "request_id": { "$ref": "#/$defs/OperationIdentifier" },
-        "canonical_parameter_digest": { "$ref": "#/$defs/OperationSHA256" },
-        "selector": {
-          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-artifact-v1.schema.json#/$defs/artifact_selector"
-        },
-        "action": { "enum": ["reveal", "remove", "release", "retain"] }
+        "canonical_parameter_digest": { "$ref": "#/$defs/OperationSHA256" }
       },
       "additionalProperties": false
     },

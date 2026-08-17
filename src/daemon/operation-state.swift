@@ -25,6 +25,8 @@ enum AOSOperationCoreError: Error, Equatable, CustomStringConvertible {
     case residualsPresent
     case reconciliationIncomplete
     case staleRecoveryClaim
+    case tapUnavailable
+    case artifactCustodyUnavailable
 
     var code: String {
         switch self {
@@ -51,6 +53,8 @@ enum AOSOperationCoreError: Error, Equatable, CustomStringConvertible {
         case .residualsPresent: return "OPERATION_RESIDUALS_PRESENT"
         case .reconciliationIncomplete: return "OPERATION_RECONCILIATION_INCOMPLETE"
         case .staleRecoveryClaim: return "OPERATION_RECOVERY_CLAIM_STALE"
+        case .tapUnavailable: return "OPERATION_TAP_UNAVAILABLE"
+        case .artifactCustodyUnavailable: return "OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE"
         }
     }
 

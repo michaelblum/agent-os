@@ -9025,7 +9025,7 @@ test('guarded operation-control native proof is current and claims only its exec
     .find(({ milestone: id }) => id === 'M2')
     .native.find(({ path_ref }) => path_ref.path === proof.path);
   assert.equal(targetProof.path_ref.kind, 'current');
-  assert.match(targetProof.claim, /lifecycle-only bounded tap expiry/u);
+  assert.match(targetProof.claim, /exact typed tap unavailability with no created tap record/u);
   assert.match(targetProof.claim, /host barrier remains unchanged/u);
   assert.match(targetProof.claim, /does not claim live stop\/reopen/u);
   assert.match(targetProof.claim, /does not claim status\/Canvas UI provenance/u);

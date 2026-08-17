@@ -5521,7 +5521,7 @@
         },
         {
           "path": "tests/manual/operation-control-native-proof.sh",
-          "claim": "Provides separately authorized guarded live acceptance for mechanical owner sharing/isolation, narrowing-only filters, exclusive microphone admission, lifecycle-only tap expiry, and exact cancel/kill cleanup while passively proving the host barrier remains unchanged and explicitly excluding live stop/reopen, peer-loss signaling, artifact, UI, source-delivery, replay, positive-attribution, SDK, and prior-generation claims.",
+          "claim": "Provides separately authorized guarded live acceptance for mechanical owner sharing/isolation, narrowing-only filters, exclusive microphone admission, exact typed tap unavailability, and exact cancel/kill cleanup while passively proving the host barrier remains unchanged and explicitly excluding live stop/reopen, peer-loss signaling, artifact success, UI, source-delivery, replay, positive-attribution, SDK, and prior-generation claims.",
           "execution_class": "native_live",
           "requires_owner_authority": true,
           "tcc_services": [
@@ -5530,7 +5530,7 @@
           "mutates_runtime": true
         }
       ],
-      "limitations": "The guarded live tool requires pre-existing Microphone authority, an already-running managed repo daemon, an explicit parked-state gate, and separate authorization; it is never a routed default command. Its tap case proves lifecycle/expiry with zero counters, not source delivery. It does not invoke stop-all/reopen or send process-group signals, so live host-control and peer-loss cleanup remain unclaimed. Existing caller-selected WAV/segment output remains outside generic AOS artifact custody; status/Canvas UI provenance, prior-generation crash recovery, request replay, positive attribution, public SDK coverage, and an M2 artifact producer remain unclaimed."
+      "limitations": "The guarded live tool requires pre-existing Microphone authority, an already-running managed repo daemon, an explicit parked-state gate, and separate authorization; it is never a routed default command. Its tap case proves OPERATION_TAP_UNAVAILABLE and absence of a created tap record, not source delivery. It does not invoke stop-all/reopen or send process-group signals, so live host-control and peer-loss cleanup remain unclaimed. Existing caller-selected WAV/segment output remains outside generic AOS artifact custody; all public artifact verbs report OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE while no producer or adapter exists. Status/Canvas UI provenance, prior-generation crash recovery, request replay, positive attribution, public SDK coverage, and an M2 artifact producer remain unclaimed."
         }
       },
       "target": {
@@ -5540,7 +5540,7 @@
       "Run the separately gated live microphone/TCC acceptance without changing the shared daemon identity.",
       "A later artifact-producing adapter must default new AOS-owned artifacts to transient custody unless the caller explicitly retains them; M2 does not reclassify existing caller-selected WAV or segment paths as AOS custody."
         ],
-        "exit_gate": "The existing microphone adapter proves prepared-before-authority, mechanically authenticated owner intersection, list/status/recent, exact cancel, terminal blame/cleanup, bounded tap, and artifact custody without changing capture semantics.",
+        "exit_gate": "The existing microphone adapter proves prepared-before-authority, mechanically authenticated owner intersection, list/status/recent, exact cancel, terminal blame/cleanup, typed no-source tap unavailability, and typed no-producer artifact-custody unavailability without changing capture semantics.",
         "reusable_atoms": [
           "existing microphone adapter",
           "connection-owned capture lease",
@@ -16919,7 +16919,7 @@
             },
             "execution_class": "native_live",
             "requires_owner_authority": true,
-            "claim": "Separately authorized guarded live acceptance for mechanically shared ordinary ownership and cross-root isolation, narrowing-only asserted filters, singleton microphone conflict, lifecycle-only bounded tap expiry, and cancel/kill cleanup, with passive proof that the host barrier remains unchanged. It does not claim live stop/reopen. It does not claim status/Canvas UI provenance, artifact success, tap source delivery, request replay, positive attribution, public SDK coverage, prior-generation crash/orphan recovery, or peer-loss signaling."
+            "claim": "Separately authorized guarded live acceptance for mechanically shared ordinary ownership and cross-root isolation, narrowing-only asserted filters, singleton microphone conflict, exact typed tap unavailability with no created tap record, and cancel/kill cleanup, with passive proof that the host barrier remains unchanged. It does not claim live stop/reopen. It does not claim status/Canvas UI provenance, artifact success, tap source delivery, request replay, positive attribution, public SDK coverage, prior-generation crash/orphan recovery, or peer-loss signaling."
           }
         ]
       },

@@ -111,8 +111,31 @@ test('machine declaration fixes the zero-installed-base migration policy', async
   assert.equal(declaration.compatibility_policy.residue_marker, markerPrefix);
 
   const rootContract = await readFile(path.join(repoRoot, 'AGENTS.md'), 'utf8');
-  assert.match(rootContract, /pre-release with no installed base or external compatibility/);
-  assert.match(rootContract, /Migrate internal consumers atomically and delete superseded/);
+  assert.match(rootContract, /pre-release with no installed base or external backward-compatibility/);
+  assert.match(rootContract, /Migrate real current consumers atomically and delete superseded/);
+  assert.match(rootContract, /language as a tripwire—not as a default requirement/);
+  assert.match(rootContract, /show why atomic cutover or a bounded reset is unsafe/);
+  assert.match(rootContract, /Deletion of superseded tracked material and cleanup of session-created test/);
+  assert.match(rootContract, /retained exception needs a named\s+owner, measured size, and finite or event-based deletion trigger/);
+  assert.match(rootContract, /Do not use the\s+production implementation as an exploratory scratchpad/);
+  assert.match(rootContract, /do not require a\s+spike when a focused regression already makes the repair falsifiable/);
+});
+
+test('repository orchestration partitions delegated evidence ownership', async () => {
+  const rootContract = await readFile(path.join(repoRoot, 'AGENTS.md'), 'utf8');
+  const normalizedRootContract = rootContract.replace(/\s+/g, ' ');
+
+  for (const marker of [
+    'assign each fact lane one primary evidence owner',
+    'Delegate or re-derive—do not do both',
+    'at most three targeted decision-critical spot checks',
+    "must not repeat that lane's broad searches, source walk, or proof suite",
+    'A seam-focused integration reviewer may test relationships on one stable snapshot',
+    'Duplicate verification needs a named high-risk reason',
+    'Contradictions get one focused adjudication, not a new audit tree',
+  ]) {
+    assert.ok(normalizedRootContract.includes(marker), `root orchestration guidance must retain: ${marker}`);
+  }
 });
 
 test('compatibility exceptions own exact active paths, evidence, removal, and focused tests', async () => {

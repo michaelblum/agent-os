@@ -11,14 +11,12 @@ import {
   assertBarrierUnchanged,
   assertContentFreeSummary,
   assertPreflight,
-  assertZeroTapCounters,
+  assertTapUnavailable,
   commandErrorCode,
   envelopeData,
   makeSummary,
-  parseJSONLines,
   parseSingleJSON,
   selfTestSummary,
-  tapCounterKeys,
 } from './lib/operation-control-native-proof-contract.mjs'
 
 const execFileAsync = promisify(execFile)
@@ -176,7 +174,6 @@ test('summary and operation envelopes reject sensitive or ambiguous material', (
   assert.throws(() => envelopeData({ v: 1, status: 'error' }), /OPERATION_ENVELOPE_INVALID/u)
   assert.deepEqual(parseSingleJSON('{\n  "ok": true\n}\n'), { ok: true })
   assert.throws(() => parseSingleJSON('{"first":true}\n{"second":true}\n'), /INVALID_JSON_RESULT/u)
-  assert.throws(() => parseJSONLines('not-json'), /INVALID_NDJSON_RESULT/u)
   assert.equal(commandErrorCode({ stdout: '', stderr: '{"code":"OPERATION_RESOURCE_BUSY"}\n' }), 'OPERATION_RESOURCE_BUSY')
   assert.equal(commandErrorCode({
     stdout: '',
@@ -189,19 +186,27 @@ test('summary and operation envelopes reject sensitive or ambiguous material', (
   assert.equal(failed.final.recovery_root_retained, true)
 })
 
-test('tap lifecycle proof requires the exact nine zero counters', () => {
-  const counters = Object.fromEntries(tapCounterKeys.map((key) => [key, 0]))
-  assert.equal(assertZeroTapCounters(counters), counters)
-
-  const absent = structuredClone(counters)
-  delete absent.source_seen
-  assert.throws(() => assertZeroTapCounters(absent), /TAP_COUNTERS_INVALID/u)
-
-  const extra = { ...counters, unexpected_counter: 0 }
-  assert.throws(() => assertZeroTapCounters(extra), /TAP_COUNTERS_INVALID/u)
-
-  const nonzero = { ...counters, delivered_items: 1 }
-  assert.throws(() => assertZeroTapCounters(nonzero), /TAP_COUNTERS_NONZERO/u)
+test('tap proof requires exact typed unavailability and no created tap record', () => {
+  const before = { taps: [] }
+  const after = { taps: [] }
+  const unavailable = {
+    code: 1,
+    stdout: '{"v":1,"status":"error","error":"OPERATION_TAP_UNAVAILABLE","code":"OPERATION_TAP_UNAVAILABLE"}\n',
+    stderr: '',
+  }
+  assert.equal(assertTapUnavailable(unavailable, before, after), 'OPERATION_TAP_UNAVAILABLE')
+  assert.throws(
+    () => assertTapUnavailable({ ...unavailable, code: 0 }, before, after),
+    /TAP_UNAVAILABLE_COMMAND_SUCCEEDED/u,
+  )
+  assert.throws(
+    () => assertTapUnavailable({ ...unavailable, stdout: '{"code":"OPERATION_RECORD_INVALID"}\n' }, before, after),
+    /TAP_UNAVAILABLE_CODE_INVALID/u,
+  )
+  assert.throws(
+    () => assertTapUnavailable(unavailable, before, { taps: [{ id: 'tap-1', generation: 1 }] }),
+    /TAP_RECORD_CREATED/u,
+  )
 })
 
 test('driver import is inert and a direct worker without supervision fails before live admission', async () => {
@@ -468,7 +473,8 @@ test('live entrypoint retains explicit gates, bounded commands, exact effects, a
   assert.match(driver, /observeProcessGeneration\(process\.ppid\)/u)
   assert.match(driver, /terminationMode: 'term_then_kill'/u)
   assert.match(driver, /assertBarrierUnchanged\(preflight\.barrier, finalPreflight\.barrier\)/u)
-  assert.match(driver, /assertZeroTapCounters\(terminalTap\.counters\)/u)
+  assert.match(driver, /assertTapUnavailable\(tap, firstInspect, afterTap\)/u)
+  assert.doesNotMatch(driver, /--channel|--sample-every|--max-queue-items|terminalTap/u)
   assert.doesNotMatch(driver, /timeoutMilliseconds: null/u)
   assert.doesNotMatch(driver, /'operation', 'stop-all'|'operation', 'reopen'/u)
   assert.doesNotMatch(driver, /settleOwnedOperations[\s\S]*operationArgs\(identity, 'kill'\)/u)

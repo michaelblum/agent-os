@@ -254,7 +254,9 @@
             "OPERATION_IDEMPOTENCY_CONFLICT",
             "OPERATION_RESIDUALS_PRESENT",
             "OPERATION_RECONCILIATION_INCOMPLETE",
-            "OPERATION_RECOVERY_CLAIM_STALE"
+            "OPERATION_RECOVERY_CLAIM_STALE",
+            "OPERATION_TAP_UNAVAILABLE",
+            "OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE"
           ]
         },
         "ref": { "type": "string" }

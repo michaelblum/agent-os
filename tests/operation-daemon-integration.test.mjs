@@ -50,92 +50,29 @@ test('daemon operation integration retains secure routing and exact wire boundar
   assert.match(registry, /finalizePendingExternalSpawnIntent/u)
 })
 
-test('tap buffer enforces all seven bounds and rejects queue overflow without enqueue', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'aos-operation-tap-'))
-  const main = path.join(root, 'main.swift')
-  const executable = path.join(root, 'tap-proof')
-  try {
-    await writeFile(main, String.raw`
-import Foundation
+test('source-free tap and producer-free artifact custody fail with exact typed codes', async () => {
+  const [unified, control, state, command] = await Promise.all([
+    readFile(path.join(repoRoot, 'src/daemon/unified.swift'), 'utf8'),
+    readFile(path.join(repoRoot, 'src/daemon/operation-control.swift'), 'utf8'),
+    readFile(path.join(repoRoot, 'src/daemon/operation-state.swift'), 'utf8'),
+    readFile(path.join(repoRoot, 'src/commands/operation.swift'), 'utf8'),
+  ])
 
-func bounds(
-    rate: UInt64 = 60,
-    sample: UInt64 = 1,
-    queue: UInt64 = 10,
-    items: UInt64 = 10,
-    bytes: UInt64 = 100,
-    idle: UInt64 = 100,
-    duration: UInt64 = 100
-) -> AOSTapBounds {
-    try! AOSTapBounds(
-        rateItemsPerSecond: rate,
-        sampleEvery: sample,
-        maxQueueItems: queue,
-        maxItems: items,
-        maxBytes: bytes,
-        idleTimeoutMilliseconds: idle,
-        durationMilliseconds: duration
-    )
-}
-
-let sampling = AOSOperationTapBuffer(bounds: bounds(sample: 2), startedAtMilliseconds: 0)
-precondition(sampling.observe(byteCount: 1, at: 1) == .enqueued)
-precondition(sampling.observe(byteCount: 1, at: 2) == .skippedSample)
-
-let rate = AOSOperationTapBuffer(bounds: bounds(rate: 1), startedAtMilliseconds: 0)
-precondition(rate.observe(byteCount: 1, at: 1) == .enqueued)
-precondition(rate.observe(byteCount: 1, at: 2) == .skippedRate)
-
-let queue = AOSOperationTapBuffer(bounds: bounds(queue: 1), startedAtMilliseconds: 0)
-precondition(queue.observe(byteCount: 1, at: 1) == .enqueued)
-precondition(queue.observe(byteCount: 1, at: 2) == .expired(.queueFull))
-precondition(queue.counters.enqueuedItems == 1)
-precondition(queue.counters.overflowRejectedCount == 1)
-
-let items = AOSOperationTapBuffer(bounds: bounds(items: 1), startedAtMilliseconds: 0)
-precondition(items.observe(byteCount: 1, at: 1) == .enqueued)
-precondition(items.deliverNext() == 1)
-precondition(items.observe(byteCount: 1, at: 2) == .expired(.maxItemsReached))
-
-let bytes = AOSOperationTapBuffer(bounds: bounds(bytes: 5), startedAtMilliseconds: 0)
-precondition(bytes.observe(byteCount: 4, at: 1) == .enqueued)
-precondition(bytes.deliverNext() == 4)
-precondition(bytes.observe(byteCount: 2, at: 2) == .expired(.maxBytesReachedOrWouldExceed))
-
-let idle = AOSOperationTapBuffer(bounds: bounds(idle: 5, duration: 20), startedAtMilliseconds: 0)
-precondition(idle.observe(byteCount: 1, at: 5) == .expired(.idleTimeout))
-
-let duration = AOSOperationTapBuffer(bounds: bounds(idle: 20, duration: 5), startedAtMilliseconds: 0)
-precondition(duration.observe(byteCount: 1, at: 5) == .expired(.durationElapsed))
-
-do {
-    _ = try AOSTapBounds(
-        rateItemsPerSecond: 61,
-        sampleEvery: 10_001,
-        maxQueueItems: 1_025,
-        maxItems: 10_001,
-        maxBytes: 10_485_761,
-        idleTimeoutMilliseconds: 300_001,
-        durationMilliseconds: 300_001
-    )
-    preconditionFailure("invalid bounds admitted")
-} catch let error as AOSOperationCoreError {
-    precondition(error == .invalidRecord("tap_bounds"))
-} catch {
-    preconditionFailure("unexpected bound failure")
-}
-`)
-    execFileSync('swiftc', [
-      '-warnings-as-errors',
-      '-module-cache-path', path.join(root, 'module-cache'),
-      ...coreSources,
-      main,
-      '-o', executable,
-    ], { cwd: repoRoot, stdio: 'pipe' })
-    execFileSync(executable, [], { cwd: repoRoot, stdio: 'pipe' })
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
+  assert.match(unified, /case "tap":\s*throw AOSOperationCoreError\.tapUnavailable/u)
+  assert.match(
+    unified,
+    /case "artifact_reveal", "artifact_remove", "artifact_release", "artifact_retain":\s*throw AOSOperationCoreError\.artifactCustodyUnavailable/u,
+  )
+  assert.doesNotMatch(unified, /openOperationTap|scheduleOperationTapExpiry|operationTapSnapshot|controlOperationArtifact/u)
+  assert.doesNotMatch(control, /AOSOperationTapBuffer|AOSOperationTapAdmission/u)
+  assert.match(state, /case \.tapUnavailable: return "OPERATION_TAP_UNAVAILABLE"/u)
+  assert.match(
+    state,
+    /case \.artifactCustodyUnavailable: return "OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE"/u,
+  )
+  assert.match(command, /case "tap":\s*guard values\.isEmpty/u)
+  assert.match(command, /case "artifact":\s*guard values\.count == 1/u)
+  assert.doesNotMatch(command, /OPERATION_FOLLOW_INCOMPLETE|--sample-every|--max-queue-items/u)
 })
 
 test('Darwin child admission binds trusted live Node code and mapped vnode', async () => {

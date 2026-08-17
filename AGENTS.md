@@ -139,10 +139,44 @@ Default section order:
   transforms. Public target handles are
   either state-scoped observation refs or action-time re-resolving locators;
   never silently reacquire a stale observation ref as though it were a locator.
-- AOS is pre-release with no installed base or external compatibility
-  obligations. Migrate internal consumers atomically and delete superseded
-  implementation in the same change; compatibility residue requires an
-  approved machine-readable, evidence-backed exception.
+- AOS is pre-release with no installed base or external backward-compatibility
+  obligations. Migrate real current consumers atomically and delete superseded
+  implementation, schemas, tests, fixtures, docs, and generated projections in
+  the same bounded change.
+- Treat `compatibility`, `backward compatible`, `legacy`, `migration`,
+  `deprecation`, `shim`, `fallback`, `dual reader`, `upgrade path`, and similar
+  language as a tripwire—not as a default requirement. Before adding machinery
+  described by those terms, identify the actual maintained consumer or
+  intentional data, show why atomic cutover or a bounded reset is unsafe, and
+  name the exception owner and removal trigger. Without that evidence, do the
+  clean cutover and remove the old path. Do not ask the owner to approve routine
+  greenfield replacement.
+- Do not globally ban those words when they describe a real current constraint,
+  such as supported macOS/runtime versions, exact AOS/Sigil pin coordination,
+  or frozen historical evidence. Name that concrete constraint instead of
+  inferring a deployed user base.
+- Deletion of superseded tracked material and cleanup of session-created test
+  artifacts are expected in-scope work. Tests and spikes must clean their logs,
+  traces, snapshots, recordings, databases, reports, caches, Work Records, and
+  temporary roots when their purpose ends. A retained exception needs a named
+  owner, measured size, and finite or event-based deletion trigger. Never delete
+  unrelated or pre-existing untracked user material while cleaning.
+- For hard concurrency, lifecycle, recovery, or process-identity defects, repair
+  production directly when a deterministic failure and mechanism are already
+  established. When they are not, first use one bounded failing harness,
+  interleaving model, or disposable spike with an exit criterion. Do not use the
+  production implementation as an exploratory scratchpad, and do not require a
+  spike when a focused regression already makes the repair falsifiable.
+- For delegated discovery, proof, or review, assign each fact lane one primary
+  evidence owner. Delegate or re-derive—do not do both. The orchestrator may
+  inspect returned evidence and run at most three targeted decision-critical
+  spot checks, but must not repeat that lane's broad searches, source walk, or
+  proof suite. A seam-focused integration reviewer may test relationships on
+  one stable snapshot without redoing each lane. Duplicate verification needs a
+  named high-risk reason—authority, security, native lifecycle/concurrency,
+  irreversible or live action, publication, or contradictory evidence—and is
+  limited to one independent reviewer. Contradictions get one focused
+  adjudication, not a new audit tree.
 - Do not invent new scoping models for runtime resources.
 - Do not create or use linked git worktrees for agent-os agent work. The
   default repo runtime belongs to the primary checkout; runtime-coupled tests

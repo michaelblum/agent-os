@@ -3,18 +3,6 @@ import path from 'node:path'
 
 export const proofSchemaVersion = 'aos.operation-control-native-proof.v1'
 
-export const tapCounterKeys = Object.freeze([
-  'delivered_bytes',
-  'delivered_items',
-  'enqueued_bytes',
-  'enqueued_items',
-  'overflow_rejected_count',
-  'queue_high_water',
-  'rate_skipped',
-  'sample_skipped',
-  'source_seen',
-])
-
 export class OperationNativeProofError extends Error {
   constructor(code, message = code) {
     super(message)
@@ -35,18 +23,6 @@ export function parseSingleJSON(text, code = 'INVALID_JSON_RESULT') {
   } catch {
     throw new OperationNativeProofError(code)
   }
-}
-
-export function parseJSONLines(text, code = 'INVALID_NDJSON_RESULT') {
-  const lines = String(text ?? '').trim().split(/\r?\n/u).filter(Boolean)
-  requireProof(lines.length > 0, code)
-  return lines.map((line) => {
-    try {
-      return JSON.parse(line)
-    } catch {
-      throw new OperationNativeProofError(code)
-    }
-  })
 }
 
 export function envelopeData(value, code = 'OPERATION_ENVELOPE_INVALID') {
@@ -208,14 +184,15 @@ export function assertTerminalOperation(snapshot, { outcome, trigger, blame }) {
   return snapshot
 }
 
-export function assertZeroTapCounters(counters) {
-  requireProof(counters && typeof counters === 'object' && !Array.isArray(counters), 'TAP_COUNTERS_INVALID')
+export function assertTapUnavailable(result, beforeSnapshot, afterSnapshot) {
+  requireProof(result?.code !== 0, 'TAP_UNAVAILABLE_COMMAND_SUCCEEDED')
+  requireProof(commandErrorCode(result) === 'OPERATION_TAP_UNAVAILABLE', 'TAP_UNAVAILABLE_CODE_INVALID')
+  requireProof(Array.isArray(beforeSnapshot?.taps) && Array.isArray(afterSnapshot?.taps), 'TAP_RECORD_SET_INVALID')
   requireProof(
-    JSON.stringify(Object.keys(counters).sort()) === JSON.stringify(tapCounterKeys),
-    'TAP_COUNTERS_INVALID',
+    JSON.stringify(afterSnapshot.taps) === JSON.stringify(beforeSnapshot.taps),
+    'TAP_RECORD_CREATED',
   )
-  requireProof(tapCounterKeys.every((key) => counters[key] === 0), 'TAP_COUNTERS_NONZERO')
-  return counters
+  return 'OPERATION_TAP_UNAVAILABLE'
 }
 
 export function makeSummary(runtimeRevision) {
@@ -247,10 +224,8 @@ export function makeSummary(runtimeRevision) {
       incumbent_remained_active: false,
     },
     tap: {
-      lifecycle_only: false,
-      terminal_reason: null,
-      zero_counters: false,
-      cleanup_zero_residuals: false,
+      error_code: null,
+      no_record_created: false,
     },
     ordinary_control: {
       cancel_outcome: null,

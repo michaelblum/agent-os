@@ -12,13 +12,12 @@ import {
   assertContentFreeSummary,
   assertOperationSnapshot,
   assertPreflight,
+  assertTapUnavailable,
   assertTerminalOperation,
-  assertZeroTapCounters,
   commandErrorCode,
   envelopeData,
   makeSummary,
   operationIdentity,
-  parseJSONLines,
   parseSingleJSON,
   requireProof,
   selfTestSummary,
@@ -804,24 +803,11 @@ async function runLive(options, summary, cleanup) {
   requireProof(summary.singleton.incumbent_remained_active, 'SINGLETON_PREEMPTED_INCUMBENT')
 
   const tap = await runner.runAOS([
-    'operation', 'tap', first.identity.id, '--generation', String(first.identity.generation),
-    '--channel', 'metadata', '--rate', '5', '--sample-every', '1',
-    '--max-queue-items', '4', '--max-items', '5', '--max-bytes', '4096',
-    '--timeout', '1000', '--duration-ms', '1500', '--follow', '--json',
+    'operation', 'tap', '--json',
   ], { timeoutMilliseconds: effectTimeoutMilliseconds })
-  requireProof(tap.code === 0, 'TAP_COMMAND_FAILED')
-  const tapLines = parseJSONLines(tap.stdout, 'TAP_OUTPUT_INVALID')
-  const terminalTap = tapLines.find((value) => value?.service === 'operation' && value?.event === 'terminal')?.data
-  requireProof(terminalTap?.state === 'expired', 'TAP_TERMINAL_MISSING')
-  requireProof(terminalTap.terminal_bound_reason === 'idle_timeout', 'TAP_REASON_INVALID')
-  assertZeroTapCounters(terminalTap.counters)
-  summary.tap.terminal_reason = terminalTap.terminal_bound_reason
-  summary.tap.lifecycle_only = true
-  summary.tap.zero_counters = true
-  await wait(150)
   const afterTap = await inspectOperation(runner, first.identity)
-  summary.tap.cleanup_zero_residuals = afterTap.cleanup?.residual?.count === 0
-  requireProof(summary.tap.cleanup_zero_residuals, 'TAP_RESIDUAL_PRESENT')
+  summary.tap.error_code = assertTapUnavailable(tap, firstInspect, afterTap)
+  summary.tap.no_record_created = true
 
   const cancel = assertSingleControlResult(await successfulOperation(
     await runner.runAOS(operationArgs(first.identity, 'cancel'), { timeoutMilliseconds: effectTimeoutMilliseconds }),

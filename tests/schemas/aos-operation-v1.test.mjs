@@ -26,6 +26,9 @@ const byName = Object.fromEntries(schemaNames.map((name) => [
   name,
   schemas[ids.find((id) => id.endsWith(`/${name}`))],
 ]));
+const daemonResponseSchema = JSON.parse(
+  fs.readFileSync(path.join(schemaDirectory, 'daemon-response.schema.json'), 'utf8'),
+);
 
 const SHA_A = 'a'.repeat(64);
 const SHA_B = 'b'.repeat(64);
@@ -397,14 +400,14 @@ test('all eight M2 schemas are uniquely identified Draft 2020-12 contracts with 
   assert.equal(byName['aos-operation-event-v1.schema.json'].$ref, '#/$defs/operation_event');
   assert.equal(byName['aos-operation-lineage-v1.schema.json'].$ref, '#/$defs/operation_lineage');
   assert.equal(byName['aos-stream-v1.schema.json'].$ref, '#/$defs/stream_snapshot');
-  assert.equal(byName['aos-operation-tap-v1.schema.json'].$ref, '#/$defs/tap_snapshot');
-  assert.equal(byName['aos-artifact-v1.schema.json'].$ref, '#/$defs/artifact_snapshot');
+  assert.equal(byName['aos-operation-tap-v1.schema.json'].$ref, '#/$defs/tap_unavailable_result');
+  assert.equal(byName['aos-artifact-v1.schema.json'].$ref, '#/$defs/artifact_custody_unavailable_result');
   assert.equal(byName['aos-operation-recovery-v1.schema.json'].$ref, '#/$defs/recovery_record');
   assert.equal(byName['aos-host-stop-barrier-v1.schema.json'].oneOf.length, 7);
   assertValidation([target(OPERATION_ID, 'operation_snapshot', operation, true, 'operation schema compiles')]);
 });
 
-test('operation, lineage, stream, tap, artifact, recovery, event, and barrier snapshots validate', () => {
+test('operation, lineage, stream, target tap/artifact, recovery, event, and barrier snapshots validate', () => {
   assertValidation([
     target(LINEAGE_ID, 'operation_lineage', operationLineage, true, 'lineage'),
     target(OPERATION_ID, 'operation_snapshot', operation, true, 'operation'),
@@ -416,6 +419,40 @@ test('operation, lineage, stream, tap, artifact, recovery, event, and barrier sn
     target(BARRIER_ID, 'barrier_record', openBarrier, true, 'barrier'),
     target(BARRIER_ID, 'stop_all_receipt', stopReceipt, true, 'stop receipt'),
   ]);
+});
+
+test('current tap and artifact schema roots expose only exact typed unavailability', () => {
+  const tapUnavailable = {
+    v: 1,
+    status: 'error',
+    error: 'OPERATION_TAP_UNAVAILABLE',
+    code: 'OPERATION_TAP_UNAVAILABLE',
+    ref: 'tap-request-1',
+  };
+  const artifactUnavailable = {
+    v: 1,
+    status: 'error',
+    error: 'OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE',
+    code: 'OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE',
+    ref: 'artifact-request-1',
+  };
+  assertValidation([
+    target(TAP_ID, null, tapUnavailable, true, 'tap unavailable root'),
+    target(TAP_ID, null, tap, false, 'tap success is not the current root'),
+    target(TAP_ID, null, { ...tapUnavailable, code: 'OPERATION_RECORD_INVALID' }, false, 'tap code is exact'),
+    target(ARTIFACT_ID, null, artifactUnavailable, true, 'artifact custody unavailable root'),
+    target(ARTIFACT_ID, null, artifact, false, 'artifact custody success is not the current root'),
+    target(
+      ARTIFACT_ID,
+      null,
+      { ...artifactUnavailable, error: 'OPERATION_NOT_FOUND' },
+      false,
+      'artifact error is exact',
+    ),
+  ]);
+  const daemonErrorCodes = daemonResponseSchema.oneOf[1].properties.code.enum;
+  assert.ok(daemonErrorCodes.includes('OPERATION_TAP_UNAVAILABLE'));
+  assert.ok(daemonErrorCodes.includes('OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE'));
 });
 
 test('mechanical lineage and the four server origin variants are exact and closed', () => {
@@ -499,7 +536,7 @@ test('operation terminal and resource records are generation-bound and fail clos
   })));
 });
 
-test('tap requires the exact seven ledger bounds and persists bounded queue-full facts', () => {
+test('target tap state retains exact seven bounds and bounded queue-full facts', () => {
   const boundsSchema = byName['aos-operation-tap-v1.schema.json'].$defs.tap_bounds.properties;
   assert.deepEqual(Object.keys(boundsSchema), [
     'rate_items_per_second',
@@ -548,7 +585,7 @@ test('tap requires the exact seven ledger bounds and persists bounded queue-full
   })));
 });
 
-test('artifact custody keeps release, retention, and removal recovery dispositions distinct', () => {
+test('target artifact state keeps release, retention, and removal recovery dispositions distinct', () => {
   const releaseReceipt = {
     kind: 'released', recipient_identity_digest: SHA_A, receipt_digest: SHA_B, completed_at: TIMESTAMP,
   };

@@ -111,6 +111,15 @@ tests.
 - Policy drift guards must name the exact active source surfaces and prohibited
   doctrine they protect. Do not globally ban mechanically valid terms such as
   `dry-run`, `authorization`, `allowlist`, `redaction`, Gate, or Work Record.
+- `pre-release-compatibility-policy.test.mjs` binds the machine-declared
+  zero-installed-base posture to root DOX: real current consumers cut over
+  atomically, compatibility language triggers consumer/data evidence rather
+  than legacy-by-default work, superseded tracked material is deleted, and
+  session-created test residue has a bounded cleanup owner and deletion trigger.
+  It also binds one primary evidence owner per delegated lane, bounded targeted
+  spot checks, and a named high-risk exception before duplicate verification.
+  Keep this a targeted contract proof; never turn it into a global vocabulary
+  ban.
 - Work Record V1 and Step Descriptor V1 proofs are direct schema/model/command-
   adapter tests. They must keep V0 bytes frozen and unsupported, reject exact
   legacy authority symbols on scoped active surfaces, and never invoke the repo
@@ -248,8 +257,9 @@ tests.
   reports only closed `offline_checks` and leaves every live evidence field
   unset. It
   proves only stable ordinary ownership, narrowing-only filters, singleton
-  microphone exclusion, lifecycle-only tap expiry, current-generation cleanup,
-  and exact cancel/kill terminal outcomes. It performs only passive host-barrier
+  microphone exclusion, exact typed tap unavailability with no created tap
+  record, current-generation cleanup, and exact cancel/kill terminal outcomes.
+  It performs only passive host-barrier
   preflight/final readback and requires the barrier state and generation to stay
   unchanged. Every exit stops owned capture children, passively settles only
   exact harness-owned operation identities, issues no cleanup control request,
