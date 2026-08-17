@@ -2245,7 +2245,14 @@ request must satisfy the current generation again.
 The status item is a separate internal projection, not a consumer status-item
 lease. It remains available during boot reconciliation, turns red only while a
 registered recording-class operation is active, opens the richer operation
-Canvas, and can request `stop-all`. The status-opened Canvas can inspect all
+Canvas explicitly from its menu, and shows the exact barrier state and
+generation. Confirmed `stop-all` and confirmed `reopen` bind that displayed
+generation and the current daemon-owned status-host lease epoch, then execute
+serially off the AppKit main thread. Lease retirement rejects new admissions
+without blocking AppKit; an already-admitted action remains bound to its clicked
+barrier generation. Both confirmations are presentation only; they do
+not assert human intent or grant authority. Typed control failure preserves and
+refreshes the last good status snapshot rather than hiding barrier state. The status-opened Canvas can inspect all
 registered operations and request `stop-all`; it cannot borrow ordinary owner
 authority. An ordinary Canvas with a live captured peer may use owner-scoped
 controls only. Status and Canvas provenance authenticate the request path but do

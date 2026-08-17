@@ -264,7 +264,13 @@ caller-origin, residual, outcome, cleanup, and reconciliation facts.
 M2 executable projections are daemon IPC, CLI, the daemon-owned internal status
 break-glass host, and an internal Canvas operation view. Status reauthenticates
 its exact daemon/status-host generation and effective UID through the same
-public stop-all entrypoint; its UI origin creates no extra authority. Ordinary
+public stop-all and reopen entrypoints. Each mutating menu selection binds the
+displayed item generation, descriptor revision, and barrier generation, then
+runs serialized durable control off the AppKit main thread. An exact status-host
+lease epoch is admitted immediately before control; retirement prevents new
+admissions without blocking AppKit, while an already admitted action may finish
+only against its immutable displayed barrier generation. Stop All and Reopen
+confirmations are presentation only and create no human-intent claim or extra authority. Ordinary
 Canvas control requires a currently live captured peer and becomes display-only
 when that connection disappears. A status-opened Canvas may use the
 server-injected status-host context for stop-all only and cannot impersonate an

@@ -6882,7 +6882,7 @@
           "docs/api/toolkit/status-item.md",
           "tests/operation-native-projections.test.mjs"
         ],
-        "summary": "AOS preserves owner-scoped consumer status-item leases and separately hosts an always-available internal M2 operation item with active-only red recording state, neutral counts, exact status-host generation/action admission, Canvas opening, and same-UID stop-all through the common control plane."
+        "summary": "AOS preserves owner-scoped consumer status-item leases and separately hosts an always-available internal M2 operation item with active-only red recording state, neutral counts, visible barrier state/generation, immutable action admission, confirmation-only presentation, off-main serialized same-UID stop-all and reopen through the common control plane, and explicit Canvas opening."
         },
         "exposure": {
           "cli": {
@@ -7137,7 +7137,7 @@
           },
       "host_stop_all": {
         "state": "complete",
-        "detail": "Always-available break-glass Stop All reaches the same generation-bound same-UID public control plane and reports typed stale/failure outcomes rather than disabling the action."
+        "detail": "Always-available break-glass Stop All and Reopen each require explicit native confirmation, bind the displayed barrier generation and exact status-host lease epoch, reach the same generation-bound same-UID public control plane off the AppKit main thread, and preserve the last good status snapshot while reporting typed stale/failure outcomes."
           },
           "tap": {
             "state": "partial",
@@ -7191,7 +7191,7 @@
         },
         {
           "path": "tests/operation-native-projections.test.mjs",
-          "claim": "Exercises active-only red state, exact status generations, always-available stop-all, and Canvas opening against fake native hosts and a fake operation registry.",
+          "claim": "Exercises active-only red state, visible exact barrier generations, immutable action bindings, serialized off-main stop-all and status-item reopen, short epoch admission with nonblocking retirement, stale-generation/retired-epoch/ABA rejection, preserved status on typed control failure, and explicit Canvas opening against fake native hosts and a fake operation registry.",
           "execution_class": "fake",
           "requires_owner_authority": false,
           "tcc_services": [],
@@ -15722,7 +15722,8 @@
             "host_control"
           ],
           "allowed_actions": [
-            "stop_all"
+            "stop_all",
+            "reopen"
           ],
           "liveness_rule": "daemon_status_host_generation_reauthenticated_per_request"
         },
@@ -15765,7 +15766,7 @@
       "surface": "status_item",
       "m2_state": "executable",
       "peer_context": "status_item_host",
-          "control_scope": "host_stop_only",
+          "control_scope": "host_stop_and_reopen",
           "fallback": "typed_host_control_rejection"
         },
     {
@@ -16417,14 +16418,10 @@
         "recording_class": "recording",
         "immutable_rule": "The adapter registry mechanically binds status_indicator_class when the operation generation becomes prepared; requests, argv, labels, and asserted lineage cannot set or change it.",
         "red_states": [
-          "starting",
-          "active",
-          "stopping",
-          "cleanup_required",
-          "recovering"
+          "active"
         ],
         "red_guard": "Red if and only if at least one mechanically classified recording operation is in a red state.",
-        "clear_guard": "Clear only when every mechanically classified recording operation is terminal and mechanically residual-free."
+        "clear_guard": "Clear whenever no mechanically classified recording operation is active; preparation, stopping, cleanup, recovery, and terminal states remain visible through neutral active/residual counts."
       },
       "action_origin_authentication": {
         "required_facts": [
@@ -16433,15 +16430,17 @@
           "status-host effective UID equals daemon effective UID",
           "status item generation",
           "descriptor revision",
-          "action sequence"
+          "action sequence",
+          "displayed barrier generation",
+          "status-host lease epoch"
         ],
         "grants_control": false,
-        "rule": "A status-item action origin and sequence authenticate input into the daemon-owned status host only. That host binds its exact daemon/status-host generation and effective UID, reauthenticates per action, and invokes the same public host-control entrypoint; it never gains ordinary owner control or a special role."
+        "rule": "A status-item action origin and sequence authenticate input into the daemon-owned status host only. Each confirmed Stop All or confirmed Reopen selection binds the immutable displayed item generation, descriptor revision, barrier generation, and exact status-host lease epoch. A short linearizable admission precedes serialized off-main control. Retirement immediately prevents new admissions without waiting on AppKit; an action already admitted against the prior epoch may finish only against its clicked barrier generation. The host invokes the same public host-control entrypoint and never gains ordinary owner control or a special role. Confirmation is presentation only and creates no human-initiated authority claim."
       },
       "control_routes": {
         "ordinary": "Re-authenticate the peer and intersect with its owner set.",
         "host_wide": "Re-authenticate a live local peer on every request and require peer effective UID to equal daemon effective UID. For status break-glass, the daemon-owned status host is that mechanical caller and binds its exact daemon/status-host generation and effective UID; no durable role, token, special principal, asserted lineage, or presentation-origin authority participates.",
-        "display": "Show neutral operation/recording counts, red recording state, cleanup warning, and content-free terminal taxonomy only."
+        "display": "Show neutral operation/recording counts, active-only red recording state, cleanup warning, exact barrier state/generation, confirmed Stop All, confirmed Reopen, and content-free terminal taxonomy only."
       },
       "forbidden": [
         "raw stream or artifact content",
@@ -16716,7 +16715,7 @@
               "path": "src/daemon/operation-status-item-projection.swift",
               "kind": "proposed"
             },
-            "responsibility": "Own the neutral active-operation projection, adapter-classified red recording indicator, and authenticated action."
+            "responsibility": "Own the neutral active-operation projection, adapter-classified active-only red recording indicator, immutable generation-and-lease-epoch-bound menu actions, Stop All and Reopen confirmation presentation, serialized off-main stop/reopen execution, nonblocking lease retirement, and typed failure refresh."
           },
           {
             "owner_id": "operation-command-source",
@@ -16864,7 +16863,7 @@
           },
           "execution_class": "fake",
           "requires_owner_authority": false,
-          "claim": "Exercise fail-closed boot reconciliation, durable request idempotency, stop-all receipts, passive barrier status, expected-generation reopen, and host-stop coverage of all broker states."
+          "claim": "Exercise fail-closed boot reconciliation, durable request idempotency, stop-all receipts, passive barrier status, live-peer and status-item expected-generation reopen, status-opened-Canvas reopen rejection, and host-stop coverage of all broker states."
         },
         {
           "path_ref": {
@@ -16873,7 +16872,7 @@
           },
           "execution_class": "fake",
           "requires_owner_authority": false,
-          "claim": "Prove captured-peer ordinary Canvas control and server-injected daemon/status-host stop-all are disjoint, with display-only fallback and no payload-origin authority."
+          "claim": "Prove captured-peer ordinary Canvas control, server-injected status-opened-Canvas stop-all, and the separate status-item stop/reopen origin are disjoint, with display-only fallback, immutable displayed-generation and status-host lease-epoch binding, off-main serialization, nonblocking retirement, and no payload-origin authority."
         },
         {
           "path_ref": {
@@ -17593,7 +17592,7 @@
         },
         {
           "id": "live_peer_host_control_projection",
-          "criterion": "M2 ships executable daemon IPC and CLI, always-available internal status-item host stop, and an internal Canvas projection. CLI and direct daemon IPC authenticate the current live transport peer. Only ordinary Canvas selected or group control may use a currently live captured peer and becomes display-only when that connection disappears; a status-opened Canvas receives a server-injected daemon/status-host origin for stop-all only and never impersonates an ordinary owner. Expected daemon generation is attached by the server after same-socket bootstrap for the current connection epoch, not supplied by a CLI flag. Public package SDK projections remain M6. No request payload, durable role, token, special principal, asserted lineage, presentation origin, or human-intent claim grants authority.",
+          "criterion": "M2 ships executable daemon IPC and CLI, an always-available internal status-item with immutable generation-and-lease-epoch-bound confirmed Stop All and confirmed Reopen executed serially off the AppKit main thread, and an internal Canvas projection. Lease retirement rejects new admissions without blocking AppKit, while an already-admitted action remains bound to its clicked barrier generation. CLI and direct daemon IPC authenticate the current live transport peer. Only ordinary Canvas selected or group control may use a currently live captured peer and becomes display-only when that connection disappears; a status-opened Canvas receives a server-injected daemon/status-host origin for stop-all only and never impersonates an ordinary owner or gains reopen. Expected daemon generation is attached by the server after same-socket bootstrap for the current connection epoch, not supplied by a CLI flag. Public package SDK projections remain M6. No request payload, durable role, token, special principal, asserted lineage, presentation origin, confirmation, or human-intent claim grants authority.",
           "proof_ref_ids": [
             "M2.proof.tests_schemas_aos_operation_v1_test_mjs",
             "M2.proof.tests_operation_control_contract_test_mjs",
@@ -18254,7 +18253,7 @@
         "The current external Node microphone route must finalize a generation-bound dispatch spawn record through the same daemon socket; AOS_EXTERNAL_DISPATCH_PARENT_PID is never owner authority.",
         "The external-command aggregate keeps its stable path but moves atomically to the v1 schema and wire schema_version 2 with v1-only Swift/help readers; frozen v0 bytes remain exact and only the listen route registers the M2 microphone spawn binding.",
         "M6 public TypeScript, Python, and optional Swift SDK projections consume the canonical M2 daemon IPC contract; M2 creates no maintained public SDK root or package export.",
-        "The M2 internal Canvas projection is not a public package SDK: ordinary controls require a captured peer and the status-host origin is server-injected and stop-all-only.",
+        "The M2 internal Canvas projection is not a public package SDK: ordinary controls require a captured peer and the status-opened Canvas origin is server-injected and stop-all-only; the separate internal status-item host may Stop All or Reopen with exact displayed-generation CAS.",
         "Authored command sources, reviewed executable routes, generator-owned aggregates, daemon schemas and documentation, and maintained docs/api/aos.md move atomically with this command-producing slice."
       ]
     },

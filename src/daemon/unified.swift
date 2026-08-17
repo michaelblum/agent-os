@@ -249,7 +249,7 @@ class UnifiedDaemon {
     private var operationMicrophoneAdapter: AOSMicrophoneOperationAdapter?
     private var operationDaemonGeneration: UInt64 = 0
     private let operationImageProvider = AOSDarwinProcessImageProvider()
-    private var operationStatusHostBinding: AOSOperationStatusHostBinding?
+    private let operationStatusHostLease = AOSOperationStatusHostLease()
     private var operationCanvasProjection: AOSOperationCanvasProjection?
     private var operationStatusItemProjection: AOSOperationStatusItemProjection?
     private var operationControlCanvasIdentity: AOSOperationCanvasIdentity?
@@ -637,15 +637,13 @@ class UnifiedDaemon {
                 return Thread.isMainThread ? post() : DispatchQueue.main.sync(execute: post)
             }
         )
-        operationStatusHostBinding = statusBinding
+        try operationStatusHostLease.install(statusBinding)
         let canvasProjection = try AOSOperationCanvasProjection(
             controlPlane: control,
             readState: { registry.snapshot() },
             indicatorRegistry: indicators,
             canvasHost: canvasHost,
-            resolveCurrentStatusHost: { [weak self] in
-                self?.operationStatusHostBinding
-            },
+            statusHostLease: operationStatusHostLease,
             checkedAt: { [weak self] in
                 self?.operationTimestamp(registry.now()) ?? "1970-01-01T00:00:00.000Z"
             }
@@ -657,8 +655,11 @@ class UnifiedDaemon {
             indicatorRegistry: indicators,
             statusHost: statusBinding,
             itemGeneration: operationDaemonGeneration,
-            openCanvas: { [weak self] binding in
-                _ = try? self?.operationCanvasProjection?.openStatusCanvas(statusHost: binding)
+            statusHostLease: operationStatusHostLease,
+            openCanvas: { [weak self] leaseIdentity in
+                _ = try? self?.operationCanvasProjection?.openStatusCanvas(
+                    statusHostLeaseIdentity: leaseIdentity
+                )
             }
         )
         operationStatusItemProjection = statusProjection

@@ -802,7 +802,9 @@ enum AOSCallerEvidence: Codable, Equatable {
             return true
         case .ordinaryCanvasCapturedPeer:
             return false
-        case .statusItemHost, .statusOpenedCanvasHost:
+        case .statusItemHost:
+            return action == .stopAll || action == .reopen
+        case .statusOpenedCanvasHost:
             return action == .stopAll
         }
     }

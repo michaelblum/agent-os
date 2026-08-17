@@ -661,6 +661,23 @@ test('host barrier requests and receipts bind immutable snapshots and exact call
       },
     }, false, 'status host cannot call barrier status'),
     target(BARRIER_ID, 'reopen_receipt', reopenReceipt, true, 'reopen receipt'),
+    target(BARRIER_ID, 'reopen_receipt', {
+      ...reopenReceipt,
+      caller_origin: 'status_item_host',
+      caller_origin_evidence: {
+        status_host_id: 'status-host-1', status_host_generation: 1,
+        daemon_generation: 2, effective_uid: 501,
+      },
+    }, true, 'status item host may reopen'),
+    target(BARRIER_ID, 'reopen_receipt', {
+      ...reopenReceipt,
+      caller_origin: 'status_opened_canvas_host',
+      caller_origin_evidence: {
+        canvas_instance_id: 'canvas-1', canvas_generation: 1,
+        parent_status_host_id: 'status-host-1', parent_status_host_generation: 1,
+        daemon_generation: 2, effective_uid: 501,
+      },
+    }, false, 'status-opened canvas remains stop-only'),
     target(BARRIER_ID, 'reopen_receipt', { ...reopenReceipt, prior_barrier_snapshot_digest: undefined }, false, 'reopen keeps prior snapshot'),
   ].map((entry) => ({
     ...entry,

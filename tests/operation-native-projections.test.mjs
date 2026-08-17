@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -60,49 +60,199 @@ final class FakeAdapter: AOSOperationControlAdapter {
     func residualDigest(operation: AOSOperationIdentity) -> String? { nil }
 }
 
+final class ThreadRecordingStore: AOSOperationStateStore {
+    private let backing = AOSInMemoryOperationStateStore()
+    private let lock = NSLock()
+    private var observe = false
+    private var blockNextObservedSave = false
+    private var observedSaveIsBlocked = false
+    private var observedSaveCount = 0
+    private var observedMainThreadSave = false
+    private let blockedSaveEntered = DispatchSemaphore(value: 0)
+    private let blockedSaveRelease = DispatchSemaphore(value: 0)
+
+    func load() throws -> AOSOperationDurableState? { try backing.load() }
+
+    func save(_ state: AOSOperationDurableState) throws {
+        lock.lock()
+        let shouldBlock = observe && blockNextObservedSave
+        if observe {
+            observedSaveCount += 1
+            observedMainThreadSave = observedMainThreadSave || Thread.isMainThread
+        }
+        if shouldBlock { blockNextObservedSave = false }
+        lock.unlock()
+        if shouldBlock {
+            lock.lock()
+            observedSaveIsBlocked = true
+            lock.unlock()
+            blockedSaveEntered.signal()
+            blockedSaveRelease.wait()
+            lock.lock()
+            observedSaveIsBlocked = false
+            lock.unlock()
+        }
+        try backing.save(state)
+    }
+
+    func beginObservation(blockFirstSave: Bool = false) {
+        lock.lock()
+        observe = true
+        blockNextObservedSave = blockFirstSave
+        observedSaveCount = 0
+        observedMainThreadSave = false
+        lock.unlock()
+    }
+
+    func waitForBlockedSave() -> Bool {
+        blockedSaveEntered.wait(timeout: .now() + 5) == .success
+    }
+
+    func releaseBlockedSave() { blockedSaveRelease.signal() }
+
+    func isObservedSaveBlocked() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return observedSaveIsBlocked
+    }
+
+    func observation() -> (saveCount: Int, includedMainThread: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (observedSaveCount, observedMainThreadSave)
+    }
+
+    func endObservation() -> (saveCount: Int, includedMainThread: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        observe = false
+        return (observedSaveCount, observedMainThreadSave)
+    }
+}
+
 final class FakeStatusItemHost: AOSOperationInternalStatusItemHosting {
-    var itemGeneration: UInt64 = 0
-    var descriptorRevision: UInt64 = 0
-    var handler: ((AOSOperationInternalStatusItemActionEvidence) -> Void)?
-    var snapshot: AOSOperationStatusItemSnapshot?
-    var failureCode: String?
+    private let lock = NSLock()
+    private var storedItemGeneration: UInt64 = 0
+    private var storedDescriptorRevision: UInt64 = 0
+    private var handler: ((AOSOperationInternalStatusItemActionEvidence) -> Void)?
+    private var storedSnapshot: AOSOperationStatusItemSnapshot?
+    private var storedFailureCode: String?
+    private var storedControlFailureCode: String?
+    private var storedPublicationEvents: [(String, UInt64)] = []
+    private var blockNextSnapshotUpdate = false
+    private let blockedSnapshotUpdateEntered = DispatchSemaphore(value: 0)
+    private let blockedSnapshotUpdateRelease = DispatchSemaphore(value: 0)
+
+    var itemGeneration: UInt64 {
+        lock.lock(); defer { lock.unlock() }
+        return storedItemGeneration
+    }
+    var descriptorRevision: UInt64 {
+        lock.lock(); defer { lock.unlock() }
+        return storedDescriptorRevision
+    }
+    var snapshot: AOSOperationStatusItemSnapshot? {
+        lock.lock(); defer { lock.unlock() }
+        return storedSnapshot
+    }
+    var failureCode: String? {
+        lock.lock(); defer { lock.unlock() }
+        return storedFailureCode
+    }
+    var controlFailureCode: String? {
+        lock.lock(); defer { lock.unlock() }
+        return storedControlFailureCode
+    }
+    var publicationEvents: [(String, UInt64)] {
+        lock.lock(); defer { lock.unlock() }
+        return storedPublicationEvents
+    }
 
     func install(
         itemGeneration: UInt64,
         descriptorRevision: UInt64,
         onAction: @escaping (AOSOperationInternalStatusItemActionEvidence) -> Void
     ) {
-        self.itemGeneration = itemGeneration
-        self.descriptorRevision = descriptorRevision
+        lock.lock()
+        storedItemGeneration = itemGeneration
+        storedDescriptorRevision = descriptorRevision
         handler = onAction
+        lock.unlock()
     }
 
     func update(snapshot: AOSOperationStatusItemSnapshot, descriptorRevision: UInt64) {
-        self.snapshot = snapshot
-        self.descriptorRevision = descriptorRevision
-        failureCode = nil
+        lock.lock()
+        let shouldBlock = blockNextSnapshotUpdate
+        blockNextSnapshotUpdate = false
+        lock.unlock()
+        if shouldBlock {
+            blockedSnapshotUpdateEntered.signal()
+            blockedSnapshotUpdateRelease.wait()
+        }
+        lock.lock()
+        storedSnapshot = snapshot
+        storedDescriptorRevision = descriptorRevision
+        storedFailureCode = nil
+        storedControlFailureCode = nil
+        storedPublicationEvents.append(("snapshot", descriptorRevision))
+        lock.unlock()
     }
 
     func updateFailure(code: String, descriptorRevision: UInt64) {
-        snapshot = nil
-        failureCode = code
-        self.descriptorRevision = descriptorRevision
+        lock.lock()
+        storedSnapshot = nil
+        storedFailureCode = code
+        storedDescriptorRevision = descriptorRevision
+        storedPublicationEvents.append(("failure", descriptorRevision))
+        lock.unlock()
     }
 
-    func teardown() { handler = nil }
+    func updateControlFailure(code: String, descriptorRevision: UInt64) {
+        lock.lock()
+        storedControlFailureCode = code
+        storedDescriptorRevision = descriptorRevision
+        storedPublicationEvents.append(("control_failure", descriptorRevision))
+        lock.unlock()
+    }
+
+    func teardown() {
+        lock.lock()
+        handler = nil
+        lock.unlock()
+    }
 
     func emit(
         _ action: AOSOperationInternalStatusItemAction,
         sequence: UInt64,
         revision: UInt64? = nil,
-        generation: UInt64? = nil
+        generation: UInt64? = nil,
+        barrierGeneration: UInt64? = nil
     ) {
-        handler?(AOSOperationInternalStatusItemActionEvidence(
+        lock.lock()
+        let callback = handler
+        let evidence = AOSOperationInternalStatusItemActionEvidence(
             action: action,
-            itemGeneration: generation ?? itemGeneration,
-            descriptorRevision: revision ?? descriptorRevision,
-            actionSequence: sequence
-        ))
+            itemGeneration: generation ?? storedItemGeneration,
+            descriptorRevision: revision ?? storedDescriptorRevision,
+            actionSequence: sequence,
+            expectedBarrierGeneration: barrierGeneration ?? storedSnapshot?.barrierGeneration ?? 0
+        )
+        lock.unlock()
+        callback?(evidence)
+    }
+
+    func blockNextSnapshotPublication() {
+        lock.lock()
+        blockNextSnapshotUpdate = true
+        lock.unlock()
+    }
+
+    func waitForBlockedSnapshotPublication() -> Bool {
+        blockedSnapshotUpdateEntered.wait(timeout: .now() + 5) == .success
+    }
+
+    func releaseBlockedSnapshotPublication() {
+        blockedSnapshotUpdateRelease.signal()
     }
 }
 
@@ -136,6 +286,14 @@ func expectProjectionError(
     } catch {
         preconditionFailure("unexpected \(error)")
     }
+}
+
+func waitUntil(_ message: String, _ body: () -> Bool) {
+    let deadline = Date().addingTimeInterval(5)
+    while !body() && Date() < deadline {
+        Thread.sleep(forTimeInterval: 0.01)
+    }
+    precondition(body(), message)
 }
 
 let recordingRegistration = AOSOperationAdapterRegistration(
@@ -185,7 +343,7 @@ expectProjectionError(.indicatorRegistryConflict) {
     ])
 }
 
-let store = AOSInMemoryOperationStateStore()
+let store = ThreadRecordingStore()
 let recordingAdapter = FakeAdapter(recordingRegistration)
 let neutralAdapter = FakeAdapter(neutralRegistration)
 var nextID = 0
@@ -305,14 +463,14 @@ let statusHostBinding = AOSOperationStatusHostBinding(
     statusHostGeneration: 12,
     connectionEpoch: 13
 )
-var currentStatusHost: AOSOperationStatusHostBinding? = statusHostBinding
+let statusHostLease = AOSOperationStatusHostLease(statusHostBinding)
 let canvasHost = FakeCanvasHost()
 let canvasProjection = try AOSOperationCanvasProjection(
     controlPlane: control,
     readState: { canvasState },
     indicatorRegistry: indicators,
     canvasHost: canvasHost,
-    resolveCurrentStatusHost: { currentStatusHost },
+    statusHostLease: statusHostLease,
     checkedAt: { "checked" }
 )
 
@@ -414,7 +572,10 @@ let staleOrdinary = canvasProjection.routeMessage(
 precondition(staleOrdinary == .rejected(AOSOperationProjectionError.capturedPeerUnavailable.code))
 ordinaryCaptureIsLive = true
 
-let statusCanvas = try canvasProjection.openStatusCanvas(statusHost: statusHostBinding)
+var statusHostLeaseIdentity = statusHostLease.identity()!
+var statusCanvas = try canvasProjection.openStatusCanvas(
+    statusHostLeaseIdentity: statusHostLeaseIdentity
+)
 let statusInitial = canvasHost.last(for: statusCanvas)
 precondition((statusInitial["operations"] as! [[String: Any]]).count == 2)
 let statusCancel = canvasProjection.routeMessage(
@@ -426,7 +587,7 @@ let statusCancel = canvasProjection.routeMessage(
     ])
 )
 precondition(statusCancel == .rejected(AOSOperationProjectionError.unsupportedAction.code))
-currentStatusHost = nil
+statusHostLease.clear()
 let staleStatusStop = canvasProjection.routeMessage(
     canvasID: statusCanvas.id,
     canvasGeneration: statusCanvas.generation,
@@ -436,7 +597,27 @@ let staleStatusStop = canvasProjection.routeMessage(
 )
 precondition(staleStatusStop == .rejected(AOSOperationProjectionError.invalidStatusHostBinding.code))
 precondition(registry.snapshot().barrier.state == .open)
-currentStatusHost = statusHostBinding
+statusHostLeaseIdentity = try statusHostLease.install(statusHostBinding)
+let abaStatusStop = canvasProjection.routeMessage(
+    canvasID: statusCanvas.id,
+    canvasGeneration: statusCanvas.generation,
+    message: request("aba-status-stop", "stop_all", [
+        "expected_barrier_generation": registry.snapshot().barrier.generation,
+    ])
+)
+precondition(abaStatusStop == .rejected(AOSOperationProjectionError.invalidStatusHostBinding.code))
+canvasProjection.detachCanvas(statusCanvas)
+expectProjectionError(.invalidStatusHostBinding) {
+    _ = try canvasProjection.openStatusCanvas(
+        statusHostLeaseIdentity: AOSOperationStatusHostLeaseIdentity(
+            binding: statusHostBinding,
+            epoch: statusHostLeaseIdentity.epoch - 2
+        )
+    )
+}
+statusCanvas = try canvasProjection.openStatusCanvas(
+    statusHostLeaseIdentity: statusHostLeaseIdentity
+)
 let statusStop = canvasProjection.routeMessage(
     canvasID: statusCanvas.id,
     canvasGeneration: statusCanvas.generation,
@@ -453,44 +634,160 @@ if case let .stopAll(receipt) = registry.snapshot().retainedHostReceipts.last!.r
 }
 
 let fakeStatusItem = FakeStatusItemHost()
-var openedBindings: [AOSOperationStatusHostBinding] = []
-var statusProjectionState = registry.snapshot()
-let statusProjection = try AOSOperationStatusItemProjection(
-    controlPlane: control,
-    readState: { statusProjectionState },
-    indicatorRegistry: indicators,
-    statusHost: statusHostBinding,
-    itemGeneration: 44,
-    itemHost: fakeStatusItem,
-    requestIDFactory: { "status-item-stop" },
-    openCanvas: { openedBindings.append($0) }
-)
-statusProjection.start()
+var openedBindings: [AOSOperationStatusHostLeaseIdentity] = []
+var statusRequestCounter = 0
+let statusControlQueue = DispatchQueue(label: "test.operation-status-control")
+func makeStatusProjection() throws -> AOSOperationStatusItemProjection {
+    try AOSOperationStatusItemProjection(
+        controlPlane: control,
+        readState: { registry.snapshot() },
+        indicatorRegistry: indicators,
+        statusHost: statusHostBinding,
+        itemGeneration: 44,
+        itemHost: fakeStatusItem,
+        requestIDFactory: {
+            statusRequestCounter += 1
+            return "status-item-\(statusRequestCounter)"
+        },
+        statusHostLease: statusHostLease,
+        controlQueue: statusControlQueue,
+        openCanvas: { openedBindings.append($0) }
+    )
+}
+let firstStatusProjection = try makeStatusProjection()
+firstStatusProjection.start()
+store.beginObservation(blockFirstSave: true)
 precondition(fakeStatusItem.snapshot?.recordingIndicatorIsRed == false)
+let closedPresentation = AOSOperationStatusMenuPresentation.make(snapshot: fakeStatusItem.snapshot!)
+precondition(closedPresentation.barrierTitle.contains("Closed"))
+precondition(closedPresentation.reopenEnabled)
+precondition(closedPresentation.stopAllConfirmationTitle.contains("Generation"))
+precondition(closedPresentation.stopAllConfirmationTitle.contains(String(fakeStatusItem.snapshot!.barrierGeneration)))
+precondition(closedPresentation.reopenConfirmationTitle.contains(String(fakeStatusItem.snapshot!.barrierGeneration)))
 fakeStatusItem.emit(.openCanvas, sequence: 1, revision: fakeStatusItem.descriptorRevision - 1)
 precondition(openedBindings.isEmpty)
 fakeStatusItem.emit(.openCanvas, sequence: 1)
-precondition(openedBindings == [statusHostBinding])
-fakeStatusItem.emit(.stopAll, sequence: 1)
-precondition(registry.snapshot().retainedHostReceipts.count == 1)
+precondition(openedBindings == [statusHostLease.identity()!])
 fakeStatusItem.emit(.stopAll, sequence: 2)
-precondition(registry.snapshot().retainedHostReceipts.count == 2)
+precondition(store.waitForBlockedSave())
+precondition(Thread.isMainThread)
+let deadlockBreaker = DispatchWorkItem { store.releaseBlockedSave() }
+DispatchQueue.global().asyncAfter(deadline: .now() + 2, execute: deadlockBreaker)
+statusHostLease.clear()
+let leaseRetiredBeforeBlockedControlFinished = store.isObservedSaveBlocked()
+deadlockBreaker.cancel()
+precondition(leaseRetiredBeforeBlockedControlFinished)
+store.releaseBlockedSave()
+waitUntil("status-item stop must complete off-main") {
+    registry.snapshot().retainedHostReceipts.count == 2
+}
+statusControlQueue.sync {}
 if case let .stopAll(receipt) = registry.snapshot().retainedHostReceipts.last!.receipt {
     precondition(receipt.callerOrigin == .statusItemHost)
     precondition(receipt.outcome == .alreadyClosed)
 } else {
     preconditionFailure("expected status-item stop-all receipt")
 }
+let saveObservation = store.endObservation()
+precondition(saveObservation.saveCount > 0)
+precondition(!saveObservation.includedMainThread)
 
-statusProjectionState.daemonGeneration = 8
-if case .success = statusProjection.refresh() {
-    preconditionFailure("stale status snapshot must fail")
+let receiptCountBeforeLeaseRetirement = registry.snapshot().retainedHostReceipts.count
+fakeStatusItem.emit(.reopen, sequence: 3)
+statusControlQueue.sync {}
+precondition(fakeStatusItem.controlFailureCode == AOSOperationProjectionError.invalidStatusHostBinding.code)
+precondition(
+    registry.snapshot().retainedHostReceipts.count == receiptCountBeforeLeaseRetirement,
+    "retired lease changed receipt count from \(receiptCountBeforeLeaseRetirement) to \(registry.snapshot().retainedHostReceipts.count)"
+)
+let replacementLeaseIdentity = try statusHostLease.install(statusHostBinding)
+fakeStatusItem.emit(.reopen, sequence: 4)
+statusControlQueue.sync {}
+precondition(fakeStatusItem.controlFailureCode == AOSOperationProjectionError.invalidStatusHostBinding.code)
+precondition(registry.snapshot().retainedHostReceipts.count == receiptCountBeforeLeaseRetirement)
+firstStatusProjection.teardown()
+precondition(statusHostLease.identity() == replacementLeaseIdentity)
+let statusProjection = try makeStatusProjection()
+statusProjection.start()
+canvasProjection.detachCanvas(statusCanvas)
+statusCanvas = try canvasProjection.openStatusCanvas(
+    statusHostLeaseIdentity: statusHostLease.identity()!
+)
+
+store.beginObservation()
+fakeStatusItem.emit(.reopen, sequence: 1)
+waitUntil("status-item reopen must complete off-main") {
+    registry.snapshot().barrier.state == .open
 }
-precondition(fakeStatusItem.snapshot == nil)
-let receiptCountBeforeUnavailableStop = registry.snapshot().retainedHostReceipts.count
+statusControlQueue.sync {}
+let reopenSaveObservation = store.endObservation()
+precondition(reopenSaveObservation.saveCount > 0)
+precondition(!reopenSaveObservation.includedMainThread)
+if case let .reopen(receipt) = registry.snapshot().retainedHostReceipts.last!.receipt {
+    precondition(receipt.callerOrigin == .statusItemHost)
+    precondition(receipt.outcome == .reopened)
+} else {
+    preconditionFailure("expected status-item reopen receipt")
+}
+let openPresentation = AOSOperationStatusMenuPresentation.make(snapshot: fakeStatusItem.snapshot!)
+precondition(openPresentation.barrierTitle.contains("Open"))
+precondition(!openPresentation.reopenEnabled)
+
+let openBarrierGeneration = registry.snapshot().barrier.generation
+let receiptCountBeforeStaleStop = registry.snapshot().retainedHostReceipts.count
+statusControlQueue.suspend()
+fakeStatusItem.emit(.stopAll, sequence: 2)
 fakeStatusItem.emit(.stopAll, sequence: 3)
-precondition(fakeStatusItem.failureCode == AOSOperationProjectionError.invalidStatusHostBinding.code)
-precondition(registry.snapshot().retainedHostReceipts.count == receiptCountBeforeUnavailableStop)
+let racedStatusStop = canvasProjection.routeMessage(
+    canvasID: statusCanvas.id,
+    canvasGeneration: statusCanvas.generation,
+    message: request("raced-status-stop", "stop_all", [
+        "expected_barrier_generation": openBarrierGeneration,
+    ])
+)
+precondition(racedStatusStop == .handled)
+precondition(registry.snapshot().barrier.generation != openBarrierGeneration)
+statusControlQueue.resume()
+waitUntil("click-bound stale generation must fail without retargeting") {
+    fakeStatusItem.controlFailureCode == AOSOperationCoreError.barrierGenerationConflict.code
+}
+precondition(registry.snapshot().retainedHostReceipts.count == receiptCountBeforeStaleStop + 1)
+precondition(fakeStatusItem.snapshot?.barrierGeneration == registry.snapshot().barrier.generation)
+
+fakeStatusItem.emit(.reopen, sequence: 4)
+waitUntil("status item must reopen the exact refreshed closed generation") {
+    registry.snapshot().barrier.state == .open
+}
+
+let receiptCountBeforeQueuedRevocation = registry.snapshot().retainedHostReceipts.count
+let publicationEventStart = fakeStatusItem.publicationEvents.count
+fakeStatusItem.blockNextSnapshotPublication()
+statusControlQueue.suspend()
+fakeStatusItem.emit(.stopAll, sequence: 5)
+statusHostLease.clear()
+statusControlQueue.resume()
+precondition(fakeStatusItem.waitForBlockedSnapshotPublication())
+let concurrentRefreshStarted = DispatchSemaphore(value: 0)
+let concurrentRefreshDone = DispatchSemaphore(value: 0)
+DispatchQueue.global().async {
+    concurrentRefreshStarted.signal()
+    _ = statusProjection.refresh()
+    concurrentRefreshDone.signal()
+}
+precondition(concurrentRefreshStarted.wait(timeout: .now() + 5) == .success)
+precondition(concurrentRefreshDone.wait(timeout: .now() + 0.1) == .timedOut)
+fakeStatusItem.releaseBlockedSnapshotPublication()
+precondition(concurrentRefreshDone.wait(timeout: .now() + 5) == .success)
+statusControlQueue.sync {}
+precondition(registry.snapshot().retainedHostReceipts.count == receiptCountBeforeQueuedRevocation)
+precondition(fakeStatusItem.snapshot != nil)
+let publicationTail = Array(fakeStatusItem.publicationEvents.dropFirst(publicationEventStart))
+precondition(publicationTail.count == 3)
+precondition(publicationTail[0].0 == "snapshot")
+precondition(publicationTail[1].0 == "control_failure")
+precondition(publicationTail[1].1 == publicationTail[0].1)
+precondition(publicationTail[2].0 == "snapshot")
+precondition(publicationTail[2].1 > publicationTail[1].1)
 
 let stopDigest = try AOSOperationProjectionRequestDigest.hostAction(
     .stopAll,
@@ -541,4 +838,25 @@ test('toolkit recording count follows the adapter-owned red-state set', () => {
     recording: 0,
     residual: 1,
   })
+})
+
+test('operation status menu requires an explicit generation-bound confirmation selection', async () => {
+  const source = await readFile(
+    path.join(daemonRoot, 'operation-status-item-projection.swift'),
+    'utf8',
+  )
+  assert.match(source, /@objc private func handleClick\([^)]*\) \{\s*showMenu\(\)\s*\}/u)
+  assert.match(source, /sendAction\(on: \[\.leftMouseUp, \.rightMouseUp\]\)/u)
+  assert.match(
+    source,
+    /let item = NSMenuItem\(title: title, action: nil, keyEquivalent: ""\)[\s\S]*?item\.submenu = confirmation/u,
+  )
+  assert.match(
+    source,
+    /confirmation\.addItem\(makeBoundActionItem\([\s\S]*?binding: binding/u,
+  )
+  assert.match(source, /makeConfirmedActionItem\([\s\S]*?binding: binding\(for: \.stopAll,/u)
+  assert.match(source, /makeConfirmedActionItem\([\s\S]*?binding: binding\(for: \.reopen,/u)
+  assert.match(source, /expectedBarrierGeneration: snapshot\.barrierGeneration/u)
+  assert.match(source, /controlQueue\.async/u)
 })

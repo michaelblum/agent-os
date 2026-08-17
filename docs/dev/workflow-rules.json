@@ -475,7 +475,7 @@
         {
           "id": "operation-adapter-and-projection-contract",
           "command": "node --test tests/operation-external-dispatch-binding.test.mjs tests/voice-follow-cli.test.mjs tests/voice-operation-claim-contract.test.mjs tests/operation-canvas-projection.test.mjs tests/toolkit/runtime-operation-control.test.mjs tests/toolkit/operation-control-model.test.mjs tests/toolkit/operation-control-component.test.mjs",
-          "reason": "Invocation-scoped external intent/admission/abandon/tokenless-finalize, single microphone operation/claim ownership, active-only red status, exact Canvas generation, captured ordinary ownership, and same-UID status break-glass must stay on the common control plane."
+          "reason": "Invocation-scoped external intent/admission/abandon/tokenless-finalize, single microphone operation/claim ownership, active-only red status, exact Canvas generation, captured ordinary ownership, immutable displayed-generation and status-host lease-epoch actions, serialized off-main confirmed Stop All/Reopen, nonblocking lease retirement, ordered typed-failure publication, and stop-only status-opened Canvas must stay on the common control plane."
         },
         {
           "id": "operation-registered-dispatch-contract",

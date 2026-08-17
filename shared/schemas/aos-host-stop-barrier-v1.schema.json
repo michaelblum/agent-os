@@ -117,6 +117,26 @@
         }
       }
     },
+    "reopen_caller_origin_binding_constraints": {
+      "oneOf": [
+        {
+          "properties": {
+            "caller_origin": {"const": "live_transport_peer"},
+            "caller_origin_evidence": {
+              "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/live_transport_peer_evidence"
+            }
+          }
+        },
+        {
+          "properties": {
+            "caller_origin": {"const": "status_item_host"},
+            "caller_origin_evidence": {
+              "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/status_item_host_evidence"
+            }
+          }
+        }
+      ]
+    },
     "immutable_barrier_snapshot": {
       "type": "object",
       "required": [
@@ -468,9 +488,11 @@
         "request_id": {"$ref": "#/$defs/identifier"},
         "canonical_parameter_digest": {"$ref": "#/$defs/sha256"},
         "expected_barrier_generation": {"$ref": "#/$defs/generation"},
-        "caller_origin": {"const": "live_transport_peer"},
+        "caller_origin": {
+          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/caller_origin"
+        },
         "caller_origin_evidence": {
-          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/live_transport_peer_evidence"
+          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/caller_origin_evidence"
         },
         "prior_barrier_state": {"$ref": "#/$defs/barrier_state"},
         "prior_barrier_generation": {"$ref": "#/$defs/generation"},
@@ -506,7 +528,7 @@
         "reconciliation_state": {"$ref": "#/$defs/reconciliation_state"}
       },
       "additionalProperties": false,
-      "allOf": [{"$ref": "#/$defs/live_transport_origin_binding_constraints"}]
+      "allOf": [{"$ref": "#/$defs/reopen_caller_origin_binding_constraints"}]
     }
   }
 }

@@ -6524,7 +6524,7 @@ export function validateM2AuthorityClosure(ledger) {
     },
     {
       surface: 'status_item', m2_state: 'executable', peer_context: 'status_item_host',
-      control_scope: 'host_stop_only', fallback: 'typed_host_control_rejection',
+      control_scope: 'host_stop_and_reopen', fallback: 'typed_host_control_rejection',
     },
     {
       surface: 'canvas', m2_state: 'internal_projection',
@@ -6565,7 +6565,7 @@ export function validateM2AuthorityClosure(ledger) {
       origin: 'status_item_host', server_attached: true,
       required_evidence_fields: ['status_host_id', 'status_host_generation', 'daemon_generation', 'effective_uid'],
       allowed_action_scopes: ['host_control'],
-      allowed_actions: ['stop_all'],
+      allowed_actions: ['stop_all', 'reopen'],
       liveness_rule: 'daemon_status_host_generation_reauthenticated_per_request',
     },
     {
@@ -8604,7 +8604,10 @@ test('machine structure, deterministic transitions, taxonomy, and status classif
   const host = ledger.target_design.host_control_contract;
   assert.equal(host.admission_model, 'live_per_request_predicate');
   assert.equal(host.surfaces.find(({ surface }) => surface === 'status_item').peer_context, 'status_item_host');
-  assert.deepEqual(host.caller_origins.find(({ origin }) => origin === 'status_item_host').allowed_actions, ['stop_all']);
+  assert.deepEqual(
+    host.caller_origins.find(({ origin }) => origin === 'status_item_host').allowed_actions,
+    ['stop_all', 'reopen'],
+  );
   assert.equal(host.surfaces.find(({ surface }) => surface === 'status_item').fallback, 'typed_host_control_rejection');
   assert.equal(host.surfaces.find(({ surface }) => surface === 'canvas').fallback, 'display_only');
   assert.equal(host.registered_operation_plane_scope.unadapted_legacy_capability_control, 'not_claimed');
@@ -8614,9 +8617,9 @@ test('machine structure, deterministic transitions, taxonomy, and status classif
   assert.deepEqual(status.projection_fields.find(({ field }) => field === 'status_indicator_class'), {
     field: 'status_indicator_class', provenance: 'mechanical',
   });
-  assert.deepEqual(status.recording_indicator.red_states, ['starting', 'active', 'stopping', 'cleanup_required', 'recovering']);
+  assert.deepEqual(status.recording_indicator.red_states, ['active']);
   assert.match(status.recording_indicator.immutable_rule, /adapter registry.+requests.+labels.+cannot set or change/iu);
-  assert.match(status.recording_indicator.clear_guard, /every.+terminal.+residual-free/iu);
+  assert.match(status.recording_indicator.clear_guard, /no.+recording operation is active/iu);
   assert.equal(status.action_origin_authentication.grants_control, false);
   assert.match(status.control_routes.ordinary, /owner set/u);
   assert.match(status.control_routes.host_wide, /daemon-owned status host.+exact daemon\/status-host generation.+effective UID/isu);

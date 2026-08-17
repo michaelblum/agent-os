@@ -96,13 +96,16 @@ input.
 
 Host stop-all, passive barrier status, and expected-generation reopen are one
 distinct public same-effective-UID local control scope. M2 ships the daemon IPC
-and CLI, an internal status-item stop-all projection, and an internal Canvas
+and CLI, an internal status-item stop-all/reopen projection, and an internal Canvas
 projection. CLI and direct daemon IPC requests authenticate the current live
 transport peer. Only ordinary Canvas requests may continue through a currently
 live captured peer, and become display-only when it disappears. The always-
-available status-item break-glass action binds the exact
-daemon/status-host generation and effective UID and invokes the same public
-entrypoint. A status-opened Canvas may reuse that context for host stop-all
+available status-item break-glass actions bind the exact
+daemon/status-host, item, descriptor, and displayed barrier generations plus
+effective UID and an exact lease epoch, then invoke the same public stop-all/
+reopen entrypoints serially off AppKit's main thread. Lease retirement rejects
+new admissions without waiting for admitted work. Stop All and Reopen
+confirmations are presentation only. A status-opened Canvas may reuse that context for host stop-all
 only, never ordinary owner control. Its UI origin does not create a role.
 Maintained public TypeScript and Python SDK projections remain M6 and consume
 the M2 daemon IPC as their canonical programmatic contract.

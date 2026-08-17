@@ -37,6 +37,15 @@ polling and post-removal settlement have independent bounded retry budgets.
 Milestone 2 implements the daemon registry, control,
 recovery, resource-claim, microphone-adapter, IPC, status-item, and Canvas
 projection owners as current executable truth. The
+internal operation status item must publish exact barrier state/generation,
+bind Stop All and Reopen to the immutable displayed item/descriptor/barrier
+generations and an exact status-host lease epoch, and run durable controls on a
+dedicated serial queue rather than AppKit's main thread. Lease retirement must
+reject new admissions without blocking AppKit; an already admitted action may
+finish only against its clicked barrier generation. Both confirmations are UI
+presentation only and never a human-intent authority claim; status-opened
+Canvas remains stop-all-only.
+The
 process-lifetime direct-capture consent/prime gate and other unadapted public
 projections below remain declared burn-down baselines for their later atomic
 migrations. This pointer does not bypass ScreenCaptureKit, macOS TCC, or the

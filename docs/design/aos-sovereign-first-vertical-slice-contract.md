@@ -327,14 +327,22 @@ available break-glass: the daemon-owned status host binds its exact daemon/
 status-host generation and effective UID, reauthenticates that mechanical local
 caller for each action, and invokes the same entrypoint. UI origin and action
 sequence authenticate input into the host but create no ordinary owner
-authority or special principal. A status-opened Canvas may reuse only the
+authority or special principal. The status item shows the exact barrier state
+and generation; confirmed Stop All and confirmed Reopen bind that immutable
+displayed generation and execute serially off the AppKit main thread. An exact
+status-host lease epoch is admitted before control. Retirement immediately
+prevents new admissions without waiting on AppKit; an action already admitted
+against the prior epoch may finish only against its immutable displayed barrier
+generation. Stop All and Reopen confirmations are presentation only and create
+no human-intent authority claim.
+A status-opened Canvas may reuse only the
 server-injected status-host context for stop-all; it cannot impersonate an
 ordinary owner.
 
 The server injects exactly four origin variants: `live_transport_peer` may use
 ordinary and host control; `ordinary_canvas_captured_peer` may use ordinary
 control only while its captured connection remains live;
-`status_item_host` may invoke stop-all only; and
+`status_item_host` may invoke stop-all and reopen only; and
 `status_opened_canvas_host`, bound to both Canvas and parent status-host
 generations, may invoke stop-all only. Caller payloads cannot select or collapse
 these origins, and an ordinary captured peer never gains a host action.
@@ -724,8 +732,9 @@ It renders only neutral active/recording counts, exact selected operation
 metadata, cleanup-required state, and mechanically available control actions.
 Its actions call the same public M2 daemon-IPC entrypoints as CLI and internal
 Canvas; maintained public SDK projections remain M6. Ordinary actions cannot
-widen a live captured peer's controllable set. The status host invokes stop-all
-only; barrier status and reopen remain live transport-peer operations.
+widen a live captured peer's controllable set. The status host invokes
+generation-bound stop-all and reopen; passive barrier status remains a live
+transport-peer operation. Status-opened Canvas remains stop-all-only.
 
 The projected mechanical fields are operation id, adapter-selected capability
 id, state, generation, authenticated owner root and peer, adapter-registry
@@ -745,20 +754,25 @@ the proposed M7 Playwright, OpenCLI, and FFmpeg adapters, are neutral. The
 registry provenance is `adapter_registry` and is mechanically projected.
 
 The recording indicator applies only to adapter-selected recording
-`capability_id` values. It is red if and only if any mechanically classified
-recording operation is in `starting`, `active`,
-`stopping`, `cleanup_required`, and `recovering`; it clears only after
-every recording operation is terminal with no residual. The dedicated internal
+`capability_id` values. It is red if and only if a mechanically classified
+recording operation is `active`; preparation, stopping, cleanup, recovery, and
+terminal states remain visible in neutral counts without turning the indicator
+red. The dedicated internal
 action is admitted only from the mechanically authenticated daemon-owned status
 host with exact daemon/status-host and item generations, effective UID,
-descriptor revision, and action sequence. Display text, asserted lineage, and
+descriptor revision, action sequence, displayed barrier generation, and exact
+status-host lease epoch. Stop All and Reopen confirmations create no authority
+fact. Durable stop/reopen control is serialized off the AppKit main thread. A
+short linearizable lease admission precedes control; retirement rejects work
+not yet admitted without waiting for already-admitted control, and no action
+retargets a stale menu item to a later barrier generation. Display text, asserted lineage, and
 an unbound same-UID claim never authenticate that action.
 
 That authenticated UI origin grants no control. An ordinary action is re-
 admitted against the mechanically authenticated peer's controllable owner set.
 For always-available break-glass, the daemon-owned status host binds its exact
 current generation and effective UID as the live local caller and invokes the
-same public host-control entrypoint used by daemon IPC, CLI, and Canvas. The status item is
+same public stop-all or reopen entrypoint used by daemon IPC and CLI. The status item is
 neutral observation and authenticated action input, not an authorization source,
 durable role, special principal, or human-intent class.
 

@@ -373,7 +373,13 @@ tests.
   proofs must exercise the focused production admission component used by the
   native manager, not a copied fake allocator. A static AppKit harness may
   exercise production menu rendering and callback binding without opening a
-  status item; native menu-bar acceptance remains a separate build/runtime gate.
+  status item. The internal operation-item proof must also bind the displayed
+  barrier generation, show confirmation cancellation has no control effect,
+  prove stop/reopen durable saves are serialized off AppKit's main thread,
+  reject stale generations, retired/ABA status-host lease epochs, and rotated
+  status hosts without blocking AppKit, preserve the latest good
+  snapshot on typed control failure, and keep status-opened Canvas stop-only;
+  native menu-bar acceptance remains a separate build/runtime gate.
 - Display-topology identity proof must compile the focused production Swift
   helper with `-Onone`, remain offline and daemon/TCC-free, and cover raw
   enumeration permutations, every mapping fact, UUID fallback, invalid inputs,

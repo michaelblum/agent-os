@@ -64,7 +64,8 @@ test('operation core closes digest, origin, durability, and policy-free contract
     'statusOpenedCanvasHost',
   ]) assert.match(state, new RegExp(`case ${origin}`))
   assert.match(state, /case \.ordinaryCanvasCapturedPeer:\s*return false/u)
-  assert.match(state, /case \.statusItemHost, \.statusOpenedCanvasHost:\s*return action == \.stopAll/u)
+  assert.match(state, /case \.statusItemHost:\s*return action == \.stopAll \|\| action == \.reopen/u)
+  assert.match(state, /case \.statusOpenedCanvasHost:\s*return action == \.stopAll/u)
 
   assert.match(store, /mode_t\(0o700\)/u)
   assert.match(store, /mode_t\(0o600\)/u)
