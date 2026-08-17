@@ -237,6 +237,37 @@ tests.
 - Voice transport unit tests must use disposable Swift or fake-socket harnesses
   by default. Live microphone, global-hotkey, and audio-output proof is a
   separate manual/TCC-sensitive gate and must not rebuild `./aos` implicitly.
+- The operation-control native proof may attach only to an already-running,
+  build-current, managed repo daemon after passive status, service, permission,
+  and open-barrier preflight. Its live worker must be a child of the checked-in
+  supervisor with an inherited one-use pipe capability and an exact observed
+  supervisor PID generation; direct worker invocation is rejected before any
+  AOS command. Its live form requires the explicit proof and
+  `parked-and-verified` gates, disables daemon autostart, and may not build,
+  start, stop, restart, repair, or request permission. Its offline self-test
+  reports only closed `offline_checks` and leaves every live evidence field
+  unset. It
+  proves only stable ordinary ownership, narrowing-only filters, singleton
+  microphone exclusion, lifecycle-only tap expiry, current-generation cleanup,
+  and exact cancel/kill terminal outcomes. It performs only passive host-barrier
+  preflight/final readback and requires the barrier state and generation to stay
+  unchanged. Every exit stops owned capture children, passively settles only
+  exact harness-owned operation identities, issues no cleanup control request,
+  and retains only a create-exclusive, content-free summary with no audio bytes.
+  Its wrapper interruption latch is monotonic across prelaunch, in-flight,
+  post-driver, and final success-publication phases. Live host
+  stop/reopen, artifact success, status/Canvas UI, tap source delivery,
+  prior-generation recovery, request replay, positive attribution, and public
+  SDK coverage remain explicit exclusions.
+- Host-barrier reconciliation tests compile focused production operation owners
+  and use in-memory stores. They cover the empty registered set, asynchronous
+  microphone settlement, stop-intent races at prepared/reserving/committed
+  claim-set phases, the universal child-closure gate across direct, absent-
+  adapter, and recovery terminal paths, transient durable-save reconciliation
+  retry, a persistent operation-maintenance timer that survives idle
+  cancellation and closes delayed prior-generation external-child residuals,
+  independent current-generation external-spawn polling/settlement retry, and
+  terminal cancel/kill repeat immutability without invoking `./aos` or a daemon.
 - DesktopWorld gesture and scene-follow tests must use deterministic clocks,
   fake input-region bridges, disposable sockets, and schema fixtures. Static
   scene contract work must not execute the repo AOS binary or require TCC.

@@ -49,8 +49,8 @@
       "owner": "operation-control",
       "harness_level": "model_unit",
       "proof_kind": "operation_owner_spawn_binding_contract",
-      "contract": "Immediate socket-peer audit identity, generation-stable non-AOS ancestry, exact generation-bound AOS spawn skips, content-free executable evidence, exact reviewed entry-script and two-helper dependency-set byte binding reduced to one canonical digest, and the invocation-scoped listen-microphone grammar derive authority mechanically without trusting caller lineage. The parent-only token admits a child only after dynamic Node.js Foundation SecCode and mapped-vnode verification; only then does the dispatcher write the reviewed in-memory module bundle, and tokenless finalization resolves the exact admitted socket-peer generation. Parent abandon, bounded expiry, and boot recovery terminalize unfinalized prepared operation/resource claims.",
-      "worth": "This prevents PID reuse, basename/path trust, caller-selected or substituted Node interpreters, raw executable/script/helper identity persistence, substituted reviewed dependencies, token delivery to the child, finalize-before-image-admission, stale prepared microphone claims, and a transient external adapter from escaping its mechanically authenticated owner root.",
+      "contract": "Immediate socket-peer audit identity, generation-stable non-AOS ancestry, exact generation-bound AOS spawn skips, content-free executable evidence, exact reviewed entry-script and two-helper dependency-set byte binding reduced to one canonical digest, and the invocation-scoped listen-microphone grammar derive authority mechanically without trusting caller lineage. The parent-only token admits a child only after dynamic Node.js Foundation SecCode and mapped-vnode verification; only then does the dispatcher write the reviewed in-memory module bundle, and tokenless finalization resolves the exact admitted socket-peer generation. Parent abandon, bounded expiry, and boot recovery terminalize unfinalized prepared operation/resource claims. External dispatch propagates only the reviewed OPERATION_BARRIER_CLOSED and OPERATION_RESOURCE_BUSY intent failures; arbitrary daemon error strings remain collapsed.",
+      "worth": "This prevents PID reuse, basename/path trust, caller-selected or substituted Node interpreters, raw executable/script/helper identity persistence, substituted reviewed dependencies, token delivery to the child, finalize-before-image-admission, stale prepared microphone claims, untyped barrier/resource conflicts, and a transient external adapter from escaping its mechanically authenticated owner root.",
       "command": "node --test tests/operation-owner-root.test.mjs tests/operation-external-dispatch-binding.test.mjs tests/voice-follow-cli.test.mjs",
       "replaces": [],
       "guard": "fake process observations, temporary sockets/files, and disposable Swift typechecks only; no daemon, process signaling, microphone, or TCC use",
@@ -70,15 +70,16 @@
         "tests/operation-control-contract.test.mjs",
         "tests/operation-control-fake.test.mjs",
         "tests/operation-resource-claims.test.mjs",
-        "tests/operation-host-control.test.mjs"
+        "tests/operation-host-control.test.mjs",
+        "tests/operation-host-barrier-reconciliation.test.mjs"
       ],
       "fixture_patterns": [],
       "owner": "operation-control",
       "harness_level": "model_unit",
       "proof_kind": "operation_control_core_contract",
-      "contract": "The durable registry persists prepared state before authority, admits all-or-nothing exclusive and multiplex claims with exact CAS, intersects ordinary controls with authenticated ownership, records immutable same-UID stop snapshots, replays retained receipts idempotently, and exposes cleanup/recovery before reopen.",
-      "worth": "This catches partial singleton admission, stale subscriber updates, owner widening, mutable host snapshots, false terminal cleanup, replay/CAS drift, and prior-generation residual loss without acquiring a privileged resource.",
-      "command": "node --test tests/operation-control-contract.test.mjs tests/operation-control-fake.test.mjs tests/operation-resource-claims.test.mjs tests/operation-host-control.test.mjs",
+      "contract": "The durable registry persists prepared state before authority, admits all-or-nothing exclusive and multiplex claims with exact CAS, makes a latched stop win claim-set prepare/reserve/commit races, drains committed claims, and applies one registry-owned child-closure predicate to direct, adapter-absent, and recovery parent-terminal publication. It intersects ordinary controls with authenticated ownership, records immutable same-UID stop snapshots, replays retained receipts idempotently, retries transient durable-save failures while converging empty and asynchronously drained barriers, preserves terminal control history, keeps pending-intent expiry and delayed prior-generation external-child recovery on an idle-independent maintenance timer, and gives current-generation external-child polling and post-removal settlement independent bounded retries.",
+      "worth": "This catches partial singleton admission, commit-after-stop, committed work falsely rejected as inert, terminal parents over live streams, taps, artifact custody, claims, transactions, broker subscriptions, or external-spawn evidence, stale subscriber updates, owner widening, mutable host snapshots, idle activity disabling pending-intent expiry, a live-at-boot external child stranding admission after later exit, empty or asynchronously drained barriers stranded by transient saves, exhausted post-removal settlement retries, terminal retry history mutation, replay/CAS drift, and prior-generation residual loss without acquiring a privileged resource.",
+      "command": "node --test tests/operation-control-contract.test.mjs tests/operation-control-fake.test.mjs tests/operation-resource-claims.test.mjs tests/operation-host-control.test.mjs tests/operation-host-barrier-reconciliation.test.mjs",
       "replaces": [],
       "guard": "pure fake adapters and disposable warnings-as-errors Swift typechecks; no daemon, native UI, process signals, microphone, or TCC use",
       "status": "active"
@@ -96,8 +97,8 @@
       "owner": "operation-control",
       "harness_level": "model_unit",
       "proof_kind": "microphone_operation_adapter_contract",
-      "contract": "Microphone capture durably prepares one operation and one exclusive voice session claim before native authority, reuses a preprepared external-dispatch admission after child finalization, stops through the common adapter seam, and releases the claim only after authority absence; legacy output never preempts capture.",
-      "worth": "This catches double operations, microphone authority before persistence/finalization, speech barge-in, early claim release, and cleanup-hidden terminal outcomes without touching a live audio device or TCC.",
+      "contract": "Microphone capture rejects a closed or mismatched host barrier before durable mutation, durably prepares one operation and one exclusive voice session claim before native authority, reuses a preprepared external-dispatch admission after child finalization, stops through the common adapter seam, and releases the claim only after authority absence; legacy output never preempts capture.",
+      "worth": "This catches barrier admission under a false registry-conflict code, double operations, microphone authority before persistence/finalization, speech barge-in, early claim release, and cleanup-hidden terminal outcomes without touching a live audio device or TCC.",
       "command": "node --test tests/voice-operation-claim-contract.test.mjs",
       "replaces": [],
       "guard": "offline fake microphone lifecycle and disposable Swift typechecks only; no audio device, daemon, or TCC use",
@@ -121,6 +122,25 @@
       "command": "bash tests/native-operation-control-contract.sh",
       "replaces": [],
       "guard": "runs fake/offline Node harnesses plus a complete Swift typecheck; no repo binary build, daemon, native UI, process signaling, microphone, or TCC use",
+      "status": "active"
+    },
+    {
+      "id": "operation-control-native-proof-tool",
+      "path_patterns": [
+        "tests/manual/operation-control-native-proof.sh",
+        "tests/manual/operation-control-native-proof.mjs",
+        "tests/lib/operation-control-native-proof-contract.mjs",
+        "tests/operation-control-native-proof-contract.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "operation-control",
+      "harness_level": "guarded_live",
+      "proof_kind": "operation_control_native_tool_contract",
+      "contract": "The offline command validates the import-safe manual proof's pretty-JSON parsing, positive daemon/barrier generations, exact nine tap counters, degraded-but-sufficient preflight, inherited supervisor-pipe capability plus observed parent generation, exact private proof-root and create-exclusive failure-retention boundary, monotonic signal handling, content-free summary shape with live fields unset offline, two live gates, bounded ordinary owner/singleton/tap/cancel/kill source inventory, passive exact-identity cleanup structure, terminal unchanged-barrier comparison, and explicit live host-control exclusions.",
+      "worth": "This catches direct-worker bypass, unsafe summary targets or overwrite, malformed public CLI JSON handling, false missing-generation or vacuous-counter success, swallowed wrapper interruption, accidental daemon autostart, missing proof or parked-state gates, live host-wide mutation, cleanup control retry, sensitive retained evidence, widened claims, and live invocation from an ordinary routed test command without pretending the offline test executed the live lifecycle.",
+      "command": "node --test tests/operation-control-native-proof-contract.test.mjs",
+      "replaces": [],
+      "guard": "The registered command is offline self-test and contract inspection only. The live form is separately authorized and requires AOS_OPERATION_CONTROL_NATIVE_PROOF_OK=1 plus AOS_OPERATION_CONTROL_SAFE_CHECKPOINT=parked-and-verified; it never builds, starts, stops, restarts, repairs, prompts, invokes stop-all, or invokes reopen on the shared runtime.",
       "status": "active"
     },
     {

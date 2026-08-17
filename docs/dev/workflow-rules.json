@@ -429,9 +429,12 @@
         "src/daemon/segmented-microphone-capture.swift",
         "src/daemon/audio-playback.swift",
         "src/main.swift",
-        "src/shared/external-command-dispatch.swift",
-        "tests/daemon-ipc-schema.sh",
-        "tests/operation-*.test.mjs",
+    "src/shared/external-command-dispatch.swift",
+    "tests/daemon-ipc-schema.sh",
+    "tests/lib/operation-control-native-proof-contract.mjs",
+    "tests/manual/operation-control-native-proof.mjs",
+    "tests/manual/operation-control-native-proof.sh",
+    "tests/operation-*.test.mjs",
         "tests/command-manifest-generation.sh",
         "tests/external-command-dispatch.sh",
         "tests/schemas/aos-external-command-manifest-v1.test.mjs",
@@ -464,10 +467,10 @@
           "command": "node --test tests/schemas/aos-operation-v1.test.mjs tests/schemas/daemon-event.test.mjs && bash tests/daemon-ipc-schema.sh",
           "reason": "Closed operation and daemon envelopes must retain exact generations, seven tap bounds, content-free events, same-UID barrier receipts, and rejection of caller authority or human-intent fields."
         },
-        {
-          "id": "operation-owner-and-core-contract",
-          "command": "node --test tests/operation-owner-root.test.mjs tests/operation-control-contract.test.mjs tests/operation-control-fake.test.mjs tests/operation-resource-claims.test.mjs tests/operation-host-control.test.mjs",
-          "reason": "Mechanical peer/ancestry ownership, persistence-before-authority, all-or-nothing singleton/multiplex claims, owner intersections, immutable stop snapshots, retained replay, cleanup, and recovery must remain deterministic offline."
+    {
+      "id": "operation-owner-and-core-contract",
+      "command": "node --test tests/operation-owner-root.test.mjs tests/operation-control-contract.test.mjs tests/operation-control-fake.test.mjs tests/operation-resource-claims.test.mjs tests/operation-host-control.test.mjs tests/operation-host-barrier-reconciliation.test.mjs",
+      "reason": "Mechanical peer/ancestry ownership, persistence-before-authority, stop-intent admission races, all-or-nothing singleton/multiplex claims, universal child-closed parent terminal publication, owner intersections, immutable stop snapshots, transient-save retry for empty and asynchronous barrier convergence, idle-independent pending-intent expiry and delayed prior-generation external-child recovery, independent current-generation external settlement retry, terminal retry immutability, retained replay, cleanup, and recovery must remain deterministic offline."
         },
         {
           "id": "operation-adapter-and-projection-contract",
@@ -479,15 +482,21 @@
           "command": "node --test tests/schemas/aos-external-command-manifest-v1.test.mjs && bash tests/command-manifest-generation.sh && bash tests/external-command-dispatch.sh",
           "reason": "The listen-microphone activation predicate, trusted signed-Node policy, exact reviewed in-memory module closure, generated wire-v2 route, and native dispatcher must land atomically."
         },
-        {
-          "id": "native-operation-control-contract",
-          "command": "bash tests/native-operation-control-contract.sh",
-          "reason": "Typecheck and execute the complete native daemon, CLI, owner/spawn, registry, adapter, tap, status, and Canvas integration offline without building or starting the repo runtime."
-        }
+    {
+      "id": "native-operation-control-contract",
+      "command": "bash tests/native-operation-control-contract.sh",
+      "reason": "Typecheck and execute the complete native daemon, CLI, owner/spawn, registry, adapter, tap, status, and Canvas integration offline without building or starting the repo runtime."
+    },
+    {
+      "id": "operation-control-native-proof-contract",
+      "command": "node --test tests/operation-control-native-proof-contract.test.mjs",
+          "reason": "Validate the manual operation-control tool, its two explicit live gates, inherited supervisor capability and observed parent generation, positive barrier generations, exact tap counters, private create-exclusive summary and failure-retention boundary, monotonic interruption, bounded content-free evidence with live facts unset offline, passive exact-owner cleanup, terminal unchanged-barrier comparison, no effect retry, and explicit live host-control exclusions without invoking the live form."
+    }
       ],
       "verification": [],
       "notes": [
-        "Offline proofs only. Live daemon, microphone, native UI, and TCC acceptance remain separately authorized."
+    "Offline proofs only. Live daemon, microphone, native UI, and TCC acceptance remain separately authorized.",
+    "The manual operation-control live form is never scheduled here; after parked readback its exact invocation is AOS_OPERATION_CONTROL_NATIVE_PROOF_OK=1 AOS_OPERATION_CONTROL_SAFE_CHECKPOINT=parked-and-verified zsh tests/manual/operation-control-native-proof.sh --run. It performs ordinary owner-scoped microphone checks only and does not invoke stop-all or reopen."
       ]
     },
     {

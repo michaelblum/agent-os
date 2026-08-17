@@ -8988,6 +8988,53 @@ test('design and proof routing state the normalized static boundary', async () =
   assert.match(entry.guard, /does not run native, managed-live, daemon, browser, or TCC acceptance/iu);
 });
 
+test('guarded operation-control native proof is current and claims only its executable live scope', async () => {
+  const ledger = await json(ledgerRelativePath);
+  const milestone = ledger.program_milestones.find(({ id }) => id === 'M2');
+  const proofId = 'M2.proof.tests_manual_operation_control_native_proof_sh';
+  const proof = milestone.proof_paths.find(({ id }) => id === proofId);
+  assert.deepEqual(
+    { path: proof.path, kind: proof.kind, execution_class: proof.execution_class },
+    {
+      path: 'tests/manual/operation-control-native-proof.sh',
+      kind: 'current',
+      execution_class: 'native_live',
+    },
+  );
+  assert.deepEqual(
+    milestone.deliverables
+      .filter(({ proof_ref_ids }) => proof_ref_ids.includes(proofId))
+      .map(({ id }) => id),
+    ['microphone_adapter'],
+  );
+  assert.deepEqual(
+    milestone.exit_gates
+      .filter(({ proof_ref_ids }) => proof_ref_ids.includes(proofId))
+      .map(({ id }) => id)
+      .sort(),
+    [
+      'microphone_control_plane',
+      'singleton_resource_claim_closure',
+      'terminal_residual_invariant',
+    ],
+  );
+  const targetProof = ledger.target_design.proof_ladders
+    .find(({ milestone: id }) => id === 'M2')
+    .native.find(({ path_ref }) => path_ref.path === proof.path);
+  assert.equal(targetProof.path_ref.kind, 'current');
+  assert.match(targetProof.claim, /lifecycle-only bounded tap expiry/u);
+  assert.match(targetProof.claim, /host barrier remains unchanged/u);
+  assert.match(targetProof.claim, /does not claim live stop\/reopen/u);
+  assert.match(targetProof.claim, /does not claim status\/Canvas UI provenance/u);
+  assert.match(targetProof.claim, /peer-loss signaling/u);
+  const microphone = ledger.capabilities.find(({ id }) => id === 'microphone-capture-adapter');
+  const liveProof = microphone.current.proof.native.find(({ path }) => path === proof.path);
+  assert.equal(liveProof.execution_class, 'native_live');
+  assert.deepEqual(liveProof.tcc_services, ['Microphone']);
+  assert.equal(liveProof.requires_owner_authority, true);
+  assert.equal(liveProof.mutates_runtime, true);
+});
+
 test('paired authority, executable M2 bindings, and the remaining M6 decision are exact', async () => {
   const ledger = await json(ledgerRelativePath);
   assert.deepEqual(ledger.authority.paired_sigil_authority, {

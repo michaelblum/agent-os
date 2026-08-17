@@ -82,7 +82,9 @@ enum AOSOperationResourceTransaction {
                 throw AOSOperationCoreError.adapterRegistryConflict
             }
             guard state.operations.contains(where: {
-                $0.identity == operation && [.prepared, .starting].contains($0.state)
+                $0.identity == operation
+                    && [.prepared, .starting].contains($0.state)
+                    && $0.stopIntent == nil
             }) else {
                 throw AOSOperationCoreError.operationNotFound
             }
@@ -117,6 +119,12 @@ enum AOSOperationResourceTransaction {
             guard let index = state.resourceTransactions.firstIndex(where: {
                 $0.transactionID == transactionID && $0.state == .prepared
             }) else { throw AOSOperationCoreError.invalidTransition }
+            let operation = state.resourceTransactions[index].operation
+            guard state.operations.contains(where: {
+                $0.identity == operation
+                    && [.prepared, .starting].contains($0.state)
+                    && $0.stopIntent == nil
+            }) else { throw AOSOperationCoreError.invalidTransition }
             guard state.barrier.state == .open,
                   state.barrier.generation == state.resourceTransactions[index].expectedBarrierGeneration else {
                 throw AOSOperationCoreError.barrierClosed
@@ -136,6 +144,11 @@ enum AOSOperationResourceTransaction {
                     $0.transactionID == transactionID && $0.state == .reserving
                 }) else { throw AOSOperationCoreError.invalidTransition }
                 let transaction = state.resourceTransactions[transactionIndex]
+                guard state.operations.contains(where: {
+                    $0.identity == transaction.operation
+                        && [.prepared, .starting].contains($0.state)
+                        && $0.stopIntent == nil
+                }) else { throw AOSOperationCoreError.invalidTransition }
                 guard state.barrier.state == .open,
                       state.barrier.generation == transaction.expectedBarrierGeneration else {
                     throw AOSOperationCoreError.barrierClosed
@@ -314,14 +327,17 @@ enum AOSOperationResourceTransaction {
         }
     }
 
-    private static func reject(
+    /// Closes a claim-set attempt that has not published authority. The two
+    /// durable phases make rollback discoverable and idempotently resumable.
+    static func reject(
         registry: AOSOperationRegistry,
         transactionID: String
     ) throws {
         try registry.mutateDurably { state in
             guard let index = state.resourceTransactions.firstIndex(where: {
-                $0.transactionID == transactionID && $0.state != .terminal
-            }) else { return }
+                $0.transactionID == transactionID
+                    && [.prepared, .reserving, .rollingBack].contains($0.state)
+            }) else { throw AOSOperationCoreError.invalidTransition }
             state.resourceTransactions[index].state = .rollingBack
             state.resourceTransactions[index].recoveryDisposition = .rollbackPending
         }

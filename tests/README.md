@@ -438,6 +438,38 @@ daemon/channel state. Its interrupted-run recovery root stores only keyed
 digests for unrelated-channel comparison; the ephemeral key remains in process
 memory and raw channel URLs, sessions, and entries are never persisted there.
 
+Operation-control has a separate guarded ordinary microphone proof. Its
+ordinary registered command is offline and performs only contract and
+supervision checks; all live evidence fields remain false or null:
+
+```bash
+zsh tests/manual/operation-control-native-proof.sh --self-test
+node --test tests/operation-control-native-proof-contract.test.mjs
+```
+
+The live form attaches to one already-running, build-current, managed repo
+daemon and requires pre-existing Microphone authorization, a clean open barrier,
+and an externally verified `parked-and-verified` state:
+
+```bash
+AOS_OPERATION_CONTROL_NATIVE_PROOF_OK=1 \
+AOS_OPERATION_CONTROL_SAFE_CHECKPOINT=parked-and-verified \
+  zsh tests/manual/operation-control-native-proof.sh --run
+```
+
+The harness disables daemon autostart and never builds, starts, stops, restarts,
+repairs, or requests permission. It emits bounded content-free JSON, never
+retries an ambiguous effect, passively settles only its exact owner-scoped
+operation identities, and verifies the host barrier is unchanged. The shell
+launches the worker only through an inherited one-use pipe capability bound to
+the observed supervisor PID generation; direct worker execution fails before
+any AOS command. Signals remain latched across every wrapper phase, and failure
+retention republishes only one create-exclusive content-free summary after
+removing the private proof root. Tap coverage is lifecycle/expiry only; live
+host stop/reopen, artifact success, status-item/Canvas UI provenance, source
+delivery, prior-generation recovery, request replay, positive attribution, and
+public SDK coverage are not claimed.
+
 Other situational tests that own disposable daemons should run in an isolated
 `AOS_STATE_ROOT` and tear down their
 own temp-root daemon state so they do not leave duplicate `aos` windows behind

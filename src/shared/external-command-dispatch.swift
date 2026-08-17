@@ -847,9 +847,12 @@ private func prepareExternalSpawnIntent(
         )
     }
     if response["error"] != nil {
+        let reviewedCode = (response["code"] as? String).flatMap {
+            ["OPERATION_BARRIER_CLOSED", "OPERATION_RESOURCE_BUSY"].contains($0) ? $0 : nil
+        } ?? "EXTERNAL_SPAWN_INTENT_FAILED"
         exitError(
             "The external-spawn intent was rejected.",
-            code: "EXTERNAL_SPAWN_INTENT_FAILED"
+            code: reviewedCode
         )
     }
     guard let closedResponse = externalManifestObject(

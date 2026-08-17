@@ -18,9 +18,25 @@ barrier CAS, distinct artifact/claim recovery dispositions, prior-generation
 recovery across nine target machines, and split claim-set/resource/broker semantics. M2
 registers only the microphone adapter; unadapted legacy daemon subsystems remain
 outside its stop-all receipts, and legacy voice output is a non-preempting
-admission sentinel on the shared native session. Milestone 2 implements the
-daemon registry, control, recovery, resource-claim, microphone-adapter, IPC,
-status-item, and Canvas projection owners as current executable truth. The
+admission sentinel on the shared native session. An empty registered selection
+and asynchronous microphone termination use bounded durable reconciliation
+retries; finalized external-spawn retirement has a separate bounded settlement
+budget, so a transient save fault cannot leave a zero-residual barrier draining.
+Operation stop intent blocks
+claim-set prepare/reserve/commit at their durable linearization points;
+committed claim sets drain rather than masquerading as rejected inert work, and
+every parent-terminal path—including direct lifecycle transitions, absent
+adapter results, and boot recovery—atomically proves that every child claim,
+transaction, stream, tap, artifact custody, broker subscription, pending intent,
+and finalized external-spawn record is closed. The persistent operation-
+maintenance timer is independent of idle cancellation and owns both pending-
+intent TTL expiry and delayed exact-generation re-observation of prior-
+generation finalized children; each tick performs one bounded recovery pass,
+and zero residuals alone reopen admission. Current-generation external-child
+polling and post-removal settlement have independent bounded retry budgets.
+Milestone 2 implements the daemon registry, control,
+recovery, resource-claim, microphone-adapter, IPC, status-item, and Canvas
+projection owners as current executable truth. The
 process-lifetime direct-capture consent/prime gate and other unadapted public
 projections below remain declared burn-down baselines for their later atomic
 migrations. This pointer does not bypass ScreenCaptureKit, macOS TCC, or the

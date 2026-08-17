@@ -57,6 +57,7 @@ final class AOSMicrophoneOperationAdapter: AOSOperationControlAdapter, AOSMicrop
 
     private let registry: AOSOperationRegistry
     private let contextResolver: ContextResolver
+    private let reconcileHostBarrier: () -> Void
     private let lock = NSLock()
     private var runtimeBindings: [AOSOperationIdentity: RuntimeBinding] = [:]
     private var prepreparedCaptures: [UUID: AOSMicrophoneOperationAdmission] = [:]
@@ -80,7 +81,8 @@ final class AOSMicrophoneOperationAdapter: AOSOperationControlAdapter, AOSMicrop
     init(
         registry: AOSOperationRegistry,
         registration: AOSOperationAdapterRegistration,
-        contextResolver: @escaping ContextResolver
+        contextResolver: @escaping ContextResolver,
+        reconcileHostBarrier: @escaping () -> Void = {}
     ) throws {
         guard registration == (try Self.makeRegistration()) else {
             throw AOSOperationCoreError.adapterRegistryConflict
@@ -88,6 +90,7 @@ final class AOSMicrophoneOperationAdapter: AOSOperationControlAdapter, AOSMicrop
         self.registry = registry
         self.registration = registration
         self.contextResolver = contextResolver
+        self.reconcileHostBarrier = reconcileHostBarrier
     }
 
     func prepareCapture(owner: UUID) throws -> any AOSMicrophoneOperationClaimLease {
@@ -128,11 +131,7 @@ final class AOSMicrophoneOperationAdapter: AOSOperationControlAdapter, AOSMicrop
         trigger: AOSMicrophoneCaptureTerminalTrigger = .adapterFailed
     ) {
         guard let admission = admissionForOperation(operation) else {
-            _ = try? registry.transitionOperation(
-                operation,
-                to: .terminal,
-                outcome: .rejected
-            )
+            closeFailedPreparation(operation: operation)
             return
         }
         finish(admission, trigger: trigger, authorityAbsent: true)
@@ -152,8 +151,10 @@ final class AOSMicrophoneOperationAdapter: AOSOperationControlAdapter, AOSMicrop
     ) throws -> AOSMicrophoneOperationClaimLeaseImpl {
         let initial = registry.snapshot()
         guard initial.barrier.state == .open,
-              initial.barrier.openSnapshot?.barrierGeneration == initial.barrier.generation,
-              initial.adapterRegistry.registration(
+              initial.barrier.openSnapshot?.barrierGeneration == initial.barrier.generation else {
+            throw AOSOperationCoreError.barrierClosed
+        }
+        guard initial.adapterRegistry.registration(
                   id: registration.id,
                   revision: registration.revision
               ) == registration,
@@ -279,11 +280,24 @@ final class AOSMicrophoneOperationAdapter: AOSOperationControlAdapter, AOSMicrop
                 return AOSAdapterStopResult(disposition: .accepted, residualDigest: nil)
             }
             do {
-                _ = try registry.transitionOperation(
+                guard closeTransactionsBeforeAuthority(operation: operation) else {
+                    return AOSAdapterStopResult(
+                        disposition: .residual,
+                        residualDigest: residualDigest(operation: operation)
+                    )
+                }
+                let current = try registry.inspect(operation)
+                if current.state == .terminal {
+                    return AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
+                }
+                let intent = current.stopIntent ?? (force ? .kill : .cancel)
+                _ = try registry.terminalizeOperationAfterVerifiedCleanup(
                     operation,
-                    to: .terminal,
-                    stopIntent: force ? .kill : .cancel,
-                    outcome: force ? .killed : .cancelled
+                    stopIntent: intent,
+                    outcome: Self.outcome(
+                        for: intent,
+                        fallback: force ? .killed : .cancelled
+                    )
                 )
                 return AOSAdapterStopResult(disposition: .accepted, residualDigest: nil)
             } catch {
@@ -389,13 +403,13 @@ final class AOSMicrophoneOperationAdapter: AOSOperationControlAdapter, AOSMicrop
         trigger: AOSMicrophoneCaptureTerminalTrigger,
         authorityAbsent: Bool
     ) {
+        defer {
+            removeRuntimeBinding(admission.operation)
+            reconcileHostBarrier()
+        }
         do {
             let initialOperation = try registry.inspect(admission.operation)
-            if initialOperation.state == .terminal {
-                removeRuntimeBinding(admission.operation)
-                return
-            }
-            if initialOperation.state != .prepared {
+            if initialOperation.state != .prepared && initialOperation.state != .terminal {
                 try noteStop(admission, trigger: trigger)
             }
 
@@ -427,60 +441,26 @@ final class AOSMicrophoneOperationAdapter: AOSOperationControlAdapter, AOSMicrop
             }
             guard claimIsTerminal else {
                 markCleanupRequired(admission)
-                removeRuntimeBinding(admission.operation)
                 return
             }
-            let hasUnresolvedClaimSet = registry.snapshot().resourceTransactions.contains {
-                $0.operation == admission.operation && $0.state != .terminal
-            }
-            guard !hasUnresolvedClaimSet else {
+            guard closeTransactionsBeforeAuthority(operation: admission.operation) else {
                 markCleanupRequired(admission)
-                removeRuntimeBinding(admission.operation)
                 return
             }
-            let current = try registry.inspect(admission.operation)
-            if current.state == .prepared || current.state == .stopping {
-                let externalSpawnResiduals = registry.snapshot().finalizedExternalSpawnRecords.filter {
-                    $0.skipRecord.operationID == admission.operation.id
-                        && $0.skipRecord.operationGeneration == admission.operation.generation
-                }.map { "external-spawn:\($0.skipRecord.spawnRecordID)" }.sorted()
-                if !externalSpawnResiduals.isEmpty {
-                    let residualDigest = try AOSOperationDigest.sha256(
-                        domain: .residualSet,
-                        externalSpawnResiduals
-                    )
-                    _ = try registry.transitionOperation(
-                        admission.operation,
-                        to: .cleanupRequired,
-                        stopIntent: current.stopIntent ?? Self.stopIntent(for: trigger),
-                        outcome: Self.outcome(for: current.stopIntent, fallback: trigger),
-                        residualDigest: residualDigest
-                    )
-                    removeRuntimeBinding(admission.operation)
-                    return
-                }
-                _ = try registry.transitionOperation(
-                    admission.operation,
-                    to: .terminal,
-                    stopIntent: current.stopIntent ?? Self.stopIntent(for: trigger),
-                    outcome: Self.outcome(for: current.stopIntent, fallback: trigger)
-                )
-            }
+            try finalizeParentAfterVerifiedCleanup(
+                operation: admission.operation,
+                fallbackTrigger: trigger,
+                outcomeWithoutStopIntent: Self.outcome(for: nil, fallback: trigger)
+            )
         } catch {
             markCleanupRequired(admission)
         }
-        removeRuntimeBinding(admission.operation)
     }
 
     private func closeFailedPreparation(operation: AOSOperationIdentity) {
+        defer { reconcileHostBarrier() }
         var state = registry.snapshot()
-        for transaction in state.resourceTransactions where
-            transaction.operation == operation && transaction.state == .committed {
-            _ = try? AOSOperationResourceTransaction.completeHandoff(
-                registry: registry,
-                transactionID: transaction.transactionID
-            )
-        }
+        _ = closeTransactionsBeforeAuthority(operation: operation)
         state = registry.snapshot()
         let claims = state.resourceClaims.filter {
             $0.operation == operation && $0.resourceKey == Self.resourceKey && $0.state != .terminal
@@ -499,7 +479,7 @@ final class AOSMicrophoneOperationAdapter: AOSOperationControlAdapter, AOSMicrop
             return
         }
         guard let record = state.operations.first(where: { $0.identity == operation }),
-              record.state == .prepared else { return }
+              record.state != .terminal else { return }
         if state.resourceTransactions.contains(where: {
             $0.operation == operation && $0.state != .terminal
         }) {
@@ -512,7 +492,98 @@ final class AOSMicrophoneOperationAdapter: AOSOperationControlAdapter, AOSMicrop
             )
             return
         }
-        _ = try? registry.transitionOperation(operation, to: .terminal, outcome: .rejected)
+        try? finalizeParentAfterVerifiedCleanup(
+            operation: operation,
+            fallbackTrigger: .adapterFailed,
+            outcomeWithoutStopIntent: .rejected
+        )
+    }
+
+    private func closeTransactionsBeforeAuthority(operation: AOSOperationIdentity) -> Bool {
+        for _ in 0..<8 {
+            let transactions = registry.snapshot().resourceTransactions.filter {
+                $0.operation == operation && $0.state != .terminal
+            }
+            if transactions.isEmpty { return true }
+            for transaction in transactions {
+                do {
+                    switch transaction.state {
+                    case .prepared, .reserving, .rollingBack:
+                        try AOSOperationResourceTransaction.reject(
+                            registry: registry,
+                            transactionID: transaction.transactionID
+                        )
+                    case .committed:
+                        _ = try AOSOperationResourceTransaction.completeHandoff(
+                            registry: registry,
+                            transactionID: transaction.transactionID
+                        )
+                    case .cleanupRequired, .recovering:
+                        return false
+                    case .terminal:
+                        break
+                    }
+                } catch {
+                    // A concurrent reservation/commit/handoff may have won this
+                    // observation. Re-read the durable phase before deciding.
+                }
+            }
+        }
+        return !registry.snapshot().resourceTransactions.contains {
+            $0.operation == operation && $0.state != .terminal
+        }
+    }
+
+    private func finalizeParentAfterVerifiedCleanup(
+        operation: AOSOperationIdentity,
+        fallbackTrigger: AOSMicrophoneCaptureTerminalTrigger,
+        outcomeWithoutStopIntent: AOSOperationOutcome
+    ) throws {
+        guard closeTransactionsBeforeAuthority(operation: operation) else {
+            throw AOSOperationCoreError.residualsPresent
+        }
+        var current = try registry.inspect(operation)
+        let stopIntent = current.stopIntent
+        let outcome = stopIntent.map {
+            Self.outcome(for: $0, fallback: fallbackTrigger)
+        } ?? outcomeWithoutStopIntent
+        let externalSpawnResiduals = registry.snapshot().finalizedExternalSpawnRecords.filter {
+            $0.skipRecord.operationID == operation.id
+                && $0.skipRecord.operationGeneration == operation.generation
+        }.map { "external-spawn:\($0.skipRecord.spawnRecordID)" }.sorted()
+        if !externalSpawnResiduals.isEmpty {
+            let residualDigest = try AOSOperationDigest.sha256(
+                domain: .residualSet,
+                externalSpawnResiduals
+            )
+            guard current.state != .terminal else {
+                throw AOSOperationCoreError.residualsPresent
+            }
+            _ = try registry.transitionOperation(
+                operation,
+                to: .cleanupRequired,
+                stopIntent: stopIntent ?? Self.stopIntent(for: fallbackTrigger),
+                outcome: outcome,
+                residualDigest: residualDigest
+            )
+            return
+        }
+        if current.state == .cleanupRequired {
+            _ = try registry.transitionOperation(operation, to: .recovering)
+            current = try registry.inspect(operation)
+        }
+        switch current.state {
+        case .prepared, .starting, .stopping, .recovering:
+            _ = try registry.terminalizeOperationAfterVerifiedCleanup(
+                operation,
+                stopIntent: stopIntent,
+                outcome: outcome
+            )
+        case .terminal:
+            return
+        case .active, .cleanupRequired:
+            throw AOSOperationCoreError.invalidTransition
+        }
     }
 
     private func admissionForOperation(_ operation: AOSOperationIdentity) -> AOSMicrophoneOperationAdmission? {

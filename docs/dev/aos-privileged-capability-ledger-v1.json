@@ -5518,9 +5518,19 @@
           "requires_owner_authority": false,
           "tcc_services": [],
           "mutates_runtime": false
+        },
+        {
+          "path": "tests/manual/operation-control-native-proof.sh",
+          "claim": "Provides separately authorized guarded live acceptance for mechanical owner sharing/isolation, narrowing-only filters, exclusive microphone admission, lifecycle-only tap expiry, and exact cancel/kill cleanup while passively proving the host barrier remains unchanged and explicitly excluding live stop/reopen, peer-loss signaling, artifact, UI, source-delivery, replay, positive-attribution, SDK, and prior-generation claims.",
+          "execution_class": "native_live",
+          "requires_owner_authority": true,
+          "tcc_services": [
+            "Microphone"
+          ],
+          "mutates_runtime": true
         }
       ],
-      "limitations": "Offline M2 proof does not touch a live microphone or TCC. Existing caller-selected WAV/segment output remains outside generic AOS artifact custody; no M2 artifact producer is claimed."
+      "limitations": "The guarded live tool requires pre-existing Microphone authority, an already-running managed repo daemon, an explicit parked-state gate, and separate authorization; it is never a routed default command. Its tap case proves lifecycle/expiry with zero counters, not source delivery. It does not invoke stop-all/reopen or send process-group signals, so live host-control and peer-loss cleanup remain unclaimed. Existing caller-selected WAV/segment output remains outside generic AOS artifact custody; status/Canvas UI provenance, prior-generation crash recovery, request replay, positive attribution, public SDK coverage, and an M2 artifact producer remain unclaimed."
         }
       },
       "target": {
@@ -16906,11 +16916,11 @@
           {
             "path_ref": {
               "path": "tests/manual/operation-control-native-proof.sh",
-              "kind": "proposed"
+              "kind": "current"
             },
             "execution_class": "native_live",
             "requires_owner_authority": true,
-            "claim": "Separately authorized live acceptance for peer identity, kill boundaries, red status projection, crash/orphan recovery, and microphone cleanup."
+            "claim": "Separately authorized guarded live acceptance for mechanically shared ordinary ownership and cross-root isolation, narrowing-only asserted filters, singleton microphone conflict, lifecycle-only bounded tap expiry, and cancel/kill cleanup, with passive proof that the host barrier remains unchanged. It does not claim live stop/reopen. It does not claim status/Canvas UI provenance, artifact success, tap source delivery, request replay, positive attribution, public SDK coverage, prior-generation crash/orphan recovery, or peer-loss signaling."
           }
         ]
       },
@@ -17330,8 +17340,7 @@
             "M2.proof.tests_operation_control_contract_test_mjs",
             "M2.proof.tests_operation_host_control_test_mjs",
             "M2.proof.tests_operation_control_fake_test_mjs",
-            "M2.proof.tests_native_operation_control_contract_sh",
-            "M2.proof.tests_manual_operation_control_native_proof_sh"
+            "M2.proof.tests_native_operation_control_contract_sh"
           ]
         },
         {
@@ -17568,8 +17577,7 @@
             "M2.proof.tests_schemas_aos_operation_v1_test_mjs",
             "M2.proof.tests_operation_control_contract_test_mjs",
             "M2.proof.tests_operation_control_fake_test_mjs",
-            "M2.proof.tests_native_operation_control_contract_sh",
-            "M2.proof.tests_manual_operation_control_native_proof_sh"
+            "M2.proof.tests_native_operation_control_contract_sh"
           ],
           "prerequisite_gate_refs": []
         },
@@ -17590,8 +17598,7 @@
             "M2.proof.tests_schemas_aos_operation_v1_test_mjs",
             "M2.proof.tests_operation_control_contract_test_mjs",
             "M2.proof.tests_operation_control_fake_test_mjs",
-            "M2.proof.tests_native_operation_control_contract_sh",
-            "M2.proof.tests_manual_operation_control_native_proof_sh"
+            "M2.proof.tests_native_operation_control_contract_sh"
           ],
           "prerequisite_gate_refs": []
         },
@@ -17602,8 +17609,7 @@
             "M2.proof.tests_schemas_aos_operation_v1_test_mjs",
             "M2.proof.tests_operation_control_contract_test_mjs",
             "M2.proof.tests_operation_control_fake_test_mjs",
-            "M2.proof.tests_native_operation_control_contract_sh",
-            "M2.proof.tests_manual_operation_control_native_proof_sh"
+            "M2.proof.tests_native_operation_control_contract_sh"
           ],
           "prerequisite_gate_refs": []
         },
@@ -17709,8 +17715,7 @@
             "M2.proof.tests_schemas_aos_operation_v1_test_mjs",
             "M2.proof.tests_operation_host_control_test_mjs",
             "M2.proof.tests_operation_control_fake_test_mjs",
-            "M2.proof.tests_native_operation_control_contract_sh",
-            "M2.proof.tests_manual_operation_control_native_proof_sh"
+            "M2.proof.tests_native_operation_control_contract_sh"
           ],
           "prerequisite_gate_refs": []
         },
@@ -18113,7 +18118,7 @@
           "id": "M2.proof.tests_manual_operation_control_native_proof_sh",
           "case_id": null,
           "path": "tests/manual/operation-control-native-proof.sh",
-          "kind": "proposed",
+          "kind": "current",
           "execution_class": "native_live"
         },
         {

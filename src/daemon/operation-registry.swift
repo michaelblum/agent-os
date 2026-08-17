@@ -198,10 +198,55 @@ final class AOSOperationRegistry {
             guard Self.permitsTransition(from: old, to: newState) else {
                 throw AOSOperationCoreError.invalidTransition
             }
+            if old == .prepared && newState == .starting {
+                guard state.barrier.state == .open,
+                      state.operations[index].stopIntent == nil else {
+                    throw AOSOperationCoreError.barrierClosed
+                }
+            }
+            if newState == .terminal,
+               Self.hasNonterminalChildren(in: state, operation: identity) {
+                throw AOSOperationCoreError.residualsPresent
+            }
             state.operations[index].state = newState
             if let stopIntent { state.operations[index].stopIntent = stopIntent }
             if let outcome { state.operations[index].outcome = outcome }
-            if let residualDigest { state.operations[index].residualDigest = residualDigest }
+            if newState == .terminal {
+                guard state.operations[index].outcome != nil else {
+                    throw AOSOperationCoreError.invalidRecord("terminal_operation_outcome")
+                }
+                state.operations[index].residualDigest = nil
+            } else if let residualDigest {
+                state.operations[index].residualDigest = residualDigest
+            }
+            state.operations[index].updatedAtNanoseconds = now
+            return state.operations[index]
+        }
+    }
+
+    /// Publishes the terminal parent only in the same durable mutation that
+    /// proves every operation-owned child authority/residual is already closed.
+    func terminalizeOperationAfterVerifiedCleanup(
+        _ identity: AOSOperationIdentity,
+        stopIntent: AOSStopIntent?,
+        outcome: AOSOperationOutcome
+    ) throws -> AOSOperationRecord {
+        let now = clock()
+        return try mutateDurably { state in
+            guard let index = state.operations.firstIndex(where: { $0.identity == identity }) else {
+                throw AOSOperationCoreError.operationNotFound
+            }
+            let old = state.operations[index].state
+            guard Self.permitsTransition(from: old, to: .terminal) else {
+                throw AOSOperationCoreError.invalidTransition
+            }
+            guard !Self.hasNonterminalChildren(in: state, operation: identity) else {
+                throw AOSOperationCoreError.residualsPresent
+            }
+            state.operations[index].state = .terminal
+            if let stopIntent { state.operations[index].stopIntent = stopIntent }
+            state.operations[index].outcome = outcome
+            state.operations[index].residualDigest = nil
             state.operations[index].updatedAtNanoseconds = now
             return state.operations[index]
         }
@@ -211,6 +256,35 @@ final class AOSOperationRegistry {
         let value = snapshot().operations.first { $0.identity == identity }
         guard let value else { throw AOSOperationCoreError.operationNotFound }
         return value
+    }
+
+    /// One registry-owned predicate closes every path that can publish a
+    /// terminal operation parent. Recovery and control code use this same
+    /// durable-state view instead of maintaining partial child inventories.
+    static func hasNonterminalChildren(
+        in state: AOSOperationDurableState,
+        operation identity: AOSOperationIdentity
+    ) -> Bool {
+        state.streams.contains {
+            $0.parentOperation == identity && $0.state != .terminal
+        } || state.taps.contains {
+            $0.parentOperation == identity && $0.state != .terminal
+        } || state.artifacts.contains {
+            $0.parentOperation == identity
+                && ![.released, .retained, .removed].contains($0.state)
+        } || state.resourceTransactions.contains {
+            $0.operation == identity && $0.state != .terminal
+        } || state.resourceClaims.contains {
+            $0.operation == identity && $0.state != .terminal
+        } || state.resourceBrokers.contains { broker in
+            broker.state != .terminal
+                && broker.subscribers.contains { $0.operation == identity }
+        } || state.pendingExternalSpawnIntents.contains {
+            $0.operationID == identity.id && $0.operationGeneration == identity.generation
+        } || state.finalizedExternalSpawnRecords.contains {
+            $0.skipRecord.operationID == identity.id
+                && $0.skipRecord.operationGeneration == identity.generation
+        }
     }
 
     func list(ownerRoot: AOSMechanicalOwnerRoot, filter: AOSOperationFilter = .init()) -> [AOSOperationRecord] {

@@ -9,6 +9,7 @@ const repoRoot = path.resolve(import.meta.dirname, '..')
 const stateSource = path.join(repoRoot, 'src/daemon/operation-state.swift')
 const ownerSource = path.join(repoRoot, 'src/daemon/operation-owner-root.swift')
 const spawnSource = path.join(repoRoot, 'src/daemon/operation-spawn-record.swift')
+const dispatchSource = path.join(repoRoot, 'src/shared/external-command-dispatch.swift')
 
 async function compileAndRunHarness(source) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'aos-operation-spawn-binding-'))
@@ -313,4 +314,15 @@ test('durable external-dispatch shapes expose digest fields and no raw script ca
   assert.match(source, /scriptIdentityDigest/u)
   assert.match(source, /canonicalArgvShapeDigest/u)
   assert.match(source, /reviewedDependencySetDigest/u)
+})
+
+test('registered microphone spawn preserves only reviewed admission rejection codes', async () => {
+  const source = await readFile(dispatchSource, 'utf8')
+  const intent = source.match(/private func prepareExternalSpawnIntent\([\s\S]*?\n\}/u)?.[0]
+  assert.ok(intent)
+  assert.match(intent, /\["OPERATION_BARRIER_CLOSED", "OPERATION_RESOURCE_BUSY"\]\.contains/u)
+  assert.match(intent, /\? \$0 : nil/u)
+  assert.match(intent, /\?\? "EXTERNAL_SPAWN_INTENT_FAILED"/u)
+  assert.match(intent, /code: reviewedCode/u)
+  assert.doesNotMatch(intent, /code: response\["code"\]/u)
 })

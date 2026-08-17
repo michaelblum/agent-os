@@ -460,19 +460,25 @@ class UnifiedDaemon {
             daemonGeneration: nextDaemonGeneration,
             adapterRegistry: adapterRegistry
         )
+        let control = AOSOperationControlPlane(
+            registry: registry,
+            daemonEffectiveUID: geteuid()
+        )
         let adapter = try AOSMicrophoneOperationAdapter(
             registry: registry,
             registration: registration,
             contextResolver: { [weak self] owner in
                 guard let self else { throw AOSOperationCoreError.callerNotAuthenticated }
                 return try self.operationContext(for: owner)
+            },
+            reconcileHostBarrier: { [weak control] in
+                guard let control else { return }
+                let state = registry.snapshot().barrier.state
+                guard [.closing, .cleanupRequired, .recovering].contains(state) else { return }
+                _ = control.reconcileHostBarrierWithBoundedRetry()
             }
         )
         try registry.installRuntimeAdapters([adapter])
-        let control = AOSOperationControlPlane(
-            registry: registry,
-            daemonEffectiveUID: geteuid()
-        )
 
         operationStore = store
         operationRegistry = registry
@@ -489,7 +495,38 @@ class UnifiedDaemon {
             newDaemonGeneration: nextDaemonGeneration,
             claimTokenDigest: recoveryToken
         )
+        try reconcileOperationBootRecoveryExternalChildren(
+            registry: registry,
+            control: control,
+            recoveryGeneration: recovery.recoveryGeneration,
+            claimTokenDigest: recoveryToken
+        )
+        try initializeOperationProjections(
+            registration: registration,
+            registry: registry,
+            control: control
+        )
+        startOperationExternalSpawnExpiryTimer(
+            bootRecoveryGeneration: recovery.recoveryGeneration,
+            bootRecoveryClaimTokenDigest: recoveryToken
+        )
+    }
+
+    private func reconcileOperationBootRecoveryExternalChildren(
+        registry: AOSOperationRegistry,
+        control: AOSOperationControlPlane,
+        recoveryGeneration: UInt64,
+        claimTokenDigest: String
+    ) throws {
         let recovering = registry.snapshot()
+        guard recovering.recovery.generation == recoveryGeneration,
+              recovering.recovery.claimTokenDigest == claimTokenDigest else { return }
+        if recovering.recovery.state == .terminal {
+            if recovering.barrier.state == .bootReconciling {
+                _ = try control.completeBootReconciliation(.open)
+            }
+            return
+        }
         var absentSpawnRecords = Set<String>()
         for finalized in recovering.finalizedExternalSpawnRecords {
             if operationExternalChildIsMechanicallyAbsent(finalized) {
@@ -508,8 +545,8 @@ class UnifiedDaemon {
         let externallyLiveBrokerIDs = Set(externallyLiveClaims.compactMap(\.brokerID))
         let reconciled = try AOSOperationRecovery.reconcile(
             registry: registry,
-            recoveryGeneration: recovery.recoveryGeneration,
-            claimTokenDigest: recoveryToken,
+            recoveryGeneration: recoveryGeneration,
+            claimTokenDigest: claimTokenDigest,
             mechanicallyAbsentOperationIDs: Set(recovering.operations.compactMap {
                 externallyLiveOperations.contains($0.identity) ? nil : $0.identity
             }),
@@ -529,12 +566,6 @@ class UnifiedDaemon {
         if reconciled.residualCount == 0, reconciled.barrierState == .bootReconciling {
             _ = try control.completeBootReconciliation(.open)
         }
-        try initializeOperationProjections(
-            registration: registration,
-            registry: registry,
-            control: control
-        )
-        startOperationExternalSpawnExpiryTimer()
     }
 
     private func initializeOperationProjections(
@@ -667,16 +698,15 @@ class UnifiedDaemon {
         operation: AOSOperationIdentity,
         attempt: Int
     ) {
-        guard attempt < 20, let registry = operationRegistry else { return }
-        let records = registry.snapshot().finalizedExternalSpawnRecords.filter {
-            $0.skipRecord.operationID == operation.id
-                && $0.skipRecord.operationGeneration == operation.generation
-        }
-        guard !records.isEmpty else { return }
+        guard attempt < 20, operationRegistry != nil else { return }
         let delay = DispatchTimeInterval.milliseconds(attempt == 0 ? 50 : 100)
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + delay) {
             [weak self] in
             guard let self, let registry = self.operationRegistry else { return }
+            let records = registry.snapshot().finalizedExternalSpawnRecords.filter {
+                $0.skipRecord.operationID == operation.id
+                    && $0.skipRecord.operationGeneration == operation.generation
+            }
             var unresolved = false
             for record in records {
                 guard self.operationExternalChildIsMechanicallyAbsent(record) else {
@@ -698,9 +728,30 @@ class UnifiedDaemon {
                 self.scheduleExternalSpawnRetirement(operation: operation, attempt: attempt + 1)
                 return
             }
-            if let current = try? registry.inspect(operation), current.state == .cleanupRequired {
-                _ = try? registry.transitionOperation(operation, to: .recovering)
-                _ = try? registry.transitionOperation(operation, to: .terminal)
+            self.scheduleExternalSpawnSettlement(operation: operation, attempt: 0)
+        }
+    }
+
+    private func scheduleExternalSpawnSettlement(
+        operation: AOSOperationIdentity,
+        attempt: Int
+    ) {
+        guard attempt < 20 else { return }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + .milliseconds(100)) {
+            [weak self] in
+            guard let self else { return }
+            do {
+                _ = try self.operationControlPlane?.externalSpawnRetirementDidSettle(
+                    operation: operation
+                )
+            } catch {
+                // Post-removal settlement has an independent retry budget so a
+                // record that disappears on the final polling attempt cannot
+                // strand its parent or host barrier after a durable save fault.
+                self.scheduleExternalSpawnSettlement(
+                    operation: operation,
+                    attempt: attempt + 1
+                )
             }
         }
     }
@@ -4345,12 +4396,24 @@ class UnifiedDaemon {
         }
     }
 
-    private func startOperationExternalSpawnExpiryTimer() {
+    private func startOperationExternalSpawnExpiryTimer(
+        bootRecoveryGeneration: UInt64,
+        bootRecoveryClaimTokenDigest: String
+    ) {
         operationExternalSpawnExpiryTimer?.cancel()
         let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
         timer.schedule(deadline: .now() + .seconds(1), repeating: .seconds(1))
         timer.setEventHandler { [weak self] in
-            self?.reapExpiredExternalSpawnIntents()
+            guard let self else { return }
+            self.reapExpiredExternalSpawnIntents()
+            guard let registry = self.operationRegistry,
+                  let control = self.operationControlPlane else { return }
+            try? self.reconcileOperationBootRecoveryExternalChildren(
+                registry: registry,
+                control: control,
+                recoveryGeneration: bootRecoveryGeneration,
+                claimTokenDigest: bootRecoveryClaimTokenDigest
+            )
         }
         operationExternalSpawnExpiryTimer = timer
         timer.resume()
@@ -6963,8 +7026,6 @@ class UnifiedDaemon {
 
     private func cancelIdleTimer() {
         idleShutdownTimer.cancel()
-        operationExternalSpawnExpiryTimer?.cancel()
-        operationExternalSpawnExpiryTimer = nil
     }
 
     func shutdown(reason: String = "idle") {
@@ -6972,6 +7033,8 @@ class UnifiedDaemon {
         isShuttingDown = true
         fputs("aos daemon shutting down (\(reason))\n", stderr)
         idleShutdownTimer.cancel()
+        operationExternalSpawnExpiryTimer?.cancel()
+        operationExternalSpawnExpiryTimer = nil
         operationStatusItemProjection?.teardown()
         voiceTransport.shutdown()
         annotationSelection.shutdown()

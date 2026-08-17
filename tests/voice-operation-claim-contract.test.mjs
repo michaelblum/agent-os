@@ -134,8 +134,31 @@ let adapter = try AOSMicrophoneOperationAdapter(
 )
 try registry.installRuntimeAdapters([adapter])
 
-let first = try adapter.prepareCapture(owner: owner)
+try registry.mutateDurably { state in
+    state.barrier.state = .bootReconciling
+    state.barrier.openSnapshot = nil
+    state.barrier.cleanupResult = .pending
+    state.barrier.reconciliationState = "pending"
+}
+expectCoreError(.barrierClosed) {
+    _ = try adapter.prepareCapture(owner: owner)
+}
 var state = registry.snapshot()
+precondition(state.operations.isEmpty)
+precondition(state.resourceTransactions.isEmpty)
+precondition(state.resourceClaims.isEmpty)
+try registry.mutateDurably { state in
+    state.barrier.state = .open
+    state.barrier.openSnapshot = try AOSOpenBarrierSnapshot.make(
+        barrierGeneration: state.barrier.generation,
+        registry: state.adapterRegistry
+    )
+    state.barrier.cleanupResult = .zeroResiduals
+    state.barrier.reconciliationState = "complete"
+}
+
+let first = try adapter.prepareCapture(owner: owner)
+state = registry.snapshot()
 precondition(state.operations.count == 1)
 precondition(state.operations[0].state == .starting)
 precondition(state.operations[0].capabilityID == "microphone-capture-adapter")
@@ -286,5 +309,5 @@ test('voice transport uses an atomic legacy-output sentinel and has no implicit 
   assert.match(segmented, /authorityAbsent: authorityAbsent/)
   assert.match(adapter, /finishExclusiveRelease\([\s\S]*absenceVerified: authorityAbsent/)
   assert.match(adapter, /claimIsTerminal = release\.state == \.terminal && release\.absenceVerified/)
-  assert.match(adapter, /to: \.terminal,[\s\S]*outcome:/)
+  assert.match(adapter, /terminalizeOperationAfterVerifiedCleanup\([\s\S]*outcome:/)
 })
