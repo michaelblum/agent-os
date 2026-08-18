@@ -81,6 +81,27 @@ operation_selector = {
     "operation_generation": 7,
 }
 
+artifact_selector = {
+    "artifact_id": "77777777-7777-4777-8777-777777777777",
+    "artifact_generation": 9,
+}
+
+screen_recording_request = {
+    "schema_version": "aos.screen-recording.request.v1",
+    "request_id": "88888888-8888-4888-8888-888888888888",
+    "canonical_parameter_digest": "8" * 64,
+    "topology": display_topology,
+    "target": {"kind": "display", "display_ordinal": 1},
+    "duration_ms": 10000,
+    "frame_rate": 30,
+    "max_pixel_count": 33177600,
+    "max_queue_frames": 3,
+    "max_output_bytes": 268435456,
+    "tracks": {"video": True, "system_audio": False, "microphone": False},
+    "codec": "h264",
+    "container": "quicktime",
+}
+
 external_spawn_intent = {
     "schema_version": "aos.operation.external-spawn-intent-request.v1",
     "request_id": "33333333-3333-4333-8333-333333333333",
@@ -149,11 +170,12 @@ good_requests = [
     {"v":1,"service":"operation","action":"inspect","data":{**operation_request,"selector":operation_selector}},
     {"v":1,"service":"operation","action":"cancel","data":{**operation_request,"selector":operation_selector}},
     {"v":1,"service":"operation","action":"kill_owner","data":{**operation_request,"filters":{"agent_id":"agent-1","project_id":"project-1"}}},
+    {"v":1,"service":"operation","action":"record_screen","data":screen_recording_request},
     {"v":1,"service":"operation","action":"tap","data":operation_request},
-    {"v":1,"service":"operation","action":"artifact_reveal","data":operation_request},
-    {"v":1,"service":"operation","action":"artifact_remove","data":operation_request},
-    {"v":1,"service":"operation","action":"artifact_release","data":operation_request},
-    {"v":1,"service":"operation","action":"artifact_retain","data":operation_request},
+    {"v":1,"service":"operation","action":"artifact_reveal","data":{**operation_request,"selector":artifact_selector}},
+    {"v":1,"service":"operation","action":"artifact_remove","data":{**operation_request,"selector":artifact_selector}},
+    {"v":1,"service":"operation","action":"artifact_release","data":{**operation_request,"selector":artifact_selector,"destination":"/private/tmp/recording.mov"}},
+    {"v":1,"service":"operation","action":"artifact_retain","data":{**operation_request,"selector":artifact_selector}},
     {"v":1,"service":"operation","action":"stop_all","data":{**operation_request,"schema_version":"aos.host-stop-barrier.stop-all-request.v1","action":"stop_all","expected_barrier_generation":3}},
     {"v":1,"service":"operation","action":"barrier_status","data":{**operation_request,"schema_version":"aos.host-stop-barrier.status-request.v1","action":"barrier_status"}},
     {"v":1,"service":"operation","action":"reopen","data":{**operation_request,"schema_version":"aos.host-stop-barrier.reopen-request.v1","action":"reopen","expected_barrier_generation":3}},
@@ -213,7 +235,15 @@ bad_requests = [
     {"v":1,"service":"operation","action":"list","data":{**operation_request,"filters":{"owner_root":"forged"}}},  # caller owner roots are forbidden
     {"v":1,"service":"operation","action":"inspect","data":{**operation_request,"selector":{"operation_id":operation_selector["operation_id"]}}},  # generation is required
     {"v":1,"service":"operation","action":"tap","data":{**operation_request,"selector":operation_selector,"tap":{"channel":"metadata","bounds":{"rate_items_per_second":30,"sample_every":2,"max_queue_items":8,"max_items":100,"max_bytes":4096,"idle_timeout_milliseconds":1000,"duration_milliseconds":5000},"follow":False}}},  # retired tap selectors and bounds are rejected
-    {"v":1,"service":"operation","action":"artifact_reveal","data":{**operation_request,"selector":{"artifact_id":"artifact-1","artifact_generation":1},"action":"reveal"}},  # retired artifact selectors and custody action data are rejected
+    {"v":1,"service":"operation","action":"artifact_reveal","data":operation_request},  # exact artifact selector is required
+    {"v":1,"service":"operation","action":"artifact_reveal","data":{**operation_request,"selector":artifact_selector,"action":"reveal"}},  # transport action is not custody request data
+    {"v":1,"service":"operation","action":"artifact_reveal","data":{**operation_request,"selector":artifact_selector,"extra":True}},  # reveal data is closed
+    {"v":1,"service":"operation","action":"artifact_remove","data":{**operation_request,"selector":artifact_selector,"destination":"/private/tmp/x.mov"}},  # remove cannot carry release data
+    {"v":1,"service":"operation","action":"artifact_retain","data":{**operation_request,"selector":artifact_selector,"extra":True}},  # unavailable retain data is still closed
+    {"v":1,"service":"operation","action":"artifact_release","data":{**operation_request,"selector":artifact_selector}},  # release requires a destination
+    {"v":1,"service":"operation","action":"artifact_release","data":{**operation_request,"selector":artifact_selector,"destination":"/private/tmp/x.mov","extra":True}},  # release data is closed
+    {"v":1,"service":"operation","action":"artifact_release","data":{**operation_request,"selector":artifact_selector,"destination":7}},  # release destination type is exact
+    {"v":1,"service":"operation","action":"record_screen","data":{**screen_recording_request,"tracks":{"video":True,"system_audio":True,"microphone":False}}},  # audio tracks are closed off
     {"v":1,"service":"operation","action":"stop_all","data":{**operation_request,"schema_version":"aos.host-stop-barrier.stop-all-request.v1","action":"stop_all"}},  # stop-all requires exact barrier CAS
     {"v":1,"service":"operation","action":"barrier_status","data":{**operation_request,"schema_version":"aos.host-stop-barrier.status-request.v1","action":"barrier_status","caller_origin":"status_item_host"}},  # origin evidence is server-attached
     {"v":1,"service":"operation","action":"recent","data":{**operation_request,"task_id":"task-1"}},  # filters are a closed nested object
@@ -265,6 +295,13 @@ for response in good_responses:
     assert not errors, f"unexpected response errors for {response}: {errors}"
 
 ipc_doc = Path("shared/schemas/daemon-ipc.md").read_text()
+artifact_doc_lines = "\n".join(
+    line for line in ipc_doc.splitlines() if "`operation.artifact_" in line
+)
+assert "`selector`" in artifact_doc_lines, "artifact IPC docs must name the exact selector wire field"
+assert "`destination`" in artifact_doc_lines, "artifact release docs must name the exact destination wire field"
+assert "artifact_selector" not in artifact_doc_lines, "artifact_selector is not a wire field"
+assert "destination_path" not in artifact_doc_lines, "destination_path is not a wire field"
 documented_dry_run = json.loads(
     ipc_doc.split("Validated no-side-effect response:", 1)[1]
     .split("```json", 1)[1]

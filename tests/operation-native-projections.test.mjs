@@ -418,7 +418,7 @@ canvasState.artifacts = [
         identity: AOSOperationIdentity(id: "artifact-recording", generation: 31),
         parentOperation: recording.identity,
         daemonGeneration: 7,
-        state: .published,
+        state: .offered,
         recoveryOriginState: nil,
         recoveryDisposition: nil,
         custodyDigest: String(repeating: "4", count: 64)
@@ -530,7 +530,7 @@ precondition(resourceClaims[0]["broker_id"] is NSNull)
 let artifacts = ordinaryOperations[0]["artifacts"] as! [[String: Any]]
 precondition(artifacts.count == 2)
 precondition(artifacts[0]["artifact_id"] as? String == "artifact-recording")
-precondition(artifacts[0]["state"] as? String == "published")
+precondition(artifacts[0]["state"] as? String == "offered")
 precondition(artifacts[0]["custody_digest"] as? String == String(repeating: "4", count: 64))
 precondition(artifacts[1]["recovery_origin_state"] as? String == "retained")
 precondition(artifacts[1]["recovery_disposition"] as? String == "retention_verification")

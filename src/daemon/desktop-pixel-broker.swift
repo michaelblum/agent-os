@@ -384,6 +384,11 @@ protocol AOSDesktopPixelAcquiring: AnyObject {
     ) -> AOSDesktopFrameCancelling
 }
 
+struct AOSDesktopPixelExclusiveProducerLease: Equatable {
+    let generation: UInt64
+    let ownerID: String
+}
+
 final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
     static let defaultRetirementTimeout: TimeInterval = 5
 
@@ -428,6 +433,7 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
     private let retirementTimeout: TimeInterval
     private var activeSnapshot: ActiveSnapshot?
     private var activeWarmLease: ActiveWarmLease?
+    private var activeProducer: AOSDesktopPixelExclusiveProducerLease?
     private var nextGeneration: UInt64 = 0
     private var stopped = false
     private var terminalFailure: AOSDesktopFrameCaptureFailure?
@@ -475,7 +481,8 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
             completion(.failure(terminalFailure))
             return AOSDesktopFrameCancellation()
         }
-        guard !stopped, activeSnapshot == nil, activeWarmLease == nil else {
+        guard !stopped, activeSnapshot == nil, activeWarmLease == nil,
+              activeProducer == nil else {
             lock.unlock()
             completion(.failure(AOSDesktopFrameCaptureFailure.busy))
             return AOSDesktopFrameCancellation()
@@ -510,6 +517,7 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
         lock.lock()
         let activeSnapshot = activeSnapshot
         let activeWarmLease = activeWarmLease
+        activeProducer = nil
         stopped = true
         self.activeSnapshot = nil
         self.activeWarmLease = nil
@@ -553,7 +561,8 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
             completion(.failure(terminalFailure))
             return AOSDesktopFrameCancellation()
         }
-        guard !stopped, activeSnapshot == nil, activeWarmLease == nil else {
+        guard !stopped, activeSnapshot == nil, activeWarmLease == nil,
+              activeProducer == nil else {
             lock.unlock()
             completion(.failure(AOSDesktopFrameCaptureFailure.busy))
             return AOSDesktopFrameCancellation()
@@ -596,6 +605,36 @@ final class AOSDesktopPixelBroker: AOSDesktopPixelSnapshotting {
             }
             self.cancelWarm(generation: generation, completion: completion)
         }
+    }
+
+    func acquireExclusiveProducer(ownerID: String) throws -> AOSDesktopPixelExclusiveProducerLease {
+        guard !ownerID.isEmpty, ownerID.utf8.count <= 128 else {
+            throw AOSDesktopFrameCaptureFailure.unauthorized
+        }
+        lock.lock()
+        defer { lock.unlock() }
+        if let terminalFailure { throw terminalFailure }
+        guard !stopped, activeSnapshot == nil, activeWarmLease == nil,
+              activeProducer == nil else {
+            throw AOSDesktopFrameCaptureFailure.busy
+        }
+        nextGeneration &+= 1
+        if nextGeneration == 0 { nextGeneration = 1 }
+        let lease = AOSDesktopPixelExclusiveProducerLease(
+            generation: nextGeneration,
+            ownerID: ownerID
+        )
+        activeProducer = lease
+        return lease
+    }
+
+    @discardableResult
+    func releaseExclusiveProducer(_ lease: AOSDesktopPixelExclusiveProducerLease) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard activeProducer == lease else { return false }
+        activeProducer = nil
+        return true
     }
 
     @discardableResult

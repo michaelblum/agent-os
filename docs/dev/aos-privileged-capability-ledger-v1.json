@@ -22,7 +22,7 @@
       "publication_state": "landed",
       "revision": "227382c1bcbdab56f551a85a69b0609eebbdfa0c"
     },
-    "publication_boundary": "Milestone 2 publishes the executable daemon IPC and CLI control plane, durable registry and recovery, one registered microphone adapter, same-UID host barrier, and internal status/Canvas projections. Public SDK roots remain M6, recording producers remain M3, raw managed-tool transport remains M7, and native live/TCC acceptance remains separately gated."
+    "publication_boundary": "Milestone 2 publishes the executable operation plane and microphone adapter. The bounded M3A slice adds one fixed display/window/region H.264 QuickTime video-only producer and producer-backed reveal/remove/release custody at adapter-registry revision 2. System audio, microphone tracks, follow geometry, public SDK roots, full M3 completion, and native live/TCC acceptance remain separately unclaimed."
   },
   "coverage": {
     "row_count": 32,
@@ -408,13 +408,20 @@
         "boundary_claim": "No production ScreenCaptureKit microphone or recording-output integration is present."
       },
       "avassetwriter-custom-multitrack": {
-        "disposition": "named_negative",
-        "source_probes": [],
-        "named_absent_symbols": [
-          "AVAssetWriter",
-          "AVAssetWriterInput"
+        "disposition": "positive",
+        "source_probes": [
+          {
+            "path": "src/daemon/screen-recording-encoder.swift",
+            "classification": "production_source",
+            "markers": [
+              "AVAssetWriter(outputURL:",
+              "mediaType: .video",
+              "AVVideoCodecType.h264"
+            ]
+          }
         ],
-        "boundary_claim": "No production AVAssetWriter multitrack integration is present."
+        "named_absent_symbols": [],
+        "boundary_claim": "One bounded H.264 QuickTime video input is current; multitrack and audio inputs remain absent."
       },
       "microphone-capture-adapter": {
         "disposition": "positive",
@@ -4330,28 +4337,33 @@
             "src/daemon/desktop-pixel-native.swift",
             "src/daemon/desktop-pixel-stream-lifecycle.swift",
             "src/daemon/desktop-pixel-broker.swift",
-            "src/daemon/desktop-frame-warm-pool.swift"
+            "src/daemon/desktop-frame-warm-pool.swift",
+            "src/daemon/screen-recording-operation-adapter.swift",
+            "src/daemon/screen-recording-encoder.swift",
+            "src/daemon/screen-recording-geometry.swift"
           ],
           "evidence_paths": [
             "tests/desktop-pixel-broker-contract.test.mjs",
             "tests/public-capture-transfer.test.mjs",
-            "docs/api/aos-capabilities.md"
+            "docs/api/aos-capabilities.md",
+            "tests/screen-recording-contract.test.mjs",
+            "tests/screen-recording-fake.test.mjs"
           ],
-          "summary": "AOS owns an internal ScreenCaptureKit SCStream screen output, warm-pool lifecycle, broker, and latest-frame delivery for desktop pixels. Public recording, encoder, recording IPC/CLI/SDK/Toolkit, operation identity, and recording artifact custody remain absent."
+          "summary": "AOS owns one public bounded fixed display/window/region ScreenCaptureKit video producer using H.264 in QuickTime, a finite generation-bound startup/retirement owner, atomic stop-frame admission, the exclusive pixel broker, operation identity/control, typed terminal truth, and recoverable exact-identity transient artifact custody. Audio tracks, followed geometry, SDK/Toolkit projection, and native-live acceptance remain absent."
         },
         "exposure": {
           "cli": {
-            "state": "absent",
-            "owners": [],
-            "forms": [],
-            "schemas": [],
-            "bindings": []
+            "state": "complete",
+            "owners": ["manifests/commands/source/aos/42-screen-recording.json", "manifests/commands/source/external/50-screen-recording.json", "src/commands/record.swift"],
+            "forms": ["aos record screen"],
+            "schemas": ["shared/schemas/aos-screen-recording-v1.schema.json"],
+            "bindings": [{"form_id": "record-screen", "help_source": "manifests/commands/source/aos/42-screen-recording.json", "route_path": "record", "route_source": "manifests/commands/source/external/50-screen-recording.json", "route_selectors": [{"path": ["record"], "when": null, "executable": "$AOS_PATH", "argv_prefix": ["__record"]}]}]
           },
           "ipc": {
-            "state": "absent",
-            "owners": [],
-            "forms": [],
-            "schemas": []
+            "state": "complete",
+            "owners": ["src/daemon/unified.swift"],
+            "forms": ["operation.record_screen"],
+            "schemas": ["shared/schemas/aos-screen-recording-v1.schema.json", "shared/schemas/daemon-request.schema.json", "shared/schemas/daemon-response.schema.json"]
           },
           "typescript_sdk": {
             "state": "absent",
@@ -4381,72 +4393,73 @@
         "observation": {
           "mode": "stream",
           "roots": [
-            "internally selected display set"
+            "one canonical display-topology observation"
           ],
           "targets": [
-            "latest valid ScreenCaptureKit screen sample per selected display"
+            "one fixed display, exact window, or global region wholly within one display"
           ],
           "depth": "Pixel plane only.",
-          "breadth": "One private latest valid CMSampleBuffer per selected display in the internal warm set; no public recording breadth.",
-          "completeness": "Internal screen-frame/latest-frame lifecycle exists for the selected display set; no public video recording contract, encoder, track, or artifact.",
-          "frontier": "Internal SCStream `.screen` ownership and selected-display warm lifecycle are current; the focused M1 proof, not the broker proof, owns latest-frame/output-type/audio assertions.",
-          "state_identity": "Internal warm-pool/generation and source lifecycle only; no public recording operation or stream identity."
+          "breadth": "One fixed display, exact window, or global region wholly within one display; screen video only.",
+          "completeness": "Public fixed video request, operation/stream/artifact identity, H.264 QuickTime encoder, action-specific artifact decoding, finite generation-bound startup/retirement ownership, atomic frame admission, typed terminal truth, durable recoverable release custody, an executable compiled production-owner harness with fake dependencies, and native compile proof are current.",
+          "frontier": "SCStream `.screen` frames flow only to the bounded video writer; system audio and microphone output are explicitly absent.",
+          "state_identity": "Canonical topology identity, display member identity, fixed geometry digest, operation generation, stream generation, and artifact generation."
         },
         "control": {
-          "operation_identity": "Absent.",
-          "owner": "Absent.",
+          "operation_identity": "Generation-bound screen-recording.video operation at adapter-registry revision 2.",
+          "owner": "Mechanically authenticated operation owner root.",
           "list": {
-            "state": "absent",
-            "detail": "No recordings."
+            "state": "complete",
+            "detail": "Owner-scoped recording operations."
           },
           "inspect": {
-            "state": "absent",
-            "detail": "No recordings."
+            "state": "complete",
+            "detail": "Exact operation generation."
           },
           "status": {
-            "state": "absent",
-            "detail": "No recordings."
+            "state": "complete",
+            "detail": "Content-free frame/byte/bound and cleanup facts."
           },
           "recent": {
-            "state": "absent",
-            "detail": "No history."
+            "state": "complete",
+            "detail": "Bounded terminal recording history."
           },
           "kill_one": {
-            "state": "absent",
-            "detail": "No recording cancellation."
+            "state": "complete",
+            "detail": "Exact cancel and kill route through the registered adapter."
           },
           "bulk_owner_kill": {
-            "state": "absent",
-            "detail": "No owner control."
+            "state": "complete",
+            "detail": "Owner-intersection kill reaches recordings."
           },
           "host_stop_all": {
-            "state": "absent",
-            "detail": "No host barrier."
+            "state": "complete",
+            "detail": "Revision-2 host barrier covers microphone plus recording."
           },
           "tap": {
             "state": "absent",
             "detail": "No live data tap."
           },
           "artifacts": {
-            "state": "absent",
-            "detail": "No recording artifacts."
+            "state": "partial",
+            "detail": "Producer-backed reveal, remove, and same-volume release; retain is typed unavailable."
           },
           "cleanup": {
-            "state": "absent",
-            "detail": "No recording cleanup contract."
+            "state": "complete",
+            "detail": "Proven stream/discovery retirement and pre-stop frame drain precede writer, broker, claim, file, runtime-owner, and terminal release; timeout or false retirement remains explicit cleanup-required authority."
           },
           "recovery": {
-            "state": "absent",
-            "detail": "No recovery."
+            "state": "complete",
+            "detail": "Boot resolves an exact generation/source/destination release record to released, rolled back, or explicit residual truth before ordinary artifact cleanup, and reconciles child authority."
           }
         },
         "data_transport": {
           "transports": [
-            "private in-process CMSampleBuffer latest-frame handoff"
+            "private in-process CMSampleBuffer delivery",
+            "transient H.264 QuickTime artifact"
           ],
-          "fidelity": "The warm owner retains a private latest valid ScreenCaptureKit screen CMSampleBuffer per selected display for current desktop-pixel consumers; there is no encoded or public video transport.",
+          "fidelity": "Raw screen frames remain outside history; the producer encodes the fixed source to H.264 QuickTime without an audio input.",
           "transient_default": true,
-          "retention": "Latest samples are transient in-process state; no current recording artifact exists.",
+          "retention": "AOS owns the transient file until reveal, remove, or release; retain is specifically unavailable.",
           "caller_owned_transforms": "Future crop, encode, redaction, and retention are caller-owned except mechanical codec/container production selected explicitly."
         },
         "proof": {
@@ -4454,15 +4467,23 @@
           "static": [
             {
               "path": "tests/desktop-pixel-broker-contract.test.mjs",
-              "claim": "Binds SCScreenshotManager capture/lifecycle and the native SCStream warm owner serialized start, stop, retirement, and generation behavior; it does not prove output type, audio configuration, latest samples, or public recording.",
+              "claim": "Binds the shared native pixel owner and serialized producer lifecycle reused by recording.",
               "execution_class": "static",
               "requires_owner_authority": false,
               "tcc_services": [],
               "mutates_runtime": false
             },
             {
-              "path": "tests/schemas/aos-privileged-capability-ledger-v1.test.mjs",
-              "claim": "Directly binds configuration.capturesAudio = false, `.screen` output registration, absence of capturesAudio = true and `.audio` registration, selected-display latest-frame ownership, and absence of public recording, encoder, command, SDK, Toolkit, and artifact surfaces.",
+              "path": "tests/schemas/aos-screen-recording-v1.test.mjs",
+              "claim": "Validates the closed video-only request/admission/progress/result shapes and hard bounds.",
+              "execution_class": "static",
+              "requires_owner_authority": false,
+              "tcc_services": [],
+              "mutates_runtime": false
+            },
+            {
+              "path": "tests/screen-recording-contract.test.mjs",
+              "claim": "Statically binds screen-only output, capturesAudio=false, H.264 QuickTime encoding, fixed geometry, generation-bound owner handoff, frame-drain and terminal-truth calls, durable release ordering, and authored/generated command ownership.",
               "execution_class": "static",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -4471,24 +4492,33 @@
           ],
           "fake": [
             {
-              "path": "tests/public-capture-transfer.test.mjs",
-              "claim": "Exercises bounded latest-frame transfer and warm-owner reconvergence with fake native callbacks; it does not claim recording or encoding.",
+              "path": "tests/screen-recording-fake.test.mjs",
+              "claim": "Compiles and executes the production recording adapter, registry, in-memory durable store, lifecycle, frame admission, terminal truth, custody coordinator, and boot recovery with fake clock, native session, encoder/file, and broker dependencies. It covers callback loss, startup stop/task cancellation, late start failure after active evidence, retirement timeout/false settlement, stop-frame drain ordering, zero-frame/missing-artifact cleanup, release/remove admission races, release fault phases, restart recovery, topology drift, lossy selectors, and extra-key/type rejection.",
               "execution_class": "fake",
               "requires_owner_authority": false,
               "tcc_services": [],
               "mutates_runtime": false
             }
           ],
-          "native": [],
-          "limitations": "Current proof establishes an internal screen-frame stream and separately proves public recording absence; it is not encoder, recording artifact, or live-TCC acceptance proof."
+          "native": [
+            {
+              "path": "tests/native-screen-recording-contract.sh",
+              "claim": "Compiles the focused ScreenCaptureKit and AVAssetWriter implementation without capture authority.",
+              "execution_class": "native_compile",
+              "requires_owner_authority": false,
+              "tcc_services": [],
+              "mutates_runtime": false
+            }
+          ],
+          "limitations": "Offline schema/static proof, an executable compiled production-owner seam harness with fake dependencies, and native compile proof establish only the listed seams. The adapter, registry, in-memory store, and boot recovery execute. AVAssetWriter and ScreenCaptureKit do not execute; neither do filesystem effects, daemon, TCC, native UI, or media. There are no live pixels, MOV acceptance, file custody effects, permission behavior, daemon restart, or crash acceptance."
         }
       },
       "target": {
         "milestone": "M3",
         "disposition": "Expand",
         "gaps": [
-          "Add exact recording operation/stream/artifact identity and prepared-before-authority lifecycle.",
-          "Define fixed geometry and caller-followed geometry as distinct caller-selected contracts."
+          "Add caller-followed geometry separately; fixed geometry is current.",
+          "Run separately authorized native-live recording acceptance without folding it into offline proof."
         ],
         "exit_gate": "M3 records screen video with exact geometry and topology identity, transient stream or artifact custody, status/kill/blame/cleanup, fake proof, and explicitly gated native proof; M6 later supplies canonical SDK projection.",
         "reusable_atoms": [
@@ -5026,13 +5056,16 @@
           }
         },
         "implementation": {
-          "state": "absent",
-          "primitive_paths": [],
+          "state": "partial",
+          "primitive_paths": [
+            "src/daemon/screen-recording-encoder.swift"
+          ],
           "evidence_paths": [
             "docs/api/aos-capabilities.md",
-            "src/daemon/desktop-pixel-native.swift"
+            "tests/screen-recording-contract.test.mjs",
+            "tests/screen-recording-fake.test.mjs"
           ],
-          "summary": "No tracked production AOS source owns AVAssetWriter or a custom video/system-audio/microphone muxer."
+          "summary": "AOS owns one bounded AVAssetWriter H.264 QuickTime video input for fixed screen recording. System-audio, microphone, timestamp synchronization across tracks, and general multitrack muxing remain absent."
         },
         "exposure": {
           "cli": {
@@ -5074,101 +5107,119 @@
           }
         },
         "observation": {
-          "mode": "none",
+          "mode": "stream",
           "roots": [
-            "timestamped video and audio sample inputs"
+            "timestamped screen-video samples"
           ],
           "targets": [
-            "caller-selected media container and tracks"
+            "one H.264 QuickTime video track"
           ],
           "depth": "Not hierarchical.",
-          "breadth": "No current AOS writer.",
-          "completeness": "No AOS contract.",
-          "frontier": "Encoder availability and input/finalization errors would be explicit in a future adapter.",
-          "state_identity": "No writer or artifact identity."
+          "breadth": "One fixed screen-video input; no audio input.",
+          "completeness": "Bounded append, no-drop backpressure, finalization, exact file identity, and cleanup are current for video only.",
+          "frontier": "Audio inputs and cross-track timestamp synchronization remain absent.",
+          "state_identity": "Operation/stream/artifact generations plus exact device, inode, byte count, content digest, and media type."
         },
         "control": {
-          "operation_identity": "Absent.",
-          "owner": "Absent.",
+          "operation_identity": "The generation-bound screen-recording.video operation.",
+          "owner": "Mechanically authenticated recording owner root.",
           "list": {
-            "state": "absent",
-            "detail": "No writer."
+            "state": "complete",
+            "detail": "Visible through recording operations."
           },
           "inspect": {
-            "state": "absent",
-            "detail": "No writer."
+            "state": "complete",
+            "detail": "Exact recording generation."
           },
           "status": {
-            "state": "absent",
-            "detail": "No writer."
+            "state": "complete",
+            "detail": "Frame/byte/bound and cleanup facts."
           },
           "recent": {
-            "state": "absent",
-            "detail": "No history."
+            "state": "complete",
+            "detail": "Bounded recording history."
           },
           "kill_one": {
-            "state": "absent",
-            "detail": "No writer cancellation."
+            "state": "complete",
+            "detail": "Recording cancel and kill drain or cancel the writer."
           },
           "bulk_owner_kill": {
-            "state": "absent",
-            "detail": "No owner control."
+            "state": "complete",
+            "detail": "Owner-intersection kill includes the writer."
           },
           "host_stop_all": {
-            "state": "absent",
-            "detail": "No host control."
+            "state": "complete",
+            "detail": "Registered-set stop-all includes the writer operation."
           },
           "tap": {
             "state": "absent",
             "detail": "No tap."
           },
           "artifacts": {
-            "state": "absent",
-            "detail": "No artifact."
+            "state": "partial",
+            "detail": "Reveal, remove, and same-volume release are current; retain is unavailable."
           },
           "cleanup": {
-            "state": "absent",
-            "detail": "No partial-file cleanup owner."
+            "state": "complete",
+            "detail": "Cancellation/failure removes unoffered partial output before terminal."
           },
           "recovery": {
-            "state": "absent",
-            "detail": "No recovery."
+            "state": "complete",
+            "detail": "Boot recovery removes abandoned internal writer artifacts."
           }
         },
         "data_transport": {
           "transports": [
-            "none"
+            "transient H.264 QuickTime artifact"
           ],
-          "fidelity": "No current AOS multitrack output.",
+          "fidelity": "The current writer encodes the admitted screen-video frames without an audio input.",
           "transient_default": true,
-          "retention": "No current artifact.",
+          "retention": "AOS retains transient custody until remove or release; retain is unavailable.",
           "caller_owned_transforms": "Codec, track layout, mixing, trimming, and persistence must be explicit caller selections behind mechanical writer bounds."
         },
         "proof": {
-          "basis": "absence_proof",
+          "basis": "mixed_capability_and_absence",
           "static": [
             {
               "path": "tests/schemas/aos-privileged-capability-ledger-v1.test.mjs",
-              "claim": "Pins public AVAssetWriter classification and current production absence.",
+              "claim": "Pins the bounded H.264 QuickTime video writer and current absence of audio or multitrack inputs.",
               "execution_class": "static",
               "requires_owner_authority": false,
               "tcc_services": [],
               "mutates_runtime": false
             }
           ],
-          "fake": [],
-          "native": [],
-          "limitations": "No encoder capability proof exists."
+          "fake": [
+            {
+              "path": "tests/screen-recording-fake.test.mjs",
+              "claim": "Compiles and executes the shared production request, geometry, media-timeline, durable-progress, lifecycle, frame-admission, terminal-truth, artifact-action decoder, and custody-coordinator owners with fake dependencies; the AVAssetWriter owner itself remains compile-only.",
+              "execution_class": "fake",
+              "requires_owner_authority": false,
+              "tcc_services": [],
+              "mutates_runtime": false
+            }
+          ],
+          "native": [
+            {
+              "path": "tests/native-screen-recording-contract.sh",
+              "claim": "Compiles the AVAssetWriter video adapter without executing it.",
+              "execution_class": "native_compile",
+              "requires_owner_authority": false,
+              "tcc_services": [],
+              "mutates_runtime": false
+            }
+          ],
+          "limitations": "The AVAssetWriter owner is compile-only and the executable harness uses fake custody dependencies. No native writer, custody filesystem effect, live pixels, MOV/file acceptance, audio input, multitrack synchronization, daemon, or native/TCC acceptance is claimed."
         }
       },
       "target": {
         "milestone": "M3",
         "disposition": "Expand",
         "gaps": [
-          "Decide between SCRecordingOutput and a custom AVAssetWriter pipeline from deployment, multitrack, and artifact requirements.",
-          "Prove backpressure, timestamps, finalization, partial-file cleanup, and cancellation."
+          "Add independently selected audio inputs and cross-track timestamp synchronization if later M3 requires them.",
+          "Run separately authorized native-live writer/artifact acceptance."
         ],
-        "exit_gate": "M3 either selects or rejects a custom writer from the recording contract; if selected it is a reusable operation-controlled atom with exact track/timestamp identity and no unreceipted partial artifact.",
+        "exit_gate": "M3 extends the current operation-controlled video writer only with exact audio-track/timestamp identity and no unreceipted partial artifact.",
         "reusable_atoms": [
           "multitrack writer",
           "timestamp synchronizer",
@@ -16758,49 +16809,49 @@
             "owner_id": "recording-schema",
             "path_ref": {
               "path": "shared/schemas/aos-screen-recording-v1.schema.json",
-              "kind": "proposed"
+              "kind": "current"
             },
-            "responsibility": "Own recording tracks, geometry binding, source identities, and custody linkage."
+            "responsibility": "Own the closed fixed video-only request/admission/progress/result shapes, hard bounds, topology binding, and custody linkage."
           },
           {
             "owner_id": "recording-adapter",
             "path_ref": {
               "path": "src/daemon/screen-recording-operation-adapter.swift",
-              "kind": "proposed"
+              "kind": "current"
             },
-            "responsibility": "Own video, system-audio, and microphone track adapters under the M2 operation plane."
+            "responsibility": "Own one fixed ScreenCaptureKit screen-video adapter under the operation plane; no system-audio or microphone track is current."
           },
           {
             "owner_id": "recording-encoder",
             "path_ref": {
               "path": "src/daemon/screen-recording-encoder.swift",
-              "kind": "proposed"
+              "kind": "current"
             },
-            "responsibility": "Own explicit codec/container production and track validation."
+            "responsibility": "Own bounded H.264 QuickTime video production, zero-drop backpressure, and exact output identity validation."
           },
           {
             "owner_id": "recording-geometry",
             "path_ref": {
               "path": "src/daemon/screen-recording-geometry.swift",
-              "kind": "proposed"
+              "kind": "current"
             },
-            "responsibility": "Own fixed and caller-followed post-reobservation geometry binding."
+            "responsibility": "Own fixed display/window/region geometry and post-admission topology/source drift rejection; followed geometry remains absent."
           },
           {
             "owner_id": "recording-command-source",
             "path_ref": {
               "path": "manifests/commands/source/aos/42-screen-recording.json",
-              "kind": "proposed"
+              "kind": "current"
             },
-            "responsibility": "Own any public recording command grammar and generated help atomically."
+            "responsibility": "Own the bounded public record screen grammar and generated help atomically."
           },
           {
             "owner_id": "recording-command-route",
             "path_ref": {
               "path": "manifests/commands/source/external/50-screen-recording.json",
-              "kind": "proposed"
+              "kind": "current"
             },
-            "responsibility": "Own the reviewed external route paired atomically with the M3 authored recording command source."
+            "responsibility": "Own the reviewed external route paired atomically with the M3A authored recording command source."
           }
         ]
       }
@@ -16929,38 +16980,38 @@
           {
             "path_ref": {
               "path": "tests/schemas/aos-screen-recording-v1.test.mjs",
-              "kind": "proposed"
+              "kind": "current"
             },
             "execution_class": "static",
             "requires_owner_authority": false,
-            "claim": "Validate recording tracks, geometry identity, workflow outcomes, custody, and availability floors."
+            "claim": "Validate closed video-only tracks, fixed geometry identity, bounds, outcomes, and custody linkage."
           },
           {
             "path_ref": {
               "path": "tests/screen-recording-contract.test.mjs",
-              "kind": "proposed"
+              "kind": "current"
             },
             "execution_class": "static",
             "requires_owner_authority": false,
-            "claim": "Bind ScreenCaptureKit output types, capturesAudio, encoder, bounds, cleanup, and command/help ownership."
+            "claim": "Statically bind screen-only ScreenCaptureKit output, capturesAudio=false, H.264 QuickTime encoder, generation-bound owner handoff, frame drain, terminal truth, durable release ordering, bounds, cleanup, and command/help ownership."
           }
         ],
         "fake": [
           {
             "path_ref": {
               "path": "tests/screen-recording-fake.test.mjs",
-              "kind": "proposed"
+              "kind": "current"
             },
             "execution_class": "fake",
             "requires_owner_authority": false,
-            "claim": "Exercise video/system-audio/microphone track combinations, fixed/followed geometry drift, encoder failures, artifact validation, cancel/kill, and recovery with fake sources."
+            "claim": "Execute production lifecycle, frame-admission, decoder, terminal-truth, and custody-coordinator owners with fake dependencies for callback loss, startup stop/task cancellation, retirement timeout/false settlement, stop-frame interleavings, zero-frame/missing-artifact failure, custody fault phases, cleanup residuals, and extra-key/type rejection; also exercise fixed geometry, bounds, progress persistence, and custody-schema rejection."
           }
         ],
         "native": [
           {
             "path_ref": {
               "path": "tests/native-screen-recording-contract.sh",
-              "kind": "proposed"
+              "kind": "current"
             },
             "execution_class": "native_compile",
             "requires_owner_authority": false,

@@ -118,7 +118,7 @@ Command-to-state map:
 | Workspace | `see capture --save`, `see workspaces`, `see workspace`, `see snapshots`, `see refs`, saved-ref `do ... --workspace` | Command-scoped saved capture/ref store; no hidden current workspace |
 | Focus channel | `focus create/update/list/remove`, `see capture --channel`, `show ...`, `graph windows` | Mutable target binding; not session identity or saved evidence by itself |
 | Runtime state | `ready`, `status`, `doctor`, `permissions`, `service`, `service logs`, `runtime`, `daemon-snapshot`, `experience status` | Mode-scoped readiness, config, daemon/service, log readback, diagnostics, and experience readback |
-| Operation | `operation list/inspect/status/recent/cancel/kill/kill-owner/stop-all/barrier-status/reopen`; `operation tap --json`; `operation artifact reveal\|remove\|release\|retain --json` | Registered privileged work, cleanup, and same-UID host control; tap returns `OPERATION_TAP_UNAVAILABLE`, and artifact verbs return `OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE`, because no producer is registered |
+| Operation | `operation list/inspect/status/recent/cancel/kill/kill-owner/stop-all/barrier-status/reopen`; `operation tap --json`; exact-generation `operation artifact reveal\|remove\|release\|retain` | Registered microphone and fixed screen-video work, cleanup, same-UID host control, and producer-backed recording custody; tap and retain remain typed unavailable |
 | Work Record | `work-record list/read/verify/status/plan-repair`, `work-record repair ...`, `work-record export` | Durable evidence and bounded recovery workflows; no autonomous replay |
 | Content root | `content status`, `content wait`, `experience status`, wiki/content-backed surfaces | Readable declared content root; not a workspace or Work Record root |
 | Evidence state | `see refs --diff --expect`, `see compare`, `see annotation ...`, `gate records`, `work-record ...`, logs, command JSON | Proof trail for later inspection; not current UI state |
@@ -237,9 +237,14 @@ primitive.
 
 ## Diagnostics And Evidence Trace
 
-AOS does not currently expose a Playwright-style `trace`, `video`, or
-screen-recording primitive in the public command surface. The AOS-native proof
-trail is a composed sequence of command JSON and file-backed evidence:
+AOS exposes bounded fixed screen-video recording, but not a Playwright-style
+trace bundle or caller-followed page video. The recording primitive is
+`aos record screen`: one fixed display, exact current window, or global region;
+H.264 QuickTime video only; hard duration/frame/pixel/queue/byte bounds; and an
+operation-owned transient artifact. System audio, microphone tracks, followed
+geometry, and live/native acceptance remain outside the current slice. The
+broader AOS-native proof trail is still a composed sequence of command JSON and
+file-backed evidence:
 
 ```bash
 ./aos ready --json
@@ -262,6 +267,7 @@ Each step contributes a different kind of evidence:
 | --- | --- | --- |
 | Runtime readiness | `ready --json`, `status --json`, `doctor --json`, `permissions ... --json` | Mode, daemon/service, permission, and blocker state before live work. |
 | Before/after perception | `see capture --save`, `see snapshots`, `see refs` | Compact refs plus file-backed capture artifacts under the selected workspace. |
+| Bounded screen video | `record screen`, `operation status`, exact-generation `operation artifact ...` | Fixed-source admission and operation/custody identity; live media behavior requires separately authorized native acceptance. |
 | Action provenance | `do ...` action envelopes and optional `do ... --dry-run` previews | Target resolution, validation status, action path, and recommended recapture command when available. |
 | Lightweight verification | `see refs --diff --expect`, repeatable `--expect-ref` | Machine-checkable compact saved-ref change gates between two saved snapshots. |
 | Diagnostic readback | `daemon-snapshot`, `service logs --tail N`, command JSON, structured errors | Runtime, daemon log, and spatial diagnostics for debugging; not durable UI-state assertions by themselves. |
@@ -271,9 +277,8 @@ Each step contributes a different kind of evidence:
 
 This command sequence is the current diagnostics/evidence trace story. It is
 deliberately a recipe-sized composition over existing surfaces, not a new
-`aos trace` command. Add a dedicated trace, video, or dashboard command only
-with source manifests, routes, docs, tests, generated artifacts, and a clear
-compatibility policy.
+`aos trace` command. The bounded recording artifact is one input to that story,
+not a trace or dashboard bundle.
 
 For DesktopWorld gesture delivery, `daemon-snapshot` includes the bounded
 `runtime_resources.desktop_world_scene_event_routing` readback. It reports

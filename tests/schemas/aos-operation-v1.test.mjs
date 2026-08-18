@@ -258,7 +258,7 @@ const artifactIdentity = {
   inode: 2,
   size_bytes: 100,
   content_digest: SHA_C,
-  media_type: 'video/mp4',
+  media_type: 'video/quicktime; codecs=avc1',
 };
 
 const artifact = {
@@ -401,7 +401,7 @@ test('all eight M2 schemas are uniquely identified Draft 2020-12 contracts with 
   assert.equal(byName['aos-operation-lineage-v1.schema.json'].$ref, '#/$defs/operation_lineage');
   assert.equal(byName['aos-stream-v1.schema.json'].$ref, '#/$defs/stream_snapshot');
   assert.equal(byName['aos-operation-tap-v1.schema.json'].$ref, '#/$defs/tap_unavailable_result');
-  assert.equal(byName['aos-artifact-v1.schema.json'].$ref, '#/$defs/artifact_custody_unavailable_result');
+  assert.equal(byName['aos-artifact-v1.schema.json'].oneOf.length, 5);
   assert.equal(byName['aos-operation-recovery-v1.schema.json'].$ref, '#/$defs/recovery_record');
   assert.equal(byName['aos-host-stop-barrier-v1.schema.json'].oneOf.length, 7);
   assertValidation([target(OPERATION_ID, 'operation_snapshot', operation, true, 'operation schema compiles')]);
@@ -421,7 +421,7 @@ test('operation, lineage, stream, target tap/artifact, recovery, event, and barr
   ]);
 });
 
-test('current tap and artifact schema roots expose only exact typed unavailability', () => {
+test('tap remains unavailable while artifact roots expose producer custody and typed failures', () => {
   const tapUnavailable = {
     v: 1,
     status: 'error',
@@ -436,12 +436,50 @@ test('current tap and artifact schema roots expose only exact typed unavailabili
     code: 'OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE',
     ref: 'artifact-request-1',
   };
+  const artifactRequest = {
+    schema_version: 'aos.operation.artifact-request.v1',
+    operation: 'artifact',
+    action: 'reveal',
+    selector: { artifact_id: 'artifact-1', artifact_generation: 1 },
+  };
+  const artifactResult = {
+    schema_version: 'aos.artifact.custody-result.v1',
+    action: 'reveal',
+    artifact: { artifact_id: 'artifact-1', artifact_generation: 1 },
+    state: 'offered',
+    byte_count: 100,
+    content_digest: SHA_A,
+    media_type: 'video/quicktime; codecs=avc1',
+    path: '/private/tmp/artifact.mov',
+  };
+  const removedArtifactResult = {
+    ...artifactResult,
+    action: 'remove',
+    state: 'removed',
+  };
+  delete removedArtifactResult.path;
+  const releasedArtifactResult = {
+    ...artifactResult,
+    action: 'release',
+    state: 'released',
+    path: '/private/tmp/released.mov',
+  };
   assertValidation([
     target(TAP_ID, null, tapUnavailable, true, 'tap unavailable root'),
     target(TAP_ID, null, tap, false, 'tap success is not the current root'),
     target(TAP_ID, null, { ...tapUnavailable, code: 'OPERATION_RECORD_INVALID' }, false, 'tap code is exact'),
     target(ARTIFACT_ID, null, artifactUnavailable, true, 'artifact custody unavailable root'),
-    target(ARTIFACT_ID, null, artifact, false, 'artifact custody success is not the current root'),
+    target(ARTIFACT_ID, null, artifactRequest, true, 'artifact exact request root'),
+    target(ARTIFACT_ID, null, artifactResult, true, 'producer custody result root'),
+    target(ARTIFACT_ID, null, removedArtifactResult, true, 'removed custody result root'),
+    target(ARTIFACT_ID, null, releasedArtifactResult, true, 'released custody result root'),
+    target(ARTIFACT_ID, null, artifact, true, 'artifact snapshot root'),
+    target(ARTIFACT_ID, 'artifact_custody_result', { ...removedArtifactResult, state: 'offered' }, false, 'remove cannot report offered'),
+    target(ARTIFACT_ID, 'artifact_custody_result', { ...removedArtifactResult, path: '/private/tmp/removed.mov' }, false, 'remove cannot disclose a path'),
+    target(ARTIFACT_ID, 'artifact_custody_result', { ...releasedArtifactResult, state: 'removed' }, false, 'release must report released'),
+    target(ARTIFACT_ID, 'artifact_custody_result', { ...artifactResult, path: undefined }, false, 'reveal requires a path'),
+    target(ARTIFACT_ID, 'artifact_custody_result', { ...artifactResult, media_type: 'video/quicktime; codecs=vp09' }, false, 'custody media type and codec are exact'),
+    target(ARTIFACT_ID, 'artifact_snapshot', { ...artifact, identity: { ...artifactIdentity, media_type: 'video/quicktime' } }, false, 'snapshot media type requires the exact avc1 parameter'),
     target(
       ARTIFACT_ID,
       null,

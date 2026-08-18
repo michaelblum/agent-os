@@ -42,13 +42,17 @@ enum AOSOperationRecovery {
             for index in state.artifacts.indices {
                 let origin = state.artifacts[index].recoveryOriginState ?? state.artifacts[index].state
                 state.artifacts[index].recoveryOriginState = origin
-                switch origin {
+                if state.artifacts[index].release != nil {
+                    state.artifacts[index].recoveryOriginState = .offered
+                    state.artifacts[index].recoveryDisposition = .releaseVerification
+                } else { switch origin {
                 case .retained:
                     state.artifacts[index].recoveryDisposition = .retentionVerification
                 case .released:
                     state.artifacts[index].recoveryDisposition = .releaseVerification
                 default:
                     state.artifacts[index].recoveryDisposition = .removalVerification
+                }
                 }
                 state.artifacts[index].state = .cleanupRequired
             }
@@ -284,7 +288,7 @@ enum AOSOperationRecovery {
             "tap:\($0.identity.id):\($0.identity.generation)"
         }
         values += state.artifacts.filter {
-            [.cleanupRequired, .recovering, .removing, .transient, .published].contains($0.state)
+            [.cleanupRequired, .recovering, .removing, .transient, .offered].contains($0.state)
         }.map { "artifact:\($0.identity.id):\($0.identity.generation)" }
         values += state.resourceTransactions.filter { $0.state != .terminal }.map {
             "claim-set:\($0.transactionID)"

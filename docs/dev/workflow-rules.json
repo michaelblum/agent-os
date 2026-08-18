@@ -395,6 +395,36 @@
       "verification": []
     },
     {
+      "id": "screen-recording",
+      "summary": "Fixed video-only screen-recording producer, contract, custody, command, or proof changed.",
+      "patterns": [
+        "src/commands/record.swift",
+        "src/daemon/screen-recording-*.swift",
+        "shared/schemas/aos-screen-recording-v1.schema.json",
+        "manifests/commands/source/aos/42-screen-recording.json",
+        "manifests/commands/source/external/50-screen-recording.json",
+        "docs/dev/test-proof-registry.d/screen-recording.json",
+        "tests/schemas/aos-screen-recording-v1.test.mjs",
+        "tests/screen-recording-*.test.mjs",
+        "tests/native-screen-recording-contract.sh"
+      ],
+      "classes": ["operation_control", "native_capture", "schema", "command_contract"],
+      "actions": ["schema_test", "focused_test", "native_compile"],
+      "hot_swappable": false,
+      "tcc_identity_sensitive": true,
+      "commands": [
+        {
+          "id": "screen-recording-contract",
+          "command": "bash tests/native-screen-recording-contract.sh",
+          "reason": "Validate exact video-only bounds, fixed geometry, durable lifecycle, custody, source/help/schema convergence, and native compile without capture authority."
+        }
+      ],
+      "verification": [],
+      "notes": [
+        "Offline/fake/compile-only route. Do not run ./aos, the daemon, ScreenCaptureKit capture, AVAssetWriter output, TCC, build.sh, or permission prompts."
+      ]
+    },
+    {
       "id": "operation-control",
       "summary": "Sovereign operation schemas, owner identity, registry, resource claims, host barrier, registered adapters, native projections, CLI, or daemon integration changed.",
       "patterns": [

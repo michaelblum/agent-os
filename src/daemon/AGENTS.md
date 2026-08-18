@@ -161,6 +161,35 @@ compensation, and acknowledged retirement. `desktop-pixel-broker.swift`
 serializes that native acquisition across daemon consumers and owns warm-lease
 lifecycle. They return in-memory pixel frames only; encoding, cropping,
 redaction, persistence, and GPU delivery belong to downstream adapters.
+`screen-recording-operation-adapter.swift` is the sole current downstream
+recording producer. It acquires the exact exclusive operation resource and
+broker producer lease before ScreenCaptureKit/file authority, then records one
+fixed display, exact window, or single-display global region as H.264 QuickTime
+video. It retains and revalidates the exact admitted canonical topology before
+filter creation and every frame. Its closed track contract is video-only: system
+audio and microphone are false, and it never follows geometry after admission.
+Media duration spans capture-start through stop admission only, and nonzero
+frame/byte progress plus terminal progress persist durably. A finite startup
+deadline hands off the generation-bound native owner before any start request;
+callback loss, startup stop, or cancellation retains that owner until native
+retirement is proven. First-frame evidence remains active even if its delayed
+start callback fails, so exactly one stop must settle before authority release.
+Stop atomically closes frame admission, drains only
+already-admitted frames, and requires at least one frame plus a finalized,
+nonempty artifact before success. Stop, failure, and boot recovery must settle
+stream authority, drain or cancel the writer, release the broker and operation
+claim, and remove any unoffered file before terminalizing.
+Offered artifacts support owner- and generation-bound reveal, remove, and
+same-volume no-overwrite release; release persists the exact generation,
+source, destination, and phase before mutation and recovery resolves only to
+released, rolled back, or explicit residual truth. Release and remove admission
+CAS the same offered artifact; no generic transition may clear a live release.
+Retain is typed unavailable.
+Every artifact action is decoded against its action-specific exact key and type
+set before registry or custody effects. Offline schema, an executable compiled
+production-owner lifecycle/custody harness with fake dependencies, and native
+compile-only proof do not authorize live ScreenCaptureKit, TCC, daemon, file,
+status-item, MOV, or crash acceptance.
 Multi-display warm acquisition configures the
 complete stream set before starting every display concurrently; partial startup
 failure immediately requests aggregate retirement while retaining late

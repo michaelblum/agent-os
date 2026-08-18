@@ -2,9 +2,10 @@
 
 Program: `aos-sovereign-capability-substrate-v1`
 
-Status: Milestone 2 executable control-plane candidate and implementation-routing
-contract. Current source, command-source manifests, generated help, IPC schemas,
-API docs, Toolkit, tests, and runtime readback own executable truth; later M3-M10
+Status: Milestone 2 executable control plane plus bounded M3A fixed video-only
+recording candidate and implementation-routing contract. Current source,
+command-source manifests, generated help, IPC schemas, API docs, Toolkit, tests,
+and runtime readback own executable truth; unimplemented M3 remainder and M4-M10
 sections remain target design merely because they are specified here.
 
 Authority: ADR 0043 owns the target; accepted ADR 0044 amends its mechanical
@@ -29,8 +30,10 @@ shortcut.
 Milestone 2 implements the shared operation registry/control plane, exact owner
 root and same-UID host barrier, resource claims, durable recovery, daemon IPC and
 CLI, one microphone adapter, and internal status/Canvas projections. It adds no
-public SDK root, recording producer, managed Playwright grammar, or TCC policy
-change; those remain later milestones.
+public SDK root, managed Playwright grammar, or TCC policy change. M3A adds one
+fixed display/window/region H.264 QuickTime video-only recording producer and
+producer-backed reveal/remove/release custody. Audio tracks, followed geometry,
+and native-live acceptance remain later work.
 
 ## Contract owners
 
@@ -934,10 +937,11 @@ non-v2 source; neither may preserve or rewrap stale command objects. No dual
 reader or parallel aggregate exists.
 
 The operation schema owns the closed resource records; no ninth M2 schema is
-implied. M3 owner paths are the current desktop-pixel
-source and lifecycle plus proposed recording schema, adapter, encoder, geometry
-owner, AOS command source, external route, and generated aggregates/help. A
-Later-milestone `proposed` paths are not claimed to exist in current truth.
+implied. M3A owner paths are the current desktop-pixel source/lifecycle,
+recording schema, video-only adapter, encoder, fixed-geometry owner, AOS command
+source, external route, and generated aggregates/help. Remaining audio,
+followed-geometry, and native-live owners stay proposed. Later-milestone
+`proposed` paths are not claimed to exist in current truth.
 
 M2 has 23 exact proof refs: the five-lane schema/static/fake/native-compile/
 separately-authorized-native-live ladder plus focused owner-root, external-
@@ -946,12 +950,11 @@ and internal Toolkit runtime/model/component proofs, plus frozen-v0 and active-
 v1 manifest schema, generation, broad-dispatch, proof-index, workflow-router,
 and installed-projection proofs. The command-surface proof fragment owns the
 manifest schema/generation/dispatch group; the operation-control fragment owns
-only operation-binding proofs. M3 retains its five-lane
-ladder. Static proof binds schemas/source/manifests. Fake proof covers
-lifecycle, failure, control, custody, and recovery. Native compile proof
-acquires no live authority and is not TCC acceptance. Live scripts cover actual
-peer/signal/status/microphone or recording/TCC/artifact/crash behavior only
-after explicit owner authority.
+only operation-binding proofs. M3A uses static schema/source/manifest proof,
+fake video-only lifecycle/control/custody/failure proof, and native compile
+proof that acquires no live authority. The separately authorized native-live
+lane remains proposed and is not TCC, pixel, file, status, artifact, or crash
+acceptance until actually run.
 
 ### M1 protective static proof and portability boundary
 
@@ -961,8 +964,8 @@ hashes—enforce graph reachability, terminal sinks, cyclic quiescence, durable
 blocked recovery, exact outcome-transition resolution, milestone ref closure,
 exposure reachability, proof attribution, and current-path truth.
 
-The command snapshot contains exactly 101 functional binding occurrences and
-107 functional selector occurrences. A reverse-closure scan parses authored
+The command snapshot contains exactly 102 functional binding occurrences and
+108 functional selector occurrences. A reverse-closure scan parses authored
 AOS help and external route manifests, then requires the unique authored tuple
 set on every bound route to equal the disjoint union of functional selectors
 and six explicit fail-closed selectors. Prefix dispatch requires a literal
@@ -1102,10 +1105,11 @@ M2 starts offline and deterministic:
   atomically and that no target claim outruns current executable truth. M2
   claims no maintained public SDK or skill implementation.
 
-The M3 ladder adds static ScreenCaptureKit/AVAssetWriter/schema and generated-
-grammar binding, fake video/system-audio/microphone/encoder/geometry/custody/
-failure tests, native compile proof with no capture authority, and separately
-authorized live screen/audio/microphone/TCC/status/artifact/crash acceptance.
+The current M3A ladder adds static ScreenCaptureKit/AVAssetWriter/schema and
+generated-grammar binding, fake video-only encoder/fixed-geometry/custody/failure
+tests, and native compile proof with no capture authority. Later M3 proof adds
+audio-track and followed-geometry fakes plus separately authorized live
+screen/audio/microphone/TCC/status/artifact/crash acceptance.
 
 Live microphone, screen capture, browser, native UI, TCC, build, packaging, and
 installation proof remain separately gated by later owner authority.

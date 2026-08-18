@@ -754,6 +754,24 @@ else
     fail "dev audit missing --repo error mismatch: $ERR"
 fi
 
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files src/daemon/screen-recording-operation-adapter.swift shared/schemas/aos-screen-recording-v1.schema.json manifests/commands/source/aos/42-screen-recording.json tests/screen-recording-fake.test.mjs 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+assert "screen-recording" in summary["rule_ids"], data
+assert "unclassified" not in summary["rule_ids"], data
+commands = [item["command"] for item in data["next_commands"]]
+assert commands.count("bash tests/native-screen-recording-contract.sh") == 1, data
+assert all("manual" not in command and "--run" not in command for command in commands), data
+PY
+then
+    pass "dev recommend routes screen recording only to offline fake/schema/compile proof"
+else
+    fail "dev recommend screen-recording routing drifted"
+fi
+
 if [[ "${AOS_SKIP_LIVE_CLI_CHECKS:-0}" == "1" ]]; then
     pass "public CLI checks deferred by explicit static-only gate"
 else

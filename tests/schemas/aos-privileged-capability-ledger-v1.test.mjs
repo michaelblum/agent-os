@@ -87,6 +87,9 @@ const expectedMilestoneByCapability = {
   "undocumented-windowserver-routes": "unsupported"
 };
 const expectedCliFormIds = {
+  "screencapturekit-screen-video": [
+    "record-screen"
+  ],
   "ax-element-observation": [
     "see-capture",
     "see-observe",
@@ -224,6 +227,26 @@ const expectedCliFormIds = {
   ]
 };
 const expectedCliBindingsByCapability = {
+  "screencapturekit-screen-video": [
+    {
+      "form_id": "record-screen",
+      "help_source": "manifests/commands/source/aos/42-screen-recording.json",
+      "route_path": "record",
+      "route_source": "manifests/commands/source/external/50-screen-recording.json",
+      "route_selectors": [
+        {
+          "path": [
+            "record"
+          ],
+          "when": null,
+          "executable": "$AOS_PATH",
+          "argv_prefix": [
+            "__record"
+          ]
+        }
+      ]
+    }
+  ],
   "ax-element-observation": [
     {
       "form_id": "see-capture",
@@ -4529,12 +4552,19 @@ const expectedSourceDisposition = {
     ]
   },
   "avassetwriter-custom-multitrack": {
-    "disposition": "named_negative",
-    "source_probes": [],
-    "named_absent_symbols": [
-      "AVAssetWriter",
-      "AVAssetWriterInput"
-    ]
+    "disposition": "positive",
+    "source_probes": [
+      {
+        "path": "src/daemon/screen-recording-encoder.swift",
+        "classification": "production_source",
+        "markers": [
+          "AVAssetWriter(outputURL:",
+          "mediaType: .video",
+          "AVVideoCodecType.h264"
+        ]
+      }
+    ],
+    "named_absent_symbols": []
   },
   "microphone-capture-adapter": {
     "disposition": "positive",
@@ -7691,7 +7721,7 @@ export async function validateCliReverseClosure(ledger) {
   if ([...union].some((key) => !authored.has(key)) || [...authored].some((key) => !union.has(key))) {
     errors.push(semanticError('CLI_REVERSE_CLOSURE_MISMATCH', 'authored-bound-paths'));
   }
-  if (bindingOccurrences !== 101 || selectorOccurrences !== 107 || failClosed.size !== 6) {
+  if (bindingOccurrences !== 102 || selectorOccurrences !== 108 || failClosed.size !== 6) {
     errors.push(semanticError('CLI_OCCURRENCE_COUNT_INVALID', [bindingOccurrences, selectorOccurrences, failClosed.size].join(':')));
   }
   return errors;
@@ -8691,8 +8721,8 @@ test('flagship exact transition emissions cover failures, cleanup, and atomic fo
 test('authored CLI route tuples reverse-close functional and fail-closed selectors', async () => {
   const ledger = await json(ledgerRelativePath);
   expectNoErrors(await validateCliReverseClosure(ledger));
-  assert.equal(ledger.capabilities.flatMap((row) => row.current.exposure.cli.bindings).length, 101);
-  assert.equal(ledger.capabilities.flatMap((row) => row.current.exposure.cli.bindings.flatMap((binding) => binding.route_selectors)).length, 107);
+  assert.equal(ledger.capabilities.flatMap((row) => row.current.exposure.cli.bindings).length, 102);
+  assert.equal(ledger.capabilities.flatMap((row) => row.current.exposure.cli.bindings.flatMap((binding) => binding.route_selectors)).length, 108);
   assert.equal(ledger.coverage.fail_closed_cli_routes.length, 6);
 });
 
@@ -8898,25 +8928,32 @@ test('all tracked paths classify and named-family production/privilege scans are
   }
 });
 
-test('screen video proof owns output, audio-off, latest-frame, and public recording absence', async () => {
+test('screen video proof owns fixed video output, audio-off, custody, and public reachability', async () => {
   const rows = byId(await json(ledgerRelativePath));
   const row = rows.get('screencapturekit-screen-video');
-  const source = await read('src/daemon/desktop-pixel-native.swift');
-  const start = source.indexOf('private final class AOSDesktopPixelStreamOutput');
-  const end = source.indexOf('final class AOSNativeDesktopPixelAcquirer', start);
-  assert.ok(start >= 0 && end > start);
-  const owner = source.slice(start, end);
-  assert.match(owner, /configuration\.capturesAudio\s*=\s*false/u);
-  assert.match(owner, /addStreamOutput\(\s*output,\s*type:\s*\.screen,/su);
-  assert.match(owner, /private var latestSample: AOSDesktopPixelLatestSample\?/u);
-  assert.match(owner, /CMSampleBufferIsValid\(sampleBuffer\)/u);
-  assert.doesNotMatch(owner, /configuration\.capturesAudio\s*=\s*true/u);
-  assert.doesNotMatch(owner, /addStreamOutput\([^)]*type:\s*\.audio/su);
-  assert.deepEqual(row.current.observation.roots, ['internally selected display set']);
-  assert.deepEqual(row.current.observation.targets, ['latest valid ScreenCaptureKit screen sample per selected display']);
-  assert.deepEqual(row.current.data_transport.transports, ['private in-process CMSampleBuffer latest-frame handoff']);
-  assert.equal(row.current.exposure.cli.state, 'absent');
-  assert.equal(row.current.exposure.ipc.state, 'absent');
+  const [pixelSource, adapter, encoder] = await Promise.all([
+    read('src/daemon/desktop-pixel-native.swift'),
+    read('src/daemon/screen-recording-operation-adapter.swift'),
+    read('src/daemon/screen-recording-encoder.swift'),
+  ]);
+  assert.match(pixelSource, /configuration\.capturesAudio\s*=\s*false/u);
+  assert.match(adapter, /configuration\.capturesAudio\s*=\s*false/u);
+  assert.match(adapter, /addStreamOutput\(\s*output,\s*type:\s*\.screen,/su);
+  assert.doesNotMatch(adapter, /configuration\.capturesAudio\s*=\s*true/u);
+  assert.doesNotMatch(adapter, /addStreamOutput\([^)]*type:\s*\.audio/su);
+  assert.match(encoder, /AVVideoCodecKey:\s*AVVideoCodecType\.h264/u);
+  assert.deepEqual(row.current.observation.roots, ['one canonical display-topology observation']);
+  assert.deepEqual(row.current.observation.targets, ['one fixed display, exact window, or global region wholly within one display']);
+  assert.deepEqual(row.current.data_transport.transports, [
+    'private in-process CMSampleBuffer delivery',
+    'transient H.264 QuickTime artifact',
+  ]);
+  assert.equal(row.current.exposure.cli.state, 'complete');
+  assert.equal(row.current.exposure.ipc.state, 'complete');
+  assert.equal(row.current.control.artifacts.state, 'partial');
+  assert.match(row.current.proof.limitations, /compiled production-owner seam harness/u);
+  assert.match(row.current.proof.limitations, /AVAssetWriter and ScreenCaptureKit do not execute/u);
+  assert.match(row.current.proof.limitations, /no live pixels, MOV acceptance, file custody effects, permission behavior, daemon restart, or crash acceptance/u);
 });
 
 test('canvas action bus proves exact seven source labels without executing app quit', async () => {
@@ -8943,7 +8980,7 @@ test('design and proof routing state the normalized static boundary', async () =
   ]);
   assert.match(
     design,
-    /Milestone 2 executable control-plane candidate.+later M3-M10\s+sections remain target design merely because they are specified here/isu,
+    /Milestone 2 executable control plane plus bounded M3A fixed video-only.+unimplemented M3 remainder and M4-M10\s+sections remain target design merely because they are specified here/isu,
   );
   assert.match(design, /TRANSITION_EVENT_DUPLICATE/u);
   assert.match(design, /exact transition tuple/u);
@@ -8984,7 +9021,8 @@ test('design and proof routing state the normalized static boundary', async () =
   assert.match(entry.contract, /canonical proof-index and workflow reachability/u);
   assert.match(entry.contract, /fifteen-form generation-bound operation\/tap\/artifact\/barrier grammar/u);
   assert.match(entry.contract, /41-operation\.json and 49-operation\.json/u);
-  assert.match(entry.contract, /101 functional bindings and 107 functional selectors/u);
+  assert.match(entry.contract, /102 functional bindings and 108 functional selectors/u);
+  assert.match(entry.contract, /fixed video-only screen recording/u);
   assert.match(entry.contract, /six fail-closed selectors/u);
   assert.match(entry.contract, /tracked regular-file production sources/u);
   assert.match(entry.contract, /reviewed SDK snapshot/u);
@@ -9062,6 +9100,6 @@ test('paired authority, executable M2 bindings, and the remaining M6 decision ar
   assert.equal(ledger.later_open_decisions[0].milestone, 'M6');
   assert.match(
     ledger.authority.publication_boundary,
-    /Milestone 2 publishes the executable daemon IPC and CLI control plane/u,
+    /Milestone 2 publishes the executable operation plane and microphone adapter.+bounded M3A slice adds one fixed display\/window\/region H\.264 QuickTime video-only producer/isu,
   );
 });

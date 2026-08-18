@@ -1,6 +1,10 @@
 import Foundation
 import ScreenCaptureKit
 
+enum AOSDesktopPixelStreamLifecycleFailure: Error, Equatable {
+    case startupDeadlineExceeded
+}
+
 func aosDesktopPixelStopErrorConfirmsRetirement(_ error: Error) -> Bool {
     let native = error as NSError
     guard native.domain == SCStreamErrorDomain else { return false }
@@ -41,6 +45,109 @@ func aosDesktopPixelStreamsAreReady(
         if try !lifecycle.sampleIsReady() { allReady = false }
     }
     return allReady
+}
+
+final class AOSDesktopPixelFrameAdmissionGate: @unchecked Sendable {
+    final class Token: @unchecked Sendable {
+        private var completed = false
+        private let lock = NSLock()
+        private weak var owner: AOSDesktopPixelFrameAdmissionGate?
+
+        fileprivate init(owner: AOSDesktopPixelFrameAdmissionGate) {
+            self.owner = owner
+        }
+
+        func complete() {
+            lock.lock()
+            guard !completed else {
+                lock.unlock()
+                return
+            }
+            completed = true
+            let owner = self.owner
+            self.owner = nil
+            lock.unlock()
+            owner?.completeAdmission()
+        }
+
+        deinit { complete() }
+    }
+
+    private var accepting = true
+    private var inFlight = 0
+    private let lock = NSLock()
+    private var waiters: [UUID: AOSDesktopPixelRetirementDecision] = [:]
+
+    func admit() -> Token? {
+        lock.lock()
+        guard accepting else {
+            lock.unlock()
+            return nil
+        }
+        inFlight += 1
+        lock.unlock()
+        return Token(owner: self)
+    }
+
+    @discardableResult
+    func close() -> Int {
+        lock.lock()
+        accepting = false
+        let pendingCount = inFlight
+        let settled = pendingCount == 0 ? Array(waiters.values) : []
+        if pendingCount == 0 { waiters.removeAll() }
+        lock.unlock()
+        settled.forEach { $0.resolve(true) }
+        return pendingCount
+    }
+
+    func waitForDrain(timeout: TimeInterval) async -> Bool {
+        let id = UUID()
+        let waiter = AOSDesktopPixelRetirementDecision()
+        if drainCompleteOrRegister(id: id, waiter: waiter) { return true }
+        DispatchQueue.global(qos: .utility).asyncAfter(
+            deadline: .now() + max(0.01, min(timeout, 5))
+        ) { [weak self] in
+            self?.settleWaiter(id: id, result: false)
+        }
+        return await waiter.value()
+    }
+
+    private func drainCompleteOrRegister(
+        id: UUID,
+        waiter: AOSDesktopPixelRetirementDecision
+    ) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if !accepting, inFlight == 0 {
+            return true
+        }
+        waiters[id] = waiter
+        return false
+    }
+
+    var isOpen: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return accepting
+    }
+
+    private func completeAdmission() {
+        lock.lock()
+        precondition(inFlight > 0)
+        inFlight -= 1
+        let settled = !accepting && inFlight == 0 ? Array(waiters.values) : []
+        if !settled.isEmpty { waiters.removeAll() }
+        lock.unlock()
+        settled.forEach { $0.resolve(true) }
+    }
+
+    private func settleWaiter(id: UUID, result: Bool) {
+        lock.lock()
+        let waiter = waiters.removeValue(forKey: id)
+        lock.unlock()
+        waiter?.resolve(result)
+    }
 }
 
 final class AOSDesktopPixelStartupDecision: @unchecked Sendable {
@@ -85,6 +192,10 @@ final class AOSDesktopPixelStartupDecision: @unchecked Sendable {
 
     func cancel() {
         settle(.failure(CancellationError()))
+    }
+
+    func deadlineExpired() {
+        settle(.failure(AOSDesktopPixelStreamLifecycleFailure.startupDeadlineExceeded))
     }
 
     func value() async throws {
@@ -307,6 +418,12 @@ final class AOSDesktopPixelStartupCancellation: @unchecked Sendable {
         action = nil
         lock.unlock()
     }
+
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return canceled
+    }
 }
 
 final class AOSDesktopPixelWarmOpenOperation: AOSDesktopFrameCancelling,
@@ -422,9 +539,9 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
     }
 
     private enum StartState {
-        case failed
+        case inactiveFailure
         case pending
-        case succeeded
+        case activeEvidence
     }
 
     private let lifecycle: AOSDesktopPixelStreamLifecycle
@@ -435,7 +552,6 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
     private let signal: AOSDesktopPixelStartupSignal
     private let start: AOSDesktopPixelNativeOperation
     private var startState: StartState = .pending
-    private var startupWasPublished = false
     private let stop: AOSDesktopPixelNativeOperation
     private var stopAttempt: AOSDesktopPixelStopAttempt?
     private var stopInFlight = false
@@ -495,24 +611,25 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
     private func startupEvidenceCompleted(_ result: Result<Void, Error>) {
         guard result.isSuccess else { return }
         lock.lock()
-        startupWasPublished = true
+        if startState == .pending { startState = .activeEvidence }
         lock.unlock()
     }
 
     private func nativeStartSettled(_ result: Result<Void, Error>) {
         lock.lock()
-        guard startState != .failed else {
-            lock.unlock()
-            return
+        switch result {
+        case .success:
+            if startState == .pending { startState = .activeEvidence }
+        case .failure:
+            if startState == .pending { startState = .inactiveFailure }
         }
-        startState = result.isSuccess ? .succeeded : .failed
         lock.unlock()
         retireIfNeeded()
     }
 
     private func startupFailed(_ error: Error) {
         lock.lock()
-        let isLate = startupWasPublished
+        let isLate = startState == .activeEvidence
             && !retirementRequested
             && !retired
         lock.unlock()
@@ -536,10 +653,10 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
             } else {
                 action = .none
             }
-        case .failed:
+        case .inactiveFailure:
             retired = true
             action = .confirmInactive
-        case .succeeded:
+        case .activeEvidence:
             if nativeAlreadyRetired {
                 retired = true
                 action = .confirmInactive
@@ -659,12 +776,21 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
 
 final class AOSDesktopPixelStartupOwner: @unchecked Sendable {
     private var coordinators: [AOSDesktopPixelStartupStreamCoordinator]
+    let generation: UInt64
     private let lock = NSLock()
 
     fileprivate init(
+        generation: UInt64,
         coordinators: [AOSDesktopPixelStartupStreamCoordinator]
     ) {
+        self.generation = generation
         self.coordinators = coordinators
+    }
+
+    var retainsAuthority: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return !coordinators.isEmpty
     }
 
     func release() {
@@ -760,6 +886,8 @@ func aosStartDesktopPixelStreams(
     signals: [AOSDesktopPixelStartupSignal],
     lifecycles: [AOSDesktopPixelStreamLifecycle],
     settlementTimeout: TimeInterval,
+    ownerGeneration: UInt64 = 1,
+    ownerReady: @escaping @Sendable (AOSDesktopPixelStartupOwner) -> Void = { _ in },
     cancellation: AOSDesktopPixelStartupCancellation? = nil,
     lateFailure: @escaping @Sendable (Error) -> Void = { _ in },
     start: @escaping @Sendable (
@@ -773,7 +901,8 @@ func aosStartDesktopPixelStreams(
 ) async throws -> AOSDesktopPixelStartupOwner {
     guard !lifecycles.isEmpty,
           signals.count == lifecycles.count,
-          settlementTimeout > 0 else {
+          settlementTimeout > 0,
+          ownerGeneration > 0 else {
         throw AOSDesktopFrameCaptureFailure.captureFailed
     }
     let count = lifecycles.count
@@ -797,11 +926,21 @@ func aosStartDesktopPixelStreams(
         )
     }
     lateFailureOwner.install(coordinators)
+    let owner = AOSDesktopPixelStartupOwner(
+        generation: ownerGeneration,
+        coordinators: coordinators
+    )
+    ownerReady(owner)
     coordinators.forEach { coordinator in
         coordinator.begin { completion in
             decision.complete(completion)
             startupSettlement.complete(success: true)
         }
+    }
+    DispatchQueue.global(qos: .utility).asyncAfter(
+        deadline: .now() + max(0.01, min(settlementTimeout, 5))
+    ) {
+        decision.deadlineExpired()
     }
     do {
         try await withTaskCancellationHandler {
@@ -831,7 +970,7 @@ func aosStartDesktopPixelStreams(
         }
         throw error
     }
-    return AOSDesktopPixelStartupOwner(coordinators: coordinators)
+    return owner
 }
 
 func aosSettleDesktopPixelStreamRetirement(

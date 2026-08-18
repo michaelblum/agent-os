@@ -13981,7 +13981,7 @@
       "path" : [
         "operation"
       ],
-      "summary" : "Inspect and control authenticated AOS operations; report unavailable tap and artifact-custody adapters exactly",
+      "summary" : "Inspect and control authenticated AOS operations; use producer-backed recording artifact reveal, remove, and release; report tap and retain unavailable exactly",
       "forms" : [
         {
           "id" : "operation-list",
@@ -14517,8 +14517,23 @@
         },
         {
           "id" : "operation-artifact-reveal",
-          "usage" : "aos operation artifact reveal --json",
+          "usage" : "aos operation artifact reveal <artifact-id> --generation <n> --json",
           "args" : [
+            {
+              "id" : "artifact-id",
+              "kind" : "positional",
+              "required" : true,
+              "value_type" : "string",
+              "summary" : "Exact artifact id"
+            },
+            {
+              "id" : "generation",
+              "kind" : "flag",
+              "token" : "--generation",
+              "required" : true,
+              "value_type" : "integer",
+              "summary" : "Exact artifact generation"
+            },
             {
               "id" : "json",
               "kind" : "flag",
@@ -14529,7 +14544,7 @@
             }
           ],
           "examples" : [
-            "aos operation artifact reveal --json"
+            "aos operation artifact reveal 22222222-2222-4222-8222-222222222222 --generation 9 --json"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -14549,8 +14564,23 @@
         },
         {
           "id" : "operation-artifact-remove",
-          "usage" : "aos operation artifact remove --json",
+          "usage" : "aos operation artifact remove <artifact-id> --generation <n> --json",
           "args" : [
+            {
+              "id" : "artifact-id",
+              "kind" : "positional",
+              "required" : true,
+              "value_type" : "string",
+              "summary" : "Exact artifact id"
+            },
+            {
+              "id" : "generation",
+              "kind" : "flag",
+              "token" : "--generation",
+              "required" : true,
+              "value_type" : "integer",
+              "summary" : "Exact artifact generation"
+            },
             {
               "id" : "json",
               "kind" : "flag",
@@ -14561,13 +14591,13 @@
             }
           ],
           "examples" : [
-            "aos operation artifact remove --json"
+            "aos operation artifact remove 22222222-2222-4222-8222-222222222222 --generation 9 --json"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
             "interactive" : false,
-            "mutates_state" : false,
-            "read_only" : true,
+            "mutates_state" : true,
+            "read_only" : false,
             "requires_permissions" : false,
             "streaming" : false,
             "supports_dry_run" : false
@@ -14581,8 +14611,31 @@
         },
         {
           "id" : "operation-artifact-release",
-          "usage" : "aos operation artifact release --json",
+          "usage" : "aos operation artifact release <artifact-id> --generation <n> --to <absolute-path> --json",
           "args" : [
+            {
+              "id" : "artifact-id",
+              "kind" : "positional",
+              "required" : true,
+              "value_type" : "string",
+              "summary" : "Exact artifact id"
+            },
+            {
+              "id" : "generation",
+              "kind" : "flag",
+              "token" : "--generation",
+              "required" : true,
+              "value_type" : "integer",
+              "summary" : "Exact artifact generation"
+            },
+            {
+              "id" : "to",
+              "kind" : "flag",
+              "token" : "--to",
+              "required" : true,
+              "value_type" : "path",
+              "summary" : "Absent destination path on the artifact volume"
+            },
             {
               "id" : "json",
               "kind" : "flag",
@@ -14593,13 +14646,13 @@
             }
           ],
           "examples" : [
-            "aos operation artifact release --json"
+            "aos operation artifact release 22222222-2222-4222-8222-222222222222 --generation 9 --to /tmp/recording.mov --json"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
             "interactive" : false,
-            "mutates_state" : false,
-            "read_only" : true,
+            "mutates_state" : true,
+            "read_only" : false,
             "requires_permissions" : false,
             "streaming" : false,
             "supports_dry_run" : false
@@ -14613,8 +14666,23 @@
         },
         {
           "id" : "operation-artifact-retain",
-          "usage" : "aos operation artifact retain --json",
+          "usage" : "aos operation artifact retain <artifact-id> --generation <n> --json",
           "args" : [
+            {
+              "id" : "artifact-id",
+              "kind" : "positional",
+              "required" : true,
+              "value_type" : "string",
+              "summary" : "Exact artifact id"
+            },
+            {
+              "id" : "generation",
+              "kind" : "flag",
+              "token" : "--generation",
+              "required" : true,
+              "value_type" : "integer",
+              "summary" : "Exact artifact generation"
+            },
             {
               "id" : "json",
               "kind" : "flag",
@@ -14625,7 +14693,7 @@
             }
           ],
           "examples" : [
-            "aos operation artifact retain --json"
+            "aos operation artifact retain 22222222-2222-4222-8222-222222222222 --generation 9 --json"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -14745,6 +14813,119 @@
             "mutates_state" : true,
             "read_only" : false,
             "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          }
+        }
+      ]
+    },
+    {
+      "path" : [
+        "record"
+      ],
+      "summary" : "Create bounded file-producing recordings.",
+      "forms" : [
+        {
+          "id" : "record-screen",
+          "usage" : "aos record screen [--display <main|external|ordinal>] [--window-id <id> | --region <x,y,width,height>] --duration-ms <1...300000> [--frame-rate <1...60>] [--max-pixel-count <4...33177600>] [--max-queue-frames <1...8>] [--max-output-bytes <1024...1073741824>] --json",
+          "args" : [
+            {
+              "id" : "screen",
+              "kind" : "positional",
+              "required" : true,
+              "value_type" : "literal",
+              "literal" : "screen",
+              "summary" : "Record one fixed screen-video target"
+            },
+            {
+              "id" : "display",
+              "kind" : "flag",
+              "token" : "--display",
+              "required" : false,
+              "value_type" : "string",
+              "summary" : "Exact main, external, or display ordinal; defaults to main"
+            },
+            {
+              "id" : "window-id",
+              "kind" : "flag",
+              "token" : "--window-id",
+              "required" : false,
+              "value_type" : "integer",
+              "summary" : "Exact current native window id"
+            },
+            {
+              "id" : "region",
+              "kind" : "flag",
+              "token" : "--region",
+              "required" : false,
+              "value_type" : "string",
+              "summary" : "Global x,y,width,height wholly within the selected display"
+            },
+            {
+              "id" : "duration-ms",
+              "kind" : "flag",
+              "token" : "--duration-ms",
+              "required" : true,
+              "value_type" : "integer",
+              "summary" : "Hard duration bound: 1 through 300000 milliseconds"
+            },
+            {
+              "id" : "frame-rate",
+              "kind" : "flag",
+              "token" : "--frame-rate",
+              "required" : false,
+              "value_type" : "integer",
+              "summary" : "Hard frame-rate bound: 1 through 60; default 30"
+            },
+            {
+              "id" : "max-pixel-count",
+              "kind" : "flag",
+              "token" : "--max-pixel-count",
+              "required" : false,
+              "value_type" : "integer",
+              "summary" : "Hard output pixel bound: 4 through 33177600; default 33177600"
+            },
+            {
+              "id" : "max-queue-frames",
+              "kind" : "flag",
+              "token" : "--max-queue-frames",
+              "required" : false,
+              "value_type" : "integer",
+              "summary" : "Hard native queue bound: 1 through 8; default 3"
+            },
+            {
+              "id" : "max-output-bytes",
+              "kind" : "flag",
+              "token" : "--max-output-bytes",
+              "required" : false,
+              "value_type" : "integer",
+              "summary" : "Hard file-size bound: 1024 through 1073741824 bytes; default 268435456"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "required" : true,
+              "value_type" : "bool",
+              "summary" : "Emit machine-readable admission"
+            }
+          ],
+          "examples" : [
+            "aos record screen --display main --duration-ms 10000 --json",
+            "aos record screen --display 1 --region 0,0,1280,720 --duration-ms 5000 --frame-rate 30 --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : true,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
             "streaming" : false,
             "supports_dry_run" : false
           },
