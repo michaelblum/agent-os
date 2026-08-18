@@ -12,6 +12,8 @@ import {
   assertContentFreeSummary,
   assertPreflight,
   assertTapUnavailable,
+  captureEndedBeforeStartError,
+  commandErrorClassification,
   commandErrorCode,
   envelopeData,
   makeSummary,
@@ -103,6 +105,7 @@ test('manual operation-control proof self-test is offline and content-free', asy
   assert.equal(summary.status, 'passed')
   assert.equal(summary.execution_mode, 'offline_self_test')
   assert.equal(summary.schema_version, 'aos.operation-control-native-proof.v1')
+  assert.equal(summary.before_capture_failure, null)
   assert.deepEqual(summary.offline_checks, {
     live_evidence_unset: true,
     runtime_command_count: 0,
@@ -202,7 +205,18 @@ test('summary and operation envelopes reject sensitive or ambiguous material', (
 
   const sensitiveValue = structuredClone(summary)
   sensitiveValue.failure_code = '/private/tmp/proof.wav'
-  assert.throws(() => assertContentFreeSummary(sensitiveValue), /SUMMARY_SENSITIVE_VALUE/u)
+  assert.throws(() => assertContentFreeSummary(sensitiveValue), /SUMMARY_FAILURE_CLASSIFICATION_INVALID/u)
+
+  const unreviewedFailureReason = structuredClone(summary)
+  unreviewedFailureReason.failure_code = 'OPERATION_RECORD_INVALID'
+  unreviewedFailureReason.before_capture_failure = {
+    code: 'OPERATION_RECORD_INVALID',
+    reason: '/private/tmp/proof.wav',
+  }
+  assert.throws(
+    () => assertContentFreeSummary(unreviewedFailureReason),
+    /SUMMARY_FAILURE_CLASSIFICATION_INVALID/u,
+  )
 
   const widenedClaim = structuredClone(summary)
   widenedClaim.excluded_claims.status_canvas_tested = true
@@ -218,6 +232,75 @@ test('summary and operation envelopes reject sensitive or ambiguous material', (
     stderr: '{\n  "code" : "OPERATION_BARRIER_CLOSED",\n  "error" : "closed"\n}\n',
   }), 'OPERATION_BARRIER_CLOSED')
   assert.equal(commandErrorCode({ stdout: 'timeout', stderr: '' }), null)
+
+  assert.deepEqual(commandErrorClassification({
+    stdout: '',
+    stderr: JSON.stringify({
+      error: 'OPERATION_RECORD_INVALID:external_spawn_intent',
+      code: 'OPERATION_RECORD_INVALID',
+      reason: 'external_spawn_intent',
+      details: { path: '/private/tmp/private.wav', identity: 'private-identity' },
+    }),
+  }), { code: 'OPERATION_RECORD_INVALID', reason: 'external_spawn_intent' })
+  assert.deepEqual(commandErrorClassification({
+    stdout: '',
+    stderr: JSON.stringify({
+      error: 'OPERATION_RECORD_INVALID:/private/tmp/private.wav',
+      code: 'OPERATION_RECORD_INVALID',
+      reason: '/private/tmp/private.wav',
+    }),
+  }), { code: 'OPERATION_RECORD_INVALID', reason: null })
+  assert.equal(commandErrorClassification({
+    stdout: '',
+    stderr: JSON.stringify({
+      error: 'private daemon text',
+      code: 'OPERATION_PRIVATE_IDENTITY_123',
+    }),
+  }), null)
+
+  for (const code of [
+    'EXTERNAL_SPAWN_INTENT_NO_RESPONSE',
+    'EXTERNAL_SPAWN_INTENT_DAEMON_ERROR',
+    'OPERATION_BARRIER_CLOSED',
+    'OPERATION_RESOURCE_BUSY',
+    'OPERATION_CALLER_NOT_AUTHENTICATED',
+  ]) {
+    const failure = captureEndedBeforeStartError({
+      stdout: '',
+      stderr: JSON.stringify({ error: 'fixed child error', code }),
+    })
+    assert.equal(failure.code, code)
+    assert.equal(failure.message, code)
+    assert.deepEqual(failure.beforeCaptureFailure, { code, reason: null })
+  }
+  const unclassifiedChild = captureEndedBeforeStartError({
+    stdout: '',
+    stderr: JSON.stringify({ error: '/private/tmp/private.wav', code: 'OPERATION_PRIVATE_IDENTITY_123' }),
+  })
+  assert.equal(unclassifiedChild.code, 'CAPTURE_ENDED_BEFORE_START')
+  assert.deepEqual(unclassifiedChild.beforeCaptureFailure, {
+    code: 'CAPTURE_ENDED_BEFORE_START',
+    reason: null,
+  })
+
+  const retainedChild = captureEndedBeforeStartError({
+    stdout: '',
+    stderr: JSON.stringify({
+      error: 'OPERATION_RECORD_INVALID:external_spawn_intent',
+      code: 'OPERATION_RECORD_INVALID',
+      reason: 'external_spawn_intent',
+      details: { path: '/private/tmp/private.wav' },
+    }),
+  })
+  const retainedSummary = makeSummary('0'.repeat(40))
+  retainedSummary.failure_code = retainedChild.code
+  retainedSummary.before_capture_failure = retainedChild.beforeCaptureFailure
+  assert.deepEqual(retainedSummary.before_capture_failure, {
+    code: 'OPERATION_RECORD_INVALID',
+    reason: 'external_spawn_intent',
+  })
+  assertContentFreeSummary(retainedSummary)
+  assert.equal(JSON.stringify(retainedSummary).includes('/private/tmp/private.wav'), false)
 
   const failed = makeSummary('0'.repeat(40))
   assert.equal(failed.status, 'failed')
@@ -510,6 +593,9 @@ test('live entrypoint retains explicit gates, bounded commands, exact effects, a
   assert.match(driver, /packet\.supervisor_pid === process\.ppid/u)
   assert.match(driver, /observeProcessGeneration\(process\.ppid\)/u)
   assert.match(driver, /terminationMode: 'term_then_kill'/u)
+  assert.match(driver, /captureEndedBeforeStartError\(\{ stdout: '', stderr \}\)/u)
+  assert.match(driver, /summary\.failure_code = failure\.code/u)
+  assert.match(driver, /summary\.before_capture_failure = proofError\?\.beforeCaptureFailure \?\? null/u)
   assert.match(driver, /assertBarrierUnchanged\(preflight\.barrier, finalPreflight\.barrier\)/u)
   assert.match(driver, /assertTapUnavailable\(tap, firstInspect, afterTap\)/u)
   assert.doesNotMatch(driver, /--channel|--sample-every|--max-queue-items|terminalTap/u)

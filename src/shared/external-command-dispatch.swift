@@ -857,6 +857,68 @@ private func staticTrustedNodeCodeSigningEvidence(
     )
 }
 
+private struct ExternalSpawnIntentFailureClassification: Equatable {
+    let code: String
+    let reason: String?
+
+    static let safeDaemonCodes: Set<String> = [
+        "OPERATION_ADAPTER_REGISTRY_CONFLICT",
+        "OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE",
+        "OPERATION_BARRIER_CLOSED",
+        "OPERATION_BARRIER_GENERATION_CONFLICT",
+        "OPERATION_BARRIER_NOT_CLOSED",
+        "OPERATION_CALLER_NOT_AUTHENTICATED",
+        "OPERATION_CONTROL_ORIGIN_UNSUPPORTED",
+        "OPERATION_GENERATION_CONFLICT",
+        "OPERATION_IDEMPOTENCY_CONFLICT",
+        "OPERATION_NOT_FOUND",
+        "OPERATION_OWNER_MISMATCH",
+        "OPERATION_RECONCILIATION_INCOMPLETE",
+        "OPERATION_RECORD_INVALID",
+        "OPERATION_RECOVERY_CLAIM_STALE",
+        "OPERATION_RESIDUALS_PRESENT",
+        "OPERATION_RESOURCE_BUSY",
+        "OPERATION_RESOURCE_CAS_CONFLICT",
+        "OPERATION_RESOURCE_DECLARATION_CONFLICT",
+        "OPERATION_RESOURCE_FANOUT_EXHAUSTED",
+        "OPERATION_SPAWN_RECORD_CAPACITY",
+        "OPERATION_STORE_CORRUPT",
+        "OPERATION_STORE_LOCKED",
+        "OPERATION_STORE_UNAVAILABLE",
+        "OPERATION_TAP_UNAVAILABLE",
+        "OPERATION_TRANSITION_INVALID",
+    ]
+
+    static let noResponse = ExternalSpawnIntentFailureClassification(
+        code: "EXTERNAL_SPAWN_INTENT_NO_RESPONSE",
+        reason: nil
+    )
+}
+
+private func externalSpawnIntentDaemonFailureClassification(
+    _ response: [String: Any]
+) -> ExternalSpawnIntentFailureClassification? {
+    guard response["error"] != nil else { return nil }
+    let safeCode = (response["code"] as? String).flatMap {
+        ExternalSpawnIntentFailureClassification.safeDaemonCodes.contains($0) ? $0 : nil
+    } ?? "EXTERNAL_SPAWN_INTENT_DAEMON_ERROR"
+    let reason = safeCode == "OPERATION_RECORD_INVALID"
+        && (response["error"] as? String) == "OPERATION_RECORD_INVALID:external_spawn_intent"
+        ? "external_spawn_intent"
+        : nil
+    return ExternalSpawnIntentFailureClassification(code: safeCode, reason: reason)
+}
+
+private func exitExternalSpawnIntentFailure(
+    _ failure: ExternalSpawnIntentFailureClassification
+) -> Never {
+    let message = failure.code == ExternalSpawnIntentFailureClassification.noResponse.code
+        ? "The external-spawn intent response was unavailable."
+        : "The external-spawn intent was rejected."
+    let details: [String: Any] = failure.reason.map { ["reason": $0] } ?? [:]
+    exitError(message, code: failure.code, details: details)
+}
+
 private func prepareExternalSpawnIntent(
     registration: ExternalCommandSpawnRegistration,
     executable: ExternalExecutableEvidence,
@@ -902,19 +964,10 @@ private func prepareExternalSpawnIntent(
         ],
     ]
     guard let response = session.sendAndReceive(request) else {
-        exitError(
-            "The external-spawn intent response was unavailable.",
-            code: "EXTERNAL_SPAWN_INTENT_FAILED"
-        )
+        exitExternalSpawnIntentFailure(.noResponse)
     }
-    if response["error"] != nil {
-        let reviewedCode = (response["code"] as? String).flatMap {
-            ["OPERATION_BARRIER_CLOSED", "OPERATION_RESOURCE_BUSY"].contains($0) ? $0 : nil
-        } ?? "EXTERNAL_SPAWN_INTENT_FAILED"
-        exitError(
-            "The external-spawn intent was rejected.",
-            code: reviewedCode
-        )
+    if let failure = externalSpawnIntentDaemonFailureClassification(response) {
+        exitExternalSpawnIntentFailure(failure)
     }
     guard let closedResponse = externalManifestObject(
             response,

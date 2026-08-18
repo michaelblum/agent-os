@@ -14,6 +14,7 @@ import {
   assertPreflight,
   assertTapUnavailable,
   assertTerminalOperation,
+  captureEndedBeforeStartError,
   commandErrorCode,
   envelopeData,
   makeSummary,
@@ -588,7 +589,7 @@ function startCapture(options, label) {
   child.once('close', (code, signal) => {
     activeProcesses.delete(child)
     if (stdoutBuffer.trim()) consumeLine(stdoutBuffer)
-    startedReject(new OperationNativeProofError('CAPTURE_ENDED_BEFORE_START'))
+    startedReject(captureEndedBeforeStartError({ stdout: '', stderr }))
     completedResolve({ code, signal, events, stderr, streamFailure })
   })
   return { child, completed, events, output, started }
@@ -886,17 +887,21 @@ async function runWorker(options) {
     await Promise.race([work, interruption])
     summary.status = 'passed'
     summary.failure_code = null
+    summary.before_capture_failure = null
     summary.final.recovery_root_retained = false
     exitCode = 0
   } catch (error) {
     if (interruptionError !== null && work !== null) {
       try { await work } catch { /* Cleanup starts only after live work has stopped. */ }
     }
-    summary.status = 'failed'
-    summary.failure_code = interruptionError?.code ?? (error instanceof OperationNativeProofError
-      ? error.code
-      : 'UNEXPECTED_PROOF_FAILURE'
+    const proofError = error instanceof OperationNativeProofError ? error : null
+    const failure = interruptionError ?? (proofError
+      ? proofError
+      : new OperationNativeProofError('UNEXPECTED_PROOF_FAILURE')
     )
+    summary.status = 'failed'
+    summary.failure_code = failure.code
+    summary.before_capture_failure = proofError?.beforeCaptureFailure ?? null
   } finally {
     const childrenStopped = await stopOwnedChildren(cleanup)
     const cleanupOptions = { aos: options.aos, root: options.root }
