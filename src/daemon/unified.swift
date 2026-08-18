@@ -570,6 +570,22 @@ class UnifiedDaemon {
         var removedArtifacts = Set<AOSOperationIdentity>()
         var releasedArtifacts = Set<AOSOperationIdentity>()
         for artifact in recovering.artifacts {
+            if artifact.release != nil {
+                guard let screenRecordingAdapter = operationScreenRecordingAdapter else {
+                    throw AOSOperationCoreError.adapterRegistryConflict
+                }
+                let resolution = try screenRecordingAdapter.recoverArtifactRelease(
+                    artifact
+                )
+                if resolution == .released {
+                    releasedArtifacts.insert(artifact.identity)
+                } else if resolution == .rolledBack {
+                    try screenRecordingAdapter
+                        .removeRecoveredRolledBackArtifact(artifact)
+                    removedArtifacts.insert(artifact.identity)
+                }
+                continue
+            }
             let url = artifactRoot.appendingPathComponent(
                 "\(artifact.identity.id)-\(artifact.identity.generation).mov"
             )
@@ -3816,6 +3832,18 @@ class UnifiedDaemon {
             ].contains(action) else {
                 throw AOSOperationCoreError.invalidRecord("operation_action")
             }
+            let artifactRequest: AOSArtifactActionRequest?
+            if [
+                "artifact_reveal", "artifact_remove", "artifact_release",
+                "artifact_retain",
+            ].contains(action) {
+                artifactRequest = try aosDecodeArtifactActionRequest(
+                    action: action,
+                    data: data
+                )
+            } else {
+                artifactRequest = nil
+            }
             try validateOperationParameterDigest(action: action, data: data)
             let identity = try operationConnectionIdentity(
                 connectionID: connectionID,
@@ -3962,7 +3990,10 @@ class UnifiedDaemon {
                 guard let adapter = operationScreenRecordingAdapter else {
                     throw AOSOperationCoreError.adapterRegistryConflict
                 }
-                let selector = try artifactSelector(data)
+                guard let artifactRequest else {
+                    throw AOSOperationCoreError.invalidRecord("artifact_action_request")
+                }
+                let selector = artifactRequest.selector
                 let result: [String: Any]
                 switch action {
                 case "artifact_reveal":
@@ -3971,7 +4002,7 @@ class UnifiedDaemon {
                     result = try adapter.removeArtifact(selector, ownerRoot: identity.ownerRoot)
                 case "artifact_release":
                     guard let destination = aosArtifactReleaseDestinationPath(
-                        data["destination"]
+                        artifactRequest.destinationPath
                     ) else {
                         throw AOSOperationCoreError.invalidRecord("artifact_release_destination")
                     }
@@ -4114,17 +4145,6 @@ class UnifiedDaemon {
             generationKey: "operation_generation"
         ) else {
             throw AOSOperationCoreError.invalidRecord("operation_selector")
-        }
-        return identity
-    }
-
-    private func artifactSelector(_ data: [String: Any]) throws -> AOSOperationIdentity {
-        guard let identity = aosExactOperationWireIdentity(
-            data["selector"],
-            idKey: "artifact_id",
-            generationKey: "artifact_generation"
-        ) else {
-            throw AOSOperationCoreError.invalidRecord("artifact_selector")
         }
         return identity
     }

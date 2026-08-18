@@ -169,12 +169,21 @@ video. It retains and revalidates the exact admitted canonical topology before
 filter creation and every frame. Its closed track contract is video-only: system
 audio and microphone are false, and it never follows geometry after admission.
 Media duration spans capture-start through stop admission only, and nonzero
-frame/byte progress plus terminal progress persist durably. Stop, failure, and
-boot recovery must settle stream authority, drain or cancel the writer, release
-the broker and operation claim, and remove any unoffered file before terminalizing.
+frame/byte progress plus terminal progress persist durably. A finite startup
+deadline hands off the generation-bound native owner before any start request;
+callback loss, startup stop, or cancellation retains that owner until native
+retirement is proven. Stop atomically closes frame admission, drains only
+already-admitted frames, and requires at least one frame plus a finalized,
+nonempty artifact before success. Stop, failure, and boot recovery must settle
+stream authority, drain or cancel the writer, release the broker and operation
+claim, and remove any unoffered file before terminalizing.
 Offered artifacts support owner- and generation-bound reveal, remove, and
-same-volume no-overwrite release; retain is typed unavailable. Offline schema,
-compiled production-owner seam harnesses with fake dependencies, and native
+same-volume no-overwrite release; release persists the exact generation,
+source, destination, and phase before mutation and recovery resolves only to
+released, rolled back, or explicit residual truth. Retain is typed unavailable.
+Every artifact action is decoded against its action-specific exact key and type
+set before registry or custody effects. Offline schema, an executable compiled
+production-owner lifecycle/custody harness with fake dependencies, and native
 compile-only proof do not authorize live ScreenCaptureKit, TCC, daemon, file,
 status-item, MOV, or crash acceptance.
 Multi-display warm acquisition configures the

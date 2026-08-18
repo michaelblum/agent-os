@@ -42,13 +42,17 @@ enum AOSOperationRecovery {
             for index in state.artifacts.indices {
                 let origin = state.artifacts[index].recoveryOriginState ?? state.artifacts[index].state
                 state.artifacts[index].recoveryOriginState = origin
-                switch origin {
+                if state.artifacts[index].release != nil {
+                    state.artifacts[index].recoveryOriginState = .offered
+                    state.artifacts[index].recoveryDisposition = .releaseVerification
+                } else { switch origin {
                 case .retained:
                     state.artifacts[index].recoveryDisposition = .retentionVerification
                 case .released:
                     state.artifacts[index].recoveryDisposition = .releaseVerification
                 default:
                     state.artifacts[index].recoveryDisposition = .removalVerification
+                }
                 }
                 state.artifacts[index].state = .cleanupRequired
             }

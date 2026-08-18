@@ -169,7 +169,13 @@ Artifact forms require exact artifact id/generation; the recording producer
 supports reveal, remove, and same-volume release after owner/file-identity
 revalidation, while retain returns exact
 `OPERATION_ARTIFACT_RETAIN_UNAVAILABLE`. Producer-less selectors fail closed.
-Durable custody and recovery dispositions are current for recording artifacts.
+Each artifact action rejects extra keys and wrong types before effects. Release
+persists its exact generation, source identity, destination path/parent
+identity, and phase before mutation, then deterministically recovers as
+released, rolled back, or explicit residual truth. Recording startup has a
+finite generation-bound native owner handoff, stop closes frame admission and
+drains only its pre-boundary set, and terminal success requires a nonzero frame
+count plus a finalized nonempty artifact.
 
 ## Disposition ledger
 
@@ -311,7 +317,10 @@ bounded fixed video-only producer and producer-backed recording artifact
 custody. It does not publish audio tracks, followed geometry, full M3, full
 Playwright grammar, a public SDK, or changed TCC policy. Pre-0044 ADR bodies,
 archives, reports, the frozen v0 schema, and frozen fixtures remain unchanged.
-Native-live microphone/menu/recording acceptance remains separately gated.
+The deterministic recording proof executes compiled production lifecycle,
+frame-admission, decoder, terminal-truth, and custody-coordinator owners only
+with fake dependencies; the adapter, native capture/writer, filesystem custody,
+daemon, TCC, MOV, and crash acceptance remain separately gated.
 
 The future
 managed Playwright boundary inherits snapshots, boxes, evaluation, tracing,

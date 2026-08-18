@@ -273,7 +273,7 @@ final class AOSOperationRegistry {
                 custodyDigest: nil,
                 fileIdentity: nil,
                 pendingAction: nil,
-                pendingDestinationIdentityDigest: nil,
+                release: nil,
                 custodyReceipt: nil,
                 updatedAtNanoseconds: now
             )
@@ -287,7 +287,6 @@ final class AOSOperationRegistry {
         state newState: AOSArtifactLifecycleState,
         fileIdentity: AOSArtifactFileIdentity? = nil,
         pendingAction: AOSArtifactPendingAction? = nil,
-        pendingDestinationIdentityDigest: String? = nil,
         custodyReceipt: AOSArtifactCustodyReceipt? = nil,
         custodyDigest: String? = nil
     ) throws -> AOSArtifactRecord {
@@ -302,9 +301,114 @@ final class AOSOperationRegistry {
             durable.artifacts[index].state = newState
             if let fileIdentity { durable.artifacts[index].fileIdentity = fileIdentity }
             durable.artifacts[index].pendingAction = pendingAction
-            durable.artifacts[index].pendingDestinationIdentityDigest = pendingDestinationIdentityDigest
+            durable.artifacts[index].release = nil
             if let custodyReceipt { durable.artifacts[index].custodyReceipt = custodyReceipt }
             if let custodyDigest { durable.artifacts[index].custodyDigest = custodyDigest }
+            durable.artifacts[index].updatedAtNanoseconds = now
+            return durable.artifacts[index]
+        }
+    }
+
+    func prepareArtifactRelease(
+        _ identity: AOSOperationIdentity,
+        sourceIdentity: AOSArtifactFileIdentity,
+        destinationIdentity: AOSArtifactReleaseDestinationIdentity
+    ) throws -> AOSArtifactReleaseRecord {
+        let now = clock()
+        return try mutateDurably { durable in
+            guard let index = durable.artifacts.firstIndex(where: {
+                $0.identity == identity
+            }) else {
+                throw AOSOperationCoreError.operationNotFound
+            }
+            guard durable.artifacts[index].state == .offered,
+                  durable.artifacts[index].fileIdentity == sourceIdentity,
+                  durable.artifacts[index].release == nil else {
+                throw AOSOperationCoreError.invalidTransition
+            }
+            let release = AOSArtifactReleaseRecord(
+                releaseGeneration: durable.allocateGeneration(),
+                artifact: identity,
+                daemonGeneration: durable.daemonGeneration,
+                sourceIdentity: sourceIdentity,
+                destinationIdentity: destinationIdentity,
+                phase: .prepared,
+                destinationFileIdentity: nil
+            )
+            durable.artifacts[index].release = release
+            durable.artifacts[index].updatedAtNanoseconds = now
+            return release
+        }
+    }
+
+    func markArtifactReleaseDestinationLinked(
+        _ identity: AOSOperationIdentity,
+        releaseGeneration: UInt64,
+        destinationFileIdentity: AOSArtifactReleaseDestinationFileIdentity
+    ) throws -> AOSArtifactReleaseRecord {
+        let now = clock()
+        return try mutateDurably { durable in
+            guard let index = durable.artifacts.firstIndex(where: {
+                $0.identity == identity
+            }), var release = durable.artifacts[index].release,
+                  release.releaseGeneration == releaseGeneration,
+                  release.artifact == identity,
+                  release.daemonGeneration == durable.artifacts[index].daemonGeneration,
+                  release.phase == .prepared,
+                  destinationFileIdentity.matches(release.sourceIdentity) else {
+                throw AOSOperationCoreError.invalidTransition
+            }
+            release.phase = .destinationLinked
+            release.destinationFileIdentity = destinationFileIdentity
+            durable.artifacts[index].release = release
+            durable.artifacts[index].updatedAtNanoseconds = now
+            return release
+        }
+    }
+
+    func resolveArtifactRelease(
+        _ identity: AOSOperationIdentity,
+        releaseGeneration: UInt64,
+        resolution: AOSArtifactReleaseResolution,
+        custodyReceipt: AOSArtifactCustodyReceipt? = nil,
+        custodyDigest: String? = nil
+    ) throws -> AOSArtifactRecord {
+        let now = clock()
+        return try mutateDurably { durable in
+            guard let index = durable.artifacts.firstIndex(where: {
+                $0.identity == identity
+            }), let release = durable.artifacts[index].release,
+                  release.releaseGeneration == releaseGeneration,
+                  release.artifact == identity,
+                  release.daemonGeneration == durable.artifacts[index].daemonGeneration else {
+                throw AOSOperationCoreError.invalidTransition
+            }
+            switch resolution {
+            case .released:
+                guard let custodyReceipt,
+                      custodyReceipt.action == .release,
+                      custodyReceipt.destinationIdentityDigest
+                        == release.destinationIdentity.pathDigest,
+                      let custodyDigest else {
+                    throw AOSOperationCoreError.invalidRecord("artifact_release_receipt")
+                }
+                durable.artifacts[index].state = .released
+                durable.artifacts[index].custodyReceipt = custodyReceipt
+                durable.artifacts[index].custodyDigest = custodyDigest
+                durable.artifacts[index].release = nil
+                durable.artifacts[index].recoveryOriginState = nil
+                durable.artifacts[index].recoveryDisposition = nil
+            case .rolledBack:
+                durable.artifacts[index].state = .offered
+                durable.artifacts[index].release = nil
+                durable.artifacts[index].recoveryOriginState = nil
+                durable.artifacts[index].recoveryDisposition = nil
+            case .residual:
+                durable.artifacts[index].state = .cleanupRequired
+                durable.artifacts[index].recoveryOriginState = .offered
+                durable.artifacts[index].recoveryDisposition = .releaseVerification
+            }
+            durable.artifacts[index].pendingAction = nil
             durable.artifacts[index].updatedAtNanoseconds = now
             return durable.artifacts[index]
         }

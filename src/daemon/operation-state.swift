@@ -1,4 +1,5 @@
 import CryptoKit
+import CoreFoundation
 import Foundation
 
 enum AOSOperationCoreError: Error, Equatable, CustomStringConvertible {
@@ -32,6 +33,9 @@ enum AOSOperationCoreError: Error, Equatable, CustomStringConvertible {
     case artifactDestinationExists
     case recordingBoundsExceeded
     case recordingTargetDrift
+    case recordingStartupDeadlineExceeded
+    case recordingNoFrames
+    case recordingArtifactMissing
     case recordingEncoderFailed
     case recordingCleanupRequired
 
@@ -67,6 +71,9 @@ enum AOSOperationCoreError: Error, Equatable, CustomStringConvertible {
         case .artifactDestinationExists: return "OPERATION_ARTIFACT_DESTINATION_EXISTS"
         case .recordingBoundsExceeded: return "SCREEN_RECORDING_BOUNDS_EXCEEDED"
         case .recordingTargetDrift: return "SCREEN_RECORDING_TARGET_DRIFT"
+        case .recordingStartupDeadlineExceeded: return "SCREEN_RECORDING_STARTUP_DEADLINE_EXCEEDED"
+        case .recordingNoFrames: return "SCREEN_RECORDING_NO_FRAMES"
+        case .recordingArtifactMissing: return "SCREEN_RECORDING_ARTIFACT_MISSING"
         case .recordingEncoderFailed: return "SCREEN_RECORDING_ENCODER_FAILED"
         case .recordingCleanupRequired: return "SCREEN_RECORDING_CLEANUP_REQUIRED"
         }
@@ -117,6 +124,84 @@ struct AOSOperationIdentity: Codable, Equatable, Hashable, Comparable {
     static func < (lhs: Self, rhs: Self) -> Bool {
         lhs.id == rhs.id ? lhs.generation < rhs.generation : lhs.id < rhs.id
     }
+}
+
+struct AOSArtifactActionRequest: Equatable {
+    let requestID: String
+    let canonicalParameterDigest: String
+    let selector: AOSOperationIdentity
+    let destinationPath: String?
+}
+
+func aosDecodeArtifactActionRequest(
+    action: String,
+    data: [String: Any]
+) throws -> AOSArtifactActionRequest {
+    let selectorActions = Set([
+        "artifact_reveal", "artifact_remove", "artifact_retain",
+    ])
+    let releaseAction = "artifact_release"
+    let expectedKeys: Set<String>
+    if selectorActions.contains(action) {
+        expectedKeys = ["request_id", "canonical_parameter_digest", "selector"]
+    } else if action == releaseAction {
+        expectedKeys = [
+            "request_id", "canonical_parameter_digest", "selector", "destination",
+        ]
+    } else {
+        throw AOSOperationCoreError.invalidRecord("artifact_action")
+    }
+    guard Set(data.keys) == expectedKeys,
+          let requestID = data["request_id"] as? String,
+          aosArtifactWireIdentifier(requestID),
+          let digest = data["canonical_parameter_digest"] as? String,
+          digest.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil,
+          let selector = data["selector"] as? [String: Any],
+          Set(selector.keys) == ["artifact_id", "artifact_generation"],
+          let artifactID = selector["artifact_id"] as? String,
+          aosArtifactWireIdentifier(artifactID),
+          let generation = aosArtifactExactGeneration(
+            selector["artifact_generation"]
+          ) else {
+        throw AOSOperationCoreError.invalidRecord("artifact_action_request")
+    }
+    let destination: String?
+    if action == releaseAction {
+        guard let value = data["destination"] as? String,
+              value.first == "/",
+              value.count <= 4_096,
+              !value.contains("\0") else {
+            throw AOSOperationCoreError.invalidRecord("artifact_release_destination")
+        }
+        destination = value
+    } else {
+        destination = nil
+    }
+    return AOSArtifactActionRequest(
+        requestID: requestID,
+        canonicalParameterDigest: digest,
+        selector: AOSOperationIdentity(id: artifactID, generation: generation),
+        destinationPath: destination
+    )
+}
+
+private func aosArtifactWireIdentifier(_ value: String) -> Bool {
+    !value.isEmpty
+        && value.count <= 128
+        && value.range(
+            of: "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            options: .regularExpression
+        ) != nil
+}
+
+private func aosArtifactExactGeneration(_ value: Any?) -> UInt64? {
+    guard let number = value as? NSNumber,
+          CFGetTypeID(number) != CFBooleanGetTypeID(),
+          number.compare(NSNumber(value: UInt64(1))) != .orderedAscending,
+          number.compare(NSNumber(value: UInt64(9_007_199_254_740_991)))
+            != .orderedDescending else { return nil }
+    let result = number.uint64Value
+    return NSNumber(value: result).compare(number) == .orderedSame ? result : nil
 }
 
 struct AOSMechanicalOwnerRoot: Codable, Equatable, Hashable {
@@ -446,6 +531,138 @@ struct AOSArtifactFileIdentity: Codable, Equatable {
     let mediaType: String
 }
 
+enum AOSScreenRecordingTerminalTruth {
+    static func requireFrames(_ frameCount: UInt64) throws {
+        guard frameCount > 0 else {
+            throw AOSOperationCoreError.recordingNoFrames
+        }
+    }
+
+    static func requireFinalizedArtifact(
+        frameCount: UInt64,
+        artifact: AOSArtifactFileIdentity?,
+        filePresent: Bool
+    ) throws {
+        try requireFrames(frameCount)
+        guard let artifact,
+              artifact.byteCount > 0,
+              filePresent else {
+            throw AOSOperationCoreError.recordingArtifactMissing
+        }
+    }
+}
+
+enum AOSArtifactReleasePhase: String, Codable {
+    case prepared
+    case destinationLinked = "destination_linked"
+}
+
+struct AOSArtifactReleaseDestinationIdentity: Codable, Equatable {
+    let absolutePath: String
+    let pathDigest: String
+    let parentDevice: UInt64
+    let parentInode: UInt64
+}
+
+struct AOSArtifactReleaseDestinationFileIdentity: Codable, Equatable {
+    let device: UInt64
+    let inode: UInt64
+    let byteCount: UInt64
+    let contentDigest: String
+
+    func matches(_ source: AOSArtifactFileIdentity) -> Bool {
+        device == source.device
+            && inode == source.inode
+            && byteCount == source.byteCount
+            && contentDigest == source.contentDigest
+    }
+}
+
+struct AOSArtifactReleaseRecord: Codable, Equatable {
+    let releaseGeneration: UInt64
+    let artifact: AOSOperationIdentity
+    let daemonGeneration: UInt64
+    let sourceIdentity: AOSArtifactFileIdentity
+    let destinationIdentity: AOSArtifactReleaseDestinationIdentity
+    var phase: AOSArtifactReleasePhase
+    var destinationFileIdentity: AOSArtifactReleaseDestinationFileIdentity?
+}
+
+enum AOSArtifactReleaseObservation: Equatable {
+    case absent
+    case exact
+    case conflicting
+}
+
+enum AOSArtifactReleaseResolution: Equatable {
+    case released
+    case rolledBack
+    case residual
+}
+
+struct AOSArtifactReleaseExecutionDependencies {
+    let linkDestination: () throws -> AOSArtifactReleaseDestinationFileIdentity
+    let persistDestinationLinked: (AOSArtifactReleaseDestinationFileIdentity) throws -> Void
+    let removeSource: () throws -> Void
+    let persistReleased: (AOSArtifactReleaseDestinationFileIdentity) throws -> Void
+}
+
+struct AOSArtifactReleaseRecoveryDependencies {
+    let removeExactDestination: () throws -> Void
+    let persistResolution: (AOSArtifactReleaseResolution) throws -> Void
+}
+
+enum AOSArtifactReleaseCoordinator {
+    static func execute(
+        _ release: AOSArtifactReleaseRecord,
+        dependencies: AOSArtifactReleaseExecutionDependencies
+    ) throws {
+        guard release.releaseGeneration > 0,
+              release.daemonGeneration > 0,
+              release.artifact.generation > 0,
+              release.phase == .prepared,
+              release.destinationFileIdentity == nil,
+              !release.destinationIdentity.absolutePath.isEmpty,
+              release.destinationIdentity.pathDigest.count == 64 else {
+            throw AOSOperationCoreError.invalidRecord("artifact_release_record")
+        }
+        let linked = try dependencies.linkDestination()
+        guard linked.matches(release.sourceIdentity) else {
+            throw AOSOperationCoreError.artifactIdentityMismatch
+        }
+        try dependencies.persistDestinationLinked(linked)
+        try dependencies.removeSource()
+        try dependencies.persistReleased(linked)
+    }
+
+    static func resolution(
+        source: AOSArtifactReleaseObservation,
+        destination: AOSArtifactReleaseObservation
+    ) -> AOSArtifactReleaseResolution {
+        if source == .exact, destination != .conflicting { return .rolledBack }
+        if source == .absent, destination == .exact { return .released }
+        return .residual
+    }
+
+    @discardableResult
+    static func recover(
+        source: AOSArtifactReleaseObservation,
+        destination: AOSArtifactReleaseObservation,
+        dependencies: AOSArtifactReleaseRecoveryDependencies
+    ) throws -> AOSArtifactReleaseResolution {
+        var result = resolution(source: source, destination: destination)
+        if result == .rolledBack, destination == .exact {
+            do {
+                try dependencies.removeExactDestination()
+            } catch {
+                result = .residual
+            }
+        }
+        try dependencies.persistResolution(result)
+        return result
+    }
+}
+
 struct AOSArtifactCustodyReceipt: Codable, Equatable {
     let action: AOSArtifactPendingAction
     let completedAtNanoseconds: UInt64
@@ -462,7 +679,7 @@ struct AOSArtifactRecord: Codable, Equatable {
     var custodyDigest: String?
     var fileIdentity: AOSArtifactFileIdentity?
     var pendingAction: AOSArtifactPendingAction?
-    var pendingDestinationIdentityDigest: String?
+    var release: AOSArtifactReleaseRecord? = nil
     var custodyReceipt: AOSArtifactCustodyReceipt?
     var updatedAtNanoseconds: UInt64 = 0
 }

@@ -1,4 +1,5 @@
 import CoreMedia
+import CryptoKit
 import Darwin
 import Foundation
 import ScreenCaptureKit
@@ -230,37 +231,197 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             throw AOSOperationCoreError.invalidRecord("artifact_release_destination")
         }
         let destinationDigest = AOSScreenRecordingEncoder.digest("destination:\(destination.path)")
-        _ = try registry.updateArtifact(
+        let release = try registry.prepareArtifactRelease(
             selector,
-            state: .offered,
-            pendingAction: .release,
-            pendingDestinationIdentityDigest: destinationDigest
+            sourceIdentity: expected,
+            destinationIdentity: AOSArtifactReleaseDestinationIdentity(
+                absolutePath: destination.path,
+                pathDigest: destinationDigest,
+                parentDevice: UInt64(parentStat.st_dev),
+                parentInode: UInt64(parentStat.st_ino)
+            )
         )
-        guard link(source.path, destination.path) == 0 else {
-            let failure = errno
-            _ = try? registry.updateArtifact(selector, state: .offered)
-            if failure == EEXIST { throw AOSOperationCoreError.artifactDestinationExists }
-            throw AOSOperationCoreError.recordingCleanupRequired
-        }
-        guard unlink(source.path) == 0 else {
-            let rollbackSucceeded = unlink(destination.path) == 0
-            if !rollbackSucceeded {
-                _ = try? registry.updateArtifact(selector, state: .cleanupRequired)
+        do {
+            try AOSArtifactReleaseCoordinator.execute(
+                release,
+                dependencies: AOSArtifactReleaseExecutionDependencies(
+                    linkDestination: { [self] in
+                        guard observeReleaseFile(
+                            source,
+                            sourceIdentity: expected,
+                            expectedParent: nil
+                        ) == .exact else {
+                            throw AOSOperationCoreError.artifactIdentityMismatch
+                        }
+                        guard observeReleaseFile(
+                            destination,
+                            sourceIdentity: expected,
+                            expectedParent: release.destinationIdentity
+                        ) == .absent else {
+                            throw AOSOperationCoreError.artifactDestinationExists
+                        }
+                        guard link(source.path, destination.path) == 0 else {
+                            if errno == EEXIST {
+                                throw AOSOperationCoreError.artifactDestinationExists
+                            }
+                            throw AOSOperationCoreError.recordingCleanupRequired
+                        }
+                        guard observeReleaseFile(
+                            destination,
+                            sourceIdentity: expected,
+                            expectedParent: release.destinationIdentity
+                        ) == .exact else {
+                            throw AOSOperationCoreError.artifactIdentityMismatch
+                        }
+                        return destinationFileIdentity(expected)
+                    },
+                    persistDestinationLinked: { [registry] identity in
+                        _ = try registry.markArtifactReleaseDestinationLinked(
+                            selector,
+                            releaseGeneration: release.releaseGeneration,
+                            destinationFileIdentity: identity
+                        )
+                    },
+                    removeSource: {
+                        guard unlink(source.path) == 0,
+                              !FileManager.default.fileExists(atPath: source.path) else {
+                            throw AOSOperationCoreError.recordingCleanupRequired
+                        }
+                    },
+                    persistReleased: { [self] _ in
+                        _ = try resolveRelease(
+                            release,
+                            resolution: .released
+                        )
+                    }
+                )
+            )
+        } catch {
+            let initiatingError = error
+            if initiatingError as? AOSOperationCoreError == .artifactDestinationExists {
+                _ = try resolveRelease(release, resolution: .rolledBack)
+                throw initiatingError
             }
-            throw AOSOperationCoreError.recordingCleanupRequired
+            let current = registry.snapshot().artifacts.first {
+                $0.identity == selector
+            }
+            guard let current, current.release != nil else { throw initiatingError }
+            let resolution: AOSArtifactReleaseResolution
+            do {
+                resolution = try recoverArtifactRelease(current)
+            } catch {
+                throw AOSOperationCoreError.recordingCleanupRequired
+            }
+            if resolution == .released {
+                let released = registry.snapshot().artifacts.first {
+                    $0.identity == selector
+                }
+                guard let released else {
+                    throw AOSOperationCoreError.recordingCleanupRequired
+                }
+                return artifactResult("release", record: released, path: destination.path)
+            }
+            if resolution == .residual {
+                throw AOSOperationCoreError.recordingCleanupRequired
+            }
+            throw initiatingError
         }
-        let receipt = AOSArtifactCustodyReceipt(
-            action: .release,
-            completedAtNanoseconds: registry.now(),
-            destinationIdentityDigest: destinationDigest
-        )
-        let released = try registry.updateArtifact(
-            selector,
-            state: .released,
-            custodyReceipt: receipt,
-            custodyDigest: custodyDigest(receipt)
-        )
+        guard let released = registry.snapshot().artifacts.first(where: {
+            $0.identity == selector && $0.state == .released
+        }) else { throw AOSOperationCoreError.recordingCleanupRequired }
         return artifactResult("release", record: released, path: destination.path)
+    }
+
+    func recoverArtifactRelease(
+        _ artifact: AOSArtifactRecord
+    ) throws -> AOSArtifactReleaseResolution {
+        guard let release = artifact.release,
+              release.artifact == artifact.identity,
+              release.daemonGeneration == artifact.daemonGeneration,
+              release.sourceIdentity == artifact.fileIdentity else {
+            throw AOSOperationCoreError.invalidRecord("artifact_release_recovery")
+        }
+        let source = artifactURL(artifact.identity)
+        let destination = URL(fileURLWithPath: release.destinationIdentity.absolutePath)
+        let sourceObservation = observeReleaseFile(
+            source,
+            sourceIdentity: release.sourceIdentity,
+            expectedParent: nil
+        )
+        let destinationObservation = observeReleaseFile(
+            destination,
+            sourceIdentity: release.sourceIdentity,
+            expectedParent: release.destinationIdentity
+        )
+        return try AOSArtifactReleaseCoordinator.recover(
+            source: sourceObservation,
+            destination: destinationObservation,
+            dependencies: AOSArtifactReleaseRecoveryDependencies(
+                removeExactDestination: {
+                    guard unlink(destination.path) == 0,
+                          !FileManager.default.fileExists(atPath: destination.path) else {
+                        throw AOSOperationCoreError.recordingCleanupRequired
+                    }
+                },
+                persistResolution: { [self] resolution in
+                    _ = try resolveRelease(release, resolution: resolution)
+                }
+            )
+        )
+    }
+
+    func removeRecoveredRolledBackArtifact(
+        _ artifact: AOSArtifactRecord
+    ) throws {
+        guard artifact.release != nil,
+              let expected = artifact.fileIdentity,
+              let current = registry.snapshot().artifacts.first(where: {
+                  $0.identity == artifact.identity
+              }),
+              current.state == .offered,
+              current.release == nil,
+              current.fileIdentity == expected else {
+            throw AOSOperationCoreError.invalidRecord(
+                "artifact_release_rollback_cleanup"
+            )
+        }
+        let source = artifactURL(artifact.identity)
+        switch observeReleaseFile(
+            source,
+            sourceIdentity: expected,
+            expectedParent: nil
+        ) {
+        case .conflicting:
+            _ = try? registry.updateArtifact(
+                artifact.identity,
+                state: .cleanupRequired
+            )
+            throw AOSOperationCoreError.recordingCleanupRequired
+        case .absent:
+            break
+        case .exact:
+            _ = try registry.updateArtifact(
+                artifact.identity,
+                state: .removing,
+                pendingAction: .remove
+            )
+            guard unlink(source.path) == 0,
+                  !FileManager.default.fileExists(atPath: source.path) else {
+                _ = try? registry.updateArtifact(
+                    artifact.identity,
+                    state: .cleanupRequired
+                )
+                throw AOSOperationCoreError.recordingCleanupRequired
+            }
+            _ = try registry.updateArtifact(artifact.identity, state: .removed)
+            return
+        }
+        _ = try registry.updateArtifact(
+            artifact.identity,
+            state: .removing,
+            pendingAction: .remove
+        )
+        _ = try registry.updateArtifact(artifact.identity, state: .removed)
     }
 
     func retainArtifact(_ selector: AOSOperationIdentity) throws -> Never {
@@ -339,6 +500,12 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
                     to: .stopping,
                     stopIntent: intent
                 )
+            } else if operation.state == .cleanupRequired {
+                _ = try registry.transitionOperation(
+                    publicAdmission.operation,
+                    to: .recovering,
+                    stopIntent: intent
+                )
             }
             let outcome: AOSOperationOutcome
             if failure != nil {
@@ -360,6 +527,13 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         } catch {
             markCleanupRequired(admission.publicAdmission.operation)
         }
+    }
+
+    fileprivate func runtimeRetirementRemainsUncertain(
+        _ operation: AOSOperationIdentity
+    ) {
+        markCleanupRequired(operation)
+        reconcileHostBarrier()
     }
 
     private func prepare(
@@ -518,6 +692,84 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         return result
     }
 
+    private func resolveRelease(
+        _ release: AOSArtifactReleaseRecord,
+        resolution: AOSArtifactReleaseResolution
+    ) throws -> AOSArtifactRecord {
+        let receipt: AOSArtifactCustodyReceipt?
+        let digest: String?
+        if resolution == .released {
+            let value = AOSArtifactCustodyReceipt(
+                action: .release,
+                completedAtNanoseconds: registry.now(),
+                destinationIdentityDigest: release.destinationIdentity.pathDigest
+            )
+            receipt = value
+            digest = custodyDigest(value)
+        } else {
+            receipt = nil
+            digest = nil
+        }
+        return try registry.resolveArtifactRelease(
+            release.artifact,
+            releaseGeneration: release.releaseGeneration,
+            resolution: resolution,
+            custodyReceipt: receipt,
+            custodyDigest: digest
+        )
+    }
+
+    private func destinationFileIdentity(
+        _ source: AOSArtifactFileIdentity
+    ) -> AOSArtifactReleaseDestinationFileIdentity {
+        AOSArtifactReleaseDestinationFileIdentity(
+            device: source.device,
+            inode: source.inode,
+            byteCount: source.byteCount,
+            contentDigest: source.contentDigest
+        )
+    }
+
+    private func observeReleaseFile(
+        _ url: URL,
+        sourceIdentity: AOSArtifactFileIdentity,
+        expectedParent: AOSArtifactReleaseDestinationIdentity?
+    ) -> AOSArtifactReleaseObservation {
+        if let expectedParent {
+            let parent = url.deletingLastPathComponent()
+            var parentStat = stat()
+            guard url.path == expectedParent.absolutePath,
+                  AOSScreenRecordingEncoder.digest("destination:\(url.path)")
+                    == expectedParent.pathDigest,
+                  lstat(parent.path, &parentStat) == 0,
+                  (parentStat.st_mode & S_IFMT) == S_IFDIR,
+                  parentStat.st_uid == geteuid(),
+                  UInt64(parentStat.st_dev) == expectedParent.parentDevice,
+                  UInt64(parentStat.st_ino) == expectedParent.parentInode else {
+                return .conflicting
+            }
+        }
+        var metadata = stat()
+        guard lstat(url.path, &metadata) == 0 else {
+            return errno == ENOENT ? .absent : .conflicting
+        }
+        guard (metadata.st_mode & S_IFMT) == S_IFREG,
+              metadata.st_uid == geteuid(),
+              metadata.st_nlink >= 1,
+              metadata.st_nlink <= 2,
+              UInt64(metadata.st_dev) == sourceIdentity.device,
+              UInt64(metadata.st_ino) == sourceIdentity.inode,
+              metadata.st_size >= 0,
+              UInt64(metadata.st_size) == sourceIdentity.byteCount,
+              let bytes = try? Data(contentsOf: url, options: [.mappedIfSafe]),
+              bytes.count == Int(sourceIdentity.byteCount),
+              SHA256.hash(data: bytes).map({ String(format: "%02x", $0) }).joined()
+                == sourceIdentity.contentDigest else {
+            return .conflicting
+        }
+        return .exact
+    }
+
     private func markCleanupRequired(_ operation: AOSOperationIdentity) {
         guard let record = try? registry.inspect(operation),
               ![.cleanupRequired, .recovering, .terminal].contains(record.state) else { return }
@@ -529,6 +781,20 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
     }
 }
 
+private final class AOSScreenRecordingShareableContentCallback:
+    @unchecked Sendable
+{
+    private let completion: (SCShareableContent?, Error?) -> Void
+
+    init(_ completion: @escaping (SCShareableContent?, Error?) -> Void) {
+        self.completion = completion
+    }
+
+    func resolve(_ content: SCShareableContent?, _ error: Error?) {
+        completion(content, error)
+    }
+}
+
 private final class AOSScreenRecordingStreamOutput: NSObject,
     AOSDesktopPixelStreamLifecycle,
     SCStreamOutput,
@@ -536,6 +802,7 @@ private final class AOSScreenRecordingStreamOutput: NSObject,
     @unchecked Sendable
 {
     private let encoder: AOSScreenRecordingEncoding
+    private let frameAdmission: AOSDesktopPixelFrameAdmissionGate
     private var failure: Error?
     private var firstFrame = false
     private let lock = NSLock()
@@ -547,12 +814,14 @@ private final class AOSScreenRecordingStreamOutput: NSObject,
 
     init(
         encoder: AOSScreenRecordingEncoding,
+        frameAdmission: AOSDesktopPixelFrameAdmissionGate,
         startup: AOSDesktopPixelStartupSignal,
         validateBinding: @escaping () throws -> Void,
         persistProgress: @escaping (AOSScreenRecordingEncoderProgress) throws -> Void,
         didFail: @escaping @Sendable (Error) -> Void
     ) {
         self.encoder = encoder
+        self.frameAdmission = frameAdmission
         self.startup = startup
         self.validateBinding = validateBinding
         self.persistProgress = persistProgress
@@ -564,6 +833,8 @@ private final class AOSScreenRecordingStreamOutput: NSObject,
         didOutputSampleBuffer sampleBuffer: CMSampleBuffer,
         of outputType: SCStreamOutputType
     ) {
+        guard let admission = frameAdmission.admit() else { return }
+        defer { admission.complete() }
         guard outputType == .screen,
               CMSampleBufferIsValid(sampleBuffer),
               CMSampleBufferGetImageBuffer(sampleBuffer) != nil else { return }
@@ -625,13 +896,16 @@ private final class AOSNativeScreenRecordingRuntime:
     private let artifactRootURL: URL
     private let broker: AOSDesktopPixelBroker
     private var encoder: AOSScreenRecordingEncoding?
+    private var discoveryRetirement: AOSDesktopPixelRetirementLatch?
     private let geometry: AOSScreenRecordingGeometry
+    private let frameAdmission = AOSDesktopPixelFrameAdmissionGate()
     private let lock = NSLock()
     private let registry: AOSOperationRegistry
     private let request: AOSScreenRecordingRequest
     private var progressTimeline: AOSScreenRecordingProgressTimeline
     private var finishStarted = false
     private var producerLease: AOSDesktopPixelExclusiveProducerLease?
+    private let startupCancellation = AOSDesktopPixelStartupCancellation()
     private var startupSettled = false
     private var startupOwner: AOSDesktopPixelStartupOwner?
     private var stopIntent: AOSStopIntent?
@@ -678,15 +952,19 @@ private final class AOSNativeScreenRecordingRuntime:
 
     func stop(intent: AOSStopIntent) {
         lock.lock()
+        _ = frameAdmission.close()
         _ = progressTimeline.admitStop(atNanoseconds: registry.now())
         if stopIntent == nil { stopIntent = intent }
+        let cancelStartup = !startupSettled
         guard startupSettled, !finishStarted else {
             lock.unlock()
+            if cancelStartup { startupCancellation.cancel() }
             return
         }
         finishStarted = true
         let selectedIntent = stopIntent ?? intent
         lock.unlock()
+        if cancelStartup { startupCancellation.cancel() }
         Task.detached(priority: .utility) { [self] in
             await finish(intent: selectedIntent)
         }
@@ -718,10 +996,12 @@ private final class AOSNativeScreenRecordingRuntime:
     }
 
     private func acquireAndStart() async throws {
+        try requireStartupNotCancelled()
         let lease = try broker.acquireExclusiveProducer(
             ownerID: admission.publicAdmission.operation.id
         )
         installProducerLease(lease)
+        try requireStartupNotCancelled()
         try AOSScreenRecordingGeometryValidator.validateCurrentBinding(
             geometry,
             observedTopology: observeDisplayTopologySnapshot(),
@@ -738,7 +1018,9 @@ private final class AOSNativeScreenRecordingRuntime:
             maximumOutputBytes: request.maximumOutputBytes
         )
         installEncoder(encoder)
+        try requireStartupNotCancelled()
         let content = try await shareableContent()
+        try requireStartupNotCancelled()
         let current = observeDisplayTopologySnapshot()
         try AOSScreenRecordingGeometryValidator.validateCurrentBinding(
             geometry,
@@ -792,6 +1074,7 @@ private final class AOSNativeScreenRecordingRuntime:
         let startup = AOSDesktopPixelStartupSignal()
         let output = AOSScreenRecordingStreamOutput(
             encoder: encoder,
+            frameAdmission: frameAdmission,
             startup: startup,
             validateBinding: { [geometry] in
                 try AOSScreenRecordingGeometryValidator.validateCurrentBinding(
@@ -816,6 +1099,11 @@ private final class AOSNativeScreenRecordingRuntime:
             signals: [startup],
             lifecycles: [output],
             settlementTimeout: aosDesktopPixelStreamRetirementTimeout,
+            ownerGeneration: admission.publicAdmission.operation.generation,
+            ownerReady: { [weak self] owner in
+                self?.installStartupOwner(owner)
+            },
+            cancellation: startupCancellation,
             lateFailure: { [weak self] _ in self?.stop(intent: .adapterFailed) },
             start: { [weak self] _, completion in
                 self?.admitCaptureStartAndScheduleDeadline()
@@ -830,6 +1118,7 @@ private final class AOSNativeScreenRecordingRuntime:
             }
         )
         installStartupOwner(owner)
+        try requireStartupNotCancelled()
     }
 
     private func finish(intent: AOSStopIntent) async {
@@ -838,29 +1127,86 @@ private final class AOSNativeScreenRecordingRuntime:
         let owner = resources.owner
         let encoder = resources.encoder
         let lease = resources.lease
+        let discoveryRetirement = resources.discoveryRetirement
         let retired: Bool
         if let owner {
             retired = await owner.retire(timeout: aosDesktopPixelStreamRetirementTimeout)
         } else {
             retired = true
         }
+        let discoveryRetired = if let discoveryRetirement {
+            await discoveryRetirement.wait(
+                timeout: aosDesktopPixelStreamRetirementTimeout
+            )
+        } else {
+            true
+        }
+        guard retired, discoveryRetired else {
+            adapter?.runtimeRetirementRemainsUncertain(
+                admission.publicAdmission.operation
+            )
+            retainUntilAuthoritativeRetirement(intent: intent)
+            return
+        }
+        guard await frameAdmission.waitForDrain(
+            timeout: aosDesktopPixelStreamRetirementTimeout
+        ) else {
+            adapter?.runtimeRetirementRemainsUncertain(
+                admission.publicAdmission.operation
+            )
+            retainUntilAuthoritativeRetirement(intent: intent)
+            return
+        }
+        await finishAfterAuthoritativeRetirement(
+            intent: intent,
+            encoder: encoder,
+            lease: lease
+        )
+    }
+
+    private func finishAfterAuthoritativeRetirement(
+        intent: AOSStopIntent,
+        encoder: AOSScreenRecordingEncoding?,
+        lease: AOSDesktopPixelExclusiveProducerLease?
+    ) async {
         var artifact: AOSArtifactFileIdentity?
         var failure: Error?
-        if retired, let encoder, encoder.progress.frameCount > 0 {
+        if let encoder {
             do {
-                artifact = try await withCheckedThrowingContinuation { continuation in
+                try AOSScreenRecordingTerminalTruth.requireFrames(
+                    encoder.progress.frameCount
+                )
+                let finalized: AOSArtifactFileIdentity = try await withCheckedThrowingContinuation { continuation in
                     encoder.finish { continuation.resume(with: $0) }
                 }
+                try AOSScreenRecordingTerminalTruth.requireFinalizedArtifact(
+                    frameCount: encoder.progress.frameCount,
+                    artifact: finalized,
+                    filePresent: FileManager.default.fileExists(
+                        atPath: artifactURL().path
+                    )
+                )
+                artifact = finalized
             } catch {
-                failure = error
+                let artifactURL = self.artifactURL()
+                if error as? AOSOperationCoreError == .recordingNoFrames {
+                    failure = error
+                } else {
+                    failure = FileManager.default.fileExists(atPath: artifactURL.path)
+                        ? error : AOSOperationCoreError.recordingArtifactMissing
+                }
                 encoder.cancel()
             }
         } else {
-            encoder?.cancel()
-            if !retired { failure = AOSOperationCoreError.recordingCleanupRequired }
+            failure = AOSOperationCoreError.recordingNoFrames
         }
         let leaseReleased = lease.map(broker.releaseExclusiveProducer) ?? true
-        if !leaseReleased { failure = AOSOperationCoreError.recordingCleanupRequired }
+        guard leaseReleased else {
+            adapter?.runtimeRetirementRemainsUncertain(
+                admission.publicAdmission.operation
+            )
+            return
+        }
         let progress = encoder?.progress ?? AOSScreenRecordingEncoderProgress(
             frameCount: 0,
             byteCount: 0
@@ -873,9 +1219,39 @@ private final class AOSNativeScreenRecordingRuntime:
             progress: progress,
             elapsedMilliseconds: elapsedMilliseconds,
             requestedBounds: request.requestedBounds,
-            authorityAbsent: retired && leaseReleased,
+            authorityAbsent: true,
             failure: failure
         )
+    }
+
+    private func retainUntilAuthoritativeRetirement(intent: AOSStopIntent) {
+        Task.detached(priority: .utility) { [self] in
+            while true {
+                let resources = runtimeResources()
+                let retired = if let owner = resources.owner {
+                    await owner.retire(timeout: aosDesktopPixelStreamRetirementTimeout)
+                } else {
+                    true
+                }
+                let discoveryRetired = if let discovery = resources.discoveryRetirement {
+                    await discovery.wait(
+                        timeout: aosDesktopPixelStreamRetirementTimeout
+                    )
+                } else {
+                    true
+                }
+                guard retired, discoveryRetired,
+                      await frameAdmission.waitForDrain(
+                        timeout: aosDesktopPixelStreamRetirementTimeout
+                      ) else { continue }
+                await finishAfterAuthoritativeRetirement(
+                    intent: intent,
+                    encoder: resources.encoder,
+                    lease: resources.lease
+                )
+                return
+            }
+        }
     }
 
     private func admitCaptureStartAndScheduleDeadline() {
@@ -892,6 +1268,7 @@ private final class AOSNativeScreenRecordingRuntime:
 
     private func admitStopIfNeeded() {
         lock.lock()
+        _ = frameAdmission.close()
         _ = progressTimeline.admitStop(atNanoseconds: registry.now())
         lock.unlock()
     }
@@ -937,18 +1314,25 @@ private final class AOSNativeScreenRecordingRuntime:
 
     private func installStartupOwner(_ owner: AOSDesktopPixelStartupOwner) {
         lock.lock()
-        startupOwner = owner
+        if startupOwner == nil { startupOwner = owner }
         lock.unlock()
+    }
+
+    private func artifactURL() -> URL {
+        artifactRootURL.appendingPathComponent(
+            "\(admission.publicAdmission.artifact.id)-\(admission.publicAdmission.artifact.generation).mov"
+        )
     }
 
     private func runtimeResources() -> (
         owner: AOSDesktopPixelStartupOwner?,
         encoder: AOSScreenRecordingEncoding?,
-        lease: AOSDesktopPixelExclusiveProducerLease?
+        lease: AOSDesktopPixelExclusiveProducerLease?,
+        discoveryRetirement: AOSDesktopPixelRetirementLatch?
     ) {
         lock.lock()
         defer { lock.unlock() }
-        return (startupOwner, encoder, producerLease)
+        return (startupOwner, encoder, producerLease, discoveryRetirement)
     }
 
     private func createArtifactRoot() throws {
@@ -966,13 +1350,38 @@ private final class AOSNativeScreenRecordingRuntime:
 
     private func shareableContent() async throws -> SCShareableContent {
         try await withCheckedThrowingContinuation { continuation in
-            SCShareableContent.getExcludingDesktopWindows(
-                false,
-                onScreenWindowsOnly: true
-            ) { content, error in
-                if let content { continuation.resume(returning: content) }
-                else { continuation.resume(throwing: error ?? AOSOperationCoreError.recordingTargetDrift) }
-            }
+            let token = AOSDesktopPixelRetainedCallbackToken<SCShareableContent>()
+            let retirement = AOSDesktopPixelRetirementLatch()
+            lock.lock()
+            discoveryRetirement = retirement
+            lock.unlock()
+            token.start(
+                deadline: aosDesktopPixelStreamRetirementTimeout,
+                nativeStart: { completion in
+                    let callback = AOSScreenRecordingShareableContentCallback(
+                        completion
+                    )
+                    SCShareableContent.getExcludingDesktopWindows(
+                        false,
+                        onScreenWindowsOnly: true,
+                        completionHandler: { content, error in
+                            callback.resolve(content, error)
+                        }
+                    )
+                },
+                authoritativeSettlement: {
+                    retirement.observe()
+                },
+                completion: { result in
+                    continuation.resume(with: result)
+                }
+            )
+        }
+    }
+
+    private func requireStartupNotCancelled() throws {
+        if startupCancellation.isCancelled {
+            throw CancellationError()
         }
     }
 }

@@ -237,7 +237,12 @@ bad_requests = [
     {"v":1,"service":"operation","action":"tap","data":{**operation_request,"selector":operation_selector,"tap":{"channel":"metadata","bounds":{"rate_items_per_second":30,"sample_every":2,"max_queue_items":8,"max_items":100,"max_bytes":4096,"idle_timeout_milliseconds":1000,"duration_milliseconds":5000},"follow":False}}},  # retired tap selectors and bounds are rejected
     {"v":1,"service":"operation","action":"artifact_reveal","data":operation_request},  # exact artifact selector is required
     {"v":1,"service":"operation","action":"artifact_reveal","data":{**operation_request,"selector":artifact_selector,"action":"reveal"}},  # transport action is not custody request data
+    {"v":1,"service":"operation","action":"artifact_reveal","data":{**operation_request,"selector":artifact_selector,"extra":True}},  # reveal data is closed
+    {"v":1,"service":"operation","action":"artifact_remove","data":{**operation_request,"selector":artifact_selector,"destination":"/private/tmp/x.mov"}},  # remove cannot carry release data
+    {"v":1,"service":"operation","action":"artifact_retain","data":{**operation_request,"selector":artifact_selector,"extra":True}},  # unavailable retain data is still closed
     {"v":1,"service":"operation","action":"artifact_release","data":{**operation_request,"selector":artifact_selector}},  # release requires a destination
+    {"v":1,"service":"operation","action":"artifact_release","data":{**operation_request,"selector":artifact_selector,"destination":"/private/tmp/x.mov","extra":True}},  # release data is closed
+    {"v":1,"service":"operation","action":"artifact_release","data":{**operation_request,"selector":artifact_selector,"destination":7}},  # release destination type is exact
     {"v":1,"service":"operation","action":"record_screen","data":{**screen_recording_request,"tracks":{"video":True,"system_audio":True,"microphone":False}}},  # audio tracks are closed off
     {"v":1,"service":"operation","action":"stop_all","data":{**operation_request,"schema_version":"aos.host-stop-barrier.stop-all-request.v1","action":"stop_all"}},  # stop-all requires exact barrier CAS
     {"v":1,"service":"operation","action":"barrier_status","data":{**operation_request,"schema_version":"aos.host-stop-barrier.status-request.v1","action":"barrier_status","caller_origin":"status_item_host"}},  # origin evidence is server-attached

@@ -4349,7 +4349,7 @@
             "tests/screen-recording-contract.test.mjs",
             "tests/screen-recording-fake.test.mjs"
           ],
-          "summary": "AOS owns one public bounded fixed display/window/region ScreenCaptureKit video producer using H.264 in QuickTime, the existing stream lifecycle and exclusive pixel broker, operation identity/control, and producer-backed transient artifact custody. Audio tracks, followed geometry, SDK/Toolkit projection, and native-live acceptance remain absent."
+          "summary": "AOS owns one public bounded fixed display/window/region ScreenCaptureKit video producer using H.264 in QuickTime, a finite generation-bound startup/retirement owner, atomic stop-frame admission, the exclusive pixel broker, operation identity/control, typed terminal truth, and recoverable exact-identity transient artifact custody. Audio tracks, followed geometry, SDK/Toolkit projection, and native-live acceptance remain absent."
         },
         "exposure": {
           "cli": {
@@ -4400,7 +4400,7 @@
           ],
           "depth": "Pixel plane only.",
           "breadth": "One fixed display, exact window, or global region wholly within one display; screen video only.",
-          "completeness": "Public fixed video request, operation/stream/artifact identity, H.264 QuickTime encoder, custody schema, compiled production-owner seam harness, and native compile proof are current.",
+          "completeness": "Public fixed video request, operation/stream/artifact identity, H.264 QuickTime encoder, action-specific artifact decoding, finite generation-bound startup/retirement ownership, atomic frame admission, typed terminal truth, durable recoverable release custody, an executable compiled production-owner harness with fake dependencies, and native compile proof are current.",
           "frontier": "SCStream `.screen` frames flow only to the bounded video writer; system audio and microphone output are explicitly absent.",
           "state_identity": "Canonical topology identity, display member identity, fixed geometry digest, operation generation, stream generation, and artifact generation."
         },
@@ -4445,11 +4445,11 @@
           },
           "cleanup": {
             "state": "complete",
-            "detail": "Stream retirement, writer drain, broker release, claim release, and file cleanup precede terminal."
+            "detail": "Proven stream/discovery retirement and pre-stop frame drain precede writer, broker, claim, file, runtime-owner, and terminal release; timeout or false retirement remains explicit cleanup-required authority."
           },
           "recovery": {
             "state": "complete",
-            "detail": "Boot removes internal transient/offered recording artifacts and reconciles child authority."
+            "detail": "Boot resolves an exact generation/source/destination release record to released, rolled back, or explicit residual truth before ordinary artifact cleanup, and reconciles child authority."
           }
         },
         "data_transport": {
@@ -4483,7 +4483,7 @@
             },
             {
               "path": "tests/screen-recording-contract.test.mjs",
-              "claim": "Binds screen-only output, capturesAudio=false, H.264 QuickTime encoding, fixed geometry, custody, cleanup, and authored/generated command ownership.",
+              "claim": "Statically binds screen-only output, capturesAudio=false, H.264 QuickTime encoding, fixed geometry, generation-bound owner handoff, frame-drain and terminal-truth calls, durable release ordering, and authored/generated command ownership.",
               "execution_class": "static",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -4493,7 +4493,7 @@
           "fake": [
             {
               "path": "tests/screen-recording-fake.test.mjs",
-              "claim": "Compiles and executes the production request, geometry, media-timeline, and durable-progress owners against fake topology and persistence dependencies; validates runtime-shaped custody and rejects topology drift, lossy selectors, suppressed save failures, and false custody combinations.",
+              "claim": "Compiles and executes production request, geometry, media-timeline, durable-progress, lifecycle, frame-admission, artifact-action decoder, terminal-truth, and custody-coordinator owners with fake dependencies. It covers callback loss, startup stop/task cancellation, retirement timeout/false settlement, stop-frame drain ordering, zero-frame/missing-artifact failure, release fault phases and cleanup residuals, topology drift, lossy selectors, and extra-key/type rejection.",
               "execution_class": "fake",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -4510,7 +4510,7 @@
               "mutates_runtime": false
             }
           ],
-          "limitations": "Offline schema/static proof, a compiled production-owner seam harness, and native compile proof establish the bounded video-only producer contract. AVAssetWriter and ScreenCaptureKit do not execute; no live pixels, MOV acceptance, file custody effects, permission behavior, daemon restart, or crash acceptance is claimed."
+          "limitations": "Offline schema/static proof, an executable compiled production-owner seam harness with fake dependencies, and native compile proof establish only the listed seams. AVAssetWriter and ScreenCaptureKit do not execute; neither do the recording adapter, daemon, TCC, native UI, or media. There are no live pixels, MOV acceptance, file custody effects, permission behavior, daemon restart, or crash acceptance."
         }
       },
       "target": {
@@ -5192,7 +5192,7 @@
           "fake": [
             {
               "path": "tests/screen-recording-fake.test.mjs",
-              "claim": "Compiles and executes the shared production request, geometry, media-timeline, and durable-progress owners without native media; the AVAssetWriter owner itself remains compile-only.",
+              "claim": "Compiles and executes the shared production request, geometry, media-timeline, durable-progress, lifecycle, frame-admission, terminal-truth, artifact-action decoder, and custody-coordinator owners with fake dependencies; the AVAssetWriter owner itself remains compile-only.",
               "execution_class": "fake",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -5209,7 +5209,7 @@
               "mutates_runtime": false
             }
           ],
-          "limitations": "The AVAssetWriter owner is compile-only. No live pixels, MOV/file acceptance, audio input, multitrack synchronization, or native/TCC acceptance is claimed."
+          "limitations": "The AVAssetWriter owner is compile-only and the executable harness uses fake custody dependencies. No native writer, custody filesystem effect, live pixels, MOV/file acceptance, audio input, multitrack synchronization, daemon, or native/TCC acceptance is claimed."
         }
       },
       "target": {
@@ -16993,7 +16993,7 @@
             },
             "execution_class": "static",
             "requires_owner_authority": false,
-            "claim": "Bind screen-only ScreenCaptureKit output, capturesAudio=false, H.264 QuickTime encoder, bounds, cleanup, and command/help ownership."
+            "claim": "Statically bind screen-only ScreenCaptureKit output, capturesAudio=false, H.264 QuickTime encoder, generation-bound owner handoff, frame drain, terminal truth, durable release ordering, bounds, cleanup, and command/help ownership."
           }
         ],
         "fake": [
@@ -17004,7 +17004,7 @@
             },
             "execution_class": "fake",
             "requires_owner_authority": false,
-            "claim": "Exercise video-only fixed geometry drift, bounds, encoder failures, artifact validation, cancel/kill, and cleanup with fake sources."
+            "claim": "Execute production lifecycle, frame-admission, decoder, terminal-truth, and custody-coordinator owners with fake dependencies for callback loss, startup stop/task cancellation, retirement timeout/false settlement, stop-frame interleavings, zero-frame/missing-artifact failure, custody fault phases, cleanup residuals, and extra-key/type rejection; also exercise fixed geometry, bounds, progress persistence, and custody-schema rejection."
           }
         ],
         "native": [

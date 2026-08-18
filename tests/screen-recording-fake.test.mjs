@@ -336,6 +336,464 @@ struct ScreenRecordingOwnerHarness {
 }
 `
 
+const terminalSupportSource = String.raw`
+import Foundation
+
+protocol AOSDesktopFrameCancelling: AnyObject {
+    func cancel()
+}
+
+final class AOSDesktopPixelWarmSource: @unchecked Sendable {
+    func cancel(_ completion: @escaping (Result<Void, Error>) -> Void) {
+        completion(.success(()))
+    }
+}
+
+enum AOSDesktopFrameCaptureFailure: Error {
+    case captureFailed
+    case retirementUncertain
+}
+
+enum AOSDesktopPixelBroker {
+    static let defaultRetirementTimeout: TimeInterval = 0.2
+}
+`
+
+const terminalHarnessSource = String.raw`
+import Foundation
+
+enum HarnessFault: Error {
+    case link
+    case persistLinked
+    case removeSource
+    case persistReleased
+    case removeDestination
+}
+
+final class OwnerBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: AOSDesktopPixelStartupOwner?
+
+    func set(_ owner: AOSDesktopPixelStartupOwner) {
+        lock.lock()
+        stored = owner
+        lock.unlock()
+    }
+
+    func get() -> AOSDesktopPixelStartupOwner? {
+        lock.lock()
+        defer { lock.unlock() }
+        return stored
+    }
+}
+
+final class FakeLifecycle: AOSDesktopPixelStreamLifecycle, @unchecked Sendable {
+    private let retirement = AOSDesktopPixelRetirementLatch()
+
+    func admitExplicitStop() -> AOSDesktopPixelStopAdmission {
+        retirement.admitExplicitStop()
+    }
+
+    func confirmRetirement() { retirement.observe() }
+    func sampleIsReady() throws -> Bool { true }
+    func retirementWasObserved() -> Bool { retirement.snapshot() }
+    func waitForRetirement(timeout: TimeInterval) async -> Bool {
+        await retirement.wait(timeout: timeout)
+    }
+}
+
+final class FakeCustody {
+    let fault: HarnessFault?
+    var destinationExists = false
+    var persistedLinked = false
+    var persistedReleased = false
+    var persistedResolution: AOSArtifactReleaseResolution?
+    var sourceExists = true
+
+    init(fault: HarnessFault?) {
+        self.fault = fault
+    }
+
+    func execution(
+        linked: AOSArtifactReleaseDestinationFileIdentity
+    ) -> AOSArtifactReleaseExecutionDependencies {
+        AOSArtifactReleaseExecutionDependencies(
+            linkDestination: { [self] in
+                if fault == .link { throw HarnessFault.link }
+                destinationExists = true
+                return linked
+            },
+            persistDestinationLinked: { [self] _ in
+                if fault == .persistLinked { throw HarnessFault.persistLinked }
+                persistedLinked = true
+            },
+            removeSource: { [self] in
+                if fault == .removeSource { throw HarnessFault.removeSource }
+                sourceExists = false
+            },
+            persistReleased: { [self] _ in
+                if fault == .persistReleased { throw HarnessFault.persistReleased }
+                persistedReleased = true
+            }
+        )
+    }
+
+    func recover(
+        removeFault: Bool = false
+    ) throws -> AOSArtifactReleaseResolution {
+        try AOSArtifactReleaseCoordinator.recover(
+            source: sourceExists ? .exact : .absent,
+            destination: destinationExists ? .exact : .absent,
+            dependencies: AOSArtifactReleaseRecoveryDependencies(
+                removeExactDestination: { [self] in
+                    if removeFault { throw HarnessFault.removeDestination }
+                    destinationExists = false
+                },
+                persistResolution: { [self] resolution in
+                    persistedResolution = resolution
+                }
+            )
+        )
+    }
+}
+
+@main
+struct TerminalLifecycleCustodyHarness {
+    static func require(
+        _ condition: @autoclosure () -> Bool,
+        _ message: String
+    ) {
+        if !condition() { fatalError(message) }
+    }
+
+    static func expectInvalid(_ body: () throws -> Void) {
+        do {
+            try body()
+            fatalError("invalid artifact action accepted")
+        } catch AOSOperationCoreError.invalidRecord {
+        } catch {
+            fatalError("unexpected decoder error: \(error)")
+        }
+    }
+
+    static func actionData(
+        destination: Any? = nil,
+        generation: Any = NSNumber(value: 7),
+        extra: Bool = false,
+        selectorExtra: Bool = false
+    ) -> [String: Any] {
+        var selector: [String: Any] = [
+            "artifact_id": "artifact-1",
+            "artifact_generation": generation,
+        ]
+        if selectorExtra { selector["extra"] = true }
+        var value: [String: Any] = [
+            "request_id": "request-1",
+            "canonical_parameter_digest": String(repeating: "a", count: 64),
+            "selector": selector,
+        ]
+        if let destination { value["destination"] = destination }
+        if extra { value["extra"] = true }
+        return value
+    }
+
+    static func callbackLossIsBounded() async throws {
+        let lifecycle = FakeLifecycle()
+        let box = OwnerBox()
+        let started = Date()
+        do {
+            _ = try await aosStartDesktopPixelStreams(
+                signals: [AOSDesktopPixelStartupSignal()],
+                lifecycles: [lifecycle],
+                settlementTimeout: 0.03,
+                ownerGeneration: 41,
+                ownerReady: { box.set($0) },
+                start: { _, _ in },
+                stop: { _, _ in }
+            )
+            fatalError("missing callback reported startup success")
+        } catch {
+            require(Date().timeIntervalSince(started) < 0.3, "startup deadline was not finite")
+        }
+        guard let owner = box.get() else { fatalError("owner not handed off") }
+        require(owner.generation == 41, "owner generation drifted")
+        require(owner.retainsAuthority, "callback-loss owner was discarded")
+        lifecycle.confirmRetirement()
+        let retired = await owner.retire(timeout: 0.05)
+        require(retired, "late retirement was not observed")
+        require(!owner.retainsAuthority, "retired owner was not released")
+    }
+
+    static func startupStopRetainsOwner() async throws {
+        let lifecycle = FakeLifecycle()
+        let box = OwnerBox()
+        let cancellation = AOSDesktopPixelStartupCancellation()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.005) {
+            cancellation.cancel()
+        }
+        do {
+            _ = try await aosStartDesktopPixelStreams(
+                signals: [AOSDesktopPixelStartupSignal()],
+                lifecycles: [lifecycle],
+                settlementTimeout: 0.03,
+                ownerGeneration: 42,
+                ownerReady: { box.set($0) },
+                cancellation: cancellation,
+                start: { _, _ in },
+                stop: { _, _ in }
+            )
+            fatalError("startup cancellation reported success")
+        } catch {
+        }
+        guard let owner = box.get() else { fatalError("cancel owner not handed off") }
+        require(owner.retainsAuthority, "cancel discarded uncertain authority")
+        lifecycle.confirmRetirement()
+        let retired = await owner.retire(timeout: 0.05)
+        require(retired, "startup-stop retirement did not converge")
+    }
+
+    static func startupTaskCancellationRetainsOwner() async throws {
+        let lifecycle = FakeLifecycle()
+        let box = OwnerBox()
+        let startup = Task {
+            try await aosStartDesktopPixelStreams(
+                signals: [AOSDesktopPixelStartupSignal()],
+                lifecycles: [lifecycle],
+                settlementTimeout: 0.03,
+                ownerGeneration: 44,
+                ownerReady: { box.set($0) },
+                start: { _, _ in },
+                stop: { _, _ in }
+            )
+        }
+        try await Task.sleep(nanoseconds: 5_000_000)
+        startup.cancel()
+        do {
+            _ = try await startup.value
+            fatalError("task cancellation reported startup success")
+        } catch {
+        }
+        guard let owner = box.get() else { fatalError("task-cancel owner not handed off") }
+        require(owner.retainsAuthority, "task cancellation discarded uncertain authority")
+        lifecycle.confirmRetirement()
+        let retired = await owner.retire(timeout: 0.05)
+        require(retired, "task-cancel retirement did not converge")
+    }
+
+    static func retirementTimeoutRetainsOwner() async throws {
+        let lifecycle = FakeLifecycle()
+        let owner = try await aosStartDesktopPixelStreams(
+            signals: [AOSDesktopPixelStartupSignal()],
+            lifecycles: [lifecycle],
+            settlementTimeout: 0.05,
+            ownerGeneration: 43,
+            start: { _, completion in completion(.success(())) },
+            stop: { _, _ in }
+        )
+        let uncertain = await owner.retire(timeout: 0.02)
+        require(!uncertain, "unknown stop reported retirement")
+        require(owner.retainsAuthority, "timeout discarded native owner")
+        lifecycle.confirmRetirement()
+        let retired = await owner.retire(timeout: 0.05)
+        require(retired, "observed retirement did not settle")
+    }
+
+    static func retirementFalseSettlementRetainsOwner() async throws {
+        let lifecycle = FakeLifecycle()
+        let owner = try await aosStartDesktopPixelStreams(
+            signals: [AOSDesktopPixelStartupSignal()],
+            lifecycles: [lifecycle],
+            settlementTimeout: 0.05,
+            ownerGeneration: 45,
+            start: { _, completion in completion(.success(())) },
+            stop: { _, completion in completion(.failure(HarnessFault.removeSource)) }
+        )
+        let falseSettlement = await owner.retire(timeout: 0.02)
+        require(!falseSettlement, "false stop settlement reported retirement")
+        require(owner.retainsAuthority, "false stop settlement discarded native owner")
+        lifecycle.confirmRetirement()
+        let retired = await owner.retire(timeout: 0.05)
+        require(retired, "late retirement after false settlement did not converge")
+    }
+
+    static func frameAdmissionClosesAtomically() async {
+        let gate = AOSDesktopPixelFrameAdmissionGate()
+        guard let first = gate.admit() else { fatalError("open gate rejected frame") }
+        require(gate.close() == 1, "stop did not bind the in-flight frame")
+        require(gate.admit() == nil, "post-stop frame was admitted")
+        let premature = await gate.waitForDrain(timeout: 0.01)
+        require(!premature, "in-flight frame did not block drain")
+        first.complete()
+        first.complete()
+        let drained = await gate.waitForDrain(timeout: 0.05)
+        require(drained, "pre-stop frame did not drain once")
+        require(!gate.isOpen, "closed frame gate reopened")
+    }
+
+    static func custodyFaultsRecoverExactly() throws {
+        let source = AOSArtifactFileIdentity(
+            rootIdentityDigest: String(repeating: "1", count: 64),
+            relativeLocatorDigest: String(repeating: "2", count: 64),
+            device: 7,
+            inode: 11,
+            byteCount: 512,
+            contentDigest: String(repeating: "3", count: 64),
+            mediaType: "video/quicktime; codecs=avc1"
+        )
+        let linked = AOSArtifactReleaseDestinationFileIdentity(
+            device: 7,
+            inode: 11,
+            byteCount: 512,
+            contentDigest: String(repeating: "3", count: 64)
+        )
+        let release = AOSArtifactReleaseRecord(
+            releaseGeneration: 13,
+            artifact: AOSOperationIdentity(id: "artifact-1", generation: 7),
+            daemonGeneration: 5,
+            sourceIdentity: source,
+            destinationIdentity: AOSArtifactReleaseDestinationIdentity(
+                absolutePath: "/private/tmp/recording.mov",
+                pathDigest: String(repeating: "4", count: 64),
+                parentDevice: 7,
+                parentInode: 9
+            ),
+            phase: .prepared,
+            destinationFileIdentity: nil
+        )
+        require(release.releaseGeneration == 13, "release generation was not exact")
+        require(release.sourceIdentity == source, "release source identity drifted")
+        require(release.destinationIdentity.parentInode == 9, "destination identity drifted")
+
+        let success = FakeCustody(fault: nil)
+        try AOSArtifactReleaseCoordinator.execute(
+            release,
+            dependencies: success.execution(linked: linked)
+        )
+        require(!success.sourceExists && success.destinationExists, "release effects were incomplete")
+        require(success.persistedLinked && success.persistedReleased, "release phases were not durable")
+
+        let cases: [(HarnessFault, AOSArtifactReleaseResolution)] = [
+            (.link, .rolledBack),
+            (.persistLinked, .rolledBack),
+            (.removeSource, .rolledBack),
+            (.persistReleased, .released),
+        ]
+        for (fault, expected) in cases {
+            let fake = FakeCustody(fault: fault)
+            do {
+                try AOSArtifactReleaseCoordinator.execute(
+                    release,
+                    dependencies: fake.execution(linked: linked)
+                )
+                fatalError("fault phase reported success")
+            } catch {
+            }
+            let resolution = try fake.recover()
+            require(resolution == expected, "fault phase resolved incorrectly")
+            require(fake.persistedResolution == expected, "recovery truth was not durable")
+            if expected == .rolledBack {
+                require(fake.sourceExists && !fake.destinationExists, "rollback left custody residue")
+            } else {
+                require(!fake.sourceExists && fake.destinationExists, "release recovery lost custody")
+            }
+        }
+
+        let cleanupFault = FakeCustody(fault: .removeSource)
+        do {
+            try AOSArtifactReleaseCoordinator.execute(
+                release,
+                dependencies: cleanupFault.execution(linked: linked)
+            )
+            fatalError("cleanup fault setup reported success")
+        } catch {
+        }
+        let cleanupResolution = try cleanupFault.recover(removeFault: true)
+        require(cleanupResolution == .residual, "cleanup fault was hidden")
+        require(cleanupFault.persistedResolution == .residual, "residual truth was not durable")
+        require(AOSArtifactReleaseCoordinator.resolution(
+            source: .absent,
+            destination: .conflicting
+        ) == .residual, "conflicting destination was misclassified")
+    }
+
+    static func decoderAndTerminalTruthAreClosed() throws {
+        for action in ["artifact_reveal", "artifact_remove", "artifact_retain"] {
+            let decoded = try aosDecodeArtifactActionRequest(
+                action: action,
+                data: actionData()
+            )
+            require(decoded.selector.generation == 7, "selector generation drifted")
+            require(decoded.destinationPath == nil, "selector action admitted destination")
+        }
+        let release = try aosDecodeArtifactActionRequest(
+            action: "artifact_release",
+            data: actionData(destination: "/private/tmp/recording.mov")
+        )
+        require(release.destinationPath == "/private/tmp/recording.mov", "release destination lost")
+        expectInvalid {
+            _ = try aosDecodeArtifactActionRequest(
+                action: "artifact_reveal", data: actionData(extra: true)
+            )
+        }
+        expectInvalid {
+            _ = try aosDecodeArtifactActionRequest(
+                action: "artifact_remove", data: actionData(destination: "/private/tmp/x")
+            )
+        }
+        expectInvalid {
+            _ = try aosDecodeArtifactActionRequest(
+                action: "artifact_release",
+                data: actionData(destination: "/private/tmp/x", extra: true)
+            )
+        }
+        expectInvalid {
+            _ = try aosDecodeArtifactActionRequest(
+                action: "artifact_release", data: actionData(destination: true)
+            )
+        }
+        for generation: Any in [true, 1.5, NSNumber(value: UInt64(9_007_199_254_740_992))] {
+            expectInvalid {
+                _ = try aosDecodeArtifactActionRequest(
+                    action: "artifact_reveal", data: actionData(generation: generation)
+                )
+            }
+        }
+        expectInvalid {
+            _ = try aosDecodeArtifactActionRequest(
+                action: "artifact_reveal", data: actionData(selectorExtra: true)
+            )
+        }
+
+        do {
+            try AOSScreenRecordingTerminalTruth.requireFrames(0)
+            fatalError("zero-frame success admitted")
+        } catch AOSOperationCoreError.recordingNoFrames {
+        }
+        do {
+            try AOSScreenRecordingTerminalTruth.requireFinalizedArtifact(
+                frameCount: 1,
+                artifact: nil,
+                filePresent: false
+            )
+            fatalError("missing artifact success admitted")
+        } catch AOSOperationCoreError.recordingArtifactMissing {
+        }
+    }
+
+    static func main() async throws {
+        try await callbackLossIsBounded()
+        try await startupStopRetainsOwner()
+        try await startupTaskCancellationRetainsOwner()
+        try await retirementTimeoutRetainsOwner()
+        try await retirementFalseSettlementRetainsOwner()
+        await frameAdmissionClosesAtomically()
+        try custodyFaultsRecoverExactly()
+        try decoderAndTerminalTruthAreClosed()
+        print("terminal-lifecycle-custody-harness: lifecycle=5 frame=6 custody=7 decoder=8 terminal=2 cleanup=3")
+    }
+}
+`
+
 test('production request, geometry, timeline, and progress owners reject lossy state', async () => {
   const temporaryRoot = await mkdtemp(path.join(process.env.TMPDIR ?? os.tmpdir(), 'aos-screen-recording-owner-'))
   try {
@@ -406,4 +864,50 @@ print("custody-schema: 1 positive, 5 negative")
   const result = spawnSync('python3', ['-c', python, schemaPath], { encoding: 'utf8' })
   assert.equal(result.status, 0, result.stderr || result.stdout)
   assert.match(result.stdout, /1 positive, 5 negative/u)
+})
+
+test('production lifecycle and custody owners close terminal fault phases with fake dependencies', async () => {
+  const temporaryRoot = await mkdtemp(path.join(
+    process.env.TMPDIR ?? os.tmpdir(),
+    'aos-screen-recording-terminal-',
+  ))
+  try {
+    const support = path.join(temporaryRoot, 'Support.swift')
+    const harness = path.join(temporaryRoot, 'Harness.swift')
+    const binary = path.join(temporaryRoot, 'terminal-lifecycle-custody-harness')
+    await Promise.all([
+      writeFile(support, terminalSupportSource),
+      writeFile(harness, terminalHarnessSource),
+    ])
+    const compile = spawnSync('swiftc', [
+      '-module-cache-path', path.join(temporaryRoot, 'module-cache'),
+      path.join(root, 'src/daemon/operation-state.swift'),
+      path.join(root, 'src/daemon/operation-owner-root.swift'),
+      path.join(root, 'src/daemon/operation-spawn-record.swift'),
+      path.join(root, 'src/daemon/desktop-pixel-retirement.swift'),
+      path.join(root, 'src/daemon/desktop-pixel-stream-lifecycle.swift'),
+      support,
+      harness,
+      '-o', binary,
+    ], { encoding: 'utf8' })
+    assert.equal(compile.status, 0, compile.stderr || compile.stdout)
+    const run = spawnSync(binary, [], { encoding: 'utf8', timeout: 5_000 })
+    assert.equal(run.status, 0, run.stderr || run.stdout)
+    assert.match(run.stdout, /lifecycle=5 frame=6 custody=7 decoder=8 terminal=2 cleanup=3/u)
+
+    const [lifecycle, state, adapter, unified] = await Promise.all([
+      readFile(path.join(root, 'src/daemon/desktop-pixel-stream-lifecycle.swift'), 'utf8'),
+      readFile(path.join(root, 'src/daemon/operation-state.swift'), 'utf8'),
+      readFile(path.join(root, 'src/daemon/screen-recording-operation-adapter.swift'), 'utf8'),
+      readFile(path.join(root, 'src/daemon/unified.swift'), 'utf8'),
+    ])
+    assert.match(lifecycle, /AOSDesktopPixelFrameAdmissionGate/u)
+    assert.match(lifecycle, /ownerReady/u)
+    assert.match(state, /AOSArtifactReleaseCoordinator/u)
+    assert.match(state, /aosDecodeArtifactActionRequest/u)
+    assert.match(adapter, /AOSArtifactReleaseCoordinator/u)
+    assert.match(unified, /aosDecodeArtifactActionRequest/u)
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true })
+  }
 })
