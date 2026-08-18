@@ -116,7 +116,7 @@ PY
 echo "PASS: __runtime status-facts --json runtime facts"
 
 stop_mock
-start_mock active
+start_mock active --listen-access true --accessibility true
 
 HEALTH_JSON="$(./aos __daemon health --json)"
 python3 - "$HEALTH_JSON" <<'PY'
