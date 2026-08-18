@@ -258,7 +258,7 @@ const artifactIdentity = {
   inode: 2,
   size_bytes: 100,
   content_digest: SHA_C,
-  media_type: 'video/mp4',
+  media_type: 'video/quicktime; codecs=avc1',
 };
 
 const artifact = {
@@ -452,6 +452,18 @@ test('tap remains unavailable while artifact roots expose producer custody and t
     media_type: 'video/quicktime; codecs=avc1',
     path: '/private/tmp/artifact.mov',
   };
+  const removedArtifactResult = {
+    ...artifactResult,
+    action: 'remove',
+    state: 'removed',
+  };
+  delete removedArtifactResult.path;
+  const releasedArtifactResult = {
+    ...artifactResult,
+    action: 'release',
+    state: 'released',
+    path: '/private/tmp/released.mov',
+  };
   assertValidation([
     target(TAP_ID, null, tapUnavailable, true, 'tap unavailable root'),
     target(TAP_ID, null, tap, false, 'tap success is not the current root'),
@@ -459,7 +471,15 @@ test('tap remains unavailable while artifact roots expose producer custody and t
     target(ARTIFACT_ID, null, artifactUnavailable, true, 'artifact custody unavailable root'),
     target(ARTIFACT_ID, null, artifactRequest, true, 'artifact exact request root'),
     target(ARTIFACT_ID, null, artifactResult, true, 'producer custody result root'),
+    target(ARTIFACT_ID, null, removedArtifactResult, true, 'removed custody result root'),
+    target(ARTIFACT_ID, null, releasedArtifactResult, true, 'released custody result root'),
     target(ARTIFACT_ID, null, artifact, true, 'artifact snapshot root'),
+    target(ARTIFACT_ID, 'artifact_custody_result', { ...removedArtifactResult, state: 'offered' }, false, 'remove cannot report offered'),
+    target(ARTIFACT_ID, 'artifact_custody_result', { ...removedArtifactResult, path: '/private/tmp/removed.mov' }, false, 'remove cannot disclose a path'),
+    target(ARTIFACT_ID, 'artifact_custody_result', { ...releasedArtifactResult, state: 'removed' }, false, 'release must report released'),
+    target(ARTIFACT_ID, 'artifact_custody_result', { ...artifactResult, path: undefined }, false, 'reveal requires a path'),
+    target(ARTIFACT_ID, 'artifact_custody_result', { ...artifactResult, media_type: 'video/quicktime; codecs=vp09' }, false, 'custody media type and codec are exact'),
+    target(ARTIFACT_ID, 'artifact_snapshot', { ...artifact, identity: { ...artifactIdentity, media_type: 'video/quicktime' } }, false, 'snapshot media type requires the exact avc1 parameter'),
     target(
       ARTIFACT_ID,
       null,

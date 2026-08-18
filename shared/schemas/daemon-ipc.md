@@ -108,8 +108,8 @@ Error response:
 | `operation.kill_owner` | Stop the authenticated owner-set intersection selected by optional attribution/capability filters. | `request_id`, `canonical_parameter_digest`, `filters`. |
 | `operation.record_screen` | Admit one bounded fixed display/window/region H.264 QuickTime video-only producer. | Closed `aos.screen-recording.request.v1` data, including canonical topology, target, hard bounds, `tracks={video:true,system_audio:false,microphone:false}`, codec, and container. |
 | `operation.tap` | Return current typed tap unavailability without opening or sampling a tap. | `request_id`, `canonical_parameter_digest`. |
-| `operation.artifact_reveal\|artifact_remove\|artifact_retain` | Act on one exact producer-backed artifact generation; retain is typed unavailable. | `request_id`, `canonical_parameter_digest`, `artifact_selector`. |
-| `operation.artifact_release` | Transfer one exact producer-backed artifact generation without overwrite. | `request_id`, `canonical_parameter_digest`, `artifact_selector`, `destination_path`. |
+| `operation.artifact_reveal\|artifact_remove\|artifact_retain` | Act on one exact producer-backed artifact generation; retain is typed unavailable. | `request_id`, `canonical_parameter_digest`, `selector`. |
+| `operation.artifact_release` | Transfer one exact producer-backed artifact generation without overwrite. | `request_id`, `canonical_parameter_digest`, `selector`, `destination`. |
 | `operation.stop_all` | Same-effective-UID stop over the immutable registered-set snapshot at the expected barrier generation. | `schema_version`, `action`, `request_id`, `canonical_parameter_digest`, `expected_barrier_generation`. |
 | `operation.barrier_status` | Read the current host barrier snapshot, progress, and residual facts. | `schema_version`, `action`, `request_id`, `canonical_parameter_digest`. |
 | `operation.reopen` | Reopen admission after prior and current registered sets reconcile. | `schema_version`, `action`, `request_id`, `canonical_parameter_digest`, `expected_barrier_generation`. |

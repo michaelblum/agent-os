@@ -22,9 +22,38 @@ test('recording producer pins exact caps, media pair, target drift, and no audio
   assert.match(adapter, /configuration\.capturesAudio = false/u)
   assert.doesNotMatch(adapter, /addStreamOutput\([^\n]+type:\s*\.audio/u)
   assert.match(adapter, /validateCurrentBinding/u)
+  assert.match(geometry, /let admittedTopology: AOSDisplayTopologySnapshot/u)
+  assert.match(geometry, /canonicalTopologyData\(observedTopology\)[\s\S]*canonicalTopologyData\(geometry\.admittedTopology\)/u)
   assert.match(adapter, /recordingTargetDrift/u)
   assert.match(adapter, /aosStartDesktopPixelStreams/u)
   assert.match(adapter, /acquireExclusiveProducer/u)
+  const filterValidation = adapter.lastIndexOf('AOSScreenRecordingGeometryValidator.validateCurrentBinding(', adapter.indexOf('let filter: SCContentFilter'))
+  assert.ok(filterValidation >= 0 && filterValidation < adapter.indexOf('let filter: SCContentFilter'))
+  const frameValidation = adapter.indexOf('try validateBinding()')
+  const frameAppend = adapter.indexOf('try encoder.append(sampleBuffer)')
+  assert.ok(frameValidation >= 0 && frameValidation < frameAppend)
+})
+
+test('effectful recording decoders and progress publication are exact and fail closed', async () => {
+  const [geometry, adapter, unified] = await Promise.all([
+    read('src/daemon/screen-recording-geometry.swift'),
+    read('src/daemon/screen-recording-operation-adapter.swift'),
+    read('src/daemon/unified.swift'),
+  ])
+  assert.match(geometry, /aosExactJSONInteger/u)
+  assert.match(geometry, /CFBooleanGetTypeID|aosExactJSONInteger/u)
+  assert.match(geometry, /aosOperationWireIdentifier/u)
+  assert.match(unified, /aosExactOperationWireIdentity/u)
+  assert.match(unified, /aosArtifactReleaseDestinationPath/u)
+  const release = adapter.slice(adapter.indexOf('func releaseArtifact('), adapter.indexOf('func retainArtifact('))
+  assert.ok(release.indexOf('aosArtifactReleaseDestinationPath') < release.indexOf('ownedArtifact('))
+  assert.doesNotMatch(adapter, /try\?\s+aosPersistScreenRecordingProgress/u)
+  assert.ok((adapter.match(/try aosPersistScreenRecordingProgress/gu) ?? []).length >= 2)
+  const finalProgress = adapter.indexOf('try aosPersistScreenRecordingProgress', adapter.indexOf('runtimeDidFinish'))
+  const artifactOffer = adapter.indexOf('registry.updateArtifact(', adapter.indexOf('runtimeDidFinish'))
+  assert.ok(finalProgress >= 0 && finalProgress < artifactOffer)
+  assert.match(adapter, /admitCaptureStart/u)
+  assert.match(adapter, /admitStop/u)
 })
 
 test('durability and custody ordering is producer-backed and retain is specifically unavailable', async () => {

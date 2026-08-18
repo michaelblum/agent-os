@@ -96,11 +96,34 @@
         "artifact": {"$ref": "#/$defs/artifact_selector"},
         "state": {"enum": ["offered", "removed", "released"]},
         "byte_count": {"$ref": "#/$defs/nonnegative_integer"},
-        "content_digest": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]},
-        "media_type": {"oneOf": [{"type": "null"}, {"const": "video/quicktime; codecs=avc1"}]},
+        "content_digest": {"$ref": "#/$defs/sha256"},
+        "media_type": {"const": "video/quicktime; codecs=avc1"},
         "path": {"type": "string", "pattern": "^/", "maxLength": 4096}
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "action": {"const": "reveal"},
+            "state": {"const": "offered"}
+          },
+          "required": ["path"]
+        },
+        {
+          "properties": {
+            "action": {"const": "remove"},
+            "state": {"const": "removed"}
+          },
+          "not": {"required": ["path"]}
+        },
+        {
+          "properties": {
+            "action": {"const": "release"},
+            "state": {"const": "released"}
+          },
+          "required": ["path"]
+        }
+      ]
     },
     "artifact_identity": {
       "type": "object",
@@ -120,12 +143,7 @@
         "inode": {"$ref": "#/$defs/nonnegative_integer"},
         "size_bytes": {"$ref": "#/$defs/nonnegative_integer"},
         "content_digest": {"$ref": "#/$defs/sha256"},
-        "media_type": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 127,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9.+-]*/[A-Za-z0-9][A-Za-z0-9.+-]*$"
-        }
+        "media_type": {"const": "video/quicktime; codecs=avc1"}
       },
       "additionalProperties": false
     },

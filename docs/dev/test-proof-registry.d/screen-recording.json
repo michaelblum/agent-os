@@ -20,11 +20,11 @@
       "owner": "operation-control",
       "harness_level": "model_unit",
       "proof_kind": "fixed_video_screen_recording_contract",
-      "contract": "One exact fixed display, window, or single-display global region is topology-bound before an H.264 QuickTime video-only producer acquires native or file authority. Closed duration, frame-rate, pixel, queue, and byte caps, deterministic stop/drain, exact registered-set revision, producer-backed reveal/remove/release, specifically unavailable retain, boot cleanup, and zero-residual terminal publication converge across source, schema, and help.",
-      "worth": "This catches audio or follow-geometry widening, authority before persistence, parallel ScreenCaptureKit ownership, stale geometry acceptance, unbounded encoding, false custody, early terminal publication, incomplete cleanup, help/schema drift, and native type errors without acquiring Screen Recording permission or recording pixels.",
+      "contract": "One exact fixed display, window, or single-display global region retains its admitted canonical topology before an H.264 QuickTime video-only producer acquires native or file authority and before every admitted frame. Exact effectful decoding, capture-admission media timing, throwing durable progress, closed artifact custody, exact registered-set revision, specifically unavailable retain, and cleanup ordering converge across production owners, schemas, source, and help.",
+      "worth": "This catches topology scale, rotation, or peer drift; Boolean, fractional, overflow, malformed-identifier, or oversized-destination admission; suppressed progress-save failures; false artifact action/state/path/media pairs; audio widening; help/schema drift; and native type errors without acquiring Screen Recording permission or recording pixels.",
       "command": "bash tests/native-screen-recording-contract.sh",
       "replaces": [],
-      "guard": "schema, static source, deterministic fake state/encoder/custody model, and whole-source Swift compile only; no daemon, raw repo build, ScreenCaptureKit execution, AVAssetWriter execution, native UI, TCC, or media retention",
+      "guard": "schema and static source checks, a deterministic compiled harness over the production request/geometry/timeline/progress owners with fake topology and persistence dependencies, runtime custody-schema validation, and whole-source Swift compile only; no daemon, raw repo build, ScreenCaptureKit execution, AVAssetWriter execution, native UI, TCC, or media retention",
       "status": "active"
     }
   ]

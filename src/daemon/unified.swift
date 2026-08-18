@@ -3970,7 +3970,9 @@ class UnifiedDaemon {
                 case "artifact_remove":
                     result = try adapter.removeArtifact(selector, ownerRoot: identity.ownerRoot)
                 case "artifact_release":
-                    guard let destination = data["destination"] as? String else {
+                    guard let destination = aosArtifactReleaseDestinationPath(
+                        data["destination"]
+                    ) else {
                         throw AOSOperationCoreError.invalidRecord("artifact_release_destination")
                     }
                     result = try adapter.releaseArtifact(
@@ -4011,7 +4013,7 @@ class UnifiedDaemon {
         action: String,
         data: [String: Any]
     ) throws {
-        guard let requestID = data["request_id"] as? String, !requestID.isEmpty,
+        guard let requestID = aosOperationWireIdentifier(data["request_id"]),
               let supplied = data["canonical_parameter_digest"] as? String else {
             throw AOSOperationCoreError.invalidRecord("operation_request_identity")
         }
@@ -4106,23 +4108,25 @@ class UnifiedDaemon {
     }
 
     private func operationSelector(_ selector: [String: Any]) throws -> AOSOperationIdentity {
-        guard let id = selector["operation_id"] as? String, !id.isEmpty,
-              let generation = (selector["operation_generation"] as? NSNumber)?.uint64Value,
-              generation > 0 else {
+        guard let identity = aosExactOperationWireIdentity(
+            selector,
+            idKey: "operation_id",
+            generationKey: "operation_generation"
+        ) else {
             throw AOSOperationCoreError.invalidRecord("operation_selector")
         }
-        return AOSOperationIdentity(id: id, generation: generation)
+        return identity
     }
 
     private func artifactSelector(_ data: [String: Any]) throws -> AOSOperationIdentity {
-        guard let selector = data["selector"] as? [String: Any],
-              Set(selector.keys) == ["artifact_id", "artifact_generation"],
-              let id = selector["artifact_id"] as? String, !id.isEmpty,
-              let generation = (selector["artifact_generation"] as? NSNumber)?.uint64Value,
-              generation > 0 else {
+        guard let identity = aosExactOperationWireIdentity(
+            data["selector"],
+            idKey: "artifact_id",
+            generationKey: "artifact_generation"
+        ) else {
             throw AOSOperationCoreError.invalidRecord("artifact_selector")
         }
-        return AOSOperationIdentity(id: id, generation: generation)
+        return identity
     }
 
     private func hostControlRequest(

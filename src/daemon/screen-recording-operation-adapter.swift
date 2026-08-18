@@ -204,10 +204,12 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         ownerRoot: AOSMechanicalOwnerRoot,
         destinationPath: String
     ) throws -> [String: Any] {
-        let record = try ownedArtifact(selector, ownerRoot: ownerRoot)
-        guard record.state == .offered, let expected = record.fileIdentity,
-              destinationPath.hasPrefix("/"), !destinationPath.isEmpty else {
+        guard let validatedDestinationPath = aosArtifactReleaseDestinationPath(destinationPath) else {
             throw AOSOperationCoreError.invalidRecord("artifact_release_destination")
+        }
+        let record = try ownedArtifact(selector, ownerRoot: ownerRoot)
+        guard record.state == .offered, let expected = record.fileIdentity else {
+            throw AOSOperationCoreError.invalidTransition
         }
         let source = artifactURL(selector)
         guard try AOSScreenRecordingEncoder.validateArtifact(
@@ -217,12 +219,7 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         ) == expected else {
             throw AOSOperationCoreError.artifactIdentityMismatch
         }
-        let destination = URL(fileURLWithPath: destinationPath).standardizedFileURL
-        guard destination.path == destinationPath,
-              destination.lastPathComponent != ".",
-              destination.lastPathComponent != ".." else {
-            throw AOSOperationCoreError.invalidRecord("artifact_release_destination")
-        }
+        let destination = URL(fileURLWithPath: validatedDestinationPath)
         var parentStat = stat()
         var sourceStat = stat()
         guard lstat(destination.deletingLastPathComponent().path, &parentStat) == 0,
@@ -277,6 +274,7 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         artifactIdentity: AOSArtifactFileIdentity?,
         progress: AOSScreenRecordingEncoderProgress,
         elapsedMilliseconds: UInt64,
+        requestedBounds: AOSOperationRequestedBounds,
         authorityAbsent: Bool,
         failure: Error?
     ) {
@@ -288,15 +286,17 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         }
         do {
             let publicAdmission = admission.publicAdmission
-            _ = try? registry.updateOperationProgress(
-                publicAdmission.operation,
-                AOSOperationProgress(
-                    frameCount: progress.frameCount,
-                    byteCount: progress.byteCount,
-                    elapsedMilliseconds: elapsedMilliseconds,
-                    droppedFrameCount: 0
+            try aosPersistScreenRecordingProgress(
+                frameCount: progress.frameCount,
+                byteCount: progress.byteCount,
+                elapsedMilliseconds: elapsedMilliseconds,
+                bounds: requestedBounds
+            ) { durableProgress in
+                _ = try registry.updateOperationProgress(
+                    publicAdmission.operation,
+                    durableProgress
                 )
-            )
+            }
             if let artifactIdentity {
                 _ = try registry.updateArtifact(
                     publicAdmission.artifact,
@@ -542,17 +542,20 @@ private final class AOSScreenRecordingStreamOutput: NSObject,
     private let retirement = AOSDesktopPixelRetirementLatch()
     private let startup: AOSDesktopPixelStartupSignal
     private let validateBinding: () throws -> Void
+    private let persistProgress: (AOSScreenRecordingEncoderProgress) throws -> Void
     private let didFail: @Sendable (Error) -> Void
 
     init(
         encoder: AOSScreenRecordingEncoding,
         startup: AOSDesktopPixelStartupSignal,
         validateBinding: @escaping () throws -> Void,
+        persistProgress: @escaping (AOSScreenRecordingEncoderProgress) throws -> Void,
         didFail: @escaping @Sendable (Error) -> Void
     ) {
         self.encoder = encoder
         self.startup = startup
         self.validateBinding = validateBinding
+        self.persistProgress = persistProgress
         self.didFail = didFail
     }
 
@@ -567,6 +570,10 @@ private final class AOSScreenRecordingStreamOutput: NSObject,
         do {
             try validateBinding()
             try encoder.append(sampleBuffer)
+            let progress = encoder.progress
+            if progress.frameCount > 0, progress.byteCount > 0 {
+                try persistProgress(progress)
+            }
             lock.lock()
             let publishStartup = !firstFrame
             firstFrame = true
@@ -622,7 +629,7 @@ private final class AOSNativeScreenRecordingRuntime:
     private let lock = NSLock()
     private let registry: AOSOperationRegistry
     private let request: AOSScreenRecordingRequest
-    private let startedAtNanoseconds: UInt64
+    private var progressTimeline: AOSScreenRecordingProgressTimeline
     private var finishStarted = false
     private var producerLease: AOSDesktopPixelExclusiveProducerLease?
     private var startupSettled = false
@@ -646,7 +653,9 @@ private final class AOSNativeScreenRecordingRuntime:
         self.geometry = geometry
         self.registry = registry
         self.request = request
-        self.startedAtNanoseconds = registry.now()
+        self.progressTimeline = AOSScreenRecordingProgressTimeline(
+            maximumDurationMilliseconds: request.durationMilliseconds
+        )
     }
 
     func start() {
@@ -659,9 +668,6 @@ private final class AOSNativeScreenRecordingRuntime:
                     await finish(intent: pendingIntent)
                     return
                 }
-                DispatchQueue.global(qos: .utility).asyncAfter(
-                    deadline: .now() + .milliseconds(Int(request.durationMilliseconds))
-                ) { [weak self] in self?.stop(intent: .complete) }
             } catch {
                 let selectedIntent = settleStartup(failure: error)
                     ?? (error is AOSOperationCoreError ? .adapterFailed : .permissionRevoked)
@@ -672,6 +678,7 @@ private final class AOSNativeScreenRecordingRuntime:
 
     func stop(intent: AOSStopIntent) {
         lock.lock()
+        _ = progressTimeline.admitStop(atNanoseconds: registry.now())
         if stopIntent == nil { stopIntent = intent }
         guard startupSettled, !finishStarted else {
             lock.unlock()
@@ -733,6 +740,11 @@ private final class AOSNativeScreenRecordingRuntime:
         installEncoder(encoder)
         let content = try await shareableContent()
         let current = observeDisplayTopologySnapshot()
+        try AOSScreenRecordingGeometryValidator.validateCurrentBinding(
+            geometry,
+            observedTopology: current,
+            windowFacts: geometry.target.kind == .window ? observeCaptureWindowFacts() : []
+        )
         guard let selectedDisplay = current.displays.first(where: {
             $0.ordinal == geometry.target.displayOrdinal
                 && $0.memberIdentity == geometry.target.displayMemberIdentity
@@ -788,6 +800,12 @@ private final class AOSNativeScreenRecordingRuntime:
                     windowFacts: geometry.target.kind == .window ? observeCaptureWindowFacts() : []
                 )
             },
+            persistProgress: { [weak self] progress in
+                guard let self else {
+                    throw AOSOperationCoreError.recordingCleanupRequired
+                }
+                try self.persistProgress(progress)
+            },
             didFail: { [weak self] _ in self?.stop(intent: .adapterFailed) }
         )
         let stream = SCStream(filter: filter, configuration: configuration, delegate: output)
@@ -799,7 +817,8 @@ private final class AOSNativeScreenRecordingRuntime:
             lifecycles: [output],
             settlementTimeout: aosDesktopPixelStreamRetirementTimeout,
             lateFailure: { [weak self] _ in self?.stop(intent: .adapterFailed) },
-            start: { _, completion in
+            start: { [weak self] _, completion in
+                self?.admitCaptureStartAndScheduleDeadline()
                 stream.startCapture { error in
                     completion(error.map(Result.failure) ?? .success(()))
                 }
@@ -814,6 +833,7 @@ private final class AOSNativeScreenRecordingRuntime:
     }
 
     private func finish(intent: AOSStopIntent) async {
+        admitStopIfNeeded()
         let resources = runtimeResources()
         let owner = resources.owner
         let encoder = resources.encoder
@@ -845,19 +865,56 @@ private final class AOSNativeScreenRecordingRuntime:
             frameCount: 0,
             byteCount: 0
         )
-        let finishedAtNanoseconds = registry.now()
-        let elapsedMilliseconds = finishedAtNanoseconds >= startedAtNanoseconds
-            ? (finishedAtNanoseconds - startedAtNanoseconds) / 1_000_000
-            : 0
+        let elapsedMilliseconds = admittedElapsedMilliseconds()
         adapter?.runtimeDidFinish(
             admission,
             intent: intent,
             artifactIdentity: artifact,
             progress: progress,
             elapsedMilliseconds: elapsedMilliseconds,
+            requestedBounds: request.requestedBounds,
             authorityAbsent: retired && leaseReleased,
             failure: failure
         )
+    }
+
+    private func admitCaptureStartAndScheduleDeadline() {
+        lock.lock()
+        let admitted = progressTimeline.admitCaptureStart(atNanoseconds: registry.now())
+        lock.unlock()
+        guard admitted else { return }
+        DispatchQueue.global(qos: .utility).asyncAfter(
+            deadline: .now() + .milliseconds(Int(request.durationMilliseconds))
+        ) { [weak self] in
+            self?.stop(intent: .complete)
+        }
+    }
+
+    private func admitStopIfNeeded() {
+        lock.lock()
+        _ = progressTimeline.admitStop(atNanoseconds: registry.now())
+        lock.unlock()
+    }
+
+    private func admittedElapsedMilliseconds() -> UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+        return progressTimeline.elapsedMilliseconds(atNanoseconds: registry.now())
+    }
+
+    private func persistProgress(_ progress: AOSScreenRecordingEncoderProgress) throws {
+        let elapsed = admittedElapsedMilliseconds()
+        try aosPersistScreenRecordingProgress(
+            frameCount: progress.frameCount,
+            byteCount: progress.byteCount,
+            elapsedMilliseconds: elapsed,
+            bounds: request.requestedBounds
+        ) { durableProgress in
+            _ = try registry.updateOperationProgress(
+                admission.publicAdmission.operation,
+                durableProgress
+            )
+        }
     }
 
     private func installProducerLease(_ lease: AOSDesktopPixelExclusiveProducerLease) {

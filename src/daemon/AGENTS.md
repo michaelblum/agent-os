@@ -165,14 +165,18 @@ redaction, persistence, and GPU delivery belong to downstream adapters.
 recording producer. It acquires the exact exclusive operation resource and
 broker producer lease before ScreenCaptureKit/file authority, then records one
 fixed display, exact window, or single-display global region as H.264 QuickTime
-video. Its closed track contract is video-only: system audio and microphone are
-false, and it never follows geometry after admission. Stop, failure, and boot
-recovery must settle stream authority, drain or cancel the writer, release the
-broker and operation claim, and remove any unoffered file before terminalizing.
+video. It retains and revalidates the exact admitted canonical topology before
+filter creation and every frame. Its closed track contract is video-only: system
+audio and microphone are false, and it never follows geometry after admission.
+Media duration spans capture-start through stop admission only, and nonzero
+frame/byte progress plus terminal progress persist durably. Stop, failure, and
+boot recovery must settle stream authority, drain or cancel the writer, release
+the broker and operation claim, and remove any unoffered file before terminalizing.
 Offered artifacts support owner- and generation-bound reveal, remove, and
-same-volume no-overwrite release; retain is typed unavailable. Offline/fake and
-native compile-only proof do not authorize live ScreenCaptureKit, TCC, daemon,
-file, status-item, or crash acceptance.
+same-volume no-overwrite release; retain is typed unavailable. Offline schema,
+compiled production-owner seam harnesses with fake dependencies, and native
+compile-only proof do not authorize live ScreenCaptureKit, TCC, daemon, file,
+status-item, MOV, or crash acceptance.
 Multi-display warm acquisition configures the
 complete stream set before starting every display concurrently; partial startup
 failure immediately requests aggregate retirement while retaining late

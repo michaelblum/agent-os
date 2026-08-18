@@ -81,6 +81,11 @@ test('screen-recording schema rejects audio, follow-like extras, and every upper
     { ...base, max_pixel_count: 33_177_601 },
     { ...base, max_queue_frames: 9 },
     { ...base, max_output_bytes: 1_073_741_825 },
+    { ...base, request_id: 'bad id' },
+    { ...base, duration_ms: true },
+    { ...base, frame_rate: 1.5 },
+    { ...base, target: { kind: 'display', display_ordinal: true } },
+    { ...base, target: { kind: 'window', display_ordinal: 1, window_id: 1.5, owner_pid: 9, global_bounds: { x: 1, y: 2, width: 4, height: 6 } } },
   ]
   for (const value of invalid) assert.ok(validate('request', value).length > 0)
 })

@@ -4400,7 +4400,7 @@
           ],
           "depth": "Pixel plane only.",
           "breadth": "One fixed display, exact window, or global region wholly within one display; screen video only.",
-          "completeness": "Public fixed video request, operation/stream/artifact identity, H.264 QuickTime encoder, custody, and offline/fake/compile proof are current.",
+          "completeness": "Public fixed video request, operation/stream/artifact identity, H.264 QuickTime encoder, custody schema, compiled production-owner seam harness, and native compile proof are current.",
           "frontier": "SCStream `.screen` frames flow only to the bounded video writer; system audio and microphone output are explicitly absent.",
           "state_identity": "Canonical topology identity, display member identity, fixed geometry digest, operation generation, stream generation, and artifact generation."
         },
@@ -4493,7 +4493,7 @@
           "fake": [
             {
               "path": "tests/screen-recording-fake.test.mjs",
-              "claim": "Exercises video-only request bounds, fixed-geometry drift, backpressure, custody, and terminal cleanup with fake sources.",
+              "claim": "Compiles and executes the production request, geometry, media-timeline, and durable-progress owners against fake topology and persistence dependencies; validates runtime-shaped custody and rejects topology drift, lossy selectors, suppressed save failures, and false custody combinations.",
               "execution_class": "fake",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -4510,7 +4510,7 @@
               "mutates_runtime": false
             }
           ],
-          "limitations": "Offline schema/static/fake and native compile proof establish the bounded video-only producer contract. No live pixels, file, permission behavior, daemon restart, or crash acceptance is claimed."
+          "limitations": "Offline schema/static proof, a compiled production-owner seam harness, and native compile proof establish the bounded video-only producer contract. AVAssetWriter and ScreenCaptureKit do not execute; no live pixels, MOV acceptance, file custody effects, permission behavior, daemon restart, or crash acceptance is claimed."
         }
       },
       "target": {
@@ -5192,7 +5192,7 @@
           "fake": [
             {
               "path": "tests/screen-recording-fake.test.mjs",
-              "claim": "Exercises bounded append, backpressure, finalization, failure, custody, and cleanup without native media.",
+              "claim": "Compiles and executes the shared production request, geometry, media-timeline, and durable-progress owners without native media; the AVAssetWriter owner itself remains compile-only.",
               "execution_class": "fake",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -5209,7 +5209,7 @@
               "mutates_runtime": false
             }
           ],
-          "limitations": "No live file, audio input, multitrack synchronization, or native/TCC acceptance is claimed."
+          "limitations": "The AVAssetWriter owner is compile-only. No live pixels, MOV/file acceptance, audio input, multitrack synchronization, or native/TCC acceptance is claimed."
         }
       },
       "target": {

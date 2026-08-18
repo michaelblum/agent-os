@@ -8951,7 +8951,9 @@ test('screen video proof owns fixed video output, audio-off, custody, and public
   assert.equal(row.current.exposure.cli.state, 'complete');
   assert.equal(row.current.exposure.ipc.state, 'complete');
   assert.equal(row.current.control.artifacts.state, 'partial');
-  assert.match(row.current.proof.limitations, /No live pixels, file, permission behavior, daemon restart, or crash acceptance/u);
+  assert.match(row.current.proof.limitations, /compiled production-owner seam harness/u);
+  assert.match(row.current.proof.limitations, /AVAssetWriter and ScreenCaptureKit do not execute/u);
+  assert.match(row.current.proof.limitations, /no live pixels, MOV acceptance, file custody effects, permission behavior, daemon restart, or crash acceptance/u);
 });
 
 test('canvas action bus proves exact seven source labels without executing app quit', async () => {

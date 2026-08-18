@@ -290,6 +290,13 @@ for response in good_responses:
     assert not errors, f"unexpected response errors for {response}: {errors}"
 
 ipc_doc = Path("shared/schemas/daemon-ipc.md").read_text()
+artifact_doc_lines = "\n".join(
+    line for line in ipc_doc.splitlines() if "`operation.artifact_" in line
+)
+assert "`selector`" in artifact_doc_lines, "artifact IPC docs must name the exact selector wire field"
+assert "`destination`" in artifact_doc_lines, "artifact release docs must name the exact destination wire field"
+assert "artifact_selector" not in artifact_doc_lines, "artifact_selector is not a wire field"
+assert "destination_path" not in artifact_doc_lines, "destination_path is not a wire field"
 documented_dry_run = json.loads(
     ipc_doc.split("Validated no-side-effect response:", 1)[1]
     .split("```json", 1)[1]
