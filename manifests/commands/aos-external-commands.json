@@ -1403,7 +1403,7 @@
       },
       "spawn_registration": {
         "route_source_id": "listen",
-        "route_source_revision": "1c95d16baa8ec0a2ba780db3cc0372f493f92cc8c00233befa2b3026c49843d5",
+        "route_source_revision": "2fd788b7df68643cc4c4d56351aba53b9ff0531c9f609f502b68235e01dc39d8",
         "adapter_registration_id": "microphone-capture-adapter",
         "adapter_registration_revision": 1,
         "activation_predicate": {
@@ -1432,10 +1432,10 @@
           },
           {
             "identity": "scripts/lib/aos-voice-follow.mjs",
-            "digest": "a136cb047a2445f8f7ca89b220686946e4331704e04a5346bbc1f4746f18cff9"
+            "digest": "f786fa829abfd317aa20974097e810e51aa594b8f94087c9e4d36a02d085820b"
           }
         ],
-        "reviewed_dependency_set_digest": "5b3d10956d5d6aeff8a1ca975aaf4615c028fa63614c36636388b6f254b0f34e",
+        "reviewed_dependency_set_digest": "301d4dca32f1b42a9996ca63979080df0e67db80fdd59f8ac5b6be4e685e3cc9",
         "canonical_argv_shape_digest": "1027cc88beb2d456286c299ecf6b41a200145a1cb32ca05104900e0101e1630c"
       }
     },

@@ -37,6 +37,12 @@ polling and post-removal settlement have independent bounded retry budgets.
 Milestone 2 implements the daemon registry, control,
 recovery, resource-claim, microphone-adapter, IPC, status-item, and Canvas
 projection owners as current executable truth. The
+public microphone producer may attach the closed operation-lineage
+`asserted_attribution` object only to the exact external-intent invocation that
+creates its operation. Validate it before operation, claim, spawn, or adapter
+effects; omission is empty, and the daemon keeps no connection-scoped
+attribution default. Mechanically established owner and host authority remains
+independent. The
 internal operation status item must publish exact barrier state/generation,
 bind Stop All and Reopen to the immutable displayed item/descriptor/barrier
 generations and an exact status-host lease epoch, and run durable controls on a

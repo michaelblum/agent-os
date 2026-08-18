@@ -415,7 +415,6 @@ class UnifiedDaemon {
         let operationSocketFD: Int32
         let operationPeer: AOSSocketPeerIdentity
         var operationOwnerRoot: AOSMechanicalOwnerRoot
-        var operationAttribution: AOSOperationAttribution
         var externalBoundOperation: AOSOperationIdentity?
     }
 
@@ -757,7 +756,10 @@ class UnifiedDaemon {
         }
     }
 
-    private func operationContext(for owner: UUID) throws -> AOSMicrophoneOperationContext {
+    private func operationContext(
+        for owner: UUID,
+        attribution: AOSOperationAttribution = AOSOperationAttribution()
+    ) throws -> AOSMicrophoneOperationContext {
         subscriberLock.lock()
         defer { subscriberLock.unlock() }
         guard let connection = subscribers[owner] else {
@@ -765,7 +767,7 @@ class UnifiedDaemon {
         }
         return AOSMicrophoneOperationContext(
             ownerRoot: connection.operationOwnerRoot,
-            attribution: connection.operationAttribution
+            attribution: attribution
         )
     }
 
@@ -3347,7 +3349,6 @@ class UnifiedDaemon {
             operationSocketFD: clientFD,
             operationPeer: ownerBinding.immediatePeer,
             operationOwnerRoot: AOSMechanicalOwnerRoot(verified: ownerBinding),
-            operationAttribution: AOSOperationAttribution(),
             externalBoundOperation: nil
         )
         subscriberLock.unlock()
@@ -3437,15 +3438,38 @@ class UnifiedDaemon {
         return json["v"] as? Int == 1
     }
 
-    /// Strict parser for a v1 envelope `{v:1, service, action, data, ref?}`.
-    /// Returns `(service, action, data, ref)` if all required fields are valid, `nil` if any field is malformed.
-    private func parseEnvelope(_ json: [String: Any]) -> (service: String, action: String, data: [String: Any], ref: String?)? {
+    /// Strict parser for a v1 envelope with invocation-scoped attribution.
+    private func parseEnvelope(
+        _ json: [String: Any]
+    ) -> (
+        service: String,
+        action: String,
+        data: [String: Any],
+        ref: String?,
+        attribution: AOSOperationAttribution
+    )? {
+        let requiredKeys: Set<String> = ["v", "service", "action", "data"]
+        let allowedKeys = requiredKeys.union(["ref", "asserted_attribution"])
+        guard requiredKeys.isSubset(of: Set(json.keys)),
+              Set(json.keys).isSubset(of: allowedKeys) else { return nil }
         guard let v = json["v"] as? Int, v == 1 else { return nil }
         guard let service = json["service"] as? String, !service.isEmpty else { return nil }
         guard let action = json["action"] as? String, !action.isEmpty else { return nil }
         guard let data = json["data"] as? [String: Any] else { return nil }
-        let ref = json["ref"] as? String
-        return (service, action, data, ref)
+        let ref: String?
+        if json.keys.contains("ref") {
+            guard let value = json["ref"] as? String else { return nil }
+            ref = value
+        } else {
+            ref = nil
+        }
+        let hasAttribution = json.keys.contains("asserted_attribution")
+        guard !hasAttribution
+                || (service == "operation" && action == "external_spawn_intent"),
+              let attribution = try? AOSOperationAttribution.validatingPublicValue(
+                json["asserted_attribution"]
+              ) else { return nil }
+        return (service, action, data, ref, attribution)
     }
 
     private func pointFromAuditRequest(_ json: [String: Any]) -> CGPoint? {
@@ -3666,6 +3690,7 @@ class UnifiedDaemon {
     private func handleOperationAction(
         action: String,
         data: [String: Any],
+        attribution: AOSOperationAttribution,
         connectionID: UUID,
         outbound: AOSConnectionOutboundWriter,
         envelopeRef: String?
@@ -3676,6 +3701,7 @@ class UnifiedDaemon {
             if action == "external_spawn_intent" {
                 let result = try prepareExternalSpawnIntent(
                     data: data,
+                    attribution: attribution,
                     connectionID: connectionID
                 )
                 sendResponseJSON(
@@ -3988,6 +4014,7 @@ class UnifiedDaemon {
 
     private func prepareExternalSpawnIntent(
         data: [String: Any],
+        attribution: AOSOperationAttribution,
         connectionID: UUID
     ) throws -> [String: Any] {
         let requiredKeys: Set<String> = [
@@ -4033,7 +4060,7 @@ class UnifiedDaemon {
               parent.effectiveUID == identity.binding.immediatePeer.effectiveUID else {
             throw AOSOperationCoreError.callerNotAuthenticated
         }
-        let context = try operationContext(for: connectionID)
+        let context = try operationContext(for: connectionID, attribution: attribution)
         let operation = try adapter.prepareExternalCapture(context: context)
         var tokenBytes = [UInt8](repeating: 0, count: 32)
         arc4random_buf(&tokenBytes, tokenBytes.count)
@@ -4692,6 +4719,7 @@ class UnifiedDaemon {
             ("skill_id", operation.attribution.skillID),
             ("target_id", operation.attribution.targetID),
             ("capability_label", operation.attribution.capabilityLabel),
+            ("retry_id", operation.attribution.retryID),
         ]
         for (key, value) in values { if let value { attribution[key] = value } }
         return [
@@ -5167,6 +5195,7 @@ class UnifiedDaemon {
                 handleOperationAction(
                     action: env.action,
                     data: env.data,
+                    attribution: env.attribution,
                     connectionID: connectionID,
                     outbound: outbound,
                     envelopeRef: env.ref

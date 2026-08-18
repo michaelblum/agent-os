@@ -105,6 +105,17 @@ external_spawn_intent = {
     "reviewed_dependency_set_digest": "4" * 64,
 }
 external_binding_token = "A" * 43
+asserted_attribution = {
+    "client_id": "client-1",
+    "agent_id": "agent-1",
+    "project_id": "project-1",
+    "task_id": "task-1",
+    "run_id": "run-1",
+    "skill_id": "skill-1",
+    "target_id": "target-1",
+    "capability_label": "microphone",
+    "retry_id": "retry-1",
+}
 
 good_requests = [
     {"v":1,"service":"system","action":"ping","data":{}},
@@ -147,6 +158,7 @@ good_requests = [
     {"v":1,"service":"operation","action":"barrier_status","data":{**operation_request,"schema_version":"aos.host-stop-barrier.status-request.v1","action":"barrier_status"}},
     {"v":1,"service":"operation","action":"reopen","data":{**operation_request,"schema_version":"aos.host-stop-barrier.reopen-request.v1","action":"reopen","expected_barrier_generation":3}},
     {"v":1,"service":"operation","action":"external_spawn_intent","data":external_spawn_intent},
+    {"v":1,"service":"operation","action":"external_spawn_intent","data":external_spawn_intent,"asserted_attribution":asserted_attribution},
     {"v":1,"service":"operation","action":"external_spawn_child_admit","data":{"schema_version":"aos.operation.external-spawn-child-admit-request.v1","request_id":"44444444-4444-4444-8444-444444444444","one_time_binding_token":external_binding_token,"child_pid":1234}},
     {"v":1,"service":"operation","action":"external_spawn_abandon","data":{"schema_version":"aos.operation.external-spawn-abandon-request.v1","request_id":"55555555-5555-4555-8555-555555555555","one_time_binding_token":external_binding_token}},
     {"v":1,"service":"operation","action":"external_spawn_finalize","data":{"schema_version":"aos.operation.external-spawn-finalize-request.v1","request_id":"66666666-6666-4666-8666-666666666666"}},
@@ -206,6 +218,10 @@ bad_requests = [
     {"v":1,"service":"operation","action":"barrier_status","data":{**operation_request,"schema_version":"aos.host-stop-barrier.status-request.v1","action":"barrier_status","caller_origin":"status_item_host"}},  # origin evidence is server-attached
     {"v":1,"service":"operation","action":"recent","data":{**operation_request,"task_id":"task-1"}},  # filters are a closed nested object
     {"v":1,"service":"operation","action":"external_spawn_intent","data":{**external_spawn_intent,"human_initiated":True}},  # authority claims are forbidden
+    {"v":1,"service":"operation","action":"external_spawn_intent","data":external_spawn_intent,"asserted_attribution":{**asserted_attribution,"owner_root":"forged"}},  # attribution cannot supply mechanical ownership
+    {"v":1,"service":"operation","action":"external_spawn_intent","data":external_spawn_intent,"asserted_attribution":{"task_id":"bad value"}},  # identifiers are closed and bounded
+    {"v":1,"service":"operation","action":"external_spawn_intent","data":external_spawn_intent,"asserted_attribution":{"unknown_id":"value"}},  # attribution vocabulary is closed
+    {"v":1,"service":"system","action":"ping","data":{},"asserted_attribution":{}},  # only operation creation admits attribution
     {"v":1,"service":"operation","action":"external_spawn_intent","data":{**external_spawn_intent,"resolved_executable":{**external_spawn_intent["resolved_executable"],"path":"/usr/local/bin/node"}}},  # raw paths are forbidden
     {"v":1,"service":"operation","action":"external_spawn_intent","data":{k:v for k,v in external_spawn_intent.items() if k != "reviewed_dependency_set_digest"}},  # reviewed closure digest is required
     {"v":1,"service":"operation","action":"external_spawn_intent","data":{**external_spawn_intent,"resolved_executable":{**external_spawn_intent["resolved_executable"],"signing_team_identifier":"ATTACKER"}}},  # trusted Node team is closed

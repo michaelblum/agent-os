@@ -11,9 +11,19 @@
     "service": { "enum": ["see", "do", "show", "tell", "listen", "session", "voice", "permissions", "status_item", "scene", "system", "focus", "graph", "content", "operation"] },
     "action": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
     "data": { "type": "object" },
+    "asserted_attribution": {
+      "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-operation-lineage-v1.schema.json#/$defs/asserted_attribution"
+    },
     "ref": { "type": "string" }
   },
   "allOf": [
+    { "if": { "required": ["asserted_attribution"] },
+      "then": {
+        "properties": {
+          "service": { "const": "operation" },
+          "action": { "const": "external_spawn_intent" }
+        }
+      } },
     { "if": { "properties": { "service": { "const": "operation" } } },
       "then": { "properties": { "action": { "enum": ["list", "inspect", "status", "recent", "cancel", "kill", "kill_owner", "tap", "artifact_reveal", "artifact_remove", "artifact_release", "artifact_retain", "stop_all", "barrier_status", "reopen", "external_spawn_intent", "external_spawn_child_admit", "external_spawn_abandon", "external_spawn_finalize"] } } } },
     { "if": { "properties": { "service": { "const": "operation" }, "action": { "const": "external_spawn_intent" } } },

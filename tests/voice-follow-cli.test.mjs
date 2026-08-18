@@ -293,6 +293,45 @@ test('microphone duration parsing rejects schema-incompatible bounds before daem
   assert.match(misplacedCueResult.stderr, /"code":"INVALID_ARG"/);
 });
 
+test('microphone attribution grammar retains the closed identifiers and rejects malformed input before startup', async () => {
+  const requests = [];
+  const stateRoot = await fakeDaemon((request, socket) => {
+    requests.push(request);
+    if (request.action === 'external_spawn_finalize') {
+      socket.write(externalSpawnFinalized(request));
+    } else if (request.action === 'microphone') {
+      socket.write(success(request.ref));
+      socket.write(event('capture_completed', { reason: 'duration' }, request.ref));
+    }
+  });
+  const args = [
+    'listen', '--source', 'microphone', '--output', path.join(stateRoot, 'capture.wav'),
+    '--client-id', 'client-1', '--agent-id', 'agent-1', '--project-id', 'project-1',
+    '--task-id', 'task-1', '--run-id', 'run-1', '--skill-id', 'skill-1',
+    '--target-id', 'target-1', '--capability-label', 'microphone', '--retry-id', 'retry-1',
+    '--follow',
+  ];
+  const accepted = launch(
+    'scripts/aos-tell-listen.mjs',
+    args,
+    stateRoot,
+    externalSpawnChildEnvironment,
+  );
+  const acceptedResult = await accepted.completed;
+  assert.equal(acceptedResult.code, 0, acceptedResult.stderr);
+  assert.deepEqual(requests.map((request) => request.action), ['external_spawn_finalize', 'microphone']);
+
+  const isolatedRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-voice-attribution-'));
+  cleanups.push(async () => { await fs.rm(isolatedRoot, { recursive: true, force: true }); });
+  const malformed = launch('scripts/aos-tell-listen.mjs', [
+    'listen', '--source', 'microphone', '--output', path.join(isolatedRoot, 'capture.wav'),
+    '--task-id', 'bad value', '--follow',
+  ], isolatedRoot);
+  const malformedResult = await malformed.completed;
+  assert.equal(malformedResult.code, 1);
+  assert.match(malformedResult.stderr, /"code":"INVALID_ARG"/);
+});
+
 const startingDaemonSource = `#!/usr/bin/env node
 const fs = require('node:fs');
 const net = require('node:net');

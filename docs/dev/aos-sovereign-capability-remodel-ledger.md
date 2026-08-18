@@ -79,6 +79,10 @@ and boot recovery terminalize unfinalized prepared work and release its claim.
 the exact official signing boundary; its transient absolute path is never
 durable or public. Caller-asserted lineage is
 attribution and may only filter within the mechanically established set.
+The maintained microphone command now supplies the closed nine-field
+`asserted_attribution` request object at external-intent creation. Validation
+precedes operation, claim, and spawn effects; omission is empty, the value is
+invocation-scoped, and no attribution field can supply mechanical authority.
 
 The frozen external-command manifest v0 schema remains byte-exact at the M1
 baseline. M2 adds a v1 schema and atomically moves the stable generated

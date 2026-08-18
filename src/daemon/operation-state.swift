@@ -155,6 +155,7 @@ struct AOSOperationAttribution: Codable, Equatable {
     var skillID: String?
     var targetID: String?
     var capabilityLabel: String?
+    var retryID: String?
 
     init(
         clientID: String? = nil,
@@ -164,7 +165,8 @@ struct AOSOperationAttribution: Codable, Equatable {
         runID: String? = nil,
         skillID: String? = nil,
         targetID: String? = nil,
-        capabilityLabel: String? = nil
+        capabilityLabel: String? = nil,
+        retryID: String? = nil
     ) {
         self.clientID = clientID
         self.agentID = agentID
@@ -174,6 +176,67 @@ struct AOSOperationAttribution: Codable, Equatable {
         self.skillID = skillID
         self.targetID = targetID
         self.capabilityLabel = capabilityLabel
+        self.retryID = retryID
+    }
+
+    static func validatingPublicValue(_ value: Any?) throws -> Self {
+        guard let value else { return Self() }
+        guard let object = value as? [String: Any] else {
+            throw AOSOperationCoreError.invalidRecord("asserted_attribution")
+        }
+        let fields: [(wire: String, value: String?)] = [
+            ("client_id", object["client_id"] as? String),
+            ("agent_id", object["agent_id"] as? String),
+            ("project_id", object["project_id"] as? String),
+            ("task_id", object["task_id"] as? String),
+            ("run_id", object["run_id"] as? String),
+            ("skill_id", object["skill_id"] as? String),
+            ("target_id", object["target_id"] as? String),
+            ("capability_label", object["capability_label"] as? String),
+            ("retry_id", object["retry_id"] as? String),
+        ]
+        let allowedKeys = Set(fields.map { $0.wire })
+        guard Set(object.keys).isSubset(of: allowedKeys) else {
+            throw AOSOperationCoreError.invalidRecord("asserted_attribution")
+        }
+        for field in fields where object.keys.contains(field.wire) {
+            guard let identifier = field.value,
+                  identifier.count <= 128,
+                  identifier.range(
+                    of: "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+                    options: .regularExpression
+                  ) != nil else {
+                throw AOSOperationCoreError.invalidRecord("asserted_attribution")
+            }
+        }
+        return Self(
+            clientID: fields[0].value,
+            agentID: fields[1].value,
+            projectID: fields[2].value,
+            taskID: fields[3].value,
+            runID: fields[4].value,
+            skillID: fields[5].value,
+            targetID: fields[6].value,
+            capabilityLabel: fields[7].value,
+            retryID: fields[8].value
+        )
+    }
+
+    var publicValue: [String: String] {
+        let fields: [(String, String?)] = [
+            ("client_id", clientID),
+            ("agent_id", agentID),
+            ("project_id", projectID),
+            ("task_id", taskID),
+            ("run_id", runID),
+            ("skill_id", skillID),
+            ("target_id", targetID),
+            ("capability_label", capabilityLabel),
+            ("retry_id", retryID),
+        ]
+        return Dictionary(uniqueKeysWithValues: fields.compactMap { key, value in
+            value.map { (key, $0) }
+        })
     }
 }
 

@@ -16,6 +16,14 @@ Request:
 {"v":1,"service":"tell","action":"send","data":{"audience":["human"],"text":"hi"},"ref":"r-42"}
 ```
 
+The optional top-level `asserted_attribution` object is admitted only on
+`operation.external_spawn_intent`. Its closed fields are `client_id`,
+`agent_id`, `project_id`, `task_id`, `run_id`, `skill_id`, `target_id`,
+`capability_label`, and `retry_id`. Omission is an empty attribution. These
+caller assertions describe the operation created by that invocation; they do
+not supply or alter owner, peer, PID-generation, executable, spawn, claim, or
+control authority.
+
 Success response:
 ```json
 {"v":1,"status":"success","data":{"routes":[{"audience":"human","route":"voice","delivered":true}]},"ref":"r-42"}
@@ -179,7 +187,8 @@ The private `operation.external_spawn_intent`,
 `operation.external_spawn_child_admit`, `operation.external_spawn_abandon`, and
 `operation.external_spawn_finalize` actions bind only the invocation-scoped
 registered `listen --source microphone` adapter; non-microphone `listen` never
-enters this plane. Intent carries only content-free executable/script/argv
+enters this plane. The intent may carry the closed invocation-scoped asserted
+attribution object described above. Intent otherwise carries only content-free executable/script/argv
 digests, the reviewed dependency-set digest, the exact signed-Node identity,
 and registration revisions. The daemon durably prepares the operation and
 exclusive microphone claim before spawn, then returns one opaque parent-only

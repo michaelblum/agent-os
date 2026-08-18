@@ -61,6 +61,10 @@ apps, and tests.
   aggregates are projections, never owners. Proof items distinguish static,
   fake, native compile, and separately authorized native live/TCC lanes.
 - Schema changes must update fixtures, docs, and tests that assert the contract.
+- `schemas/daemon-request.schema.json` admits the optional closed
+  `asserted_attribution` envelope field only for invocation-scoped external
+  microphone-intent creation. It reuses the operation-lineage vocabulary;
+  omission is empty and no mechanical owner or authority fact is admissible.
 - `schemas/daemon-{request,event,response}.schema.json` owns the closed private
   `see.capture` transport. Requests carry one full canonical topology snapshot
   and bounded display-ID/ordinal selection. Each optional window target is a

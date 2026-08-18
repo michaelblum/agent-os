@@ -605,12 +605,33 @@ private func resolveRegisteredExternalSpawn(
         exitError("External spawn registration evidence did not match for \(command.path.joined(separator: " "))", code: "INVALID_MANIFEST")
     }
     let bindingToken: String?
-    if externalCommandActivatesSpawnRegistration(forwardedArguments) {
+    let microphoneRequested = externalSpawnFlagValue(
+        forwardedArguments,
+        "--source"
+    ) == "microphone"
+    let hasAttributionFlags = externalSpawnAttributionFields.contains {
+        forwardedArguments.contains($0.flag)
+    }
+    if microphoneRequested {
+        guard externalCommandActivatesSpawnRegistration(forwardedArguments) else {
+            exitError(
+                "Invalid registered microphone invocation.",
+                code: "INVALID_ARG"
+            )
+        }
+        let assertedAttribution = externalSpawnAssertedAttribution(forwardedArguments)
         bindingToken = prepareExternalSpawnIntent(
             registration: registration,
-            executable: executableEvidence
+            executable: executableEvidence,
+            assertedAttribution: assertedAttribution
         )
     } else {
+        guard !hasAttributionFlags else {
+            exitError(
+                "Asserted attribution is available only for microphone capture.",
+                code: "INVALID_ARG"
+            )
+        }
         bindingToken = nil
     }
     let registeredArguments = Array(resolvedArgv.dropFirst())
@@ -629,6 +650,37 @@ private func externalSpawnFlagValue(_ arguments: [String], _ flag: String) -> St
     }
     let value = arguments[index + 1]
     return !value.isEmpty && !value.hasPrefix("--") ? value : nil
+}
+
+private let externalSpawnAttributionFields: [(flag: String, wire: String)] = [
+    ("--client-id", "client_id"),
+    ("--agent-id", "agent_id"),
+    ("--project-id", "project_id"),
+    ("--task-id", "task_id"),
+    ("--run-id", "run_id"),
+    ("--skill-id", "skill_id"),
+    ("--target-id", "target_id"),
+    ("--capability-label", "capability_label"),
+    ("--retry-id", "retry_id"),
+]
+
+private func externalSpawnAssertedAttribution(
+    _ arguments: [String]
+) -> [String: String] {
+    var result: [String: String] = [:]
+    for field in externalSpawnAttributionFields {
+        let indexes = arguments.indices.filter { arguments[$0] == field.flag }
+        guard indexes.count <= 1 else {
+            exitError("Duplicate asserted attribution flag.", code: "INVALID_ARG")
+        }
+        guard let index = indexes.first else { continue }
+        guard index + 1 < arguments.count,
+              let value = externalOperationIdentifier(arguments[index + 1]) else {
+            exitError("Invalid asserted attribution value.", code: "INVALID_ARG")
+        }
+        result[field.wire] = value
+    }
+    return result
 }
 
 private func externalSpawnDurationSeconds(
@@ -651,10 +703,12 @@ private func externalSpawnDurationSeconds(
 }
 
 private func externalCommandActivatesSpawnRegistration(_ arguments: [String]) -> Bool {
-    let valueFlags: Set<String> = [
+    let attributionFlags = Set(externalSpawnAttributionFields.map { $0.flag })
+    let valueFlags: Set<String> = Set([
         "--source", "--shortcut", "--output", "--segments", "--segment-duration",
         "--max-duration", "--ready-cue",
-    ]
+    ]).union(attributionFlags)
+    var seenValueFlags: Set<String> = []
     var index = 0
     while index < arguments.count {
         let argument = arguments[index]
@@ -663,9 +717,14 @@ private func externalCommandActivatesSpawnRegistration(_ arguments: [String]) ->
             continue
         }
         guard valueFlags.contains(argument),
+              seenValueFlags.insert(argument).inserted,
               index + 1 < arguments.count,
               !arguments[index + 1].isEmpty,
               !arguments[index + 1].hasPrefix("--") else {
+            return false
+        }
+        if attributionFlags.contains(argument),
+           externalOperationIdentifier(arguments[index + 1]) == nil {
             return false
         }
         index += 2
@@ -800,7 +859,8 @@ private func staticTrustedNodeCodeSigningEvidence(
 
 private func prepareExternalSpawnIntent(
     registration: ExternalCommandSpawnRegistration,
-    executable: ExternalExecutableEvidence
+    executable: ExternalExecutableEvidence,
+    assertedAttribution: [String: String]
 ) -> String {
     let requestID = UUID().uuidString.lowercased()
     let session = DaemonSession(socketPath: aosSocketPath(for: aosCurrentRuntimeMode()))
@@ -813,6 +873,7 @@ private func prepareExternalSpawnIntent(
         "service": "operation",
         "action": "external_spawn_intent",
         "ref": requestID,
+        "asserted_attribution": assertedAttribution,
         "data": [
             "schema_version": "aos.operation.external-spawn-intent-request.v1",
             "request_id": requestID,

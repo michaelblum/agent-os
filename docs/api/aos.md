@@ -2155,6 +2155,13 @@ Primary public forms:
 | `--source microphone --segments <absolute-directory> --follow [--segment-duration 3s] [--max-duration 120s]` | capture continuous 16 kHz mono PCM into atomic segment checkpoints while streaming meters |
 | `--channels` | list known channels |
 
+Both microphone forms accept `--client-id`, `--agent-id`, `--project-id`,
+`--task-id`, `--run-id`, `--skill-id`, `--target-id`,
+`--capability-label`, and `--retry-id`. The values are caller-asserted generic
+lineage attached atomically to the operation created for that invocation. They
+are descriptive and narrowing-only: they cannot replace the authenticated
+owner root, admit a spawn, grant a claim, or widen control.
+
 Examples:
 
 ```bash

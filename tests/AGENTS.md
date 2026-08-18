@@ -246,6 +246,10 @@ tests.
 - Voice transport unit tests must use disposable Swift or fake-socket harnesses
   by default. Live microphone, global-hotkey, and audio-output proof is a
   separate manual/TCC-sensitive gate and must not rebuild `./aos` implicitly.
+- Generic operation-attribution acceptance remains offline: schema, dispatcher,
+  and microphone-adapter proofs cover the positive nine-field round trip,
+  omission, rejection before effect, owner-spoof rejection, narrowing-only
+  mismatch, and sequential/concurrent no-bleed without a daemon or microphone.
 - The operation-control native proof may attach only to an already-running,
   build-current, managed repo daemon after passive status, service, permission,
   and open-barrier preflight. Its live worker must be a child of the checked-in
