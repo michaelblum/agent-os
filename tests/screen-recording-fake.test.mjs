@@ -337,6 +337,7 @@ struct ScreenRecordingOwnerHarness {
 `
 
 const terminalSupportSource = String.raw`
+import CoreGraphics
 import Foundation
 
 protocol AOSDesktopFrameCancelling: AnyObject {
@@ -354,19 +355,137 @@ enum AOSDesktopFrameCaptureFailure: Error {
     case retirementUncertain
 }
 
-enum AOSDesktopPixelBroker {
-    static let defaultRetirementTimeout: TimeInterval = 0.2
+struct AOSDesktopPixelExclusiveProducerLease: Equatable {
+    let generation: UInt64
+    let ownerID: String
+}
+
+final class AOSDesktopPixelBroker {
+    static let defaultRetirementTimeout: TimeInterval = 1.05
+
+    func acquireExclusiveProducer(ownerID: String) throws -> AOSDesktopPixelExclusiveProducerLease {
+        fatalError("live broker unavailable in deterministic harness")
+    }
+
+    func releaseExclusiveProducer(_ lease: AOSDesktopPixelExclusiveProducerLease) -> Bool {
+        false
+    }
+}
+
+struct AOSDisplayTopologyBounds: Codable, Equatable {
+    let x: Double
+    let y: Double
+    let width: Double
+    let height: Double
+}
+
+struct AOSDisplayTopologyPoint: Codable, Equatable {
+    let x: Double
+    let y: Double
+}
+
+enum AOSDisplayTopologyMemberIdentity: Codable, Equatable {
+    case displayIDFallback(UInt32)
+}
+
+struct AOSDisplayTopologyDisplay: Codable, Equatable {
+    let runtimeDisplayID: UInt32
+    let ordinal: Int
+    let isMain: Bool
+    let memberIdentity: AOSDisplayTopologyMemberIdentity
+    let nativeBounds: AOSDisplayTopologyBounds
+    let nativeVisibleBounds: AOSDisplayTopologyBounds
+    let desktopWorldBounds: AOSDisplayTopologyBounds
+    let visibleDesktopWorldBounds: AOSDisplayTopologyBounds
+    let scaleFactor: Double
+    let rotation: Double
+}
+
+struct AOSDisplayTopologySnapshot: Codable, Equatable {
+    let identity: String
+    let usesDisplayIDFallback: Bool
+    let screensHaveSeparateSpaces: Bool
+    let desktopWorldOriginNative: AOSDisplayTopologyPoint
+    let nativeBounds: AOSDisplayTopologyBounds
+    let nativeVisibleBounds: AOSDisplayTopologyBounds
+    let desktopWorldBounds: AOSDisplayTopologyBounds
+    let visibleDesktopWorldBounds: AOSDisplayTopologyBounds
+    let displays: [AOSDisplayTopologyDisplay]
+}
+
+private func terminalBoundsValue(_ value: AOSDisplayTopologyBounds) -> [String: Any] {
+    ["x": value.x, "y": value.y, "width": value.width, "height": value.height]
+}
+
+func aosDisplayTopologyWireValue(
+    _ snapshot: AOSDisplayTopologySnapshot
+) throws -> [String: Any] {
+    [
+        "schema": "aos.display-topology.v1",
+        "identity": snapshot.identity,
+        "uses_display_id_fallback": snapshot.usesDisplayIDFallback,
+        "screens_have_separate_spaces": snapshot.screensHaveSeparateSpaces,
+        "desktop_world_origin_native": [
+            "x": snapshot.desktopWorldOriginNative.x,
+            "y": snapshot.desktopWorldOriginNative.y,
+        ],
+        "native_bounds": terminalBoundsValue(snapshot.nativeBounds),
+        "native_visible_bounds": terminalBoundsValue(snapshot.nativeVisibleBounds),
+        "desktop_world_bounds": terminalBoundsValue(snapshot.desktopWorldBounds),
+        "visible_desktop_world_bounds": terminalBoundsValue(snapshot.visibleDesktopWorldBounds),
+        "displays": snapshot.displays.map { display in
+            let member: [String: Any]
+            switch display.memberIdentity {
+            case .displayIDFallback(let id):
+                member = ["kind": "display_id_fallback", "display_id_fallback": id]
+            }
+            return [
+                "ordinal": display.ordinal,
+                "is_main": display.isMain,
+                "member_identity": member,
+                "native_bounds": terminalBoundsValue(display.nativeBounds),
+                "native_visible_bounds": terminalBoundsValue(display.nativeVisibleBounds),
+                "desktop_world_bounds": terminalBoundsValue(display.desktopWorldBounds),
+                "visible_desktop_world_bounds": terminalBoundsValue(display.visibleDesktopWorldBounds),
+                "scale_factor": display.scaleFactor,
+                "rotation": display.rotation,
+            ]
+        },
+    ]
+}
+
+func validateAOSDisplayTopologyWireValue(
+    _ value: Any
+) throws -> AOSDisplayTopologySnapshot {
+    guard let topology = value as? AOSDisplayTopologySnapshot else {
+        throw AOSOperationCoreError.invalidRecord("topology")
+    }
+    return topology
+}
+
+struct CaptureApplicationFact { let processID: Int32 }
+struct CaptureWindowFact {
+    let frame: CGRect
+    let owningApplication: CaptureApplicationFact?
+    let windowID: Int
+}
+
+func observeDisplayTopologySnapshot() -> AOSDisplayTopologySnapshot {
+    fatalError("native topology observation unavailable in deterministic harness")
+}
+
+func observeCaptureWindowFacts() -> [CaptureWindowFact] {
+    fatalError("native window observation unavailable in deterministic harness")
 }
 `
 
 const terminalHarnessSource = String.raw`
+import CoreMedia
 import Foundation
 
 enum HarnessFault: Error {
     case link
-    case persistLinked
     case removeSource
-    case persistReleased
     case removeDestination
 }
 
@@ -402,58 +521,412 @@ final class FakeLifecycle: AOSDesktopPixelStreamLifecycle, @unchecked Sendable {
     }
 }
 
-final class FakeCustody {
-    let fault: HarnessFault?
-    var destinationExists = false
-    var persistedLinked = false
-    var persistedReleased = false
-    var persistedResolution: AOSArtifactReleaseResolution?
-    var sourceExists = true
+final class NativeInterleaving: @unchecked Sendable {
+    private let lock = NSLock()
+    private var startCompletion: AOSDesktopPixelNativeCompletion?
+    private var stopCompletion: AOSDesktopPixelNativeCompletion?
+    private(set) var stopCount = 0
 
-    init(fault: HarnessFault?) {
-        self.fault = fault
+    func start(_ completion: @escaping AOSDesktopPixelNativeCompletion) {
+        lock.lock()
+        startCompletion = completion
+        lock.unlock()
     }
 
-    func execution(
-        linked: AOSArtifactReleaseDestinationFileIdentity
-    ) -> AOSArtifactReleaseExecutionDependencies {
-        AOSArtifactReleaseExecutionDependencies(
-            linkDestination: { [self] in
-                if fault == .link { throw HarnessFault.link }
-                destinationExists = true
-                return linked
+    func stop(_ completion: @escaping AOSDesktopPixelNativeCompletion) {
+        lock.lock()
+        stopCount += 1
+        stopCompletion = completion
+        lock.unlock()
+    }
+
+    func startWasRequested() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return startCompletion != nil
+    }
+
+    func failStart() {
+        lock.lock()
+        let completion = startCompletion
+        startCompletion = nil
+        lock.unlock()
+        completion?(.failure(HarnessFault.link))
+    }
+
+    func settleStop() {
+        lock.lock()
+        let completion = stopCompletion
+        stopCompletion = nil
+        lock.unlock()
+        completion?(.success(()))
+    }
+}
+
+final class FakeClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: UInt64 = 5_000_000_000
+
+    func now() -> UInt64 {
+        lock.lock()
+        value += 1_000_000
+        let result = value
+        lock.unlock()
+        return result
+    }
+}
+
+final class FakeBroker: AOSScreenRecordingBrokerControlling, @unchecked Sendable {
+    private let lock = NSLock()
+    private var lease: AOSDesktopPixelExclusiveProducerLease?
+    private(set) var releaseCount = 0
+
+    func acquireExclusiveProducer(ownerID: String) throws -> AOSDesktopPixelExclusiveProducerLease {
+        lock.lock()
+        defer { lock.unlock() }
+        guard lease == nil else { throw AOSDesktopFrameCaptureFailure.captureFailed }
+        let admitted = AOSDesktopPixelExclusiveProducerLease(generation: 1, ownerID: ownerID)
+        lease = admitted
+        return admitted
+    }
+
+    func releaseExclusiveProducer(_ expected: AOSDesktopPixelExclusiveProducerLease) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard lease == expected else { return false }
+        lease = nil
+        releaseCount += 1
+        return true
+    }
+
+    var retainsAuthority: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return lease != nil
+    }
+}
+
+final class FakeFiles: @unchecked Sendable {
+    enum Fault: Hashable { case link, removeSource, removeDestination }
+
+    private let condition = NSCondition()
+    private(set) var cleanupCount = 0
+    var afterLink: (() -> Void)?
+    var afterRemoveSource: (() -> Void)?
+    var blockAfterLink = false
+    var destinationPath = "/private/tmp/released-recording.mov"
+    var destinationPresent = false
+    var faults: Set<Fault> = []
+    var sourcePresent = false
+    private var linked = false
+    private var resumeLink = false
+
+    let identity = AOSArtifactFileIdentity(
+        rootIdentityDigest: String(repeating: "1", count: 64),
+        relativeLocatorDigest: String(repeating: "2", count: 64),
+        device: 7,
+        inode: 11,
+        byteCount: 512,
+        contentDigest: String(repeating: "3", count: 64),
+        mediaType: "video/quicktime; codecs=avc1"
+    )
+
+    func dependencies() -> AOSScreenRecordingFileDependencies {
+        AOSScreenRecordingFileDependencies(
+            validateArtifact: { [self] _, _, _ in
+                condition.lock(); defer { condition.unlock() }
+                guard sourcePresent else { throw AOSOperationCoreError.artifactIdentityMismatch }
+                return identity
             },
-            persistDestinationLinked: { [self] _ in
-                if fault == .persistLinked { throw HarnessFault.persistLinked }
-                persistedLinked = true
+            destinationIdentity: { [self] destination, _, source in
+                condition.lock(); destinationPath = destination.path; condition.unlock()
+                guard source == identity else { throw AOSOperationCoreError.artifactIdentityMismatch }
+                return AOSArtifactReleaseDestinationIdentity(
+                    absolutePath: destination.path,
+                    pathDigest: String(repeating: "4", count: 64),
+                    parentDevice: 7,
+                    parentInode: 9
+                )
             },
-            removeSource: { [self] in
-                if fault == .removeSource { throw HarnessFault.removeSource }
-                sourceExists = false
+            observe: { [self] url, source, _ in
+                condition.lock(); defer { condition.unlock() }
+                guard source == identity else { return .conflicting }
+                if url.path == destinationPath { return destinationPresent ? .exact : .absent }
+                return sourcePresent ? .exact : .absent
             },
-            persistReleased: { [self] _ in
-                if fault == .persistReleased { throw HarnessFault.persistReleased }
-                persistedReleased = true
+            linkDestination: { [self] _, destination, source, _ in
+                condition.lock()
+                guard !faults.contains(.link), source == identity,
+                      sourcePresent, !destinationPresent else {
+                    condition.unlock()
+                    throw faults.contains(.link)
+                        ? HarnessFault.link : AOSOperationCoreError.artifactDestinationExists
+                }
+                destinationPath = destination.path
+                destinationPresent = true
+                linked = true
+                condition.broadcast()
+                while blockAfterLink && !resumeLink { condition.wait() }
+                condition.unlock()
+                afterLink?()
+                return AOSArtifactReleaseDestinationFileIdentity(
+                    device: source.device,
+                    inode: source.inode,
+                    byteCount: source.byteCount,
+                    contentDigest: source.contentDigest
+                )
+            },
+            remove: { [self] url, allowAbsent in
+                condition.lock()
+                let destination = url.path == destinationPath
+                if destination, faults.contains(.removeDestination) {
+                    condition.unlock(); throw HarnessFault.removeDestination
+                }
+                if !destination, faults.contains(.removeSource) {
+                    condition.unlock(); throw HarnessFault.removeSource
+                }
+                let present = destination ? destinationPresent : sourcePresent
+                guard present || allowAbsent else {
+                    condition.unlock(); throw AOSOperationCoreError.recordingCleanupRequired
+                }
+                if destination { destinationPresent = false } else {
+                    sourcePresent = false
+                    cleanupCount += 1
+                }
+                condition.unlock()
+                if !destination { afterRemoveSource?() }
+            },
+            exists: { [self] url in
+                condition.lock(); defer { condition.unlock() }
+                return url.path == destinationPath ? destinationPresent : sourcePresent
             }
         )
     }
 
-    func recover(
-        removeFault: Bool = false
-    ) throws -> AOSArtifactReleaseResolution {
-        try AOSArtifactReleaseCoordinator.recover(
-            source: sourceExists ? .exact : .absent,
-            destination: destinationExists ? .exact : .absent,
-            dependencies: AOSArtifactReleaseRecoveryDependencies(
-                removeExactDestination: { [self] in
-                    if removeFault { throw HarnessFault.removeDestination }
-                    destinationExists = false
+    func waitUntilLinked() -> Bool {
+        condition.lock()
+        let deadline = Date().addingTimeInterval(0.2)
+        while !linked, condition.wait(until: deadline) {}
+        let result = linked
+        condition.unlock()
+        return result
+    }
+
+    func resumeLinkedRelease() {
+        condition.lock(); resumeLink = true; condition.broadcast(); condition.unlock()
+    }
+
+    func setSourcePresent(_ value: Bool) {
+        condition.lock(); sourcePresent = value; condition.unlock()
+    }
+
+    func reset(destination: Bool = false, source: Bool = true) {
+        condition.lock()
+        destinationPresent = destination
+        sourcePresent = source
+        faults = []
+        linked = false
+        resumeLink = false
+        condition.unlock()
+    }
+}
+
+final class FakeEncoder: AOSScreenRecordingEncoding, @unchecked Sendable {
+    private let files: FakeFiles
+    private let lock = NSLock()
+    private var frames: UInt64 = 0
+    private var bytes: UInt64 = 0
+    var finishFilePresent = true
+    private(set) var cancelCount = 0
+
+    init(files: FakeFiles) { self.files = files }
+
+    var progress: AOSScreenRecordingEncoderProgress {
+        lock.lock(); defer { lock.unlock() }
+        return AOSScreenRecordingEncoderProgress(frameCount: frames, byteCount: bytes)
+    }
+
+    func recordFrame() {
+        lock.lock(); frames += 1; bytes += 128; lock.unlock()
+    }
+
+    func append(_ sampleBuffer: CMSampleBuffer) throws { recordFrame() }
+
+    func finish(_ completion: @escaping (Result<AOSArtifactFileIdentity, Error>) -> Void) {
+        files.setSourcePresent(finishFilePresent)
+        completion(.success(files.identity))
+    }
+
+    func cancel() { lock.lock(); cancelCount += 1; lock.unlock() }
+}
+
+final class FakeNativeSession: @unchecked Sendable {
+    let encoder: FakeEncoder
+    let lifecycle = FakeLifecycle()
+    let signal = AOSDesktopPixelStartupSignal()
+    private var frameGate: AOSDesktopPixelFrameAdmissionGate?
+    private var heldFrame: AOSDesktopPixelFrameAdmissionGate.Token?
+    private let lock = NSLock()
+    private var progress: AOSScreenRecordingProgressSink?
+    private var startCompletion: AOSDesktopPixelNativeCompletion?
+    private var stopCompletion: AOSDesktopPixelNativeCompletion?
+    private(set) var stopCount = 0
+
+    init(files: FakeFiles) { encoder = FakeEncoder(files: files) }
+
+    func factory() -> AOSScreenRecordingSessionFactory {
+        { [self] gate, progress, _ in
+            lock.lock(); frameGate = gate; self.progress = progress; lock.unlock()
+            return AOSScreenRecordingNativeSession(
+                encoder: encoder,
+                lifecycle: lifecycle,
+                signal: signal,
+                start: { [self] completion in
+                    lock.lock(); startCompletion = completion; lock.unlock()
                 },
-                persistResolution: { [self] resolution in
-                    persistedResolution = resolution
+                stop: { [self] completion in
+                    lock.lock(); stopCount += 1; stopCompletion = completion; lock.unlock()
                 }
             )
+        }
+    }
+
+    func startWasRequested() -> Bool {
+        lock.lock(); defer { lock.unlock() }; return startCompletion != nil
+    }
+
+    func settleStart(_ result: Result<Void, Error>) {
+        lock.lock(); let completion = startCompletion; startCompletion = nil; lock.unlock()
+        completion?(result)
+    }
+
+    func settleStop(_ result: Result<Void, Error>) {
+        lock.lock(); let completion = stopCompletion; stopCompletion = nil; lock.unlock()
+        completion?(result)
+    }
+
+    func publishFrame(hold: Bool = false) throws -> Bool {
+        lock.lock(); let gate = frameGate; let progress = self.progress; lock.unlock()
+        guard let token = gate?.admit() else { return false }
+        encoder.recordFrame()
+        try progress?(encoder.progress)
+        signal.succeed()
+        if hold { lock.lock(); heldFrame = token; lock.unlock() } else { token.complete() }
+        return true
+    }
+
+    func completeHeldFrame() {
+        lock.lock(); let token = heldFrame; heldFrame = nil; lock.unlock(); token?.complete()
+    }
+}
+
+final class RecordingEnvironment {
+    let adapter: AOSScreenRecordingOperationAdapter
+    let broker = FakeBroker()
+    let clock = FakeClock()
+    let files: FakeFiles
+    let native: FakeNativeSession
+    let owner = AOSMechanicalOwnerRoot(
+        ownerID: "recording-owner", effectiveUID: 501, pid: 100, pidGeneration: 3,
+        executableIdentityDigest: String(repeating: "a", count: 64)
+    )
+    let registry: AOSOperationRegistry
+    let store: AOSInMemoryOperationStateStore
+
+    init(
+        store existingStore: AOSInMemoryOperationStateStore? = nil,
+        files existingFiles: FakeFiles? = nil
+    ) throws {
+        files = existingFiles ?? FakeFiles()
+        native = FakeNativeSession(files: files)
+        let registration = try AOSScreenRecordingOperationAdapter.makeRegistration()
+        let registrations = try AOSAdapterRegistrySnapshot.make(
+            revision: 1,
+            registrations: [registration]
         )
+        store = existingStore ?? AOSInMemoryOperationStateStore()
+        var nextID = 0
+        registry = try AOSOperationRegistry(
+            store: store,
+            daemonGeneration: 7,
+            adapterRegistry: registrations,
+            clock: { [clock] in clock.now() },
+            idFactory: { nextID += 1; return "recording-\(nextID)" }
+        )
+        if registry.snapshot().barrier.state == .bootReconciling {
+            _ = try registry.mutateDurably { state in
+                let generation = state.allocateGeneration()
+                state.barrier.state = .open
+                state.barrier.generation = generation
+                state.barrier.openSnapshot = try AOSOpenBarrierSnapshot.make(
+                    barrierGeneration: generation,
+                    registry: state.adapterRegistry
+                )
+            }
+        }
+        adapter = try AOSScreenRecordingOperationAdapter(
+            registry: registry,
+            registration: registration,
+            broker: broker,
+            artifactRootURL: URL(fileURLWithPath: "/private/tmp/aos-recording-artifacts"),
+            contextResolver: { [owner] _ in
+                AOSScreenRecordingOperationContext(
+                    ownerRoot: owner,
+                    attribution: AOSOperationAttribution(taskID: "recording-task")
+                )
+            },
+            files: files.dependencies(),
+            sessionFactory: native.factory()
+        )
+        try registry.installRuntimeAdapters([adapter])
+    }
+
+    func request() throws -> AOSScreenRecordingRequest {
+        let bounds = AOSDisplayTopologyBounds(x: 0, y: 0, width: 100, height: 80)
+        let topology = AOSDisplayTopologySnapshot(
+            identity: "topology", usesDisplayIDFallback: true,
+            screensHaveSeparateSpaces: false,
+            desktopWorldOriginNative: AOSDisplayTopologyPoint(x: 0, y: 0),
+            nativeBounds: bounds, nativeVisibleBounds: bounds,
+            desktopWorldBounds: bounds, visibleDesktopWorldBounds: bounds,
+            displays: [AOSDisplayTopologyDisplay(
+                runtimeDisplayID: 1, ordinal: 1, isMain: true,
+                memberIdentity: .displayIDFallback(1), nativeBounds: bounds,
+                nativeVisibleBounds: bounds, desktopWorldBounds: bounds,
+                visibleDesktopWorldBounds: bounds, scaleFactor: 2, rotation: 0
+            )]
+        )
+        return try AOSScreenRecordingRequest.validatingPublicValue([
+            "schema_version": "aos.screen-recording.request.v1",
+            "request_id": "recording-request",
+            "canonical_parameter_digest": String(repeating: "b", count: 64),
+            "topology": topology,
+            "target": ["kind": "display", "display_ordinal": 1],
+            "duration_ms": 1_000, "frame_rate": 30,
+            "max_pixel_count": 1_000_000, "max_queue_frames": 3,
+            "max_output_bytes": 10_000,
+            "tracks": ["video": true, "system_audio": false, "microphone": false],
+            "codec": "h264", "container": "quicktime",
+        ])
+    }
+
+    func offeredArtifact() throws -> AOSOperationIdentity {
+        let operation = try registry.prepareOperation(
+            ownerRoot: owner,
+            attribution: AOSOperationAttribution(taskID: "custody-task"),
+            capabilityID: AOSScreenRecordingOperationAdapter.capabilityID,
+            adapterRegistrationID: adapter.registration.id,
+            adapterRegistrationRevision: adapter.registration.revision
+        )
+        let artifact = try registry.prepareArtifact(parent: operation.identity)
+        files.setSourcePresent(true)
+        _ = try registry.updateArtifact(
+            artifact.identity,
+            state: .offered,
+            fileIdentity: files.identity,
+            custodyDigest: files.identity.contentDigest
+        )
+        return artifact.identity
     }
 }
 
@@ -495,6 +968,313 @@ struct TerminalLifecycleCustodyHarness {
         if let destination { value["destination"] = destination }
         if extra { value["extra"] = true }
         return value
+    }
+
+    static func wait(
+        _ message: String,
+        _ condition: @escaping () -> Bool
+    ) async throws {
+        for _ in 0..<500 {
+            if condition() { return }
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+        fatalError(message)
+    }
+
+    static func operation(
+        _ admission: AOSScreenRecordingAdmission,
+        in environment: RecordingEnvironment
+    ) -> AOSOperationRecord {
+        environment.registry.snapshot().operations.first {
+            $0.identity == admission.operation
+        }!
+    }
+
+    static func productionLateFailureRetainsAuthority() async throws {
+        let environment = try RecordingEnvironment()
+        let admission = try environment.adapter.start(
+            request: environment.request(), connectionID: UUID()
+        )
+        try await wait("native start was not admitted") {
+            environment.native.startWasRequested()
+        }
+        let firstFrame = try environment.native.publishFrame()
+        require(firstFrame, "first frame was rejected")
+        try await wait("active evidence was not published") {
+            operation(admission, in: environment).state == .active
+        }
+        environment.native.settleStart(.failure(HarnessFault.link))
+        _ = environment.adapter.requestStop(operation: admission.operation, force: false)
+        try await wait("late failure did not request retirement") {
+            environment.native.stopCount == 1
+        }
+        require(environment.broker.retainsAuthority, "broker released before retirement")
+        require(operation(admission, in: environment).state != .terminal,
+                "operation terminalized before retirement")
+        require(environment.registry.snapshot().resourceClaims.contains {
+            $0.operation == admission.operation && $0.state != .terminal
+        }, "claim released before retirement")
+        environment.native.settleStop(.success(()))
+        try await wait("late-failure operation did not terminalize") {
+            operation(admission, in: environment).state == .terminal
+        }
+        require(environment.native.stopCount == 1, "late failure stopped twice")
+        require(!environment.broker.retainsAuthority, "retired broker stayed live")
+    }
+
+    static func productionStartupUncertaintyRetainsAuthority() async throws {
+        let stopped = try RecordingEnvironment()
+        let admission = try stopped.adapter.start(
+            request: stopped.request(), connectionID: UUID()
+        )
+        try await wait("startup-stop native start missing") { stopped.native.startWasRequested() }
+        _ = stopped.adapter.requestStop(operation: admission.operation, force: false)
+        try await Task.sleep(nanoseconds: 5_000_000)
+        require(stopped.broker.retainsAuthority, "startup stop released uncertain broker")
+        require(stopped.native.stopCount == 0, "pending startup was stopped as active")
+        stopped.native.settleStart(.failure(CancellationError()))
+        try await wait("startup stop did not terminalize") {
+            operation(admission, in: stopped).state == .terminal
+        }
+
+        let lost = try RecordingEnvironment()
+        let lostAdmission = try lost.adapter.start(
+            request: lost.request(), connectionID: UUID()
+        )
+        try await wait("callback-loss native start missing") { lost.native.startWasRequested() }
+        try await wait("callback loss was not bounded") {
+            operation(lostAdmission, in: lost).state == .cleanupRequired
+        }
+        require(lost.broker.retainsAuthority, "callback loss released uncertain broker")
+        lost.native.settleStart(.failure(HarnessFault.link))
+        try await wait("callback-loss cleanup did not converge") {
+            operation(lostAdmission, in: lost).state == .terminal
+        }
+    }
+
+    static func productionRetirementAndFrameDrainAreAuthoritative() async throws {
+        let uncertain = try RecordingEnvironment()
+        let uncertainAdmission = try uncertain.adapter.start(
+            request: uncertain.request(), connectionID: UUID()
+        )
+        try await wait("false-retirement start missing") { uncertain.native.startWasRequested() }
+        uncertain.native.settleStart(.success(()))
+        try await wait("false-retirement operation inactive") {
+            operation(uncertainAdmission, in: uncertain).state == .active
+        }
+        _ = uncertain.adapter.requestStop(operation: uncertainAdmission.operation, force: false)
+        try await wait("false-retirement stop missing") { uncertain.native.stopCount == 1 }
+        uncertain.native.settleStop(.failure(HarnessFault.removeSource))
+        try await wait("false retirement was not retained") {
+            operation(uncertainAdmission, in: uncertain).state == .cleanupRequired
+        }
+        require(uncertain.broker.retainsAuthority, "false retirement released broker")
+        uncertain.native.lifecycle.confirmRetirement()
+        try await wait("observed retirement did not converge") {
+            operation(uncertainAdmission, in: uncertain).state == .terminal
+        }
+
+        let draining = try RecordingEnvironment()
+        let drainingAdmission = try draining.adapter.start(
+            request: draining.request(), connectionID: UUID()
+        )
+        try await wait("drain start missing") { draining.native.startWasRequested() }
+        draining.native.settleStart(.success(()))
+        try await wait("drain operation inactive") {
+            operation(drainingAdmission, in: draining).state == .active
+        }
+        let admittedFrame = try draining.native.publishFrame(hold: true)
+        require(admittedFrame, "pre-stop frame rejected")
+        let before = operation(drainingAdmission, in: draining).progress
+        _ = draining.adapter.requestStop(operation: drainingAdmission.operation, force: false)
+        try await wait("drain stop missing") { draining.native.stopCount == 1 }
+        draining.native.settleStop(.success(()))
+        let postStopFrame = try draining.native.publishFrame()
+        require(!postStopFrame, "post-stop frame admitted")
+        require(operation(drainingAdmission, in: draining).progress == before,
+                "post-stop progress mutated")
+        try await Task.sleep(nanoseconds: 5_000_000)
+        require(draining.broker.retainsAuthority, "pre-boundary frame was not drained")
+        draining.native.completeHeldFrame()
+        try await wait("frame drain did not terminalize") {
+            operation(drainingAdmission, in: draining).state == .terminal
+        }
+    }
+
+    static func productionTerminalArtifactFailuresCleanUp() async throws {
+        for missing in [false, true] {
+            let environment = try RecordingEnvironment()
+            let admission = try environment.adapter.start(
+                request: environment.request(), connectionID: UUID()
+            )
+            try await wait("terminal-failure start missing") {
+                environment.native.startWasRequested()
+            }
+            environment.native.settleStart(.success(()))
+            try await wait("terminal-failure operation inactive") {
+                operation(admission, in: environment).state == .active
+            }
+            if missing {
+                let admittedFrame = try environment.native.publishFrame()
+                require(admittedFrame, "missing-artifact frame rejected")
+                environment.native.encoder.finishFilePresent = false
+            }
+            _ = environment.adapter.requestStop(operation: admission.operation, force: false)
+            try await wait("terminal-failure stop missing") {
+                environment.native.stopCount == 1
+            }
+            environment.native.settleStop(.success(()))
+            try await wait("terminal artifact failure did not close") {
+                operation(admission, in: environment).state == .terminal
+            }
+            let state = environment.registry.snapshot()
+            require(operation(admission, in: environment).outcome == .failed,
+                    "terminal artifact failure was not typed")
+            require(state.artifacts.first { $0.identity == admission.artifact }?.state == .removed,
+                    "failed artifact was not removed")
+            require(environment.files.cleanupCount == 1, "failed artifact cleanup count drifted")
+        }
+    }
+
+    static func productionCustodyAdmissionIsAtomic() async throws {
+        let releaseWins = try RecordingEnvironment()
+        let artifact = try releaseWins.offeredArtifact()
+        releaseWins.files.blockAfterLink = true
+        let releasing = Task.detached {
+            try releaseWins.adapter.releaseArtifact(
+                artifact,
+                ownerRoot: releaseWins.owner,
+                destinationPath: "/private/tmp/released-recording.mov"
+            )
+        }
+        require(releaseWins.files.waitUntilLinked(), "release link barrier was not reached")
+        do {
+            _ = try releaseWins.adapter.removeArtifact(artifact, ownerRoot: releaseWins.owner)
+            fatalError("remove admitted during live release")
+        } catch AOSOperationCoreError.invalidTransition {
+        }
+        let live = releaseWins.registry.snapshot().artifacts.first { $0.identity == artifact }!
+        require(live.state == .offered && live.release != nil,
+                "generic transition cleared live release")
+        releaseWins.files.resumeLinkedRelease()
+        _ = try await releasing.value
+        let released = releaseWins.registry.snapshot().artifacts.first {
+            $0.identity == artifact
+        }!
+        require(released.state == .released && released.release == nil,
+                "release winner did not converge")
+        require(released.custodyReceipt?.destinationIdentityDigest == String(repeating: "4", count: 64),
+                "release winner lost exact destination")
+
+        let removeWins = try RecordingEnvironment()
+        let removedArtifact = try removeWins.offeredArtifact()
+        _ = try removeWins.adapter.removeArtifact(removedArtifact, ownerRoot: removeWins.owner)
+        do {
+            _ = try removeWins.adapter.releaseArtifact(
+                removedArtifact,
+                ownerRoot: removeWins.owner,
+                destinationPath: "/private/tmp/released-recording.mov"
+            )
+            fatalError("release admitted after remove")
+        } catch AOSOperationCoreError.invalidTransition {
+        }
+        let removed = removeWins.registry.snapshot().artifacts.first {
+            $0.identity == removedArtifact
+        }!
+        require(removed.state == .removed && removed.release == nil,
+                "remove winner retained release state")
+        require(!removeWins.files.destinationPresent,
+                "removed artifact coexisted with exact destination")
+    }
+
+    static func productionCustodyFaultsRecoverDurably() async throws {
+        for fault in [FakeFiles.Fault.link, .removeSource] {
+            let environment = try RecordingEnvironment()
+            let artifact = try environment.offeredArtifact()
+            environment.files.faults = [fault]
+            do {
+                _ = try environment.adapter.releaseArtifact(
+                    artifact, ownerRoot: environment.owner,
+                    destinationPath: "/private/tmp/released-recording.mov"
+                )
+                fatalError("custody fault reported success")
+            } catch {
+            }
+            let recovered = environment.registry.snapshot().artifacts.first {
+                $0.identity == artifact
+            }!
+            require(recovered.state == .offered && recovered.release == nil,
+                    "custody fault did not roll back")
+        }
+
+        let persistLinked = try RecordingEnvironment()
+        let linkedArtifact = try persistLinked.offeredArtifact()
+        persistLinked.files.afterLink = { persistLinked.store.failNextSave = true }
+        do {
+            _ = try persistLinked.adapter.releaseArtifact(
+                linkedArtifact, ownerRoot: persistLinked.owner,
+                destinationPath: "/private/tmp/released-recording.mov"
+            )
+            fatalError("linked-phase persistence fault reported success")
+        } catch {
+        }
+        require(persistLinked.registry.snapshot().artifacts.first {
+            $0.identity == linkedArtifact
+        }?.state == .offered, "linked-phase persistence fault did not roll back")
+
+        let persistReleased = try RecordingEnvironment()
+        let releasedArtifact = try persistReleased.offeredArtifact()
+        persistReleased.files.afterRemoveSource = {
+            persistReleased.store.failNextSave = true
+        }
+        _ = try persistReleased.adapter.releaseArtifact(
+            releasedArtifact, ownerRoot: persistReleased.owner,
+            destinationPath: "/private/tmp/released-recording.mov"
+        )
+        require(persistReleased.registry.snapshot().artifacts.first {
+            $0.identity == releasedArtifact
+        }?.state == .released, "released-phase persistence recovery lost custody")
+
+        let residual = try RecordingEnvironment()
+        let residualArtifact = try residual.offeredArtifact()
+        residual.files.faults = [.removeSource, .removeDestination]
+        do {
+            _ = try residual.adapter.releaseArtifact(
+                residualArtifact, ownerRoot: residual.owner,
+                destinationPath: "/private/tmp/released-recording.mov"
+            )
+            fatalError("custody residual reported success")
+        } catch AOSOperationCoreError.recordingCleanupRequired {
+        }
+        let residualRecord = residual.registry.snapshot().artifacts.first {
+            $0.identity == residualArtifact
+        }!
+        require(residualRecord.state == .cleanupRequired && residualRecord.release != nil,
+                "custody residual truth was not durable")
+
+        residual.files.faults = []
+        let restarted = try RecordingEnvironment(store: residual.store, files: residual.files)
+        let recovery = try AOSOperationRecovery.beginBootRecovery(
+            registry: restarted.registry,
+            newDaemonGeneration: 8,
+            claimTokenDigest: String(repeating: "c", count: 64)
+        )
+        let recoveryRecord = restarted.registry.snapshot().artifacts.first {
+            $0.identity == residualArtifact
+        }!
+        let resolution = try restarted.adapter.recoverArtifactRelease(recoveryRecord)
+        require(resolution == .rolledBack,
+                "restart recovery did not roll back exact duplicate")
+        try restarted.adapter.removeRecoveredRolledBackArtifact(recoveryRecord)
+        let summary = try AOSOperationRecovery.reconcile(
+            registry: restarted.registry,
+            recoveryGeneration: recovery.recoveryGeneration,
+            claimTokenDigest: String(repeating: "c", count: 64),
+            mechanicallyAbsentOperationIDs: [recoveryRecord.parentOperation],
+            mechanicallyAbsentClaimIDs: [], mechanicallyAbsentBrokerIDs: []
+        )
+        require(summary.residualCount == 0 && summary.state == .terminal,
+                "restart recovery did not reach explicit residual truth")
     }
 
     static func callbackLossIsBounded() async throws {
@@ -616,6 +1396,37 @@ struct TerminalLifecycleCustodyHarness {
         require(retired, "late retirement after false settlement did not converge")
     }
 
+    static func lateStartFailureAfterActiveEvidenceRequiresStop() async throws {
+        let lifecycle = FakeLifecycle()
+        let signal = AOSDesktopPixelStartupSignal()
+        let native = NativeInterleaving()
+        let startup = Task {
+            try await aosStartDesktopPixelStreams(
+                signals: [signal],
+                lifecycles: [lifecycle],
+                settlementTimeout: 0.1,
+                ownerGeneration: 46,
+                start: { _, completion in native.start(completion) },
+                stop: { _, completion in native.stop(completion) }
+            )
+        }
+        while !native.startWasRequested() {
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+        signal.succeed()
+        let owner = try await startup.value
+        native.failStart()
+        let retirement = Task { await owner.retire(timeout: 0.1) }
+        try await Task.sleep(nanoseconds: 5_000_000)
+        require(native.stopCount == 1, "active evidence was misclassified as inactive")
+        require(owner.retainsAuthority, "late start failure released active authority")
+        native.settleStop()
+        let didRetire = await retirement.value
+        require(didRetire, "authoritative retirement did not settle")
+        require(native.stopCount == 1, "late start failure stopped more than once")
+        require(!owner.retainsAuthority, "retired late-failure owner was retained")
+    }
+
     static func frameAdmissionClosesAtomically() async {
         let gate = AOSDesktopPixelFrameAdmissionGate()
         guard let first = gate.admit() else { fatalError("open gate rejected frame") }
@@ -628,92 +1439,6 @@ struct TerminalLifecycleCustodyHarness {
         let drained = await gate.waitForDrain(timeout: 0.05)
         require(drained, "pre-stop frame did not drain once")
         require(!gate.isOpen, "closed frame gate reopened")
-    }
-
-    static func custodyFaultsRecoverExactly() throws {
-        let source = AOSArtifactFileIdentity(
-            rootIdentityDigest: String(repeating: "1", count: 64),
-            relativeLocatorDigest: String(repeating: "2", count: 64),
-            device: 7,
-            inode: 11,
-            byteCount: 512,
-            contentDigest: String(repeating: "3", count: 64),
-            mediaType: "video/quicktime; codecs=avc1"
-        )
-        let linked = AOSArtifactReleaseDestinationFileIdentity(
-            device: 7,
-            inode: 11,
-            byteCount: 512,
-            contentDigest: String(repeating: "3", count: 64)
-        )
-        let release = AOSArtifactReleaseRecord(
-            releaseGeneration: 13,
-            artifact: AOSOperationIdentity(id: "artifact-1", generation: 7),
-            daemonGeneration: 5,
-            sourceIdentity: source,
-            destinationIdentity: AOSArtifactReleaseDestinationIdentity(
-                absolutePath: "/private/tmp/recording.mov",
-                pathDigest: String(repeating: "4", count: 64),
-                parentDevice: 7,
-                parentInode: 9
-            ),
-            phase: .prepared,
-            destinationFileIdentity: nil
-        )
-        require(release.releaseGeneration == 13, "release generation was not exact")
-        require(release.sourceIdentity == source, "release source identity drifted")
-        require(release.destinationIdentity.parentInode == 9, "destination identity drifted")
-
-        let success = FakeCustody(fault: nil)
-        try AOSArtifactReleaseCoordinator.execute(
-            release,
-            dependencies: success.execution(linked: linked)
-        )
-        require(!success.sourceExists && success.destinationExists, "release effects were incomplete")
-        require(success.persistedLinked && success.persistedReleased, "release phases were not durable")
-
-        let cases: [(HarnessFault, AOSArtifactReleaseResolution)] = [
-            (.link, .rolledBack),
-            (.persistLinked, .rolledBack),
-            (.removeSource, .rolledBack),
-            (.persistReleased, .released),
-        ]
-        for (fault, expected) in cases {
-            let fake = FakeCustody(fault: fault)
-            do {
-                try AOSArtifactReleaseCoordinator.execute(
-                    release,
-                    dependencies: fake.execution(linked: linked)
-                )
-                fatalError("fault phase reported success")
-            } catch {
-            }
-            let resolution = try fake.recover()
-            require(resolution == expected, "fault phase resolved incorrectly")
-            require(fake.persistedResolution == expected, "recovery truth was not durable")
-            if expected == .rolledBack {
-                require(fake.sourceExists && !fake.destinationExists, "rollback left custody residue")
-            } else {
-                require(!fake.sourceExists && fake.destinationExists, "release recovery lost custody")
-            }
-        }
-
-        let cleanupFault = FakeCustody(fault: .removeSource)
-        do {
-            try AOSArtifactReleaseCoordinator.execute(
-                release,
-                dependencies: cleanupFault.execution(linked: linked)
-            )
-            fatalError("cleanup fault setup reported success")
-        } catch {
-        }
-        let cleanupResolution = try cleanupFault.recover(removeFault: true)
-        require(cleanupResolution == .residual, "cleanup fault was hidden")
-        require(cleanupFault.persistedResolution == .residual, "residual truth was not durable")
-        require(AOSArtifactReleaseCoordinator.resolution(
-            source: .absent,
-            destination: .conflicting
-        ) == .residual, "conflicting destination was misclassified")
     }
 
     static func decoderAndTerminalTruthAreClosed() throws {
@@ -781,15 +1506,21 @@ struct TerminalLifecycleCustodyHarness {
     }
 
     static func main() async throws {
+        try await productionLateFailureRetainsAuthority()
+        try await productionStartupUncertaintyRetainsAuthority()
+        try await productionRetirementAndFrameDrainAreAuthoritative()
+        try await productionTerminalArtifactFailuresCleanUp()
+        try await productionCustodyAdmissionIsAtomic()
+        try await productionCustodyFaultsRecoverDurably()
         try await callbackLossIsBounded()
         try await startupStopRetainsOwner()
         try await startupTaskCancellationRetainsOwner()
         try await retirementTimeoutRetainsOwner()
         try await retirementFalseSettlementRetainsOwner()
+        try await lateStartFailureAfterActiveEvidenceRequiresStop()
         await frameAdmissionClosesAtomically()
-        try custodyFaultsRecoverExactly()
         try decoderAndTerminalTruthAreClosed()
-        print("terminal-lifecycle-custody-harness: lifecycle=5 frame=6 custody=7 decoder=8 terminal=2 cleanup=3")
+        print("terminal-lifecycle-custody-harness: production-lifecycle=6 production-terminal=2 production-custody=8 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
     }
 }
 `
@@ -881,11 +1612,22 @@ test('production lifecycle and custody owners close terminal fault phases with f
     ])
     const compile = spawnSync('swiftc', [
       '-module-cache-path', path.join(temporaryRoot, 'module-cache'),
-      path.join(root, 'src/daemon/operation-state.swift'),
       path.join(root, 'src/daemon/operation-owner-root.swift'),
       path.join(root, 'src/daemon/operation-spawn-record.swift'),
+      path.join(root, 'src/daemon/operation-state.swift'),
+      path.join(root, 'src/daemon/operation-store.swift'),
+      path.join(root, 'src/daemon/operation-registry.swift'),
+      path.join(root, 'src/daemon/operation-resource-broker.swift'),
+      path.join(root, 'src/daemon/operation-resource-transaction.swift'),
+      path.join(root, 'src/daemon/operation-resource-claim.swift'),
+      path.join(root, 'src/daemon/operation-recovery.swift'),
       path.join(root, 'src/daemon/desktop-pixel-retirement.swift'),
+      path.join(root, 'src/daemon/desktop-pixel-native-operation.swift'),
       path.join(root, 'src/daemon/desktop-pixel-stream-lifecycle.swift'),
+      path.join(root, 'src/daemon/public-capture-transfer.swift'),
+      path.join(root, 'src/daemon/screen-recording-geometry.swift'),
+      path.join(root, 'src/daemon/screen-recording-encoder.swift'),
+      path.join(root, 'src/daemon/screen-recording-operation-adapter.swift'),
       support,
       harness,
       '-o', binary,
@@ -893,7 +1635,7 @@ test('production lifecycle and custody owners close terminal fault phases with f
     assert.equal(compile.status, 0, compile.stderr || compile.stdout)
     const run = spawnSync(binary, [], { encoding: 'utf8', timeout: 5_000 })
     assert.equal(run.status, 0, run.stderr || run.stdout)
-    assert.match(run.stdout, /lifecycle=5 frame=6 custody=7 decoder=8 terminal=2 cleanup=3/u)
+    assert.match(run.stdout, /production-lifecycle=6 production-terminal=2 production-custody=8 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6/u)
 
     const [lifecycle, state, adapter, unified] = await Promise.all([
       readFile(path.join(root, 'src/daemon/desktop-pixel-stream-lifecycle.swift'), 'utf8'),

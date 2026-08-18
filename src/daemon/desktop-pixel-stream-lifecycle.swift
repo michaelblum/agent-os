@@ -539,9 +539,9 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
     }
 
     private enum StartState {
-        case failed
+        case inactiveFailure
         case pending
-        case succeeded
+        case activeEvidence
     }
 
     private let lifecycle: AOSDesktopPixelStreamLifecycle
@@ -552,7 +552,6 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
     private let signal: AOSDesktopPixelStartupSignal
     private let start: AOSDesktopPixelNativeOperation
     private var startState: StartState = .pending
-    private var startupWasPublished = false
     private let stop: AOSDesktopPixelNativeOperation
     private var stopAttempt: AOSDesktopPixelStopAttempt?
     private var stopInFlight = false
@@ -612,24 +611,25 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
     private func startupEvidenceCompleted(_ result: Result<Void, Error>) {
         guard result.isSuccess else { return }
         lock.lock()
-        startupWasPublished = true
+        if startState == .pending { startState = .activeEvidence }
         lock.unlock()
     }
 
     private func nativeStartSettled(_ result: Result<Void, Error>) {
         lock.lock()
-        guard startState != .failed else {
-            lock.unlock()
-            return
+        switch result {
+        case .success:
+            if startState == .pending { startState = .activeEvidence }
+        case .failure:
+            if startState == .pending { startState = .inactiveFailure }
         }
-        startState = result.isSuccess ? .succeeded : .failed
         lock.unlock()
         retireIfNeeded()
     }
 
     private func startupFailed(_ error: Error) {
         lock.lock()
-        let isLate = startupWasPublished
+        let isLate = startState == .activeEvidence
             && !retirementRequested
             && !retired
         lock.unlock()
@@ -653,10 +653,10 @@ private final class AOSDesktopPixelStartupStreamCoordinator: @unchecked Sendable
             } else {
                 action = .none
             }
-        case .failed:
+        case .inactiveFailure:
             retired = true
             action = .confirmInactive
-        case .succeeded:
+        case .activeEvidence:
             if nativeAlreadyRetired {
                 retired = true
                 action = .confirmInactive

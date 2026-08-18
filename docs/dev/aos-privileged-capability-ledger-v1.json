@@ -4493,7 +4493,7 @@
           "fake": [
             {
               "path": "tests/screen-recording-fake.test.mjs",
-              "claim": "Compiles and executes production request, geometry, media-timeline, durable-progress, lifecycle, frame-admission, artifact-action decoder, terminal-truth, and custody-coordinator owners with fake dependencies. It covers callback loss, startup stop/task cancellation, retirement timeout/false settlement, stop-frame drain ordering, zero-frame/missing-artifact failure, release fault phases and cleanup residuals, topology drift, lossy selectors, and extra-key/type rejection.",
+              "claim": "Compiles and executes the production recording adapter, registry, in-memory durable store, lifecycle, frame admission, terminal truth, custody coordinator, and boot recovery with fake clock, native session, encoder/file, and broker dependencies. It covers callback loss, startup stop/task cancellation, late start failure after active evidence, retirement timeout/false settlement, stop-frame drain ordering, zero-frame/missing-artifact cleanup, release/remove admission races, release fault phases, restart recovery, topology drift, lossy selectors, and extra-key/type rejection.",
               "execution_class": "fake",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -4510,7 +4510,7 @@
               "mutates_runtime": false
             }
           ],
-          "limitations": "Offline schema/static proof, an executable compiled production-owner seam harness with fake dependencies, and native compile proof establish only the listed seams. AVAssetWriter and ScreenCaptureKit do not execute; neither do the recording adapter, daemon, TCC, native UI, or media. There are no live pixels, MOV acceptance, file custody effects, permission behavior, daemon restart, or crash acceptance."
+          "limitations": "Offline schema/static proof, an executable compiled production-owner seam harness with fake dependencies, and native compile proof establish only the listed seams. The adapter, registry, in-memory store, and boot recovery execute. AVAssetWriter and ScreenCaptureKit do not execute; neither do filesystem effects, daemon, TCC, native UI, or media. There are no live pixels, MOV acceptance, file custody effects, permission behavior, daemon restart, or crash acceptance."
         }
       },
       "target": {

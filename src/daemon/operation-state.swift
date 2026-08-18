@@ -518,7 +518,7 @@ struct AOSOperationProgress: Codable, Equatable {
 }
 
 enum AOSArtifactPendingAction: String, Codable {
-    case remove, release
+    case remove
 }
 
 struct AOSArtifactFileIdentity: Codable, Equatable {
@@ -664,7 +664,11 @@ enum AOSArtifactReleaseCoordinator {
 }
 
 struct AOSArtifactCustodyReceipt: Codable, Equatable {
-    let action: AOSArtifactPendingAction
+    enum Action: String, Codable {
+        case remove, release
+    }
+
+    let action: Action
     let completedAtNanoseconds: UInt64
     let destinationIdentityDigest: String?
 }

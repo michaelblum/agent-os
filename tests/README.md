@@ -105,14 +105,16 @@ bash tests/native-screen-recording-contract.sh
 
 This route validates the closed schema, exact H.264/QuickTime and no-audio
 source contract, fixed geometry and drift behavior, authored/generated help,
-and a whole-source Swift typecheck. Its executable compiled harness uses the
-production lifecycle, frame-admission, artifact-action decoder, terminal-truth,
-and custody-coordinator owners with fake dependencies to cover callback loss,
-startup stop and task cancellation, retirement timeout and false settlement,
-stop/frame drain ordering, zero-frame and missing-artifact failure, release
-fault phases, rollback cleanup/residual truth, and extra-key/type rejection.
-It does not execute the recording adapter, ScreenCaptureKit, AVAssetWriter,
-custody filesystem effects, `./aos`, the daemon, TCC, native UI, or media.
+and a whole-source Swift typecheck. Its executable compiled harness runs the
+production recording adapter, registry, in-memory durable store, lifecycle,
+frame admission, terminal truth, custody coordinator, and boot recovery with
+injected fake clock, native session, encoder/file, and broker dependencies. It
+covers callback loss, startup stop and task cancellation, late start failure
+after active evidence, retirement timeout/false settlement, stop/frame drain,
+zero/missing-artifact cleanup, release/remove races, every release fault phase,
+restart recovery, and decoder extra-key/type rejection. It does not execute
+ScreenCaptureKit, AVAssetWriter, filesystem effects, `./aos`, the daemon, TCC,
+native UI, pixels, or media.
 
 For deterministic Target Handle Runtime V1 coverage, use:
 

@@ -295,13 +295,13 @@ final class AOSOperationRegistry {
             guard let index = durable.artifacts.firstIndex(where: { $0.identity == identity }) else {
                 throw AOSOperationCoreError.operationNotFound
             }
-            guard Self.permitsArtifactTransition(from: durable.artifacts[index].state, to: newState) else {
+            guard durable.artifacts[index].release == nil,
+                  Self.permitsArtifactTransition(from: durable.artifacts[index].state, to: newState) else {
                 throw AOSOperationCoreError.invalidTransition
             }
             durable.artifacts[index].state = newState
             if let fileIdentity { durable.artifacts[index].fileIdentity = fileIdentity }
             durable.artifacts[index].pendingAction = pendingAction
-            durable.artifacts[index].release = nil
             if let custodyReceipt { durable.artifacts[index].custodyReceipt = custodyReceipt }
             if let custodyDigest { durable.artifacts[index].custodyDigest = custodyDigest }
             durable.artifacts[index].updatedAtNanoseconds = now
@@ -323,6 +323,7 @@ final class AOSOperationRegistry {
             }
             guard durable.artifacts[index].state == .offered,
                   durable.artifacts[index].fileIdentity == sourceIdentity,
+                  durable.artifacts[index].pendingAction == nil,
                   durable.artifacts[index].release == nil else {
                 throw AOSOperationCoreError.invalidTransition
             }
@@ -354,6 +355,8 @@ final class AOSOperationRegistry {
                   release.releaseGeneration == releaseGeneration,
                   release.artifact == identity,
                   release.daemonGeneration == durable.artifacts[index].daemonGeneration,
+                  durable.artifacts[index].state == .offered,
+                  durable.artifacts[index].pendingAction == nil,
                   release.phase == .prepared,
                   destinationFileIdentity.matches(release.sourceIdentity) else {
                 throw AOSOperationCoreError.invalidTransition

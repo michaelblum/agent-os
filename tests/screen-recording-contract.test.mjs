@@ -63,9 +63,10 @@ test('effectful recording decoders and progress publication are exact and fail c
 })
 
 test('durability and custody ordering is producer-backed and retain is specifically unavailable', async () => {
-  const [adapter, registry, unified] = await Promise.all([
+  const [adapter, registry, state, unified] = await Promise.all([
     read('src/daemon/screen-recording-operation-adapter.swift'),
     read('src/daemon/operation-registry.swift'),
+    read('src/daemon/operation-state.swift'),
     read('src/daemon/unified.swift'),
   ])
   const operation = adapter.indexOf('registry.prepareOperation(')
@@ -74,12 +75,16 @@ test('durability and custody ordering is producer-backed and retain is specifica
   const native = adapter.indexOf('broker.acquireExclusiveProducer(')
   assert.ok(operation >= 0 && stream > operation && artifact > stream)
   assert.ok(native > artifact)
-  const preparedRelease = adapter.indexOf('registry.prepareArtifactRelease(')
-  const linkedRelease = adapter.indexOf('link(source.path, destination.path)')
-  const removedSource = adapter.indexOf('unlink(source.path)')
+  const release = adapter.slice(adapter.indexOf('func releaseArtifact('), adapter.indexOf('func recoverArtifactRelease('))
+  const preparedRelease = release.indexOf('registry.prepareArtifactRelease(')
+  const linkedRelease = release.indexOf('files.linkDestination(')
+  const removedSource = release.indexOf('files.remove(source, false)')
   assert.ok(preparedRelease >= 0 && preparedRelease < linkedRelease && linkedRelease < removedSource)
   assert.match(adapter, /AOSArtifactReleaseCoordinator\.recover/u)
   assert.match(adapter, /artifactRetainUnavailable/u)
+  assert.match(registry, /durable\.artifacts\[index\]\.release == nil/u)
+  assert.match(registry, /durable\.artifacts\[index\]\.pendingAction == nil/u)
+  assert.doesNotMatch(state, /enum AOSArtifactPendingAction[^}]*case[^}]*release/su)
   assert.match(registry, /\.offered, \.released, \.retained, \.removed/u)
   assert.match(unified, /revision: 2,[\s\S]*registrations: \[registration, screenRecordingRegistration\]/u)
 })
