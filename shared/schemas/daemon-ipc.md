@@ -106,8 +106,10 @@ Error response:
 | `operation.cancel` | Request cooperative cancellation of one exact owned operation. | `request_id`, `canonical_parameter_digest`, `selector`. |
 | `operation.kill` | Force-stop one exact owned operation and retain cleanup visibility. | `request_id`, `canonical_parameter_digest`, `selector`. |
 | `operation.kill_owner` | Stop the authenticated owner-set intersection selected by optional attribution/capability filters. | `request_id`, `canonical_parameter_digest`, `filters`. |
+| `operation.record_screen` | Admit one bounded fixed display/window/region H.264 QuickTime video-only producer. | Closed `aos.screen-recording.request.v1` data, including canonical topology, target, hard bounds, `tracks={video:true,system_audio:false,microphone:false}`, codec, and container. |
 | `operation.tap` | Return current typed tap unavailability without opening or sampling a tap. | `request_id`, `canonical_parameter_digest`. |
-| `operation.artifact_reveal\|artifact_remove\|artifact_release\|artifact_retain` | Return current typed artifact-custody unavailability without lookup or mutation. | `request_id`, `canonical_parameter_digest`. |
+| `operation.artifact_reveal\|artifact_remove\|artifact_retain` | Act on one exact producer-backed artifact generation; retain is typed unavailable. | `request_id`, `canonical_parameter_digest`, `artifact_selector`. |
+| `operation.artifact_release` | Transfer one exact producer-backed artifact generation without overwrite. | `request_id`, `canonical_parameter_digest`, `artifact_selector`, `destination_path`. |
 | `operation.stop_all` | Same-effective-UID stop over the immutable registered-set snapshot at the expected barrier generation. | `schema_version`, `action`, `request_id`, `canonical_parameter_digest`, `expected_barrier_generation`. |
 | `operation.barrier_status` | Read the current host barrier snapshot, progress, and residual facts. | `schema_version`, `action`, `request_id`, `canonical_parameter_digest`. |
 | `operation.reopen` | Reopen admission after prior and current registered sets reconcile. | `schema_version`, `action`, `request_id`, `canonical_parameter_digest`, `expected_barrier_generation`. |
@@ -177,11 +179,22 @@ adapter-registry, or barrier generations before mutation. `filters` contain
 attribution and adapter-selected capability metadata only; they intersect the
 mechanically authenticated ordinary owner set.
 
-`operation.tap` and the four `operation.artifact_*` actions are parameterless
-apart from the CLI-attached request identity and canonical parameter digest.
-Tap returns `OPERATION_TAP_UNAVAILABLE`; every artifact action returns
-`OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE`. These current routes perform no tap
-sampling, artifact lookup, or custody mutation.
+`operation.tap` is parameterless apart from the CLI-attached request identity
+and canonical parameter digest and returns `OPERATION_TAP_UNAVAILABLE` without
+sampling. Artifact actions require an exact artifact id/generation. The fixed
+screen-video producer supports reveal, remove, and same-volume release after
+owner and file-identity revalidation; retain returns
+`OPERATION_ARTIFACT_RETAIN_UNAVAILABLE`. An exact selector that is not an owned
+producer-backed artifact fails closed instead of gaining custody behavior.
+
+`operation.record_screen` validates the closed
+`aos.screen-recording.request.v1` object before registry, claim, broker,
+ScreenCaptureKit, or file effects. It durably prepares one operation, stream,
+artifact, and exclusive `screen_capture_native_session` claim before native
+startup. Admission returns exact identities and a geometry-binding digest;
+progress and terminal operation events remain content-free. The wire contract
+has no system-audio, microphone-track, followed-geometry, dry-run, or raw-media
+field.
 
 The private `operation.external_spawn_intent`,
 `operation.external_spawn_child_admit`, `operation.external_spawn_abandon`, and
@@ -238,7 +251,14 @@ idempotent; abandon after finalize fails closed and never stops active authority
 | `DESKTOP_FRAME_TOPOLOGY_MISMATCH` | Canonical topology validation or frozen-source restoration detected drift. |
 | `INPUT_TAP_NOT_ACTIVE` | Daemon is reachable but its global input tap is not active. Emitted by `do`-family preflight when the daemon's `system.ping` reports `input_tap.status != "active"`, and surfaced as `reason` in service install/start/restart responses when the tap-inactive branch is hit. |
 | `OPERATION_TAP_UNAVAILABLE` | The current operation plane exposes no tap sampling route. |
-| `OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE` | The current operation plane exposes no artifact lookup or custody mutation route. |
+| `OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE` | No registered producer owns the requested custody action. |
+| `OPERATION_ARTIFACT_RETAIN_UNAVAILABLE` | The recording producer supports no retained-custody state. |
+| `OPERATION_ARTIFACT_IDENTITY_MISMATCH` | The transient artifact no longer matches its recorded file identity. |
+| `OPERATION_ARTIFACT_DESTINATION_EXISTS` | Release refused to overwrite an existing destination. |
+| `SCREEN_RECORDING_BOUNDS_EXCEEDED` | A duration, frame-rate, pixel, queue, or byte bound is outside the closed contract. |
+| `SCREEN_RECORDING_TARGET_DRIFT` | Topology, display, window, or fixed geometry changed after admission. |
+| `SCREEN_RECORDING_ENCODER_FAILED` | The bounded H.264 QuickTime encoder failed. |
+| `SCREEN_RECORDING_CLEANUP_REQUIRED` | Native, broker, claim, writer, or file authority could not be proven absent. |
 | `INTERNAL` | Unexpected daemon error. |
 | `INVALID_STATUS_ITEM_DESCRIPTOR` | Descriptor data is missing or malformed. |
 | `INVALID_STATUS_ITEM_INSPECT` | Inspect identity is missing or malformed. |
@@ -393,8 +413,9 @@ The `operation` service emits only the closed content-free
 `terminal`, `residual`, and `barrier`. Every event binds daemon generation,
 operation id/generation, sequence, timestamp, digest, and one typed detail
 variant. It never carries raw operation data, media, text, URLs, paths, or
-artifacts. The current `operation.tap` route exposes no raw observation and
-returns `OPERATION_TAP_UNAVAILABLE`.
+artifact bytes. Screen recording reports only counts, bounds, identities,
+states, and cleanup facts through this channel. The current `operation.tap`
+route exposes no raw observation and returns `OPERATION_TAP_UNAVAILABLE`.
 
 Public `aos listen --source hotkey|microphone --follow` and
 `aos say --follow` are the sanctioned adapters for these connection-scoped

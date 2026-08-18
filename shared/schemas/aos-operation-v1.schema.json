@@ -73,7 +73,9 @@
         "max_duration_ms": {"$ref": "#/$defs/positive_integer"},
         "max_items": {"$ref": "#/$defs/positive_integer"},
         "max_bytes": {"$ref": "#/$defs/positive_integer"},
-        "max_queue_items": {"$ref": "#/$defs/positive_integer"}
+        "max_queue_items": {"$ref": "#/$defs/positive_integer"},
+        "frame_rate": {"type": "integer", "minimum": 1, "maximum": 60},
+        "max_pixel_count": {"type": "integer", "minimum": 4, "maximum": 33177600}
       },
       "additionalProperties": false
     },

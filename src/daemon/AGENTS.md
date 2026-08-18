@@ -161,6 +161,18 @@ compensation, and acknowledged retirement. `desktop-pixel-broker.swift`
 serializes that native acquisition across daemon consumers and owns warm-lease
 lifecycle. They return in-memory pixel frames only; encoding, cropping,
 redaction, persistence, and GPU delivery belong to downstream adapters.
+`screen-recording-operation-adapter.swift` is the sole current downstream
+recording producer. It acquires the exact exclusive operation resource and
+broker producer lease before ScreenCaptureKit/file authority, then records one
+fixed display, exact window, or single-display global region as H.264 QuickTime
+video. Its closed track contract is video-only: system audio and microphone are
+false, and it never follows geometry after admission. Stop, failure, and boot
+recovery must settle stream authority, drain or cancel the writer, release the
+broker and operation claim, and remove any unoffered file before terminalizing.
+Offered artifacts support owner- and generation-bound reveal, remove, and
+same-volume no-overwrite release; retain is typed unavailable. Offline/fake and
+native compile-only proof do not authorize live ScreenCaptureKit, TCC, daemon,
+file, status-item, or crash acceptance.
 Multi-display warm acquisition configures the
 complete stream set before starting every display concurrently; partial startup
 failure immediately requests aggregate retirement while retaining late

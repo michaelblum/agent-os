@@ -106,14 +106,32 @@ private func parseOperationCommand(args: [String]) -> AOSOperationCLIRequest {
             data: [:]
         )
     case "artifact":
-        guard values.count == 1,
-              ["reveal", "remove", "release", "retain"].contains(values[0]) else {
+        guard values.count >= 2,
+              ["reveal", "remove", "release", "retain"].contains(values[0]),
+              !values[1].hasPrefix("--") else {
             operationUsageError()
         }
         let action = values[0]
+        let artifactID = values[1]
+        let allowed: Set<String> = action == "release"
+            ? ["--generation", "--to"]
+            : ["--generation"]
+        let flags = parseOperationFlags(Array(values.dropFirst(2)), allowed: allowed)
+        var data: [String: Any] = [
+            "selector": [
+                "artifact_id": artifactID,
+                "artifact_generation": requiredInteger(flags, "--generation"),
+            ],
+        ]
+        if action == "release" {
+            guard let destination = flags["--to"], destination.hasPrefix("/") else {
+                operationUsageError()
+            }
+            data["destination"] = destination
+        }
         return AOSOperationCLIRequest(
             action: "artifact_\(action)",
-            data: [:]
+            data: data
         )
     case "stop-all", "reopen":
         let flags = parseOperationFlags(values, allowed: ["--barrier-generation"])

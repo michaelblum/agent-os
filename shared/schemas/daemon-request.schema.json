@@ -25,7 +25,9 @@
         }
       } },
     { "if": { "properties": { "service": { "const": "operation" } } },
-      "then": { "properties": { "action": { "enum": ["list", "inspect", "status", "recent", "cancel", "kill", "kill_owner", "tap", "artifact_reveal", "artifact_remove", "artifact_release", "artifact_retain", "stop_all", "barrier_status", "reopen", "external_spawn_intent", "external_spawn_child_admit", "external_spawn_abandon", "external_spawn_finalize"] } } } },
+      "then": { "properties": { "action": { "enum": ["list", "inspect", "status", "recent", "cancel", "kill", "kill_owner", "record_screen", "tap", "artifact_reveal", "artifact_remove", "artifact_release", "artifact_retain", "stop_all", "barrier_status", "reopen", "external_spawn_intent", "external_spawn_child_admit", "external_spawn_abandon", "external_spawn_finalize"] } } } },
+    { "if": { "properties": { "service": { "const": "operation" }, "action": { "const": "record_screen" } } },
+      "then": { "properties": { "data": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/request" } } } },
     { "if": { "properties": { "service": { "const": "operation" }, "action": { "const": "external_spawn_intent" } } },
       "then": { "properties": { "data": { "$ref": "#/$defs/OperationExternalSpawnIntentRequestData" } } } },
     { "if": { "properties": { "service": { "const": "operation" }, "action": { "const": "external_spawn_finalize" } } },
@@ -40,8 +42,10 @@
       "then": { "properties": { "data": { "$ref": "#/$defs/OperationSelectorRequestData" } } } },
     { "if": { "properties": { "service": { "const": "operation" }, "action": { "const": "tap" } } },
       "then": { "properties": { "data": { "$ref": "#/$defs/OperationUnavailableRequestData" } } } },
-    { "if": { "properties": { "service": { "const": "operation" }, "action": { "enum": ["artifact_reveal", "artifact_remove", "artifact_release", "artifact_retain"] } } },
-      "then": { "properties": { "data": { "$ref": "#/$defs/OperationUnavailableRequestData" } } } },
+    { "if": { "properties": { "service": { "const": "operation" }, "action": { "enum": ["artifact_reveal", "artifact_remove", "artifact_retain"] } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/OperationArtifactSelectorRequestData" } } } },
+    { "if": { "properties": { "service": { "const": "operation" }, "action": { "const": "artifact_release" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/OperationArtifactReleaseRequestData" } } } },
     { "if": { "properties": { "service": { "const": "operation" }, "action": { "const": "stop_all" } } },
       "then": { "properties": { "data": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-host-stop-barrier-v1.schema.json#/$defs/stop_all_request" } } } },
     { "if": { "properties": { "service": { "const": "operation" }, "action": { "const": "reopen" } } },
@@ -244,6 +248,31 @@
       "properties": {
         "request_id": { "$ref": "#/$defs/OperationIdentifier" },
         "canonical_parameter_digest": { "$ref": "#/$defs/OperationSHA256" }
+      },
+      "additionalProperties": false
+    },
+    "OperationArtifactSelectorRequestData": {
+      "type": "object",
+      "required": ["request_id", "canonical_parameter_digest", "selector"],
+      "properties": {
+        "request_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "canonical_parameter_digest": { "$ref": "#/$defs/OperationSHA256" },
+        "selector": {
+          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-artifact-v1.schema.json#/$defs/artifact_selector"
+        }
+      },
+      "additionalProperties": false
+    },
+    "OperationArtifactReleaseRequestData": {
+      "type": "object",
+      "required": ["request_id", "canonical_parameter_digest", "selector", "destination"],
+      "properties": {
+        "request_id": { "$ref": "#/$defs/OperationIdentifier" },
+        "canonical_parameter_digest": { "$ref": "#/$defs/OperationSHA256" },
+        "selector": {
+          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-artifact-v1.schema.json#/$defs/artifact_selector"
+        },
+        "destination": { "type": "string", "pattern": "^/", "maxLength": 4096 }
       },
       "additionalProperties": false
     },

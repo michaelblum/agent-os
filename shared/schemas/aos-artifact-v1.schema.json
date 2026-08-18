@@ -1,9 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-artifact-v1.schema.json",
-  "title": "AOS Artifact Target State and Current Custody Unavailability v1",
-  "description": "Current public artifact custody invocation is unavailable because no production artifact producer or custody adapter is registered. Target-state definitions remain for the accepted lifecycle and durable recovery contract.",
-  "$ref": "#/$defs/artifact_custody_unavailable_result",
+  "title": "AOS producer-backed artifact custody v1",
+  "description": "Closed selector and custody-result contract for reveal, remove, release, and specifically unavailable retain.",
+  "oneOf": [
+    {"$ref": "#/$defs/artifact_action_request"},
+    {"$ref": "#/$defs/artifact_custody_result"},
+    {"$ref": "#/$defs/artifact_custody_unavailable_result"},
+    {"$ref": "#/$defs/artifact_retain_unavailable_result"},
+    {"$ref": "#/$defs/artifact_snapshot"}
+  ],
   "$defs": {
     "artifact_custody_unavailable_result": {
       "type": "object",
@@ -13,6 +19,18 @@
         "status": {"const": "error"},
         "error": {"const": "OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE"},
         "code": {"const": "OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE"},
+        "ref": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "artifact_retain_unavailable_result": {
+      "type": "object",
+      "required": ["v", "status", "error", "code"],
+      "properties": {
+        "v": {"const": 1},
+        "status": {"const": "error"},
+        "error": {"const": "OPERATION_ARTIFACT_RETAIN_UNAVAILABLE"},
+        "code": {"const": "OPERATION_ARTIFACT_RETAIN_UNAVAILABLE"},
         "ref": {"type": "string"}
       },
       "additionalProperties": false
@@ -57,7 +75,30 @@
         "schema_version": {"const": "aos.operation.artifact-request.v1"},
         "operation": {"const": "artifact"},
         "action": {"enum": ["reveal", "remove", "release", "retain"]},
-        "selector": {"$ref": "#/$defs/artifact_selector"}
+        "selector": {"$ref": "#/$defs/artifact_selector"},
+        "destination": {"type": "string", "pattern": "^/", "maxLength": 4096}
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"properties": {"action": {"const": "release"}}},
+          "then": {"required": ["destination"]},
+          "else": {"not": {"required": ["destination"]}}
+        }
+      ]
+    },
+    "artifact_custody_result": {
+      "type": "object",
+      "required": ["schema_version", "action", "artifact", "state", "byte_count", "content_digest", "media_type"],
+      "properties": {
+        "schema_version": {"const": "aos.artifact.custody-result.v1"},
+        "action": {"enum": ["reveal", "remove", "release"]},
+        "artifact": {"$ref": "#/$defs/artifact_selector"},
+        "state": {"enum": ["offered", "removed", "released"]},
+        "byte_count": {"$ref": "#/$defs/nonnegative_integer"},
+        "content_digest": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]},
+        "media_type": {"oneOf": [{"type": "null"}, {"const": "video/quicktime; codecs=avc1"}]},
+        "path": {"type": "string", "pattern": "^/", "maxLength": 4096}
       },
       "additionalProperties": false
     },

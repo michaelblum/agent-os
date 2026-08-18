@@ -247,6 +247,7 @@ class UnifiedDaemon {
     private var operationRegistry: AOSOperationRegistry?
     private var operationControlPlane: AOSOperationControlPlane?
     private var operationMicrophoneAdapter: AOSMicrophoneOperationAdapter?
+    private var operationScreenRecordingAdapter: AOSScreenRecordingOperationAdapter?
     private var operationDaemonGeneration: UInt64 = 0
     private let operationImageProvider = AOSDarwinProcessImageProvider()
     private let operationStatusHostLease = AOSOperationStatusHostLease()
@@ -434,9 +435,10 @@ class UnifiedDaemon {
 
     private func initializeOperationControlPlane() throws {
         let registration = try AOSMicrophoneOperationAdapter.makeRegistration()
+        let screenRecordingRegistration = try AOSScreenRecordingOperationAdapter.makeRegistration()
         let adapterRegistry = try AOSAdapterRegistrySnapshot.make(
-            revision: 1,
-            registrations: [registration]
+            revision: 2,
+            registrations: [registration, screenRecordingRegistration]
         )
         let storeRoot = URL(fileURLWithPath: aosStateDir(), isDirectory: true)
             .appendingPathComponent("operation-control", isDirectory: true)
@@ -477,12 +479,33 @@ class UnifiedDaemon {
                 _ = control.reconcileHostBarrierWithBoundedRetry()
             }
         )
-        try registry.installRuntimeAdapters([adapter])
+        let screenRecordingAdapter = try AOSScreenRecordingOperationAdapter(
+            registry: registry,
+            registration: screenRecordingRegistration,
+            broker: desktopPixelBroker,
+            artifactRootURL: storeRoot.appendingPathComponent("artifacts", isDirectory: true),
+            contextResolver: { [weak self] owner in
+                guard let self else { throw AOSOperationCoreError.callerNotAuthenticated }
+                let context = try self.operationContext(for: owner)
+                return AOSScreenRecordingOperationContext(
+                    ownerRoot: context.ownerRoot,
+                    attribution: context.attribution
+                )
+            },
+            reconcileHostBarrier: { [weak control] in
+                guard let control else { return }
+                let state = registry.snapshot().barrier.state
+                guard [.closing, .cleanupRequired, .recovering].contains(state) else { return }
+                _ = control.reconcileHostBarrierWithBoundedRetry()
+            }
+        )
+        try registry.installRuntimeAdapters([adapter, screenRecordingAdapter])
 
         operationStore = store
         operationRegistry = registry
         operationControlPlane = control
         operationMicrophoneAdapter = adapter
+        operationScreenRecordingAdapter = screenRecordingAdapter
         operationDaemonGeneration = nextDaemonGeneration
 
         let recoveryToken = AOSSHA256Digest.hashing(
@@ -501,7 +524,7 @@ class UnifiedDaemon {
             claimTokenDigest: recoveryToken
         )
         try initializeOperationProjections(
-            registration: registration,
+            registrations: [registration, screenRecordingRegistration],
             registry: registry,
             control: control
         )
@@ -542,6 +565,28 @@ class UnifiedDaemon {
             externallyLiveOperations.contains($0.operation)
         }
         let externallyLiveBrokerIDs = Set(externallyLiveClaims.compactMap(\.brokerID))
+        let artifactRoot = URL(fileURLWithPath: aosStateDir(), isDirectory: true)
+            .appendingPathComponent("operation-control/artifacts", isDirectory: true)
+        var removedArtifacts = Set<AOSOperationIdentity>()
+        var releasedArtifacts = Set<AOSOperationIdentity>()
+        for artifact in recovering.artifacts {
+            let url = artifactRoot.appendingPathComponent(
+                "\(artifact.identity.id)-\(artifact.identity.generation).mov"
+            )
+            switch artifact.recoveryDisposition {
+            case .releaseVerification:
+                if !FileManager.default.fileExists(atPath: url.path) {
+                    releasedArtifacts.insert(artifact.identity)
+                }
+            case .removalVerification, .none:
+                if unlink(url.path) == 0 || errno == ENOENT,
+                   !FileManager.default.fileExists(atPath: url.path) {
+                    removedArtifacts.insert(artifact.identity)
+                }
+            case .retentionVerification:
+                break
+            }
+        }
         let reconciled = try AOSOperationRecovery.reconcile(
             registry: registry,
             recoveryGeneration: recoveryGeneration,
@@ -560,7 +605,9 @@ class UnifiedDaemon {
             mechanicallyAbsentBrokerIDs: Set(recovering.resourceBrokers.compactMap {
                 externallyLiveBrokerIDs.contains($0.brokerID) ? nil : $0.brokerID
             }),
-            mechanicallyAbsentSpawnRecordIDs: absentSpawnRecords
+            mechanicallyAbsentSpawnRecordIDs: absentSpawnRecords,
+            mechanicallyRemovedArtifactIDs: removedArtifacts,
+            mechanicallyReleasedArtifactIDs: releasedArtifacts
         )
         if reconciled.residualCount == 0, reconciled.barrierState == .bootReconciling {
             _ = try control.completeBootReconciliation(.open)
@@ -568,7 +615,7 @@ class UnifiedDaemon {
     }
 
     private func initializeOperationProjections(
-        registration: AOSOperationAdapterRegistration,
+        registrations: [AOSOperationAdapterRegistration],
         registry: AOSOperationRegistry,
         control: AOSOperationControlPlane
     ) throws {
@@ -579,10 +626,20 @@ class UnifiedDaemon {
             statusHostGeneration: operationDaemonGeneration,
             connectionEpoch: operationDaemonGeneration
         )
+        guard let microphoneRegistration = registrations.first(where: {
+            $0.id == AOSMicrophoneOperationAdapter.registrationID
+        }), let screenRecordingRegistration = registrations.first(where: {
+            $0.id == AOSScreenRecordingOperationAdapter.registrationID
+        }) else { throw AOSOperationCoreError.adapterRegistryConflict }
         let indicators = try AOSOperationStatusIndicatorRegistry(bindings: [
             try AOSOperationStatusIndicatorBinding(
-                registration: registration,
+                registration: microphoneRegistration,
                 capabilityID: AOSMicrophoneOperationAdapter.capabilityID,
+                indicatorClass: .recording
+            ),
+            try AOSOperationStatusIndicatorBinding(
+                registration: screenRecordingRegistration,
+                capabilityID: AOSScreenRecordingOperationAdapter.capabilityID,
                 indicatorClass: .recording
             ),
         ])
@@ -3753,6 +3810,7 @@ class UnifiedDaemon {
             }
             guard [
                 "list", "inspect", "status", "recent", "cancel", "kill", "kill_owner",
+                "record_screen",
                 "tap", "artifact_reveal", "artifact_remove", "artifact_release",
                 "artifact_retain", "stop_all", "barrier_status", "reopen",
             ].contains(action) else {
@@ -3781,6 +3839,41 @@ class UnifiedDaemon {
             let checkedAt = operationTimestamp(registry.now())
 
             switch action {
+            case "record_screen":
+                guard let adapter = operationScreenRecordingAdapter else {
+                    throw AOSOperationCoreError.adapterRegistryConflict
+                }
+                let request = try AOSScreenRecordingRequest.validatingPublicValue(data)
+                let admission = try adapter.start(request: request, connectionID: connectionID)
+                sendResponseJSON(
+                    to: outbound,
+                    [
+                        "schema_version": "aos.screen-recording.admission-result.v1",
+                        "operation": [
+                            "operation_id": admission.operation.id,
+                            "operation_generation": admission.operation.generation,
+                        ],
+                        "stream": [
+                            "stream_id": admission.stream.id,
+                            "stream_generation": admission.stream.generation,
+                        ],
+                        "artifact": [
+                            "artifact_id": admission.artifact.id,
+                            "artifact_generation": admission.artifact.generation,
+                        ],
+                        "daemon_generation": admission.daemonGeneration,
+                        "geometry_binding_digest": admission.geometryBindingDigest,
+                        "tracks": [
+                            "video": true,
+                            "system_audio": false,
+                            "microphone": false,
+                        ],
+                        "codec": AOSScreenRecordingRequest.codec,
+                        "container": AOSScreenRecordingRequest.container,
+                    ],
+                    envelopeActive: true,
+                    envelopeRef: envelopeRef
+                )
             case "list", "recent":
                 let filterPayload = data["filters"] as? [String: Any] ?? [:]
                 let filter = operationFilter(filterPayload)
@@ -3866,7 +3959,34 @@ class UnifiedDaemon {
             case "tap":
                 throw AOSOperationCoreError.tapUnavailable
             case "artifact_reveal", "artifact_remove", "artifact_release", "artifact_retain":
-                throw AOSOperationCoreError.artifactCustodyUnavailable
+                guard let adapter = operationScreenRecordingAdapter else {
+                    throw AOSOperationCoreError.adapterRegistryConflict
+                }
+                let selector = try artifactSelector(data)
+                let result: [String: Any]
+                switch action {
+                case "artifact_reveal":
+                    result = try adapter.revealArtifact(selector, ownerRoot: identity.ownerRoot)
+                case "artifact_remove":
+                    result = try adapter.removeArtifact(selector, ownerRoot: identity.ownerRoot)
+                case "artifact_release":
+                    guard let destination = data["destination"] as? String else {
+                        throw AOSOperationCoreError.invalidRecord("artifact_release_destination")
+                    }
+                    result = try adapter.releaseArtifact(
+                        selector,
+                        ownerRoot: identity.ownerRoot,
+                        destinationPath: destination
+                    )
+                default:
+                    try adapter.retainArtifact(selector)
+                }
+                sendResponseJSON(
+                    to: outbound,
+                    result,
+                    envelopeActive: true,
+                    envelopeRef: envelopeRef
+                )
             default:
                 throw AOSOperationCoreError.invalidRecord("operation_action")
             }
@@ -3990,6 +4110,17 @@ class UnifiedDaemon {
               let generation = (selector["operation_generation"] as? NSNumber)?.uint64Value,
               generation > 0 else {
             throw AOSOperationCoreError.invalidRecord("operation_selector")
+        }
+        return AOSOperationIdentity(id: id, generation: generation)
+    }
+
+    private func artifactSelector(_ data: [String: Any]) throws -> AOSOperationIdentity {
+        guard let selector = data["selector"] as? [String: Any],
+              Set(selector.keys) == ["artifact_id", "artifact_generation"],
+              let id = selector["artifact_id"] as? String, !id.isEmpty,
+              let generation = (selector["artifact_generation"] as? NSNumber)?.uint64Value,
+              generation > 0 else {
+            throw AOSOperationCoreError.invalidRecord("artifact_selector")
         }
         return AOSOperationIdentity(id: id, generation: generation)
     }
@@ -4589,7 +4720,7 @@ class UnifiedDaemon {
             "tap:\($0.identity.id):\($0.identity.generation)"
         }
         residuals += artifacts.filter {
-            ![AOSArtifactLifecycleState.released, .retained, .removed].contains($0.state)
+            ![AOSArtifactLifecycleState.offered, .released, .retained, .removed].contains($0.state)
         }.map { "artifact:\($0.identity.id):\($0.identity.generation)" }
         residuals += state.finalizedExternalSpawnRecords.filter {
             $0.skipRecord.operationID == operation.identity.id
@@ -4634,9 +4765,20 @@ class UnifiedDaemon {
             "status_indicator_class": operation.state == .active ? "recording" : "neutral",
             "state": wireState,
             "lineage": operationLineage(operation),
-            "requested_bounds": [:],
+            "requested_bounds": operation.requestedBounds.map {
+                [
+                    "max_duration_ms": $0.durationMilliseconds,
+                    "frame_rate": $0.frameRate,
+                    "max_pixel_count": $0.pixelCount,
+                    "max_queue_items": $0.queueFrames,
+                    "max_bytes": $0.maximumOutputBytes,
+                ]
+            } ?? [:],
             "progress": [
-                "items": 0, "bytes": 0, "duration_ms": 0, "last_event_sequence": 0,
+                "items": operation.progress?.frameCount ?? 0,
+                "bytes": operation.progress?.byteCount ?? 0,
+                "duration_ms": operation.progress?.elapsedMilliseconds ?? 0,
+                "last_event_sequence": operation.progress?.frameCount ?? 0,
             ],
             "claim_set_transactions": transactions.map {
                 operationClaimSetTransaction($0, state: state)

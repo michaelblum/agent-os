@@ -148,7 +148,8 @@ final class AOSOperationRegistry {
         attribution: AOSOperationAttribution,
         capabilityID: String,
         adapterRegistrationID: String,
-        adapterRegistrationRevision: UInt64
+        adapterRegistrationRevision: UInt64,
+        requestedBounds: AOSOperationRequestedBounds? = nil
     ) throws -> AOSOperationRecord {
         let now = clock()
         return try mutateDurably { state in
@@ -174,11 +175,138 @@ final class AOSOperationRegistry {
                 stopIntent: nil,
                 outcome: nil,
                 residualDigest: nil,
+                requestedBounds: requestedBounds,
+                progress: requestedBounds.map { _ in AOSOperationProgress(
+                    frameCount: 0,
+                    byteCount: 0,
+                    elapsedMilliseconds: 0,
+                    droppedFrameCount: 0
+                ) },
                 createdAtNanoseconds: now,
                 updatedAtNanoseconds: now
             )
             state.operations.append(record)
             return record
+        }
+    }
+
+    func updateOperationProgress(
+        _ identity: AOSOperationIdentity,
+        _ progress: AOSOperationProgress
+    ) throws -> AOSOperationRecord {
+        let now = clock()
+        return try mutateDurably { state in
+            guard let index = state.operations.firstIndex(where: { $0.identity == identity }),
+                  state.operations[index].state != .terminal else {
+                throw AOSOperationCoreError.operationNotFound
+            }
+            if let bounds = state.operations[index].requestedBounds {
+                guard progress.byteCount <= bounds.maximumOutputBytes,
+                      progress.elapsedMilliseconds <= bounds.durationMilliseconds else {
+                    throw AOSOperationCoreError.recordingBoundsExceeded
+                }
+            }
+            state.operations[index].progress = progress
+            state.operations[index].updatedAtNanoseconds = now
+            return state.operations[index]
+        }
+    }
+
+    func prepareStream(parent: AOSOperationIdentity) throws -> AOSStreamRecord {
+        let now = clock()
+        return try mutateDurably { state in
+            guard let operation = state.operations.first(where: { $0.identity == parent }),
+                  operation.state != .terminal else {
+                throw AOSOperationCoreError.operationNotFound
+            }
+            let record = AOSStreamRecord(
+                identity: AOSOperationIdentity(id: idFactory(), generation: state.allocateGeneration()),
+                parentOperation: parent,
+                daemonGeneration: state.daemonGeneration,
+                state: .prepared,
+                residualDigest: nil,
+                updatedAtNanoseconds: now
+            )
+            state.streams.append(record)
+            return record
+        }
+    }
+
+    func transitionStream(
+        _ identity: AOSOperationIdentity,
+        to newState: AOSStreamLifecycleState,
+        frameCount: UInt64? = nil,
+        byteCount: UInt64? = nil,
+        residualDigest: String? = nil
+    ) throws -> AOSStreamRecord {
+        let now = clock()
+        return try mutateDurably { state in
+            guard let index = state.streams.firstIndex(where: { $0.identity == identity }) else {
+                throw AOSOperationCoreError.operationNotFound
+            }
+            guard Self.permitsStreamTransition(from: state.streams[index].state, to: newState) else {
+                throw AOSOperationCoreError.invalidTransition
+            }
+            state.streams[index].state = newState
+            if let frameCount { state.streams[index].frameCount = frameCount }
+            if let byteCount { state.streams[index].byteCount = byteCount }
+            state.streams[index].residualDigest = newState == .terminal ? nil : residualDigest
+            state.streams[index].updatedAtNanoseconds = now
+            return state.streams[index]
+        }
+    }
+
+    func prepareArtifact(parent: AOSOperationIdentity) throws -> AOSArtifactRecord {
+        let now = clock()
+        return try mutateDurably { state in
+            guard let operation = state.operations.first(where: { $0.identity == parent }),
+                  operation.state != .terminal else {
+                throw AOSOperationCoreError.operationNotFound
+            }
+            let record = AOSArtifactRecord(
+                identity: AOSOperationIdentity(id: idFactory(), generation: state.allocateGeneration()),
+                parentOperation: parent,
+                daemonGeneration: state.daemonGeneration,
+                state: .transient,
+                recoveryOriginState: nil,
+                recoveryDisposition: nil,
+                custodyDigest: nil,
+                fileIdentity: nil,
+                pendingAction: nil,
+                pendingDestinationIdentityDigest: nil,
+                custodyReceipt: nil,
+                updatedAtNanoseconds: now
+            )
+            state.artifacts.append(record)
+            return record
+        }
+    }
+
+    func updateArtifact(
+        _ identity: AOSOperationIdentity,
+        state newState: AOSArtifactLifecycleState,
+        fileIdentity: AOSArtifactFileIdentity? = nil,
+        pendingAction: AOSArtifactPendingAction? = nil,
+        pendingDestinationIdentityDigest: String? = nil,
+        custodyReceipt: AOSArtifactCustodyReceipt? = nil,
+        custodyDigest: String? = nil
+    ) throws -> AOSArtifactRecord {
+        let now = clock()
+        return try mutateDurably { durable in
+            guard let index = durable.artifacts.firstIndex(where: { $0.identity == identity }) else {
+                throw AOSOperationCoreError.operationNotFound
+            }
+            guard Self.permitsArtifactTransition(from: durable.artifacts[index].state, to: newState) else {
+                throw AOSOperationCoreError.invalidTransition
+            }
+            durable.artifacts[index].state = newState
+            if let fileIdentity { durable.artifacts[index].fileIdentity = fileIdentity }
+            durable.artifacts[index].pendingAction = pendingAction
+            durable.artifacts[index].pendingDestinationIdentityDigest = pendingDestinationIdentityDigest
+            if let custodyReceipt { durable.artifacts[index].custodyReceipt = custodyReceipt }
+            if let custodyDigest { durable.artifacts[index].custodyDigest = custodyDigest }
+            durable.artifacts[index].updatedAtNanoseconds = now
+            return durable.artifacts[index]
         }
     }
 
@@ -271,7 +399,7 @@ final class AOSOperationRegistry {
             $0.parentOperation == identity && $0.state != .terminal
         } || state.artifacts.contains {
             $0.parentOperation == identity
-                && ![.released, .retained, .removed].contains($0.state)
+                && ![.offered, .released, .retained, .removed].contains($0.state)
         } || state.resourceTransactions.contains {
             $0.operation == identity && $0.state != .terminal
         } || state.resourceClaims.contains {
@@ -844,6 +972,41 @@ final class AOSOperationRegistry {
              (.stopping, .terminal), (.stopping, .cleanupRequired),
              (.cleanupRequired, .recovering), (.cleanupRequired, .cleanupRequired),
              (.recovering, .terminal), (.recovering, .cleanupRequired):
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func permitsStreamTransition(
+        from: AOSStreamLifecycleState,
+        to: AOSStreamLifecycleState
+    ) -> Bool {
+        switch (from, to) {
+        case (.prepared, .starting), (.prepared, .terminal), (.prepared, .cleanupRequired),
+             (.starting, .active), (.starting, .stopping), (.starting, .terminal),
+             (.starting, .cleanupRequired), (.active, .active), (.active, .stopping),
+             (.active, .cleanupRequired), (.stopping, .terminal),
+             (.stopping, .cleanupRequired), (.cleanupRequired, .recovering),
+             (.recovering, .terminal), (.recovering, .cleanupRequired):
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func permitsArtifactTransition(
+        from: AOSArtifactLifecycleState,
+        to: AOSArtifactLifecycleState
+    ) -> Bool {
+        switch (from, to) {
+        case (.transient, .offered), (.transient, .removing),
+             (.transient, .cleanupRequired), (.offered, .offered),
+             (.offered, .removing), (.offered, .released),
+             (.offered, .cleanupRequired), (.removing, .removed),
+             (.removing, .cleanupRequired), (.cleanupRequired, .recovering),
+             (.recovering, .removed), (.recovering, .released),
+             (.recovering, .cleanupRequired):
             return true
         default:
             return false

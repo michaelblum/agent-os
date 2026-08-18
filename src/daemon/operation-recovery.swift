@@ -284,7 +284,7 @@ enum AOSOperationRecovery {
             "tap:\($0.identity.id):\($0.identity.generation)"
         }
         values += state.artifacts.filter {
-            [.cleanupRequired, .recovering, .removing, .transient, .published].contains($0.state)
+            [.cleanupRequired, .recovering, .removing, .transient, .offered].contains($0.state)
         }.map { "artifact:\($0.identity.id):\($0.identity.generation)" }
         values += state.resourceTransactions.filter { $0.state != .terminal }.map {
             "claim-set:\($0.transactionID)"

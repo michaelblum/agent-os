@@ -17,9 +17,10 @@ sessions, workspaces, focus channels, runtime state, Work Records, content
 roots, and evidence state.
 
 > **Sovereign-capability authority pointer:** ADR 0043 owns the target and
-> ADR 0044 owns the Milestone 2 owner, resource, recovery, and same-UID host
-> control bindings. The `aos operation` section below is executable Milestone 2
-> truth for registered operation-plane adapters. Fixed browser operations and
+> ADR 0044 owns the operation-plane owner, resource, recovery, and same-UID host
+> control bindings. The `aos operation` and `aos record` sections below are
+> executable truth for the Milestone 2 plane and bounded M3A screen-video
+> adapter. Fixed browser operations and
 > direct-capture priming remain burn-down baseline until their later atomic
 > milestones land; do not infer that every legacy daemon resource is already a
 > registered operation.
@@ -168,7 +169,8 @@ The current top-level commands are:
 | `aos launch` | manifest-backed source-owned app launcher |
 | `aos ready` | read-only front-door readiness gate; `--repair` permits runtime recovery |
 | `aos status` | read-only runtime/session status snapshot |
-| `aos operation` | generation-bound registered-operation inspection and control, plus exact typed unavailability for tap and artifact custody until producers exist |
+| `aos operation` | generation-bound registered-operation inspection/control and producer-backed screen-recording artifact custody; tap and retain remain typed unavailable |
+| `aos record` | bounded fixed display, window, or region screen-video recording to a transient H.264 QuickTime artifact |
 | `aos skills` | installable AOS root skills: list, check installed state, install, and dry-run install plans |
 | `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
 | `aos work-record` | Work Record V1 discovery, report-only verification, neutral repair/attempt planning, caller-outcome artifact validation, non-executing replacement proposals, explicit-root replacement writing, exact repair finalization, and external source supersession lookup/indexing |
@@ -2210,8 +2212,8 @@ substitutes for daemon authorization.
 ## `aos operation`
 
 `aos operation` is the public, policy-free control plane for work registered by
-an AOS operation adapter. Milestone 2 registers native microphone capture; later
-milestones move additional privileged capability families onto the same plane.
+an AOS operation adapter. The registry currently contains native microphone
+capture and fixed video-only screen recording at adapter-registry revision 2.
 The surface reports mechanical facts and performs requested controls. It does
 not decide whether a human or agent should stop work, and it accepts neither
 caller intent nor a caller-supplied owner-root claim.
@@ -2228,7 +2230,10 @@ Primary public forms:
 | `kill <id> --generation <n> --json` | Force-stop one exact owned operation and keep cleanup observable. |
 | `kill-owner [filters] --json` | Stop the intersection of the authenticated owner root and optional attribution/capability filters. |
 | `tap --json` | Return `OPERATION_TAP_UNAVAILABLE`; no source is registered, so no tap record or delivery channel is created. |
-| `artifact reveal\|remove\|release\|retain --json` | Return `OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE`; no production producer or custody adapter exists, so no artifact lookup or mutation occurs. |
+| `artifact reveal <artifact-id> --generation <n> --json` | Revalidate and disclose one exact owned offered recording artifact. |
+| `artifact remove <artifact-id> --generation <n> --json` | Revalidate and remove one exact owned offered recording artifact. |
+| `artifact release <artifact-id> --generation <n> --to <absolute-path> --json` | Transfer one exact owned offered recording artifact without overwrite on the same volume. |
+| `artifact retain <artifact-id> --generation <n> --json` | Return `OPERATION_ARTIFACT_RETAIN_UNAVAILABLE`; this producer does not retain custody. |
 | `stop-all --barrier-generation <n> --json` | Same-UID host-wide stop over the exact registered adapter set at one revision. |
 | `barrier-status --json` | Read the immutable stop snapshot, progress, residual scope, and current barrier generation. |
 | `reopen --barrier-generation <n> --json` | Reopen admission only after the stopped snapshot and current registered set are reconciled. |
@@ -2265,19 +2270,21 @@ authority. An ordinary Canvas with a live captured peer may use owner-scoped
 controls only. Status and Canvas provenance authenticate the request path but do
 not express human intent or create a privileged authorization class.
 
-Tap and artifact-custody success are not current executable capability. The
-daemon returns the same closed error envelope used by the CLI and IPC schemas:
+Tap success is not current executable capability. The daemon returns the closed
+error envelope used by the CLI and IPC schemas:
 
 ```json
 {"v":1,"status":"error","error":"OPERATION_TAP_UNAVAILABLE","code":"OPERATION_TAP_UNAVAILABLE","ref":"<request-id>"}
 ```
 
-Artifact reveal, remove, release, and retain use the identical shape with both
-`error` and `code` set to `OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE`. These
-results are emitted before any tap or artifact record is created, resolved, or
-mutated. Sampling, rate, queue, byte, duration, follow, raw-delivery, and
-custody-success behavior remain target contracts for future producer-backed
-slices, not current command grammar.
+Producer-backed recording artifacts accept only the exact artifact id and
+generation returned at admission. Reveal, remove, and release revalidate the
+recorded device, inode, byte count, digest, media type, internal-root
+containment, and owner root before custody mutation. Release requires an absent
+absolute destination in an existing owner-owned directory on the source
+volume. Other producers do not gain artifact success implicitly, and retain is
+specifically unavailable. Tap sampling and followed geometry remain future
+contracts.
 
 The host barrier covers the registered operation plane at the recorded adapter-
 registry revision, not every legacy daemon subsystem. `reopen` does not claim
@@ -2297,6 +2304,36 @@ its authenticated socket-peer generation. Failed launch, expiry, boot recovery,
 or finalization failure terminalizes the prepared operation and releases its
 claim. No caller supplies these internal origin, token, PID, signing, or
 dependency facts.
+
+## `aos record`
+
+`aos record screen` admits one fixed screen-video producer through the shared
+operation plane:
+
+```bash
+aos record screen --display main --duration-ms 10000 --json
+aos record screen --display 1 --region 0,0,1280,720 \
+  --duration-ms 5000 --frame-rate 30 --json
+```
+
+The target is exactly one display, one current window, or one global region
+wholly contained by the selected display. Admission binds the canonical
+topology, source identity, and fixed geometry before ScreenCaptureKit authority
+starts; later drift fails the operation instead of silently reacquiring or
+following a target. Duration is 1 through 300000 milliseconds, frame rate 1
+through 60, queue depth 1 through 8, pixel count 4 through 33177600, and output
+size 1024 through 1073741824 bytes. The closed media contract is H.264 in a
+QuickTime `.mov`, with `video=true`, `system_audio=false`, and
+`microphone=false`.
+
+Success is admission, not completed capture. It returns exact operation,
+stream, and artifact generations plus daemon generation and geometry-binding
+digest. Use `aos operation status`, cancel, or kill for lifecycle control, then
+an artifact action above for custody. AOS owns the transient file until remove
+or same-volume release, and boot recovery removes abandoned internal recording
+artifacts. This slice has offline, fake, schema, and native compile-only proof;
+live pixels, files, permissions, daemon restart, and crash behavior are not
+accepted by those checks.
 
 ## `aos wiki`
 

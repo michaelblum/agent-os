@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json",
+  "title": "AOS fixed video-only screen recording v1",
+  "oneOf": [
+    {"$ref": "#/$defs/request"},
+    {"$ref": "#/$defs/admission_result"},
+    {"$ref": "#/$defs/progress"},
+    {"$ref": "#/$defs/completion_result"}
+  ],
+  "$defs": {
+    "identifier": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"},
+    "generation": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "tracks": {
+      "type": "object",
+      "required": ["video", "system_audio", "microphone"],
+      "properties": {
+        "video": {"const": true},
+        "system_audio": {"const": false},
+        "microphone": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "bounds": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "width": {"type": "number", "exclusiveMinimum": 0},
+        "height": {"type": "number", "exclusiveMinimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "display_target": {
+      "type": "object",
+      "required": ["kind", "display_ordinal"],
+      "properties": {
+        "kind": {"const": "display"},
+        "display_ordinal": {"type": "integer", "minimum": 0, "maximum": 15}
+      },
+      "additionalProperties": false
+    },
+    "window_target": {
+      "type": "object",
+      "required": ["kind", "display_ordinal", "window_id", "owner_pid", "global_bounds"],
+      "properties": {
+        "kind": {"const": "window"},
+        "display_ordinal": {"type": "integer", "minimum": 0, "maximum": 15},
+        "window_id": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+        "owner_pid": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+        "global_bounds": {"$ref": "#/$defs/bounds"}
+      },
+      "additionalProperties": false
+    },
+    "region_target": {
+      "type": "object",
+      "required": ["kind", "display_ordinal", "global_bounds"],
+      "properties": {
+        "kind": {"const": "region"},
+        "display_ordinal": {"type": "integer", "minimum": 0, "maximum": 15},
+        "global_bounds": {"$ref": "#/$defs/bounds"}
+      },
+      "additionalProperties": false
+    },
+    "target": {
+      "oneOf": [
+        {"$ref": "#/$defs/display_target"},
+        {"$ref": "#/$defs/window_target"},
+        {"$ref": "#/$defs/region_target"}
+      ]
+    },
+    "request": {
+      "type": "object",
+      "required": [
+        "schema_version", "request_id", "canonical_parameter_digest", "topology", "target",
+        "duration_ms", "frame_rate", "max_pixel_count", "max_queue_frames",
+        "max_output_bytes", "tracks", "codec", "container"
+      ],
+      "properties": {
+        "schema_version": {"const": "aos.screen-recording.request.v1"},
+        "request_id": {"$ref": "#/$defs/identifier"},
+        "canonical_parameter_digest": {"$ref": "#/$defs/sha256"},
+        "topology": {"$ref": "https://github.com/michaelblum/agent-os/shared/schemas/display-topology-v1.schema.json"},
+        "target": {"$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/target"},
+        "duration_ms": {"type": "integer", "minimum": 1, "maximum": 300000},
+        "frame_rate": {"type": "integer", "minimum": 1, "maximum": 60},
+        "max_pixel_count": {"type": "integer", "minimum": 4, "maximum": 33177600},
+        "max_queue_frames": {"type": "integer", "minimum": 1, "maximum": 8},
+        "max_output_bytes": {"type": "integer", "minimum": 1024, "maximum": 1073741824},
+        "tracks": {"$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/tracks"},
+        "codec": {"const": "h264"},
+        "container": {"const": "quicktime"}
+      },
+      "additionalProperties": false
+    },
+    "selector": {
+      "type": "object",
+      "required": ["operation_id", "operation_generation"],
+      "properties": {
+        "operation_id": {"$ref": "#/$defs/identifier"},
+        "operation_generation": {"$ref": "#/$defs/generation"}
+      },
+      "additionalProperties": false
+    },
+    "stream_selector": {
+      "type": "object",
+      "required": ["stream_id", "stream_generation"],
+      "properties": {
+        "stream_id": {"$ref": "#/$defs/identifier"},
+        "stream_generation": {"$ref": "#/$defs/generation"}
+      },
+      "additionalProperties": false
+    },
+    "artifact_selector": {
+      "type": "object",
+      "required": ["artifact_id", "artifact_generation"],
+      "properties": {
+        "artifact_id": {"$ref": "#/$defs/identifier"},
+        "artifact_generation": {"$ref": "#/$defs/generation"}
+      },
+      "additionalProperties": false
+    },
+    "admission_result": {
+      "type": "object",
+      "required": [
+        "schema_version", "operation", "stream", "artifact", "daemon_generation",
+        "geometry_binding_digest", "tracks", "codec", "container"
+      ],
+      "properties": {
+        "schema_version": {"const": "aos.screen-recording.admission-result.v1"},
+        "operation": {"$ref": "#/$defs/selector"},
+        "stream": {"$ref": "#/$defs/stream_selector"},
+        "artifact": {"$ref": "#/$defs/artifact_selector"},
+        "daemon_generation": {"$ref": "#/$defs/generation"},
+        "geometry_binding_digest": {"$ref": "#/$defs/sha256"},
+        "tracks": {"$ref": "#/$defs/tracks"},
+        "codec": {"const": "h264"},
+        "container": {"const": "quicktime"}
+      },
+      "additionalProperties": false
+    },
+    "progress": {
+      "type": "object",
+      "required": [
+        "schema_version", "operation", "frame_count", "byte_count", "elapsed_ms",
+        "dropped_frame_count", "tracks"
+      ],
+      "properties": {
+        "schema_version": {"const": "aos.screen-recording.progress.v1"},
+        "operation": {"$ref": "#/$defs/selector"},
+        "frame_count": {"$ref": "#/$defs/count"},
+        "byte_count": {"$ref": "#/$defs/count"},
+        "elapsed_ms": {"$ref": "#/$defs/count"},
+        "dropped_frame_count": {"const": 0},
+        "tracks": {"$ref": "#/$defs/tracks"}
+      },
+      "additionalProperties": false
+    },
+    "completion_result": {
+      "type": "object",
+      "required": [
+        "schema_version", "operation", "artifact", "outcome", "frame_count", "byte_count",
+        "duration_ms", "tracks", "codec", "container", "cleanup_result"
+      ],
+      "properties": {
+        "schema_version": {"const": "aos.screen-recording.result.v1"},
+        "operation": {"$ref": "#/$defs/selector"},
+        "artifact": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/artifact_selector"}]},
+        "outcome": {"enum": ["succeeded", "cancelled", "killed", "failed", "timed_out"]},
+        "frame_count": {"$ref": "#/$defs/count"},
+        "byte_count": {"$ref": "#/$defs/count"},
+        "duration_ms": {"$ref": "#/$defs/count"},
+        "tracks": {"$ref": "#/$defs/tracks"},
+        "codec": {"const": "h264"},
+        "container": {"const": "quicktime"},
+        "cleanup_result": {"enum": ["zero_residuals", "residuals_present"]}
+      },
+      "additionalProperties": false
+    }
+  }
+}

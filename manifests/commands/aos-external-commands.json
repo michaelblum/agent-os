@@ -3101,6 +3101,14 @@
       "argv_prefix": ["__operation"],
       "cwd": "repo",
       "stdio": "inherit"
+    },
+    {
+      "path": ["record"],
+      "summary": "Create one bounded H.264 QuickTime recording of a fixed display, window, or global region.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__record"],
+      "cwd": "repo",
+      "stdio": "inherit"
     }
   ]
 }

@@ -50,7 +50,7 @@ test('daemon operation integration retains secure routing and exact wire boundar
   assert.match(registry, /finalizePendingExternalSpawnIntent/u)
 })
 
-test('source-free tap and producer-free artifact custody fail with exact typed codes', async () => {
+test('source-free tap and producer-backed recording custody expose exact typed boundaries', async () => {
   const [unified, control, state, command] = await Promise.all([
     readFile(path.join(repoRoot, 'src/daemon/unified.swift'), 'utf8'),
     readFile(path.join(repoRoot, 'src/daemon/operation-control.swift'), 'utf8'),
@@ -59,19 +59,15 @@ test('source-free tap and producer-free artifact custody fail with exact typed c
   ])
 
   assert.match(unified, /case "tap":\s*throw AOSOperationCoreError\.tapUnavailable/u)
-  assert.match(
-    unified,
-    /case "artifact_reveal", "artifact_remove", "artifact_release", "artifact_retain":\s*throw AOSOperationCoreError\.artifactCustodyUnavailable/u,
-  )
-  assert.doesNotMatch(unified, /openOperationTap|scheduleOperationTapExpiry|operationTapSnapshot|controlOperationArtifact/u)
+  assert.match(unified, /case "artifact_reveal", "artifact_remove", "artifact_release", "artifact_retain":/u)
+  assert.match(unified, /revealArtifact|removeArtifact|releaseArtifact|retainArtifact/u)
+  assert.doesNotMatch(unified, /openOperationTap|scheduleOperationTapExpiry|operationTapSnapshot/u)
   assert.doesNotMatch(control, /AOSOperationTapBuffer|AOSOperationTapAdmission/u)
   assert.match(state, /case \.tapUnavailable: return "OPERATION_TAP_UNAVAILABLE"/u)
-  assert.match(
-    state,
-    /case \.artifactCustodyUnavailable: return "OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE"/u,
-  )
+  assert.match(state, /case \.artifactRetainUnavailable: return "OPERATION_ARTIFACT_RETAIN_UNAVAILABLE"/u)
   assert.match(command, /case "tap":\s*guard values\.isEmpty/u)
-  assert.match(command, /case "artifact":\s*guard values\.count == 1/u)
+  assert.match(command, /case "artifact":\s*guard values\.count >= 2/u)
+  assert.match(command, /"--generation", "--to"/u)
   assert.doesNotMatch(command, /OPERATION_FOLLOW_INCOMPLETE|--sample-every|--max-queue-items/u)
 })
 

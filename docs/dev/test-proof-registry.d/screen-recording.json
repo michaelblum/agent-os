@@ -1,0 +1,31 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof-worth entries for the bounded fixed video-only recording producer.",
+  "entries": [
+    {
+      "id": "screen-recording-producer-proof",
+      "path_patterns": [
+        "src/commands/record.swift",
+        "src/daemon/screen-recording-*.swift",
+        "shared/schemas/aos-screen-recording-v1.schema.json",
+        "manifests/commands/source/aos/42-screen-recording.json",
+        "manifests/commands/source/external/50-screen-recording.json",
+        "tests/schemas/aos-screen-recording-v1.test.mjs",
+        "tests/screen-recording-contract.test.mjs",
+        "tests/screen-recording-fake.test.mjs",
+        "tests/native-screen-recording-contract.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "operation-control",
+      "harness_level": "model_unit",
+      "proof_kind": "fixed_video_screen_recording_contract",
+      "contract": "One exact fixed display, window, or single-display global region is topology-bound before an H.264 QuickTime video-only producer acquires native or file authority. Closed duration, frame-rate, pixel, queue, and byte caps, deterministic stop/drain, exact registered-set revision, producer-backed reveal/remove/release, specifically unavailable retain, boot cleanup, and zero-residual terminal publication converge across source, schema, and help.",
+      "worth": "This catches audio or follow-geometry widening, authority before persistence, parallel ScreenCaptureKit ownership, stale geometry acceptance, unbounded encoding, false custody, early terminal publication, incomplete cleanup, help/schema drift, and native type errors without acquiring Screen Recording permission or recording pixels.",
+      "command": "bash tests/native-screen-recording-contract.sh",
+      "replaces": [],
+      "guard": "schema, static source, deterministic fake state/encoder/custody model, and whole-source Swift compile only; no daemon, raw repo build, ScreenCaptureKit execution, AVAssetWriter execution, native UI, TCC, or media retention",
+      "status": "active"
+    }
+  ]
+}

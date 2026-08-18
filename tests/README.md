@@ -97,6 +97,18 @@ with the exact command and guard posture.
 `node scripts/aos-dev-workflow.mjs recommend --json` enforces this only for
 changed proof assets; untouched legacy tests remain runnable debt.
 
+For the bounded fixed video-only recording producer, use:
+
+```bash
+bash tests/native-screen-recording-contract.sh
+```
+
+This route validates the closed schema, exact H.264/QuickTime and no-audio
+source contract, fixed geometry and drift behavior, fake lifecycle/encoder/
+custody cleanup, authored/generated help, and a whole-source Swift typecheck.
+It does not run `./aos`, start the daemon, acquire Screen Recording permission,
+or retain media.
+
 For deterministic Target Handle Runtime V1 coverage, use:
 
 ```bash

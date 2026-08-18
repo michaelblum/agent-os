@@ -531,6 +531,7 @@ test('external command manifest only routes approved bootstrap and stateless pri
   const allowedSwiftRoutes = new Map([
     ['serve', { executable: '$AOS_PATH', argvPrefix: ['__serve'] }],
     ['operation', { executable: '$AOS_PATH', argvPrefix: ['__operation'] }],
+    ['record', { executable: '$AOS_PATH', argvPrefix: ['__record'] }],
     ['see compare', { executable: '/usr/bin/env', argvPrefix: ['$AOS_PATH', '__see', 'compare'] }],
   ]);
 
@@ -562,6 +563,7 @@ test('Swift entry point exposes only private bootstrap and native primitives', a
     '__say',
     '__do',
     '__operation',
+    '__record',
   ]);
   const cases = [...commandSwitch[1].matchAll(/case "([^"]+)":/g)].map((match) => match[1]);
   assert.deepEqual(cases.filter((name) => !allowedCases.has(name)), [], 'top-level Swift command cases must stay private');
@@ -1224,7 +1226,7 @@ test('registry concrete usage forms have external routes', async () => {
   const manifest = await loadJson(manifestPath);
   const registry = await loadJson(registryPath);
   const externalPaths = new Set(manifest.commands.map((command) => command.path.join('\0')));
-  const bootstrapFamilies = new Set(['serve', 'ready', 'permissions', 'operation']);
+  const bootstrapFamilies = new Set(['serve', 'ready', 'permissions', 'operation', 'record']);
 
   for (const command of registry.commands) {
     for (const form of command.forms) {

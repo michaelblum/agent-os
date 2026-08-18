@@ -27,6 +27,13 @@ enum AOSOperationCoreError: Error, Equatable, CustomStringConvertible {
     case staleRecoveryClaim
     case tapUnavailable
     case artifactCustodyUnavailable
+    case artifactRetainUnavailable
+    case artifactIdentityMismatch
+    case artifactDestinationExists
+    case recordingBoundsExceeded
+    case recordingTargetDrift
+    case recordingEncoderFailed
+    case recordingCleanupRequired
 
     var code: String {
         switch self {
@@ -55,6 +62,13 @@ enum AOSOperationCoreError: Error, Equatable, CustomStringConvertible {
         case .staleRecoveryClaim: return "OPERATION_RECOVERY_CLAIM_STALE"
         case .tapUnavailable: return "OPERATION_TAP_UNAVAILABLE"
         case .artifactCustodyUnavailable: return "OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE"
+        case .artifactRetainUnavailable: return "OPERATION_ARTIFACT_RETAIN_UNAVAILABLE"
+        case .artifactIdentityMismatch: return "OPERATION_ARTIFACT_IDENTITY_MISMATCH"
+        case .artifactDestinationExists: return "OPERATION_ARTIFACT_DESTINATION_EXISTS"
+        case .recordingBoundsExceeded: return "SCREEN_RECORDING_BOUNDS_EXCEEDED"
+        case .recordingTargetDrift: return "SCREEN_RECORDING_TARGET_DRIFT"
+        case .recordingEncoderFailed: return "SCREEN_RECORDING_ENCODER_FAILED"
+        case .recordingCleanupRequired: return "SCREEN_RECORDING_CLEANUP_REQUIRED"
         }
     }
 
@@ -312,7 +326,7 @@ enum AOSTapBoundReason: String, Codable {
 }
 
 enum AOSArtifactLifecycleState: String, Codable {
-    case transient, published, released, retained, removing, removed
+    case transient, offered, released, retained, removing, removed
     case cleanupRequired = "cleanup_required"
     case recovering
 }
@@ -364,6 +378,8 @@ struct AOSOperationRecord: Codable, Equatable {
     var stopIntent: AOSStopIntent?
     var outcome: AOSOperationOutcome?
     var residualDigest: String?
+    var requestedBounds: AOSOperationRequestedBounds?
+    var progress: AOSOperationProgress?
     let createdAtNanoseconds: UInt64
     var updatedAtNanoseconds: UInt64
 }
@@ -374,6 +390,9 @@ struct AOSStreamRecord: Codable, Equatable {
     let daemonGeneration: UInt64
     var state: AOSStreamLifecycleState
     var residualDigest: String?
+    var frameCount: UInt64 = 0
+    var byteCount: UInt64 = 0
+    var updatedAtNanoseconds: UInt64 = 0
 }
 
 struct AOSTapRecord: Codable, Equatable {
@@ -398,6 +417,41 @@ enum AOSArtifactRecoveryDisposition: String, Codable {
     case removalVerification = "removal_verification"
 }
 
+struct AOSOperationRequestedBounds: Codable, Equatable {
+    let durationMilliseconds: UInt64
+    let frameRate: UInt64
+    let pixelCount: UInt64
+    let queueFrames: UInt64
+    let maximumOutputBytes: UInt64
+}
+
+struct AOSOperationProgress: Codable, Equatable {
+    var frameCount: UInt64
+    var byteCount: UInt64
+    var elapsedMilliseconds: UInt64
+    var droppedFrameCount: UInt64
+}
+
+enum AOSArtifactPendingAction: String, Codable {
+    case remove, release
+}
+
+struct AOSArtifactFileIdentity: Codable, Equatable {
+    let rootIdentityDigest: String
+    let relativeLocatorDigest: String
+    let device: UInt64
+    let inode: UInt64
+    let byteCount: UInt64
+    let contentDigest: String
+    let mediaType: String
+}
+
+struct AOSArtifactCustodyReceipt: Codable, Equatable {
+    let action: AOSArtifactPendingAction
+    let completedAtNanoseconds: UInt64
+    let destinationIdentityDigest: String?
+}
+
 struct AOSArtifactRecord: Codable, Equatable {
     let identity: AOSOperationIdentity
     let parentOperation: AOSOperationIdentity
@@ -406,6 +460,11 @@ struct AOSArtifactRecord: Codable, Equatable {
     var recoveryOriginState: AOSArtifactLifecycleState?
     var recoveryDisposition: AOSArtifactRecoveryDisposition?
     var custodyDigest: String?
+    var fileIdentity: AOSArtifactFileIdentity?
+    var pendingAction: AOSArtifactPendingAction?
+    var pendingDestinationIdentityDigest: String?
+    var custodyReceipt: AOSArtifactCustodyReceipt?
+    var updatedAtNanoseconds: UInt64 = 0
 }
 
 enum AOSResourceAdmissionMode: String, Codable {

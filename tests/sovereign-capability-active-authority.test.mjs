@@ -244,11 +244,22 @@ function collectLocalReferences(authority) {
   return references;
 }
 
-function currentOnlyProjection(ledger, excludedCapabilityIDs = new Set()) {
+function currentOnlyProjection(
+  ledger,
+  excludedCapabilityIDs = new Set(),
+  excludedSourceDispositionIDs = new Set(),
+) {
+  const sourceDispositionByCapability = Object.fromEntries(
+    Object.entries(ledger.coverage.source_disposition_by_capability)
+      .filter(([id]) => !excludedSourceDispositionIDs.has(id)),
+  );
   return {
     m1_bootstrap_paths: ledger.m1_bootstrap_paths,
     platform_evidence_sources: ledger.platform_evidence_sources,
-    coverage: ledger.coverage,
+    coverage: {
+      ...ledger.coverage,
+      source_disposition_by_capability: sourceDispositionByCapability,
+    },
     capabilities: ledger.capabilities
       .filter(({ id }) => !excludedCapabilityIDs.has(id))
       .map(({ id, current }) => ({ id, current })),
@@ -305,20 +316,44 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
   const changedCapabilityIDs = new Set(
     authority.verification.current_only_projection.allowed_capability_current_changes,
   );
+  const m3aCapabilityCurrentChanges = new Set([
+    'screencapturekit-screen-video',
+    'avassetwriter-custom-multitrack',
+  ]);
+  const currentProjectionExceptions = new Set([
+    ...changedCapabilityIDs,
+    ...m3aCapabilityCurrentChanges,
+  ]);
   assert.equal(
     currentLedger.inventory_revision,
     authority.verification.current_only_projection.expected_inventory_revision,
   );
   assert.deepEqual(
-    currentOnlyProjection(currentLedger, changedCapabilityIDs),
-    currentOnlyProjection(baselineLedger, changedCapabilityIDs),
-    'M2 must preserve current truth exactly outside the declared executable capability burn-down',
+    currentOnlyProjection(currentLedger, currentProjectionExceptions, m3aCapabilityCurrentChanges),
+    currentOnlyProjection(baselineLedger, currentProjectionExceptions, m3aCapabilityCurrentChanges),
+    'M2 plus the explicit M3A overlay must preserve all other current capability truth',
   );
   const currentRows = new Map(currentLedger.capabilities.map((row) => [row.id, row.current]));
   const baselineRows = new Map(baselineLedger.capabilities.map((row) => [row.id, row.current]));
   for (const id of changedCapabilityIDs) {
     assert.notDeepEqual(currentRows.get(id), baselineRows.get(id), `${id} must carry executable M2 truth`);
   }
+  for (const id of m3aCapabilityCurrentChanges) {
+    assert.notDeepEqual(currentRows.get(id), baselineRows.get(id), `${id} must carry executable M3A truth`);
+  }
+  const screenVideo = currentRows.get('screencapturekit-screen-video');
+  assert.equal(screenVideo.implementation.state, 'partial');
+  assert.equal(screenVideo.exposure.cli.state, 'complete');
+  assert.match(screenVideo.implementation.summary, /video producer.+H\.264 in QuickTime/iu);
+  assert.match(screenVideo.observation.frontier, /system audio and microphone output are explicitly absent/iu);
+  const assetWriter = currentRows.get('avassetwriter-custom-multitrack');
+  assert.equal(assetWriter.implementation.state, 'partial');
+  assert.deepEqual(assetWriter.observation.targets, ['one H.264 QuickTime video track']);
+  assert.match(assetWriter.observation.breadth, /no audio input/iu);
+  const writerDisposition = currentLedger.coverage
+    .source_disposition_by_capability['avassetwriter-custom-multitrack'];
+  assert.equal(writerDisposition.disposition, 'positive');
+  assert.match(writerDisposition.boundary_claim, /video input is current; multitrack and audio inputs remain absent/iu);
   const inputEvent = currentRows.get('global-input-event-observation');
   const baselineInputEvent = baselineRows.get('global-input-event-observation');
   const inputListenBinding = inputEvent.exposure.cli.bindings.find(({ form_id: id }) => id === 'listen-hotkey');
